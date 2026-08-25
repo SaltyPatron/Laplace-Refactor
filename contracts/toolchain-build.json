@@ -3,7 +3,7 @@
   "classification": "source-built-build-toolchain",
   "release_lock": "dependencies/release-lock.json",
   "logical_roots": {
-    "source_generation": "/opt/laplace/external/release-generations/841028ef55a44fcb2e28f06012282c6013df9a9f0ece26e5db9e0fd216952a92",
+    "source_generation": "/opt/laplace/external/release-generations/96ec09112dcd308df889bdfbafcf9a0cfa13fb2208caa7f54402b0e94f3e8b78",
     "archive_root": "/opt/laplace/external/acquisition-cache/source-archives",
     "build_root": "/opt/laplace/build/toolchain",
     "work_root": "/opt/laplace/work/toolchain",
@@ -40,7 +40,6 @@
       "LIBRARY_PATH",
       "MAKE",
       "MAKEFLAGS",
-      "MAKEINFO",
       "MFLAGS",
       "NINJA_STATUS",
       "NM",
@@ -74,34 +73,24 @@
       {"id": "tar", "path": "/usr/bin/tar", "sha256": "fd0d62eed19efd3e115aa1be44160f89d777cd1e6d6d8eb0ce7c8bdc879f59e2", "version_argument": "--version"},
       {"id": "python", "path": "/usr/bin/python3.10", "sha256": "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86", "version_argument": "--version"},
       {"id": "sh", "path": "/usr/bin/dash", "sha256": "4f291296e89b784cd35479fca606f228126e3641f5bcaee68dee36583d7c9483", "version_argument": "-c", "version_operand": "printf dash"},
-      {"id": "bash", "path": "/usr/bin/bash", "sha256": "59474588a312b6b6e73e5a42a59bf71e62b55416b6c9d5e4a6e1c630c2a9ecd4", "version_argument": "--version"},
-      {"id": "true", "path": "/usr/bin/true", "sha256": "6d6f62080ab1efc1e777e5aea240577f9c4fc4c32dd907e70c7a73d025e85086", "version_argument": "--version"}
+      {"id": "bash", "path": "/usr/bin/bash", "sha256": "59474588a312b6b6e73e5a42a59bf71e62b55416b6c9d5e4a6e1c630c2a9ecd4", "version_argument": "--version"}
     ]
   },
   "build": {
     "parallel_jobs": 6,
     "directory_mode": "0700",
     "component_order": [
-      "gnu-binutils",
       "gnu-make",
-      "pkgconf",
       "perl",
+      "texinfo",
+      "gnu-binutils",
+      "pkgconf",
       "gnu-bison",
       "flex",
       "cmake",
       "ninja"
     ],
     "components": {
-      "gnu-binutils": {
-        "version": "2.47",
-        "phase": "platform-toolchain",
-        "source_mode": "immutable-out-of-tree",
-        "configure": ["{source}/configure", "--prefix={prefix}", "--disable-nls", "--disable-werror"],
-        "build": ["{make}", "-j{jobs}"],
-        "test": ["{make}", "-j{jobs}", "check"],
-        "install": ["{make}", "install"],
-        "tools": ["addr2line", "ar", "as", "c++filt", "elfedit", "gprof", "ld", "nm", "objcopy", "objdump", "ranlib", "readelf", "size", "strings", "strip"]
-      },
       "gnu-make": {
         "version": "4.4.1",
         "phase": "platform-toolchain",
@@ -112,16 +101,6 @@
         "install": ["{make}", "install"],
         "tools": ["make"]
       },
-      "pkgconf": {
-        "version": "3.0.6",
-        "phase": "build-language-tools",
-        "source_mode": "immutable-out-of-tree",
-        "configure": ["{source}/configure", "--prefix={prefix}", "--with-system-libdir={prefix}/lib", "--with-system-includedir={prefix}/include"],
-        "build": ["{make}", "-j{jobs}"],
-        "test": ["{make}", "-j{jobs}", "check"],
-        "install": ["{make}", "install"],
-        "tools": ["pkgconf"]
-      },
       "perl": {
         "version": "5.44.0",
         "phase": "build-language-tools",
@@ -131,6 +110,36 @@
         "test": ["{make}", "test"],
         "install": ["{make}", "install"],
         "tools": ["perl"]
+      },
+      "texinfo": {
+        "version": "7.3",
+        "phase": "documentation-toolchain",
+        "source_mode": "immutable-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}", "--disable-nls", "--disable-perl-xs"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["makeinfo", "texi2any"]
+      },
+      "gnu-binutils": {
+        "version": "2.47",
+        "phase": "platform-toolchain",
+        "source_mode": "immutable-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}", "--disable-nls", "--disable-werror"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["addr2line", "ar", "as", "c++filt", "elfedit", "gprof", "ld", "nm", "objcopy", "objdump", "ranlib", "readelf", "size", "strings", "strip"]
+      },
+      "pkgconf": {
+        "version": "3.0.6",
+        "phase": "build-language-tools",
+        "source_mode": "immutable-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}", "--with-system-libdir={prefix}/lib", "--with-system-includedir={prefix}/include"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["pkgconf"]
       },
       "gnu-bison": {
         "version": "3.8.2",

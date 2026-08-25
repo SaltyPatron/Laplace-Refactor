@@ -23,20 +23,22 @@ PLAN_SCHEMA = "laplace.toolchain-build-plan/v1"
 PACKAGE_SCHEMA = "laplace.toolchain-package-receipt/v1"
 CONSUMER_SCHEMA = "laplace.toolchain-consumer-manifest/v1"
 EXPECTED_ORDER = [
-    "gnu-binutils",
     "gnu-make",
-    "pkgconf",
     "perl",
+    "texinfo",
+    "gnu-binutils",
+    "pkgconf",
     "gnu-bison",
     "flex",
     "cmake",
     "ninja",
 ]
 EXPECTED_VERSIONS = {
-    "gnu-binutils": "2.47",
     "gnu-make": "4.4.1",
-    "pkgconf": "3.0.6",
     "perl": "5.44.0",
+    "texinfo": "7.3",
+    "gnu-binutils": "2.47",
+    "pkgconf": "3.0.6",
     "gnu-bison": "3.8.2",
     "flex": "2.6.4",
     "cmake": "4.4.2",
@@ -52,6 +54,7 @@ REQUIRED_TOOL_IDS = {
     "flex",
     "ld",
     "make",
+    "makeinfo",
     "ninja",
     "nm",
     "objcopy",
@@ -203,7 +206,7 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
         if not HASH_PATTERN.fullmatch(digest):
             raise ToolchainError(f"bootstrap tool digest must be lowercase SHA-256: {tool_id}")
         require_string(tool.get("version_argument"), f"bootstrap.tools[{index}].version_argument")
-    for required in ("cc", "cxx", "ld", "ar", "ranlib", "make", "python", "sh", "true"):
+    for required in ("cc", "cxx", "ld", "ar", "ranlib", "make", "python", "sh"):
         if required not in ids:
             raise ToolchainError(f"bootstrap.tools must include {required}")
 
@@ -432,8 +435,9 @@ def build_environment(
     temporary.mkdir(exist_ok=True)
     home.chmod(0o700)
     temporary.chmod(0o700)
-    selected_binutils = component_id != "gnu-binutils"
-    selected_make = component_id not in ("gnu-binutils", "gnu-make")
+    component_index = EXPECTED_ORDER.index(component_id)
+    selected_binutils = component_index > EXPECTED_ORDER.index("gnu-binutils")
+    selected_make = component_index > EXPECTED_ORDER.index("gnu-make")
     environment = {
         "HOME": str(home),
         "TMPDIR": str(temporary),
@@ -444,7 +448,6 @@ def build_environment(
         "CC": bootstrap["cc"]["path"],
         "CXX": bootstrap["cxx"]["path"],
         "CONFIG_SITE": "/dev/null",
-        "MAKEINFO": bootstrap["true"]["path"],
     }
     if selected_binutils:
         for variable, tool in (
@@ -464,7 +467,7 @@ def build_environment(
         environment["LDFLAGS"] = f"-B{prefix / 'bin'}"
     if selected_make:
         environment["MAKE"] = str(prefix / "bin/make")
-    if component_id not in ("gnu-binutils", "gnu-make", "pkgconf"):
+    if component_index > EXPECTED_ORDER.index("pkgconf"):
         environment["PKG_CONFIG"] = str(prefix / "bin/pkgconf")
         environment["PKG_CONFIG_LIBDIR"] = f"{prefix / 'lib/pkgconfig'}:{prefix / 'share/pkgconfig'}"
     return environment
