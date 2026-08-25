@@ -20,7 +20,9 @@ jobs:
       - Linux
       - X64
       - laplace-refactor
+      - oneapi
       - postgres-18
+      - dotnet-10
       - avx2
     timeout-minutes: 30
     env:
@@ -28,6 +30,7 @@ jobs:
       LAPLACE_BLAKE3_SOURCE: /opt/laplace/external/blake3/c
       LAPLACE_GTEST_SOURCE: /opt/laplace/external/googletest
       LAPLACE_PG_CONFIG: /opt/laplace/pgsql-18/bin/pg_config
+      LAPLACE_ICX: /opt/intel/oneapi/compiler/latest/bin/icx
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify execution identity and toolchain
@@ -40,9 +43,14 @@ jobs:
           test -f "$LAPLACE_BLAKE3_SOURCE/blake3.c"
           test -f "$LAPLACE_GTEST_SOURCE/CMakeLists.txt"
           test "$($LAPLACE_PG_CONFIG --version | awk '{print $2}' | cut -d. -f1)" = 18
+          test -x "$LAPLACE_ICX"
+          test "$(dotnet --version | cut -d. -f1)" = 10
+          grep -qm1 -w avx2 /proc/cpuinfo
           cmake --version
           ninja --version
           "$LAPLACE_PG_CONFIG" --version
+          "$LAPLACE_ICX" --version
+          dotnet --version
       - name: Configure outside the repository
         shell: bash
         run: |
