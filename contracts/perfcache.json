@@ -57,6 +57,13 @@
     "aborted": 5,
     "materialized": 6
   },
+  "generation_manifest": {
+    "version": 2,
+    "magic": "LPCMNF02",
+    "sink_evidence": "ordered-staged-sink-artifact-fingerprints-plus-perfcache-sink-index",
+    "admission": "recompute-the-framework-sink-aggregate-and-prove-the-selected-fingerprint-is-the-perfcache-artifact-set",
+    "rule": "PostgreSQL-and-perfcache-may-be-sibling-sinks-of-one-canonical-stream; neither sibling may be omitted from the generation receipt"
+  },
   "postgresql_control_plane": {
     "shared_state": "database-scoped-named-dsm-fixed-layout-no-process-pointers",
     "persistent_authority": "one-transactional-active-control-row-plus-immutable-generation-manifests-and-admission-events",

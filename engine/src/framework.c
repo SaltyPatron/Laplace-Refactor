@@ -293,6 +293,24 @@ static void abort_sinks(laplace_framework_sink_v1* sinks, size_t count) {
     }
 }
 
+static void initialize_sink_artifact_hasher(
+    blake3_hasher* hasher,
+    size_t artifact_count) {
+    blake3_hasher_init(hasher);
+    blake3_hasher_update(hasher, SINK_DOMAIN, sizeof(SINK_DOMAIN) - 1u);
+    hash_u64(hasher, (uint64_t)artifact_count);
+}
+
+static void update_sink_artifact_hasher(
+    blake3_hasher* hasher,
+    size_t artifact_index,
+    const laplace_digest256* artifact_fingerprint) {
+    hash_u64(hasher, (uint64_t)artifact_index);
+    blake3_hasher_update(
+        hasher, artifact_fingerprint->bytes,
+        sizeof(artifact_fingerprint->bytes));
+}
+
 static laplace_framework_status begin_sinks(
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
@@ -345,10 +363,7 @@ static laplace_framework_status seal_sinks(
     uint64_t* failed_sink_index) {
     blake3_hasher artifact_hasher;
     size_t sink_index;
-    blake3_hasher_init(&artifact_hasher);
-    blake3_hasher_update(
-        &artifact_hasher, SINK_DOMAIN, sizeof(SINK_DOMAIN) - 1u);
-    hash_u64(&artifact_hasher, (uint64_t)sink_count);
+    initialize_sink_artifact_hasher(&artifact_hasher, sink_count);
     for (sink_index = 0; sink_index < sink_count; ++sink_index) {
         laplace_digest256 artifact;
         laplace_framework_status status;
@@ -365,11 +380,29 @@ static laplace_framework_status seal_sinks(
             return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
         }
 #endif
-        hash_u64(&artifact_hasher, (uint64_t)sink_index);
-        blake3_hasher_update(
-            &artifact_hasher, artifact.bytes, sizeof(artifact.bytes));
+        update_sink_artifact_hasher(
+            &artifact_hasher, sink_index, &artifact);
     }
     finish_digest(&artifact_hasher, artifacts_fingerprint);
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status laplace_framework_sink_artifacts_fingerprint(
+    const laplace_digest256* artifact_fingerprints,
+    size_t artifact_count,
+    laplace_digest256* aggregate_fingerprint) {
+    blake3_hasher hasher;
+    size_t index;
+    if (artifact_fingerprints == NULL || artifact_count == 0u ||
+        aggregate_fingerprint == NULL) {
+        return LAPLACE_FRAMEWORK_INVALID_ARGUMENT;
+    }
+    initialize_sink_artifact_hasher(&hasher, artifact_count);
+    for (index = 0u; index < artifact_count; ++index) {
+        update_sink_artifact_hasher(
+            &hasher, index, &artifact_fingerprints[index]);
+    }
+    finish_digest(&hasher, aggregate_fingerprint);
     return LAPLACE_FRAMEWORK_OK;
 }
 

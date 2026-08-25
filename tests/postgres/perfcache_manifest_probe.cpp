@@ -204,6 +204,11 @@ bool Generate(
                       request.sink_artifact_set_fingerprint, &staged)) {
         return false;
     }
+    const std::array<laplace_digest256, 1> sink_artifacts{{
+        request.sink_artifact_set_fingerprint}};
+    request.staged_sink_artifact_fingerprints = sink_artifacts.data();
+    request.staged_sink_count = sink_artifacts.size();
+    request.perfcache_sink_index = 0u;
     request.staged_receipt_id = staged.receipt_id;
     request.stream_fingerprint = staged.stream_fingerprint;
     request.staged_sink_artifacts_fingerprint =

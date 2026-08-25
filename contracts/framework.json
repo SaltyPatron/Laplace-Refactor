@@ -36,6 +36,11 @@
     "major": 1,
     "minor": 0
   },
+  "sink_artifact_evidence": {
+    "order": "sink-array-order",
+    "aggregate": "BLAKE3-256(domain || sink-count || repeated(sink-index || artifact-fingerprint))",
+    "rule": "a consumer claiming one sink artifact must carry the complete ordered sibling set and selected index sufficient to reproduce the staged stream aggregate"
+  },
   "activation_provider_abi": {
     "major": 1,
     "minor": 0

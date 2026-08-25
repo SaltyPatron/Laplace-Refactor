@@ -786,6 +786,12 @@
       "covered_dimensions": ["authenticated staged receipt", "exact staged sink artifact-set binding", "forged and unrelated stream rejection"]
     },
     {
+      "ctest_name": "PerfcacheRegistry.MultiSinkReceiptBindsEverySiblingAndSelectedArtifact",
+      "evidence_targets": ["LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["ordered multi-sink artifact evidence", "selected perfcache sink", "sibling tamper rejection"],
+      "defect_controls": ["perfcache.mutation-sink-aggregate-bypass-detected"]
+    },
+    {
       "ctest_name": "PerfcacheRegistry.CanonicalManifestReconstructsARealGeneration",
       "evidence_targets": ["LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
       "covered_dimensions": ["canonical generation-manifest encoding", "encoded manifest fingerprint", "cold reconstruction of a validated native generation"],
@@ -843,6 +849,12 @@
       "evidence_targets": ["LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS"],
       "covered_dimensions": ["cold materialization forged into active authority is detected"],
       "controls": "PerfcacheRegistry.DurableGenerationMaterializesWithoutForgingActivation"
+    },
+    {
+      "ctest_name": "perfcache.mutation-sink-aggregate-bypass-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["multi-sink aggregate validation bypass is detected"],
+      "controls": "PerfcacheRegistry.MultiSinkReceiptBindsEverySiblingAndSelectedArtifact"
     },
     {
       "ctest_name": "identity.contract-vectors",

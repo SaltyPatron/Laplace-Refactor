@@ -301,6 +301,12 @@ LAPLACE_API laplace_framework_status laplace_framework_canonical_stream_fingerpr
     uint64_t* total_records,
     uint64_t* total_bytes);
 
+LAPLACE_API laplace_framework_status
+laplace_framework_sink_artifacts_fingerprint(
+    const laplace_digest256* artifact_fingerprints,
+    size_t artifact_count,
+    laplace_digest256* aggregate_fingerprint);
+
 LAPLACE_API laplace_framework_status laplace_framework_stage_canonical_stream(
     const laplace_framework_context* context,
     const laplace_framework_canonical_stream* stream,

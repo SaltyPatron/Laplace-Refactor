@@ -100,7 +100,10 @@ typedef struct laplace_perfcache_generation_artifact {
 
 typedef struct laplace_perfcache_generation_request {
     const laplace_perfcache_generation_artifact* artifacts;
+    const laplace_digest256* staged_sink_artifact_fingerprints;
     size_t artifact_count;
+    size_t staged_sink_count;
+    size_t perfcache_sink_index;
     laplace_id128 activation_epoch_id;
     laplace_digest256 epoch_fingerprint;
     laplace_digest256 staged_receipt_id;
@@ -131,6 +134,8 @@ typedef struct laplace_perfcache_generation_receipt {
     uint64_t prefaulted_bytes;
     uint64_t prefaulted_pages;
     uint64_t active_reader_count;
+    uint64_t staged_sink_count;
+    uint64_t perfcache_sink_index;
     uint32_t disposition;
     uint32_t status;
 } laplace_perfcache_generation_receipt;

@@ -1182,6 +1182,10 @@ if(UNIX)
         materialization-forges-activation
         LAPLACE_TEST_MATERIALIZE_PERFCACHE_AS_ACTIVE
         PerfcacheRegistry.DurableGenerationMaterializesWithoutForgingActivation)
+    laplace_add_perfcache_registry_mutant(
+        sink-aggregate-bypass
+        LAPLACE_TEST_SKIP_PERFCACHE_SINK_AGGREGATE_VALIDATION
+        PerfcacheRegistry.MultiSinkReceiptBindsEverySiblingAndSelectedArtifact)
 endif()
 
 if(LAPLACE_POSTGRES_ENABLED)

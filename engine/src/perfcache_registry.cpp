@@ -28,8 +28,6 @@ constexpr std::uint8_t LoadedObjectsDomain[] =
     "laplace-perfcache-loaded-objects-v1";
 constexpr std::uint8_t ReceiptDomain[] =
     "laplace-perfcache-generation-receipt-v1";
-constexpr std::uint8_t FrameworkSinkDomain[] =
-    "laplace-framework-sink-artifacts-v1";
 
 bool BytesEqual(const std::uint8_t* left,
                 const std::uint8_t* right,
@@ -105,6 +103,8 @@ struct LoadedGeneration {
     std::uint64_t prefaulted_bytes{};
     std::uint64_t prefaulted_pages{};
     std::uint64_t readers{};
+    std::uint64_t staged_sink_count{};
+    std::uint64_t perfcache_sink_index{};
     bool retired{};
     LoadedGeneration* retired_next{};
 };
@@ -280,6 +280,13 @@ laplace_digest256 ManifestFingerprint(
         sizeof(request.staged_sink_artifacts_fingerprint.bytes));
     blake3_hasher_update(&hasher, request.sink_artifact_set_fingerprint.bytes,
                          sizeof(request.sink_artifact_set_fingerprint.bytes));
+    HashU64(&hasher, static_cast<std::uint64_t>(request.staged_sink_count));
+    HashU64(&hasher, static_cast<std::uint64_t>(request.perfcache_sink_index));
+    for (std::size_t index = 0u; index < request.staged_sink_count; ++index) {
+        blake3_hasher_update(
+            &hasher, request.staged_sink_artifact_fingerprints[index].bytes,
+            sizeof(request.staged_sink_artifact_fingerprints[index].bytes));
+    }
     blake3_hasher_update(&hasher, request.required_module_set_fingerprint.bytes,
                          sizeof(request.required_module_set_fingerprint.bytes));
     HashU64(&hasher, request.artifact_count);
@@ -336,6 +343,8 @@ void FillReceipt(const LoadedGeneration& generation,
     receipt->prefaulted_bytes = generation.prefaulted_bytes;
     receipt->prefaulted_pages = generation.prefaulted_pages;
     receipt->active_reader_count = generation.readers;
+    receipt->staged_sink_count = generation.staged_sink_count;
+    receipt->perfcache_sink_index = generation.perfcache_sink_index;
     receipt->disposition = disposition;
     receipt->status = static_cast<std::uint32_t>(status);
     blake3_hasher_init(&hasher);
@@ -370,6 +379,8 @@ void FillReceipt(const LoadedGeneration& generation,
     HashU64(&hasher, receipt->prefaulted_bytes);
     HashU64(&hasher, receipt->prefaulted_pages);
     HashU64(&hasher, receipt->active_reader_count);
+    HashU64(&hasher, receipt->staged_sink_count);
+    HashU64(&hasher, receipt->perfcache_sink_index);
     HashU32(&hasher, disposition);
     HashU32(&hasher, receipt->status);
     Finish(&hasher, &receipt->receipt_id);
@@ -415,6 +426,7 @@ struct laplace_perfcache_generation_manifest {
     std::vector<std::string> paths;
     std::vector<std::vector<laplace_perfcache_generation_dependency>>
         dependencies;
+    std::vector<laplace_digest256> staged_sink_artifact_fingerprints;
 };
 
 namespace {
@@ -570,17 +582,22 @@ bool StagedReceiptMatches(
     const laplace_framework_stream_receipt& staged_receipt,
     const laplace_perfcache_generation_request& request) {
     laplace_digest256 context_fingerprint{};
+#if defined(LAPLACE_TEST_SKIP_PERFCACHE_SINK_AGGREGATE_VALIDATION)
+    const bool sink_evidence_matches = true;
+#else
     laplace_digest256 expected_sink_fingerprint{};
-    blake3_hasher sink_hasher{};
-    blake3_hasher_init(&sink_hasher);
-    blake3_hasher_update(
-        &sink_hasher, FrameworkSinkDomain, sizeof(FrameworkSinkDomain) - 1u);
-    HashU64(&sink_hasher, 1u);
-    HashU64(&sink_hasher, 0u);
-    blake3_hasher_update(
-        &sink_hasher, request.sink_artifact_set_fingerprint.bytes,
-        sizeof(request.sink_artifact_set_fingerprint.bytes));
-    Finish(&sink_hasher, &expected_sink_fingerprint);
+    const bool sink_evidence_matches =
+        laplace_framework_sink_artifacts_fingerprint(
+            request.staged_sink_artifact_fingerprints,
+            request.staged_sink_count,
+            &expected_sink_fingerprint) == LAPLACE_FRAMEWORK_OK &&
+        DigestEqual(
+            request.staged_sink_artifact_fingerprints[
+                request.perfcache_sink_index],
+            request.sink_artifact_set_fingerprint) &&
+        DigestEqual(staged_receipt.sink_artifacts_fingerprint,
+                    expected_sink_fingerprint);
+#endif
     return laplace_framework_stream_receipt_validate(
                &context, &staged_receipt) == LAPLACE_FRAMEWORK_OK &&
         laplace_framework_context_fingerprint(
@@ -589,18 +606,18 @@ bool StagedReceiptMatches(
         staged_receipt.effect_disposition == LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT &&
         staged_receipt.failed_batch_index == LAPLACE_FRAMEWORK_NO_INDEX &&
         staged_receipt.failed_sink_index == LAPLACE_FRAMEWORK_NO_INDEX &&
-        staged_receipt.sink_count == 1u &&
+        staged_receipt.sink_count == request.staged_sink_count &&
         DigestEqual(staged_receipt.context_fingerprint, context_fingerprint) &&
         DigestEqual(staged_receipt.receipt_id, request.staged_receipt_id) &&
         DigestEqual(staged_receipt.stream_fingerprint,
                     request.stream_fingerprint) &&
         DigestEqual(staged_receipt.sink_artifacts_fingerprint,
                     request.staged_sink_artifacts_fingerprint) &&
-        DigestEqual(staged_receipt.sink_artifacts_fingerprint,
-                    expected_sink_fingerprint);
+        sink_evidence_matches;
 }
 
-bool RequestShapeValid(const laplace_perfcache_generation_request& request) {
+bool ArtifactRequestShapeValid(
+    const laplace_perfcache_generation_request& request) {
     if (request.artifacts == nullptr || request.artifact_count == 0u ||
         request.flags != 0u || request.reserved != 0u) {
         return false;
@@ -629,11 +646,18 @@ bool RequestShapeValid(const laplace_perfcache_generation_request& request) {
     return true;
 }
 
+bool RequestShapeValid(const laplace_perfcache_generation_request& request) {
+    return ArtifactRequestShapeValid(request) &&
+        request.staged_sink_artifact_fingerprints != nullptr &&
+        request.staged_sink_count != 0u &&
+        request.perfcache_sink_index < request.staged_sink_count;
+}
+
 constexpr std::uint8_t EncodedManifestMagic[8] = {
-    'L', 'P', 'C', 'M', 'N', 'F', '0', '1'};
-constexpr std::uint32_t EncodedManifestVersion = 1u;
+    'L', 'P', 'C', 'M', 'N', 'F', '0', '2'};
+constexpr std::uint32_t EncodedManifestVersion = 2u;
 constexpr std::uint8_t EncodedManifestDomain[] =
-    "laplace-perfcache-encoded-generation-manifest-v1";
+    "laplace-perfcache-encoded-generation-manifest-v2";
 
 void AppendBytes(std::vector<std::uint8_t>* output,
                  const std::uint8_t* bytes,
@@ -753,6 +777,11 @@ bool EncodeManifest(
     AppendDigest(output, request.stream_fingerprint);
     AppendDigest(output, request.staged_sink_artifacts_fingerprint);
     AppendDigest(output, request.sink_artifact_set_fingerprint);
+    AppendU64(output, request.staged_sink_count);
+    AppendU64(output, request.perfcache_sink_index);
+    for (std::size_t index = 0u; index < request.staged_sink_count; ++index) {
+        AppendDigest(output, request.staged_sink_artifact_fingerprints[index]);
+    }
     AppendDigest(output, request.required_module_set_fingerprint);
     AppendU32(output, request.flags);
     AppendU32(output, request.reserved);
@@ -954,6 +983,8 @@ bool DecodeManifest(
     }
     manifest->staged_receipt.status =
         static_cast<laplace_framework_status>(staged_status);
+    std::uint64_t staged_sink_count = 0u;
+    std::uint64_t perfcache_sink_index = 0u;
     if (!ReadId(&reader, &manifest->request.activation_epoch_id) ||
         !ReadDigest(&reader, &manifest->request.epoch_fingerprint) ||
         !ReadDigest(&reader, &manifest->request.staged_receipt_id) ||
@@ -963,7 +994,27 @@ bool DecodeManifest(
             &manifest->request.staged_sink_artifacts_fingerprint) ||
         !ReadDigest(&reader,
                     &manifest->request.sink_artifact_set_fingerprint) ||
-        !ReadDigest(&reader,
+        !reader.U64(&staged_sink_count) ||
+        !reader.U64(&perfcache_sink_index) || staged_sink_count == 0u ||
+        perfcache_sink_index >= staged_sink_count ||
+        staged_sink_count >
+            static_cast<std::uint64_t>(
+                std::numeric_limits<std::size_t>::max()) ||
+        perfcache_sink_index >
+            static_cast<std::uint64_t>(
+                std::numeric_limits<std::size_t>::max()) ||
+        staged_sink_count > reader.remaining() / sizeof(laplace_digest256)) {
+        return false;
+    }
+    manifest->staged_sink_artifact_fingerprints.resize(
+        static_cast<std::size_t>(staged_sink_count));
+    for (auto& sink_fingerprint :
+         manifest->staged_sink_artifact_fingerprints) {
+        if (!ReadDigest(&reader, &sink_fingerprint)) {
+            return false;
+        }
+    }
+    if (!ReadDigest(&reader,
                     &manifest->request.required_module_set_fingerprint) ||
         !reader.U32(&manifest->request.flags) ||
         !reader.U32(&manifest->request.reserved)) {
@@ -1019,6 +1070,12 @@ bool DecodeManifest(
     }
     manifest->request.artifacts = manifest->artifacts.data();
     manifest->request.artifact_count = manifest->artifacts.size();
+    manifest->request.staged_sink_artifact_fingerprints =
+        manifest->staged_sink_artifact_fingerprints.data();
+    manifest->request.staged_sink_count =
+        manifest->staged_sink_artifact_fingerprints.size();
+    manifest->request.perfcache_sink_index =
+        static_cast<std::size_t>(perfcache_sink_index);
     return RequestShapeValid(manifest->request) &&
         StagedReceiptMatches(manifest->context, manifest->staged_receipt,
                              manifest->request);
@@ -1136,7 +1193,7 @@ laplace_perfcache_generation_artifact_set_fingerprint(
     const laplace_perfcache_generation_request* request,
     laplace_digest256* fingerprint) {
     if (request == nullptr || fingerprint == nullptr ||
-        !RequestShapeValid(*request)) {
+        !ArtifactRequestShapeValid(*request)) {
         return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
     }
     blake3_hasher hasher{};
@@ -1338,6 +1395,10 @@ extern "C" laplace_perfcache_registry_status laplace_perfcache_registry_prepare(
             request->staged_sink_artifacts_fingerprint;
         generation->sink_artifact_set_fingerprint =
             request->sink_artifact_set_fingerprint;
+        generation->staged_sink_count =
+            static_cast<std::uint64_t>(request->staged_sink_count);
+        generation->perfcache_sink_index =
+            static_cast<std::uint64_t>(request->perfcache_sink_index);
         generation->required_module_set_fingerprint =
             request->required_module_set_fingerprint;
         generation->manifest_fingerprint = ManifestFingerprint(*request);
