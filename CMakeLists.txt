@@ -43,7 +43,8 @@ laplace_verify_git_dependency(
     blake3 "${LAPLACE_BLAKE3_ROOT}" "${LAPLACE_DEPENDENCY_LOCK}")
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static internal dependencies" FORCE)
-set(BLAKE3_SIMD_TYPE "amd64-asm" CACHE STRING "BLAKE3 SIMD implementation" FORCE)
+include(cmake/LaplaceBlake3.cmake)
+laplace_configure_blake3_provider()
 add_subdirectory("${LAPLACE_BLAKE3_SOURCE}" "${CMAKE_BINARY_DIR}/dependencies/blake3" EXCLUDE_FROM_ALL)
 
 include(cmake/LaplaceIdentityContract.cmake)
@@ -113,6 +114,17 @@ if(BUILD_TESTING)
         spectra "${LAPLACE_SPECTRA_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK}")
     set(INSTALL_GTEST OFF CACHE BOOL "Do not install internal test dependency" FORCE)
     add_subdirectory("${LAPLACE_GTEST_SOURCE}" "${CMAKE_BINARY_DIR}/dependencies/googletest" EXCLUDE_FROM_ALL)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+        include(cmake/LaplaceDependencyCompiler.cmake)
+        foreach(google_test_target IN ITEMS gtest gtest_main)
+            laplace_remove_dependency_compile_flag(
+                "${google_test_target}" "-Winline"
+                "IntelLLVM 2026.1 rejects GoogleTest 1.18.0's Clang-family strict flag")
+        endforeach()
+        laplace_add_dependency_compile_option(
+            gtest "-Wno-deprecated-declarations"
+            "IntelLLVM reports a libstdc++ stable_sort implementation detail used while compiling GoogleTest 1.18.0")
+    endif()
     add_subdirectory(tests)
 endif()
 

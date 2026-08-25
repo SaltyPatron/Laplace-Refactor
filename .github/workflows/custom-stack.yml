@@ -28,7 +28,6 @@ jobs:
     env:
       PATH: /opt/laplace/pgsql-18/bin:/usr/local/bin:/usr/bin:/bin
       LAPLACE_PG_CONFIG: /opt/laplace/pgsql-18/bin/pg_config
-      LAPLACE_ICX: /opt/intel/oneapi/compiler/latest/bin/icx
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify execution identity and toolchain
@@ -39,9 +38,18 @@ jobs:
           test -w "$RUNNER_TEMP"
           test -x "$LAPLACE_PG_CONFIG"
           test "$($LAPLACE_PG_CONFIG --version | awk '{print $2}' | cut -d. -f1)" = 18
+          LAPLACE_ICX=$(jq -r '.toolchain.c_compiler' contracts/postgresql-build.json)
+          LAPLACE_ICPX=$(jq -r '.toolchain.cxx_compiler' contracts/postgresql-build.json)
+          expected_icx_sha=$(jq -r '.toolchain.c_compiler_sha256' contracts/postgresql-build.json)
+          expected_icpx_sha=$(jq -r '.toolchain.cxx_compiler_sha256' contracts/postgresql-build.json)
           test -x "$LAPLACE_ICX"
+          test -x "$LAPLACE_ICPX"
+          test "$(sha256sum "$LAPLACE_ICX" | awk '{print $1}')" = "$expected_icx_sha"
+          test "$(sha256sum "$LAPLACE_ICPX" | awk '{print $1}')" = "$expected_icpx_sha"
           test "$(dotnet --version | cut -d. -f1)" = 10
           grep -qm1 -w avx2 /proc/cpuinfo
+          printf 'LAPLACE_ICX=%s\n' "$LAPLACE_ICX" >> "$GITHUB_ENV"
+          printf 'LAPLACE_ICPX=%s\n' "$LAPLACE_ICPX" >> "$GITHUB_ENV"
           cmake --version
           ninja --version
           "$LAPLACE_PG_CONFIG" --version
@@ -68,8 +76,16 @@ jobs:
         run: |
           set -euo pipefail
           build_directory="$RUNNER_TEMP/laplace-output/postgresql-native"
+          c_flags=$(jq -r '.build.c_flags | join(" ")' contracts/postgresql-build.json)
+          cxx_flags=$(jq -r '.build.cxx_flags | join(" ")' contracts/postgresql-build.json)
+          linker_flags=$(jq -r '.build.linker_flags | join(" ")' contracts/postgresql-build.json)
           cmake -S . -B "$build_directory" -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER="$LAPLACE_ICX" \
+            -DCMAKE_CXX_COMPILER="$LAPLACE_ICPX" \
+            -DCMAKE_C_FLAGS_RELWITHDEBINFO="$c_flags" \
+            -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="$cxx_flags" \
+            -DCMAKE_EXE_LINKER_FLAGS="$linker_flags" \
             -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
             -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
             -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \

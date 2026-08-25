@@ -1,0 +1,117 @@
+{
+  "schema": "laplace.postgresql-build-contract/v1",
+  "source": {
+    "release_lock": "dependencies/release-lock.json",
+    "entry": "postgresql",
+    "version": "18.6"
+  },
+  "toolchain": {
+    "c_compiler": "/opt/intel/oneapi/compiler/2026.1/bin/icx",
+    "c_compiler_sha256": "be7fa7c3c74c2ba2b8e1b50b0a61e37986441727899e25f3545636bde157c083",
+    "cxx_compiler": "/opt/intel/oneapi/compiler/2026.1/bin/icpx",
+    "cxx_compiler_sha256": "be7fa7c3c74c2ba2b8e1b50b0a61e37986441727899e25f3545636bde157c083",
+    "version_line": "Intel(R) oneAPI DPC++/C++ Compiler 2026.1.1 (2026.1.1.20260724)",
+    "target": "x86_64-unknown-linux-gnu"
+  },
+  "input_closure": {
+    "status": "incomplete",
+    "selected_exact_inputs": [
+      "PostgreSQL release archive and expanded tree",
+      "Intel oneAPI C compiler executable",
+      "Intel oneAPI C++ compiler executable",
+      "configure arguments and C/C++/linker flags",
+      "Laplace PostgreSQL build driver",
+      "Laplace release archive verifier"
+    ],
+    "unselected_host_inputs": [
+      "GNU make",
+      "GNU binutils",
+      "Bison",
+      "Flex",
+      "Python interpreter and standard library",
+      "Perl and TAP modules",
+      "pkg-config",
+      "ICU headers and libraries",
+      "OpenSSL headers and libraries",
+      "libxml2 headers and libraries",
+      "zlib headers and libraries",
+      "LZ4 headers and libraries",
+      "Zstandard headers and libraries",
+      "liburing headers and libraries",
+      "system timezone data"
+    ],
+    "activation_policy": "blocked-until-all-build-and-runtime-inputs-are-selected-packaged-and-receipted"
+  },
+  "build": {
+    "configure_arguments": [
+      "--with-icu",
+      "--with-ssl=openssl",
+      "--with-zlib",
+      "--with-libxml",
+      "--without-readline",
+      "--with-lz4",
+      "--with-zstd",
+      "--with-liburing",
+      "--with-system-tzdata=/usr/share/zoneinfo",
+      "--enable-tap-tests"
+    ],
+    "c_flags": [
+      "-O3",
+      "-g",
+      "-march=broadwell",
+      "-fno-fast-math",
+      "-ffp-contract=off",
+      "-fno-omit-frame-pointer"
+    ],
+    "cxx_flags": [
+      "-O3",
+      "-g",
+      "-march=broadwell",
+      "-fno-fast-math",
+      "-ffp-contract=off",
+      "-fno-omit-frame-pointer"
+    ],
+    "linker_flags": ["-Wl,--as-needed"],
+    "make_targets": ["world-bin", "check-world", "install-world-bin"],
+    "parallel_jobs": 6,
+    "build_directory_mode": "0700",
+    "pkg_config_libdir": "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig",
+    "python": "/usr/bin/python3"
+  },
+  "environment": {
+    "rejected_nonempty": [
+      "PGXS",
+      "LD_LIBRARY_PATH",
+      "CMAKE_PREFIX_PATH",
+      "PKG_CONFIG_PATH",
+      "CPATH",
+      "LIBRARY_PATH"
+    ]
+  },
+  "runtime_closure": {
+    "package_sonames": [
+      "libecpg.so.6",
+      "libpgtypes.so.3",
+      "libpq.so.5"
+    ],
+    "system_abi_sonames": [
+      "libc.so.6",
+      "libm.so.6"
+    ],
+    "selected_but_unpacked_sonames": [
+      "libcrypto.so.3",
+      "libicudata.so.70",
+      "libicui18n.so.70",
+      "libicuuc.so.70",
+      "libimf.so",
+      "libintlc.so.5",
+      "liblz4.so.1",
+      "libssl.so.3",
+      "liburing.so.2",
+      "libxml2.so.2",
+      "libz.so.1",
+      "libzstd.so.1"
+    ],
+    "activation_policy": "blocked-until-selected-libraries-are-packaged-and-recursive-elf-closure-is-clean"
+  }
+}

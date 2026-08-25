@@ -28,7 +28,21 @@ have different mutation authority. Fast cognition cannot rewrite testimony or th
 calculus. Learning publishes a new evidence/adjudication epoch. Discovery can only
 propose a versioned extension until external evidence and activation gates accept it.
 
-## 2. Framework before modules
+## 2. Minimal trusted bootstrap, then framework before modules
+
+Laplace cannot use Laplace to build its first compiler, PostgreSQL server, dependency
+package, or native engine. A deliberately bounded acquisition/build foundation is the
+only pre-framework exception. It may fetch pinned upstream inputs, verify them, invoke
+a declared toolchain in a clean environment, run upstream tests, and emit inert,
+content-addressed staged packages and receipts. It has no authority to activate those
+packages, create canonical product state, implement semantic operations, or silently
+select unresolved host inputs.
+
+The execution framework consumes those verified staged inputs. Package activation,
+runtime object admission, database initialization, migrations, and every product
+module then pass through the framework's authority, resource, epoch, and receipt
+boundaries. This separates the unavoidable cart-before-the-horse bootstrap from the
+machine that subsequently makes its own dependencies and modules Laplace operations.
 
 Every product module executes through the same framework:
 

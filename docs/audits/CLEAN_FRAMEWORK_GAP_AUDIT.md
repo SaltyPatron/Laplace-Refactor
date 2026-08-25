@@ -31,6 +31,23 @@ These are component facts. They do not establish a canonical database, universal
 ingestion, a Unicode root, hot perfcache epochs, conversation, cognition, model
 compilation, or the complete product.
 
+## Acquisition/build foundation in progress
+
+The Phase-1 branch now separates the unavoidable pre-framework source/package
+bootstrap from framework-mediated activation. The PostgreSQL 18.6 build contract and
+driver pin the upstream archive, Intel compiler identity and numeric flags, reject
+ambient build-path variables, require the upstream world/TAP suite, keep all outputs
+outside the repository, and emit an input-addressed staged package and receipt. Build
+directories are private so upstream permission tests are not changed by inherited
+setgid state.
+
+This is not yet an activated PostgreSQL product. The contract deliberately records
+that the complete build-input and recursive runtime-object closures remain
+incomplete; unselected host tools/libraries and unclassified runtime objects block
+activation. The next accepted boundary is a reproducible package with those
+dispositions explicit, followed by framework-mediated activation into the isolated
+`laplace-refactor` cluster owned by issue #12.
+
 ## Additional implementation accepted through PR #11
 
 - a PostgreSQL extension/SPI vertical slice for the two current ISA operations;
