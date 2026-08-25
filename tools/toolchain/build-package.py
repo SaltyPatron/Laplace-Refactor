@@ -239,6 +239,14 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
     missing_tools = sorted(REQUIRED_TOOL_IDS - declared_tools)
     if missing_tools:
         raise ToolchainError(f"toolchain consumer manifest is missing tools: {', '.join(missing_tools)}")
+    perl_configure = components["perl"]["configure"]
+    for closed_local_path in ("-Dlocincpth= ", "-Dloclibpth= "):
+        if closed_local_path not in perl_configure:
+            raise ToolchainError(
+                "Perl configure must use a nonempty blank sentinel to disable local paths"
+            )
+    if any("/usr/local" in argument for argument in perl_configure):
+        raise ToolchainError("Perl configure must not admit /usr/local inputs")
 
     receipt = require_object(contract.get("receipt"), "receipt")
     sections = require_string_array(receipt.get("required_sections"), "receipt.required_sections")
