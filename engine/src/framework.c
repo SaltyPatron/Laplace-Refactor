@@ -239,6 +239,7 @@ static void hash_stream_receipt(laplace_framework_stream_receipt* receipt) {
     blake3_hasher_update(&hasher, RECEIPT_DOMAIN, sizeof(RECEIPT_DOMAIN) - 1u);
     hash_u32(&hasher, (uint32_t)receipt->status);
     hash_u32(&hasher, receipt->record_type);
+    hash_u32(&hasher, receipt->effect_disposition);
     hash_u64(&hasher, receipt->total_records);
     hash_u64(&hasher, receipt->total_bytes);
     hash_u64(&hasher, receipt->batch_count);
@@ -248,6 +249,12 @@ static void hash_stream_receipt(laplace_framework_stream_receipt* receipt) {
     blake3_hasher_update(
         &hasher, receipt->context_fingerprint.bytes,
         sizeof(receipt->context_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->source_fingerprint.bytes,
+        sizeof(receipt->source_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->recipe_fingerprint.bytes,
+        sizeof(receipt->recipe_fingerprint.bytes));
     blake3_hasher_update(
         &hasher, receipt->stream_fingerprint.bytes,
         sizeof(receipt->stream_fingerprint.bytes));
@@ -259,8 +266,7 @@ static void hash_stream_receipt(laplace_framework_stream_receipt* receipt) {
 
 laplace_framework_status laplace_framework_stage_canonical_stream(
     const laplace_framework_context* context,
-    const laplace_framework_canonical_batch* batches,
-    size_t batch_count,
+    const laplace_framework_canonical_stream* stream,
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
     laplace_framework_stream_receipt* receipt) {
@@ -268,6 +274,7 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     laplace_framework_status status;
     size_t sink_index;
     size_t batch_index;
+    size_t batch_count;
     size_t begun = 0;
     if (receipt == NULL) {
         return LAPLACE_FRAMEWORK_INVALID_ARGUMENT;
@@ -275,7 +282,6 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     memset(receipt, 0, sizeof(*receipt));
     receipt->failed_batch_index = LAPLACE_FRAMEWORK_NO_INDEX;
     receipt->failed_sink_index = LAPLACE_FRAMEWORK_NO_INDEX;
-    receipt->batch_count = (uint64_t)batch_count;
     receipt->sink_count = (uint64_t)sink_count;
     status = laplace_framework_context_fingerprint(
         context, &receipt->context_fingerprint);
@@ -284,8 +290,23 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
         hash_stream_receipt(receipt);
         return status;
     }
+    if (stream == NULL || stream->batches == NULL || stream->batch_count == 0 ||
+        stream->batch_count > SIZE_MAX ||
+        stream->flags != LAPLACE_FRAMEWORK_KNOWN_STREAM_FLAGS ||
+        stream->reserved != 0 || digest_is_zero(&stream->source_fingerprint) ||
+        digest_is_zero(&stream->recipe_fingerprint)) {
+        receipt->status = LAPLACE_FRAMEWORK_STREAM_INVALID;
+        hash_stream_receipt(receipt);
+        return receipt->status;
+    }
+    batch_count = (size_t)stream->batch_count;
+    receipt->batch_count = stream->batch_count;
+#if !defined(LAPLACE_TEST_OMIT_STREAM_BINDING_FROM_RECEIPT)
+    receipt->source_fingerprint = stream->source_fingerprint;
+    receipt->recipe_fingerprint = stream->recipe_fingerprint;
+#endif
     status = laplace_framework_canonical_stream_fingerprint(
-        batches, batch_count, &receipt->stream_fingerprint,
+        stream->batches, batch_count, &receipt->stream_fingerprint,
         &receipt->record_type, &receipt->total_records, &receipt->total_bytes);
     if (status != LAPLACE_FRAMEWORK_OK) {
         receipt->status = status;
@@ -324,7 +345,7 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     for (batch_index = 0; batch_index < batch_count; ++batch_index) {
         for (sink_index = 0; sink_index < sink_count; ++sink_index) {
             status = sinks[sink_index].stage(
-                sinks[sink_index].state, &batches[batch_index]);
+                sinks[sink_index].state, &stream->batches[batch_index]);
             if (status != LAPLACE_FRAMEWORK_OK) {
                 receipt->status = LAPLACE_FRAMEWORK_SINK_STAGE_FAILED;
                 receipt->failed_batch_index = (uint64_t)batch_index;
@@ -357,6 +378,7 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
             &artifact_hasher, artifact.bytes, sizeof(artifact.bytes));
     }
     finish_digest(&artifact_hasher, &receipt->sink_artifacts_fingerprint);
+    receipt->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT;
     receipt->status = LAPLACE_FRAMEWORK_OK;
     hash_stream_receipt(receipt);
     return LAPLACE_FRAMEWORK_OK;

@@ -22,9 +22,10 @@ enough.
   conserved resource grants;
 - mandatory ISA and PostgreSQL binding of that explicit context into program and
   receipt identity, with no hidden database or session context;
-- a partition-independent canonical stream fingerprint and typed sink ABI that stages
-  the same calculated stream into multiple providers, seals only after complete
-  preflight, and aborts every staged sink on failure;
+- a source- and recipe-bound, partition-independent canonical stream fingerprint and
+  typed sink ABI that stages the same calculated stream into multiple providers,
+  records only an inert staged-effect disposition, seals only after complete preflight,
+  and aborts every staged sink on failure;
 - a generic immutable perfcache file/mapping/publication foundation with distinct
   dense-direct, sorted-fixed, and module-defined access laws; and
 - native package/consumer and dependency-verification foundations.
@@ -79,9 +80,10 @@ graph, prefaulting, reader epoch pins, or restart-free generation handoff.
    loaded-artifact diagnostic surface.
 5. C ABI and PostgreSQL constants are partly generated; the SQL and C# surfaces are
    not generated as one complete contract.
-6. Current receipts bind the complete execution-context fingerprint but omit source
-   and recipe objects, physical execution plan, persistence disposition, loaded-object
-   identity, and other lifecycle facts required by the product.
+6. Current receipts bind the complete execution-context plus exact source and recipe
+   fingerprints for canonical streams, but omit their retained manifests/objects,
+   physical execution plan, durable activation disposition, loaded-object identity,
+   and other lifecycle facts required by the product.
 7. There is no authoritative Unicode/UCD/DUCET source manifest in the dependency lock.
 8. There is no Super-Fibonacci/Hopf/Hilbert Unicode seed implementation in the clean
     engine.

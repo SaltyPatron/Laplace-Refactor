@@ -18,7 +18,7 @@ AS $context$
             '\x0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a'::bytea
         ],
         '\xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0'::bytea,
-        1048576::bigint, 4, 1, 1023::bigint, 1::smallint, 0::smallint, 2
+        1048576::bigint, 4, 1, 1023::bigint, 1::smallint, 1::smallint, 2
     )::laplace.execution_context
 $context$;
 

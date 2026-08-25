@@ -98,6 +98,42 @@ target_compile_options(laplace_framework_tests PRIVATE
 gtest_discover_tests(laplace_framework_tests
     PROPERTIES LABELS "implementation;framework;registry;batch;sink;receipt")
 
+add_executable(laplace_framework_stream_probe
+    framework_stream_probe.cpp)
+target_link_libraries(laplace_framework_stream_probe PRIVATE Laplace::Framework)
+target_compile_options(laplace_framework_stream_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME framework.canonical-stream-binding-contract
+    COMMAND laplace_framework_stream_probe)
+set_tests_properties(framework.canonical-stream-binding-contract PROPERTIES
+    LABELS "implementation;framework;batch;sink;receipt;contract")
+
+add_library(laplace_framework_stream_mutant STATIC
+    ../engine/src/framework.c)
+target_include_directories(laplace_framework_stream_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_framework_stream_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_framework_stream_mutant
+    PRIVATE LAPLACE_TEST_OMIT_STREAM_BINDING_FROM_RECEIPT=1)
+target_compile_options(laplace_framework_stream_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_framework_stream_mutation_probe
+    framework_stream_probe.cpp)
+target_link_libraries(laplace_framework_stream_mutation_probe
+    PRIVATE laplace_framework_stream_mutant)
+target_compile_options(laplace_framework_stream_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME framework.mutation-stream-binding-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_framework_stream_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_stream_failure.cmake")
+set_tests_properties(framework.mutation-stream-binding-omission-detected PROPERTIES
+    LABELS "framework;batch;sink;receipt;mutation")
+
 add_test(
     NAME build.repository-output-rejected
     COMMAND "${CMAKE_COMMAND}"

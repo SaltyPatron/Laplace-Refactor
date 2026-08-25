@@ -49,6 +49,20 @@ laplace_framework_canonical_batch Batch(
         LAPLACE_FRAMEWORK_KNOWN_BATCH_FLAGS};
 }
 
+laplace_framework_canonical_stream Stream(
+    const laplace_framework_canonical_batch* batches,
+    std::size_t batch_count,
+    std::uint8_t source_seed = 0xc0u,
+    std::uint8_t recipe_seed = 0xe0u) {
+    laplace_framework_canonical_stream stream{};
+    stream.batches = batches;
+    stream.batch_count = static_cast<std::uint64_t>(batch_count);
+    stream.flags = LAPLACE_FRAMEWORK_KNOWN_STREAM_FLAGS;
+    FillDigest(&stream.source_fingerprint, source_seed);
+    FillDigest(&stream.recipe_fingerprint, recipe_seed);
+    return stream;
+}
+
 struct MemorySink final {
     std::vector<std::uint8_t> bytes;
     std::uint64_t expected_records{};
@@ -192,12 +206,13 @@ TEST(CanonicalStream, FansOneStreamOutToEverySink) {
     auto context = Context();
     const std::array<std::uint8_t, 5> bytes{{9u, 8u, 7u, 6u, 5u}};
     const auto batch = Batch(bytes.data(), bytes.size(), 2u, 0u);
+    const auto stream = Stream(&batch, 1u);
     MemorySink left{};
     MemorySink right{};
     std::array<laplace_framework_sink_v1, 2> sinks{{Sink(&left), Sink(&right)}};
     laplace_framework_stream_receipt receipt{};
     ASSERT_EQ(laplace_framework_stage_canonical_stream(
-                  &context, &batch, 1u, sinks.data(), sinks.size(), &receipt),
+                  &context, &stream, sinks.data(), sinks.size(), &receipt),
               LAPLACE_FRAMEWORK_OK);
     EXPECT_TRUE(left.sealed);
     EXPECT_TRUE(right.sealed);
@@ -206,19 +221,73 @@ TEST(CanonicalStream, FansOneStreamOutToEverySink) {
     EXPECT_EQ(receipt.total_records, 2u);
     EXPECT_EQ(receipt.total_bytes, bytes.size());
     EXPECT_EQ(receipt.sink_count, sinks.size());
+    EXPECT_EQ(receipt.effect_disposition, LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT);
+}
+
+TEST(CanonicalStream, SourceAndRecipeAreMandatoryReceiptBindings) {
+    auto context = Context();
+    const std::array<std::uint8_t, 2> bytes{{7u, 9u}};
+    const auto batch = Batch(bytes.data(), bytes.size(), 1u, 0u);
+    auto stream_a = Stream(&batch, 1u, 0xc0u, 0xe0u);
+    auto stream_b = Stream(&batch, 1u, 0xc1u, 0xe0u);
+    auto stream_c = Stream(&batch, 1u, 0xc0u, 0xe1u);
+    MemorySink memory_a{};
+    MemorySink memory_b{};
+    MemorySink memory_c{};
+    auto sink_a = Sink(&memory_a);
+    auto sink_b = Sink(&memory_b);
+    auto sink_c = Sink(&memory_c);
+    laplace_framework_stream_receipt receipt_a{};
+    laplace_framework_stream_receipt receipt_b{};
+    laplace_framework_stream_receipt receipt_c{};
+    ASSERT_EQ(laplace_framework_stage_canonical_stream(
+                  &context, &stream_a, &sink_a, 1u, &receipt_a),
+              LAPLACE_FRAMEWORK_OK);
+    ASSERT_EQ(laplace_framework_stage_canonical_stream(
+                  &context, &stream_b, &sink_b, 1u, &receipt_b),
+              LAPLACE_FRAMEWORK_OK);
+    ASSERT_EQ(laplace_framework_stage_canonical_stream(
+                  &context, &stream_c, &sink_c, 1u, &receipt_c),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(std::memcmp(receipt_a.stream_fingerprint.bytes,
+                          receipt_b.stream_fingerprint.bytes,
+                          sizeof(receipt_a.stream_fingerprint.bytes)), 0);
+    EXPECT_NE(std::memcmp(receipt_a.source_fingerprint.bytes,
+                          receipt_b.source_fingerprint.bytes,
+                          sizeof(receipt_a.source_fingerprint.bytes)), 0);
+    EXPECT_NE(std::memcmp(receipt_a.receipt_id.bytes,
+                          receipt_b.receipt_id.bytes,
+                          sizeof(receipt_a.receipt_id.bytes)), 0);
+    EXPECT_NE(std::memcmp(receipt_a.recipe_fingerprint.bytes,
+                          receipt_c.recipe_fingerprint.bytes,
+                          sizeof(receipt_a.recipe_fingerprint.bytes)), 0);
+    EXPECT_NE(std::memcmp(receipt_a.receipt_id.bytes,
+                          receipt_c.receipt_id.bytes,
+                          sizeof(receipt_a.receipt_id.bytes)), 0);
+
+    std::memset(&stream_a.source_fingerprint, 0, sizeof(stream_a.source_fingerprint));
+    MemorySink rejected{};
+    auto rejected_sink = Sink(&rejected);
+    laplace_framework_stream_receipt rejected_receipt{};
+    EXPECT_EQ(laplace_framework_stage_canonical_stream(
+                  &context, &stream_a, &rejected_sink, 1u, &rejected_receipt),
+              LAPLACE_FRAMEWORK_STREAM_INVALID);
+    EXPECT_FALSE(rejected.begun);
+    EXPECT_EQ(rejected_receipt.effect_disposition, LAPLACE_FRAMEWORK_EFFECT_NONE);
 }
 
 TEST(CanonicalStream, SealFailureAbortsEveryStagedSink) {
     auto context = Context();
     const std::array<std::uint8_t, 3> bytes{{3u, 2u, 1u}};
     const auto batch = Batch(bytes.data(), bytes.size(), 1u, 0u);
+    const auto stream = Stream(&batch, 1u);
     MemorySink left{};
     MemorySink right{};
     right.fail_seal = true;
     std::array<laplace_framework_sink_v1, 2> sinks{{Sink(&left), Sink(&right)}};
     laplace_framework_stream_receipt receipt{};
     EXPECT_EQ(laplace_framework_stage_canonical_stream(
-                  &context, &batch, 1u, sinks.data(), sinks.size(), &receipt),
+                  &context, &stream, sinks.data(), sinks.size(), &receipt),
               LAPLACE_FRAMEWORK_SINK_SEAL_FAILED);
     EXPECT_TRUE(left.aborted);
     EXPECT_TRUE(right.aborted);
@@ -233,11 +302,12 @@ TEST(CanonicalStream, RejectsOrdinalGapsBeforeOpeningSinks) {
     auto context = Context();
     const std::array<std::uint8_t, 2> bytes{{1u, 2u}};
     const auto batch = Batch(bytes.data(), bytes.size(), 1u, 4u);
+    const auto stream = Stream(&batch, 1u);
     MemorySink memory{};
     auto sink = Sink(&memory);
     laplace_framework_stream_receipt receipt{};
     EXPECT_EQ(laplace_framework_stage_canonical_stream(
-                  &context, &batch, 1u, &sink, 1u, &receipt),
+                  &context, &stream, &sink, 1u, &receipt),
               LAPLACE_FRAMEWORK_STREAM_INVALID);
     EXPECT_FALSE(memory.begun);
 }

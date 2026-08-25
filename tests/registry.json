@@ -61,6 +61,24 @@
       "covered_dimensions": ["partition-independent stream identity", "ordered canonical bytes"]
     },
     {
+      "ctest_name": "CanonicalStream.SourceAndRecipeAreMandatoryReceiptBindings",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["mandatory exact source identity", "mandatory recipe identity", "stage-only effect disposition", "receipt sensitivity"],
+      "defect_controls": ["framework.mutation-stream-binding-omission-detected"]
+    },
+    {
+      "ctest_name": "framework.canonical-stream-binding-contract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["public canonical stream source and recipe binding probe"],
+      "defect_controls": ["framework.mutation-stream-binding-omission-detected"]
+    },
+    {
+      "ctest_name": "framework.mutation-stream-binding-omission-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["omitted source/recipe receipt binding is detected"],
+      "controls": "framework.canonical-stream-binding-contract"
+    },
+    {
       "ctest_name": "CanonicalStream.FansOneStreamOutToEverySink",
       "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
       "covered_dimensions": ["single-origin stream", "multiple staged sinks", "no sink recalculation"]

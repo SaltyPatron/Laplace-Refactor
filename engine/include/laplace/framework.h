@@ -46,6 +46,15 @@ typedef struct laplace_framework_canonical_batch {
     uint32_t flags;
 } laplace_framework_canonical_batch;
 
+typedef struct laplace_framework_canonical_stream {
+    const laplace_framework_canonical_batch* batches;
+    laplace_digest256 source_fingerprint;
+    laplace_digest256 recipe_fingerprint;
+    uint64_t batch_count;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_framework_canonical_stream;
+
 typedef enum laplace_framework_status {
     LAPLACE_FRAMEWORK_OK = 0,
     LAPLACE_FRAMEWORK_INVALID_ARGUMENT = 1,
@@ -93,6 +102,8 @@ typedef struct laplace_framework_sink_v1 {
 typedef struct laplace_framework_stream_receipt {
     laplace_digest256 receipt_id;
     laplace_digest256 context_fingerprint;
+    laplace_digest256 source_fingerprint;
+    laplace_digest256 recipe_fingerprint;
     laplace_digest256 stream_fingerprint;
     laplace_digest256 sink_artifacts_fingerprint;
     uint64_t total_records;
@@ -102,7 +113,9 @@ typedef struct laplace_framework_stream_receipt {
     uint64_t failed_batch_index;
     uint64_t failed_sink_index;
     uint32_t record_type;
+    uint32_t effect_disposition;
     laplace_framework_status status;
+    uint32_t reserved;
 } laplace_framework_stream_receipt;
 
 LAPLACE_API size_t laplace_framework_operation_count(void);
@@ -132,8 +145,7 @@ LAPLACE_API laplace_framework_status laplace_framework_canonical_stream_fingerpr
 
 LAPLACE_API laplace_framework_status laplace_framework_stage_canonical_stream(
     const laplace_framework_context* context,
-    const laplace_framework_canonical_batch* batches,
-    size_t batch_count,
+    const laplace_framework_canonical_stream* stream,
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
     laplace_framework_stream_receipt* receipt);
