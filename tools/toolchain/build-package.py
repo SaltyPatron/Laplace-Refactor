@@ -23,9 +23,9 @@ PLAN_SCHEMA = "laplace.toolchain-build-plan/v1"
 PACKAGE_SCHEMA = "laplace.toolchain-package-receipt/v1"
 CONSUMER_SCHEMA = "laplace.toolchain-consumer-manifest/v1"
 EXPECTED_ORDER = [
-    "gnu-make",
     "perl",
     "texinfo",
+    "gnu-make",
     "gnu-binutils",
     "pkgconf",
     "gnu-bison",
@@ -34,9 +34,9 @@ EXPECTED_ORDER = [
     "ninja",
 ]
 EXPECTED_VERSIONS = {
-    "gnu-make": "4.4.1",
     "perl": "5.44.0",
     "texinfo": "7.3",
+    "gnu-make": "4.4.1",
     "gnu-binutils": "2.47",
     "pkgconf": "3.0.6",
     "gnu-bison": "3.8.2",
@@ -176,6 +176,7 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
         "CPATH",
         "CMAKE_PREFIX_PATH",
         "PKG_CONFIG_PATH",
+        "PERL",
         "PERL5LIB",
         "PYTHONPATH",
     ):
@@ -226,7 +227,7 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
         if component.get("version") != EXPECTED_VERSIONS[component_id]:
             raise ToolchainError(f"selected version differs for {component_id}")
         if component.get("source_mode") not in (
-            "immutable-out-of-tree",
+            "private-copy-out-of-tree",
             "private-copy-in-tree",
         ):
             raise ToolchainError(f"unsupported source mode for {component_id}")
@@ -385,6 +386,7 @@ def create_plan(contract: dict[str, Any], repository: Path) -> dict[str, Any]:
     return {
         "schema": PLAN_SCHEMA,
         "build_input_id": build_input_id,
+        "repository": str(repository),
         "build_directory": str(build_directory),
         "work_directory": str(work_directory),
         "prefix": str(prefix),
@@ -467,6 +469,8 @@ def build_environment(
         environment["LDFLAGS"] = f"-B{prefix / 'bin'}"
     if selected_make:
         environment["MAKE"] = str(prefix / "bin/make")
+    if component_index > EXPECTED_ORDER.index("perl"):
+        environment["PERL"] = str(prefix / "bin/perl")
     if component_index > EXPECTED_ORDER.index("pkgconf"):
         environment["PKG_CONFIG"] = str(prefix / "bin/pkgconf")
         environment["PKG_CONFIG_LIBDIR"] = f"{prefix / 'lib/pkgconfig'}:{prefix / 'share/pkgconfig'}"
@@ -524,14 +528,30 @@ def component_source(
     contract: dict[str, Any], component_id: str, work: Path
 ) -> Path:
     immutable = Path(contract["logical_roots"]["source_generation"]) / component_id
-    mode = contract["build"]["components"][component_id]["source_mode"]
-    if mode == "immutable-out-of-tree":
-        return immutable
     private = work / "private-sources" / component_id
     if not private.exists():
         private.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(immutable, private, symlinks=True)
     return private
+
+
+def verify_private_source_copy(
+    contract: dict[str, Any], repository: Path, component_id: str, copy_parent: Path
+) -> None:
+    release_lock = read_json(repository / contract["release_lock"])
+    entry = release_lock.get("archives", {}).get(component_id)
+    if not isinstance(entry, dict):
+        raise ToolchainError(f"release lock does not contain {component_id}")
+    release = load_release_module(repository)
+    try:
+        release.verify_imported_entry(
+            component_id,
+            entry,
+            Path(contract["logical_roots"]["archive_root"]),
+            copy_parent,
+        )
+    except Exception as error:
+        raise ToolchainError(f"private source verification failed for {component_id}: {error}") from error
 
 
 def tool_version(path: Path) -> str:
@@ -730,6 +750,7 @@ def execute_plan(
         component_build = build_root / "components" / component_id
         private_directory(component_build)
         source = component_source(contract, component_id, work_root)
+        verify_private_source_copy(contract, Path(plan["repository"]), component_id, source.parent)
         environment = build_environment(contract, plan, component_id)
         steps: list[dict[str, Any]] = []
         for step_name in ("configure", "build", "test", "install"):
@@ -760,6 +781,11 @@ def execute_plan(
             encoding="utf-8",
         )
 
+    _, source_generation_after = verify_sources(
+        contract, Path(plan["repository"])
+    )
+    if source_generation_after != plan["source_inputs"]:
+        raise ToolchainError("canonical source generation changed during the build")
     tools = installed_tool_receipts(contract, prefix)
     environment = build_environment(contract, plan, "ninja")
     compiler_traces, linker_inputs = compiler_receipts(plan, prefix, environment)
@@ -770,6 +796,7 @@ def execute_plan(
         "build_input_id": plan["build_input_id"],
         "build_plan_sha256": canonical_sha256(plan),
         "source_inputs": plan["source_inputs"],
+        "source_generation_after": source_generation_after,
         "bootstrap_inputs": plan["bootstrap_inputs"],
         "component_steps": component_steps,
         "installed_tools": tools,

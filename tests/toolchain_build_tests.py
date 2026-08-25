@@ -44,6 +44,12 @@ class ToolchainBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.ToolchainError, "cmake.test"):
             BUILD.validate_contract(contract)
 
+    def test_canonical_source_generation_cannot_be_a_build_directory(self) -> None:
+        contract = self.contract()
+        contract["build"]["components"]["gnu-make"]["source_mode"] = "immutable-out-of-tree"
+        with self.assertRaisesRegex(BUILD.ToolchainError, "source mode"):
+            BUILD.validate_contract(contract)
+
     def test_product_runtime_activation_claim_is_rejected(self) -> None:
         contract = self.contract()
         contract["activation"]["product_runtime_activation_eligible"] = True
@@ -52,7 +58,7 @@ class ToolchainBuildTests(unittest.TestCase):
 
     def test_ambient_tool_and_loader_state_is_rejected(self) -> None:
         contract = self.contract()
-        for variable in ("CC", "MAKEFLAGS", "LD_LIBRARY_PATH", "PKG_CONFIG_PATH"):
+        for variable in ("CC", "MAKEFLAGS", "LD_LIBRARY_PATH", "PKG_CONFIG_PATH", "PERL"):
             with self.subTest(variable=variable):
                 with self.assertRaisesRegex(BUILD.ToolchainError, variable):
                     BUILD.validate_environment(contract, {variable: "/ambient"})

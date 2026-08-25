@@ -94,7 +94,7 @@ Another lock binds twenty-three official release archives. In addition to Postgr
 PostGIS 3.6.4, GDAL 3.13.3, GEOS 3.14.1, and PROJ 9.8.1, it now selects the current
 PostgreSQL runtime leaves and build/test tools: ICU, OpenSSL, libxml2, zlib, LZ4,
 Zstandard, liburing, binutils, make, Bison, Flex, Perl, pkgconf, IPC::Run, and IO::Tty.
-The source-built build-toolchain package then builds make, Perl, Texinfo, binutils,
+The source-built build-toolchain package then builds Perl, Texinfo, make, binutils,
 pkgconf, Bison, Flex, CMake, and Ninja in dependency order outside the repository. Every
 upstream suite must pass. Its input-addressed receipt publishes exact selected tool
 paths and hashes for downstream build graphs, while explicitly remaining ineligible
