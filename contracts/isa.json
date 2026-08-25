@@ -2,7 +2,13 @@
   "schema": "laplace.isa-contract/v1",
   "version": {
     "major": 1,
-    "minor": 1
+    "minor": 2
+  },
+  "execution_context": {
+    "required": true,
+    "framework_major": 1,
+    "bound_to_program_fingerprint": true,
+    "bound_to_receipt": true
   },
   "value_types": {
     "u32_vector": 1,

@@ -17,6 +17,7 @@
 #include "utils/syscache.h"
 
 #include "laplace/isa.h"
+#include "laplace/framework.h"
 #include "laplace/trajectory.h"
 #include "laplace/contract/postgresql_bindings.h"
 
@@ -29,6 +30,107 @@ PG_FUNCTION_INFO_V1(LAPLACE_PG_TRAJECTORY_EXECUTE_SYMBOL);
 
 static SPIPlanPtr receipt_insert_plan = NULL;
 static SPIPlanPtr receipt_select_plan = NULL;
+
+static Datum required_composite_attribute(
+    HeapTupleHeader tuple,
+    int attribute_number,
+    const char* attribute_name) {
+    bool is_null = false;
+    Datum value = GetAttributeByNum(tuple, attribute_number, &is_null);
+    if (is_null) {
+        ereport(ERROR,
+                (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                 errmsg("Laplace execution context field %s cannot be null",
+                        attribute_name)));
+    }
+    return value;
+}
+
+static void read_digest(Datum datum, laplace_digest256* digest, const char* field) {
+    bytea* value = DatumGetByteaPP(datum);
+    if (VARSIZE_ANY_EXHDR(value) != (int)sizeof(digest->bytes)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
+                 errmsg("Laplace execution context field %s must contain exactly %zu bytes",
+                        field, sizeof(digest->bytes))));
+    }
+    memcpy(digest->bytes, VARDATA_ANY(value), sizeof(digest->bytes));
+}
+
+static void read_execution_context(
+    Datum datum,
+    laplace_framework_context* context) {
+    HeapTupleHeader tuple = DatumGetHeapTupleHeader(datum);
+    ArrayType* epochs;
+    Datum* epoch_datums = NULL;
+    bool* epoch_nulls = NULL;
+    int epoch_count = 0;
+    int64 memory_bytes;
+    int64 epoch_mask;
+    int32 cpu_slots;
+    int32 io_slots;
+    int32 flags;
+    int16 major;
+    int16 minor;
+    int index;
+
+    memset(context, 0, sizeof(*context));
+    epochs = DatumGetArrayTypeP(required_composite_attribute(tuple, 1, "epochs"));
+    if (ARR_NDIM(epochs) != 1 || ARR_ELEMTYPE(epochs) != BYTEAOID ||
+        ArrayGetNItems(ARR_NDIM(epochs), ARR_DIMS(epochs)) !=
+            LAPLACE_FRAMEWORK_EPOCH_COUNT) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace execution context must carry exactly %u epoch digests",
+                        (unsigned int)LAPLACE_FRAMEWORK_EPOCH_COUNT)));
+    }
+    deconstruct_array(epochs, BYTEAOID, -1, false, TYPALIGN_INT,
+                      &epoch_datums, &epoch_nulls, &epoch_count);
+    for (index = 0; index < epoch_count; ++index) {
+        if (epoch_nulls[index]) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                     errmsg("Laplace execution context epoch %d cannot be null", index)));
+        }
+        read_digest(epoch_datums[index], &context->epochs[index], "epochs");
+    }
+    read_digest(
+        required_composite_attribute(tuple, 2, "authority_fingerprint"),
+        &context->authority_fingerprint,
+        "authority_fingerprint");
+
+    memory_bytes = DatumGetInt64(
+        required_composite_attribute(tuple, 3, "memory_bytes"));
+    cpu_slots = DatumGetInt32(
+        required_composite_attribute(tuple, 4, "cpu_slots"));
+    io_slots = DatumGetInt32(
+        required_composite_attribute(tuple, 5, "io_slots"));
+    epoch_mask = DatumGetInt64(
+        required_composite_attribute(tuple, 6, "epoch_mask"));
+    major = DatumGetInt16(
+        required_composite_attribute(tuple, 7, "framework_major"));
+    minor = DatumGetInt16(
+        required_composite_attribute(tuple, 8, "framework_minor"));
+    flags = DatumGetInt32(required_composite_attribute(tuple, 9, "flags"));
+    if (memory_bytes <= 0 || cpu_slots <= 0 || io_slots < 0 || epoch_mask <= 0 ||
+        major < 0 || minor < 0 || flags < 0) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace execution context contains an out-of-range scalar")));
+    }
+    context->resource_grant.memory_bytes = (uint64_t)memory_bytes;
+    context->resource_grant.cpu_slots = (uint32_t)cpu_slots;
+    context->resource_grant.io_slots = (uint32_t)io_slots;
+    context->epoch_mask = (uint64_t)epoch_mask;
+    context->major = (uint16_t)major;
+    context->minor = (uint16_t)minor;
+    context->flags = (uint32_t)flags;
+    if (laplace_framework_context_validate(context) != LAPLACE_FRAMEWORK_OK) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace execution context violates the native framework contract")));
+    }
+}
 
 static bytea* bytes_to_bytea(const uint8_t* bytes, size_t length) {
     bytea* value = (bytea*)palloc(VARHDRSZ + length);
@@ -64,24 +166,24 @@ static Datum numeric_from_uint64(uint64_t value) {
 static void ensure_receipt_plans(void) {
     static const char insert_sql[] =
         "INSERT INTO " LAPLACE_PG_SCHEMA ".execution_receipt ("
-        "receipt_id, program_fingerprint, input_fingerprint, output_fingerprint, "
+        "receipt_id, context_fingerprint, program_fingerprint, input_fingerprint, output_fingerprint, "
         "instruction_count, executed_instruction_count, isa_major, isa_minor, "
         "receipt_detail, status, item_count, opcode) "
-        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) "
         "ON CONFLICT (receipt_id) DO NOTHING";
     static const char select_sql[] =
-        "SELECT receipt_id, program_fingerprint, input_fingerprint, "
+        "SELECT receipt_id, context_fingerprint, program_fingerprint, input_fingerprint, "
         "output_fingerprint, instruction_count, executed_instruction_count, "
         "isa_major, isa_minor, receipt_detail, status, item_count, opcode "
         "FROM " LAPLACE_PG_SCHEMA ".execution_receipt WHERE receipt_id = $1";
-    static Oid insert_types[12] = {
-        BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID,
+    static Oid insert_types[13] = {
+        BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID,
         INT8OID, INT8OID, INT2OID, INT2OID,
         INT4OID, INT4OID, INT8OID, INT4OID};
     static Oid select_types[1] = {BYTEAOID};
 
     if (receipt_insert_plan == NULL) {
-        receipt_insert_plan = SPI_prepare(insert_sql, 12, insert_types);
+        receipt_insert_plan = SPI_prepare(insert_sql, 13, insert_types);
         if (receipt_insert_plan == NULL || SPI_keepplan(receipt_insert_plan) != 0) {
             ereport(ERROR,
                     (errcode(ERRCODE_INTERNAL_ERROR),
@@ -126,52 +228,56 @@ static int stored_receipt_matches(
     return bytea_datum_matches(tuple_value(tuple, descriptor, 1),
                                receipt->receipt_id.bytes, digest_bytes) &&
            bytea_datum_matches(tuple_value(tuple, descriptor, 2),
-                               receipt->program_fingerprint.bytes, digest_bytes) &&
+                               receipt->context_fingerprint.bytes, digest_bytes) &&
            bytea_datum_matches(tuple_value(tuple, descriptor, 3),
-                               receipt->input_fingerprint.bytes, digest_bytes) &&
+                               receipt->program_fingerprint.bytes, digest_bytes) &&
            bytea_datum_matches(tuple_value(tuple, descriptor, 4),
+                               receipt->input_fingerprint.bytes, digest_bytes) &&
+           bytea_datum_matches(tuple_value(tuple, descriptor, 5),
                                receipt->output_fingerprint.bytes, digest_bytes) &&
-           DatumGetInt64(tuple_value(tuple, descriptor, 5)) ==
-               checked_int64(receipt->instruction_count, "instruction count") &&
            DatumGetInt64(tuple_value(tuple, descriptor, 6)) ==
+               checked_int64(receipt->instruction_count, "instruction count") &&
+           DatumGetInt64(tuple_value(tuple, descriptor, 7)) ==
                checked_int64(receipt->executed_instruction_count,
                              "executed instruction count") &&
-           DatumGetInt16(tuple_value(tuple, descriptor, 7)) == (int16)receipt->major &&
-           DatumGetInt16(tuple_value(tuple, descriptor, 8)) == (int16)receipt->minor &&
-           DatumGetInt32(tuple_value(tuple, descriptor, 9)) ==
+           DatumGetInt16(tuple_value(tuple, descriptor, 8)) == (int16)receipt->major &&
+           DatumGetInt16(tuple_value(tuple, descriptor, 9)) == (int16)receipt->minor &&
+           DatumGetInt32(tuple_value(tuple, descriptor, 10)) ==
                (int32)receipt->receipt_detail &&
-           DatumGetInt32(tuple_value(tuple, descriptor, 10)) == (int32)receipt->status &&
-           DatumGetInt64(tuple_value(tuple, descriptor, 11)) ==
+           DatumGetInt32(tuple_value(tuple, descriptor, 11)) == (int32)receipt->status &&
+           DatumGetInt64(tuple_value(tuple, descriptor, 12)) ==
                checked_int64(item_count, "item count") &&
-           DatumGetInt32(tuple_value(tuple, descriptor, 12)) == (int32)opcode;
+           DatumGetInt32(tuple_value(tuple, descriptor, 13)) == (int32)opcode;
 }
 
 static void persist_receipt(
     const laplace_isa_receipt* receipt,
     uint64_t item_count,
     uint32_t opcode) {
-    Datum values[12];
+    Datum values[13];
     Datum select_values[1];
     int result;
     size_t digest_bytes = sizeof(receipt->receipt_id.bytes);
 
     values[0] = PointerGetDatum(bytes_to_bytea(receipt->receipt_id.bytes, digest_bytes));
     values[1] = PointerGetDatum(bytes_to_bytea(
-        receipt->program_fingerprint.bytes, digest_bytes));
+        receipt->context_fingerprint.bytes, digest_bytes));
     values[2] = PointerGetDatum(bytes_to_bytea(
-        receipt->input_fingerprint.bytes, digest_bytes));
+        receipt->program_fingerprint.bytes, digest_bytes));
     values[3] = PointerGetDatum(bytes_to_bytea(
+        receipt->input_fingerprint.bytes, digest_bytes));
+    values[4] = PointerGetDatum(bytes_to_bytea(
         receipt->output_fingerprint.bytes, digest_bytes));
-    values[4] = Int64GetDatum(checked_int64(
-        receipt->instruction_count, "instruction count"));
     values[5] = Int64GetDatum(checked_int64(
+        receipt->instruction_count, "instruction count"));
+    values[6] = Int64GetDatum(checked_int64(
         receipt->executed_instruction_count, "executed instruction count"));
-    values[6] = Int16GetDatum((int16)receipt->major);
-    values[7] = Int16GetDatum((int16)receipt->minor);
-    values[8] = Int32GetDatum((int32)receipt->receipt_detail);
-    values[9] = Int32GetDatum((int32)receipt->status);
-    values[10] = Int64GetDatum(checked_int64(item_count, "item count"));
-    values[11] = Int32GetDatum((int32)opcode);
+    values[7] = Int16GetDatum((int16)receipt->major);
+    values[8] = Int16GetDatum((int16)receipt->minor);
+    values[9] = Int32GetDatum((int32)receipt->receipt_detail);
+    values[10] = Int32GetDatum((int32)receipt->status);
+    values[11] = Int64GetDatum(checked_int64(item_count, "item count"));
+    values[12] = Int32GetDatum((int32)opcode);
 
     if (SPI_connect() != SPI_OK_CONNECT) {
         ereport(ERROR,
@@ -225,29 +331,33 @@ static void receipt_result_values(
     const size_t digest_bytes = sizeof(receipt->receipt_id.bytes);
     values[offset] = PointerGetDatum(bytes_to_bytea(receipt->receipt_id.bytes, digest_bytes));
     values[offset + 1] = PointerGetDatum(bytes_to_bytea(
-        receipt->program_fingerprint.bytes, digest_bytes));
+        receipt->context_fingerprint.bytes, digest_bytes));
     values[offset + 2] = PointerGetDatum(bytes_to_bytea(
-        receipt->input_fingerprint.bytes, digest_bytes));
+        receipt->program_fingerprint.bytes, digest_bytes));
     values[offset + 3] = PointerGetDatum(bytes_to_bytea(
+        receipt->input_fingerprint.bytes, digest_bytes));
+    values[offset + 4] = PointerGetDatum(bytes_to_bytea(
         receipt->output_fingerprint.bytes, digest_bytes));
-    values[offset + 4] = Int64GetDatum(checked_int64(
-        receipt->instruction_count, "instruction count"));
     values[offset + 5] = Int64GetDatum(checked_int64(
+        receipt->instruction_count, "instruction count"));
+    values[offset + 6] = Int64GetDatum(checked_int64(
         receipt->executed_instruction_count, "executed instruction count"));
-    values[offset + 6] = Int16GetDatum((int16)receipt->major);
-    values[offset + 7] = Int16GetDatum((int16)receipt->minor);
-    values[offset + 8] = Int32GetDatum((int32)receipt->receipt_detail);
-    values[offset + 9] = Int32GetDatum((int32)receipt->status);
-    values[offset + 10] = Int64GetDatum(checked_int64(item_count, "item count"));
+    values[offset + 7] = Int16GetDatum((int16)receipt->major);
+    values[offset + 8] = Int16GetDatum((int16)receipt->minor);
+    values[offset + 9] = Int32GetDatum((int32)receipt->receipt_detail);
+    values[offset + 10] = Int32GetDatum((int32)receipt->status);
+    values[offset + 11] = Int64GetDatum(checked_int64(item_count, "item count"));
 }
 
 static laplace_isa_program make_program(
+    const laplace_framework_context* context,
     laplace_isa_instruction* instruction,
     laplace_isa_value_view* values) {
     laplace_isa_program program;
     memset(&program, 0, sizeof(program));
     program.instructions = instruction;
     program.values = values;
+    program.context = context;
     program.instruction_count = 1;
     program.value_count = 2;
     program.major = LAPLACE_ISA_MAJOR;
@@ -259,7 +369,8 @@ static laplace_isa_program make_program(
 static Datum identity_codepoint_batch(
     FunctionCallInfo fcinfo,
     bool publish_receipt) {
-    ArrayType* input = PG_GETARG_ARRAYTYPE_P(0);
+    laplace_framework_context context;
+    ArrayType* input = PG_GETARG_ARRAYTYPE_P(1);
     Datum* input_datums = NULL;
     bool* input_nulls = NULL;
     int input_count = 0;
@@ -273,11 +384,12 @@ static Datum identity_codepoint_batch(
     laplace_isa_status status;
     Datum* entity_datums;
     ArrayType* entity_array;
-    Datum result_values[12];
-    bool result_nulls[12] = {false};
+    Datum result_values[13];
+    bool result_nulls[13] = {false};
     HeapTuple result_tuple;
     int index;
 
+    read_execution_context(PG_GETARG_DATUM(0), &context);
     deconstruct_array(input, INT4OID, 4, true, TYPALIGN_INT,
                       &input_datums, &input_nulls, &input_count);
     if (input_count <= 0) {
@@ -312,7 +424,7 @@ static Datum identity_codepoint_batch(
     instruction.input_value = 0;
     instruction.output_value = 1;
     instruction.version = LAPLACE_ISA_INSTRUCTION_VERSION_IDENTITY_CODEPOINT_BATCH;
-    program = make_program(&instruction, views);
+    program = make_program(&context, &instruction, views);
     memset(&receipt, 0, sizeof(receipt));
     memset(&error, 0, sizeof(error));
     status = laplace_isa_execute(&program, &receipt, &error);
@@ -336,7 +448,7 @@ static Datum identity_codepoint_batch(
         entity_datums, input_count, BYTEAOID, -1, false, TYPALIGN_INT);
     result_values[0] = PointerGetDatum(entity_array);
     receipt_result_values(result_values, 1, &receipt, (uint64_t)input_count);
-    result_tuple = form_result_tuple(fcinfo, result_values, result_nulls, 12);
+    result_tuple = form_result_tuple(fcinfo, result_values, result_nulls, 13);
     return HeapTupleGetDatum(result_tuple);
 }
 
@@ -423,7 +535,8 @@ static ArrayType* form_occurrence_array(
 static Datum trajectory_composition_decode_batch(
     FunctionCallInfo fcinfo,
     bool publish_receipt) {
-    ArrayType* input = PG_GETARG_ARRAYTYPE_P(0);
+    laplace_framework_context context;
+    ArrayType* input = PG_GETARG_ARRAYTYPE_P(1);
     Datum* input_datums = NULL;
     bool* input_nulls = NULL;
     int input_count = 0;
@@ -436,11 +549,12 @@ static Datum trajectory_composition_decode_batch(
     laplace_isa_error error;
     laplace_isa_status status;
     uint64_t logical_count = 0;
-    Datum result_values[13];
-    bool result_nulls[13] = {false};
+    Datum result_values[14];
+    bool result_nulls[14] = {false};
     HeapTuple result_tuple;
     int index;
 
+    read_execution_context(PG_GETARG_DATUM(0), &context);
     deconstruct_array(input, BYTEAOID, -1, false, TYPALIGN_INT,
                       &input_datums, &input_nulls, &input_count);
     if (input_count <= 0) {
@@ -478,7 +592,7 @@ static Datum trajectory_composition_decode_batch(
     instruction.output_value = 1;
     instruction.version =
         LAPLACE_ISA_INSTRUCTION_VERSION_TRAJECTORY_COMPOSITION_DECODE_BATCH;
-    program = make_program(&instruction, views);
+    program = make_program(&context, &instruction, views);
     memset(&receipt, 0, sizeof(receipt));
     memset(&error, 0, sizeof(error));
     status = laplace_isa_execute(&program, &receipt, &error);
@@ -504,7 +618,7 @@ static Datum trajectory_composition_decode_batch(
     result_values[0] = PointerGetDatum(form_occurrence_array(occurrences, input_count));
     result_values[1] = numeric_from_uint64(logical_count);
     receipt_result_values(result_values, 2, &receipt, (uint64_t)input_count);
-    result_tuple = form_result_tuple(fcinfo, result_values, result_nulls, 13);
+    result_tuple = form_result_tuple(fcinfo, result_values, result_nulls, 14);
     return HeapTupleGetDatum(result_tuple);
 }
 

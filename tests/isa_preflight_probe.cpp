@@ -1,4 +1,5 @@
 #include "laplace/isa.h"
+#include "context_fixture.h"
 
 #include <array>
 #include <cstdio>
@@ -57,9 +58,11 @@ int main() {
     std::array<laplace_isa_instruction, 2> instructions{{
         Instruction(0u, 1u),
         Instruction(2u, 3u)}};
+    const auto context = laplace_test_context(0u);
     laplace_isa_program program{
         instructions.data(),
         values.data(),
+        &context,
         instructions.size(),
         values.size(),
         LAPLACE_ISA_MAJOR,

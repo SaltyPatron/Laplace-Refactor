@@ -1,5 +1,6 @@
 #include "laplace/isa.h"
 #include "laplace/trajectory.h"
+#include "context_fixture.h"
 
 #include <array>
 #include <cstdint>
@@ -31,9 +32,11 @@ int main() {
         1u,
         LAPLACE_ISA_INSTRUCTION_VERSION_TRAJECTORY_COMPOSITION_DECODE_BATCH,
         LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    const auto context = laplace_test_context(0u);
     laplace_isa_program program{
         &instruction,
         values.data(),
+        &context,
         1u,
         values.size(),
         LAPLACE_ISA_MAJOR,

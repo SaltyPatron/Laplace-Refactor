@@ -4,6 +4,13 @@ function(laplace_configure_isa_contract contract_path output_path)
     string(JSON contract_schema GET "${contract_json}" schema)
     string(JSON major GET "${contract_json}" version major)
     string(JSON minor GET "${contract_json}" version minor)
+    string(JSON context_required GET "${contract_json}" execution_context required)
+    string(JSON context_framework_major GET
+        "${contract_json}" execution_context framework_major)
+    string(JSON context_program_binding GET
+        "${contract_json}" execution_context bound_to_program_fingerprint)
+    string(JSON context_receipt_binding GET
+        "${contract_json}" execution_context bound_to_receipt)
     string(JSON value_u32 GET "${contract_json}" value_types u32_vector)
     string(JSON value_id128 GET "${contract_json}" value_types id128_vector)
     string(JSON value_trajectory GET
@@ -33,8 +40,12 @@ function(laplace_configure_isa_contract contract_path output_path)
     if(NOT contract_schema STREQUAL "laplace.isa-contract/v1")
         message(FATAL_ERROR "Unsupported ISA contract schema: ${contract_schema}")
     endif()
-    if(NOT major EQUAL 1 OR NOT minor EQUAL 1)
-        message(FATAL_ERROR "Current ISA version must remain 1.1")
+    if(NOT major EQUAL 1 OR NOT minor EQUAL 2)
+        message(FATAL_ERROR "Current ISA version must remain 1.2")
+    endif()
+    if(NOT context_required OR NOT context_framework_major EQUAL 1
+       OR NOT context_program_binding OR NOT context_receipt_binding)
+        message(FATAL_ERROR "ISA execution context binding contract changed")
     endif()
     if(NOT value_u32 EQUAL 1 OR NOT value_id128 EQUAL 2
        OR NOT value_trajectory EQUAL 3 OR NOT value_occurrence EQUAL 4)

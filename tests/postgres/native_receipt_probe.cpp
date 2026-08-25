@@ -1,5 +1,6 @@
 #include "laplace/isa.h"
 #include "laplace/trajectory.h"
+#include "../context_fixture.h"
 
 #include <array>
 #include <cstddef>
@@ -45,9 +46,11 @@ void PrintDigest(const char* name, const laplace_isa_digest256& digest) {
 laplace_isa_program Program(
     laplace_isa_instruction* instruction,
     laplace_isa_value_view* values) {
+    static const laplace_framework_context context = laplace_test_context(0u);
     return laplace_isa_program{
         instruction,
         values,
+        &context,
         1u,
         2u,
         LAPLACE_ISA_MAJOR,
@@ -60,6 +63,7 @@ laplace_isa_program Program(
 void PrintReceipt(const char* prefix, const laplace_isa_receipt& receipt) {
     const std::string prefix_value(prefix);
     PrintDigest((prefix_value + "_RECEIPT").c_str(), receipt.receipt_id);
+    PrintDigest((prefix_value + "_CONTEXT").c_str(), receipt.context_fingerprint);
     PrintDigest((prefix_value + "_PROGRAM").c_str(), receipt.program_fingerprint);
     PrintDigest((prefix_value + "_INPUT").c_str(), receipt.input_fingerprint);
     PrintDigest((prefix_value + "_OUTPUT").c_str(), receipt.output_fingerprint);

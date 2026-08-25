@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "blake3.h"
+#include "laplace/framework.h"
 #include "laplace/trajectory.h"
 
 static const uint8_t PROGRAM_DOMAIN[] = "laplace-isa-program-v1";
@@ -398,6 +399,10 @@ laplace_isa_status laplace_isa_validate(
         (program->values == NULL && program->value_count != 0)) {
         return fail(error, LAPLACE_ISA_INVALID_ARGUMENT, UINT64_MAX, UINT32_MAX);
     }
+    if (laplace_framework_context_validate(program->context) !=
+        LAPLACE_FRAMEWORK_OK) {
+        return fail(error, LAPLACE_ISA_CONTEXT_INVALID, UINT64_MAX, UINT32_MAX);
+    }
     if (program->major != LAPLACE_ISA_MAJOR || program->minor > LAPLACE_ISA_MINOR) {
         return fail(error, LAPLACE_ISA_UNSUPPORTED_VERSION, UINT64_MAX, UINT32_MAX);
     }
@@ -480,6 +485,17 @@ static void hash_program(
     hash_u16(&hasher, program->minor);
     hash_u32(&hasher, program->flags);
     hash_u32(&hasher, program->receipt_detail);
+#if !defined(LAPLACE_TEST_OMIT_CONTEXT_FROM_ISA_RECEIPT)
+    {
+        laplace_digest256 context_fingerprint;
+        if (laplace_framework_context_fingerprint(
+                program->context, &context_fingerprint) == LAPLACE_FRAMEWORK_OK) {
+            blake3_hasher_update(
+                &hasher, context_fingerprint.bytes,
+                sizeof(context_fingerprint.bytes));
+        }
+    }
+#endif
     hash_u64(&hasher, program->instruction_count);
     hash_u64(&hasher, program->value_count);
     for (index = 0; index < program->instruction_count; ++index) {
@@ -607,6 +623,8 @@ static void hash_receipt(laplace_isa_receipt* receipt) {
     hash_u64(&hasher, receipt->executed_instruction_count);
     blake3_hasher_update(&hasher, receipt->program_fingerprint.bytes,
                          sizeof(receipt->program_fingerprint.bytes));
+    blake3_hasher_update(&hasher, receipt->context_fingerprint.bytes,
+                         sizeof(receipt->context_fingerprint.bytes));
     blake3_hasher_update(&hasher, receipt->input_fingerprint.bytes,
                          sizeof(receipt->input_fingerprint.bytes));
     blake3_hasher_update(&hasher, receipt->output_fingerprint.bytes,
@@ -699,6 +717,16 @@ laplace_isa_status laplace_isa_execute(
         return status;
     }
 
+#if defined(LAPLACE_TEST_OMIT_CONTEXT_FROM_ISA_RECEIPT)
+    memset(&receipt->context_fingerprint, 0, sizeof(receipt->context_fingerprint));
+#else
+    if (laplace_framework_context_fingerprint(
+            program->context, &receipt->context_fingerprint) !=
+        LAPLACE_FRAMEWORK_OK) {
+        receipt->status = LAPLACE_ISA_CONTEXT_INVALID;
+        return fail(error, LAPLACE_ISA_CONTEXT_INVALID, UINT64_MAX, UINT32_MAX);
+    }
+#endif
     hash_program(program, &receipt->program_fingerprint);
     hash_inputs(program, &receipt->input_fingerprint);
 
