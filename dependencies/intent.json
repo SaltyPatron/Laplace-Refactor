@@ -127,6 +127,96 @@
       "lock_entries": []
     },
     {
+      "id": "platform-abi",
+      "class": "system-abi-contract",
+      "profiles": ["build", "linux", "database", "numeric-cpu"],
+      "intent": ["declared Linux kernel capability, dynamic loader, glibc, startup objects, GCC support objects, libgcc, and C++ ABI consumed by selected native toolchains"],
+      "boundary": "The host ABI is an explicit compatibility input, never an ambient dependency inferred from build success.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "gnu-binutils",
+      "class": "build-toolchain",
+      "profiles": ["build", "linux"],
+      "intent": ["selected linker, assembler, archive, symbol, strip, and object inspection tools used by IntelLLVM and native package construction"],
+      "boundary": "Binutils affects package bytes and linker evidence but does not enter the product runtime unless an explicitly selected library is required.",
+      "selection": "locked-release",
+      "lock_entries": ["release:gnu-binutils"]
+    },
+    {
+      "id": "gnu-make",
+      "class": "build-toolchain",
+      "profiles": ["build", "linux"],
+      "intent": ["declared build graph execution for PostgreSQL and upstream dependencies that use Make"],
+      "boundary": "Make executes a selected build recipe and cannot select sources, features, or ambient paths.",
+      "selection": "locked-release",
+      "lock_entries": ["release:gnu-make"]
+    },
+    {
+      "id": "gnu-bison",
+      "class": "build-toolchain",
+      "profiles": ["build", "database"],
+      "intent": ["declared parser generation when selected source builds require regeneration"],
+      "boundary": "Generated parser bytes remain bound to the exact source and generation recipe; Bison is not a product runtime.",
+      "selection": "locked-release",
+      "lock_entries": ["release:gnu-bison"]
+    },
+    {
+      "id": "flex",
+      "class": "build-toolchain",
+      "profiles": ["build", "database"],
+      "intent": ["declared scanner generation when selected source builds require regeneration"],
+      "boundary": "Generated scanner bytes remain bound to the exact source and generation recipe; Flex is not a product runtime.",
+      "selection": "locked-release",
+      "lock_entries": ["release:flex"]
+    },
+    {
+      "id": "perl",
+      "class": "build-and-test-toolchain",
+      "profiles": ["build", "database", "testing"],
+      "intent": ["OpenSSL configuration, PostgreSQL build generation, and PostgreSQL TAP test execution while PL/Perl remains disabled"],
+      "boundary": "Perl is excluded from the product runtime until a separately accepted PL/Perl capability requires it.",
+      "selection": "locked-release",
+      "lock_entries": ["release:perl"]
+    },
+    {
+      "id": "pkgconf",
+      "class": "build-toolchain",
+      "profiles": ["build", "linux"],
+      "intent": ["maintained pkg-config protocol implementation over the isolated staged dependency graph"],
+      "boundary": "pkgconf may expose only selected package metadata; ambient host package directories are rejected.",
+      "selection": "locked-release",
+      "lock_entries": ["release:pkgconf"]
+    },
+    {
+      "id": "ipc-run",
+      "class": "test-tool",
+      "profiles": ["database", "testing"],
+      "intent": ["PostgreSQL TAP process execution and timeout control"],
+      "boundary": "IPC::Run supplies test execution only and is absent from the product runtime package.",
+      "selection": "locked-release",
+      "lock_entries": ["release:ipc-run"]
+    },
+    {
+      "id": "io-tty",
+      "class": "optional-complete-test-tool",
+      "profiles": ["database", "testing"],
+      "intent": ["enable PostgreSQL TAP pseudo-terminal coverage that would otherwise be skipped"],
+      "boundary": "IO::Tty supplies test coverage only and is absent from the product runtime package.",
+      "selection": "locked-release",
+      "lock_entries": ["release:io-tty"]
+    },
+    {
+      "id": "python",
+      "class": "build-toolchain",
+      "profiles": ["build", "testing"],
+      "intent": ["execute verified acquisition, package, receipt, and acceptance tooling"],
+      "boundary": "Python orchestrates build and verification tools only; it cannot own product semantics or enter runtime closure unless separately selected.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
       "id": "intel-oneapi-runtime",
       "class": "product-runtime",
       "profiles": ["numeric-cpu", "linux", "windows"],
@@ -267,8 +357,8 @@
       "profiles": ["database", "unicode", "ingestion"],
       "intent": ["Unicode data, normalization, segmentation, collation, and PostgreSQL ICU support under pinned versioned contracts"],
       "boundary": "Canonical Unicode behavior is versioned by the Laplace contract and cannot silently vary with a host ICU upgrade.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-release",
+      "lock_entries": ["release:icu"]
     },
     {
       "id": "unicode-standard-data",
@@ -294,8 +384,8 @@
       "profiles": ["database", "ingestion"],
       "intent": ["PostgreSQL XML support and exact XML container decoding where declared"],
       "boundary": "XML parsing supplies exact source structure and source claims, not semantic standing.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-release",
+      "lock_entries": ["release:libxml2"]
     },
     {
       "id": "openssl",
@@ -303,8 +393,8 @@
       "profiles": ["database", "service"],
       "intent": ["TLS and cryptographic transport support for PostgreSQL and service boundaries"],
       "boundary": "Transport security is distinct from BLAKE3 content identity and execution receipts.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-release",
+      "lock_entries": ["release:openssl"]
     },
     {
       "id": "zlib",
@@ -312,8 +402,8 @@
       "profiles": ["database", "ingestion"],
       "intent": ["PostgreSQL and source-format compression support"],
       "boundary": "Compression changes storage and transport representation only.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-release",
+      "lock_entries": ["release:zlib"]
     },
     {
       "id": "lz4",
@@ -321,8 +411,8 @@
       "profiles": ["database", "storage"],
       "intent": ["PostgreSQL and materialized-artifact compression where measured"],
       "boundary": "Decoded bytes must reproduce the same exact source content and receipt input.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-release",
+      "lock_entries": ["release:lz4"]
     },
     {
       "id": "zstandard",
@@ -330,8 +420,8 @@
       "profiles": ["database", "storage", "ingestion"],
       "intent": ["PostgreSQL, archive, corpus, and materialized-artifact compression"],
       "boundary": "Archive and stream limits are validated before decoded content enters the substrate.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-release",
+      "lock_entries": ["release:zstandard"]
     },
     {
       "id": "liburing",
@@ -339,8 +429,8 @@
       "profiles": ["database", "linux"],
       "intent": ["declared PostgreSQL asynchronous I/O capability on Linux"],
       "boundary": "I/O scheduling cannot change transaction visibility or completion receipts.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-release",
+      "lock_entries": ["release:liburing"]
     },
     {
       "id": "uuid",

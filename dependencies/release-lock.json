@@ -1,6 +1,24 @@
 {
   "schema": "laplace.release-lock/v1",
   "archives": {
+    "flex": {
+      "version": "2.6.4",
+      "filename": "flex-2.6.4.tar.gz",
+      "url": "https://github.com/westes/flex/releases/download/v2.6.4/flex-2.6.4.tar.gz",
+      "sha256": "e87aae032bf07c26f85ac0ed3250998c37621d95f8bd748b31f15b33c45ee995",
+      "size_bytes": 1419096,
+      "top_directory": "flex-2.6.4",
+      "member_count": 334,
+      "regular_file_count": 322,
+      "uncompressed_bytes": 6184445,
+      "tree_sha256": "144c515c27c1e074708aad69b71dd1b989eb7059c2753c32323b52a1bb0ec649",
+      "licenses": [
+        {
+          "path": "flex-2.6.4/COPYING",
+          "sha256": "97fd685958d93be7f8dab939bb8161dbd6afb0718c63bfc337c24321aea44273"
+        }
+      ]
+    },
     "gdal": {
       "version": "3.13.3",
       "filename": "gdal-3.13.3.tar.gz",
@@ -16,6 +34,234 @@
         {
           "path": "gdal-3.13.3/LICENSE.TXT",
           "sha256": "1dae3468e81d00da56e2936f74d33b8b3ad09d726437f19ce209a5dabea41f77"
+        }
+      ]
+    },
+    "gnu-binutils": {
+      "version": "2.47",
+      "filename": "binutils-2.47.tar.xz",
+      "url": "https://ftp.gnu.org/gnu/binutils/binutils-2.47.tar.xz",
+      "sha256": "154ab23b60070e8f27013c22977f1129425d67d1e8acd6e13010e617811e4cff",
+      "size_bytes": 29034716,
+      "top_directory": "binutils-2.47",
+      "member_count": 30001,
+      "regular_file_count": 30001,
+      "uncompressed_bytes": 310124150,
+      "tree_sha256": "1010502967b6e526c4e80c561b6371f467403c9d660ffefdeef34ce1a5edd067",
+      "licenses": [
+        {
+          "path": "binutils-2.47/COPYING",
+          "sha256": "231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c"
+        }
+      ]
+    },
+    "gnu-bison": {
+      "version": "3.8.2",
+      "filename": "bison-3.8.2.tar.xz",
+      "url": "https://ftp.gnu.org/gnu/bison/bison-3.8.2.tar.xz",
+      "sha256": "9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2",
+      "size_bytes": 2817324,
+      "top_directory": "bison-3.8.2",
+      "member_count": 1368,
+      "regular_file_count": 1328,
+      "uncompressed_bytes": 37719262,
+      "tree_sha256": "ca4f708a976e65e824e61fa1840275e55efcac48b2cbb977a2ca8a3957b64e64",
+      "licenses": [
+        {
+          "path": "bison-3.8.2/COPYING",
+          "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+        }
+      ]
+    },
+    "gnu-make": {
+      "version": "4.4.1",
+      "filename": "make-4.4.1.tar.gz",
+      "url": "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz",
+      "sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+      "size_bytes": 2348200,
+      "top_directory": "make-4.4.1",
+      "member_count": 416,
+      "regular_file_count": 395,
+      "uncompressed_bytes": 8780526,
+      "tree_sha256": "572c257a09043ba3e05ab12e066c9296408e596b317033ea733674a783584f4f",
+      "licenses": [
+        {
+          "path": "make-4.4.1/COPYING",
+          "sha256": "e79e9c8a0c85d735ff98185918ec94ed7d175efc377012787aebcf3b80f0d90b"
+        }
+      ]
+    },
+    "icu": {
+      "version": "78.3",
+      "filename": "icu4c-78.3-sources.tgz",
+      "url": "https://github.com/unicode-org/icu/releases/download/release-78.3/icu4c-78.3-sources.tgz",
+      "sha256": "3a2e7a47604ba702f345878308e6fefeca612ee895cf4a5f222e7955fabfe0c0",
+      "size_bytes": 27977255,
+      "top_directory": "icu",
+      "member_count": 2610,
+      "regular_file_count": 2476,
+      "uncompressed_bytes": 121155958,
+      "tree_sha256": "3e79a721bafe6c798057e4f0f44a1eab88f1e5a5b6a586cf635fca436b5147a4",
+      "licenses": [
+        {
+          "path": "icu/LICENSE",
+          "sha256": "e55522d81edc687a341a4411e0776e54ca654e90147f354a90458aaced4116af"
+        }
+      ]
+    },
+    "io-tty": {
+      "version": "1.31",
+      "filename": "IO-Tty-1.31.tar.gz",
+      "url": "https://cpan.metacpan.org/authors/id/T/TO/TODDR/IO-Tty-1.31.tar.gz",
+      "sha256": "d597af221628571cbecf35b44520148c44798dfc8a9867774e60453f79d25ff7",
+      "size_bytes": 39131,
+      "top_directory": "IO-Tty-1.31",
+      "member_count": 26,
+      "regular_file_count": 24,
+      "uncompressed_bytes": 118070,
+      "tree_sha256": "4b25f2446f333ad769354aeb0fb06df9e993bdca90ced6a8b4d91a52c7c6bef0",
+      "licenses": [
+        {
+          "path": "IO-Tty-1.31/LICENSE",
+          "sha256": "b043cb26c6023279981f17cb58fd957311aba21be0fa3e0ca2ea68ac8cd686dd"
+        }
+      ]
+    },
+    "ipc-run": {
+      "version": "20260402.0",
+      "filename": "IPC-Run-20260402.0.tar.gz",
+      "url": "https://cpan.metacpan.org/authors/id/T/TO/TODDR/IPC-Run-20260402.0.tar.gz",
+      "sha256": "d6a326a8b1ffb19495dea4ff5a09ef138bf3562ab1b069d3fb7efbc77b9f6aca",
+      "size_bytes": 161908,
+      "top_directory": "IPC-Run-20260402.0",
+      "member_count": 88,
+      "regular_file_count": 79,
+      "uncompressed_bytes": 528892,
+      "tree_sha256": "5e0045591aa176aebcc5e4f75f162fd0e42270e2b5d1e4835033ce9a9a94648d",
+      "licenses": [
+        {
+          "path": "IPC-Run-20260402.0/LICENSE",
+          "sha256": "67d7bd69b9e21d7ef7bead9b36e98e8ddd679c9929b316dc746ca47765be519f"
+        }
+      ]
+    },
+    "liburing": {
+      "version": "2.15",
+      "filename": "liburing-2.15.tar.gz",
+      "url": "https://github.com/axboe/liburing/archive/refs/tags/liburing-2.15.tar.gz",
+      "sha256": "8d052f2622dcb3678cbaee5ff582a87572672a6c0a56533cdda5b65cb636120a",
+      "size_bytes": 550191,
+      "top_directory": "liburing-liburing-2.15",
+      "member_count": 606,
+      "regular_file_count": 523,
+      "uncompressed_bytes": 2618237,
+      "tree_sha256": "c984581b07cccf2eccf32631fa4e2ad5f569584a3e603a04b23456e1cdc278e5",
+      "licenses": [
+        {
+          "path": "liburing-liburing-2.15/LICENSE",
+          "sha256": "2ec12f7934cdfce25ff72b0557738989d79fc7a496d1cf9b2d3f9464fd61edbe"
+        },
+        {
+          "path": "liburing-liburing-2.15/COPYING",
+          "sha256": "592987e8510228d546540b84a22444bde98e48d03078d3b2eefcd889bec5ce8c"
+        }
+      ]
+    },
+    "libxml2": {
+      "version": "2.15.3",
+      "filename": "libxml2-2.15.3.tar.xz",
+      "url": "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.3.tar.xz",
+      "sha256": "78262a6e7ac170d6528ebfe2efccdf220191a5af6a6cd61ea4a9a9a5042c7a07",
+      "size_bytes": 3152452,
+      "top_directory": "libxml2-2.15.3",
+      "member_count": 4535,
+      "regular_file_count": 4438,
+      "uncompressed_bytes": 42076265,
+      "tree_sha256": "8d767471fc3008d5baf278b9426ed65081d5d1584ef32544617f87e1694612f5",
+      "licenses": [
+        {
+          "path": "libxml2-2.15.3/Copyright",
+          "sha256": "5d4873884a890122a4b9b20ad56ac6f7da1d796a5bfcf04a427970ac96217626"
+        }
+      ]
+    },
+    "lz4": {
+      "version": "1.10.0",
+      "filename": "lz4-1.10.0.tar.gz",
+      "url": "https://github.com/lz4/lz4/releases/download/v1.10.0/lz4-1.10.0.tar.gz",
+      "sha256": "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b",
+      "size_bytes": 387114,
+      "top_directory": "lz4-1.10.0",
+      "member_count": 251,
+      "regular_file_count": 208,
+      "uncompressed_bytes": 1674742,
+      "tree_sha256": "46f8e19ab997a599451d2277325ab8a52203c7edaa5fe5b6c29931176a50ee2f",
+      "licenses": [
+        {
+          "path": "lz4-1.10.0/lib/LICENSE",
+          "sha256": "8b58c446121a109ccf32edc094bba3010a3d85e4ee3702950db55e4d3e87736c"
+        }
+      ]
+    },
+    "openssl": {
+      "version": "4.0.1",
+      "filename": "openssl-4.0.1.tar.gz",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-4.0.1/openssl-4.0.1.tar.gz",
+      "sha256": "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09",
+      "size_bytes": 55079428,
+      "top_directory": "openssl-4.0.1",
+      "member_count": 6319,
+      "regular_file_count": 6008,
+      "uncompressed_bytes": 134989491,
+      "tree_sha256": "8062833e3fcabb4e5b72d48c9f50a3f7f3a9f89761f09d1c7902cd81795fc05b",
+      "licenses": [
+        {
+          "path": "openssl-4.0.1/LICENSE.txt",
+          "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+        },
+        {
+          "path": "openssl-4.0.1/external/perl/Text-Template-1.56/LICENSE",
+          "sha256": "9837f05336ef3cbacb6a96e1672a0426d81ad01191f214b8d48e22ca62338181"
+        }
+      ]
+    },
+    "perl": {
+      "version": "5.44.0",
+      "filename": "perl-5.44.0.tar.gz",
+      "url": "https://www.cpan.org/src/5.0/perl-5.44.0.tar.gz",
+      "sha256": "3b855066b92491cb40e86affb1ca57d1a388aa43e51b91c7806a32c2f65f96c3",
+      "size_bytes": 21265451,
+      "top_directory": "perl-5.44.0",
+      "member_count": 7856,
+      "regular_file_count": 6858,
+      "uncompressed_bytes": 102349110,
+      "tree_sha256": "9b049e9bee92ec39f40192c903e96955b4a99ded14a22702852eb2a333b83560",
+      "licenses": [
+        {
+          "path": "perl-5.44.0/Artistic",
+          "sha256": "dd90d4f42e4dcadf5a7c09eea0189d93c7b37ae560c91f0f6d5233ed3b9292a2"
+        },
+        {
+          "path": "perl-5.44.0/Copying",
+          "sha256": "8979e6dd61852041643c5c5c40ea63b2bd1b438a67d114e62cbaef808c514315"
+        }
+      ]
+    },
+    "pkgconf": {
+      "version": "3.0.6",
+      "filename": "pkgconf-3.0.6.tar.xz",
+      "url": "https://github.com/pkgconf/pkgconf/releases/download/pkgconf-3.0.6/pkgconf-3.0.6.tar.xz",
+      "sha256": "c88a653fbabfa2a5857a30f6b6ad6c40dbacc3b7c72cc066e5c7dc4571cbddaa",
+      "size_bytes": 428124,
+      "top_directory": "pkgconf-3.0.6",
+      "member_count": 806,
+      "regular_file_count": 757,
+      "uncompressed_bytes": 2936437,
+      "tree_sha256": "5d0aef0f13e20bb831ccb14ff8e9954952867582321715f5c8bb4f32debfe672",
+      "licenses": [
+        {
+          "path": "pkgconf-3.0.6/COPYING",
+          "sha256": "055a265b839672a62f590869b0a1f8e4f5147e8f073c9ba77b17b8d7ad653966"
         }
       ]
     },
@@ -92,6 +338,42 @@
         {
           "path": "proj-9.8.1/COPYING",
           "sha256": "6a8f30793e877d32e3f88b972f0970a051a3b5a26cd057d3993cb51e21c43319"
+        }
+      ]
+    },
+    "zlib": {
+      "version": "1.3.2",
+      "filename": "zlib-1.3.2.tar.xz",
+      "url": "https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.xz",
+      "sha256": "d7a0654783a4da529d1bb793b7ad9c3318020af77667bcae35f95d0e42a792f3",
+      "size_bytes": 1320064,
+      "top_directory": "zlib-1.3.2",
+      "member_count": 291,
+      "regular_file_count": 254,
+      "uncompressed_bytes": 3579037,
+      "tree_sha256": "90fa89e387df8d6ec5ad6a2a049bb4e98af328682aa4f539e8636a78d57908bd",
+      "licenses": [
+        {
+          "path": "zlib-1.3.2/LICENSE",
+          "sha256": "e32ff4e00d9d94930537635291da39e7e612703334bf6fde8c7f1686fe8a45a2"
+        }
+      ]
+    },
+    "zstandard": {
+      "version": "1.5.7",
+      "filename": "zstd-1.5.7.tar.gz",
+      "url": "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz",
+      "sha256": "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
+      "size_bytes": 2434947,
+      "top_directory": "zstd-1.5.7",
+      "member_count": 743,
+      "regular_file_count": 637,
+      "uncompressed_bytes": 8354806,
+      "tree_sha256": "7df071301b7626d5546eaf684004c20789b50cd59f46e80ef73d501553730305",
+      "licenses": [
+        {
+          "path": "zstd-1.5.7/LICENSE",
+          "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
         }
       ]
     }

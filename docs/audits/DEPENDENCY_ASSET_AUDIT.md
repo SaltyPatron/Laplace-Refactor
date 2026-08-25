@@ -126,9 +126,10 @@ provider interaction, not general numerical correctness or product completion.
 
 ## Selected official release inputs
 
-Five newer release archives already present in the clean repository cache were
-redownloaded from their official PostgreSQL or OSGeo HTTPS endpoints. Every fresh
-download produced the same SHA-256 as the cached bytes:
+The initial five PostgreSQL/geospatial releases and fifteen current PostgreSQL
+runtime/build/test releases were acquired from their canonical upstream endpoints.
+Every downloaded archive was checked against its published SHA-256 where upstream
+provides one, then independently inspected by the repository verifier:
 
 | Component | Version | Archive SHA-256 | Expanded tree SHA-256 |
 | --- | --- | --- | --- |
@@ -138,11 +139,20 @@ download produced the same SHA-256 as the cached bytes:
 | GEOS | 3.14.1 | `3c20919cda9a505db07b5216baa980bacdaa0702da715b43f176fb07eff7e716` | `9a00076c9d9a4a5358ec9277a30a21a8f77da842a0ec59e651c1064f7b3aad9c` |
 | PROJ | 9.8.1 | `af5b731c145c1d13c4e3b4eeb7d167e94e845e440f71e3496b4ed8dae0291960` | `c28be4a194a4a149ea590260e6ffcee62c4ff2ef53bbaf22167434022b59bf94` |
 
+The additional selected generations are ICU 78.3, OpenSSL 4.0.1, libxml2 2.15.3,
+zlib 1.3.2, LZ4 1.10.0, Zstandard 1.5.7, liburing 2.15, GNU binutils 2.47,
+GNU make 4.4.1, Bison 3.8.2, Flex 2.6.4, stable Perl 5.44.0, pkgconf 3.0.6,
+IPC::Run 20260402.0, and IO::Tty 1.31. Their exact archive/tree metrics and licenses
+are machine-readable in `dependencies/release-lock.json`. The complete twenty-tree
+release source set was atomically imported and reverified as generation
+`e3110b1d79c0143195dc19f7cc8d76bdddf4d476b6e34dbfdbd101cc15b42dd8`, the SHA-256
+of the exact release-lock bytes.
+
 `dependencies/release-lock.json` also binds exact archive size, member count, regular
 file count, expanded byte count, top directory, source URL, and license-file digests.
 `tools/dependencies/release-assets.py` rejects altered archives, duplicate or escaping
 members, privileged mode bits, unsafe links, undeclared extracted paths, changed file
-contents or modes, and an existing publication destination. The five extracted trees
+contents or modes, and an existing publication destination. All twenty extracted trees
 were independently checked against their archives after import.
 
 This selects source identity only. The stack becomes a product dependency only after
