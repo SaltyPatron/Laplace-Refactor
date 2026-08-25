@@ -3,6 +3,7 @@ add_library(laplace_engine SHARED
     src/geometry.c
     src/execution.cpp
     src/framework.c
+    src/spool.cpp
     src/isa.c
     src/persistence.c
     src/trajectory.c

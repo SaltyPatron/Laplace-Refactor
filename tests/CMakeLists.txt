@@ -11,6 +11,47 @@ include(GoogleTest)
 gtest_discover_tests(laplace_identity_tests
     PROPERTIES LABELS "implementation;identity")
 
+if(UNIX)
+    add_executable(laplace_spool_tests
+        spool_tests.cpp)
+    target_link_libraries(laplace_spool_tests PRIVATE
+        Laplace::Framework GTest::gtest_main)
+    target_compile_options(laplace_spool_tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    gtest_discover_tests(laplace_spool_tests
+        PROPERTIES LABELS "implementation;framework;spool;producer")
+
+    add_library(laplace_spool_ordinal_mutant STATIC
+        ../engine/src/spool.cpp)
+    target_include_directories(laplace_spool_ordinal_mutant PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_spool_ordinal_mutant PRIVATE
+        Laplace::Framework BLAKE3::blake3)
+    target_compile_definitions(laplace_spool_ordinal_mutant PRIVATE
+        LAPLACE_TEST_SPOOL_SKIP_ORDINAL_VALIDATION=1)
+    target_compile_options(laplace_spool_ordinal_mutant PRIVATE
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_executable(laplace_spool_ordinal_mutation_probe
+        spool_tests.cpp)
+    target_include_directories(laplace_spool_ordinal_mutation_probe PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_spool_ordinal_mutation_probe PRIVATE
+        laplace_spool_ordinal_mutant Laplace::Framework GTest::gtest_main)
+    target_compile_options(laplace_spool_ordinal_mutation_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME spool.mutation-ordinal-validation-omission-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_spool_ordinal_mutation_probe>"
+            "-DFILTER=CanonicalSpool.RejectsOrdinalAndTypeDefectsBeforeWritingAnyBytes"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+    set_tests_properties(
+        spool.mutation-ordinal-validation-omission-detected PROPERTIES
+        LABELS "implementation;framework;spool;producer;mutation")
+endif()
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(
     NAME unicode-root.contract-and-mutation

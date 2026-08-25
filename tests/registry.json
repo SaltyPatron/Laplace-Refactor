@@ -21,6 +21,28 @@
       "covered_dimensions": ["generated registry", "operation metadata", "opcode lookup"]
     },
     {
+      "ctest_name": "CanonicalSpool.ReplaysExactAnonymousMappedBytesThroughFrameworkProducer",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["anonymous file-backed canonical preparation", "read-only mapped producer replay", "source and recipe binding", "no repository artifact"]
+    },
+    {
+      "ctest_name": "CanonicalSpool.StreamIdentityIgnoresPartitionsWhileSpoolReceiptBindsThem",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["partition-independent canonical stream identity", "partition-bound physical spool receipt", "repeatable producer identity"]
+    },
+    {
+      "ctest_name": "CanonicalSpool.RejectsOrdinalAndTypeDefectsBeforeWritingAnyBytes",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["pre-write global ordinal validation", "pre-write record type validation", "rejected input has no byte effect"],
+      "defect_controls": ["spool.mutation-ordinal-validation-omission-detected"]
+    },
+    {
+      "ctest_name": "spool.mutation-ordinal-validation-omission-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["omitted pre-write ordinal validation is detected"],
+      "controls": "CanonicalSpool.RejectsOrdinalAndTypeDefectsBeforeWritingAnyBytes"
+    },
+    {
       "ctest_name": "isa.generated-registry-dispatch-contract",
       "evidence_targets": ["LP-TEST-FRAMEWORK-MODULE-REGISTRY", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY"],
       "covered_dimensions": ["generated registry-owned validation and dispatch", "typed operation handler selection"],

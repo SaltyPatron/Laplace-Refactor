@@ -61,6 +61,21 @@
   "producer_control_flags": {
     "none": 0
   },
+  "file_backed_canonical_spool": {
+    "abi": "laplace-canonical-spool-v1",
+    "storage": "anonymous-unlinked-file-outside-the-repository",
+    "append_unit": "complete-canonical-batch",
+    "rules": [
+      "record-type-and-global-ordinals-are-checked-before-write",
+      "batch-bytes-are-written-exactly-once-without-reencoding",
+      "seal-syncs-maps-read-only-and-calculates-the-canonical-stream-fingerprint",
+      "the-exposed-producer-replays-the-exact-mapped-batches",
+      "source-recipe-stream-and-batch-layout-bind-the-spool-receipt",
+      "producer-abort-does-not-mutate-the-immutable-prepared-spool",
+      "destroy-closes-the-file-and-invalidates-every-view"
+    ],
+    "purpose": "bounded-memory-preparation-of-large-canonical-streams-before-one-producer-fanout"
+  },
   "replay_flags": {
     "none": 0
   },
