@@ -184,6 +184,52 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                     REPO_ROOT, lock, root / "archives", root / "wrong-generation"
                 )
 
+    def test_build_sources_are_fresh_private_archive_extractions(self) -> None:
+        class ReleaseFixture:
+            def __init__(self) -> None:
+                self.imported: list[tuple[str, Path]] = []
+                self.verified: list[tuple[str, Path]] = []
+
+            def import_entry(
+                self, name: str, entry: dict[str, object], archive_root: Path, destination: Path
+            ) -> None:
+                self.imported.append((name, destination))
+                (destination / name).mkdir()
+
+            def verify_imported_entry(
+                self, name: str, entry: dict[str, object], archive_root: Path, destination: Path
+            ) -> None:
+                self.verified.append((name, destination))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = root / "repository"
+            build_root = root / "build"
+            repository.mkdir()
+            build_root.mkdir()
+            (repository / "release-lock.json").write_text(
+                json.dumps({"archives": {"source-a": {}, "source-b": {}}}),
+                encoding="utf-8",
+            )
+            contract = {"release_lock": "release-lock.json"}
+            plan = {
+                "archive_root": str(root / "archives"),
+                "components": [
+                    {"source": "source-a"},
+                    {"source": "source-a"},
+                    {"source": "source-b"},
+                ],
+            }
+            release = ReleaseFixture()
+            with mock.patch.object(BUILD, "load_release_module", return_value=release):
+                observed = BUILD.prepare_private_sources(
+                    contract, plan, repository, build_root
+                )
+            expected = build_root / "sources"
+            self.assertEqual(observed, expected)
+            self.assertEqual(release.imported, [("source-a", expected), ("source-b", expected)])
+            self.assertEqual(release.verified, release.imported)
+
     def test_plan_identity_changes_with_contract_and_outputs_remain_external(self) -> None:
         contract = self.contract()
         with tempfile.TemporaryDirectory() as temporary:
