@@ -17,7 +17,7 @@ sql_file=$7
 temporary_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
 test_root=$(mktemp -d "$temporary_parent/laplace-postgres-test.XXXXXX")
 data_directory="$test_root/data"
-socket_directory="$test_root/socket"
+socket_directory=$(mktemp -d /tmp/lp-pg.XXXXXX)
 server_log="$test_root/postgres.log"
 port=55432
 server_started=0
@@ -26,6 +26,9 @@ cleanup() {
     exit_code=$?
     if [[ $server_started -eq 1 ]]; then
         "$pg_bindir/pg_ctl" -D "$data_directory" -m fast -w stop >/dev/null || true
+    fi
+    if [[ "$socket_directory" == /tmp/lp-pg.* ]]; then
+        rmdir -- "$socket_directory" 2>/dev/null || true
     fi
     if [[ $exit_code -eq 0 && "$test_root" == "$temporary_parent"/laplace-postgres-test.* ]]; then
         rm -rf -- "$test_root"
@@ -36,7 +39,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$socket_directory"
 "$pg_bindir/initdb" -D "$data_directory" \
     --no-locale --encoding=UTF8 --auth=trust >/dev/null
 "$pg_bindir/pg_ctl" -D "$data_directory" -l "$server_log" \
