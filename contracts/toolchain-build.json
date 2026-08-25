@@ -1,0 +1,191 @@
+{
+  "schema": "laplace.toolchain-build-contract/v1",
+  "classification": "source-built-build-toolchain",
+  "release_lock": "dependencies/release-lock.json",
+  "logical_roots": {
+    "source_generation": "/opt/laplace/external/release-generations/841028ef55a44fcb2e28f06012282c6013df9a9f0ece26e5db9e0fd216952a92",
+    "archive_root": "/opt/laplace/external/acquisition-cache/source-archives",
+    "build_root": "/opt/laplace/build/toolchain",
+    "work_root": "/opt/laplace/work/toolchain",
+    "stage_root": "/opt/laplace/stage/toolchain"
+  },
+  "activation": {
+    "scope": "build-toolchain-only",
+    "product_runtime_activation_eligible": false,
+    "consumer_contract": "selected-tool-paths-and-hashes"
+  },
+  "environment": {
+    "rejected_nonempty": [
+      "AR",
+      "AS",
+      "BASH_ENV",
+      "CC",
+      "CFLAGS",
+      "CMAKE_GENERATOR",
+      "CMAKE_PREFIX_PATH",
+      "CMAKE_TOOLCHAIN_FILE",
+      "COMPILER_PATH",
+      "CPATH",
+      "CPP",
+      "CPPFLAGS",
+      "CPLUS_INCLUDE_PATH",
+      "C_INCLUDE_PATH",
+      "CXX",
+      "CXXFLAGS",
+      "DESTDIR",
+      "ENV",
+      "LD",
+      "LDFLAGS",
+      "LD_LIBRARY_PATH",
+      "LIBRARY_PATH",
+      "MAKE",
+      "MAKEFLAGS",
+      "MFLAGS",
+      "NINJA_STATUS",
+      "NM",
+      "OBJCOPY",
+      "OBJDUMP",
+      "PERL5LIB",
+      "PERL_LOCAL_LIB_ROOT",
+      "PERL_MB_OPT",
+      "PERL_MM_OPT",
+      "PKG_CONFIG",
+      "PKG_CONFIG_LIBDIR",
+      "PKG_CONFIG_PATH",
+      "PYTHONHOME",
+      "PYTHONPATH",
+      "RANLIB",
+      "READELF",
+      "STRIP"
+    ],
+    "locale": "C.UTF-8",
+    "source_date_epoch": "1787616000"
+  },
+  "bootstrap": {
+    "classification": "host-platform-bootstrap",
+    "tools": [
+      {"id": "cc", "path": "/usr/bin/x86_64-linux-gnu-gcc-11", "sha256": "821af3c74506283c179ca413bb33e6b528805a4dd8a5c09df125e5ad560a9e89", "version_argument": "--version"},
+      {"id": "cxx", "path": "/usr/bin/x86_64-linux-gnu-g++-11", "sha256": "2360901d864cf10bfd6296e261cb2c14053552a80377761ab07146ec9ec9a2c0", "version_argument": "--version"},
+      {"id": "ld", "path": "/usr/bin/x86_64-linux-gnu-ld.bfd", "sha256": "58937fc20c21e147883b4fdaa0fc7438a8e8f2bb886cfcaa4896100ca91139e7", "version_argument": "--version"},
+      {"id": "ar", "path": "/usr/bin/x86_64-linux-gnu-ar", "sha256": "5b394f8752fde1776992d405d76034d5017b24b9b922bedaeeaff8cc344ef044", "version_argument": "--version"},
+      {"id": "ranlib", "path": "/usr/bin/x86_64-linux-gnu-ranlib", "sha256": "95e470c76f1fb0383ef5c10cfdf10127aefab07dad924fe94933ec8be8a5a9fb", "version_argument": "--version"},
+      {"id": "make", "path": "/usr/bin/make", "sha256": "92f646030615cd98490a68a94c0aefd87b552be3158b941c02e43b0bfdb576db", "version_argument": "--version"},
+      {"id": "tar", "path": "/usr/bin/tar", "sha256": "fd0d62eed19efd3e115aa1be44160f89d777cd1e6d6d8eb0ce7c8bdc879f59e2", "version_argument": "--version"},
+      {"id": "python", "path": "/usr/bin/python3.10", "sha256": "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86", "version_argument": "--version"},
+      {"id": "sh", "path": "/usr/bin/dash", "sha256": "4f291296e89b784cd35479fca606f228126e3641f5bcaee68dee36583d7c9483", "version_argument": "-c", "version_operand": "printf dash"},
+      {"id": "bash", "path": "/usr/bin/bash", "sha256": "59474588a312b6b6e73e5a42a59bf71e62b55416b6c9d5e4a6e1c630c2a9ecd4", "version_argument": "--version"}
+    ]
+  },
+  "build": {
+    "parallel_jobs": 6,
+    "directory_mode": "0700",
+    "component_order": [
+      "gnu-binutils",
+      "gnu-make",
+      "pkgconf",
+      "perl",
+      "gnu-bison",
+      "flex",
+      "cmake",
+      "ninja"
+    ],
+    "components": {
+      "gnu-binutils": {
+        "version": "2.47",
+        "phase": "platform-toolchain",
+        "source_mode": "immutable-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}", "--disable-nls", "--disable-werror"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["addr2line", "ar", "as", "c++filt", "elfedit", "gprof", "ld", "nm", "objcopy", "objdump", "ranlib", "readelf", "size", "strings", "strip"]
+      },
+      "gnu-make": {
+        "version": "4.4.1",
+        "phase": "platform-toolchain",
+        "source_mode": "immutable-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["make"]
+      },
+      "pkgconf": {
+        "version": "3.0.6",
+        "phase": "build-language-tools",
+        "source_mode": "immutable-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}", "--with-system-libdir={prefix}/lib", "--with-system-includedir={prefix}/include"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["pkgconf"]
+      },
+      "perl": {
+        "version": "5.44.0",
+        "phase": "build-language-tools",
+        "source_mode": "private-copy-in-tree",
+        "configure": ["{source}/Configure", "-des", "-Dprefix={prefix}", "-Dman1dir=none", "-Dman3dir=none"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "test"],
+        "install": ["{make}", "install"],
+        "tools": ["perl"]
+      },
+      "gnu-bison": {
+        "version": "3.8.2",
+        "phase": "build-language-tools",
+        "source_mode": "immutable-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["bison"]
+      },
+      "flex": {
+        "version": "2.6.4",
+        "phase": "build-language-tools",
+        "source_mode": "immutable-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["flex"]
+      },
+      "cmake": {
+        "version": "4.4.2",
+        "phase": "meta-build-tools",
+        "source_mode": "immutable-out-of-tree",
+        "configure": ["{source}/bootstrap", "--prefix={prefix}", "--parallel={jobs}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{build}/bin/ctest", "--output-on-failure", "-j{jobs}"],
+        "install": ["{make}", "install"],
+        "tools": ["cmake", "ctest", "cpack"]
+      },
+      "ninja": {
+        "version": "1.13.2",
+        "phase": "meta-build-tools",
+        "source_mode": "immutable-out-of-tree",
+        "configure": ["{cmake}", "-S", "{source}", "-B", "{build}", "-G", "Unix Makefiles", "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_INSTALL_PREFIX={prefix}"],
+        "build": ["{cmake}", "--build", "{build}", "--parallel", "{jobs}"],
+        "test": ["{ctest}", "--test-dir", "{build}", "--output-on-failure", "-j{jobs}"],
+        "install": ["{cmake}", "--install", "{build}"],
+        "tools": ["ninja"]
+      }
+    }
+  },
+  "receipt": {
+    "required_sections": [
+      "source_inputs",
+      "bootstrap_inputs",
+      "component_steps",
+      "installed_tools",
+      "compiler_driver_traces",
+      "linker_map_inputs",
+      "package_tree",
+      "consumer_manifest",
+      "activation"
+    ],
+    "compiler_probe_languages": ["c", "cxx"],
+    "record_dynamic_dependencies": true,
+    "record_static_link_inputs": true
+  }
+}
