@@ -409,8 +409,9 @@ laplace_unicode_status laplace_unicode_hilbert4_encode(
 #else
             const size_t emitted_axis = axis;
 #endif
-            accumulator = (uint8_t)((accumulator << 1u) |
-                ((transformed[emitted_axis] >> (uint32_t)bit) & 1u));
+            const uint32_t emitted_bit =
+                (transformed[emitted_axis] >> (uint32_t)bit) & UINT32_C(1);
+            accumulator = (uint8_t)(((uint32_t)accumulator << 1u) | emitted_bit);
             accumulated_bits += 1u;
             if (accumulated_bits == 8u) {
                 key[byte_index++] = accumulator;
