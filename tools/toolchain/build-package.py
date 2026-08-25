@@ -207,7 +207,7 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
         if not HASH_PATTERN.fullmatch(digest):
             raise ToolchainError(f"bootstrap tool digest must be lowercase SHA-256: {tool_id}")
         require_string(tool.get("version_argument"), f"bootstrap.tools[{index}].version_argument")
-    for required in ("cc", "cxx", "ld", "ar", "ranlib", "make", "python", "sh"):
+    for required in ("cc", "cxx", "ld", "ar", "nm", "ranlib", "make", "python", "sh"):
         if required not in ids:
             raise ToolchainError(f"bootstrap.tools must include {required}")
 
@@ -478,7 +478,12 @@ def build_environment(
 
 
 def format_command(
-    template: list[str], source: Path, build: Path, prefix: Path, jobs: int
+    template: list[str],
+    source: Path,
+    build: Path,
+    prefix: Path,
+    jobs: int,
+    bootstrap: dict[str, dict[str, str]],
 ) -> list[str]:
     replacements = {
         "source": str(source),
@@ -488,6 +493,12 @@ def format_command(
         "make": str(prefix / "bin/make") if (prefix / "bin/make").is_file() else "/usr/bin/make",
         "cmake": str(prefix / "bin/cmake"),
         "ctest": str(prefix / "bin/ctest"),
+        "cc": bootstrap["cc"]["path"],
+        "cxx": bootstrap["cxx"]["path"],
+        "ld": bootstrap["ld"]["path"],
+        "ar": bootstrap["ar"]["path"],
+        "ranlib": bootstrap["ranlib"]["path"],
+        "nm": bootstrap["nm"]["path"],
     }
     return [argument.format(**replacements) for argument in template]
 
@@ -760,6 +771,7 @@ def execute_plan(
                 component_build,
                 prefix,
                 plan["parallel_jobs"],
+                plan["bootstrap_inputs"],
             )
             steps.append(
                 run_logged(
