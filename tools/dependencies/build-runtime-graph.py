@@ -31,8 +31,12 @@ TESTS = {
     "make-runtests",
     "source-copy-make-check",
 }
+LANGUAGES = {"C", "CXX", "ASM"}
 NEEDED_PATTERN = re.compile(r"Shared library: \[([^]]+)\]")
 RUNPATH_PATTERN = re.compile(r"Library r(?:un)?path: \[([^]]*)\]", re.IGNORECASE)
+COMPILER_TEMPORARY_PATTERN = re.compile(
+    r"/(?:tmp|var/tmp)/(?:icx|icpx)-[A-Za-z0-9]+/[^\"'\s]+\.o"
+)
 
 
 class GraphError(RuntimeError):
@@ -150,6 +154,14 @@ def validate_contract(contract: dict[str, Any]) -> None:
         provider = require_string(component.get("provider"), f"{identifier}.provider")
         if provider not in PROVIDERS:
             raise GraphError(f"unsupported provider for {identifier}: {provider}")
+        languages = require_string_list(
+            component.get("languages"), f"{identifier}.languages"
+        )
+        unknown_languages = sorted(set(languages) - LANGUAGES)
+        if unknown_languages:
+            raise GraphError(
+                f"unsupported language for {identifier}: {', '.join(unknown_languages)}"
+            )
         require_string(component.get("source_subdirectory"), f"{identifier}.source_subdirectory")
         dependencies = require_string_list(
             component.get("depends_on"), f"{identifier}.depends_on", allow_empty=True
@@ -263,6 +275,12 @@ def verify_toolchain_receipt(
     }
 
 
+def normalize_compiler_driver_trace(trace: str) -> str:
+    """Remove compiler-created temporary object names from a semantic driver trace."""
+
+    return COMPILER_TEMPORARY_PATTERN.sub("<compiler-temporary-object>", trace)
+
+
 def compiler_driver_trace(
     contract: dict[str, Any], compilers: dict[str, dict[str, str]], toolchain: dict[str, Any]
 ) -> dict[str, Any]:
@@ -284,7 +302,7 @@ def compiler_driver_trace(
             "-o",
             "/dev/null",
         ]
-        process = subprocess.run(command, text=True, capture_output=True)
+        process = subprocess.run(command, cwd="/", text=True, capture_output=True)
         trace = process.stderr + process.stdout
         if process.returncode != 0:
             raise GraphError(f"{role} driver trace failed")
@@ -309,9 +327,11 @@ def compiler_driver_trace(
                     "size": path.stat().st_size,
                 }
             )
+        normalized_trace = normalize_compiler_driver_trace(trace)
         result[role] = {
             "command": command,
-            "trace_sha256": hashlib.sha256(trace.encode("utf-8")).hexdigest(),
+            "trace_normalization": "laplace.compiler-driver-trace/v1",
+            "trace_sha256": hashlib.sha256(normalized_trace.encode("utf-8")).hexdigest(),
             "selected_linker": selected_linker,
             "absolute_inputs": absolute_inputs,
         }
@@ -543,6 +563,19 @@ def cmake_component(
     staged = Path(plan["staged_prefix"])
     cmake = tools["cmake"]["path"]
     ninja = tools["ninja"]["path"]
+    compiler_arguments: list[str] = []
+    if "C" in component["languages"]:
+        compiler_arguments.append(
+            f"-DCMAKE_C_COMPILER={compilers['c_compiler']['path']}"
+        )
+    if "CXX" in component["languages"]:
+        compiler_arguments.append(
+            f"-DCMAKE_CXX_COMPILER={compilers['cxx_compiler']['path']}"
+        )
+    if "ASM" in component["languages"]:
+        compiler_arguments.append(
+            f"-DCMAKE_ASM_COMPILER={compilers['c_compiler']['path']}"
+        )
     run_logged(
         [
             cmake,
@@ -555,8 +588,7 @@ def cmake_component(
             "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
             f"-DCMAKE_MAKE_PROGRAM={ninja}",
             f"-DCMAKE_INSTALL_PREFIX={final}",
-            f"-DCMAKE_C_COMPILER={compilers['c_compiler']['path']}",
-            f"-DCMAKE_CXX_COMPILER={compilers['cxx_compiler']['path']}",
+            *compiler_arguments,
             f"-DCMAKE_AR={tools['ar']['path']}",
             f"-DCMAKE_LINKER={tools['ld']['path']}",
             f"-DCMAKE_NM={tools['nm']['path']}",
