@@ -13,19 +13,22 @@ enum {
     LAPLACE_PERFCACHE_OFFSET_KEY_SCHEMA_ID = 40,
     LAPLACE_PERFCACHE_OFFSET_VALUE_SCHEMA_ID = 56,
     LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_ID = 72,
-    LAPLACE_PERFCACHE_OFFSET_SOURCE_FINGERPRINT = 88,
-    LAPLACE_PERFCACHE_OFFSET_RECIPE_FINGERPRINT = 120,
-    LAPLACE_PERFCACHE_OFFSET_DEPENDENCY_FINGERPRINT = 152,
-    LAPLACE_PERFCACHE_OFFSET_RECORD_COUNT = 184,
-    LAPLACE_PERFCACHE_OFFSET_KEY_BYTES = 192,
-    LAPLACE_PERFCACHE_OFFSET_VALUE_BYTES = 196,
-    LAPLACE_PERFCACHE_OFFSET_RECORD_STRIDE = 200,
-    LAPLACE_PERFCACHE_OFFSET_ACCESS_LAW = 204,
-    LAPLACE_PERFCACHE_OFFSET_RECORDS = 208,
-    LAPLACE_PERFCACHE_OFFSET_RECORDS_BYTES = 216,
-    LAPLACE_PERFCACHE_OFFSET_METADATA = 224,
-    LAPLACE_PERFCACHE_OFFSET_METADATA_BYTES = 232,
-    LAPLACE_PERFCACHE_OFFSET_DIGEST = 240
+    LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_FINGERPRINT = 88,
+    LAPLACE_PERFCACHE_OFFSET_MODULE_CONTRACT_FINGERPRINT = 120,
+    LAPLACE_PERFCACHE_OFFSET_SOURCE_FINGERPRINT = 152,
+    LAPLACE_PERFCACHE_OFFSET_RECIPE_FINGERPRINT = 184,
+    LAPLACE_PERFCACHE_OFFSET_DEPENDENCY_FINGERPRINT = 216,
+    LAPLACE_PERFCACHE_OFFSET_RECORD_COUNT = 248,
+    LAPLACE_PERFCACHE_OFFSET_KEY_BYTES = 256,
+    LAPLACE_PERFCACHE_OFFSET_VALUE_BYTES = 260,
+    LAPLACE_PERFCACHE_OFFSET_RECORD_STRIDE = 264,
+    LAPLACE_PERFCACHE_OFFSET_ACCESS_LAW = 268,
+    LAPLACE_PERFCACHE_OFFSET_RECORDS = 272,
+    LAPLACE_PERFCACHE_OFFSET_RECORDS_BYTES = 280,
+    LAPLACE_PERFCACHE_OFFSET_METADATA = 288,
+    LAPLACE_PERFCACHE_OFFSET_METADATA_BYTES = 296,
+    LAPLACE_PERFCACHE_OFFSET_DIGEST = 304,
+    LAPLACE_PERFCACHE_OFFSET_RESERVED = 312
 };
 
 static const uint8_t laplace_perfcache_magic[8] = {
@@ -85,6 +88,10 @@ static int contract_valid(const laplace_perfcache_contract* contract) {
         !bytes_nonzero(contract->value_schema_id.bytes, sizeof(contract->value_schema_id.bytes)) ||
         !bytes_nonzero(contract->activation_epoch_id.bytes,
                        sizeof(contract->activation_epoch_id.bytes)) ||
+        !bytes_nonzero(contract->activation_epoch_fingerprint.bytes,
+                       sizeof(contract->activation_epoch_fingerprint.bytes)) ||
+        !bytes_nonzero(contract->module_contract_fingerprint.bytes,
+                       sizeof(contract->module_contract_fingerprint.bytes)) ||
         !bytes_nonzero(contract->source_fingerprint.bytes,
                        sizeof(contract->source_fingerprint.bytes)) ||
         !bytes_nonzero(contract->recipe_fingerprint.bytes,
@@ -125,6 +132,12 @@ static int contract_equal(
         memcmp(left->activation_epoch_id.bytes,
                right->activation_epoch_id.bytes,
                sizeof(left->activation_epoch_id.bytes)) == 0 &&
+        memcmp(left->activation_epoch_fingerprint.bytes,
+               right->activation_epoch_fingerprint.bytes,
+               sizeof(left->activation_epoch_fingerprint.bytes)) == 0 &&
+        memcmp(left->module_contract_fingerprint.bytes,
+               right->module_contract_fingerprint.bytes,
+               sizeof(left->module_contract_fingerprint.bytes)) == 0 &&
         memcmp(left->source_fingerprint.bytes,
                right->source_fingerprint.bytes,
                sizeof(left->source_fingerprint.bytes)) == 0 &&
@@ -324,6 +337,12 @@ laplace_perfcache_status laplace_perfcache_write(
     memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_ID,
            spec->contract.activation_epoch_id.bytes,
            sizeof(spec->contract.activation_epoch_id.bytes));
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_FINGERPRINT,
+           spec->contract.activation_epoch_fingerprint.bytes,
+           sizeof(spec->contract.activation_epoch_fingerprint.bytes));
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_MODULE_CONTRACT_FINGERPRINT,
+           spec->contract.module_contract_fingerprint.bytes,
+           sizeof(spec->contract.module_contract_fingerprint.bytes));
     memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_SOURCE_FINGERPRINT,
            spec->contract.source_fingerprint.bytes,
            sizeof(spec->contract.source_fingerprint.bytes));
@@ -381,6 +400,12 @@ static void read_contract(
     memcpy(contract->activation_epoch_id.bytes,
            artifact + LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_ID,
            sizeof(contract->activation_epoch_id.bytes));
+    memcpy(contract->activation_epoch_fingerprint.bytes,
+           artifact + LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_FINGERPRINT,
+           sizeof(contract->activation_epoch_fingerprint.bytes));
+    memcpy(contract->module_contract_fingerprint.bytes,
+           artifact + LAPLACE_PERFCACHE_OFFSET_MODULE_CONTRACT_FINGERPRINT,
+           sizeof(contract->module_contract_fingerprint.bytes));
     memcpy(contract->source_fingerprint.bytes,
            artifact + LAPLACE_PERFCACHE_OFFSET_SOURCE_FINGERPRINT,
            sizeof(contract->source_fingerprint.bytes));
@@ -432,7 +457,9 @@ laplace_perfcache_status laplace_perfcache_validate(
     }
     if (read_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_HEADER_BYTES) !=
             LAPLACE_PERFCACHE_HEADER_BYTES ||
-        !bytes_zero(artifact + 248u, 8u)) {
+        !bytes_zero(
+            artifact + LAPLACE_PERFCACHE_OFFSET_RESERVED,
+            LAPLACE_PERFCACHE_HEADER_BYTES - LAPLACE_PERFCACHE_OFFSET_RESERVED)) {
         return LAPLACE_PERFCACHE_HEADER_INVALID;
     }
     read_contract(artifact, &actual_contract);

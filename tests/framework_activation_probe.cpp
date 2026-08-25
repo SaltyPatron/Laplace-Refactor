@@ -14,6 +14,7 @@ void Fill(laplace_digest256* digest, std::uint8_t value) {
 
 struct State final {
     std::uint32_t prepare_count{};
+    std::uint32_t commit_count{};
 };
 
 laplace_framework_status Begin(
@@ -48,10 +49,11 @@ laplace_framework_status Prepare(
 }
 
 laplace_framework_status Commit(
-    void*,
+    void* opaque,
     const laplace_framework_activation_request*,
     const laplace_digest256*,
     laplace_digest256* activation) {
+    ++static_cast<State*>(opaque)->commit_count;
     Fill(activation, UINT8_C(0xb0));
     return LAPLACE_FRAMEWORK_OK;
 }
@@ -103,6 +105,32 @@ int main() {
         state.prepare_count != 0u ||
         receipt.effect_disposition != LAPLACE_FRAMEWORK_EFFECT_NONE) {
         std::fputs("framework-activation-stale-epoch\n", stderr);
+        return 2;
+    }
+
+    request.expected_epoch =
+        context.epochs[LAPLACE_FRAMEWORK_EPOCH_DATABASE];
+    const auto admission_status = laplace_framework_admit_staged_stream(
+        &context, &staged, &request, &provider, &receipt);
+    if (admission_status != LAPLACE_FRAMEWORK_OK ||
+        state.prepare_count != 1u || state.commit_count != 0u ||
+        receipt.effect_disposition !=
+            LAPLACE_FRAMEWORK_EFFECT_ACTIVATION_ADMITTED) {
+        std::fputs("framework-activation-admission-not-inert\n", stderr);
+        return 2;
+    }
+    if (laplace_framework_abort_admitted_stream(
+            &context, &request, &provider, &receipt) != LAPLACE_FRAMEWORK_OK) {
+        return 3;
+    }
+
+    auto other_context = context;
+    other_context.authority_fingerprint.bytes[0] ^= UINT8_C(1);
+    const auto cross_context_status = laplace_framework_admit_staged_stream(
+        &other_context, &staged, &request, &provider, &receipt);
+    if (cross_context_status != LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID ||
+        state.prepare_count != 1u) {
+        std::fputs("framework-activation-cross-context\n", stderr);
         return 2;
     }
     return 0;

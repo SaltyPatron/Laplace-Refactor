@@ -809,6 +809,98 @@ TEST(FrameworkActivation, PublishesOneAdmittedEpochTransition) {
         [](std::uint8_t value) { return value == 0u; }));
 }
 
+TEST(FrameworkActivation, AdmissionIsInertUntilExplicitCommit) {
+    auto context = Context();
+    context.flags = 0u;
+    MemorySink memory{};
+    const auto staged = StagedReceipt(&context, &memory);
+    ActivationState state{};
+    state.current_epoch = context.epochs[LAPLACE_FRAMEWORK_EPOCH_DATABASE];
+    const auto original_epoch = state.current_epoch;
+    auto provider = ActivationProvider(&state);
+    laplace_framework_activation_request request{};
+    request.epoch_slot = LAPLACE_FRAMEWORK_EPOCH_DATABASE;
+    request.expected_epoch = state.current_epoch;
+    FillDigest(&request.next_epoch, 0xd0u);
+    laplace_framework_activation_receipt receipt{};
+
+    ASSERT_EQ(laplace_framework_admit_staged_stream(
+                  &context, &staged, &request, &provider, &receipt),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(state.prepare_count, 1u);
+    EXPECT_EQ(state.commit_count, 0u);
+    EXPECT_EQ(state.abort_count, 0u);
+    EXPECT_EQ(std::memcmp(state.current_epoch.bytes, original_epoch.bytes,
+                          sizeof(state.current_epoch.bytes)), 0);
+    EXPECT_EQ(receipt.effect_disposition,
+              LAPLACE_FRAMEWORK_EFFECT_ACTIVATION_ADMITTED);
+
+    ASSERT_EQ(laplace_framework_commit_admitted_stream(
+                  &context, &request, &provider, &receipt),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(state.commit_count, 1u);
+    EXPECT_EQ(std::memcmp(state.current_epoch.bytes, request.next_epoch.bytes,
+                          sizeof(state.current_epoch.bytes)), 0);
+    EXPECT_EQ(receipt.effect_disposition, LAPLACE_FRAMEWORK_EFFECT_ACTIVATED);
+}
+
+TEST(FrameworkActivation, ExplicitAbortLeavesEpochUnchanged) {
+    auto context = Context();
+    context.flags = 0u;
+    MemorySink memory{};
+    const auto staged = StagedReceipt(&context, &memory);
+    ActivationState state{};
+    state.current_epoch = context.epochs[LAPLACE_FRAMEWORK_EPOCH_DATABASE];
+    const auto original_epoch = state.current_epoch;
+    auto provider = ActivationProvider(&state);
+    laplace_framework_activation_request request{};
+    request.epoch_slot = LAPLACE_FRAMEWORK_EPOCH_DATABASE;
+    request.expected_epoch = state.current_epoch;
+    FillDigest(&request.next_epoch, 0xd0u);
+    laplace_framework_activation_receipt receipt{};
+
+    ASSERT_EQ(laplace_framework_admit_staged_stream(
+                  &context, &staged, &request, &provider, &receipt),
+              LAPLACE_FRAMEWORK_OK);
+    ASSERT_EQ(laplace_framework_abort_admitted_stream(
+                  &context, &request, &provider, &receipt),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(state.prepare_count, 1u);
+    EXPECT_EQ(state.commit_count, 0u);
+    EXPECT_EQ(state.abort_count, 1u);
+    EXPECT_EQ(std::memcmp(state.current_epoch.bytes, original_epoch.bytes,
+                          sizeof(state.current_epoch.bytes)), 0);
+    EXPECT_EQ(receipt.effect_disposition, LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT);
+}
+
+TEST(FrameworkActivation, AlteredAdmittedReceiptCannotCommitOrAbort) {
+    auto context = Context();
+    context.flags = 0u;
+    MemorySink memory{};
+    const auto staged = StagedReceipt(&context, &memory);
+    ActivationState state{};
+    state.current_epoch = context.epochs[LAPLACE_FRAMEWORK_EPOCH_DATABASE];
+    auto provider = ActivationProvider(&state);
+    laplace_framework_activation_request request{};
+    request.epoch_slot = LAPLACE_FRAMEWORK_EPOCH_DATABASE;
+    request.expected_epoch = state.current_epoch;
+    FillDigest(&request.next_epoch, 0xd0u);
+    laplace_framework_activation_receipt receipt{};
+
+    ASSERT_EQ(laplace_framework_admit_staged_stream(
+                  &context, &staged, &request, &provider, &receipt),
+              LAPLACE_FRAMEWORK_OK);
+    receipt.preparation_fingerprint.bytes[0] ^= 1u;
+    EXPECT_EQ(laplace_framework_commit_admitted_stream(
+                  &context, &request, &provider, &receipt),
+              LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID);
+    EXPECT_EQ(laplace_framework_abort_admitted_stream(
+                  &context, &request, &provider, &receipt),
+              LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID);
+    EXPECT_EQ(state.commit_count, 0u);
+    EXPECT_EQ(state.abort_count, 0u);
+}
+
 TEST(FrameworkActivation, RejectsStaleEpochBeforeProviderAdmission) {
     auto context = Context();
     context.flags = 0u;
@@ -863,6 +955,33 @@ TEST(FrameworkActivation, RejectsAlteredStageAndReadOnlyAuthority) {
                   &context, &staged, &request, &provider, &receipt),
               LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID);
     EXPECT_EQ(state.prepare_count, 0u);
+}
+
+TEST(FrameworkActivation, RejectsStageFromAnotherExecutionContext) {
+    auto source_context = Context();
+    source_context.flags = 0u;
+    MemorySink memory{};
+    const auto staged = StagedReceipt(&source_context, &memory);
+
+    auto execution_context = source_context;
+    execution_context.authority_fingerprint.bytes[0] ^= 1u;
+    ActivationState state{};
+    state.current_epoch =
+        execution_context.epochs[LAPLACE_FRAMEWORK_EPOCH_DATABASE];
+    auto provider = ActivationProvider(&state);
+    laplace_framework_activation_request request{};
+    request.epoch_slot = LAPLACE_FRAMEWORK_EPOCH_DATABASE;
+    request.expected_epoch = state.current_epoch;
+    FillDigest(&request.next_epoch, 0xd0u);
+    laplace_framework_activation_receipt receipt{};
+
+    EXPECT_EQ(laplace_framework_admit_staged_stream(
+                  &execution_context, &staged, &request, &provider, &receipt),
+              LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID);
+    EXPECT_EQ(state.prepare_count, 0u);
+    EXPECT_EQ(state.commit_count, 0u);
+    EXPECT_EQ(state.abort_count, 0u);
+    EXPECT_EQ(receipt.effect_disposition, LAPLACE_FRAMEWORK_EFFECT_NONE);
 }
 
 TEST(FrameworkActivation, FailedAtomicCommitRemainsOnlyAdmitted) {

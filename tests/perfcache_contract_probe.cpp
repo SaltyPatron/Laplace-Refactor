@@ -20,6 +20,10 @@ laplace_perfcache_contract Contract() {
     Fill(contract.value_schema_id.bytes, sizeof(contract.value_schema_id.bytes), 0x30u);
     Fill(contract.activation_epoch_id.bytes,
          sizeof(contract.activation_epoch_id.bytes), 0x40u);
+    Fill(contract.activation_epoch_fingerprint.bytes,
+         sizeof(contract.activation_epoch_fingerprint.bytes), 0x41u);
+    Fill(contract.module_contract_fingerprint.bytes,
+         sizeof(contract.module_contract_fingerprint.bytes), 0x42u);
     Fill(contract.source_fingerprint.bytes,
          sizeof(contract.source_fingerprint.bytes), 0x50u);
     Fill(contract.recipe_fingerprint.bytes,

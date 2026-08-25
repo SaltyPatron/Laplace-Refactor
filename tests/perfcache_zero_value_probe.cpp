@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <vector>
 
-static_assert(LAPLACE_PERFCACHE_FORMAT_VERSION == 2);
+static_assert(LAPLACE_PERFCACHE_FORMAT_VERSION == 3);
 static_assert(LAPLACE_PERFCACHE_IDENTITY_DIGEST_ALL_BIT_PATTERNS_VALID == 1);
 
 int main() {

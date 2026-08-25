@@ -1,7 +1,7 @@
 {
-  "schema": "laplace.perfcache-contract/v2",
-  "format_version": 2,
-  "header_bytes": 256,
+  "schema": "laplace.perfcache-contract/v3",
+  "format_version": 3,
+  "header_bytes": 352,
   "digest_bytes": 32,
   "byte_order": "little-endian",
   "digest_algorithm": "BLAKE3-256",
@@ -10,5 +10,28 @@
     "sorted_unique_fixed": 1,
     "dense_u32_zero_based": 2,
     "module_defined": 3
+  },
+  "artifact_epoch": {
+    "activation_id_bytes": 16,
+    "framework_fingerprint_bytes": 32,
+    "rule": "both fields are required typed values; neither is inferred from or truncated into the other"
+  },
+  "module_contract_fingerprint": {
+    "bytes": 32,
+    "algorithm": "BLAKE3-256",
+    "rule": "binds the exact generated module contract independently of the artifact payload"
+  },
+  "artifact_provider_abi": {"major": 1, "minor": 1},
+  "module_abi": {"major": 1, "minor": 1},
+  "generation_dispositions": {
+    "prepared": 1,
+    "reserved": 2,
+    "activated": 3,
+    "rejected": 4,
+    "aborted": 5
+  },
+  "bit_pattern_semantics": {
+    "required_identity_and_digest_zero": "valid-value-not-absence",
+    "optional_presence": "explicit-discriminator-only"
   }
 }

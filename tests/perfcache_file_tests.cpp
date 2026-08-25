@@ -29,6 +29,10 @@ laplace_perfcache_contract Contract(std::uint8_t epoch_seed) {
     Fill(contract.value_schema_id.bytes, sizeof(contract.value_schema_id.bytes), 0x30u);
     Fill(contract.activation_epoch_id.bytes,
          sizeof(contract.activation_epoch_id.bytes), epoch_seed);
+    Fill(contract.activation_epoch_fingerprint.bytes,
+         sizeof(contract.activation_epoch_fingerprint.bytes), epoch_seed);
+    Fill(contract.module_contract_fingerprint.bytes,
+         sizeof(contract.module_contract_fingerprint.bytes), 0x50u);
     Fill(contract.source_fingerprint.bytes,
          sizeof(contract.source_fingerprint.bytes), epoch_seed);
     Fill(contract.recipe_fingerprint.bytes,
@@ -156,7 +160,25 @@ TEST(PerfcacheFile, PublishesMapsAndClosesVerifiedArtifact) {
     RemoveDirectory(directory, path);
 }
 
-TEST(PerfcacheFile, ReplacementKeepsExistingMappingImmutable) {
+TEST(PerfcacheFile, WrittenTemporaryInodeIsValidatedBeforeImmutableLink) {
+    const auto contract = Contract(0x40u);
+    const auto artifact = Build(contract, 10u);
+    const auto directory = NewDirectory();
+    const auto path = directory + "/verified-write.bin";
+#if defined(LAPLACE_TEST_CORRUPT_PERFCACHE_TEMPORARY_WRITE)
+    ASSERT_EQ(Publish(path, artifact, contract),
+              LAPLACE_PERFCACHE_DIGEST_MISMATCH);
+    EXPECT_NE(access(path.c_str(), F_OK), 0);
+    EXPECT_EQ(DirectoryEntryCount(directory), 0u);
+    RemoveDirectory(directory, std::string{});
+#else
+    ASSERT_EQ(Publish(path, artifact, contract), LAPLACE_PERFCACHE_OK);
+    EXPECT_EQ(DirectoryEntryCount(directory), 1u);
+    RemoveDirectory(directory, path);
+#endif
+}
+
+TEST(PerfcacheFile, PublishedArtifactIsImmutableAndExactReplayIsIdempotent) {
     const auto first_contract = Contract(0x40u);
     const auto second_contract = Contract(0x80u);
     const auto first = Build(first_contract, 10u);
@@ -169,14 +191,16 @@ TEST(PerfcacheFile, ReplacementKeepsExistingMappingImmutable) {
     ASSERT_EQ(Open(path, first_contract, &existing),
               LAPLACE_PERFCACHE_OK);
 
-    ASSERT_EQ(Publish(path, second, second_contract),
+    ASSERT_EQ(Publish(path, first, first_contract),
               LAPLACE_PERFCACHE_OK);
+    ASSERT_EQ(Publish(path, second, second_contract),
+              LAPLACE_PERFCACHE_ARTIFACT_CONFLICT);
     laplace_perfcache_mapping current{};
-    ASSERT_EQ(Open(path, second_contract, &current),
+    ASSERT_EQ(Open(path, first_contract, &current),
               LAPLACE_PERFCACHE_OK);
     EXPECT_EQ(existing.view.records[1], 10u);
-    EXPECT_EQ(current.view.records[1], 11u);
-    EXPECT_NE(std::memcmp(existing.view.artifact_digest.bytes,
+    EXPECT_EQ(current.view.records[1], 10u);
+    EXPECT_EQ(std::memcmp(existing.view.artifact_digest.bytes,
                           current.view.artifact_digest.bytes,
                           LAPLACE_PERFCACHE_DIGEST_BYTES),
               0);
