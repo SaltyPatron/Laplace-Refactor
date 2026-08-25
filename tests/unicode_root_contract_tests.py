@@ -42,7 +42,7 @@ class UnicodeRootContractTests(unittest.TestCase):
     def test_all_six_contracts_are_internally_closed(self) -> None:
         report = VALIDATOR.validate_contracts(self.root)
         self.assertEqual(report["contract_count"], 6)
-        self.assertEqual(report["source_file_count"], 32)
+        self.assertEqual(report["source_file_count"], 33)
         self.assertEqual(report["population"], 1114112)
         self.assertIn("no-unicode-implementation-or-activation", report["status"])
 

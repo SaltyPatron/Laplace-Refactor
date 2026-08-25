@@ -28,6 +28,7 @@ EXPECTED_SOURCE_FILES = {
     "ReadMe.txt": (963, "f383c12b8c7ae362391b8202d45b99e2befa3c3ed473930233092b4bce318f18"),
     "ucd/ReadMe.txt": (740, "9fe1a90bd32659d7953616283dc2bffaa165518aae9ace026040c42c559ba606"),
     "ucd/UnicodeData.txt": (2198209, "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c"),
+    "ucd/extracted/DerivedBidiClass.txt": (173433, "4867b4b7f0731ed1bfcd34cc6251211ff1542541fce0734b6fbda139ee80b3a4"),
     "ucd/SpecialCasing.txt": (17049, "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588"),
     "ucd/CaseFolding.txt": (87539, "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183"),
     "ucd/BidiBrackets.txt": (8891, "dadbaf38a0d0246e5b805bf8725cb81b7c621f93d030595635f5ba2c2f179428"),
@@ -149,6 +150,7 @@ def _validate_source(document: dict[str, Any], source_root: Path | None) -> None
     _require(standards == EXPECTED_STANDARDS, "Unicode standard revision set changed")
     entries = document.get("files", [])
     _require(isinstance(entries, list), "Unicode source file table is not an array")
+    _require(document.get("file_count") == len(EXPECTED_SOURCE_FILES), "Unicode source file_count changed")
     by_path = {item.get("path"): item for item in entries if isinstance(item, dict)}
     _require(len(entries) == len(by_path), "Unicode source file table has duplicate or invalid paths")
     _require(set(by_path) == set(EXPECTED_SOURCE_FILES), "Unicode source file set changed, including required UAX14 inputs")
@@ -167,6 +169,7 @@ def _validate_source(document: dict[str, Any], source_root: Path | None) -> None
     _require(roles["ucd/CaseFolding.txt"] == "full-and-simple-case-folding", "case folding is not an explicit Tier-0 source")
     _require(roles["ucd/BidiBrackets.txt"] == "bidi-paired-bracket-and-type", "bidi bracket data is not an explicit Tier-0 source")
     _require(roles["ucd/BidiMirroring.txt"] == "bidi-mirroring-glyph", "bidi mirroring data is not an explicit Tier-0 source")
+    _require(roles["ucd/extracted/DerivedBidiClass.txt"] == "complete-assigned-and-range-sensitive-default-bidi-class", "complete Bidi_Class defaults are not an explicit Tier-0 source")
     _require(roles["ucd/EastAsianWidth.txt"] == "east-asian-width-property", "East_Asian_Width is not an explicit Tier-0 source")
     _require(roles["ucd/LineBreak.txt"] == "uax14-line-break-property", "Line_Break is not an explicit Tier-0 property source")
     _require(roles["ucd/auxiliary/LineBreakTest.txt"] == "uax14-conformance", "UAX14 conformance input is missing")

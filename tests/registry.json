@@ -922,7 +922,7 @@
     {
       "ctest_name": "unicode-root.contract-and-mutation",
       "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT", "LP-TEST-HILBERT-NUMERIC-CONTRACT"],
-      "covered_dimensions": ["32-file Unicode 17 source authority", "complete Tier-0 atom record", "BLAKE3-256 identity collision guard", "DUCET equivalence versus placement totalization", "non-text surrogate extension", "both full alternate-handling conformance suites", "bounded Super-Fibonacci and exact Hopf convention", "four-axis Skilling Hilbert orientation", "single canonical numeric provider and noncanonical publication prohibition"],
+      "covered_dimensions": ["33-file Unicode 17 source authority", "complete Tier-0 atom record", "BLAKE3-256 identity collision guard", "DUCET equivalence versus placement totalization", "non-text surrogate extension", "both full alternate-handling conformance suites", "bounded Super-Fibonacci and exact Hopf convention", "four-axis Skilling Hilbert orientation", "single canonical numeric provider and noncanonical publication prohibition"],
       "defect_controls": ["source digest change", "omitted source or field", "untyped deferred realization plane", "identity digest-prefix break", "DUCET-placement collapse", "first-weight approximation", "Hopf axis or sign change", "Hilbert bit or byte orientation change", "noncanonical numeric publication"]
     },
     {
@@ -932,14 +932,19 @@
     },
     {
       "ctest_name": "unicode-source.generated-manifest-contract",
-      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT"],
       "covered_dimensions": ["generated native source table", "byte-reproducible generation", "recipe contract sensitivity"],
       "defect_controls": ["input contract byte change"]
     },
     {
       "ctest_name": "UnicodeSource.VerifiesPinnedUnicode17CorpusAndReplaysBitExactly",
-      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
-      "covered_dimensions": ["32-file source byte authority", "source and recipe fingerprints", "bit-exact receipt replay"]
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT"],
+      "covered_dimensions": ["33-file source byte authority", "source and recipe fingerprints", "bit-exact receipt replay"]
+    },
+    {
+      "ctest_name": "UnicodeSource.RetainsTheExactVerifiedBytesForProducerParsing",
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT"],
+      "covered_dimensions": ["producer parses the exact verified byte generation", "verification-to-parse TOCTOU elimination", "unknown source exclusion"]
     },
     {
       "ctest_name": "UnicodeSource.RejectsOneByteChangeInPinnedSourceSet",
@@ -981,19 +986,25 @@
       "defect_controls": ["unicode-root.mutation-codec-and-hilbert-defects-detected"]
     },
     {
+      "ctest_name": "UnicodeAtomPayload.RejectsNonCanonicalPayloadsAndAcceptsSortedSets",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "covered_dimensions": ["byte-complete field payload grammar", "canonical ordering", "position bounds", "rational canonicalization"],
+      "defect_controls": ["unicode-root.mutation-codec-and-hilbert-defects-detected"]
+    },
+    {
       "ctest_name": "UnicodeRootFrameCodec.WrapsAtomWithoutChangingIdentityOrBytes",
-      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
       "covered_dimensions": ["canonical root frame", "unchanged nested atom bytes", "stream ordinal"]
     },
     {
       "ctest_name": "UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption",
-      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
       "covered_dimensions": ["frame ordinal binding", "nested payload validation"],
       "defect_controls": ["unicode-root.mutation-codec-and-hilbert-defects-detected"]
     },
     {
       "ctest_name": "UnicodeDucetPositionCodec.PreservesEveryWeightMarkerAndKeyByte",
-      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
       "covered_dimensions": ["complete collation-element sequence", "variable markers", "full equivalence key", "provenance"]
     },
     {
@@ -1004,17 +1015,17 @@
     },
     {
       "ctest_name": "UnicodeNormalizationCompositionCodec.RoundTripsTypedPositionsAndFrame",
-      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-EXACT-SEMANTIC-SEPARATION"],
+      "evidence_targets": ["LP-TEST-UNICODE-EXACT-SEMANTIC-SEPARATION"],
       "covered_dimensions": ["typed normalization composition", "root-stream framing"]
     },
     {
       "ctest_name": "UnicodeDucetContractionCodec.PreservesSequenceWeightsAndSourceProvenance",
-      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
       "covered_dimensions": ["complete contraction sequence", "complete collation elements", "source-line provenance"]
     },
     {
       "ctest_name": "UnicodeRootManifestCodec.BindsEveryRequiredSectionWithoutCircularReceipt",
-      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT"],
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT"],
       "covered_dimensions": ["complete root counts", "ordered section fingerprints", "source recipe numeric and algorithm bindings"]
     },
     {
@@ -1025,7 +1036,7 @@
     {
       "ctest_name": "UnicodeNumericProvider.CalculatesBatchWithExactReceiptAndStableBits",
       "profiles": ["custom-stack"],
-      "evidence_targets": ["LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "evidence_targets": ["LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT"],
       "covered_dimensions": ["single canonical oneAPI provider", "exact coordinate bits", "Hopf projection", "stable runtime receipt", "deterministic replay"],
       "defect_controls": ["unicode-numeric.mutation-axis-order-detected"]
     },

@@ -46,7 +46,17 @@ class UnicodeSourceGenerationTests(unittest.TestCase):
             first = generate(contracts, root / "first.h")
             replay = generate(contracts, root / "replay.h")
             self.assertEqual(first, replay)
-            self.assertIn(b"LAPLACE_UNICODE_GENERATED_SOURCE_COUNT 32u", first)
+            self.assertIn(b"LAPLACE_UNICODE_GENERATED_SOURCE_COUNT 33u", first)
+
+            source = contracts / "unicode-source.json"
+            source_text = source.read_text(encoding="utf-8")
+            source.write_text(
+                source_text.replace('"file_count": 33', '"file_count": 32'),
+                encoding="utf-8",
+            )
+            with self.assertRaises(subprocess.CalledProcessError):
+                generate(contracts, root / "invalid-count.h")
+            source.write_text(source_text, encoding="utf-8")
 
             atom = contracts / "unicode-atom-record.json"
             atom.write_bytes(atom.read_bytes() + b"\n")

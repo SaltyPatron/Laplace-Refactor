@@ -50,6 +50,22 @@
       "sorted-canonical-ascii-key-value-set": 12,
       "u8-boolean": 13
     },
+    "payload_wire_grammars": {
+      "canonical-ascii-property-value": "one-or-more ASCII letters, digits, underscore, or hyphen; no terminator",
+      "u8": "exactly one unsigned byte",
+      "optional-u32le-position-and-canonical-ascii-type": "zero bytes, or u32le position followed by one ASCII letter",
+      "optional-u32le-position": "zero bytes, or one u32le position",
+      "u32le-position-sequence": "zero or more contiguous u32le positions",
+      "tagged-u32le-position-sequence": "zero bytes, or u16le tag_bytes + u16le zero + u32le position_count + canonical ASCII tag + position_count u32le positions",
+      "canonical-ascii-rational-or-empty": "zero bytes, or canonical signed integer optionally followed by slash and a nonzero canonical unsigned denominator; leading zeroes are forbidden",
+      "sorted-tagged-u32le-positions": "zero bytes, or u32le count followed by strictly tag-ascending fixed entries of u8 tag + three zero bytes + u32le position; tags 1,2,3 mean lower,title,upper",
+      "sorted-lower-title-upper-position-sequences-with-context-and-locale-condition-tokens": "zero bytes, or u32le entry_count followed by strictly byte-lexicographic entries; each entry is u16le condition_count + u16le zero + three u32le mapping counts + lower/title/upper u32le position sequences + strictly byte-lexicographic u16le-length-prefixed canonical ASCII conditions",
+      "sorted-status-and-u32le-position-sequences": "zero bytes, or u32le count followed by strictly status-ascending entries of ASCII status C/F/S/T + three zero bytes + u32le position_count + positions",
+      "sorted-canonical-ascii-set": "zero bytes, or u32le count followed by strictly byte-lexicographic u16le-length-prefixed canonical ASCII values",
+      "sorted-canonical-ascii-key-value-set": "zero bytes, or u32le count followed by strictly key-ascending u16le key_bytes + u16le value_bytes + canonical ASCII key + canonical ASCII value entries",
+      "u8-boolean": "exactly one byte equal to zero or one"
+    },
+    "empty_payload_rule": "only payload kinds explicitly permitting zero bytes use empty as the canonical absent-or-default representation; counted containers must be nonempty when present",
     "variable_field_rules": [
       "all-v1-fields-are-present-exactly-once",
       "field-id-order-is-strictly-ascending",
@@ -68,7 +84,7 @@
   "variable_fields": [
     {"id": 1, "name": "general_category", "kind": "canonical-ascii-property-value"},
     {"id": 2, "name": "canonical_combining_class", "kind": "u8"},
-    {"id": 3, "name": "bidi_class", "kind": "canonical-ascii-property-value"},
+    {"id": 3, "name": "bidi_class", "kind": "canonical-ascii-property-value", "authority": "ucd/extracted/DerivedBidiClass.txt including ordered @missing defaults"},
     {"id": 4, "name": "bidi_paired_bracket", "kind": "optional-u32le-position-and-canonical-ascii-type"},
     {"id": 5, "name": "bidi_mirroring_glyph", "kind": "optional-u32le-position"},
     {"id": 6, "name": "canonical_decomposition", "kind": "u32le-position-sequence"},

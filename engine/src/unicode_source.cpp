@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <new>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -21,6 +22,11 @@
 #else
 #include "laplace/contract/unicode-source-manifest.h"
 #endif
+
+struct laplace_unicode_source_bundle {
+    std::vector<std::vector<std::uint8_t>> files;
+    laplace_unicode_source_receipt receipt{};
+};
 
 namespace {
 
@@ -278,12 +284,15 @@ laplace_digest256 RecipeFingerprint() {
 
 }  // namespace
 
-extern "C" laplace_unicode_status laplace_unicode_source_verify(
+extern "C" laplace_unicode_status laplace_unicode_source_bundle_open(
     const char* source_root,
+    laplace_unicode_source_bundle** bundle,
     laplace_unicode_source_receipt* receipt) {
-    if (source_root == nullptr || source_root[0] == '\0' || receipt == nullptr) {
+    if (source_root == nullptr || source_root[0] == '\0' || bundle == nullptr ||
+        receipt == nullptr) {
         return LAPLACE_UNICODE_INVALID_ARGUMENT;
     }
+    *bundle = nullptr;
     std::memset(receipt, 0, sizeof(*receipt));
     FileDescriptor root(::open(source_root, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_DIRECTORY));
     if (!root.Valid()) {
@@ -294,19 +303,36 @@ extern "C" laplace_unicode_status laplace_unicode_source_verify(
     blake3_hasher_init(&file_set_hasher);
     HashString(file_set_hasher, FileSetDomain);
     HashU64(file_set_hasher, LAPLACE_UNICODE_GENERATED_SOURCE_COUNT);
-    std::vector<std::uint8_t> bytes;
-    for (const auto& source : laplace_unicode_generated_sources) {
-        const laplace_unicode_status status = ReadExactSource(root.Get(), source, bytes);
-        if (status != LAPLACE_UNICODE_OK) {
-            receipt->status = status;
-            return status;
+    auto* opened = new (std::nothrow) laplace_unicode_source_bundle{};
+    if (opened == nullptr) {
+        receipt->status = LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+        return LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+    }
+    try {
+        opened->files.resize(LAPLACE_UNICODE_GENERATED_SOURCE_COUNT);
+        std::size_t index = 0u;
+        for (const auto& source : laplace_unicode_generated_sources) {
+            const laplace_unicode_status status = ReadExactSource(
+                root.Get(), source, opened->files[index]);
+            if (status != LAPLACE_UNICODE_OK) {
+                delete opened;
+                receipt->status = status;
+                return status;
+            }
+            HashString(file_set_hasher, source.relative_path);
+            HashU64(file_set_hasher, source.expected_bytes);
+            blake3_hasher_update(&file_set_hasher,
+                                 source.expected_sha256,
+                                 sizeof(source.expected_sha256));
+            receipt->total_source_bytes += source.expected_bytes;
+            receipt->verified_file_count += 1u;
+            ++index;
         }
-        HashString(file_set_hasher, source.relative_path);
-        HashU64(file_set_hasher, source.expected_bytes);
-        blake3_hasher_update(&file_set_hasher, source.expected_sha256,
-                             sizeof(source.expected_sha256));
-        receipt->total_source_bytes += source.expected_bytes;
-        receipt->verified_file_count += 1u;
+    } catch (...) {
+        delete opened;
+        std::memset(receipt, 0, sizeof(*receipt));
+        receipt->status = LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+        return LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
     }
     receipt->source_fingerprint = SourceFingerprint();
     receipt->recipe_fingerprint = RecipeFingerprint();
@@ -322,5 +348,49 @@ extern "C" laplace_unicode_status laplace_unicode_source_verify(
     HashU64(receipt_hasher, receipt->verified_file_count);
     receipt->receipt_id = Finish(receipt_hasher);
     receipt->status = LAPLACE_UNICODE_OK;
+    opened->receipt = *receipt;
+    *bundle = opened;
     return LAPLACE_UNICODE_OK;
+}
+
+extern "C" laplace_unicode_status laplace_unicode_source_bundle_file(
+    const laplace_unicode_source_bundle* bundle,
+    const char* relative_path,
+    laplace_unicode_source_file_view* view) {
+    if (bundle == nullptr || relative_path == nullptr ||
+        relative_path[0] == '\0' || view == nullptr ||
+        bundle->files.size() != LAPLACE_UNICODE_GENERATED_SOURCE_COUNT) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    *view = laplace_unicode_source_file_view{};
+    for (std::size_t index = 0u;
+         index < LAPLACE_UNICODE_GENERATED_SOURCE_COUNT;
+         ++index) {
+        if (std::strcmp(
+                relative_path,
+                laplace_unicode_generated_sources[index].relative_path) == 0) {
+            view->bytes = bundle->files[index].data();
+            view->byte_count = bundle->files[index].size();
+            return LAPLACE_UNICODE_OK;
+        }
+    }
+    return LAPLACE_UNICODE_SOURCE_FILE_INVALID;
+}
+
+extern "C" void laplace_unicode_source_bundle_close(
+    laplace_unicode_source_bundle** bundle) {
+    if (bundle != nullptr) {
+        delete *bundle;
+        *bundle = nullptr;
+    }
+}
+
+extern "C" laplace_unicode_status laplace_unicode_source_verify(
+    const char* source_root,
+    laplace_unicode_source_receipt* receipt) {
+    laplace_unicode_source_bundle* bundle = nullptr;
+    const laplace_unicode_status status = laplace_unicode_source_bundle_open(
+        source_root, &bundle, receipt);
+    laplace_unicode_source_bundle_close(&bundle);
+    return status;
 }

@@ -200,6 +200,13 @@ typedef struct laplace_unicode_source_receipt {
     uint32_t status;
 } laplace_unicode_source_receipt;
 
+typedef struct laplace_unicode_source_bundle laplace_unicode_source_bundle;
+
+typedef struct laplace_unicode_source_file_view {
+    const uint8_t* bytes;
+    uint64_t byte_count;
+} laplace_unicode_source_file_view;
+
 typedef enum laplace_unicode_status {
     LAPLACE_UNICODE_OK = 0,
     LAPLACE_UNICODE_INVALID_ARGUMENT = 1,
@@ -215,7 +222,8 @@ typedef enum laplace_unicode_status {
     LAPLACE_UNICODE_SOURCE_ROOT_INVALID = 11,
     LAPLACE_UNICODE_SOURCE_FILE_INVALID = 12,
     LAPLACE_UNICODE_SOURCE_DIGEST_MISMATCH = 13,
-    LAPLACE_UNICODE_SOURCE_VERSION_MISMATCH = 14
+    LAPLACE_UNICODE_SOURCE_VERSION_MISMATCH = 14,
+    LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE = 15
 } laplace_unicode_status;
 
 enum {
@@ -378,6 +386,19 @@ LAPLACE_API laplace_unicode_status laplace_unicode_hilbert4_encode(
 LAPLACE_API laplace_unicode_status laplace_unicode_source_verify(
     const char* source_root,
     laplace_unicode_source_receipt* receipt);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_source_bundle_open(
+    const char* source_root,
+    laplace_unicode_source_bundle** bundle,
+    laplace_unicode_source_receipt* receipt);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_source_bundle_file(
+    const laplace_unicode_source_bundle* bundle,
+    const char* relative_path,
+    laplace_unicode_source_file_view* view);
+
+LAPLACE_API void laplace_unicode_source_bundle_close(
+    laplace_unicode_source_bundle** bundle);
 
 LAPLACE_API laplace_unicode_status laplace_unicode_numeric_oneapi_provider(
     laplace_unicode_numeric_provider_v1* provider);

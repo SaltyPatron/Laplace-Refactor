@@ -35,8 +35,12 @@ def generate(contract_root: Path) -> str:
     if source.get("schema") != "laplace.unicode-source-contract/v1":
         raise ValueError("unsupported Unicode source contract")
     files = source.get("files")
-    if not isinstance(files, list) or len(files) != 32:
-        raise ValueError("Unicode source contract must contain exactly 32 files")
+    file_count = source.get("file_count")
+    if (not isinstance(files, list) or not isinstance(file_count, int)
+            or file_count <= 0 or len(files) != file_count):
+        raise ValueError(
+            "Unicode source contract file_count must match its nonempty files list"
+        )
     markers = {
         item["path"]: item["contains"]
         for item in source.get("version_markers", [])

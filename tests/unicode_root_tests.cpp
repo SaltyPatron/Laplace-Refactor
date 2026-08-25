@@ -33,6 +33,7 @@ laplace_unicode_atom_record Atom(std::uint32_t position) {
     laplace_unicode_atom_record record{};
     std::array<std::uint32_t, 4> axes{};
     static constexpr std::uint8_t Zero = 0u;
+    static constexpr std::uint8_t DefaultProperty[] = {'U', 'n', 'k', 'n', 'o', 'w', 'n'};
     record.codepoint_position = position;
     record.placement_rank = position;
     record.position_class =
@@ -63,6 +64,11 @@ laplace_unicode_atom_record Atom(std::uint32_t position) {
             PayloadKinds[field] == LAPLACE_UNICODE_PAYLOAD_BOOLEAN) {
             record.fields[field].payload = &Zero;
             record.fields[field].payload_bytes = 1u;
+        } else if (PayloadKinds[field] ==
+                   LAPLACE_UNICODE_PAYLOAD_ASCII_PROPERTY) {
+            record.fields[field].payload = DefaultProperty;
+            record.fields[field].payload_bytes =
+                static_cast<std::uint32_t>(sizeof(DefaultProperty));
         }
     }
     return record;
@@ -140,6 +146,53 @@ TEST(UnicodeHilbert, MatchesAllContractOrientationVectors) {
                   LAPLACE_UNICODE_OK);
         EXPECT_EQ(output, vector.key);
     }
+}
+
+TEST(UnicodeAtomPayload, RejectsNonCanonicalPayloadsAndAcceptsSortedSets) {
+    auto atom = Atom(0x41u);
+    static constexpr std::array<std::uint8_t, 3> InvalidProperty{{
+        'L', 'u', ' '}};
+    atom.fields[0].payload = InvalidProperty.data();
+    atom.fields[0].payload_bytes =
+        static_cast<std::uint32_t>(InvalidProperty.size());
+    std::size_t measured = 0u;
+    EXPECT_EQ(laplace_unicode_atom_record_measure(&atom, &measured),
+              LAPLACE_UNICODE_RECORD_INVALID);
+
+    atom = Atom(0x41u);
+    static constexpr std::array<std::uint8_t, 10> SortedSet{{
+        2u, 0u, 0u, 0u,
+        1u, 0u, 'A',
+        1u, 0u, 'B'}};
+    atom.fields[14].payload = SortedSet.data();
+    atom.fields[14].payload_bytes =
+        static_cast<std::uint32_t>(SortedSet.size());
+    EXPECT_EQ(laplace_unicode_atom_record_measure(&atom, &measured),
+              LAPLACE_UNICODE_OK);
+
+    auto unsorted = SortedSet;
+    unsorted[6] = 'B';
+    unsorted[9] = 'A';
+    atom.fields[14].payload = unsorted.data();
+    EXPECT_EQ(laplace_unicode_atom_record_measure(&atom, &measured),
+              LAPLACE_UNICODE_RECORD_INVALID);
+
+    atom = Atom(0x41u);
+    static constexpr std::array<std::uint8_t, 2> LeadingZero{{'0', '1'}};
+    atom.fields[7].payload = LeadingZero.data();
+    atom.fields[7].payload_bytes =
+        static_cast<std::uint32_t>(LeadingZero.size());
+    EXPECT_EQ(laplace_unicode_atom_record_measure(&atom, &measured),
+              LAPLACE_UNICODE_RECORD_INVALID);
+
+    atom = Atom(0x41u);
+    std::array<std::uint8_t, 4> out_of_range{};
+    WriteU32(out_of_range.data(), LAPLACE_UNICODE_ROOT_POPULATION);
+    atom.fields[5].payload = out_of_range.data();
+    atom.fields[5].payload_bytes =
+        static_cast<std::uint32_t>(out_of_range.size());
+    EXPECT_EQ(laplace_unicode_atom_record_measure(&atom, &measured),
+              LAPLACE_UNICODE_RECORD_INVALID);
 }
 
 TEST(UnicodeAtomCodec, RoundTripsOneCanonicalVariableRecordExactly) {

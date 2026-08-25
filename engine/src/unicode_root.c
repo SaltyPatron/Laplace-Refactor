@@ -116,6 +116,381 @@ static int root_frame_payload_valid(
     return 1;
 }
 
+static int ascii_token_valid(
+    const uint8_t* bytes,
+    size_t byte_count,
+    int allow_hyphen) {
+    size_t index;
+    if (bytes == NULL || byte_count == 0u) {
+        return 0;
+    }
+    for (index = 0u; index < byte_count; ++index) {
+        const uint8_t value = bytes[index];
+        if (!((value >= (uint8_t)'A' && value <= (uint8_t)'Z') ||
+              (value >= (uint8_t)'a' && value <= (uint8_t)'z') ||
+              (value >= (uint8_t)'0' && value <= (uint8_t)'9') ||
+              value == (uint8_t)'_' ||
+              (allow_hyphen && value == (uint8_t)'-'))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int bytes_compare(
+    const uint8_t* left,
+    size_t left_bytes,
+    const uint8_t* right,
+    size_t right_bytes) {
+    const size_t common = left_bytes < right_bytes ? left_bytes : right_bytes;
+    const int comparison = memcmp(left, right, common);
+    if (comparison != 0) {
+        return comparison;
+    }
+    if (left_bytes < right_bytes) {
+        return -1;
+    }
+    return left_bytes > right_bytes ? 1 : 0;
+}
+
+static int ascii_rational_valid(const uint8_t* bytes, size_t byte_count) {
+    size_t offset = 0u;
+    size_t numerator_start;
+    size_t denominator_start;
+    if (byte_count == 0u) {
+        return 1;
+    }
+    if (bytes == NULL) {
+        return 0;
+    }
+    if (bytes[offset] == (uint8_t)'-') {
+        ++offset;
+    }
+    numerator_start = offset;
+    while (offset < byte_count && bytes[offset] >= (uint8_t)'0' &&
+           bytes[offset] <= (uint8_t)'9') {
+        ++offset;
+    }
+    if (offset == numerator_start ||
+        (offset - numerator_start > 1u &&
+         bytes[numerator_start] == (uint8_t)'0')) {
+        return 0;
+    }
+    if (offset == byte_count) {
+        return 1;
+    }
+    if (bytes[offset] != (uint8_t)'/') {
+        return 0;
+    }
+    ++offset;
+    denominator_start = offset;
+    while (offset < byte_count && bytes[offset] >= (uint8_t)'0' &&
+           bytes[offset] <= (uint8_t)'9') {
+        ++offset;
+    }
+    return offset == byte_count && offset != denominator_start &&
+        !(offset - denominator_start > 1u &&
+          bytes[denominator_start] == (uint8_t)'0') &&
+        !(offset - denominator_start == 1u &&
+          bytes[denominator_start] == (uint8_t)'0');
+}
+
+static int position_sequence_valid(
+    const uint8_t* bytes,
+    size_t byte_count) {
+    size_t offset;
+    if ((byte_count % 4u) != 0u || (bytes == NULL && byte_count != 0u)) {
+        return 0;
+    }
+    for (offset = 0u; offset < byte_count; offset += 4u) {
+        if (read_u32le(bytes + offset) >= LAPLACE_UNICODE_ROOT_POPULATION) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int tagged_position_sequence_valid(
+    const uint8_t* bytes,
+    size_t byte_count) {
+    uint16_t tag_bytes;
+    uint32_t position_count;
+    uint64_t required;
+    if (byte_count == 0u) {
+        return 1;
+    }
+    if (bytes == NULL || byte_count < 8u) {
+        return 0;
+    }
+    tag_bytes = read_u16le(bytes);
+    position_count = read_u32le(bytes + 4u);
+    required = 8u + (uint64_t)tag_bytes + (uint64_t)position_count * 4u;
+    return read_u16le(bytes + 2u) == 0u && tag_bytes != 0u &&
+        position_count != 0u && required == byte_count &&
+        ascii_token_valid(bytes + 8u, tag_bytes, 1) &&
+        position_sequence_valid(
+            bytes + 8u + tag_bytes, (size_t)position_count * 4u);
+}
+
+static int tagged_positions_valid(const uint8_t* bytes, size_t byte_count) {
+    uint32_t count;
+    uint32_t index;
+    uint8_t prior_tag = 0u;
+    if (byte_count == 0u) {
+        return 1;
+    }
+    if (bytes == NULL || byte_count < 4u ||
+        ((byte_count - 4u) % 8u) != 0u) {
+        return 0;
+    }
+    count = read_u32le(bytes);
+    if (count == 0u || (uint64_t)count * 8u + 4u != byte_count) {
+        return 0;
+    }
+    for (index = 0u; index < count; ++index) {
+        const uint8_t* entry = bytes + 4u + (size_t)index * 8u;
+        const uint8_t tag = entry[0];
+        if (tag < 1u || tag > 3u || tag <= prior_tag || entry[1] != 0u ||
+            entry[2] != 0u || entry[3] != 0u ||
+            read_u32le(entry + 4u) >= LAPLACE_UNICODE_ROOT_POPULATION) {
+            return 0;
+        }
+        prior_tag = tag;
+    }
+    return 1;
+}
+
+static int ascii_set_valid(
+    const uint8_t* bytes,
+    size_t byte_count,
+    int key_value) {
+    uint32_t count;
+    uint32_t index;
+    size_t offset = 4u;
+    const uint8_t* prior = NULL;
+    size_t prior_bytes = 0u;
+    if (byte_count == 0u) {
+        return 1;
+    }
+    if (bytes == NULL || byte_count < 4u) {
+        return 0;
+    }
+    count = read_u32le(bytes);
+    if (count == 0u) {
+        return 0;
+    }
+    for (index = 0u; index < count; ++index) {
+        uint16_t key_bytes;
+        uint16_t value_bytes = 0u;
+        const uint8_t* key;
+        if (offset > byte_count || byte_count - offset < 2u) {
+            return 0;
+        }
+        key_bytes = read_u16le(bytes + offset);
+        offset += 2u;
+        if (key_value) {
+            if (byte_count - offset < 2u) {
+                return 0;
+            }
+            value_bytes = read_u16le(bytes + offset);
+            offset += 2u;
+        }
+        if (key_bytes == 0u || byte_count - offset <
+                (size_t)key_bytes + (size_t)value_bytes) {
+            return 0;
+        }
+        key = bytes + offset;
+        if (!ascii_token_valid(key, key_bytes, 1) ||
+            (prior != NULL && bytes_compare(
+                prior, prior_bytes, key, key_bytes) >= 0)) {
+            return 0;
+        }
+        offset += key_bytes;
+        if (key_value &&
+            (value_bytes == 0u ||
+             !ascii_token_valid(bytes + offset, value_bytes, 1))) {
+            return 0;
+        }
+        offset += value_bytes;
+        prior = key;
+        prior_bytes = key_bytes;
+    }
+    return offset == byte_count;
+}
+
+static int case_folding_valid(const uint8_t* bytes, size_t byte_count) {
+    uint32_t count;
+    uint32_t index;
+    size_t offset = 4u;
+    uint8_t prior_status = 0u;
+    if (byte_count == 0u) {
+        return 1;
+    }
+    if (bytes == NULL || byte_count < 4u) {
+        return 0;
+    }
+    count = read_u32le(bytes);
+    if (count == 0u) {
+        return 0;
+    }
+    for (index = 0u; index < count; ++index) {
+        uint32_t position_count;
+        uint64_t positions_bytes;
+        uint8_t status;
+        if (offset > byte_count || byte_count - offset < 8u) {
+            return 0;
+        }
+        status = bytes[offset];
+        position_count = read_u32le(bytes + offset + 4u);
+        positions_bytes = (uint64_t)position_count * 4u;
+        if ((status != (uint8_t)'C' && status != (uint8_t)'F' &&
+             status != (uint8_t)'S' && status != (uint8_t)'T') ||
+            status <= prior_status || bytes[offset + 1u] != 0u ||
+            bytes[offset + 2u] != 0u || bytes[offset + 3u] != 0u ||
+            position_count == 0u || positions_bytes > byte_count - offset - 8u ||
+            !position_sequence_valid(
+                bytes + offset + 8u, (size_t)positions_bytes)) {
+            return 0;
+        }
+        prior_status = status;
+        offset += 8u + (size_t)positions_bytes;
+    }
+    return offset == byte_count;
+}
+
+static int full_case_mappings_valid(
+    const uint8_t* bytes,
+    size_t byte_count) {
+    uint32_t count;
+    uint32_t index;
+    size_t offset = 4u;
+    const uint8_t* prior = NULL;
+    size_t prior_bytes = 0u;
+    if (byte_count == 0u) {
+        return 1;
+    }
+    if (bytes == NULL || byte_count < 4u) {
+        return 0;
+    }
+    count = read_u32le(bytes);
+    if (count == 0u) {
+        return 0;
+    }
+    for (index = 0u; index < count; ++index) {
+        const size_t entry_start = offset;
+        uint16_t condition_count;
+        uint32_t lower_count;
+        uint32_t title_count;
+        uint32_t upper_count;
+        uint64_t mapping_bytes;
+        uint16_t condition;
+        const uint8_t* prior_condition = NULL;
+        size_t prior_condition_bytes = 0u;
+        if (offset > byte_count || byte_count - offset < 16u) {
+            return 0;
+        }
+        condition_count = read_u16le(bytes + offset);
+        lower_count = read_u32le(bytes + offset + 4u);
+        title_count = read_u32le(bytes + offset + 8u);
+        upper_count = read_u32le(bytes + offset + 12u);
+        mapping_bytes = ((uint64_t)lower_count + title_count + upper_count) * 4u;
+        if (read_u16le(bytes + offset + 2u) != 0u ||
+            mapping_bytes > byte_count - offset - 16u) {
+            return 0;
+        }
+        offset += 16u;
+        if (!position_sequence_valid(bytes + offset, (size_t)mapping_bytes)) {
+            return 0;
+        }
+        offset += (size_t)mapping_bytes;
+        for (condition = 0u; condition < condition_count; ++condition) {
+            uint16_t condition_bytes;
+            const uint8_t* value;
+            if (offset > byte_count || byte_count - offset < 2u) {
+                return 0;
+            }
+            condition_bytes = read_u16le(bytes + offset);
+            offset += 2u;
+            if (condition_bytes == 0u || byte_count - offset < condition_bytes) {
+                return 0;
+            }
+            value = bytes + offset;
+            if (!ascii_token_valid(value, condition_bytes, 1) ||
+                (prior_condition != NULL && bytes_compare(
+                    prior_condition, prior_condition_bytes,
+                    value, condition_bytes) >= 0)) {
+                return 0;
+            }
+            prior_condition = value;
+            prior_condition_bytes = condition_bytes;
+            offset += condition_bytes;
+        }
+        if (prior != NULL) {
+            const size_t entry_bytes = offset - entry_start;
+            if (bytes_compare(
+                    prior, prior_bytes,
+                    bytes + entry_start, entry_bytes) >= 0) {
+                return 0;
+            }
+        }
+        prior = bytes + entry_start;
+        prior_bytes = offset - entry_start;
+    }
+    return offset == byte_count;
+}
+
+static int field_payload_valid(const laplace_unicode_atom_field* field) {
+#if defined(LAPLACE_TEST_SKIP_UNICODE_FIELD_PAYLOAD_VALIDATION)
+    if (field != NULL) {
+        return 1;
+    }
+#endif
+    switch (field->payload_kind) {
+        case LAPLACE_UNICODE_PAYLOAD_ASCII_PROPERTY:
+            return ascii_token_valid(
+                field->payload, field->payload_bytes, 1);
+        case LAPLACE_UNICODE_PAYLOAD_U8:
+            return field->payload_bytes == 1u;
+        case LAPLACE_UNICODE_PAYLOAD_OPTIONAL_POSITION_AND_ASCII_TYPE:
+            return field->payload_bytes == 0u ||
+                (field->payload_bytes == 5u &&
+                 read_u32le(field->payload) < LAPLACE_UNICODE_ROOT_POPULATION &&
+                 ascii_token_valid(field->payload + 4u, 1u, 0));
+        case LAPLACE_UNICODE_PAYLOAD_OPTIONAL_POSITION:
+            return field->payload_bytes == 0u ||
+                (field->payload_bytes == 4u &&
+                 read_u32le(field->payload) < LAPLACE_UNICODE_ROOT_POPULATION);
+        case LAPLACE_UNICODE_PAYLOAD_POSITION_SEQUENCE:
+            return position_sequence_valid(
+                field->payload, field->payload_bytes);
+        case LAPLACE_UNICODE_PAYLOAD_TAGGED_POSITION_SEQUENCE:
+            return tagged_position_sequence_valid(
+                field->payload, field->payload_bytes);
+        case LAPLACE_UNICODE_PAYLOAD_ASCII_RATIONAL:
+            return ascii_rational_valid(
+                field->payload, field->payload_bytes);
+        case LAPLACE_UNICODE_PAYLOAD_SORTED_TAGGED_POSITIONS:
+            return tagged_positions_valid(
+                field->payload, field->payload_bytes);
+        case LAPLACE_UNICODE_PAYLOAD_FULL_CASE_MAPPINGS:
+            return full_case_mappings_valid(
+                field->payload, field->payload_bytes);
+        case LAPLACE_UNICODE_PAYLOAD_CASE_FOLDING:
+            return case_folding_valid(
+                field->payload, field->payload_bytes);
+        case LAPLACE_UNICODE_PAYLOAD_SORTED_ASCII_SET:
+            return ascii_set_valid(
+                field->payload, field->payload_bytes, 0);
+        case LAPLACE_UNICODE_PAYLOAD_SORTED_ASCII_KEY_VALUE_SET:
+            return ascii_set_valid(
+                field->payload, field->payload_bytes, 1);
+        case LAPLACE_UNICODE_PAYLOAD_BOOLEAN:
+            return field->payload_bytes == 1u && field->payload[0] <= 1u;
+        default:
+            return 0;
+    }
+}
+
 static int field_shape_valid(const laplace_unicode_atom_field* field, size_t index) {
     if (field->field_id != index + 1u ||
         field->payload_kind != expected_payload_kind[index] ||
@@ -123,22 +498,7 @@ static int field_shape_valid(const laplace_unicode_atom_field* field, size_t ind
         (field->payload == NULL && field->payload_bytes != 0u)) {
         return 0;
     }
-    if (field->payload_kind == LAPLACE_UNICODE_PAYLOAD_U8 ||
-        field->payload_kind == LAPLACE_UNICODE_PAYLOAD_BOOLEAN) {
-        return field->payload_bytes == 1u &&
-            (field->payload_kind != LAPLACE_UNICODE_PAYLOAD_BOOLEAN ||
-             field->payload[0] <= 1u);
-    }
-    if (field->payload_kind == LAPLACE_UNICODE_PAYLOAD_OPTIONAL_POSITION) {
-        return field->payload_bytes == 0u || field->payload_bytes == 4u;
-    }
-    if (field->payload_kind == LAPLACE_UNICODE_PAYLOAD_OPTIONAL_POSITION_AND_ASCII_TYPE) {
-        return field->payload_bytes == 0u || field->payload_bytes == 5u;
-    }
-    if (field->payload_kind == LAPLACE_UNICODE_PAYLOAD_POSITION_SEQUENCE) {
-        return (field->payload_bytes % 4u) == 0u;
-    }
-    return 1;
+    return field_payload_valid(field);
 }
 
 static int identity_fields_match(

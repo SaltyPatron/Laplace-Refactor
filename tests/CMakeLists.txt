@@ -138,6 +138,7 @@ target_link_libraries(laplace_unicode_root_mutation_probe PRIVATE
     Laplace::Identity Laplace::Perfcache GTest::gtest_main)
 target_compile_definitions(laplace_unicode_root_mutation_probe PRIVATE
     LAPLACE_TEST_SKIP_UNICODE_ATOM_IDENTITY_VALIDATION=1
+    LAPLACE_TEST_SKIP_UNICODE_FIELD_PAYLOAD_VALIDATION=1
     LAPLACE_TEST_UNICODE_ROOT_FRAME_SKIP_NESTED_VALIDATION=1
     LAPLACE_TEST_UNICODE_HILBERT_REVERSE_AXIS_ORDER=1)
 target_compile_options(laplace_unicode_root_mutation_probe PRIVATE
@@ -147,7 +148,7 @@ add_test(
     NAME unicode-root.mutation-codec-and-hilbert-defects-detected
     COMMAND "${CMAKE_COMMAND}"
         "-DPROBE=$<TARGET_FILE:laplace_unicode_root_mutation_probe>"
-        "-DFILTER=UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption:UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption:UnicodeHilbert.MatchesAllContractOrientationVectors"
+            "-DFILTER=UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption:UnicodeAtomPayload.RejectsNonCanonicalPayloadsAndAcceptsSortedSets:UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption:UnicodeHilbert.MatchesAllContractOrientationVectors"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(
     unicode-root.mutation-codec-and-hilbert-defects-detected PROPERTIES

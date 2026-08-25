@@ -91,10 +91,45 @@ TEST(UnicodeSource, VerifiesPinnedUnicode17CorpusAndReplaysBitExactly) {
               LAPLACE_UNICODE_OK);
     EXPECT_EQ(first.status, LAPLACE_UNICODE_OK);
     EXPECT_EQ(first.verified_file_count, LAPLACE_UNICODE_GENERATED_SOURCE_COUNT);
-    EXPECT_EQ(first.total_source_bytes, UINT64_C(20805289));
+    EXPECT_EQ(first.total_source_bytes, UINT64_C(20978722));
     EXPECT_EQ(std::memcmp(&first, &replay, sizeof(first)), 0);
     EXPECT_TRUE(SameDigest(first.source_fingerprint, replay.source_fingerprint));
     EXPECT_TRUE(SameDigest(first.recipe_fingerprint, replay.recipe_fingerprint));
+}
+
+TEST(UnicodeSource, RetainsTheExactVerifiedBytesForProducerParsing) {
+    if (!SourceAvailable()) {
+        GTEST_SKIP() << "pinned Unicode source root is not installed at "
+                     << SourceRoot();
+    }
+    laplace_unicode_source_bundle* bundle = nullptr;
+    laplace_unicode_source_receipt retained{};
+    laplace_unicode_source_receipt verified{};
+    ASSERT_EQ(laplace_unicode_source_bundle_open(
+                  SourceRoot().c_str(), &bundle, &retained),
+              LAPLACE_UNICODE_OK);
+    ASSERT_NE(bundle, nullptr);
+    ASSERT_EQ(laplace_unicode_source_verify(SourceRoot().c_str(), &verified),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(std::memcmp(&retained, &verified, sizeof(retained)), 0);
+
+    laplace_unicode_source_file_view unicode_data{};
+    ASSERT_EQ(laplace_unicode_source_bundle_file(
+                  bundle, "ucd/UnicodeData.txt", &unicode_data),
+              LAPLACE_UNICODE_OK);
+    ASSERT_EQ(unicode_data.byte_count, UINT64_C(2198209));
+    ASSERT_NE(unicode_data.bytes, nullptr);
+    static constexpr std::array<std::uint8_t, 5> Prefix{{
+        '0', '0', '0', '0', ';'}};
+    EXPECT_EQ(std::memcmp(
+                  unicode_data.bytes, Prefix.data(), Prefix.size()),
+              0);
+
+    EXPECT_EQ(laplace_unicode_source_bundle_file(
+                  bundle, "ucd/not-authoritative.txt", &unicode_data),
+              LAPLACE_UNICODE_SOURCE_FILE_INVALID);
+    laplace_unicode_source_bundle_close(&bundle);
+    EXPECT_EQ(bundle, nullptr);
 }
 
 TEST(UnicodeSource, RejectsOneByteChangeInPinnedSourceSet) {
