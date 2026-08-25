@@ -34,6 +34,19 @@
       "key_bytes": 4,
       "value_bytes": 8,
       "required": true
+    },
+    "unicode_tier0": {
+      "module_id": "3d9bfb74108fa553d7cda6e11de34a22",
+      "key_schema_id": "94a3071b818712e79766560b00104c03",
+      "value_schema_id": "2318a2c963b44043b2394f6c9c16aae2",
+      "contract_fingerprint": "0419115b5e5e72dfcbdd1894204fa030c2090dd0c8b492841f5e3c7674d0154b",
+      "contract_preimage": "laplace.perfcache.module.unicode-tier0/v1|key=u32-le|value=record-offset-u64le,record-bytes-u32le,placement-rank-u32le,position-class-u8,lup-length-u8,reserved-u16,lup-bytes-4,content-id-16,identity-witness-32,coordinate-bits-32,hilbert-key-16|metadata=canonical-atom-record-stream-v1|access=dense-u32-zero-based|population=1114112|module-abi=1.1",
+      "access_law": "dense_u32_zero_based",
+      "key_bytes": 4,
+      "value_bytes": 120,
+      "population": 1114112,
+      "metadata": "one byte-exact concatenation of the canonical Unicode atom records consumed by this sink",
+      "required": true
     }
   },
   "generation_dispositions": {

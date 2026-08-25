@@ -35,6 +35,21 @@
       {"name": "flags", "encoding": "u8", "value": 0},
       {"name": "payload_bytes", "encoding": "u32le"}
     ],
+    "payload_kinds": {
+      "canonical-ascii-property-value": 1,
+      "u8": 2,
+      "optional-u32le-position-and-canonical-ascii-type": 3,
+      "optional-u32le-position": 4,
+      "u32le-position-sequence": 5,
+      "tagged-u32le-position-sequence": 6,
+      "canonical-ascii-rational-or-empty": 7,
+      "sorted-tagged-u32le-positions": 8,
+      "sorted-lower-title-upper-position-sequences-with-context-and-locale-condition-tokens": 9,
+      "sorted-status-and-u32le-position-sequences": 10,
+      "sorted-canonical-ascii-set": 11,
+      "sorted-canonical-ascii-key-value-set": 12,
+      "u8-boolean": 13
+    },
     "variable_field_rules": [
       "all-v1-fields-are-present-exactly-once",
       "field-id-order-is-strictly-ascending",

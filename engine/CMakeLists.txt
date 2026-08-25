@@ -6,6 +6,8 @@ add_library(laplace_engine SHARED
     src/isa.c
     src/persistence.c
     src/trajectory.c
+    src/unicode_root.c
+    src/unicode_source.cpp
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)
@@ -30,6 +32,7 @@ add_library(Laplace::Trajectory ALIAS laplace_engine)
 add_library(Laplace::Execution ALIAS laplace_engine)
 add_library(Laplace::Framework ALIAS laplace_engine)
 add_library(Laplace::Persistence ALIAS laplace_engine)
+add_library(Laplace::UnicodeRoot ALIAS laplace_engine)
 
 set_target_properties(laplace_engine PROPERTIES
     EXPORT_NAME Engine

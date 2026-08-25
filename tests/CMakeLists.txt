@@ -19,6 +19,96 @@ set_tests_properties(unicode-root.contract-and-mutation PROPERTIES
     LABELS "contracts;unicode;identity;geometry;mutation")
 
 add_test(
+    NAME unicode-source.generated-manifest-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/unicode_source_generation_tests.py")
+set_tests_properties(unicode-source.generated-manifest-contract PROPERTIES
+    LABELS "contracts;unicode;source;generation;mutation")
+
+add_executable(laplace_unicode_root_tests
+    unicode_root_tests.cpp)
+target_link_libraries(laplace_unicode_root_tests PRIVATE
+    Laplace::UnicodeRoot Laplace::Perfcache GTest::gtest_main)
+target_compile_options(laplace_unicode_root_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_unicode_root_tests
+    PROPERTIES LABELS "implementation;unicode;identity;geometry;perfcache")
+
+add_executable(laplace_unicode_source_tests
+    unicode_source_tests.cpp)
+target_include_directories(laplace_unicode_source_tests PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_source_tests PRIVATE
+    Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(laplace_unicode_source_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_unicode_source_tests
+    PROPERTIES LABELS "implementation;unicode;source;receipt")
+
+add_executable(laplace_unicode_source_fixture_tests
+    unicode_source_fixture_tests.cpp
+    ../engine/src/unicode_source.cpp)
+target_include_directories(laplace_unicode_source_fixture_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_source_fixture_tests PRIVATE
+    BLAKE3::blake3 GTest::gtest_main)
+target_compile_definitions(laplace_unicode_source_fixture_tests PRIVATE
+    LAPLACE_UNICODE_SOURCE_MANIFEST_HEADER="unicode_source_fixture_manifest.h")
+target_compile_options(laplace_unicode_source_fixture_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_unicode_source_fixture_tests
+    PROPERTIES LABELS "implementation;unicode;source;receipt")
+
+add_executable(laplace_unicode_source_mutation_probe
+    unicode_source_fixture_tests.cpp
+    ../engine/src/unicode_source.cpp)
+target_include_directories(laplace_unicode_source_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_source_mutation_probe PRIVATE
+    BLAKE3::blake3 GTest::gtest_main)
+target_compile_definitions(laplace_unicode_source_mutation_probe PRIVATE
+    LAPLACE_UNICODE_SOURCE_MANIFEST_HEADER="unicode_source_fixture_manifest.h"
+    LAPLACE_TEST_SKIP_UNICODE_SOURCE_DIGEST_VALIDATION=1)
+target_compile_options(laplace_unicode_source_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-source.mutation-digest-bypass-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_source_mutation_probe>"
+        "-DFILTER=UnicodeSourceFixture.RejectsOneByteChange"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(unicode-source.mutation-digest-bypass-detected PROPERTIES
+    LABELS "implementation;unicode;source;receipt;mutation")
+
+add_executable(laplace_unicode_root_mutation_probe
+    unicode_root_tests.cpp
+    ../engine/src/unicode_root.c)
+target_include_directories(laplace_unicode_root_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_root_mutation_probe PRIVATE
+    Laplace::Identity Laplace::Perfcache GTest::gtest_main)
+target_compile_definitions(laplace_unicode_root_mutation_probe PRIVATE
+    LAPLACE_TEST_SKIP_UNICODE_ATOM_IDENTITY_VALIDATION=1
+    LAPLACE_TEST_UNICODE_HILBERT_REVERSE_AXIS_ORDER=1)
+target_compile_options(laplace_unicode_root_mutation_probe PRIVATE
+    $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-root.mutation-codec-and-hilbert-defects-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_root_mutation_probe>"
+        "-DFILTER=UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption:UnicodeHilbert.MatchesAllContractOrientationVectors"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-root.mutation-codec-and-hilbert-defects-detected PROPERTIES
+    LABELS "implementation;unicode;identity;geometry;mutation")
+
+add_test(
     NAME postgresql-build.contract-and-mutation
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_build_tests.py")
 set_tests_properties(postgresql-build.contract-and-mutation PROPERTIES

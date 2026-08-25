@@ -38,11 +38,36 @@ function(laplace_configure_perfcache_contract contract_path output_path)
         "${contract_json}" modules framework_probe value_bytes)
     string(JSON framework_probe_required GET
         "${contract_json}" modules framework_probe required)
+    string(JSON unicode_tier0_module_id GET
+        "${contract_json}" modules unicode_tier0 module_id)
+    string(JSON unicode_tier0_key_schema_id GET
+        "${contract_json}" modules unicode_tier0 key_schema_id)
+    string(JSON unicode_tier0_value_schema_id GET
+        "${contract_json}" modules unicode_tier0 value_schema_id)
+    string(JSON unicode_tier0_contract_fingerprint GET
+        "${contract_json}" modules unicode_tier0 contract_fingerprint)
+    string(JSON unicode_tier0_contract_preimage GET
+        "${contract_json}" modules unicode_tier0 contract_preimage)
+    string(JSON unicode_tier0_access_law GET
+        "${contract_json}" modules unicode_tier0 access_law)
+    string(JSON unicode_tier0_key_bytes GET
+        "${contract_json}" modules unicode_tier0 key_bytes)
+    string(JSON unicode_tier0_value_bytes GET
+        "${contract_json}" modules unicode_tier0 value_bytes)
+    string(JSON unicode_tier0_population GET
+        "${contract_json}" modules unicode_tier0 population)
+    string(JSON unicode_tier0_required GET
+        "${contract_json}" modules unicode_tier0 required)
     string(LENGTH "${framework_probe_module_id}" framework_probe_module_id_length)
     string(LENGTH "${framework_probe_key_schema_id}" framework_probe_key_schema_id_length)
     string(LENGTH "${framework_probe_value_schema_id}" framework_probe_value_schema_id_length)
     string(LENGTH "${framework_probe_contract_fingerprint}"
         framework_probe_contract_fingerprint_length)
+    string(LENGTH "${unicode_tier0_module_id}" unicode_tier0_module_id_length)
+    string(LENGTH "${unicode_tier0_key_schema_id}" unicode_tier0_key_schema_id_length)
+    string(LENGTH "${unicode_tier0_value_schema_id}" unicode_tier0_value_schema_id_length)
+    string(LENGTH "${unicode_tier0_contract_fingerprint}"
+        unicode_tier0_contract_fingerprint_length)
     string(JSON generation_prepared GET "${contract_json}" generation_dispositions prepared)
     string(JSON generation_reserved GET "${contract_json}" generation_dispositions reserved)
     string(JSON generation_activated GET "${contract_json}" generation_dispositions activated)
@@ -93,6 +118,33 @@ function(laplace_configure_perfcache_contract contract_path output_path)
        OR NOT generation_materialized EQUAL 6)
         message(FATAL_ERROR "Perfcache encoding contract changed")
     endif()
+    if(NOT unicode_tier0_module_id_length EQUAL 32
+       OR NOT unicode_tier0_module_id MATCHES "^[0-9a-f]+$"
+       OR NOT unicode_tier0_key_schema_id_length EQUAL 32
+       OR NOT unicode_tier0_key_schema_id MATCHES "^[0-9a-f]+$"
+       OR NOT unicode_tier0_value_schema_id_length EQUAL 32
+       OR NOT unicode_tier0_value_schema_id MATCHES "^[0-9a-f]+$"
+       OR NOT unicode_tier0_contract_fingerprint_length EQUAL 64
+       OR NOT unicode_tier0_contract_fingerprint MATCHES "^[0-9a-f]+$"
+       OR NOT unicode_tier0_access_law STREQUAL "dense_u32_zero_based"
+       OR NOT unicode_tier0_key_bytes EQUAL 4
+       OR NOT unicode_tier0_value_bytes EQUAL 120
+       OR NOT unicode_tier0_population EQUAL 1114112
+       OR NOT unicode_tier0_required)
+        message(FATAL_ERROR
+            "Unicode Tier-0 perfcache module shape changed: "
+            "module=${unicode_tier0_module_id}/${unicode_tier0_module_id_length}; "
+            "key=${unicode_tier0_key_schema_id}/${unicode_tier0_key_schema_id_length}; "
+            "value=${unicode_tier0_value_schema_id}/${unicode_tier0_value_schema_id_length}; "
+            "contract=${unicode_tier0_contract_fingerprint}/${unicode_tier0_contract_fingerprint_length}; "
+            "access=${unicode_tier0_access_law}; key-bytes=${unicode_tier0_key_bytes}; "
+            "value-bytes=${unicode_tier0_value_bytes}; population=${unicode_tier0_population}; "
+            "required=${unicode_tier0_required}")
+    endif()
+    if(NOT unicode_tier0_contract_preimage STREQUAL
+       "laplace.perfcache.module.unicode-tier0/v1|key=u32-le|value=record-offset-u64le,record-bytes-u32le,placement-rank-u32le,position-class-u8,lup-length-u8,reserved-u16,lup-bytes-4,content-id-16,identity-witness-32,coordinate-bits-32,hilbert-key-16|metadata=canonical-atom-record-stream-v1|access=dense-u32-zero-based|population=1114112|module-abi=1.1")
+        message(FATAL_ERROR "Unicode Tier-0 perfcache module preimage changed")
+    endif()
 
     set(LAPLACE_PERFCACHE_FORMAT_VERSION "${format_version}")
     set(LAPLACE_PERFCACHE_HEADER_BYTES "${header_bytes}")
@@ -117,6 +169,20 @@ function(laplace_configure_perfcache_contract contract_path output_path)
         "${framework_probe_key_bytes}")
     set(LAPLACE_PERFCACHE_FRAMEWORK_PROBE_VALUE_BYTES
         "${framework_probe_value_bytes}")
+    set(LAPLACE_PERFCACHE_UNICODE_TIER0_MODULE_ID
+        "${unicode_tier0_module_id}")
+    set(LAPLACE_PERFCACHE_UNICODE_TIER0_KEY_SCHEMA_ID
+        "${unicode_tier0_key_schema_id}")
+    set(LAPLACE_PERFCACHE_UNICODE_TIER0_VALUE_SCHEMA_ID
+        "${unicode_tier0_value_schema_id}")
+    set(LAPLACE_PERFCACHE_UNICODE_TIER0_CONTRACT_FINGERPRINT
+        "${unicode_tier0_contract_fingerprint}")
+    set(LAPLACE_PERFCACHE_UNICODE_TIER0_KEY_BYTES
+        "${unicode_tier0_key_bytes}")
+    set(LAPLACE_PERFCACHE_UNICODE_TIER0_VALUE_BYTES
+        "${unicode_tier0_value_bytes}")
+    set(LAPLACE_PERFCACHE_UNICODE_TIER0_POPULATION
+        "${unicode_tier0_population}")
     set(LAPLACE_PERFCACHE_GENERATION_PREPARED "${generation_prepared}")
     set(LAPLACE_PERFCACHE_GENERATION_RESERVED "${generation_reserved}")
     set(LAPLACE_PERFCACHE_GENERATION_ACTIVATED "${generation_activated}")
