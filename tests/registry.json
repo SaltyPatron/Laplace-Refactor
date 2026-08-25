@@ -16,6 +16,12 @@
       "defect_controls": ["duplicate contract key", "ambient compiler and loader state", "unknown provider", "dependency-order inversion", "provider-test mismatch", "compile-only LZ4", "compiler digest mismatch", "missing packaged build tool", "compiler driver bypasses packaged linker", "non-PIE executable", "executable COPY relocation", "toolchain promoted to product runtime", "release-generation mismatch", "repository-local output", "unproved closure"]
     },
     {
+      "ctest_name": "toolchain-build.contract-and-mutation",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-RELEASE-ASSETS"],
+      "covered_dimensions": ["source-built dependency order", "input-addressed out-of-repository build", "all upstream test suites", "ambient tool and loader rejection", "exact installed tool paths and hashes", "compiler driver trace", "linker map and static inputs", "build-toolchain-only consumer manifest"],
+      "defect_controls": ["changed build driver bytes", "missing upstream suite", "ambient tool or loader state", "repository-local output", "tool path escape", "changed installed tool bytes", "missing linker inputs", "product-runtime activation claim"]
+    },
+    {
       "ctest_name": "postgresql-build.contract-and-mutation",
       "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE"],
       "covered_dimensions": ["exact PostgreSQL build recipe", "private build home and directory", "ambient environment rejection", "TAP-test requirement", "runtime closure classification"],
