@@ -27,8 +27,6 @@ jobs:
     timeout-minutes: 30
     env:
       PATH: /opt/laplace/pgsql-18/bin:/usr/local/bin:/usr/bin:/bin
-      LAPLACE_BLAKE3_SOURCE: /opt/laplace/external/blake3/c
-      LAPLACE_GTEST_SOURCE: /opt/laplace/external/googletest
       LAPLACE_PG_CONFIG: /opt/laplace/pgsql-18/bin/pg_config
       LAPLACE_ICX: /opt/intel/oneapi/compiler/latest/bin/icx
     steps:
@@ -40,8 +38,6 @@ jobs:
           test "$(id -un)" = laplace-runner
           test -w "$RUNNER_TEMP"
           test -x "$LAPLACE_PG_CONFIG"
-          test -f "$LAPLACE_BLAKE3_SOURCE/blake3.c"
-          test -f "$LAPLACE_GTEST_SOURCE/CMakeLists.txt"
           test "$($LAPLACE_PG_CONFIG --version | awk '{print $2}' | cut -d. -f1)" = 18
           test -x "$LAPLACE_ICX"
           test "$(dotnet --version | cut -d. -f1)" = 10
@@ -51,6 +47,22 @@ jobs:
           "$LAPLACE_PG_CONFIG" --version
           "$LAPLACE_ICX" --version
           dotnet --version
+      - name: Acquire exact locked build and numeric sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          dependency_root="$RUNNER_TEMP/laplace-dependencies"
+          mkdir -p "$dependency_root"
+          for dependency in blake3 eigen googletest spectra; do
+            upstream=$(jq -r --arg dependency "$dependency" '.dependencies[$dependency].upstream' dependencies/lock.json)
+            revision=$(jq -r --arg dependency "$dependency" '.dependencies[$dependency].revision' dependencies/lock.json)
+            source="$dependency_root/$dependency"
+            git init --quiet "$source"
+            git -C "$source" remote add origin "$upstream"
+            git -C "$source" fetch --quiet --depth=1 origin "$revision"
+            git -C "$source" checkout --quiet --detach FETCH_HEAD
+          done
+          printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
       - name: Configure outside the repository
         shell: bash
         run: |
@@ -58,8 +70,10 @@ jobs:
           build_directory="$RUNNER_TEMP/laplace-output/postgresql-native"
           cmake -S . -B "$build_directory" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_BLAKE3_SOURCE" \
-            -DLAPLACE_GTEST_SOURCE="$LAPLACE_GTEST_SOURCE" \
+            -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
+            -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
+            -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
+            -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
             -DLAPLACE_PG_CONFIG="$LAPLACE_PG_CONFIG"
           printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
       - name: Build native engine and PostgreSQL extension

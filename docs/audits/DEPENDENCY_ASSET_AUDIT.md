@@ -94,22 +94,35 @@ supply chain after upstream identity, clean status, license, source-tree checksu
 build contract verification. Their existence does not authorize copying any Laplace
 implementation from the current repository.
 
-The clean Git lock now selects release-matched revisions for every component retained
-in both Git and official-release form:
+The clean Git lock now selects one exact revision for all 13 source dependencies. For
+the five components retained in both Git and official-release form, the selected Git
+revision is release-matched:
 
 | Source | Selected revision | Version |
 | --- | --- | --- |
+| BLAKE3 | `f3149ec5bb5449af877ba20377a11008ff499fa2` | 1.8.7 |
+| Cute Chess | `45e923949e43570886c0ad3392f514e743839c6b` | v1.5.1 |
+| Eigen | `bc3b39870ecb690a623a3f49149a358b95c5781d` | 5.0.1 |
+| Fathom | `c9c6fef0dddc05d2e242c183acf5833149ab676d` | v1.0-103-gc9c6fef |
 | PostgreSQL | `724edf9bde9d356724ad384a2e196edc3c9f80f7` | REL_18_6 |
 | PostGIS | `94d984bd083635c1d253db0f87cf80b32548e406` | 3.6.4 |
 | GDAL | `c8b4c45fca87d3e6fbf80e7a7898b8a661ad0edc` | v3.13.3 |
 | GEOS | `c389f532d25fe6228861d9b19339f9cb57ca4bdb` | 3.14.1 |
+| GoogleTest | `063de7e9578f82b369302001269680b4b1553359` | v1.18.0 |
 | PROJ | `f08fa86c478c4bbbf003b1ec751dd84aa6eca486` | 9.8.1 |
+| Spectra | `6841bcbacaa0f0a8446210314e682057a084be4e` | v1.2.0 |
+| Stockfish | `cb3d4ee9b47d0c5aae855b12379378ea1439675c` | sf_18 |
+| tree-sitter | `d97971e24500218865c05ed1febdee2acf41bae1` | v0.26.13 |
 
 `tools/dependencies/verify-intent.py` rejects a component marked
 `locked-release-and-git` unless it selects exactly one source of each kind and their
 normalized versions and license-file identities agree. The complete 13-source Git
-lock was independently verified and published outside the repository as one immutable
-source generation before any new product build began.
+lock was independently verified and published outside the repository as immutable
+generation `f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7`,
+the SHA-256 of the exact `dependencies/lock.json` bytes. Eigen 5.0.1 and Spectra 1.2.0
+also pass an executable symmetric-eigensolver compatibility test; its deliberate
+wrong-eigenvalue variant must fail. This establishes source identity and the tested
+provider interaction, not general numerical correctness or product completion.
 
 ## Selected official release inputs
 

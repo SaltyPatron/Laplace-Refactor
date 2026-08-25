@@ -134,12 +134,15 @@ implementation suite, and prove that every discovered CTest test has a machine-r
 evidence entry.
 
 ```bash
-export LAPLACE_VERIFIED_SOURCE_ROOT=/opt/laplace/external
+export LAPLACE_DEPENDENCY_LOCK_SHA="$(sha256sum dependencies/lock.json | awk '{print $1}')"
+export LAPLACE_VERIFIED_SOURCE_ROOT="/opt/laplace/external/source-generations/$LAPLACE_DEPENDENCY_LOCK_SHA"
 ./tools/dependencies/verify-lock.sh "$LAPLACE_VERIFIED_SOURCE_ROOT"
 
 cmake --preset linux-dev \
   -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/blake3/c" \
-  -DLAPLACE_GTEST_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/googletest"
+  -DLAPLACE_GTEST_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/googletest" \
+  -DLAPLACE_EIGEN_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/eigen" \
+  -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/spectra"
 cmake --build --preset linux-dev --parallel
 ctest --preset linux-dev
 ./tools/tests/verify-registry.sh /opt/laplace/work/laplace-refactor/build/linux-dev
@@ -150,7 +153,9 @@ The instrumented build uses the same imported sources:
 ```bash
 cmake --preset linux-sanitize \
   -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/blake3/c" \
-  -DLAPLACE_GTEST_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/googletest"
+  -DLAPLACE_GTEST_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/googletest" \
+  -DLAPLACE_EIGEN_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/eigen" \
+  -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/spectra"
 cmake --build --preset linux-sanitize --parallel
 ctest --preset linux-sanitize
 ./tools/tests/verify-registry.sh /opt/laplace/work/laplace-refactor/build/linux-sanitize
