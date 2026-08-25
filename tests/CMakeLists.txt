@@ -820,6 +820,12 @@ if(UNIX)
     set_tests_properties(dependencies.intent-contract PROPERTIES
         LABELS "implementation;package;dependencies;evidence")
 
+    add_test(
+        NAME dependencies.installed-provider-contract
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/installed_provider_lock_tests.py")
+    set_tests_properties(dependencies.installed-provider-contract PROPERTIES
+        LABELS "implementation;package;dependencies;oneapi;mutation")
+
     find_program(LAPLACE_BASH_EXECUTABLE bash REQUIRED)
     add_test(
         NAME package.elf-dependency-closure

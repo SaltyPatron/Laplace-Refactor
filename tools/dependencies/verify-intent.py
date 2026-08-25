@@ -14,6 +14,7 @@ RELEASE_SCHEMA = "laplace.release-lock/v1"
 GRAMMAR_SCHEMA = "laplace.tree-sitter-grammar-lock/v2"
 ROOT_SCHEMA = "laplace.dependency-roots/v1"
 ARTIFACT_SCHEMA = "laplace.artifact-lock/v1"
+INSTALLED_SCHEMA = "laplace.installed-provider-lock/v1"
 CRITICAL_COMPONENTS = {
     "blake3",
     "postgresql",
@@ -195,6 +196,7 @@ def expected_lock_entries(repo_root: Path) -> set[str]:
     git_lock = load_json(repo_root / "dependencies/lock.json")
     release_lock = load_json(repo_root / "dependencies/release-lock.json")
     artifact_lock = load_json(repo_root / "dependencies/artifact-lock.json")
+    installed_lock = load_json(repo_root / "dependencies/installed-lock.json")
     grammar_lock = load_json(repo_root / "dependencies/tree-sitter-grammars.lock.json")
     if git_lock.get("schema") != GIT_SCHEMA:
         raise IntentError(f"dependencies/lock.json must use {GIT_SCHEMA}")
@@ -202,6 +204,8 @@ def expected_lock_entries(repo_root: Path) -> set[str]:
         raise IntentError(f"dependencies/release-lock.json must use {RELEASE_SCHEMA}")
     if artifact_lock.get("schema") != ARTIFACT_SCHEMA:
         raise IntentError(f"dependencies/artifact-lock.json must use {ARTIFACT_SCHEMA}")
+    if installed_lock.get("schema") != INSTALLED_SCHEMA:
+        raise IntentError(f"dependencies/installed-lock.json must use {INSTALLED_SCHEMA}")
     if grammar_lock.get("schema") != GRAMMAR_SCHEMA:
         raise IntentError(
             f"dependencies/tree-sitter-grammars.lock.json must use {GRAMMAR_SCHEMA}"
@@ -209,6 +213,7 @@ def expected_lock_entries(repo_root: Path) -> set[str]:
     dependencies = git_lock.get("dependencies")
     archives = release_lock.get("archives")
     artifacts = artifact_lock.get("artifacts")
+    installed_providers = installed_lock.get("providers")
     repositories = grammar_lock.get("repositories")
     if not isinstance(dependencies, dict) or not dependencies:
         raise IntentError("Git dependency lock has no dependencies")
@@ -216,6 +221,8 @@ def expected_lock_entries(repo_root: Path) -> set[str]:
         raise IntentError("release dependency lock has no archives")
     if not isinstance(artifacts, dict) or not artifacts:
         raise IntentError("artifact dependency lock has no artifacts")
+    if not isinstance(installed_providers, dict) or not installed_providers:
+        raise IntentError("installed provider lock has no providers")
     for name, artifact in artifacts.items():
         if not isinstance(name, str) or not name or not isinstance(artifact, dict):
             raise IntentError("artifact dependency lock contains an invalid entry")
@@ -233,6 +240,7 @@ def expected_lock_entries(repo_root: Path) -> set[str]:
         *(f"git:{name}" for name in dependencies),
         *(f"release:{name}" for name in archives),
         *(f"artifact:{name}" for name in artifacts),
+        *(f"installed:{name}" for name in installed_providers),
         "grammars:tree-sitter-grammars",
     }
 
@@ -320,6 +328,18 @@ def validate(repo_root: Path) -> tuple[int, int, int, int]:
         selection = component["selection"]
         if "locked" in selection and not lock_entries:
             raise IntentError(f"{identifier} is marked locked without a lock entry")
+        installed_entries = [
+            lock_entry for lock_entry in lock_entries
+            if lock_entry.startswith("installed:")
+        ]
+        if selection == "locked-installed" and installed_entries != [f"installed:{identifier}"]:
+            raise IntentError(
+                f"{identifier} locked-installed must select its same-named installed provider"
+            )
+        if installed_entries and selection != "locked-installed":
+            raise IntentError(
+                f"{identifier} claims an installed provider without locked-installed selection"
+            )
         if "selection-required" in selection:
             unselected_count += 1
 
