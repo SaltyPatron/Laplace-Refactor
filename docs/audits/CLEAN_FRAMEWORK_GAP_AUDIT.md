@@ -31,7 +31,7 @@ These are component facts. They do not establish a canonical database, universal
 ingestion, a Unicode root, hot perfcache epochs, conversation, cognition, model
 compilation, or the complete product.
 
-## Implemented on this change branch but not yet accepted on main
+## Additional implementation accepted through PR #11
 
 - a PostgreSQL extension/SPI vertical slice for the two current ISA operations;
 - generated PostgreSQL binding constants and package/build wiring;
@@ -90,9 +90,11 @@ epoch without restart, and expose the same result through every orchestrator.
 
 ## Current repository disposition
 
-Current main is `b0e0d0a` from merged PR #9. Issues #2 through #8 are open. Issue #4
-was correctly reopened because TBB/MKL application and cross-route parity remain.
-Issue #8 is stale relative to the now-running `hart-server-refactor` service and needs
-fresh capability/workflow evidence before closure. The framework-first obligation is
-tracked by issue #10; this branch supplies only its first native slice and cannot close
-that issue.
+PR #11 merged the first framework and PostgreSQL/SPI slice; PR #25 recorded the
+audited program checkpoint. The clean repository was subsequently activated at
+`/home/ahart/Projects/Laplace` with the cutover proof in
+`docs/delivery/CANONICAL_CUTOVER.md`. Issue #8 is closed with self-hosted runner and
+custom-stack CI evidence. Issues #4 and #10 remain open because TBB/MKL application,
+cross-route resource parity, full generated bindings, complete effect/epoch/receipt
+lifecycle, and the Unicode proving module remain incomplete. The accepted slice is
+component evidence and cannot close the complete framework obligation.

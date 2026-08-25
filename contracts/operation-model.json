@@ -45,7 +45,7 @@
       "acceleration": ["verified external source cache", "out-of-tree build and artifact roots"],
       "receipts": ["source revisions", "archive hashes", "expanded tree hashes", "loaded object hashes", "licenses"],
       "product_requirements": ["LP-PACKAGE-001", "LP-CLEANROOM-001", "LP-RECOVERY-001"],
-      "implementation": {"state": "partial", "evidence": ["dependencies/intent.json", "dependencies/lock.json", "dependencies/release-lock.json", "docs/delivery/SELF_HOSTED_RUNNER.md"]}
+      "implementation": {"state": "partial", "evidence": ["dependencies/intent.json", "dependencies/lock.json", "dependencies/release-lock.json", "docs/delivery/SELF_HOSTED_RUNNER.md", "docs/delivery/CANONICAL_CUTOVER.md"]}
     },
     {
       "id": "bootstrap.unicode-root",
