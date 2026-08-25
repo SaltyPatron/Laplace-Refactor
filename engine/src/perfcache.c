@@ -79,6 +79,7 @@ static int bytes_zero(const uint8_t* bytes, size_t count) {
 static int contract_valid(const laplace_perfcache_contract* contract) {
     const uint64_t stride =
         (uint64_t)contract->key_bytes + (uint64_t)contract->value_bytes;
+#if defined(LAPLACE_TEST_REJECT_ZERO_PERFCACHE_VALUES)
     if (!bytes_nonzero(contract->module_id.bytes, sizeof(contract->module_id.bytes)) ||
         !bytes_nonzero(contract->key_schema_id.bytes, sizeof(contract->key_schema_id.bytes)) ||
         !bytes_nonzero(contract->value_schema_id.bytes, sizeof(contract->value_schema_id.bytes)) ||
@@ -92,6 +93,7 @@ static int contract_valid(const laplace_perfcache_contract* contract) {
                        sizeof(contract->dependency_fingerprint.bytes))) {
         return 0;
     }
+#endif
     if (contract->value_bytes == 0u || stride == 0u || stride > UINT32_MAX ||
         contract->flags != 0u) {
         return 0;

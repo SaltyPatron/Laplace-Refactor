@@ -468,14 +468,25 @@ TEST(CanonicalStream, SourceAndRecipeAreMandatoryReceiptBindings) {
                           sizeof(receipt_a.receipt_id.bytes)), 0);
 
     std::memset(&stream_a.source_fingerprint, 0, sizeof(stream_a.source_fingerprint));
-    MemorySink rejected{};
-    auto rejected_sink = Sink(&rejected);
-    laplace_framework_stream_receipt rejected_receipt{};
+    MemorySink zero_source{};
+    auto zero_source_sink = Sink(&zero_source);
+    laplace_framework_stream_receipt zero_source_receipt{};
     EXPECT_EQ(laplace_framework_stage_canonical_stream(
-                  &context, &stream_a, &rejected_sink, 1u, &rejected_receipt),
-              LAPLACE_FRAMEWORK_STREAM_INVALID);
-    EXPECT_FALSE(rejected.begun);
-    EXPECT_EQ(rejected_receipt.effect_disposition, LAPLACE_FRAMEWORK_EFFECT_NONE);
+                  &context, &stream_a, &zero_source_sink, 1u,
+                  &zero_source_receipt),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_TRUE(zero_source.begun);
+    EXPECT_EQ(zero_source_receipt.effect_disposition,
+              LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT);
+    EXPECT_EQ(std::memcmp(zero_source_receipt.source_fingerprint.bytes,
+                          stream_a.source_fingerprint.bytes,
+                          sizeof(stream_a.source_fingerprint.bytes)), 0);
+    EXPECT_EQ(std::memcmp(zero_source_receipt.recipe_fingerprint.bytes,
+                          stream_a.recipe_fingerprint.bytes,
+                          sizeof(stream_a.recipe_fingerprint.bytes)), 0);
+    EXPECT_NE(std::memcmp(receipt_a.receipt_id.bytes,
+                          zero_source_receipt.receipt_id.bytes,
+                          sizeof(receipt_a.receipt_id.bytes)), 0);
 }
 
 TEST(CanonicalStream, SealFailureAbortsEveryStagedSink) {

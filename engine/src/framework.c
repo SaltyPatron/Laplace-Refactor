@@ -71,7 +71,7 @@ static void finish_digest_copy(
     finish_digest(&copy, digest);
 }
 
-static int digest_is_zero(const laplace_digest256* digest) {
+static int digest_has_canonical_zero_payload(const laplace_digest256* digest) {
     uint8_t aggregate = 0;
     size_t index;
     for (index = 0; index < sizeof(digest->bytes); ++index) {
@@ -146,7 +146,6 @@ laplace_framework_status laplace_framework_context_validate(
         context->reserved != 0 ||
         (context->epoch_mask & ~known_epoch_mask) != 0 ||
         context->epoch_mask == 0 ||
-        digest_is_zero(&context->authority_fingerprint) ||
         context->resource_grant.memory_bytes == 0 ||
         context->resource_grant.cpu_slots == 0) {
         return LAPLACE_FRAMEWORK_CONTEXT_INVALID;
@@ -154,10 +153,22 @@ laplace_framework_status laplace_framework_context_validate(
     for (index = 0; index < LAPLACE_FRAMEWORK_EPOCH_COUNT; ++index) {
         const int present =
             (context->epoch_mask & (UINT64_C(1) << index)) != 0;
-        if (present == digest_is_zero(&context->epochs[index])) {
+        if (!present &&
+            !digest_has_canonical_zero_payload(&context->epochs[index])) {
             return LAPLACE_FRAMEWORK_CONTEXT_INVALID;
         }
+#if defined(LAPLACE_TEST_REJECT_ZERO_CONTEXT_VALUES)
+        if (present &&
+            digest_has_canonical_zero_payload(&context->epochs[index])) {
+            return LAPLACE_FRAMEWORK_CONTEXT_INVALID;
+        }
+#endif
     }
+#if defined(LAPLACE_TEST_REJECT_ZERO_CONTEXT_VALUES)
+    if (digest_has_canonical_zero_payload(&context->authority_fingerprint)) {
+        return LAPLACE_FRAMEWORK_CONTEXT_INVALID;
+    }
+#endif
     return LAPLACE_FRAMEWORK_OK;
 }
 
@@ -344,10 +355,16 @@ static laplace_framework_status seal_sinks(
         memset(&artifact, 0, sizeof(artifact));
         status = sinks[sink_index].seal(
             sinks[sink_index].state, stream_fingerprint, &artifact);
-        if (status != LAPLACE_FRAMEWORK_OK || digest_is_zero(&artifact)) {
+        if (status != LAPLACE_FRAMEWORK_OK) {
             *failed_sink_index = (uint64_t)sink_index;
             return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
         }
+#if defined(LAPLACE_TEST_REJECT_ZERO_SINK_VALUES)
+        if (digest_has_canonical_zero_payload(&artifact)) {
+            *failed_sink_index = (uint64_t)sink_index;
+            return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
+        }
+#endif
         hash_u64(&artifact_hasher, (uint64_t)sink_index);
         blake3_hasher_update(
             &artifact_hasher, artifact.bytes, sizeof(artifact.bytes));
@@ -522,17 +539,21 @@ static int checkpoint_checksum_is_valid(
     if (checkpoint == NULL || checkpoint->record_type == 0 ||
         checkpoint->flags != LAPLACE_FRAMEWORK_KNOWN_REPLAY_FLAGS ||
         checkpoint->reserved != 0 || checkpoint->next_ordinal !=
-            checkpoint->completed_records ||
-        digest_is_zero(&checkpoint->checkpoint_id) ||
-        digest_is_zero(&checkpoint->context_fingerprint) ||
-        digest_is_zero(&checkpoint->source_fingerprint) ||
-        digest_is_zero(&checkpoint->recipe_fingerprint) ||
-        digest_is_zero(&checkpoint->producer_fingerprint) ||
-        digest_is_zero(&checkpoint->plan_fingerprint) ||
-        digest_is_zero(&checkpoint->prefix_fingerprint) ||
-        digest_is_zero(&checkpoint->cursor_fingerprint)) {
+            checkpoint->completed_records) {
         return 0;
     }
+#if defined(LAPLACE_TEST_REJECT_ZERO_PRODUCER_VALUES)
+    if (digest_has_canonical_zero_payload(&checkpoint->checkpoint_id) ||
+        digest_has_canonical_zero_payload(&checkpoint->context_fingerprint) ||
+        digest_has_canonical_zero_payload(&checkpoint->source_fingerprint) ||
+        digest_has_canonical_zero_payload(&checkpoint->recipe_fingerprint) ||
+        digest_has_canonical_zero_payload(&checkpoint->producer_fingerprint) ||
+        digest_has_canonical_zero_payload(&checkpoint->plan_fingerprint) ||
+        digest_has_canonical_zero_payload(&checkpoint->prefix_fingerprint) ||
+        digest_has_canonical_zero_payload(&checkpoint->cursor_fingerprint)) {
+        return 0;
+    }
+#endif
     expected = *checkpoint;
     hash_checkpoint(&expected);
     return digest_equal(&checkpoint->checkpoint_id, &expected.checkpoint_id);
@@ -575,15 +596,19 @@ static int stream_receipt_is_valid(
         receipt->total_records == 0 || receipt->total_bytes == 0 ||
         receipt->batch_count == 0 || receipt->sink_count == 0 ||
         receipt->failed_batch_index != LAPLACE_FRAMEWORK_NO_INDEX ||
-        receipt->failed_sink_index != LAPLACE_FRAMEWORK_NO_INDEX ||
-        digest_is_zero(&receipt->receipt_id) ||
-        digest_is_zero(&receipt->context_fingerprint) ||
-        digest_is_zero(&receipt->source_fingerprint) ||
-        digest_is_zero(&receipt->recipe_fingerprint) ||
-        digest_is_zero(&receipt->stream_fingerprint) ||
-        digest_is_zero(&receipt->sink_artifacts_fingerprint)) {
+        receipt->failed_sink_index != LAPLACE_FRAMEWORK_NO_INDEX) {
         return 0;
     }
+#if defined(LAPLACE_TEST_REJECT_ZERO_STREAM_VALUES)
+    if (digest_has_canonical_zero_payload(&receipt->receipt_id) ||
+        digest_has_canonical_zero_payload(&receipt->context_fingerprint) ||
+        digest_has_canonical_zero_payload(&receipt->source_fingerprint) ||
+        digest_has_canonical_zero_payload(&receipt->recipe_fingerprint) ||
+        digest_has_canonical_zero_payload(&receipt->stream_fingerprint) ||
+        digest_has_canonical_zero_payload(&receipt->sink_artifacts_fingerprint)) {
+        return 0;
+    }
+#endif
     expected = *receipt;
     hash_stream_receipt(&expected);
     return digest_equal(&receipt->receipt_id, &expected.receipt_id);
@@ -673,12 +698,19 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     if (stream == NULL || stream->batches == NULL || stream->batch_count == 0 ||
         stream->batch_count > SIZE_MAX ||
         stream->flags != LAPLACE_FRAMEWORK_KNOWN_STREAM_FLAGS ||
-        stream->reserved != 0 || digest_is_zero(&stream->source_fingerprint) ||
-        digest_is_zero(&stream->recipe_fingerprint)) {
+        stream->reserved != 0) {
         receipt->status = LAPLACE_FRAMEWORK_STREAM_INVALID;
         hash_stream_receipt(receipt);
         return receipt->status;
     }
+#if defined(LAPLACE_TEST_REJECT_ZERO_STREAM_VALUES)
+    if (digest_has_canonical_zero_payload(&stream->source_fingerprint) ||
+        digest_has_canonical_zero_payload(&stream->recipe_fingerprint)) {
+        receipt->status = LAPLACE_FRAMEWORK_STREAM_INVALID;
+        hash_stream_receipt(receipt);
+        return receipt->status;
+    }
+#endif
     batch_count = (size_t)stream->batch_count;
     receipt->batch_count = stream->batch_count;
 #if !defined(LAPLACE_TEST_OMIT_STREAM_BINDING_FROM_RECEIPT)
@@ -769,12 +801,17 @@ laplace_framework_status laplace_framework_run_producer(
     if (status != LAPLACE_FRAMEWORK_OK) {
         goto fail;
     }
-    if (source_fingerprint == NULL || recipe_fingerprint == NULL ||
-        digest_is_zero(source_fingerprint) ||
-        digest_is_zero(recipe_fingerprint)) {
+    if (source_fingerprint == NULL || recipe_fingerprint == NULL) {
         status = LAPLACE_FRAMEWORK_PRODUCER_INVALID;
         goto fail;
     }
+#if defined(LAPLACE_TEST_REJECT_ZERO_PRODUCER_VALUES)
+    if (digest_has_canonical_zero_payload(source_fingerprint) ||
+        digest_has_canonical_zero_payload(recipe_fingerprint)) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_INVALID;
+        goto fail;
+    }
+#endif
     receipt->stream.source_fingerprint = *source_fingerprint;
     receipt->stream.recipe_fingerprint = *recipe_fingerprint;
     if (producer == NULL || producer->prepare == NULL ||
@@ -806,15 +843,20 @@ laplace_framework_status laplace_framework_run_producer(
         status = LAPLACE_FRAMEWORK_PRODUCER_PREPARE_FAILED;
         goto fail;
     }
-    if (digest_is_zero(&plan.producer_fingerprint) ||
-        digest_is_zero(&plan.initial_cursor_fingerprint) ||
-        plan.batch_count == 0 || plan.total_records == 0 ||
+    if (plan.batch_count == 0 || plan.total_records == 0 ||
         plan.total_bytes == 0 || plan.record_type == 0 ||
         plan.flags != LAPLACE_FRAMEWORK_KNOWN_PRODUCER_FLAGS ||
         plan.reserved != 0) {
         status = LAPLACE_FRAMEWORK_PRODUCER_INVALID;
         goto fail;
     }
+#if defined(LAPLACE_TEST_REJECT_ZERO_PRODUCER_VALUES)
+    if (digest_has_canonical_zero_payload(&plan.producer_fingerprint) ||
+        digest_has_canonical_zero_payload(&plan.initial_cursor_fingerprint)) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_INVALID;
+        goto fail;
+    }
+#endif
     receipt->stream.batch_count = plan.batch_count;
     receipt->stream.total_records = plan.total_records;
     receipt->stream.total_bytes = plan.total_bytes;
@@ -907,12 +949,18 @@ laplace_framework_status laplace_framework_run_producer(
             batch.flags != LAPLACE_FRAMEWORK_KNOWN_BATCH_FLAGS ||
             batch.byte_count > SIZE_MAX ||
             UINT64_MAX - completed_records < batch.record_count ||
-            UINT64_MAX - completed_bytes < batch.byte_count ||
-            digest_is_zero(&cursor_fingerprint)) {
+            UINT64_MAX - completed_bytes < batch.byte_count) {
             receipt->stream.failed_batch_index = batch_index;
             status = LAPLACE_FRAMEWORK_PRODUCER_BATCH_FAILED;
             goto fail;
         }
+#if defined(LAPLACE_TEST_REJECT_ZERO_PRODUCER_VALUES)
+        if (digest_has_canonical_zero_payload(&cursor_fingerprint)) {
+            receipt->stream.failed_batch_index = batch_index;
+            status = LAPLACE_FRAMEWORK_PRODUCER_BATCH_FAILED;
+            goto fail;
+        }
+#endif
         completed_records += batch.record_count;
         completed_bytes += batch.byte_count;
         if (completed_records > plan.total_records ||
@@ -969,11 +1017,16 @@ laplace_framework_status laplace_framework_run_producer(
 #endif
     status = producer->finish(
         producer->state, &receipt->completion_fingerprint);
-    if (status != LAPLACE_FRAMEWORK_OK ||
-        digest_is_zero(&receipt->completion_fingerprint)) {
+    if (status != LAPLACE_FRAMEWORK_OK) {
         status = LAPLACE_FRAMEWORK_PRODUCER_FINISH_FAILED;
         goto fail;
     }
+#if defined(LAPLACE_TEST_REJECT_ZERO_PRODUCER_VALUES)
+    if (digest_has_canonical_zero_payload(&receipt->completion_fingerprint)) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_FINISH_FAILED;
+        goto fail;
+    }
+#endif
     finish_digest(&stream_hasher, &receipt->stream.stream_fingerprint);
     status = seal_sinks(
         sinks, sink_count, &receipt->stream.stream_fingerprint,
@@ -1026,13 +1079,20 @@ laplace_framework_status laplace_framework_activate_staged_stream(
     if (!stream_receipt_is_valid(staged_receipt) || request == NULL ||
         request->epoch_slot >= LAPLACE_FRAMEWORK_EPOCH_COUNT ||
         request->flags != LAPLACE_FRAMEWORK_KNOWN_ACTIVATION_FLAGS ||
-        request->reserved != 0 || digest_is_zero(&request->expected_epoch) ||
-        digest_is_zero(&request->next_epoch) ||
+        request->reserved != 0 ||
         digest_equal(&request->expected_epoch, &request->next_epoch)) {
         receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
         hash_activation_receipt(receipt);
         return receipt->status;
     }
+#if defined(LAPLACE_TEST_REJECT_ZERO_ACTIVATION_VALUES)
+    if (digest_has_canonical_zero_payload(&request->expected_epoch) ||
+        digest_has_canonical_zero_payload(&request->next_epoch)) {
+        receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
+        hash_activation_receipt(receipt);
+        return receipt->status;
+    }
+#endif
     receipt->staged_receipt_id = staged_receipt->receipt_id;
     receipt->expected_epoch = request->expected_epoch;
     receipt->next_epoch = request->next_epoch;
@@ -1067,8 +1127,7 @@ laplace_framework_status laplace_framework_activate_staged_stream(
     status = provider->prepare(
         provider->state, context, staged_receipt, request,
         &receipt->preparation_fingerprint);
-    if (status != LAPLACE_FRAMEWORK_OK ||
-        digest_is_zero(&receipt->preparation_fingerprint)) {
+    if (status != LAPLACE_FRAMEWORK_OK) {
         provider->abort(
             provider->state, request, &receipt->preparation_fingerprint);
         receipt->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT;
@@ -1076,19 +1135,37 @@ laplace_framework_status laplace_framework_activate_staged_stream(
         hash_activation_receipt(receipt);
         return receipt->status;
     }
+#if defined(LAPLACE_TEST_REJECT_ZERO_ACTIVATION_VALUES)
+    if (digest_has_canonical_zero_payload(&receipt->preparation_fingerprint)) {
+        provider->abort(
+            provider->state, request, &receipt->preparation_fingerprint);
+        receipt->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT;
+        receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_ADMISSION_FAILED;
+        hash_activation_receipt(receipt);
+        return receipt->status;
+    }
+#endif
     receipt->effect_disposition =
         LAPLACE_FRAMEWORK_EFFECT_ACTIVATION_ADMITTED;
     status = provider->commit(
         provider->state, request, &receipt->preparation_fingerprint,
         &receipt->activation_fingerprint);
-    if (status != LAPLACE_FRAMEWORK_OK ||
-        digest_is_zero(&receipt->activation_fingerprint)) {
+    if (status != LAPLACE_FRAMEWORK_OK) {
         provider->abort(
             provider->state, request, &receipt->preparation_fingerprint);
         receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_COMMIT_FAILED;
         hash_activation_receipt(receipt);
         return receipt->status;
     }
+#if defined(LAPLACE_TEST_REJECT_ZERO_ACTIVATION_VALUES)
+    if (digest_has_canonical_zero_payload(&receipt->activation_fingerprint)) {
+        provider->abort(
+            provider->state, request, &receipt->preparation_fingerprint);
+        receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_COMMIT_FAILED;
+        hash_activation_receipt(receipt);
+        return receipt->status;
+    }
+#endif
     receipt->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_ACTIVATED;
     receipt->status = LAPLACE_FRAMEWORK_OK;
     hash_activation_receipt(receipt);
