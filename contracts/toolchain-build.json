@@ -3,7 +3,7 @@
   "classification": "source-built-build-toolchain",
   "release_lock": "dependencies/release-lock.json",
   "logical_roots": {
-    "source_generation": "/opt/laplace/external/release-generations/96ec09112dcd308df889bdfbafcf9a0cfa13fb2208caa7f54402b0e94f3e8b78",
+    "source_generation": "/opt/laplace/external/release-generations/5512807219f65447991bf42f2560a941682652605d720bc9e71187af9d6266a6",
     "archive_root": "/opt/laplace/external/acquisition-cache/source-archives",
     "build_root": "/opt/laplace/build/toolchain",
     "work_root": "/opt/laplace/work/toolchain",
@@ -99,6 +99,9 @@
       "perl",
       "texinfo",
       "gnu-make",
+      "tcl",
+      "expect",
+      "dejagnu",
       "gnu-binutils",
       "pkgconf",
       "gnu-bison",
@@ -136,6 +139,36 @@
         "test": ["{make}", "-j{jobs}", "check"],
         "install": ["{make}", "install"],
         "tools": ["makeinfo", "texi2any"]
+      },
+      "tcl": {
+        "version": "8.6.18",
+        "phase": "upstream-test-toolchain",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/unix/configure", "--prefix={prefix}", "--disable-shared", "--enable-threads"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "test"],
+        "install": ["{make}", "install"],
+        "tools": ["tclsh8.6"]
+      },
+      "expect": {
+        "version": "5.45.4",
+        "phase": "upstream-test-toolchain",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}", "--disable-shared", "--with-tcl={prefix}/lib", "--with-tclinclude={prefix}/include"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "test"],
+        "install": ["{make}", "install"],
+        "tools": ["expect"]
+      },
+      "dejagnu": {
+        "version": "1.6.3",
+        "phase": "upstream-test-toolchain",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["runtest"]
       },
       "gnu-binutils": {
         "version": "2.47",
