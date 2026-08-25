@@ -33,6 +33,191 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.execution_receipt (
     recorded_by name NOT NULL DEFAULT current_user
 );
 
+CREATE DOMAIN @LAPLACE_PG_SCHEMA@.content_id_128 AS bytea
+    CHECK (octet_length(VALUE) = 16);
+CREATE DOMAIN @LAPLACE_PG_SCHEMA@.record_id_256 AS bytea
+    CHECK (octet_length(VALUE) = 32);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.canonical_entity_record AS (
+    entity_id bytea,
+    identity_witness bytea
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.physicality_record AS (
+    physicality_id bytea,
+    entity_id bytea,
+    physicality_type integer,
+    vertex_class integer,
+    recipe_version integer,
+    structural_form integer,
+    dimension_count integer,
+    flags integer,
+    recipe_fingerprint bytea,
+    geometry_epoch bytea,
+    trajectory_fingerprint bytea,
+    centroid_x double precision,
+    centroid_y double precision,
+    centroid_z double precision,
+    centroid_m double precision,
+    radius double precision,
+    logical_count numeric(20, 0),
+    vertex_count numeric(20, 0)
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.trajectory_vertex_record AS (
+    physicality_id bytea,
+    vertex_index numeric(20, 0),
+    carrier bytea,
+    constituent_entity_id bytea,
+    logical_ordinal numeric(20, 0),
+    metadata bigint,
+    atom bigint,
+    packed_ordinal integer,
+    run_length integer,
+    tier smallint,
+    has_atom boolean
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.observed_occurrence_record AS (
+    occurrence_id bytea,
+    entity_id bytea,
+    physicality_id bytea,
+    source_fingerprint bytea,
+    context_fingerprint bytea,
+    source_ordinal numeric(20, 0),
+    flags integer
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.canonical_entity (
+    entity_id @LAPLACE_PG_SCHEMA@.content_id_128 PRIMARY KEY,
+    identity_witness @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    CHECK (substring(identity_witness FROM 1 FOR 16) = entity_id)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.physicality (
+    physicality_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    physicality_type integer NOT NULL CHECK (
+        physicality_type = @LAPLACE_PG_PERSISTENCE_PHYSICALITY_COMPOSITION@),
+    vertex_class integer NOT NULL CHECK (
+        vertex_class = @LAPLACE_PG_PERSISTENCE_VERTEX_TRAJECTORY_CARRIER@),
+    recipe_version integer NOT NULL CHECK (recipe_version > 0),
+    structural_form integer NOT NULL CHECK (
+        structural_form = @LAPLACE_PG_PERSISTENCE_STRUCTURAL_ORDERED_COMPOSITION@),
+    dimension_count integer NOT NULL CHECK (dimension_count = 4),
+    flags integer NOT NULL CHECK (
+        flags = @LAPLACE_PG_PERSISTENCE_PHYSICALITY_FLAGS_NONE@),
+    recipe_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    geometry_epoch @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    trajectory_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    centroid_x double precision NOT NULL CHECK (centroid_x BETWEEN -1.0 AND 1.0),
+    centroid_y double precision NOT NULL CHECK (centroid_y BETWEEN -1.0 AND 1.0),
+    centroid_z double precision NOT NULL CHECK (centroid_z BETWEEN -1.0 AND 1.0),
+    centroid_m double precision NOT NULL CHECK (centroid_m BETWEEN -1.0 AND 1.0),
+    radius double precision NOT NULL CHECK (radius BETWEEN 0.0 AND 1.0),
+    logical_count numeric(20, 0) NOT NULL CHECK (logical_count > 0),
+    vertex_count numeric(20, 0) NOT NULL CHECK (vertex_count > 0)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.composition_trajectory_vertex (
+    physicality_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.physicality(physicality_id),
+    vertex_index numeric(20, 0) NOT NULL CHECK (vertex_index >= 0),
+    carrier bytea NOT NULL CHECK (octet_length(carrier) = 32),
+    constituent_entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    logical_ordinal numeric(20, 0) NOT NULL CHECK (logical_ordinal > 0),
+    metadata bigint NOT NULL CHECK (metadata >= 0),
+    atom bigint NOT NULL CHECK (atom >= 0),
+    packed_ordinal integer NOT NULL CHECK (packed_ordinal >= 0),
+    run_length integer NOT NULL CHECK (run_length > 0 AND run_length <= 65535),
+    tier smallint NOT NULL CHECK (tier >= 0),
+    has_atom boolean NOT NULL,
+    PRIMARY KEY (physicality_id, vertex_index)
+);
+
+CREATE INDEX composition_trajectory_vertex_constituent_idx
+    ON @LAPLACE_PG_SCHEMA@.composition_trajectory_vertex
+    (constituent_entity_id, physicality_id, vertex_index);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.observed_occurrence (
+    occurrence_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    physicality_id @LAPLACE_PG_SCHEMA@.record_id_256 NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.physicality(physicality_id),
+    source_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    context_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    source_ordinal numeric(20, 0) NOT NULL CHECK (source_ordinal > 0),
+    flags integer NOT NULL CHECK (
+        flags IN (0, @LAPLACE_PG_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY@)),
+    CHECK (
+        ((flags & @LAPLACE_PG_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY@) =
+            @LAPLACE_PG_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY@
+         AND physicality_id IS NOT NULL)
+        OR
+        ((flags & @LAPLACE_PG_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY@) = 0
+         AND physicality_id IS NULL))
+);
+
+CREATE INDEX observed_occurrence_source_idx
+    ON @LAPLACE_PG_SCHEMA@.observed_occurrence
+    (source_fingerprint, source_ordinal, occurrence_id);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    context_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    source_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    recipe_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    stream_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    sink_artifacts_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    total_records numeric(20, 0) NOT NULL CHECK (total_records > 0),
+    total_bytes numeric(20, 0) NOT NULL CHECK (total_bytes > 0),
+    batch_count numeric(20, 0) NOT NULL CHECK (batch_count > 0),
+    sink_count numeric(20, 0) NOT NULL CHECK (sink_count = 1),
+    record_type integer NOT NULL CHECK (
+        record_type = @LAPLACE_PG_PERSISTENCE_STREAM_RECORD_TYPE@),
+    effect_disposition integer NOT NULL CHECK (effect_disposition = 1),
+    status integer NOT NULL CHECK (status = 0),
+    entity_count numeric(20, 0) NOT NULL CHECK (entity_count >= 0),
+    physicality_count numeric(20, 0) NOT NULL CHECK (physicality_count >= 0),
+    trajectory_vertex_count numeric(20, 0) NOT NULL CHECK (trajectory_vertex_count >= 0),
+    occurrence_count numeric(20, 0) NOT NULL CHECK (occurrence_count >= 0),
+    logical_occurrence_count numeric(20, 0) NOT NULL CHECK (logical_occurrence_count >= 0),
+    plan_sequence_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    plan_count integer NOT NULL CHECK (
+        plan_count = @LAPLACE_PG_PERSISTENCE_PLAN_COUNT@),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.canonical_deposit_result AS (
+    receipt_id bytea,
+    context_fingerprint bytea,
+    source_fingerprint bytea,
+    recipe_fingerprint bytea,
+    stream_fingerprint bytea,
+    sink_artifacts_fingerprint bytea,
+    total_records numeric(20, 0),
+    total_bytes numeric(20, 0),
+    batch_count numeric(20, 0),
+    sink_count numeric(20, 0),
+    entity_count numeric(20, 0),
+    physicality_count numeric(20, 0),
+    trajectory_vertex_count numeric(20, 0),
+    occurrence_count numeric(20, 0),
+    logical_occurrence_count numeric(20, 0),
+    entity_inserted numeric(20, 0),
+    physicality_inserted numeric(20, 0),
+    trajectory_vertex_inserted numeric(20, 0),
+    occurrence_inserted numeric(20, 0),
+    plan_sequence_fingerprint bytea,
+    plan_count integer,
+    effect_disposition integer,
+    status integer
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.identity_batch_result AS (
     entity_ids bytea[],
     receipt_id bytea,
@@ -105,11 +290,29 @@ RETURNS @LAPLACE_PG_SCHEMA@.trajectory_batch_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_TRAJECTORY_EXECUTE_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_PERSISTENCE_DEPOSIT_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    bytea,
+    bytea,
+    bytea[])
+RETURNS @LAPLACE_PG_SCHEMA@.canonical_deposit_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 REVOKE ALL ON SCHEMA @LAPLACE_PG_SCHEMA@ FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.execution_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.canonical_entity FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.physicality FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.composition_trajectory_vertex FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.observed_occurrence FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_CALCULATE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context, integer[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_PERSISTENCE_DEPOSIT_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context, bytea, bytea, bytea[])
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_EXECUTE_SQL@(

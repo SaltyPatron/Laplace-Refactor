@@ -68,7 +68,12 @@ loop, scheduler, receipt system, lifecycle, identity law, or persistence engine.
 
 ## 3. Self-hosting Unicode root
 
-Unicode establishes the universal atom floor through a staged bootstrap:
+Before Unicode can establish the universal atom floor, the framework provides a
+generic versioned canonical record stream and a set-oriented persistence sink. That
+provider is proven first with synthetic identities, physicalities, trajectory
+vertices, and occurrences; it does not depend on Unicode content or mint any
+Unicode-specific authority. Unicode then establishes the universal atom floor through
+a staged bootstrap:
 
 ```text
 pinned Unicode 17 UCD + DUCET + conformance inputs

@@ -1,0 +1,95 @@
+{
+  "schema": "laplace.persistence-contract/v1",
+  "stream_record_type": 262145,
+  "frame": {
+    "version": 1,
+    "header_bytes": 8,
+    "byte_order": "little-endian",
+    "length_includes_header": true,
+    "batch_boundary": "between-complete-frames"
+  },
+  "record_kinds": {
+    "entity": 1,
+    "physicality": 2,
+    "trajectory_vertex": 3,
+    "observed_occurrence": 4
+  },
+  "payload_bytes": {
+    "entity": 48,
+    "physicality": 224,
+    "trajectory_vertex": 72,
+    "observed_occurrence": 160
+  },
+  "identities": {
+    "content_bytes": 16,
+    "content_witness_bytes": 32,
+    "record_bytes": 32,
+    "digest_algorithm": "BLAKE3-256",
+    "physicality_domain": "laplace-physicality-record-v1",
+    "trajectory_domain": "laplace-composition-trajectory-v1",
+    "occurrence_domain": "laplace-observed-occurrence-v1",
+    "physicality_preimage": "domain || entity_id || physicality_type || vertex_class || recipe_version || structural_form || dimension_count || flags || recipe_fingerprint || geometry_epoch || trajectory_fingerprint || centroid_binary64_bits || radius_binary64_bits || logical_count || vertex_count",
+    "physicality_provenance_excluded": [
+      "execution_receipt",
+      "package_receipt",
+      "resource_receipt"
+    ],
+    "trajectory_preimage": "domain || ordered_exact_carrier_binary64_bits",
+    "occurrence_preimage": "domain || entity_id || optional_physicality_id || source_fingerprint || context_fingerprint || source_ordinal || flags || reserved"
+  },
+  "semantic_enums": {
+    "physicality_type": {
+      "composition": 1
+    },
+    "vertex_class": {
+      "trajectory_carrier": 1
+    },
+    "structural_form": {
+      "ordered_composition": 1
+    },
+    "physicality_flags": {
+      "none": 0
+    }
+  },
+  "ordering": "entities-by-content-id-then-physicality-groups-by-record-id-then-occurrences-by-record-id",
+  "required_record_families": [
+    "entity",
+    "physicality",
+    "trajectory_vertex",
+    "observed_occurrence"
+  ],
+  "occurrence_flags": {
+    "has_physicality": 1
+  },
+  "bit_pattern_semantics": {
+    "identity_and_digest_zero": "valid-value-not-absence",
+    "optional_physicality_presence": "occurrence-flags.has-physicality",
+    "optional_physicality_absent_payload": "all-zero-canonical-inactive-bytes",
+    "optional_physicality_present_payload": "all-256-bit-patterns-valid"
+  },
+  "bindings": {
+    "postgresql": {
+      "deposit_sql_name": "canonical_deposit_batch",
+      "deposit_c_symbol": "laplace_pg_canonical_deposit_batch",
+      "plan_fingerprint_domain": "laplace-postgresql-persistence-plan-sequence-v1",
+      "plan_manifest": "01:reference-preflight/set-v1;02:entity-insert/set-v1;03:entity-exact-verify/set-v1;04:physicality-insert/set-v1;05:physicality-exact-verify/set-v1;06:trajectory-insert/set-v1;07:trajectory-exact-verify/set-v1;08:occurrence-insert/set-v1;09:occurrence-exact-verify/set-v1;10:receipt-insert/single-v1;11:receipt-exact-verify/single-v1",
+      "working_memory_estimate": {
+        "stream_byte_multiplier": 4,
+        "per_record_overhead_bytes": 128
+      },
+      "plan_sequence": {
+        "reference_preflight": 1,
+        "entity_insert": 2,
+        "entity_verify": 3,
+        "physicality_insert": 4,
+        "physicality_verify": 5,
+        "trajectory_insert": 6,
+        "trajectory_verify": 7,
+        "occurrence_insert": 8,
+        "occurrence_verify": 9,
+        "receipt_insert": 10,
+        "receipt_verify": 11
+      }
+    }
+  }
+}

@@ -13,7 +13,9 @@ enum {
 };
 
 static void finalize_id(blake3_hasher* hasher, laplace_id128* out_id) {
-    blake3_hasher_finalize(hasher, out_id->bytes, LAPLACE_IDENTITY_BYTES);
+    uint8_t digest[32];
+    blake3_hasher_finalize(hasher, digest, sizeof(digest));
+    memcpy(out_id->bytes, digest, LAPLACE_IDENTITY_BYTES);
 }
 
 static uint8_t composite_domain(void) {
@@ -65,12 +67,20 @@ laplace_identity_status laplace_unicode_position_encode(
 laplace_identity_status laplace_identity_codepoint(
     uint32_t position,
     laplace_id128* out_id) {
+    laplace_digest256 witness;
+    return laplace_identity_codepoint_witness(position, out_id, &witness);
+}
+
+laplace_identity_status laplace_identity_codepoint_witness(
+    uint32_t position,
+    laplace_id128* out_id,
+    laplace_digest256* out_witness) {
     uint8_t encoded[4];
     size_t encoded_length = 0;
     blake3_hasher hasher;
     laplace_identity_status status;
 
-    if (out_id == NULL) {
+    if (out_id == NULL || out_witness == NULL) {
         return LAPLACE_IDENTITY_INVALID_ARGUMENT;
     }
     status = laplace_unicode_position_encode(position, encoded, &encoded_length);
@@ -80,7 +90,8 @@ laplace_identity_status laplace_identity_codepoint(
 
     blake3_hasher_init(&hasher);
     blake3_hasher_update(&hasher, encoded, encoded_length);
-    finalize_id(&hasher, out_id);
+    blake3_hasher_finalize(&hasher, out_witness->bytes, sizeof(out_witness->bytes));
+    memcpy(out_id->bytes, out_witness->bytes, sizeof(out_id->bytes));
     return LAPLACE_IDENTITY_OK;
 }
 

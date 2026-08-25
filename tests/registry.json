@@ -203,6 +203,11 @@
       "covered_dimensions": ["pinned codepoint identities", "surrogate identity"]
     },
     {
+      "ctest_name": "CodepointIdentity.FullWitnessPinsTheIdentityPreimageAndPrefix",
+      "evidence_targets": ["LP-TEST-IDENTITY-BLAKE3-128", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["full BLAKE3-256 identity witness", "128-bit content ID prefix", "persistence collision witness"]
+    },
+    {
       "ctest_name": "CompositeIdentity.RejectsEmptyAndCollapsesOneChild",
       "evidence_targets": ["LP-TEST-IDENTITY-PREIMAGE-GRAMMAR", "LP-TEST-IDENTITY-EMPTY-STATES"],
       "covered_dimensions": ["empty composition", "single-child collapse"]
@@ -236,6 +241,60 @@
       "ctest_name": "IdentityComparison.UsesCanonicalByteOrder",
       "evidence_targets": ["LP-TEST-IDENTITY-BLAKE3-128"],
       "covered_dimensions": ["native canonical byte comparison"]
+    },
+    {
+      "ctest_name": "PersistenceContract.WholeTypedStreamValidatesAcrossBatchBoundaries",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-BULK-PARITY", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-OCCURRENCE-PRESERVATION"],
+      "covered_dimensions": ["versioned framed record stream", "batch-boundary independence", "entity physicality trajectory occurrence separation", "whole-stream closure"]
+    },
+    {
+      "ctest_name": "PersistenceContract.CarrierIsExactTypedPayloadAndNotGeometry",
+      "evidence_targets": ["LP-TEST-TRAJECTORY-TYPED-PAYLOAD-CLASS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
+      "covered_dimensions": ["exact 212-bit trajectory carrier", "carrier and geometry type separation"]
+    },
+    {
+      "ctest_name": "PersistenceContract.ProvenanceReceiptIsNotARealizationIdentityInput",
+      "evidence_targets": ["LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-NONIDENTITY-COLLISION"],
+      "covered_dimensions": ["physicality identity preimage", "execution package and resource provenance exclusion"]
+    },
+    {
+      "ctest_name": "PersistenceContract.LaterTrajectoryDefectCannotPublishPartialSummary",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE"],
+      "covered_dimensions": ["whole-stream native preflight", "invalid-later-record atomicity", "typed trajectory failure"]
+    },
+    {
+      "ctest_name": "PersistenceContract.InvalidSemanticTagAndIncompleteTrajectoryAreTypedFailures",
+      "evidence_targets": ["LP-TEST-DECLARED-INFERRED-TYPE-SEPARATION", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE"],
+      "covered_dimensions": ["versioned semantic enums", "unknown tag rejection", "incomplete trajectory rejection"]
+    },
+    {
+      "ctest_name": "PersistenceContract.PlanReceiptBindsTheExactVersionedPlanSequence",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BOUNDED-CROSSINGS"],
+      "covered_dimensions": ["versioned set-plan manifest", "exact plan order fingerprint", "count-only telemetry is non-authoritative"]
+    },
+    {
+      "ctest_name": "PersistenceContract.ZeroIdentityAndFullWitnessAreValuesNotAbsence",
+      "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
+      "covered_dimensions": ["all-zero BLAKE3-128 identity is a valid bit pattern", "all-zero full identity witness is a valid bit pattern", "full-witness prefix parity remains mandatory"],
+      "defect_controls": ["persistence.mutation-zero-identity-sentinel-detected"]
+    },
+    {
+      "ctest_name": "PersistenceContract.ZeroDigestPatternsUseExplicitTypedPresence",
+      "evidence_targets": ["LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-TRAJECTORY-TYPED-PAYLOAD-CLASS"],
+      "covered_dimensions": ["all-zero identity and digest fields remain valid typed values", "occurrence physicality presence comes only from the typed flag", "inactive optional payload has one canonical representation"],
+      "defect_controls": ["persistence.mutation-zero-digest-sentinel-detected"]
+    },
+    {
+      "ctest_name": "persistence.mutation-zero-identity-sentinel-detected",
+      "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
+      "covered_dimensions": ["zero identity and full-witness sentinel rejection is detected"],
+      "controls": "PersistenceContract.ZeroIdentityAndFullWitnessAreValuesNotAbsence"
+    },
+    {
+      "ctest_name": "persistence.mutation-zero-digest-sentinel-detected",
+      "evidence_targets": ["LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-TRAJECTORY-TYPED-PAYLOAD-CLASS"],
+      "covered_dimensions": ["zero digest sentinel rejection and value-inferred optionality are detected"],
+      "controls": "PersistenceContract.ZeroDigestPatternsUseExplicitTypedPresence"
     },
     {
       "ctest_name": "IsaAbi.ContractAssignmentsAreStable",
@@ -630,15 +689,22 @@
     {
       "ctest_name": "postgres.spi-isa-contract",
       "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS"],
-      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL output parity", "direct C and PostgreSQL receipt parity", "parallel-safe pure calculation", "single prepared SPI receipt publication per batch", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-item set-generated native batch", "exact canonical trajectory carrier decode"],
-      "defect_controls": ["postgres.mutation-receipt-collision-detected"]
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-OCCURRENCE-PRESERVATION"],
+      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL output parity", "direct C and PostgreSQL receipt parity", "parallel-safe pure calculation", "one set-oriented SPI persistence provider", "durable-or-in-batch reference preflight", "normalized entity physicality trajectory and occurrence storage", "full identity witness collision detection", "immutable exact plan-sequence receipt", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-vertex single native batch", "bounded storage", "candidate index plus exact native trajectory proof", "concurrent idempotent deposit"],
+      "defect_controls": ["postgres.mutation-receipt-collision-detected", "postgres.mutation-blind-persistence-conflict-detected"]
     },
     {
       "ctest_name": "postgres.mutation-receipt-collision-detected",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ISA-RECEIPT", "LP-TEST-ISA-TYPE-SAFETY"],
       "covered_dimensions": ["stored receipt field corruption is rejected on deterministic replay"],
+      "controls": "postgres.spi-isa-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-blind-persistence-conflict-detected",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
+      "covered_dimensions": ["same BLAKE3-128 ID with different full identity witness is rejected", "set-wise exact conflict verification"],
       "controls": "postgres.spi-isa-contract"
     }
   ]

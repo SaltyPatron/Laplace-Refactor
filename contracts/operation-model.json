@@ -64,7 +64,7 @@
       "id": "bootstrap.unicode-root",
       "program_phases": [3],
       "github_issues": [13, 14],
-      "depends_on": ["bootstrap.dependencies"],
+      "depends_on": ["bootstrap.dependencies", "substrate.compose-physicality"],
       "owner": "native Unicode decomposer through the common canonical-batch framework",
       "consumes": ["pinned UCD", "complete DUCET", "conformance inputs", "identity grammar", "Super Fibonacci Hopf Hilbert numeric recipe"],
       "produces": ["one canonical ordered Tier-0 record stream", "bootstrap atom perfcache", "canonical Tier-0 database rows", "coherent root epoch"],
@@ -72,13 +72,13 @@
       "acceleration": ["dense direct atom plane", "reverse identity plane", "normalization span indexes", "4D Hilbert locality"],
       "receipts": ["Unicode version", "source hashes", "decomposer recipe", "numeric provider", "record stream and partition hashes", "database cache parity"],
       "product_requirements": ["LP-IDENTITY-001", "LP-IDENTITY-002", "LP-UNICODE-001", "LP-UNICODE-002", "LP-GEOMETRY-001", "LP-GEOMETRY-002", "LP-PERFCACHE-001", "LP-PERFCACHE-002", "LP-PERFCACHE-003"],
-      "implementation": {"state": "unimplemented", "evidence": ["contracts/unicode-source.json", "contracts/unicode-atom-record.json", "contracts/ducet-totalization.json", "contracts/super-fibonacci-hopf.json", "contracts/hilbert-numeric.json", "tools/validate-unicode-root-contracts.py", "tests/unicode_root_contract_tests.py", "requirements/features/geometry_glome.feature", "requirements/features/perfcache_etl.feature"]}
+      "implementation": {"state": "partial", "evidence": ["contracts/unicode-source.json", "contracts/unicode-atom-record.json", "contracts/ducet-totalization.json", "contracts/super-fibonacci-hopf.json", "contracts/hilbert-numeric.json", "tools/validate-unicode-root-contracts.py", "tests/unicode_root_contract_tests.py", "engine/src/identity.c", "engine/src/geometry.c", "engine/src/persistence.c", "postgres/extension/src/persistence_pg.c", "requirements/features/geometry_glome.feature", "requirements/features/perfcache_etl.feature"]}
     },
     {
       "id": "substrate.compose-physicality",
       "program_phases": [3],
       "github_issues": [7, 13],
-      "depends_on": ["bootstrap.unicode-root"],
+      "depends_on": ["bootstrap.dependencies"],
       "owner": "native identity composition trajectory and physicality modules",
       "consumes": ["canonical atoms", "ordered and unordered constituents", "run spans", "physicality recipe"],
       "produces": ["content identity", "Merkle DAG", "immutable physicality", "trajectory-derived structural facts"],
@@ -86,7 +86,7 @@
       "acceleration": ["working-set identity tables", "packed trajectories", "B-tree GIN GiST BRIN and Hilbert candidate indexes"],
       "receipts": ["identity preimage grammar", "constituents", "multiplicity", "geometry epoch", "trajectory recipe"],
       "product_requirements": ["LP-INTERPRETATION-001", "LP-PHYSICALITY-001", "LP-RUN-001", "LP-REPRESENTATION-001"],
-      "implementation": {"state": "partial", "evidence": ["engine/src/identity.c", "engine/src/trajectory.c", "engine/src/geometry.c"]}
+      "implementation": {"state": "partial", "evidence": ["contracts/persistence.json", "engine/src/identity.c", "engine/src/trajectory.c", "engine/src/geometry.c", "engine/src/persistence.c", "postgres/extension/src/persistence_pg.c", "postgres/extension/laplace--version.sql.in", "tests/persistence_tests.cpp", "tests/postgres/spi_contract.sql"]}
     },
     {
       "id": "substrate.bulk-deposit",

@@ -4,6 +4,7 @@ add_library(laplace_engine SHARED
     src/execution.cpp
     src/framework.c
     src/isa.c
+    src/persistence.c
     src/trajectory.c
     src/perfcache.c)
 if(UNIX)
@@ -18,6 +19,7 @@ add_library(Laplace::Isa ALIAS laplace_engine)
 add_library(Laplace::Trajectory ALIAS laplace_engine)
 add_library(Laplace::Execution ALIAS laplace_engine)
 add_library(Laplace::Framework ALIAS laplace_engine)
+add_library(Laplace::Persistence ALIAS laplace_engine)
 
 set_target_properties(laplace_engine PROPERTIES
     EXPORT_NAME Engine
@@ -58,4 +60,5 @@ install(FILES
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/trajectory.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/execution.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/framework.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/persistence.h"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")
