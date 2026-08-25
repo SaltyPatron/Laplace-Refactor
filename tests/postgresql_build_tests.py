@@ -39,6 +39,14 @@ class PostgreSQLBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.BuildError, "enable TAP"):
             BUILD.validate_contract(contract)
 
+    def test_ambient_system_tzdata_is_rejected(self) -> None:
+        contract = self.contract()
+        contract["build"]["configure_arguments"].append(
+            "--with-system-tzdata=/usr/share/zoneinfo"
+        )
+        with self.assertRaisesRegex(BUILD.BuildError, "selected bundled tzdata"):
+            BUILD.validate_contract(contract)
+
     def test_incomplete_build_input_closure_is_explicit_and_fail_closed(self) -> None:
         contract = self.contract()
         self.assertEqual(contract["input_closure"]["status"], "incomplete")

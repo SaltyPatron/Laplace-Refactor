@@ -127,9 +127,11 @@ def validate_contract(document: dict[str, Any]) -> None:
     require_string(toolchain.get("target"), "toolchain.target")
     if input_closure.get("status") != "incomplete":
         raise BuildError("input_closure.status must remain incomplete until every build input is selected")
-    require_string_array(
+    selected_inputs = require_string_array(
         input_closure.get("selected_exact_inputs"), "input_closure.selected_exact_inputs"
     )
+    if "PostgreSQL bundled tzdata 2026c" not in selected_inputs:
+        raise BuildError("input_closure must bind PostgreSQL bundled tzdata 2026c")
     require_string_array(
         input_closure.get("unselected_host_inputs"), "input_closure.unselected_host_inputs"
     )
@@ -140,6 +142,8 @@ def validate_contract(document: dict[str, Any]) -> None:
     configure = require_string_array(build.get("configure_arguments"), "build.configure_arguments")
     if "--enable-tap-tests" not in configure:
         raise BuildError("PostgreSQL build must enable TAP tests")
+    if any(argument.startswith("--with-system-tzdata") for argument in configure):
+        raise BuildError("PostgreSQL must use its selected bundled tzdata")
     flags = require_string_array(build.get("c_flags"), "build.c_flags")
     for required in ("-fno-fast-math", "-ffp-contract=off"):
         if required not in flags:
