@@ -2,7 +2,7 @@
   "schema": "laplace.framework-contract/v1",
   "version": {
     "major": 1,
-    "minor": 3
+    "minor": 4
   },
   "epoch_slots": {
     "source": 0,
@@ -62,6 +62,9 @@
   },
   "digest": {
     "algorithm": "BLAKE3-256",
-    "bytes": 32
+    "bytes": 32,
+    "all_bit_patterns_valid": true,
+    "optional_presence": "typed-state-only",
+    "absent_epoch_payload": "canonical-all-zero"
   }
 }

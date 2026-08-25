@@ -7,6 +7,8 @@ function(laplace_configure_perfcache_contract contract_path output_path)
     string(JSON digest_bytes GET "${contract_json}" digest_bytes)
     string(JSON byte_order GET "${contract_json}" byte_order)
     string(JSON digest_algorithm GET "${contract_json}" digest_algorithm)
+    string(JSON identity_digest_fields GET
+        "${contract_json}" identity_and_digest_fields)
     string(JSON sorted_unique_access GET "${contract_json}" access_laws sorted_unique_fixed)
     string(JSON dense_u32_access GET "${contract_json}" access_laws dense_u32_zero_based)
     string(JSON module_defined_access GET "${contract_json}" access_laws module_defined)
@@ -19,6 +21,10 @@ function(laplace_configure_perfcache_contract contract_path output_path)
     endif()
     if(NOT digest_bytes EQUAL 32 OR NOT digest_algorithm STREQUAL "BLAKE3-256")
         message(FATAL_ERROR "Perfcache digest contract changed")
+    endif()
+    if(NOT identity_digest_fields STREQUAL
+       "structurally-mandatory-all-bit-patterns-valid")
+        message(FATAL_ERROR "Perfcache identity/digest value contract changed")
     endif()
     if(NOT byte_order STREQUAL "little-endian"
        OR NOT sorted_unique_access EQUAL 1
@@ -33,6 +39,7 @@ function(laplace_configure_perfcache_contract contract_path output_path)
     set(LAPLACE_PERFCACHE_ACCESS_SORTED_UNIQUE_FIXED "${sorted_unique_access}")
     set(LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED "${dense_u32_access}")
     set(LAPLACE_PERFCACHE_ACCESS_MODULE_DEFINED "${module_defined_access}")
+    set(LAPLACE_PERFCACHE_IDENTITY_DIGEST_ALL_BIT_PATTERNS_VALID 1)
     get_filename_component(output_directory "${output_path}" DIRECTORY)
     file(MAKE_DIRECTORY "${output_directory}")
     configure_file(

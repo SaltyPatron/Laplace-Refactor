@@ -94,6 +94,42 @@
       "covered_dimensions": ["complete stream preflight", "no partial sink effects"]
     },
     {
+      "ctest_name": "framework.zero-bit-pattern-values-contract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["epoch-mask-only optional presence", "canonical absent epoch payload", "all-zero mandatory context stream producer replay and activation values", "provider-status-established artifact cursor completion preparation and activation outputs"],
+      "defect_controls": ["framework.mutation-zero-context-sentinel-detected", "framework.mutation-zero-stream-sentinel-detected", "framework.mutation-zero-sink-sentinel-detected", "framework.mutation-zero-producer-sentinel-detected", "framework.mutation-zero-activation-sentinel-detected"]
+    },
+    {
+      "ctest_name": "framework.mutation-zero-context-sentinel-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["context payload sentinel inference is detected"],
+      "controls": "framework.zero-bit-pattern-values-contract"
+    },
+    {
+      "ctest_name": "framework.mutation-zero-stream-sentinel-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["canonical stream payload sentinel inference is detected"],
+      "controls": "framework.zero-bit-pattern-values-contract"
+    },
+    {
+      "ctest_name": "framework.mutation-zero-sink-sentinel-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["sink artifact output sentinel inference is detected"],
+      "controls": "framework.zero-bit-pattern-values-contract"
+    },
+    {
+      "ctest_name": "framework.mutation-zero-producer-sentinel-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["producer plan cursor completion and replay payload sentinel inference is detected"],
+      "controls": "framework.zero-bit-pattern-values-contract"
+    },
+    {
+      "ctest_name": "framework.mutation-zero-activation-sentinel-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["activation request preparation and commit payload sentinel inference is detected"],
+      "controls": "framework.zero-bit-pattern-values-contract"
+    },
+    {
       "ctest_name": "FrameworkProducer.FansCanonicalBatchesThroughEveryExistingSink",
       "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-BULK-PARITY"],
       "covered_dimensions": ["typed producer ABI", "single canonical stream", "multiple existing sinks", "partition-independent stream identity"]
@@ -575,6 +611,18 @@
       "ctest_name": "PerfcacheValidation.RejectsWrongExactContract",
       "evidence_targets": ["LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
       "covered_dimensions": ["module", "schemas", "source", "recipe", "dependencies", "activation epoch"]
+    },
+    {
+      "ctest_name": "perfcache.zero-bit-pattern-values-contract",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"],
+      "covered_dimensions": ["structurally mandatory identity and digest fields accept every bit pattern", "all-zero exact-contract equality", "artifact checksum validation and batch lookup remain intact"],
+      "defect_controls": ["perfcache.mutation-zero-value-sentinel-detected"]
+    },
+    {
+      "ctest_name": "perfcache.mutation-zero-value-sentinel-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
+      "covered_dimensions": ["perfcache contract value sentinel inference is detected"],
+      "controls": "perfcache.zero-bit-pattern-values-contract"
     },
     {
       "ctest_name": "PerfcacheValidation.RejectsUnknownFlagsAndNonzeroReservedBytes",

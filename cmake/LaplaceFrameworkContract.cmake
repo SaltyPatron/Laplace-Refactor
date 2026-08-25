@@ -29,11 +29,14 @@ function(laplace_configure_framework_contract contract_path output_path)
     string(JSON activation_none GET "${contract_json}" activation_flags none)
     string(JSON digest_algorithm GET "${contract_json}" digest algorithm)
     string(JSON digest_bytes GET "${contract_json}" digest bytes)
+    string(JSON digest_all_patterns GET "${contract_json}" digest all_bit_patterns_valid)
+    string(JSON optional_presence GET "${contract_json}" digest optional_presence)
+    string(JSON absent_epoch_payload GET "${contract_json}" digest absent_epoch_payload)
 
     if(NOT contract_schema STREQUAL "laplace.framework-contract/v1")
         message(FATAL_ERROR "Unsupported framework contract schema: ${contract_schema}")
     endif()
-    if(NOT major EQUAL 1 OR NOT minor EQUAL 3
+    if(NOT major EQUAL 1 OR NOT minor EQUAL 4
        OR NOT sink_major EQUAL 1 OR NOT sink_minor EQUAL 0
        OR NOT activation_provider_major EQUAL 1
        OR NOT activation_provider_minor EQUAL 0
@@ -41,7 +44,7 @@ function(laplace_configure_framework_contract contract_path output_path)
        OR NOT producer_control_major EQUAL 1
        OR NOT producer_control_minor EQUAL 0)
         message(FATAL_ERROR
-            "Current framework ABI must remain 1.3 with provider ABIs at 1.0")
+            "Current framework ABI must remain 1.4 with provider ABIs at 1.0")
     endif()
     set(expected_epoch 0)
     foreach(epoch IN ITEMS source identity geometry evidence firmware dependency database perfcache numeric package)
@@ -60,6 +63,11 @@ function(laplace_configure_framework_contract contract_path output_path)
     endif()
     if(NOT digest_algorithm STREQUAL "BLAKE3-256" OR NOT digest_bytes EQUAL 32)
         message(FATAL_ERROR "Framework digest contract changed")
+    endif()
+    if(NOT digest_all_patterns OR
+       NOT optional_presence STREQUAL "typed-state-only" OR
+       NOT absent_epoch_payload STREQUAL "canonical-all-zero")
+        message(FATAL_ERROR "Framework digest presence contract changed")
     endif()
 
     set(LAPLACE_FRAMEWORK_MAJOR "${major}")
@@ -98,6 +106,9 @@ function(laplace_configure_framework_contract contract_path output_path)
     set(LAPLACE_FRAMEWORK_KNOWN_REPLAY_FLAGS "${replay_none}")
     set(LAPLACE_FRAMEWORK_KNOWN_ACTIVATION_FLAGS "${activation_none}")
     set(LAPLACE_FRAMEWORK_DIGEST_BYTES "${digest_bytes}")
+    set(LAPLACE_FRAMEWORK_DIGEST_ALL_BIT_PATTERNS_VALID 1)
+    set(LAPLACE_FRAMEWORK_OPTIONAL_PRESENCE_TYPED_STATE_ONLY 1)
+    set(LAPLACE_FRAMEWORK_ABSENT_EPOCH_PAYLOAD_CANONICAL_ZERO 1)
     set(LAPLACE_FRAMEWORK_MAJOR "${major}" PARENT_SCOPE)
     set(LAPLACE_FRAMEWORK_MINOR "${minor}" PARENT_SCOPE)
     set(LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY "${context_read_only}" PARENT_SCOPE)

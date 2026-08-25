@@ -271,6 +271,53 @@ target_compile_options(laplace_framework_tests PRIVATE
 gtest_discover_tests(laplace_framework_tests
     PROPERTIES LABELS "implementation;framework;registry;batch;sink;receipt")
 
+add_executable(laplace_framework_zero_value_probe
+    framework_zero_value_probe.cpp)
+target_link_libraries(laplace_framework_zero_value_probe PRIVATE Laplace::Framework)
+target_compile_options(laplace_framework_zero_value_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME framework.zero-bit-pattern-values-contract
+    COMMAND laplace_framework_zero_value_probe)
+set_tests_properties(framework.zero-bit-pattern-values-contract PROPERTIES
+    LABELS "implementation;framework;context;batch;sink;producer;replay;activation;receipt;contract")
+
+function(laplace_add_framework_zero_mutant family definition)
+    set(library "laplace_framework_zero_${family}_mutant")
+    set(probe "laplace_framework_zero_${family}_mutation_probe")
+    add_library(${library} STATIC ../engine/src/framework.c)
+    target_include_directories(${library}
+        PUBLIC
+            "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+            "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(${library} PRIVATE BLAKE3::blake3)
+    target_compile_definitions(${library} PRIVATE "${definition}=1")
+    target_compile_options(${library} PRIVATE
+        $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+    add_executable(${probe} framework_zero_value_probe.cpp)
+    target_link_libraries(${probe} PRIVATE ${library})
+    target_compile_options(${probe} PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME "framework.mutation-zero-${family}-sentinel-detected"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:${probe}>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_zero_sentinel_failure.cmake")
+    set_tests_properties(
+        "framework.mutation-zero-${family}-sentinel-detected" PROPERTIES
+        LABELS "framework;context;batch;sink;producer;replay;activation;receipt;mutation")
+endfunction()
+
+laplace_add_framework_zero_mutant(
+    context LAPLACE_TEST_REJECT_ZERO_CONTEXT_VALUES)
+laplace_add_framework_zero_mutant(
+    stream LAPLACE_TEST_REJECT_ZERO_STREAM_VALUES)
+laplace_add_framework_zero_mutant(
+    sink LAPLACE_TEST_REJECT_ZERO_SINK_VALUES)
+laplace_add_framework_zero_mutant(
+    producer LAPLACE_TEST_REJECT_ZERO_PRODUCER_VALUES)
+laplace_add_framework_zero_mutant(
+    activation LAPLACE_TEST_REJECT_ZERO_ACTIVATION_VALUES)
+
 add_executable(laplace_framework_stream_probe
     framework_stream_probe.cpp)
 target_link_libraries(laplace_framework_stream_probe PRIVATE Laplace::Framework)
@@ -771,6 +818,41 @@ target_compile_options(laplace_perfcache_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_perfcache_tests
     PROPERTIES LABELS "implementation;perfcache")
+
+add_executable(laplace_perfcache_zero_value_probe
+    perfcache_zero_value_probe.cpp)
+target_link_libraries(laplace_perfcache_zero_value_probe PRIVATE Laplace::Perfcache)
+target_compile_options(laplace_perfcache_zero_value_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME perfcache.zero-bit-pattern-values-contract
+    COMMAND laplace_perfcache_zero_value_probe)
+set_tests_properties(perfcache.zero-bit-pattern-values-contract PROPERTIES
+    LABELS "implementation;perfcache;identity;receipt;contract")
+
+add_library(laplace_perfcache_zero_value_mutant STATIC
+    ../engine/src/perfcache.c)
+target_include_directories(laplace_perfcache_zero_value_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_perfcache_zero_value_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_perfcache_zero_value_mutant
+    PRIVATE LAPLACE_TEST_REJECT_ZERO_PERFCACHE_VALUES=1)
+target_compile_options(laplace_perfcache_zero_value_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_perfcache_zero_value_mutation_probe
+    perfcache_zero_value_probe.cpp)
+target_link_libraries(laplace_perfcache_zero_value_mutation_probe
+    PRIVATE laplace_perfcache_zero_value_mutant)
+target_compile_options(laplace_perfcache_zero_value_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME perfcache.mutation-zero-value-sentinel-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_perfcache_zero_value_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_zero_sentinel_failure.cmake")
+set_tests_properties(perfcache.mutation-zero-value-sentinel-detected PROPERTIES
+    LABELS "perfcache;identity;receipt;mutation")
 
 add_executable(laplace_perfcache_contract_probe
     perfcache_contract_probe.cpp)

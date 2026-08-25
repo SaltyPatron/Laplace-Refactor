@@ -99,6 +99,7 @@ laplace_framework_stream_receipt Run(
 
 int main() {
     const auto context = laplace_test_context(0u);
+    const laplace_digest256 zero_digest{};
     laplace_framework_status status_a{};
     laplace_framework_status status_b{};
     laplace_framework_status status_missing{};
@@ -139,8 +140,15 @@ int main() {
         std::memcmp(receipt_a.receipt_id.bytes,
                     receipt_recipe.receipt_id.bytes,
                     sizeof(receipt_a.receipt_id.bytes)) == 0 ||
-        status_missing != LAPLACE_FRAMEWORK_STREAM_INVALID || begun_missing ||
-        receipt_missing.effect_disposition != LAPLACE_FRAMEWORK_EFFECT_NONE) {
+        status_missing != LAPLACE_FRAMEWORK_OK || !begun_missing ||
+        receipt_missing.effect_disposition !=
+            LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT ||
+        std::memcmp(receipt_missing.source_fingerprint.bytes,
+                    zero_digest.bytes,
+                    sizeof(receipt_missing.source_fingerprint.bytes)) != 0 ||
+        std::memcmp(receipt_missing.receipt_id.bytes,
+                    receipt_a.receipt_id.bytes,
+                    sizeof(receipt_missing.receipt_id.bytes)) == 0) {
         std::fputs("framework-stream-binding\n", stderr);
         return 2;
     }
