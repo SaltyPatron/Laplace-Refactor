@@ -32,16 +32,17 @@ for dependency in "${dependencies[@]}"; do
         echo "$dependency source is not a Git upstream tree: $source_tree" >&2
         exit 65
     fi
-    if [[ -n "$(git -C "$source_tree" status --porcelain=v1 --untracked-files=all)" ]]; then
+    git_source=(git -c "safe.directory=$source_tree" -C "$source_tree")
+    if [[ -n "$("${git_source[@]}" status --porcelain=v1 --untracked-files=all)" ]]; then
         echo "$dependency source contains changes: $source_tree" >&2
         exit 65
     fi
-    actual_revision=$(git -C "$source_tree" rev-parse HEAD)
+    actual_revision=$("${git_source[@]}" rev-parse HEAD)
     if [[ "$actual_revision" != "$revision" ]]; then
         echo "$dependency revision mismatch: $actual_revision != $revision" >&2
         exit 65
     fi
-    actual_archive=$(git -C "$source_tree" archive --format=tar "$revision" | sha256sum | awk '{print $1}')
+    actual_archive=$("${git_source[@]}" archive --format=tar "$revision" | sha256sum | awk '{print $1}')
     if [[ "$actual_archive" != "$expected_archive" ]]; then
         echo "$dependency source archive mismatch: $actual_archive != $expected_archive" >&2
         exit 65

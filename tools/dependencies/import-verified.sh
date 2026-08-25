@@ -51,6 +51,10 @@ done
 
 "$verify_script" "$stage"
 
+# The generation root is immutable shared input for the build service.  mktemp
+# deliberately creates its directory with mode 0700, so publish an executable,
+# group-readable root while retaining the parent's setgid group ownership.
+chmod 2750 "$stage"
 mv -- "$stage" "$destination"
 trap - EXIT
 
