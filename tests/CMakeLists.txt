@@ -726,6 +726,12 @@ set_tests_properties(postgresql-cluster.activation-contract PROPERTIES
     LABELS "activation;package;postgresql;security;topology;mutation"
     RUN_SERIAL TRUE)
 
+add_test(
+    NAME dependencies.runtime-build-graph-contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/runtime_build_graph_tests.py")
+set_tests_properties(dependencies.runtime-build-graph-contract PROPERTIES
+    LABELS "build;package;postgresql;dependencies;mutation")
+
 add_executable(laplace_dependency_math_tests
     dependency_math_tests.cpp)
 target_include_directories(laplace_dependency_math_tests SYSTEM PRIVATE
