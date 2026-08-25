@@ -1,6 +1,7 @@
 add_library(laplace_engine SHARED
     src/identity.c
     src/geometry.c
+    src/execution.cpp
     src/isa.c
     src/trajectory.c
     src/perfcache.c)
@@ -14,6 +15,7 @@ add_library(Laplace::Geometry ALIAS laplace_engine)
 add_library(Laplace::Perfcache ALIAS laplace_engine)
 add_library(Laplace::Isa ALIAS laplace_engine)
 add_library(Laplace::Trajectory ALIAS laplace_engine)
+add_library(Laplace::Execution ALIAS laplace_engine)
 
 set_target_properties(laplace_engine PROPERTIES
     EXPORT_NAME Engine
@@ -34,7 +36,9 @@ target_link_libraries(laplace_engine
 target_compile_definitions(laplace_engine
     PRIVATE LAPLACE_ENGINE_BUILD=1)
 target_compile_options(laplace_engine PRIVATE
-    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes;-ffp-contract=off>)
+    $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes;-ffp-contract=off>)
+target_compile_options(laplace_engine PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
 if(UNIX AND NOT APPLE)
     target_link_options(laplace_engine PRIVATE
         "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/laplace_engine.map")
@@ -50,4 +54,5 @@ install(FILES
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/isa.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/perfcache.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/trajectory.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/execution.h"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")

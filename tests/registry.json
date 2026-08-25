@@ -1,6 +1,6 @@
 {
   "schema": "laplace.test-registry/v1",
-  "suite_scope": "native identity geometry ISA and perfcache components",
+  "suite_scope": "native identity geometry execution topology ISA and perfcache components",
   "acceptance_status": "contributing evidence only",
   "tests": [
     {
@@ -154,6 +154,63 @@
       "ctest_name": "TrajectoryComposition.InvalidLaterOrdinalCannotPartiallyDecode",
       "evidence_targets": ["LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
       "covered_dimensions": ["packed/logical ordinal agreement", "whole-trajectory preflight", "failure atomicity"]
+    },
+    {
+      "ctest_name": "ExecutionTopology.AcceptsTypedNumaCacheHybridAndAffinityState",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-SNAPSHOT"],
+      "covered_dimensions": ["NUMA domains", "cache membership", "hybrid core kinds", "affinity constraint", "ISA flags"]
+    },
+    {
+      "ctest_name": "build.repository-output-rejected",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE"],
+      "covered_dimensions": ["repository-local build output rejection", "external output root"]
+    },
+    {
+      "ctest_name": "ExecutionTopology.RejectsDuplicateProcessorAndIncorrectDomainAccounting",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-SNAPSHOT"],
+      "covered_dimensions": ["logical processor uniqueness", "memory-domain processor accounting"]
+    },
+    {
+      "ctest_name": "ExecutionTopology.HostObservationPublishesAValidatedCallerOwnedSnapshot",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-SNAPSHOT"],
+      "covered_dimensions": ["live host observation", "caller-owned vector capacities", "affinity", "memory", "page size", "cache topology"]
+    },
+    {
+      "ctest_name": "ExecutionGrant.RootSubtractsResourcesOwnedByOtherRuntimeComponents",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
+      "covered_dimensions": ["external CPU ownership", "external memory ownership", "declared I O slots"]
+    },
+    {
+      "ctest_name": "ExecutionGrant.WeightedAndNestedPartitionsConserveEveryParentResource",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN", "LP-TEST-NESTED-PARALLEL-BUDGET"],
+      "covered_dimensions": ["weighted CPU partition", "weighted memory partition", "weighted I O partition", "nested conservation"]
+    },
+    {
+      "ctest_name": "ExecutionGrant.InsufficientMinimumCannotMutatePublishedChildren",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN", "LP-TEST-NESTED-PARALLEL-BUDGET"],
+      "covered_dimensions": ["minimum resource rejection", "failure atomicity"]
+    },
+    {
+      "ctest_name": "ExecutionPlan.CouplesOuterWorkersInnerThreadsChunksAndPeakMemory",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN", "LP-TEST-NESTED-PARALLEL-BUDGET"],
+      "covered_dimensions": ["outer workers", "inner library threads", "chunk cardinality", "peak memory"]
+    },
+    {
+      "ctest_name": "ExecutionPlan.ResourceFailureCannotMutatePriorPlan",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
+      "covered_dimensions": ["insufficient memory", "failure atomicity"]
+    },
+    {
+      "ctest_name": "execution.resource-conservation-contract",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN", "LP-TEST-NESTED-PARALLEL-BUDGET"],
+      "covered_dimensions": ["public grant conservation contract"],
+      "defect_controls": ["execution.mutation-resource-duplication-detected"]
+    },
+    {
+      "ctest_name": "execution.mutation-resource-duplication-detected",
+      "evidence_targets": ["LP-TEST-NESTED-PARALLEL-BUDGET"],
+      "covered_dimensions": ["duplicated parent CPU memory and I O grants are detected"],
+      "controls": "execution.resource-conservation-contract"
     },
     {
       "ctest_name": "GeometryAccumulator.EmptyStateIsExplicit",
@@ -331,7 +388,7 @@
     {
       "ctest_name": "package.native-consumer-contract",
       "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE"],
-      "covered_dimensions": ["versioned shared engine", "CMake package discovery", "external identity and ISA consumer link and execution", "byte-identical repeated installation"]
+      "covered_dimensions": ["versioned shared engine", "CMake package discovery", "external identity ISA trajectory and host-topology consumer link and execution", "byte-identical repeated installation"]
     },
     {
       "ctest_name": "package.elf-dependency-closure",

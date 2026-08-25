@@ -54,13 +54,17 @@ jobs:
           done
           printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
       - name: Configure
-        run: >-
-          cmake --preset "${{ matrix.preset }}"
-          -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c"
-          -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest"
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_directory="$RUNNER_TEMP/laplace-output/build/${{ matrix.preset }}"
+          cmake --preset "${{ matrix.preset }}" -B "$build_directory" \
+            -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
+            -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest"
+          printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
       - name: Build
-        run: cmake --build --preset "${{ matrix.preset }}" --parallel 2
+        run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 2
       - name: Execute implementation tests
-        run: ctest --preset "${{ matrix.preset }}"
+        run: ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" --output-on-failure
       - name: Verify test registry
-        run: ./tools/tests/verify-registry.sh "out/build/${{ matrix.preset }}"
+        run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY"

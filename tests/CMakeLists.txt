@@ -33,6 +33,60 @@ target_compile_options(laplace_trajectory_tests PRIVATE
 gtest_discover_tests(laplace_trajectory_tests
     PROPERTIES LABELS "implementation;trajectory;structure")
 
+add_executable(laplace_execution_tests
+    execution_tests.cpp)
+target_link_libraries(laplace_execution_tests
+    PRIVATE
+        Laplace::Execution
+        GTest::gtest_main)
+target_compile_options(laplace_execution_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_execution_tests
+    PROPERTIES LABELS "implementation;execution;topology;resources")
+
+add_test(
+    NAME build.repository-output-rejected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DMODULE=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/LaplaceOutputBoundary.cmake"
+        "-DPROBE=${CMAKE_CURRENT_SOURCE_DIR}/output_boundary_invalid.cmake"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_output_boundary_failure.cmake")
+set_tests_properties(build.repository-output-rejected PROPERTIES
+    LABELS "build;output;contract")
+
+add_executable(laplace_execution_grant_probe
+    execution_grant_probe.cpp)
+target_link_libraries(laplace_execution_grant_probe PRIVATE Laplace::Execution)
+target_compile_options(laplace_execution_grant_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME execution.resource-conservation-contract COMMAND laplace_execution_grant_probe)
+set_tests_properties(execution.resource-conservation-contract PROPERTIES
+    LABELS "implementation;execution;resources;contract")
+
+add_library(laplace_execution_resource_mutant STATIC
+    ../engine/src/execution.cpp)
+target_include_directories(laplace_execution_resource_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_compile_definitions(laplace_execution_resource_mutant
+    PRIVATE LAPLACE_TEST_DUPLICATE_PARENT_GRANT=1)
+target_compile_options(laplace_execution_resource_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
+
+add_executable(laplace_execution_resource_mutation_probe
+    execution_grant_probe.cpp)
+target_link_libraries(laplace_execution_resource_mutation_probe
+    PRIVATE laplace_execution_resource_mutant)
+target_compile_options(laplace_execution_resource_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME execution.mutation-resource-duplication-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_execution_resource_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_execution_failure.cmake")
+set_tests_properties(execution.mutation-resource-duplication-detected PROPERTIES
+    LABELS "execution;resources;mutation")
+
 add_executable(laplace_isa_preflight_probe
     isa_preflight_probe.cpp)
 target_link_libraries(laplace_isa_preflight_probe PRIVATE Laplace::Isa)

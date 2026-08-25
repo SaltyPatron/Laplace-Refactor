@@ -377,6 +377,15 @@
       "boundary": "Build tools consume pinned source and toolchain inputs and do not select undeclared source or runtime objects.",
       "selection": "selection-required",
       "lock_entries": []
+    },
+    {
+      "id": "github-actions-runner",
+      "class": "ci-execution-tool",
+      "profiles": ["build", "test", "linux"],
+      "intent": ["execute custom-stack CI under the dedicated laplace-runner operating-system identity with exact runner-package identity"],
+      "boundary": "The runner transports repository jobs to declared toolchains and services; it cannot select product semantics, source versions, or evidence outcomes.",
+      "selection": "artifact-locked",
+      "lock_entries": ["artifact:github-actions-runner-linux-x64"]
     }
   ]
 }

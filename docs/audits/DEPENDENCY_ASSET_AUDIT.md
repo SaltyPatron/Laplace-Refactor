@@ -249,9 +249,9 @@ A read-only reconciliation against the active Linux host added the following bou
 observations. They identify recovery and acquisition assets; they do not select clean
 product implementations by themselves.
 
-- `/opt/laplace/external` exists but is empty. Verified source trees are present in the
-  ignored clean-repository dependency cache, while the preserved repository still
-  contains the earlier upstream clones.
+- `/opt/laplace/external` is the resolved external-dependency root. Verified upstream
+  trees, grammar sources, release trees, and acquisition caches were relocated there;
+  the clean repository contains locks and acquisition/verification tools only.
 - IntelLLVM 2026.1.1, oneMKL 2026.1.0, and oneTBB 2023.1.0 are installed under
   `/opt/intel/oneapi`. The deployed native dynamics and synthesis libraries directly
   require MKL LP64, MKL core, MKL's TBB threading provider, TBB 12, and Intel compiler

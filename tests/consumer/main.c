@@ -3,6 +3,7 @@
 
 #include "laplace/identity.h"
 #include "laplace/isa.h"
+#include "laplace/execution.h"
 #include "laplace/trajectory.h"
 
 int main(void) {
@@ -23,6 +24,7 @@ int main(void) {
     uint64_t logical_count;
     uint64_t metadata;
     uint32_t position = UINT32_C(0x32);
+    laplace_execution_topology_size topology_size;
     size_t index;
     if (laplace_identity_codepoint(position, &identity) !=
         LAPLACE_IDENTITY_OK) {
@@ -121,6 +123,11 @@ int main(void) {
         values[1].count != 1 ||
         memcmp(&direct_occurrence, &isa_occurrence, sizeof(isa_occurrence)) != 0) {
         return 7;
+    }
+    memset(&topology_size, 0, sizeof(topology_size));
+    if (laplace_execution_topology_measure_host(&topology_size) != LAPLACE_EXECUTION_OK ||
+        topology_size.processor_count == 0 || topology_size.memory_domain_count == 0) {
+        return 8;
     }
     return 0;
 }
