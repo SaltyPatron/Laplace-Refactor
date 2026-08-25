@@ -45,6 +45,26 @@ class ToolchainBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.ToolchainError, "cmake.test"):
             BUILD.validate_contract(contract)
 
+    def test_binutils_cannot_start_without_selected_expect_and_runtest(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary)
+            with self.assertRaisesRegex(BUILD.ToolchainError, "selected expect"):
+                BUILD.verify_component_prerequisites("gnu-binutils", prefix)
+            (prefix / "bin").mkdir()
+            shutil.copy2("/usr/bin/true", prefix / "bin/expect")
+            with self.assertRaisesRegex(BUILD.ToolchainError, "selected runtest"):
+                BUILD.verify_component_prerequisites("gnu-binutils", prefix)
+
+    def test_binutils_configure_cannot_drop_dejagnu_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log = Path(temporary) / "configure.log"
+            log.write_text(
+                "checking for expect... expect\nchecking for runtest... no\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BUILD.ToolchainError, "did not select runtest"):
+                BUILD.verify_component_configure_log("gnu-binutils", log)
+
     def test_perl_local_path_defaults_are_fail_closed(self) -> None:
         contract = self.contract()
         configure = contract["build"]["components"]["perl"]["configure"]

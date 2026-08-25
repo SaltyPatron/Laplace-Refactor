@@ -26,6 +26,9 @@ EXPECTED_ORDER = [
     "perl",
     "texinfo",
     "gnu-make",
+    "tcl",
+    "expect",
+    "dejagnu",
     "gnu-binutils",
     "pkgconf",
     "gnu-bison",
@@ -37,6 +40,9 @@ EXPECTED_VERSIONS = {
     "perl": "5.44.0",
     "texinfo": "7.3",
     "gnu-make": "4.4.1",
+    "tcl": "8.6.18",
+    "expect": "5.45.4",
+    "dejagnu": "1.6.3",
     "gnu-binutils": "2.47",
     "pkgconf": "3.0.6",
     "gnu-bison": "3.8.2",
@@ -51,6 +57,7 @@ REQUIRED_TOOL_IDS = {
     "cmake",
     "cpack",
     "ctest",
+    "expect",
     "flex",
     "ld",
     "make",
@@ -63,7 +70,9 @@ REQUIRED_TOOL_IDS = {
     "pkgconf",
     "ranlib",
     "readelf",
+    "runtest",
     "strip",
+    "tclsh8.6",
 }
 HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 ABSOLUTE_PATH_PATTERN = re.compile(r"(?<![A-Za-z0-9_.-])(/[A-Za-z0-9_+.,:@%/=-]+)")
@@ -716,6 +725,41 @@ def verify_component_configuration(component_id: str, source: Path) -> dict[str,
     return {"status": "verified", "fields": values}
 
 
+def verify_component_prerequisites(component_id: str, prefix: Path) -> dict[str, Any]:
+    if component_id != "gnu-binutils":
+        return {"status": "not-applicable"}
+    tools: dict[str, dict[str, str]] = {}
+    for tool_id in ("expect", "runtest"):
+        path = prefix / "bin" / tool_id
+        if not path.is_file() or not os.access(path, os.X_OK):
+            raise ToolchainError(
+                f"binutils upstream suite requires selected {tool_id}: {path}"
+            )
+        tools[tool_id] = {
+            "path": str(path),
+            "sha256": sha256_file(path.resolve()),
+            "version": tool_version(tool_id, path),
+        }
+    return {"status": "verified", "tools": tools}
+
+
+def verify_component_configure_log(component_id: str, log_path: Path) -> dict[str, Any]:
+    if component_id != "gnu-binutils":
+        return {"status": "not-applicable"}
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    findings: dict[str, str] = {}
+    for tool_id in ("expect", "runtest"):
+        prefix = f"checking for {tool_id}... "
+        lines = [line for line in text.splitlines() if line.startswith(prefix)]
+        if not lines:
+            raise ToolchainError(f"binutils configure omitted the {tool_id} discovery result")
+        result = lines[-1][len(prefix) :]
+        if result == "no":
+            raise ToolchainError(f"binutils configure did not select {tool_id}")
+        findings[tool_id] = result
+    return {"status": "verified", "selected_test_tools": findings}
+
+
 def verify_private_source_copy(
     contract: dict[str, Any], repository: Path, component_id: str, copy_parent: Path
 ) -> None:
@@ -735,8 +779,15 @@ def verify_private_source_copy(
         raise ToolchainError(f"private source verification failed for {component_id}: {error}") from error
 
 
-def tool_version(path: Path) -> str:
-    result = subprocess.run([str(path), "--version"], text=True, capture_output=True)
+def tool_version(tool_id: str, path: Path) -> str:
+    if tool_id == "tclsh8.6":
+        result = subprocess.run(
+            [str(path)], input="puts [info patchlevel]\n", text=True, capture_output=True
+        )
+    elif tool_id == "expect":
+        result = subprocess.run([str(path), "-v"], text=True, capture_output=True)
+    else:
+        result = subprocess.run([str(path), "--version"], text=True, capture_output=True)
     if result.returncode != 0:
         raise ToolchainError(f"installed tool version probe failed: {path}")
     output = (result.stdout + result.stderr).strip()
@@ -754,7 +805,7 @@ def installed_tool_receipts(contract: dict[str, Any], prefix: Path) -> dict[str,
             tools[tool_id] = {
                 "path": str(path),
                 "sha256": sha256_file(resolved),
-                "version": tool_version(path),
+                "version": tool_version(tool_id, path),
             }
     missing = sorted(REQUIRED_TOOL_IDS - set(tools))
     if missing:
@@ -931,6 +982,7 @@ def execute_plan(
         component = contract["build"]["components"][component_id]
         component_build = build_root / "components" / component_id
         private_directory(component_build)
+        prerequisite_receipt = verify_component_prerequisites(component_id, prefix)
         source = component_source(
             contract, Path(plan["repository"]), component_id, work_root
         )
@@ -961,6 +1013,10 @@ def execute_plan(
             if step_name == "configure":
                 step_receipt["configuration_contract"] = verify_component_configuration(
                     component_id, source
+                )
+                step_receipt["prerequisite_contract"] = prerequisite_receipt
+                step_receipt["configure_log_contract"] = verify_component_configure_log(
+                    component_id, Path(step_receipt["log_path"])
                 )
             steps.append(step_receipt)
         component_steps[component_id] = steps

@@ -181,6 +181,33 @@
       "lock_entries": ["release:flex"]
     },
     {
+      "id": "tcl",
+      "class": "build-and-test-toolchain",
+      "profiles": ["build", "testing", "linux"],
+      "intent": ["provide the Tcl interpreter and C runtime required by Expect and DejaGNU-backed upstream test suites"],
+      "boundary": "Tcl 8.6.18 is the latest release in the Expect-compatible 8.6 ABI line; it is a test/build input and cannot enter or activate the Laplace product runtime.",
+      "selection": "locked-release",
+      "lock_entries": ["release:tcl"]
+    },
+    {
+      "id": "expect",
+      "class": "test-tool",
+      "profiles": ["build", "testing", "linux"],
+      "intent": ["provide the selected interactive-process harness required by DejaGNU and binutils upstream tests"],
+      "boundary": "Expect is test-only, is built against the selected Tcl 8.6 ABI, and cannot enter or activate the Laplace product runtime.",
+      "selection": "locked-release",
+      "lock_entries": ["release:expect"]
+    },
+    {
+      "id": "dejagnu",
+      "class": "test-tool",
+      "profiles": ["build", "testing", "linux"],
+      "intent": ["provide runtest so binutils and other selected GNU upstream suites execute instead of silently losing coverage"],
+      "boundary": "DejaGNU and its Expect/Tcl chain are test-only and cannot enter or activate the Laplace product runtime.",
+      "selection": "locked-release",
+      "lock_entries": ["release:dejagnu"]
+    },
+    {
       "id": "perl",
       "class": "build-and-test-toolchain",
       "profiles": ["build", "database", "testing"],

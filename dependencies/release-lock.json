@@ -19,6 +19,42 @@
         }
       ]
     },
+    "dejagnu": {
+      "version": "1.6.3",
+      "filename": "dejagnu-1.6.3.tar.gz",
+      "url": "https://ftp.gnu.org/gnu/dejagnu/dejagnu-1.6.3.tar.gz",
+      "sha256": "87daefacd7958b4a69f88c6856dbd1634261963c414079d0c371f589cd66a2e3",
+      "size_bytes": 622059,
+      "top_directory": "dejagnu-1.6.3",
+      "member_count": 216,
+      "regular_file_count": 189,
+      "uncompressed_bytes": 2432796,
+      "tree_sha256": "c3b880b91355258674b7791eb453bde4a3c1ed1bf9b00ceb89f339b3d2d15fcc",
+      "licenses": [
+        {
+          "path": "dejagnu-1.6.3/COPYING",
+          "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+        }
+      ]
+    },
+    "expect": {
+      "version": "5.45.4",
+      "filename": "expect5.45.4.tar.gz",
+      "url": "https://downloads.sourceforge.net/project/expect/Expect/5.45.4/expect5.45.4.tar.gz",
+      "sha256": "49a7da83b0bdd9f46d04a04deec19c7767bb9a323e40c4781f89caf760b92c34",
+      "size_bytes": 632363,
+      "top_directory": "expect5.45.4",
+      "member_count": 150,
+      "regular_file_count": 145,
+      "uncompressed_bytes": 2137919,
+      "tree_sha256": "7237264a673a8206f5c2da45c2c11bd71bfffd8b3d94de7da0943d6c91b9fa79",
+      "licenses": [
+        {
+          "path": "expect5.45.4/license.terms",
+          "sha256": "460e72ef0e4d4796016f46fd5ea9a26f9bdf02e7fb4be356734bb1affd200c44"
+        }
+      ]
+    },
     "flex": {
       "version": "2.6.4",
       "filename": "flex-2.6.4.tar.gz",
@@ -374,6 +410,24 @@
         {
           "path": "proj-9.8.1/COPYING",
           "sha256": "6a8f30793e877d32e3f88b972f0970a051a3b5a26cd057d3993cb51e21c43319"
+        }
+      ]
+    },
+    "tcl": {
+      "version": "8.6.18",
+      "filename": "tcl-core8.6.18-src.tar.gz",
+      "url": "https://downloads.sourceforge.net/project/tcl/Tcl/8.6.18/tcl-core8.6.18-src.tar.gz",
+      "sha256": "1880b6337de72431174511419550bb4cf1327b7c8200a5466d1c4eb3ecac5132",
+      "size_bytes": 7027388,
+      "top_directory": "tcl8.6.18",
+      "member_count": 1993,
+      "regular_file_count": 1900,
+      "uncompressed_bytes": 29569587,
+      "tree_sha256": "4ed8c82af53f6c413eb8ee863922c8876029d6989712fc8bdee5ca01d625965a",
+      "licenses": [
+        {
+          "path": "tcl8.6.18/license.terms",
+          "sha256": "c0a69a2bfd757361ec7e6143973b103c90409316b49e9c88db26ad6388e79f16"
         }
       ]
     },
