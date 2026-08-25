@@ -16,6 +16,8 @@ typedef struct laplace_perfcache_registry laplace_perfcache_registry;
 typedef struct laplace_perfcache_prepared_generation
     laplace_perfcache_prepared_generation;
 typedef struct laplace_perfcache_activation laplace_perfcache_activation;
+typedef struct laplace_perfcache_generation_manifest
+    laplace_perfcache_generation_manifest;
 
 typedef struct laplace_perfcache_artifact_handle {
     laplace_perfcache_view view;
@@ -173,7 +175,9 @@ typedef enum laplace_perfcache_registry_status {
     LAPLACE_PERFCACHE_REGISTRY_MANIFEST_MISMATCH = 13,
     LAPLACE_PERFCACHE_REGISTRY_DEPENDENCY_INVALID = 14,
     LAPLACE_PERFCACHE_REGISTRY_ALREADY_RESERVED = 15,
-    LAPLACE_PERFCACHE_REGISTRY_NOT_AUTHORIZED = 16
+    LAPLACE_PERFCACHE_REGISTRY_NOT_AUTHORIZED = 16,
+    LAPLACE_PERFCACHE_REGISTRY_MANIFEST_INVALID = 17,
+    LAPLACE_PERFCACHE_REGISTRY_BUFFER_TOO_SMALL = 18
 } laplace_perfcache_registry_status;
 
 enum {
@@ -208,6 +212,40 @@ laplace_perfcache_generation_artifact_set_fingerprint(
     const laplace_perfcache_generation_request* request,
     laplace_digest256* fingerprint);
 
+LAPLACE_API laplace_perfcache_registry_status
+laplace_perfcache_generation_manifest_measure(
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_perfcache_generation_request* request,
+    size_t* manifest_bytes);
+
+LAPLACE_API laplace_perfcache_registry_status
+laplace_perfcache_generation_manifest_write(
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_perfcache_generation_request* request,
+    uint8_t* output,
+    size_t output_capacity,
+    size_t* manifest_bytes,
+    laplace_digest256* encoded_fingerprint);
+
+LAPLACE_API laplace_perfcache_registry_status
+laplace_perfcache_generation_manifest_open(
+    const uint8_t* bytes,
+    size_t byte_count,
+    laplace_perfcache_generation_manifest** manifest,
+    laplace_digest256* encoded_fingerprint);
+
+LAPLACE_API laplace_perfcache_registry_status
+laplace_perfcache_generation_manifest_view(
+    const laplace_perfcache_generation_manifest* manifest,
+    const laplace_framework_context** context,
+    const laplace_framework_stream_receipt** staged_receipt,
+    const laplace_perfcache_generation_request** request);
+
+LAPLACE_API void laplace_perfcache_generation_manifest_close(
+    laplace_perfcache_generation_manifest* manifest);
+
 LAPLACE_API laplace_perfcache_registry_status laplace_perfcache_registry_destroy(
     laplace_perfcache_registry* registry);
 
@@ -233,16 +271,37 @@ laplace_perfcache_activation_receipt_get(
     const laplace_perfcache_activation* activation,
     laplace_perfcache_generation_receipt* receipt);
 
+LAPLACE_API laplace_perfcache_registry_status
+laplace_perfcache_activation_commit_ready(
+    const laplace_perfcache_activation* activation);
+
 LAPLACE_API void laplace_perfcache_activation_destroy(
     laplace_perfcache_activation* activation);
 
 LAPLACE_API void laplace_perfcache_registry_discard_prepared(
     laplace_perfcache_prepared_generation** prepared);
 
+/*
+ * Installs an immutable generation already admitted by an external durable
+ * authority as an exact-pinnable local materialization.  This does not change
+ * the registry's active generation and is not an activation substitute.
+ */
+LAPLACE_API laplace_perfcache_registry_status
+laplace_perfcache_registry_materialize_prepared(
+    laplace_perfcache_registry* registry,
+    laplace_perfcache_prepared_generation** prepared,
+    laplace_perfcache_generation_receipt* receipt);
+
 LAPLACE_API laplace_perfcache_registry_status laplace_perfcache_registry_pin(
     laplace_perfcache_registry* registry,
     uint32_t has_expected_epoch,
     const laplace_perfcache_epoch* expected_epoch,
+    laplace_perfcache_pin* pin);
+
+LAPLACE_API laplace_perfcache_registry_status
+laplace_perfcache_registry_pin_epoch(
+    laplace_perfcache_registry* registry,
+    const laplace_perfcache_epoch* epoch,
     laplace_perfcache_pin* pin);
 
 LAPLACE_API laplace_perfcache_registry_status laplace_perfcache_pin_lookup_batch(

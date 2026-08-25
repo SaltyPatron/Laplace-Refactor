@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <mutex>
 #include <memory>
 #include <new>
@@ -406,6 +407,16 @@ struct laplace_perfcache_activation {
     std::uint32_t has_expected_epoch{};
 };
 
+struct laplace_perfcache_generation_manifest {
+    laplace_framework_context context{};
+    laplace_framework_stream_receipt staged_receipt{};
+    laplace_perfcache_generation_request request{};
+    std::vector<laplace_perfcache_generation_artifact> artifacts;
+    std::vector<std::string> paths;
+    std::vector<std::vector<laplace_perfcache_generation_dependency>>
+        dependencies;
+};
+
 namespace {
 
 RegisteredModule* FindModule(laplace_perfcache_registry* registry,
@@ -432,6 +443,27 @@ const LoadedArtifact* FindArtifact(const LoadedGeneration& generation,
             IdEqual(found->contract.module_id, module_id)
         ? &*found
         : nullptr;
+}
+
+LoadedGeneration* FindGeneration(laplace_perfcache_registry* registry,
+                                 const laplace_perfcache_epoch& epoch) {
+    if (registry->active != nullptr &&
+        IdEqual(registry->active->activation_epoch_id,
+                epoch.activation_epoch_id) &&
+        DigestEqual(registry->active->epoch_fingerprint,
+                    epoch.epoch_fingerprint)) {
+        return registry->active;
+    }
+    for (LoadedGeneration* generation = registry->retired;
+         generation != nullptr; generation = generation->retired_next) {
+        if (IdEqual(generation->activation_epoch_id,
+                    epoch.activation_epoch_id) &&
+            DigestEqual(generation->epoch_fingerprint,
+                        epoch.epoch_fingerprint)) {
+            return generation;
+        }
+    }
+    return nullptr;
 }
 
 bool ModuleContractMatches(const RegisteredModule& module,
@@ -597,6 +629,401 @@ bool RequestShapeValid(const laplace_perfcache_generation_request& request) {
     return true;
 }
 
+constexpr std::uint8_t EncodedManifestMagic[8] = {
+    'L', 'P', 'C', 'M', 'N', 'F', '0', '1'};
+constexpr std::uint32_t EncodedManifestVersion = 1u;
+constexpr std::uint8_t EncodedManifestDomain[] =
+    "laplace-perfcache-encoded-generation-manifest-v1";
+
+void AppendBytes(std::vector<std::uint8_t>* output,
+                 const std::uint8_t* bytes,
+                 std::size_t count) {
+    output->insert(output->end(), bytes, bytes + count);
+}
+
+void AppendU16(std::vector<std::uint8_t>* output, std::uint16_t value) {
+    output->push_back(static_cast<std::uint8_t>(value));
+    output->push_back(static_cast<std::uint8_t>(value >> 8u));
+}
+
+void AppendU32(std::vector<std::uint8_t>* output, std::uint32_t value) {
+    for (std::size_t index = 0; index < 4u; ++index) {
+        output->push_back(
+            static_cast<std::uint8_t>(value >> (index * 8u)));
+    }
+}
+
+void AppendU64(std::vector<std::uint8_t>* output, std::uint64_t value) {
+    for (std::size_t index = 0; index < 8u; ++index) {
+        output->push_back(
+            static_cast<std::uint8_t>(value >> (index * 8u)));
+    }
+}
+
+void AppendDigest(std::vector<std::uint8_t>* output,
+                  const laplace_digest256& value) {
+    AppendBytes(output, value.bytes, sizeof(value.bytes));
+}
+
+void AppendId(std::vector<std::uint8_t>* output,
+              const laplace_id128& value) {
+    AppendBytes(output, value.bytes, sizeof(value.bytes));
+}
+
+void AppendContract(std::vector<std::uint8_t>* output,
+                    const laplace_perfcache_contract& contract) {
+    AppendId(output, contract.module_id);
+    AppendId(output, contract.key_schema_id);
+    AppendId(output, contract.value_schema_id);
+    AppendId(output, contract.activation_epoch_id);
+    AppendDigest(output, contract.activation_epoch_fingerprint);
+    AppendDigest(output, contract.module_contract_fingerprint);
+    AppendDigest(output, contract.source_fingerprint);
+    AppendDigest(output, contract.recipe_fingerprint);
+    AppendDigest(output, contract.dependency_fingerprint);
+    AppendU32(output, contract.key_bytes);
+    AppendU32(output, contract.value_bytes);
+    AppendU32(output, contract.access_law);
+    AppendU64(output, contract.flags);
+}
+
+laplace_digest256 EncodedManifestFingerprint(
+    const std::uint8_t* bytes,
+    std::size_t count) {
+    blake3_hasher hasher{};
+    laplace_digest256 result{};
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(&hasher, EncodedManifestDomain,
+                         sizeof(EncodedManifestDomain) - 1u);
+    blake3_hasher_update(&hasher, bytes, count);
+    Finish(&hasher, &result);
+    return result;
+}
+
+bool EncodeManifest(
+    const laplace_framework_context& context,
+    const laplace_framework_stream_receipt& staged_receipt,
+    const laplace_perfcache_generation_request& request,
+    std::vector<std::uint8_t>* output,
+    laplace_digest256* fingerprint) {
+    if (!RequestShapeValid(request) ||
+        !StagedReceiptMatches(context, staged_receipt, request) ||
+        request.artifact_count >
+            static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+        return false;
+    }
+    output->clear();
+    AppendBytes(output, EncodedManifestMagic, sizeof(EncodedManifestMagic));
+    AppendU32(output, EncodedManifestVersion);
+    AppendU32(output, static_cast<std::uint32_t>(request.artifact_count));
+    for (std::size_t index = 0; index < LAPLACE_FRAMEWORK_EPOCH_COUNT;
+         ++index) {
+        AppendDigest(output, context.epochs[index]);
+    }
+    AppendDigest(output, context.authority_fingerprint);
+    AppendU64(output, context.resource_grant.memory_bytes);
+    AppendU32(output, context.resource_grant.cpu_slots);
+    AppendU32(output, context.resource_grant.io_slots);
+    AppendU64(output, context.epoch_mask);
+    AppendU16(output, context.major);
+    AppendU16(output, context.minor);
+    AppendU32(output, context.flags);
+    AppendU32(output, context.reserved);
+
+    AppendDigest(output, staged_receipt.receipt_id);
+    AppendDigest(output, staged_receipt.context_fingerprint);
+    AppendDigest(output, staged_receipt.source_fingerprint);
+    AppendDigest(output, staged_receipt.recipe_fingerprint);
+    AppendDigest(output, staged_receipt.stream_fingerprint);
+    AppendDigest(output, staged_receipt.sink_artifacts_fingerprint);
+    AppendU64(output, staged_receipt.total_records);
+    AppendU64(output, staged_receipt.total_bytes);
+    AppendU64(output, staged_receipt.batch_count);
+    AppendU64(output, staged_receipt.sink_count);
+    AppendU64(output, staged_receipt.failed_batch_index);
+    AppendU64(output, staged_receipt.failed_sink_index);
+    AppendU32(output, staged_receipt.record_type);
+    AppendU32(output, staged_receipt.effect_disposition);
+    AppendU32(output, static_cast<std::uint32_t>(staged_receipt.status));
+    AppendU32(output, staged_receipt.reserved);
+
+    AppendId(output, request.activation_epoch_id);
+    AppendDigest(output, request.epoch_fingerprint);
+    AppendDigest(output, request.staged_receipt_id);
+    AppendDigest(output, request.stream_fingerprint);
+    AppendDigest(output, request.staged_sink_artifacts_fingerprint);
+    AppendDigest(output, request.sink_artifact_set_fingerprint);
+    AppendDigest(output, request.required_module_set_fingerprint);
+    AppendU32(output, request.flags);
+    AppendU32(output, request.reserved);
+    for (std::size_t index = 0; index < request.artifact_count; ++index) {
+        const auto& artifact = request.artifacts[index];
+        const std::size_t path_bytes = std::strlen(artifact.path);
+        if (path_bytes == 0u || path_bytes >
+                static_cast<std::size_t>(
+                    std::numeric_limits<std::uint32_t>::max()) ||
+            artifact.dependency_count >
+                static_cast<std::size_t>(
+                    std::numeric_limits<std::uint32_t>::max())) {
+            return false;
+        }
+        AppendU32(output, static_cast<std::uint32_t>(path_bytes));
+        AppendBytes(output,
+                    reinterpret_cast<const std::uint8_t*>(artifact.path),
+                    path_bytes);
+        AppendContract(output, artifact.contract);
+        AppendDigest(output, artifact.expected_artifact_digest);
+        AppendU32(output,
+                  static_cast<std::uint32_t>(artifact.dependency_count));
+        AppendU32(output, artifact.flags);
+        AppendU32(output, artifact.reserved);
+        for (std::size_t dependency = 0u;
+             dependency < artifact.dependency_count; ++dependency) {
+            AppendId(output, artifact.dependencies[dependency].module_id);
+            AppendDigest(output,
+                         artifact.dependencies[dependency].artifact_digest);
+        }
+    }
+    *fingerprint = EncodedManifestFingerprint(output->data(), output->size());
+    AppendDigest(output, *fingerprint);
+    return true;
+}
+
+class ManifestReader {
+ public:
+    ManifestReader(const std::uint8_t* bytes, std::size_t count)
+        : current_(bytes), remaining_(count) {}
+
+    bool Bytes(std::uint8_t* output, std::size_t count) {
+        if (count > remaining_) {
+            return false;
+        }
+        std::memcpy(output, current_, count);
+        current_ += count;
+        remaining_ -= count;
+        return true;
+    }
+
+    bool SkipBytes(const std::uint8_t** output, std::size_t count) {
+        if (count > remaining_) {
+            return false;
+        }
+        *output = current_;
+        current_ += count;
+        remaining_ -= count;
+        return true;
+    }
+
+    bool U16(std::uint16_t* output) {
+        std::uint8_t bytes[2]{};
+        if (!Bytes(bytes, sizeof(bytes))) {
+            return false;
+        }
+        *output = static_cast<std::uint16_t>(bytes[0]) |
+            static_cast<std::uint16_t>(bytes[1] << 8u);
+        return true;
+    }
+
+    bool U32(std::uint32_t* output) {
+        std::uint8_t bytes[4]{};
+        if (!Bytes(bytes, sizeof(bytes))) {
+            return false;
+        }
+        *output = 0u;
+        for (std::size_t index = 0; index < sizeof(bytes); ++index) {
+            *output |= static_cast<std::uint32_t>(bytes[index]) <<
+                (index * 8u);
+        }
+        return true;
+    }
+
+    bool U64(std::uint64_t* output) {
+        std::uint8_t bytes[8]{};
+        if (!Bytes(bytes, sizeof(bytes))) {
+            return false;
+        }
+        *output = 0u;
+        for (std::size_t index = 0; index < sizeof(bytes); ++index) {
+            *output |= static_cast<std::uint64_t>(bytes[index]) <<
+                (index * 8u);
+        }
+        return true;
+    }
+
+    std::size_t remaining() const { return remaining_; }
+
+ private:
+    const std::uint8_t* current_;
+    std::size_t remaining_;
+};
+
+bool ReadDigest(ManifestReader* reader, laplace_digest256* value) {
+    return reader->Bytes(value->bytes, sizeof(value->bytes));
+}
+
+bool ReadId(ManifestReader* reader, laplace_id128* value) {
+    return reader->Bytes(value->bytes, sizeof(value->bytes));
+}
+
+bool ReadContract(ManifestReader* reader,
+                  laplace_perfcache_contract* contract) {
+    return ReadId(reader, &contract->module_id) &&
+        ReadId(reader, &contract->key_schema_id) &&
+        ReadId(reader, &contract->value_schema_id) &&
+        ReadId(reader, &contract->activation_epoch_id) &&
+        ReadDigest(reader, &contract->activation_epoch_fingerprint) &&
+        ReadDigest(reader, &contract->module_contract_fingerprint) &&
+        ReadDigest(reader, &contract->source_fingerprint) &&
+        ReadDigest(reader, &contract->recipe_fingerprint) &&
+        ReadDigest(reader, &contract->dependency_fingerprint) &&
+        reader->U32(&contract->key_bytes) &&
+        reader->U32(&contract->value_bytes) &&
+        reader->U32(&contract->access_law) &&
+        reader->U64(&contract->flags);
+}
+
+bool DecodeManifest(
+    const std::uint8_t* bytes,
+    std::size_t byte_count,
+    laplace_perfcache_generation_manifest* manifest,
+    laplace_digest256* fingerprint) {
+    if (bytes == nullptr || manifest == nullptr || fingerprint == nullptr ||
+        byte_count < sizeof(EncodedManifestMagic) + 8u +
+            sizeof(fingerprint->bytes)) {
+        return false;
+    }
+    const std::size_t payload_bytes = byte_count - sizeof(fingerprint->bytes);
+    *fingerprint = EncodedManifestFingerprint(bytes, payload_bytes);
+#if !defined(LAPLACE_TEST_SKIP_ENCODED_MANIFEST_DIGEST)
+    if (!BytesEqual(fingerprint->bytes, bytes + payload_bytes,
+                    sizeof(fingerprint->bytes))) {
+        return false;
+    }
+#endif
+    ManifestReader reader(bytes, payload_bytes);
+    const std::uint8_t* magic = nullptr;
+    std::uint32_t version = 0u;
+    std::uint32_t artifact_count = 0u;
+    if (!reader.SkipBytes(&magic, sizeof(EncodedManifestMagic)) ||
+        !BytesEqual(magic, EncodedManifestMagic,
+                    sizeof(EncodedManifestMagic)) ||
+        !reader.U32(&version) || version != EncodedManifestVersion ||
+        !reader.U32(&artifact_count) || artifact_count == 0u ||
+        static_cast<std::size_t>(artifact_count) > payload_bytes / 64u) {
+        return false;
+    }
+    for (std::size_t index = 0; index < LAPLACE_FRAMEWORK_EPOCH_COUNT;
+         ++index) {
+        if (!ReadDigest(&reader, &manifest->context.epochs[index])) {
+            return false;
+        }
+    }
+    if (!ReadDigest(&reader, &manifest->context.authority_fingerprint) ||
+        !reader.U64(&manifest->context.resource_grant.memory_bytes) ||
+        !reader.U32(&manifest->context.resource_grant.cpu_slots) ||
+        !reader.U32(&manifest->context.resource_grant.io_slots) ||
+        !reader.U64(&manifest->context.epoch_mask) ||
+        !reader.U16(&manifest->context.major) ||
+        !reader.U16(&manifest->context.minor) ||
+        !reader.U32(&manifest->context.flags) ||
+        !reader.U32(&manifest->context.reserved)) {
+        return false;
+    }
+    std::uint32_t staged_status = 0u;
+    if (!ReadDigest(&reader, &manifest->staged_receipt.receipt_id) ||
+        !ReadDigest(&reader,
+                    &manifest->staged_receipt.context_fingerprint) ||
+        !ReadDigest(&reader, &manifest->staged_receipt.source_fingerprint) ||
+        !ReadDigest(&reader, &manifest->staged_receipt.recipe_fingerprint) ||
+        !ReadDigest(&reader, &manifest->staged_receipt.stream_fingerprint) ||
+        !ReadDigest(&reader,
+                    &manifest->staged_receipt.sink_artifacts_fingerprint) ||
+        !reader.U64(&manifest->staged_receipt.total_records) ||
+        !reader.U64(&manifest->staged_receipt.total_bytes) ||
+        !reader.U64(&manifest->staged_receipt.batch_count) ||
+        !reader.U64(&manifest->staged_receipt.sink_count) ||
+        !reader.U64(&manifest->staged_receipt.failed_batch_index) ||
+        !reader.U64(&manifest->staged_receipt.failed_sink_index) ||
+        !reader.U32(&manifest->staged_receipt.record_type) ||
+        !reader.U32(&manifest->staged_receipt.effect_disposition) ||
+        !reader.U32(&staged_status) ||
+        staged_status >
+            static_cast<std::uint32_t>(LAPLACE_FRAMEWORK_REPLAY_MISMATCH) ||
+        !reader.U32(&manifest->staged_receipt.reserved)) {
+        return false;
+    }
+    manifest->staged_receipt.status =
+        static_cast<laplace_framework_status>(staged_status);
+    if (!ReadId(&reader, &manifest->request.activation_epoch_id) ||
+        !ReadDigest(&reader, &manifest->request.epoch_fingerprint) ||
+        !ReadDigest(&reader, &manifest->request.staged_receipt_id) ||
+        !ReadDigest(&reader, &manifest->request.stream_fingerprint) ||
+        !ReadDigest(
+            &reader,
+            &manifest->request.staged_sink_artifacts_fingerprint) ||
+        !ReadDigest(&reader,
+                    &manifest->request.sink_artifact_set_fingerprint) ||
+        !ReadDigest(&reader,
+                    &manifest->request.required_module_set_fingerprint) ||
+        !reader.U32(&manifest->request.flags) ||
+        !reader.U32(&manifest->request.reserved)) {
+        return false;
+    }
+    manifest->artifacts.resize(artifact_count);
+    manifest->paths.resize(artifact_count);
+    manifest->dependencies.resize(artifact_count);
+    for (std::size_t index = 0u; index < artifact_count; ++index) {
+        auto& artifact = manifest->artifacts[index];
+        std::uint32_t path_bytes = 0u;
+        std::uint32_t dependency_count = 0u;
+        const std::uint8_t* path = nullptr;
+        if (!reader.U32(&path_bytes) || path_bytes == 0u ||
+            !reader.SkipBytes(&path, path_bytes) ||
+            std::memchr(path, '\0', path_bytes) != nullptr ||
+            !ReadContract(&reader, &artifact.contract) ||
+            !ReadDigest(&reader, &artifact.expected_artifact_digest) ||
+            !reader.U32(&dependency_count) ||
+            static_cast<std::size_t>(dependency_count) >
+                reader.remaining() / 48u ||
+            !reader.U32(&artifact.flags) ||
+            !reader.U32(&artifact.reserved)) {
+            return false;
+        }
+        manifest->paths[index].assign(
+            reinterpret_cast<const char*>(path), path_bytes);
+        manifest->dependencies[index].resize(dependency_count);
+        for (std::size_t dependency = 0u;
+             dependency < dependency_count; ++dependency) {
+            if (!ReadId(
+                    &reader,
+                    &manifest->dependencies[index][dependency].module_id) ||
+                !ReadDigest(
+                    &reader,
+                    &manifest->dependencies[index][dependency]
+                         .artifact_digest)) {
+                return false;
+            }
+        }
+    }
+    if (reader.remaining() != 0u) {
+        return false;
+    }
+    for (std::size_t index = 0u; index < artifact_count; ++index) {
+        manifest->artifacts[index].path = manifest->paths[index].c_str();
+        manifest->artifacts[index].dependencies =
+            manifest->dependencies[index].empty()
+            ? nullptr
+            : manifest->dependencies[index].data();
+        manifest->artifacts[index].dependency_count =
+            manifest->dependencies[index].size();
+    }
+    manifest->request.artifacts = manifest->artifacts.data();
+    manifest->request.artifact_count = manifest->artifacts.size();
+    return RequestShapeValid(manifest->request) &&
+        StagedReceiptMatches(manifest->context, manifest->staged_receipt,
+                             manifest->request);
+}
+
 }  // namespace
 
 extern "C" laplace_perfcache_registry_status laplace_perfcache_registry_create(
@@ -734,6 +1161,112 @@ laplace_perfcache_generation_artifact_set_fingerprint(
     }
     Finish(&hasher, fingerprint);
     return LAPLACE_PERFCACHE_REGISTRY_OK;
+}
+
+extern "C" laplace_perfcache_registry_status
+laplace_perfcache_generation_manifest_measure(
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_perfcache_generation_request* request,
+    std::size_t* manifest_bytes) {
+    if (context == nullptr || staged_receipt == nullptr || request == nullptr ||
+        manifest_bytes == nullptr) {
+        return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
+    }
+    try {
+        std::vector<std::uint8_t> encoded;
+        laplace_digest256 fingerprint{};
+        if (!EncodeManifest(*context, *staged_receipt, *request, &encoded,
+                            &fingerprint)) {
+            return LAPLACE_PERFCACHE_REGISTRY_MANIFEST_INVALID;
+        }
+        *manifest_bytes = encoded.size();
+        return LAPLACE_PERFCACHE_REGISTRY_OK;
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_PERFCACHE_REGISTRY_ALLOCATION_FAILED;
+    } catch (...) {
+        return LAPLACE_PERFCACHE_REGISTRY_INTERNAL_ERROR;
+    }
+}
+
+extern "C" laplace_perfcache_registry_status
+laplace_perfcache_generation_manifest_write(
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_perfcache_generation_request* request,
+    std::uint8_t* output,
+    std::size_t output_capacity,
+    std::size_t* manifest_bytes,
+    laplace_digest256* encoded_fingerprint) {
+    if (context == nullptr || staged_receipt == nullptr || request == nullptr ||
+        manifest_bytes == nullptr || encoded_fingerprint == nullptr ||
+        (output_capacity != 0u && output == nullptr)) {
+        return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
+    }
+    try {
+        std::vector<std::uint8_t> encoded;
+        if (!EncodeManifest(*context, *staged_receipt, *request, &encoded,
+                            encoded_fingerprint)) {
+            return LAPLACE_PERFCACHE_REGISTRY_MANIFEST_INVALID;
+        }
+        *manifest_bytes = encoded.size();
+        if (output_capacity < encoded.size()) {
+            return LAPLACE_PERFCACHE_REGISTRY_BUFFER_TOO_SMALL;
+        }
+        std::memcpy(output, encoded.data(), encoded.size());
+        return LAPLACE_PERFCACHE_REGISTRY_OK;
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_PERFCACHE_REGISTRY_ALLOCATION_FAILED;
+    } catch (...) {
+        return LAPLACE_PERFCACHE_REGISTRY_INTERNAL_ERROR;
+    }
+}
+
+extern "C" laplace_perfcache_registry_status
+laplace_perfcache_generation_manifest_open(
+    const std::uint8_t* bytes,
+    std::size_t byte_count,
+    laplace_perfcache_generation_manifest** manifest,
+    laplace_digest256* encoded_fingerprint) {
+    if (bytes == nullptr || byte_count == 0u || manifest == nullptr ||
+        encoded_fingerprint == nullptr) {
+        return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
+    }
+    *manifest = nullptr;
+    try {
+        auto result = std::make_unique<laplace_perfcache_generation_manifest>();
+        if (!DecodeManifest(bytes, byte_count, result.get(),
+                            encoded_fingerprint)) {
+            return LAPLACE_PERFCACHE_REGISTRY_MANIFEST_INVALID;
+        }
+        *manifest = result.release();
+        return LAPLACE_PERFCACHE_REGISTRY_OK;
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_PERFCACHE_REGISTRY_ALLOCATION_FAILED;
+    } catch (...) {
+        return LAPLACE_PERFCACHE_REGISTRY_INTERNAL_ERROR;
+    }
+}
+
+extern "C" laplace_perfcache_registry_status
+laplace_perfcache_generation_manifest_view(
+    const laplace_perfcache_generation_manifest* manifest,
+    const laplace_framework_context** context,
+    const laplace_framework_stream_receipt** staged_receipt,
+    const laplace_perfcache_generation_request** request) {
+    if (manifest == nullptr || context == nullptr || staged_receipt == nullptr ||
+        request == nullptr) {
+        return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
+    }
+    *context = &manifest->context;
+    *staged_receipt = &manifest->staged_receipt;
+    *request = &manifest->request;
+    return LAPLACE_PERFCACHE_REGISTRY_OK;
+}
+
+extern "C" void laplace_perfcache_generation_manifest_close(
+    laplace_perfcache_generation_manifest* manifest) {
+    delete manifest;
 }
 
 extern "C" laplace_perfcache_registry_status laplace_perfcache_registry_destroy(
@@ -1018,7 +1551,7 @@ static laplace_perfcache_registry_status RegistryReserve(
 
 static laplace_perfcache_registry_status RegistryCommit(
     laplace_perfcache_activation_ticket* ticket,
-    laplace_perfcache_generation_receipt* receipt) {
+    laplace_perfcache_generation_receipt* receipt) noexcept {
     if (ticket == nullptr || ticket->registry == nullptr ||
         ticket->generation == nullptr || receipt == nullptr) {
         return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
@@ -1121,7 +1654,7 @@ static laplace_framework_status CommitFrameworkActivation(
     void* state,
     const laplace_framework_activation_request*,
     const laplace_digest256* preparation_fingerprint,
-    laplace_digest256* activation_fingerprint) {
+    laplace_digest256* activation_fingerprint) noexcept {
     auto* activation = static_cast<laplace_perfcache_activation*>(state);
     if (activation == nullptr || activation->ticket == nullptr ||
         preparation_fingerprint == nullptr || activation_fingerprint == nullptr ||
@@ -1208,6 +1741,22 @@ laplace_perfcache_activation_receipt_get(
     return LAPLACE_PERFCACHE_REGISTRY_OK;
 }
 
+extern "C" laplace_perfcache_registry_status
+laplace_perfcache_activation_commit_ready(
+    const laplace_perfcache_activation* activation) {
+    if (activation == nullptr || activation->registry == nullptr ||
+        activation->ticket == nullptr || activation->ticket->generation == nullptr ||
+        activation->receipt.disposition !=
+            LAPLACE_PERFCACHE_GENERATION_RESERVED ||
+        activation->receipt.status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
+    }
+    std::lock_guard<std::mutex> lock(activation->registry->mutex);
+    return activation->registry->reservation == activation->ticket
+        ? LAPLACE_PERFCACHE_REGISTRY_OK
+        : LAPLACE_PERFCACHE_REGISTRY_INTERNAL_ERROR;
+}
+
 extern "C" void laplace_perfcache_activation_destroy(
     laplace_perfcache_activation* activation) {
     if (activation == nullptr) {
@@ -1240,6 +1789,46 @@ extern "C" void laplace_perfcache_registry_discard_prepared(
     delete owned;
 }
 
+extern "C" laplace_perfcache_registry_status
+laplace_perfcache_registry_materialize_prepared(
+    laplace_perfcache_registry* registry,
+    laplace_perfcache_prepared_generation** prepared,
+    laplace_perfcache_generation_receipt* receipt) {
+    if (registry == nullptr || prepared == nullptr || *prepared == nullptr ||
+        receipt == nullptr || (*prepared)->registry != registry ||
+        (*prepared)->generation == nullptr) {
+        return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
+    }
+    laplace_perfcache_prepared_generation* owned = *prepared;
+    LoadedGeneration* generation = owned->generation;
+    const laplace_perfcache_epoch epoch{
+        generation->activation_epoch_id, generation->epoch_fingerprint};
+    {
+        std::lock_guard<std::mutex> lock(registry->mutex);
+        if (FindGeneration(registry, epoch) != nullptr) {
+            return LAPLACE_PERFCACHE_REGISTRY_BUSY;
+        }
+        if (registry->prepared_count == 0u) {
+            return LAPLACE_PERFCACHE_REGISTRY_INTERNAL_ERROR;
+        }
+        registry->prepared_count -= 1u;
+#if defined(LAPLACE_TEST_MATERIALIZE_PERFCACHE_AS_ACTIVE)
+        generation->retired = false;
+        registry->active = generation;
+#else
+        generation->retired = true;
+        generation->retired_next = registry->retired;
+        registry->retired = generation;
+#endif
+        owned->generation = nullptr;
+        FillReceipt(*generation, LAPLACE_PERFCACHE_GENERATION_MATERIALIZED,
+                    LAPLACE_PERFCACHE_REGISTRY_OK, receipt);
+    }
+    *prepared = nullptr;
+    delete owned;
+    return LAPLACE_PERFCACHE_REGISTRY_OK;
+}
+
 extern "C" laplace_perfcache_registry_status laplace_perfcache_registry_pin(
     laplace_perfcache_registry* registry,
     std::uint32_t has_expected_epoch,
@@ -1269,6 +1858,30 @@ extern "C" laplace_perfcache_registry_status laplace_perfcache_registry_pin(
     pin->registry = registry;
     pin->epoch.activation_epoch_id = registry->active->activation_epoch_id;
     pin->epoch.epoch_fingerprint = registry->active->epoch_fingerprint;
+    return LAPLACE_PERFCACHE_REGISTRY_OK;
+}
+
+extern "C" laplace_perfcache_registry_status
+laplace_perfcache_registry_pin_epoch(
+    laplace_perfcache_registry* registry,
+    const laplace_perfcache_epoch* epoch,
+    laplace_perfcache_pin* pin) {
+    if (registry == nullptr || epoch == nullptr || pin == nullptr ||
+        pin->registry != nullptr || pin->generation != nullptr) {
+        return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
+    }
+    std::lock_guard<std::mutex> lock(registry->mutex);
+    LoadedGeneration* generation = FindGeneration(registry, *epoch);
+    if (generation == nullptr) {
+        return LAPLACE_PERFCACHE_REGISTRY_EPOCH_MISMATCH;
+    }
+    if (generation->readers == UINT64_MAX) {
+        return LAPLACE_PERFCACHE_REGISTRY_INTERNAL_ERROR;
+    }
+    generation->readers += 1u;
+    pin->generation = generation;
+    pin->registry = registry;
+    pin->epoch = *epoch;
     return LAPLACE_PERFCACHE_REGISTRY_OK;
 }
 

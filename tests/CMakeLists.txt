@@ -1039,6 +1039,14 @@ if(UNIX)
         duplicate-prepared-owner
         LAPLACE_TEST_RETAIN_PREPARED_OWNERSHIP
         PerfcacheRegistry.PreparedGenerationHasOneActivationOwner)
+    laplace_add_perfcache_registry_mutant(
+        encoded-manifest-digest-bypass
+        LAPLACE_TEST_SKIP_ENCODED_MANIFEST_DIGEST
+        PerfcacheRegistry.CanonicalManifestReconstructsARealGeneration)
+    laplace_add_perfcache_registry_mutant(
+        materialization-forges-activation
+        LAPLACE_TEST_MATERIALIZE_PERFCACHE_AS_ACTIVE
+        PerfcacheRegistry.DurableGenerationMaterializesWithoutForgingActivation)
 endif()
 
 if(LAPLACE_POSTGRES_ENABLED)
@@ -1059,12 +1067,35 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/persistence_blind_conflict_mutation.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_blind_conflict_mutation.sql"
         COPYONLY)
+    foreach(perfcache_sql
+        perfcache_epoch_contract.sql
+        perfcache_cold_lookup.sql
+        perfcache_concurrency_hold.sql
+        perfcache_concurrency_activate.sql
+        perfcache_concurrency_verify.sql
+        perfcache_prepare_rejected.sql
+        perfcache_recreate.sql
+        perfcache_competing_activate.sql
+        perfcache_competing_verify.sql
+        perfcache_epoch_mutation.sql)
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/${perfcache_sql}"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/${perfcache_sql}"
+            COPYONLY)
+    endforeach()
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
         Laplace::Isa
         Laplace::Persistence)
     target_compile_options(laplace_postgres_native_receipt_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+    add_executable(laplace_postgres_perfcache_manifest_probe
+        postgres/perfcache_manifest_probe.cpp)
+    target_link_libraries(laplace_postgres_perfcache_manifest_probe PRIVATE
+        Laplace::Perfcache Laplace::Framework)
+    target_compile_options(laplace_postgres_perfcache_manifest_probe PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 
     add_test(
@@ -1077,6 +1108,7 @@ if(LAPLACE_POSTGRES_ENABLED)
             "$<TARGET_FILE_DIR:laplace_pg>"
             "$<TARGET_FILE_DIR:laplace_engine>"
             "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
             "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql"
             "${laplace_sanitizer_preload}")
     set_tests_properties(postgres.spi-isa-contract PROPERTIES
@@ -1093,6 +1125,7 @@ if(LAPLACE_POSTGRES_ENABLED)
             "$<TARGET_FILE_DIR:laplace_pg>"
             "$<TARGET_FILE_DIR:laplace_engine>"
             "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
             "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_receipt_mutation.sql"
             "${laplace_sanitizer_preload}")
     set_tests_properties(postgres.mutation-receipt-collision-detected PROPERTIES
@@ -1109,12 +1142,32 @@ if(LAPLACE_POSTGRES_ENABLED)
             "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
             "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
             "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
             "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_blind_conflict_mutant>"
             "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_blind_conflict_mutation.sql"
             "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_persistence_mutation_failure.cmake")
     set_tests_properties(postgres.mutation-blind-persistence-conflict-detected PROPERTIES
         LABELS "postgresql;spi;persistence;identity;mutation"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.mutation-perfcache-expected-epoch-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_perfcache_epoch_mutant>"
+            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/perfcache_epoch_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_perfcache_mutation_failure.cmake")
+    set_tests_properties(postgres.mutation-perfcache-expected-epoch-detected PROPERTIES
+        LABELS "postgresql;perfcache;epoch;mutation"
         RUN_SERIAL TRUE)
 endif()
 
