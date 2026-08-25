@@ -3,6 +3,29 @@
 Phases order dependencies. They do not remove or defer product requirements beyond the
 completion of Laplace.
 
+## Live work map
+
+GitHub issue #23 is the whole-product parent. The machine-readable owner map lives in
+`contracts/operation-model.json`; GitHub records current execution state while this
+document defines phase exits.
+
+| Phase | Live issues |
+| --- | --- |
+| 0 — Canonical cutover | #2, #24 |
+| 1 — Industrial build and dependency foundation | #3, #8, #12 |
+| 2 — Universal execution framework and ISA | #4, #5, #6, #10 |
+| 3 — Universal substrate state | #7, #13, #14, #16 |
+| 4 — Batch and bulk ingestion | #15 |
+| 5 — Universal query and conversation | #17, #18, #19 |
+| 6 — Model independence | #20 |
+| 7 — Complete product surfaces | #21 |
+| 8 — Full acceptance and release | #22 |
+
+Issue closure does not imply phase closure while another required issue or the phase
+exit remains unsatisfied. Closed issues #8 and #24 are retained in this map because
+they own durable runner and session-audit evidence. An implementation issue closed by
+a PR must be reopened when its own behavioral acceptance remains incomplete.
+
 ## Phase 0 — preservation and clean-room foundation
 
 - Preserve the complete current repository, refs, worktrees, dirty files, ignored

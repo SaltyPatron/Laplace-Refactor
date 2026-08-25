@@ -278,8 +278,9 @@ graph.
 ## 12. Program tracking
 
 The same machine-readable graph binds every stage to its work-program phase and live
-GitHub issue owners. Issue #23 is the forest-level parent and issue #24 owns the
-content-bound physical-session audit. The verifier rejects a stage without a phase or
+GitHub issue owners. Issue #23 is the forest-level parent. Closed issue #24 owns the
+fixed-prefix content-bound physical-session audit and remains in the graph as its
+durable evidence owner. The verifier rejects a stage without a phase or
 issue, a tracked issue without an operational owner, an undeclared issue reference,
 an unknown stage dependency, a dependency cycle, or an unmapped product requirement.
 
