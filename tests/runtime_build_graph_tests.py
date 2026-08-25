@@ -73,10 +73,17 @@ class RuntimeBuildGraphTests(unittest.TestCase):
             BUILD.validate_contract(contract)
 
     def test_selected_tool_digest_mismatch_is_rejected(self) -> None:
-        contract = self.contract()
-        contract["compiler"]["c_compiler"]["sha256"] = "0" * 64
-        with self.assertRaisesRegex(BUILD.GraphError, "digest mismatch"):
-            BUILD.verify_compilers(contract)
+        with tempfile.TemporaryDirectory() as temporary:
+            compiler = Path(temporary) / "compiler"
+            compiler.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            compiler.chmod(0o755)
+            contract = self.contract()
+            contract["compiler"]["c_compiler"] = {
+                "path": str(compiler),
+                "sha256": "0" * 64,
+            }
+            with self.assertRaisesRegex(BUILD.GraphError, "digest mismatch"):
+                BUILD.verify_compilers(contract)
 
     def toolchain_receipt(self, root: Path) -> Path:
         prefix = root / "toolchain"
