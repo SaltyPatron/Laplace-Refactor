@@ -81,6 +81,18 @@
     {"id": 3, "name": "noncharacter-scalar"},
     {"id": 4, "name": "surrogate-lup-address"}
   ],
+  "source_value_canonicalization": {
+    "authority": "ucd/PropertyValueAliases.txt from the same retained and verified source bundle",
+    "comparison": "UAX44 loose matching over ASCII property aliases",
+    "emission": "the long property-value alias in the third semicolon field",
+    "applies_to": ["general_category", "bidi_class", "decomposition_type", "block", "east_asian_width", "script", "script_extensions", "hangul_syllable_type", "grapheme_cluster_break", "word_break", "sentence_break", "indic_conjunct_break", "line_break"],
+    "rules": [
+      "aliases are resolved within their property namespace because value aliases are not globally unique",
+      "UnicodeData First and Last ranges are validated as one exact value interval before expansion",
+      "DerivedBidiClass ordered missing rules are applied before explicit ranges",
+      "unknown ambiguous or conflicting aliases reject the root build"
+    ]
+  },
   "variable_fields": [
     {"id": 1, "name": "general_category", "kind": "canonical-ascii-property-value"},
     {"id": 2, "name": "canonical_combining_class", "kind": "u8"},

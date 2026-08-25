@@ -89,6 +89,33 @@ target_compile_options(laplace_unicode_source_tests PRIVATE
 gtest_discover_tests(laplace_unicode_source_tests
     PROPERTIES LABELS "implementation;unicode;source;receipt")
 
+add_library(laplace_unicode_core_bidi_mutant STATIC
+    ../engine/src/unicode_properties.cpp)
+target_include_directories(laplace_unicode_core_bidi_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_core_bidi_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_unicode_core_bidi_mutant PRIVATE
+    LAPLACE_TEST_UNICODE_CORE_IGNORE_SPECIFIC_BIDI_DEFAULTS=1)
+target_compile_options(laplace_unicode_core_bidi_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_unicode_core_bidi_mutation_probe
+    unicode_source_tests.cpp)
+target_include_directories(laplace_unicode_core_bidi_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_core_bidi_mutation_probe PRIVATE
+    laplace_unicode_core_bidi_mutant Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(laplace_unicode_core_bidi_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-core.mutation-bidi-default-order-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_core_bidi_mutation_probe>"
+        "-DFILTER=UnicodeCoreProperties.ClassifiesEveryPositionAndAppliesBidiDefaults"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(unicode-core.mutation-bidi-default-order-detected PROPERTIES
+    LABELS "implementation;unicode;source;mutation")
+
 add_executable(laplace_unicode_source_fixture_tests
     unicode_source_fixture_tests.cpp
     ../engine/src/unicode_source.cpp)

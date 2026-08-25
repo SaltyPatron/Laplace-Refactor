@@ -377,6 +377,17 @@ extern "C" laplace_unicode_status laplace_unicode_source_bundle_file(
     return LAPLACE_UNICODE_SOURCE_FILE_INVALID;
 }
 
+extern "C" laplace_unicode_status laplace_unicode_source_bundle_receipt(
+    const laplace_unicode_source_bundle* bundle,
+    laplace_unicode_source_receipt* receipt) {
+    if (bundle == nullptr || receipt == nullptr ||
+        bundle->files.size() != LAPLACE_UNICODE_GENERATED_SOURCE_COUNT) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    *receipt = bundle->receipt;
+    return LAPLACE_UNICODE_OK;
+}
+
 extern "C" void laplace_unicode_source_bundle_close(
     laplace_unicode_source_bundle** bundle) {
     if (bundle != nullptr) {

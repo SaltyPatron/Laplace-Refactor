@@ -987,6 +987,23 @@
       "covered_dimensions": ["producer parses the exact verified byte generation", "verification-to-parse TOCTOU elimination", "unknown source exclusion"]
     },
     {
+      "ctest_name": "UnicodeCoreProperties.ParsesCompleteSourceAndCanonicalizesPayloads",
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "covered_dimensions": ["retained UnicodeData parsing", "PropertyValueAliases canonicalization", "First Last range integrity", "canonical and compatibility decomposition payloads", "simple case mapping payloads", "normalized parse receipt"]
+    },
+    {
+      "ctest_name": "UnicodeCoreProperties.ClassifiesEveryPositionAndAppliesBidiDefaults",
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-ATOM-FLOOR"],
+      "covered_dimensions": ["complete position classification", "ordered DerivedBidiClass missing rules", "unassigned right-to-left default", "surrogate LUP classification"],
+      "defect_controls": ["unicode-core.mutation-bidi-default-order-detected"]
+    },
+    {
+      "ctest_name": "unicode-core.mutation-bidi-default-order-detected",
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-ATOM-FLOOR"],
+      "covered_dimensions": ["omitted specific bidi missing defaults are detected"],
+      "controls": "UnicodeCoreProperties.ClassifiesEveryPositionAndAppliesBidiDefaults"
+    },
+    {
       "ctest_name": "UnicodeSource.RejectsOneByteChangeInPinnedSourceSet",
       "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-SEED-STALE-BOOTSTRAP-REJECTION"],
       "covered_dimensions": ["one-byte live pinned-source corruption rejection"]

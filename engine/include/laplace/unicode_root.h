@@ -30,6 +30,7 @@ enum {
     LAPLACE_UNICODE_ATOM_RECORD_VERSION = 1,
     LAPLACE_UNICODE_ATOM_HEADER_BYTES = 132,
     LAPLACE_UNICODE_ATOM_FIELD_COUNT = 26,
+    LAPLACE_UNICODE_CORE_FIELD_COUNT = 7,
     LAPLACE_UNICODE_ATOM_FIELD_HEADER_BYTES = 8,
     LAPLACE_UNICODE_ROOT_POPULATION = 1114112,
     LAPLACE_UNICODE_HILBERT_KEY_BYTES = 16
@@ -201,11 +202,37 @@ typedef struct laplace_unicode_source_receipt {
 } laplace_unicode_source_receipt;
 
 typedef struct laplace_unicode_source_bundle laplace_unicode_source_bundle;
+typedef struct laplace_unicode_core_table laplace_unicode_core_table;
 
 typedef struct laplace_unicode_source_file_view {
     const uint8_t* bytes;
     uint64_t byte_count;
 } laplace_unicode_source_file_view;
+
+typedef struct laplace_unicode_core_record_view {
+    laplace_unicode_atom_field fields[LAPLACE_UNICODE_CORE_FIELD_COUNT];
+    uint32_t codepoint_position;
+    uint8_t position_class;
+    uint8_t reserved[3];
+} laplace_unicode_core_record_view;
+
+typedef struct laplace_unicode_core_summary {
+    laplace_digest256 receipt_id;
+    laplace_digest256 source_fingerprint;
+    laplace_digest256 recipe_fingerprint;
+    laplace_digest256 normalized_fingerprint;
+    uint64_t position_class_counts[5];
+    uint64_t explicit_position_count;
+    uint64_t canonical_decomposition_count;
+    uint64_t compatibility_decomposition_count;
+    uint64_t simple_case_mapping_position_count;
+    uint32_t unicode_data_row_count;
+    uint32_t unicode_data_range_count;
+    uint32_t bidi_range_count;
+    uint32_t bidi_missing_rule_count;
+    uint32_t status;
+    uint32_t reserved;
+} laplace_unicode_core_summary;
 
 typedef struct laplace_unicode_root_stream_validator
     laplace_unicode_root_stream_validator;
@@ -251,7 +278,10 @@ typedef enum laplace_unicode_status {
     LAPLACE_UNICODE_STREAM_STATE_INVALID = 16,
     LAPLACE_UNICODE_STREAM_ORDER_INVALID = 17,
     LAPLACE_UNICODE_STREAM_MANIFEST_MISMATCH = 18,
-    LAPLACE_UNICODE_STREAM_INCOMPLETE = 19
+    LAPLACE_UNICODE_STREAM_INCOMPLETE = 19,
+    LAPLACE_UNICODE_SOURCE_SYNTAX_INVALID = 20,
+    LAPLACE_UNICODE_SOURCE_CONFLICT = 21,
+    LAPLACE_UNICODE_SOURCE_INCOMPLETE = 22
 } laplace_unicode_status;
 
 enum {
@@ -446,8 +476,25 @@ LAPLACE_API laplace_unicode_status laplace_unicode_source_bundle_file(
     const char* relative_path,
     laplace_unicode_source_file_view* view);
 
+LAPLACE_API laplace_unicode_status laplace_unicode_source_bundle_receipt(
+    const laplace_unicode_source_bundle* bundle,
+    laplace_unicode_source_receipt* receipt);
+
 LAPLACE_API void laplace_unicode_source_bundle_close(
     laplace_unicode_source_bundle** bundle);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_core_table_create(
+    const laplace_unicode_source_bundle* bundle,
+    laplace_unicode_core_table** table,
+    laplace_unicode_core_summary* summary);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_core_table_record(
+    const laplace_unicode_core_table* table,
+    uint32_t codepoint_position,
+    laplace_unicode_core_record_view* view);
+
+LAPLACE_API void laplace_unicode_core_table_destroy(
+    laplace_unicode_core_table** table);
 
 LAPLACE_API laplace_unicode_status laplace_unicode_numeric_oneapi_provider(
     laplace_unicode_numeric_provider_v1* provider);

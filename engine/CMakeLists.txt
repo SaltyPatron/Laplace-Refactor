@@ -8,6 +8,7 @@ add_library(laplace_engine SHARED
     src/trajectory.c
     src/unicode_root.c
     src/unicode_source.cpp
+    src/unicode_properties.cpp
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)
