@@ -274,3 +274,15 @@ Every implementation change must identify:
 The machine-readable companion is `contracts/operation-model.json`. Requirement
 trace validation must fail when a product requirement is absent from that operational
 graph.
+
+## 12. Program tracking
+
+The same machine-readable graph binds every stage to its work-program phase and live
+GitHub issue owners. Issue #23 is the forest-level parent and issue #24 owns the
+content-bound physical-session audit. The verifier rejects a stage without a phase or
+issue, a tracked issue without an operational owner, an undeclared issue reference,
+an unknown stage dependency, a dependency cycle, or an unmapped product requirement.
+
+GitHub records execution status, discussion, PRs, and CI evidence. It does not replace
+the constitution or operational contract. An issue closure is valid only when its
+behavioral acceptance and required package/receipt evidence are present.

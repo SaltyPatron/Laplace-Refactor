@@ -20,6 +20,7 @@ ALIGNMENT_ID = re.compile(r"^LAP-ALIGN-[A-Z0-9-]+$")
 DIRECT_ID = re.compile(r"^LAP-[A-Z0-9-]+$")
 OPERATION_STAGE_ID = re.compile(r"^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$")
 OPERATION_STATES = {"unimplemented", "partial", "staged", "implemented"}
+PROGRAM_PHASES = set(range(9))
 
 
 class TraceError(RuntimeError):
@@ -231,6 +232,34 @@ def parse_operation_model(path: Path, repo_root: Path) -> dict[str, dict[str, ob
     completion_rule = document.get("completion_rule")
     if not isinstance(completion_rule, str) or not completion_rule:
         raise TraceError(f"{path} must declare a completion_rule")
+    tracking = document.get("tracking")
+    if not isinstance(tracking, dict):
+        raise TraceError(f"{path} must declare program tracking")
+    repository = tracking.get("repository")
+    if repository != "SaltyPatron/Laplace-Refactor":
+        raise TraceError(f"{path} has invalid tracking repository")
+    for field in ("parent_issue", "session_audit_issue"):
+        issue = tracking.get(field)
+        if not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0:
+            raise TraceError(f"{path} has invalid {field}")
+    tracked_issues = tracking.get("tracked_issues")
+    if (
+        not isinstance(tracked_issues, list)
+        or not tracked_issues
+        or any(
+            not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0
+            for issue in tracked_issues
+        )
+        or len(tracked_issues) != len(set(tracked_issues))
+    ):
+        raise TraceError(f"{path} has invalid tracked_issues")
+    milestones = tracking.get("phase_milestones")
+    if (
+        not isinstance(milestones, dict)
+        or set(milestones) != {str(phase) for phase in PROGRAM_PHASES}
+        or any(not isinstance(title, str) or not title for title in milestones.values())
+    ):
+        raise TraceError(f"{path} has invalid phase_milestones")
     entries = document.get("stages")
     if not isinstance(entries, list) or not entries:
         raise TraceError(f"{path} must contain a non-empty stages array")
@@ -252,6 +281,30 @@ def parse_operation_model(path: Path, repo_root: Path) -> dict[str, dict[str, ob
             raise TraceError(f"invalid operation stage identifier: {identifier}")
         if identifier in stages:
             raise TraceError(f"duplicate operation stage: {identifier}")
+        program_phases = entry.get("program_phases")
+        if (
+            not isinstance(program_phases, list)
+            or not program_phases
+            or any(
+                not isinstance(phase, int)
+                or isinstance(phase, bool)
+                or phase not in PROGRAM_PHASES
+                for phase in program_phases
+            )
+            or len(program_phases) != len(set(program_phases))
+        ):
+            raise TraceError(f"operation stage has invalid program phases: {identifier}")
+        github_issues = entry.get("github_issues")
+        if (
+            not isinstance(github_issues, list)
+            or not github_issues
+            or any(
+                not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0
+                for issue in github_issues
+            )
+            or len(github_issues) != len(set(github_issues))
+        ):
+            raise TraceError(f"operation stage has invalid GitHub issues: {identifier}")
         owner = entry.get("owner")
         if not isinstance(owner, str) or not owner:
             raise TraceError(f"operation stage has no owner: {identifier}")
@@ -333,6 +386,23 @@ def parse_operation_model(path: Path, repo_root: Path) -> dict[str, dict[str, ob
 
     for identifier in stages:
         visit(identifier)
+    stage_issues = {
+        issue
+        for stage in stages.values()
+        for issue in stage["github_issues"]
+    }
+    missing_stage_issues = sorted(set(tracked_issues) - stage_issues)
+    untracked_stage_issues = sorted(stage_issues - set(tracked_issues))
+    if missing_stage_issues:
+        raise TraceError(
+            "tracked GitHub issues have no operational stage: "
+            + ", ".join(str(issue) for issue in missing_stage_issues)
+        )
+    if untracked_stage_issues:
+        raise TraceError(
+            "operation stages reference untracked GitHub issues: "
+            + ", ".join(str(issue) for issue in untracked_stage_issues)
+        )
     return stages
 
 

@@ -107,6 +107,9 @@ paths and hashes and rejects incomplete or conflicting package graphs.
 - [`docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md`](docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md)
   — implemented, staged, and missing framework state without component-to-product
   inflation.
+- [`docs/audits/SESSION_FOREST_LOSSAGE_AUDIT.md`](docs/audits/SESSION_FOREST_LOSSAGE_AUDIT.md)
+  — content-bound physical-session audit, whole-product status, recovered action items,
+  and the dependency-ordered GitHub work map.
 - `docs/delivery/` — dependency, package, installation, and release requirements.
 - `requirements/` — machine-readable requirements and acceptance identifiers.
 - `engine/` — new native engine implementation.

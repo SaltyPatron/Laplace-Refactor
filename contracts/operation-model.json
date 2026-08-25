@@ -1,9 +1,28 @@
 {
   "schema": "laplace.operation-model/v1",
   "completion_rule": "all stages execute through one framework and whole-package acceptance passes",
+  "tracking": {
+    "repository": "SaltyPatron/Laplace-Refactor",
+    "parent_issue": 23,
+    "session_audit_issue": 24,
+    "tracked_issues": [2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24],
+    "phase_milestones": {
+      "0": "Phase 0 — Canonical cutover",
+      "1": "Phase 1 — Industrial build and dependency foundation",
+      "2": "Phase 2 — Universal execution framework and ISA",
+      "3": "Phase 3 — Universal substrate state",
+      "4": "Phase 4 — Batch and bulk ingestion",
+      "5": "Phase 5 — Universal query and conversation",
+      "6": "Phase 6 — Model independence",
+      "7": "Phase 7 — Complete product surfaces",
+      "8": "Phase 8 — Full acceptance and release"
+    }
+  },
   "stages": [
     {
       "id": "framework.execution",
+      "program_phases": [2],
+      "github_issues": [4, 5, 6, 10],
       "depends_on": [],
       "owner": "native C/C++ engine with generated PostgreSQL SQL and C# orchestration bindings",
       "consumes": ["typed programs", "immutable execution context", "authority envelope", "resource grant"],
@@ -16,6 +35,8 @@
     },
     {
       "id": "bootstrap.dependencies",
+      "program_phases": [0, 1],
+      "github_issues": [2, 3, 8, 12, 24],
       "depends_on": ["framework.execution"],
       "owner": "package and dependency admission framework",
       "consumes": ["upstream source", "release archives", "standards data", "models and corpora", "licenses"],
@@ -28,6 +49,8 @@
     },
     {
       "id": "bootstrap.unicode-root",
+      "program_phases": [3],
+      "github_issues": [13, 14],
       "depends_on": ["bootstrap.dependencies"],
       "owner": "native Unicode decomposer through the common canonical-batch framework",
       "consumes": ["pinned UCD", "complete DUCET", "conformance inputs", "identity grammar", "Super Fibonacci Hopf Hilbert numeric recipe"],
@@ -40,6 +63,8 @@
     },
     {
       "id": "substrate.compose-physicality",
+      "program_phases": [3],
+      "github_issues": [7, 13],
       "depends_on": ["bootstrap.unicode-root"],
       "owner": "native identity composition trajectory and physicality modules",
       "consumes": ["canonical atoms", "ordered and unordered constituents", "run spans", "physicality recipe"],
@@ -52,6 +77,8 @@
     },
     {
       "id": "substrate.bulk-deposit",
+      "program_phases": [4],
+      "github_issues": [15],
       "depends_on": ["substrate.compose-physicality"],
       "owner": "native canonical-batch pipeline and PostgreSQL server persistence providers",
       "consumes": ["complete working-set DAG", "source occurrences", "typed claims", "transaction boundary"],
@@ -64,6 +91,8 @@
     },
     {
       "id": "evidence.adjudicate",
+      "program_phases": [3],
+      "github_issues": [16],
       "depends_on": ["substrate.bulk-deposit"],
       "owner": "native evidence lineage dependence trust and adjudication modules",
       "consumes": ["immutable testimony", "root observations", "dependence graph", "time context and trust recipe"],
@@ -76,6 +105,8 @@
     },
     {
       "id": "query.guidance-search",
+      "program_phases": [5],
+      "github_issues": [17],
       "depends_on": ["evidence.adjudicate"],
       "owner": "native guidance compiler typed operator and indexed search modules",
       "consumes": ["goal", "operands and bindings", "world evidence and firmware scopes", "completion obligations", "typed knowledge deficits"],
@@ -88,6 +119,8 @@
     },
     {
       "id": "cognition.realize-effect",
+      "program_phases": [5],
+      "github_issues": [18],
       "depends_on": ["query.guidance-search"],
       "owner": "native semantic-act selection effect admission and modality realization modules",
       "consumes": ["completed cognition state", "candidate semantic acts", "authority envelope", "realization recipe"],
@@ -100,6 +133,8 @@
     },
     {
       "id": "learning.discovery-ooda",
+      "program_phases": [5],
+      "github_issues": [19],
       "depends_on": ["cognition.realize-effect"],
       "owner": "native learning defect Goedel experiment and calculus activation modules",
       "consumes": ["observed consequence", "typed frays", "current calculus", "disjoint fit evaluation and counterexample boundaries"],
@@ -112,6 +147,8 @@
     },
     {
       "id": "model.ingest-generate",
+      "program_phases": [6],
+      "github_issues": [20],
       "depends_on": ["evidence.adjudicate", "query.guidance-search"],
       "owner": "native model decomposition induced-operator comparison and target compiler modules",
       "consumes": ["model artifacts as witnesses", "substrate relation operators", "target architecture and runtime contract"],
@@ -124,6 +161,8 @@
     },
     {
       "id": "delivery.activate-product",
+      "program_phases": [7, 8],
+      "github_issues": [21, 22],
       "depends_on": ["bootstrap.dependencies", "substrate.bulk-deposit", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate"],
       "owner": "package installer service manager database migrator and release verifier",
       "consumes": ["verified native engine", "PostgreSQL stack", "schemas and migrations", "orchestrators", "artifacts and acceptance evidence"],

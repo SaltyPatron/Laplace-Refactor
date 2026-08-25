@@ -454,7 +454,7 @@
       "ctest_name": "requirements.traceability-contract",
       "evidence_targets": ["LP-TEST-REQUIREMENTS-TRACEABILITY", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
       "covered_dimensions": ["product requirement joins", "direct requirement uniqueness", "evidence target validity", "feature target validity", "acyclic operation stages", "complete product-to-operation mapping"],
-      "defect_controls": ["unknown product join", "unjoined product requirement", "unknown registry evidence", "unknown feature evidence", "unmapped operation requirement", "unknown operation dependency", "operation dependency cycle"]
+      "defect_controls": ["unknown product join", "unjoined product requirement", "unknown registry evidence", "unknown feature evidence", "unmapped operation requirement", "unknown operation dependency", "operation dependency cycle", "operation stage without program tracking", "tracked issue without operational owner"]
     },
     {
       "ctest_name": "dependencies.intent-contract",

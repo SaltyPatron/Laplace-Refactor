@@ -131,6 +131,20 @@ class RequirementTraceTests(unittest.TestCase):
         with self.assertRaisesRegex(TRACE.TraceError, "dependency cycle"):
             TRACE.validate(self.root)
 
+    def test_operation_stage_without_program_tracking_is_rejected(self) -> None:
+        path, document = self.operation_document()
+        document["stages"][0].pop("github_issues")
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "invalid GitHub issues"):
+            TRACE.validate(self.root)
+
+    def test_unowned_tracked_issue_is_rejected(self) -> None:
+        path, document = self.operation_document()
+        document["tracking"]["tracked_issues"].append(999999)
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "no operational stage"):
+            TRACE.validate(self.root)
+
 
 if __name__ == "__main__":
     unittest.main()

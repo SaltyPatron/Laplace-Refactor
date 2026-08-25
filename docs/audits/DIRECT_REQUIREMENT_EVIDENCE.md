@@ -16,7 +16,7 @@ index entries, not replacements for the source messages.
 
 | Source | Human text records | Manifest | Manifest SHA-256 |
 | --- | ---: | --- | --- |
-| Current Codex session through 23:02:54 UTC | 94 | `evidence/current-session-human-messages.jsonl` | `be3b3b9dee2ed236e6fb801ab8a23922e62890ab3a796ca8bc6a95bb6ee3bdc2` |
+| Current Codex session through 2026-08-25 05:24:39 UTC | 190 | `evidence/current-session-human-messages.jsonl` | `864c50823cb8c7d236fc2d9ec7d4651f40b0ef2df6cfd9cf49f11138fbd271a2` |
 | Preserved top-level Claude project sessions | 596 | `evidence/claude-parent-human-messages.jsonl` | `6b084bdc2e6e38b1821fc2879e7add28c52b8e649de4e6b3f77e0da27131d02b` |
 
 The indexer excludes tool-result blocks, worker notifications, local-command notices,
@@ -103,6 +103,52 @@ Each locator is a `response_item` message ID in the current Codex session manife
 | 23:02:38 | `msg_01a03602-f5b7-7633-9781-928701be10d1` | Treat incompleteness as a typed discovery signal; ask what explanatory structure is missing rather than reducing observed error to an anonymous parameter update. |
 | 23:02:54 | `msg_01a03603-33ad-75c3-9fd7-2b4663d9286b` | A frayed edge is a constrained vacancy whose surrounding topology predicts an occupant signature; the predicted occupant remains a derived hypothesis and the slot stays unwitnessed until reality supplies evidence. |
 | 23:02:54 | `msg_01a03603-33b1-75a1-9b5f-a903fa0e7e9f` | Unify existing mechanisms as consequences of one substrate, organize structure so absences become predictive, and generate problem-relative measurements and target artifacts without treating a coordinate system as intrinsic reality. |
+| 23:51:40 | `msg_01a0362f-d706-7860-bd52-0074bdae21fb` | Preserve false and competing information; calculate standing from the strength, diversity, and compatibility of its evidence topology rather than deleting low-standing content. |
+| 23:52:10 | `msg_01a03630-4d58-7e90-99a7-df56e081fb85` | Treat detected counterexamples and contradictions as typed negative/refutation evidence through the discovery machinery without conflating calculation, derivation, and witnessed attestation. |
+| 01:08:40 | `msg_01a03676-591d-7751-aee7-0af14164cc95` | Four bit-packed binary64 mantissas with typed metadata are an intentional trajectory carrier and index-enabling design, not a raw-float identity defect. |
+| 01:09:14 | `msg_01a03676-dc2d-7111-afe8-69681418b961` | Calculate containment, precedence, co-occurrence, and related exact structural facts from trajectories rather than requiring explicit relation rows. |
+| 01:10:26 | `msg_01a03677-f42a-7573-9919-748b21fbd149` | Correct the trajectory misunderstanding, then inventory and reprioritize the complete active work. |
+| 01:11:24 | `msg_01a03678-d99c-7aa1-bfba-72277ed04765` | Use the populated live database as an investigative source while retaining its known defects and non-authoritative status. |
+| 01:24:47 | `msg_01a03685-1996-7b33-9da1-7d2609fe47f3` | Repeatedly audit whether implementation detail has displaced the whole-product architecture. |
+| 01:59:15 | `msg_01a036a4-a5de-7e12-a636-ce03daa051b8` | Report persistence, repository, commit, branch, staging, implementation, and remaining-work state from direct observations. |
+| 02:01:54 | `msg_01a036a7-1444-7a33-b3b8-fc1a1820e350` | Use GitHub issues, CI/CD, repository state, and an explicit forward work sequence rather than a prose-only handoff. |
+| 02:14:23 | `msg_01a036b2-81d2-7541-97e4-6bb559c472a6` | Audit the complete session for forest-for-tree loss and distinguish forensic findings, reimplementation progress, and remaining work. |
+| 02:21:19 | `msg_01a036b8-da5d-7dc0-820b-a48910e0beb2` | Use `SaltyPatron/Laplace-Refactor` as the clean repository and prevent repetition of historical implementation and delivery failures. |
+| 02:33:18 | `msg_01a036c3-d407-72d3-a3a0-9b4846702d5a` | Centralize shared native semantics behind typed generic interfaces, abstract/base behavior, and replaceable providers; keep SQL/C# as set-oriented orchestrators and optimize shared C/C++/SPI kernels through vector, batch, parallel, and chunk execution. |
+| 02:40:17 | `msg_01a036ca-3734-7483-8334-e6c3012cd494` | Inventory and use Eigen, Spectra, Intel oneAPI, MKL, TBB, custom PostgreSQL linkage, CPU topology, memory topology, and other external providers through deterministic hardware-aware execution. |
+| 02:40:17 | `msg_01a036ca-3738-7051-88a1-dc1744b8c92d` | Persist sufficient machine-readable architecture, dependency, issue, and acceptance state for later sessions to resume without re-deriving Laplace from conversation. |
+| 02:41:16 | `msg_01a036cb-1dab-7041-9e95-a186d51e0046` | Include Stockfish, Lichess, Cute Chess, and other invoked/service dependencies in the declared external graph. |
+| 02:44:27 | `msg_01a036ce-09a5-7163-9f80-afb1c7e6c391` | Select current supported upstream versions unless a measured defect or compatibility reason requires an older version. |
+| 02:45:17 | `msg_01a036ce-cabb-7a82-85f3-bb8a8ba0affc` | Treat `/vault/Data`, `/vault/models`, code corpora, Tiny-Codes, Stack-derived data, downloaded models, and related artifacts as calculation-affecting dependencies. |
+| 02:52:08 | `msg_01a036d5-102f-7d81-a974-e6b0b5ca08e2` | Close and document the bounded historical investigation, then prefer clean product state once the preservation/traceability boundary is sufficient. |
+| 03:04:22 | `msg_01a036e0-4606-7f93-b164-3b54ea8eb10b` | Create and use a separately configured clean `laplace-refactor` database rather than avoiding live database implementation behind historical read-only work. |
+| 03:05:40 | `msg_01a036e1-7602-7961-a7a9-05b9421509bc` | Run CI/CD system actions under the `laplace-runner` OS identity. |
+| 03:06:08 | `msg_01a036e1-e1fc-74f3-8038-50da60658d66` | Retain `laplace_admin` as the PostgreSQL administration/schema-owner boundary while the system/runner identity remains `laplace-runner`. |
+| 03:17:13 | `msg_01a036ec-079b-7680-972d-e6c1d52baf2d` | Keep build directories, logs, artifacts, and other output outside the repository under declared product/agent output roots. |
+| 03:17:41 | `msg_01a036ec-74d2-7880-9285-dc3e9a628758` | Maintain verified external dependency source roots outside the product repository instead of Git submodules. |
+| 03:30:52 | `msg_01a036f8-8905-7503-bf71-4e2f022dc918` | Inspect historical install/bootstrap scripts as utility and behavior evidence while building the real installer and configuration lifecycle. |
+| 03:39:08 | `msg_01a03700-184f-7c61-b21b-0d0ea89b2c0d` | Discover existing shell and configuration settings, then establish clean environment variables, executable paths, database/host configuration, and secret references without duplicating secret values. |
+| 03:39:28 | `msg_01a03700-66b4-74c0-a339-d25e131fbc60` | Make environment/configuration generation part of later install/bootstrap tooling. |
+| 04:26:06 | `msg_01a0372b-18cd-78f0-8a22-62397b2ca171` | Reject repeated scalar SQL reads where one set/array comparison expresses the contract. |
+| 04:26:17 | `msg_01a0372b-429a-7a21-b71d-ec5b0bbe8f32` | Treat SQL quality and plan behavior as essential product correctness, not incidental test code. |
+| 04:27:09 | `msg_01a0372c-0f3e-7e43-beed-6a291fcb2473` | Keep binary and numeric values in their typed representations and justify or eliminate hex/text conversion boundaries. |
+| 04:28:08 | `msg_01a0372c-f6e7-7bb1-ab57-bb3bd752604b` | Laplace speaks Unicode and renders languages; language characters and labels belong to realization rather than the universal cognition intermediate. |
+| 04:28:19 | `msg_01a0372d-2128-74c1-b30c-c5152dff3fe9` | Keep SQL set-oriented and use C/C++/SPI for recursion and scalable engine work; reject RBAR and cursor-based hot paths. |
+| 04:28:41 | `msg_01a0372d-7612-7992-8c1f-6d43689464f6` | Use perfcache to eliminate database round trips, repeated function work, and avoidable lookup cost through appropriate O(1) or declared module-specific access. |
+| 04:31:15 | `msg_01a0372f-cf6c-7dc2-a03e-4244de46401a` | Use `pg_stat_statements` and `EXPLAIN ANALYZE` evidence liberally to prove SQL and native execution behavior. |
+| 04:32:07 | `msg_01a03730-9ae8-7090-8c24-ded66d6e67dc` | Compare PostgreSQL configuration with measured machine topology and workload rather than accepting ambient defaults. |
+| 04:42:00 | `msg_01a03739-a6f0-7990-a035-e5088edb78a3` | Pre-generated coordinates and typed planes enable reconstruction before database access; preserve O(tier) trunk-to-leaf and leaf-to-trunk operations and Merkle-DAG deduplication. |
+| 04:45:27 | `msg_01a0373c-cf42-7d32-b797-a34c74bc7aba` | Generate derived perfcaches at the correct post-ETL boundary to accelerate reconstruction, realization, CRUD, and bulk I/O without corrupting canonical sequencing. |
+| 04:50:51 | `msg_01a03741-c296-7ae3-a3be-432095d57836` | One UnicodeDecomposer operation produces both the Unicode Tier-0 perfcache and the canonical database records; same content has one hash and tier remains a floor. |
+| 04:52:28 | `msg_01a03743-3cfc-77f3-8e66-3ad14b46f55c` | Derive both Unicode outputs from the same versioned source and exact calculated record stream to guarantee bit parity. |
+| 04:54:03 | `msg_01a03744-af2b-7753-aeea-30cf7958853e` | Establish a bounded self-hosting bootstrap in which Laplace tooling calculates the root that later lets Laplace build itself. |
+| 04:55:47 | `msg_01a03746-4788-7fc1-a824-9b45f4dd4f8d` | Keep deterministic perfcache generations hot without coupling data synchronization to the PostgreSQL postmaster or requiring database bounces; retain Super-Fibonacci, Hopf, glome, and projection behavior. |
+| 04:59:13 | `msg_01a03749-69d3-7f93-baa9-863cee16d034` | Maintain a whole-product operational audit that explains how Laplace works; do not let provider forensics displace refactor implementation. |
+| 05:01:36 | `msg_01a0374b-97dd-78f1-a662-4388f1e82eb0` | Establish the universal framework and cohesive execution lifecycle before attaching isolated feature slices; Laplace is the complete integrated system. |
+| 05:18:57 | `msg_01a0375b-7b90-7ef0-8d3a-5123f27f1abd` | Use GitHub issues, CI/CD, and the configured self-hosted runner as active delivery infrastructure. |
+| 05:19:09 | `msg_01a0375b-a9bd-7822-aa4e-733dcfea89f6` | Preserve implementation progress in commits and PRs. |
+| 05:22:42 | `msg_01a0375e-e954-77b1-a991-fe85a740937d` | Audit the physical session for forgotten action items and verify that infrastructure/framework work remains in service of the holistic Laplace architecture. |
+| 05:24:39 | `msg_01a03760-b467-76d1-bc9c-82fe95b7851f` | Synchronize all action items into documented, prioritized, dependency-ordered GitHub issues with evidence locations and acceptance criteria. |
 
 ## Earlier direct technical evidence
 
