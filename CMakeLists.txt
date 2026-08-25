@@ -21,6 +21,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(LAPLACE_BLAKE3_SOURCE "" CACHE PATH "Verified upstream BLAKE3 C source directory")
 set(LAPLACE_GTEST_SOURCE "" CACHE PATH "Verified upstream GoogleTest source directory")
+set(LAPLACE_PG_CONFIG "" CACHE FILEPATH "PostgreSQL pg_config for the server extension profile")
 set(LAPLACE_DEPENDENCY_LOCK
     "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/lock.json"
     CACHE FILEPATH "Laplace dependency lock")
@@ -69,6 +70,13 @@ laplace_configure_execution_contract(
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/execution.h")
 
 add_subdirectory(engine)
+
+if(LAPLACE_PG_CONFIG)
+    include(cmake/LaplacePostgreSQL.cmake)
+    laplace_discover_postgresql("${LAPLACE_PG_CONFIG}")
+    add_subdirectory(postgres/extension)
+endif()
+
 add_subdirectory(tools)
 
 if(BUILD_TESTING)

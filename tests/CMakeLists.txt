@@ -296,6 +296,46 @@ if(UNIX)
         PROPERTIES LABELS "implementation;perfcache;file")
 endif()
 
+if(LAPLACE_POSTGRES_ENABLED)
+    find_program(LAPLACE_BASH_EXECUTABLE bash REQUIRED)
+    add_executable(laplace_postgres_native_receipt_probe
+        postgres/native_receipt_probe.cpp)
+    target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
+        Laplace::Isa)
+    target_compile_options(laplace_postgres_native_receipt_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+    add_test(
+        NAME postgres.spi-isa-contract
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            contract
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_contract.sql")
+    set_tests_properties(postgres.spi-isa-contract PROPERTIES
+        LABELS "implementation;postgresql;spi;isa;receipt"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.mutation-receipt-collision-detected
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            mutation
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_receipt_mutation.sql")
+    set_tests_properties(postgres.mutation-receipt-collision-detected PROPERTIES
+        LABELS "postgresql;spi;receipt;mutation"
+        RUN_SERIAL TRUE)
+endif()
+
 add_test(
     NAME package.native-consumer-contract
     COMMAND "${CMAKE_COMMAND}"

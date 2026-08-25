@@ -1,0 +1,69 @@
+name: custom-stack-ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: custom-stack-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgresql-native:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - postgres-18
+      - avx2
+    timeout-minutes: 30
+    env:
+      PATH: /opt/laplace/pgsql-18/bin:/usr/local/bin:/usr/bin:/bin
+      LAPLACE_BLAKE3_SOURCE: /opt/laplace/external/blake3/c
+      LAPLACE_GTEST_SOURCE: /opt/laplace/external/googletest
+      LAPLACE_PG_CONFIG: /opt/laplace/pgsql-18/bin/pg_config
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify execution identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test -w "$RUNNER_TEMP"
+          test -x "$LAPLACE_PG_CONFIG"
+          test -f "$LAPLACE_BLAKE3_SOURCE/blake3.c"
+          test -f "$LAPLACE_GTEST_SOURCE/CMakeLists.txt"
+          test "$($LAPLACE_PG_CONFIG --version | awk '{print $2}' | cut -d. -f1)" = 18
+          cmake --version
+          ninja --version
+          "$LAPLACE_PG_CONFIG" --version
+      - name: Configure outside the repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_directory="$RUNNER_TEMP/laplace-output/postgresql-native"
+          cmake -S . -B "$build_directory" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_BLAKE3_SOURCE" \
+            -DLAPLACE_GTEST_SOURCE="$LAPLACE_GTEST_SOURCE" \
+            -DLAPLACE_PG_CONFIG="$LAPLACE_PG_CONFIG"
+          printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
+      - name: Build native engine and PostgreSQL extension
+        run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 6
+      - name: Execute complete PostgreSQL profile
+        run: ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" --output-on-failure
+      - name: Verify PostgreSQL-profile registry
+        run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY" postgres
+      - name: Print retained PostgreSQL evidence
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find "$RUNNER_TEMP" -type f -path '*/laplace-postgres-test.*/postgres.log' \
+            -print -exec sed -n '1,240p' {} \;

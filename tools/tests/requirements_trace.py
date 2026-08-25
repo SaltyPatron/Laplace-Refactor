@@ -194,6 +194,7 @@ def parse_registry(path: Path) -> list[dict[str, object]]:
             raise TraceError(f"{path} contains a non-object test entry")
         name = entry.get("ctest_name")
         targets = entry.get("evidence_targets")
+        profiles = entry.get("profiles")
         if not isinstance(name, str) or not name:
             raise TraceError(f"{path} contains a test without ctest_name")
         if name in names:
@@ -204,6 +205,14 @@ def parse_registry(path: Path) -> list[dict[str, object]]:
         for target in targets:
             if not isinstance(target, str) or not EVIDENCE_ID.fullmatch(target):
                 raise TraceError(f"registered test has invalid evidence target: {name}")
+        if profiles is not None:
+            if (
+                not isinstance(profiles, list)
+                or not profiles
+                or any(not isinstance(profile, str) or not profile for profile in profiles)
+                or len(profiles) != len(set(profiles))
+            ):
+                raise TraceError(f"registered test has invalid profiles: {name}")
     return tests
 
 

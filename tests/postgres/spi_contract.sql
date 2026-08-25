@@ -1,0 +1,238 @@
+CREATE EXTENSION laplace;
+
+CREATE TEMP TABLE native_expected (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    identity_receipt bytea NOT NULL,
+    identity_program bytea NOT NULL,
+    identity_input bytea NOT NULL,
+    identity_output bytea NOT NULL,
+    identity_entities bytea[] NOT NULL,
+    trajectory_receipt bytea NOT NULL,
+    trajectory_program bytea NOT NULL,
+    trajectory_input bytea NOT NULL,
+    trajectory_output bytea NOT NULL,
+    trajectory_carrier bytea NOT NULL,
+    trajectory_entity bytea NOT NULL
+);
+
+INSERT INTO native_expected (
+    identity_receipt,
+    identity_program,
+    identity_input,
+    identity_output,
+    identity_entities,
+    trajectory_receipt,
+    trajectory_program,
+    trajectory_input,
+    trajectory_output,
+    trajectory_carrier,
+    trajectory_entity
+)
+VALUES (
+    decode(:'identity_receipt', 'hex'),
+    decode(:'identity_program', 'hex'),
+    decode(:'identity_input', 'hex'),
+    decode(:'identity_output', 'hex'),
+    ARRAY[
+        decode(:'identity_entity_0', 'hex'),
+        decode(:'identity_entity_1', 'hex'),
+        decode(:'identity_entity_2', 'hex')
+    ],
+    decode(:'trajectory_receipt', 'hex'),
+    decode(:'trajectory_program', 'hex'),
+    decode(:'trajectory_input', 'hex'),
+    decode(:'trajectory_output', 'hex'),
+    decode(:'trajectory_carrier', 'hex'),
+    decode(:'trajectory_entity', 'hex')
+);
+
+DO $contract$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            VALUES
+                ('identity_codepoint_calculate_batch', 'i', 's'),
+                ('identity_codepoint_execute_batch', 'v', 'u'),
+                ('trajectory_composition_decode_calculate_batch', 'i', 's'),
+                ('trajectory_composition_decode_execute_batch', 'v', 'u')
+        ) AS expected(name, volatility, parallel_safety)
+        LEFT JOIN pg_catalog.pg_namespace AS namespace
+            ON namespace.nspname = 'laplace'
+        LEFT JOIN pg_catalog.pg_proc AS procedure
+            ON procedure.pronamespace = namespace.oid
+           AND procedure.proname = expected.name
+        WHERE procedure.oid IS NULL
+           OR procedure.provolatile::text <> expected.volatility
+           OR procedure.proparallel::text <> expected.parallel_safety
+    ) THEN
+        RAISE EXCEPTION 'PostgreSQL calculation/execution planner contract differs from the binding';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = procedure.pronamespace
+        CROSS JOIN LATERAL pg_catalog.aclexplode(
+            COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner)))
+            AS privilege
+        WHERE namespace.nspname = 'laplace'
+          AND procedure.proname IN (
+              'identity_codepoint_calculate_batch',
+              'identity_codepoint_execute_batch',
+              'trajectory_composition_decode_calculate_batch',
+              'trajectory_composition_decode_execute_batch'
+          )
+          AND privilege.grantee = 0
+          AND privilege.privilege_type = 'EXECUTE'
+    ) THEN
+        RAISE EXCEPTION 'PUBLIC can execute a native Laplace PostgreSQL binding';
+    END IF;
+END
+$contract$;
+
+DO $contract$
+DECLARE
+    batch_positions integer[];
+    calculated laplace.identity_batch_result;
+    batch_result laplace.identity_batch_result;
+    batch_receipt_count bigint;
+    result laplace.identity_batch_result;
+    repeated laplace.identity_batch_result;
+    before_xmin xid;
+    before_ctid tid;
+    expected native_expected%ROWTYPE;
+    receipt_count bigint;
+BEGIN
+    SELECT * INTO STRICT expected FROM native_expected;
+    SELECT count(*) INTO receipt_count FROM laplace.execution_receipt;
+    calculated := laplace.identity_codepoint_calculate_batch(ARRAY[50, 53, 53]);
+    IF (SELECT count(*) FROM laplace.execution_receipt) <> receipt_count THEN
+        RAISE EXCEPTION 'pure identity calculation published durable state';
+    END IF;
+    result := laplace.identity_codepoint_execute_batch(ARRAY[50, 53, 53]);
+    IF calculated IS DISTINCT FROM result THEN
+        RAISE EXCEPTION 'pure and durable identity routes produced different results';
+    END IF;
+    IF result.entity_ids IS DISTINCT FROM expected.identity_entities THEN
+        RAISE EXCEPTION 'SPI identity output differs from the native batch';
+    END IF;
+    IF result.receipt_id <> expected.identity_receipt
+       OR result.program_fingerprint <> expected.identity_program
+       OR result.input_fingerprint <> expected.identity_input
+       OR result.output_fingerprint <> expected.identity_output
+       OR result.instruction_count <> 1
+       OR result.executed_instruction_count <> 1
+       OR result.isa_major <> 1
+       OR result.isa_minor <> 1
+       OR result.status <> 0
+       OR result.item_count <> 3 THEN
+        RAISE EXCEPTION 'SPI identity receipt differs from the native receipt';
+    END IF;
+
+    SELECT xmin, ctid INTO before_xmin, before_ctid
+    FROM laplace.execution_receipt
+    WHERE receipt_id = result.receipt_id;
+    repeated := laplace.identity_codepoint_execute_batch(ARRAY[50, 53, 53]);
+    IF repeated.receipt_id <> result.receipt_id THEN
+        RAISE EXCEPTION 'deterministic replay changed receipt identity';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM laplace.execution_receipt
+        WHERE receipt_id = result.receipt_id
+          AND xmin = before_xmin
+          AND ctid = before_ctid
+    ) THEN
+        RAISE EXCEPTION 'deterministic replay rewrote the durable receipt';
+    END IF;
+
+    SELECT count(*) INTO receipt_count FROM laplace.execution_receipt;
+    BEGIN
+        PERFORM laplace.identity_codepoint_execute_batch(ARRAY[50, 1114112]);
+        RAISE EXCEPTION 'invalid later identity element was accepted';
+    EXCEPTION
+        WHEN invalid_parameter_value THEN NULL;
+    END;
+    IF (SELECT count(*) FROM laplace.execution_receipt) <> receipt_count THEN
+        RAISE EXCEPTION 'invalid identity batch published a receipt';
+    END IF;
+
+    SELECT count(*) INTO batch_receipt_count FROM laplace.execution_receipt;
+    SELECT array_agg(position ORDER BY position)
+    INTO STRICT batch_positions
+    FROM generate_series(0, 4095) AS positions(position);
+    batch_result := laplace.identity_codepoint_calculate_batch(batch_positions);
+    IF cardinality(batch_result.entity_ids) <> 4096
+       OR batch_result.item_count <> 4096 THEN
+        RAISE EXCEPTION 'set-generated identity batch was not executed as one batch';
+    END IF;
+    IF (SELECT count(*) FROM laplace.execution_receipt) <> batch_receipt_count THEN
+        RAISE EXCEPTION 'set-generated pure batch published durable state';
+    END IF;
+    calculated := batch_result;
+    batch_result := laplace.identity_codepoint_execute_batch(batch_positions);
+    IF batch_result IS DISTINCT FROM calculated THEN
+        RAISE EXCEPTION 'set-generated pure and durable batches differ';
+    END IF;
+    IF (SELECT count(*) FROM laplace.execution_receipt) <> batch_receipt_count + 1 THEN
+        RAISE EXCEPTION 'one identity batch did not publish exactly one receipt';
+    END IF;
+END
+$contract$;
+
+DO $contract$
+DECLARE
+    calculated laplace.trajectory_batch_result;
+    result laplace.trajectory_batch_result;
+    occurrence laplace.composition_occurrence;
+    expected native_expected%ROWTYPE;
+    receipt_count bigint;
+BEGIN
+    SELECT * INTO STRICT expected FROM native_expected;
+    SELECT count(*) INTO receipt_count FROM laplace.execution_receipt;
+    calculated := laplace.trajectory_composition_decode_calculate_batch(
+        ARRAY[expected.trajectory_carrier]);
+    IF (SELECT count(*) FROM laplace.execution_receipt) <> receipt_count THEN
+        RAISE EXCEPTION 'pure trajectory calculation published durable state';
+    END IF;
+    result := laplace.trajectory_composition_decode_execute_batch(
+        ARRAY[expected.trajectory_carrier]);
+    IF calculated IS DISTINCT FROM result THEN
+        RAISE EXCEPTION 'pure and durable trajectory routes produced different results';
+    END IF;
+    occurrence := result.occurrences[1];
+    IF array_length(result.occurrences, 1) <> 1
+       OR occurrence.entity_id <> expected.trajectory_entity
+       OR occurrence.logical_ordinal <> 1
+       OR occurrence.metadata <> 105226698753
+       OR occurrence.atom <> 49
+       OR occurrence.packed_ordinal <> 1
+       OR occurrence.run_length <> 1
+       OR occurrence.tier <> 0
+       OR occurrence.has_atom IS NOT TRUE
+       OR result.logical_count <> 1 THEN
+        RAISE EXCEPTION 'SPI trajectory output differs from exact native decode';
+    END IF;
+    IF result.receipt_id <> expected.trajectory_receipt
+       OR result.program_fingerprint <> expected.trajectory_program
+       OR result.input_fingerprint <> expected.trajectory_input
+       OR result.output_fingerprint <> expected.trajectory_output
+       OR result.item_count <> 1 THEN
+        RAISE EXCEPTION 'SPI trajectory receipt differs from the native receipt';
+    END IF;
+
+    SELECT count(*) INTO receipt_count FROM laplace.execution_receipt;
+    BEGIN
+        PERFORM laplace.trajectory_composition_decode_execute_batch(
+            ARRAY[expected.trajectory_carrier, decode(repeat('00', 32), 'hex')]);
+        RAISE EXCEPTION 'invalid later trajectory carrier was accepted';
+    EXCEPTION
+        WHEN invalid_binary_representation THEN NULL;
+    END;
+    IF (SELECT count(*) FROM laplace.execution_receipt) <> receipt_count THEN
+        RAISE EXCEPTION 'invalid trajectory batch published a receipt';
+    END IF;
+END
+$contract$;
+
+SELECT 'postgres.spi-isa-contract passed' AS result;

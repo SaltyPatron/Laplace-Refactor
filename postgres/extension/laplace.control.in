@@ -1,0 +1,5 @@
+comment = 'Laplace typed substrate instruction execution'
+default_version = '@PROJECT_VERSION@'
+module_pathname = '@LAPLACE_PG_MODULE@'
+relocatable = false
+trusted = false

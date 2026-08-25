@@ -416,6 +416,20 @@
       "evidence_targets": ["LP-TEST-DEPENDENCY-INTENT"],
       "covered_dimensions": ["external capability classification", "downloaded dependency roots", "source-lock joins", "selection status", "semantic authority boundary"],
       "defect_controls": ["missing source join", "duplicate source join", "missing external engine", "missing model dependency root", "empty capability intent"]
+    },
+    {
+      "ctest_name": "postgres.spi-isa-contract",
+      "profiles": ["postgres"],
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS"],
+      "covered_dimensions": ["direct C and PostgreSQL output parity", "direct C and PostgreSQL receipt parity", "parallel-safe pure calculation", "single prepared SPI receipt publication per batch", "deterministic replay without row rewrite", "invalid later element atomicity", "4096-item set-generated native batch", "exact canonical trajectory carrier decode"],
+      "defect_controls": ["postgres.mutation-receipt-collision-detected"]
+    },
+    {
+      "ctest_name": "postgres.mutation-receipt-collision-detected",
+      "profiles": ["postgres"],
+      "evidence_targets": ["LP-TEST-ISA-RECEIPT", "LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["stored receipt field corruption is rejected on deterministic replay"],
+      "controls": "postgres.spi-isa-contract"
     }
   ]
 }
