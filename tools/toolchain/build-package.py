@@ -1018,6 +1018,14 @@ def format_command(
 def run_logged(
     command: Sequence[str], cwd: Path, environment: Mapping[str, str], log_path: Path
 ) -> dict[str, Any]:
+    working_directory = str(cwd)
+    supplied_pwd = environment.get("PWD")
+    if supplied_pwd is not None and supplied_pwd != working_directory:
+        raise ToolchainError(
+            "execution environment PWD differs from the exact working directory"
+        )
+    child_environment = dict(environment)
+    child_environment["PWD"] = working_directory
     with log_path.open("wb") as log:
         header = f"$ {json.dumps(list(command), separators=(',', ':'))}\n".encode("utf-8")
         log.write(header)
@@ -1025,19 +1033,21 @@ def run_logged(
         process = subprocess.Popen(
             list(command),
             cwd=cwd,
-            env=dict(environment),
+            env=child_environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
         assert process.stdout is not None
-        while block := process.stdout.read(64 * 1024):
-            sys.stdout.buffer.write(block)
-            sys.stdout.buffer.flush()
-            log.write(block)
+        with process.stdout:
+            while block := process.stdout.read(64 * 1024):
+                sys.stdout.buffer.write(block)
+                sys.stdout.buffer.flush()
+                log.write(block)
         return_code = process.wait()
     result = {
         "command": list(command),
-        "working_directory": str(cwd),
+        "working_directory": working_directory,
+        "execution_environment": {"PWD": working_directory},
         "exit_code": return_code,
         "log_path": str(log_path),
         "log_sha256": sha256_file(log_path),
