@@ -64,6 +64,44 @@ EXPECTED_TEST_COMMANDS = {
     "cmake": ["{build}/bin/ctest", "--output-on-failure", "-j{jobs}"],
     "ninja": ["{ctest}", "--test-dir", "{build}", "--output-on-failure", "-j{jobs}"],
 }
+EXPECTED_CMAKE_TEST_CAPABILITY_CACHE = {
+    "CMake_TEST_BOOTSTRAP": "ON",
+    "CMake_TEST_CPACK_DEB": "OFF",
+    "CMake_TEST_CPACK_NUGET": "OFF",
+    "CMake_TEST_CPACK_RPM": "OFF",
+    "CMake_TEST_CTestUpdate_BZR": "OFF",
+    "CMake_TEST_CTestUpdate_CVS": "OFF",
+    "CMake_TEST_CTestUpdate_GIT": "OFF",
+    "CMake_TEST_CTestUpdate_HG": "OFF",
+    "CMake_TEST_CTestUpdate_P4": "OFF",
+    "CMake_TEST_CTestUpdate_SVN": "OFF",
+    "CMake_TEST_Java": "OFF",
+    "CMake_TEST_OBJC": "OFF",
+    "CMake_TEST_Qt4": "OFF",
+    "CMake_TEST_Qt5": "OFF",
+    "CMake_TEST_Qt6": "OFF",
+    "CMake_TEST_Swift": "OFF",
+}
+EXPECTED_CMAKE_TEST_CAPABILITY_DISPOSITIONS = {
+    key: (
+        "selected-core-bootstrap-validation-under-declared-affinity"
+        if key == "CMake_TEST_BOOTSTRAP"
+        else "external-provider-not-selected-as-toolchain-build-input"
+    )
+    for key in EXPECTED_CMAKE_TEST_CAPABILITY_CACHE
+}
+EXPECTED_CMAKE_MAKE_PROGRAM_CACHE = {
+    "CMAKE_MAKE_PROGRAM": "{make}",
+    "CMake_TEST_EXPLICIT_MAKE_PROGRAM": "{make}",
+}
+EXPECTED_CMAKE_TEST_RESULT_POLICY = {
+    "expected_selected_test_count": 697,
+    "required_test": "BootstrapTest",
+    "bootstrap_parallelism": "{jobs}",
+    "secondary_generated_suite_disposition": (
+        "configured-but-not-executed-by-bootstrap-test"
+    ),
+}
 REQUIRED_TOOL_IDS = {
     "ar",
     "as",
@@ -538,6 +576,36 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
     }:
         raise ToolchainError("binutils expected untested outcomes must remain exact")
 
+    cmake = components["cmake"]
+    capability_selection = require_object(
+        cmake.get("test_capability_selection"),
+        "build.components.cmake.test_capability_selection",
+    )
+    if capability_selection.get("cache") != EXPECTED_CMAKE_TEST_CAPABILITY_CACHE:
+        raise ToolchainError("cmake optional test capability cache must remain exact")
+    if (
+        capability_selection.get("dispositions")
+        != EXPECTED_CMAKE_TEST_CAPABILITY_DISPOSITIONS
+    ):
+        raise ToolchainError("cmake optional test capability dispositions must remain exact")
+    if capability_selection.get("make_program_cache") != EXPECTED_CMAKE_MAKE_PROGRAM_CACHE:
+        raise ToolchainError("cmake and its nested tests must use the selected packaged make")
+    if capability_selection.get("result_policy") != EXPECTED_CMAKE_TEST_RESULT_POLICY:
+        raise ToolchainError("cmake selected test result policy must remain exact")
+    cmake_options = cmake["configure"]
+    separator_indexes = [index for index, value in enumerate(cmake_options) if value == "--"]
+    if separator_indexes != [3]:
+        raise ToolchainError("cmake bootstrap must delimit its exact cache contract")
+    expected_cache_options = [
+        f"-D{key}={value}"
+        for key, value in EXPECTED_CMAKE_TEST_CAPABILITY_CACHE.items()
+    ]
+    expected_cache_options.extend(
+        f"-D{key}={value}" for key, value in EXPECTED_CMAKE_MAKE_PROGRAM_CACHE.items()
+    )
+    if cmake_options[4:] != expected_cache_options:
+        raise ToolchainError("cmake configure cache differs from selected test capabilities")
+
     receipt = require_object(contract.get("receipt"), "receipt")
     sections = require_string_array(receipt.get("required_sections"), "receipt.required_sections")
     required_sections = {
@@ -685,6 +753,60 @@ def recipe_identity(contract: dict[str, Any], repository: Path) -> dict[str, Any
     }
 
 
+def select_processor_affinity(
+    parallel_jobs: int, topology_root: Path = Path("/sys/devices/system/cpu")
+) -> dict[str, Any]:
+    if not hasattr(os, "sched_getaffinity") or not hasattr(os, "sched_setaffinity"):
+        raise ToolchainError("Linux processor affinity is required for the toolchain build")
+    available = sorted(os.sched_getaffinity(0))
+    if len(available) < parallel_jobs:
+        raise ToolchainError(
+            "declared parallel jobs exceed the processors available to the build process"
+        )
+    topology: list[dict[str, int]] = []
+    for processor_id in available:
+        topology_directory = topology_root / f"cpu{processor_id}" / "topology"
+        try:
+            package_id = int(
+                (topology_directory / "physical_package_id").read_text(
+                    encoding="ascii"
+                ).strip()
+            )
+            core_id = int(
+                (topology_directory / "core_id").read_text(encoding="ascii").strip()
+            )
+        except (OSError, ValueError) as error:
+            raise ToolchainError(
+                f"processor topology is unavailable for CPU {processor_id}"
+            ) from error
+        topology.append(
+            {
+                "processor_id": processor_id,
+                "package_id": package_id,
+                "core_id": core_id,
+            }
+        )
+
+    selected: list[dict[str, int]] = []
+    deferred_siblings: list[dict[str, int]] = []
+    selected_cores: set[tuple[int, int]] = set()
+    for processor in topology:
+        core = (processor["package_id"], processor["core_id"])
+        if core in selected_cores:
+            deferred_siblings.append(processor)
+        else:
+            selected.append(processor)
+            selected_cores.add(core)
+    selected.extend(deferred_siblings)
+    selected = selected[:parallel_jobs]
+    return {
+        "algorithm": "linux-sched-affinity-physical-core-first/v1",
+        "available_processor_ids": available,
+        "selected_processors": selected,
+        "selected_processor_ids": [entry["processor_id"] for entry in selected],
+    }
+
+
 def create_plan(contract: dict[str, Any], repository: Path) -> dict[str, Any]:
     validate_contract(contract, repository)
     bootstrap = verify_bootstrap(contract)
@@ -696,6 +818,7 @@ def create_plan(contract: dict[str, Any], repository: Path) -> dict[str, Any]:
         "directory_order": "children-before-parent",
         "follow_symlinks": False,
     }
+    processor_affinity = select_processor_affinity(contract["build"]["parallel_jobs"])
     identity = {
         "contract": contract,
         "bootstrap": bootstrap,
@@ -709,6 +832,7 @@ def create_plan(contract: dict[str, Any], repository: Path) -> dict[str, Any]:
         },
         "recipe": recipe,
         "source_normalization": source_normalization,
+        "processor_affinity": processor_affinity,
     }
     build_input_id = canonical_sha256(identity)
     roots = contract["logical_roots"]
@@ -728,6 +852,7 @@ def create_plan(contract: dict[str, Any], repository: Path) -> dict[str, Any]:
         "bootstrap_inputs": bootstrap,
         "recipe": recipe,
         "parallel_jobs": contract["build"]["parallel_jobs"],
+        "processor_affinity": processor_affinity,
         "activation": dict(contract["activation"]),
     }
 
@@ -1016,7 +1141,11 @@ def format_command(
 
 
 def run_logged(
-    command: Sequence[str], cwd: Path, environment: Mapping[str, str], log_path: Path
+    command: Sequence[str],
+    cwd: Path,
+    environment: Mapping[str, str],
+    log_path: Path,
+    processor_ids: Sequence[int] | None = None,
 ) -> dict[str, Any]:
     working_directory = str(cwd)
     supplied_pwd = environment.get("PWD")
@@ -1026,6 +1155,20 @@ def run_logged(
         )
     child_environment = dict(environment)
     child_environment["PWD"] = working_directory
+    selected_processors = (
+        sorted(set(processor_ids))
+        if processor_ids is not None
+        else sorted(os.sched_getaffinity(0))
+    )
+    if not selected_processors or len(selected_processors) != len(processor_ids or selected_processors):
+        raise ToolchainError("processor affinity must contain unique processor IDs")
+    available_processors = os.sched_getaffinity(0)
+    if not set(selected_processors).issubset(available_processors):
+        raise ToolchainError("processor affinity exceeds the caller's available processors")
+
+    def apply_processor_affinity() -> None:
+        os.sched_setaffinity(0, selected_processors)
+
     with log_path.open("wb") as log:
         header = f"$ {json.dumps(list(command), separators=(',', ':'))}\n".encode("utf-8")
         log.write(header)
@@ -1036,6 +1179,7 @@ def run_logged(
             env=child_environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            preexec_fn=apply_processor_affinity,
         )
         assert process.stdout is not None
         with process.stdout:
@@ -1048,6 +1192,7 @@ def run_logged(
         "command": list(command),
         "working_directory": working_directory,
         "execution_environment": {"PWD": working_directory},
+        "processor_affinity": selected_processors,
         "exit_code": return_code,
         "log_path": str(log_path),
         "log_sha256": sha256_file(log_path),
@@ -1161,6 +1306,190 @@ def verify_component_configuration(component_id: str, source: Path) -> dict[str,
     if "-nostdinc" not in values["ccflags"] or "-nostdinc" not in values["cppflags"]:
         raise ToolchainError("Perl configured output admits compiler default include search")
     return {"status": "verified", "fields": values}
+
+
+def verify_cmake_test_configuration(
+    component_id: str, component_build: Path, selected_make: Path
+) -> dict[str, Any]:
+    if component_id != "cmake":
+        return {"status": "not-applicable"}
+    cache_path = component_build / "CMakeCache.txt"
+    if not cache_path.is_file():
+        raise ToolchainError("CMake configure did not produce CMakeCache.txt")
+    values: dict[str, str] = {}
+    for line in cache_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        key_and_type, separator, value = line.partition("=")
+        key, type_separator, _cache_type = key_and_type.partition(":")
+        if separator and type_separator:
+            values[key] = value
+    expected = {
+        **EXPECTED_CMAKE_TEST_CAPABILITY_CACHE,
+        "CMAKE_MAKE_PROGRAM": str(selected_make),
+        "CMake_TEST_EXPLICIT_MAKE_PROGRAM": str(selected_make),
+    }
+    observed = {key: values.get(key) for key in expected}
+    if observed != expected:
+        raise ToolchainError(
+            f"CMake selected test capability cache differs: expected {expected}, observed {observed}"
+        )
+    generated_references: list[dict[str, Any]] = []
+    for path in sorted(component_build.rglob("CTestTestfile.cmake")):
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        matching_lines = [line for line in lines if "--build-makeprogram" in line]
+        if not matching_lines:
+            continue
+        divergent = [line for line in matching_lines if str(selected_make) not in line]
+        if divergent:
+            raise ToolchainError(
+                "CMake generated a nested test with a Make provider outside the selected "
+                f"package: {path}: {divergent[0]}"
+            )
+        generated_references.append(
+            {
+                "path": str(path.relative_to(component_build)),
+                "sha256": sha256_file(path),
+                "reference_count": len(matching_lines),
+            }
+        )
+    if not generated_references:
+        raise ToolchainError("CMake configure produced no nested Make-provider references")
+    return {
+        "status": "verified",
+        "cache_path": str(cache_path),
+        "cache_sha256": sha256_file(cache_path),
+        "selected": observed,
+        "generated_make_program_references": generated_references,
+    }
+
+
+def cmake_cache_value(cache_path: Path, key: str) -> str | None:
+    for line in cache_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        key_and_type, separator, value = line.partition("=")
+        observed_key, type_separator, _cache_type = key_and_type.partition(":")
+        if separator and type_separator and observed_key == key:
+            return value
+    return None
+
+
+def verify_cmake_test_results(
+    component_id: str,
+    component_build: Path,
+    test_log_path: Path,
+    selected_make: Path,
+    parallel_jobs: int,
+    result_policy: Mapping[str, Any],
+) -> dict[str, Any]:
+    if component_id != "cmake":
+        return {"status": "not-applicable"}
+    if result_policy != EXPECTED_CMAKE_TEST_RESULT_POLICY:
+        raise ToolchainError("CMake test result policy differs from the validated contract")
+    if not test_log_path.is_file():
+        raise ToolchainError("CMake test command did not retain its output log")
+    test_log = test_log_path.read_text(encoding="utf-8", errors="replace")
+    expected_count = int(result_policy["expected_selected_test_count"])
+    summaries = re.findall(r"100% tests passed out of ([0-9]+)", test_log)
+    if summaries != [str(expected_count)]:
+        raise ToolchainError(
+            "CMake selected suite did not publish its exact complete pass summary: "
+            f"expected {expected_count}, observed {summaries}"
+        )
+    required_test = str(result_policy["required_test"])
+    passed_line = re.compile(
+        rf"{expected_count}/{expected_count} Test #[0-9]+: "
+        rf"{re.escape(required_test)} .* Passed"
+    )
+    if passed_line.search(test_log) is None:
+        raise ToolchainError(f"CMake required test did not pass: {required_test}")
+
+    last_test_path = component_build / "Testing/Temporary/LastTest.log"
+    if not last_test_path.is_file():
+        raise ToolchainError("CMake selected suite did not retain LastTest.log")
+    last_test = last_test_path.read_text(encoding="utf-8", errors="replace")
+    start_marker = f'"{required_test}" start time:'
+    end_marker = f'"{required_test}" end time:'
+    if last_test.count(start_marker) != 1 or last_test.count(end_marker) != 1:
+        raise ToolchainError("CMake required test execution evidence is not unique")
+    bootstrap_start = last_test.index(start_marker)
+    bootstrap_end = last_test.index(end_marker, bootstrap_start)
+    bootstrap_evidence = last_test[bootstrap_start:bootstrap_end]
+    expected_parallelism = int(
+        str(result_policy["bootstrap_parallelism"]).replace("{jobs}", str(parallel_jobs))
+    )
+    bootstrap_command = f"--parallel={expected_parallelism}"
+    selected_make_text = str(selected_make)
+    required_lines = (
+        "-- running bootstrap:",
+        bootstrap_command,
+        f"Makefile processor on this system is: {selected_make_text}",
+        f"CMake has bootstrapped.  Now run {selected_make_text}.",
+        "Test Passed.",
+    )
+    missing_lines = [line for line in required_lines if line not in bootstrap_evidence]
+    if missing_lines:
+        raise ToolchainError(
+            "CMake BootstrapTest did not prove selected execution provider/parallelism: "
+            + ", ".join(missing_lines)
+        )
+    bootstrap_parallel_values = re.findall(r"--parallel=([0-9]+)", bootstrap_evidence)
+    if bootstrap_parallel_values != [str(expected_parallelism)]:
+        raise ToolchainError(
+            "CMake BootstrapTest parallelism is ambiguous or divergent: "
+            f"expected {expected_parallelism}, observed {bootstrap_parallel_values}"
+        )
+
+    secondary_root = component_build / "Tests/BootstrapTest"
+    secondary_cache = secondary_root / "CMakeCache.txt"
+    if not secondary_cache.is_file():
+        raise ToolchainError("CMake BootstrapTest did not produce its configured build state")
+    secondary_references: list[dict[str, Any]] = []
+    selected_reference_count = 0
+    other_reference_count = 0
+    for path in sorted(secondary_root.rglob("CTestTestfile.cmake")):
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        matching_lines = [line for line in lines if "--build-makeprogram" in line]
+        if not matching_lines:
+            continue
+        selected_count = sum(selected_make_text in line for line in matching_lines)
+        selected_reference_count += selected_count
+        other_reference_count += len(matching_lines) - selected_count
+        secondary_references.append(
+            {
+                "path": str(path.relative_to(component_build)),
+                "sha256": sha256_file(path),
+                "reference_count": len(matching_lines),
+                "selected_make_reference_count": selected_count,
+            }
+        )
+    if not secondary_references:
+        raise ToolchainError("CMake BootstrapTest produced no secondary test-plan references")
+
+    return {
+        "status": "verified",
+        "selected_suite": {
+            "test_count": expected_count,
+            "test_log_path": str(test_log_path),
+            "test_log_sha256": sha256_file(test_log_path),
+            "last_test_log_path": str(last_test_path),
+            "last_test_log_sha256": sha256_file(last_test_path),
+        },
+        "bootstrap_execution": {
+            "test": required_test,
+            "parallel_jobs": expected_parallelism,
+            "make_program": selected_make_text,
+            "disposition": "executed-under-selected-provider-and-declared-affinity",
+        },
+        "secondary_generated_suite": {
+            "disposition": result_policy["secondary_generated_suite_disposition"],
+            "cache_path": str(secondary_cache),
+            "cache_sha256": sha256_file(secondary_cache),
+            "configured_make_program": cmake_cache_value(
+                secondary_cache, "CMAKE_MAKE_PROGRAM"
+            ),
+            "selected_make_reference_count": selected_reference_count,
+            "other_make_reference_count": other_reference_count,
+            "generated_make_program_references": secondary_references,
+        },
+    }
 
 
 def verify_component_prerequisites(component_id: str, prefix: Path) -> dict[str, Any]:
@@ -1598,10 +1927,14 @@ def execute_plan(
                 working_directory,
                 step_environment_value,
                 component_build / f"{step_name}.log",
+                plan["processor_affinity"]["selected_processor_ids"],
             )
             if step_name == "configure":
                 step_receipt["configuration_contract"] = verify_component_configuration(
                     component_id, source
+                )
+                step_receipt["test_capability_contract"] = verify_cmake_test_configuration(
+                    component_id, component_build, prefix / "bin/make"
                 )
                 step_receipt["prerequisite_contract"] = prerequisite_receipt
                 step_receipt["configure_log_contract"] = verify_component_configure_log(
@@ -1614,6 +1947,18 @@ def execute_plan(
                         component_id,
                         component_build,
                         require_object(component["test_policy"], "test_policy"),
+                    )
+                if component_id == "cmake":
+                    step_receipt["test_result_contract"] = verify_cmake_test_results(
+                        component_id,
+                        component_build,
+                        Path(step_receipt["log_path"]),
+                        prefix / "bin/make",
+                        plan["parallel_jobs"],
+                        require_object(
+                            component["test_capability_selection"]["result_policy"],
+                            "cmake.test_capability_selection.result_policy",
+                        ),
                     )
             if step_name == "install":
                 step_receipt["installation_contract"] = verify_component_installation(
