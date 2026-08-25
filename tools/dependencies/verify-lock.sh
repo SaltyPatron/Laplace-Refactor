@@ -22,7 +22,7 @@ if [[ ${#dependencies[@]} -eq 0 ]]; then
 fi
 
 for dependency in "${dependencies[@]}"; do
-    source_tree=$(realpath -e "$source_root/$dependency")
+    source_tree=$(realpath -e -- "$source_root/$dependency")
     revision=$(jq -r --arg dependency "$dependency" \
         '.dependencies[$dependency].revision' "$lock_file")
     expected_archive=$(jq -r --arg dependency "$dependency" \
@@ -33,7 +33,11 @@ for dependency in "${dependencies[@]}"; do
         exit 65
     fi
     git_source=(git -c "safe.directory=$source_tree" -C "$source_tree")
-    if [[ -n "$("${git_source[@]}" status --porcelain=v1 --untracked-files=all)" ]]; then
+    if ! source_status=$("${git_source[@]}" status --porcelain=v1 --untracked-files=all); then
+        echo "$dependency source state cannot be inspected: $source_tree" >&2
+        exit 65
+    fi
+    if [[ -n "$source_status" ]]; then
         echo "$dependency source contains changes: $source_tree" >&2
         exit 65
     fi
