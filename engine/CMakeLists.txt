@@ -7,6 +7,7 @@ add_library(laplace_engine SHARED
     src/persistence.c
     src/trajectory.c
     src/perfcache.c
+    src/perfcache_modules.c
     src/perfcache_registry.cpp)
 if(TARGET LaplaceOneApi::TBB AND TARGET LaplaceOneApi::MKLTbb)
     target_sources(laplace_engine PRIVATE src/execution_oneapi.cpp)

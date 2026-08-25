@@ -21,8 +21,15 @@
 #include "laplace/trajectory.h"
 #include "laplace/contract/postgresql_bindings.h"
 #include "laplace_pg_internal.h"
+#include "perfcache_pg.h"
 
 PG_MODULE_MAGIC;
+
+void _PG_init(void);
+
+void _PG_init(void) {
+    laplace_pg_perfcache_initialize();
+}
 
 PG_FUNCTION_INFO_V1(LAPLACE_PG_IDENTITY_CALCULATE_SYMBOL);
 PG_FUNCTION_INFO_V1(LAPLACE_PG_IDENTITY_EXECUTE_SYMBOL);

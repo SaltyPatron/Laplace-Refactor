@@ -20,11 +20,36 @@ function(laplace_configure_perfcache_contract contract_path output_path)
     string(JSON provider_minor GET "${contract_json}" artifact_provider_abi minor)
     string(JSON module_major GET "${contract_json}" module_abi major)
     string(JSON module_minor GET "${contract_json}" module_abi minor)
+    string(JSON framework_probe_module_id GET
+        "${contract_json}" modules framework_probe module_id)
+    string(JSON framework_probe_key_schema_id GET
+        "${contract_json}" modules framework_probe key_schema_id)
+    string(JSON framework_probe_value_schema_id GET
+        "${contract_json}" modules framework_probe value_schema_id)
+    string(JSON framework_probe_contract_fingerprint GET
+        "${contract_json}" modules framework_probe contract_fingerprint)
+    string(JSON framework_probe_contract_preimage GET
+        "${contract_json}" modules framework_probe contract_preimage)
+    string(JSON framework_probe_access_law GET
+        "${contract_json}" modules framework_probe access_law)
+    string(JSON framework_probe_key_bytes GET
+        "${contract_json}" modules framework_probe key_bytes)
+    string(JSON framework_probe_value_bytes GET
+        "${contract_json}" modules framework_probe value_bytes)
+    string(JSON framework_probe_required GET
+        "${contract_json}" modules framework_probe required)
+    string(LENGTH "${framework_probe_module_id}" framework_probe_module_id_length)
+    string(LENGTH "${framework_probe_key_schema_id}" framework_probe_key_schema_id_length)
+    string(LENGTH "${framework_probe_value_schema_id}" framework_probe_value_schema_id_length)
+    string(LENGTH "${framework_probe_contract_fingerprint}"
+        framework_probe_contract_fingerprint_length)
     string(JSON generation_prepared GET "${contract_json}" generation_dispositions prepared)
     string(JSON generation_reserved GET "${contract_json}" generation_dispositions reserved)
     string(JSON generation_activated GET "${contract_json}" generation_dispositions activated)
     string(JSON generation_rejected GET "${contract_json}" generation_dispositions rejected)
     string(JSON generation_aborted GET "${contract_json}" generation_dispositions aborted)
+    string(JSON generation_materialized GET
+        "${contract_json}" generation_dispositions materialized)
 
     if(NOT contract_schema STREQUAL "laplace.perfcache-contract/v3")
         message(FATAL_ERROR "Unsupported perfcache contract schema: ${contract_schema}")
@@ -48,9 +73,24 @@ function(laplace_configure_perfcache_contract contract_path output_path)
        OR NOT module_defined_access EQUAL 3
        OR NOT provider_major EQUAL 1 OR NOT provider_minor EQUAL 1
        OR NOT module_major EQUAL 1 OR NOT module_minor EQUAL 1
+       OR NOT framework_probe_module_id_length EQUAL 32
+       OR NOT framework_probe_module_id MATCHES "^[0-9a-f]+$"
+       OR NOT framework_probe_key_schema_id_length EQUAL 32
+       OR NOT framework_probe_key_schema_id MATCHES "^[0-9a-f]+$"
+       OR NOT framework_probe_value_schema_id_length EQUAL 32
+       OR NOT framework_probe_value_schema_id MATCHES "^[0-9a-f]+$"
+       OR NOT framework_probe_contract_fingerprint_length EQUAL 64
+       OR NOT framework_probe_contract_fingerprint MATCHES "^[0-9a-f]+$"
+       OR NOT framework_probe_contract_preimage STREQUAL
+          "laplace.perfcache.module.framework-probe/v1|key=u32-le|value=u64-le|access=dense-u32-zero-based|module-abi=1.1"
+       OR NOT framework_probe_access_law STREQUAL "dense_u32_zero_based"
+       OR NOT framework_probe_key_bytes EQUAL 4
+       OR NOT framework_probe_value_bytes EQUAL 8
+       OR NOT framework_probe_required
        OR NOT generation_prepared EQUAL 1 OR NOT generation_reserved EQUAL 2
        OR NOT generation_activated EQUAL 3 OR NOT generation_rejected EQUAL 4
-       OR NOT generation_aborted EQUAL 5)
+       OR NOT generation_aborted EQUAL 5
+       OR NOT generation_materialized EQUAL 6)
         message(FATAL_ERROR "Perfcache encoding contract changed")
     endif()
 
@@ -65,11 +105,24 @@ function(laplace_configure_perfcache_contract contract_path output_path)
     set(LAPLACE_PERFCACHE_ARTIFACT_PROVIDER_ABI_MINOR "${provider_minor}")
     set(LAPLACE_PERFCACHE_MODULE_ABI_MAJOR "${module_major}")
     set(LAPLACE_PERFCACHE_MODULE_ABI_MINOR "${module_minor}")
+    set(LAPLACE_PERFCACHE_FRAMEWORK_PROBE_MODULE_ID
+        "${framework_probe_module_id}")
+    set(LAPLACE_PERFCACHE_FRAMEWORK_PROBE_KEY_SCHEMA_ID
+        "${framework_probe_key_schema_id}")
+    set(LAPLACE_PERFCACHE_FRAMEWORK_PROBE_VALUE_SCHEMA_ID
+        "${framework_probe_value_schema_id}")
+    set(LAPLACE_PERFCACHE_FRAMEWORK_PROBE_CONTRACT_FINGERPRINT
+        "${framework_probe_contract_fingerprint}")
+    set(LAPLACE_PERFCACHE_FRAMEWORK_PROBE_KEY_BYTES
+        "${framework_probe_key_bytes}")
+    set(LAPLACE_PERFCACHE_FRAMEWORK_PROBE_VALUE_BYTES
+        "${framework_probe_value_bytes}")
     set(LAPLACE_PERFCACHE_GENERATION_PREPARED "${generation_prepared}")
     set(LAPLACE_PERFCACHE_GENERATION_RESERVED "${generation_reserved}")
     set(LAPLACE_PERFCACHE_GENERATION_ACTIVATED "${generation_activated}")
     set(LAPLACE_PERFCACHE_GENERATION_REJECTED "${generation_rejected}")
     set(LAPLACE_PERFCACHE_GENERATION_ABORTED "${generation_aborted}")
+    set(LAPLACE_PERFCACHE_GENERATION_MATERIALIZED "${generation_materialized}")
     get_filename_component(output_directory "${output_path}" DIRECTORY)
     file(MAKE_DIRECTORY "${output_directory}")
     configure_file(

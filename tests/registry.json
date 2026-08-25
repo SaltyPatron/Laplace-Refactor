@@ -786,6 +786,18 @@
       "covered_dimensions": ["authenticated staged receipt", "exact staged sink artifact-set binding", "forged and unrelated stream rejection"]
     },
     {
+      "ctest_name": "PerfcacheRegistry.CanonicalManifestReconstructsARealGeneration",
+      "evidence_targets": ["LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
+      "covered_dimensions": ["canonical generation-manifest encoding", "encoded manifest fingerprint", "cold reconstruction of a validated native generation"],
+      "defect_controls": ["perfcache.mutation-encoded-manifest-digest-bypass-detected"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.DurableGenerationMaterializesWithoutForgingActivation",
+      "evidence_targets": ["LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-BATCH-LOOKUP"],
+      "covered_dimensions": ["durable generation materialization", "exact-epoch native pin", "materialization remains distinct from activation"],
+      "defect_controls": ["perfcache.mutation-materialization-forges-activation-detected"]
+    },
+    {
       "ctest_name": "PerfcacheRegistry.ReadOnlyContextCannotReserveAndPreparedStateBlocksDestroy",
       "evidence_targets": ["LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
       "covered_dimensions": ["authority-bound reservation", "prepared-state lifetime", "busy destroy until ownership release"]
@@ -819,6 +831,18 @@
       "evidence_targets": ["LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
       "covered_dimensions": ["prepared-generation ownership retention is detected"],
       "controls": "PerfcacheRegistry.PreparedGenerationHasOneActivationOwner"
+    },
+    {
+      "ctest_name": "perfcache.mutation-encoded-manifest-digest-bypass-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"],
+      "covered_dimensions": ["encoded manifest digest omission is detected"],
+      "controls": "PerfcacheRegistry.CanonicalManifestReconstructsARealGeneration"
+    },
+    {
+      "ctest_name": "perfcache.mutation-materialization-forges-activation-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS"],
+      "covered_dimensions": ["cold materialization forged into active authority is detected"],
+      "controls": "PerfcacheRegistry.DurableGenerationMaterializesWithoutForgingActivation"
     },
     {
       "ctest_name": "identity.contract-vectors",
@@ -935,9 +959,9 @@
     {
       "ctest_name": "postgres.spi-isa-contract",
       "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-OCCURRENCE-PRESERVATION"],
-      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL output parity", "direct C and PostgreSQL receipt parity", "parallel-safe pure calculation", "one set-oriented SPI persistence provider", "durable-or-in-batch reference preflight", "normalized entity physicality trajectory and occurrence storage", "full identity witness collision detection", "immutable exact plan-sequence receipt", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-vertex single native batch", "bounded storage", "candidate index plus exact native trajectory proof", "concurrent idempotent deposit"],
-      "defect_controls": ["postgres.mutation-receipt-collision-detected", "postgres.mutation-blind-persistence-conflict-detected"]
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN"],
+      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL output parity", "direct C and PostgreSQL receipt parity", "parallel-safe pure calculation", "one set-oriented SPI persistence provider", "durable-or-in-batch reference preflight", "normalized entity physicality trajectory and occurrence storage", "full identity witness collision detection", "immutable exact plan-sequence receipt", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-vertex single native batch", "bounded storage", "candidate index plus exact native trajectory proof", "concurrent idempotent deposit", "database-scoped named DSM control plane without preload", "immutable generation manifests and activation-admission events", "durable active-epoch singleton CAS", "transaction and savepoint deferred activation", "native preflight before durable commit", "committed-XID visibility-gap recovery", "exact full-epoch shared and native pins", "resource-owner error cleanup", "cold-backend manifest reconstruction validation prefault and exact pin", "SQL-free repeated hot native batch lookup", "configured-root and missing-artifact rejection", "concurrent old-generation reader and new-generation activation", "competing activator exclusion", "retired generation drain", "same-postmaster extension drop and recreation", "unchanged postmaster start time"],
+      "defect_controls": ["postgres.mutation-receipt-collision-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
     },
     {
       "ctest_name": "postgres.mutation-receipt-collision-detected",
@@ -951,6 +975,13 @@
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
       "covered_dimensions": ["same BLAKE3-128 ID with different full identity witness is rejected", "set-wise exact conflict verification"],
+      "controls": "postgres.spi-isa-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-perfcache-expected-epoch-detected",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT"],
+      "covered_dimensions": ["shared-memory and durable-control expected-epoch bypass is detected"],
       "controls": "postgres.spi-isa-contract"
     }
   ]

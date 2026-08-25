@@ -192,6 +192,48 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt (
     recorded_by name NOT NULL DEFAULT current_user
 );
 
+CREATE TABLE @LAPLACE_PG_SCHEMA@.perfcache_generation (
+    activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    manifest_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    encoded_manifest_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    encoded_manifest bytea NOT NULL CHECK (octet_length(encoded_manifest) > 32),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    PRIMARY KEY (activation_epoch_id, epoch_fingerprint)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.perfcache_activation_event (
+    sequence bigint PRIMARY KEY CHECK (sequence > 0),
+    activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    admission_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    activation_transaction_id xid NOT NULL,
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    FOREIGN KEY (activation_epoch_id, epoch_fingerprint)
+        REFERENCES @LAPLACE_PG_SCHEMA@.perfcache_generation(
+            activation_epoch_id, epoch_fingerprint)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.perfcache_active_control (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    sequence bigint NOT NULL CHECK (sequence >= 0),
+    active_present boolean NOT NULL,
+    activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    manifest_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    admission_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+);
+
+INSERT INTO @LAPLACE_PG_SCHEMA@.perfcache_active_control(
+    singleton, sequence, active_present, activation_epoch_id,
+    epoch_fingerprint, manifest_fingerprint, admission_receipt_id)
+VALUES (
+    true, 0, false, decode(repeat('00', 16), 'hex'),
+    decode(repeat('00', 32), 'hex'), decode(repeat('00', 32), 'hex'),
+    decode(repeat('00', 32), 'hex'));
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.canonical_deposit_result AS (
     receipt_id bytea,
     context_fingerprint bytea,
@@ -306,6 +348,9 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.physicality FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.composition_trajectory_vertex FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.observed_occurrence FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_generation FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_activation_event FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_active_control FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_CALCULATE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context, integer[])

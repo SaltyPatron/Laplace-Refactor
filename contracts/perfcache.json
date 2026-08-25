@@ -23,12 +23,37 @@
   },
   "artifact_provider_abi": {"major": 1, "minor": 1},
   "module_abi": {"major": 1, "minor": 1},
+  "modules": {
+    "framework_probe": {
+      "module_id": "9dcf5110ee3085368f65237c155ccd11",
+      "key_schema_id": "d1d7384380796c44701b2d99b081e7dd",
+      "value_schema_id": "55048fbdd2d7443356e9cf097f283497",
+      "contract_fingerprint": "ac065b6d543abe9b046258d0fb070018ac737388a9923d044c194aa95c4247b0",
+      "contract_preimage": "laplace.perfcache.module.framework-probe/v1|key=u32-le|value=u64-le|access=dense-u32-zero-based|module-abi=1.1",
+      "access_law": "dense_u32_zero_based",
+      "key_bytes": 4,
+      "value_bytes": 8,
+      "required": true
+    }
+  },
   "generation_dispositions": {
     "prepared": 1,
     "reserved": 2,
     "activated": 3,
     "rejected": 4,
-    "aborted": 5
+    "aborted": 5,
+    "materialized": 6
+  },
+  "postgresql_control_plane": {
+    "shared_state": "database-scoped-named-dsm-fixed-layout-no-process-pointers",
+    "persistent_authority": "one-transactional-active-control-row-plus-immutable-generation-manifests-and-admission-events",
+    "activation": "native-generation-preflight-plus-durable-singleton-cas-plus-post-commit-shared-and-native-promotion",
+    "visibility_gap_recovery": "committing-reservation-may-be-promoted-only-after-its-postgresql-transaction-is-known-committed",
+    "reader_ownership": "one-crash-recoverable-slot-per-backend-with-resource-owner-cleanup",
+    "cold_backend": "exact-durable-manifest-reconstructs-validates-prefaults-materializes-and-pins-the-native-generation",
+    "hot_backend": "exact-native-generation-pin-and-batch-lookup-require-no-spi-read",
+    "restart_rule": "data-epoch-replacement-does-not-restart-postgresql",
+    "prepared_transactions": "rejected-while-an-activation-is-pending"
   },
   "bit_pattern_semantics": {
     "required_identity_and_digest_zero": "valid-value-not-absence",

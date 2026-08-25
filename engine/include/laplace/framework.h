@@ -338,6 +338,12 @@ LAPLACE_API laplace_framework_status laplace_framework_commit_admitted_stream(
     const laplace_framework_activation_provider_v1* provider,
     laplace_framework_activation_receipt* receipt);
 
+LAPLACE_API laplace_framework_status laplace_framework_admitted_stream_validate(
+    const laplace_framework_context* context,
+    const laplace_framework_activation_request* request,
+    const laplace_framework_activation_provider_v1* provider,
+    const laplace_framework_activation_receipt* receipt);
+
 LAPLACE_API laplace_framework_status laplace_framework_abort_admitted_stream(
     const laplace_framework_context* context,
     const laplace_framework_activation_request* request,

@@ -1211,18 +1211,11 @@ laplace_framework_status laplace_framework_commit_admitted_stream(
     const laplace_framework_activation_request* request,
     const laplace_framework_activation_provider_v1* provider,
     laplace_framework_activation_receipt* receipt) {
-    laplace_digest256 context_fingerprint;
     laplace_framework_status status;
-    if (context == NULL || request == NULL || receipt == NULL ||
-        !activation_provider_is_valid(provider) ||
-        laplace_framework_context_fingerprint(
-            context, &context_fingerprint) != LAPLACE_FRAMEWORK_OK ||
-        !admitted_receipt_is_valid(receipt) ||
-        !digest_equal(&receipt->context_fingerprint, &context_fingerprint) ||
-        receipt->epoch_slot != request->epoch_slot ||
-        !digest_equal(&receipt->expected_epoch, &request->expected_epoch) ||
-        !digest_equal(&receipt->next_epoch, &request->next_epoch)) {
-        return LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
+    status = laplace_framework_admitted_stream_validate(
+        context, request, provider, receipt);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        return status;
     }
     status = provider->commit(
         provider->state, request, &receipt->preparation_fingerprint,
@@ -1246,6 +1239,26 @@ laplace_framework_status laplace_framework_commit_admitted_stream(
     receipt->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_ACTIVATED;
     receipt->status = LAPLACE_FRAMEWORK_OK;
     hash_activation_receipt(receipt);
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status laplace_framework_admitted_stream_validate(
+    const laplace_framework_context* context,
+    const laplace_framework_activation_request* request,
+    const laplace_framework_activation_provider_v1* provider,
+    const laplace_framework_activation_receipt* receipt) {
+    laplace_digest256 context_fingerprint;
+    if (context == NULL || request == NULL || receipt == NULL ||
+        !activation_provider_is_valid(provider) ||
+        laplace_framework_context_fingerprint(
+            context, &context_fingerprint) != LAPLACE_FRAMEWORK_OK ||
+        !admitted_receipt_is_valid(receipt) ||
+        !digest_equal(&receipt->context_fingerprint, &context_fingerprint) ||
+        receipt->epoch_slot != request->epoch_slot ||
+        !digest_equal(&receipt->expected_epoch, &request->expected_epoch) ||
+        !digest_equal(&receipt->next_epoch, &request->next_epoch)) {
+        return LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
+    }
     return LAPLACE_FRAMEWORK_OK;
 }
 

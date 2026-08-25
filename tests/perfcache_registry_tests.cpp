@@ -520,6 +520,12 @@ TEST(PerfcacheRegistry, PrepareReserveCommitIsInactiveUntilCommit) {
     EXPECT_EQ(prepared.receipt.disposition,
               LAPLACE_PERFCACHE_GENERATION_PREPARED);
     auto admitted = Admit(registry, &prepared, nullptr);
+    EXPECT_EQ(laplace_perfcache_activation_commit_ready(admitted.activation),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    EXPECT_EQ(laplace_framework_admitted_stream_validate(
+                  &prepared.context, &admitted.request, &admitted.provider,
+                  &admitted.framework_receipt),
+              LAPLACE_FRAMEWORK_OK);
     laplace_perfcache_registry_snapshot snapshot{};
     ASSERT_EQ(laplace_perfcache_registry_snapshot_get(registry, &snapshot),
               LAPLACE_PERFCACHE_REGISTRY_OK);
@@ -960,6 +966,165 @@ TEST(PerfcacheRegistry, ForgedOrUnrelatedStagedReceiptCannotPrepare) {
     EXPECT_EQ(laplace_perfcache_registry_destroy(registry),
               LAPLACE_PERFCACHE_REGISTRY_OK);
     Cleanup(directory, {forged_path, unrelated_path});
+}
+
+TEST(PerfcacheRegistry, CanonicalManifestReconstructsARealGeneration) {
+    const auto module = Module(0x10u);
+    const std::string directory = NewDirectory();
+    const std::string path = directory + "/manifest.bin";
+    const laplace_id128 activation = Id(0x70u);
+    const laplace_digest256 epoch = Digest(0x90u);
+    const laplace_digest256 source = Digest(0x30u);
+    const laplace_digest256 recipe = Digest(0x50u);
+    const laplace_perfcache_contract contract =
+        Contract(module, activation, epoch, source, recipe);
+    const auto artifact_bytes = Artifact(contract, 700u);
+    const laplace_digest256 artifact_digest =
+        ArtifactDigest(artifact_bytes, contract);
+    Publish(path, artifact_bytes, contract);
+    laplace_perfcache_generation_artifact artifact{};
+    artifact.path = path.c_str();
+    artifact.contract = contract;
+    artifact.expected_artifact_digest = artifact_digest;
+    artifact.flags = LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
+    laplace_perfcache_generation_request request{};
+    request.artifacts = &artifact;
+    request.artifact_count = 1u;
+    request.activation_epoch_id = activation;
+    request.epoch_fingerprint = epoch;
+    ASSERT_EQ(laplace_perfcache_required_module_set_fingerprint(
+                  &module, 1u, &request.required_module_set_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_EQ(laplace_perfcache_generation_artifact_set_fingerprint(
+                  &request, &request.sink_artifact_set_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    auto context = Context();
+    auto staged = StageReceipt(
+        context, source, recipe, request.sink_artifact_set_fingerprint);
+    request.staged_receipt_id = staged.receipt_id;
+    request.stream_fingerprint = staged.stream_fingerprint;
+    request.staged_sink_artifacts_fingerprint =
+        staged.sink_artifacts_fingerprint;
+
+    std::size_t manifest_bytes = 0u;
+    ASSERT_EQ(laplace_perfcache_generation_manifest_measure(
+                  &context, &staged, &request, &manifest_bytes),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_GT(manifest_bytes, 32u);
+    std::vector<std::uint8_t> encoded(manifest_bytes, 0u);
+    laplace_digest256 encoded_fingerprint{};
+    std::size_t written = 0u;
+    ASSERT_EQ(laplace_perfcache_generation_manifest_write(
+                  &context, &staged, &request, encoded.data(), encoded.size(),
+                  &written, &encoded_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_EQ(written, encoded.size());
+    EXPECT_EQ(laplace_perfcache_generation_manifest_write(
+                  &context, &staged, &request, encoded.data(),
+                  encoded.size() - 1u, &written, &encoded_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_BUFFER_TOO_SMALL);
+
+    laplace_perfcache_generation_manifest* decoded = nullptr;
+    laplace_digest256 decoded_fingerprint{};
+    ASSERT_EQ(laplace_perfcache_generation_manifest_open(
+                  encoded.data(), encoded.size(), &decoded,
+                  &decoded_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_NE(decoded, nullptr);
+    EXPECT_TRUE(Same(encoded_fingerprint, decoded_fingerprint));
+    const laplace_framework_context* decoded_context = nullptr;
+    const laplace_framework_stream_receipt* decoded_staged = nullptr;
+    const laplace_perfcache_generation_request* decoded_request = nullptr;
+    ASSERT_EQ(laplace_perfcache_generation_manifest_view(
+                  decoded, &decoded_context, &decoded_staged,
+                  &decoded_request),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_NE(decoded_context, nullptr);
+    ASSERT_NE(decoded_staged, nullptr);
+    ASSERT_NE(decoded_request, nullptr);
+    EXPECT_EQ(decoded_request->artifact_count, 1u);
+    EXPECT_EQ(std::string(decoded_request->artifacts[0].path), path);
+
+    laplace_perfcache_registry* registry = nullptr;
+    ASSERT_EQ(laplace_perfcache_registry_create(&module, 1u, &registry),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_artifact_provider_v1 provider{};
+    ASSERT_EQ(laplace_perfcache_file_provider(&provider),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_prepared_generation* prepared = nullptr;
+    laplace_perfcache_generation_receipt prepared_receipt{};
+    ASSERT_EQ(laplace_perfcache_registry_prepare(
+                  registry, decoded_context, decoded_staged, &provider,
+                  decoded_request, &prepared, &prepared_receipt),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_NE(prepared, nullptr);
+    laplace_perfcache_registry_discard_prepared(&prepared);
+    EXPECT_EQ(laplace_perfcache_registry_destroy(registry),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_generation_manifest_close(decoded);
+
+    encoded.back() ^= 1u;
+    decoded = nullptr;
+    EXPECT_EQ(laplace_perfcache_generation_manifest_open(
+                  encoded.data(), encoded.size(), &decoded,
+                  &decoded_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_MANIFEST_INVALID);
+    EXPECT_EQ(decoded, nullptr);
+    Cleanup(directory, {path});
+}
+
+TEST(PerfcacheRegistry, DurableGenerationMaterializesWithoutForgingActivation) {
+    const auto module = Module(0x10u);
+    laplace_perfcache_registry* registry = nullptr;
+    ASSERT_EQ(laplace_perfcache_registry_create(&module, 1u, &registry),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_artifact_provider_v1 provider{};
+    ASSERT_EQ(laplace_perfcache_file_provider(&provider),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    const std::string directory = NewDirectory();
+    const std::string path = directory + "/materialized.bin";
+    const laplace_id128 activation = Id(0x71u);
+    const laplace_digest256 epoch_fingerprint = Digest(0x91u);
+    auto prepared = Prepare(
+        registry, provider, &module, 1u, module, path, activation,
+        epoch_fingerprint, 0x31u, 900u);
+    laplace_perfcache_generation_receipt receipt{};
+    ASSERT_EQ(laplace_perfcache_registry_materialize_prepared(
+                  registry, &prepared.value, &receipt),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    EXPECT_EQ(receipt.disposition, LAPLACE_PERFCACHE_GENERATION_MATERIALIZED);
+    EXPECT_EQ(prepared.value, nullptr);
+
+    laplace_perfcache_registry_snapshot snapshot{};
+    ASSERT_EQ(laplace_perfcache_registry_snapshot_get(registry, &snapshot),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    EXPECT_EQ(snapshot.has_active_generation, 0u);
+    EXPECT_EQ(snapshot.retired_generation_count, 1u);
+    laplace_perfcache_pin active_pin{};
+    EXPECT_EQ(laplace_perfcache_registry_pin(
+                  registry, 0u, nullptr, &active_pin),
+              LAPLACE_PERFCACHE_REGISTRY_NO_ACTIVE_GENERATION);
+
+    const laplace_perfcache_epoch epoch{activation, epoch_fingerprint};
+    laplace_perfcache_pin exact_pin{};
+    ASSERT_EQ(laplace_perfcache_registry_pin_epoch(
+                  registry, &epoch, &exact_pin),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    const std::array<std::uint8_t, 8> keys{{
+        0u, 0u, 0u, 0u, 2u, 0u, 0u, 0u}};
+    std::array<std::uint64_t, 2> indexes{};
+    std::array<std::uint8_t, 2> found{};
+    ASSERT_EQ(laplace_perfcache_pin_lookup_batch(
+                  &exact_pin, &module.module_id, keys.data(), 2u,
+                  indexes.data(), found.data()),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    EXPECT_EQ(indexes, (std::array<std::uint64_t, 2>{{0u, 2u}}));
+    EXPECT_EQ(found, (std::array<std::uint8_t, 2>{{1u, 1u}}));
+    ASSERT_EQ(laplace_perfcache_pin_release(&exact_pin),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    EXPECT_EQ(laplace_perfcache_registry_destroy(registry),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    Cleanup(directory, {path});
 }
 
 TEST(PerfcacheRegistry, ReadOnlyContextCannotReserveAndPreparedStateBlocksDestroy) {
