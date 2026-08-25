@@ -21,14 +21,62 @@
       "covered_dimensions": ["generated registry", "operation metadata", "opcode lookup"]
     },
     {
+      "ctest_name": "isa.generated-registry-dispatch-contract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-MODULE-REGISTRY", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["generated registry-owned validation and dispatch", "typed operation handler selection"],
+      "defect_controls": ["private first-operation-only dispatcher"]
+    },
+    {
+      "ctest_name": "isa.mutation-private-dispatch-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-MODULE-REGISTRY", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["deliberate generated-registry bypass detection"],
+      "defect_controls": ["registered operation omitted from executable dispatch"]
+    },
+    {
       "ctest_name": "FrameworkContext.AllBoundFactsAffectFingerprint",
       "evidence_targets": ["LP-TEST-FRAMEWORK-EXECUTION-CONTEXT", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
       "covered_dimensions": ["immutable epoch mask", "authority", "resource grant", "context receipt"]
     },
     {
+      "ctest_name": "IsaContext.IsMandatoryAndBoundToProgramAndReceiptIdentity",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EXECUTION-CONTEXT", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["mandatory explicit context", "context-bound program identity", "context-bound execution receipt"],
+      "defect_controls": ["isa.mutation-context-omission-detected"]
+    },
+    {
+      "ctest_name": "isa.execution-context-binding-contract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EXECUTION-CONTEXT", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["public ISA context binding probe"],
+      "defect_controls": ["isa.mutation-context-omission-detected"]
+    },
+    {
+      "ctest_name": "isa.mutation-context-omission-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EXECUTION-CONTEXT", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["omitted context binding is detected"],
+      "controls": "isa.execution-context-binding-contract"
+    },
+    {
       "ctest_name": "CanonicalStream.PartitionBoundariesDoNotChangeFingerprint",
       "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM"],
       "covered_dimensions": ["partition-independent stream identity", "ordered canonical bytes"]
+    },
+    {
+      "ctest_name": "CanonicalStream.SourceAndRecipeAreMandatoryReceiptBindings",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["mandatory exact source identity", "mandatory recipe identity", "stage-only effect disposition", "receipt sensitivity"],
+      "defect_controls": ["framework.mutation-stream-binding-omission-detected"]
+    },
+    {
+      "ctest_name": "framework.canonical-stream-binding-contract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["public canonical stream source and recipe binding probe"],
+      "defect_controls": ["framework.mutation-stream-binding-omission-detected"]
+    },
+    {
+      "ctest_name": "framework.mutation-stream-binding-omission-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["omitted source/recipe receipt binding is detected"],
+      "controls": "framework.canonical-stream-binding-contract"
     },
     {
       "ctest_name": "CanonicalStream.FansOneStreamOutToEverySink",
@@ -44,6 +92,40 @@
       "ctest_name": "CanonicalStream.RejectsOrdinalGapsBeforeOpeningSinks",
       "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
       "covered_dimensions": ["complete stream preflight", "no partial sink effects"]
+    },
+    {
+      "ctest_name": "FrameworkActivation.PublishesOneAdmittedEpochTransition",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["exact staged receipt", "authority-bound admission", "atomic epoch transition", "activation receipt"],
+      "defect_controls": ["framework.mutation-stale-epoch-activation-detected"]
+    },
+    {
+      "ctest_name": "FrameworkActivation.RejectsStaleEpochBeforeProviderAdmission",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["compare-and-swap epoch precondition", "no provider call before complete admission"],
+      "defect_controls": ["framework.mutation-stale-epoch-activation-detected"]
+    },
+    {
+      "ctest_name": "FrameworkActivation.RejectsAlteredStageAndReadOnlyAuthority",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["staged receipt integrity", "read-only authority rejection", "no activation callback"]
+    },
+    {
+      "ctest_name": "FrameworkActivation.FailedAtomicCommitRemainsOnlyAdmitted",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["admission versus activation disposition", "failed atomic commit abort", "unchanged epoch"]
+    },
+    {
+      "ctest_name": "framework.activation-epoch-cas-contract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["public stale-epoch activation rejection probe"],
+      "defect_controls": ["framework.mutation-stale-epoch-activation-detected"]
+    },
+    {
+      "ctest_name": "framework.mutation-stale-epoch-activation-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["omitted expected-epoch comparison is detected"],
+      "controls": "framework.activation-epoch-cas-contract"
     },
     {
       "ctest_name": "IdentityAbi.IsExactly128Bits",
@@ -485,7 +567,7 @@
       "ctest_name": "postgres.spi-isa-contract",
       "profiles": ["postgres"],
       "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS"],
-      "covered_dimensions": ["direct C and PostgreSQL output parity", "direct C and PostgreSQL receipt parity", "parallel-safe pure calculation", "single prepared SPI receipt publication per batch", "deterministic replay without row rewrite", "invalid later element atomicity", "4096-item set-generated native batch", "exact canonical trajectory carrier decode"],
+      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL output parity", "direct C and PostgreSQL receipt parity", "parallel-safe pure calculation", "single prepared SPI receipt publication per batch", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-item set-generated native batch", "exact canonical trajectory carrier decode"],
       "defect_controls": ["postgres.mutation-receipt-collision-detected"]
     },
     {

@@ -2,7 +2,7 @@
   "schema": "laplace.framework-contract/v1",
   "version": {
     "major": 1,
-    "minor": 0
+    "minor": 2
   },
   "epoch_slots": {
     "source": 0,
@@ -23,9 +23,25 @@
   "canonical_batch_flags": {
     "none": 0
   },
+  "canonical_stream_flags": {
+    "none": 0
+  },
+  "effect_dispositions": {
+    "none": 0,
+    "staged_inert": 1,
+    "activation_admitted": 2,
+    "activated": 3
+  },
   "sink_abi": {
     "major": 1,
     "minor": 0
+  },
+  "activation_provider_abi": {
+    "major": 1,
+    "minor": 0
+  },
+  "activation_flags": {
+    "none": 0
   },
   "digest": {
     "algorithm": "BLAKE3-256",

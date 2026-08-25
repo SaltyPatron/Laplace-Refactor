@@ -11,6 +11,10 @@ static const uint8_t CONTEXT_DOMAIN[] = "laplace-framework-context-v1";
 static const uint8_t STREAM_DOMAIN[] = "laplace-framework-canonical-stream-v1";
 static const uint8_t SINK_DOMAIN[] = "laplace-framework-sink-artifacts-v1";
 static const uint8_t RECEIPT_DOMAIN[] = "laplace-framework-stream-receipt-v1";
+static const uint8_t ACTIVATION_REQUEST_DOMAIN[] =
+    "laplace-framework-activation-request-v1";
+static const uint8_t ACTIVATION_RECEIPT_DOMAIN[] =
+    "laplace-framework-activation-receipt-v1";
 
 #define OPERATION_DESCRIPTOR(symbol, handler, opcode_value, version_value, minor_value, input_value, output_value, module_value) \
     {opcode_value, module_value, input_value, output_value, version_value, minor_value, UINT32_C(0)},
@@ -59,6 +63,12 @@ static int digest_is_zero(const laplace_digest256* digest) {
         aggregate = (uint8_t)(aggregate | digest->bytes[index]);
     }
     return aggregate == 0;
+}
+
+static int digest_equal(
+    const laplace_digest256* left,
+    const laplace_digest256* right) {
+    return memcmp(left->bytes, right->bytes, sizeof(left->bytes)) == 0;
 }
 
 size_t laplace_framework_operation_count(void) {
@@ -239,6 +249,7 @@ static void hash_stream_receipt(laplace_framework_stream_receipt* receipt) {
     blake3_hasher_update(&hasher, RECEIPT_DOMAIN, sizeof(RECEIPT_DOMAIN) - 1u);
     hash_u32(&hasher, (uint32_t)receipt->status);
     hash_u32(&hasher, receipt->record_type);
+    hash_u32(&hasher, receipt->effect_disposition);
     hash_u64(&hasher, receipt->total_records);
     hash_u64(&hasher, receipt->total_bytes);
     hash_u64(&hasher, receipt->batch_count);
@@ -249,6 +260,12 @@ static void hash_stream_receipt(laplace_framework_stream_receipt* receipt) {
         &hasher, receipt->context_fingerprint.bytes,
         sizeof(receipt->context_fingerprint.bytes));
     blake3_hasher_update(
+        &hasher, receipt->source_fingerprint.bytes,
+        sizeof(receipt->source_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->recipe_fingerprint.bytes,
+        sizeof(receipt->recipe_fingerprint.bytes));
+    blake3_hasher_update(
         &hasher, receipt->stream_fingerprint.bytes,
         sizeof(receipt->stream_fingerprint.bytes));
     blake3_hasher_update(
@@ -257,10 +274,89 @@ static void hash_stream_receipt(laplace_framework_stream_receipt* receipt) {
     finish_digest(&hasher, &receipt->receipt_id);
 }
 
+static int stream_receipt_is_valid(
+    const laplace_framework_stream_receipt* receipt) {
+    laplace_framework_stream_receipt expected;
+    if (receipt == NULL || receipt->status != LAPLACE_FRAMEWORK_OK ||
+        receipt->effect_disposition != LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT ||
+        receipt->reserved != 0 || receipt->record_type == 0 ||
+        receipt->total_records == 0 || receipt->total_bytes == 0 ||
+        receipt->batch_count == 0 || receipt->sink_count == 0 ||
+        receipt->failed_batch_index != LAPLACE_FRAMEWORK_NO_INDEX ||
+        receipt->failed_sink_index != LAPLACE_FRAMEWORK_NO_INDEX ||
+        digest_is_zero(&receipt->receipt_id) ||
+        digest_is_zero(&receipt->context_fingerprint) ||
+        digest_is_zero(&receipt->source_fingerprint) ||
+        digest_is_zero(&receipt->recipe_fingerprint) ||
+        digest_is_zero(&receipt->stream_fingerprint) ||
+        digest_is_zero(&receipt->sink_artifacts_fingerprint)) {
+        return 0;
+    }
+    expected = *receipt;
+    hash_stream_receipt(&expected);
+    return digest_equal(&receipt->receipt_id, &expected.receipt_id);
+}
+
+static void hash_activation_request(
+    const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_framework_activation_request* request,
+    laplace_digest256* fingerprint) {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(
+        &hasher, ACTIVATION_REQUEST_DOMAIN,
+        sizeof(ACTIVATION_REQUEST_DOMAIN) - 1u);
+    blake3_hasher_update(
+        &hasher, staged_receipt->receipt_id.bytes,
+        sizeof(staged_receipt->receipt_id.bytes));
+    hash_u32(&hasher, request->epoch_slot);
+    hash_u32(&hasher, request->flags);
+    blake3_hasher_update(
+        &hasher, request->expected_epoch.bytes,
+        sizeof(request->expected_epoch.bytes));
+    blake3_hasher_update(
+        &hasher, request->next_epoch.bytes,
+        sizeof(request->next_epoch.bytes));
+    finish_digest(&hasher, fingerprint);
+}
+
+static void hash_activation_receipt(
+    laplace_framework_activation_receipt* receipt) {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(
+        &hasher, ACTIVATION_RECEIPT_DOMAIN,
+        sizeof(ACTIVATION_RECEIPT_DOMAIN) - 1u);
+    hash_u32(&hasher, (uint32_t)receipt->status);
+    hash_u32(&hasher, receipt->epoch_slot);
+    hash_u32(&hasher, receipt->effect_disposition);
+    blake3_hasher_update(
+        &hasher, receipt->context_fingerprint.bytes,
+        sizeof(receipt->context_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->staged_receipt_id.bytes,
+        sizeof(receipt->staged_receipt_id.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->request_fingerprint.bytes,
+        sizeof(receipt->request_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->preparation_fingerprint.bytes,
+        sizeof(receipt->preparation_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->activation_fingerprint.bytes,
+        sizeof(receipt->activation_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->expected_epoch.bytes,
+        sizeof(receipt->expected_epoch.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->next_epoch.bytes,
+        sizeof(receipt->next_epoch.bytes));
+    finish_digest(&hasher, &receipt->receipt_id);
+}
+
 laplace_framework_status laplace_framework_stage_canonical_stream(
     const laplace_framework_context* context,
-    const laplace_framework_canonical_batch* batches,
-    size_t batch_count,
+    const laplace_framework_canonical_stream* stream,
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
     laplace_framework_stream_receipt* receipt) {
@@ -268,6 +364,7 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     laplace_framework_status status;
     size_t sink_index;
     size_t batch_index;
+    size_t batch_count;
     size_t begun = 0;
     if (receipt == NULL) {
         return LAPLACE_FRAMEWORK_INVALID_ARGUMENT;
@@ -275,7 +372,6 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     memset(receipt, 0, sizeof(*receipt));
     receipt->failed_batch_index = LAPLACE_FRAMEWORK_NO_INDEX;
     receipt->failed_sink_index = LAPLACE_FRAMEWORK_NO_INDEX;
-    receipt->batch_count = (uint64_t)batch_count;
     receipt->sink_count = (uint64_t)sink_count;
     status = laplace_framework_context_fingerprint(
         context, &receipt->context_fingerprint);
@@ -284,8 +380,23 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
         hash_stream_receipt(receipt);
         return status;
     }
+    if (stream == NULL || stream->batches == NULL || stream->batch_count == 0 ||
+        stream->batch_count > SIZE_MAX ||
+        stream->flags != LAPLACE_FRAMEWORK_KNOWN_STREAM_FLAGS ||
+        stream->reserved != 0 || digest_is_zero(&stream->source_fingerprint) ||
+        digest_is_zero(&stream->recipe_fingerprint)) {
+        receipt->status = LAPLACE_FRAMEWORK_STREAM_INVALID;
+        hash_stream_receipt(receipt);
+        return receipt->status;
+    }
+    batch_count = (size_t)stream->batch_count;
+    receipt->batch_count = stream->batch_count;
+#if !defined(LAPLACE_TEST_OMIT_STREAM_BINDING_FROM_RECEIPT)
+    receipt->source_fingerprint = stream->source_fingerprint;
+    receipt->recipe_fingerprint = stream->recipe_fingerprint;
+#endif
     status = laplace_framework_canonical_stream_fingerprint(
-        batches, batch_count, &receipt->stream_fingerprint,
+        stream->batches, batch_count, &receipt->stream_fingerprint,
         &receipt->record_type, &receipt->total_records, &receipt->total_bytes);
     if (status != LAPLACE_FRAMEWORK_OK) {
         receipt->status = status;
@@ -324,7 +435,7 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     for (batch_index = 0; batch_index < batch_count; ++batch_index) {
         for (sink_index = 0; sink_index < sink_count; ++sink_index) {
             status = sinks[sink_index].stage(
-                sinks[sink_index].state, &batches[batch_index]);
+                sinks[sink_index].state, &stream->batches[batch_index]);
             if (status != LAPLACE_FRAMEWORK_OK) {
                 receipt->status = LAPLACE_FRAMEWORK_SINK_STAGE_FAILED;
                 receipt->failed_batch_index = (uint64_t)batch_index;
@@ -357,7 +468,98 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
             &artifact_hasher, artifact.bytes, sizeof(artifact.bytes));
     }
     finish_digest(&artifact_hasher, &receipt->sink_artifacts_fingerprint);
+    receipt->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT;
     receipt->status = LAPLACE_FRAMEWORK_OK;
     hash_stream_receipt(receipt);
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status laplace_framework_activate_staged_stream(
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_framework_activation_request* request,
+    const laplace_framework_activation_provider_v1* provider,
+    laplace_framework_activation_receipt* receipt) {
+    laplace_framework_status status;
+    if (receipt == NULL) {
+        return LAPLACE_FRAMEWORK_INVALID_ARGUMENT;
+    }
+    memset(receipt, 0, sizeof(*receipt));
+    status = laplace_framework_context_fingerprint(
+        context, &receipt->context_fingerprint);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        receipt->status = status;
+        hash_activation_receipt(receipt);
+        return status;
+    }
+    if (!stream_receipt_is_valid(staged_receipt) || request == NULL ||
+        request->epoch_slot >= LAPLACE_FRAMEWORK_EPOCH_COUNT ||
+        request->flags != LAPLACE_FRAMEWORK_KNOWN_ACTIVATION_FLAGS ||
+        request->reserved != 0 || digest_is_zero(&request->expected_epoch) ||
+        digest_is_zero(&request->next_epoch) ||
+        digest_equal(&request->expected_epoch, &request->next_epoch)) {
+        receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
+        hash_activation_receipt(receipt);
+        return receipt->status;
+    }
+    receipt->staged_receipt_id = staged_receipt->receipt_id;
+    receipt->expected_epoch = request->expected_epoch;
+    receipt->next_epoch = request->next_epoch;
+    receipt->epoch_slot = request->epoch_slot;
+    hash_activation_request(
+        staged_receipt, request, &receipt->request_fingerprint);
+    if ((context->flags & LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY) != 0) {
+        receipt->status = LAPLACE_FRAMEWORK_EFFECT_NOT_AUTHORIZED;
+        hash_activation_receipt(receipt);
+        return receipt->status;
+    }
+    if ((context->epoch_mask &
+         (UINT64_C(1) << request->epoch_slot)) == UINT64_C(0)
+#if !defined(LAPLACE_TEST_ACTIVATE_WITHOUT_EXPECTED_EPOCH)
+        || !digest_equal(
+            &context->epochs[request->epoch_slot], &request->expected_epoch)
+#endif
+        ) {
+        receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
+        hash_activation_receipt(receipt);
+        return receipt->status;
+    }
+    if (provider == NULL || provider->prepare == NULL ||
+        provider->commit == NULL || provider->abort == NULL ||
+        provider->abi_major != LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_ABI_MAJOR ||
+        provider->abi_minor > LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_ABI_MINOR ||
+        provider->flags != 0 || provider->reserved != 0) {
+        receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_INVALID;
+        hash_activation_receipt(receipt);
+        return receipt->status;
+    }
+    status = provider->prepare(
+        provider->state, context, staged_receipt, request,
+        &receipt->preparation_fingerprint);
+    if (status != LAPLACE_FRAMEWORK_OK ||
+        digest_is_zero(&receipt->preparation_fingerprint)) {
+        provider->abort(
+            provider->state, request, &receipt->preparation_fingerprint);
+        receipt->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT;
+        receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_ADMISSION_FAILED;
+        hash_activation_receipt(receipt);
+        return receipt->status;
+    }
+    receipt->effect_disposition =
+        LAPLACE_FRAMEWORK_EFFECT_ACTIVATION_ADMITTED;
+    status = provider->commit(
+        provider->state, request, &receipt->preparation_fingerprint,
+        &receipt->activation_fingerprint);
+    if (status != LAPLACE_FRAMEWORK_OK ||
+        digest_is_zero(&receipt->activation_fingerprint)) {
+        provider->abort(
+            provider->state, request, &receipt->preparation_fingerprint);
+        receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_COMMIT_FAILED;
+        hash_activation_receipt(receipt);
+        return receipt->status;
+    }
+    receipt->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_ACTIVATED;
+    receipt->status = LAPLACE_FRAMEWORK_OK;
+    hash_activation_receipt(receipt);
     return LAPLACE_FRAMEWORK_OK;
 }

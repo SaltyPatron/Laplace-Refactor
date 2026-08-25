@@ -12,6 +12,8 @@
 extern "C" {
 #endif
 
+struct laplace_framework_context;
+
 typedef laplace_digest256 laplace_isa_digest256;
 
 typedef struct laplace_isa_value_view {
@@ -35,6 +37,7 @@ typedef struct laplace_isa_instruction {
 typedef struct laplace_isa_program {
     laplace_isa_instruction* instructions;
     laplace_isa_value_view* values;
+    const struct laplace_framework_context* context;
     uint64_t instruction_count;
     uint64_t value_count;
     uint16_t major;
@@ -58,7 +61,8 @@ typedef enum laplace_isa_status {
     LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT = 10,
     LAPLACE_ISA_VALUE_OVERLAP = 11,
     LAPLACE_ISA_INPUT_OUT_OF_RANGE = 12,
-    LAPLACE_ISA_EXECUTION_FAILED = 13
+    LAPLACE_ISA_EXECUTION_FAILED = 13,
+    LAPLACE_ISA_CONTEXT_INVALID = 14
 } laplace_isa_status;
 
 typedef struct laplace_isa_error {
@@ -70,6 +74,7 @@ typedef struct laplace_isa_error {
 
 typedef struct laplace_isa_receipt {
     laplace_isa_digest256 receipt_id;
+    laplace_isa_digest256 context_fingerprint;
     laplace_isa_digest256 program_fingerprint;
     laplace_isa_digest256 input_fingerprint;
     laplace_isa_digest256 output_fingerprint;

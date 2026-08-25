@@ -22,7 +22,7 @@ if [[ ${#dependencies[@]} -eq 0 ]]; then
 fi
 
 for dependency in "${dependencies[@]}"; do
-    source_tree="$source_root/$dependency"
+    source_tree=$(realpath -e -- "$source_root/$dependency")
     revision=$(jq -r --arg dependency "$dependency" \
         '.dependencies[$dependency].revision' "$lock_file")
     expected_archive=$(jq -r --arg dependency "$dependency" \
@@ -32,16 +32,21 @@ for dependency in "${dependencies[@]}"; do
         echo "$dependency source is not a Git upstream tree: $source_tree" >&2
         exit 65
     fi
-    if [[ -n "$(git -C "$source_tree" status --porcelain=v1 --untracked-files=all)" ]]; then
+    git_source=(git -c "safe.directory=$source_tree" -C "$source_tree")
+    if ! source_status=$("${git_source[@]}" status --porcelain=v1 --untracked-files=all); then
+        echo "$dependency source state cannot be inspected: $source_tree" >&2
+        exit 65
+    fi
+    if [[ -n "$source_status" ]]; then
         echo "$dependency source contains changes: $source_tree" >&2
         exit 65
     fi
-    actual_revision=$(git -C "$source_tree" rev-parse HEAD)
+    actual_revision=$("${git_source[@]}" rev-parse HEAD)
     if [[ "$actual_revision" != "$revision" ]]; then
         echo "$dependency revision mismatch: $actual_revision != $revision" >&2
         exit 65
     fi
-    actual_archive=$(git -C "$source_tree" archive --format=tar "$revision" | sha256sum | awk '{print $1}')
+    actual_archive=$("${git_source[@]}" archive --format=tar "$revision" | sha256sum | awk '{print $1}')
     if [[ "$actual_archive" != "$expected_archive" ]]; then
         echo "$dependency source archive mismatch: $actual_archive != $expected_archive" >&2
         exit 65

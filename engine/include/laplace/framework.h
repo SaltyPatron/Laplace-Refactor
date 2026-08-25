@@ -46,6 +46,15 @@ typedef struct laplace_framework_canonical_batch {
     uint32_t flags;
 } laplace_framework_canonical_batch;
 
+typedef struct laplace_framework_canonical_stream {
+    const laplace_framework_canonical_batch* batches;
+    laplace_digest256 source_fingerprint;
+    laplace_digest256 recipe_fingerprint;
+    uint64_t batch_count;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_framework_canonical_stream;
+
 typedef enum laplace_framework_status {
     LAPLACE_FRAMEWORK_OK = 0,
     LAPLACE_FRAMEWORK_INVALID_ARGUMENT = 1,
@@ -57,7 +66,12 @@ typedef enum laplace_framework_status {
     LAPLACE_FRAMEWORK_SINK_BEGIN_FAILED = 7,
     LAPLACE_FRAMEWORK_SINK_STAGE_FAILED = 8,
     LAPLACE_FRAMEWORK_SINK_SEAL_FAILED = 9,
-    LAPLACE_FRAMEWORK_OVERFLOW = 10
+    LAPLACE_FRAMEWORK_OVERFLOW = 10,
+    LAPLACE_FRAMEWORK_EFFECT_NOT_AUTHORIZED = 11,
+    LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID = 12,
+    LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_INVALID = 13,
+    LAPLACE_FRAMEWORK_ACTIVATION_ADMISSION_FAILED = 14,
+    LAPLACE_FRAMEWORK_ACTIVATION_COMMIT_FAILED = 15
 } laplace_framework_status;
 
 typedef laplace_framework_status (*laplace_framework_sink_begin_fn)(
@@ -93,6 +107,8 @@ typedef struct laplace_framework_sink_v1 {
 typedef struct laplace_framework_stream_receipt {
     laplace_digest256 receipt_id;
     laplace_digest256 context_fingerprint;
+    laplace_digest256 source_fingerprint;
+    laplace_digest256 recipe_fingerprint;
     laplace_digest256 stream_fingerprint;
     laplace_digest256 sink_artifacts_fingerprint;
     uint64_t total_records;
@@ -102,8 +118,62 @@ typedef struct laplace_framework_stream_receipt {
     uint64_t failed_batch_index;
     uint64_t failed_sink_index;
     uint32_t record_type;
+    uint32_t effect_disposition;
     laplace_framework_status status;
+    uint32_t reserved;
 } laplace_framework_stream_receipt;
+
+typedef struct laplace_framework_activation_request {
+    laplace_digest256 expected_epoch;
+    laplace_digest256 next_epoch;
+    uint32_t epoch_slot;
+    uint32_t flags;
+    uint64_t reserved;
+} laplace_framework_activation_request;
+
+typedef laplace_framework_status (*laplace_framework_activation_prepare_fn)(
+    void* state,
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_framework_activation_request* request,
+    laplace_digest256* preparation_fingerprint);
+
+typedef laplace_framework_status (*laplace_framework_activation_commit_fn)(
+    void* state,
+    const laplace_framework_activation_request* request,
+    const laplace_digest256* preparation_fingerprint,
+    laplace_digest256* activation_fingerprint);
+
+typedef void (*laplace_framework_activation_abort_fn)(
+    void* state,
+    const laplace_framework_activation_request* request,
+    const laplace_digest256* preparation_fingerprint);
+
+typedef struct laplace_framework_activation_provider_v1 {
+    void* state;
+    laplace_framework_activation_prepare_fn prepare;
+    laplace_framework_activation_commit_fn commit;
+    laplace_framework_activation_abort_fn abort;
+    uint16_t abi_major;
+    uint16_t abi_minor;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_framework_activation_provider_v1;
+
+typedef struct laplace_framework_activation_receipt {
+    laplace_digest256 receipt_id;
+    laplace_digest256 context_fingerprint;
+    laplace_digest256 staged_receipt_id;
+    laplace_digest256 request_fingerprint;
+    laplace_digest256 preparation_fingerprint;
+    laplace_digest256 activation_fingerprint;
+    laplace_digest256 expected_epoch;
+    laplace_digest256 next_epoch;
+    uint32_t epoch_slot;
+    uint32_t effect_disposition;
+    laplace_framework_status status;
+    uint32_t reserved;
+} laplace_framework_activation_receipt;
 
 LAPLACE_API size_t laplace_framework_operation_count(void);
 
@@ -132,11 +202,17 @@ LAPLACE_API laplace_framework_status laplace_framework_canonical_stream_fingerpr
 
 LAPLACE_API laplace_framework_status laplace_framework_stage_canonical_stream(
     const laplace_framework_context* context,
-    const laplace_framework_canonical_batch* batches,
-    size_t batch_count,
+    const laplace_framework_canonical_stream* stream,
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
     laplace_framework_stream_receipt* receipt);
+
+LAPLACE_API laplace_framework_status laplace_framework_activate_staged_stream(
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_framework_activation_request* request,
+    const laplace_framework_activation_provider_v1* provider,
+    laplace_framework_activation_receipt* receipt);
 
 #ifdef __cplusplus
 }

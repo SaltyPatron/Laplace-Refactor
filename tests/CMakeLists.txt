@@ -98,6 +98,78 @@ target_compile_options(laplace_framework_tests PRIVATE
 gtest_discover_tests(laplace_framework_tests
     PROPERTIES LABELS "implementation;framework;registry;batch;sink;receipt")
 
+add_executable(laplace_framework_stream_probe
+    framework_stream_probe.cpp)
+target_link_libraries(laplace_framework_stream_probe PRIVATE Laplace::Framework)
+target_compile_options(laplace_framework_stream_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME framework.canonical-stream-binding-contract
+    COMMAND laplace_framework_stream_probe)
+set_tests_properties(framework.canonical-stream-binding-contract PROPERTIES
+    LABELS "implementation;framework;batch;sink;receipt;contract")
+
+add_library(laplace_framework_stream_mutant STATIC
+    ../engine/src/framework.c)
+target_include_directories(laplace_framework_stream_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_framework_stream_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_framework_stream_mutant
+    PRIVATE LAPLACE_TEST_OMIT_STREAM_BINDING_FROM_RECEIPT=1)
+target_compile_options(laplace_framework_stream_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_framework_stream_mutation_probe
+    framework_stream_probe.cpp)
+target_link_libraries(laplace_framework_stream_mutation_probe
+    PRIVATE laplace_framework_stream_mutant)
+target_compile_options(laplace_framework_stream_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME framework.mutation-stream-binding-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_framework_stream_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_stream_failure.cmake")
+set_tests_properties(framework.mutation-stream-binding-omission-detected PROPERTIES
+    LABELS "framework;batch;sink;receipt;mutation")
+
+add_executable(laplace_framework_activation_probe
+    framework_activation_probe.cpp)
+target_link_libraries(laplace_framework_activation_probe PRIVATE Laplace::Framework)
+target_compile_options(laplace_framework_activation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME framework.activation-epoch-cas-contract
+    COMMAND laplace_framework_activation_probe)
+set_tests_properties(framework.activation-epoch-cas-contract PROPERTIES
+    LABELS "implementation;framework;activation;authority;receipt;contract")
+
+add_library(laplace_framework_activation_mutant STATIC
+    ../engine/src/framework.c)
+target_include_directories(laplace_framework_activation_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_framework_activation_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_framework_activation_mutant
+    PRIVATE LAPLACE_TEST_ACTIVATE_WITHOUT_EXPECTED_EPOCH=1)
+target_compile_options(laplace_framework_activation_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_framework_activation_mutation_probe
+    framework_activation_probe.cpp)
+target_link_libraries(laplace_framework_activation_mutation_probe
+    PRIVATE laplace_framework_activation_mutant)
+target_compile_options(laplace_framework_activation_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME framework.mutation-stale-epoch-activation-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_framework_activation_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_activation_failure.cmake")
+set_tests_properties(framework.mutation-stale-epoch-activation-detected PROPERTIES
+    LABELS "framework;activation;authority;receipt;mutation")
+
 add_test(
     NAME build.repository-output-rejected
     COMMAND "${CMAKE_COMMAND}"
@@ -152,6 +224,7 @@ set_tests_properties(isa.preflight-atomicity-contract PROPERTIES
 
 add_library(laplace_isa_preflight_mutant STATIC
     ../engine/src/identity.c
+    ../engine/src/framework.c
     ../engine/src/isa.c
     ../engine/src/trajectory.c)
 target_include_directories(laplace_isa_preflight_mutant
@@ -177,6 +250,84 @@ add_test(
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_isa_preflight_failure.cmake")
 set_tests_properties(isa.mutation-partial-preflight-detected PROPERTIES
     LABELS "isa;mutation")
+
+add_executable(laplace_isa_registry_probe
+    isa_registry_probe.cpp)
+target_link_libraries(laplace_isa_registry_probe PRIVATE Laplace::Isa)
+target_compile_options(laplace_isa_registry_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME isa.generated-registry-dispatch-contract
+    COMMAND laplace_isa_registry_probe)
+set_tests_properties(isa.generated-registry-dispatch-contract PROPERTIES
+    LABELS "implementation;isa;framework;registry;contract")
+
+add_library(laplace_isa_registry_mutant STATIC
+    ../engine/src/identity.c
+    ../engine/src/framework.c
+    ../engine/src/isa.c
+    ../engine/src/trajectory.c)
+target_include_directories(laplace_isa_registry_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_isa_registry_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_isa_registry_mutant
+    PRIVATE LAPLACE_TEST_DISPATCH_FIRST_OPERATION_ONLY=1)
+target_compile_options(laplace_isa_registry_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_isa_registry_mutation_probe
+    isa_registry_probe.cpp)
+target_link_libraries(laplace_isa_registry_mutation_probe
+    PRIVATE laplace_isa_registry_mutant)
+target_compile_options(laplace_isa_registry_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME isa.mutation-private-dispatch-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_isa_registry_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_isa_registry_failure.cmake")
+set_tests_properties(isa.mutation-private-dispatch-detected PROPERTIES
+    LABELS "isa;framework;registry;mutation")
+
+add_executable(laplace_isa_context_probe
+    isa_context_probe.cpp)
+target_link_libraries(laplace_isa_context_probe PRIVATE Laplace::Isa)
+target_compile_options(laplace_isa_context_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME isa.execution-context-binding-contract
+    COMMAND laplace_isa_context_probe)
+set_tests_properties(isa.execution-context-binding-contract PROPERTIES
+    LABELS "implementation;isa;framework;context;receipt;contract")
+
+add_library(laplace_isa_context_mutant STATIC
+    ../engine/src/identity.c
+    ../engine/src/framework.c
+    ../engine/src/isa.c
+    ../engine/src/trajectory.c)
+target_include_directories(laplace_isa_context_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_isa_context_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_isa_context_mutant
+    PRIVATE LAPLACE_TEST_OMIT_CONTEXT_FROM_ISA_RECEIPT=1)
+target_compile_options(laplace_isa_context_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_isa_context_mutation_probe
+    isa_context_probe.cpp)
+target_link_libraries(laplace_isa_context_mutation_probe
+    PRIVATE laplace_isa_context_mutant)
+target_compile_options(laplace_isa_context_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME isa.mutation-context-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_isa_context_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_isa_context_failure.cmake")
+set_tests_properties(isa.mutation-context-omission-detected PROPERTIES
+    LABELS "isa;framework;context;receipt;mutation")
 
 add_executable(laplace_identity_contract_probe
     identity_contract_probe.cpp)

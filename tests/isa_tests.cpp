@@ -1,5 +1,6 @@
 #include "laplace/isa.h"
 #include "laplace/trajectory.h"
+#include "context_fixture.h"
 
 #include <array>
 #include <cstdint>
@@ -84,9 +85,11 @@ laplace_isa_program Program(
     std::size_t instruction_count,
     laplace_isa_value_view* values,
     std::size_t value_count) {
+    static const laplace_framework_context context = laplace_test_context(0u);
     return laplace_isa_program{
         instructions,
         values,
+        &context,
         static_cast<std::uint64_t>(instruction_count),
         static_cast<std::uint64_t>(value_count),
         LAPLACE_ISA_MAJOR,
@@ -98,11 +101,47 @@ laplace_isa_program Program(
 
 TEST(IsaAbi, ContractAssignmentsAreStable) {
     static_assert(LAPLACE_ISA_MAJOR == 1u);
-    static_assert(LAPLACE_ISA_MINOR == 1u);
+    static_assert(LAPLACE_ISA_MINOR == 2u);
     static_assert(LAPLACE_ISA_VALUE_U32_VECTOR != LAPLACE_ISA_VALUE_ID128_VECTOR);
     static_assert(sizeof(laplace_isa_digest256) == 32u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH, 0x00020001u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_TRAJECTORY_COMPOSITION_DECODE_BATCH, 0x00030001u);
+}
+
+TEST(IsaContext, IsMandatoryAndBoundToProgramAndReceiptIdentity) {
+    std::uint32_t position = 0x41u;
+    laplace_id128 output_a{};
+    laplace_id128 output_b{};
+    std::array<laplace_isa_value_view, 2> values_a{{
+        InputView(&position, 1u), OutputView(&output_a, 1u)}};
+    std::array<laplace_isa_value_view, 2> values_b{{
+        InputView(&position, 1u), OutputView(&output_b, 1u)}};
+    auto instruction_a = IdentityInstruction(0u, 1u);
+    auto instruction_b = IdentityInstruction(0u, 1u);
+    auto program_a = Program(&instruction_a, 1u, values_a.data(), values_a.size());
+    auto program_b = Program(&instruction_b, 1u, values_b.data(), values_b.size());
+    const auto context_a = laplace_test_context(0u);
+    const auto context_b = laplace_test_context(1u);
+    program_a.context = &context_a;
+    program_b.context = &context_b;
+    laplace_isa_receipt receipt_a{};
+    laplace_isa_receipt receipt_b{};
+    laplace_isa_error error{};
+
+    program_a.context = nullptr;
+    EXPECT_EQ(laplace_isa_validate(&program_a, &error), LAPLACE_ISA_CONTEXT_INVALID);
+    program_a.context = &context_a;
+    ASSERT_EQ(laplace_isa_execute(&program_a, &receipt_a, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(laplace_isa_execute(&program_b, &receipt_b, &error), LAPLACE_ISA_OK);
+    EXPECT_NE(std::memcmp(receipt_a.context_fingerprint.bytes,
+                          receipt_b.context_fingerprint.bytes,
+                          sizeof(receipt_a.context_fingerprint.bytes)), 0);
+    EXPECT_NE(std::memcmp(receipt_a.program_fingerprint.bytes,
+                          receipt_b.program_fingerprint.bytes,
+                          sizeof(receipt_a.program_fingerprint.bytes)), 0);
+    EXPECT_NE(std::memcmp(receipt_a.receipt_id.bytes,
+                          receipt_b.receipt_id.bytes,
+                          sizeof(receipt_a.receipt_id.bytes)), 0);
 }
 
 TEST(IsaExecution, CodepointBatchMatchesCanonicalIdentity) {

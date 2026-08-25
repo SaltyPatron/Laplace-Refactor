@@ -4,7 +4,26 @@
 #include "laplace/identity.h"
 #include "laplace/isa.h"
 #include "laplace/execution.h"
+#include "laplace/framework.h"
 #include "laplace/trajectory.h"
+
+static void initialize_context(laplace_framework_context* context) {
+    size_t index;
+    memset(context, 0, sizeof(*context));
+    context->major = LAPLACE_FRAMEWORK_MAJOR;
+    context->minor = LAPLACE_FRAMEWORK_MINOR;
+    context->flags = LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY;
+    context->epoch_mask = UINT64_C(1) << LAPLACE_FRAMEWORK_EPOCH_IDENTITY;
+    for (index = 0; index < sizeof(context->epochs[0].bytes); ++index) {
+        context->epochs[LAPLACE_FRAMEWORK_EPOCH_IDENTITY].bytes[index] =
+            (uint8_t)(UINT8_C(1) + (uint8_t)index);
+        context->authority_fingerprint.bytes[index] =
+            (uint8_t)(UINT8_C(0x80) + (uint8_t)index);
+    }
+    context->resource_grant.memory_bytes = UINT64_C(1048576);
+    context->resource_grant.cpu_slots = UINT32_C(1);
+    context->resource_grant.io_slots = UINT32_C(1);
+}
 
 int main(void) {
     static const uint8_t expected[LAPLACE_IDENTITY_BYTES] = {
@@ -18,6 +37,7 @@ int main(void) {
     laplace_isa_program program;
     laplace_isa_receipt receipt;
     laplace_isa_error error;
+    laplace_framework_context context;
     laplace_trajectory_carrier carrier;
     laplace_composition_occurrence direct_occurrence;
     laplace_composition_occurrence isa_occurrence;
@@ -41,6 +61,7 @@ int main(void) {
     memset(&program, 0, sizeof(program));
     memset(&receipt, 0, sizeof(receipt));
     memset(&error, 0, sizeof(error));
+    initialize_context(&context);
 
     values[0].data = &position;
     values[0].count = 1;
@@ -62,6 +83,7 @@ int main(void) {
 
     program.instructions = &instruction;
     program.values = values;
+    program.context = &context;
     program.instruction_count = 1;
     program.value_count = 2;
     program.major = LAPLACE_ISA_MAJOR;
