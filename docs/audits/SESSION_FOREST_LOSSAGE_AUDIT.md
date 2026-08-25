@@ -118,7 +118,7 @@ framework and dependency bootstrap
 | --- | --- | --- |
 | Packed mantissas with metadata are a deliberate exact trajectory/index carrier, not a type/identity defect. | Incorrect assistant interpretation existed. | Corrected in trajectory contracts, constitution, operational model, tests, and issue #7. |
 | Structural `contains`, `precedes`, `follows`, multiplicity, ancestry, and scoped co-occurrence are calculated from physicality trajectories. | Present in earlier evidence but briefly lost during model-code review. | Enforced by LP-PHYSICALITY-001, native trajectory tests, and issues #6/#7. |
-| The whole physical session must be audited and progress must persist across sessions. | Direct evidence stopped at 94 messages/23:02 UTC. | Extended to 190 messages and owned by issue #24. |
+| The whole physical session must be audited and progress must persist across sessions. | Direct evidence stopped at 94 messages/23:02 UTC. | Extended to 190 messages; fixed-prefix audit issue #24 closed after both canonical-main CI routes reproduced it. |
 | GitHub issues, milestones, CI, self-hosted runner, commits, and PRs are the live work system. | Only issues #2-#10 existed and later stages had no owners. | Nine milestones and issues #12-#24 now mirror the complete program; #23 is the forest-level parent. |
 | SQL and C# orchestrate; common semantics live once in C/C++/SPI with typed reusable interfaces and generated bindings. | Constitution captured it; the first PostgreSQL fixture temporarily used repeated scalar subqueries. | Fixture now compares one array row; issue #12 owns plan/RBAR/hex-path gates and #5 owns generation. |
 | Hex/text conversion must not infest binary/numeric hot paths. | Test-process hex transport was not clearly bounded. | Binary product types remain `bytea`/native values; issue #12 requires conversion confinement and measured plans. |
@@ -131,7 +131,7 @@ framework and dependency bootstrap
 | `/opt/laplace/external`, `/vault/Data`, `/vault/models`, Stockfish, Cute Chess, Lichess, models, corpora, standards, and service responses are dependencies. | Initial dependency list omitted important non-linked inputs. | Dependency intent/locks and issue #3 own the complete graph and update policy. |
 | The clean database may be used and must not remain behind a read-only historical boundary. | No clean product cluster issue existed. | Issue #12 owns configurable clean-cluster lifecycle, tuning, plans, roles, and separation. |
 | Shell/config environments and bootstrap utilities must expose tools cleanly without hard-coded paths or copied secrets. | Requested but not completed. | Issues #12 and #21 own generated configuration and service/package lifecycle. |
-| Runner storage belongs under `/var/lib/agents`; `/opt/laplace` is product output; build/log/artifact state stays outside Git. | Runner was initially placed under `/opt/laplace`. | Runner is online under `laplace-runner`; issue #8 remains open until custom CI passes. |
+| Runner storage belongs under `/var/lib/agents`; `/opt/laplace` is product output; build/log/artifact state stays outside Git. | Runner was initially placed under `/opt/laplace`. | Runner is online under `laplace-runner`; issue #8 closed only after the custom-stack route passed on canonical `main`. |
 | Historical forensics and clean product construction are two outputs; forensics cannot block product after its stop rule. | Investigation and product work were interleaved. | Issue #2 owns bounded freeze/cutover; provider-purpose analysis remains a separate non-blocking study. |
 | The chess ingest is cancelled; the flawed database may supply evidence but cannot define the clean schema. | Long ingest was active earlier. | No ingest-resume action remains. Fischer persists only as an evidence/referential acceptance fixture under issue #16. |
 
@@ -161,26 +161,34 @@ The custom runner is online and did execute PR #11. Its first run failed before 
 because Git rejected the shared dependency roots as dubiously owned. Commit `4fc07ac`
 changes dependency verification to trust only each declared source root per command,
 without changing global runner configuration or weakening revision, clean-tree,
-archive, or license verification. Issue #8 remains open until the rerun passes.
+archive, or license verification.
+
+After the fixed audit cutoff, PR #11 was squash-merged as canonical `main` commit
+`8cb3975458a4dd4998c110e5d5cbf9d5c72a34ae`. The self-hosted product-stack run
+`32813924659` and independent clean-room run `32813924664` both passed on that exact
+commit. Issue #8 therefore closed with runner evidence and issue #24 closed with the
+fixed-prefix session manifest, requirement binding, issue map, and both post-merge CI
+routes. Issue #10 was reopened because PR #11 advanced but did not complete its full
+framework acceptance contract.
 
 ## Sequencing and priority
 
-The active order is:
+The active order after the audit checkpoint is:
 
-1. Make PR #11 and the custom runner green; merge only after PostgreSQL-profile proof.
-2. Finish issue #24 and issue #2 sufficiently to remove path/repository ambiguity.
-3. Complete Phase 1 dependencies, clean cluster, configuration, and installed-object
-   closure (#3, #8, #12).
-4. Complete the universal framework rather than adding isolated feature operations
+1. Finish issue #2 sufficiently to remove path/repository ambiguity and activate the
+   clean repository without destroying the preserved historical tree.
+2. Complete Phase 1 dependencies, clean cluster, configuration, and installed-object
+   closure (#3 and #12; #8 is complete runner evidence).
+3. Complete the universal framework rather than adding isolated feature operations
    (#4, #5, #6, #10).
-5. Use Unicode as the first real end-to-end framework proof, including database and
+4. Use Unicode as the first real end-to-end framework proof, including database and
    perfcache sibling outputs (#7, #13, #14).
-6. Implement the shared bulk composition/deposition pipeline and prove its declared
+5. Implement the shared bulk composition/deposition pipeline and prove its declared
    performance (#15).
-7. Build evidence/adjudication, then guidance/search, then semantic realization and
+6. Build evidence/adjudication, then guidance/search, then semantic realization and
    discovery (#16-#19).
-8. Build model symmetry only over the working substrate/cognition machinery (#20).
-9. Deliver surfaces/packages and run complete-product acceptance (#21/#22).
+7. Build model symmetry only over the working substrate/cognition machinery (#20).
+8. Deliver surfaces/packages and run complete-product acceptance (#21/#22).
 
 Later-stage specification and acceptance work can proceed ahead of implementation,
 but a later stage cannot create a private execution framework or claim product
@@ -195,7 +203,7 @@ names its operational stages, prerequisite stages, authoritative inputs, generat
 state, persistence/acceleration roles, semantic owner, batch/resource/failure rules,
 positive acceptance, and deliberate defect.
 
-Requirements validation already rejects a missing product-to-stage mapping and a
-cyclic operation graph. The next traceability increment must also verify that every
-open implementation issue names a valid operational stage and phase, so GitHub cannot
-quietly become a second disconnected roadmap.
+Requirements validation rejects a missing product-to-stage mapping, a cyclic operation
+graph, a stage without a phase or issue, an undeclared issue reference, and a tracked
+issue without an operational owner. GitHub therefore mirrors the machine-readable
+roadmap instead of becoming a second disconnected one.
