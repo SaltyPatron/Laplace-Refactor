@@ -4,6 +4,10 @@ function(laplace_configure_execution_contract contract_path output_path)
     string(JSON contract_schema GET "${contract_json}" schema)
     string(JSON major GET "${contract_json}" version major)
     string(JSON minor GET "${contract_json}" version minor)
+    string(JSON provider_major GET "${contract_json}" runtime_provider_abi major)
+    string(JSON provider_minor GET "${contract_json}" runtime_provider_abi minor)
+    string(JSON provider_none GET "${contract_json}" runtime_provider_abi flags none)
+    string(JSON work_calculation GET "${contract_json}" work_flags calculation_only)
     string(JSON core_unknown GET "${contract_json}" core_kinds unknown)
     string(JSON core_performance GET "${contract_json}" core_kinds performance)
     string(JSON core_efficiency GET "${contract_json}" core_kinds efficiency)
@@ -26,8 +30,10 @@ function(laplace_configure_execution_contract contract_path output_path)
     if(NOT contract_schema STREQUAL "laplace.execution-contract/v1")
         message(FATAL_ERROR "Unsupported execution contract schema: ${contract_schema}")
     endif()
-    if(NOT major EQUAL 1 OR NOT minor EQUAL 0)
-        message(FATAL_ERROR "Current execution contract version must remain 1.0")
+    if(NOT major EQUAL 1 OR NOT minor EQUAL 1
+       OR NOT provider_major EQUAL 1 OR NOT provider_minor EQUAL 0)
+        message(FATAL_ERROR
+            "Current execution contract must remain 1.1 with provider ABI 1.0")
     endif()
     if(NOT core_unknown EQUAL 0 OR NOT core_performance EQUAL 1
        OR NOT core_efficiency EQUAL 2)
@@ -42,7 +48,8 @@ function(laplace_configure_execution_contract contract_path output_path)
        OR NOT topology_hybrid EQUAL 4 OR NOT isa_sse2 EQUAL 1
        OR NOT isa_avx EQUAL 2 OR NOT isa_avx2 EQUAL 4
        OR NOT isa_avx512f EQUAL 8 OR NOT isa_fma EQUAL 16
-       OR NOT isa_bmi2 EQUAL 32 OR NOT isa_neon EQUAL 64)
+       OR NOT isa_bmi2 EQUAL 32 OR NOT isa_neon EQUAL 64
+       OR NOT provider_none EQUAL 0 OR NOT work_calculation EQUAL 1)
         message(FATAL_ERROR "Execution flag assignments changed")
     endif()
 
@@ -66,6 +73,10 @@ function(laplace_configure_execution_contract contract_path output_path)
     set(LAPLACE_EXECUTION_ISA_X86_FMA "${isa_fma}")
     set(LAPLACE_EXECUTION_ISA_X86_BMI2 "${isa_bmi2}")
     set(LAPLACE_EXECUTION_ISA_ARM_NEON "${isa_neon}")
+    set(LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MAJOR "${provider_major}")
+    set(LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MINOR "${provider_minor}")
+    set(LAPLACE_EXECUTION_KNOWN_PROVIDER_FLAGS "${provider_none}")
+    set(LAPLACE_EXECUTION_WORK_CALCULATION_ONLY "${work_calculation}")
     get_filename_component(output_directory "${output_path}" DIRECTORY)
     file(MAKE_DIRECTORY "${output_directory}")
     configure_file(

@@ -4,15 +4,19 @@
 
 #include "laplace/execution.h"
 
+#include "blake3.h"
+
 #include <algorithm>
 #include <array>
 #include <cerrno>
 #include <charconv>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
 #include <map>
+#include <new>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -1105,5 +1109,312 @@ extern "C" laplace_execution_status laplace_execution_plan_work(
     next.inner_threads_per_worker = request->inner_threads_per_worker;
     next.io_slots = request->required_io_slots;
     *plan = next;
+    return LAPLACE_EXECUTION_OK;
+}
+
+namespace {
+
+constexpr std::uint8_t execution_grant_domain[] =
+    "laplace-execution-grant-v1";
+constexpr std::uint8_t execution_request_domain[] =
+    "laplace-execution-work-request-v1";
+constexpr std::uint8_t execution_plan_domain[] =
+    "laplace-execution-work-plan-v1";
+constexpr std::uint8_t execution_serial_provider_domain[] =
+    "laplace-execution-serial-provider-v1";
+constexpr std::uint8_t execution_result_domain[] =
+    "laplace-execution-work-results-v1";
+constexpr std::uint8_t execution_receipt_domain[] =
+    "laplace-execution-work-receipt-v1";
+
+void execution_hash_u32(blake3_hasher& hasher, const std::uint32_t value) {
+    const std::uint8_t bytes[4] = {
+        static_cast<std::uint8_t>(value),
+        static_cast<std::uint8_t>(value >> 8U),
+        static_cast<std::uint8_t>(value >> 16U),
+        static_cast<std::uint8_t>(value >> 24U)};
+    blake3_hasher_update(&hasher, bytes, sizeof(bytes));
+}
+
+void execution_hash_u64(blake3_hasher& hasher, const std::uint64_t value) {
+    std::uint8_t bytes[8];
+    for (std::size_t index = 0U; index < sizeof(bytes); ++index) {
+        bytes[index] = static_cast<std::uint8_t>(value >> (index * 8U));
+    }
+    blake3_hasher_update(&hasher, bytes, sizeof(bytes));
+}
+
+template <std::size_t Size>
+void execution_hasher(
+    blake3_hasher& hasher,
+    const std::uint8_t (&domain)[Size]) {
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(&hasher, domain, Size - 1U);
+}
+
+void execution_finish(blake3_hasher& hasher, laplace_digest256& digest) {
+    blake3_hasher_finalize(&hasher, digest.bytes, sizeof(digest.bytes));
+}
+
+bool execution_digest_is_zero(const laplace_digest256& digest) {
+    std::uint8_t aggregate{};
+    for (const std::uint8_t byte : digest.bytes) {
+        aggregate = static_cast<std::uint8_t>(aggregate | byte);
+    }
+    return aggregate == 0U;
+}
+
+void execution_hash_grant(
+    const laplace_execution_grant& grant,
+    laplace_digest256& digest) {
+    blake3_hasher hasher;
+    execution_hasher(hasher, execution_grant_domain);
+    execution_hash_u64(hasher, grant.memory_bytes);
+    execution_hash_u32(hasher, grant.cpu_slots);
+    execution_hash_u32(hasher, grant.io_slots);
+    execution_finish(hasher, digest);
+}
+
+void execution_hash_request(
+    const laplace_execution_work_request& request,
+    laplace_digest256& digest) {
+    blake3_hasher hasher;
+    execution_hasher(hasher, execution_request_domain);
+    execution_hash_u64(hasher, request.item_count);
+    execution_hash_u64(hasher, request.resident_memory_bytes);
+    execution_hash_u64(hasher, request.memory_bytes_per_item);
+    execution_hash_u64(hasher, request.minimum_chunk_items);
+    execution_hash_u32(hasher, request.outer_worker_limit);
+    execution_hash_u32(hasher, request.inner_threads_per_worker);
+    execution_hash_u32(hasher, request.required_io_slots);
+    execution_finish(hasher, digest);
+}
+
+void execution_hash_plan(
+    const laplace_execution_work_plan& plan,
+    laplace_digest256& digest) {
+    blake3_hasher hasher;
+    execution_hasher(hasher, execution_plan_domain);
+    execution_hash_u64(hasher, plan.chunk_items);
+    execution_hash_u64(hasher, plan.chunk_count);
+    execution_hash_u64(hasher, plan.peak_memory_bytes);
+    execution_hash_u32(hasher, plan.outer_workers);
+    execution_hash_u32(hasher, plan.inner_threads_per_worker);
+    execution_hash_u32(hasher, plan.io_slots);
+    execution_finish(hasher, digest);
+}
+
+void execution_hash_results(
+    const std::vector<laplace_execution_chunk>& chunks,
+    const std::vector<laplace_digest256>& results,
+    laplace_digest256& digest) {
+    blake3_hasher hasher;
+    execution_hasher(hasher, execution_result_domain);
+    execution_hash_u64(hasher, static_cast<std::uint64_t>(chunks.size()));
+    for (std::size_t index = 0U; index < chunks.size(); ++index) {
+        execution_hash_u64(hasher, chunks[index].chunk_index);
+        execution_hash_u64(hasher, chunks[index].first_item);
+        execution_hash_u64(hasher, chunks[index].item_count);
+        blake3_hasher_update(
+            &hasher, results[index].bytes, sizeof(results[index].bytes));
+    }
+    execution_finish(hasher, digest);
+}
+
+void execution_hash_receipt(laplace_execution_work_receipt& receipt) {
+    blake3_hasher hasher;
+    execution_hasher(hasher, execution_receipt_domain);
+    execution_hash_u32(hasher, receipt.flags);
+    execution_hash_u32(hasher, receipt.status);
+    execution_hash_u64(hasher, receipt.completed_chunks);
+    execution_hash_u64(hasher, receipt.completed_items);
+    blake3_hasher_update(
+        &hasher, receipt.grant_fingerprint.bytes,
+        sizeof(receipt.grant_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt.request_fingerprint.bytes,
+        sizeof(receipt.request_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt.plan_fingerprint.bytes,
+        sizeof(receipt.plan_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt.provider_fingerprint.bytes,
+        sizeof(receipt.provider_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt.result_fingerprint.bytes,
+        sizeof(receipt.result_fingerprint.bytes));
+    execution_finish(hasher, receipt.receipt_id);
+}
+
+laplace_execution_status serial_prepare(
+    void*,
+    const laplace_execution_grant*,
+    const laplace_execution_work_plan*) {
+    return LAPLACE_EXECUTION_OK;
+}
+
+laplace_execution_status serial_run(
+    void*,
+    const laplace_execution_work_plan*,
+    const laplace_execution_chunk* chunks,
+    const std::size_t chunk_count,
+    void* task_state,
+    const laplace_execution_work_task_fn task,
+    laplace_digest256* result_fingerprints) {
+    for (std::size_t index = 0U; index < chunk_count; ++index) {
+        const laplace_execution_status status = task(
+            task_state, &chunks[index], &result_fingerprints[index]);
+        if (status != LAPLACE_EXECUTION_OK) {
+            return status;
+        }
+    }
+    return LAPLACE_EXECUTION_OK;
+}
+
+laplace_execution_status serial_finish(void*) {
+    return LAPLACE_EXECUTION_OK;
+}
+
+void serial_abort(void*) {}
+
+}  // namespace
+
+extern "C" laplace_execution_status laplace_execution_serial_provider(
+    laplace_execution_runtime_provider_v1* const provider) {
+    if (provider == nullptr) {
+        return LAPLACE_EXECUTION_INVALID_ARGUMENT;
+    }
+    laplace_execution_runtime_provider_v1 next{};
+    blake3_hasher hasher;
+    execution_hasher(hasher, execution_serial_provider_domain);
+    execution_hash_u32(hasher, LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MAJOR);
+    execution_hash_u32(hasher, LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MINOR);
+    execution_finish(hasher, next.provider_fingerprint);
+    next.prepare = serial_prepare;
+    next.run = serial_run;
+    next.finish = serial_finish;
+    next.abort = serial_abort;
+    next.abi_major = LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MAJOR;
+    next.abi_minor = LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MINOR;
+    next.flags = LAPLACE_EXECUTION_KNOWN_PROVIDER_FLAGS;
+    *provider = next;
+    return LAPLACE_EXECUTION_OK;
+}
+
+extern "C" laplace_execution_status laplace_execution_run_work(
+    const laplace_execution_grant* const grant,
+    const laplace_execution_work_request* const request,
+    const laplace_execution_runtime_provider_v1* const provider,
+    void* const task_state,
+    const laplace_execution_work_task_fn task,
+    laplace_execution_work_receipt* const receipt) {
+    if (receipt == nullptr) {
+        return LAPLACE_EXECUTION_INVALID_ARGUMENT;
+    }
+    std::memset(receipt, 0, sizeof(*receipt));
+    receipt->flags = LAPLACE_EXECUTION_WORK_CALCULATION_ONLY;
+    if (grant == nullptr || request == nullptr || provider == nullptr || task == nullptr) {
+        receipt->status = LAPLACE_EXECUTION_INVALID_ARGUMENT;
+        execution_hash_receipt(*receipt);
+        return LAPLACE_EXECUTION_INVALID_ARGUMENT;
+    }
+    execution_hash_grant(*grant, receipt->grant_fingerprint);
+    execution_hash_request(*request, receipt->request_fingerprint);
+    receipt->provider_fingerprint = provider->provider_fingerprint;
+    laplace_execution_status status =
+        laplace_execution_plan_work(grant, request, &receipt->plan);
+    if (status != LAPLACE_EXECUTION_OK) {
+        receipt->status = status;
+        execution_hash_receipt(*receipt);
+        return status;
+    }
+    execution_hash_plan(receipt->plan, receipt->plan_fingerprint);
+    if (provider->prepare == nullptr || provider->run == nullptr ||
+        provider->finish == nullptr || provider->abort == nullptr ||
+        provider->abi_major != LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MAJOR ||
+        provider->abi_minor > LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MINOR ||
+        provider->flags != LAPLACE_EXECUTION_KNOWN_PROVIDER_FLAGS ||
+        provider->reserved != 0U ||
+        execution_digest_is_zero(provider->provider_fingerprint)) {
+        receipt->status = LAPLACE_EXECUTION_PROVIDER_INVALID;
+        execution_hash_receipt(*receipt);
+        return LAPLACE_EXECUTION_PROVIDER_INVALID;
+    }
+    if (receipt->plan.chunk_count >
+        static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
+        receipt->status = LAPLACE_EXECUTION_OVERFLOW;
+        execution_hash_receipt(*receipt);
+        return LAPLACE_EXECUTION_OVERFLOW;
+    }
+
+    std::vector<laplace_execution_chunk> chunks;
+    std::vector<laplace_digest256> results;
+    try {
+        const std::size_t chunk_count =
+            static_cast<std::size_t>(receipt->plan.chunk_count);
+        chunks.resize(chunk_count);
+        results.resize(chunk_count);
+        std::uint64_t first_item{};
+        for (std::size_t index = 0U; index < chunk_count; ++index) {
+            const std::uint64_t remaining = request->item_count - first_item;
+            const std::uint64_t item_count =
+                std::min(receipt->plan.chunk_items, remaining);
+            chunks[index] = {
+                static_cast<std::uint64_t>(index), first_item, item_count};
+            first_item += item_count;
+        }
+        if (first_item != request->item_count) {
+            receipt->status = LAPLACE_EXECUTION_OVERFLOW;
+            execution_hash_receipt(*receipt);
+            return LAPLACE_EXECUTION_OVERFLOW;
+        }
+    } catch (const std::bad_alloc&) {
+        receipt->status = LAPLACE_EXECUTION_RESOURCE_INSUFFICIENT;
+        execution_hash_receipt(*receipt);
+        return LAPLACE_EXECUTION_RESOURCE_INSUFFICIENT;
+    }
+
+    status = provider->prepare(provider->state, grant, &receipt->plan);
+    if (status != LAPLACE_EXECUTION_OK) {
+        provider->abort(provider->state);
+        receipt->status = LAPLACE_EXECUTION_PROVIDER_PREPARE_FAILED;
+        execution_hash_receipt(*receipt);
+        return LAPLACE_EXECUTION_PROVIDER_PREPARE_FAILED;
+    }
+    status = provider->run(
+        provider->state, &receipt->plan, chunks.data(), chunks.size(),
+        task_state, task, results.data());
+
+    for (std::size_t index = 0U; index < results.size(); ++index) {
+        if (!execution_digest_is_zero(results[index])) {
+            ++receipt->completed_chunks;
+            receipt->completed_items += chunks[index].item_count;
+        }
+    }
+    execution_hash_results(chunks, results, receipt->result_fingerprint);
+    if (status != LAPLACE_EXECUTION_OK) {
+        provider->abort(provider->state);
+        receipt->status = LAPLACE_EXECUTION_PROVIDER_RUN_FAILED;
+        execution_hash_receipt(*receipt);
+        return LAPLACE_EXECUTION_PROVIDER_RUN_FAILED;
+    }
+#if !defined(LAPLACE_TEST_SKIP_CHUNK_RESULT_VALIDATION)
+    if (receipt->completed_chunks != receipt->plan.chunk_count ||
+        receipt->completed_items != request->item_count) {
+        provider->abort(provider->state);
+        receipt->status = LAPLACE_EXECUTION_RESULT_INVALID;
+        execution_hash_receipt(*receipt);
+        return LAPLACE_EXECUTION_RESULT_INVALID;
+    }
+#endif
+    status = provider->finish(provider->state);
+    if (status != LAPLACE_EXECUTION_OK) {
+        provider->abort(provider->state);
+        receipt->status = LAPLACE_EXECUTION_PROVIDER_FINISH_FAILED;
+        execution_hash_receipt(*receipt);
+        return LAPLACE_EXECUTION_PROVIDER_FINISH_FAILED;
+    }
+    receipt->status = LAPLACE_EXECUTION_OK;
+    execution_hash_receipt(*receipt);
     return LAPLACE_EXECUTION_OK;
 }

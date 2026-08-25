@@ -25,6 +25,25 @@ static void initialize_context(laplace_framework_context* context) {
     context->resource_grant.io_slots = UINT32_C(1);
 }
 
+static laplace_execution_status fingerprint_chunk(
+    void* state,
+    const laplace_execution_chunk* chunk,
+    laplace_digest256* result_fingerprint) {
+    size_t index;
+    uint64_t* completed_items = (uint64_t*)state;
+    if (completed_items == NULL || chunk == NULL || result_fingerprint == NULL) {
+        return LAPLACE_EXECUTION_INVALID_ARGUMENT;
+    }
+    memset(result_fingerprint, 0, sizeof(*result_fingerprint));
+    for (index = 0; index < sizeof(result_fingerprint->bytes); ++index) {
+        result_fingerprint->bytes[index] =
+            (uint8_t)(chunk->chunk_index + chunk->first_item +
+                      chunk->item_count + (uint64_t)index + UINT64_C(1));
+    }
+    *completed_items += chunk->item_count;
+    return LAPLACE_EXECUTION_OK;
+}
+
 int main(void) {
     static const uint8_t expected[LAPLACE_IDENTITY_BYTES] = {
         0x81u, 0x3eu, 0x9bu, 0x72u, 0x91u, 0x41u, 0xe7u, 0xf3u,
@@ -45,6 +64,11 @@ int main(void) {
     uint64_t metadata;
     uint32_t position = UINT32_C(0x32);
     laplace_execution_topology_size topology_size;
+    laplace_execution_grant execution_grant;
+    laplace_execution_work_request execution_request;
+    laplace_execution_runtime_provider_v1 execution_provider;
+    laplace_execution_work_receipt execution_receipt;
+    uint64_t completed_items;
     size_t index;
     if (laplace_identity_codepoint(position, &identity) !=
         LAPLACE_IDENTITY_OK) {
@@ -150,6 +174,24 @@ int main(void) {
     if (laplace_execution_topology_measure_host(&topology_size) != LAPLACE_EXECUTION_OK ||
         topology_size.processor_count == 0 || topology_size.memory_domain_count == 0) {
         return 8;
+    }
+    execution_grant = (laplace_execution_grant){UINT64_C(4096), UINT32_C(4), UINT32_C(1)};
+    execution_request = (laplace_execution_work_request){
+        UINT64_C(23), UINT64_C(256), UINT64_C(16), UINT64_C(2),
+        UINT32_C(4), UINT32_C(1), UINT32_C(0), UINT32_C(0)};
+    memset(&execution_provider, 0, sizeof(execution_provider));
+    memset(&execution_receipt, 0, sizeof(execution_receipt));
+    completed_items = 0;
+    if (laplace_execution_serial_provider(&execution_provider) != LAPLACE_EXECUTION_OK ||
+        laplace_execution_run_work(
+            &execution_grant, &execution_request, &execution_provider,
+            &completed_items, fingerprint_chunk, &execution_receipt) !=
+            LAPLACE_EXECUTION_OK ||
+        completed_items != execution_request.item_count ||
+        execution_receipt.completed_items != execution_request.item_count ||
+        execution_receipt.completed_chunks != execution_receipt.plan.chunk_count ||
+        execution_receipt.status != LAPLACE_EXECUTION_OK) {
+        return 9;
     }
     return 0;
 }

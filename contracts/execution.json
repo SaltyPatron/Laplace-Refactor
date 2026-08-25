@@ -2,7 +2,15 @@
   "schema": "laplace.execution-contract/v1",
   "version": {
     "major": 1,
-    "minor": 0
+    "minor": 1
+  },
+  "runtime_provider_abi": {
+    "major": 1,
+    "minor": 0,
+    "flags": {"none": 0}
+  },
+  "work_flags": {
+    "calculation_only": 1
   },
   "core_kinds": {
     "unknown": 0,

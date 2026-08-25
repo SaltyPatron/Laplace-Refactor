@@ -6,6 +6,7 @@
 
 #include "laplace/contract/execution.h"
 #include "laplace/export.h"
+#include "laplace/types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -119,8 +120,70 @@ typedef enum laplace_execution_status {
     LAPLACE_EXECUTION_RESOURCE_INSUFFICIENT = 4,
     LAPLACE_EXECUTION_OVERFLOW = 5,
     LAPLACE_EXECUTION_OBSERVATION_FAILED = 6,
-    LAPLACE_EXECUTION_PLATFORM_UNSUPPORTED = 7
+    LAPLACE_EXECUTION_PLATFORM_UNSUPPORTED = 7,
+    LAPLACE_EXECUTION_PROVIDER_INVALID = 8,
+    LAPLACE_EXECUTION_PROVIDER_PREPARE_FAILED = 9,
+    LAPLACE_EXECUTION_PROVIDER_RUN_FAILED = 10,
+    LAPLACE_EXECUTION_PROVIDER_FINISH_FAILED = 11,
+    LAPLACE_EXECUTION_RESULT_INVALID = 12
 } laplace_execution_status;
+
+typedef struct laplace_execution_chunk {
+    uint64_t chunk_index;
+    uint64_t first_item;
+    uint64_t item_count;
+} laplace_execution_chunk;
+
+typedef laplace_execution_status (*laplace_execution_work_task_fn)(
+    void* state,
+    const laplace_execution_chunk* chunk,
+    laplace_digest256* result_fingerprint);
+
+typedef laplace_execution_status (*laplace_execution_provider_prepare_fn)(
+    void* state,
+    const laplace_execution_grant* grant,
+    const laplace_execution_work_plan* plan);
+
+typedef laplace_execution_status (*laplace_execution_provider_run_fn)(
+    void* state,
+    const laplace_execution_work_plan* plan,
+    const laplace_execution_chunk* chunks,
+    size_t chunk_count,
+    void* task_state,
+    laplace_execution_work_task_fn task,
+    laplace_digest256* result_fingerprints);
+
+typedef laplace_execution_status (*laplace_execution_provider_finish_fn)(
+    void* state);
+
+typedef void (*laplace_execution_provider_abort_fn)(void* state);
+
+typedef struct laplace_execution_runtime_provider_v1 {
+    void* state;
+    laplace_digest256 provider_fingerprint;
+    laplace_execution_provider_prepare_fn prepare;
+    laplace_execution_provider_run_fn run;
+    laplace_execution_provider_finish_fn finish;
+    laplace_execution_provider_abort_fn abort;
+    uint16_t abi_major;
+    uint16_t abi_minor;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_execution_runtime_provider_v1;
+
+typedef struct laplace_execution_work_receipt {
+    laplace_digest256 receipt_id;
+    laplace_digest256 grant_fingerprint;
+    laplace_digest256 request_fingerprint;
+    laplace_digest256 plan_fingerprint;
+    laplace_digest256 provider_fingerprint;
+    laplace_digest256 result_fingerprint;
+    laplace_execution_work_plan plan;
+    uint64_t completed_chunks;
+    uint64_t completed_items;
+    uint32_t flags;
+    uint32_t status;
+} laplace_execution_work_receipt;
 
 LAPLACE_API laplace_execution_status laplace_execution_topology_measure_host(
     laplace_execution_topology_size* required);
@@ -146,6 +209,17 @@ LAPLACE_API laplace_execution_status laplace_execution_plan_work(
     const laplace_execution_grant* grant,
     const laplace_execution_work_request* request,
     laplace_execution_work_plan* plan);
+
+LAPLACE_API laplace_execution_status laplace_execution_serial_provider(
+    laplace_execution_runtime_provider_v1* provider);
+
+LAPLACE_API laplace_execution_status laplace_execution_run_work(
+    const laplace_execution_grant* grant,
+    const laplace_execution_work_request* request,
+    const laplace_execution_runtime_provider_v1* provider,
+    void* task_state,
+    laplace_execution_work_task_fn task,
+    laplace_execution_work_receipt* receipt);
 
 #ifdef __cplusplus
 }

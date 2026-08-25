@@ -435,6 +435,29 @@
       "defect_controls": ["execution.mutation-resource-duplication-detected"]
     },
     {
+      "ctest_name": "ExecutionRuntime.SerialAndReverseProvidersShareExactChunksAndResults",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["provider-independent chunk plan", "schedule-order-independent result receipt", "provider-specific physical receipt"],
+      "defect_controls": ["execution.mutation-missing-chunk-result-detected"]
+    },
+    {
+      "ctest_name": "ExecutionRuntime.MissingChunkResultAbortsAndCannotPublishSuccess",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["missing provider result", "abort before finish", "typed incomplete receipt"],
+      "defect_controls": ["execution.mutation-missing-chunk-result-detected"]
+    },
+    {
+      "ctest_name": "ExecutionRuntime.TaskFailureAbortsWithAnExactPartialReceipt",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
+      "covered_dimensions": ["task failure", "exact completed prefix", "provider abort"]
+    },
+    {
+      "ctest_name": "execution.mutation-missing-chunk-result-detected",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["missing chunk result validation bypass is detected"],
+      "controls": "ExecutionRuntime.MissingChunkResultAbortsAndCannotPublishSuccess"
+    },
+    {
       "ctest_name": "execution.mutation-resource-duplication-detected",
       "evidence_targets": ["LP-TEST-NESTED-PARALLEL-BUDGET"],
       "covered_dimensions": ["duplicated parent CPU memory and I O grants are detected"],

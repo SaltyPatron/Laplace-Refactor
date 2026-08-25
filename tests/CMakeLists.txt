@@ -386,6 +386,7 @@ target_include_directories(laplace_execution_resource_mutant
         "${CMAKE_BINARY_DIR}/generated")
 target_compile_definitions(laplace_execution_resource_mutant
     PRIVATE LAPLACE_TEST_DUPLICATE_PARENT_GRANT=1)
+target_link_libraries(laplace_execution_resource_mutant PRIVATE BLAKE3::blake3)
 target_compile_options(laplace_execution_resource_mutant PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
 
@@ -402,6 +403,32 @@ add_test(
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_execution_failure.cmake")
 set_tests_properties(execution.mutation-resource-duplication-detected PROPERTIES
     LABELS "execution;resources;mutation")
+
+add_library(laplace_execution_result_mutant STATIC
+    ../engine/src/execution.cpp)
+target_include_directories(laplace_execution_result_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_execution_result_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_execution_result_mutant
+    PRIVATE LAPLACE_TEST_SKIP_CHUNK_RESULT_VALIDATION=1)
+target_compile_options(laplace_execution_result_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
+
+add_executable(laplace_execution_result_mutation_probe
+    execution_result_probe.cpp)
+target_link_libraries(laplace_execution_result_mutation_probe
+    PRIVATE laplace_execution_result_mutant)
+target_compile_options(laplace_execution_result_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME execution.mutation-missing-chunk-result-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_execution_result_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_execution_result_failure.cmake")
+set_tests_properties(execution.mutation-missing-chunk-result-detected PROPERTIES
+    LABELS "execution;resources;receipt;mutation")
 
 add_executable(laplace_isa_preflight_probe
     isa_preflight_probe.cpp)
