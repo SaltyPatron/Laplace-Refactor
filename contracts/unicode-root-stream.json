@@ -1,0 +1,88 @@
+{
+  "schema": "laplace.unicode-root-stream-contract/v1",
+  "record_type": 65536,
+  "record_version": 1,
+  "canonical_order": [
+    "atom",
+    "ducet-position",
+    "ducet-contraction",
+    "normalization-composition",
+    "root-manifest"
+  ],
+  "wire": {
+    "name": "Laplace-Unicode-Root-Frame-v1",
+    "byte_order": "little-endian",
+    "header_bytes": 32,
+    "magic_hex": "4c555246",
+    "fixed_fields": [
+      {"name": "magic", "offset": 0, "encoding": "bytes[4]", "value": "4c555246"},
+      {"name": "record_version", "offset": 4, "encoding": "u16le", "value": 1},
+      {"name": "header_bytes", "offset": 6, "encoding": "u16le", "value": 32},
+      {"name": "frame_bytes", "offset": 8, "encoding": "u32le"},
+      {"name": "frame_kind", "offset": 12, "encoding": "u16le-enum"},
+      {"name": "flags", "offset": 14, "encoding": "u16le", "value": 0},
+      {"name": "section_ordinal", "offset": 16, "encoding": "u64le"},
+      {"name": "payload_bytes", "offset": 24, "encoding": "u32le"},
+      {"name": "reserved_zero", "offset": 28, "encoding": "u32le", "value": 0}
+    ]
+  },
+  "frame_kinds": [
+    {"id": 1, "name": "atom", "payload": "Laplace-Unicode-Atom-Record-v1", "order": "codepoint-position-ascending", "count": 1114112},
+    {"id": 2, "name": "ducet-position", "payload": "complete-collation-element-sequence-plus-equivalence-key-and-provenance", "order": "codepoint-position-ascending", "count": 1114112},
+    {"id": 3, "name": "ducet-contraction", "payload": "source-sequence-plus-complete-collation-element-sequence-and-provenance", "order": "unsigned-position-sequence-lexicographic", "count": "calculated-from-complete-DUCET"},
+    {"id": 4, "name": "normalization-composition", "payload": "starter-position-plus-combining-position-plus-composite-position", "order": "starter-then-combining-then-composite-ascending", "count": "calculated-after-complete-atom-stream"},
+    {"id": 5, "name": "root-manifest", "payload": "section-counts-and-fingerprints-plus-source-recipe-and-numeric-provider-bindings", "order": "terminal-singleton", "count": 1}
+  ],
+  "payload_contracts": {
+    "ducet-position-v1": {
+      "magic_hex": "4c554450",
+      "header_bytes": 32,
+      "fields": ["codepoint-position-u32le", "provenance-u8", "collation-element-count-u32le", "equivalence-key-bytes-u32le"],
+      "provenance": {"explicit": 1, "implicit": 2, "hangul": 3, "lup-surrogate-extension": 4},
+      "collation_element_bytes": 8,
+      "collation_element": ["variable-marker-u8", "reserved-zero-u8", "primary-u16be", "secondary-u16be", "tertiary-u16be"],
+      "rules": ["complete-collation-element-sequence-required", "equivalence-key-required", "no-first-weight-or-truncated-key"]
+    },
+    "ducet-contraction-v1": {
+      "magic_hex": "4c554352",
+      "header_bytes": 32,
+      "fields": ["source-line-ordinal-u32le", "sequence-count-u32le", "collation-element-count-u32le"],
+      "sequence": "complete-u32le-codepoint-position-sequence",
+      "collation_element": "same-complete-8-byte-DUCET-element-as-ducet-position-v1",
+      "rules": ["sequence-count-at-least-two", "source-line-ordinal-is-provenance-not-identity", "canonical-section-order-is-sequence-lexicographic-not-source-line-order"]
+    },
+    "normalization-composition-v1": {
+      "magic_hex": "4c554e43",
+      "record_bytes": 32,
+      "fields": ["starter-position-u32le", "combining-position-u32le", "composite-position-u32le"],
+      "rules": ["all-positions-are-unicode-position-addresses", "source-order-does-not-enter-record", "algorithmic-Hangul-rule-is-bound-by-root-manifest"]
+    },
+    "root-manifest-v1": {
+      "magic_hex": "4c55524d",
+      "record_bytes": 352,
+      "counts": ["atom", "ducet-position", "ducet-contraction", "normalization-composition", "total-root-frames"],
+      "bindings": ["source", "recipe", "canonical-numeric-provider-receipt", "root-stream-contract", "atom-section", "ducet-position-section", "ducet-contraction-section", "normalization-composition-section", "algorithmic-Hangul-rule"],
+      "rules": ["atom-and-ducet-position-counts-equal-1114112", "total-count-includes-terminal-manifest", "manifest-does-not-contain-final-framework-stream-fingerprint"]
+    }
+  },
+  "section_rules": [
+    "section-ordinals-start-at-zero-and-are-contiguous-within-each-kind",
+    "kind-transitions-follow-canonical-order-and-never-reopen-a-prior-kind",
+    "atom-frame-section-ordinal-equals-codepoint-position",
+    "atom-frame-payload-is-a-complete-byte-exact-LUAR-record",
+    "root-manifest-is-last-and-occurs-exactly-once",
+    "root-manifest-binds-every-section-count-and-fingerprint-without-self-referencing-the-final-framework-stream-receipt"
+  ],
+  "fanout": {
+    "calculation_count": 1,
+    "producer_record_type": 65536,
+    "consumer_rule": "PostgreSQL-and-perfcache-sinks-consume-the-identical-canonical-batches-without-recalculation",
+    "activation_rule": "all-required-sink-artifacts-are-bound-by-one-staged-receipt-and-activate-as-one-root-epoch"
+  },
+  "authority_boundaries": {
+    "outer-frame-is-not-content-identity": true,
+    "sidecars-do-not-create-new-atom-identities": true,
+    "stream-partitioning-does-not-change-stream-fingerprint": true,
+    "this-contract-does-not-by-itself-activate-unicode": true
+  }
+}

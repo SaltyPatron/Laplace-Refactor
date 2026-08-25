@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the versioned Unicode-root contracts without implementing the root."""
+"""Validate the versioned Unicode-root contracts."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ class ContractError(RuntimeError):
 CONTRACT_FILES = {
     "source": "unicode-source.json",
     "atom": "unicode-atom-record.json",
+    "stream": "unicode-root-stream.json",
     "ducet": "ducet-totalization.json",
     "geometry": "super-fibonacci-hopf.json",
     "hilbert": "hilbert-numeric.json",
@@ -234,6 +235,46 @@ def _validate_atom(document: dict[str, Any]) -> None:
     _require(document.get("record_authority", {}).get("activation") == "forbidden-by-this-contract-slice", "contract-only work claims Unicode activation")
 
 
+def _validate_stream(document: dict[str, Any]) -> None:
+    _require(document.get("schema") == "laplace.unicode-root-stream-contract/v1", "Unicode root-stream schema changed")
+    _require(document.get("record_type") == 65536 and document.get("record_version") == 1, "Unicode root stream type or version changed")
+    _require(document.get("canonical_order") == ["atom", "ducet-position", "ducet-contraction", "normalization-composition", "root-manifest"], "Unicode root section order changed")
+    wire = document.get("wire", {})
+    _require(wire.get("header_bytes") == 32 and wire.get("magic_hex") == "4c555246", "Unicode root frame header changed")
+    fields = wire.get("fixed_fields", [])
+    _require([field.get("offset") for field in fields] == [0, 4, 6, 8, 12, 14, 16, 24, 28], "Unicode root frame layout changed")
+    kinds = document.get("frame_kinds", [])
+    _require([item.get("id") for item in kinds] == [1, 2, 3, 4, 5], "Unicode root frame-kind enum changed")
+    _require([item.get("name") for item in kinds] == document.get("canonical_order"), "Unicode root frame kinds and section order diverged")
+    _require(kinds[0].get("payload") == "Laplace-Unicode-Atom-Record-v1" and kinds[0].get("count") == 1114112, "Unicode atom section no longer carries the complete atom population")
+    _require(kinds[1].get("payload") == "complete-collation-element-sequence-plus-equivalence-key-and-provenance" and kinds[1].get("count") == 1114112, "Unicode DUCET position sidecar was reduced or made partial")
+    _require(kinds[2].get("payload") == "source-sequence-plus-complete-collation-element-sequence-and-provenance", "Unicode DUCET contraction sidecar was flattened or reduced")
+    _require(kinds[3].get("payload") == "starter-position-plus-combining-position-plus-composite-position", "Unicode reverse-composition sidecar changed")
+    _require(kinds[4].get("order") == "terminal-singleton" and kinds[4].get("count") == 1, "Unicode root manifest is not a terminal singleton")
+    payloads = document.get("payload_contracts", {})
+    ducet_position = payloads.get("ducet-position-v1", {})
+    _require(ducet_position.get("magic_hex") == "4c554450" and ducet_position.get("header_bytes") == 32, "DUCET position wire header changed")
+    _require(ducet_position.get("provenance") == {"explicit": 1, "implicit": 2, "hangul": 3, "lup-surrogate-extension": 4}, "DUCET position provenance enum changed")
+    _require(ducet_position.get("collation_element") == ["variable-marker-u8", "reserved-zero-u8", "primary-u16be", "secondary-u16be", "tertiary-u16be"], "DUCET collation element was reduced or reordered")
+    _require("no-first-weight-or-truncated-key" in ducet_position.get("rules", []), "DUCET position payload permits an approximation")
+    composition = payloads.get("normalization-composition-v1", {})
+    _require(composition.get("magic_hex") == "4c554e43" and composition.get("record_bytes") == 32, "normalization composition wire changed")
+    _require(composition.get("fields") == ["starter-position-u32le", "combining-position-u32le", "composite-position-u32le"], "normalization composition fields changed")
+    contraction = payloads.get("ducet-contraction-v1", {})
+    _require(contraction.get("magic_hex") == "4c554352" and contraction.get("header_bytes") == 32, "DUCET contraction wire changed")
+    _require(contraction.get("sequence") == "complete-u32le-codepoint-position-sequence" and contraction.get("collation_element") == "same-complete-8-byte-DUCET-element-as-ducet-position-v1", "DUCET contraction structure was reduced")
+    manifest = payloads.get("root-manifest-v1", {})
+    _require(manifest.get("magic_hex") == "4c55524d" and manifest.get("record_bytes") == 352, "Unicode root manifest wire changed")
+    _require(manifest.get("counts") == ["atom", "ducet-position", "ducet-contraction", "normalization-composition", "total-root-frames"], "Unicode root manifest counts changed")
+    _require(manifest.get("bindings") == ["source", "recipe", "canonical-numeric-provider-receipt", "root-stream-contract", "atom-section", "ducet-position-section", "ducet-contraction-section", "normalization-composition-section", "algorithmic-Hangul-rule"], "Unicode root manifest lost a required binding")
+    fanout = document.get("fanout", {})
+    _require(fanout.get("calculation_count") == 1 and fanout.get("producer_record_type") == 65536, "Unicode root is no longer one canonical producer calculation")
+    _require(fanout.get("consumer_rule") == "PostgreSQL-and-perfcache-sinks-consume-the-identical-canonical-batches-without-recalculation", "Unicode root sinks may independently recalculate")
+    _require(fanout.get("activation_rule") == "all-required-sink-artifacts-are-bound-by-one-staged-receipt-and-activate-as-one-root-epoch", "Unicode root sink artifacts may activate incoherently")
+    boundaries = document.get("authority_boundaries", {})
+    _require(all(boundaries.get(name) is True for name in ["outer-frame-is-not-content-identity", "sidecars-do-not-create-new-atom-identities", "stream-partitioning-does-not-change-stream-fingerprint", "this-contract-does-not-by-itself-activate-unicode"]), "Unicode root stream crossed an authority boundary")
+
+
 def _validate_ducet(document: dict[str, Any]) -> None:
     _require(document.get("schema") == "laplace.ducet-totalization-contract/v1", "DUCET totalization schema changed")
     _require(document.get("population") == 1114112, "DUCET placement population changed")
@@ -349,6 +390,7 @@ def validate_contracts(
     }
     _validate_source(documents["source"], source_root)
     _validate_atom(documents["atom"])
+    _validate_stream(documents["stream"])
     _validate_ducet(documents["ducet"])
     _validate_geometry(documents["geometry"])
     _validate_hilbert_numeric(documents["hilbert"], verify_numeric_provider)

@@ -80,6 +80,23 @@ std::vector<std::uint8_t> Encode(const laplace_unicode_atom_record& record) {
     return output;
 }
 
+std::vector<std::uint8_t> Frame(
+    std::uint16_t kind,
+    std::uint64_t ordinal,
+    const std::vector<std::uint8_t>& payload) {
+    const laplace_unicode_root_frame frame{
+        payload.data(), ordinal, static_cast<std::uint32_t>(payload.size()),
+        kind, 0u};
+    std::size_t bytes = 0u;
+    EXPECT_EQ(laplace_unicode_root_frame_measure(&frame, &bytes),
+              LAPLACE_UNICODE_OK);
+    std::vector<std::uint8_t> output(bytes);
+    EXPECT_EQ(laplace_unicode_root_frame_encode(
+                  &frame, output.data(), output.size(), &bytes),
+              LAPLACE_UNICODE_OK);
+    return output;
+}
+
 TEST(UnicodeNumeric, ExactRationalQuantizationClosesBoundariesAndZero) {
     struct Vector { double input; std::uint32_t output; };
     const std::array<Vector, 8> vectors{{
@@ -155,6 +172,241 @@ TEST(UnicodeAtomCodec, RejectsIdentityAndFieldKindCorruption) {
         LAPLACE_UNICODE_PAYLOAD_BOOLEAN;
     EXPECT_EQ(laplace_unicode_atom_record_open(
                   encoded.data(), encoded.size(), &view, &consumed),
+              LAPLACE_UNICODE_RECORD_INVALID);
+}
+
+TEST(UnicodeRootFrameCodec, WrapsAtomWithoutChangingIdentityOrBytes) {
+    const auto atom = Encode(Atom(0x41u));
+    const auto encoded = Frame(LAPLACE_UNICODE_ROOT_FRAME_ATOM, 0x41u, atom);
+    laplace_unicode_root_frame_view frame{};
+    laplace_unicode_atom_record_view decoded_atom{};
+    std::size_t consumed = 0u;
+    ASSERT_EQ(laplace_unicode_root_frame_open(
+                  encoded.data(), encoded.size(), &frame, &consumed),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(consumed, encoded.size());
+    EXPECT_EQ(frame.value.kind, LAPLACE_UNICODE_ROOT_FRAME_ATOM);
+    EXPECT_EQ(frame.value.section_ordinal, 0x41u);
+    EXPECT_EQ(frame.value.payload_bytes, atom.size());
+    EXPECT_EQ(std::memcmp(frame.value.payload, atom.data(), atom.size()), 0);
+    ASSERT_EQ(laplace_unicode_atom_record_open(
+                  frame.value.payload, frame.value.payload_bytes,
+                  &decoded_atom, &consumed),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(decoded_atom.value.codepoint_position, 0x41u);
+}
+
+TEST(UnicodeRootFrameCodec, RejectsOrdinalOrNestedAtomCorruption) {
+    const auto atom = Encode(Atom(0x41u));
+    laplace_unicode_root_frame mismatched{
+        atom.data(), 0x42u, static_cast<std::uint32_t>(atom.size()),
+        LAPLACE_UNICODE_ROOT_FRAME_ATOM, 0u};
+    std::size_t bytes = 0u;
+    EXPECT_EQ(laplace_unicode_root_frame_measure(&mismatched, &bytes),
+              LAPLACE_UNICODE_RECORD_INVALID);
+
+    auto encoded = Frame(LAPLACE_UNICODE_ROOT_FRAME_ATOM, 0x41u, atom);
+    encoded[LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES + 44u] ^= 0x01u;
+    laplace_unicode_root_frame_view view{};
+    EXPECT_EQ(laplace_unicode_root_frame_open(
+                  encoded.data(), encoded.size(), &view, &bytes),
+              LAPLACE_UNICODE_RECORD_INVALID);
+}
+
+TEST(UnicodeDucetPositionCodec, PreservesEveryWeightMarkerAndKeyByte) {
+    const std::array<laplace_unicode_collation_element, 2> elements{{
+        {0x1234u, 0x0020u, 0x0002u, 0u, 0u},
+        {0xabceu, 0x0030u, 0x0003u, 1u, 0u}}};
+    const std::array<std::uint8_t, 9> key{{
+        0x12u, 0x34u, 0xabu, 0xceu, 0x00u, 0x00u, 0x41u, 0x01u, 0x42u}};
+    const laplace_unicode_ducet_position_record record{
+        elements.data(), key.data(), 0x41u,
+        static_cast<std::uint32_t>(elements.size()),
+        static_cast<std::uint32_t>(key.size()),
+        LAPLACE_UNICODE_DUCET_EXPLICIT, {0u, 0u, 0u}};
+    std::size_t bytes = 0u;
+    ASSERT_EQ(laplace_unicode_ducet_position_measure(&record, &bytes),
+              LAPLACE_UNICODE_OK);
+    std::vector<std::uint8_t> encoded(bytes);
+    ASSERT_EQ(laplace_unicode_ducet_position_encode(
+                  &record, encoded.data(), encoded.size(), &bytes),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_ducet_position_view view{};
+    ASSERT_EQ(laplace_unicode_ducet_position_open(
+                  encoded.data(), encoded.size(), &view, &bytes),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(view.codepoint_position, 0x41u);
+    EXPECT_EQ(view.provenance, LAPLACE_UNICODE_DUCET_EXPLICIT);
+    EXPECT_EQ(view.element_count, elements.size());
+    EXPECT_EQ(view.equivalence_key_bytes, key.size());
+    EXPECT_EQ(std::memcmp(view.equivalence_key, key.data(), key.size()), 0);
+    for (std::uint32_t index = 0u; index < view.element_count; ++index) {
+        laplace_unicode_collation_element decoded{};
+        ASSERT_EQ(laplace_unicode_ducet_position_element(
+                      &view, index, &decoded), LAPLACE_UNICODE_OK);
+        EXPECT_EQ(decoded.primary, elements[index].primary);
+        EXPECT_EQ(decoded.secondary, elements[index].secondary);
+        EXPECT_EQ(decoded.tertiary, elements[index].tertiary);
+        EXPECT_EQ(decoded.variable, elements[index].variable);
+    }
+    const auto framed = Frame(
+        LAPLACE_UNICODE_ROOT_FRAME_DUCET_POSITION, 0x41u, encoded);
+    laplace_unicode_root_frame_view frame{};
+    EXPECT_EQ(laplace_unicode_root_frame_open(
+                  framed.data(), framed.size(), &frame, &bytes),
+              LAPLACE_UNICODE_OK);
+}
+
+TEST(UnicodeDucetPositionCodec, RejectsTruncationAndMarkerCorruption) {
+    const std::array<laplace_unicode_collation_element, 1> elements{{
+        {0x1234u, 0x0020u, 0x0002u, 0u, 0u}}};
+    const std::array<std::uint8_t, 2> key{{0x12u, 0x34u}};
+    const laplace_unicode_ducet_position_record record{
+        elements.data(), key.data(), 0x41u, 1u, 2u,
+        LAPLACE_UNICODE_DUCET_EXPLICIT, {0u, 0u, 0u}};
+    std::size_t bytes = 0u;
+    ASSERT_EQ(laplace_unicode_ducet_position_measure(&record, &bytes),
+              LAPLACE_UNICODE_OK);
+    std::vector<std::uint8_t> encoded(bytes);
+    ASSERT_EQ(laplace_unicode_ducet_position_encode(
+                  &record, encoded.data(), encoded.size(), &bytes),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_ducet_position_view view{};
+    EXPECT_EQ(laplace_unicode_ducet_position_open(
+                  encoded.data(), encoded.size() - 1u, &view, &bytes),
+              LAPLACE_UNICODE_RECORD_INVALID);
+    encoded[LAPLACE_UNICODE_DUCET_POSITION_HEADER_BYTES] = 2u;
+    EXPECT_EQ(laplace_unicode_ducet_position_open(
+                  encoded.data(), encoded.size(), &view, &bytes),
+              LAPLACE_UNICODE_RECORD_INVALID);
+}
+
+TEST(UnicodeNormalizationCompositionCodec, RoundTripsTypedPositionsAndFrame) {
+    const laplace_unicode_normalization_composition composition{
+        0x0041u, 0x030au, 0x00c5u};
+    std::array<std::uint8_t, LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES>
+        encoded{};
+    ASSERT_EQ(laplace_unicode_normalization_composition_encode(
+                  &composition, encoded.data()), LAPLACE_UNICODE_OK);
+    laplace_unicode_normalization_composition decoded{};
+    std::size_t consumed = 0u;
+    ASSERT_EQ(laplace_unicode_normalization_composition_open(
+                  encoded.data(), encoded.size(), &decoded, &consumed),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(consumed, encoded.size());
+    EXPECT_EQ(decoded.starter_position, composition.starter_position);
+    EXPECT_EQ(decoded.combining_position, composition.combining_position);
+    EXPECT_EQ(decoded.composite_position, composition.composite_position);
+    const std::vector<std::uint8_t> payload(encoded.begin(), encoded.end());
+    const auto framed = Frame(
+        LAPLACE_UNICODE_ROOT_FRAME_NORMALIZATION_COMPOSITION, 0u, payload);
+    laplace_unicode_root_frame_view frame{};
+    EXPECT_EQ(laplace_unicode_root_frame_open(
+                  framed.data(), framed.size(), &frame, &consumed),
+              LAPLACE_UNICODE_OK);
+}
+
+TEST(UnicodeDucetContractionCodec, PreservesSequenceWeightsAndSourceProvenance) {
+    const std::array<std::uint32_t, 3> sequence{{0x0063u, 0x0068u, 0x0061u}};
+    const std::array<laplace_unicode_collation_element, 2> elements{{
+        {0x1234u, 0x0020u, 0x0002u, 0u, 0u},
+        {0x5678u, 0x0030u, 0x0003u, 1u, 0u}}};
+    const laplace_unicode_ducet_contraction_record record{
+        sequence.data(), elements.data(), 812u,
+        static_cast<std::uint32_t>(sequence.size()),
+        static_cast<std::uint32_t>(elements.size())};
+    std::size_t bytes = 0u;
+    ASSERT_EQ(laplace_unicode_ducet_contraction_measure(&record, &bytes),
+              LAPLACE_UNICODE_OK);
+    std::vector<std::uint8_t> encoded(bytes);
+    ASSERT_EQ(laplace_unicode_ducet_contraction_encode(
+                  &record, encoded.data(), encoded.size(), &bytes),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_ducet_contraction_view view{};
+    ASSERT_EQ(laplace_unicode_ducet_contraction_open(
+                  encoded.data(), encoded.size(), &view, &bytes),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(view.source_line_ordinal, 812u);
+    EXPECT_EQ(view.sequence_count, sequence.size());
+    EXPECT_EQ(view.element_count, elements.size());
+    for (std::uint32_t index = 0u; index < view.sequence_count; ++index) {
+        std::uint32_t position = 0u;
+        ASSERT_EQ(laplace_unicode_ducet_contraction_position(
+                      &view, index, &position), LAPLACE_UNICODE_OK);
+        EXPECT_EQ(position, sequence[index]);
+    }
+    for (std::uint32_t index = 0u; index < view.element_count; ++index) {
+        laplace_unicode_collation_element element{};
+        ASSERT_EQ(laplace_unicode_ducet_contraction_element(
+                      &view, index, &element), LAPLACE_UNICODE_OK);
+        EXPECT_EQ(element.primary, elements[index].primary);
+        EXPECT_EQ(element.secondary, elements[index].secondary);
+        EXPECT_EQ(element.tertiary, elements[index].tertiary);
+        EXPECT_EQ(element.variable, elements[index].variable);
+    }
+    const auto framed = Frame(
+        LAPLACE_UNICODE_ROOT_FRAME_DUCET_CONTRACTION, 0u, encoded);
+    laplace_unicode_root_frame_view frame{};
+    EXPECT_EQ(laplace_unicode_root_frame_open(
+                  framed.data(), framed.size(), &frame, &bytes),
+              LAPLACE_UNICODE_OK);
+}
+
+TEST(UnicodeRootManifestCodec, BindsEveryRequiredSectionWithoutCircularReceipt) {
+    laplace_unicode_root_manifest manifest{};
+    manifest.atom_count = LAPLACE_UNICODE_ROOT_POPULATION;
+    manifest.ducet_position_count = LAPLACE_UNICODE_ROOT_POPULATION;
+    manifest.ducet_contraction_count = 17u;
+    manifest.normalization_composition_count = 941u;
+    manifest.total_frame_count = manifest.atom_count +
+        manifest.ducet_position_count + manifest.ducet_contraction_count +
+        manifest.normalization_composition_count + 1u;
+    const std::array<laplace_digest256*, 9> fingerprints{{
+        &manifest.source_fingerprint,
+        &manifest.recipe_fingerprint,
+        &manifest.numeric_provider_receipt,
+        &manifest.stream_contract_fingerprint,
+        &manifest.atom_section_fingerprint,
+        &manifest.ducet_position_section_fingerprint,
+        &manifest.ducet_contraction_section_fingerprint,
+        &manifest.normalization_composition_section_fingerprint,
+        &manifest.algorithmic_hangul_rule_fingerprint}};
+    for (std::size_t digest = 0u; digest < 9u; ++digest) {
+        for (std::size_t byte = 0u; byte < 32u; ++byte) {
+            fingerprints[digest]->bytes[byte] = static_cast<std::uint8_t>(
+                1u + digest * 32u + byte);
+        }
+    }
+    std::array<std::uint8_t, LAPLACE_UNICODE_ROOT_MANIFEST_BYTES> encoded{};
+    ASSERT_EQ(laplace_unicode_root_manifest_encode(&manifest, encoded.data()),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_root_manifest decoded{};
+    std::size_t consumed = 0u;
+    ASSERT_EQ(laplace_unicode_root_manifest_open(
+                  encoded.data(), encoded.size(), &decoded, &consumed),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(consumed, encoded.size());
+    EXPECT_EQ(decoded.total_frame_count, manifest.total_frame_count);
+    EXPECT_EQ(std::memcmp(&decoded, &manifest, sizeof(manifest)), 0);
+    const std::vector<std::uint8_t> payload(encoded.begin(), encoded.end());
+    const auto framed = Frame(LAPLACE_UNICODE_ROOT_FRAME_MANIFEST, 0u, payload);
+    laplace_unicode_root_frame_view frame{};
+    EXPECT_EQ(laplace_unicode_root_frame_open(
+                  framed.data(), framed.size(), &frame, &consumed),
+              LAPLACE_UNICODE_OK);
+}
+
+TEST(UnicodeRootManifestCodec, RejectsPartialPopulationAndWrongTotal) {
+    laplace_unicode_root_manifest manifest{};
+    manifest.atom_count = LAPLACE_UNICODE_ROOT_POPULATION - 1u;
+    manifest.ducet_position_count = LAPLACE_UNICODE_ROOT_POPULATION;
+    manifest.total_frame_count = manifest.atom_count +
+        manifest.ducet_position_count + 1u;
+    std::array<std::uint8_t, LAPLACE_UNICODE_ROOT_MANIFEST_BYTES> encoded{};
+    EXPECT_EQ(laplace_unicode_root_manifest_encode(&manifest, encoded.data()),
+              LAPLACE_UNICODE_RECORD_INVALID);
+    manifest.atom_count = LAPLACE_UNICODE_ROOT_POPULATION;
+    EXPECT_EQ(laplace_unicode_root_manifest_encode(&manifest, encoded.data()),
               LAPLACE_UNICODE_RECORD_INVALID);
 }
 

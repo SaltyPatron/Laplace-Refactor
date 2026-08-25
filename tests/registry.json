@@ -969,6 +969,62 @@
       "defect_controls": ["unicode-root.mutation-codec-and-hilbert-defects-detected"]
     },
     {
+      "ctest_name": "UnicodeRootFrameCodec.WrapsAtomWithoutChangingIdentityOrBytes",
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "covered_dimensions": ["canonical root frame", "unchanged nested atom bytes", "stream ordinal"]
+    },
+    {
+      "ctest_name": "UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption",
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "covered_dimensions": ["frame ordinal binding", "nested payload validation"],
+      "defect_controls": ["unicode-root.mutation-codec-and-hilbert-defects-detected"]
+    },
+    {
+      "ctest_name": "UnicodeDucetPositionCodec.PreservesEveryWeightMarkerAndKeyByte",
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "covered_dimensions": ["complete collation-element sequence", "variable markers", "full equivalence key", "provenance"]
+    },
+    {
+      "ctest_name": "UnicodeDucetPositionCodec.RejectsTruncationAndMarkerCorruption",
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
+      "covered_dimensions": ["bounded variable record", "typed variable marker"],
+      "defect_controls": ["unicode-root.contract-and-mutation"]
+    },
+    {
+      "ctest_name": "UnicodeNormalizationCompositionCodec.RoundTripsTypedPositionsAndFrame",
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-EXACT-SEMANTIC-SEPARATION"],
+      "covered_dimensions": ["typed normalization composition", "root-stream framing"]
+    },
+    {
+      "ctest_name": "UnicodeDucetContractionCodec.PreservesSequenceWeightsAndSourceProvenance",
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "covered_dimensions": ["complete contraction sequence", "complete collation elements", "source-line provenance"]
+    },
+    {
+      "ctest_name": "UnicodeRootManifestCodec.BindsEveryRequiredSectionWithoutCircularReceipt",
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT"],
+      "covered_dimensions": ["complete root counts", "ordered section fingerprints", "source recipe numeric and algorithm bindings"]
+    },
+    {
+      "ctest_name": "UnicodeRootManifestCodec.RejectsPartialPopulationAndWrongTotal",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
+      "covered_dimensions": ["complete 1114112-position atom section", "complete DUCET position section", "terminal frame accounting"]
+    },
+    {
+      "ctest_name": "UnicodeNumericProvider.CalculatesBatchWithExactReceiptAndStableBits",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "covered_dimensions": ["single canonical oneAPI provider", "exact coordinate bits", "Hopf projection", "stable runtime receipt", "deterministic replay"],
+      "defect_controls": ["unicode-numeric.mutation-axis-order-detected"]
+    },
+    {
+      "ctest_name": "unicode-numeric.mutation-axis-order-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT"],
+      "covered_dimensions": ["Super-Fibonacci axis-order defect is detected"],
+      "controls": "UnicodeNumericProvider.CalculatesBatchWithExactReceiptAndStableBits"
+    },
+    {
       "ctest_name": "UnicodeTier0Module.ValidatesDirectAddressIdentityGeometryAndLocality",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-HILBERT-LOCALITY", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
       "covered_dimensions": ["dense position addressing", "atom identity", "coordinate quantization", "Hilbert locality validation"]
@@ -976,8 +1032,8 @@
     {
       "ctest_name": "unicode-root.mutation-codec-and-hilbert-defects-detected",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-HILBERT-NUMERIC-CONTRACT"],
-      "covered_dimensions": ["identity-validation omission and Hilbert axis reversal are detected"],
-      "controls": "UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption;UnicodeHilbert.MatchesAllContractOrientationVectors"
+      "covered_dimensions": ["identity-validation omission, nested-frame validation omission, and Hilbert axis reversal are detected"],
+      "controls": "UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption;UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption;UnicodeHilbert.MatchesAllContractOrientationVectors"
     },
     {
       "ctest_name": "requirements.traceability-contract",

@@ -12,6 +12,7 @@ from pathlib import Path
 CONTRACT_NAMES = (
     "unicode-source.json",
     "unicode-atom-record.json",
+    "unicode-root-stream.json",
     "ducet-totalization.json",
     "super-fibonacci-hopf.json",
     "hilbert-numeric.json",

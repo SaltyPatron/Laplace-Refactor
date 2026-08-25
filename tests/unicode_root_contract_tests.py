@@ -39,12 +39,44 @@ class UnicodeRootContractTests(unittest.TestCase):
     def write(self, path: Path, document: dict[str, object]) -> None:
         path.write_text(json.dumps(document), encoding="utf-8")
 
-    def test_all_five_contracts_are_internally_closed(self) -> None:
+    def test_all_six_contracts_are_internally_closed(self) -> None:
         report = VALIDATOR.validate_contracts(self.root)
-        self.assertEqual(report["contract_count"], 5)
+        self.assertEqual(report["contract_count"], 6)
         self.assertEqual(report["source_file_count"], 32)
         self.assertEqual(report["population"], 1114112)
         self.assertIn("no-unicode-implementation-or-activation", report["status"])
+
+    def test_root_stream_cannot_split_database_and_perfcache_calculation(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["fanout"]["calculation_count"] = 2
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "one canonical producer"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_root_stream_cannot_flatten_contractions_into_atoms(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["frame_kinds"][2]["payload"] = "atom-property"
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "contraction sidecar"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_ducet_position_cannot_drop_complete_weight_sequence(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["payload_contracts"]["ducet-position-v1"]["collation_element"] = [
+            "primary-u16be"
+        ]
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "collation element"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_root_manifest_cannot_drop_numeric_provider_receipt(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["payload_contracts"]["root-manifest-v1"]["bindings"].remove(
+            "canonical-numeric-provider-receipt"
+        )
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "required binding"):
+            VALIDATOR.validate_contracts(self.root)
 
     def test_authoritative_unicode_17_source_bytes_match_when_available(self) -> None:
         source_root = Path("/vault/Data/UCD/Public/UCD/latest")

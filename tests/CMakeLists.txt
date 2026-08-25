@@ -34,6 +34,50 @@ target_compile_options(laplace_unicode_root_tests PRIVATE
 gtest_discover_tests(laplace_unicode_root_tests
     PROPERTIES LABELS "implementation;unicode;identity;geometry;perfcache")
 
+if(TARGET LaplaceOneApi::MKLRuntime)
+    add_executable(laplace_unicode_numeric_tests
+        unicode_numeric_tests.cpp)
+    target_link_libraries(laplace_unicode_numeric_tests PRIVATE
+        Laplace::UnicodeNumeric GTest::gtest_main)
+    target_compile_options(laplace_unicode_numeric_tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    gtest_discover_tests(laplace_unicode_numeric_tests PROPERTIES
+        LABELS "implementation;unicode;geometry;oneapi;numeric;receipt")
+
+    add_library(laplace_unicode_numeric_axis_mutant STATIC
+        ../engine/src/unicode_numeric_oneapi.cpp)
+    target_include_directories(laplace_unicode_numeric_axis_mutant PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_unicode_numeric_axis_mutant PRIVATE
+        BLAKE3::blake3
+        LaplaceOneApi::MKLRuntime
+        LaplaceOneApi::IntelMathRuntime)
+    target_compile_definitions(laplace_unicode_numeric_axis_mutant PRIVATE
+        LAPLACE_TEST_UNICODE_NUMERIC_SWAP_FIRST_AXES=1)
+    target_compile_options(laplace_unicode_numeric_axis_mutant PRIVATE
+        -O3 -march=haswell -fp-model=strict -fno-fast-math -ffp-contract=off
+        -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow
+        -Wno-overriding-option)
+    add_executable(laplace_unicode_numeric_axis_mutation_probe
+        unicode_numeric_tests.cpp)
+    target_include_directories(laplace_unicode_numeric_axis_mutation_probe PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_unicode_numeric_axis_mutation_probe PRIVATE
+        laplace_unicode_numeric_axis_mutant GTest::gtest_main)
+    target_compile_options(laplace_unicode_numeric_axis_mutation_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME unicode-numeric.mutation-axis-order-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_unicode_numeric_axis_mutation_probe>"
+            "-DFILTER=UnicodeNumericProvider.CalculatesBatchWithExactReceiptAndStableBits"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+    set_tests_properties(unicode-numeric.mutation-axis-order-detected PROPERTIES
+        LABELS "implementation;unicode;geometry;oneapi;numeric;receipt;mutation")
+endif()
+
 add_executable(laplace_unicode_source_tests
     unicode_source_tests.cpp)
 target_include_directories(laplace_unicode_source_tests PRIVATE
@@ -94,6 +138,7 @@ target_link_libraries(laplace_unicode_root_mutation_probe PRIVATE
     Laplace::Identity Laplace::Perfcache GTest::gtest_main)
 target_compile_definitions(laplace_unicode_root_mutation_probe PRIVATE
     LAPLACE_TEST_SKIP_UNICODE_ATOM_IDENTITY_VALIDATION=1
+    LAPLACE_TEST_UNICODE_ROOT_FRAME_SKIP_NESTED_VALIDATION=1
     LAPLACE_TEST_UNICODE_HILBERT_REVERSE_AXIS_ORDER=1)
 target_compile_options(laplace_unicode_root_mutation_probe PRIVATE
     $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>
@@ -102,7 +147,7 @@ add_test(
     NAME unicode-root.mutation-codec-and-hilbert-defects-detected
     COMMAND "${CMAKE_COMMAND}"
         "-DPROBE=$<TARGET_FILE:laplace_unicode_root_mutation_probe>"
-        "-DFILTER=UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption:UnicodeHilbert.MatchesAllContractOrientationVectors"
+        "-DFILTER=UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption:UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption:UnicodeHilbert.MatchesAllContractOrientationVectors"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(
     unicode-root.mutation-codec-and-hilbert-defects-detected PROPERTIES

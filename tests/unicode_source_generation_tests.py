@@ -16,6 +16,7 @@ GENERATOR = REPO_ROOT / "tools/contracts/generate-unicode-source.py"
 CONTRACT_NAMES = (
     "unicode-source.json",
     "unicode-atom-record.json",
+    "unicode-root-stream.json",
     "ducet-totalization.json",
     "super-fibonacci-hopf.json",
     "hilbert-numeric.json",

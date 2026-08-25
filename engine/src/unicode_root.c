@@ -30,6 +30,15 @@ static void write_u16le(uint8_t* bytes, uint16_t value) {
     bytes[1] = (uint8_t)(value >> 8u);
 }
 
+static uint16_t read_u16be(const uint8_t* bytes) {
+    return (uint16_t)(((uint16_t)bytes[0] << 8u) | (uint16_t)bytes[1]);
+}
+
+static void write_u16be(uint8_t* bytes, uint16_t value) {
+    bytes[0] = (uint8_t)(value >> 8u);
+    bytes[1] = (uint8_t)value;
+}
+
 static void write_u32le(uint8_t* bytes, uint32_t value) {
     bytes[0] = (uint8_t)value;
     bytes[1] = (uint8_t)(value >> 8u);
@@ -42,6 +51,69 @@ static void write_u64le(uint8_t* bytes, uint64_t value) {
     for (index = 0u; index < 8u; ++index) {
         bytes[index] = (uint8_t)(value >> (index * 8u));
     }
+}
+
+static int root_frame_kind_valid(uint16_t kind) {
+    return kind >= LAPLACE_UNICODE_ROOT_FRAME_ATOM &&
+        kind <= LAPLACE_UNICODE_ROOT_FRAME_MANIFEST;
+}
+
+static int root_frame_payload_valid(
+    uint16_t kind,
+    uint64_t section_ordinal,
+    const uint8_t* payload,
+    uint32_t payload_bytes) {
+    if (!root_frame_kind_valid(kind) || payload == NULL || payload_bytes == 0u) {
+        return 0;
+    }
+    if (kind == LAPLACE_UNICODE_ROOT_FRAME_ATOM) {
+        laplace_unicode_atom_record_view atom;
+        size_t consumed = 0u;
+#if defined(LAPLACE_TEST_UNICODE_ROOT_FRAME_SKIP_NESTED_VALIDATION)
+        (void)section_ordinal;
+        (void)atom;
+        (void)consumed;
+        return 1;
+#else
+        return section_ordinal < LAPLACE_UNICODE_ROOT_POPULATION &&
+            laplace_unicode_atom_record_open(
+                payload, payload_bytes, &atom, &consumed) == LAPLACE_UNICODE_OK &&
+            consumed == payload_bytes &&
+            atom.value.codepoint_position == section_ordinal;
+#endif
+    } else if (kind == LAPLACE_UNICODE_ROOT_FRAME_DUCET_POSITION) {
+        laplace_unicode_ducet_position_view position;
+        size_t consumed = 0u;
+        return section_ordinal < LAPLACE_UNICODE_ROOT_POPULATION &&
+            laplace_unicode_ducet_position_open(
+                payload, payload_bytes, &position, &consumed) ==
+                LAPLACE_UNICODE_OK &&
+            consumed == payload_bytes &&
+            position.codepoint_position == section_ordinal;
+    } else if (kind == LAPLACE_UNICODE_ROOT_FRAME_DUCET_CONTRACTION) {
+        laplace_unicode_ducet_contraction_view contraction;
+        size_t consumed = 0u;
+        return laplace_unicode_ducet_contraction_open(
+                   payload, payload_bytes, &contraction, &consumed) ==
+                   LAPLACE_UNICODE_OK &&
+            consumed == payload_bytes;
+    } else if (kind == LAPLACE_UNICODE_ROOT_FRAME_NORMALIZATION_COMPOSITION) {
+        laplace_unicode_normalization_composition composition;
+        size_t consumed = 0u;
+        return laplace_unicode_normalization_composition_open(
+                   payload, payload_bytes, &composition, &consumed) ==
+                   LAPLACE_UNICODE_OK &&
+            consumed == payload_bytes;
+    } else if (kind == LAPLACE_UNICODE_ROOT_FRAME_MANIFEST) {
+        laplace_unicode_root_manifest manifest;
+        size_t consumed = 0u;
+        return section_ordinal == 0u &&
+            laplace_unicode_root_manifest_open(
+                payload, payload_bytes, &manifest, &consumed) ==
+                LAPLACE_UNICODE_OK &&
+            consumed == payload_bytes;
+    }
+    return 1;
 }
 
 static int field_shape_valid(const laplace_unicode_atom_field* field, size_t index) {
@@ -271,6 +343,624 @@ laplace_unicode_status laplace_unicode_atom_record_open(
     view->encoded_record = encoded;
     view->encoded_bytes = record_bytes;
     *consumed_bytes = record_bytes;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_root_frame_measure(
+    const laplace_unicode_root_frame* frame,
+    size_t* encoded_bytes) {
+    size_t required;
+    if (frame == NULL || encoded_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (frame->flags != 0u ||
+        !root_frame_payload_valid(
+            frame->kind, frame->section_ordinal,
+            frame->payload, frame->payload_bytes)) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    required = LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES +
+        (size_t)frame->payload_bytes;
+    if (required > UINT32_MAX) {
+        return LAPLACE_UNICODE_SIZE_OVERFLOW;
+    }
+    *encoded_bytes = required;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_root_frame_encode(
+    const laplace_unicode_root_frame* frame,
+    uint8_t* output,
+    size_t output_capacity,
+    size_t* encoded_bytes) {
+    size_t required = 0u;
+    laplace_unicode_status status;
+    if (frame == NULL || output == NULL || encoded_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    status = laplace_unicode_root_frame_measure(frame, &required);
+    if (status != LAPLACE_UNICODE_OK) {
+        return status;
+    }
+    if (output_capacity < required) {
+        *encoded_bytes = required;
+        return LAPLACE_UNICODE_BUFFER_TOO_SMALL;
+    }
+    memset(output, 0, required);
+    memcpy(output, "LURF", 4u);
+    write_u16le(output + 4u, LAPLACE_UNICODE_ROOT_FRAME_VERSION);
+    write_u16le(output + 6u, LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES);
+    write_u32le(output + 8u, (uint32_t)required);
+    write_u16le(output + 12u, frame->kind);
+    write_u16le(output + 14u, frame->flags);
+    write_u64le(output + 16u, frame->section_ordinal);
+    write_u32le(output + 24u, frame->payload_bytes);
+    memcpy(output + LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES,
+           frame->payload, frame->payload_bytes);
+    *encoded_bytes = required;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_root_frame_open(
+    const uint8_t* encoded,
+    size_t available_bytes,
+    laplace_unicode_root_frame_view* view,
+    size_t* consumed_bytes) {
+    uint32_t frame_bytes;
+    uint32_t payload_bytes;
+    uint16_t kind;
+    uint16_t flags;
+    uint64_t section_ordinal;
+    if (encoded == NULL || view == NULL || consumed_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (available_bytes < LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES ||
+        memcmp(encoded, "LURF", 4u) != 0 ||
+        read_u16le(encoded + 4u) != LAPLACE_UNICODE_ROOT_FRAME_VERSION ||
+        read_u16le(encoded + 6u) != LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES ||
+        read_u32le(encoded + 28u) != 0u) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    frame_bytes = read_u32le(encoded + 8u);
+    kind = read_u16le(encoded + 12u);
+    flags = read_u16le(encoded + 14u);
+    section_ordinal = read_u64le(encoded + 16u);
+    payload_bytes = read_u32le(encoded + 24u);
+    if (frame_bytes < LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES ||
+        frame_bytes > available_bytes ||
+        payload_bytes != frame_bytes - LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES ||
+        flags != 0u ||
+        !root_frame_payload_valid(
+            kind, section_ordinal,
+            encoded + LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES,
+            payload_bytes)) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    memset(view, 0, sizeof(*view));
+    view->value.payload = encoded + LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES;
+    view->value.section_ordinal = section_ordinal;
+    view->value.payload_bytes = payload_bytes;
+    view->value.kind = kind;
+    view->value.flags = flags;
+    view->encoded_frame = encoded;
+    view->encoded_bytes = frame_bytes;
+    *consumed_bytes = frame_bytes;
+    return LAPLACE_UNICODE_OK;
+}
+
+static int ducet_provenance_valid(uint8_t provenance) {
+    return provenance >= LAPLACE_UNICODE_DUCET_EXPLICIT &&
+        provenance <= LAPLACE_UNICODE_DUCET_LUP_SURROGATE_EXTENSION;
+}
+
+static int collation_element_valid(
+    const laplace_unicode_collation_element* element) {
+    return element != NULL && element->variable <= 1u &&
+        element->reserved == 0u;
+}
+
+static void collation_element_encode(
+    const laplace_unicode_collation_element* element,
+    uint8_t output[LAPLACE_UNICODE_COLLATION_ELEMENT_BYTES]) {
+    output[0] = element->variable;
+    output[1] = 0u;
+    write_u16be(output + 2u, element->primary);
+    write_u16be(output + 4u, element->secondary);
+    write_u16be(output + 6u, element->tertiary);
+}
+
+static laplace_unicode_status collation_element_open(
+    const uint8_t encoded[LAPLACE_UNICODE_COLLATION_ELEMENT_BYTES],
+    laplace_unicode_collation_element* element) {
+    if (encoded == NULL || element == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (encoded[0] > 1u || encoded[1] != 0u) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    element->variable = encoded[0];
+    element->reserved = encoded[1];
+    element->primary = read_u16be(encoded + 2u);
+    element->secondary = read_u16be(encoded + 4u);
+    element->tertiary = read_u16be(encoded + 6u);
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_ducet_position_measure(
+    const laplace_unicode_ducet_position_record* record,
+    size_t* encoded_bytes) {
+    uint64_t required;
+    uint32_t index;
+    if (record == NULL || encoded_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (record->codepoint_position >= LAPLACE_UNICODE_ROOT_POPULATION ||
+        !ducet_provenance_valid(record->provenance) ||
+        record->reserved[0] != 0u || record->reserved[1] != 0u ||
+        record->reserved[2] != 0u || record->elements == NULL ||
+        record->element_count == 0u || record->equivalence_key == NULL ||
+        record->equivalence_key_bytes == 0u) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    for (index = 0u; index < record->element_count; ++index) {
+        if (!collation_element_valid(&record->elements[index])) {
+            return LAPLACE_UNICODE_RECORD_INVALID;
+        }
+    }
+    required = LAPLACE_UNICODE_DUCET_POSITION_HEADER_BYTES +
+        (uint64_t)record->element_count *
+            LAPLACE_UNICODE_COLLATION_ELEMENT_BYTES +
+        record->equivalence_key_bytes;
+    if (required > UINT32_MAX) {
+        return LAPLACE_UNICODE_SIZE_OVERFLOW;
+    }
+    *encoded_bytes = (size_t)required;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_ducet_position_encode(
+    const laplace_unicode_ducet_position_record* record,
+    uint8_t* output,
+    size_t output_capacity,
+    size_t* encoded_bytes) {
+    size_t required = 0u;
+    size_t offset = LAPLACE_UNICODE_DUCET_POSITION_HEADER_BYTES;
+    uint32_t index;
+    laplace_unicode_status status;
+    if (record == NULL || output == NULL || encoded_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    status = laplace_unicode_ducet_position_measure(record, &required);
+    if (status != LAPLACE_UNICODE_OK) {
+        return status;
+    }
+    if (output_capacity < required) {
+        *encoded_bytes = required;
+        return LAPLACE_UNICODE_BUFFER_TOO_SMALL;
+    }
+    memset(output, 0, required);
+    memcpy(output, "LUDP", 4u);
+    write_u16le(output + 4u, LAPLACE_UNICODE_DUCET_POSITION_VERSION);
+    write_u16le(output + 6u, LAPLACE_UNICODE_DUCET_POSITION_HEADER_BYTES);
+    write_u32le(output + 8u, (uint32_t)required);
+    write_u32le(output + 12u, record->codepoint_position);
+    output[16] = record->provenance;
+    write_u32le(output + 20u, record->element_count);
+    write_u32le(output + 24u, record->equivalence_key_bytes);
+    for (index = 0u; index < record->element_count; ++index) {
+        const laplace_unicode_collation_element* element =
+            &record->elements[index];
+        collation_element_encode(element, output + offset);
+        offset += LAPLACE_UNICODE_COLLATION_ELEMENT_BYTES;
+    }
+    memcpy(output + offset, record->equivalence_key,
+           record->equivalence_key_bytes);
+    *encoded_bytes = required;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_ducet_position_open(
+    const uint8_t* encoded,
+    size_t available_bytes,
+    laplace_unicode_ducet_position_view* view,
+    size_t* consumed_bytes) {
+    uint32_t record_bytes;
+    uint32_t element_count;
+    uint32_t key_bytes;
+    uint64_t element_bytes;
+    uint64_t required;
+    uint32_t index;
+    if (encoded == NULL || view == NULL || consumed_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (available_bytes < LAPLACE_UNICODE_DUCET_POSITION_HEADER_BYTES ||
+        memcmp(encoded, "LUDP", 4u) != 0 ||
+        read_u16le(encoded + 4u) != LAPLACE_UNICODE_DUCET_POSITION_VERSION ||
+        read_u16le(encoded + 6u) != LAPLACE_UNICODE_DUCET_POSITION_HEADER_BYTES ||
+        encoded[17] != 0u || encoded[18] != 0u || encoded[19] != 0u ||
+        read_u32le(encoded + 28u) != 0u) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    record_bytes = read_u32le(encoded + 8u);
+    element_count = read_u32le(encoded + 20u);
+    key_bytes = read_u32le(encoded + 24u);
+    if (element_count == 0u || key_bytes == 0u) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    element_bytes = (uint64_t)element_count *
+        LAPLACE_UNICODE_COLLATION_ELEMENT_BYTES;
+    required = LAPLACE_UNICODE_DUCET_POSITION_HEADER_BYTES + element_bytes +
+        key_bytes;
+    if (required > UINT32_MAX || record_bytes != required ||
+        record_bytes > available_bytes ||
+        read_u32le(encoded + 12u) >= LAPLACE_UNICODE_ROOT_POPULATION ||
+        !ducet_provenance_valid(encoded[16])) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    memset(view, 0, sizeof(*view));
+    view->encoded_elements = encoded + LAPLACE_UNICODE_DUCET_POSITION_HEADER_BYTES;
+    view->equivalence_key = view->encoded_elements + (size_t)element_bytes;
+    view->encoded_record = encoded;
+    view->codepoint_position = read_u32le(encoded + 12u);
+    view->element_count = element_count;
+    view->equivalence_key_bytes = key_bytes;
+    view->encoded_bytes = record_bytes;
+    view->provenance = encoded[16];
+    for (index = 0u; index < element_count; ++index) {
+        laplace_unicode_collation_element element;
+        if (laplace_unicode_ducet_position_element(view, index, &element) !=
+            LAPLACE_UNICODE_OK) {
+            return LAPLACE_UNICODE_RECORD_INVALID;
+        }
+    }
+    *consumed_bytes = record_bytes;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_ducet_position_element(
+    const laplace_unicode_ducet_position_view* view,
+    uint32_t element_index,
+    laplace_unicode_collation_element* element) {
+    const uint8_t* encoded;
+    if (view == NULL || element == NULL || view->encoded_elements == NULL ||
+        element_index >= view->element_count) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    encoded = view->encoded_elements +
+        (size_t)element_index * LAPLACE_UNICODE_COLLATION_ELEMENT_BYTES;
+    return collation_element_open(encoded, element);
+}
+
+laplace_unicode_status laplace_unicode_normalization_composition_encode(
+    const laplace_unicode_normalization_composition* record,
+    uint8_t output[LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES]) {
+    if (record == NULL || output == NULL ||
+        record->starter_position >= LAPLACE_UNICODE_ROOT_POPULATION ||
+        record->combining_position >= LAPLACE_UNICODE_ROOT_POPULATION ||
+        record->composite_position >= LAPLACE_UNICODE_ROOT_POPULATION) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    memset(output, 0, LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES);
+    memcpy(output, "LUNC", 4u);
+    write_u16le(output + 4u, LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_VERSION);
+    write_u16le(output + 6u, LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES);
+    write_u32le(output + 8u, LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES);
+    write_u32le(output + 12u, record->starter_position);
+    write_u32le(output + 16u, record->combining_position);
+    write_u32le(output + 20u, record->composite_position);
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_normalization_composition_open(
+    const uint8_t* encoded,
+    size_t available_bytes,
+    laplace_unicode_normalization_composition* record,
+    size_t* consumed_bytes) {
+    laplace_unicode_normalization_composition decoded;
+    if (encoded == NULL || record == NULL || consumed_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (available_bytes < LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES ||
+        memcmp(encoded, "LUNC", 4u) != 0 ||
+        read_u16le(encoded + 4u) !=
+            LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_VERSION ||
+        read_u16le(encoded + 6u) !=
+            LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES ||
+        read_u32le(encoded + 8u) !=
+            LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES ||
+        read_u32le(encoded + 24u) != 0u ||
+        read_u32le(encoded + 28u) != 0u) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    decoded.starter_position = read_u32le(encoded + 12u);
+    decoded.combining_position = read_u32le(encoded + 16u);
+    decoded.composite_position = read_u32le(encoded + 20u);
+    if (decoded.starter_position >= LAPLACE_UNICODE_ROOT_POPULATION ||
+        decoded.combining_position >= LAPLACE_UNICODE_ROOT_POPULATION ||
+        decoded.composite_position >= LAPLACE_UNICODE_ROOT_POPULATION) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    *record = decoded;
+    *consumed_bytes = LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_ducet_contraction_measure(
+    const laplace_unicode_ducet_contraction_record* record,
+    size_t* encoded_bytes) {
+    uint64_t sequence_bytes;
+    uint64_t element_bytes;
+    uint64_t required;
+    uint32_t index;
+    if (record == NULL || encoded_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (record->source_line_ordinal == 0u || record->sequence == NULL ||
+        record->sequence_count < 2u || record->elements == NULL ||
+        record->element_count == 0u) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    for (index = 0u; index < record->sequence_count; ++index) {
+        if (record->sequence[index] >= LAPLACE_UNICODE_ROOT_POPULATION) {
+            return LAPLACE_UNICODE_RECORD_INVALID;
+        }
+    }
+    for (index = 0u; index < record->element_count; ++index) {
+        if (!collation_element_valid(&record->elements[index])) {
+            return LAPLACE_UNICODE_RECORD_INVALID;
+        }
+    }
+    sequence_bytes = (uint64_t)record->sequence_count * 4u;
+    element_bytes = (uint64_t)record->element_count *
+        LAPLACE_UNICODE_COLLATION_ELEMENT_BYTES;
+    required = LAPLACE_UNICODE_DUCET_CONTRACTION_HEADER_BYTES +
+        sequence_bytes + element_bytes;
+    if (required > UINT32_MAX) {
+        return LAPLACE_UNICODE_SIZE_OVERFLOW;
+    }
+    *encoded_bytes = (size_t)required;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_ducet_contraction_encode(
+    const laplace_unicode_ducet_contraction_record* record,
+    uint8_t* output,
+    size_t output_capacity,
+    size_t* encoded_bytes) {
+    size_t required = 0u;
+    size_t offset = LAPLACE_UNICODE_DUCET_CONTRACTION_HEADER_BYTES;
+    uint32_t index;
+    laplace_unicode_status status;
+    if (record == NULL || output == NULL || encoded_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    status = laplace_unicode_ducet_contraction_measure(record, &required);
+    if (status != LAPLACE_UNICODE_OK) {
+        return status;
+    }
+    if (output_capacity < required) {
+        *encoded_bytes = required;
+        return LAPLACE_UNICODE_BUFFER_TOO_SMALL;
+    }
+    memset(output, 0, required);
+    memcpy(output, "LUCR", 4u);
+    write_u16le(output + 4u, LAPLACE_UNICODE_DUCET_CONTRACTION_VERSION);
+    write_u16le(output + 6u, LAPLACE_UNICODE_DUCET_CONTRACTION_HEADER_BYTES);
+    write_u32le(output + 8u, (uint32_t)required);
+    write_u32le(output + 12u, record->source_line_ordinal);
+    write_u32le(output + 16u, record->sequence_count);
+    write_u32le(output + 20u, record->element_count);
+    for (index = 0u; index < record->sequence_count; ++index) {
+        write_u32le(output + offset, record->sequence[index]);
+        offset += 4u;
+    }
+    for (index = 0u; index < record->element_count; ++index) {
+        collation_element_encode(&record->elements[index], output + offset);
+        offset += LAPLACE_UNICODE_COLLATION_ELEMENT_BYTES;
+    }
+    *encoded_bytes = required;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_ducet_contraction_open(
+    const uint8_t* encoded,
+    size_t available_bytes,
+    laplace_unicode_ducet_contraction_view* view,
+    size_t* consumed_bytes) {
+    uint32_t record_bytes;
+    uint32_t sequence_count;
+    uint32_t element_count;
+    uint64_t sequence_bytes;
+    uint64_t element_bytes;
+    uint64_t required;
+    uint32_t index;
+    if (encoded == NULL || view == NULL || consumed_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (available_bytes < LAPLACE_UNICODE_DUCET_CONTRACTION_HEADER_BYTES ||
+        memcmp(encoded, "LUCR", 4u) != 0 ||
+        read_u16le(encoded + 4u) != LAPLACE_UNICODE_DUCET_CONTRACTION_VERSION ||
+        read_u16le(encoded + 6u) != LAPLACE_UNICODE_DUCET_CONTRACTION_HEADER_BYTES ||
+        read_u32le(encoded + 12u) == 0u || read_u32le(encoded + 24u) != 0u ||
+        read_u32le(encoded + 28u) != 0u) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    record_bytes = read_u32le(encoded + 8u);
+    sequence_count = read_u32le(encoded + 16u);
+    element_count = read_u32le(encoded + 20u);
+    if (sequence_count < 2u || element_count == 0u) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    sequence_bytes = (uint64_t)sequence_count * 4u;
+    element_bytes = (uint64_t)element_count *
+        LAPLACE_UNICODE_COLLATION_ELEMENT_BYTES;
+    required = LAPLACE_UNICODE_DUCET_CONTRACTION_HEADER_BYTES +
+        sequence_bytes + element_bytes;
+    if (required > UINT32_MAX || record_bytes != required ||
+        record_bytes > available_bytes) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    memset(view, 0, sizeof(*view));
+    view->encoded_sequence = encoded +
+        LAPLACE_UNICODE_DUCET_CONTRACTION_HEADER_BYTES;
+    view->encoded_elements = view->encoded_sequence + (size_t)sequence_bytes;
+    view->encoded_record = encoded;
+    view->source_line_ordinal = read_u32le(encoded + 12u);
+    view->sequence_count = sequence_count;
+    view->element_count = element_count;
+    view->encoded_bytes = record_bytes;
+    for (index = 0u; index < sequence_count; ++index) {
+        uint32_t position = 0u;
+        if (laplace_unicode_ducet_contraction_position(
+                view, index, &position) != LAPLACE_UNICODE_OK) {
+            return LAPLACE_UNICODE_RECORD_INVALID;
+        }
+    }
+    for (index = 0u; index < element_count; ++index) {
+        laplace_unicode_collation_element element;
+        if (laplace_unicode_ducet_contraction_element(
+                view, index, &element) != LAPLACE_UNICODE_OK) {
+            return LAPLACE_UNICODE_RECORD_INVALID;
+        }
+    }
+    *consumed_bytes = record_bytes;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_ducet_contraction_position(
+    const laplace_unicode_ducet_contraction_view* view,
+    uint32_t position_index,
+    uint32_t* codepoint_position) {
+    uint32_t decoded;
+    if (view == NULL || codepoint_position == NULL ||
+        view->encoded_sequence == NULL || position_index >= view->sequence_count) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    decoded = read_u32le(view->encoded_sequence + (size_t)position_index * 4u);
+    if (decoded >= LAPLACE_UNICODE_ROOT_POPULATION) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    *codepoint_position = decoded;
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_ducet_contraction_element(
+    const laplace_unicode_ducet_contraction_view* view,
+    uint32_t element_index,
+    laplace_unicode_collation_element* element) {
+    if (view == NULL || element == NULL || view->encoded_elements == NULL ||
+        element_index >= view->element_count) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    return collation_element_open(
+        view->encoded_elements +
+            (size_t)element_index * LAPLACE_UNICODE_COLLATION_ELEMENT_BYTES,
+        element);
+}
+
+static int root_manifest_counts_valid(
+    const laplace_unicode_root_manifest* manifest) {
+    uint64_t total;
+    if (manifest->atom_count != LAPLACE_UNICODE_ROOT_POPULATION ||
+        manifest->ducet_position_count != LAPLACE_UNICODE_ROOT_POPULATION) {
+        return 0;
+    }
+    if (UINT64_MAX - manifest->atom_count < manifest->ducet_position_count) {
+        return 0;
+    }
+    total = manifest->atom_count + manifest->ducet_position_count;
+    if (UINT64_MAX - total < manifest->ducet_contraction_count) {
+        return 0;
+    }
+    total += manifest->ducet_contraction_count;
+    if (UINT64_MAX - total < manifest->normalization_composition_count ||
+        UINT64_MAX - total - manifest->normalization_composition_count < 1u) {
+        return 0;
+    }
+    total += manifest->normalization_composition_count + 1u;
+    return manifest->total_frame_count == total;
+}
+
+laplace_unicode_status laplace_unicode_root_manifest_encode(
+    const laplace_unicode_root_manifest* manifest,
+    uint8_t output[LAPLACE_UNICODE_ROOT_MANIFEST_BYTES]) {
+    size_t offset = 56u;
+    const laplace_digest256* fingerprints[9];
+    size_t index;
+    if (manifest == NULL || output == NULL ||
+        !root_manifest_counts_valid(manifest)) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    fingerprints[0] = &manifest->source_fingerprint;
+    fingerprints[1] = &manifest->recipe_fingerprint;
+    fingerprints[2] = &manifest->numeric_provider_receipt;
+    fingerprints[3] = &manifest->stream_contract_fingerprint;
+    fingerprints[4] = &manifest->atom_section_fingerprint;
+    fingerprints[5] = &manifest->ducet_position_section_fingerprint;
+    fingerprints[6] = &manifest->ducet_contraction_section_fingerprint;
+    fingerprints[7] = &manifest->normalization_composition_section_fingerprint;
+    fingerprints[8] = &manifest->algorithmic_hangul_rule_fingerprint;
+    memset(output, 0, LAPLACE_UNICODE_ROOT_MANIFEST_BYTES);
+    memcpy(output, "LURM", 4u);
+    write_u16le(output + 4u, LAPLACE_UNICODE_ROOT_MANIFEST_VERSION);
+    write_u16le(output + 6u, LAPLACE_UNICODE_ROOT_MANIFEST_BYTES);
+    write_u32le(output + 8u, LAPLACE_UNICODE_ROOT_MANIFEST_BYTES);
+    write_u64le(output + 16u, manifest->atom_count);
+    write_u64le(output + 24u, manifest->ducet_position_count);
+    write_u64le(output + 32u, manifest->ducet_contraction_count);
+    write_u64le(output + 40u, manifest->normalization_composition_count);
+    write_u64le(output + 48u, manifest->total_frame_count);
+    for (index = 0u; index < 9u; ++index) {
+        memcpy(output + offset, fingerprints[index]->bytes, 32u);
+        offset += 32u;
+    }
+    return offset == 344u ? LAPLACE_UNICODE_OK : LAPLACE_UNICODE_PROVIDER_FAILURE;
+}
+
+laplace_unicode_status laplace_unicode_root_manifest_open(
+    const uint8_t* encoded,
+    size_t available_bytes,
+    laplace_unicode_root_manifest* manifest,
+    size_t* consumed_bytes) {
+    laplace_unicode_root_manifest decoded;
+    laplace_digest256* fingerprints[9];
+    size_t offset = 56u;
+    size_t index;
+    if (encoded == NULL || manifest == NULL || consumed_bytes == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (available_bytes < LAPLACE_UNICODE_ROOT_MANIFEST_BYTES ||
+        memcmp(encoded, "LURM", 4u) != 0 ||
+        read_u16le(encoded + 4u) != LAPLACE_UNICODE_ROOT_MANIFEST_VERSION ||
+        read_u16le(encoded + 6u) != LAPLACE_UNICODE_ROOT_MANIFEST_BYTES ||
+        read_u32le(encoded + 8u) != LAPLACE_UNICODE_ROOT_MANIFEST_BYTES ||
+        read_u32le(encoded + 12u) != 0u || read_u64le(encoded + 344u) != 0u) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    memset(&decoded, 0, sizeof(decoded));
+    decoded.atom_count = read_u64le(encoded + 16u);
+    decoded.ducet_position_count = read_u64le(encoded + 24u);
+    decoded.ducet_contraction_count = read_u64le(encoded + 32u);
+    decoded.normalization_composition_count = read_u64le(encoded + 40u);
+    decoded.total_frame_count = read_u64le(encoded + 48u);
+    fingerprints[0] = &decoded.source_fingerprint;
+    fingerprints[1] = &decoded.recipe_fingerprint;
+    fingerprints[2] = &decoded.numeric_provider_receipt;
+    fingerprints[3] = &decoded.stream_contract_fingerprint;
+    fingerprints[4] = &decoded.atom_section_fingerprint;
+    fingerprints[5] = &decoded.ducet_position_section_fingerprint;
+    fingerprints[6] = &decoded.ducet_contraction_section_fingerprint;
+    fingerprints[7] = &decoded.normalization_composition_section_fingerprint;
+    fingerprints[8] = &decoded.algorithmic_hangul_rule_fingerprint;
+    for (index = 0u; index < 9u; ++index) {
+        memcpy(fingerprints[index]->bytes, encoded + offset, 32u);
+        offset += 32u;
+    }
+    if (offset != 344u || !root_manifest_counts_valid(&decoded)) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    *manifest = decoded;
+    *consumed_bytes = LAPLACE_UNICODE_ROOT_MANIFEST_BYTES;
     return LAPLACE_UNICODE_OK;
 }
 
