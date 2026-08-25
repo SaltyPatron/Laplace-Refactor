@@ -40,6 +40,7 @@
       "LIBRARY_PATH",
       "MAKE",
       "MAKEFLAGS",
+      "MAKEINFO",
       "MFLAGS",
       "NINJA_STATUS",
       "NM",
@@ -73,7 +74,8 @@
       {"id": "tar", "path": "/usr/bin/tar", "sha256": "fd0d62eed19efd3e115aa1be44160f89d777cd1e6d6d8eb0ce7c8bdc879f59e2", "version_argument": "--version"},
       {"id": "python", "path": "/usr/bin/python3.10", "sha256": "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86", "version_argument": "--version"},
       {"id": "sh", "path": "/usr/bin/dash", "sha256": "4f291296e89b784cd35479fca606f228126e3641f5bcaee68dee36583d7c9483", "version_argument": "-c", "version_operand": "printf dash"},
-      {"id": "bash", "path": "/usr/bin/bash", "sha256": "59474588a312b6b6e73e5a42a59bf71e62b55416b6c9d5e4a6e1c630c2a9ecd4", "version_argument": "--version"}
+      {"id": "bash", "path": "/usr/bin/bash", "sha256": "59474588a312b6b6e73e5a42a59bf71e62b55416b6c9d5e4a6e1c630c2a9ecd4", "version_argument": "--version"},
+      {"id": "true", "path": "/usr/bin/true", "sha256": "6d6f62080ab1efc1e777e5aea240577f9c4fc4c32dd907e70c7a73d025e85086", "version_argument": "--version"}
     ]
   },
   "build": {

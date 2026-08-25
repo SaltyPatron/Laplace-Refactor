@@ -203,7 +203,7 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
         if not HASH_PATTERN.fullmatch(digest):
             raise ToolchainError(f"bootstrap tool digest must be lowercase SHA-256: {tool_id}")
         require_string(tool.get("version_argument"), f"bootstrap.tools[{index}].version_argument")
-    for required in ("cc", "cxx", "ld", "ar", "ranlib", "make", "python", "sh"):
+    for required in ("cc", "cxx", "ld", "ar", "ranlib", "make", "python", "sh", "true"):
         if required not in ids:
             raise ToolchainError(f"bootstrap.tools must include {required}")
 
@@ -444,6 +444,7 @@ def build_environment(
         "CC": bootstrap["cc"]["path"],
         "CXX": bootstrap["cxx"]["path"],
         "CONFIG_SITE": "/dev/null",
+        "MAKEINFO": bootstrap["true"]["path"],
     }
     if selected_binutils:
         for variable, tool in (
