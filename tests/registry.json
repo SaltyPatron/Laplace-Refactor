@@ -351,6 +351,23 @@
       "covered_dimensions": ["physicality identity preimage", "execution package and resource provenance exclusion"]
     },
     {
+      "ctest_name": "PersistenceContract.AtomicPointHasCanonicalInactiveTrajectoryState",
+      "evidence_targets": ["LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT"],
+      "covered_dimensions": ["typed atomic 4D physicality", "canonical inactive trajectory fields", "positive-zero point radius", "coordinate-sensitive identity"],
+      "defect_controls": ["persistence.mutation-active-atomic-trajectory-detected"]
+    },
+    {
+      "ctest_name": "PersistenceContract.AtomicPointStreamRequiresNoTrajectoryRows",
+      "evidence_targets": ["LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "covered_dimensions": ["atomic physicality persistence", "type-directed trajectory absence", "whole-stream validation"]
+    },
+    {
+      "ctest_name": "persistence.mutation-active-atomic-trajectory-detected",
+      "evidence_targets": ["LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "covered_dimensions": ["active trajectory bytes inside an atomic point are detected"],
+      "controls": "PersistenceContract.AtomicPointHasCanonicalInactiveTrajectoryState"
+    },
+    {
       "ctest_name": "PersistenceContract.LaterTrajectoryDefectCannotPublishPartialSummary",
       "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE"],
       "covered_dimensions": ["whole-stream native preflight", "invalid-later-record atomicity", "typed trajectory failure"]

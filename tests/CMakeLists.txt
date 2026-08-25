@@ -305,6 +305,36 @@ target_compile_options(laplace_persistence_tests PRIVATE
 gtest_discover_tests(laplace_persistence_tests
     PROPERTIES LABELS "implementation;persistence;identity;physicality;trajectory")
 
+add_library(laplace_persistence_atomic_point_mutant STATIC
+    ../engine/src/persistence.c)
+target_include_directories(laplace_persistence_atomic_point_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_persistence_atomic_point_mutant
+    PUBLIC Laplace::Trajectory
+    PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_persistence_atomic_point_mutant
+    PRIVATE LAPLACE_TEST_ACCEPT_ACTIVE_ATOMIC_TRAJECTORY_PAYLOAD=1)
+target_compile_options(laplace_persistence_atomic_point_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_persistence_atomic_point_mutation_probe
+    persistence_tests.cpp)
+target_link_libraries(laplace_persistence_atomic_point_mutation_probe
+    PRIVATE laplace_persistence_atomic_point_mutant GTest::gtest_main)
+target_compile_options(laplace_persistence_atomic_point_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME persistence.mutation-active-atomic-trajectory-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_persistence_atomic_point_mutation_probe>"
+        "-DFILTER=PersistenceContract.AtomicPointHasCanonicalInactiveTrajectoryState"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    persistence.mutation-active-atomic-trajectory-detected PROPERTIES
+    LABELS "persistence;identity;physicality;mutation")
+
 foreach(laplace_zero_mutant IN ITEMS identity digest)
     add_library(laplace_persistence_zero_${laplace_zero_mutant}_mutant STATIC
         ../engine/src/persistence.c)

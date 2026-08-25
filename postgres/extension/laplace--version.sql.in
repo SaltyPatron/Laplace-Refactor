@@ -98,13 +98,10 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.physicality (
     physicality_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
     entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
         REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
-    physicality_type integer NOT NULL CHECK (
-        physicality_type = @LAPLACE_PG_PERSISTENCE_PHYSICALITY_COMPOSITION@),
-    vertex_class integer NOT NULL CHECK (
-        vertex_class = @LAPLACE_PG_PERSISTENCE_VERTEX_TRAJECTORY_CARRIER@),
+    physicality_type integer NOT NULL,
+    vertex_class integer NOT NULL,
     recipe_version integer NOT NULL CHECK (recipe_version > 0),
-    structural_form integer NOT NULL CHECK (
-        structural_form = @LAPLACE_PG_PERSISTENCE_STRUCTURAL_ORDERED_COMPOSITION@),
+    structural_form integer NOT NULL,
     dimension_count integer NOT NULL CHECK (dimension_count = 4),
     flags integer NOT NULL CHECK (
         flags = @LAPLACE_PG_PERSISTENCE_PHYSICALITY_FLAGS_NONE@),
@@ -115,9 +112,29 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.physicality (
     centroid_y double precision NOT NULL CHECK (centroid_y BETWEEN -1.0 AND 1.0),
     centroid_z double precision NOT NULL CHECK (centroid_z BETWEEN -1.0 AND 1.0),
     centroid_m double precision NOT NULL CHECK (centroid_m BETWEEN -1.0 AND 1.0),
-    radius double precision NOT NULL CHECK (radius BETWEEN 0.0 AND 1.0),
-    logical_count numeric(20, 0) NOT NULL CHECK (logical_count > 0),
-    vertex_count numeric(20, 0) NOT NULL CHECK (vertex_count > 0)
+    radius double precision NOT NULL,
+    logical_count numeric(20, 0) NOT NULL,
+    vertex_count numeric(20, 0) NOT NULL,
+    CHECK (
+        (
+            physicality_type = @LAPLACE_PG_PERSISTENCE_PHYSICALITY_COMPOSITION@
+            AND vertex_class = @LAPLACE_PG_PERSISTENCE_VERTEX_TRAJECTORY_CARRIER@
+            AND structural_form = @LAPLACE_PG_PERSISTENCE_STRUCTURAL_ORDERED_COMPOSITION@
+            AND radius BETWEEN 0.0 AND 1.0
+            AND logical_count > 0
+            AND vertex_count > 0
+        )
+        OR
+        (
+            physicality_type = @LAPLACE_PG_PERSISTENCE_PHYSICALITY_ATOMIC_POINT@
+            AND vertex_class = @LAPLACE_PG_PERSISTENCE_VERTEX_NONE@
+            AND structural_form = @LAPLACE_PG_PERSISTENCE_STRUCTURAL_ATOMIC_POINT@
+            AND trajectory_fingerprint = '\x0000000000000000000000000000000000000000000000000000000000000000'::bytea
+            AND float8send(radius) = '\x0000000000000000'::bytea
+            AND logical_count = 1
+            AND vertex_count = 0
+        )
+    )
 );
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.composition_trajectory_vertex (

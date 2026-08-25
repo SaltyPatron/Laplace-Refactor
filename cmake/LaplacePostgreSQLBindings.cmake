@@ -33,10 +33,16 @@ function(laplace_configure_postgresql_bindings
         "${persistence_json}" stream_record_type)
     string(JSON persistence_physicality_composition GET
         "${persistence_json}" semantic_enums physicality_type composition)
+    string(JSON persistence_physicality_atomic_point GET
+        "${persistence_json}" semantic_enums physicality_type atomic_point)
+    string(JSON persistence_vertex_none GET
+        "${persistence_json}" semantic_enums vertex_class none)
     string(JSON persistence_vertex_trajectory_carrier GET
         "${persistence_json}" semantic_enums vertex_class trajectory_carrier)
     string(JSON persistence_structural_ordered_composition GET
         "${persistence_json}" semantic_enums structural_form ordered_composition)
+    string(JSON persistence_structural_atomic_point GET
+        "${persistence_json}" semantic_enums structural_form atomic_point)
     string(JSON persistence_physicality_flags_none GET
         "${persistence_json}" semantic_enums physicality_flags none)
     string(JSON persistence_occurrence_has_physicality GET
@@ -78,8 +84,11 @@ function(laplace_configure_postgresql_bindings
     set(LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL "${persistence_deposit_symbol}")
     set(LAPLACE_PG_PERSISTENCE_STREAM_RECORD_TYPE "${persistence_stream_record_type}")
     set(LAPLACE_PG_PERSISTENCE_PHYSICALITY_COMPOSITION "${persistence_physicality_composition}")
+    set(LAPLACE_PG_PERSISTENCE_PHYSICALITY_ATOMIC_POINT "${persistence_physicality_atomic_point}")
+    set(LAPLACE_PG_PERSISTENCE_VERTEX_NONE "${persistence_vertex_none}")
     set(LAPLACE_PG_PERSISTENCE_VERTEX_TRAJECTORY_CARRIER "${persistence_vertex_trajectory_carrier}")
     set(LAPLACE_PG_PERSISTENCE_STRUCTURAL_ORDERED_COMPOSITION "${persistence_structural_ordered_composition}")
+    set(LAPLACE_PG_PERSISTENCE_STRUCTURAL_ATOMIC_POINT "${persistence_structural_atomic_point}")
     set(LAPLACE_PG_PERSISTENCE_PHYSICALITY_FLAGS_NONE "${persistence_physicality_flags_none}")
     set(LAPLACE_PG_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY "${persistence_occurrence_has_physicality}")
     set(LAPLACE_PG_PERSISTENCE_PLAN_COUNT "${persistence_plan_count}")

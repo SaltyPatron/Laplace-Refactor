@@ -225,14 +225,10 @@ laplace_persistence_status laplace_persistence_plan_sequence_fingerprint(
 static int physicality_scalars_valid(
     const laplace_persistence_physicality_record* physicality) {
     size_t index;
-    if (physicality->physicality_type != LAPLACE_PERSISTENCE_PHYSICALITY_COMPOSITION ||
-        physicality->vertex_class != LAPLACE_PERSISTENCE_VERTEX_TRAJECTORY_CARRIER ||
-        physicality->recipe_version == 0 ||
+    int variant_valid;
+    if (physicality->recipe_version == 0 ||
         physicality->dimension_count != LAPLACE_GEOMETRY_COMPONENTS ||
-        physicality->structural_form != LAPLACE_PERSISTENCE_STRUCTURAL_ORDERED_COMPOSITION ||
         physicality->flags != LAPLACE_PERSISTENCE_PHYSICALITY_FLAGS_NONE ||
-        physicality->logical_count == 0 ||
-        physicality->vertex_count == 0 ||
         reject_zero_digest_field(
             physicality->entity_id.bytes, sizeof(physicality->entity_id.bytes)) ||
         reject_zero_digest_field(
@@ -241,11 +237,7 @@ static int physicality_scalars_valid(
         reject_zero_digest_field(
             physicality->geometry_epoch.bytes,
             sizeof(physicality->geometry_epoch.bytes)) ||
-        reject_zero_digest_field(
-            physicality->trajectory_fingerprint.bytes,
-            sizeof(physicality->trajectory_fingerprint.bytes)) ||
-        !isfinite(physicality->radius) || physicality->radius < 0.0 ||
-        physicality->radius > 1.0) {
+        !isfinite(physicality->radius)) {
         return 0;
     }
     for (index = 0; index < LAPLACE_GEOMETRY_COMPONENTS; ++index) {
@@ -254,7 +246,35 @@ static int physicality_scalars_valid(
             return 0;
         }
     }
-    return 1;
+    if (physicality->physicality_type ==
+            LAPLACE_PERSISTENCE_PHYSICALITY_COMPOSITION) {
+        variant_valid =
+            physicality->vertex_class ==
+                LAPLACE_PERSISTENCE_VERTEX_TRAJECTORY_CARRIER &&
+            physicality->structural_form ==
+                LAPLACE_PERSISTENCE_STRUCTURAL_ORDERED_COMPOSITION &&
+            physicality->logical_count != 0u &&
+            physicality->vertex_count != 0u &&
+            physicality->radius >= 0.0 && physicality->radius <= 1.0;
+    } else if (physicality->physicality_type ==
+               LAPLACE_PERSISTENCE_PHYSICALITY_ATOMIC_POINT) {
+        uint64_t radius_bits = 0u;
+        memcpy(&radius_bits, &physicality->radius, sizeof(radius_bits));
+        variant_valid =
+            physicality->vertex_class == LAPLACE_PERSISTENCE_VERTEX_NONE &&
+            physicality->structural_form ==
+                LAPLACE_PERSISTENCE_STRUCTURAL_ATOMIC_POINT &&
+            physicality->logical_count == 1u &&
+            physicality->vertex_count == 0u && radius_bits == 0u;
+#if !defined(LAPLACE_TEST_ACCEPT_ACTIVE_ATOMIC_TRAJECTORY_PAYLOAD)
+        variant_valid = variant_valid && bytes_all_zero(
+            physicality->trajectory_fingerprint.bytes,
+            sizeof(physicality->trajectory_fingerprint.bytes));
+#endif
+    } else {
+        variant_valid = 0;
+    }
+    return variant_valid;
 }
 
 static void physicality_payload(
@@ -300,6 +320,42 @@ laplace_persistence_status laplace_persistence_physicality_identify(
         &hasher, payload + PHYSICALITY_IDENTITY_INPUT_OFFSET,
         sizeof(payload) - PHYSICALITY_IDENTITY_INPUT_OFFSET);
     finish_digest(&hasher, physicality_id);
+    return LAPLACE_PERSISTENCE_OK;
+}
+
+laplace_persistence_status laplace_persistence_atomic_point_physicality(
+    const laplace_id128* entity_id,
+    uint32_t recipe_version,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_digest256* geometry_epoch,
+    const laplace_point4d* point,
+    laplace_persistence_physicality_record* physicality) {
+    laplace_persistence_physicality_record created;
+    laplace_persistence_status status;
+    if (entity_id == NULL || recipe_fingerprint == NULL ||
+        geometry_epoch == NULL || point == NULL || physicality == NULL) {
+        return LAPLACE_PERSISTENCE_INVALID_ARGUMENT;
+    }
+    memset(&created, 0, sizeof(created));
+    created.entity_id = *entity_id;
+    created.physicality_type = LAPLACE_PERSISTENCE_PHYSICALITY_ATOMIC_POINT;
+    created.vertex_class = LAPLACE_PERSISTENCE_VERTEX_NONE;
+    created.recipe_version = recipe_version;
+    created.structural_form = LAPLACE_PERSISTENCE_STRUCTURAL_ATOMIC_POINT;
+    created.dimension_count = LAPLACE_GEOMETRY_COMPONENTS;
+    created.flags = LAPLACE_PERSISTENCE_PHYSICALITY_FLAGS_NONE;
+    created.recipe_fingerprint = *recipe_fingerprint;
+    created.geometry_epoch = *geometry_epoch;
+    created.centroid = *point;
+    created.radius = 0.0;
+    created.logical_count = 1u;
+    created.vertex_count = 0u;
+    status = laplace_persistence_physicality_identify(
+        &created, &created.physicality_id);
+    if (status != LAPLACE_PERSISTENCE_OK) {
+        return status;
+    }
+    *physicality = created;
     return LAPLACE_PERSISTENCE_OK;
 }
 
@@ -619,6 +675,15 @@ static laplace_persistence_status close_physicality(validation_state* state) {
     if (!state->current_open) {
         return LAPLACE_PERSISTENCE_OK;
     }
+    if (state->current_physicality.physicality_type ==
+        LAPLACE_PERSISTENCE_PHYSICALITY_ATOMIC_POINT) {
+        if (state->current_vertices != 0u ||
+            state->current_logical_count != 0u) {
+            return LAPLACE_PERSISTENCE_TRAJECTORY_INVALID;
+        }
+        state->current_open = 0;
+        return LAPLACE_PERSISTENCE_OK;
+    }
     finish_digest(&state->trajectory_hasher, &trajectory);
     if (state->current_vertices != state->current_physicality.vertex_count ||
         state->current_logical_count != state->current_physicality.logical_count ||
@@ -685,6 +750,8 @@ static laplace_persistence_status validate_record(
             laplace_composition_occurrence occurrence;
             const uint64_t logical_ordinal = state->current_logical_count + 1u;
             if (!state->current_open ||
+                state->current_physicality.physicality_type !=
+                    LAPLACE_PERSISTENCE_PHYSICALITY_COMPOSITION ||
                 !digest_equal(&state->current_physicality.physicality_id,
                               &record->value.trajectory.physicality_id) ||
                 record->value.trajectory.vertex_index != state->current_vertices ||
@@ -780,7 +847,6 @@ laplace_persistence_status laplace_persistence_validate_stream(
         }
     }
     if (state.summary.entity_count == 0 || state.summary.physicality_count == 0 ||
-        state.summary.trajectory_vertex_count == 0 ||
         state.summary.occurrence_count == 0) {
         return LAPLACE_PERSISTENCE_RECORD_INVALID;
     }
