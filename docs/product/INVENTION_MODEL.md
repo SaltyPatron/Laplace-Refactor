@@ -152,18 +152,29 @@ including expansions, contractions, explicit weights, implicit weights, canonica
 equivalence, and algorithmic Hangul behavior. A first-weight approximation is not
 DUCET.
 
-The resulting order is a permutation of all 1,114,112 codepoint positions, including
-assigned, unassigned, reserved, surrogate, and noncharacter positions:
+DUCET/UCA equivalence and unique Laplace placement are separate operations. The
+complete retained collation-element mapping supports both official NON_IGNORABLE and
+SHIFTED conformance suites. The placement recipe uses shifted handling and identical
+strength; only positions still equal under that complete UCA key are discriminated by
+their unsigned LUP-v1 position bytes. That last discriminator is not a DUCET weight or
+UCA level. The resulting placement order is a permutation of all 1,114,112 codepoint
+positions, including assigned, unassigned, reserved, surrogate, and noncharacter
+positions:
 
 ```text
-codepoint -> complete DUCET key -> total-order rank
+codepoint -> complete DUCET/UCA equivalence key
+          -> LUP-v1 tie discrimination only within equivalence
+          -> unique placement rank
 ```
 
 Codepoint identity derives from the pinned Laplace Unicode Position Encoding v1
 preimage, not from rank. For Unicode scalar values that preimage is byte-identical to
-standard UTF-8. Rank is the input to physical placement. A new Unicode or DUCET
-release therefore creates a new geometry recipe and perfcache generation while
-content IDs remain unchanged for unchanged canonical content.
+standard UTF-8. Surrogates remain non-text LUP addresses and use the declared
+unassigned implicit-weight extension without becoming Unicode text. Persistence also
+retains the full BLAKE3-256 preimage fingerprint as a collision guard; its first 16
+bytes equal the public BLAKE3-128 content ID. Rank is the input to physical placement.
+A new Unicode or DUCET release therefore creates a new geometry recipe and perfcache
+generation while content IDs remain unchanged for unchanged canonical content.
 
 Unicode bootstrapping is one calculated ETL operation, not two implementations that
 happen to read the same release. The decomposer consumes a pinned standards manifest,

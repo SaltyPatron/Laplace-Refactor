@@ -72,7 +72,7 @@
       "acceleration": ["dense direct atom plane", "reverse identity plane", "normalization span indexes", "4D Hilbert locality"],
       "receipts": ["Unicode version", "source hashes", "decomposer recipe", "numeric provider", "record stream and partition hashes", "database cache parity"],
       "product_requirements": ["LP-IDENTITY-001", "LP-IDENTITY-002", "LP-UNICODE-001", "LP-UNICODE-002", "LP-GEOMETRY-001", "LP-GEOMETRY-002", "LP-PERFCACHE-001", "LP-PERFCACHE-002", "LP-PERFCACHE-003"],
-      "implementation": {"state": "unimplemented", "evidence": ["requirements/features/geometry_glome.feature", "requirements/features/perfcache_etl.feature"]}
+      "implementation": {"state": "unimplemented", "evidence": ["contracts/unicode-source.json", "contracts/unicode-atom-record.json", "contracts/ducet-totalization.json", "contracts/super-fibonacci-hopf.json", "contracts/hilbert-numeric.json", "tools/validate-unicode-root-contracts.py", "tests/unicode_root_contract_tests.py", "requirements/features/geometry_glome.feature", "requirements/features/perfcache_etl.feature"]}
     },
     {
       "id": "substrate.compose-physicality",

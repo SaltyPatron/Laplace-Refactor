@@ -1,0 +1,63 @@
+{
+  "schema": "laplace.super-fibonacci-hopf-contract/v1",
+  "recipe": "Laplace-Unicode-Super-Fibonacci-S3-v1",
+  "source": {
+    "paper": "Marc Alexa, Super-Fibonacci Spirals: Fast, Low-Discrepancy Sampling of SO(3), CVPR 2022",
+    "official_url": "https://openaccess.thecvf.com/content/CVPR2022/papers/Alexa_Super-Fibonacci_Spirals_Fast_Low-Discrepancy_Sampling_of_SO3_CVPR_2022_paper.pdf",
+    "algorithm": 1
+  },
+  "population": 1114112,
+  "rank_domain": {"minimum": 0, "maximum": 1114111},
+  "constants": {
+    "phi_equation": "phi^2=2",
+    "phi_positive": true,
+    "phi_binary64_hex": "0x1.6a09e667f3bcdp+0",
+    "phi_binary64_be": "3ff6a09e667f3bcd",
+    "psi_equation": "psi^4=psi+4",
+    "psi_positive": true,
+    "psi_decimal_source": "1.533751168755204288118041",
+    "psi_binary64_hex": "0x1.88a3eaa601609p+0",
+    "psi_binary64_be": "3ff88a3eaa601609",
+    "two_pi_binary64_hex": "0x1.921fb54442d18p+2",
+    "two_pi_binary64_be": "401921fb54442d18"
+  },
+  "ordered_formula": [
+    "s=binary64(rank)+0.5",
+    "t=s/binary64(1114112)",
+    "d=two_pi*s",
+    "r=sqrt(t)",
+    "R=sqrt(1.0-t)",
+    "alpha=d/phi",
+    "beta=d/psi",
+    "x=r*sin(alpha)",
+    "y=r*cos(alpha)",
+    "z=R*sin(beta)",
+    "w=R*cos(beta)"
+  ],
+  "axis_order": ["x", "y", "z", "w"],
+  "complex_pair_convention": {
+    "z1": "x+i*y",
+    "z2": "z+i*w",
+    "common_fiber_action": "(z1,z2)->(exp(i*theta)*z1,exp(i*theta)*z2)"
+  },
+  "hopf_map": {
+    "axis_order": ["base_x", "base_y", "base_z"],
+    "base_x": "2*(x*z+y*w)",
+    "base_y": "2*(y*z-x*w)",
+    "base_z": "x*x+y*y-z*z-w*w",
+    "derived_base_x": "2*r*R*cos(alpha-beta)",
+    "derived_base_y": "-2*r*R*sin(alpha-beta)",
+    "derived_base_z": "2*t-1",
+    "generation_phase_a": "alpha modulo 2*pi",
+    "generation_phase_b": "beta modulo 2*pi",
+    "is_canonical_physicality": false,
+    "is_receipted_view": true
+  },
+  "canonical_physicality": {
+    "space": "S3-in-R4",
+    "coordinate": "four-binary64-bit-patterns",
+    "atoms_have_unit_norm_under-numeric-contract": true,
+    "composites_use-arithmetic-centroid-and-are-not-renormalized": true,
+    "three-dimensional-projections-cannot-overwrite": true
+  }
+}

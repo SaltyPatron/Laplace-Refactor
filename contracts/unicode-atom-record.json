@@ -1,0 +1,106 @@
+{
+  "schema": "laplace.unicode-atom-record-contract/v1",
+  "record_type": 65537,
+  "record_version": 1,
+  "population": 1114112,
+  "canonical_stream_order": "codepoint-position-ascending",
+  "record_index_equals_codepoint_position": true,
+  "wire": {
+    "name": "Laplace-Unicode-Atom-Record-v1",
+    "byte_order": "little-endian-except-hilbert-key-and-uca-weight-units",
+    "header_bytes": 132,
+    "magic_hex": "4c554152",
+    "fixed_fields": [
+      {"name": "magic", "offset": 0, "encoding": "bytes[4]", "value": "4c554152"},
+      {"name": "record_version", "offset": 4, "encoding": "u16le", "value": 1},
+      {"name": "header_bytes", "offset": 6, "encoding": "u16le", "value": 132},
+      {"name": "record_bytes", "offset": 8, "encoding": "u32le"},
+      {"name": "codepoint_position", "offset": 12, "encoding": "u32le"},
+      {"name": "placement_rank", "offset": 16, "encoding": "u32le"},
+      {"name": "position_class", "offset": 20, "encoding": "u8-enum"},
+      {"name": "lup_v1_length", "offset": 21, "encoding": "u8"},
+      {"name": "reserved_zero_0", "offset": 22, "encoding": "u16le", "value": 0},
+      {"name": "lup_v1_bytes", "offset": 24, "encoding": "bytes[4]-right-zero-padded"},
+      {"name": "content_id", "offset": 28, "encoding": "blake3-128-bytes[16]"},
+      {"name": "identity_preimage_fingerprint", "offset": 44, "encoding": "blake3-256-bytes[32]", "rule": "first-16-bytes-equal-content-id"},
+      {"name": "coordinate_bits", "offset": 76, "encoding": "four-ieee754-binary64-u64le", "axis_order": ["x", "y", "z", "w"]},
+      {"name": "hilbert_key", "offset": 108, "encoding": "bytes[16]-hilbert-most-significant-byte-first"},
+      {"name": "field_count", "offset": 124, "encoding": "u16le", "value": 26},
+      {"name": "reserved_zero_1", "offset": 126, "encoding": "u16le", "value": 0},
+      {"name": "variable_bytes", "offset": 128, "encoding": "u32le"}
+    ],
+    "variable_field_header": [
+      {"name": "field_id", "encoding": "u16le"},
+      {"name": "payload_kind", "encoding": "u8-enum"},
+      {"name": "flags", "encoding": "u8", "value": 0},
+      {"name": "payload_bytes", "encoding": "u32le"}
+    ],
+    "variable_field_rules": [
+      "all-v1-fields-are-present-exactly-once",
+      "field-id-order-is-strictly-ascending",
+      "unknown-field-id-is-rejected",
+      "reserved-and-padding-bytes-are-zero",
+      "record-bytes-equals-header-plus-field-headers-plus-payloads"
+    ]
+  },
+  "position_classes": [
+    {"id": 0, "name": "assigned-scalar"},
+    {"id": 1, "name": "unassigned-or-reserved-scalar"},
+    {"id": 2, "name": "private-use-scalar"},
+    {"id": 3, "name": "noncharacter-scalar"},
+    {"id": 4, "name": "surrogate-lup-address"}
+  ],
+  "variable_fields": [
+    {"id": 1, "name": "general_category", "kind": "canonical-ascii-property-value"},
+    {"id": 2, "name": "canonical_combining_class", "kind": "u8"},
+    {"id": 3, "name": "bidi_class", "kind": "canonical-ascii-property-value"},
+    {"id": 4, "name": "bidi_paired_bracket", "kind": "optional-u32le-position-and-canonical-ascii-type"},
+    {"id": 5, "name": "bidi_mirroring_glyph", "kind": "optional-u32le-position"},
+    {"id": 6, "name": "canonical_decomposition", "kind": "u32le-position-sequence"},
+    {"id": 7, "name": "compatibility_decomposition", "kind": "tagged-u32le-position-sequence"},
+    {"id": 8, "name": "numeric_value", "kind": "canonical-ascii-rational-or-empty"},
+    {"id": 9, "name": "simple_case_mappings", "kind": "sorted-tagged-u32le-positions"},
+    {"id": 10, "name": "full_case_mappings", "kind": "sorted-lower-title-upper-position-sequences-with-context-and-locale-condition-tokens"},
+    {"id": 11, "name": "case_folding", "kind": "sorted-status-and-u32le-position-sequences"},
+    {"id": 12, "name": "block", "kind": "canonical-ascii-property-value"},
+    {"id": 13, "name": "east_asian_width", "kind": "canonical-ascii-property-value"},
+    {"id": 14, "name": "script", "kind": "canonical-ascii-property-value"},
+    {"id": 15, "name": "script_extensions", "kind": "sorted-canonical-ascii-set"},
+    {"id": 16, "name": "prop_list", "kind": "sorted-canonical-ascii-set"},
+    {"id": 17, "name": "derived_core_properties", "kind": "sorted-canonical-ascii-set"},
+    {"id": 18, "name": "normalization_properties", "kind": "sorted-canonical-ascii-key-value-set"},
+    {"id": 19, "name": "composition_exclusion", "kind": "u8-boolean"},
+    {"id": 20, "name": "hangul_syllable_type", "kind": "canonical-ascii-property-value"},
+    {"id": 21, "name": "grapheme_cluster_break", "kind": "canonical-ascii-property-value"},
+    {"id": 22, "name": "word_break", "kind": "canonical-ascii-property-value"},
+    {"id": 23, "name": "sentence_break", "kind": "canonical-ascii-property-value"},
+    {"id": 24, "name": "indic_conjunct_break", "kind": "canonical-ascii-property-value"},
+    {"id": 25, "name": "extended_pictographic", "kind": "u8-boolean"},
+    {"id": 26, "name": "line_break", "kind": "canonical-ascii-property-value", "standard": "UAX14-17.0.0-revision-55"}
+  ],
+  "collation_and_geometry_sidecars": {
+    "ducet_equivalence_key": "required-variable-sidecar-keyed-by-codepoint-position",
+    "ducet_mapping_provenance": "required-explicit-implicit-hangul-or-lup-surrogate-extension",
+    "normalization_reverse_composition": "derived-only-after-complete-record-stream",
+    "contraction_trie": "complete-DUCET-sidecar-not-flattened-into-single-atom-records",
+    "rule": "sidecars-share-the-source-recipe-and-stream-receipt-and-cannot-be-independently-recalculated"
+  },
+  "identity": {
+    "preimage": "Laplace-Unicode-Position-Encoding-v1",
+    "algorithm": "BLAKE3-128",
+    "full_preimage_fingerprint_algorithm": "BLAKE3-256",
+    "content_id_equals_first_16_bytes_of_identity_preimage_fingerprint": true,
+    "full_digest_is_collision_guard_not_public_entity_id": true,
+    "rank_and_geometry_excluded": true
+  },
+  "tier": {
+    "atom_floor": 0,
+    "part_of_identity": false,
+    "rule": "structural-tier-is-a-proven-floor-and-use-belongs-to-physicality-or-occurrence"
+  },
+  "record_authority": {
+    "canonical_database_and-bootstrap_perfcache": "sibling-serializations-of-this-one-record-stream",
+    "names_and-display_labels": "excluded-label-realization-data",
+    "activation": "forbidden-by-this-contract-slice"
+  }
+}
