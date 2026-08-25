@@ -34,6 +34,9 @@ TESTS = {
 LANGUAGES = {"C", "CXX", "ASM"}
 NEEDED_PATTERN = re.compile(r"Shared library: \[([^]]+)\]")
 RUNPATH_PATTERN = re.compile(r"Library r(?:un)?path: \[([^]]*)\]", re.IGNORECASE)
+ELF_TYPE_PATTERN = re.compile(r"^\s*Type:\s+([A-Z]+)\b", re.MULTILINE)
+INTERPRETER_PATTERN = re.compile(r"Requesting program interpreter:\s*([^]\n]+)")
+COPY_RELOCATION_PATTERN = re.compile(r"\b(R_[A-Z0-9_]+_COPY)\b")
 COMPILER_TEMPORARY_PATTERN = re.compile(
     r"/(?:tmp|var/tmp)/(?:icx|icpx)-[A-Za-z0-9]+/[^\"'\s]+\.o"
 )
@@ -127,8 +130,19 @@ def validate_contract(contract: dict[str, Any]) -> None:
     )
     if not source_date_epoch.isdecimal():
         raise GraphError("execution.source_date_epoch must be decimal")
-    for field in ("c_flags", "cxx_flags", "rejected_environment"):
+    for field in ("c_flags", "cxx_flags", "link_flags", "rejected_environment"):
         require_string_list(execution.get(field), f"execution.{field}")
+    executable_elf = execution.get("executable_elf")
+    if not isinstance(executable_elf, dict):
+        raise GraphError("execution.executable_elf must be an object")
+    if executable_elf.get("position_independent") is not True:
+        raise GraphError("runtime executables must be position independent")
+    if executable_elf.get("copy_relocations") != "forbidden":
+        raise GraphError("runtime executable COPY relocations must be forbidden")
+    if "-fPIE" not in execution["c_flags"] or "-fPIE" not in execution["cxx_flags"]:
+        raise GraphError("runtime C and C++ compilation must select -fPIE")
+    if "-pie" not in execution["link_flags"]:
+        raise GraphError("runtime executable linking must select -pie")
     for field in ("final_prefix_root", "build_root", "stage_root"):
         if not Path(require_string(execution.get(field), f"execution.{field}")).is_absolute():
             raise GraphError(f"execution.{field} must be absolute")
@@ -296,6 +310,7 @@ def compiler_driver_trace(
             "-###",
             f"-B{bin_directory}",
             *contract["execution"][flag_field],
+            *contract["execution"]["link_flags"],
             "-x",
             language,
             "/dev/null",
@@ -309,12 +324,17 @@ def compiler_driver_trace(
         if selected_linker not in trace:
             raise GraphError(f"{role} driver trace did not select the packaged linker")
         absolute_paths: set[str] = set()
+        linker_arguments: list[str] | None = None
         for line in trace.splitlines():
             try:
                 tokens = shlex.split(line)
             except ValueError:
                 continue
             absolute_paths.update(token for token in tokens if token.startswith("/"))
+            if selected_linker in tokens:
+                linker_arguments = tokens
+        if linker_arguments is None or "-pie" not in linker_arguments:
+            raise GraphError(f"{role} driver trace did not select PIE linking")
         absolute_inputs = []
         for path_text in sorted(absolute_paths):
             path = Path(path_text)
@@ -333,6 +353,7 @@ def compiler_driver_trace(
             "trace_normalization": "laplace.compiler-driver-trace/v1",
             "trace_sha256": hashlib.sha256(normalized_trace.encode("utf-8")).hexdigest(),
             "selected_linker": selected_linker,
+            "pie_link_selected": True,
             "absolute_inputs": absolute_inputs,
         }
     return result
@@ -506,7 +527,13 @@ def build_environment(
         "CFLAGS": " ".join([f"-B{Path(plan['toolchain_prefix']) / 'bin'}", *flags["c_flags"]]),
         "CXXFLAGS": " ".join([f"-B{Path(plan['toolchain_prefix']) / 'bin'}", *flags["cxx_flags"]]),
         "CPPFLAGS": f"-I{staged / 'include'}",
-        "LDFLAGS": f"-L{staged / 'lib'} -Wl,-rpath,{final / 'lib'}",
+        "LDFLAGS": " ".join(
+            [
+                f"-L{staged / 'lib'}",
+                f"-Wl,-rpath,{final / 'lib'}",
+                *flags["link_flags"],
+            ]
+        ),
         "PKG_CONFIG_LIBDIR": ":".join(
             [str(staged / "lib/pkgconfig"), str(staged / "share/pkgconfig")]
         ),
@@ -713,14 +740,41 @@ def elf_metadata(path: Path, readelf: Path) -> dict[str, Any] | None:
     with path.open("rb") as source:
         if source.read(4) != b"\x7fELF":
             return None
-    dynamic = subprocess.run([str(readelf), "-d", str(path)], text=True, capture_output=True)
-    if dynamic.returncode != 0:
-        raise GraphError(f"readelf failed for {path}: {dynamic.stderr.strip()}")
+    outputs: dict[str, str] = {}
+    for name, arguments in (
+        ("header", ("-hW",)),
+        ("program_headers", ("-lW",)),
+        ("dynamic", ("-dW",)),
+        ("relocations", ("-rW",)),
+    ):
+        process = subprocess.run(
+            [str(readelf), *arguments, str(path)], text=True, capture_output=True
+        )
+        if process.returncode != 0:
+            raise GraphError(f"readelf {name} failed for {path}: {process.stderr.strip()}")
+        outputs[name] = process.stdout
+    elf_type_match = ELF_TYPE_PATTERN.search(outputs["header"])
+    if elf_type_match is None:
+        raise GraphError(f"readelf did not report an ELF type for {path}")
+    elf_type = elf_type_match.group(1)
+    interpreter_match = INTERPRETER_PATTERN.search(outputs["program_headers"])
+    interpreter = interpreter_match.group(1) if interpreter_match else None
+    executable = interpreter is not None or elf_type == "EXEC"
+    copy_relocations = COPY_RELOCATION_PATTERN.findall(outputs["relocations"])
+    if executable and elf_type != "DYN":
+        raise GraphError(f"packaged ELF executable is not PIE: {path}")
+    if executable and copy_relocations:
+        raise GraphError(f"packaged ELF executable contains COPY relocations: {path}")
     runpaths: list[str] = []
-    for match in RUNPATH_PATTERN.finditer(dynamic.stdout):
+    for match in RUNPATH_PATTERN.finditer(outputs["dynamic"]):
         runpaths.extend(item for item in match.group(1).split(":") if item)
     return {
-        "needed": sorted(set(NEEDED_PATTERN.findall(dynamic.stdout))),
+        "type": elf_type,
+        "executable": executable,
+        "interpreter": interpreter,
+        "copy_relocation_count": len(copy_relocations),
+        "copy_relocation_types": sorted(set(copy_relocations)),
+        "needed": sorted(set(NEEDED_PATTERN.findall(outputs["dynamic"]))),
         "runpaths": sorted(set(runpaths)),
     }
 

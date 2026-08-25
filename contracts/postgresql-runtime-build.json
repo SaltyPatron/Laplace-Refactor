@@ -20,8 +20,13 @@
     "jobs": 6,
     "source_date_epoch": "1787616000",
     "target_isa": "broadwell",
-    "c_flags": ["-O3", "-g", "-march=broadwell", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
-    "cxx_flags": ["-O3", "-g", "-march=broadwell", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
+    "c_flags": ["-O3", "-g", "-march=broadwell", "-fPIE", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
+    "cxx_flags": ["-O3", "-g", "-march=broadwell", "-fPIE", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
+    "link_flags": ["-pie"],
+    "executable_elf": {
+      "position_independent": true,
+      "copy_relocations": "forbidden"
+    },
     "final_prefix_root": "/opt/laplace/releases",
     "build_root": "/opt/laplace/build",
     "stage_root": "/opt/laplace/stage",
