@@ -377,6 +377,24 @@
         }
       ]
     },
+    "texinfo": {
+      "version": "7.3",
+      "filename": "texinfo-7.3.tar.xz",
+      "url": "https://ftp.gnu.org/gnu/texinfo/texinfo-7.3.tar.xz",
+      "sha256": "51f74eb0f51cfa9873b85264dfdd5d46e8957ec95b88f0fb762f63d9e164c72e",
+      "size_bytes": 6940392,
+      "top_directory": "texinfo-7.3",
+      "member_count": 8118,
+      "regular_file_count": 6952,
+      "uncompressed_bytes": 84312784,
+      "tree_sha256": "7c05c58b313dd3fb73183c159a3b138c2a796a1e2a6367ed29c9fed35d234edd",
+      "licenses": [
+        {
+          "path": "texinfo-7.3/COPYING",
+          "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+        }
+      ]
+    },
     "zlib": {
       "version": "1.3.2",
       "filename": "zlib-1.3.2.tar.xz",

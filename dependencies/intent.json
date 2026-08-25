@@ -154,6 +154,15 @@
       "lock_entries": ["release:gnu-make"]
     },
     {
+      "id": "texinfo",
+      "class": "build-toolchain",
+      "profiles": ["build", "linux"],
+      "intent": ["build and verify release documentation required by selected GNU source builds", "provide the selected makeinfo and texi2any executables to downstream source builds"],
+      "boundary": "Texinfo is a selected build input; its executables and Perl modules cannot enter or activate the Laplace product runtime.",
+      "selection": "locked-release",
+      "lock_entries": ["release:texinfo"]
+    },
+    {
       "id": "gnu-bison",
       "class": "build-toolchain",
       "profiles": ["build", "database"],
