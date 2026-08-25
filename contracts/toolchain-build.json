@@ -64,6 +64,20 @@
   },
   "bootstrap": {
     "classification": "host-platform-bootstrap",
+    "system_abi": {
+      "include_roots": [
+        {"path": "/usr/lib/gcc/x86_64-linux-gnu/11/include", "tree_sha256": "63da49492ca90d2a8ee5b425c3d2c2e0cbff0f2bd8f34fc3872a24a555e685d2", "file_count": 132, "total_file_bytes": 2290532},
+        {"path": "/usr/include/x86_64-linux-gnu", "tree_sha256": "944e67a10d67930bb18c0701349311ea3cd158903df68be1830f505a9ef2196e", "file_count": 2065, "total_file_bytes": 8294878},
+        {"path": "/usr/include", "tree_sha256": "33f52d4b00af3a030565f1f5723e3e40c84677a394b529f82c764b0ad0168285", "file_count": 38358, "total_file_bytes": 413118108}
+      ],
+      "library_search_roots": [
+        "/usr/lib/x86_64-linux-gnu",
+        "/lib/x86_64-linux-gnu",
+        "/usr/lib",
+        "/lib"
+      ],
+      "library_input_contract": "resolved-linker-inputs-are-individually-receipted"
+    },
     "tools": [
       {"id": "cc", "path": "/usr/bin/x86_64-linux-gnu-gcc-11", "sha256": "821af3c74506283c179ca413bb33e6b528805a4dd8a5c09df125e5ad560a9e89", "version_argument": "--version"},
       {"id": "cxx", "path": "/usr/bin/x86_64-linux-gnu-g++-11", "sha256": "2360901d864cf10bfd6296e261cb2c14053552a80377761ab07146ec9ec9a2c0", "version_argument": "--version"},
@@ -107,7 +121,7 @@
         "version": "5.44.0",
         "phase": "build-language-tools",
         "source_mode": "private-copy-in-tree",
-        "configure": ["{source}/Configure", "-des", "-Dprefix={prefix}", "-Dman1dir=none", "-Dman3dir=none", "-Dcc={cc}", "-Dld={cc}", "-Dar={ar}", "-Dnm={nm}", "-Dranlib={ranlib}", "-Dlocincpth= ", "-Dloclibpth= ", "-Dglibpth=/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib", "-Dlibpth=/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib", "-Dccflags=-fwrapv -fno-strict-aliasing -pipe -fstack-protector-strong -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64", "-Dldflags=-fstack-protector-strong", "-Dinc_version_list=none", "-Dmyhostname=laplace-build", "-Dmydomain=.invalid", "-Dcf_email=build@laplace.invalid", "-Dperladmin=build@laplace.invalid"],
+        "configure": ["{source}/Configure", "-des", "-Dprefix={prefix}", "-Dman1dir=none", "-Dman3dir=none", "-Dcc={cc}", "-Dld={cc}", "-Dar={ar}", "-Dnm={nm}", "-Dranlib={ranlib}", "-Dlocincpth= ", "-Dloclibpth= ", "-Dglibpth=/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib", "-Dlibpth=/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib", "-Dccflags=-fwrapv -fno-strict-aliasing -pipe -fstack-protector-strong -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -nostdinc -isystem /usr/lib/gcc/x86_64-linux-gnu/11/include -isystem /usr/include/x86_64-linux-gnu -isystem /usr/include", "-Dcppflags=-nostdinc -isystem /usr/lib/gcc/x86_64-linux-gnu/11/include -isystem /usr/include/x86_64-linux-gnu -isystem /usr/include", "-Dldflags=-fstack-protector-strong", "-Dinc_version_list=none", "-Dmyhostname=laplace-build", "-Dmydomain=.invalid", "-Dcf_email=build@laplace.invalid", "-Dperladmin=build@laplace.invalid"],
         "build": ["{make}", "-j{jobs}"],
         "test": ["{make}", "test"],
         "install": ["{make}", "install"],

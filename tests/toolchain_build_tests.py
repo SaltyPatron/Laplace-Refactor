@@ -63,6 +63,7 @@ class ToolchainBuildTests(unittest.TestCase):
                         "glibpth='/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib'",
                         "libpth='/usr/local/lib /usr/lib/x86_64-linux-gnu /usr/lib'",
                         "ccflags='-O2'",
+                        "cppflags='-O2'",
                         "ldflags='-O2'",
                     )
                 )
@@ -71,6 +72,32 @@ class ToolchainBuildTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(BUILD.ToolchainError, "system ABI library paths"):
                 BUILD.verify_component_configuration("perl", source)
+
+    def test_perl_configure_output_accepts_receipted_system_abi_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            includes = (
+                "-nostdinc -isystem /usr/lib/gcc/x86_64-linux-gnu/11/include "
+                "-isystem /usr/include/x86_64-linux-gnu -isystem /usr/include"
+            )
+            libraries = "/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib"
+            (source / "config.sh").write_text(
+                "\n".join(
+                    (
+                        "locincpth=' '",
+                        "loclibpth=' '",
+                        f"glibpth='{libraries}'",
+                        f"libpth='{libraries}'",
+                        f"ccflags='-O2 {includes}'",
+                        f"cppflags='{includes}'",
+                        "ldflags='-O2'",
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            result = BUILD.verify_component_configuration("perl", source)
+            self.assertEqual(result["status"], "verified")
 
     def test_canonical_source_generation_cannot_be_a_build_directory(self) -> None:
         contract = self.contract()
