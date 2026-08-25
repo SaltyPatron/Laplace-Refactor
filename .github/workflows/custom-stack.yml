@@ -55,21 +55,14 @@ jobs:
           "$LAPLACE_PG_CONFIG" --version
           "$LAPLACE_ICX" --version
           dotnet --version
-      - name: Acquire exact locked build and numeric sources
+      - name: Select exact locally verified build and numeric sources
         shell: bash
         run: |
           set -euo pipefail
-          dependency_root="$RUNNER_TEMP/laplace-dependencies"
-          mkdir -p "$dependency_root"
-          for dependency in blake3 eigen googletest spectra; do
-            upstream=$(jq -r --arg dependency "$dependency" '.dependencies[$dependency].upstream' dependencies/lock.json)
-            revision=$(jq -r --arg dependency "$dependency" '.dependencies[$dependency].revision' dependencies/lock.json)
-            source="$dependency_root/$dependency"
-            git init --quiet "$source"
-            git -C "$source" remote add origin "$upstream"
-            git -C "$source" fetch --quiet --depth=1 origin "$revision"
-            git -C "$source" checkout --quiet --detach FETCH_HEAD
-          done
+          lock_sha=$(sha256sum dependencies/lock.json | awk '{print $1}')
+          dependency_root="/opt/laplace/external/source-generations/$lock_sha"
+          test -d "$dependency_root"
+          ./tools/dependencies/verify-lock.sh "$dependency_root"
           printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
       - name: Configure outside the repository
         shell: bash
