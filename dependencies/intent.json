@@ -1,0 +1,382 @@
+{
+  "schema": "laplace.dependency-intent/v1",
+  "principles": [
+    "A dependency is any external code, binary, model, corpus, standard dataset, tool, service, or response whose identity or behavior can affect a Laplace calculation.",
+    "The latest supported upstream release is selected by default; an older selection requires a documented incompatibility, regression, license, platform, determinism, or acceptance finding.",
+    "A dependency supplies a declared calculation, storage, transport, testimony, tooling, test, or acceleration capability and never becomes semantic authority.",
+    "Logical behavior remains identical across execution providers unless the operation contract explicitly declares a numeric tolerance or hardware-specific result class.",
+    "Source selection, build flags, ABI closure, runtime object identity, threading, and deterministic numeric controls are receipt inputs.",
+    "A package profile contains one compatible dependency graph and cannot rely on ambient feature libraries from the host."
+  ],
+  "components": [
+    {
+      "id": "blake3",
+      "class": "native-runtime",
+      "profiles": ["core"],
+      "intent": ["BLAKE3-128 canonical content identity", "BLAKE3-256 program, result, perfcache, and execution receipts", "SIMD batch hashing"],
+      "boundary": "Hashing identifies declared canonical bytes; it does not define content interpretation or referential identity.",
+      "selection": "locked-git",
+      "lock_entries": ["git:blake3"]
+    },
+    {
+      "id": "postgresql",
+      "class": "product-runtime",
+      "profiles": ["database", "core"],
+      "intent": ["durable universal substrate state", "transactions and immutable epoch publication", "native extension and SPI execution", "set-oriented planning, indexing, and observability"],
+      "boundary": "PostgreSQL orchestrates durable and indexed execution; SQL does not own a second semantic engine.",
+      "selection": "locked-release-and-git",
+      "lock_entries": ["git:postgresql", "release:postgresql"]
+    },
+    {
+      "id": "postgis",
+      "class": "product-runtime",
+      "profiles": ["database", "geometry"],
+      "intent": ["four-dimensional spatial types", "GiST-backed geometry and trajectory candidate generation", "set-oriented spatial predicates and planner integration"],
+      "boundary": "A spatial carrier is geometric only when its declared payload class is geometry.",
+      "selection": "locked-release-and-git",
+      "lock_entries": ["git:postgis", "release:postgis"]
+    },
+    {
+      "id": "geos",
+      "class": "product-runtime",
+      "profiles": ["geometry"],
+      "intent": ["exact declared topology and geometry operations used by PostGIS and native geometry providers"],
+      "boundary": "GEOS supplies geometry kernels and cannot define substrate relation or evidence semantics.",
+      "selection": "locked-release-and-git",
+      "lock_entries": ["git:geos", "release:geos"]
+    },
+    {
+      "id": "proj",
+      "class": "product-runtime",
+      "profiles": ["geometry"],
+      "intent": ["declared coordinate reference transformations for witnessed geographic content and GDAL/PostGIS integration"],
+      "boundary": "Coordinate transformation is applied only under an explicit source and target reference-system contract.",
+      "selection": "locked-release-and-git",
+      "lock_entries": ["git:proj", "release:proj"]
+    },
+    {
+      "id": "gdal",
+      "class": "product-runtime",
+      "profiles": ["geometry", "ingestion"],
+      "intent": ["raster and vector format decoding", "geospatial metadata and dataset access", "bulk conversion into universal content and physicality inputs"],
+      "boundary": "GDAL is an edge codec and data provider; decoded format structure does not create a modality-specific substrate.",
+      "selection": "locked-release-and-git",
+      "lock_entries": ["git:gdal", "release:gdal"]
+    },
+    {
+      "id": "intel-llvm",
+      "class": "toolchain",
+      "profiles": ["numeric-cpu", "linux", "windows"],
+      "intent": ["optimized C and C++ native engine and extension builds", "AVX2 and later declared vector profiles", "cross-platform diagnostics and deterministic floating-point flags"],
+      "boundary": "Compiler optimization cannot change the declared identity, ordering, evidence, or exact numeric contracts.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "intel-oneapi-runtime",
+      "class": "product-runtime",
+      "profiles": ["numeric-cpu", "linux", "windows"],
+      "intent": ["runtime support for IntelLLVM-built vectorized native objects", "declared SVML and compiler support libraries where selected by the package"],
+      "boundary": "Every loaded runtime object path and hash belongs to package identity; ambient oneAPI directories cannot select the runtime.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "onemkl",
+      "class": "product-runtime",
+      "profiles": ["numeric-cpu", "cognition", "model-compilation"],
+      "intent": ["BLAS and LAPACK kernels", "dense, sparse, factorization, fitting, and tensor calculations", "batched operator construction and evaluation"],
+      "boundary": "MKL executes a typed numerical plan; it cannot define relation laws, evidence standing, cognition goals, or canonical representations.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "onetbb",
+      "class": "product-runtime",
+      "profiles": ["numeric-cpu", "core"],
+      "intent": ["bounded task arenas", "topology-aware parallel loops", "batch chunk scheduling", "shared MKL threading layer and oversubscription control"],
+      "boundary": "Scheduling changes physical execution only; partitioning and merge must satisfy the operation's deterministic parity contract.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "eigen",
+      "class": "native-runtime",
+      "profiles": ["numeric-cpu", "cognition", "model-compilation"],
+      "intent": ["typed dense and sparse matrix structures", "small and medium reference calculations", "QR, SVD, and operator test construction"],
+      "boundary": "An Eigen matrix is a calculated working representation and never canonical substrate state.",
+      "selection": "locked-git",
+      "lock_entries": ["git:eigen"]
+    },
+    {
+      "id": "spectra",
+      "class": "native-runtime",
+      "profiles": ["cognition", "aimap"],
+      "intent": ["iterative Krylov and spectral calculations over declared matrix-free or materialized operators"],
+      "boundary": "A solver result is published only after the generated operator's residual, orthogonality, nullspace, rank, and gauge contracts pass.",
+      "selection": "locked-git",
+      "lock_entries": ["git:spectra"]
+    },
+    {
+      "id": "tree-sitter",
+      "class": "native-runtime",
+      "profiles": ["ingestion", "code"],
+      "intent": ["incremental parsing runtime for source-code and structured-language physicalities"],
+      "boundary": "Parse trees are witnessed structural decompositions and do not create semantic truth by themselves.",
+      "selection": "locked-git",
+      "lock_entries": ["git:tree-sitter"]
+    },
+    {
+      "id": "tree-sitter-grammars",
+      "class": "generated-source-set",
+      "profiles": ["ingestion", "code"],
+      "intent": ["language-specific parser and scanner providers selected through one generic grammar registry"],
+      "boundary": "Each grammar retains its source identity, license, generated-parser recipe, and language testimony.",
+      "selection": "locked-grammar-set",
+      "lock_entries": ["grammars:tree-sitter-grammars"]
+    },
+    {
+      "id": "fathom",
+      "class": "native-runtime",
+      "profiles": ["chess"],
+      "intent": ["Syzygy tablebase probing as an externally reproducible chess-state witness and acceptance provider"],
+      "boundary": "A tablebase result is witnessed calculated evidence for its exact board state and table set, not universal product authority.",
+      "selection": "locked-git",
+      "lock_entries": ["git:fathom"]
+    },
+    {
+      "id": "syzygy-table-sets",
+      "class": "versioned-external-data",
+      "profiles": ["chess", "testing"],
+      "intent": ["WDL and DTZ observations for exact eligible chess positions", "reproducible endgame calculation fixtures for Fathom and independent engine comparison"],
+      "boundary": "Every result is bound to the exact board state, rule interpretation, table-set manifest, file hashes, and probe implementation; table data does not become universal semantic authority.",
+      "selection": "data-contract-selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "stockfish",
+      "class": "external-calculation-engine",
+      "profiles": ["chess", "testing"],
+      "intent": ["UCI analysis and counterfactual move evaluation", "reproducible chess behavior comparison", "externally generated evaluation testimony for exact positions and engine settings"],
+      "boundary": "A Stockfish result is an attributable engine observation bound to binary identity, network identity, UCI settings, position, limits, and output; it cannot define Laplace chess semantics or truth.",
+      "selection": "locked-git",
+      "lock_entries": ["git:stockfish"]
+    },
+    {
+      "id": "stockfish-network-assets",
+      "class": "versioned-model-artifact",
+      "profiles": ["chess", "testing"],
+      "intent": ["exact big and small NNUE evaluation parameters selected by the Stockfish 18 source contract", "reproducible engine calculation and binary embedding inputs"],
+      "boundary": "Network parameters are separately identified model dependencies; their filename, bytes, engine compatibility, license disposition, and embedding receipt cannot be inferred from the Stockfish source hash.",
+      "selection": "locked-artifacts-license-review-required",
+      "lock_entries": ["artifact:stockfish-nnue-big", "artifact:stockfish-nnue-small"]
+    },
+    {
+      "id": "cutechess",
+      "class": "tool",
+      "profiles": ["chess", "testing"],
+      "intent": ["chess engine protocol execution, match orchestration, and reproducible behavioral fixtures"],
+      "boundary": "Match execution supplies observations; it does not define Laplace chess semantics.",
+      "selection": "locked-git",
+      "lock_entries": ["git:cutechess"]
+    },
+    {
+      "id": "lichess",
+      "class": "external-service",
+      "profiles": ["chess", "service", "ingestion"],
+      "intent": ["live game observation and lawful bot action transport", "attributable game, clock, move, chat, account, and event occurrences", "PGN acquisition under a declared API and authorization contract"],
+      "boundary": "Remote identifiers, ratings, game records, clocks, chat, and API responses remain source-scoped occurrences and testimony; they do not create canonical referential identity or semantic standing by themselves.",
+      "selection": "service-contract-selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "chess-record-authorities",
+      "class": "external-witness-family",
+      "profiles": ["chess", "ingestion", "referential-identity"],
+      "intent": ["FIDE and federation identity and rating observations", "PGN game and event occurrences", "independent chronology and participant evidence for referential adjudication"],
+      "boundary": "Names, external identifiers, ratings, dates, and event records are separately attributable testimony; string equality cannot merge people and copied records cannot multiply independent roots.",
+      "selection": "source-contract-selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "googletest",
+      "class": "test",
+      "profiles": ["testing"],
+      "intent": ["native implementation tests, parameterized vectors, and deliberate mutation detection"],
+      "boundary": "GoogleTest does not enter the product runtime package.",
+      "selection": "locked-git",
+      "lock_entries": ["git:googletest"]
+    },
+    {
+      "id": "icu",
+      "class": "product-runtime",
+      "profiles": ["database", "unicode", "ingestion"],
+      "intent": ["Unicode data, normalization, segmentation, collation, and PostgreSQL ICU support under pinned versioned contracts"],
+      "boundary": "Canonical Unicode behavior is versioned by the Laplace contract and cannot silently vary with a host ICU upgrade.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "unicode-standard-data",
+      "class": "versioned-standard-data",
+      "profiles": ["unicode", "identity", "ingestion", "realization"],
+      "intent": ["UCD property and normalization inputs", "complete DUCET collation-element inputs", "declared UAX segmentation and composition recipes"],
+      "boundary": "Unicode versions and algorithms calculate versioned physicalities and equivalence relations; they do not alter exact source bytes or silently redefine an existing recipe epoch.",
+      "selection": "data-contract-selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "semantic-and-linguistic-corpora",
+      "class": "external-witness-family",
+      "profiles": ["ingestion", "language", "semantics"],
+      "intent": ["attributable lexical, grammatical, frame, role, translation, alignment, and corpus observations", "independent and dependent source roots for evidence adjudication", "multilingual realization and cognition acceptance fixtures"],
+      "boundary": "WordNet, CILI, OMW, Wiktionary, ConceptNet, FrameNet, PropBank, VerbNet, SemLink, Tatoeba, Universal Dependencies, OpenSubtitles, and related sources retain separate licenses, versions, occurrences, relation vocabularies, and dependence lineages.",
+      "selection": "source-contract-selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "libxml2",
+      "class": "product-runtime",
+      "profiles": ["database", "ingestion"],
+      "intent": ["PostgreSQL XML support and exact XML container decoding where declared"],
+      "boundary": "XML parsing supplies exact source structure and source claims, not semantic standing.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "openssl",
+      "class": "product-runtime",
+      "profiles": ["database", "service"],
+      "intent": ["TLS and cryptographic transport support for PostgreSQL and service boundaries"],
+      "boundary": "Transport security is distinct from BLAKE3 content identity and execution receipts.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "zlib",
+      "class": "product-runtime",
+      "profiles": ["database", "ingestion"],
+      "intent": ["PostgreSQL and source-format compression support"],
+      "boundary": "Compression changes storage and transport representation only.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "lz4",
+      "class": "product-runtime",
+      "profiles": ["database", "storage"],
+      "intent": ["PostgreSQL and materialized-artifact compression where measured"],
+      "boundary": "Decoded bytes must reproduce the same exact source content and receipt input.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "zstandard",
+      "class": "product-runtime",
+      "profiles": ["database", "storage", "ingestion"],
+      "intent": ["PostgreSQL, archive, corpus, and materialized-artifact compression"],
+      "boundary": "Archive and stream limits are validated before decoded content enters the substrate.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "liburing",
+      "class": "product-runtime",
+      "profiles": ["database", "linux"],
+      "intent": ["declared PostgreSQL asynchronous I/O capability on Linux"],
+      "boundary": "I/O scheduling cannot change transaction visibility or completion receipts.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "uuid",
+      "class": "product-runtime",
+      "profiles": ["database"],
+      "intent": ["PostgreSQL UUID capability for operational identifiers that are distinct from BLAKE3 content identity"],
+      "boundary": "UUIDs never replace canonical content identifiers.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "sqlite",
+      "class": "transitive-runtime",
+      "profiles": ["geometry"],
+      "intent": ["PROJ database access inside the selected geospatial stack"],
+      "boundary": "SQLite is a packaged geospatial dependency and not a second Laplace persistence authority.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "dotnet",
+      "class": "toolchain-and-runtime",
+      "profiles": ["orchestrator", "service", "linux", "windows"],
+      "intent": ["C# orchestration, services, source adapters, lifecycle, API, and generated binding execution"],
+      "boundary": "Managed code orchestrates the generated ISA and cannot implement private substrate semantics.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "npgsql",
+      "class": "managed-runtime",
+      "profiles": ["orchestrator", "service"],
+      "intent": ["typed PostgreSQL transport, batching, cancellation, and telemetry for C# orchestrators"],
+      "boundary": "Npgsql transports generated programs and results; it does not calculate them.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "managed-lifecycle-and-observability",
+      "class": "managed-runtime-family",
+      "profiles": ["orchestrator", "service", "testing"],
+      "intent": ["schema lifecycle", "structured logs", "metrics and traces", "columnar source adapters", "CLI and service hosting", "managed implementation tests"],
+      "boundary": "DbUp, OpenTelemetry, Serilog, Parquet readers, ASP.NET Core, CLI, and test providers remain orchestration or edge concerns.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "node-and-web-graph",
+      "class": "toolchain-and-runtime-family",
+      "profiles": ["web"],
+      "intent": ["web interface build and browser product surface"],
+      "boundary": "The web graph renders and transports product state; it cannot own cognition or substrate semantics.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "media-codec-family",
+      "class": "edge-codec-family",
+      "profiles": ["ingestion", "realization", "media"],
+      "intent": ["decode and encode declared image, audio, video, document, archive, and model containers into exact universal content blocks"],
+      "boundary": "A codec supplies container structure and bytes; it cannot define a separate modality engine.",
+      "selection": "capability-selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "model-artifact-and-runtime-family",
+      "class": "external-artifact-and-runtime-family",
+      "profiles": ["model-ingestion", "model-compilation", "testing"],
+      "intent": ["acquire and identify model containers, tokenizers, tensor metadata, weights, and lineage", "execute generated model artifacts in independent target runtimes", "compare induced operators and behavior rather than raw tensor coordinates alone"],
+      "boundary": "A model, registry, tokenizer, GGUF reader, or inference runtime is a source, codec, witness, or target executor; none becomes Laplace native cognition or canonical semantic authority.",
+      "selection": "capability-selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "gpu-acceleration-family",
+      "class": "acceleration-family",
+      "profiles": ["gpu"],
+      "intent": ["CUDA, OpenCL, or later declared providers may accelerate typed kernels after exact or tolerance-bound parity is proven"],
+      "boundary": "No GPU is required for correctness, and an accelerated provider cannot change the semantic program or evidence result.",
+      "selection": "capability-selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "cmake-and-ninja",
+      "class": "build-toolchain-family",
+      "profiles": ["build", "linux", "windows"],
+      "intent": ["one generated build graph, isolated build directories, deterministic contract generation, and bounded parallel compilation"],
+      "boundary": "Build tools consume pinned source and toolchain inputs and do not select undeclared source or runtime objects.",
+      "selection": "selection-required",
+      "lock_entries": []
+    }
+  ]
+}

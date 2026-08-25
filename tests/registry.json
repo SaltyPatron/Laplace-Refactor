@@ -353,6 +353,12 @@
       "evidence_targets": ["LP-TEST-REQUIREMENTS-TRACEABILITY"],
       "covered_dimensions": ["product requirement joins", "direct requirement uniqueness", "evidence target validity", "feature target validity"],
       "defect_controls": ["unknown product join", "unjoined product requirement", "unknown registry evidence", "unknown feature evidence"]
+    },
+    {
+      "ctest_name": "dependencies.intent-contract",
+      "evidence_targets": ["LP-TEST-DEPENDENCY-INTENT"],
+      "covered_dimensions": ["external capability classification", "downloaded dependency roots", "source-lock joins", "selection status", "semantic authority boundary"],
+      "defect_controls": ["missing source join", "duplicate source join", "missing external engine", "missing model dependency root", "empty capability intent"]
     }
   ]
 }

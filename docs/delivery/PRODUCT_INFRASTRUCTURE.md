@@ -11,6 +11,20 @@ OpenSSL, zlib, LZ4, Zstandard, liburing, tree-sitter and grammars, oneAPI runtim
 MKL, TBB, .NET, Node, and every direct and transitive native object selected by the
 declared product features.
 
+Dependency means every external input capable of changing a calculation, not only a
+linked library. Downloaded corpora and standards under the declared data root,
+conventional models and code datasets under the declared model root, NNUE networks,
+Syzygy tables, invoked tools, and service responses enter the same dependency graph.
+Their types determine how they are acquired, versioned, licensed, verified, executed,
+and interpreted; they do not exempt them from dependency identity or provenance.
+
+`dependencies/roots.json` defines discovery roots without making machine-local paths
+canonical. The observed Linux roots include `/vault/Data` for corpora and standards,
+`/vault/models` for model snapshots and code corpora, `/opt/laplace` for installed
+product observations, and `/opt/intel/oneapi` for Intel toolchain assets. Environment
+or package configuration may select another physical location while preserving the
+same logical root and manifest contracts.
+
 Each dependency record contains:
 
 - upstream project and canonical source URL;
@@ -23,14 +37,60 @@ Each dependency record contains:
 - security and support status;
 - reproducibility evidence.
 
+The update policy selects the latest supported stable upstream release. A version pin
+makes one build reproducible; it is not permission to remain stale. Automated checks
+report newer releases, while an older selection is accepted only with a written defect
+or compatibility finding and an expiry or review condition.
+
 Source acquisition, verification, patching, configuration, compilation, testing,
 staging, and packaging are distinct commands with machine-readable receipts. A build
 can run without network access after verified acquisition.
 
+`dependencies/intent.json` records why each direct, transitive, toolchain, test, and
+acceleration family exists, which product profile consumes it, and the boundary it may
+not cross. The same catalog covers invoked engines, versioned datasets, network
+services, external witnesses, standards data, model registries, and independent target
+runtimes. A component cannot enter the build merely because it existed historically or
+is convenient. Its selected capabilities must satisfy a declared product use, and the
+dependency verifier joins every locked source to that intent record.
+
+Compiled linkage is only one external relationship. Stockfish is an attributable UCI
+calculation provider; Syzygy files are versioned data consumed through a declared probe;
+cutechess executes matches; Lichess transports live observations and authorized acts;
+FIDE, PGN publishers, and linguistic corpora provide source-scoped testimony; Unicode
+data defines versioned standard recipes; conventional model registries and runtimes
+provide artifacts and independent target execution. Every interaction binds exact
+inputs, versions, authorization, outputs, provenance, and evidence kind. No external
+provider becomes canonical identity, referential identity, cognition, or truth.
+
+The numerical CPU profile has three distinct responsibilities:
+
+- IntelLLVM and the oneAPI compiler runtimes define the optimized native build profile,
+  vector ISA selection, deterministic floating-point flags, diagnostics, and required
+  runtime objects across Linux and Windows.
+- oneMKL supplies measured BLAS, LAPACK, sparse, factorization, eigensolver-support,
+  fitting, and tensor kernels used by generated operator and model calculations. MKL
+  compatibility modes, thread count, precision, and reduction behavior are receipt
+  inputs; MKL never defines semantic meaning.
+- oneTBB supplies bounded task arenas, topology-aware parallel loops, chunk execution,
+  and the MKL threading layer so nested native work shares one CPU budget instead of
+  oversubscribing the host. Partition and merge contracts must preserve the canonical
+  serial result where exact parity is required.
+
+Eigen supplies typed dense and sparse matrix structures plus reference calculations;
+Spectra supplies iterative spectral/Krylov machinery over declared operators. They are
+calculation providers, never a permanent representation of the substrate. PostgreSQL,
+PostGIS, GEOS, PROJ, and GDAL likewise retain separate persistence, indexed geometry,
+topology, coordinate-system, and format-ingestion roles. Packed trajectory carriers
+cannot be passed to geometric distance code merely because the storage datatype is
+spatial.
+
 Release archives are accepted only through `dependencies/release-lock.json` and the
 archive verifier. Git sources are accepted only through `dependencies/lock.json` and
-the Git verifier. Grammar repositories use their separate 299-repository lock. Import
-is published atomically only after the complete source set has passed identity,
+the Git verifier. Binary model and data inputs use `dependencies/artifact-lock.json`;
+Stockfish's two NNUE files are locked independently from its source because either can
+change engine behavior. Grammar repositories use their separate 299-repository lock.
+Import is published atomically only after the complete source set has passed identity,
 license, path, link, tree, and extracted-content checks.
 
 The staged package is inspected with `tools/dependencies/elf-closure.py`. A package

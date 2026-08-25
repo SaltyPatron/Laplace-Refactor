@@ -297,6 +297,7 @@ domains:
     product_requirements:
       - LP-BULK-001
       - LP-RUN-001
+      - LP-TOPOLOGY-001
       - LP-PERF-001
       - LP-PERF-002
     requirements:

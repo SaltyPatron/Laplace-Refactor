@@ -1,0 +1,45 @@
+{
+  "schema": "laplace.dependency-roots/v1",
+  "roots": [
+    {
+      "id": "downloaded-source-data",
+      "class": "downloaded-dependency-root",
+      "environment": "LAPLACE_DATA_ROOT",
+      "linux_discovery_path": "/vault/Data",
+      "intent": "Downloaded corpora, standards data, game records, table sets, source authority snapshots, and acceptance fixtures.",
+      "identity_requirement": "Every admitted asset receives a source-scoped manifest with exact bytes or a reproducible file-tree receipt, license, acquisition lineage, and version state."
+    },
+    {
+      "id": "downloaded-model-data",
+      "class": "downloaded-dependency-root",
+      "environment": "LAPLACE_MODEL_ROOT",
+      "linux_discovery_path": "/vault/models",
+      "intent": "Conventional model snapshots, tokenizers, tensor containers, GGUF artifacts, code corpora, Stack-derived data, Tiny-Codes, and independent model-runtime fixtures.",
+      "identity_requirement": "Every admitted snapshot and corpus partition retains provider, repository or dataset revision, exact file identity, license, lineage, and model or dataset family relationships."
+    },
+    {
+      "id": "verified-source-cache",
+      "class": "repository-local-dependency-root",
+      "environment": "LAPLACE_VERIFIED_SOURCE_ROOT",
+      "repository_discovery_path": "dependencies/source-complete",
+      "intent": "Verified upstream Git source trees selected by dependencies/lock.json.",
+      "identity_requirement": "Each tree must match its exact revision, Git archive digest, clean status, and license-file digests before use."
+    },
+    {
+      "id": "installed-product-assets",
+      "class": "installed-dependency-root",
+      "environment": "LAPLACE_INSTALL_ROOT",
+      "linux_discovery_path": "/opt/laplace",
+      "intent": "Installed product, custom PostgreSQL and geometry stack, native libraries, tools, headers, and activation assets used as host observations during reconstruction.",
+      "identity_requirement": "Installed files are observations until an activation manifest binds path, full hash, ABI closure, build receipt, and runtime capability checks."
+    },
+    {
+      "id": "intel-oneapi-assets",
+      "class": "installed-toolchain-root",
+      "environment": "ONEAPI_ROOT",
+      "linux_discovery_path": "/opt/intel/oneapi",
+      "intent": "IntelLLVM, oneMKL, oneTBB, compiler runtimes, profiling tools, and selected oneAPI acceleration providers.",
+      "identity_requirement": "Selected compiler and runtime versions, real paths, object hashes, flags, ISA, threading, numerical controls, and licenses enter package and execution receipts."
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema": "laplace.artifact-lock/v1",
+  "artifacts": {
+    "stockfish-nnue-big": {
+      "version": "sf_18",
+      "filename": "nn-c288c895ea92.nnue",
+      "url": "https://github.com/official-stockfish/networks/raw/master/nn-c288c895ea92.nnue",
+      "sha256": "c288c895ea924429ea9092e3f36b2b3c1f00f2a3a4c759ff7e57e79e3b43e4a7",
+      "size": 108919594,
+      "admission": "identity-locked-license-review-required"
+    },
+    "stockfish-nnue-small": {
+      "version": "sf_18",
+      "filename": "nn-37f18f62d772.nnue",
+      "url": "https://github.com/official-stockfish/networks/raw/master/nn-37f18f62d772.nnue",
+      "sha256": "37f18f62d772f3107e1d6aaca3898c130c3c86f2ab63e6555fbbca20635a899d",
+      "size": 3519630,
+      "admission": "identity-locked-license-review-required"
+    }
+  }
+}
