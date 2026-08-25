@@ -242,3 +242,39 @@ The new product build must:
     executable, PostgreSQL server, extension, and service process closure.
 14. Execute real capability and shutdown checks for GDAL, PostGIS, PROJ, GEOS,
     PostgreSQL, MKL, TBB, and product extensions from the staged package.
+
+## 2026-08-25 live-host reconciliation
+
+A read-only reconciliation against the active Linux host added the following bounded
+observations. They identify recovery and acquisition assets; they do not select clean
+product implementations by themselves.
+
+- `/opt/laplace/external` exists but is empty. Verified source trees are present in the
+  ignored clean-repository dependency cache, while the preserved repository still
+  contains the earlier upstream clones.
+- IntelLLVM 2026.1.1, oneMKL 2026.1.0, and oneTBB 2023.1.0 are installed under
+  `/opt/intel/oneapi`. The deployed native dynamics and synthesis libraries directly
+  require MKL LP64, MKL core, MKL's TBB threading provider, TBB 12, and Intel compiler
+  runtime objects.
+- The custom PostgreSQL 18.3 binary was built with precise contraction controls,
+  Haswell ISA selection, ICU, OpenSSL, zlib, XML, LZ4, Zstandard, and liburing. The
+  host PostgreSQL 18.4 package also exposes NUMA, LLVM, ICU, LZ4, Zstandard, and
+  liburing capabilities, but it is a different build and cannot stand in for the
+  custom package.
+- The host chess tools are Stockfish 14.1 and cutechess 1.5.1. The clean dependency
+  selection instead pins the latest official Stockfish 18 source release and its two
+  exact NNUE model artifacts, plus the latest stable cutechess 1.5.1 release source.
+- `/vault/Data` is a downloaded dependency root containing chess records and Syzygy
+  tables, Unicode and language-standard inputs, lexical and semantic resources,
+  multilingual corpora, code-authority snapshots, tree-sitter sources, and media
+  fixtures.
+- `/vault/models` is a downloaded dependency root containing conventional model
+  snapshots across text, code, vision, audio, embedding, and reranking families;
+  GGUF artifacts; local and archived code corpora; Stack-derived partitions; and
+  Tiny-Codes data.
+
+The clean contract consequently defines dependency as any external code, binary,
+model, corpus, standards dataset, tool, service, or response capable of changing a
+calculation. Compiled libraries, downloaded evidence, model weights, invoked engines,
+and live services share dependency identity and provenance obligations even though
+their execution and epistemic classes remain distinct.

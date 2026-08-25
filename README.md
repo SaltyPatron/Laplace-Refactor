@@ -32,7 +32,7 @@ from decoded structure. The first two public ISA instructions execute codepoint
 identity and composition-trajectory decoding through pinned opcodes and value types,
 validate the complete program before writing results, and emit BLAKE3-256
 program/input/output/receipt fingerprints. The optimized and address/undefined-behavior
-builds each pass 68 registered implementation tests. Those
+builds each pass 69 registered implementation tests. Those
 tests include exact cross-runtime vectors, enumeration of all 1,114,112 codepoint
 positions, 100,000-element expanded/run identity and centroid comparisons, exact
 cancellation and subnormal rounding checks, ISA type/capacity/overlap/atomicity checks,
@@ -49,7 +49,7 @@ with a restricted `laplace_*` symbol surface and a consumable `Laplace::Engine` 
 package. Repeated installation must produce the same byte fingerprint before the
 external consumer is compiled and executed against the installed package.
 
-Twelve upstream source trees are pinned by exact Git revision, Git-archive SHA-256,
+Thirteen upstream source trees are pinned by exact Git revision, Git-archive SHA-256,
 version, upstream URL, and license-file SHA-256 in `dependencies/lock.json`. The clean
 source importer copies without hardlinks and verifies the source before and after the
 copy. The build verifies each dependency it consumes again during configuration.

@@ -14,9 +14,9 @@
     },
     "cutechess": {
       "upstream": "https://github.com/cutechess/cutechess.git",
-      "revision": "e471973ad41c9c891da1de08d8b9ad630f001168",
-      "git_archive_sha256": "23fb14c0d11032213fa887dfaffebe6ec4ff646534592598480cd6e149aa1d45",
-      "version": "v1.5.1-2-ge471973a",
+      "revision": "45e923949e43570886c0ad3392f514e743839c6b",
+      "git_archive_sha256": "ab163d465aca1fb21de526a7a3d190cf26791061c8ca6a78e742eaac2a32831c",
+      "version": "v1.5.1",
       "licenses": [
         {"path": "COPYING", "sha256": "8c75a9231db8906865e29706ed63aad18fd918c92c15dbefbb13c25fe42850b4"}
       ]
@@ -107,6 +107,15 @@
       "version": "v1.2.0",
       "licenses": [
         {"path": "LICENSE", "sha256": "2684de17300e0a434686f1ec7f8af6045207a4b457a3fe04b2b9ce655e7c5d50"}
+      ]
+    },
+    "stockfish": {
+      "upstream": "https://github.com/official-stockfish/Stockfish.git",
+      "revision": "cb3d4ee9b47d0c5aae855b12379378ea1439675c",
+      "git_archive_sha256": "a13ad763452f369655bc3dfc2f2bdae169b180e56ca65ef4c431468d64b7635e",
+      "version": "sf_18",
+      "licenses": [
+        {"path": "Copying.txt", "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"}
       ]
     },
     "tree-sitter": {

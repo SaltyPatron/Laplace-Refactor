@@ -88,10 +88,60 @@ loaded-artifact report. A perfcache module supplies derived acceleration data to
 canonical engine operation. It cannot define identity, geometry, relation semantics,
 or private mutable product state.
 
+## Common execution abstractions
+
+The native engine is organized around one reusable execution spine rather than
+feature-owned loops. The spine owns complete-program validation, typed buffer views,
+resource estimation, chunk selection, bounded arenas, parallel scheduling, error
+translation, atomic effect admission, and receipt construction. An operation kernel
+supplies its typed preconditions, shape law, calculation, and result contract; it does
+not reimplement the spine.
+
+The stable cross-language boundary is a generated C ABI with opaque handles, typed
+vectors, descriptors, and provider function tables. Internal C++ uses templates,
+concepts, abstract interfaces, and reusable base implementations where they preserve
+one semantic operation while permitting specialized storage, index, numerical, or
+hardware providers. Provider substitution cannot change logical results, evidence
+kind, ordering law, completion, or receipt meaning.
+
+Generated C# bindings expose generic interfaces for sessions, sources, batches,
+program submission, result streams, and receipts. Abstract base implementations own
+common lifecycle, cancellation, telemetry, bounded retry, and transport behavior;
+dependency injection selects concrete transports and services. No derived class may
+own a private identity, relation, trust, ranking, cognition, or realization algorithm.
+
+SQL uses generated domains, composite types, functions, procedures, operators, and
+set-returning bindings from the same contract. SQL has no handwritten semantic copy of
+the native interfaces. Single-item calls are one-element vectors through the batch
+path, and parallelism or chunk size is a physical-plan decision below the logical ISA.
+
 The PostgreSQL integration layer supplies typed datum conversion, memory-context
 ownership, transaction integration, planned server access, set-returning execution,
 catalog registration, and error translation. Server queries are schema-qualified,
 parameterized, planned, and set-based.
+
+## Hardware topology and resource authority
+
+One native topology service inventories processors, cores, hardware threads, NUMA
+nodes, cache hierarchy, memory capacity, affinity constraints, vector ISA, and selected
+accelerator capabilities. It publishes an immutable topology snapshot and derives a
+resource plan for each execution receipt. SQL, C#, kernels, and external tools consume
+that plan; they do not probe the host independently or invent unrelated thread and
+memory limits.
+
+The physical plan declares worker arenas, CPU sets, NUMA placement, memory domains,
+batch width, chunk shape, I/O concurrency, PostgreSQL connection and worker ownership,
+and nested-library thread budgets. TBB arenas, MKL kernels, PostgreSQL workers, managed
+workers, and tool processes share one accounted budget. A parallel region that invokes
+another parallel provider must transfer or subdivide its grant so work cannot multiply
+the host thread count invisibly.
+
+Exact operations preserve bit-identical results across lawful worker counts, chunks,
+routes, and restarts. Floating-point operations declare their reproducibility class,
+compiler and ISA profile, contraction and reduction rules, MKL compatibility controls,
+thread count, and accepted comparison contract. Faster hardware execution is a
+physical-plan choice and cannot change identity, evidence kind, ordering, completion,
+or semantic results.
 
 ## SQL orchestration
 

@@ -90,6 +90,13 @@ requirements:
       - LP-TEST-BULK-PARITY
       - LP-TEST-BULK-DETERMINISM
       - LP-TEST-BOUNDED-CROSSINGS
+  - id: LP-TOPOLOGY-001
+    statement: One receipted hardware and memory topology service allocates CPU NUMA cache memory I O database worker and nested library budgets so native TBB MKL PostgreSQL managed and external execution cannot independently oversubscribe resources or change logical results.
+    evidence:
+      - LP-TEST-TOPOLOGY-SNAPSHOT
+      - LP-TEST-TOPOLOGY-RESOURCE-PLAN
+      - LP-TEST-NESTED-PARALLEL-BUDGET
+      - LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY
   - id: LP-RUN-001
     statement: Repeated content uses run spans sparse deposition and Merkle DAG reuse while preserving the same identity centroid order occurrence evidence and readback as the expanded sequence.
     evidence:
@@ -331,6 +338,7 @@ requirements:
       - LP-TEST-INSTALL-CONVERGENCE
       - LP-TEST-DEPENDENCY-ELF-CLOSURE
       - LP-TEST-DEPENDENCY-RELEASE-ASSETS
+      - LP-TEST-DEPENDENCY-INTENT
   - id: LP-CLEANROOM-001
     statement: No current Laplace implementation artifact enters the new repository.
     evidence:
