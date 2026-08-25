@@ -52,6 +52,26 @@ class ToolchainBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.ToolchainError, "disable local paths"):
             BUILD.validate_contract(contract)
 
+    def test_perl_configure_output_rejects_local_library_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            (source / "config.sh").write_text(
+                "\n".join(
+                    (
+                        "locincpth=' '",
+                        "loclibpth=' '",
+                        "glibpth='/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib'",
+                        "libpth='/usr/local/lib /usr/lib/x86_64-linux-gnu /usr/lib'",
+                        "ccflags='-O2'",
+                        "ldflags='-O2'",
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BUILD.ToolchainError, "system ABI library paths"):
+                BUILD.verify_component_configuration("perl", source)
+
     def test_canonical_source_generation_cannot_be_a_build_directory(self) -> None:
         contract = self.contract()
         contract["build"]["components"]["gnu-make"]["source_mode"] = "immutable-out-of-tree"

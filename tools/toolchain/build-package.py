@@ -240,7 +240,11 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
     if missing_tools:
         raise ToolchainError(f"toolchain consumer manifest is missing tools: {', '.join(missing_tools)}")
     perl_configure = components["perl"]["configure"]
-    for closed_local_path in ("-Dlocincpth= ", "-Dloclibpth= "):
+    for closed_local_path in (
+        "-Dlocincpth= ",
+        "-Dloclibpth= ",
+        "-Dlibpth=/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib",
+    ):
         if closed_local_path not in perl_configure:
             raise ToolchainError(
                 "Perl configure must use a nonempty blank sentinel to disable local paths"
@@ -617,6 +621,30 @@ def verify_normalized_source_timestamps(source: Path, epoch: int) -> int:
     return observed
 
 
+def verify_component_configuration(component_id: str, source: Path) -> dict[str, Any]:
+    if component_id != "perl":
+        return {"status": "not-applicable"}
+    config = source / "config.sh"
+    if not config.is_file():
+        raise ToolchainError("Perl configure did not produce config.sh")
+    values: dict[str, str] = {}
+    required = {"locincpth", "loclibpth", "glibpth", "libpth", "ccflags", "ldflags"}
+    for line in config.read_text(encoding="utf-8").splitlines():
+        key, separator, raw = line.partition("=")
+        if separator and key in required and len(raw) >= 2 and raw[0] == raw[-1] == "'":
+            values[key] = raw[1:-1]
+    if set(values) != required:
+        raise ToolchainError("Perl config.sh omits required dependency-boundary fields")
+    expected_paths = "/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib"
+    if values["locincpth"] != " " or values["loclibpth"] != " ":
+        raise ToolchainError("Perl configured local include/library paths are not closed")
+    if values["glibpth"] != expected_paths or values["libpth"] != expected_paths:
+        raise ToolchainError("Perl configured system ABI library paths differ from contract")
+    if any("/usr/local" in value for value in values.values()):
+        raise ToolchainError("Perl configured output admitted /usr/local")
+    return {"status": "verified", "fields": values}
+
+
 def verify_private_source_copy(
     contract: dict[str, Any], repository: Path, component_id: str, copy_parent: Path
 ) -> None:
@@ -853,14 +881,17 @@ def execute_plan(
                 plan["parallel_jobs"],
                 plan["bootstrap_inputs"],
             )
-            steps.append(
-                run_logged(
-                    command,
-                    source if component["source_mode"] == "private-copy-in-tree" else component_build,
-                    environment,
-                    component_build / f"{step_name}.log",
-                )
+            step_receipt = run_logged(
+                command,
+                source if component["source_mode"] == "private-copy-in-tree" else component_build,
+                environment,
+                component_build / f"{step_name}.log",
             )
+            if step_name == "configure":
+                step_receipt["configuration_contract"] = verify_component_configuration(
+                    component_id, source
+                )
+            steps.append(step_receipt)
         component_steps[component_id] = steps
         completed.append(component_id)
         checkpoint_path.write_text(

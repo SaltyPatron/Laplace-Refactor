@@ -107,7 +107,7 @@
         "version": "5.44.0",
         "phase": "build-language-tools",
         "source_mode": "private-copy-in-tree",
-        "configure": ["{source}/Configure", "-des", "-Dprefix={prefix}", "-Dman1dir=none", "-Dman3dir=none", "-Dcc={cc}", "-Dld={cc}", "-Dar={ar}", "-Dnm={nm}", "-Dranlib={ranlib}", "-Dlocincpth= ", "-Dloclibpth= ", "-Dglibpth=/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib", "-Dccflags=-fwrapv -fno-strict-aliasing -pipe -fstack-protector-strong -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64", "-Dldflags=-fstack-protector-strong", "-Dinc_version_list=none", "-Dmyhostname=laplace-build", "-Dmydomain=.invalid", "-Dcf_email=build@laplace.invalid", "-Dperladmin=build@laplace.invalid"],
+        "configure": ["{source}/Configure", "-des", "-Dprefix={prefix}", "-Dman1dir=none", "-Dman3dir=none", "-Dcc={cc}", "-Dld={cc}", "-Dar={ar}", "-Dnm={nm}", "-Dranlib={ranlib}", "-Dlocincpth= ", "-Dloclibpth= ", "-Dglibpth=/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib", "-Dlibpth=/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib", "-Dccflags=-fwrapv -fno-strict-aliasing -pipe -fstack-protector-strong -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64", "-Dldflags=-fstack-protector-strong", "-Dinc_version_list=none", "-Dmyhostname=laplace-build", "-Dmydomain=.invalid", "-Dcf_email=build@laplace.invalid", "-Dperladmin=build@laplace.invalid"],
         "build": ["{make}", "-j{jobs}"],
         "test": ["{make}", "test"],
         "install": ["{make}", "install"],
