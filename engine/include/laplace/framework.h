@@ -71,7 +71,14 @@ typedef enum laplace_framework_status {
     LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID = 12,
     LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_INVALID = 13,
     LAPLACE_FRAMEWORK_ACTIVATION_ADMISSION_FAILED = 14,
-    LAPLACE_FRAMEWORK_ACTIVATION_COMMIT_FAILED = 15
+    LAPLACE_FRAMEWORK_ACTIVATION_COMMIT_FAILED = 15,
+    LAPLACE_FRAMEWORK_PRODUCER_INVALID = 16,
+    LAPLACE_FRAMEWORK_PRODUCER_PREPARE_FAILED = 17,
+    LAPLACE_FRAMEWORK_PRODUCER_BATCH_FAILED = 18,
+    LAPLACE_FRAMEWORK_PRODUCER_FINISH_FAILED = 19,
+    LAPLACE_FRAMEWORK_PRODUCER_CANCELLED = 20,
+    LAPLACE_FRAMEWORK_REPLAY_INVALID = 21,
+    LAPLACE_FRAMEWORK_REPLAY_MISMATCH = 22
 } laplace_framework_status;
 
 typedef laplace_framework_status (*laplace_framework_sink_begin_fn)(
@@ -122,6 +129,96 @@ typedef struct laplace_framework_stream_receipt {
     laplace_framework_status status;
     uint32_t reserved;
 } laplace_framework_stream_receipt;
+
+typedef struct laplace_framework_producer_plan {
+    laplace_digest256 producer_fingerprint;
+    laplace_digest256 initial_cursor_fingerprint;
+    uint64_t batch_count;
+    uint64_t total_records;
+    uint64_t total_bytes;
+    uint32_t record_type;
+    uint32_t flags;
+    uint64_t reserved;
+} laplace_framework_producer_plan;
+
+typedef struct laplace_framework_replay_checkpoint {
+    laplace_digest256 checkpoint_id;
+    laplace_digest256 context_fingerprint;
+    laplace_digest256 source_fingerprint;
+    laplace_digest256 recipe_fingerprint;
+    laplace_digest256 producer_fingerprint;
+    laplace_digest256 plan_fingerprint;
+    laplace_digest256 prefix_fingerprint;
+    laplace_digest256 cursor_fingerprint;
+    uint64_t completed_batches;
+    uint64_t completed_records;
+    uint64_t completed_bytes;
+    uint64_t next_ordinal;
+    uint32_t record_type;
+    uint32_t flags;
+    uint64_t reserved;
+} laplace_framework_replay_checkpoint;
+
+typedef laplace_framework_status (*laplace_framework_producer_prepare_fn)(
+    void* state,
+    const laplace_framework_context* context,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* recipe_fingerprint,
+    laplace_framework_producer_plan* plan);
+
+typedef laplace_framework_status (*laplace_framework_producer_next_fn)(
+    void* state,
+    uint64_t batch_index,
+    laplace_framework_canonical_batch* batch,
+    laplace_digest256* cursor_fingerprint);
+
+typedef laplace_framework_status (*laplace_framework_producer_finish_fn)(
+    void* state,
+    laplace_digest256* completion_fingerprint);
+
+typedef void (*laplace_framework_producer_abort_fn)(void* state);
+
+typedef struct laplace_framework_producer_v1 {
+    void* state;
+    laplace_framework_producer_prepare_fn prepare;
+    laplace_framework_producer_next_fn next;
+    laplace_framework_producer_finish_fn finish;
+    laplace_framework_producer_abort_fn abort;
+    uint16_t abi_major;
+    uint16_t abi_minor;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_framework_producer_v1;
+
+typedef int (*laplace_framework_cancel_requested_fn)(void* state);
+
+typedef void (*laplace_framework_progress_observer_fn)(
+    void* state,
+    const laplace_framework_replay_checkpoint* checkpoint);
+
+typedef struct laplace_framework_producer_control_v1 {
+    void* state;
+    const laplace_framework_replay_checkpoint* replay_checkpoint;
+    laplace_framework_cancel_requested_fn cancel_requested;
+    laplace_framework_progress_observer_fn observe_progress;
+    uint16_t abi_major;
+    uint16_t abi_minor;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_framework_producer_control_v1;
+
+typedef struct laplace_framework_producer_receipt {
+    laplace_digest256 receipt_id;
+    laplace_framework_stream_receipt stream;
+    laplace_framework_replay_checkpoint checkpoint;
+    laplace_digest256 plan_fingerprint;
+    laplace_digest256 completion_fingerprint;
+    laplace_digest256 replay_checkpoint_id;
+    uint64_t progress_events;
+    laplace_framework_status status;
+    uint32_t replay_verified;
+    uint64_t reserved;
+} laplace_framework_producer_receipt;
 
 typedef struct laplace_framework_activation_request {
     laplace_digest256 expected_epoch;
@@ -206,6 +303,16 @@ LAPLACE_API laplace_framework_status laplace_framework_stage_canonical_stream(
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
     laplace_framework_stream_receipt* receipt);
+
+LAPLACE_API laplace_framework_status laplace_framework_run_producer(
+    const laplace_framework_context* context,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_framework_producer_v1* producer,
+    const laplace_framework_producer_control_v1* control,
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    laplace_framework_producer_receipt* receipt);
 
 LAPLACE_API laplace_framework_status laplace_framework_activate_staged_stream(
     const laplace_framework_context* context,

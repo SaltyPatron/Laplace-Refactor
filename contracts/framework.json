@@ -2,7 +2,7 @@
   "schema": "laplace.framework-contract/v1",
   "version": {
     "major": 1,
-    "minor": 2
+    "minor": 3
   },
   "epoch_slots": {
     "source": 0,
@@ -39,6 +39,23 @@
   "activation_provider_abi": {
     "major": 1,
     "minor": 0
+  },
+  "producer_abi": {
+    "major": 1,
+    "minor": 0
+  },
+  "producer_control_abi": {
+    "major": 1,
+    "minor": 0
+  },
+  "producer_flags": {
+    "none": 0
+  },
+  "producer_control_flags": {
+    "none": 0
+  },
+  "replay_flags": {
+    "none": 0
   },
   "activation_flags": {
     "none": 0
