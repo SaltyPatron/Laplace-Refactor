@@ -458,11 +458,6 @@
       "covered_dimensions": ["archive digest", "tree digest", "license digest", "size boundaries", "safe path import", "atomic publication", "tamper rejection"]
     },
     {
-      "ctest_name": "recovery.tooling-contract",
-      "evidence_targets": ["LP-TEST-RECOVERY-EXACT-EVIDENCE", "LP-TEST-RECOVERY-CORPUS-DEDUPLICATION", "LP-TEST-RECOVERY-SQL-ACTIVITY"],
-      "covered_dimensions": ["exact shell payload recovery", "SQL statement reconstruction", "content-address tamper rejection", "event-log classification", "archive-bound corpus deduplication"]
-    },
-    {
       "ctest_name": "requirements.traceability-contract",
       "evidence_targets": ["LP-TEST-REQUIREMENTS-TRACEABILITY", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
       "covered_dimensions": ["product requirement joins", "direct requirement uniqueness", "evidence target validity", "feature target validity", "acyclic operation stages", "complete product-to-operation mapping"],

@@ -11,7 +11,7 @@ document defines phase exits.
 
 | Phase | Live issues |
 | --- | --- |
-| 0 — Canonical cutover | #2, #24 |
+| 0 — Product authority and clean-room foundation | complete |
 | 1 — Industrial build and dependency foundation | #3, #8, #12 |
 | 2 — Universal execution framework and ISA | #4, #5, #6, #10 |
 | 3 — Universal substrate state | #7, #13, #14, #16 |
@@ -22,50 +22,22 @@ document defines phase exits.
 | 8 — Full acceptance and release | #22 |
 
 Issue closure does not imply phase closure while another required issue or the phase
-exit remains unsatisfied. Closed issues #8 and #24 are retained in this map because
-they own durable runner and session-audit evidence. An implementation issue closed by
-a PR must be reopened when its own behavioral acceptance remains incomplete.
+exit remains unsatisfied. An implementation issue closed by a PR must be reopened when
+its own behavioral acceptance remains incomplete.
 
-## Phase 0 — preservation and clean-room foundation
+## Phase 0 — product authority and clean-room foundation
 
-- Preserve the complete current repository, refs, worktrees, dirty files, ignored
-  files, dependency trees, and Claude evidence without database contents.
-- Verify independent history and evidence artifacts.
-- Establish the new repository with no current implementation content.
-- Record the invention constitution and clean-room rule.
-- Establish requirement identifiers and bidirectional traceability.
+- Establish one repository whose implementation is authored from direct product
+  requirements, independent standards, and verified upstream dependency sources.
+- Record the invention constitution and clean-room authorship rule.
+- Establish requirement identifiers, operational ownership, and bidirectional
+  traceability.
+- Reject any predecessor implementation as source, schema, build, package, or test
+  authority.
 
-Exit: archive artifacts verify; repository checks prove separation; constitution is
-represented in machine-readable requirements.
-
-### Historical-investigation closure boundary
-
-Phase 0 produces two distinct outputs:
-
-1. a content-addressed preservation and forensic package that states what was
-   observed, recovered, damaged, contradicted, or left unresolved; and
-2. an independently specified product whose correctness depends on the constitution,
-   ISA, acceptance contracts, clean implementation, and verified package rather than
-   historical implementation authority.
-
-Additional historical investigation is admitted only when it can do at least one of
-the following:
-
-- recover unique invention, code, configuration, data, or behavioral evidence;
-- change a product invariant or clean implementation decision;
-- expose a materially new defect class requiring an acceptance control; or
-- materially affect the separate provider-interaction investigation.
-
-When none applies, the evidence is preserved with its current disposition and that
-avenue closes. The provider-interaction investigation may continue as a separate
-forensic product, but it cannot block clean Laplace implementation once recovery,
-invention specification, and acceptance traceability have reached their declared
-boundaries.
-
-Historical success establishes continuity or demonstrated behavior, never clean
-implementation authority. Historical failure establishes defect evidence or a
-negative control, never proof that the invention is invalid. The clean product must
-pass its independent acceptance contracts regardless of either history.
+Exit: the constitution is represented in machine-readable requirements, every product
+requirement has an operational owner, and repository checks prove all implementation
+and acceptance evidence belongs to the new product.
 
 ## Phase 1 — industrial build and dependency foundation
 

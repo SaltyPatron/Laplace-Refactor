@@ -155,6 +155,13 @@ class RequirementTraceTests(unittest.TestCase):
         with self.assertRaisesRegex(TRACE.TraceError, "no operational stage"):
             TRACE.validate(self.root)
 
+    def test_historical_session_audit_cannot_be_product_tracking_authority(self) -> None:
+        path, document = self.operation_document()
+        document["tracking"]["session_audit_issue"] = 24
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "historical session audit"):
+            TRACE.validate(self.root)
+
 
 if __name__ == "__main__":
     unittest.main()

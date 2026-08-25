@@ -4,10 +4,9 @@
   "tracking": {
     "repository": "SaltyPatron/Laplace-Refactor",
     "parent_issue": 23,
-    "session_audit_issue": 24,
-    "tracked_issues": [2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24],
+    "tracked_issues": [3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
     "phase_milestones": {
-      "0": "Phase 0 — Canonical cutover",
+      "0": "Phase 0 — Product authority and clean-room foundation",
       "1": "Phase 1 — Industrial build and dependency foundation",
       "2": "Phase 2 — Universal execution framework and ISA",
       "3": "Phase 3 — Universal substrate state",
@@ -22,7 +21,7 @@
     {
       "id": "foundation.acquire-build",
       "program_phases": [0, 1],
-      "github_issues": [2, 3, 8, 12, 24],
+      "github_issues": [3, 8, 12],
       "depends_on": [],
       "owner": "minimal trusted source acquisition build and package bootstrap",
       "consumes": ["upstream source", "release archives", "standards data", "models and corpora", "licenses", "declared build toolchains"],
@@ -30,8 +29,8 @@
       "persistent_authority": ["dependency and artifact locks", "build graph", "SBOM and package receipts"],
       "acceleration": ["verified external source cache", "input-addressed out-of-tree build cache"],
       "receipts": ["source revisions", "archive and expanded tree hashes", "licenses", "toolchain and build flags", "staged object hashes"],
-      "product_requirements": ["LP-PACKAGE-001", "LP-CLEANROOM-001", "LP-RECOVERY-001"],
-      "implementation": {"state": "partial", "evidence": ["dependencies/intent.json", "dependencies/lock.json", "dependencies/release-lock.json", "contracts/postgresql-build.json", "tools/postgresql/build-package.py", "tests/postgresql_build_tests.py", "docs/delivery/SELF_HOSTED_RUNNER.md", "docs/delivery/CANONICAL_CUTOVER.md"]}
+      "product_requirements": ["LP-PACKAGE-001", "LP-CLEANROOM-001"],
+      "implementation": {"state": "partial", "evidence": ["dependencies/intent.json", "dependencies/lock.json", "dependencies/release-lock.json", "contracts/postgresql-build.json", "tools/postgresql/build-package.py", "tests/postgresql_build_tests.py", "docs/delivery/SELF_HOSTED_RUNNER.md"]}
     },
     {
       "id": "framework.execution",

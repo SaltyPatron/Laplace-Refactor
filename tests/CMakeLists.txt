@@ -407,12 +407,6 @@ set_tests_properties(package.native-consumer-contract PROPERTIES
 if(UNIX)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(
-        NAME recovery.tooling-contract
-        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/recovery_tools_tests.py")
-    set_tests_properties(recovery.tooling-contract PROPERTIES
-        LABELS "implementation;recovery;evidence")
-
-    add_test(
         NAME requirements.traceability-contract
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/requirements_trace_tests.py")
     set_tests_properties(requirements.traceability-contract PROPERTIES
