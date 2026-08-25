@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -211,7 +212,10 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                 json.dumps({"archives": {"source-a": {}, "source-b": {}}}),
                 encoding="utf-8",
             )
-            contract = {"release_lock": "release-lock.json"}
+            contract = {
+                "release_lock": "release-lock.json",
+                "execution": {"source_date_epoch": "1787616000"},
+            }
             plan = {
                 "archive_root": str(root / "archives"),
                 "components": [
@@ -229,6 +233,25 @@ class RuntimeBuildGraphTests(unittest.TestCase):
             self.assertEqual(observed, expected)
             self.assertEqual(release.imported, [("source-a", expected), ("source-b", expected)])
             self.assertEqual(release.verified, release.imported)
+            epoch_ns = int(self.contract()["execution"]["source_date_epoch"]) * 1_000_000_000
+            self.assertEqual((expected / "source-a").stat().st_mtime_ns, epoch_ns)
+            self.assertEqual((expected / "source-b").stat().st_mtime_ns, epoch_ns)
+
+    def test_private_source_timestamp_normalization_is_wall_clock_independent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "source"
+            root.mkdir()
+            child = root / "input.c"
+            child.write_text("int value;\n", encoding="utf-8")
+            first_epoch = 1_700_000_000
+            BUILD.normalize_tree_timestamps(root, first_epoch)
+            first = (root.stat().st_mtime_ns, child.stat().st_mtime_ns)
+            os.utime(root, ns=(1, 1))
+            os.utime(child, ns=(2, 2))
+            BUILD.normalize_tree_timestamps(root, first_epoch)
+            self.assertEqual(
+                (root.stat().st_mtime_ns, child.stat().st_mtime_ns), first
+            )
 
     def test_plan_identity_changes_with_contract_and_outputs_remain_external(self) -> None:
         contract = self.contract()

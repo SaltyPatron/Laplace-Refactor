@@ -18,6 +18,7 @@
   },
   "execution": {
     "jobs": 6,
+    "source_date_epoch": "1787616000",
     "target_isa": "broadwell",
     "c_flags": ["-O3", "-g", "-march=broadwell", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
     "cxx_flags": ["-O3", "-g", "-march=broadwell", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],

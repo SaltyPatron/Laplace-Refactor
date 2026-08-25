@@ -118,6 +118,11 @@ def validate_contract(contract: dict[str, Any]) -> None:
     require_string_list(build_toolchain.get("required_tools"), "build_toolchain.required_tools")
     if not isinstance(execution.get("jobs"), int) or execution["jobs"] < 1:
         raise GraphError("execution.jobs must be positive")
+    source_date_epoch = require_string(
+        execution.get("source_date_epoch"), "execution.source_date_epoch"
+    )
+    if not source_date_epoch.isdecimal():
+        raise GraphError("execution.source_date_epoch must be decimal")
     for field in ("c_flags", "cxx_flags", "rejected_environment"):
         require_string_list(execution.get(field), f"execution.{field}")
     for field in ("final_prefix_root", "build_root", "stage_root"):
@@ -376,9 +381,22 @@ def prepare_private_sources(
         try:
             release.import_entry(source_id, entry, archive_root, sources_root)
             release.verify_imported_entry(source_id, entry, archive_root, sources_root)
+            normalize_tree_timestamps(
+                sources_root / source_id, int(contract["execution"]["source_date_epoch"])
+            )
         except Exception as error:
             raise GraphError(f"private source extraction failed for {source_id}: {error}") from error
     return sources_root
+
+
+def normalize_tree_timestamps(root: Path, epoch_seconds: int) -> None:
+    if epoch_seconds < 0 or not root.is_dir() or root.is_symlink():
+        raise GraphError(f"cannot normalize private source tree: {root}")
+    timestamp = epoch_seconds * 1_000_000_000
+    paths = sorted(root.rglob("*"), key=lambda path: len(path.parts), reverse=True)
+    for path in [*paths, root]:
+        if not path.is_symlink():
+            os.utime(path, ns=(timestamp, timestamp))
 
 
 def create_plan(
@@ -461,6 +479,7 @@ def build_environment(
         "HOME": str(home),
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
+        "SOURCE_DATE_EPOCH": contract["execution"]["source_date_epoch"],
         "PATH": ":".join([*tool_directories, "/usr/bin", "/bin"]),
         "CC": compilers["c_compiler"]["path"],
         "CXX": compilers["cxx_compiler"]["path"],
