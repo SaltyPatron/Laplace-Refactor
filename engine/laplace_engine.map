@@ -1,0 +1,6 @@
+LAPLACE_1.0 {
+    global:
+        laplace_*;
+    local:
+        *;
+};

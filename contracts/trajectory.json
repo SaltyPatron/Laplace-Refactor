@@ -1,0 +1,34 @@
+{
+  "schema": "laplace.trajectory-contract/v1",
+  "carrier": {
+    "slot_count": 4,
+    "slot_bits": 64,
+    "payload_bits_per_slot": 53,
+    "payload_bits": 212,
+    "binary64_exponent": 1023,
+    "binary64_mantissa_bits": 52
+  },
+  "payload": {
+    "lane128_bits": 128,
+    "ordinal_bits": 16,
+    "run_bits": 16,
+    "metadata_bits": 52
+  },
+  "content_metadata": {
+    "has_atom_bit": 0,
+    "tier_shift": 1,
+    "tier_bits": 5,
+    "atom_shift": 31,
+    "atom_bits": 21
+  },
+  "vectors": {
+    "entity_hex": "d63bd9a826af91c1fea371965a64e11e",
+    "ordinal": 1,
+    "run": 1,
+    "metadata_hex": "0000001880000001",
+    "slot_x_bits_hex": "3ff1645a9671a3fe",
+    "slot_y_bits_hex": "bff93546c9deb0f7",
+    "slot_z_bits_hex": "3ff000000070646b",
+    "slot_m_bits_hex": "3ff0003100010001"
+  }
+}

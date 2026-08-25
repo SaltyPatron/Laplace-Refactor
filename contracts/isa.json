@@ -1,0 +1,33 @@
+{
+  "schema": "laplace.isa-contract/v1",
+  "version": {
+    "major": 1,
+    "minor": 1
+  },
+  "value_types": {
+    "u32_vector": 1,
+    "id128_vector": 2,
+    "composition_trajectory_vector": 3,
+    "composition_occurrence_vector": 4
+  },
+  "opcodes": {
+    "identity_codepoint_batch": 131073,
+    "trajectory_composition_decode_batch": 196609
+  },
+  "instruction_versions": {
+    "identity_codepoint_batch": 1,
+    "trajectory_composition_decode_batch": 1
+  },
+  "introduced_minor": {
+    "identity_codepoint_batch": 0,
+    "trajectory_composition_decode_batch": 1
+  },
+  "receipt": {
+    "digest_algorithm": "BLAKE3-256",
+    "digest_bytes": 32,
+    "detail_full": 1
+  },
+  "known_program_flags": 0,
+  "known_instruction_flags": 0,
+  "known_value_flags": 0
+}

@@ -1,0 +1,35 @@
+function(laplace_configure_perfcache_contract contract_path output_path)
+    file(READ "${contract_path}" contract_json)
+
+    string(JSON contract_schema GET "${contract_json}" schema)
+    string(JSON format_version GET "${contract_json}" format_version)
+    string(JSON header_bytes GET "${contract_json}" header_bytes)
+    string(JSON digest_bytes GET "${contract_json}" digest_bytes)
+    string(JSON byte_order GET "${contract_json}" byte_order)
+    string(JSON digest_algorithm GET "${contract_json}" digest_algorithm)
+    string(JSON sorted_unique_flag GET "${contract_json}" flags sorted_unique_keys)
+
+    if(NOT contract_schema STREQUAL "laplace.perfcache-contract/v1")
+        message(FATAL_ERROR "Unsupported perfcache contract schema: ${contract_schema}")
+    endif()
+    if(NOT format_version EQUAL 1 OR NOT header_bytes EQUAL 256)
+        message(FATAL_ERROR "Perfcache format version or header width changed")
+    endif()
+    if(NOT digest_bytes EQUAL 32 OR NOT digest_algorithm STREQUAL "BLAKE3-256")
+        message(FATAL_ERROR "Perfcache digest contract changed")
+    endif()
+    if(NOT byte_order STREQUAL "little-endian" OR NOT sorted_unique_flag EQUAL 1)
+        message(FATAL_ERROR "Perfcache encoding contract changed")
+    endif()
+
+    set(LAPLACE_PERFCACHE_FORMAT_VERSION "${format_version}")
+    set(LAPLACE_PERFCACHE_HEADER_BYTES "${header_bytes}")
+    set(LAPLACE_PERFCACHE_DIGEST_BYTES "${digest_bytes}")
+    set(LAPLACE_PERFCACHE_FLAG_SORTED_UNIQUE_KEYS "${sorted_unique_flag}")
+    get_filename_component(output_directory "${output_path}" DIRECTORY)
+    file(MAKE_DIRECTORY "${output_directory}")
+    configure_file(
+        "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/perfcache.h.in"
+        "${output_path}"
+        @ONLY)
+endfunction()

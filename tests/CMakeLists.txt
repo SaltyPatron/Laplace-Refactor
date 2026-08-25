@@ -1,0 +1,293 @@
+add_executable(laplace_identity_tests
+    identity_tests.cpp)
+target_link_libraries(laplace_identity_tests
+    PRIVATE
+        Laplace::Identity
+        GTest::gtest_main)
+target_compile_options(laplace_identity_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+include(GoogleTest)
+gtest_discover_tests(laplace_identity_tests
+    PROPERTIES LABELS "implementation;identity")
+
+add_executable(laplace_isa_tests
+    isa_tests.cpp)
+target_link_libraries(laplace_isa_tests
+    PRIVATE
+        Laplace::Isa
+        GTest::gtest_main)
+target_compile_options(laplace_isa_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_isa_tests
+    PROPERTIES LABELS "implementation;isa")
+
+add_executable(laplace_trajectory_tests
+    trajectory_tests.cpp)
+target_link_libraries(laplace_trajectory_tests
+    PRIVATE
+        Laplace::Trajectory
+        GTest::gtest_main)
+target_compile_options(laplace_trajectory_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_trajectory_tests
+    PROPERTIES LABELS "implementation;trajectory;structure")
+
+add_executable(laplace_isa_preflight_probe
+    isa_preflight_probe.cpp)
+target_link_libraries(laplace_isa_preflight_probe PRIVATE Laplace::Isa)
+target_compile_options(laplace_isa_preflight_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME isa.preflight-atomicity-contract COMMAND laplace_isa_preflight_probe)
+set_tests_properties(isa.preflight-atomicity-contract PROPERTIES
+    LABELS "implementation;isa;contract")
+
+add_library(laplace_isa_preflight_mutant STATIC
+    ../engine/src/identity.c
+    ../engine/src/isa.c
+    ../engine/src/trajectory.c)
+target_include_directories(laplace_isa_preflight_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_isa_preflight_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_isa_preflight_mutant
+    PRIVATE LAPLACE_TEST_VALIDATE_FIRST_INSTRUCTION_ONLY=1)
+target_compile_options(laplace_isa_preflight_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_isa_preflight_mutation_probe
+    isa_preflight_probe.cpp)
+target_link_libraries(laplace_isa_preflight_mutation_probe
+    PRIVATE laplace_isa_preflight_mutant)
+target_compile_options(laplace_isa_preflight_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME isa.mutation-partial-preflight-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_isa_preflight_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_isa_preflight_failure.cmake")
+set_tests_properties(isa.mutation-partial-preflight-detected PROPERTIES
+    LABELS "isa;mutation")
+
+add_executable(laplace_identity_contract_probe
+    identity_contract_probe.cpp)
+target_link_libraries(laplace_identity_contract_probe PRIVATE Laplace::Identity)
+target_compile_options(laplace_identity_contract_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME identity.contract-vectors COMMAND laplace_identity_contract_probe)
+set_tests_properties(identity.contract-vectors PROPERTIES LABELS "implementation;identity;contract")
+
+add_library(laplace_identity_domain_mutant STATIC
+    ../engine/src/identity.c)
+target_include_directories(laplace_identity_domain_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_identity_domain_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_identity_domain_mutant
+    PRIVATE LAPLACE_TEST_MUTATE_COMPOSITE_DOMAIN=1)
+target_compile_options(laplace_identity_domain_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_identity_domain_mutation_probe
+    identity_contract_probe.cpp)
+target_link_libraries(laplace_identity_domain_mutation_probe
+    PRIVATE laplace_identity_domain_mutant)
+target_compile_options(laplace_identity_domain_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+add_test(
+    NAME identity.mutation-domain-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_identity_domain_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_contract_failure.cmake")
+set_tests_properties(identity.mutation-domain-detected PROPERTIES
+    LABELS "identity;mutation")
+
+add_executable(laplace_unicode_position_probe
+    unicode_position_probe.cpp)
+target_link_libraries(laplace_unicode_position_probe PRIVATE Laplace::Identity)
+target_compile_options(laplace_unicode_position_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME identity.unicode-surrogate-position COMMAND laplace_unicode_position_probe)
+set_tests_properties(identity.unicode-surrogate-position PROPERTIES
+    LABELS "implementation;identity;unicode")
+
+add_library(laplace_identity_surrogate_mutant STATIC
+    ../engine/src/identity.c)
+target_include_directories(laplace_identity_surrogate_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_identity_surrogate_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_identity_surrogate_mutant
+    PRIVATE LAPLACE_TEST_REJECT_SURROGATE_POSITIONS=1)
+target_compile_options(laplace_identity_surrogate_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_unicode_surrogate_mutation_probe
+    unicode_position_probe.cpp)
+target_link_libraries(laplace_unicode_surrogate_mutation_probe
+    PRIVATE laplace_identity_surrogate_mutant)
+target_compile_options(laplace_unicode_surrogate_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME identity.mutation-surrogate-exclusion-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_surrogate_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_unicode_failure.cmake")
+set_tests_properties(identity.mutation-surrogate-exclusion-detected PROPERTIES
+    LABELS "identity;unicode;mutation")
+
+add_executable(laplace_geometry_tests
+    geometry_tests.cpp)
+target_link_libraries(laplace_geometry_tests
+    PRIVATE
+        Laplace::Geometry
+        GTest::gtest_main)
+target_compile_options(laplace_geometry_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
+gtest_discover_tests(laplace_geometry_tests
+    PROPERTIES LABELS "implementation;geometry")
+
+add_executable(laplace_geometry_contract_probe
+    geometry_contract_probe.cpp)
+target_link_libraries(laplace_geometry_contract_probe PRIVATE Laplace::Geometry)
+target_compile_options(laplace_geometry_contract_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
+add_test(NAME geometry.arithmetic-centroid-contract COMMAND laplace_geometry_contract_probe)
+set_tests_properties(geometry.arithmetic-centroid-contract PROPERTIES
+    LABELS "implementation;geometry;contract")
+
+add_library(laplace_geometry_normalization_mutant STATIC
+    ../engine/src/geometry.c)
+target_include_directories(laplace_geometry_normalization_mutant
+    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include")
+target_link_libraries(laplace_geometry_normalization_mutant PUBLIC m)
+target_compile_definitions(laplace_geometry_normalization_mutant
+    PRIVATE LAPLACE_TEST_NORMALIZE_CENTROID=1)
+target_compile_options(laplace_geometry_normalization_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes;-ffp-contract=off>)
+add_executable(laplace_geometry_normalization_mutation_probe
+    geometry_contract_probe.cpp)
+target_link_libraries(laplace_geometry_normalization_mutation_probe
+    PRIVATE laplace_geometry_normalization_mutant)
+target_compile_options(laplace_geometry_normalization_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
+add_test(
+    NAME geometry.mutation-sphere-normalization-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_geometry_normalization_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_geometry_failure.cmake")
+set_tests_properties(geometry.mutation-sphere-normalization-detected PROPERTIES
+    LABELS "geometry;mutation")
+
+add_executable(laplace_perfcache_tests
+    perfcache_tests.cpp)
+target_link_libraries(laplace_perfcache_tests
+    PRIVATE
+        Laplace::Perfcache
+        BLAKE3::blake3
+        GTest::gtest_main)
+target_compile_options(laplace_perfcache_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_perfcache_tests
+    PROPERTIES LABELS "implementation;perfcache")
+
+add_executable(laplace_perfcache_contract_probe
+    perfcache_contract_probe.cpp)
+target_link_libraries(laplace_perfcache_contract_probe PRIVATE Laplace::Perfcache)
+target_compile_options(laplace_perfcache_contract_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME perfcache.sorted-unique-contract COMMAND laplace_perfcache_contract_probe)
+set_tests_properties(perfcache.sorted-unique-contract PROPERTIES
+    LABELS "implementation;perfcache;contract")
+
+add_library(laplace_perfcache_sorted_mutant STATIC
+    ../engine/src/perfcache.c)
+target_include_directories(laplace_perfcache_sorted_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_perfcache_sorted_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_perfcache_sorted_mutant
+    PRIVATE LAPLACE_TEST_SKIP_SORTED_UNIQUE_VALIDATION=1)
+target_compile_options(laplace_perfcache_sorted_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_perfcache_sorted_mutation_probe
+    perfcache_contract_probe.cpp)
+target_link_libraries(laplace_perfcache_sorted_mutation_probe
+    PRIVATE laplace_perfcache_sorted_mutant)
+target_compile_options(laplace_perfcache_sorted_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME perfcache.mutation-sorted-unique-bypass-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_perfcache_sorted_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_perfcache_failure.cmake")
+set_tests_properties(perfcache.mutation-sorted-unique-bypass-detected PROPERTIES
+    LABELS "perfcache;mutation")
+
+if(UNIX)
+    add_executable(laplace_perfcache_file_tests
+        perfcache_file_tests.cpp)
+    target_link_libraries(laplace_perfcache_file_tests
+        PRIVATE
+            Laplace::Perfcache
+            GTest::gtest_main)
+    target_compile_options(laplace_perfcache_file_tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    gtest_discover_tests(laplace_perfcache_file_tests
+        PROPERTIES LABELS "implementation;perfcache;file")
+endif()
+
+add_test(
+    NAME package.native-consumer-contract
+    COMMAND "${CMAKE_COMMAND}"
+        "-DBUILD_DIRECTORY=${CMAKE_BINARY_DIR}"
+        "-DSOURCE_DIRECTORY=${CMAKE_SOURCE_DIR}"
+        "-DINSTALL_DIRECTORY=${CMAKE_BINARY_DIR}/package-test/install"
+        "-DCONSUMER_BUILD_DIRECTORY=${CMAKE_BINARY_DIR}/package-test/consumer"
+        "-DCONSUMER_C_FLAGS=${CMAKE_C_FLAGS}"
+        "-DCONSUMER_LINK_FLAGS=${CMAKE_EXE_LINKER_FLAGS}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/run_installed_consumer.cmake")
+set_tests_properties(package.native-consumer-contract PROPERTIES
+    LABELS "implementation;package;consumer"
+    RUN_SERIAL TRUE)
+
+if(UNIX)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(
+        NAME recovery.tooling-contract
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/recovery_tools_tests.py")
+    set_tests_properties(recovery.tooling-contract PROPERTIES
+        LABELS "implementation;recovery;evidence")
+
+    add_test(
+        NAME requirements.traceability-contract
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/requirements_trace_tests.py")
+    set_tests_properties(requirements.traceability-contract PROPERTIES
+        LABELS "implementation;requirements;evidence")
+
+    find_program(LAPLACE_BASH_EXECUTABLE bash REQUIRED)
+    add_test(
+        NAME package.elf-dependency-closure
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/elf_closure_test.sh"
+            "${CMAKE_SOURCE_DIR}/tools/dependencies/elf-closure.py"
+            "${CMAKE_BINARY_DIR}/elf-closure-test")
+    set_tests_properties(package.elf-dependency-closure PROPERTIES
+        LABELS "implementation;package;dependencies"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME package.release-asset-integrity
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/release_assets_test.sh"
+            "${CMAKE_SOURCE_DIR}/tools/dependencies/release-assets.py"
+            "${CMAKE_BINARY_DIR}/release-assets-test")
+    set_tests_properties(package.release-asset-integrity PROPERTIES
+        LABELS "implementation;package;dependencies"
+        RUN_SERIAL TRUE)
+endif()

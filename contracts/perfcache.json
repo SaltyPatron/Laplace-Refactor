@@ -1,0 +1,11 @@
+{
+  "schema": "laplace.perfcache-contract/v1",
+  "format_version": 1,
+  "header_bytes": 256,
+  "digest_bytes": 32,
+  "byte_order": "little-endian",
+  "digest_algorithm": "BLAKE3-256",
+  "flags": {
+    "sorted_unique_keys": 1
+  }
+}

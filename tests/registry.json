@@ -1,0 +1,358 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "suite_scope": "native identity geometry ISA and perfcache components",
+  "acceptance_status": "contributing evidence only",
+  "tests": [
+    {
+      "ctest_name": "IdentityAbi.IsExactly128Bits",
+      "evidence_targets": ["LP-TEST-IDENTITY-BLAKE3-128"],
+      "covered_dimensions": ["native ABI width"]
+    },
+    {
+      "ctest_name": "UnicodePositionEncoding.CoversTheCompletePositionUniverse",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR"],
+      "covered_dimensions": ["encoding boundaries", "surrogate positions"]
+    },
+    {
+      "ctest_name": "UnicodePositionEncoding.RejectsOnlyPositionsBeyondTheUniverse",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR"],
+      "covered_dimensions": ["upper bound", "invalid arguments"]
+    },
+    {
+      "ctest_name": "UnicodePositionEncoding.EnumeratesTheCompleteUniverseWithoutObservedCollision",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["all 1114112 positions", "encoding uniqueness", "observed identity uniqueness"]
+    },
+    {
+      "ctest_name": "CodepointIdentity.NullPositionIsNotEmptyContent",
+      "evidence_targets": ["LP-TEST-IDENTITY-EMPTY-STATES"],
+      "covered_dimensions": ["position zero distinct from empty preimage"]
+    },
+    {
+      "ctest_name": "CodepointIdentity.MatchesPinnedCrossRuntimeVectors",
+      "evidence_targets": ["LP-TEST-IDENTITY-BLAKE3-128", "LP-TEST-UNICODE-ATOM-FLOOR"],
+      "covered_dimensions": ["pinned codepoint identities", "surrogate identity"]
+    },
+    {
+      "ctest_name": "CompositeIdentity.RejectsEmptyAndCollapsesOneChild",
+      "evidence_targets": ["LP-TEST-IDENTITY-PREIMAGE-GRAMMAR", "LP-TEST-IDENTITY-EMPTY-STATES"],
+      "covered_dimensions": ["empty composition", "single-child collapse"]
+    },
+    {
+      "ctest_name": "CompositeIdentity.OrderChangesTheContentId",
+      "evidence_targets": ["LP-TEST-IDENTITY-PREIMAGE-GRAMMAR", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["ordered child identities"]
+    },
+    {
+      "ctest_name": "CompositeIdentity.Numeric255MatchesPinnedCrossRuntimeVector",
+      "evidence_targets": ["LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-IDENTITY-PREIMAGE-GRAMMAR"],
+      "covered_dimensions": ["native numeric composition vector"]
+    },
+    {
+      "ctest_name": "RunIdentity.MatchesTheExpandedSequence",
+      "evidence_targets": ["LP-TEST-RUN-EXPANDED-PARITY"],
+      "covered_dimensions": ["content identity"]
+    },
+    {
+      "ctest_name": "RunIdentity.LargeRunMatchesExpandedSequence",
+      "evidence_targets": ["LP-TEST-RUN-EXPANDED-PARITY", "LP-TEST-RUN-LARGE-COUNT"],
+      "covered_dimensions": ["100000-element content identity", "logical count"]
+    },
+    {
+      "ctest_name": "RunIdentity.RejectsZeroAndOverflowingRuns",
+      "evidence_targets": ["LP-TEST-RUN-LARGE-COUNT"],
+      "covered_dimensions": ["zero count rejection", "64-bit overflow rejection"]
+    },
+    {
+      "ctest_name": "IdentityComparison.UsesCanonicalByteOrder",
+      "evidence_targets": ["LP-TEST-IDENTITY-BLAKE3-128"],
+      "covered_dimensions": ["native canonical byte comparison"]
+    },
+    {
+      "ctest_name": "IsaAbi.ContractAssignmentsAreStable",
+      "evidence_targets": ["LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["versioned ABI", "stable opcode and value-type assignments"]
+    },
+    {
+      "ctest_name": "IsaExecution.CodepointBatchMatchesCanonicalIdentity",
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-IDENTITY-CROSS-ROUTE"],
+      "covered_dimensions": ["typed batch instruction", "canonical identity parity"]
+    },
+    {
+      "ctest_name": "IsaExecution.OneElementAndManyElementProgramsAgree",
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-ISA-COVERAGE"],
+      "covered_dimensions": ["one-element execution", "multi-element execution", "batch parity"]
+    },
+    {
+      "ctest_name": "IsaExecution.TrajectoryDecodeMatchesCanonicalStructuralCalculation",
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE"],
+      "covered_dimensions": ["typed trajectory instruction", "canonical decoder parity", "receipt-producing execution"]
+    },
+    {
+      "ctest_name": "IsaVersioning.MinorZeroAcceptsIdentityAndRejectsTrajectoryDecode",
+      "evidence_targets": ["LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["minor-version compatibility", "instruction introduction boundary"]
+    },
+    {
+      "ctest_name": "IsaValidation.InvalidLaterTrajectoryCannotPartiallyWriteResults",
+      "evidence_targets": ["LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE"],
+      "covered_dimensions": ["whole-vector trajectory preflight", "failure atomicity"]
+    },
+    {
+      "ctest_name": "IsaValidation.LaterInvalidInstructionCannotPartiallyExecuteEarlierWork",
+      "evidence_targets": ["LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["whole-program preflight", "failure atomicity"]
+    },
+    {
+      "ctest_name": "IsaValidation.RejectsUnknownOpcodeVersionTypeCapacityAndOverlap",
+      "evidence_targets": ["LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["opcode", "version", "value type", "capacity", "memory overlap"]
+    },
+    {
+      "ctest_name": "IsaReceipt.RepeatedExecutionIsDeterministicAndInputSensitive",
+      "evidence_targets": ["LP-TEST-ISA-RECEIPT", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["BLAKE3 receipt", "program fingerprint", "input fingerprint", "output fingerprint"]
+    },
+    {
+      "ctest_name": "isa.preflight-atomicity-contract",
+      "evidence_targets": ["LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["public whole-program preflight contract", "failure atomicity"],
+      "defect_controls": ["isa.mutation-partial-preflight-detected"]
+    },
+    {
+      "ctest_name": "isa.mutation-partial-preflight-detected",
+      "evidence_targets": ["LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["partial preflight permits a prior write and is detected"],
+      "controls": "isa.preflight-atomicity-contract"
+    },
+    {
+      "ctest_name": "TrajectoryCarrier.AbiAndPinnedDatabaseVectorAreStable",
+      "evidence_targets": ["LP-TEST-TRAJECTORY-TYPED-PAYLOAD-CLASS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
+      "covered_dimensions": ["four binary64 slots", "212-bit payload", "pinned live-database vector"]
+    },
+    {
+      "ctest_name": "TrajectoryCarrier.ArbitraryTypedPayloadRoundTripsAll212Bits",
+      "evidence_targets": ["LP-TEST-TRAJECTORY-TYPED-PAYLOAD-CLASS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
+      "covered_dimensions": ["128-bit typed lane", "ordinal", "run", "52-bit metadata", "bit-exact reconstruction"]
+    },
+    {
+      "ctest_name": "TrajectoryCarrier.InvalidExponentAndOversizedMetadataCannotMutateOutput",
+      "evidence_targets": ["LP-TEST-TRAJECTORY-TYPED-PAYLOAD-CLASS", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE"],
+      "covered_dimensions": ["pinned exponent", "metadata bounds", "failure atomicity"]
+    },
+    {
+      "ctest_name": "TrajectoryComposition.DecodingCalculatesOrderRunsMetadataAndRelations",
+      "evidence_targets": ["LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-TRAJECTORY-ORDER", "LP-TEST-STRUCTURAL-RELATION-NONMATERIALIZATION"],
+      "covered_dimensions": ["logical ordinals", "run multiplicity", "tier", "atom", "contains", "precedes", "co-occurrence"]
+    },
+    {
+      "ctest_name": "TrajectoryComposition.PackedOrdinalIsExactOrExplicitlyUnrepresentable",
+      "evidence_targets": ["LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-ORDER"],
+      "covered_dimensions": ["65535-element run", "prefix-calculated ordinal", "zero sentinel above uint16 range"]
+    },
+    {
+      "ctest_name": "TrajectoryComposition.InvalidLaterOrdinalCannotPartiallyDecode",
+      "evidence_targets": ["LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
+      "covered_dimensions": ["packed/logical ordinal agreement", "whole-trajectory preflight", "failure atomicity"]
+    },
+    {
+      "ctest_name": "GeometryAccumulator.EmptyStateIsExplicit",
+      "evidence_targets": ["LP-TEST-CENTROID-MULTISET"],
+      "covered_dimensions": ["empty accumulator state"]
+    },
+    {
+      "ctest_name": "GeometryAccumulator.RejectsInvalidInputWithoutPartialMutation",
+      "evidence_targets": ["LP-TEST-CENTROID-MULTISET"],
+      "covered_dimensions": ["finite coordinate validation", "failure atomicity"]
+    },
+    {
+      "ctest_name": "GeometryAccumulator.DetectsLogicalCountOverflow",
+      "evidence_targets": ["LP-TEST-RUN-LARGE-COUNT", "LP-TEST-CENTROID-MULTISET"],
+      "covered_dimensions": ["64-bit multiplicity", "count overflow rejection"]
+    },
+    {
+      "ctest_name": "GeometryCentroid.SinglePointPreservesItsS3CoordinateAndRadius",
+      "evidence_targets": ["LP-TEST-RADIUS-PRESERVATION", "LP-TEST-CENTROID-MULTISET"],
+      "covered_dimensions": ["single-point coordinate", "unit radius"]
+    },
+    {
+      "ctest_name": "GeometryCentroid.CompositeUsesTheFourDimensionalArithmeticCentroid",
+      "evidence_targets": ["LP-TEST-CENTROID-MULTISET", "LP-TEST-RADIUS-PRESERVATION"],
+      "covered_dimensions": ["four-dimensional arithmetic centroid", "interior radius"]
+    },
+    {
+      "ctest_name": "GeometryCentroid.RunMultiplicityMatchesExpandedInputBitForBit",
+      "evidence_targets": ["LP-TEST-RUN-EXPANDED-PARITY", "LP-TEST-CENTROID-MULTISET"],
+      "covered_dimensions": ["100000-element centroid", "radius", "logical count"]
+    },
+    {
+      "ctest_name": "GeometryCentroid.InputAndMergeOrderCannotChangeCentroidBits",
+      "evidence_targets": ["LP-TEST-CENTROID-MULTISET", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["input order", "partition merge", "bitwise centroid"]
+    },
+    {
+      "ctest_name": "GeometryCentroid.PreservesTinyResidualAfterLargeCancellation",
+      "evidence_targets": ["LP-TEST-CENTROID-MULTISET"],
+      "covered_dimensions": ["exact accumulation", "correctly rounded mean"]
+    },
+    {
+      "ctest_name": "GeometryCentroid.RoundsSubnormalTiesToEven",
+      "evidence_targets": ["LP-TEST-CENTROID-MULTISET"],
+      "covered_dimensions": ["subnormal arithmetic", "ties-to-even rounding"]
+    },
+    {
+      "ctest_name": "PerfcacheFormat.WritesAndValidatesOneExactArtifact",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"],
+      "covered_dimensions": ["typed header", "records", "metadata", "BLAKE3-256 artifact digest"]
+    },
+    {
+      "ctest_name": "PerfcacheFormat.SerializationIsByteDeterministic",
+      "evidence_targets": ["LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"],
+      "covered_dimensions": ["byte-identical repeated serialization"]
+    },
+    {
+      "ctest_name": "PerfcacheFormat.SmallOutputBufferIsNotModified",
+      "evidence_targets": ["LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
+      "covered_dimensions": ["capacity validation", "failure atomicity"]
+    },
+    {
+      "ctest_name": "PerfcacheFormat.RejectsSizeOverflowBeforeReadingRecords",
+      "evidence_targets": ["LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
+      "covered_dimensions": ["record-size overflow"]
+    },
+    {
+      "ctest_name": "PerfcacheValidation.RejectsChangedContentWithoutChangedDigest",
+      "evidence_targets": ["LP-TEST-PERFCACHE-ARTIFACT-IDENTITY", "LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
+      "covered_dimensions": ["whole-artifact digest"]
+    },
+    {
+      "ctest_name": "PerfcacheValidation.RejectsWrongExactContract",
+      "evidence_targets": ["LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
+      "covered_dimensions": ["module", "schemas", "source", "recipe", "dependencies", "activation epoch"]
+    },
+    {
+      "ctest_name": "PerfcacheValidation.RejectsUnknownFlagsAndNonzeroReservedBytes",
+      "evidence_targets": ["LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
+      "covered_dimensions": ["unknown flags", "reserved bytes"]
+    },
+    {
+      "ctest_name": "PerfcacheValidation.RejectsTruncationExtensionAndSectionMismatch",
+      "evidence_targets": ["LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
+      "covered_dimensions": ["exact file length", "section boundaries"]
+    },
+    {
+      "ctest_name": "PerfcacheValidation.RejectsRechecksummedDuplicateKey",
+      "evidence_targets": ["LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["sorted unique key semantics after valid checksum"]
+    },
+    {
+      "ctest_name": "PerfcacheValidation.ModuleSemanticsRejectRechecksummedWrongValue",
+      "evidence_targets": ["LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["module semantic validation after valid checksum", "invalid record index"]
+    },
+    {
+      "ctest_name": "PerfcacheLookup.BatchPreservesInputOrderHitsAndMisses",
+      "evidence_targets": ["LP-TEST-PERFCACHE-BATCH-LOOKUP"],
+      "covered_dimensions": ["batch lookup", "input order", "hits", "misses"]
+    },
+    {
+      "ctest_name": "PerfcacheFile.PublishesMapsAndClosesVerifiedArtifact",
+      "evidence_targets": ["LP-TEST-PERFCACHE-ATOMIC-PUBLICATION", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"],
+      "covered_dimensions": ["same-directory publication", "file sync", "directory sync", "verified memory mapping"]
+    },
+    {
+      "ctest_name": "PerfcacheFile.ReplacementKeepsExistingMappingImmutable",
+      "evidence_targets": ["LP-TEST-PERFCACHE-ATOMIC-PUBLICATION", "LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE"],
+      "covered_dimensions": ["atomic replacement", "existing reader immutability", "new epoch mapping"]
+    },
+    {
+      "ctest_name": "PerfcacheFile.InvalidArtifactCannotReplacePublishedArtifact",
+      "evidence_targets": ["LP-TEST-PERFCACHE-ATOMIC-PUBLICATION", "LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
+      "covered_dimensions": ["pre-publication validation", "published artifact preservation"]
+    },
+    {
+      "ctest_name": "PerfcacheFile.MappingRejectsMissingAndNonRegularPaths",
+      "evidence_targets": ["LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
+      "covered_dimensions": ["missing path", "non-regular file"]
+    },
+    {
+      "ctest_name": "PerfcacheFile.SemanticFailureBlocksPublicationAndActivation",
+      "evidence_targets": ["LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-ATOMIC-PUBLICATION", "LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
+      "covered_dimensions": ["mandatory module semantics", "publication rejection", "activation rejection", "invalid record index"]
+    },
+    {
+      "ctest_name": "identity.contract-vectors",
+      "evidence_targets": ["LP-TEST-IDENTITY-BLAKE3-128", "LP-TEST-IDENTITY-PREIMAGE-GRAMMAR"],
+      "covered_dimensions": ["public native contract probe"],
+      "defect_controls": ["identity.mutation-domain-detected"]
+    },
+    {
+      "ctest_name": "identity.mutation-domain-detected",
+      "evidence_targets": ["LP-TEST-IDENTITY-PREIMAGE-GRAMMAR"],
+      "covered_dimensions": ["wrong composite domain is detected"],
+      "controls": "identity.contract-vectors"
+    },
+    {
+      "ctest_name": "identity.unicode-surrogate-position",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR"],
+      "covered_dimensions": ["public surrogate-position probe"],
+      "defect_controls": ["identity.mutation-surrogate-exclusion-detected"]
+    },
+    {
+      "ctest_name": "identity.mutation-surrogate-exclusion-detected",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR"],
+      "covered_dimensions": ["surrogate exclusion is detected"],
+      "controls": "identity.unicode-surrogate-position"
+    },
+    {
+      "ctest_name": "geometry.arithmetic-centroid-contract",
+      "evidence_targets": ["LP-TEST-CENTROID-MULTISET", "LP-TEST-RADIUS-PRESERVATION"],
+      "covered_dimensions": ["public arithmetic-centroid contract probe"],
+      "defect_controls": ["geometry.mutation-sphere-normalization-detected"]
+    },
+    {
+      "ctest_name": "geometry.mutation-sphere-normalization-detected",
+      "evidence_targets": ["LP-TEST-CENTROID-MULTISET", "LP-TEST-RADIUS-PRESERVATION"],
+      "covered_dimensions": ["sphere projection defect is detected"],
+      "controls": "geometry.arithmetic-centroid-contract"
+    },
+    {
+      "ctest_name": "perfcache.sorted-unique-contract",
+      "evidence_targets": ["LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["public sorted-unique contract probe"],
+      "defect_controls": ["perfcache.mutation-sorted-unique-bypass-detected"]
+    },
+    {
+      "ctest_name": "perfcache.mutation-sorted-unique-bypass-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["sorted-unique validation bypass is detected"],
+      "controls": "perfcache.sorted-unique-contract"
+    },
+    {
+      "ctest_name": "package.native-consumer-contract",
+      "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE"],
+      "covered_dimensions": ["versioned shared engine", "CMake package discovery", "external identity and ISA consumer link and execution", "byte-identical repeated installation"]
+    },
+    {
+      "ctest_name": "package.elf-dependency-closure",
+      "evidence_targets": ["LP-TEST-DEPENDENCY-ELF-CLOSURE"],
+      "covered_dimensions": ["metadata-only ELF inspection", "loader precedence", "transitive closure", "exact path and hash", "unresolved edge detection", "external selection detection", "deterministic report"]
+    },
+    {
+      "ctest_name": "package.release-asset-integrity",
+      "evidence_targets": ["LP-TEST-DEPENDENCY-RELEASE-ASSETS"],
+      "covered_dimensions": ["archive digest", "tree digest", "license digest", "size boundaries", "safe path import", "atomic publication", "tamper rejection"]
+    },
+    {
+      "ctest_name": "recovery.tooling-contract",
+      "evidence_targets": ["LP-TEST-RECOVERY-EXACT-EVIDENCE", "LP-TEST-RECOVERY-CORPUS-DEDUPLICATION", "LP-TEST-RECOVERY-SQL-ACTIVITY"],
+      "covered_dimensions": ["exact shell payload recovery", "SQL statement reconstruction", "content-address tamper rejection", "event-log classification", "archive-bound corpus deduplication"]
+    },
+    {
+      "ctest_name": "requirements.traceability-contract",
+      "evidence_targets": ["LP-TEST-REQUIREMENTS-TRACEABILITY"],
+      "covered_dimensions": ["product requirement joins", "direct requirement uniqueness", "evidence target validity", "feature target validity"],
+      "defect_controls": ["unknown product join", "unjoined product requirement", "unknown registry evidence", "unknown feature evidence"]
+    }
+  ]
+}

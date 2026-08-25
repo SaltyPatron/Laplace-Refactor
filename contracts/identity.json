@@ -1,0 +1,36 @@
+{
+  "schema": "laplace.identity-contract/v1",
+  "identity": {
+    "algorithm": "BLAKE3",
+    "bytes": 16,
+    "composite_domain_byte": 1,
+    "single_child_collapses": true,
+    "empty_composition_is_error": true
+  },
+  "unicode_position": {
+    "minimum": 0,
+    "maximum": 1114111,
+    "encoding": "UTF-8-bit-pattern",
+    "includes_surrogate_positions": true
+  },
+  "vectors": {
+    "codepoint_u0032": "813e9b729141e7f385afa0a2d0df3e6c",
+    "codepoint_u0035": "b3372b584dc0df6ce757fa43f459ca1f",
+    "codepoint_ud800": "dff435ed8113f31233474261aa854f0f",
+    "sequence_2_5_5": "3b2cf619458661e7532688d3f73f3967"
+  },
+  "exclusions": [
+    "role",
+    "type",
+    "tier",
+    "source",
+    "modality",
+    "language",
+    "model",
+    "trust",
+    "coordinate",
+    "ordinal",
+    "context",
+    "time"
+  ]
+}

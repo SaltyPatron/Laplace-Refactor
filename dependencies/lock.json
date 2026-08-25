@@ -1,0 +1,122 @@
+{
+  "schema": "laplace.dependency-lock/v1",
+  "dependencies": {
+    "blake3": {
+      "upstream": "https://github.com/BLAKE3-team/BLAKE3.git",
+      "revision": "95e42b84fc4709974c7b23c7ae885989ab36c31e",
+      "git_archive_sha256": "c9f56dcd86ec1cabdc918a966f52b0eac2c437d7907f1dd4afb4bd1f298eb71c",
+      "version": "1.5.4",
+      "licenses": [
+        {"path": "LICENSE_A2", "sha256": "00fcc7a934ddbc9ece2a7cc063ac788e284b703b1d705ccbba72d462aa97921e"},
+        {"path": "LICENSE_A2LLVM", "sha256": "a5695f57ea0c221e0e8b7d784ff774c35e88c3d3270353646a925880bb3492cc"},
+        {"path": "LICENSE_CC0", "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"}
+      ]
+    },
+    "cutechess": {
+      "upstream": "https://github.com/cutechess/cutechess.git",
+      "revision": "e471973ad41c9c891da1de08d8b9ad630f001168",
+      "git_archive_sha256": "23fb14c0d11032213fa887dfaffebe6ec4ff646534592598480cd6e149aa1d45",
+      "version": "v1.5.1-2-ge471973a",
+      "licenses": [
+        {"path": "COPYING", "sha256": "8c75a9231db8906865e29706ed63aad18fd918c92c15dbefbb13c25fe42850b4"}
+      ]
+    },
+    "eigen": {
+      "upstream": "https://gitlab.com/libeigen/eigen.git",
+      "revision": "3147391d946bb4b6c68edd901f2add6ac1f31f8c",
+      "git_archive_sha256": "a378af54cb5befc28cdfe409c26ec65cc3d81ac6f160a4797a2fa846f338d217",
+      "version": "3.4.0",
+      "licenses": [
+        {"path": "COPYING.APACHE", "sha256": "03379001a7b12a2ec997a25554247d985270b353c10d5bafee9ac8d6519820b7"},
+        {"path": "COPYING.BSD", "sha256": "51928dce36213c5333ba3172e847d735d4c6e9b7ff2722a326c49067155b82eb"},
+        {"path": "COPYING.GPL", "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"},
+        {"path": "COPYING.LGPL", "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"},
+        {"path": "COPYING.MINPACK", "sha256": "c87b7f8ee88f6195e91743820c00354833583aef091b72e2d4a49c8e28e798a0"},
+        {"path": "COPYING.MPL2", "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85"},
+        {"path": "COPYING.README", "sha256": "c83230b770f17ef1386ea1fd3681271dd98aa93646bdbfb5bff3a1b7050fff9d"}
+      ]
+    },
+    "fathom": {
+      "upstream": "https://github.com/jdart1/Fathom",
+      "revision": "c9c6fef0dddc05d2e242c183acf5833149ab676d",
+      "git_archive_sha256": "61bd3406aceed3ae5304fa7d37b346aa0e0a896a6be5b0c0db50ec2db0544663",
+      "version": "v1.0-103-gc9c6fef",
+      "licenses": [
+        {"path": "LICENSE", "sha256": "c8038055839bd02f995cd7d1bba19657720097f5604411a7977ebcb5b4a37759"}
+      ]
+    },
+    "gdal": {
+      "upstream": "https://github.com/OSGeo/gdal.git",
+      "revision": "501754d048e07b07932ec268b6ed3c43ea0819e3",
+      "git_archive_sha256": "508a18b12ed1c71c98c2556ce4a87b92541f0d8bc2408ad826dd55a94e8675aa",
+      "version": "v3.9.3",
+      "licenses": [
+        {"path": "LICENSE.TXT", "sha256": "1dae3468e81d00da56e2936f74d33b8b3ad09d726437f19ce209a5dabea41f77"}
+      ]
+    },
+    "geos": {
+      "upstream": "https://github.com/libgeos/geos.git",
+      "revision": "b74fefb7be4ba6c833760106f95f0f495b832c43",
+      "git_archive_sha256": "3a1b4574785bddfd325971d595d5368f194738f4efc48f1c72c26993515fe876",
+      "version": "3.12.2",
+      "licenses": [
+        {"path": "COPYING", "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"}
+      ]
+    },
+    "googletest": {
+      "upstream": "https://github.com/google/googletest.git",
+      "revision": "b514bdc898e2951020cbdca1304b75f5950d1f59",
+      "git_archive_sha256": "c081295f2c22705e07fc430e152a30b36f949a179075d47d3e12ff3109d43c6a",
+      "version": "v1.15.2",
+      "licenses": [
+        {"path": "LICENSE", "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"}
+      ]
+    },
+    "postgis": {
+      "upstream": "https://github.com/postgis/postgis.git",
+      "revision": "3d12666588a84b23a3147618eaa9b40b0fe5e796",
+      "git_archive_sha256": "e85c615ffcc0309437598f6ae0309c4688d0a3bc418fd010273acbb304c24321",
+      "version": "3.6.3",
+      "licenses": [
+        {"path": "COPYING", "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"},
+        {"path": "LICENSE.TXT", "sha256": "81749eea887e78402c9b85896cd629b155bc29256927f818f01001f038146391"}
+      ]
+    },
+    "postgresql": {
+      "upstream": "https://git.postgresql.org/git/postgresql.git",
+      "revision": "62d6c7d3df6287f1bd83199c1a746e50d31571a0",
+      "git_archive_sha256": "39025b826856a43f24560f82315a3ba154a95df24f4da01831083f01606f8fb0",
+      "version": "REL_18_3",
+      "licenses": [
+        {"path": "COPYRIGHT", "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"}
+      ]
+    },
+    "proj": {
+      "upstream": "https://github.com/OSGeo/PROJ.git",
+      "revision": "875a485fa5ef435c57f7682f904dd31ca92253ab",
+      "git_archive_sha256": "ff3e9f4170bef4a82061f1357bdc07b9635804fc91a4819f6e277818037818d0",
+      "version": "9.4.1",
+      "licenses": [
+        {"path": "COPYING", "sha256": "6a8f30793e877d32e3f88b972f0970a051a3b5a26cd057d3993cb51e21c43319"}
+      ]
+    },
+    "spectra": {
+      "upstream": "https://github.com/yixuan/spectra.git",
+      "revision": "6841bcbacaa0f0a8446210314e682057a084be4e",
+      "git_archive_sha256": "166ec535ee8908bdec1f03a9a6c71e9621cae881a820396a2cd1386e035dd7be",
+      "version": "v1.2.0",
+      "licenses": [
+        {"path": "LICENSE", "sha256": "2684de17300e0a434686f1ec7f8af6045207a4b457a3fe04b2b9ce655e7c5d50"}
+      ]
+    },
+    "tree-sitter": {
+      "upstream": "https://github.com/tree-sitter/tree-sitter.git",
+      "revision": "da6fe9beb4f7f67beb75914ca8e0d48ae48d6406",
+      "git_archive_sha256": "99b811c27edb7a89eebffed037290370b29fa0e9d27e6f1d847706b354189700",
+      "version": "v0.25.10",
+      "licenses": [
+        {"path": "LICENSE", "sha256": "5f9cf9fb6acb1972b35ae29119ce563bb60ec097656bc4b69b9bac2d04c7a147"}
+      ]
+    }
+  }
+}

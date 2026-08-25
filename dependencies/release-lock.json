@@ -1,0 +1,99 @@
+{
+  "schema": "laplace.release-lock/v1",
+  "archives": {
+    "gdal": {
+      "version": "3.13.3",
+      "filename": "gdal-3.13.3.tar.gz",
+      "url": "https://download.osgeo.org/gdal/3.13.3/gdal-3.13.3.tar.gz",
+      "sha256": "5e0c388d83da2d686cc00a40272882432cdb54edff43d4af173e532844a0a0ea",
+      "size_bytes": 15725318,
+      "top_directory": "gdal-3.13.3",
+      "member_count": 4491,
+      "regular_file_count": 4184,
+      "uncompressed_bytes": 87603193,
+      "tree_sha256": "f786f1bca4e3e1871f1f42e0deb43fbfe88427f27c67e449c189179757efb379",
+      "licenses": [
+        {
+          "path": "gdal-3.13.3/LICENSE.TXT",
+          "sha256": "1dae3468e81d00da56e2936f74d33b8b3ad09d726437f19ce209a5dabea41f77"
+        }
+      ]
+    },
+    "geos": {
+      "version": "3.14.1",
+      "filename": "geos-3.14.1.tar.bz2",
+      "url": "https://download.osgeo.org/geos/geos-3.14.1.tar.bz2",
+      "sha256": "3c20919cda9a505db07b5216baa980bacdaa0702da715b43f176fb07eff7e716",
+      "size_bytes": 7013834,
+      "top_directory": "geos-3.14.1",
+      "member_count": 1844,
+      "regular_file_count": 1644,
+      "uncompressed_bytes": 26996189,
+      "tree_sha256": "9a00076c9d9a4a5358ec9277a30a21a8f77da842a0ec59e651c1064f7b3aad9c",
+      "licenses": [
+        {
+          "path": "geos-3.14.1/COPYING",
+          "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"
+        }
+      ]
+    },
+    "postgis": {
+      "version": "3.6.4",
+      "filename": "postgis-3.6.4.tar.gz",
+      "url": "https://download.osgeo.org/postgis/source/postgis-3.6.4.tar.gz",
+      "sha256": "ed8dc6679f1e06f7b113592b04cde2a7e00f1b1e681294c8ca2204058990cec6",
+      "size_bytes": 16289296,
+      "top_directory": "postgis-3.6.4",
+      "member_count": 2494,
+      "regular_file_count": 2348,
+      "uncompressed_bytes": 69997930,
+      "tree_sha256": "51e1f318301505b2436be198bc9bc8de7958d93c4f66a5c1124aec5ec351310f",
+      "licenses": [
+        {
+          "path": "postgis-3.6.4/COPYING",
+          "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+        },
+        {
+          "path": "postgis-3.6.4/LICENSE.TXT",
+          "sha256": "81749eea887e78402c9b85896cd629b155bc29256927f818f01001f038146391"
+        }
+      ]
+    },
+    "postgresql": {
+      "version": "18.6",
+      "filename": "postgresql-18.6.tar.bz2",
+      "url": "https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.bz2",
+      "sha256": "555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f",
+      "size_bytes": 22632314,
+      "top_directory": "postgresql-18.6",
+      "member_count": 7944,
+      "regular_file_count": 7284,
+      "uncompressed_bytes": 141525674,
+      "tree_sha256": "2db816c62c120392afcb72a9bbed431c31c0410af42ca3efde0adf0697de2051",
+      "licenses": [
+        {
+          "path": "postgresql-18.6/COPYRIGHT",
+          "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+        }
+      ]
+    },
+    "proj": {
+      "version": "9.8.1",
+      "filename": "proj-9.8.1.tar.gz",
+      "url": "https://download.osgeo.org/proj/proj-9.8.1.tar.gz",
+      "sha256": "af5b731c145c1d13c4e3b4eeb7d167e94e845e440f71e3496b4ed8dae0291960",
+      "size_bytes": 5981846,
+      "top_directory": "proj-9.8.1",
+      "member_count": 663,
+      "regular_file_count": 632,
+      "uncompressed_bytes": 29940217,
+      "tree_sha256": "c28be4a194a4a149ea590260e6ffcee62c4ff2ef53bbaf22167434022b59bf94",
+      "licenses": [
+        {
+          "path": "proj-9.8.1/COPYING",
+          "sha256": "6a8f30793e877d32e3f88b972f0970a051a3b5a26cd057d3993cb51e21c43319"
+        }
+      ]
+    }
+  }
+}

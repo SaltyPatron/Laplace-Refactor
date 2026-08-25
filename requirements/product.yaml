@@ -1,0 +1,344 @@
+schema: laplace.requirements/v1
+product: Laplace
+status: required
+requirements:
+  - id: LP-PRODUCT-001
+    statement: Laplace replaces transformer execution through SQL over a C/C++ and PostgreSQL server engine.
+    evidence:
+      - LP-TEST-ISA-SQL-EXECUTION
+      - LP-TEST-NO-PRIVATE-SEMANTICS
+  - id: LP-UNIVERSAL-001
+    statement: Every modality uses one identity, structure, evidence, trust, execution, and receipt system.
+    evidence:
+      - LP-TEST-CROSS-MODAL-PROGRAM
+      - LP-TEST-MODALITY-SYMMETRY
+  - id: LP-IDENTITY-001
+    statement: The same canonical content always produces the same identity independent of source language modality model route tier and time.
+    evidence:
+      - LP-TEST-IDENTITY-CROSS-ROUTE
+      - LP-TEST-IDENTITY-NEGATIVE
+  - id: LP-IDENTITY-002
+    statement: Identity uses the fixed SIMD optimized BLAKE3 128 bit content contract independent of role and keeps empty absent and sentinel states distinct.
+    evidence:
+      - LP-TEST-IDENTITY-PREIMAGE-GRAMMAR
+      - LP-TEST-IDENTITY-BLAKE3-128
+      - LP-TEST-IDENTITY-ROLE-EXCLUSION
+      - LP-TEST-IDENTITY-EMPTY-STATES
+  - id: LP-INTERPRETATION-001
+    statement: One content entity can have multiple versioned calculated physical realizations while declared and derived interpretations remain attestations that cannot instantiate a physicality or mutate identity.
+    evidence:
+      - LP-TEST-CONTENT-INTERPRETATION-SEPARATION
+      - LP-TEST-UNICODE-EXACT-SEMANTIC-SEPARATION
+      - LP-TEST-INTERPRETATION-AMBIGUITY
+      - LP-TEST-DECLARED-INFERRED-TYPE-SEPARATION
+  - id: LP-IDENTITY-003
+    statement: Exact name content name occurrences candidate referents external identifiers identity testimony and immutable referential adjudication epochs remain distinct so equal names cannot merge people and contradictions generate derived split hypotheses without rewriting source evidence.
+    evidence:
+      - LP-TEST-REFERENTIAL-NAME-NONMERGE
+      - LP-TEST-REFERENTIAL-TEMPORAL-DEFECT
+      - LP-TEST-REFERENTIAL-EXTERNAL-ID-TESTIMONY
+      - LP-TEST-REFERENTIAL-EPOCH-ASOF
+      - LP-TEST-REFERENTIAL-DEPENDENCE
+      - LP-TEST-REFERENTIAL-FISCHER-REGRESSION
+  - id: LP-UNICODE-001
+    statement: Every modality composes over one Unicode atom floor whose geometry uses the complete DUCET order and pinned UCD behavior.
+    evidence:
+      - LP-TEST-UNICODE-ATOM-FLOOR
+      - LP-TEST-DUCET-COMPLETE-ORDER
+      - LP-TEST-UCD-CONFORMANCE
+      - LP-TEST-NO-PRIVATE-ATOM-UNIVERSE
+  - id: LP-GEOMETRY-001
+    statement: Atoms use versioned DUCET ranked S3 placement and composites use one arithmetic centroid while identity order trajectory and Hilbert locality remain distinct.
+    evidence:
+      - LP-TEST-S3-SEED
+      - LP-TEST-CENTROID-MULTISET
+      - LP-TEST-RADIUS-PRESERVATION
+      - LP-TEST-HILBERT-LOCALITY
+      - LP-TEST-TRAJECTORY-ORDER
+      - LP-TEST-PHYSICALITY-NONIDENTITY-COLLISION
+  - id: LP-PHYSICALITY-001
+    statement: Physicality is the bit perfect calculated Merkle DAG realization of an entity and directly generates exact container constituent role ordinal multiplicity contains precedes follows tier ancestry shape dimensionality geometry and trajectory relations while claims and observed uses remain attestations and occurrences outside physicality.
+    evidence:
+      - LP-TEST-ENTITY-PHYSICALITY-SEPARATION
+      - LP-TEST-MULTIPLE-PHYSICALITIES-ONE-ENTITY
+      - LP-TEST-DECLARED-INFERRED-TYPE-SEPARATION
+      - LP-TEST-PHYSICALITY-ATTESTATION
+      - LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS
+      - LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION
+      - LP-TEST-TRAJECTORY-TYPED-PAYLOAD-CLASS
+      - LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE
+      - LP-TEST-STRUCTURAL-RELATION-NONMATERIALIZATION
+  - id: LP-STATE-001
+    statement: Any addressable substrate state can be execution input without a fixed token context window defining memory.
+    evidence:
+      - LP-TEST-PERSISTENT-STATE-ADDRESSING
+      - LP-TEST-LONG-HISTORY
+  - id: LP-EXECUTION-001
+    statement: Output is selected and composed from witnessed or reproducibly calculated state without softmax continuation.
+    evidence:
+      - LP-TEST-PROVENANCE-CLOSURE
+      - LP-TEST-UNKNOWN-RESULT
+  - id: LP-ISA-001
+    statement: Every semantic product capability executes through one typed versioned vector-first receipt-producing ISA.
+    evidence:
+      - LP-TEST-ISA-COVERAGE
+      - LP-TEST-ISA-TYPE-SAFETY
+      - LP-TEST-ISA-RECEIPT
+  - id: LP-BULK-001
+    statement: Batch and bulk operations are primary and exactly preserve one-element semantics.
+    evidence:
+      - LP-TEST-BULK-PARITY
+      - LP-TEST-BULK-DETERMINISM
+      - LP-TEST-BOUNDED-CROSSINGS
+  - id: LP-RUN-001
+    statement: Repeated content uses run spans sparse deposition and Merkle DAG reuse while preserving the same identity centroid order occurrence evidence and readback as the expanded sequence.
+    evidence:
+      - LP-TEST-RUN-EXPANDED-PARITY
+      - LP-TEST-RUN-LARGE-COUNT
+      - LP-TEST-SPARSE-DEPOSITION
+      - LP-TEST-OCCURRENCE-PRESERVATION
+  - id: LP-EVIDENCE-001
+    statement: Testimony preserves source type trust context outcome uncertainty count and recorded or calculated provenance.
+    evidence:
+      - LP-TEST-TESTIMONY-ROUNDTRIP
+      - LP-TEST-NEGATIVE-EVIDENCE
+      - LP-TEST-TRUST-INDEPENDENCE
+  - id: LP-EVIDENCE-002
+    statement: Witnessed copied derived independently corroborated and currently believed propositions remain distinct and every calculation retains a complete provenance DAG to its root observations.
+    evidence:
+      - LP-TEST-EPISTEMIC-KIND-SEPARATION
+      - LP-TEST-DERIVATION-LINEAGE-CLOSURE
+      - LP-TEST-DERIVATION-NONAMPLIFICATION
+      - LP-TEST-CIRCULAR-EVIDENCE-REJECTION
+  - id: LP-EVIDENCE-003
+    statement: Adjudication accounts for epistemic dependence including common sources mirrors quotations dataset ancestry and model lineage and publishes immutable time addressable consensus epochs without rewriting testimony.
+    evidence:
+      - LP-TEST-EVIDENCE-DEPENDENCE
+      - LP-TEST-MODEL-LINEAGE-INDEPENDENCE
+      - LP-TEST-CONSENSUS-EPOCH-ASOF
+      - LP-TEST-CONSENSUS-RECOMPUTATION-HISTORY
+  - id: LP-EVIDENCE-004
+    statement: Competing true false uncertain and contradicted propositions remain exact addressable content with complete testimony while standing is calculated from typed relational density independent roots compatibility prediction contradiction time context and trust rather than raw link count.
+    evidence:
+      - LP-TEST-COMPETING-PROPOSITION-PRESERVATION
+      - LP-TEST-EVIDENCE-TOPOLOGY-STANDING
+      - LP-TEST-DEPENDENT-LINK-NONAMPLIFICATION
+      - LP-TEST-PREDICTION-COMPATIBILITY-STANDING
+  - id: LP-CONVERSATION-001
+    statement: Conversation is persistent multilingual cross-modal ISA execution rather than isolated lookup.
+    evidence:
+      - LP-TEST-CONVERSATION-WATER-CYCLE
+      - LP-TEST-CONVERSATION-MULTILINGUAL
+      - LP-TEST-CONVERSATION-CROSS-MODAL
+      - LP-TEST-CONVERSATION-CORRECTION
+      - LP-TEST-CONVERSATION-FIXED-READ-NONCOGNITION
+      - LP-TEST-CONVERSATION-ONE-OP-COMPILER
+      - LP-TEST-CONVERSATION-RANK1-TOPIC-NONCOLLAPSE
+      - LP-TEST-CONVERSATION-DISCOURSE-STATE
+      - LP-TEST-CONVERSATION-READ-REALIZATION-SEPARATION
+      - LP-TEST-CONVERSATION-LOOP-SEPARATION
+      - LP-TEST-SEARCH-COGNITION-LOWERING
+      - LP-TEST-CONVERSATION-SEMANTIC-COMPLETION
+  - id: LP-COGNITION-001
+    statement: Each cognition program calculates and generates a layer-metrized typed incidence operator from exact structural constraints selected epistemic state relation laws context goal and a pinned boundary without flattening relations into a universal adjacency graph or permanent embedding.
+    evidence:
+      - LP-TEST-TYPED-INCIDENCE-OPERATOR
+      - LP-TEST-RELATION-LAW-NONFLATTENING
+      - LP-TEST-EVIDENCE-METRIC-NONAMPLIFICATION
+      - LP-TEST-EVIDENCE-METRIC-PSD
+      - LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY
+      - LP-TEST-RELATION-PLANE-TYPE-ERASURE
+  - id: LP-REPRESENTATION-001
+    statement: Every generated cross layer representation preserves each source distinction required by its declared consumers or provides an exact reconstruction receipt while every lossy projection declares discarded information and cannot satisfy a consumer that requires it.
+    evidence:
+      - LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION
+      - LP-TEST-LOSSY-PROJECTION-DECLARATION
+      - LP-TEST-TARGET-SHAPE-NONPROOF
+  - id: LP-QUERY-001
+    statement: Neighbor is a program scoped calculation over distinct exact structural geometric occurrence semantic and epistemic channels whose Glicko 2 trust context epoch importance and ranking inputs remain receipted and whose result never becomes canonical authority or a timeless universal score.
+    evidence:
+      - LP-TEST-QUERY-STRUCTURAL-NEIGHBOR-NO-TESTIMONY
+      - LP-TEST-QUERY-METRIC-FAMILY-DIVERGENCE
+      - LP-TEST-QUERY-KARCHER-CENTROID-SEPARATION
+      - LP-TEST-QUERY-GLICKO-TRUST-EPOCH
+      - LP-TEST-QUERY-CONTEXTUAL-IMPORTANCE
+      - LP-TEST-QUERY-RANK-NONAUTHORITY
+      - LP-TEST-QUERY-CROSS-ROUTE-PARITY
+  - id: LP-SEARCH-001
+    statement: Goal directed query and cognition compile indexed A star or declared best first search over typed substrate states with bulk frontier generation contextual costs proven heuristic and reopen semantics deterministic completion receipts and no KNN ANN vector or lookup result acting as universal relevance.
+    evidence:
+      - LP-TEST-SEARCH-QUERY-COMPILED-STATE
+      - LP-TEST-SEARCH-INDEXED-BULK-FRONTIER
+      - LP-TEST-SEARCH-ASTAR-OPTIMALITY-CERTIFICATE
+      - LP-TEST-SEARCH-ASTAR-PRIORITY-SEMANTICS
+      - LP-TEST-SEARCH-DEPTH-STATE-COMPLETENESS
+      - LP-TEST-SEARCH-PATH-COUNT
+      - LP-TEST-SEARCH-BULK-FRONTIER
+      - LP-TEST-SEARCH-TYPED-TRANSITION-RECEIPT
+      - LP-TEST-SEARCH-METRIC-CANDIDATE-NONAUTHORITY
+      - LP-TEST-SEARCH-TYPED-PATH-PROVENANCE
+      - LP-TEST-SEARCH-DETERMINISTIC-REPLAY
+      - LP-TEST-SEARCH-CROSS-ROUTE-PARITY
+  - id: LP-COGNITION-002
+    statement: Solver residual relation compatibility boundary defect innovation contradiction missing-structure evidence and counterfactual value are distinct typed calculations and no one is substituted for another.
+    evidence:
+      - LP-TEST-SOLVER-RESIDUAL-SEPARATION
+      - LP-TEST-TYPED-FRAY-CALCULUS
+      - LP-TEST-MISSING-RELATION-WITHHELD-EVIDENCE
+      - LP-TEST-INNOVATION-PROVENANCE
+  - id: LP-COGNITION-003
+    statement: A natural language or multimodal request compiles into a typed logical cognition program which is costed and lowered to a deterministic physical ISA plan whose selected act satisfies explicit goal evidence context uncertainty authority and completion contracts.
+    evidence:
+      - LP-TEST-LOGICAL-COGNITION-PLAN
+      - LP-TEST-COGNITION-PLAN-EQUIVALENCE
+      - LP-TEST-ACT-COUNTERFACTUAL-SELECTION
+      - LP-TEST-COGNITION-DECISION-REPLAY
+  - id: LP-COGNITION-004
+    statement: Native cognition maintains a canonical guidance state containing typed operations operands bindings scopes completion obligations authority resources and knowledge deficits and schedules information seeking by expected relevant deficit reduction information value cost and evidence constraints without replacing that state by a topic or scalar priority.
+    evidence:
+      - LP-TEST-GUIDANCE-STATE-CANONICAL
+      - LP-TEST-TYPED-KNOWLEDGE-DEFICIT
+      - LP-TEST-DEFICIT-ACTION-SCHEDULER
+      - LP-TEST-GUIDANCE-OPERATION-CONTRACT
+      - LP-TEST-GUIDANCE-COMPLETION
+  - id: LP-OODA-001
+    statement: Observe orient decide act and consequence observation are distinct typed replayable ISA stages whose effects reenter the universal entity physicality occurrence testimony and receipt layers.
+    evidence:
+      - LP-TEST-OODA-STAGE-SEPARATION
+      - LP-TEST-OODA-OBSERVE-STRUCTURE-CLAIM-SEPARATION
+      - LP-TEST-OODA-ORIENT-GENERATED-CALCULATION
+      - LP-TEST-OODA-DECIDE-ISOLATED-ACTS
+      - LP-TEST-OODA-ACT-OUTCOME-REOBSERVATION
+      - LP-TEST-OODA-COMPLETE-LOOP-REPLAY
+  - id: LP-GODEL-001
+    statement: The Godel engine uses persistent typed incompleteness as a discovery signal predicts constrained vacancy signatures and tests versioned candidate facts relation families motifs laws operators firmware operations and cognition programs on disjoint evidence and counterexamples without turning prediction or self ancestry into observation or independent support.
+    evidence:
+      - LP-TEST-GODEL-INCOMPLETENESS-SIGNAL
+      - LP-TEST-GODEL-CONSTRAINED-VACANCY
+      - LP-TEST-GODEL-EXTENSION-KIND
+      - LP-TEST-GODEL-DISJOINT-EVIDENCE
+      - LP-TEST-GODEL-COUNTEREXAMPLE-EXPERIMENT
+      - LP-TEST-GODEL-PREDICTION-NONOBSERVATION
+      - LP-TEST-GODEL-SELF-NONCORROBORATION
+      - LP-TEST-GODEL-REFUTATION-EPISTEMIC-KIND
+      - LP-TEST-GODEL-CALCULUS-VERSION-REPLAY
+  - id: LP-AIMAP-001
+    statement: AImap coordinates are generated spectral modes of a pinned typed operator over exact physicality structure and selected epistemic layers and remain a receipt-bound modular derived artifact distinct from identity physicality testimony consensus and canonical semantics.
+    evidence:
+      - LP-TEST-AIMAP-SPECTRAL-LIFT
+      - LP-TEST-AIMAP-LAYER-SEPARATION
+      - LP-TEST-AIMAP-GAUGE-INVARIANCE
+      - LP-TEST-AIMAP-CANONICAL-RECALCULATION
+  - id: LP-AIMAP-002
+    statement: Dynamic AImap publication proves eigenpair residual orthogonality null-space subspace alignment incremental-update and complete-recalculation bounds and never exposes mixed epochs.
+    evidence:
+      - LP-TEST-AIMAP-NUMERICAL-CERTIFICATE
+      - LP-TEST-AIMAP-INCREMENTAL-COMPLETE-PARITY
+      - LP-TEST-AIMAP-EPOCH-COHERENCE
+      - LP-TEST-AIMAP-DEGENERATE-EIGENSPACE
+      - LP-TEST-AIMAP-PROJECTION-NONALIGNMENT
+      - LP-TEST-AIMAP-POSTPROCESS-VALIDITY
+      - LP-TEST-AIMAP-RANK-NONCYCLING
+  - id: LP-REALIZATION-001
+    statement: Cognition selects a typed semantic act before a modality realizer calculates and generates exact content under structural evidence and receipt constraints without using an English token plan as the universal intermediate form.
+    evidence:
+      - LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION
+      - LP-TEST-CROSS-MODAL-SEMANTIC-PLAN
+      - LP-TEST-MULTILINGUAL-NON-ENGLISH-INTERMEDIATE
+      - LP-TEST-REALIZATION-PROVENANCE-CLOSURE
+  - id: LP-MODEL-001
+    statement: Models enter as witnesses and do not impose their architecture on Laplace or other targets.
+    evidence:
+      - LP-TEST-CROSS-MODEL-WITNESS
+      - LP-TEST-UNRELATED-TARGET
+  - id: LP-MODEL-002
+    statement: Laplace calculates typed relational target operators from substrate observations and fits and factorizes them into the exact tensor contracts required by declared neural target architectures.
+    evidence:
+      - LP-TEST-BASELINE-DIRECT-GGUF-REPRODUCTION
+      - LP-TEST-RELATION-KERNEL-OPERATOR-FIT
+      - LP-TEST-HEAD-SPECIFIC-OPERATORS
+      - LP-TEST-TARGET-TENSOR-CLOSURE
+      - LP-TEST-OPERATOR-DELIBERATE-DEFECT
+  - id: LP-MODEL-003
+    statement: Laplace decomposes ingested models into universal witnessed structure values operators and behavior and uses cross-model agreement and disagreement as evidence rather than authority.
+    evidence:
+      - LP-TEST-MODEL-DECOMPOSITION-ROUNDTRIP
+      - LP-TEST-CROSS-MODEL-OPERATOR-CORRELATION
+      - LP-TEST-MODEL-WITNESS-INDEPENDENCE
+      - LP-TEST-MODEL-GAUGE-INVARIANCE
+      - LP-TEST-INDUCED-OPERATOR-CORRELATION
+  - id: LP-MODEL-004
+    statement: CPU native C and C++ and PostgreSQL server execution expose batch AI and ML operator construction evaluation and target compilation through SQL without requiring a GPU.
+    evidence:
+      - LP-TEST-SQL-CPU-MODEL-OPERATOR-EXECUTION
+      - LP-TEST-MODEL-BULK-CPU-PERFORMANCE
+      - LP-TEST-MODEL-NO-GPU-DEPENDENCY
+  - id: LP-MODEL-005
+    statement: GGUF and other declared model formats are target runtime artifacts compiled from selected substrate state with exact tensor layout quantization metadata provenance and behavioral acceptance.
+    evidence:
+      - LP-TEST-GGUF-EXACT-CONTRACT
+      - LP-TEST-GGUF-TARGET-RUNTIME
+      - LP-TEST-MODEL-VALUE-PROVENANCE
+      - LP-TEST-CONVERSATION-TARGET-RUNTIME
+  - id: LP-LANGUAGE-001
+    statement: Ordered composition and realization are Unicode native and reproduce CJK and every other script without an English token or punctuation dependency.
+    evidence:
+      - LP-TEST-CJK-TRAJECTORY-RENDER
+      - LP-TEST-CONVERSATION-MULTILINGUAL
+      - LP-TEST-UNICODE-ATOM-FLOOR
+  - id: LP-PERF-001
+    statement: Complete ingest reaches at least 500000 input records per second on the declared i7-6850K system.
+    evidence:
+      - LP-TEST-INGEST-RECORDS-PER-SECOND
+  - id: LP-PERF-002
+    statement: Qualifying complete real-corpus ingest takes no more than 30 seconds per GB on the declared i7-6850K system.
+    evidence:
+      - LP-TEST-INGEST-SECONDS-PER-GB
+  - id: LP-STORAGE-001
+    statement: Canonical structural and testimony deposition is append oriented while adjudication statistics and indexes are explicitly classified versioned batch derived state with coherent publication and exact visibility receipts.
+    evidence:
+      - LP-TEST-DEPOSIT-DERIVATION-SEPARATION
+      - LP-TEST-DERIVED-EPOCH-PUBLICATION
+      - LP-TEST-NO-HOT-ROW-SERIALIZATION
+      - LP-TEST-DERIVED-STATE-REBUILD
+  - id: LP-MATERIALIZATION-001
+    statement: Canonical edges retained evidence reproducible statistics active working state and published accelerations are distinct storage classes and no derivable pair is persisted without a declared workload and value contract.
+    evidence:
+      - LP-TEST-MATERIALIZATION-CLASSIFICATION
+      - LP-TEST-COMBINATORIAL-GROWTH-BOUND
+      - LP-TEST-INDEX-WORKLOAD-ADMISSION
+      - LP-TEST-MATERIALIZATION-REBUILD-PARITY
+  - id: LP-PERFCACHE-001
+    statement: Perfcaches are modular typed immutable acceleration planes over canonical state with complete source recipes integrity and coherent activation epochs.
+    evidence:
+      - LP-TEST-PERFCACHE-TYPED-REGISTRY
+      - LP-TEST-PERFCACHE-SOURCE-RECIPE
+      - LP-TEST-PERFCACHE-ACTIVATION-EPOCH
+      - LP-TEST-PERFCACHE-ARTIFACT-IDENTITY
+  - id: LP-PERFCACHE-002
+    statement: Every perfcache has exact canonical semantic parity overflow safe validation atomic publication independent lifecycle and batch lookup.
+    evidence:
+      - LP-TEST-PERFCACHE-SEMANTIC-PARITY
+      - LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION
+      - LP-TEST-PERFCACHE-ATOMIC-PUBLICATION
+      - LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE
+      - LP-TEST-PERFCACHE-BATCH-LOOKUP
+  - id: LP-PACKAGE-001
+    statement: Linux and Windows packages provide convergent install upgrade repair service and removal behavior with verified receipts.
+    evidence:
+      - LP-TEST-PACKAGE-LINUX
+      - LP-TEST-PACKAGE-WINDOWS
+      - LP-TEST-INSTALL-CONVERGENCE
+      - LP-TEST-DEPENDENCY-ELF-CLOSURE
+      - LP-TEST-DEPENDENCY-RELEASE-ASSETS
+  - id: LP-CLEANROOM-001
+    statement: No current Laplace implementation artifact enters the new repository.
+    evidence:
+      - LP-TEST-CLEANROOM-SEPARATION
+      - LP-TEST-REQUIREMENTS-TRACEABILITY
+  - id: LP-RECOVERY-001
+    statement: Historical repositories sessions tool actions temporary state and preservation archives have exact byte identities deduplicated content inventories and explicit evidence classifications without becoming implementation authority.
+    evidence:
+      - LP-TEST-RECOVERY-EXACT-EVIDENCE
+      - LP-TEST-RECOVERY-CORPUS-DEDUPLICATION
+      - LP-TEST-RECOVERY-SQL-ACTIVITY
