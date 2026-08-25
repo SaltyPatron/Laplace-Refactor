@@ -31,6 +31,12 @@ add_test(
 set_tests_properties(dependencies.runtime-build-graph-contract PROPERTIES
     LABELS "build;package;postgresql;dependencies;mutation")
 
+add_test(
+    NAME dependencies.locked-git-acquisition-contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/locked_git_acquisition_tests.py")
+set_tests_properties(dependencies.locked-git-acquisition-contract PROPERTIES
+    LABELS "acquisition;dependencies;mutation")
+
 add_executable(laplace_dependency_math_tests
     dependency_math_tests.cpp)
 target_include_directories(laplace_dependency_math_tests SYSTEM PRIVATE

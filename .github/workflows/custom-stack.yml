@@ -60,16 +60,9 @@ jobs:
         run: |
           set -euo pipefail
           dependency_root="$RUNNER_TEMP/laplace-dependencies"
-          mkdir -p "$dependency_root"
-          for dependency in blake3 eigen googletest spectra; do
-            upstream=$(jq -r --arg dependency "$dependency" '.dependencies[$dependency].upstream' dependencies/lock.json)
-            revision=$(jq -r --arg dependency "$dependency" '.dependencies[$dependency].revision' dependencies/lock.json)
-            source="$dependency_root/$dependency"
-            git init --quiet "$source"
-            git -C "$source" remote add origin "$upstream"
-            git -C "$source" fetch --quiet --depth=1 origin "$revision"
-            git -C "$source" checkout --quiet --detach FETCH_HEAD
-          done
+          ./tools/dependencies/acquire-locked-git.sh \
+            dependencies/lock.json "$dependency_root" \
+            blake3 eigen googletest spectra
           printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
       - name: Configure outside the repository
         shell: bash

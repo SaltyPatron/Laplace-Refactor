@@ -4,6 +4,12 @@
   "acceptance_status": "contributing evidence only",
   "tests": [
     {
+      "ctest_name": "dependencies.locked-git-acquisition-contract",
+      "evidence_targets": ["LP-TEST-DEPENDENCY-INTENT"],
+      "covered_dimensions": ["central exact Git acquisition", "bounded transient retry", "atomic destination publication"],
+      "defect_controls": ["first exact-revision fetch fails", "unknown dependency"]
+    },
+    {
       "ctest_name": "dependencies.runtime-build-graph-contract",
       "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-ELF-CLOSURE", "LP-TEST-DEPENDENCY-RELEASE-ASSETS", "LP-TEST-DEPENDENCY-INTENT"],
       "covered_dimensions": ["input-addressed runtime build graph", "verified source generation", "source-built toolchain consumer manifest", "provider-specific upstream tests", "external staged package", "fail-closed activation"],
