@@ -21,7 +21,9 @@ The preserved evidence consistently supports these required behaviors:
 - Hilbert keys index locality and do not establish identity or meaning;
 - trajectories store ordered constituent IDs and realized curves resolve current
   coordinates;
-- perfcaches are immutable derived acceleration planes with distinct typed key spaces;
+- perfcaches are immutable derived calculation and acceleration planes with distinct
+  typed key spaces and access laws; the Unicode root plane supplies database-free atom
+  identity, geometry, segmentation, and normalization inputs for leaf-to-trunk compose;
 - PostgreSQL remains authoritative for testimony and durable substrate state.
 
 ## 2. Artifact inventory

@@ -28,6 +28,7 @@ class RequirementTraceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         (self.root / "requirements/features").mkdir(parents=True)
         (self.root / "tests").mkdir()
+        (self.root / "contracts").mkdir()
         shutil.copy2(REPO_ROOT / "requirements/product.yaml", self.root / "requirements/product.yaml")
         shutil.copy2(REPO_ROOT / "requirements/alignment.yaml", self.root / "requirements/alignment.yaml")
         shutil.copytree(
@@ -36,6 +37,15 @@ class RequirementTraceTests(unittest.TestCase):
             dirs_exist_ok=True,
         )
         shutil.copy2(REPO_ROOT / "tests/registry.json", self.root / "tests/registry.json")
+        operation_model = REPO_ROOT / "contracts/operation-model.json"
+        shutil.copy2(operation_model, self.root / "contracts/operation-model.json")
+        operation_document = json.loads(operation_model.read_text(encoding="utf-8"))
+        for stage in operation_document["stages"]:
+            for relative in stage["implementation"]["evidence"]:
+                target = self.root / relative
+                if not target.exists():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.touch()
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -50,6 +60,11 @@ class RequirementTraceTests(unittest.TestCase):
         report = TRACE.validate(self.root)
         self.assertGreater(report.direct_requirement_count, 0)
         self.assertGreater(report.registered_test_count, 0)
+        self.assertGreater(report.operation_stage_count, 0)
+        self.assertEqual(
+            report.operationally_mapped_product_count,
+            report.product_requirement_count,
+        )
 
     def test_unknown_product_join_is_rejected(self) -> None:
         self.replace(
@@ -83,6 +98,51 @@ class RequirementTraceTests(unittest.TestCase):
             encoding="utf-8",
         )
         with self.assertRaisesRegex(TRACE.TraceError, "unknown evidence target"):
+            TRACE.validate(self.root)
+
+    def operation_document(self) -> tuple[Path, dict[str, object]]:
+        path = self.root / "contracts/operation-model.json"
+        return path, json.loads(path.read_text(encoding="utf-8"))
+
+    def test_product_requirement_without_operational_stage_is_rejected(self) -> None:
+        path, document = self.operation_document()
+        target = "LP-PRODUCT-001"
+        for stage in document["stages"]:
+            stage["product_requirements"] = [
+                identifier
+                for identifier in stage["product_requirements"]
+                if identifier != target
+            ]
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "no operational stage"):
+            TRACE.validate(self.root)
+
+    def test_unknown_operation_dependency_is_rejected(self) -> None:
+        path, document = self.operation_document()
+        document["stages"][0]["depends_on"] = ["missing.stage"]
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "unknown dependencies"):
+            TRACE.validate(self.root)
+
+    def test_operation_dependency_cycle_is_rejected(self) -> None:
+        path, document = self.operation_document()
+        document["stages"][0]["depends_on"] = [document["stages"][1]["id"]]
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "dependency cycle"):
+            TRACE.validate(self.root)
+
+    def test_operation_stage_without_program_tracking_is_rejected(self) -> None:
+        path, document = self.operation_document()
+        document["stages"][0].pop("github_issues")
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "invalid GitHub issues"):
+            TRACE.validate(self.root)
+
+    def test_unowned_tracked_issue_is_rejected(self) -> None:
+        path, document = self.operation_document()
+        document["tracking"]["tracked_issues"].append(999999)
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "no operational stage"):
             TRACE.validate(self.root)
 
 

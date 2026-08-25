@@ -28,6 +28,7 @@ function(laplace_configure_isa_contract contract_path output_path)
     string(JSON program_flags GET "${contract_json}" known_program_flags)
     string(JSON instruction_flags GET "${contract_json}" known_instruction_flags)
     string(JSON value_flags GET "${contract_json}" known_value_flags)
+    string(JSON operation_count LENGTH "${contract_json}" operation_contracts)
 
     if(NOT contract_schema STREQUAL "laplace.isa-contract/v1")
         message(FATAL_ERROR "Unsupported ISA contract schema: ${contract_schema}")
@@ -56,6 +57,43 @@ function(laplace_configure_isa_contract contract_path output_path)
     if(NOT program_flags EQUAL 0 OR NOT instruction_flags EQUAL 0 OR NOT value_flags EQUAL 0)
         message(FATAL_ERROR "Initial ISA flags must remain empty")
     endif()
+    if(operation_count LESS 1)
+        message(FATAL_ERROR "ISA operation registry cannot be empty")
+    endif()
+
+    math(EXPR operation_last "${operation_count} - 1")
+    set(operation_registry "")
+    set(previous_opcode 0)
+    foreach(index RANGE 0 ${operation_last})
+        string(JSON operation_name MEMBER "${contract_json}" operation_contracts ${index})
+        string(JSON operation_module GET
+            "${contract_json}" operation_contracts ${operation_name} module)
+        string(JSON operation_input GET
+            "${contract_json}" operation_contracts ${operation_name} input_type)
+        string(JSON operation_output GET
+            "${contract_json}" operation_contracts ${operation_name} output_type)
+        string(JSON operation_opcode GET "${contract_json}" opcodes ${operation_name})
+        string(JSON operation_version GET
+            "${contract_json}" instruction_versions ${operation_name})
+        string(JSON operation_minor GET
+            "${contract_json}" introduced_minor ${operation_name})
+        string(JSON operation_module_id GET
+            "${contract_json}" modules ${operation_module})
+        string(JSON operation_input_id GET
+            "${contract_json}" value_types ${operation_input})
+        string(JSON operation_output_id GET
+            "${contract_json}" value_types ${operation_output})
+        if(operation_opcode LESS_EQUAL previous_opcode)
+            message(FATAL_ERROR "ISA operation registry must be ordered by unique opcode")
+        endif()
+        set(previous_opcode "${operation_opcode}")
+        string(TOUPPER "${operation_name}" operation_symbol)
+        string(APPEND operation_registry
+            "    X(${operation_symbol}, ${operation_name}, UINT32_C(${operation_opcode}), UINT16_C(${operation_version}), UINT16_C(${operation_minor}), UINT32_C(${operation_input_id}), UINT32_C(${operation_output_id}), UINT32_C(${operation_module_id}))")
+        if(NOT index EQUAL operation_last)
+            string(APPEND operation_registry " \\\n")
+        endif()
+    endforeach()
 
     set(LAPLACE_ISA_MAJOR "${major}")
     set(LAPLACE_ISA_MINOR "${minor}")
@@ -79,6 +117,8 @@ function(laplace_configure_isa_contract contract_path output_path)
     set(LAPLACE_ISA_KNOWN_PROGRAM_FLAGS "${program_flags}")
     set(LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS "${instruction_flags}")
     set(LAPLACE_ISA_KNOWN_VALUE_FLAGS "${value_flags}")
+    set(LAPLACE_ISA_OPERATION_COUNT "${operation_count}")
+    set(LAPLACE_ISA_OPERATION_REGISTRY "${operation_registry}")
     get_filename_component(output_directory "${output_path}" DIRECTORY)
     file(MAKE_DIRECTORY "${output_directory}")
     configure_file(

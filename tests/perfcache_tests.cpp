@@ -33,7 +33,7 @@ laplace_perfcache_contract Contract() {
          sizeof(contract.dependency_fingerprint.bytes), 0x70u);
     contract.key_bytes = 4u;
     contract.value_bytes = 8u;
-    contract.flags = LAPLACE_PERFCACHE_FLAG_SORTED_UNIQUE_KEYS;
+    contract.access_law = LAPLACE_PERFCACHE_ACCESS_SORTED_UNIQUE_FIXED;
     return contract;
 }
 
@@ -57,6 +57,16 @@ std::vector<std::uint8_t> Records() {
         records[index * 12u + 3u] = static_cast<std::uint8_t>(index + 1u);
         WriteU64(records.data() + index * 12u + 4u,
                  static_cast<std::uint64_t>(index + 1u) * 10u);
+    }
+    return records;
+}
+
+std::vector<std::uint8_t> DenseRecords() {
+    std::vector<std::uint8_t> records(3u * 12u, 0u);
+    for (std::size_t index = 0; index < 3u; ++index) {
+        records[index * 12u] = static_cast<std::uint8_t>(index);
+        WriteU64(records.data() + index * 12u + 4u,
+                 static_cast<std::uint64_t>(index) * 10u);
     }
     return records;
 }
@@ -284,6 +294,57 @@ TEST(PerfcacheLookup, BatchPreservesInputOrderHitsAndMisses) {
     EXPECT_EQ(indexes[2], 0u);
     EXPECT_EQ(indexes[3], std::numeric_limits<std::uint64_t>::max());
     EXPECT_EQ(indexes[4], 1u);
+}
+
+TEST(PerfcacheLookup, DenseU32PlaneUsesDirectZeroBasedAddressing) {
+    const auto records = DenseRecords();
+    auto spec = Spec(records);
+    spec.contract.access_law = LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED;
+    const auto artifact = Build(spec);
+    const auto view = Validate(artifact, spec.contract);
+    const std::array<std::uint8_t, 16> keys{{
+        2u, 0u, 0u, 0u,
+        0u, 0u, 0u, 0u,
+        3u, 0u, 0u, 0u,
+        1u, 0u, 0u, 0u
+    }};
+    std::array<std::uint64_t, 4> indexes{};
+    std::array<std::uint8_t, 4> found{};
+    ASSERT_EQ(laplace_perfcache_lookup_batch(
+                  &view, keys.data(), found.size(), indexes.data(), found.data()),
+              LAPLACE_PERFCACHE_OK);
+    EXPECT_EQ(found, (std::array<std::uint8_t, 4>{{1u, 1u, 0u, 1u}}));
+    EXPECT_EQ(indexes[0], 2u);
+    EXPECT_EQ(indexes[1], 0u);
+    EXPECT_EQ(indexes[2], std::numeric_limits<std::uint64_t>::max());
+    EXPECT_EQ(indexes[3], 1u);
+}
+
+TEST(PerfcacheValidation, DenseU32PlaneRejectsARechecksummedIndexMismatch) {
+    const auto records = DenseRecords();
+    auto spec = Spec(records);
+    spec.contract.access_law = LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED;
+    auto artifact = Build(spec);
+    artifact[LAPLACE_PERFCACHE_HEADER_BYTES + 12u] = 9u;
+    RecomputeDigest(&artifact);
+    laplace_perfcache_view view{};
+    EXPECT_EQ(laplace_perfcache_validate(
+                  artifact.data(), artifact.size(), &spec.contract, &view),
+              LAPLACE_PERFCACHE_DENSE_KEY_MISMATCH);
+}
+
+TEST(PerfcacheLookup, ModuleDefinedPlaneRequiresItsTypedLookup) {
+    const auto records = Records();
+    auto spec = Spec(records);
+    spec.contract.access_law = LAPLACE_PERFCACHE_ACCESS_MODULE_DEFINED;
+    const auto artifact = Build(spec);
+    const auto view = Validate(artifact, spec.contract);
+    const std::array<std::uint8_t, 4> key{{0u, 0u, 0u, 1u}};
+    std::uint64_t index = 0u;
+    std::uint8_t found = 0u;
+    EXPECT_EQ(laplace_perfcache_lookup_batch(
+                  &view, key.data(), 1u, &index, &found),
+              LAPLACE_PERFCACHE_LOOKUP_UNSUPPORTED);
 }
 
 }  // namespace

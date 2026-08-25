@@ -28,7 +28,7 @@ laplace_perfcache_contract Contract() {
          sizeof(contract.dependency_fingerprint.bytes), 0x70u);
     contract.key_bytes = 1u;
     contract.value_bytes = 1u;
-    contract.flags = LAPLACE_PERFCACHE_FLAG_SORTED_UNIQUE_KEYS;
+    contract.access_law = LAPLACE_PERFCACHE_ACCESS_SORTED_UNIQUE_FIXED;
     return contract;
 }
 

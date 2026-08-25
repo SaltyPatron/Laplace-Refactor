@@ -35,8 +35,12 @@ The same canonical content has the same identity everywhere. Identity does not i
 source, language, modality, model, ingestion route, storage location, trust, tier, or
 time.
 
-Identity is the fixed SIMD-optimized 128-bit BLAKE3 content contract. Canonical Unicode
-content forms the atom preimage. Ordered child identities form a composite preimage.
+Identity is the fixed SIMD-optimized 128-bit BLAKE3 content contract. A Unicode scalar
+atom uses its standard UTF-8 bytes. The complete position floor uses Laplace Unicode
+Position Encoding v1: the same one-to-four-byte bit layout over `0..0x10ffff`, without
+scalar-value filtering. It is byte-identical to UTF-8 for scalar values; encodings in
+`0xd800..0xdfff` are position addresses and must never be represented as UTF-8 text.
+Ordered child identities form a composite preimage.
 Role, type, tier, coordinate, ordinal, source, and context never enter the content
 hash. A one-child composition is the child itself.
 
@@ -107,7 +111,10 @@ and scope. `contains`, `precedes`, `follows`, co-occurrence, recurrence, and anc
 therefore calculated from physicality rather than stored as every possible pairwise row.
 
 Complete DUCET ordering over all 1,114,112 codepoint positions indexes deterministic
-super-Fibonacci placement on S3. Composite coordinates are four-dimensional
+Super-Fibonacci placement on S3. Its bounded population, Hopf radial split, and two
+fiber phases belong to the versioned geometry recipe. Hopf maps and three-dimensional
+glome projections are calculated views and never replace the canonical four-component
+point. Composite coordinates are four-dimensional
 arithmetic centroids of actual child points and retain their radius. Four 32-bit
 coordinate dimensions form the 128-bit Hilbert locality key. Packed trajectory
 mantissas retain constituent identity, ordinal, run length, and typed metadata;
@@ -285,15 +292,44 @@ through one mutable hot row per proposition.
 
 ## 10.1 Modular acceleration planes
 
-Perfcaches are immutable typed acceleration planes derived from canonical state. Each
+Perfcaches are immutable typed calculation and acceleration planes derived from
+canonical state or pinned root standards. Each
 plane declares its key and value ABI, dependencies, complete source fingerprint,
-generation recipe, integrity digest, canonical operation, resource shape, and
-activation epoch.
+generation recipe, access law, integrity digest, canonical operation, resource shape,
+and activation epoch. A dense Unicode plane can address a codepoint directly; a
+sparse composition plane can use ordered lookup plus a bounded result span; a reverse
+or domain plane can use its own typed index. No common format may force all of these
+operations through one generic search algorithm.
 
 One native registry manages mapping, validation, batch lookup, publication,
 activation, replacement, diagnostics, and receipts. Modules have independent
 lifecycles and activate only as one coherent artifact set. A perfcache cannot change
 canonical output, create a private atom universe, hide a miss, or own mutable state.
+
+The stable PostgreSQL integration owns readiness and generation selection, not the
+lifetime of one cache image. A replacement generation is mapped, semantically
+verified, and prefaulted before activation. Statements and ISA programs pin their
+generation; new work switches through one registry epoch, and the prior mapping is
+retired only after readers drain. Data-epoch replacement cannot require a postmaster
+restart.
+
+The Unicode root is established by one versioned decomposer over pinned UCD, DUCET,
+and geometry inputs. It calculates one canonical ordered Tier-0 record stream and
+produces both the bootstrap perfcache and the canonical PostgreSQL rows required for
+referential integrity. The database path may consume the newly written bootstrap
+artifact or the identical batches retained by that execution, but it cannot run a
+second semantic calculation. Both outputs bind the same source, recipe, record-stream,
+and partition digests. The artifact remains inactive until database deposition and
+database-to-artifact bit parity succeed; interrupted bootstraps retain the prior active
+epoch.
+
+Corpus, domain, composition, transition, and operator planes are generated only after
+their complete canonical ETL source boundary is durable. They are built and verified
+in bulk and atomically activated at the end of that boundary; row-by-row cache
+maintenance cannot sit on the ingest hot path. Once active, these planes can answer
+exact composition, reconstruction, rendering preparation, presence, and CRUD-routing
+questions without a database crossing whenever their typed contract fully covers the
+operation.
 
 ## 11. Model independence
 

@@ -1,11 +1,13 @@
 {
-  "schema": "laplace.perfcache-contract/v1",
-  "format_version": 1,
+  "schema": "laplace.perfcache-contract/v2",
+  "format_version": 2,
   "header_bytes": 256,
   "digest_bytes": 32,
   "byte_order": "little-endian",
   "digest_algorithm": "BLAKE3-256",
-  "flags": {
-    "sorted_unique_keys": 1
+  "access_laws": {
+    "sorted_unique_fixed": 1,
+    "dense_u32_zero_based": 2,
+    "module_defined": 3
   }
 }

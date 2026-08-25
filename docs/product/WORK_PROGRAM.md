@@ -58,17 +58,33 @@ pass its independent acceptance contracts regardless of either history.
 Exit: a clean machine can acquire, verify, build, test, package, install, repeat the
 install, and verify the custom dependency runtime from declared inputs.
 
-## Phase 2 — universal contracts and executable ISA
+## Phase 2 — universal execution framework and executable ISA
 
-- Finalize universal value types and C ABI.
-- Finalize ISA versioning, encoding, opcode registry, validation, execution, errors,
-  resource estimation, and receipts.
-- Generate native, PostgreSQL, SQL, and C# bindings from one contract.
-- Implement vector-first dispatch and bounded arenas.
-- Implement SQL program validation, explanation, execution, and receipt inspection.
+- Generate the typed module/value/operation registry from one contract; no module may
+  add a private dispatcher or independently assign operation or value identifiers.
+- Bind every program to one immutable execution context naming source, identity,
+  geometry, evidence, firmware, dependency, database, perfcache, numeric, and package
+  epochs.
+- Implement one canonical vector/set/run batch representation and the common
+  decomposer/calculation pipeline that produces it.
+- Implement replaceable typed sink/provider interfaces for persistence, perfcache
+  generation, derived epochs, result streams, observations, and external effects.
+- Implement complete-program preflight, authority/effect admission, cancellation,
+  replay, deterministic merge, progress, durable publication, and full receipts.
+- Apply one conserved topology/resource grant across native kernels, TBB arenas, MKL
+  domains, PostgreSQL workers, managed orchestration, and launched tools.
+- Finalize universal value types, C ABI, ISA versioning, encoding, validation,
+  execution, error, estimation, and explanation contracts on that framework.
+- Generate native, PostgreSQL, SQL, and C# bindings from the same registry and reject
+  semantic implementations in an adapter or transport.
+- Implement vector-first dispatch, bounded arenas, and SQL program validation,
+  explanation, execution, and receipt inspection.
 
-Exit: packaged custom PostgreSQL executes typed native programs; deliberate invalid
-programs are rejected exactly; receipts reproduce execution facts.
+Exit: synthetic modules and the first real proving module execute through the same
+registry, context, batch, sink/provider, epoch, resource, receipt, and generated
+binding lifecycle; packaged custom PostgreSQL executes those typed native programs;
+deliberate framework bypasses and invalid programs fail for their exact expected
+reasons.
 
 ## Phase 3 — universal substrate state
 

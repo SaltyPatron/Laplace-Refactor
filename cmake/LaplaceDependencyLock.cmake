@@ -6,7 +6,9 @@ function(laplace_verify_git_dependency dependency_name source_path lock_path)
     string(JSON expected_archive_sha GET "${lock_json}" dependencies "${dependency_name}" git_archive_sha256)
 
     execute_process(
-        COMMAND "${GIT_EXECUTABLE}" -C "${source_path}" rev-parse HEAD
+        COMMAND "${GIT_EXECUTABLE}"
+            -c "safe.directory=${source_path}"
+            -C "${source_path}" rev-parse HEAD
         RESULT_VARIABLE revision_result
         OUTPUT_VARIABLE actual_revision
         ERROR_VARIABLE revision_error
@@ -21,7 +23,9 @@ function(laplace_verify_git_dependency dependency_name source_path lock_path)
     endif()
 
     execute_process(
-        COMMAND "${GIT_EXECUTABLE}" -C "${source_path}" status --porcelain=v1 --untracked-files=all
+        COMMAND "${GIT_EXECUTABLE}"
+            -c "safe.directory=${source_path}"
+            -C "${source_path}" status --porcelain=v1 --untracked-files=all
         RESULT_VARIABLE status_result
         OUTPUT_VARIABLE source_status
         ERROR_VARIABLE status_error
@@ -36,7 +40,9 @@ function(laplace_verify_git_dependency dependency_name source_path lock_path)
     endif()
 
     execute_process(
-        COMMAND "${GIT_EXECUTABLE}" -C "${source_path}" archive --format=tar "${actual_revision}"
+        COMMAND "${GIT_EXECUTABLE}"
+            -c "safe.directory=${source_path}"
+            -C "${source_path}" archive --format=tar "${actual_revision}"
         COMMAND sha256sum
         RESULT_VARIABLE archive_result
         OUTPUT_VARIABLE archive_output

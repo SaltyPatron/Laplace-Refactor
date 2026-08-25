@@ -1,0 +1,98 @@
+CREATE SCHEMA @LAPLACE_PG_SCHEMA@;
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.execution_receipt (
+    receipt_id bytea PRIMARY KEY CHECK (octet_length(receipt_id) = 32),
+    program_fingerprint bytea NOT NULL CHECK (octet_length(program_fingerprint) = 32),
+    input_fingerprint bytea NOT NULL CHECK (octet_length(input_fingerprint) = 32),
+    output_fingerprint bytea NOT NULL CHECK (octet_length(output_fingerprint) = 32),
+    instruction_count bigint NOT NULL CHECK (instruction_count >= 0),
+    executed_instruction_count bigint NOT NULL CHECK (
+        executed_instruction_count >= 0
+        AND executed_instruction_count <= instruction_count
+    ),
+    isa_major smallint NOT NULL CHECK (isa_major >= 0),
+    isa_minor smallint NOT NULL CHECK (isa_minor >= 0),
+    receipt_detail integer NOT NULL CHECK (receipt_detail >= 0),
+    status integer NOT NULL CHECK (status >= 0),
+    item_count bigint NOT NULL CHECK (item_count > 0),
+    opcode integer NOT NULL CHECK (opcode > 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.identity_batch_result AS (
+    entity_ids bytea[],
+    receipt_id bytea,
+    program_fingerprint bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    instruction_count bigint,
+    executed_instruction_count bigint,
+    isa_major smallint,
+    isa_minor smallint,
+    receipt_detail integer,
+    status integer,
+    item_count bigint
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_occurrence AS (
+    entity_id bytea,
+    logical_ordinal numeric(20, 0),
+    metadata bigint,
+    atom bigint,
+    packed_ordinal integer,
+    run_length integer,
+    tier smallint,
+    has_atom boolean
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.trajectory_batch_result AS (
+    occurrences @LAPLACE_PG_SCHEMA@.composition_occurrence[],
+    logical_count numeric(20, 0),
+    receipt_id bytea,
+    program_fingerprint bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    instruction_count bigint,
+    executed_instruction_count bigint,
+    isa_major smallint,
+    isa_minor smallint,
+    receipt_detail integer,
+    status integer,
+    item_count bigint
+);
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_CALCULATE_SQL@(integer[])
+RETURNS @LAPLACE_PG_SCHEMA@.identity_batch_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_IDENTITY_CALCULATE_SYMBOL@'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_EXECUTE_SQL@(integer[])
+RETURNS @LAPLACE_PG_SCHEMA@.identity_batch_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_IDENTITY_EXECUTE_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_TRAJECTORY_CALCULATE_SQL@(bytea[])
+RETURNS @LAPLACE_PG_SCHEMA@.trajectory_batch_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_TRAJECTORY_CALCULATE_SYMBOL@'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_TRAJECTORY_EXECUTE_SQL@(bytea[])
+RETURNS @LAPLACE_PG_SCHEMA@.trajectory_batch_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_TRAJECTORY_EXECUTE_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE ALL ON SCHEMA @LAPLACE_PG_SCHEMA@ FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.execution_receipt FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_CALCULATE_SQL@(integer[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_EXECUTE_SQL@(integer[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_TRAJECTORY_CALCULATE_SQL@(bytea[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_TRAJECTORY_EXECUTE_SQL@(bytea[])
+    FROM PUBLIC;

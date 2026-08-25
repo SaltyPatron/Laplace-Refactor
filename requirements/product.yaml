@@ -47,6 +47,13 @@ requirements:
       - LP-TEST-DUCET-COMPLETE-ORDER
       - LP-TEST-UCD-CONFORMANCE
       - LP-TEST-NO-PRIVATE-ATOM-UNIVERSE
+  - id: LP-UNICODE-002
+    statement: One versioned Unicode decomposer calculation produces a single canonical ordered Tier-0 record stream used to write both the bootstrap perfcache and the bulk database seed with exact parity and coherent activation; neither output independently recalculates the records or substitutes for the other.
+    evidence:
+      - LP-TEST-UNICODE-SEED-SINGLE-ORIGIN
+      - LP-TEST-UNICODE-SEED-DB-CACHE-PARITY
+      - LP-TEST-UNICODE-SEED-ACTIVATION-ORDER
+      - LP-TEST-UNICODE-SEED-STALE-BOOTSTRAP-REJECTION
   - id: LP-GEOMETRY-001
     statement: Atoms use versioned DUCET ranked S3 placement and composites use one arithmetic centroid while identity order trajectory and Hilbert locality remain distinct.
     evidence:
@@ -56,6 +63,14 @@ requirements:
       - LP-TEST-HILBERT-LOCALITY
       - LP-TEST-TRAJECTORY-ORDER
       - LP-TEST-PHYSICALITY-NONIDENTITY-COLLISION
+  - id: LP-GEOMETRY-002
+    statement: The fixed Unicode population uses a pinned Super Fibonacci and Hopf fibration recipe on the unit glome while every Hopf map display projection and index projection is typed receipted and subordinate to the canonical four component physicality.
+    evidence:
+      - LP-TEST-SUPER-FIBONACCI-FIXED-POPULATION
+      - LP-TEST-SUPER-FIBONACCI-HOPF-BASE
+      - LP-TEST-SUPER-FIBONACCI-HOPF-FIBER
+      - LP-TEST-GLOME-UNIT-NORM
+      - LP-TEST-GLOME-PROJECTION-NONAUTHORITY
   - id: LP-PHYSICALITY-001
     statement: Physicality is the bit perfect calculated Merkle DAG realization of an entity and directly generates exact container constituent role ordinal multiplicity contains precedes follows tier ancestry shape dimensionality geometry and trajectory relations while claims and observed uses remain attestations and occurrences outside physicality.
     evidence:
@@ -84,6 +99,17 @@ requirements:
       - LP-TEST-ISA-COVERAGE
       - LP-TEST-ISA-TYPE-SAFETY
       - LP-TEST-ISA-RECEIPT
+  - id: LP-FRAMEWORK-001
+    statement: Every module uses one generated operation registry immutable execution context canonical batch pipeline replaceable sink and provider boundary epoch and receipt lifecycle conserved resource authority and generated binding path before feature-specific execution can be admitted.
+    evidence:
+      - LP-TEST-FRAMEWORK-MODULE-REGISTRY
+      - LP-TEST-FRAMEWORK-EXECUTION-CONTEXT
+      - LP-TEST-FRAMEWORK-CANONICAL-BATCH
+      - LP-TEST-FRAMEWORK-SINK-PROVIDER
+      - LP-TEST-FRAMEWORK-EPOCH-RECEIPT
+      - LP-TEST-FRAMEWORK-RESOURCE-APPLICATION
+      - LP-TEST-FRAMEWORK-GENERATED-BINDINGS
+      - LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE
   - id: LP-BULK-001
     statement: Batch and bulk operations are primary and exactly preserve one-element semantics.
     evidence:
@@ -316,20 +342,27 @@ requirements:
       - LP-TEST-INDEX-WORKLOAD-ADMISSION
       - LP-TEST-MATERIALIZATION-REBUILD-PARITY
   - id: LP-PERFCACHE-001
-    statement: Perfcaches are modular typed immutable acceleration planes over canonical state with complete source recipes integrity and coherent activation epochs.
+    statement: Perfcaches are modular typed immutable calculation and acceleration planes generated either as the bootstrap sibling output of the canonical Unicode seed or from a complete canonical ETL boundary with complete source recipes integrity and coherent atomic activation epochs.
     evidence:
       - LP-TEST-PERFCACHE-TYPED-REGISTRY
       - LP-TEST-PERFCACHE-SOURCE-RECIPE
       - LP-TEST-PERFCACHE-ACTIVATION-EPOCH
       - LP-TEST-PERFCACHE-ARTIFACT-IDENTITY
   - id: LP-PERFCACHE-002
-    statement: Every perfcache has exact canonical semantic parity overflow safe validation atomic publication independent lifecycle and batch lookup.
+    statement: Every perfcache has an access law appropriate to its key space including dense direct sparse ordered reverse or module defined lookup plus exact canonical semantic parity overflow safe validation atomic publication independent lifecycle and batch execution.
     evidence:
       - LP-TEST-PERFCACHE-SEMANTIC-PARITY
       - LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION
       - LP-TEST-PERFCACHE-ATOMIC-PUBLICATION
       - LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE
       - LP-TEST-PERFCACHE-BATCH-LOOKUP
+  - id: LP-PERFCACHE-003
+    statement: Immutable perfcache generations are validated and prefaulted before activation then handed to epoch pinned readers without a PostgreSQL restart while old generations remain available until all readers drain.
+    evidence:
+      - LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION
+      - LP-TEST-PERFCACHE-EPOCH-PINNED-READERS
+      - LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT
+      - LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN
   - id: LP-PACKAGE-001
     statement: Linux and Windows packages provide convergent install upgrade repair service and removal behavior with verified receipts.
     evidence:

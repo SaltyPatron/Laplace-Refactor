@@ -10,6 +10,11 @@ function(laplace_configure_identity_contract contract_path output_path)
     string(JSON unicode_minimum GET "${contract_json}" unicode_position minimum)
     string(JSON unicode_maximum GET "${contract_json}" unicode_position maximum)
     string(JSON unicode_encoding GET "${contract_json}" unicode_position encoding)
+    string(JSON unicode_layout GET "${contract_json}" unicode_position layout)
+    string(JSON unicode_scalar_equivalence GET
+        "${contract_json}" unicode_position scalar_equivalence)
+    string(JSON unicode_surrogate_semantics GET
+        "${contract_json}" unicode_position surrogate_semantics)
     string(JSON includes_surrogates GET "${contract_json}" unicode_position includes_surrogate_positions)
     string(JSON vector_u0032 GET "${contract_json}" vectors codepoint_u0032)
     string(JSON vector_u0035 GET "${contract_json}" vectors codepoint_u0035)
@@ -31,7 +36,11 @@ function(laplace_configure_identity_contract contract_path output_path)
     if(NOT unicode_minimum EQUAL 0 OR NOT unicode_maximum EQUAL 1114111)
         message(FATAL_ERROR "Unicode position universe must contain 1,114,112 positions")
     endif()
-    if(NOT unicode_encoding STREQUAL "UTF-8-bit-pattern" OR NOT includes_surrogates)
+    if(NOT unicode_encoding STREQUAL "Laplace-Unicode-Position-Encoding-v1"
+       OR NOT unicode_layout STREQUAL "UTF-8-compatible-variable-width-bit-pattern"
+       OR NOT unicode_scalar_equivalence STREQUAL "byte-identical-to-standard-UTF-8"
+       OR NOT unicode_surrogate_semantics STREQUAL "position-address-only-not-UTF-8-text"
+       OR NOT includes_surrogates)
         message(FATAL_ERROR "Unicode position encoding contract changed")
     endif()
 

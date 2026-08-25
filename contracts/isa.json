@@ -14,6 +14,22 @@
     "identity_codepoint_batch": 131073,
     "trajectory_composition_decode_batch": 196609
   },
+  "modules": {
+    "identity": 2,
+    "trajectory": 3
+  },
+  "operation_contracts": {
+    "identity_codepoint_batch": {
+      "module": "identity",
+      "input_type": "u32_vector",
+      "output_type": "id128_vector"
+    },
+    "trajectory_composition_decode_batch": {
+      "module": "trajectory",
+      "input_type": "composition_trajectory_vector",
+      "output_type": "composition_occurrence_vector"
+    }
+  },
   "instruction_versions": {
     "identity_codepoint_batch": 1,
     "trajectory_composition_decode_batch": 1
@@ -26,6 +42,25 @@
     "digest_algorithm": "BLAKE3-256",
     "digest_bytes": 32,
     "detail_full": 1
+  },
+  "bindings": {
+    "postgresql": {
+      "schema": "laplace",
+      "module": "laplace_pg",
+      "identity_codepoint_batch": {
+        "calculate_sql_name": "identity_codepoint_calculate_batch",
+        "calculate_c_symbol": "laplace_pg_identity_codepoint_calculate_batch",
+        "execute_sql_name": "identity_codepoint_execute_batch",
+        "execute_c_symbol": "laplace_pg_identity_codepoint_execute_batch"
+      },
+      "trajectory_composition_decode_batch": {
+        "calculate_sql_name": "trajectory_composition_decode_calculate_batch",
+        "calculate_c_symbol": "laplace_pg_trajectory_composition_decode_calculate_batch",
+        "execute_sql_name": "trajectory_composition_decode_execute_batch",
+        "execute_c_symbol": "laplace_pg_trajectory_composition_decode_execute_batch",
+        "carrier_encoding": "four-little-endian-binary64-bit-patterns"
+      }
+    }
   },
   "known_program_flags": 0,
   "known_instruction_flags": 0,

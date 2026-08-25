@@ -10,7 +10,10 @@
   "unicode_position": {
     "minimum": 0,
     "maximum": 1114111,
-    "encoding": "UTF-8-bit-pattern",
+    "encoding": "Laplace-Unicode-Position-Encoding-v1",
+    "layout": "UTF-8-compatible-variable-width-bit-pattern",
+    "scalar_equivalence": "byte-identical-to-standard-UTF-8",
+    "surrogate_semantics": "position-address-only-not-UTF-8-text",
     "includes_surrogate_positions": true
   },
   "vectors": {

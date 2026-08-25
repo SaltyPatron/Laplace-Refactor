@@ -13,10 +13,14 @@ from typing import Iterable
 
 PRODUCT_SCHEMA = "laplace.requirements/v1"
 ALIGNMENT_SCHEMA = "laplace.alignment/v1"
+OPERATION_SCHEMA = "laplace.operation-model/v1"
 PRODUCT_ID = re.compile(r"^LP-[A-Z0-9-]+$")
 EVIDENCE_ID = re.compile(r"^LP-TEST-[A-Z0-9-]+$")
 ALIGNMENT_ID = re.compile(r"^LAP-ALIGN-[A-Z0-9-]+$")
 DIRECT_ID = re.compile(r"^LAP-[A-Z0-9-]+$")
+OPERATION_STAGE_ID = re.compile(r"^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$")
+OPERATION_STATES = {"unimplemented", "partial", "staged", "implemented"}
+PROGRAM_PHASES = set(range(9))
 
 
 class TraceError(RuntimeError):
@@ -45,6 +49,8 @@ class TraceReport:
     feature_scenario_count: int
     registered_test_count: int
     implemented_evidence_count: int
+    operation_stage_count: int
+    operationally_mapped_product_count: int
 
 
 def _read_lines(path: Path) -> list[str]:
@@ -194,6 +200,7 @@ def parse_registry(path: Path) -> list[dict[str, object]]:
             raise TraceError(f"{path} contains a non-object test entry")
         name = entry.get("ctest_name")
         targets = entry.get("evidence_targets")
+        profiles = entry.get("profiles")
         if not isinstance(name, str) or not name:
             raise TraceError(f"{path} contains a test without ctest_name")
         if name in names:
@@ -204,7 +211,199 @@ def parse_registry(path: Path) -> list[dict[str, object]]:
         for target in targets:
             if not isinstance(target, str) or not EVIDENCE_ID.fullmatch(target):
                 raise TraceError(f"registered test has invalid evidence target: {name}")
+        if profiles is not None:
+            if (
+                not isinstance(profiles, list)
+                or not profiles
+                or any(not isinstance(profile, str) or not profile for profile in profiles)
+                or len(profiles) != len(set(profiles))
+            ):
+                raise TraceError(f"registered test has invalid profiles: {name}")
     return tests
+
+
+def parse_operation_model(path: Path, repo_root: Path) -> dict[str, dict[str, object]]:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise TraceError(f"cannot read {path}: {error}") from error
+    if document.get("schema") != OPERATION_SCHEMA:
+        raise TraceError(f"{path} must use {OPERATION_SCHEMA}")
+    completion_rule = document.get("completion_rule")
+    if not isinstance(completion_rule, str) or not completion_rule:
+        raise TraceError(f"{path} must declare a completion_rule")
+    tracking = document.get("tracking")
+    if not isinstance(tracking, dict):
+        raise TraceError(f"{path} must declare program tracking")
+    repository = tracking.get("repository")
+    if repository != "SaltyPatron/Laplace-Refactor":
+        raise TraceError(f"{path} has invalid tracking repository")
+    for field in ("parent_issue", "session_audit_issue"):
+        issue = tracking.get(field)
+        if not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0:
+            raise TraceError(f"{path} has invalid {field}")
+    tracked_issues = tracking.get("tracked_issues")
+    if (
+        not isinstance(tracked_issues, list)
+        or not tracked_issues
+        or any(
+            not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0
+            for issue in tracked_issues
+        )
+        or len(tracked_issues) != len(set(tracked_issues))
+    ):
+        raise TraceError(f"{path} has invalid tracked_issues")
+    milestones = tracking.get("phase_milestones")
+    if (
+        not isinstance(milestones, dict)
+        or set(milestones) != {str(phase) for phase in PROGRAM_PHASES}
+        or any(not isinstance(title, str) or not title for title in milestones.values())
+    ):
+        raise TraceError(f"{path} has invalid phase_milestones")
+    entries = document.get("stages")
+    if not isinstance(entries, list) or not entries:
+        raise TraceError(f"{path} must contain a non-empty stages array")
+
+    stages: dict[str, dict[str, object]] = {}
+    list_fields = (
+        "consumes",
+        "produces",
+        "persistent_authority",
+        "acceleration",
+        "receipts",
+        "product_requirements",
+    )
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise TraceError(f"{path} contains a non-object operation stage")
+        identifier = entry.get("id")
+        if not isinstance(identifier, str) or not OPERATION_STAGE_ID.fullmatch(identifier):
+            raise TraceError(f"invalid operation stage identifier: {identifier}")
+        if identifier in stages:
+            raise TraceError(f"duplicate operation stage: {identifier}")
+        program_phases = entry.get("program_phases")
+        if (
+            not isinstance(program_phases, list)
+            or not program_phases
+            or any(
+                not isinstance(phase, int)
+                or isinstance(phase, bool)
+                or phase not in PROGRAM_PHASES
+                for phase in program_phases
+            )
+            or len(program_phases) != len(set(program_phases))
+        ):
+            raise TraceError(f"operation stage has invalid program phases: {identifier}")
+        github_issues = entry.get("github_issues")
+        if (
+            not isinstance(github_issues, list)
+            or not github_issues
+            or any(
+                not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0
+                for issue in github_issues
+            )
+            or len(github_issues) != len(set(github_issues))
+        ):
+            raise TraceError(f"operation stage has invalid GitHub issues: {identifier}")
+        owner = entry.get("owner")
+        if not isinstance(owner, str) or not owner:
+            raise TraceError(f"operation stage has no owner: {identifier}")
+        dependencies = entry.get("depends_on")
+        if (
+            not isinstance(dependencies, list)
+            or any(not isinstance(item, str) or not item for item in dependencies)
+            or len(dependencies) != len(set(dependencies))
+        ):
+            raise TraceError(f"operation stage has invalid dependencies: {identifier}")
+        for field in list_fields:
+            values = entry.get(field)
+            if (
+                not isinstance(values, list)
+                or not values
+                or any(not isinstance(item, str) or not item for item in values)
+                or len(values) != len(set(values))
+            ):
+                raise TraceError(
+                    f"operation stage has invalid {field}: {identifier}"
+                )
+        requirements = entry["product_requirements"]
+        for requirement in requirements:
+            if not PRODUCT_ID.fullmatch(requirement):
+                raise TraceError(
+                    f"operation stage has invalid product requirement: {identifier}"
+                )
+        implementation = entry.get("implementation")
+        if not isinstance(implementation, dict):
+            raise TraceError(f"operation stage has no implementation disposition: {identifier}")
+        state = implementation.get("state")
+        if state not in OPERATION_STATES:
+            raise TraceError(f"operation stage has invalid implementation state: {identifier}")
+        evidence = implementation.get("evidence")
+        if (
+            not isinstance(evidence, list)
+            or not evidence
+            or any(not isinstance(item, str) or not item for item in evidence)
+            or len(evidence) != len(set(evidence))
+        ):
+            raise TraceError(f"operation stage has invalid implementation evidence: {identifier}")
+        for relative in evidence:
+            evidence_path = Path(relative)
+            if evidence_path.is_absolute() or ".." in evidence_path.parts:
+                raise TraceError(
+                    f"operation stage has unsafe implementation evidence path: {identifier}"
+                )
+            if not (repo_root / evidence_path).is_file():
+                raise TraceError(
+                    f"operation stage implementation evidence is missing: {identifier}: {relative}"
+                )
+        stages[identifier] = entry
+
+    known_stages = set(stages)
+    for identifier, entry in stages.items():
+        dependencies = set(entry["depends_on"])
+        unknown = sorted(dependencies - known_stages)
+        if unknown:
+            raise TraceError(
+                f"operation stage references unknown dependencies: {identifier}: "
+                + ", ".join(unknown)
+            )
+        if identifier in dependencies:
+            raise TraceError(f"operation stage depends on itself: {identifier}")
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(identifier: str) -> None:
+        if identifier in visiting:
+            raise TraceError(f"operation model contains a dependency cycle at: {identifier}")
+        if identifier in visited:
+            return
+        visiting.add(identifier)
+        for dependency in stages[identifier]["depends_on"]:
+            visit(dependency)
+        visiting.remove(identifier)
+        visited.add(identifier)
+
+    for identifier in stages:
+        visit(identifier)
+    stage_issues = {
+        issue
+        for stage in stages.values()
+        for issue in stage["github_issues"]
+    }
+    missing_stage_issues = sorted(set(tracked_issues) - stage_issues)
+    untracked_stage_issues = sorted(stage_issues - set(tracked_issues))
+    if missing_stage_issues:
+        raise TraceError(
+            "tracked GitHub issues have no operational stage: "
+            + ", ".join(str(issue) for issue in missing_stage_issues)
+        )
+    if untracked_stage_issues:
+        raise TraceError(
+            "operation stages reference untracked GitHub issues: "
+            + ", ".join(str(issue) for issue in untracked_stage_issues)
+        )
+    return stages
 
 
 def feature_scenarios(feature_root: Path, known_evidence: set[str]) -> int:
@@ -238,6 +437,9 @@ def validate(repo_root: Path) -> TraceReport:
     product = parse_product(repo_root / "requirements/product.yaml")
     alignment = parse_alignment(repo_root / "requirements/alignment.yaml")
     registry = parse_registry(repo_root / "tests/registry.json")
+    operation_stages = parse_operation_model(
+        repo_root / "contracts/operation-model.json", repo_root
+    )
 
     product_ids = set(product)
     evidence_ids = _flatten(item.evidence for item in product.values())
@@ -255,6 +457,24 @@ def validate(repo_root: Path) -> TraceReport:
         raise TraceError(
             "product requirements have no alignment domain: "
             + ", ".join(missing_product_ids)
+        )
+
+    operational_product_ids = {
+        identifier
+        for stage in operation_stages.values()
+        for identifier in stage["product_requirements"]
+    }
+    unknown_operational_product_ids = sorted(operational_product_ids - product_ids)
+    missing_operational_product_ids = sorted(product_ids - operational_product_ids)
+    if unknown_operational_product_ids:
+        raise TraceError(
+            "operation model references unknown product requirements: "
+            + ", ".join(unknown_operational_product_ids)
+        )
+    if missing_operational_product_ids:
+        raise TraceError(
+            "product requirements have no operational stage: "
+            + ", ".join(missing_operational_product_ids)
         )
 
     direct_ids = [
@@ -295,6 +515,8 @@ def validate(repo_root: Path) -> TraceReport:
         feature_scenario_count=scenario_count,
         registered_test_count=len(registry),
         implemented_evidence_count=len(implemented_evidence),
+        operation_stage_count=len(operation_stages),
+        operationally_mapped_product_count=len(operational_product_ids),
     )
 
 
@@ -319,7 +541,9 @@ def main() -> int:
         f"{report.evidence_target_count} declared evidence targets, "
         f"{report.feature_scenario_count} scenarios, "
         f"{report.registered_test_count} registered tests, "
-        f"{report.implemented_evidence_count} implemented evidence targets"
+        f"{report.implemented_evidence_count} implemented evidence targets, "
+        f"{report.operation_stage_count} operation stages, "
+        f"{report.operationally_mapped_product_count} operationally mapped product requirements"
     )
     return 0
 

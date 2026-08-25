@@ -58,6 +58,19 @@ A target-shaped value and a loadable artifact are not behavioral proof.
 
 ## Unicode and physicality
 
+- With no Tier-0 rows and no active atom plane, one Unicode decomposer execution reads
+  a pinned standards manifest, calculates each canonical atom record once, writes the
+  bootstrap artifact, and supplies those exact records to the database bulk sink.
+- The seeded database and cache match in standards fingerprint, calculation-recipe
+  fingerprint, cardinality, ordered-stream digest, partition digests, identity bytes,
+  coordinate bit patterns, Hilbert keys, DUCET records, and declared UCD properties.
+- A deliberately changed database serializer, cache serializer, source file, record
+  order, or numeric bit pattern prevents activation even if row counts match.
+- A stale or independently calculated cache cannot seed the canonical rows merely
+  because its version label matches. A newly produced receipt-bound bootstrap artifact
+  from the same decomposer execution may precede database deposition.
+- Failure before the activation commit leaves the prior coherent epoch active. No
+  reader or dependent ingestion can observe a new database/cache half-pair.
 - The atom plane covers exactly 1,114,112 codepoint positions, including assigned,
   unassigned, reserved, surrogate, and noncharacter positions.
 - Complete DUCET order is independently verified for explicit and implicit weights,
@@ -65,6 +78,14 @@ A target-shaped value and a loadable artifact are not behavioral proof.
   rank permutation.
 - Atom coordinates match the declared super-Fibonacci recipe within the exact numeric
   contract.
+- The fixed Unicode population count is an input to the bounded Super-Fibonacci
+  recipe. Adding deposited content above Tier 0 cannot move an atom within its
+  geometry epoch.
+- The Hopf map of every atom lies on the declared S2 base; polar-height and both fiber
+  phase distributions pass the pinned complete-population conformance bounds.
+- A 3D glome view declares its 4D rotation and projection. Two points separated only
+  in the fourth component remain distinguishable under a suitable declared rotation,
+  and no projected coordinate can be written back as canonical physicality.
 - Composite coordinates equal an independent four-dimensional arithmetic accumulation
   over live child points, including multiplicity, and retain the resulting radius.
 - Hilbert encoding uses four 32-bit axes and round-trips declared cells and boundaries
@@ -80,12 +101,26 @@ A target-shaped value and a loadable artifact are not behavioral proof.
   receipts.
 - Repeated observed uses add occurrence/context records without changing the entity or
   any prior physicality.
+- A multi-atom content entity such as `Hello` retains one identity and one proven tier
+  floor when used as a word, a one-word utterance, or a complete sentence. The latter
+  roles and structural altitudes belong to realized occurrences; a one-child wrapper
+  cannot mint another entity or database key.
 - Trunk-to-leaf trajectory reconstruction directly reproduces constituent identities,
   roles, ordinals, runs, tier paths, ancestry, containment, precedence, recurrence,
   shape, dimensions, centroid, radius, and locality without testimony or consensus.
 - Changing source trust or consensus cannot change an exact physicality-derived
   structural fact; changing a trajectory byte must change or invalidate the calculated
   structure and receipt.
+- A mapped Unicode atom plane resolves identity, coordinate, locality, and segmentation
+  inputs without PostgreSQL. Leaf-to-trunk composition calculates the complete candidate
+  Merkle DAG in memory, whole-working-set dedup merges equal identities, and durable
+  presence uses no more than one set-oriented round per participating tier.
+- Dense planes prove direct-address behavior. Sparse and variable-result planes prove
+  their declared ordered or module-specific complexity. Replacing either with one
+  universal sequential scan or generic binary-search layout fails the access-law contract.
+- A corpus-derived perfcache cannot publish during canonical loading. It builds from a
+  closed durable ETL boundary, passes semantic parity and integrity verification, and
+  activates atomically while readers retain the preceding coherent epoch.
 
 ## Language and model independence
 
@@ -270,6 +305,12 @@ Hardware acceptance uses the Intel i7-6850K system and its declared storage layo
   coordinate, ordering, or lookup value is rejected by canonical semantic comparison.
 - Modules publish through verified atomic replacement and activate only inside a
   coherent artifact-set epoch.
+- A replacement generation is fully mapped, validated, and prefaulted before its
+  registry epoch becomes visible. Existing statements and ISA programs retain their
+  pinned generation until completion; new work observes the new generation.
+- Updating a deterministic perfcache generation requires no postmaster restart. A
+  deliberate implementation that refreshes a data epoch only through PostgreSQL
+  restart fails availability and lifecycle acceptance.
 - Each module can be replaced independently when its declared dependencies remain
   compatible; every running process reports its exact loaded artifact identity.
 - Batch lookup returns the same values, misses, errors, and ordering as canonical

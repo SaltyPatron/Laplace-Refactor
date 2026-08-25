@@ -20,6 +20,7 @@ enum {
     LAPLACE_PERFCACHE_OFFSET_KEY_BYTES = 192,
     LAPLACE_PERFCACHE_OFFSET_VALUE_BYTES = 196,
     LAPLACE_PERFCACHE_OFFSET_RECORD_STRIDE = 200,
+    LAPLACE_PERFCACHE_OFFSET_ACCESS_LAW = 204,
     LAPLACE_PERFCACHE_OFFSET_RECORDS = 208,
     LAPLACE_PERFCACHE_OFFSET_RECORDS_BYTES = 216,
     LAPLACE_PERFCACHE_OFFSET_METADATA = 224,
@@ -91,12 +92,17 @@ static int contract_valid(const laplace_perfcache_contract* contract) {
                        sizeof(contract->dependency_fingerprint.bytes))) {
         return 0;
     }
-    if (contract->key_bytes == 0u || contract->value_bytes == 0u ||
-        stride > UINT32_MAX) {
+    if (contract->value_bytes == 0u || stride == 0u || stride > UINT32_MAX ||
+        contract->flags != 0u) {
         return 0;
     }
-    if ((contract->flags & ~LAPLACE_PERFCACHE_KNOWN_FLAGS) != 0u ||
-        (contract->flags & LAPLACE_PERFCACHE_FLAG_SORTED_UNIQUE_KEYS) == 0u) {
+    if ((contract->access_law == LAPLACE_PERFCACHE_ACCESS_SORTED_UNIQUE_FIXED &&
+         contract->key_bytes == 0u) ||
+        (contract->access_law == LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED &&
+         contract->key_bytes != sizeof(uint32_t)) ||
+        (contract->access_law != LAPLACE_PERFCACHE_ACCESS_SORTED_UNIQUE_FIXED &&
+         contract->access_law != LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED &&
+         contract->access_law != LAPLACE_PERFCACHE_ACCESS_MODULE_DEFINED)) {
         return 0;
     }
     return 1;
@@ -128,7 +134,56 @@ static int contract_equal(
                sizeof(left->dependency_fingerprint.bytes)) == 0 &&
         left->key_bytes == right->key_bytes &&
         left->value_bytes == right->value_bytes &&
+        left->access_law == right->access_law &&
         left->flags == right->flags;
+}
+
+static int records_sorted_unique(
+    const uint8_t* records,
+    uint64_t record_count,
+    uint32_t key_bytes,
+    uint32_t record_stride);
+
+static int dense_u32_zero_based_keys(
+    const uint8_t* records,
+    uint64_t record_count,
+    uint32_t record_stride) {
+    uint64_t index;
+    if (record_count > (uint64_t)UINT32_MAX + 1u) {
+        return 0;
+    }
+    for (index = 0; index < record_count; ++index) {
+        if (read_u32_le(records + (size_t)index * (size_t)record_stride) !=
+            (uint32_t)index) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static laplace_perfcache_status records_access_law_valid(
+    const uint8_t* records,
+    uint64_t record_count,
+    const laplace_perfcache_contract* contract,
+    uint32_t record_stride) {
+    if (record_count == 0u) {
+        return LAPLACE_PERFCACHE_OK;
+    }
+    switch (contract->access_law) {
+        case LAPLACE_PERFCACHE_ACCESS_SORTED_UNIQUE_FIXED:
+            return records_sorted_unique(
+                       records, record_count, contract->key_bytes, record_stride)
+                ? LAPLACE_PERFCACHE_OK
+                : LAPLACE_PERFCACHE_KEYS_NOT_SORTED_UNIQUE;
+        case LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED:
+            return dense_u32_zero_based_keys(records, record_count, record_stride)
+                ? LAPLACE_PERFCACHE_OK
+                : LAPLACE_PERFCACHE_DENSE_KEY_MISMATCH;
+        case LAPLACE_PERFCACHE_ACCESS_MODULE_DEFINED:
+            return LAPLACE_PERFCACHE_OK;
+        default:
+            return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
+    }
 }
 
 static int records_sorted_unique(
@@ -240,12 +295,10 @@ laplace_perfcache_status laplace_perfcache_write(
     if (artifact == NULL || artifact_capacity < (size_t)measured) {
         return LAPLACE_PERFCACHE_BUFFER_TOO_SMALL;
     }
-    if (!records_sorted_unique(
-            spec->records,
-            spec->record_count,
-            spec->contract.key_bytes,
-            (uint32_t)stride)) {
-        return LAPLACE_PERFCACHE_KEYS_NOT_SORTED_UNIQUE;
+    status = records_access_law_valid(
+        spec->records, spec->record_count, &spec->contract, (uint32_t)stride);
+    if (status != LAPLACE_PERFCACHE_OK) {
+        return status;
     }
 
     metadata_offset = LAPLACE_PERFCACHE_HEADER_BYTES + records_bytes;
@@ -284,6 +337,8 @@ laplace_perfcache_status laplace_perfcache_write(
     write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_VALUE_BYTES,
                  spec->contract.value_bytes);
     write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORD_STRIDE, (uint32_t)stride);
+    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_ACCESS_LAW,
+                 spec->contract.access_law);
     write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORDS,
                  LAPLACE_PERFCACHE_HEADER_BYTES);
     write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORDS_BYTES, records_bytes);
@@ -335,6 +390,7 @@ static void read_contract(
            sizeof(contract->dependency_fingerprint.bytes));
     contract->key_bytes = read_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_KEY_BYTES);
     contract->value_bytes = read_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_VALUE_BYTES);
+    contract->access_law = read_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_ACCESS_LAW);
     contract->flags = read_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_FLAGS);
 }
 
@@ -374,7 +430,6 @@ laplace_perfcache_status laplace_perfcache_validate(
     }
     if (read_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_HEADER_BYTES) !=
             LAPLACE_PERFCACHE_HEADER_BYTES ||
-        !bytes_zero(artifact + 204u, 4u) ||
         !bytes_zero(artifact + 248u, 8u)) {
         return LAPLACE_PERFCACHE_HEADER_INVALID;
     }
@@ -424,12 +479,15 @@ laplace_perfcache_status laplace_perfcache_validate(
                LAPLACE_PERFCACHE_DIGEST_BYTES) != 0) {
         return LAPLACE_PERFCACHE_DIGEST_MISMATCH;
     }
-    if (!records_sorted_unique(
+    {
+        const laplace_perfcache_status access_status = records_access_law_valid(
             artifact + (size_t)records_offset,
             record_count,
-            actual_contract.key_bytes,
-            record_stride)) {
-        return LAPLACE_PERFCACHE_KEYS_NOT_SORTED_UNIQUE;
+            &actual_contract,
+            record_stride);
+        if (access_status != LAPLACE_PERFCACHE_OK) {
+            return access_status;
+        }
     }
 
     memset(view, 0, sizeof(*view));
@@ -460,12 +518,34 @@ laplace_perfcache_status laplace_perfcache_lookup_batch(
         return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
     }
     if (!contract_valid(&view->contract) ||
-        view->record_stride != view->contract.key_bytes + view->contract.value_bytes ||
-        (key_count != 0u && key_count > SIZE_MAX / view->contract.key_bytes)) {
+        view->record_stride != view->contract.key_bytes + view->contract.value_bytes) {
+        return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
+    }
+    if (view->contract.access_law == LAPLACE_PERFCACHE_ACCESS_MODULE_DEFINED) {
+        return LAPLACE_PERFCACHE_LOOKUP_UNSUPPORTED;
+    }
+    if (key_count != 0u &&
+        key_count > SIZE_MAX / view->contract.key_bytes) {
         return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
     }
     for (key_index = 0; key_index < key_count; ++key_index) {
         const uint8_t* key = keys + key_index * view->contract.key_bytes;
+        if (view->contract.access_law ==
+            LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED) {
+            const uint64_t index = read_u32_le(key);
+            if (index < view->record_count) {
+                found[key_index] = 1u;
+                record_indexes[key_index] = index;
+            } else {
+                found[key_index] = 0u;
+                record_indexes[key_index] = UINT64_MAX;
+            }
+            continue;
+        }
+        if (view->contract.access_law !=
+            LAPLACE_PERFCACHE_ACCESS_SORTED_UNIQUE_FIXED) {
+            return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
+        }
         uint64_t low = 0;
         uint64_t high = view->record_count;
         while (low < high) {

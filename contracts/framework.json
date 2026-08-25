@@ -1,0 +1,34 @@
+{
+  "schema": "laplace.framework-contract/v1",
+  "version": {
+    "major": 1,
+    "minor": 0
+  },
+  "epoch_slots": {
+    "source": 0,
+    "identity": 1,
+    "geometry": 2,
+    "evidence": 3,
+    "firmware": 4,
+    "dependency": 5,
+    "database": 6,
+    "perfcache": 7,
+    "numeric": 8,
+    "package": 9
+  },
+  "context_flags": {
+    "bootstrap": 1,
+    "read_only": 2
+  },
+  "canonical_batch_flags": {
+    "none": 0
+  },
+  "sink_abi": {
+    "major": 1,
+    "minor": 0
+  },
+  "digest": {
+    "algorithm": "BLAKE3-256",
+    "bytes": 32
+  }
+}
