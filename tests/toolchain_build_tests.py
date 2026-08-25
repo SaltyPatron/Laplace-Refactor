@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -104,10 +105,61 @@ class ToolchainBuildTests(unittest.TestCase):
                 working_directory,
                 {"PATH": "/usr/bin:/bin"},
                 log,
+                [min(os.sched_getaffinity(0))],
             )
             self.assertEqual(result["working_directory"], str(working_directory))
             self.assertEqual(
                 result["execution_environment"], {"PWD": str(working_directory)}
+            )
+            self.assertEqual(result["processor_affinity"], [min(os.sched_getaffinity(0))])
+
+    def test_logged_process_inherits_the_declared_processor_affinity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            processor_id = min(os.sched_getaffinity(0))
+            result = BUILD.run_logged(
+                [
+                    "/usr/bin/python3",
+                    "-c",
+                    (
+                        "import os,sys; "
+                        "sys.exit(os.sched_getaffinity(0) != {int(sys.argv[1])})"
+                    ),
+                    str(processor_id),
+                ],
+                root,
+                {"PATH": "/usr/bin:/bin"},
+                root / "affinity.log",
+                [processor_id],
+            )
+            self.assertEqual(result["processor_affinity"], [processor_id])
+
+    def test_processor_affinity_prefers_distinct_physical_cores(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            topology_root = Path(temporary)
+            assignments = {
+                0: (0, 0),
+                1: (0, 1),
+                2: (0, 0),
+                3: (0, 1),
+            }
+            for processor_id, (package_id, core_id) in assignments.items():
+                directory = topology_root / f"cpu{processor_id}/topology"
+                directory.mkdir(parents=True)
+                (directory / "physical_package_id").write_text(
+                    str(package_id), encoding="ascii"
+                )
+                (directory / "core_id").write_text(str(core_id), encoding="ascii")
+            with mock.patch.object(BUILD.os, "sched_getaffinity", return_value=set(assignments)):
+                selection = BUILD.select_processor_affinity(3, topology_root)
+            self.assertEqual(selection["selected_processor_ids"], [0, 1, 2])
+            self.assertEqual(
+                selection["selected_processors"],
+                [
+                    {"processor_id": 0, "package_id": 0, "core_id": 0},
+                    {"processor_id": 1, "package_id": 0, "core_id": 1},
+                    {"processor_id": 2, "package_id": 0, "core_id": 0},
+                ],
             )
 
     def test_logged_process_rejects_divergent_caller_pwd(self) -> None:
@@ -211,6 +263,179 @@ class ToolchainBuildTests(unittest.TestCase):
                     component["tools"].append("gprofng")
                 with self.assertRaisesRegex(BUILD.ToolchainError, "gprofng"):
                     BUILD.validate_contract(contract)
+
+    def test_cmake_optional_test_capabilities_and_nested_make_are_exact(self) -> None:
+        mutations = {
+            "drop_java_gate": lambda component: component["configure"].remove(
+                "-DCMake_TEST_Java=OFF"
+            ),
+            "disable_selected_bootstrap_test": lambda component: component["configure"].__setitem__(
+                component["configure"].index("-DCMake_TEST_BOOTSTRAP=ON"),
+                "-DCMake_TEST_BOOTSTRAP=OFF",
+            ),
+            "ambient_primary_make": lambda component: component["configure"].__setitem__(
+                component["configure"].index("-DCMAKE_MAKE_PROGRAM={make}"),
+                "-DCMAKE_MAKE_PROGRAM=/usr/bin/gmake",
+            ),
+            "ambient_nested_make": lambda component: component["configure"].__setitem__(
+                component["configure"].index(
+                    "-DCMake_TEST_EXPLICIT_MAKE_PROGRAM={make}"
+                ),
+                "-DCMake_TEST_EXPLICIT_MAKE_PROGRAM=/usr/bin/gmake",
+            ),
+            "missing_result_policy": lambda component: component[
+                "test_capability_selection"
+            ].pop("result_policy"),
+            "narrowed_selected_suite": lambda component: component[
+                "test_capability_selection"
+            ]["result_policy"].__setitem__("expected_selected_test_count", 1),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                contract = self.contract()
+                mutate(contract["build"]["components"]["cmake"])
+                with self.assertRaisesRegex(BUILD.ToolchainError, "cmake"):
+                    BUILD.validate_contract(contract)
+
+    def test_cmake_configure_cache_proves_selected_test_capabilities(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            selected_make = root / "prefix/bin/make"
+            selected_make.parent.mkdir(parents=True)
+            selected_make.touch()
+            values = {
+                **BUILD.EXPECTED_CMAKE_TEST_CAPABILITY_CACHE,
+                "CMAKE_MAKE_PROGRAM": str(selected_make),
+                "CMake_TEST_EXPLICIT_MAKE_PROGRAM": str(selected_make),
+            }
+            cache = root / "CMakeCache.txt"
+            cache.write_text(
+                "".join(f"{key}:STRING={value}\n" for key, value in values.items()),
+                encoding="utf-8",
+            )
+            generated = root / "Tests/CTestTestfile.cmake"
+            generated.parent.mkdir()
+            generated.write_text(
+                f'add_test("nested" "--build-makeprogram" "{selected_make}")\n',
+                encoding="utf-8",
+            )
+            receipt = BUILD.verify_cmake_test_configuration(
+                "cmake", root, selected_make
+            )
+            self.assertEqual(receipt["selected"], values)
+            generated.write_text(
+                'add_test("nested" "--build-makeprogram" "/usr/bin/gmake")\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BUILD.ToolchainError, "outside the selected"):
+                BUILD.verify_cmake_test_configuration("cmake", root, selected_make)
+            generated.write_text(
+                f'add_test("nested" "--build-makeprogram" "{selected_make}")\n',
+                encoding="utf-8",
+            )
+            cache.write_text(
+                cache.read_text(encoding="utf-8").replace(
+                    "CMake_TEST_Java:STRING=OFF", "CMake_TEST_Java:STRING=ON"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BUILD.ToolchainError, "capability cache differs"):
+                BUILD.verify_cmake_test_configuration("cmake", root, selected_make)
+
+    def test_cmake_test_results_prove_execution_not_generated_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            selected_make = root / "prefix/bin/make"
+            selected_make.parent.mkdir(parents=True)
+            selected_make.touch()
+            test_log = root / "test.log"
+            test_log.write_text(
+                "697/697 Test #212: BootstrapTest ....   Passed  1.00 sec\n"
+                "100% tests passed out of 697\n",
+                encoding="utf-8",
+            )
+            last_test = root / "Testing/Temporary/LastTest.log"
+            last_test.parent.mkdir(parents=True)
+            last_test.write_text(
+                '"BootstrapTest" start time: now\n'
+                "-- running bootstrap: /source/bootstrap --parallel=6\n"
+                f"Makefile processor on this system is: {selected_make}\n"
+                f"CMake has bootstrapped.  Now run {selected_make}.\n"
+                "Test Passed.\n"
+                '"BootstrapTest" end time: later\n',
+                encoding="utf-8",
+            )
+            secondary = root / "Tests/BootstrapTest"
+            secondary.mkdir(parents=True)
+            (secondary / "CMakeCache.txt").write_text(
+                "CMAKE_MAKE_PROGRAM:FILEPATH=/usr/bin/gmake\n", encoding="utf-8"
+            )
+            (secondary / "CTestTestfile.cmake").write_text(
+                'add_test("generated" "--build-makeprogram" "/usr/bin/gmake")\n',
+                encoding="utf-8",
+            )
+
+            receipt = BUILD.verify_cmake_test_results(
+                "cmake",
+                root,
+                test_log,
+                selected_make,
+                6,
+                BUILD.EXPECTED_CMAKE_TEST_RESULT_POLICY,
+            )
+            self.assertEqual(receipt["selected_suite"]["test_count"], 697)
+            self.assertEqual(
+                receipt["bootstrap_execution"]["make_program"], str(selected_make)
+            )
+            self.assertEqual(
+                receipt["secondary_generated_suite"]["configured_make_program"],
+                "/usr/bin/gmake",
+            )
+            self.assertEqual(
+                receipt["secondary_generated_suite"]["other_make_reference_count"],
+                1,
+            )
+            self.assertEqual(
+                receipt["secondary_generated_suite"]["disposition"],
+                "configured-but-not-executed-by-bootstrap-test",
+            )
+
+            mutations = {
+                "ambient_executed_make": lambda: last_test.write_text(
+                    last_test.read_text(encoding="utf-8").replace(
+                        str(selected_make), "/usr/bin/gmake"
+                    ),
+                    encoding="utf-8",
+                ),
+                "expanded_parallelism": lambda: last_test.write_text(
+                    last_test.read_text(encoding="utf-8").replace(
+                        "--parallel=6", "--parallel=12"
+                    ),
+                    encoding="utf-8",
+                ),
+                "incomplete_suite": lambda: test_log.write_text(
+                    test_log.read_text(encoding="utf-8").replace(
+                        "100% tests passed out of 697", "99% tests passed out of 697"
+                    ),
+                    encoding="utf-8",
+                ),
+            }
+            original_last_test = last_test.read_text(encoding="utf-8")
+            original_test_log = test_log.read_text(encoding="utf-8")
+            for name, mutate in mutations.items():
+                with self.subTest(name=name):
+                    last_test.write_text(original_last_test, encoding="utf-8")
+                    test_log.write_text(original_test_log, encoding="utf-8")
+                    mutate()
+                    with self.assertRaises(BUILD.ToolchainError):
+                        BUILD.verify_cmake_test_results(
+                            "cmake",
+                            root,
+                            test_log,
+                            selected_make,
+                            6,
+                            BUILD.EXPECTED_CMAKE_TEST_RESULT_POLICY,
+                        )
 
     def test_dejagnu_unexpected_outcomes_are_rejected_even_after_zero_exit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
