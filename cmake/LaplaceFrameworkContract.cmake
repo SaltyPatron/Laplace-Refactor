@@ -36,7 +36,7 @@ function(laplace_configure_framework_contract contract_path output_path)
     if(NOT contract_schema STREQUAL "laplace.framework-contract/v1")
         message(FATAL_ERROR "Unsupported framework contract schema: ${contract_schema}")
     endif()
-    if(NOT major EQUAL 1 OR NOT minor EQUAL 4
+    if(NOT major EQUAL 1 OR NOT minor EQUAL 5
        OR NOT sink_major EQUAL 1 OR NOT sink_minor EQUAL 0
        OR NOT activation_provider_major EQUAL 1
        OR NOT activation_provider_minor EQUAL 0
@@ -44,7 +44,7 @@ function(laplace_configure_framework_contract contract_path output_path)
        OR NOT producer_control_major EQUAL 1
        OR NOT producer_control_minor EQUAL 0)
         message(FATAL_ERROR
-            "Current framework ABI must remain 1.4 with provider ABIs at 1.0")
+            "Current framework ABI must remain 1.5 with provider ABIs at 1.0")
     endif()
     set(expected_epoch 0)
     foreach(epoch IN ITEMS source identity geometry evidence firmware dependency database perfcache numeric package)

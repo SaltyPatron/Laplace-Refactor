@@ -17,6 +17,8 @@ typedef struct laplace_perfcache_contract {
     laplace_id128 key_schema_id;
     laplace_id128 value_schema_id;
     laplace_id128 activation_epoch_id;
+    laplace_digest256 activation_epoch_fingerprint;
+    laplace_digest256 module_contract_fingerprint;
     laplace_digest256 source_fingerprint;
     laplace_digest256 recipe_fingerprint;
     laplace_digest256 dependency_fingerprint;
@@ -51,6 +53,8 @@ typedef struct laplace_perfcache_mapping {
     const uint8_t* mapped_address;
     size_t mapped_bytes;
     intptr_t native_handle;
+    uint64_t device_id;
+    uint64_t file_id;
 } laplace_perfcache_mapping;
 
 typedef enum laplace_perfcache_status {
@@ -74,7 +78,8 @@ typedef enum laplace_perfcache_status {
     LAPLACE_PERFCACHE_FILE_SYNC_FAILED = 17,
     LAPLACE_PERFCACHE_FILE_RENAME_FAILED = 18,
     LAPLACE_PERFCACHE_DENSE_KEY_MISMATCH = 19,
-    LAPLACE_PERFCACHE_LOOKUP_UNSUPPORTED = 20
+    LAPLACE_PERFCACHE_LOOKUP_UNSUPPORTED = 20,
+    LAPLACE_PERFCACHE_ARTIFACT_CONFLICT = 21
 } laplace_perfcache_status;
 
 typedef laplace_perfcache_status (*laplace_perfcache_record_validator)(

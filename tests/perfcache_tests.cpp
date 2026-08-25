@@ -25,6 +25,10 @@ laplace_perfcache_contract Contract() {
     Fill(contract.value_schema_id.bytes, sizeof(contract.value_schema_id.bytes), 0x30u);
     Fill(contract.activation_epoch_id.bytes,
          sizeof(contract.activation_epoch_id.bytes), 0x40u);
+    Fill(contract.activation_epoch_fingerprint.bytes,
+         sizeof(contract.activation_epoch_fingerprint.bytes), 0x41u);
+    Fill(contract.module_contract_fingerprint.bytes,
+         sizeof(contract.module_contract_fingerprint.bytes), 0x42u);
     Fill(contract.source_fingerprint.bytes,
          sizeof(contract.source_fingerprint.bytes), 0x50u);
     Fill(contract.recipe_fingerprint.bytes,
@@ -98,7 +102,7 @@ std::vector<std::uint8_t> Build(const laplace_perfcache_spec& spec) {
 }
 
 void RecomputeDigest(std::vector<std::uint8_t>* artifact) {
-    const std::uint64_t digest_offset = ReadU64(artifact->data() + 240u);
+    const std::uint64_t digest_offset = ReadU64(artifact->data() + 304u);
     ASSERT_LE(digest_offset + LAPLACE_PERFCACHE_DIGEST_BYTES, artifact->size());
     blake3_hasher hasher{};
     blake3_hasher_init(&hasher);
@@ -216,7 +220,7 @@ TEST(PerfcacheValidation, RejectsUnknownFlagsAndNonzeroReservedBytes) {
               LAPLACE_PERFCACHE_HEADER_INVALID);
 
     auto reserved = Build(spec);
-    reserved[248u] = 1u;
+    reserved[312u] = 1u;
     RecomputeDigest(&reserved);
     EXPECT_EQ(laplace_perfcache_validate(
                   reserved.data(), reserved.size(), &spec.contract, &view),
@@ -237,7 +241,7 @@ TEST(PerfcacheValidation, RejectsTruncationExtensionAndSectionMismatch) {
                   extended.data(), extended.size(), &spec.contract, &view),
               LAPLACE_PERFCACHE_SECTION_INVALID);
     auto section = artifact;
-    section[209u] = 0u;
+    section[272u] = 0u;
     EXPECT_EQ(laplace_perfcache_validate(
                   section.data(), section.size(), &spec.contract, &view),
               LAPLACE_PERFCACHE_SECTION_INVALID);

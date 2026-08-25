@@ -454,6 +454,62 @@ add_test(
 set_tests_properties(framework.mutation-stale-epoch-activation-detected PROPERTIES
     LABELS "framework;activation;authority;receipt;mutation")
 
+add_library(laplace_framework_eager_activation_mutant STATIC
+    ../engine/src/framework.c)
+target_include_directories(laplace_framework_eager_activation_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_framework_eager_activation_mutant
+    PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_framework_eager_activation_mutant
+    PRIVATE LAPLACE_TEST_COMMIT_DURING_ACTIVATION_ADMISSION=1)
+target_compile_options(laplace_framework_eager_activation_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_framework_eager_activation_mutation_probe
+    framework_activation_probe.cpp)
+target_link_libraries(laplace_framework_eager_activation_mutation_probe
+    PRIVATE laplace_framework_eager_activation_mutant)
+target_compile_options(laplace_framework_eager_activation_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME framework.mutation-eager-activation-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_framework_eager_activation_mutation_probe>"
+        "-DEXPECTED_ERROR=framework-activation-admission-not-inert\n"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_activation_failure.cmake")
+set_tests_properties(framework.mutation-eager-activation-detected PROPERTIES
+    LABELS "framework;activation;transaction;receipt;mutation")
+
+add_library(laplace_framework_cross_context_mutant STATIC
+    ../engine/src/framework.c)
+target_include_directories(laplace_framework_cross_context_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_framework_cross_context_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_framework_cross_context_mutant
+    PRIVATE LAPLACE_TEST_SKIP_STAGED_RECEIPT_CONTEXT_BINDING=1)
+target_compile_options(laplace_framework_cross_context_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_framework_cross_context_mutation_probe
+    framework_activation_probe.cpp)
+target_link_libraries(laplace_framework_cross_context_mutation_probe
+    PRIVATE laplace_framework_cross_context_mutant)
+target_compile_options(laplace_framework_cross_context_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME framework.mutation-cross-context-stage-admission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_framework_cross_context_mutation_probe>"
+        "-DEXPECTED_ERROR=framework-activation-cross-context\n"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_activation_failure.cmake")
+set_tests_properties(
+    framework.mutation-cross-context-stage-admission-detected PROPERTIES
+    LABELS "framework;activation;context;authority;receipt;mutation")
+
 add_test(
     NAME build.repository-output-rejected
     COMMAND "${CMAKE_COMMAND}"
@@ -899,6 +955,90 @@ if(UNIX)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
     gtest_discover_tests(laplace_perfcache_file_tests
         PROPERTIES LABELS "implementation;perfcache;file")
+
+    add_executable(laplace_perfcache_file_write_corruption_mutant
+        perfcache_file_tests.cpp
+        ../engine/src/perfcache_file_posix.c)
+    target_include_directories(laplace_perfcache_file_write_corruption_mutant
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+            "${CMAKE_BINARY_DIR}/generated")
+    target_compile_definitions(laplace_perfcache_file_write_corruption_mutant
+        PRIVATE LAPLACE_TEST_CORRUPT_PERFCACHE_TEMPORARY_WRITE=1)
+    target_link_libraries(laplace_perfcache_file_write_corruption_mutant
+        PRIVATE
+            Laplace::Perfcache
+            BLAKE3::blake3
+            GTest::gtest_main)
+    target_compile_options(laplace_perfcache_file_write_corruption_mutant PRIVATE
+        $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME perfcache.file-write-corruption-rejected
+        COMMAND laplace_perfcache_file_write_corruption_mutant
+            --gtest_filter=PerfcacheFile.WrittenTemporaryInodeIsValidatedBeforeImmutableLink)
+    set_tests_properties(
+        perfcache.file-write-corruption-rejected PROPERTIES
+        LABELS "perfcache;file;lifecycle;deliberate-defect")
+
+    add_executable(laplace_perfcache_registry_tests
+        perfcache_registry_tests.cpp)
+    target_link_libraries(laplace_perfcache_registry_tests
+        PRIVATE
+            Laplace::Perfcache
+            GTest::gtest_main)
+    target_compile_options(laplace_perfcache_registry_tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    gtest_discover_tests(laplace_perfcache_registry_tests
+        PROPERTIES LABELS "implementation;perfcache;registry;activation")
+
+    function(laplace_add_perfcache_registry_mutant name definition filter)
+        set(target "laplace_perfcache_registry_${name}_mutant")
+        add_executable(${target}
+            perfcache_registry_tests.cpp
+            ../engine/src/perfcache_registry.cpp)
+        target_include_directories(${target}
+            PRIVATE
+                "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+                "${CMAKE_BINARY_DIR}/generated")
+        target_compile_definitions(${target} PRIVATE "${definition}=1")
+        target_link_libraries(${target}
+            PRIVATE
+                Laplace::Perfcache
+                BLAKE3::blake3
+                GTest::gtest_main)
+        target_compile_options(${target} PRIVATE
+            $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+        add_test(
+            NAME "perfcache.mutation-${name}-detected"
+            COMMAND "${CMAKE_COMMAND}"
+                "-DPROBE=$<TARGET_FILE:${target}>"
+                "-DFILTER=${filter}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+        set_tests_properties("perfcache.mutation-${name}-detected" PROPERTIES
+            LABELS "perfcache;registry;lifecycle;mutation")
+    endfunction()
+
+    laplace_add_perfcache_registry_mutant(
+        prefault-omission
+        LAPLACE_TEST_SKIP_PERFCACHE_PREFAULT
+        PerfcacheRegistry.NullProviderHandleStillPrefaultsAndClosesExactlyOnce)
+    laplace_add_perfcache_registry_mutant(
+        pinned-generation-close
+        LAPLACE_TEST_CLOSE_PINNED_PERFCACHE_GENERATION
+        PerfcacheRegistry.PinnedReadersDrainOnlyAfterCollection)
+    laplace_add_perfcache_registry_mutant(
+        dependency-cycle-bypass
+        LAPLACE_TEST_SKIP_PERFCACHE_DEPENDENCY_CYCLE_VALIDATION
+        PerfcacheRegistry.DependencyGraphAcceptsAcyclicAndRejectsCycles)
+    laplace_add_perfcache_registry_mutant(
+        fixed-access-law-override
+        LAPLACE_TEST_OVERRIDE_FIXED_PERFCACHE_ACCESS_LAW
+        PerfcacheRegistry.PrepareReserveCommitIsInactiveUntilCommit)
+    laplace_add_perfcache_registry_mutant(
+        duplicate-prepared-owner
+        LAPLACE_TEST_RETAIN_PREPARED_OWNERSHIP
+        PerfcacheRegistry.PreparedGenerationHasOneActivationOwner)
 endif()
 
 if(LAPLACE_POSTGRES_ENABLED)

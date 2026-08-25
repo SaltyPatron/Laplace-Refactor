@@ -192,6 +192,28 @@
       "covered_dimensions": ["staged receipt integrity", "read-only authority rejection", "no activation callback"]
     },
     {
+      "ctest_name": "FrameworkActivation.AdmissionIsInertUntilExplicitCommit",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["admission and commit are distinct transitions", "admission cannot publish an epoch", "explicit commit receipt"],
+      "defect_controls": ["framework.mutation-eager-activation-detected"]
+    },
+    {
+      "ctest_name": "FrameworkActivation.ExplicitAbortLeavesEpochUnchanged",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["explicit admitted-effect abort", "unchanged active epoch", "truthful inert disposition"]
+    },
+    {
+      "ctest_name": "FrameworkActivation.AlteredAdmittedReceiptCannotCommitOrAbort",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["admitted receipt integrity", "tamper rejection before provider commit or abort"]
+    },
+    {
+      "ctest_name": "FrameworkActivation.RejectsStageFromAnotherExecutionContext",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EXECUTION-CONTEXT", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["staged receipt execution-context binding", "cross-authority context rejection before provider admission"],
+      "defect_controls": ["framework.mutation-cross-context-stage-admission-detected"]
+    },
+    {
       "ctest_name": "FrameworkActivation.FailedAtomicCommitRemainsOnlyAdmitted",
       "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
       "covered_dimensions": ["admission versus activation disposition", "failed atomic commit abort", "unchanged epoch"]
@@ -207,6 +229,18 @@
       "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
       "covered_dimensions": ["omitted expected-epoch comparison is detected"],
       "controls": "framework.activation-epoch-cas-contract"
+    },
+    {
+      "ctest_name": "framework.mutation-eager-activation-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["commit during admission is detected"],
+      "controls": "FrameworkActivation.AdmissionIsInertUntilExplicitCommit"
+    },
+    {
+      "ctest_name": "framework.mutation-cross-context-stage-admission-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EXECUTION-CONTEXT", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["omitted staged-receipt context binding is detected"],
+      "controls": "FrameworkActivation.RejectsStageFromAnotherExecutionContext"
     },
     {
       "ctest_name": "IdentityAbi.IsExactly128Bits",
@@ -670,9 +704,21 @@
       "covered_dimensions": ["same-directory publication", "file sync", "directory sync", "verified memory mapping"]
     },
     {
-      "ctest_name": "PerfcacheFile.ReplacementKeepsExistingMappingImmutable",
+      "ctest_name": "PerfcacheFile.PublishedArtifactIsImmutableAndExactReplayIsIdempotent",
       "evidence_targets": ["LP-TEST-PERFCACHE-ATOMIC-PUBLICATION", "LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE"],
-      "covered_dimensions": ["atomic replacement", "existing reader immutability", "new epoch mapping"]
+      "covered_dimensions": ["immutable create-or-verify publication", "exact replay idempotence", "conflicting artifact rejection", "existing reader immutability"]
+    },
+    {
+      "ctest_name": "PerfcacheFile.WrittenTemporaryInodeIsValidatedBeforeImmutableLink",
+      "evidence_targets": ["LP-TEST-PERFCACHE-ATOMIC-PUBLICATION", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY", "LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
+      "covered_dimensions": ["production-loader validation of written temporary inode", "link only after exact semantic and digest validation"],
+      "defect_controls": ["perfcache.file-write-corruption-rejected"]
+    },
+    {
+      "ctest_name": "perfcache.file-write-corruption-rejected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-ATOMIC-PUBLICATION", "LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
+      "covered_dimensions": ["injected post-write corruption is rejected before immutable publication", "no destination artifact after rejection"],
+      "controls": "PerfcacheFile.WrittenTemporaryInodeIsValidatedBeforeImmutableLink"
     },
     {
       "ctest_name": "PerfcacheFile.InvalidArtifactCannotReplacePublishedArtifact",
@@ -688,6 +734,91 @@
       "ctest_name": "PerfcacheFile.SemanticFailureBlocksPublicationAndActivation",
       "evidence_targets": ["LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-ATOMIC-PUBLICATION", "LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"],
       "covered_dimensions": ["mandatory module semantics", "publication rejection", "activation rejection", "invalid record index"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.NullProviderHandleStillPrefaultsAndClosesExactlyOnce",
+      "evidence_targets": ["LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION", "LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE"],
+      "covered_dimensions": ["provider-status-owned nullable handle", "exact prefault", "exactly-once close"],
+      "defect_controls": ["perfcache.mutation-prefault-omission-detected"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.PreparedGenerationHasOneActivationOwner",
+      "evidence_targets": ["LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
+      "covered_dimensions": ["single-consumer prepared-generation ownership", "duplicate activation-create rejection", "post-transfer discard safety"],
+      "defect_controls": ["perfcache.mutation-duplicate-prepared-owner-detected"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.PrepareReserveCommitIsInactiveUntilCommit",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-BATCH-LOOKUP", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT"],
+      "covered_dimensions": ["prepare reserve commit lifecycle", "no activation before commit", "full epoch pin", "framework-owned built-in direct access law"],
+      "defect_controls": ["perfcache.mutation-fixed-access-law-override-detected"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.PinnedReadersDrainOnlyAfterCollection",
+      "evidence_targets": ["LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN"],
+      "covered_dimensions": ["old generation remains mapped for pinned reader", "new generation activation", "explicit post-reader collection"],
+      "defect_controls": ["perfcache.mutation-pinned-generation-close-detected"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.ConcurrentActivationPreservesPinnedReaderGeneration",
+      "evidence_targets": ["LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN"],
+      "covered_dimensions": ["reader thread pinned across concurrent activation", "collection blocked by active reader", "exact old-generation release after reader drain"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.ReservationIsSingleWriterCasAndAbortKeepsOldEpoch",
+      "evidence_targets": ["LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE"],
+      "covered_dimensions": ["full-epoch compare-and-swap", "one activation reservation", "abort preserves active epoch"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.RequiredModuleSetRejectsPartialGeneration",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
+      "covered_dimensions": ["complete required-module generation", "partial generation rejection before activation"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.DependencyGraphAcceptsAcyclicAndRejectsCycles",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
+      "covered_dimensions": ["typed artifact dependency identity", "acyclic generation graph", "cycle rejection before artifact open"],
+      "defect_controls": ["perfcache.mutation-dependency-cycle-bypass-detected"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.ForgedOrUnrelatedStagedReceiptCannotPrepare",
+      "evidence_targets": ["LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
+      "covered_dimensions": ["authenticated staged receipt", "exact staged sink artifact-set binding", "forged and unrelated stream rejection"]
+    },
+    {
+      "ctest_name": "PerfcacheRegistry.ReadOnlyContextCannotReserveAndPreparedStateBlocksDestroy",
+      "evidence_targets": ["LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
+      "covered_dimensions": ["authority-bound reservation", "prepared-state lifetime", "busy destroy until ownership release"]
+    },
+    {
+      "ctest_name": "perfcache.mutation-prefault-omission-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION"],
+      "covered_dimensions": ["omitted prefault is detected"],
+      "controls": "PerfcacheRegistry.NullProviderHandleStillPrefaultsAndClosesExactlyOnce"
+    },
+    {
+      "ctest_name": "perfcache.mutation-pinned-generation-close-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN"],
+      "covered_dimensions": ["closing a pinned retired generation is detected"],
+      "controls": "PerfcacheRegistry.PinnedReadersDrainOnlyAfterCollection"
+    },
+    {
+      "ctest_name": "perfcache.mutation-dependency-cycle-bypass-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
+      "covered_dimensions": ["dependency-cycle validation bypass is detected"],
+      "controls": "PerfcacheRegistry.DependencyGraphAcceptsAcyclicAndRejectsCycles"
+    },
+    {
+      "ctest_name": "perfcache.mutation-fixed-access-law-override-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-BATCH-LOOKUP"],
+      "covered_dimensions": ["module callback cannot override a built-in direct access law"],
+      "controls": "PerfcacheRegistry.PrepareReserveCommitIsInactiveUntilCommit"
+    },
+    {
+      "ctest_name": "perfcache.mutation-duplicate-prepared-owner-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
+      "covered_dimensions": ["prepared-generation ownership retention is detected"],
+      "controls": "PerfcacheRegistry.PreparedGenerationHasOneActivationOwner"
     },
     {
       "ctest_name": "identity.contract-vectors",

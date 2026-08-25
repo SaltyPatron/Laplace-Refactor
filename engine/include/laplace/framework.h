@@ -289,6 +289,10 @@ LAPLACE_API laplace_framework_status laplace_framework_context_fingerprint(
     const laplace_framework_context* context,
     laplace_digest256* fingerprint);
 
+LAPLACE_API laplace_framework_status laplace_framework_stream_receipt_validate(
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* receipt);
+
 LAPLACE_API laplace_framework_status laplace_framework_canonical_stream_fingerprint(
     const laplace_framework_canonical_batch* batches,
     size_t batch_count,
@@ -317,6 +321,25 @@ LAPLACE_API laplace_framework_status laplace_framework_run_producer(
 LAPLACE_API laplace_framework_status laplace_framework_activate_staged_stream(
     const laplace_framework_context* context,
     const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_framework_activation_request* request,
+    const laplace_framework_activation_provider_v1* provider,
+    laplace_framework_activation_receipt* receipt);
+
+LAPLACE_API laplace_framework_status laplace_framework_admit_staged_stream(
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_framework_activation_request* request,
+    const laplace_framework_activation_provider_v1* provider,
+    laplace_framework_activation_receipt* receipt);
+
+LAPLACE_API laplace_framework_status laplace_framework_commit_admitted_stream(
+    const laplace_framework_context* context,
+    const laplace_framework_activation_request* request,
+    const laplace_framework_activation_provider_v1* provider,
+    laplace_framework_activation_receipt* receipt);
+
+LAPLACE_API laplace_framework_status laplace_framework_abort_admitted_stream(
+    const laplace_framework_context* context,
     const laplace_framework_activation_request* request,
     const laplace_framework_activation_provider_v1* provider,
     laplace_framework_activation_receipt* receipt);

@@ -30,9 +30,14 @@ enough.
   progress checkpoints, origin replay, and exact prior-prefix verification;
 - an explicit activation-provider ABI that verifies the exact staged receipt, rejects
   read-only authority and stale expected epochs before provider admission, separates
-  admitted from activated disposition, and receipts one atomic epoch transition;
+  admitted from activated disposition, supports transaction-deferred commit or abort,
+  and receipts one atomic epoch transition;
 - a generic immutable perfcache file/mapping/publication foundation with distinct
   dense-direct, sorted-fixed, and module-defined access laws;
+- a typed perfcache module registry that validates complete artifact sets and acyclic
+  dependency graphs, binds full activation epochs and loaded-object identity, applies
+  conserved-memory prefault, admits one writer through the framework effect boundary,
+  atomically hands off generations, pins readers, and explicitly drains retired maps;
 - a contract-generated .NET 10 ISA surface whose generic P/Invoke transport preserves
   native ABI layout, batch semantics, outputs, receipts, errors, and preflight; and
 - native package/consumer and dependency-verification foundations.
@@ -71,29 +76,33 @@ dispositions explicit, followed by framework-mediated activation into the isolat
 
 The staged SPI test contains test-fixture SQL rather than production substrate
 persistence. It does not prove set-oriented canonical deposition or issue #7. The
-branch perfcache work does not implement a perfcache module registry, dependency
-graph, prefaulting, reader epoch pins, or restart-free generation handoff.
+native perfcache lifecycle now proves the in-process registry and handoff contract; it
+does not yet prove PostgreSQL multi-process pinning, transaction-deferred activation,
+or Unicode/database parity.
 
 ## Missing framework pieces
 
 1. The active resource-application slice applies one conserved grant to oneTBB arenas
    and thread-local oneMKL execution with exact serial/provider result parity. The same
    grant is not yet applied through PostgreSQL, managed, and tool routes.
-2. Canonical byte streams, a reusable producer, and staged sinks exist, but there is no
-   typed record-codec registry, perfcache provider implementation, or coherent
-   cross-provider epoch activation coordinator.
+2. Canonical byte streams, a reusable producer, staged sinks, a native file-backed
+   perfcache provider, and the in-process epoch registry exist, but there is no typed
+   record-codec registry or coherent database/perfcache cross-provider activation
+   coordinator.
 3. The generic effect-admission and epoch compare-and-swap boundary exists, but there
    is not yet a merged canonical persistence provider or PostgreSQL transaction
    implementation. Producer replay/progress now exists independently of persistence.
-4. There is no perfcache module/epoch registry, hot-generation protocol, or complete
-   loaded-artifact diagnostic surface.
+4. The native perfcache module/epoch registry and hot-generation protocol exist. The
+   PostgreSQL multi-process adapter and complete per-artifact diagnostic surface do
+   not.
 5. C ABI, PostgreSQL constants, and the generic .NET ISA transport are generated; the
    SQL surface and the complete product binding family are not yet one complete
    generated contract.
-6. Current receipts bind the complete execution context, exact source and recipe,
-   staged artifacts, admission preparation, and activated epoch transition, but omit
-   retained manifests/objects, physical execution plan, loaded-object identity, and
-   other lifecycle facts required by the product.
+6. Current perfcache receipts bind the complete execution context, source and recipe,
+   staged and required artifact sets, manifest, dependency graph, provider, loaded
+   object identities, prefault totals, and activation disposition. Whole-product
+   receipts still omit the physical execution plan and other lifecycle facts required
+   outside this provider.
 7. The downloaded Unicode 17 UCD, UCA/DUCET, emoji, security, IDNA, and conformance
    sources under `/vault/Data/UCD/Public/UCD/latest` are bound into the clean source
    manifest and representation contracts, but the producing decomposer does not exist.
@@ -126,8 +135,10 @@ audited program checkpoint. The clean repository was subsequently activated at
 custom-stack CI evidence. PR #36 makes the generated registry the sole native ISA
 dispatch authority, binds an explicit immutable execution context through native and
 PostgreSQL program/receipt identity, binds canonical streams to source and recipe, and
-adds receipted compare-and-swap activation over inert staged artifacts. Issues #4 and
-#10 remain open because cross-route resource parity, complete providers/transports,
-persistence/perfcache activation, and the Unicode proving module remain incomplete.
-The accepted slices are component evidence and cannot close the complete framework
-obligation.
+adds receipted compare-and-swap activation over inert staged artifacts. The current
+perfcache lifecycle work extends that boundary with immutable publication, complete
+generation admission, prefault, reader pinning, and restart-free in-process handoff.
+Issues #10 and #14 remain open because PostgreSQL multi-process/transaction parity,
+complete providers/transports, database/perfcache coordinated activation, and the
+Unicode proving module remain incomplete. The accepted slices are component evidence
+and cannot close the complete framework obligation.

@@ -614,6 +614,22 @@ static int stream_receipt_is_valid(
     return digest_equal(&receipt->receipt_id, &expected.receipt_id);
 }
 
+laplace_framework_status laplace_framework_stream_receipt_validate(
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* receipt) {
+    laplace_digest256 context_fingerprint;
+    laplace_framework_status status = laplace_framework_context_fingerprint(
+        context, &context_fingerprint);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        return status;
+    }
+    if (!stream_receipt_is_valid(receipt) ||
+        !digest_equal(&context_fingerprint, &receipt->context_fingerprint)) {
+        return LAPLACE_FRAMEWORK_STREAM_INVALID;
+    }
+    return LAPLACE_FRAMEWORK_OK;
+}
+
 static void hash_activation_request(
     const laplace_framework_stream_receipt* staged_receipt,
     const laplace_framework_activation_request* request,
@@ -1058,7 +1074,31 @@ fail:
     return status;
 }
 
-laplace_framework_status laplace_framework_activate_staged_stream(
+static int activation_provider_is_valid(
+    const laplace_framework_activation_provider_v1* provider) {
+    return provider != NULL && provider->prepare != NULL &&
+        provider->commit != NULL && provider->abort != NULL &&
+        provider->abi_major == LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_ABI_MAJOR &&
+        provider->abi_minor <= LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_ABI_MINOR &&
+        provider->flags == 0 && provider->reserved == 0;
+}
+
+static int admitted_receipt_is_valid(
+    const laplace_framework_activation_receipt* receipt) {
+    laplace_framework_activation_receipt expected;
+    if (receipt == NULL || receipt->status != LAPLACE_FRAMEWORK_OK ||
+        receipt->effect_disposition !=
+            LAPLACE_FRAMEWORK_EFFECT_ACTIVATION_ADMITTED ||
+        receipt->epoch_slot >= LAPLACE_FRAMEWORK_EPOCH_COUNT ||
+        receipt->reserved != 0) {
+        return 0;
+    }
+    expected = *receipt;
+    hash_activation_receipt(&expected);
+    return digest_equal(&receipt->receipt_id, &expected.receipt_id);
+}
+
+laplace_framework_status laplace_framework_admit_staged_stream(
     const laplace_framework_context* context,
     const laplace_framework_stream_receipt* staged_receipt,
     const laplace_framework_activation_request* request,
@@ -1076,7 +1116,13 @@ laplace_framework_status laplace_framework_activate_staged_stream(
         hash_activation_receipt(receipt);
         return status;
     }
+#if defined(LAPLACE_TEST_SKIP_STAGED_RECEIPT_CONTEXT_BINDING)
     if (!stream_receipt_is_valid(staged_receipt) || request == NULL ||
+#else
+    if (laplace_framework_stream_receipt_validate(context, staged_receipt) !=
+            LAPLACE_FRAMEWORK_OK ||
+        request == NULL ||
+#endif
         request->epoch_slot >= LAPLACE_FRAMEWORK_EPOCH_COUNT ||
         request->flags != LAPLACE_FRAMEWORK_KNOWN_ACTIVATION_FLAGS ||
         request->reserved != 0 ||
@@ -1115,11 +1161,7 @@ laplace_framework_status laplace_framework_activate_staged_stream(
         hash_activation_receipt(receipt);
         return receipt->status;
     }
-    if (provider == NULL || provider->prepare == NULL ||
-        provider->commit == NULL || provider->abort == NULL ||
-        provider->abi_major != LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_ABI_MAJOR ||
-        provider->abi_minor > LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_ABI_MINOR ||
-        provider->flags != 0 || provider->reserved != 0) {
+    if (!activation_provider_is_valid(provider)) {
         receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_INVALID;
         hash_activation_receipt(receipt);
         return receipt->status;
@@ -1147,6 +1189,41 @@ laplace_framework_status laplace_framework_activate_staged_stream(
 #endif
     receipt->effect_disposition =
         LAPLACE_FRAMEWORK_EFFECT_ACTIVATION_ADMITTED;
+#if defined(LAPLACE_TEST_COMMIT_DURING_ACTIVATION_ADMISSION)
+    status = provider->commit(
+        provider->state, request, &receipt->preparation_fingerprint,
+        &receipt->activation_fingerprint);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        provider->abort(
+            provider->state, request, &receipt->preparation_fingerprint);
+        receipt->status = LAPLACE_FRAMEWORK_ACTIVATION_COMMIT_FAILED;
+        hash_activation_receipt(receipt);
+        return receipt->status;
+    }
+#endif
+    receipt->status = LAPLACE_FRAMEWORK_OK;
+    hash_activation_receipt(receipt);
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status laplace_framework_commit_admitted_stream(
+    const laplace_framework_context* context,
+    const laplace_framework_activation_request* request,
+    const laplace_framework_activation_provider_v1* provider,
+    laplace_framework_activation_receipt* receipt) {
+    laplace_digest256 context_fingerprint;
+    laplace_framework_status status;
+    if (context == NULL || request == NULL || receipt == NULL ||
+        !activation_provider_is_valid(provider) ||
+        laplace_framework_context_fingerprint(
+            context, &context_fingerprint) != LAPLACE_FRAMEWORK_OK ||
+        !admitted_receipt_is_valid(receipt) ||
+        !digest_equal(&receipt->context_fingerprint, &context_fingerprint) ||
+        receipt->epoch_slot != request->epoch_slot ||
+        !digest_equal(&receipt->expected_epoch, &request->expected_epoch) ||
+        !digest_equal(&receipt->next_epoch, &request->next_epoch)) {
+        return LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
+    }
     status = provider->commit(
         provider->state, request, &receipt->preparation_fingerprint,
         &receipt->activation_fingerprint);
@@ -1170,4 +1247,46 @@ laplace_framework_status laplace_framework_activate_staged_stream(
     receipt->status = LAPLACE_FRAMEWORK_OK;
     hash_activation_receipt(receipt);
     return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status laplace_framework_abort_admitted_stream(
+    const laplace_framework_context* context,
+    const laplace_framework_activation_request* request,
+    const laplace_framework_activation_provider_v1* provider,
+    laplace_framework_activation_receipt* receipt) {
+    laplace_digest256 context_fingerprint;
+    if (context == NULL || request == NULL || receipt == NULL ||
+        !activation_provider_is_valid(provider) ||
+        laplace_framework_context_fingerprint(
+            context, &context_fingerprint) != LAPLACE_FRAMEWORK_OK ||
+        !admitted_receipt_is_valid(receipt) ||
+        !digest_equal(&receipt->context_fingerprint, &context_fingerprint) ||
+        receipt->epoch_slot != request->epoch_slot ||
+        !digest_equal(&receipt->expected_epoch, &request->expected_epoch) ||
+        !digest_equal(&receipt->next_epoch, &request->next_epoch)) {
+        return LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
+    }
+    provider->abort(
+        provider->state, request, &receipt->preparation_fingerprint);
+    memset(&receipt->activation_fingerprint, 0,
+           sizeof(receipt->activation_fingerprint));
+    receipt->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT;
+    receipt->status = LAPLACE_FRAMEWORK_OK;
+    hash_activation_receipt(receipt);
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status laplace_framework_activate_staged_stream(
+    const laplace_framework_context* context,
+    const laplace_framework_stream_receipt* staged_receipt,
+    const laplace_framework_activation_request* request,
+    const laplace_framework_activation_provider_v1* provider,
+    laplace_framework_activation_receipt* receipt) {
+    laplace_framework_status status = laplace_framework_admit_staged_stream(
+        context, staged_receipt, request, provider, receipt);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        return status;
+    }
+    return laplace_framework_commit_admitted_stream(
+        context, request, provider, receipt);
 }
