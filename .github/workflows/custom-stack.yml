@@ -83,14 +83,15 @@ jobs:
             -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
             -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
             -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
+            -DLAPLACE_ENABLE_DOTNET_BINDINGS=ON \
             -DLAPLACE_PG_CONFIG="$LAPLACE_PG_CONFIG"
           printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
-      - name: Build native engine and PostgreSQL extension
+      - name: Build native engine PostgreSQL extension and managed bindings
         run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 6
-      - name: Execute complete PostgreSQL profile
+      - name: Execute complete custom-stack profile
         run: ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" --output-on-failure
-      - name: Verify PostgreSQL-profile registry
-        run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY" postgres
+      - name: Verify custom-stack registry
+        run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY" custom-stack
       - name: Print retained PostgreSQL evidence
         if: failure()
         shell: bash

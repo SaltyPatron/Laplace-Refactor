@@ -24,6 +24,8 @@ set(LAPLACE_GTEST_SOURCE "" CACHE PATH "Verified upstream GoogleTest source dire
 set(LAPLACE_EIGEN_SOURCE "" CACHE PATH "Verified upstream Eigen source directory")
 set(LAPLACE_SPECTRA_SOURCE "" CACHE PATH "Verified upstream Spectra source directory")
 set(LAPLACE_PG_CONFIG "" CACHE FILEPATH "PostgreSQL pg_config for the server extension profile")
+option(LAPLACE_ENABLE_DOTNET_BINDINGS
+    "Generate and build the .NET 10 typed ISA orchestration surface" OFF)
 set(LAPLACE_DEPENDENCY_LOCK
     "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/lock.json"
     CACHE FILEPATH "Laplace dependency lock")
@@ -78,6 +80,14 @@ laplace_configure_framework_contract(
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/framework.h")
 
 add_subdirectory(engine)
+
+if(LAPLACE_ENABLE_DOTNET_BINDINGS)
+    include(cmake/LaplaceDotnetBindings.cmake)
+    laplace_configure_dotnet_bindings(
+        "${CMAKE_CURRENT_SOURCE_DIR}/contracts/isa.json"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/bindings/generate-dotnet.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/managed/Laplace.Managed/Laplace.Managed.csproj")
+endif()
 
 if(LAPLACE_PG_CONFIG)
     include(cmake/LaplacePostgreSQL.cmake)

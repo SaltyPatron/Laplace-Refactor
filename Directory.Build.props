@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup Condition="'$(LaplaceManagedBuildRoot)' != ''">
+    <BaseOutputPath>$(LaplaceManagedBuildRoot)/$(MSBuildProjectName)/bin/</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(LaplaceManagedBuildRoot)/$(MSBuildProjectName)/obj/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>
