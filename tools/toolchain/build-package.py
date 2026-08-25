@@ -77,6 +77,7 @@ REQUIRED_TOOL_IDS = {
 HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 ABSOLUTE_PATH_PATTERN = re.compile(r"(?<![A-Za-z0-9_.-])(/[A-Za-z0-9_+.,:@%/=-]+)")
 NEEDED_PATTERN = re.compile(r"Shared library: \[([^]]+)\]")
+RUNPATH_PATTERN = re.compile(r"Library (?:runpath|rpath): \[([^]]*)\]")
 
 
 class ToolchainError(RuntimeError):
@@ -149,6 +150,17 @@ def ensure_external(path: Path, repository: Path, name: str) -> Path:
     raise ToolchainError(f"{name} must be outside the repository: {resolved}")
 
 
+def component_working_directory(
+    component_id: str,
+    source_mode: str,
+    source: Path,
+    component_build: Path,
+    repository: Path,
+) -> Path:
+    candidate = source if source_mode == "private-copy-in-tree" else component_build
+    return ensure_external(candidate, repository, f"{component_id} working directory")
+
+
 def validate_contract(contract: dict[str, Any], repository: Path | None = None) -> None:
     if contract.get("schema") != CONTRACT_SCHEMA:
         raise ToolchainError(f"contract schema must be {CONTRACT_SCHEMA}")
@@ -216,7 +228,18 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
         if not HASH_PATTERN.fullmatch(digest):
             raise ToolchainError(f"bootstrap tool digest must be lowercase SHA-256: {tool_id}")
         require_string(tool.get("version_argument"), f"bootstrap.tools[{index}].version_argument")
-    for required in ("cc", "cxx", "ld", "ar", "nm", "ranlib", "make", "python", "sh"):
+    for required in (
+        "cc",
+        "cxx",
+        "ld",
+        "ar",
+        "nm",
+        "ranlib",
+        "readelf",
+        "make",
+        "python",
+        "sh",
+    ):
         if required not in ids:
             raise ToolchainError(f"bootstrap.tools must include {required}")
     system_abi = require_object(bootstrap.get("system_abi"), "bootstrap.system_abi")
@@ -288,6 +311,12 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
             raise ToolchainError("Perl configure omits a receipted system ABI include root")
     if not any("-nostdinc" in argument for argument in perl_configure):
         raise ToolchainError("Perl configure must disable compiler default include search")
+    for component_id in ("tcl", "expect"):
+        configure = components[component_id]["configure"]
+        if "--enable-shared" not in configure or "--disable-shared" in configure:
+            raise ToolchainError(
+                f"{component_id} must use the selected-prefix shared linkage contract"
+            )
 
     receipt = require_object(contract.get("receipt"), "receipt")
     sections = require_string_array(receipt.get("required_sections"), "receipt.required_sections")
@@ -826,10 +855,136 @@ def absolute_existing_inputs(text: str) -> list[dict[str, Any]]:
 
 
 def elf_needed(readelf: Path, binary: Path) -> list[str]:
+    return elf_dynamic(readelf, binary)["needed"]
+
+
+def elf_dynamic(readelf: Path, binary: Path) -> dict[str, Any]:
     result = subprocess.run([str(readelf), "-d", str(binary)], text=True, capture_output=True)
     if result.returncode != 0:
-        raise ToolchainError(f"readelf failed for compiler probe: {result.stderr.strip()}")
-    return sorted(set(NEEDED_PATTERN.findall(result.stdout)))
+        raise ToolchainError(f"readelf failed for {binary}: {result.stderr.strip()}")
+    runpaths: list[str] = []
+    for value in RUNPATH_PATTERN.findall(result.stdout):
+        runpaths.extend(item for item in value.split(":") if item)
+    return {
+        "path": str(binary),
+        "sha256": sha256_file(binary.resolve()),
+        "needed": sorted(set(NEEDED_PATTERN.findall(result.stdout))),
+        "runpaths": runpaths,
+    }
+
+
+def verify_dynamic_linkage(
+    receipt: dict[str, Any],
+    prefix: Path,
+    required_providers: Mapping[str, Path],
+    expected_runpaths: list[Path],
+) -> dict[str, Any]:
+    missing = sorted(set(required_providers) - set(receipt["needed"]))
+    if missing:
+        raise ToolchainError(
+            f"selected-prefix dynamic linkage omits: {', '.join(missing)}"
+        )
+    observed_runpaths = receipt["runpaths"]
+    expected = [str(path) for path in expected_runpaths]
+    if observed_runpaths != expected:
+        raise ToolchainError(
+            f"selected-prefix RUNPATH differs: expected {expected}, observed {observed_runpaths}"
+        )
+    providers: dict[str, dict[str, Any]] = {}
+    for needed, provider in required_providers.items():
+        resolved = provider.resolve()
+        try:
+            resolved.relative_to(prefix.resolve())
+        except ValueError as error:
+            raise ToolchainError(f"dynamic provider escapes selected prefix: {provider}") from error
+        if not provider.is_file():
+            raise ToolchainError(f"selected dynamic provider is missing: {provider}")
+        providers[needed] = {
+            "path": str(provider),
+            "resolved_path": str(resolved),
+            "sha256": sha256_file(resolved),
+        }
+    return {**receipt, "providers": providers}
+
+
+def probe_installed_tool(
+    command: Sequence[str], home: Path, standard_input: str | None = None
+) -> str:
+    environment = {
+        "HOME": str(home),
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+    }
+    result = subprocess.run(
+        list(command),
+        input=standard_input,
+        text=True,
+        capture_output=True,
+        env=environment,
+    )
+    if result.returncode != 0:
+        raise ToolchainError(
+            f"installed tool failed without loader overrides: {command[0]}: "
+            f"{(result.stdout + result.stderr).strip()}"
+        )
+    return (result.stdout + result.stderr).strip()
+
+
+def verify_component_installation(
+    component_id: str,
+    prefix: Path,
+    bootstrap: Mapping[str, Mapping[str, str]],
+    home: Path,
+) -> dict[str, Any]:
+    if component_id not in ("tcl", "expect"):
+        return {"status": "not-applicable"}
+    readelf = Path(bootstrap["readelf"]["path"])
+    library_root = prefix / "lib"
+    if component_id == "tcl":
+        binary = prefix / "bin/tclsh8.6"
+        provider = library_root / "libtcl8.6.so"
+        linkage = verify_dynamic_linkage(
+            elf_dynamic(readelf, binary),
+            prefix,
+            {"libtcl8.6.so": provider},
+            [library_root],
+        )
+        version = probe_installed_tool(
+            [str(binary)], home, "puts [info patchlevel]\n"
+        )
+        if version != EXPECTED_VERSIONS["tcl"]:
+            raise ToolchainError(f"selected Tcl probe returned unexpected version: {version}")
+        return {"status": "verified", "version": version, "linkage": linkage}
+
+    binary = prefix / "bin/expect"
+    expect_root = library_root / f"expect{EXPECTED_VERSIONS['expect']}"
+    expect_provider = expect_root / f"libexpect{EXPECTED_VERSIONS['expect']}.so"
+    tcl_provider = library_root / "libtcl8.6.so"
+    linkage = verify_dynamic_linkage(
+        elf_dynamic(readelf, binary),
+        prefix,
+        {
+            f"libexpect{EXPECTED_VERSIONS['expect']}.so": expect_provider,
+            "libtcl8.6.so": tcl_provider,
+        },
+        [library_root, expect_root],
+    )
+    library_linkage = verify_dynamic_linkage(
+        elf_dynamic(readelf, expect_provider),
+        prefix,
+        {},
+        [library_root],
+    )
+    version = probe_installed_tool([str(binary), "-v"], home)
+    if EXPECTED_VERSIONS["expect"] not in version:
+        raise ToolchainError(f"selected Expect probe returned unexpected version: {version}")
+    return {
+        "status": "verified",
+        "version": version,
+        "linkage": linkage,
+        "library_linkage": library_linkage,
+    }
 
 
 def compiler_receipts(
@@ -994,6 +1149,13 @@ def execute_plan(
             ),
         }
         environment = build_environment(contract, plan, component_id)
+        working_directory = component_working_directory(
+            component_id,
+            component["source_mode"],
+            source,
+            component_build,
+            Path(plan["repository"]),
+        )
         steps: list[dict[str, Any]] = []
         for step_name in ("configure", "build", "test", "install"):
             command = format_command(
@@ -1006,7 +1168,7 @@ def execute_plan(
             )
             step_receipt = run_logged(
                 command,
-                source if component["source_mode"] == "private-copy-in-tree" else component_build,
+                working_directory,
                 environment,
                 component_build / f"{step_name}.log",
             )
@@ -1017,6 +1179,13 @@ def execute_plan(
                 step_receipt["prerequisite_contract"] = prerequisite_receipt
                 step_receipt["configure_log_contract"] = verify_component_configure_log(
                     component_id, Path(step_receipt["log_path"])
+                )
+            if step_name == "install":
+                step_receipt["installation_contract"] = verify_component_installation(
+                    component_id,
+                    prefix,
+                    plan["bootstrap_inputs"],
+                    Path(plan["build_directory"]) / ".home",
                 )
             steps.append(step_receipt)
         component_steps[component_id] = steps
