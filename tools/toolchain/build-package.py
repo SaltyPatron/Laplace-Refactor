@@ -50,6 +50,20 @@ EXPECTED_VERSIONS = {
     "cmake": "4.4.2",
     "ninja": "1.13.2",
 }
+EXPECTED_TEST_COMMANDS = {
+    "perl": ["{make}", "test"],
+    "texinfo": ["{make}", "-j{jobs}", "check"],
+    "gnu-make": ["{make}", "-j{jobs}", "check"],
+    "tcl": ["{make}", "-j{jobs}", "test"],
+    "expect": ["{make}", "-j{jobs}", "test"],
+    "dejagnu": ["{make}", "-j{jobs}", "check"],
+    "gnu-binutils": ["{make}", "-j{jobs}", "check"],
+    "pkgconf": ["{make}", "-j{jobs}", "check"],
+    "gnu-bison": ["{make}", "-j{jobs}", "check"],
+    "flex": ["{make}", "-j{jobs}", "check"],
+    "cmake": ["{build}/bin/ctest", "--output-on-failure", "-j{jobs}"],
+    "ninja": ["{ctest}", "--test-dir", "{build}", "--output-on-failure", "-j{jobs}"],
+}
 REQUIRED_TOOL_IDS = {
     "ar",
     "as",
@@ -78,6 +92,9 @@ HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 ABSOLUTE_PATH_PATTERN = re.compile(r"(?<![A-Za-z0-9_.-])(/[A-Za-z0-9_+.,:@%/=-]+)")
 NEEDED_PATTERN = re.compile(r"Shared library: \[([^]]+)\]")
 RUNPATH_PATTERN = re.compile(r"Library (?:runpath|rpath): \[([^]]*)\]")
+DEJAGNU_OUTCOME_PATTERN = re.compile(
+    r"^(PASS|FAIL|ERROR|UNRESOLVED|XPASS|XFAIL|UNSUPPORTED|UNTESTED):"
+)
 
 
 class ToolchainError(RuntimeError):
@@ -288,6 +305,8 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
             raise ToolchainError(f"unsupported source mode for {component_id}")
         for step in ("configure", "build", "test", "install"):
             require_string_array(component.get(step), f"build.components.{component_id}.{step}")
+        if component["test"] != EXPECTED_TEST_COMMANDS[component_id]:
+            raise ToolchainError(f"{component_id}.test must execute the complete selected suite")
         declared_tools.update(
             require_string_array(component.get("tools"), f"build.components.{component_id}.tools")
         )
@@ -317,6 +336,44 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
             raise ToolchainError(
                 f"{component_id} must use the selected-prefix shared linkage contract"
             )
+    binutils = components["gnu-binutils"]
+    if "--disable-gprofng" not in binutils["configure"]:
+        raise ToolchainError("gnu-binutils must exclude unselected gprofng")
+    if binutils.get("feature_selection") != {
+        "gprofng": "excluded-not-a-product-tool"
+    }:
+        raise ToolchainError("gnu-binutils gprofng feature selection must remain explicit")
+    if "gprofng" in binutils["tools"]:
+        raise ToolchainError("unselected gprofng cannot appear in the toolchain manifest")
+    test_policy = require_object(
+        binutils.get("test_policy"), "build.components.gnu-binutils.test_policy"
+    )
+    if test_policy.get("unset_environment") != ["SOURCE_DATE_EPOCH"]:
+        raise ToolchainError("binutils tests must run without SOURCE_DATE_EPOCH")
+    capabilities = test_policy.get("unselected_optional_capabilities")
+    if capabilities != [
+        {"id": "llvm-lto-plugin-tests", "commands": ["clang", "llvm-config"]}
+    ]:
+        raise ToolchainError("binutils optional LLVM test capability must remain unselected")
+    if test_policy.get("result_format") != "dejagnu-sum":
+        raise ToolchainError("binutils tests must publish DejaGNU summaries")
+    if test_policy.get("forbidden_outcomes") != [
+        "FAIL",
+        "ERROR",
+        "UNRESOLVED",
+        "XPASS",
+    ]:
+        raise ToolchainError("binutils DejaGNU failure outcomes must remain fail-closed")
+    expected_outcomes = test_policy.get("expected_outcomes")
+    expected_untested = [
+        "UNTESTED: pr33198 with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
+        "UNTESTED: pr33198-fat with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
+        "UNTESTED: pr33198 with -R .llvm.lto",
+        "UNTESTED: pr33198-fat with -R .llvm.lto",
+        "UNTESTED: bootstrap with --static",
+    ]
+    if expected_outcomes != {"UNTESTED": expected_untested}:
+        raise ToolchainError("binutils expected untested outcomes must remain exact")
 
     receipt = require_object(contract.get("receipt"), "receipt")
     sections = require_string_array(receipt.get("required_sections"), "receipt.required_sections")
@@ -588,6 +645,134 @@ def build_environment(
         environment["PKG_CONFIG"] = str(prefix / "bin/pkgconf")
         environment["PKG_CONFIG_LIBDIR"] = f"{prefix / 'lib/pkgconfig'}:{prefix / 'share/pkgconfig'}"
     return environment
+
+
+def step_environment(
+    component: Mapping[str, Any],
+    component_id: str,
+    step_name: str,
+    component_build: Path,
+    base: Mapping[str, str],
+) -> tuple[dict[str, str], dict[str, Any]]:
+    environment = dict(base)
+    if step_name != "test" or "test_policy" not in component:
+        return environment, {"status": "not-applicable"}
+
+    policy = require_object(component["test_policy"], f"{component_id}.test_policy")
+    unset = require_string_array(
+        policy.get("unset_environment"), f"{component_id}.test_policy.unset_environment"
+    )
+    for name in unset:
+        environment.pop(name, None)
+
+    rejection_directory = component_build / "unselected-optional-tools"
+    rejection_directory.mkdir(mode=0o700)
+    rejected: dict[str, dict[str, str]] = {}
+    capabilities = policy.get("unselected_optional_capabilities")
+    if not isinstance(capabilities, list) or not capabilities:
+        raise ToolchainError(f"{component_id} test policy has no optional capability declarations")
+    for index, raw_capability in enumerate(capabilities):
+        capability = require_object(raw_capability, f"optional capability {index}")
+        capability_id = require_string(capability.get("id"), f"optional capability {index}.id")
+        commands = require_string_array(
+            capability.get("commands"), f"optional capability {capability_id}.commands"
+        )
+        for command in commands:
+            if "/" in command:
+                raise ToolchainError(f"optional command must be a basename: {command}")
+            path = rejection_directory / command
+            payload = (
+                "#!/bin/sh\n"
+                f"printf '%s\\n' 'Laplace: optional capability {capability_id} is not selected' >&2\n"
+                "exit 127\n"
+            )
+            path.write_text(payload, encoding="utf-8")
+            path.chmod(0o700)
+            rejected[command] = {
+                "capability": capability_id,
+                "path": str(path),
+                "sha256": sha256_file(path),
+            }
+    environment["PATH"] = f"{rejection_directory}:{environment['PATH']}"
+    for command, receipt in rejected.items():
+        selected = shutil.which(command, path=environment["PATH"])
+        if selected != receipt["path"]:
+            raise ToolchainError(f"ambient optional command escaped rejection: {command}")
+    return environment, {
+        "status": "verified",
+        "unset_environment": unset,
+        "unselected_optional_commands": rejected,
+    }
+
+
+def verify_dejagnu_results(
+    component_id: str, component_build: Path, test_policy: Mapping[str, Any]
+) -> dict[str, Any]:
+    if test_policy.get("result_format") != "dejagnu-sum":
+        return {"status": "not-applicable"}
+    summary_paths = sorted(component_build.rglob("*.sum"))
+    if not summary_paths:
+        raise ToolchainError(f"{component_id} produced no DejaGNU summary files")
+    counts = {
+        outcome: 0
+        for outcome in (
+            "PASS",
+            "FAIL",
+            "ERROR",
+            "UNRESOLVED",
+            "XPASS",
+            "XFAIL",
+            "UNSUPPORTED",
+            "UNTESTED",
+        )
+    }
+    files: list[dict[str, Any]] = []
+    findings: list[dict[str, str]] = []
+    outcome_lines: dict[str, list[str]] = {outcome: [] for outcome in counts}
+    forbidden = set(
+        require_string_array(
+            test_policy.get("forbidden_outcomes"),
+            f"{component_id}.test_policy.forbidden_outcomes",
+        )
+    )
+    for path in summary_paths:
+        relative = str(path.relative_to(component_build))
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            match = DEJAGNU_OUTCOME_PATTERN.match(line)
+            if match is None:
+                continue
+            outcome = match.group(1)
+            counts[outcome] += 1
+            outcome_lines[outcome].append(line)
+            if outcome in forbidden:
+                findings.append({"file": relative, "outcome": outcome, "line": line})
+        files.append({"path": relative, "sha256": sha256_file(path)})
+    if findings:
+        first = findings[0]
+        raise ToolchainError(
+            f"{component_id} DejaGNU summary contains {len(findings)} forbidden outcomes; "
+            f"first is {first['file']}: {first['line']}"
+        )
+    expected_outcomes = require_object(
+        test_policy.get("expected_outcomes"),
+        f"{component_id}.test_policy.expected_outcomes",
+    )
+    for outcome, expected_value in expected_outcomes.items():
+        expected = require_string_array(
+            expected_value, f"{component_id}.test_policy.expected_outcomes.{outcome}"
+        )
+        observed = outcome_lines.get(outcome)
+        if observed is None or sorted(observed) != sorted(expected):
+            raise ToolchainError(
+                f"{component_id} DejaGNU {outcome} outcomes differ from the selected capability contract"
+            )
+    return {
+        "status": "verified",
+        "format": "dejagnu-sum",
+        "counts": counts,
+        "expected_outcomes": expected_outcomes,
+        "summary_files": files,
+    }
 
 
 def format_command(
@@ -937,6 +1122,17 @@ def verify_component_installation(
     bootstrap: Mapping[str, Mapping[str, str]],
     home: Path,
 ) -> dict[str, Any]:
+    if component_id == "gnu-binutils":
+        forbidden = [prefix / "bin/gprofng", prefix / "bin/gp-display-html"]
+        present = [str(path) for path in forbidden if path.exists()]
+        if present:
+            raise ToolchainError(
+                f"unselected gprofng artifacts entered the package: {', '.join(present)}"
+            )
+        return {
+            "status": "verified",
+            "excluded_features": {"gprofng": "absent"},
+        }
     if component_id not in ("tcl", "expect"):
         return {"status": "not-applicable"}
     readelf = Path(bootstrap["readelf"]["path"])
@@ -1166,10 +1362,17 @@ def execute_plan(
                 plan["parallel_jobs"],
                 plan["bootstrap_inputs"],
             )
+            step_environment_value, environment_contract = step_environment(
+                component,
+                component_id,
+                step_name,
+                component_build,
+                environment,
+            )
             step_receipt = run_logged(
                 command,
                 working_directory,
-                environment,
+                step_environment_value,
                 component_build / f"{step_name}.log",
             )
             if step_name == "configure":
@@ -1180,6 +1383,14 @@ def execute_plan(
                 step_receipt["configure_log_contract"] = verify_component_configure_log(
                     component_id, Path(step_receipt["log_path"])
                 )
+            if step_name == "test":
+                step_receipt["environment_contract"] = environment_contract
+                if "test_policy" in component:
+                    step_receipt["test_result_contract"] = verify_dejagnu_results(
+                        component_id,
+                        component_build,
+                        require_object(component["test_policy"], "test_policy"),
+                    )
             if step_name == "install":
                 step_receipt["installation_contract"] = verify_component_installation(
                     component_id,

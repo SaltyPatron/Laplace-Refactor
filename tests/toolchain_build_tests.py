@@ -45,6 +45,14 @@ class ToolchainBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.ToolchainError, "cmake.test"):
             BUILD.validate_contract(contract)
 
+    def test_upstream_test_command_cannot_be_narrowed(self) -> None:
+        contract = self.contract()
+        contract["build"]["components"]["gnu-binutils"]["test"].append(
+            "RUNTESTFLAGS=binutils-all/ar.exp"
+        )
+        with self.assertRaisesRegex(BUILD.ToolchainError, "complete selected suite"):
+            BUILD.validate_contract(contract)
+
     def test_tcl_and_expect_must_use_shared_selected_prefix_linkage(self) -> None:
         for component_id in ("tcl", "expect"):
             with self.subTest(component_id):
@@ -119,6 +127,86 @@ class ToolchainBuildTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(BUILD.ToolchainError, "did not select runtest"):
                 BUILD.verify_component_configure_log("gnu-binutils", log)
+
+    def test_binutils_test_policy_rejects_ambient_optional_llvm_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ambient = root / "ambient"
+            ambient.mkdir()
+            shutil.copy2("/usr/bin/true", ambient / "clang")
+            shutil.copy2("/usr/bin/true", ambient / "llvm-config")
+            component = self.contract()["build"]["components"]["gnu-binutils"]
+            environment, receipt = BUILD.step_environment(
+                component,
+                "gnu-binutils",
+                "test",
+                root,
+                {
+                    "PATH": f"{ambient}:/usr/bin:/bin",
+                    "SOURCE_DATE_EPOCH": "1",
+                },
+            )
+            self.assertNotIn("SOURCE_DATE_EPOCH", environment)
+            for command in ("clang", "llvm-config"):
+                path = Path(receipt["unselected_optional_commands"][command]["path"])
+                self.assertEqual(shutil.which(command, path=environment["PATH"]), str(path))
+                self.assertTrue(path.is_file())
+                path.unlink()
+                self.assertEqual(
+                    shutil.which(command, path=environment["PATH"]),
+                    str(ambient / command),
+                )
+
+    def test_binutils_test_cannot_leak_source_date_epoch(self) -> None:
+        contract = self.contract()
+        contract["build"]["components"]["gnu-binutils"]["test_policy"][
+            "unset_environment"
+        ] = []
+        with self.assertRaisesRegex(BUILD.ToolchainError, "without SOURCE_DATE_EPOCH"):
+            BUILD.validate_contract(contract)
+
+    def test_unselected_gprofng_cannot_enter_configuration_or_manifest(self) -> None:
+        for mutation in ("configure", "tools"):
+            with self.subTest(mutation=mutation):
+                contract = self.contract()
+                component = contract["build"]["components"]["gnu-binutils"]
+                if mutation == "configure":
+                    component["configure"].remove("--disable-gprofng")
+                else:
+                    component["tools"].append("gprofng")
+                with self.assertRaisesRegex(BUILD.ToolchainError, "gprofng"):
+                    BUILD.validate_contract(contract)
+
+    def test_dejagnu_unexpected_outcomes_are_rejected_even_after_zero_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            policy = self.contract()["build"]["components"]["gnu-binutils"][
+                "test_policy"
+            ]
+            (root / "binutils.sum").write_text(
+                "PASS: stable\nXFAIL: known upstream expectation\nFAIL: regression\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BUILD.ToolchainError, "forbidden outcomes"):
+                BUILD.verify_dejagnu_results("gnu-binutils", root, policy)
+
+    def test_clean_dejagnu_summaries_are_receipted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            policy = self.contract()["build"]["components"]["gnu-binutils"][
+                "test_policy"
+            ]
+            (root / "binutils.sum").write_text(
+                "PASS: stable\nXFAIL: known upstream expectation\nUNSUPPORTED: other target\n"
+                + "\n".join(policy["expected_outcomes"]["UNTESTED"])
+                + "\n",
+                encoding="utf-8",
+            )
+            receipt = BUILD.verify_dejagnu_results("gnu-binutils", root, policy)
+            self.assertEqual(receipt["counts"]["PASS"], 1)
+            self.assertEqual(receipt["counts"]["XFAIL"], 1)
+            self.assertEqual(receipt["counts"]["UNTESTED"], 5)
+            self.assertEqual(len(receipt["summary_files"]), 1)
 
     def test_perl_local_path_defaults_are_fail_closed(self) -> None:
         contract = self.contract()

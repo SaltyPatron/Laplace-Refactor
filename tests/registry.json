@@ -18,8 +18,8 @@
     {
       "ctest_name": "toolchain-build.contract-and-mutation",
       "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-RELEASE-ASSETS"],
-      "covered_dimensions": ["source-built dependency order", "input-addressed out-of-repository build", "all upstream test suites", "ambient tool and loader rejection", "exact installed tool paths and hashes", "compiler driver trace", "linker map and static inputs", "build-toolchain-only consumer manifest"],
-      "defect_controls": ["changed build driver bytes", "missing upstream suite", "ambient tool or loader state", "repository-local output", "tool path escape", "changed installed tool bytes", "missing linker inputs", "product-runtime activation claim"]
+      "covered_dimensions": ["source-built dependency order", "input-addressed out-of-repository build", "all upstream suites in the selected configuration", "typed optional-provider exclusion", "DejaGNU outcome adjudication", "ambient tool and loader rejection", "exact installed tool paths and hashes", "compiler driver trace", "linker map and static inputs", "build-toolchain-only consumer manifest"],
+      "defect_controls": ["changed build driver bytes", "missing upstream suite", "unexpected DejaGNU result after successful command", "SOURCE_DATE_EPOCH leaked into binutils tests", "ambient optional Clang activation", "unselected gprofng packaging", "ambient tool or loader state", "repository-local output", "tool path escape", "changed installed tool bytes", "missing linker inputs", "product-runtime activation claim"]
     },
     {
       "ctest_name": "postgresql-build.contract-and-mutation",
