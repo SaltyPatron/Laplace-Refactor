@@ -20,6 +20,7 @@
       "Intel oneAPI C compiler executable",
       "Intel oneAPI C++ compiler executable",
       "configure arguments and C/C++/linker flags",
+      "PostgreSQL bundled tzdata 2026c",
       "Laplace PostgreSQL build driver",
       "Laplace release archive verifier"
     ],
@@ -37,8 +38,7 @@
       "zlib headers and libraries",
       "LZ4 headers and libraries",
       "Zstandard headers and libraries",
-      "liburing headers and libraries",
-      "system timezone data"
+      "liburing headers and libraries"
     ],
     "activation_policy": "blocked-until-all-build-and-runtime-inputs-are-selected-packaged-and-receipted"
   },
@@ -52,7 +52,6 @@
       "--with-lz4",
       "--with-zstd",
       "--with-liburing",
-      "--with-system-tzdata=/usr/share/zoneinfo",
       "--enable-tap-tests"
     ],
     "c_flags": [
