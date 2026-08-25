@@ -889,6 +889,7 @@ if(LAPLACE_POSTGRES_ENABLED)
             "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
             "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_blind_conflict_mutant>"
             "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_blind_conflict_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_persistence_mutation_failure.cmake")
     set_tests_properties(postgres.mutation-blind-persistence-conflict-detected PROPERTIES
         LABELS "postgresql;spi;persistence;identity;mutation"
