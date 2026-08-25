@@ -47,18 +47,18 @@
     },
     "gdal": {
       "upstream": "https://github.com/OSGeo/gdal.git",
-      "revision": "501754d048e07b07932ec268b6ed3c43ea0819e3",
-      "git_archive_sha256": "508a18b12ed1c71c98c2556ce4a87b92541f0d8bc2408ad826dd55a94e8675aa",
-      "version": "v3.9.3",
+      "revision": "c8b4c45fca87d3e6fbf80e7a7898b8a661ad0edc",
+      "git_archive_sha256": "495712dec0936b8d4ed9422f0a072279bb523d03254deaaaabfaaf5b186ea22d",
+      "version": "v3.13.3",
       "licenses": [
         {"path": "LICENSE.TXT", "sha256": "1dae3468e81d00da56e2936f74d33b8b3ad09d726437f19ce209a5dabea41f77"}
       ]
     },
     "geos": {
       "upstream": "https://github.com/libgeos/geos.git",
-      "revision": "b74fefb7be4ba6c833760106f95f0f495b832c43",
-      "git_archive_sha256": "3a1b4574785bddfd325971d595d5368f194738f4efc48f1c72c26993515fe876",
-      "version": "3.12.2",
+      "revision": "c389f532d25fe6228861d9b19339f9cb57ca4bdb",
+      "git_archive_sha256": "827c52e41ae40c61428ed775cfb0f184a9e0da6e8c6aaa5446d23bcc60fc2dd1",
+      "version": "3.14.1",
       "licenses": [
         {"path": "COPYING", "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"}
       ]
@@ -74,9 +74,9 @@
     },
     "postgis": {
       "upstream": "https://github.com/postgis/postgis.git",
-      "revision": "3d12666588a84b23a3147618eaa9b40b0fe5e796",
-      "git_archive_sha256": "e85c615ffcc0309437598f6ae0309c4688d0a3bc418fd010273acbb304c24321",
-      "version": "3.6.3",
+      "revision": "94d984bd083635c1d253db0f87cf80b32548e406",
+      "git_archive_sha256": "c697efbc104ab401a890e15c2c2e18146ee443cad4680e292cf25f0af151b02c",
+      "version": "3.6.4",
       "licenses": [
         {"path": "COPYING", "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"},
         {"path": "LICENSE.TXT", "sha256": "81749eea887e78402c9b85896cd629b155bc29256927f818f01001f038146391"}
@@ -84,18 +84,18 @@
     },
     "postgresql": {
       "upstream": "https://git.postgresql.org/git/postgresql.git",
-      "revision": "62d6c7d3df6287f1bd83199c1a746e50d31571a0",
-      "git_archive_sha256": "39025b826856a43f24560f82315a3ba154a95df24f4da01831083f01606f8fb0",
-      "version": "REL_18_3",
+      "revision": "724edf9bde9d356724ad384a2e196edc3c9f80f7",
+      "git_archive_sha256": "ff0acd10a039d391454f4ea6941184f56a8564e2e5010099f93f438082c900cc",
+      "version": "REL_18_6",
       "licenses": [
         {"path": "COPYRIGHT", "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"}
       ]
     },
     "proj": {
       "upstream": "https://github.com/OSGeo/PROJ.git",
-      "revision": "875a485fa5ef435c57f7682f904dd31ca92253ab",
-      "git_archive_sha256": "ff3e9f4170bef4a82061f1357bdc07b9635804fc91a4819f6e277818037818d0",
-      "version": "9.4.1",
+      "revision": "f08fa86c478c4bbbf003b1ec751dd84aa6eca486",
+      "git_archive_sha256": "3fc7a0ea4d8dfef4f28d71f8bdccd80a22c79da8040eb35dea9aab3fdcd0ce27",
+      "version": "9.8.1",
       "licenses": [
         {"path": "COPYING", "sha256": "6a8f30793e877d32e3f88b972f0970a051a3b5a26cd057d3993cb51e21c43319"}
       ]

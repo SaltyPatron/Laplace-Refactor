@@ -54,10 +54,12 @@ The installed Laplace extension also links Intel oneAPI compiler runtime, MKL, a
 libraries. The dependency graph therefore includes both the GCC-built PostgreSQL stack
 and the native engine toolchain/runtime stack.
 
-## Upstream source trees
+## Pre-selection upstream source observations
 
-The current repository has approximately 2.3 GiB of dependency sources under
-`external/`. All direct Git source trees inspected were clean at these exact commits:
+The historical dependency area had approximately 2.3 GiB of dependency sources under
+`external/`. All direct Git source trees inspected during discovery were clean at
+these exact commits. This table is observation history, not the selected clean source
+generation:
 
 | Source | Revision | Description |
 | --- | --- | --- |
@@ -91,6 +93,23 @@ These upstream trees are existing dependency assets. They may enter the new depe
 supply chain after upstream identity, clean status, license, source-tree checksum, and
 build contract verification. Their existence does not authorize copying any Laplace
 implementation from the current repository.
+
+The clean Git lock now selects release-matched revisions for every component retained
+in both Git and official-release form:
+
+| Source | Selected revision | Version |
+| --- | --- | --- |
+| PostgreSQL | `724edf9bde9d356724ad384a2e196edc3c9f80f7` | REL_18_6 |
+| PostGIS | `94d984bd083635c1d253db0f87cf80b32548e406` | 3.6.4 |
+| GDAL | `c8b4c45fca87d3e6fbf80e7a7898b8a661ad0edc` | v3.13.3 |
+| GEOS | `c389f532d25fe6228861d9b19339f9cb57ca4bdb` | 3.14.1 |
+| PROJ | `f08fa86c478c4bbbf003b1ec751dd84aa6eca486` | 9.8.1 |
+
+`tools/dependencies/verify-intent.py` rejects a component marked
+`locked-release-and-git` unless it selects exactly one source of each kind and their
+normalized versions and license-file identities agree. The complete 13-source Git
+lock was independently verified and published outside the repository as one immutable
+source generation before any new product build began.
 
 ## Selected official release inputs
 
