@@ -21,6 +21,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(LAPLACE_BLAKE3_SOURCE "" CACHE PATH "Verified upstream BLAKE3 C source directory")
 set(LAPLACE_GTEST_SOURCE "" CACHE PATH "Verified upstream GoogleTest source directory")
+set(LAPLACE_EIGEN_SOURCE "" CACHE PATH "Verified upstream Eigen source directory")
+set(LAPLACE_SPECTRA_SOURCE "" CACHE PATH "Verified upstream Spectra source directory")
 set(LAPLACE_PG_CONFIG "" CACHE FILEPATH "PostgreSQL pg_config for the server extension profile")
 set(LAPLACE_DEPENDENCY_LOCK
     "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/lock.json"
@@ -93,6 +95,22 @@ if(BUILD_TESTING)
     endif()
     laplace_verify_git_dependency(
         googletest "${LAPLACE_GTEST_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK}")
+    foreach(math_dependency IN ITEMS EIGEN SPECTRA)
+        if(NOT IS_ABSOLUTE "${LAPLACE_${math_dependency}_SOURCE}")
+            message(FATAL_ERROR
+                "LAPLACE_${math_dependency}_SOURCE must be an absolute verified source path when BUILD_TESTING=ON")
+        endif()
+    endforeach()
+    if(NOT EXISTS "${LAPLACE_EIGEN_SOURCE}/Eigen/Core")
+        message(FATAL_ERROR "LAPLACE_EIGEN_SOURCE does not contain Eigen")
+    endif()
+    if(NOT EXISTS "${LAPLACE_SPECTRA_SOURCE}/include/Spectra/SymEigsSolver.h")
+        message(FATAL_ERROR "LAPLACE_SPECTRA_SOURCE does not contain Spectra")
+    endif()
+    laplace_verify_git_dependency(
+        eigen "${LAPLACE_EIGEN_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK}")
+    laplace_verify_git_dependency(
+        spectra "${LAPLACE_SPECTRA_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK}")
     set(INSTALL_GTEST OFF CACHE BOOL "Do not install internal test dependency" FORCE)
     add_subdirectory("${LAPLACE_GTEST_SOURCE}" "${CMAKE_BINARY_DIR}/dependencies/googletest" EXCLUDE_FROM_ALL)
     add_subdirectory(tests)

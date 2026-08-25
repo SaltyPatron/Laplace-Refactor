@@ -460,7 +460,19 @@
       "ctest_name": "dependencies.intent-contract",
       "evidence_targets": ["LP-TEST-DEPENDENCY-INTENT"],
       "covered_dimensions": ["external capability classification", "downloaded dependency roots", "source-lock joins", "selection status", "semantic authority boundary"],
-      "defect_controls": ["missing source join", "duplicate source join", "missing external engine", "missing model dependency root", "empty capability intent"]
+      "defect_controls": ["missing source join", "duplicate source join", "missing external engine", "missing model dependency root", "empty capability intent", "Git and release version divergence", "Git and release license divergence"]
+    },
+    {
+      "ctest_name": "DependencyMath.CurrentEigenAndSpectraComputeSelectedEigenpairs",
+      "evidence_targets": ["LP-TEST-DEPENDENCY-INTENT"],
+      "covered_dimensions": ["selected Eigen and Spectra source compatibility", "symmetric eigensolver behavioral result"],
+      "defect_controls": ["dependencies.mutation-spectral-provider-result-detected"]
+    },
+    {
+      "ctest_name": "dependencies.mutation-spectral-provider-result-detected",
+      "evidence_targets": ["LP-TEST-DEPENDENCY-INTENT"],
+      "covered_dimensions": ["wrong spectral provider result is detected"],
+      "controls": "DependencyMath.CurrentEigenAndSpectraComputeSelectedEigenpairs"
     },
     {
       "ctest_name": "postgres.spi-isa-contract",

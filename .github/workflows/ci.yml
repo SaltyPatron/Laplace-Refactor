@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           dependency_root="$RUNNER_TEMP/laplace-dependencies"
           mkdir -p "$dependency_root"
-          for dependency in blake3 googletest; do
+          for dependency in blake3 eigen googletest spectra; do
             upstream=$(jq -r --arg dependency "$dependency" '.dependencies[$dependency].upstream' dependencies/lock.json)
             revision=$(jq -r --arg dependency "$dependency" '.dependencies[$dependency].revision' dependencies/lock.json)
             source="$dependency_root/$dependency"
@@ -60,7 +60,9 @@ jobs:
           build_directory="$RUNNER_TEMP/laplace-output/build/${{ matrix.preset }}"
           cmake --preset "${{ matrix.preset }}" -B "$build_directory" \
             -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
-            -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest"
+            -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
+            -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
+            -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra"
           printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
       - name: Build
         run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 2

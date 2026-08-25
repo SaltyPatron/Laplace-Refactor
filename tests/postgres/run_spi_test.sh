@@ -25,7 +25,11 @@ server_started=0
 cleanup() {
     exit_code=$?
     if [[ $server_started -eq 1 ]]; then
-        "$pg_bindir/pg_ctl" -D "$data_directory" -m fast -w stop >/dev/null || true
+        if ! "$pg_bindir/pg_ctl" -D "$data_directory" -m fast -t 5 -w stop \
+            >/dev/null 2>&1; then
+            "$pg_bindir/pg_ctl" -D "$data_directory" -m immediate -t 5 -w stop \
+                >/dev/null 2>&1 || true
+        fi
     fi
     if [[ "$socket_directory" == /tmp/lp-pg.* ]]; then
         rmdir -- "$socket_directory" 2>/dev/null || true

@@ -11,6 +11,35 @@ include(GoogleTest)
 gtest_discover_tests(laplace_identity_tests
     PROPERTIES LABELS "implementation;identity")
 
+add_executable(laplace_dependency_math_tests
+    dependency_math_tests.cpp)
+target_include_directories(laplace_dependency_math_tests SYSTEM PRIVATE
+    "${LAPLACE_EIGEN_SOURCE}"
+    "${LAPLACE_SPECTRA_SOURCE}/include")
+target_link_libraries(laplace_dependency_math_tests PRIVATE GTest::gtest_main)
+target_compile_options(laplace_dependency_math_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_dependency_math_tests
+    PROPERTIES LABELS "implementation;package;dependencies;numeric")
+
+add_executable(laplace_dependency_math_mutation_probe
+    dependency_math_tests.cpp)
+target_include_directories(laplace_dependency_math_mutation_probe SYSTEM PRIVATE
+    "${LAPLACE_EIGEN_SOURCE}"
+    "${LAPLACE_SPECTRA_SOURCE}/include")
+target_link_libraries(laplace_dependency_math_mutation_probe PRIVATE GTest::gtest_main)
+target_compile_definitions(laplace_dependency_math_mutation_probe
+    PRIVATE LAPLACE_TEST_WRONG_EIGENVALUE=1)
+target_compile_options(laplace_dependency_math_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME dependencies.mutation-spectral-provider-result-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_dependency_math_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_dependency_math_failure.cmake")
+set_tests_properties(dependencies.mutation-spectral-provider-result-detected PROPERTIES
+    LABELS "package;dependencies;numeric;mutation")
+
 add_executable(laplace_isa_tests
     isa_tests.cpp)
 target_link_libraries(laplace_isa_tests
