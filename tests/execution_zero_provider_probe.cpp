@@ -24,7 +24,7 @@ laplace_execution_status Task(
     return LAPLACE_EXECUTION_OK;
 }
 
-laplace_execution_status OmitLast(
+laplace_execution_status Run(
     void*,
     const laplace_execution_work_plan*,
     const laplace_execution_chunk* const chunks,
@@ -32,8 +32,8 @@ laplace_execution_status OmitLast(
     void* const task_state,
     const laplace_execution_work_task_fn task,
     laplace_execution_chunk_result* const results) {
-    for (std::size_t index = 0U; index + 1U < chunk_count; ++index) {
-        const auto status = task(
+    for (std::size_t index = 0U; index < chunk_count; ++index) {
+        const laplace_execution_status status = task(
             task_state, &chunks[index], &results[index].result_fingerprint);
         if (status != LAPLACE_EXECUTION_OK) {
             results[index].state = LAPLACE_EXECUTION_CHUNK_FAILED;
@@ -55,15 +55,12 @@ void Abort(void*) {}
 }  // namespace
 
 int main() {
-    const laplace_execution_grant grant{4096U, 4U, 1U};
+    const laplace_execution_grant grant{4096U, 2U, 1U};
     const laplace_execution_work_request request{
-        23U, 256U, 16U, 2U, 4U, 1U, 0U, 0U};
+        8U, 256U, 16U, 2U, 2U, 1U, 0U, 0U};
     laplace_execution_runtime_provider_v1 provider{};
-    std::memset(
-        provider.provider_fingerprint.bytes, 0x5a,
-        sizeof(provider.provider_fingerprint.bytes));
     provider.prepare = Prepare;
-    provider.run = OmitLast;
+    provider.run = Run;
     provider.finish = Finish;
     provider.abort = Abort;
     provider.abi_major = LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MAJOR;
@@ -71,7 +68,7 @@ int main() {
     laplace_execution_work_receipt receipt{};
     return laplace_execution_run_work(
                &grant, &request, &provider, nullptr, Task, &receipt) ==
-            LAPLACE_EXECUTION_RESULT_INVALID
+            LAPLACE_EXECUTION_OK
         ? 0
         : 2;
 }

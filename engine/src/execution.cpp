@@ -1156,6 +1156,8 @@ void execution_finish(blake3_hasher& hasher, laplace_digest256& digest) {
     blake3_hasher_finalize(&hasher, digest.bytes, sizeof(digest.bytes));
 }
 
+#if defined(LAPLACE_TEST_INFER_COMPLETION_FROM_RESULT_BYTES) || \
+    defined(LAPLACE_TEST_ZERO_PROVIDER_FINGERPRINT_IS_ABSENT)
 bool execution_digest_is_zero(const laplace_digest256& digest) {
     std::uint8_t aggregate{};
     for (const std::uint8_t byte : digest.bytes) {
@@ -1163,6 +1165,7 @@ bool execution_digest_is_zero(const laplace_digest256& digest) {
     }
     return aggregate == 0U;
 }
+#endif
 
 void execution_hash_grant(
     const laplace_execution_grant& grant,
@@ -1206,7 +1209,7 @@ void execution_hash_plan(
 
 void execution_hash_results(
     const std::vector<laplace_execution_chunk>& chunks,
-    const std::vector<laplace_digest256>& results,
+    const std::vector<laplace_execution_chunk_result>& results,
     laplace_digest256& digest) {
     blake3_hasher hasher;
     execution_hasher(hasher, execution_result_domain);
@@ -1215,8 +1218,11 @@ void execution_hash_results(
         execution_hash_u64(hasher, chunks[index].chunk_index);
         execution_hash_u64(hasher, chunks[index].first_item);
         execution_hash_u64(hasher, chunks[index].item_count);
+        execution_hash_u32(hasher, results[index].state);
+        execution_hash_u32(hasher, results[index].task_status);
         blake3_hasher_update(
-            &hasher, results[index].bytes, sizeof(results[index].bytes));
+            &hasher, results[index].result_fingerprint.bytes,
+            sizeof(results[index].result_fingerprint.bytes));
     }
     execution_finish(hasher, digest);
 }
@@ -1260,13 +1266,17 @@ laplace_execution_status serial_run(
     const std::size_t chunk_count,
     void* task_state,
     const laplace_execution_work_task_fn task,
-    laplace_digest256* result_fingerprints) {
+    laplace_execution_chunk_result* results) {
     for (std::size_t index = 0U; index < chunk_count; ++index) {
         const laplace_execution_status status = task(
-            task_state, &chunks[index], &result_fingerprints[index]);
+            task_state, &chunks[index], &results[index].result_fingerprint);
         if (status != LAPLACE_EXECUTION_OK) {
+            results[index].state = LAPLACE_EXECUTION_CHUNK_FAILED;
+            results[index].task_status = static_cast<std::uint32_t>(status);
             return status;
         }
+        results[index].state = LAPLACE_EXECUTION_CHUNK_COMPLETE;
+        results[index].task_status = LAPLACE_EXECUTION_OK;
     }
     return LAPLACE_EXECUTION_OK;
 }
@@ -1334,8 +1344,11 @@ extern "C" laplace_execution_status laplace_execution_run_work(
         provider->abi_major != LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MAJOR ||
         provider->abi_minor > LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MINOR ||
         provider->flags != LAPLACE_EXECUTION_KNOWN_PROVIDER_FLAGS ||
-        provider->reserved != 0U ||
-        execution_digest_is_zero(provider->provider_fingerprint)) {
+        provider->reserved != 0U
+#if defined(LAPLACE_TEST_ZERO_PROVIDER_FINGERPRINT_IS_ABSENT)
+        || execution_digest_is_zero(provider->provider_fingerprint)
+#endif
+        ) {
         receipt->status = LAPLACE_EXECUTION_PROVIDER_INVALID;
         execution_hash_receipt(*receipt);
         return LAPLACE_EXECUTION_PROVIDER_INVALID;
@@ -1348,7 +1361,7 @@ extern "C" laplace_execution_status laplace_execution_run_work(
     }
 
     std::vector<laplace_execution_chunk> chunks;
-    std::vector<laplace_digest256> results;
+    std::vector<laplace_execution_chunk_result> results;
     try {
         const std::size_t chunk_count =
             static_cast<std::size_t>(receipt->plan.chunk_count);
@@ -1385,13 +1398,34 @@ extern "C" laplace_execution_status laplace_execution_run_work(
         provider->state, &receipt->plan, chunks.data(), chunks.size(),
         task_state, task, results.data());
 
+    bool result_contract_valid = true;
     for (std::size_t index = 0U; index < results.size(); ++index) {
-        if (!execution_digest_is_zero(results[index])) {
+        if (results[index].state == LAPLACE_EXECUTION_CHUNK_COMPLETE &&
+            results[index].task_status == LAPLACE_EXECUTION_OK) {
+#if defined(LAPLACE_TEST_INFER_COMPLETION_FROM_RESULT_BYTES)
+            if (execution_digest_is_zero(results[index].result_fingerprint)) {
+                continue;
+            }
+#endif
             ++receipt->completed_chunks;
             receipt->completed_items += chunks[index].item_count;
+        } else if (results[index].state == LAPLACE_EXECUTION_CHUNK_NOT_STARTED &&
+                   results[index].task_status == LAPLACE_EXECUTION_OK) {
+            continue;
+        } else if (results[index].state == LAPLACE_EXECUTION_CHUNK_FAILED &&
+                   results[index].task_status != LAPLACE_EXECUTION_OK) {
+            continue;
+        } else {
+            result_contract_valid = false;
         }
     }
     execution_hash_results(chunks, results, receipt->result_fingerprint);
+    if (!result_contract_valid) {
+        provider->abort(provider->state);
+        receipt->status = LAPLACE_EXECUTION_RESULT_INVALID;
+        execution_hash_receipt(*receipt);
+        return LAPLACE_EXECUTION_RESULT_INVALID;
+    }
     if (status != LAPLACE_EXECUTION_OK) {
         provider->abort(provider->state);
         receipt->status = LAPLACE_EXECUTION_PROVIDER_RUN_FAILED;

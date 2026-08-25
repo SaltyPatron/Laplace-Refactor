@@ -33,7 +33,7 @@ set(LAPLACE_INSTALLED_PROVIDER_LOCK
     "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/installed-lock.json"
     CACHE FILEPATH "Selected installed-provider byte lock")
 option(LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER
-    "Verify and expose the exact selected installed oneAPI provider without activating it"
+    "Verify and enable the exact selected installed oneAPI execution provider"
     OFF)
 
 include(cmake/LaplaceDependencyLock.cmake)

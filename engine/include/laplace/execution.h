@@ -134,6 +134,12 @@ typedef struct laplace_execution_chunk {
     uint64_t item_count;
 } laplace_execution_chunk;
 
+typedef struct laplace_execution_chunk_result {
+    laplace_digest256 result_fingerprint;
+    uint32_t state;
+    uint32_t task_status;
+} laplace_execution_chunk_result;
+
 typedef laplace_execution_status (*laplace_execution_work_task_fn)(
     void* state,
     const laplace_execution_chunk* chunk,
@@ -151,7 +157,7 @@ typedef laplace_execution_status (*laplace_execution_provider_run_fn)(
     size_t chunk_count,
     void* task_state,
     laplace_execution_work_task_fn task,
-    laplace_digest256* result_fingerprints);
+    laplace_execution_chunk_result* results);
 
 typedef laplace_execution_status (*laplace_execution_provider_finish_fn)(
     void* state);
@@ -185,6 +191,13 @@ typedef struct laplace_execution_work_receipt {
     uint32_t status;
 } laplace_execution_work_receipt;
 
+typedef struct laplace_execution_oneapi_provider_state {
+    laplace_execution_grant grant;
+    laplace_execution_work_plan plan;
+    uint32_t lifecycle;
+    uint32_t reserved;
+} laplace_execution_oneapi_provider_state;
+
 LAPLACE_API laplace_execution_status laplace_execution_topology_measure_host(
     laplace_execution_topology_size* required);
 
@@ -211,6 +224,10 @@ LAPLACE_API laplace_execution_status laplace_execution_plan_work(
     laplace_execution_work_plan* plan);
 
 LAPLACE_API laplace_execution_status laplace_execution_serial_provider(
+    laplace_execution_runtime_provider_v1* provider);
+
+LAPLACE_API laplace_execution_status laplace_execution_oneapi_provider(
+    laplace_execution_oneapi_provider_state* state,
     laplace_execution_runtime_provider_v1* provider);
 
 LAPLACE_API laplace_execution_status laplace_execution_run_work(

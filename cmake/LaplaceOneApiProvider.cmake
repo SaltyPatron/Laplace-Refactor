@@ -159,9 +159,14 @@ function(laplace_configure_oneapi_provider)
         LaplaceOneApiTbbObject)
     add_library(LaplaceOneApi::MKLTbb ALIAS LaplaceOneApiMklTbb)
 
+    configure_file(
+        "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/oneapi-provider.h.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/oneapi-provider.h"
+        @ONLY)
+
     message(STATUS
         "Verified installed oneAPI selection ${LAPLACE_ONEAPI_SELECTION_SHA256}: "
         "Intel runtime ${LAPLACE_ONEAPI_INTEL_ONEAPI_RUNTIME_VERSION}, "
         "oneTBB ${LAPLACE_ONEAPI_ONETBB_VERSION}, "
-        "oneMKL ${LAPLACE_ONEAPI_ONEMKL_VERSION}; no product target activated")
+        "oneMKL ${LAPLACE_ONEAPI_ONEMKL_VERSION}; provider targets selected")
 endfunction()

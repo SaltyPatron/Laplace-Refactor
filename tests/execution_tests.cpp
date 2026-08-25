@@ -12,6 +12,8 @@
 namespace {
 
 static_assert(sizeof(laplace_execution_chunk) == 24U);
+static_assert(sizeof(laplace_execution_chunk_result) == 40U);
+static_assert(sizeof(laplace_execution_oneapi_provider_state) == 64U);
 static_assert(sizeof(laplace_execution_work_receipt) == 256U);
 
 struct SyntheticTopology final {
@@ -93,6 +95,14 @@ laplace_execution_status FingerprintChunk(
     return LAPLACE_EXECUTION_OK;
 }
 
+laplace_execution_status ZeroFingerprintChunk(
+    void*,
+    const laplace_execution_chunk*,
+    laplace_digest256* const result) {
+    std::memset(result, 0, sizeof(*result));
+    return LAPLACE_EXECUTION_OK;
+}
+
 struct ReverseProviderState final {
     std::uint32_t prepare_calls{};
     std::uint32_t finish_calls{};
@@ -114,13 +124,18 @@ laplace_execution_status ReverseRun(
     const std::size_t chunk_count,
     void* const task_state,
     const laplace_execution_work_task_fn task,
-    laplace_digest256* const results) {
+    laplace_execution_chunk_result* const results) {
     for (std::size_t offset = 0U; offset < chunk_count; ++offset) {
         const std::size_t index = chunk_count - offset - 1U;
-        const auto status = task(task_state, &chunks[index], &results[index]);
+        const auto status = task(
+            task_state, &chunks[index], &results[index].result_fingerprint);
         if (status != LAPLACE_EXECUTION_OK) {
+            results[index].state = LAPLACE_EXECUTION_CHUNK_FAILED;
+            results[index].task_status = static_cast<std::uint32_t>(status);
             return status;
         }
+        results[index].state = LAPLACE_EXECUTION_CHUNK_COMPLETE;
+        results[index].task_status = LAPLACE_EXECUTION_OK;
     }
     return LAPLACE_EXECUTION_OK;
 }
@@ -156,12 +171,17 @@ laplace_execution_status OmitLastRun(
     const std::size_t chunk_count,
     void* const task_state,
     const laplace_execution_work_task_fn task,
-    laplace_digest256* const results) {
+    laplace_execution_chunk_result* const results) {
     for (std::size_t index = 0U; index + 1U < chunk_count; ++index) {
-        const auto status = task(task_state, &chunks[index], &results[index]);
+        const auto status = task(
+            task_state, &chunks[index], &results[index].result_fingerprint);
         if (status != LAPLACE_EXECUTION_OK) {
+            results[index].state = LAPLACE_EXECUTION_CHUNK_FAILED;
+            results[index].task_status = static_cast<std::uint32_t>(status);
             return status;
         }
+        results[index].state = LAPLACE_EXECUTION_CHUNK_COMPLETE;
+        results[index].task_status = LAPLACE_EXECUTION_OK;
     }
     return LAPLACE_EXECUTION_OK;
 }
@@ -401,6 +421,40 @@ TEST(ExecutionRuntime, SerialAndReverseProvidersShareExactChunksAndResults) {
             repeated_receipt.receipt_id.bytes,
             sizeof(serial_receipt.receipt_id.bytes)),
         0);
+}
+
+TEST(ExecutionRuntime, ExplicitCompletionStateAcceptsAnAllZeroResultFingerprint) {
+    const laplace_execution_grant grant{4096U, 2U, 1U};
+    const laplace_execution_work_request request{
+        8U, 256U, 16U, 2U, 2U, 1U, 0U, 0U};
+    laplace_execution_runtime_provider_v1 serial{};
+    ASSERT_EQ(
+        laplace_execution_serial_provider(&serial), LAPLACE_EXECUTION_OK);
+    laplace_execution_work_receipt receipt{};
+    ASSERT_EQ(
+        laplace_execution_run_work(
+            &grant, &request, &serial, nullptr, ZeroFingerprintChunk, &receipt),
+        LAPLACE_EXECUTION_OK);
+    EXPECT_EQ(receipt.completed_chunks, receipt.plan.chunk_count);
+    EXPECT_EQ(receipt.completed_items, request.item_count);
+}
+
+TEST(ExecutionRuntime, AnAllZeroProviderFingerprintRemainsAValidIdentity) {
+    const laplace_execution_grant grant{4096U, 2U, 1U};
+    const laplace_execution_work_request request{
+        8U, 256U, 16U, 2U, 2U, 1U, 0U, 0U};
+    ReverseProviderState state{};
+    auto provider = ReverseProvider(state);
+    std::memset(
+        provider.provider_fingerprint.bytes, 0,
+        sizeof(provider.provider_fingerprint.bytes));
+    WorkTaskState task_state;
+    laplace_execution_work_receipt receipt{};
+    ASSERT_EQ(
+        laplace_execution_run_work(
+            &grant, &request, &provider, &task_state, FingerprintChunk, &receipt),
+        LAPLACE_EXECUTION_OK);
+    EXPECT_EQ(receipt.completed_items, request.item_count);
 }
 
 TEST(ExecutionRuntime, MissingChunkResultAbortsAndCannotPublishSuccess) {

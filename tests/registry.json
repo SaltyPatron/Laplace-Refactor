@@ -447,6 +447,25 @@
       "defect_controls": ["execution.mutation-missing-chunk-result-detected"]
     },
     {
+      "ctest_name": "ExecutionRuntime.ExplicitCompletionStateAcceptsAnAllZeroResultFingerprint",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["typed completion state independent of result bytes", "complete 256-bit result domain"],
+      "defect_controls": ["execution.mutation-result-bytes-as-completion-state-detected"]
+    },
+    {
+      "ctest_name": "ExecutionRuntime.AnAllZeroProviderFingerprintRemainsAValidIdentity",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["complete provider-fingerprint bit domain", "provider identity independent of execution presence"],
+      "defect_controls": ["execution.mutation-zero-provider-fingerprint-sentinel-detected"]
+    },
+    {
+      "ctest_name": "ExecutionOneApi.AppliesOneTbbAndOneMklFromTheSameConservedGrant",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-NESTED-PARALLEL-BUDGET", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["locked oneTBB task arena", "thread-local oneMKL grant", "serial and oneAPI plan and result parity", "provider-specific receipt"],
+      "defect_controls": ["execution.mutation-oneapi-mkl-grant-omission-detected"]
+    },
+    {
       "ctest_name": "ExecutionRuntime.TaskFailureAbortsWithAnExactPartialReceipt",
       "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
       "covered_dimensions": ["task failure", "exact completed prefix", "provider abort"]
@@ -456,6 +475,25 @@
       "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
       "covered_dimensions": ["missing chunk result validation bypass is detected"],
       "controls": "ExecutionRuntime.MissingChunkResultAbortsAndCannotPublishSuccess"
+    },
+    {
+      "ctest_name": "execution.mutation-result-bytes-as-completion-state-detected",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["result payload promoted into execution-state sentinel is detected"],
+      "controls": "ExecutionRuntime.ExplicitCompletionStateAcceptsAnAllZeroResultFingerprint"
+    },
+    {
+      "ctest_name": "execution.mutation-zero-provider-fingerprint-sentinel-detected",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["provider identity bytes promoted into presence sentinel is detected"],
+      "controls": "ExecutionRuntime.AnAllZeroProviderFingerprintRemainsAValidIdentity"
+    },
+    {
+      "ctest_name": "execution.mutation-oneapi-mkl-grant-omission-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-NESTED-PARALLEL-BUDGET", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["oneMKL thread grant omission is detected"],
+      "controls": "ExecutionOneApi.AppliesOneTbbAndOneMklFromTheSameConservedGrant"
     },
     {
       "ctest_name": "execution.mutation-resource-duplication-detected",
