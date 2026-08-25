@@ -46,6 +46,7 @@
       "OBJCOPY",
       "OBJDUMP",
       "PERL5LIB",
+      "PERL",
       "PERL_LOCAL_LIB_ROOT",
       "PERL_MB_OPT",
       "PERL_MM_OPT",
@@ -80,9 +81,9 @@
     "parallel_jobs": 6,
     "directory_mode": "0700",
     "component_order": [
-      "gnu-make",
       "perl",
       "texinfo",
+      "gnu-make",
       "gnu-binutils",
       "pkgconf",
       "gnu-bison",
@@ -94,7 +95,7 @@
       "gnu-make": {
         "version": "4.4.1",
         "phase": "platform-toolchain",
-        "source_mode": "immutable-out-of-tree",
+        "source_mode": "private-copy-out-of-tree",
         "configure": ["{source}/configure", "--prefix={prefix}"],
         "build": ["{make}", "-j{jobs}"],
         "test": ["{make}", "-j{jobs}", "check"],
@@ -114,7 +115,7 @@
       "texinfo": {
         "version": "7.3",
         "phase": "documentation-toolchain",
-        "source_mode": "immutable-out-of-tree",
+        "source_mode": "private-copy-out-of-tree",
         "configure": ["{source}/configure", "--prefix={prefix}", "--disable-nls", "--disable-perl-xs"],
         "build": ["{make}", "-j{jobs}"],
         "test": ["{make}", "-j{jobs}", "check"],
@@ -124,7 +125,7 @@
       "gnu-binutils": {
         "version": "2.47",
         "phase": "platform-toolchain",
-        "source_mode": "immutable-out-of-tree",
+        "source_mode": "private-copy-out-of-tree",
         "configure": ["{source}/configure", "--prefix={prefix}", "--disable-nls", "--disable-werror"],
         "build": ["{make}", "-j{jobs}"],
         "test": ["{make}", "-j{jobs}", "check"],
@@ -134,7 +135,7 @@
       "pkgconf": {
         "version": "3.0.6",
         "phase": "build-language-tools",
-        "source_mode": "immutable-out-of-tree",
+        "source_mode": "private-copy-out-of-tree",
         "configure": ["{source}/configure", "--prefix={prefix}", "--with-system-libdir={prefix}/lib", "--with-system-includedir={prefix}/include"],
         "build": ["{make}", "-j{jobs}"],
         "test": ["{make}", "-j{jobs}", "check"],
@@ -144,7 +145,7 @@
       "gnu-bison": {
         "version": "3.8.2",
         "phase": "build-language-tools",
-        "source_mode": "immutable-out-of-tree",
+        "source_mode": "private-copy-out-of-tree",
         "configure": ["{source}/configure", "--prefix={prefix}"],
         "build": ["{make}", "-j{jobs}"],
         "test": ["{make}", "-j{jobs}", "check"],
@@ -154,7 +155,7 @@
       "flex": {
         "version": "2.6.4",
         "phase": "build-language-tools",
-        "source_mode": "immutable-out-of-tree",
+        "source_mode": "private-copy-out-of-tree",
         "configure": ["{source}/configure", "--prefix={prefix}"],
         "build": ["{make}", "-j{jobs}"],
         "test": ["{make}", "-j{jobs}", "check"],
@@ -164,7 +165,7 @@
       "cmake": {
         "version": "4.4.2",
         "phase": "meta-build-tools",
-        "source_mode": "immutable-out-of-tree",
+        "source_mode": "private-copy-out-of-tree",
         "configure": ["{source}/bootstrap", "--prefix={prefix}", "--parallel={jobs}"],
         "build": ["{make}", "-j{jobs}"],
         "test": ["{build}/bin/ctest", "--output-on-failure", "-j{jobs}"],
@@ -174,7 +175,7 @@
       "ninja": {
         "version": "1.13.2",
         "phase": "meta-build-tools",
-        "source_mode": "immutable-out-of-tree",
+        "source_mode": "private-copy-out-of-tree",
         "configure": ["{cmake}", "-S", "{source}", "-B", "{build}", "-G", "Unix Makefiles", "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_INSTALL_PREFIX={prefix}"],
         "build": ["{cmake}", "--build", "{build}", "--parallel", "{jobs}"],
         "test": ["{ctest}", "--test-dir", "{build}", "--output-on-failure", "-j{jobs}"],
