@@ -19,6 +19,12 @@ CRITICAL_COMPONENTS = {
     "postgresql",
     "postgis",
     "gdal",
+    "curl",
+    "libtiff",
+    "libgeotiff",
+    "json-c",
+    "protobuf-c",
+    "proj-data",
     "geos",
     "proj",
     "intel-llvm",
@@ -48,6 +54,15 @@ CRITICAL_ROOTS = {
 
 class IntentError(RuntimeError):
     """Raised when dependency intent and committed source identity diverge."""
+
+
+def reject_duplicate_object_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    document: dict[str, object] = {}
+    for key, value in pairs:
+        if key in document:
+            raise IntentError(f"duplicate JSON object key: {key}")
+        document[key] = value
+    return document
 
 
 def canonical_release_version(value: object, component: str, lock_kind: str) -> str:
@@ -139,7 +154,9 @@ def validate_release_and_git_coherence(
 
 def load_json(path: Path) -> dict[str, object]:
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
+        document = json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_object_keys
+        )
     except (OSError, json.JSONDecodeError) as error:
         raise IntentError(f"cannot read {path}: {error}") from error
     if not isinstance(document, dict):

@@ -131,6 +131,16 @@ class RequirementTraceTests(unittest.TestCase):
         with self.assertRaisesRegex(TRACE.TraceError, "dependency cycle"):
             TRACE.validate(self.root)
 
+    def test_framework_before_acquisition_is_rejected(self) -> None:
+        path, document = self.operation_document()
+        framework = next(
+            stage for stage in document["stages"] if stage["id"] == "framework.execution"
+        )
+        framework["depends_on"] = []
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "acquired build inputs"):
+            TRACE.validate(self.root)
+
     def test_operation_stage_without_program_tracking_is_rejected(self) -> None:
         path, document = self.operation_document()
         document["stages"][0].pop("github_issues")

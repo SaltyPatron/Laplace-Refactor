@@ -27,6 +27,15 @@ class ReleaseError(RuntimeError):
     pass
 
 
+def reject_duplicate_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    document: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in document:
+            raise ReleaseError(f"duplicate JSON object key: {key}")
+        document[key] = value
+    return document
+
+
 def sha256_stream(stream: BinaryIO) -> tuple[str, int]:
     digest = hashlib.sha256()
     size = 0
@@ -169,7 +178,9 @@ def inspect_archive(path: Path, top_directory: str) -> dict[str, Any]:
 
 def load_lock(path: Path) -> dict[str, Any]:
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
+        document = json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_object_keys
+        )
     except (OSError, json.JSONDecodeError) as error:
         raise ReleaseError(f"cannot read release lock {path}: {error}") from error
     if document.get("schema") != SCHEMA:

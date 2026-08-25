@@ -64,6 +64,60 @@
       "lock_entries": ["git:gdal", "release:gdal"]
     },
     {
+      "id": "curl",
+      "class": "product-runtime",
+      "profiles": ["geometry", "ingestion", "service"],
+      "intent": ["declared TLS-backed network access for PROJ grids, GDAL datasets, and external service providers"],
+      "boundary": "Network transport supplies attributable bytes and responses; it cannot create source identity, testimony standing, or semantic authority.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "libtiff",
+      "class": "product-runtime",
+      "profiles": ["geometry", "ingestion"],
+      "intent": ["declared TIFF and GeoTIFF raster container decoding for GDAL, PROJ grids, and geospatial ingestion"],
+      "boundary": "TIFF decoding reconstructs declared source structure; enabled codecs and every transitive library remain explicit package edges.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "libgeotiff",
+      "class": "product-runtime",
+      "profiles": ["geometry", "ingestion"],
+      "intent": ["GeoTIFF metadata interpretation against the sole selected PROJ and TIFF package generation"],
+      "boundary": "GeoTIFF cannot resolve against an ambient or second PROJ generation; its loaded object closure is part of the package receipt.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "json-c",
+      "class": "product-runtime",
+      "profiles": ["database", "geometry"],
+      "intent": ["declared JSON-C support required by the selected PostGIS feature profile"],
+      "boundary": "JSON parsing supplies exact container structure only and does not adjudicate claims.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "protobuf-c",
+      "class": "product-runtime",
+      "profiles": ["database", "geometry"],
+      "intent": ["MVT and Geobuf encoding only when those PostGIS capabilities are explicitly enabled"],
+      "boundary": "The dependency is absent when the feature is disabled; host autodetection cannot add it to the package graph.",
+      "selection": "selection-required",
+      "lock_entries": []
+    },
+    {
+      "id": "proj-data",
+      "class": "versioned-standard-data",
+      "profiles": ["geometry", "ingestion"],
+      "intent": ["versioned coordinate-operation grids and metadata consumed by the selected PROJ generation"],
+      "boundary": "Every grid is identified and receipted separately; remote availability cannot silently change a completed calculation.",
+      "selection": "data-contract-selection-required",
+      "lock_entries": []
+    },
+    {
       "id": "intel-llvm",
       "class": "toolchain",
       "profiles": ["numeric-cpu", "linux", "windows"],

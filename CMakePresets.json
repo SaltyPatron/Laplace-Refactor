@@ -10,7 +10,7 @@
       "name": "linux-dev",
       "displayName": "Laplace Linux development",
       "generator": "Ninja",
-      "binaryDir": "/opt/laplace/work/laplace-refactor/build/linux-dev",
+      "binaryDir": "/opt/laplace/work/laplace-refactor/build/${sourceDirName}/linux-dev",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "BUILD_TESTING": "ON"
@@ -20,7 +20,7 @@
       "name": "linux-sanitize",
       "displayName": "Laplace Linux address and undefined behavior checks",
       "inherits": "linux-dev",
-      "binaryDir": "/opt/laplace/work/laplace-refactor/build/linux-sanitize",
+      "binaryDir": "/opt/laplace/work/laplace-refactor/build/${sourceDirName}/linux-sanitize",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_C_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",

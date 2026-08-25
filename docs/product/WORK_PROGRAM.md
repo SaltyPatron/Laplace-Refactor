@@ -70,6 +70,9 @@ pass its independent acceptance contracts regardless of either history.
 ## Phase 1 — industrial build and dependency foundation
 
 - Inventory and verify the existing upstream source trees and installed custom stack.
+- Keep the pre-framework bootstrap minimal: it may acquire, build, test, and stage
+  inert content-addressed packages, but only the execution framework may activate
+  packages, initialize product state, or admit loaded runtime objects.
 - Select one compatible dependency graph from verified upstream identities and current
   support requirements.
 - Lock source, checksums, licenses, patches, features, toolchains, and ABI facts.

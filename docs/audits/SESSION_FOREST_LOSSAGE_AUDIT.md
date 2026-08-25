@@ -6,8 +6,8 @@ The forest has not disappeared from the clean product constitution, requirement 
 or operational graph. It has been underrepresented in implementation status and in
 the live work ledger.
 
-The repository currently maps all 51 product requirements into an acyclic 11-stage
-operational model. Four stages are partial and seven are unimplemented. The native
+The repository currently maps all 51 product requirements into an acyclic 12-stage
+operational model. Five stages are partial and seven are unimplemented. The native
 identity, trajectory, geometry, ISA, topology, framework primitives, and PostgreSQL
 slice therefore establish component facts only. They are not a proportional measure
 of complete Laplace progress.
@@ -97,10 +97,13 @@ the Goedel engine, a model compiler, or any other individual tree. Its stable wh
    performance, security, and release evidence are part of Laplace. A collection of
    green component tests is not the complete product.
 
-The 11-stage operational graph is the executable ordering of these laws:
+The 12-stage operational graph is the executable ordering of these laws. Minimal
+trusted source acquisition and package construction precede the product execution
+framework; framework-mediated dependency activation follows both:
 
 ```text
-framework and dependency bootstrap
+minimal trusted acquisition and package construction
+  -> universal execution framework and dependency activation
   -> Unicode root
   -> composition and physicality
   -> bulk canonical deposition

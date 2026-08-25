@@ -121,6 +121,17 @@ class DependencyIntentTests(unittest.TestCase):
         with self.assertRaisesRegex(INTENT.IntentError, "license identity mismatch"):
             INTENT.validate(self.root)
 
+    def test_duplicate_json_key_is_rejected_before_values_are_discarded(self) -> None:
+        path = self.root / "dependencies/intent.json"
+        content = path.read_text(encoding="utf-8")
+        content = content.replace(
+            '"id": "libxml2",\n      "class": "product-runtime",',
+            '"id": "libxml2",\n      "id": "discarded-duplicate",\n      "class": "product-runtime",',
+        )
+        path.write_text(content, encoding="utf-8")
+        with self.assertRaisesRegex(INTENT.IntentError, "duplicate JSON object key: id"):
+            INTENT.validate(self.root)
+
 
 if __name__ == "__main__":
     unittest.main()

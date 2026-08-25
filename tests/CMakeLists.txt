@@ -11,6 +11,13 @@ include(GoogleTest)
 gtest_discover_tests(laplace_identity_tests
     PROPERTIES LABELS "implementation;identity")
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(
+    NAME postgresql-build.contract-and-mutation
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_build_tests.py")
+set_tests_properties(postgresql-build.contract-and-mutation PROPERTIES
+    LABELS "build;package;postgresql;mutation")
+
 add_executable(laplace_dependency_math_tests
     dependency_math_tests.cpp)
 target_include_directories(laplace_dependency_math_tests SYSTEM PRIVATE

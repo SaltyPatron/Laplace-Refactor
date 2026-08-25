@@ -99,6 +99,15 @@ existing_status=$?
 set -e
 test "$existing_status" -eq 1
 
+sed '0,/"schema"/s//"schema": "duplicate",\n  "schema"/' \
+    "$fixture/lock.json" >"$fixture/duplicate-lock.json"
+set +e
+"$tool" verify --lock "$fixture/duplicate-lock.json" --archive-root "$archive_root" \
+    >/dev/null 2>&1
+duplicate_status=$?
+set -e
+test "$duplicate_status" -eq 1
+
 printf 'changed\n' >>"$fixture/imported/pkg/src/tool.sh"
 set +e
 "$tool" verify-import \

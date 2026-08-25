@@ -386,6 +386,22 @@ def parse_operation_model(path: Path, repo_root: Path) -> dict[str, dict[str, ob
 
     for identifier in stages:
         visit(identifier)
+
+    foundation = "foundation.acquire-build"
+    framework = "framework.execution"
+    activation = "bootstrap.dependencies"
+    if not {foundation, framework, activation}.issubset(stages):
+        raise TraceError("operation model is missing the physical bootstrap stages")
+    if stages[foundation]["depends_on"]:
+        raise TraceError("minimal trusted acquisition cannot depend on product execution")
+    if foundation not in stages[framework]["depends_on"]:
+        raise TraceError("framework execution must depend on acquired build inputs")
+    activation_dependencies = set(stages[activation]["depends_on"])
+    if not {foundation, framework}.issubset(activation_dependencies):
+        raise TraceError(
+            "dependency activation must follow both acquisition and framework execution"
+        )
+
     stage_issues = {
         issue
         for stage in stages.values()

@@ -32,7 +32,7 @@ from decoded structure. The first two public ISA instructions execute codepoint
 identity and composition-trajectory decoding through pinned opcodes and value types,
 validate the complete program before writing results, and emit BLAKE3-256
 program/input/output/receipt fingerprints. The optimized and address/undefined-behavior
-builds currently expose 89 registered core-profile tests and 91 in the PostgreSQL
+builds currently expose 92 registered core-profile tests and 94 in the PostgreSQL
 profile. A native execution authority now
 observes caller-affinity CPU/package/core/NUMA/cache structure, hybrid core classes,
 usable and constrained memory, page size, and runtime ISA capabilities into an
@@ -145,7 +145,7 @@ cmake --preset linux-dev \
   -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/spectra"
 cmake --build --preset linux-dev --parallel
 ctest --preset linux-dev
-./tools/tests/verify-registry.sh /opt/laplace/work/laplace-refactor/build/linux-dev
+./tools/tests/verify-registry.sh /opt/laplace/work/laplace-refactor/build/Laplace/linux-dev
 ```
 
 The instrumented build uses the same imported sources:
@@ -158,7 +158,7 @@ cmake --preset linux-sanitize \
   -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/spectra"
 cmake --build --preset linux-sanitize --parallel
 ctest --preset linux-sanitize
-./tools/tests/verify-registry.sh /opt/laplace/work/laplace-refactor/build/linux-sanitize
+./tools/tests/verify-registry.sh /opt/laplace/work/laplace-refactor/build/Laplace/linux-sanitize
 ```
 
 The importer can populate an empty external source root from an independently acquired

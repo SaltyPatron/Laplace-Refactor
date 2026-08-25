@@ -1,8 +1,14 @@
 {
   "schema": "laplace.test-registry/v1",
-  "suite_scope": "native identity geometry execution topology ISA and perfcache components",
+  "suite_scope": "acquisition build package identity geometry execution topology ISA and perfcache components",
   "acceptance_status": "contributing evidence only",
   "tests": [
+    {
+      "ctest_name": "postgresql-build.contract-and-mutation",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE"],
+      "covered_dimensions": ["exact PostgreSQL build recipe", "private build home and directory", "ambient environment rejection", "TAP-test requirement", "runtime closure classification"],
+      "defect_controls": ["changed build driver bytes", "missing TAP support", "ambient PGXS", "inherited setgid build directory", "repository-local output", "unknown runtime SONAME"]
+    },
     {
       "ctest_name": "FrameworkRegistry.GeneratedDescriptorsMatchIsaContract",
       "evidence_targets": ["LP-TEST-FRAMEWORK-MODULE-REGISTRY"],
