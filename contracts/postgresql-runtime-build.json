@@ -1,0 +1,103 @@
+{
+  "schema": "laplace.postgresql-runtime-build/v1",
+  "release_lock": "dependencies/release-lock.json",
+  "compiler": {
+    "c_compiler": {
+      "path": "/opt/intel/oneapi/compiler/2026.1/bin/icx",
+      "sha256": "be7fa7c3c74c2ba2b8e1b50b0a61e37986441727899e25f3545636bde157c083"
+    },
+    "cxx_compiler": {
+      "path": "/opt/intel/oneapi/compiler/2026.1/bin/icpx",
+      "sha256": "be7fa7c3c74c2ba2b8e1b50b0a61e37986441727899e25f3545636bde157c083"
+    }
+  },
+  "build_toolchain": {
+    "receipt_schema": "laplace.toolchain-package-receipt/v1",
+    "consumer_manifest_schema": "laplace.toolchain-consumer-manifest/v1",
+    "required_tools": ["cmake", "ctest", "cpack", "ninja", "make", "perl", "pkgconf", "bison", "flex", "ld", "as", "ar", "ranlib", "nm", "strip", "objcopy", "objdump", "readelf"]
+  },
+  "execution": {
+    "jobs": 6,
+    "target_isa": "broadwell",
+    "c_flags": ["-O3", "-g", "-march=broadwell", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
+    "cxx_flags": ["-O3", "-g", "-march=broadwell", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
+    "final_prefix_root": "/opt/laplace/releases",
+    "build_root": "/opt/laplace/build",
+    "stage_root": "/opt/laplace/stage",
+    "rejected_environment": ["CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH", "CMAKE_PREFIX_PATH", "PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "DESTDIR"]
+  },
+  "input_closure": {
+    "status": "incomplete",
+    "unresolved": [
+      "platform ABI, glibc startup objects, GCC support tree, libgcc, and libstdc++ remain host inputs",
+      "linker maps and selected static-archive member provenance remain unreceipted",
+      "Python and the acquisition runtime remain unselected bootstrap inputs"
+    ],
+    "activation_policy": "blocked-until-complete-toolchain-static-link-and-recursive-runtime-closure"
+  },
+  "components": [
+    {
+      "id": "zlib",
+      "source": "zlib",
+      "provider": "cmake",
+      "source_subdirectory": ".",
+      "depends_on": [],
+      "configure_arguments": ["-DZLIB_BUILD_SHARED=ON", "-DZLIB_BUILD_STATIC=OFF", "-DZLIB_BUILD_TESTING=ON", "-DZLIB_INSTALL=ON"],
+      "test": "ctest"
+    },
+    {
+      "id": "lz4",
+      "source": "lz4",
+      "provider": "cmake",
+      "source_subdirectory": "build/cmake",
+      "depends_on": [],
+      "configure_arguments": ["-DBUILD_SHARED_LIBS=ON", "-DBUILD_STATIC_LIBS=OFF", "-DLZ4_BUILD_CLI=OFF"],
+      "test": "source-copy-make-check"
+    },
+    {
+      "id": "zstandard",
+      "source": "zstandard",
+      "provider": "cmake",
+      "source_subdirectory": "build/cmake",
+      "depends_on": [],
+      "configure_arguments": ["-DBUILD_SHARED_LIBS=ON", "-DBUILD_TESTING=ON", "-DZSTD_BUILD_SHARED=ON", "-DZSTD_BUILD_STATIC=OFF", "-DZSTD_BUILD_PROGRAMS=OFF", "-DZSTD_BUILD_TESTS=ON", "-DZSTD_LEGACY_SUPPORT=OFF", "-DZSTD_MULTITHREAD_SUPPORT=ON"],
+      "test": "ctest"
+    },
+    {
+      "id": "icu",
+      "source": "icu",
+      "provider": "autotools",
+      "source_subdirectory": "source",
+      "depends_on": [],
+      "configure_arguments": ["--enable-shared", "--disable-static", "--disable-samples", "--with-data-packaging=library"],
+      "test": "make-check"
+    },
+    {
+      "id": "openssl",
+      "source": "openssl",
+      "provider": "openssl",
+      "source_subdirectory": ".",
+      "depends_on": [],
+      "configure_arguments": ["linux-x86_64", "shared", "no-docs"],
+      "test": "make-test"
+    },
+    {
+      "id": "liburing",
+      "source": "liburing",
+      "provider": "source-copy-make",
+      "source_subdirectory": ".",
+      "depends_on": [],
+      "configure_arguments": ["--use-libc"],
+      "test": "make-runtests"
+    },
+    {
+      "id": "libxml2",
+      "source": "libxml2",
+      "provider": "cmake",
+      "source_subdirectory": ".",
+      "depends_on": ["zlib"],
+      "configure_arguments": ["-DBUILD_SHARED_LIBS=ON", "-DLIBXML2_WITH_DOCS=OFF", "-DLIBXML2_WITH_ICONV=OFF", "-DLIBXML2_WITH_ICU=OFF", "-DLIBXML2_WITH_LEGACY=OFF", "-DLIBXML2_WITH_MODULES=OFF", "-DLIBXML2_WITH_PYTHON=OFF", "-DLIBXML2_WITH_READLINE=OFF", "-DLIBXML2_WITH_TESTS=ON", "-DLIBXML2_WITH_ZLIB=ON"],
+      "test": "ctest"
+    }
+  ]
+}

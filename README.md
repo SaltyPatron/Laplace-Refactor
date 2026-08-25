@@ -32,7 +32,7 @@ from decoded structure. The first two public ISA instructions execute codepoint
 identity and composition-trajectory decoding through pinned opcodes and value types,
 validate the complete program before writing results, and emit BLAKE3-256
 program/input/output/receipt fingerprints. The optimized and address/undefined-behavior
-builds currently expose 92 registered core-profile tests and 94 in the PostgreSQL
+builds currently expose 93 registered core-profile tests and 95 in the PostgreSQL
 profile. A native execution authority now
 observes caller-affinity CPU/package/core/NUMA/cache structure, hybrid core classes,
 usable and constrained memory, page size, and runtime ISA capabilities into an
