@@ -238,10 +238,11 @@ def parse_operation_model(path: Path, repo_root: Path) -> dict[str, dict[str, ob
     repository = tracking.get("repository")
     if repository != "SaltyPatron/Laplace-Refactor":
         raise TraceError(f"{path} has invalid tracking repository")
-    for field in ("parent_issue", "session_audit_issue"):
-        issue = tracking.get(field)
-        if not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0:
-            raise TraceError(f"{path} has invalid {field}")
+    issue = tracking.get("parent_issue")
+    if not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0:
+        raise TraceError(f"{path} has invalid parent_issue")
+    if "session_audit_issue" in tracking:
+        raise TraceError(f"{path} cannot make a historical session audit product authority")
     tracked_issues = tracking.get("tracked_issues")
     if (
         not isinstance(tracked_issues, list)

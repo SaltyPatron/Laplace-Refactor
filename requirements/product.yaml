@@ -377,9 +377,3 @@ requirements:
     evidence:
       - LP-TEST-CLEANROOM-SEPARATION
       - LP-TEST-REQUIREMENTS-TRACEABILITY
-  - id: LP-RECOVERY-001
-    statement: Historical repositories sessions tool actions temporary state and preservation archives have exact byte identities deduplicated content inventories and explicit evidence classifications without becoming implementation authority.
-    evidence:
-      - LP-TEST-RECOVERY-EXACT-EVIDENCE
-      - LP-TEST-RECOVERY-CORPUS-DEDUPLICATION
-      - LP-TEST-RECOVERY-SQL-ACTIVITY

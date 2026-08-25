@@ -110,12 +110,7 @@ paths and hashes and rejects incomplete or conflicting package graphs.
 - [`docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md`](docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md)
   — implemented, staged, and missing framework state without component-to-product
   inflation.
-- [`docs/audits/SESSION_FOREST_LOSSAGE_AUDIT.md`](docs/audits/SESSION_FOREST_LOSSAGE_AUDIT.md)
-  — content-bound physical-session audit, whole-product status, recovered action items,
-  and the dependency-ordered GitHub work map.
 - `docs/delivery/` — dependency, package, installation, and release requirements.
-- [`docs/delivery/CANONICAL_CUTOVER.md`](docs/delivery/CANONICAL_CUTOVER.md) — verified
-  historical-tree preservation and clean canonical-path activation receipt.
 - `requirements/` — machine-readable requirements and acceptance identifiers.
 - `engine/` — new native engine implementation.
 - `postgres/` — PostgreSQL extension and SQL execution surface.
@@ -124,8 +119,8 @@ paths and hashes and rejects incomplete or conflicting package graphs.
 - `packaging/` — Linux and Windows product packages.
 - `tests/` — native, PostgreSQL, orchestration, and complete-product acceptance.
 
-The dated current-implementation archive is evidence only. No implementation from it
-is copied into this repository.
+Every implementation file in this repository is authored from the product contracts
+and verified upstream standards and dependency sources.
 
 ## Reproducible native build
 
