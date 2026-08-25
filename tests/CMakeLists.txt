@@ -45,15 +45,33 @@ target_compile_options(laplace_unicode_source_tests PRIVATE
 gtest_discover_tests(laplace_unicode_source_tests
     PROPERTIES LABELS "implementation;unicode;source;receipt")
 
+add_executable(laplace_unicode_source_fixture_tests
+    unicode_source_fixture_tests.cpp
+    ../engine/src/unicode_source.cpp)
+target_include_directories(laplace_unicode_source_fixture_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_source_fixture_tests PRIVATE
+    BLAKE3::blake3 GTest::gtest_main)
+target_compile_definitions(laplace_unicode_source_fixture_tests PRIVATE
+    LAPLACE_UNICODE_SOURCE_MANIFEST_HEADER="unicode_source_fixture_manifest.h")
+target_compile_options(laplace_unicode_source_fixture_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_unicode_source_fixture_tests
+    PROPERTIES LABELS "implementation;unicode;source;receipt")
+
 add_executable(laplace_unicode_source_mutation_probe
-    unicode_source_tests.cpp
+    unicode_source_fixture_tests.cpp
     ../engine/src/unicode_source.cpp)
 target_include_directories(laplace_unicode_source_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
     "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(laplace_unicode_source_mutation_probe PRIVATE
     BLAKE3::blake3 GTest::gtest_main)
 target_compile_definitions(laplace_unicode_source_mutation_probe PRIVATE
+    LAPLACE_UNICODE_SOURCE_MANIFEST_HEADER="unicode_source_fixture_manifest.h"
     LAPLACE_TEST_SKIP_UNICODE_SOURCE_DIGEST_VALIDATION=1)
 target_compile_options(laplace_unicode_source_mutation_probe PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
@@ -61,7 +79,7 @@ add_test(
     NAME unicode-source.mutation-digest-bypass-detected
     COMMAND "${CMAKE_COMMAND}"
         "-DPROBE=$<TARGET_FILE:laplace_unicode_source_mutation_probe>"
-        "-DFILTER=UnicodeSource.RejectsOneByteChangeInPinnedSourceSet"
+        "-DFILTER=UnicodeSourceFixture.RejectsOneByteChange"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(unicode-source.mutation-digest-bypass-detected PROPERTIES
     LABELS "implementation;unicode;source;receipt;mutation")

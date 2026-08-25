@@ -16,7 +16,11 @@
 #include <unistd.h>
 
 #include "blake3.h"
+#if defined(LAPLACE_UNICODE_SOURCE_MANIFEST_HEADER)
+#include LAPLACE_UNICODE_SOURCE_MANIFEST_HEADER
+#else
 #include "laplace/contract/unicode-source-manifest.h"
+#endif
 
 namespace {
 

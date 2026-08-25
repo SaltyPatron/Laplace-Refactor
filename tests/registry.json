@@ -932,14 +932,19 @@
     {
       "ctest_name": "UnicodeSource.RejectsOneByteChangeInPinnedSourceSet",
       "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-SEED-STALE-BOOTSTRAP-REJECTION"],
-      "covered_dimensions": ["one-byte source corruption rejection"],
+      "covered_dimensions": ["one-byte live pinned-source corruption rejection"]
+    },
+    {
+      "ctest_name": "UnicodeSourceFixture.RejectsOneByteChange",
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-SEED-STALE-BOOTSTRAP-REJECTION"],
+      "covered_dimensions": ["host-independent one-byte source corruption rejection"],
       "defect_controls": ["unicode-source.mutation-digest-bypass-detected"]
     },
     {
       "ctest_name": "unicode-source.mutation-digest-bypass-detected",
       "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-SEED-STALE-BOOTSTRAP-REJECTION"],
       "covered_dimensions": ["source digest validation bypass is detected"],
-      "controls": "UnicodeSource.RejectsOneByteChangeInPinnedSourceSet"
+      "controls": "UnicodeSourceFixture.RejectsOneByteChange"
     },
     {
       "ctest_name": "UnicodeNumeric.ExactRationalQuantizationClosesBoundariesAndZero",
