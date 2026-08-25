@@ -79,6 +79,11 @@ laplace_configure_framework_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/framework.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/framework.h")
 
+include(cmake/LaplacePersistenceContract.cmake)
+laplace_configure_persistence_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/persistence.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/persistence.h")
+
 add_subdirectory(engine)
 
 if(LAPLACE_ENABLE_DOTNET_BINDINGS)

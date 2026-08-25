@@ -41,6 +41,23 @@ std::array<std::uint8_t, 16> Hex(std::string_view text) {
     return result;
 }
 
+std::array<std::uint8_t, 32> Hex32(std::string_view text) {
+    auto nibble = [](char value) -> std::uint8_t {
+        if (value >= '0' && value <= '9') {
+            return static_cast<std::uint8_t>(value - '0');
+        }
+        return static_cast<std::uint8_t>(value - 'a' + 10);
+    };
+    std::array<std::uint8_t, 32> result{};
+    EXPECT_EQ(text.size(), result.size() * 2u);
+    for (std::size_t index = 0; index < result.size(); ++index) {
+        result[index] = static_cast<std::uint8_t>(
+            static_cast<unsigned int>(nibble(text[index * 2u])) << 4u |
+            nibble(text[index * 2u + 1u]));
+    }
+    return result;
+}
+
 TEST(IdentityAbi, IsExactly128Bits) {
     static_assert(sizeof(laplace_id128) == 16);
     EXPECT_EQ(sizeof(laplace_id128), 16u);
@@ -138,6 +155,17 @@ TEST(CodepointIdentity, MatchesPinnedCrossRuntimeVectors) {
     EXPECT_EQ(Bytes(Codepoint(0x0032u)), Hex(LAPLACE_VECTOR_U0032_HEX));
     EXPECT_EQ(Bytes(Codepoint(0x0035u)), Hex(LAPLACE_VECTOR_U0035_HEX));
     EXPECT_EQ(Bytes(Codepoint(0xd800u)), Hex(LAPLACE_VECTOR_UD800_HEX));
+}
+
+TEST(CodepointIdentity, FullWitnessPinsTheIdentityPreimageAndPrefix) {
+    laplace_id128 id{};
+    laplace_digest256 witness{};
+    ASSERT_EQ(laplace_identity_codepoint_witness(0x41u, &id, &witness),
+              LAPLACE_IDENTITY_OK);
+    EXPECT_EQ(std::memcmp(id.bytes, witness.bytes, sizeof(id.bytes)), 0);
+    std::array<std::uint8_t, 32> actual{};
+    std::memcpy(actual.data(), witness.bytes, actual.size());
+    EXPECT_EQ(actual, Hex32(LAPLACE_VECTOR_U0041_WITNESS_HEX));
 }
 
 TEST(CompositeIdentity, RejectsEmptyAndCollapsesOneChild) {

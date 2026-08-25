@@ -156,6 +156,52 @@ target_compile_options(laplace_trajectory_tests PRIVATE
 gtest_discover_tests(laplace_trajectory_tests
     PROPERTIES LABELS "implementation;trajectory;structure")
 
+add_executable(laplace_persistence_tests
+    persistence_tests.cpp)
+target_link_libraries(laplace_persistence_tests
+    PRIVATE
+        Laplace::Persistence
+        GTest::gtest_main)
+target_compile_options(laplace_persistence_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_persistence_tests
+    PROPERTIES LABELS "implementation;persistence;identity;physicality;trajectory")
+
+foreach(laplace_zero_mutant IN ITEMS identity digest)
+    add_library(laplace_persistence_zero_${laplace_zero_mutant}_mutant STATIC
+        ../engine/src/persistence.c)
+    target_include_directories(laplace_persistence_zero_${laplace_zero_mutant}_mutant
+        PUBLIC
+            "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+            "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_persistence_zero_${laplace_zero_mutant}_mutant
+        PUBLIC Laplace::Trajectory
+        PRIVATE BLAKE3::blake3)
+    target_compile_options(laplace_persistence_zero_${laplace_zero_mutant}_mutant PRIVATE
+        $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+endforeach()
+target_compile_definitions(laplace_persistence_zero_identity_mutant
+    PRIVATE LAPLACE_TEST_REJECT_ZERO_IDENTITY_FIELDS=1)
+target_compile_definitions(laplace_persistence_zero_digest_mutant
+    PRIVATE LAPLACE_TEST_REJECT_ZERO_DIGEST_FIELDS=1)
+
+foreach(laplace_zero_mutant IN ITEMS identity digest)
+    add_executable(laplace_persistence_zero_${laplace_zero_mutant}_mutation_probe
+        persistence_zero_probe.cpp)
+    target_link_libraries(laplace_persistence_zero_${laplace_zero_mutant}_mutation_probe
+        PRIVATE laplace_persistence_zero_${laplace_zero_mutant}_mutant)
+    target_compile_options(laplace_persistence_zero_${laplace_zero_mutant}_mutation_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME persistence.mutation-zero-${laplace_zero_mutant}-sentinel-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_persistence_zero_${laplace_zero_mutant}_mutation_probe>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_persistence_zero_failure.cmake")
+    set_tests_properties(
+        persistence.mutation-zero-${laplace_zero_mutant}-sentinel-detected
+        PROPERTIES LABELS "persistence;identity;physicality;occurrence;mutation")
+endforeach()
+
 add_executable(laplace_execution_tests
     execution_tests.cpp)
 target_link_libraries(laplace_execution_tests
@@ -651,10 +697,23 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_contract.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql"
         @ONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/persistence_concurrency_call.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_concurrency_call.sql"
+        COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/persistence_concurrency_verify.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_concurrency_verify.sql"
+        COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/persistence_blind_conflict_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_blind_conflict_mutation.sql"
+        COPYONLY)
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
-        Laplace::Isa)
+        Laplace::Isa
+        Laplace::Persistence)
     target_compile_options(laplace_postgres_native_receipt_probe PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 
@@ -686,6 +745,23 @@ if(LAPLACE_POSTGRES_ENABLED)
             "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_receipt_mutation.sql")
     set_tests_properties(postgres.mutation-receipt-collision-detected PROPERTIES
         LABELS "postgresql;spi;receipt;mutation"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.mutation-blind-persistence-conflict-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_blind_conflict_mutant>"
+            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_blind_conflict_mutation.sql"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_persistence_mutation_failure.cmake")
+    set_tests_properties(postgres.mutation-blind-persistence-conflict-detected PROPERTIES
+        LABELS "postgresql;spi;persistence;identity;mutation"
         RUN_SERIAL TRUE)
 endif()
 

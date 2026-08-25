@@ -6,6 +6,7 @@
 
 #include "laplace/contract/identity.h"
 #include "laplace/export.h"
+#include "laplace/types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +38,11 @@ LAPLACE_API laplace_identity_status laplace_unicode_position_encode(
 LAPLACE_API laplace_identity_status laplace_identity_codepoint(
     uint32_t position,
     laplace_id128* out_id);
+
+LAPLACE_API laplace_identity_status laplace_identity_codepoint_witness(
+    uint32_t position,
+    laplace_id128* out_id,
+    laplace_digest256* out_witness);
 
 LAPLACE_API laplace_identity_status laplace_identity_codepoint_batch(
     const uint32_t* positions,
