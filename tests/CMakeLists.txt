@@ -567,6 +567,10 @@ endif()
 
 if(LAPLACE_POSTGRES_ENABLED)
     find_program(LAPLACE_BASH_EXECUTABLE bash REQUIRED)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql"
+        @ONLY)
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
@@ -584,7 +588,7 @@ if(LAPLACE_POSTGRES_ENABLED)
             "$<TARGET_FILE_DIR:laplace_pg>"
             "$<TARGET_FILE_DIR:laplace_engine>"
             "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
-            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_contract.sql")
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql")
     set_tests_properties(postgres.spi-isa-contract PROPERTIES
         LABELS "implementation;postgresql;spi;isa;receipt"
         RUN_SERIAL TRUE)
