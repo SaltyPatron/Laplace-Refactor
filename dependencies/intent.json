@@ -519,8 +519,8 @@
       "profiles": ["build", "linux", "windows"],
       "intent": ["one generated build graph, isolated build directories, deterministic contract generation, and bounded parallel compilation"],
       "boundary": "Build tools consume pinned source and toolchain inputs and do not select undeclared source or runtime objects.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-release",
+      "lock_entries": ["release:cmake", "release:ninja"]
     },
     {
       "id": "github-actions-runner",
