@@ -88,6 +88,41 @@ class ToolchainBuildTests(unittest.TestCase):
                     repository,
                 )
 
+    def test_logged_process_receives_and_receipts_exact_working_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            working_directory = root / "work"
+            working_directory.mkdir()
+            log = root / "command.log"
+            result = BUILD.run_logged(
+                [
+                    "/usr/bin/python3",
+                    "-c",
+                    "import os, sys; sys.exit(os.environ.get('PWD') != sys.argv[1])",
+                    str(working_directory),
+                ],
+                working_directory,
+                {"PATH": "/usr/bin:/bin"},
+                log,
+            )
+            self.assertEqual(result["working_directory"], str(working_directory))
+            self.assertEqual(
+                result["execution_environment"], {"PWD": str(working_directory)}
+            )
+
+    def test_logged_process_rejects_divergent_caller_pwd(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            working_directory = root / "work"
+            working_directory.mkdir()
+            with self.assertRaisesRegex(BUILD.ToolchainError, "PWD differs"):
+                BUILD.run_logged(
+                    ["/usr/bin/true"],
+                    working_directory,
+                    {"PATH": "/usr/bin:/bin", "PWD": "/ambient/or/wrong"},
+                    root / "command.log",
+                )
+
     def test_selected_dynamic_linkage_rejects_host_runpath(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             prefix = Path(temporary) / "toolchain"
