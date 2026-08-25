@@ -210,6 +210,29 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
     for required in ("cc", "cxx", "ld", "ar", "nm", "ranlib", "make", "python", "sh"):
         if required not in ids:
             raise ToolchainError(f"bootstrap.tools must include {required}")
+    system_abi = require_object(bootstrap.get("system_abi"), "bootstrap.system_abi")
+    include_roots = system_abi.get("include_roots")
+    if not isinstance(include_roots, list) or not include_roots:
+        raise ToolchainError("bootstrap.system_abi.include_roots must be a non-empty array")
+    for index, root_value in enumerate(include_roots):
+        root = require_object(root_value, f"bootstrap.system_abi.include_roots[{index}]")
+        path = Path(require_string(root.get("path"), f"include_roots[{index}].path"))
+        if not path.is_absolute() or "/usr/local" in str(path):
+            raise ToolchainError("system ABI include roots must be absolute and exclude /usr/local")
+        digest = require_string(root.get("tree_sha256"), f"include_roots[{index}].tree_sha256")
+        if not HASH_PATTERN.fullmatch(digest):
+            raise ToolchainError("system ABI include root digest must be lowercase SHA-256")
+        for field in ("file_count", "total_file_bytes"):
+            if not isinstance(root.get(field), int) or root[field] < 0:
+                raise ToolchainError(f"include_roots[{index}].{field} must be nonnegative")
+    library_roots = require_string_array(
+        system_abi.get("library_search_roots"),
+        "bootstrap.system_abi.library_search_roots",
+    )
+    if any(not Path(path).is_absolute() or "/usr/local" in path for path in library_roots):
+        raise ToolchainError("system ABI library roots must be absolute and exclude /usr/local")
+    if system_abi.get("library_input_contract") != "resolved-linker-inputs-are-individually-receipted":
+        raise ToolchainError("system ABI library inputs must be individually receipted")
 
     build = require_object(contract.get("build"), "build")
     if build.get("component_order") != EXPECTED_ORDER:
@@ -251,6 +274,11 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
             )
     if any("/usr/local" in argument for argument in perl_configure):
         raise ToolchainError("Perl configure must not admit /usr/local inputs")
+    for include_root in include_roots:
+        if not any(f"-isystem {include_root['path']}" in argument for argument in perl_configure):
+            raise ToolchainError("Perl configure omits a receipted system ABI include root")
+    if not any("-nostdinc" in argument for argument in perl_configure):
+        raise ToolchainError("Perl configure must disable compiler default include search")
 
     receipt = require_object(contract.get("receipt"), "receipt")
     sections = require_string_array(receipt.get("required_sections"), "receipt.required_sections")
@@ -293,8 +321,8 @@ def command_version(path: Path, argument: str, operand: str | None = None) -> st
     return output.splitlines()[0] if output else "(no version output)"
 
 
-def verify_bootstrap(contract: dict[str, Any]) -> dict[str, dict[str, str]]:
-    receipt: dict[str, dict[str, str]] = {}
+def verify_bootstrap(contract: dict[str, Any]) -> dict[str, Any]:
+    receipt: dict[str, Any] = {}
     for tool in contract["bootstrap"]["tools"]:
         path = Path(tool["path"])
         if not path.is_file() or not os.access(path, os.X_OK):
@@ -309,6 +337,32 @@ def verify_bootstrap(contract: dict[str, Any]) -> dict[str, dict[str, str]]:
             "sha256": observed,
             "version": command_version(path, tool["version_argument"], tool.get("version_operand")),
         }
+    system_abi = contract["bootstrap"]["system_abi"]
+    include_receipts: list[dict[str, Any]] = []
+    for root in system_abi["include_roots"]:
+        path = Path(root["path"])
+        if not path.is_dir() or path.is_symlink():
+            raise ToolchainError(f"system ABI include root is not a directory: {path}")
+        observed = package_tree(path)
+        expected = {
+            "sha256": root["tree_sha256"],
+            "file_count": root["file_count"],
+            "total_file_bytes": root["total_file_bytes"],
+        }
+        if observed != expected:
+            raise ToolchainError(f"system ABI include root differs from contract: {path}")
+        include_receipts.append({"path": str(path), **observed})
+    library_receipts = []
+    for logical in system_abi["library_search_roots"]:
+        path = Path(logical)
+        if not path.is_dir():
+            raise ToolchainError(f"system ABI library root is not a directory: {path}")
+        library_receipts.append({"path": logical, "resolved_path": str(path.resolve())})
+    receipt["system_abi"] = {
+        "include_roots": include_receipts,
+        "library_search_roots": library_receipts,
+        "library_input_contract": system_abi["library_input_contract"],
+    }
     return receipt
 
 
@@ -628,7 +682,15 @@ def verify_component_configuration(component_id: str, source: Path) -> dict[str,
     if not config.is_file():
         raise ToolchainError("Perl configure did not produce config.sh")
     values: dict[str, str] = {}
-    required = {"locincpth", "loclibpth", "glibpth", "libpth", "ccflags", "ldflags"}
+    required = {
+        "locincpth",
+        "loclibpth",
+        "glibpth",
+        "libpth",
+        "ccflags",
+        "cppflags",
+        "ldflags",
+    }
     for line in config.read_text(encoding="utf-8").splitlines():
         key, separator, raw = line.partition("=")
         if separator and key in required and len(raw) >= 2 and raw[0] == raw[-1] == "'":
@@ -642,6 +704,15 @@ def verify_component_configuration(component_id: str, source: Path) -> dict[str,
         raise ToolchainError("Perl configured system ABI library paths differ from contract")
     if any("/usr/local" in value for value in values.values()):
         raise ToolchainError("Perl configured output admitted /usr/local")
+    for include_root in (
+        "/usr/lib/gcc/x86_64-linux-gnu/11/include",
+        "/usr/include/x86_64-linux-gnu",
+        "/usr/include",
+    ):
+        if f"-isystem {include_root}" not in values["ccflags"]:
+            raise ToolchainError("Perl configured output omits system ABI include root")
+    if "-nostdinc" not in values["ccflags"] or "-nostdinc" not in values["cppflags"]:
+        raise ToolchainError("Perl configured output admits compiler default include search")
     return {"status": "verified", "fields": values}
 
 
