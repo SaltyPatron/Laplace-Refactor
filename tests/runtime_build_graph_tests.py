@@ -36,6 +36,24 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.GraphError, "must remain incomplete"):
             BUILD.validate_contract(contract)
 
+    def test_position_independent_executable_contract_is_mandatory(self) -> None:
+        for field, value, message in (
+            ("c_flags", "-fPIE", "C and C\\+\\+ compilation"),
+            ("cxx_flags", "-fPIE", "C and C\\+\\+ compilation"),
+            ("link_flags", "-pie", "executable linking"),
+        ):
+            contract = self.contract()
+            contract["execution"][field] = [
+                item for item in contract["execution"][field] if item != value
+            ] or ["-Wl,--as-needed"]
+            with self.assertRaisesRegex(BUILD.GraphError, message):
+                BUILD.validate_contract(contract)
+
+        contract = self.contract()
+        contract["execution"]["executable_elf"]["copy_relocations"] = "allowed"
+        with self.assertRaisesRegex(BUILD.GraphError, "COPY relocations"):
+            BUILD.validate_contract(contract)
+
     def test_duplicate_contract_key_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "contract.json"
@@ -159,7 +177,7 @@ class RuntimeBuildGraphTests(unittest.TestCase):
             linker.write_text("fixture linker\n", encoding="utf-8")
             compiler = root / "compiler"
             compiler.write_text(
-                f"#!/bin/sh\nprintf '%s\\n' '{linker}' >&2\n",
+                f"#!/bin/sh\nprintf '%s\\n' '{linker} -pie' >&2\n",
                 encoding="utf-8",
             )
             compiler.chmod(0o755)
@@ -179,6 +197,12 @@ class RuntimeBuildGraphTests(unittest.TestCase):
             )
             compiler.write_text("#!/bin/sh\nprintf '%s\\n' '/usr/bin/ld' >&2\n", encoding="utf-8")
             with self.assertRaisesRegex(BUILD.GraphError, "did not select"):
+                BUILD.compiler_driver_trace(self.contract(), compilers, toolchain)
+
+            compiler.write_text(
+                f"#!/bin/sh\nprintf '%s\\n' '{linker}' >&2\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(BUILD.GraphError, "did not select PIE"):
                 BUILD.compiler_driver_trace(self.contract(), compilers, toolchain)
 
     def test_compiler_driver_trace_identity_ignores_random_temporary_objects(self) -> None:
@@ -381,6 +405,53 @@ class RuntimeBuildGraphTests(unittest.TestCase):
             self.assertFalse(receipt["static_link_closure_verified"])
             self.assertFalse(receipt["recursive_runtime_closure_verified"])
             self.assertFalse(receipt["activation_eligible"])
+
+    def test_package_rejects_non_pie_and_copy_relocated_executables(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix = root / "package"
+            prefix.mkdir()
+            executable = prefix / "fixture"
+            executable.write_bytes(b"\x7fELFfixture")
+            executable.chmod(0o755)
+            readelf = root / "readelf"
+            readelf.write_text(
+                """#!/bin/sh
+case "$1" in
+  -hW) printf '%s\\n' '  Type:                              EXEC (Executable file)' ;;
+  -lW) printf '%s\\n' '      [Requesting program interpreter: /lib64/ld-linux-x86-64.so.2]' ;;
+  -dW) printf '%s\\n' ' 0x0000000000000001 (NEEDED) Shared library: [libc.so.6]' ;;
+  -rW) : ;;
+esac
+""",
+                encoding="utf-8",
+            )
+            readelf.chmod(0o755)
+            plan = {
+                "build_input_id": "2" * 64,
+                "final_prefix": "/opt/laplace/releases/example",
+                "staged_prefix": str(prefix),
+                "tools": {"readelf": {"path": str(readelf)}},
+            }
+            with self.assertRaisesRegex(BUILD.GraphError, "not PIE"):
+                BUILD.package_receipt(self.contract(), plan)
+
+            text = readelf.read_text(encoding="utf-8")
+            text = text.replace("EXEC (Executable file)", "DYN (Position-Independent Executable file)")
+            text = text.replace("-rW) : ;;", "-rW) printf '%s\\n' 'R_X86_64_COPY' ;;")
+            readelf.write_text(text, encoding="utf-8")
+            with self.assertRaisesRegex(BUILD.GraphError, "COPY relocations"):
+                BUILD.package_receipt(self.contract(), plan)
+
+            readelf.write_text(
+                text.replace("-rW) printf '%s\\n' 'R_X86_64_COPY' ;;", "-rW) : ;;"),
+                encoding="utf-8",
+            )
+            receipt = BUILD.package_receipt(self.contract(), plan)
+            elf = next(item["elf"] for item in receipt["files"] if item["path"] == "fixture")
+            self.assertTrue(elf["executable"])
+            self.assertEqual(elf["type"], "DYN")
+            self.assertEqual(elf["copy_relocation_count"], 0)
 
 
 if __name__ == "__main__":

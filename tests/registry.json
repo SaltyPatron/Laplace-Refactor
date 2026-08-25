@@ -13,7 +13,7 @@
       "ctest_name": "dependencies.runtime-build-graph-contract",
       "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-ELF-CLOSURE", "LP-TEST-DEPENDENCY-RELEASE-ASSETS", "LP-TEST-DEPENDENCY-INTENT"],
       "covered_dimensions": ["input-addressed runtime build graph", "verified source generation", "source-built toolchain consumer manifest", "provider-specific upstream tests", "external staged package", "fail-closed activation"],
-      "defect_controls": ["duplicate contract key", "ambient compiler and loader state", "unknown provider", "dependency-order inversion", "provider-test mismatch", "compile-only LZ4", "compiler digest mismatch", "missing packaged build tool", "compiler driver bypasses packaged linker", "toolchain promoted to product runtime", "release-generation mismatch", "repository-local output", "unproved closure"]
+      "defect_controls": ["duplicate contract key", "ambient compiler and loader state", "unknown provider", "dependency-order inversion", "provider-test mismatch", "compile-only LZ4", "compiler digest mismatch", "missing packaged build tool", "compiler driver bypasses packaged linker", "non-PIE executable", "executable COPY relocation", "toolchain promoted to product runtime", "release-generation mismatch", "repository-local output", "unproved closure"]
     },
     {
       "ctest_name": "postgresql-build.contract-and-mutation",
