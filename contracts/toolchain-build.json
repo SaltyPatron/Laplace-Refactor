@@ -188,6 +188,7 @@
   "receipt": {
     "required_sections": [
       "source_inputs",
+      "source_normalization",
       "bootstrap_inputs",
       "component_steps",
       "installed_tools",
