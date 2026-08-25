@@ -50,6 +50,22 @@
     "detail_full": 1
   },
   "bindings": {
+    "dotnet": {
+      "namespace": "Laplace.Managed",
+      "target_framework": "net10.0",
+      "native_library": "laplace_engine",
+      "execute_symbol": "laplace_isa_execute",
+      "value_types": {
+        "u32_vector": "global::System.UInt32",
+        "id128_vector": "global::Laplace.Managed.LaplaceId128",
+        "composition_trajectory_vector": "global::Laplace.Managed.LaplaceTrajectoryCarrier",
+        "composition_occurrence_vector": "global::Laplace.Managed.LaplaceCompositionOccurrence"
+      },
+      "operation_declarations": {
+        "identity_codepoint_batch": "IdentityCodepointBatch",
+        "trajectory_composition_decode_batch": "TrajectoryCompositionDecodeBatch"
+      }
+    },
     "postgresql": {
       "schema": "laplace",
       "module": "laplace_pg",

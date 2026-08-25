@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+  <Target Name="RequireLaplaceGeneratedIsa" BeforeTargets="BeforeCompile">
+    <Error Condition="'$(GeneratedIsaSource)' == ''" Text="GeneratedIsaSource is required." />
+    <Error Condition="!Exists('$(GeneratedIsaSource)')" Text="Generated ISA source does not exist: $(GeneratedIsaSource)" />
+  </Target>
+  <ItemGroup>
+    <Compile Include="$(GeneratedIsaSource)" Link="Generated/IsaContract.g.cs" />
+  </ItemGroup>
+</Project>

@@ -1,6 +1,6 @@
 {
   "schema": "laplace.test-registry/v1",
-  "suite_scope": "acquisition build package identity geometry execution topology ISA and perfcache components",
+  "suite_scope": "acquisition build package identity geometry execution topology ISA managed bindings and perfcache components",
   "acceptance_status": "contributing evidence only",
   "tests": [
     {
@@ -615,15 +615,28 @@
       "controls": "DependencyMath.CurrentEigenAndSpectraComputeSelectedEigenpairs"
     },
     {
+      "ctest_name": "dotnet.generated-isa-contract",
+      "profiles": ["dotnet", "custom-stack"],
+      "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE"],
+      "covered_dimensions": ["byte-reproducible contract generation", "typed value operation and version descriptors", "complete generated operation declarations"],
+      "defect_controls": ["removed generated operation declaration is detected"]
+    },
+    {
+      "ctest_name": "dotnet.native-isa-parity",
+      "profiles": ["dotnet", "custom-stack"],
+      "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-BULK-PARITY"],
+      "covered_dimensions": ["exact native and managed ABI layout", "real P Invoke vector transport", "identity and trajectory direct-native output parity", "all receipt and error fields", "one-element scalar lowering", "version type and opcode preflight rejection", "call-scoped pin lifetime", "disposed transport rejection"]
+    },
+    {
       "ctest_name": "postgres.spi-isa-contract",
-      "profiles": ["postgres"],
+      "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS"],
       "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL output parity", "direct C and PostgreSQL receipt parity", "parallel-safe pure calculation", "single prepared SPI receipt publication per batch", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-item set-generated native batch", "exact canonical trajectory carrier decode"],
       "defect_controls": ["postgres.mutation-receipt-collision-detected"]
     },
     {
       "ctest_name": "postgres.mutation-receipt-collision-detected",
-      "profiles": ["postgres"],
+      "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ISA-RECEIPT", "LP-TEST-ISA-TYPE-SAFETY"],
       "covered_dimensions": ["stored receipt field corruption is rejected on deterministic replay"],
       "controls": "postgres.spi-isa-contract"

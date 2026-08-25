@@ -71,6 +71,80 @@ target_compile_options(laplace_isa_tests PRIVATE
 gtest_discover_tests(laplace_isa_tests
     PROPERTIES LABELS "implementation;isa")
 
+if(LAPLACE_ENABLE_DOTNET_BINDINGS)
+    set(laplace_dotnet_sanitizer_preload "")
+    if(CMAKE_C_FLAGS MATCHES "-fsanitize=[^ ]*address")
+        execute_process(
+            COMMAND "${CMAKE_C_COMPILER}" -print-file-name=libasan.so
+            OUTPUT_VARIABLE laplace_dotnet_sanitizer_preload
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            RESULT_VARIABLE laplace_dotnet_sanitizer_result)
+        if(NOT laplace_dotnet_sanitizer_result EQUAL 0
+           OR NOT IS_ABSOLUTE "${laplace_dotnet_sanitizer_preload}"
+           OR NOT EXISTS "${laplace_dotnet_sanitizer_preload}")
+            message(FATAL_ERROR
+                "Cannot locate the address-sanitizer runtime required by the .NET P/Invoke test")
+        endif()
+    endif()
+
+    add_executable(laplace_dotnet_native_expectations
+        dotnet/native_expectations.cpp)
+    target_link_libraries(laplace_dotnet_native_expectations PRIVATE Laplace::Isa)
+    target_compile_options(laplace_dotnet_native_expectations PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+    set(laplace_dotnet_test_project
+        "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/Laplace.Managed.Tests.csproj")
+    set(laplace_dotnet_test_dll
+        "${LAPLACE_DOTNET_MANAGED_ROOT}/Laplace.Managed.Tests/bin/Release/net10.0/Laplace.Managed.Tests.dll")
+    add_custom_command(
+        OUTPUT "${laplace_dotnet_test_dll}"
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "DOTNET_CLI_TELEMETRY_OPTOUT=1"
+            "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1"
+            "NUGET_PACKAGES=${LAPLACE_DOTNET_MANAGED_ROOT}/packages"
+            "${LAPLACE_DOTNET_EXECUTABLE}" build "${laplace_dotnet_test_project}"
+            --configuration Release
+            --nologo
+            "-p:GeneratedIsaSource=${LAPLACE_DOTNET_GENERATED_SOURCE}"
+            "-p:LaplaceManagedBuildRoot=${LAPLACE_DOTNET_MANAGED_ROOT}"
+            "-p:RestoreConfigFile=${LAPLACE_DOTNET_NUGET_CONFIG}"
+        DEPENDS
+            laplace_dotnet_bindings
+            "${CMAKE_SOURCE_DIR}/Directory.Build.props"
+            "${laplace_dotnet_test_project}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/Program.cs"
+        COMMENT "Building dependency-free managed/native ISA parity tests"
+        VERBATIM)
+    add_custom_target(laplace_dotnet_tests_build ALL
+        DEPENDS "${laplace_dotnet_test_dll}")
+    add_dependencies(laplace_dotnet_tests_build
+        laplace_dotnet_bindings
+        laplace_dotnet_native_expectations)
+
+    add_test(
+        NAME dotnet.generated-isa-contract
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/generator_contract_tests.py"
+            "${CMAKE_SOURCE_DIR}/tools/bindings/generate-dotnet.py"
+            "${CMAKE_SOURCE_DIR}/contracts/isa.json")
+    set_tests_properties(dotnet.generated-isa-contract PROPERTIES
+        LABELS "implementation;dotnet;isa;bindings;mutation")
+
+    add_test(
+        NAME dotnet.native-isa-parity
+        COMMAND "${CMAKE_COMMAND}"
+            "-DNATIVE_FIXTURE=$<TARGET_FILE:laplace_dotnet_native_expectations>"
+            "-DFIXTURE_PATH=${CMAKE_CURRENT_BINARY_DIR}/dotnet/native-expectations.bin"
+            "-DDOTNET=${LAPLACE_DOTNET_EXECUTABLE}"
+            "-DMANAGED_TEST_DLL=${laplace_dotnet_test_dll}"
+            "-DNATIVE_LIBRARY_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DSANITIZER_PRELOAD=${laplace_dotnet_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/run_native_parity.cmake")
+    set_tests_properties(dotnet.native-isa-parity PROPERTIES
+        LABELS "implementation;dotnet;isa;bindings;receipt;contract")
+endif()
+
 add_executable(laplace_trajectory_tests
     trajectory_tests.cpp)
 target_link_libraries(laplace_trajectory_tests
