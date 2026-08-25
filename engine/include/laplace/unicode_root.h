@@ -157,8 +157,16 @@ typedef enum laplace_unicode_payload_kind {
     LAPLACE_UNICODE_PAYLOAD_CASE_FOLDING = 10,
     LAPLACE_UNICODE_PAYLOAD_SORTED_ASCII_SET = 11,
     LAPLACE_UNICODE_PAYLOAD_SORTED_ASCII_KEY_VALUE_SET = 12,
-    LAPLACE_UNICODE_PAYLOAD_BOOLEAN = 13
+    LAPLACE_UNICODE_PAYLOAD_BOOLEAN = 13,
+    LAPLACE_UNICODE_PAYLOAD_NORMALIZATION_PROPERTIES = 14
 } laplace_unicode_payload_kind;
+
+typedef enum laplace_unicode_normalization_value_kind {
+    LAPLACE_UNICODE_NORMALIZATION_BINARY_TRUE = 1,
+    LAPLACE_UNICODE_NORMALIZATION_ASCII_PROPERTY_VALUE = 2,
+    LAPLACE_UNICODE_NORMALIZATION_POSITION_SEQUENCE = 3,
+    LAPLACE_UNICODE_NORMALIZATION_EMPTY_POSITION_SEQUENCE = 4
+} laplace_unicode_normalization_value_kind;
 
 typedef struct laplace_unicode_atom_field {
     const uint8_t* payload;

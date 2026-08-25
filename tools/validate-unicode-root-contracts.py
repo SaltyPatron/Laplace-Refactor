@@ -88,7 +88,7 @@ EXPECTED_VARIABLE_FIELDS = [
     "prop_list",
     "derived_core_properties",
     "normalization_properties",
-    "composition_exclusion",
+    "full_composition_exclusion",
     "hangul_syllable_type",
     "grapheme_cluster_break",
     "word_break",
@@ -215,6 +215,7 @@ def _validate_atom(document: dict[str, Any]) -> None:
         "sorted-canonical-ascii-set": 11,
         "sorted-canonical-ascii-key-value-set": 12,
         "u8-boolean": 13,
+        "sorted-typed-normalization-property-set": 14,
     }, "atom payload-kind enum changed or is incomplete")
     fixed = wire.get("fixed_fields", [])
     offsets = [field.get("offset") for field in fixed]
@@ -225,6 +226,13 @@ def _validate_atom(document: dict[str, Any]) -> None:
     fields = document.get("variable_fields", [])
     _require([field.get("id") for field in fields] == list(range(1, 27)), "Unicode variable field identifiers changed")
     _require([field.get("name") for field in fields] == EXPECTED_VARIABLE_FIELDS, "Unicode Tier-0 property record changed")
+    _require(fields[17].get("kind") == "sorted-typed-normalization-property-set", "normalization properties lost typed value distinctions")
+    _require(fields[18].get("name") == "full_composition_exclusion", "normalization composition exclusion semantics are ambiguous")
+    defaults = document.get("derived_default_semantics", {})
+    _require(defaults.get("full_case_mappings", "").startswith("an absent field-10 payload"), "full case-mapping default is not explicit")
+    _require(defaults.get("case_folding", "").startswith("an absent field-11 payload"), "case-folding default is not explicit")
+    _require(defaults.get("normalization_properties", {}).get("explicit_empty_mapping") == "value-kind-4 and never absence", "explicit empty normalization mappings can collapse into default identity")
+    _require(defaults.get("script_extensions") == "an uncovered position emits the effective Script value as a singleton set", "Script_Extensions fallback is incomplete")
     line_break = fields[-1]
     _require(line_break.get("standard") == "UAX14-17.0.0-revision-55", "Line_Break is not explicitly versioned in the atom record")
     position_classes = document.get("position_classes", [])

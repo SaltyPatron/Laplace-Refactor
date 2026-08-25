@@ -48,7 +48,8 @@
       "sorted-status-and-u32le-position-sequences": 10,
       "sorted-canonical-ascii-set": 11,
       "sorted-canonical-ascii-key-value-set": 12,
-      "u8-boolean": 13
+      "u8-boolean": 13,
+      "sorted-typed-normalization-property-set": 14
     },
     "payload_wire_grammars": {
       "canonical-ascii-property-value": "one-or-more ASCII letters, digits, underscore, or hyphen; no terminator",
@@ -63,7 +64,8 @@
       "sorted-status-and-u32le-position-sequences": "zero bytes, or u32le count followed by strictly status-ascending entries of ASCII status C/F/S/T + three zero bytes + u32le position_count + positions",
       "sorted-canonical-ascii-set": "zero bytes, or u32le count followed by strictly byte-lexicographic u16le-length-prefixed canonical ASCII values",
       "sorted-canonical-ascii-key-value-set": "zero bytes, or u32le count followed by strictly key-ascending u16le key_bytes + u16le value_bytes + canonical ASCII key + canonical ASCII value entries",
-      "u8-boolean": "exactly one byte equal to zero or one"
+      "u8-boolean": "exactly one byte equal to zero or one",
+      "sorted-typed-normalization-property-set": "zero bytes, or u32le count followed by strictly key-ascending entries of u16le key_bytes + u8 value_kind + u8 zero + u32le value_count + canonical ASCII property key + typed value; value kinds 1,2,3,4 mean binary true, canonical ASCII property value, u32le position sequence, explicit empty position sequence; kinds 1 and 4 require zero count and no value bytes; kind 2 counts ASCII bytes; kind 3 counts positions"
     },
     "empty_payload_rule": "only payload kinds explicitly permitting zero bytes use empty as the canonical absent-or-default representation; counted containers must be nonempty when present",
     "variable_field_rules": [
@@ -82,9 +84,11 @@
     {"id": 4, "name": "surrogate-lup-address"}
   ],
   "source_value_canonicalization": {
-    "authority": "ucd/PropertyValueAliases.txt from the same retained and verified source bundle",
+    "property_authority": "ucd/PropertyAliases.txt from the same retained and verified source bundle",
+    "property_value_authority": "ucd/PropertyValueAliases.txt from the same retained and verified source bundle",
     "comparison": "UAX44 loose matching over ASCII property aliases",
-    "emission": "the long property-value alias in the third semicolon field",
+    "property_emission": "the formal long property alias in the second semicolon field",
+    "property_value_emission": "the long property-value alias in the third semicolon field",
     "applies_to": ["general_category", "bidi_class", "decomposition_type", "block", "east_asian_width", "script", "script_extensions", "hangul_syllable_type", "grapheme_cluster_break", "word_break", "sentence_break", "indic_conjunct_break", "line_break"],
     "rules": [
       "aliases are resolved within their property namespace because value aliases are not globally unique",
@@ -92,6 +96,30 @@
       "DerivedBidiClass ordered missing rules are applied before explicit ranges",
       "unknown ambiguous or conflicting aliases reject the root build"
     ]
+  },
+  "derived_default_semantics": {
+    "full_case_mappings": "an absent field-10 payload means use the UnicodeData simple mapping when present and otherwise map the position to itself; encoded SpecialCasing entries preserve explicit empty mappings and sorted locale/context conditions",
+    "case_folding": "an absent field-11 payload means identity; every explicit C/F/S/T status row is retained and sorted by status",
+    "normalization_properties": {
+      "emission": "only explicit DerivedNormalizationProps memberships are encoded; property keys use formal long aliases",
+      "binary_default": "false",
+      "quick_check_default": "Yes",
+      "mapping_default": "identity",
+      "explicit_empty_mapping": "value-kind-4 and never absence"
+    },
+    "script_extensions": "an uncovered position emits the effective Script value as a singleton set",
+    "composition_exclusion": "field-19 is the derived Full_Composition_Exclusion property used by normalization composition; raw CompositionExclusions is retained as an independently checked proper subset witness",
+    "single_value_defaults": {
+      "block": "No_Block",
+      "east_asian_width": "Neutral",
+      "script": "Unknown",
+      "hangul_syllable_type": "Not_Applicable",
+      "grapheme_cluster_break": "Other",
+      "word_break": "Other",
+      "sentence_break": "Other",
+      "indic_conjunct_break": "None",
+      "line_break": "Unknown"
+    }
   },
   "variable_fields": [
     {"id": 1, "name": "general_category", "kind": "canonical-ascii-property-value"},
@@ -111,8 +139,8 @@
     {"id": 15, "name": "script_extensions", "kind": "sorted-canonical-ascii-set"},
     {"id": 16, "name": "prop_list", "kind": "sorted-canonical-ascii-set"},
     {"id": 17, "name": "derived_core_properties", "kind": "sorted-canonical-ascii-set"},
-    {"id": 18, "name": "normalization_properties", "kind": "sorted-canonical-ascii-key-value-set"},
-    {"id": 19, "name": "composition_exclusion", "kind": "u8-boolean"},
+    {"id": 18, "name": "normalization_properties", "kind": "sorted-typed-normalization-property-set", "authority": "ucd/DerivedNormalizationProps.txt"},
+    {"id": 19, "name": "full_composition_exclusion", "kind": "u8-boolean", "authority": "ucd/DerivedNormalizationProps.txt Full_Composition_Exclusion with ucd/CompositionExclusions.txt subset verification"},
     {"id": 20, "name": "hangul_syllable_type", "kind": "canonical-ascii-property-value"},
     {"id": 21, "name": "grapheme_cluster_break", "kind": "canonical-ascii-property-value"},
     {"id": 22, "name": "word_break", "kind": "canonical-ascii-property-value"},

@@ -14,7 +14,7 @@ namespace {
 
 constexpr std::array<std::uint8_t, LAPLACE_UNICODE_ATOM_FIELD_COUNT> PayloadKinds{{
     1u, 2u, 1u, 3u, 4u, 5u, 6u, 7u, 8u, 9u, 10u, 1u, 1u,
-    1u, 11u, 11u, 11u, 12u, 13u, 1u, 1u, 1u, 1u, 1u, 13u, 1u}};
+    1u, 11u, 11u, 11u, 14u, 13u, 1u, 1u, 1u, 1u, 1u, 13u, 1u}};
 
 void WriteU32(std::uint8_t* output, std::uint32_t value) {
     output[0] = static_cast<std::uint8_t>(value);
@@ -27,6 +27,33 @@ void WriteU64(std::uint8_t* output, std::uint64_t value) {
     for (std::size_t index = 0; index < 8u; ++index) {
         output[index] = static_cast<std::uint8_t>(value >> (index * 8u));
     }
+}
+
+void AppendU16(std::vector<std::uint8_t>& output, std::uint16_t value) {
+    output.push_back(static_cast<std::uint8_t>(value));
+    output.push_back(static_cast<std::uint8_t>(value >> 8u));
+}
+
+void AppendU32(std::vector<std::uint8_t>& output, std::uint32_t value) {
+    const std::size_t offset = output.size();
+    output.resize(offset + 4u);
+    WriteU32(output.data() + offset, value);
+}
+
+void AppendNormalizationEntry(
+    std::vector<std::uint8_t>& output,
+    const char* key,
+    std::uint8_t value_kind,
+    std::uint32_t value_count,
+    const std::vector<std::uint8_t>& value) {
+    const std::size_t key_bytes = std::strlen(key);
+    ASSERT_LE(key_bytes, UINT16_MAX);
+    AppendU16(output, static_cast<std::uint16_t>(key_bytes));
+    output.push_back(value_kind);
+    output.push_back(0u);
+    AppendU32(output, value_count);
+    output.insert(output.end(), key, key + key_bytes);
+    output.insert(output.end(), value.begin(), value.end());
 }
 
 laplace_unicode_atom_record Atom(std::uint32_t position) {
@@ -209,6 +236,42 @@ TEST(UnicodeAtomPayload, RejectsNonCanonicalPayloadsAndAcceptsSortedSets) {
     atom.fields[5].payload = out_of_range.data();
     atom.fields[5].payload_bytes =
         static_cast<std::uint32_t>(out_of_range.size());
+    EXPECT_EQ(laplace_unicode_atom_record_measure(&atom, &measured),
+              LAPLACE_UNICODE_RECORD_INVALID);
+}
+
+TEST(UnicodeAtomPayload, PreservesTypedNormalizationValuesAndExplicitEmpty) {
+    std::vector<std::uint8_t> payload;
+    AppendU32(payload, 3u);
+    AppendNormalizationEntry(
+        payload, "NFC_Quick_Check",
+        LAPLACE_UNICODE_NORMALIZATION_ASCII_PROPERTY_VALUE,
+        5u, std::vector<std::uint8_t>{'M', 'a', 'y', 'b', 'e'});
+    std::vector<std::uint8_t> mapping;
+    AppendU32(mapping, 0x0061u);
+    AppendU32(mapping, 0x0062u);
+    AppendNormalizationEntry(
+        payload, "NFKC_Casefold",
+        LAPLACE_UNICODE_NORMALIZATION_POSITION_SEQUENCE,
+        2u, mapping);
+    const std::size_t explicit_empty_kind = payload.size() + 2u;
+    AppendNormalizationEntry(
+        payload, "NFKC_Simple_Casefold",
+        LAPLACE_UNICODE_NORMALIZATION_EMPTY_POSITION_SEQUENCE,
+        0u, {});
+
+    auto atom = Atom(0x41u);
+    atom.fields[17].payload = payload.data();
+    atom.fields[17].payload_bytes =
+        static_cast<std::uint32_t>(payload.size());
+    std::size_t measured = 0u;
+    EXPECT_EQ(laplace_unicode_atom_record_measure(&atom, &measured),
+              LAPLACE_UNICODE_OK);
+
+    auto collapsed_empty = payload;
+    collapsed_empty[explicit_empty_kind] =
+        LAPLACE_UNICODE_NORMALIZATION_POSITION_SEQUENCE;
+    atom.fields[17].payload = collapsed_empty.data();
     EXPECT_EQ(laplace_unicode_atom_record_measure(&atom, &measured),
               LAPLACE_UNICODE_RECORD_INVALID);
 }

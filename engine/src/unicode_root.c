@@ -33,7 +33,7 @@ struct laplace_unicode_root_stream_validator {
 
 static const uint8_t expected_payload_kind[LAPLACE_UNICODE_ATOM_FIELD_COUNT] = {
     1u, 2u, 1u, 3u, 4u, 5u, 6u, 7u, 8u, 9u, 10u, 1u, 1u,
-    1u, 11u, 11u, 11u, 12u, 13u, 1u, 1u, 1u, 1u, 1u, 13u, 1u};
+    1u, 11u, 11u, 11u, 14u, 13u, 1u, 1u, 1u, 1u, 1u, 13u, 1u};
 
 static uint16_t read_u16le(const uint8_t* bytes) {
     return (uint16_t)((uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8u));
@@ -386,6 +386,79 @@ static int case_folding_valid(const uint8_t* bytes, size_t byte_count) {
     return offset == byte_count;
 }
 
+static int normalization_properties_valid(
+    const uint8_t* bytes,
+    size_t byte_count) {
+    uint32_t count;
+    uint32_t index;
+    size_t offset = 4u;
+    const uint8_t* prior = NULL;
+    size_t prior_bytes = 0u;
+    if (byte_count == 0u) {
+        return 1;
+    }
+    if (bytes == NULL || byte_count < 4u) {
+        return 0;
+    }
+    count = read_u32le(bytes);
+    if (count == 0u) {
+        return 0;
+    }
+    for (index = 0u; index < count; ++index) {
+        uint16_t key_bytes;
+        uint8_t value_kind;
+        uint32_t value_count;
+        uint64_t value_bytes;
+        const uint8_t* key;
+        if (offset > byte_count || byte_count - offset < 8u) {
+            return 0;
+        }
+        key_bytes = read_u16le(bytes + offset);
+        value_kind = bytes[offset + 2u];
+        value_count = read_u32le(bytes + offset + 4u);
+        if (key_bytes == 0u || bytes[offset + 3u] != 0u ||
+            byte_count - offset - 8u < key_bytes) {
+            return 0;
+        }
+        key = bytes + offset + 8u;
+        if (!ascii_token_valid(key, key_bytes, 1) ||
+            (prior != NULL && bytes_compare(
+                prior, prior_bytes, key, key_bytes) >= 0)) {
+            return 0;
+        }
+        offset += 8u + key_bytes;
+        if (value_kind == LAPLACE_UNICODE_NORMALIZATION_BINARY_TRUE ||
+            value_kind ==
+                LAPLACE_UNICODE_NORMALIZATION_EMPTY_POSITION_SEQUENCE) {
+            if (value_count != 0u) {
+                return 0;
+            }
+            value_bytes = 0u;
+        } else if (value_kind ==
+                   LAPLACE_UNICODE_NORMALIZATION_ASCII_PROPERTY_VALUE) {
+            value_bytes = value_count;
+            if (value_count == 0u || value_bytes > byte_count - offset ||
+                !ascii_token_valid(bytes + offset, value_count, 1)) {
+                return 0;
+            }
+        } else if (value_kind ==
+                   LAPLACE_UNICODE_NORMALIZATION_POSITION_SEQUENCE) {
+            value_bytes = (uint64_t)value_count * 4u;
+            if (value_count == 0u || value_bytes > byte_count - offset ||
+                !position_sequence_valid(
+                    bytes + offset, (size_t)value_bytes)) {
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+        offset += (size_t)value_bytes;
+        prior = key;
+        prior_bytes = key_bytes;
+    }
+    return offset == byte_count;
+}
+
 static int full_case_mappings_valid(
     const uint8_t* bytes,
     size_t byte_count) {
@@ -514,6 +587,9 @@ static int field_payload_valid(const laplace_unicode_atom_field* field) {
                 field->payload, field->payload_bytes, 1);
         case LAPLACE_UNICODE_PAYLOAD_BOOLEAN:
             return field->payload_bytes == 1u && field->payload[0] <= 1u;
+        case LAPLACE_UNICODE_PAYLOAD_NORMALIZATION_PROPERTIES:
+            return normalization_properties_valid(
+                field->payload, field->payload_bytes);
         default:
             return 0;
     }

@@ -137,6 +137,22 @@ class UnicodeRootContractTests(unittest.TestCase):
         with self.assertRaisesRegex(VALIDATOR.ContractError, "payload-kind"):
             VALIDATOR.validate_contracts(self.root)
 
+    def test_normalization_properties_cannot_collapse_typed_values(self) -> None:
+        path, document = self.document("unicode-atom-record.json")
+        document["variable_fields"][17]["kind"] = (
+            "sorted-canonical-ascii-key-value-set"
+        )
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "typed value"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_full_composition_exclusion_cannot_become_ambiguous(self) -> None:
+        path, document = self.document("unicode-atom-record.json")
+        document["variable_fields"][18]["name"] = "composition_exclusion"
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "property record"):
+            VALIDATOR.validate_contracts(self.root)
+
     def test_atom_record_without_full_identity_fingerprint_is_rejected(self) -> None:
         path, document = self.document("unicode-atom-record.json")
         document["wire"]["fixed_fields"] = [
