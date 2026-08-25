@@ -1,6 +1,24 @@
 {
   "schema": "laplace.release-lock/v1",
   "archives": {
+    "cmake": {
+      "version": "4.4.2",
+      "filename": "cmake-4.4.2.tar.gz",
+      "url": "https://github.com/Kitware/CMake/releases/download/v4.4.2/cmake-4.4.2.tar.gz",
+      "sha256": "1db9e61e60b6e0874c86386340b910382f3c5e75b9fbfb44d122063129a2789d",
+      "size_bytes": 13283673,
+      "top_directory": "cmake-4.4.2",
+      "member_count": 33089,
+      "regular_file_count": 30259,
+      "uncompressed_bytes": 59734601,
+      "tree_sha256": "c2fda54bd16fdb52b20bc1967111ada6efb69cc176a23f0d4b483584128e26f0",
+      "licenses": [
+        {
+          "path": "cmake-4.4.2/LICENSE.rst",
+          "sha256": "4382e7c1879ac90e3f101a395d23846fa4dbcaa1eed7265b43681e348754825d"
+        }
+      ]
+    },
     "flex": {
       "version": "2.6.4",
       "filename": "flex-2.6.4.tar.gz",
@@ -244,6 +262,24 @@
         {
           "path": "perl-5.44.0/Copying",
           "sha256": "8979e6dd61852041643c5c5c40ea63b2bd1b438a67d114e62cbaef808c514315"
+        }
+      ]
+    },
+    "ninja": {
+      "version": "1.13.2",
+      "filename": "ninja-1.13.2.tar.gz",
+      "url": "https://github.com/ninja-build/ninja/archive/refs/tags/v1.13.2.tar.gz",
+      "sha256": "974d6b2f4eeefa25625d34da3cb36bdcebe7fbce40f4c16ac0835fd1c0cbae17",
+      "size_bytes": 292385,
+      "top_directory": "ninja-1.13.2",
+      "member_count": 199,
+      "regular_file_count": 185,
+      "uncompressed_bytes": 1268775,
+      "tree_sha256": "47be84a8972fd9288331ae8bac0f309d76833b5777aa5c964d6bbea19931c511",
+      "licenses": [
+        {
+          "path": "ninja-1.13.2/COPYING",
+          "sha256": "eb7e9ab9690124c5c9f42bdc81383d886a3dede26345b6ed15bbad7caf81f7ea"
         }
       ]
     },
