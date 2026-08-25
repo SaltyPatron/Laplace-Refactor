@@ -197,6 +197,21 @@ def _validate_atom(document: dict[str, Any]) -> None:
     _require(document.get("record_index_equals_codepoint_position") is True, "Unicode atom record index is no longer direct")
     wire = document.get("wire", {})
     _require(wire.get("header_bytes") == 132 and wire.get("magic_hex") == "4c554152", "Unicode atom wire header changed")
+    _require(wire.get("payload_kinds") == {
+        "canonical-ascii-property-value": 1,
+        "u8": 2,
+        "optional-u32le-position-and-canonical-ascii-type": 3,
+        "optional-u32le-position": 4,
+        "u32le-position-sequence": 5,
+        "tagged-u32le-position-sequence": 6,
+        "canonical-ascii-rational-or-empty": 7,
+        "sorted-tagged-u32le-positions": 8,
+        "sorted-lower-title-upper-position-sequences-with-context-and-locale-condition-tokens": 9,
+        "sorted-status-and-u32le-position-sequences": 10,
+        "sorted-canonical-ascii-set": 11,
+        "sorted-canonical-ascii-key-value-set": 12,
+        "u8-boolean": 13,
+    }, "atom payload-kind enum changed or is incomplete")
     fixed = wire.get("fixed_fields", [])
     offsets = [field.get("offset") for field in fixed]
     _require(offsets == sorted(offsets) and len(offsets) == len(set(offsets)), "Unicode fixed fields are not uniquely ordered")

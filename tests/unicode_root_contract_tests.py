@@ -98,6 +98,13 @@ class UnicodeRootContractTests(unittest.TestCase):
         with self.assertRaisesRegex(VALIDATOR.ContractError, "field identifiers"):
             VALIDATOR.validate_contracts(self.root)
 
+    def test_atom_payload_kind_enum_change_is_rejected(self) -> None:
+        path, document = self.document("unicode-atom-record.json")
+        document["wire"]["payload_kinds"]["u8-boolean"] = 14
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "payload-kind"):
+            VALIDATOR.validate_contracts(self.root)
+
     def test_atom_record_without_full_identity_fingerprint_is_rejected(self) -> None:
         path, document = self.document("unicode-atom-record.json")
         document["wire"]["fixed_fields"] = [
