@@ -55,6 +55,12 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.GraphError, "unsupported provider"):
             BUILD.validate_contract(contract)
 
+    def test_unknown_component_language_is_rejected(self) -> None:
+        contract = self.contract()
+        contract["components"][0]["languages"] = ["CUDA"]
+        with self.assertRaisesRegex(BUILD.GraphError, "unsupported language"):
+            BUILD.validate_contract(contract)
+
     def test_consumer_cannot_precede_its_dependency(self) -> None:
         contract = self.contract()
         contract["components"][0]["depends_on"] = ["libxml2"]
@@ -174,6 +180,60 @@ class RuntimeBuildGraphTests(unittest.TestCase):
             compiler.write_text("#!/bin/sh\nprintf '%s\\n' '/usr/bin/ld' >&2\n", encoding="utf-8")
             with self.assertRaisesRegex(BUILD.GraphError, "did not select"):
                 BUILD.compiler_driver_trace(self.contract(), compilers, toolchain)
+
+    def test_compiler_driver_trace_identity_ignores_random_temporary_objects(self) -> None:
+        first = (
+            ' "/opt/intel/clang" "-o" "/tmp/icx-abc123/null-deadbeef.o"\n'
+            ' "/selected/ld" "/tmp/icx-abc123/null-deadbeef.o"\n'
+        )
+        second = (
+            ' "/opt/intel/clang" "-o" "/tmp/icx-def456/null-feedface.o"\n'
+            ' "/selected/ld" "/tmp/icx-def456/null-feedface.o"\n'
+        )
+        self.assertEqual(
+            BUILD.normalize_compiler_driver_trace(first),
+            BUILD.normalize_compiler_driver_trace(second),
+        )
+        mutated = second.replace('"/selected/ld"', '"/ambient/ld"')
+        self.assertNotEqual(
+            BUILD.normalize_compiler_driver_trace(first),
+            BUILD.normalize_compiler_driver_trace(mutated),
+        )
+
+    def test_cmake_component_compilers_follow_declared_languages(self) -> None:
+        contract = self.contract()
+        captured: list[list[str]] = []
+
+        def capture(command: object, *_args: object, **_kwargs: object) -> None:
+            captured.append(list(command))
+
+        plan = {
+            "tools": {
+                name: {"path": f"/toolchain/{name}"}
+                for name in ("cmake", "ninja", "ctest", "make", "ar", "ld", "nm", "objcopy", "objdump", "ranlib", "strip")
+            },
+            "final_prefix": "/opt/laplace/releases/fixture",
+            "staged_prefix": "/stage/fixture",
+            "stage_directory": "/stage",
+        }
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            BUILD, "run_logged", side_effect=capture
+        ):
+            root = Path(temporary)
+            BUILD.cmake_component(
+                contract,
+                plan,
+                contract["components"][0],
+                root,
+                root / "build",
+                {},
+                root / "log",
+            )
+        configure = captured[0]
+        self.assertIn(
+            f"-DCMAKE_C_COMPILER={contract['compiler']['c_compiler']['path']}", configure
+        )
+        self.assertFalse(any(item.startswith("-DCMAKE_CXX_COMPILER=") for item in configure))
 
     def test_release_generation_name_must_equal_lock_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
