@@ -178,6 +178,44 @@ add_test(
 set_tests_properties(isa.mutation-partial-preflight-detected PROPERTIES
     LABELS "isa;mutation")
 
+add_executable(laplace_isa_registry_probe
+    isa_registry_probe.cpp)
+target_link_libraries(laplace_isa_registry_probe PRIVATE Laplace::Isa)
+target_compile_options(laplace_isa_registry_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME isa.generated-registry-dispatch-contract
+    COMMAND laplace_isa_registry_probe)
+set_tests_properties(isa.generated-registry-dispatch-contract PROPERTIES
+    LABELS "implementation;isa;framework;registry;contract")
+
+add_library(laplace_isa_registry_mutant STATIC
+    ../engine/src/identity.c
+    ../engine/src/isa.c
+    ../engine/src/trajectory.c)
+target_include_directories(laplace_isa_registry_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_isa_registry_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_isa_registry_mutant
+    PRIVATE LAPLACE_TEST_DISPATCH_FIRST_OPERATION_ONLY=1)
+target_compile_options(laplace_isa_registry_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_isa_registry_mutation_probe
+    isa_registry_probe.cpp)
+target_link_libraries(laplace_isa_registry_mutation_probe
+    PRIVATE laplace_isa_registry_mutant)
+target_compile_options(laplace_isa_registry_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME isa.mutation-private-dispatch-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_isa_registry_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_isa_registry_failure.cmake")
+set_tests_properties(isa.mutation-private-dispatch-detected PROPERTIES
+    LABELS "isa;framework;registry;mutation")
+
 add_executable(laplace_identity_contract_probe
     identity_contract_probe.cpp)
 target_link_libraries(laplace_identity_contract_probe PRIVATE Laplace::Identity)

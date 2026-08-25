@@ -13,6 +13,71 @@ static const uint8_t INPUT_DOMAIN[] = "laplace-isa-input-v1";
 static const uint8_t OUTPUT_DOMAIN[] = "laplace-isa-output-v1";
 static const uint8_t RECEIPT_DOMAIN[] = "laplace-isa-receipt-v1";
 
+typedef laplace_isa_status (*laplace_isa_operation_validate_fn)(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error);
+
+typedef laplace_isa_status (*laplace_isa_operation_execute_fn)(
+    laplace_isa_program* program,
+    const laplace_isa_instruction* instruction);
+
+typedef struct laplace_isa_operation_binding {
+    uint32_t opcode;
+    uint32_t input_type;
+    uint32_t output_type;
+    uint16_t instruction_version;
+    uint16_t introduced_minor;
+    laplace_isa_operation_validate_fn validate;
+    laplace_isa_operation_execute_fn execute;
+} laplace_isa_operation_binding;
+
+#define DECLARE_OPERATION(symbol, handler, opcode_value, version_value, minor_value, input_value, output_value, module_value) \
+    static laplace_isa_status validate_##handler( \
+        const laplace_isa_program*, const laplace_isa_instruction*, \
+        uint64_t, laplace_isa_error*); \
+    static laplace_isa_status execute_##handler( \
+        laplace_isa_program*, const laplace_isa_instruction*);
+
+LAPLACE_ISA_OPERATION_REGISTRY(DECLARE_OPERATION)
+
+#undef DECLARE_OPERATION
+
+#define BIND_OPERATION(symbol, handler, opcode_value, version_value, minor_value, input_value, output_value, module_value) \
+    {opcode_value, input_value, output_value, version_value, minor_value, \
+     validate_##handler, execute_##handler},
+
+static const laplace_isa_operation_binding OPERATION_BINDINGS[] = {
+    LAPLACE_ISA_OPERATION_REGISTRY(BIND_OPERATION)
+};
+
+#undef BIND_OPERATION
+
+static const laplace_isa_operation_binding* operation_binding_find(uint32_t opcode) {
+    size_t low = 0;
+    size_t high = sizeof(OPERATION_BINDINGS) / sizeof(OPERATION_BINDINGS[0]);
+#if defined(LAPLACE_TEST_DISPATCH_FIRST_OPERATION_ONLY)
+    high = 1;
+#endif
+    while (low < high) {
+        const size_t middle = low + (high - low) / 2u;
+        if (OPERATION_BINDINGS[middle].opcode < opcode) {
+            low = middle + 1u;
+        } else {
+            high = middle;
+        }
+    }
+    if (low < sizeof(OPERATION_BINDINGS) / sizeof(OPERATION_BINDINGS[0]) &&
+#if defined(LAPLACE_TEST_DISPATCH_FIRST_OPERATION_ONLY)
+        low < 1u &&
+#endif
+        OPERATION_BINDINGS[low].opcode == opcode) {
+        return &OPERATION_BINDINGS[low];
+    }
+    return NULL;
+}
+
 static void clear_error(laplace_isa_error* error) {
     if (error != NULL) {
         memset(error, 0, sizeof(*error));
@@ -141,8 +206,7 @@ static laplace_isa_status validate_instruction(
         &program->instructions[(size_t)instruction_index];
     laplace_isa_value_view* input;
     laplace_isa_value_view* output;
-    uint64_t index;
-    uint64_t logical_ordinal;
+    const laplace_isa_operation_binding* binding;
 
     if (instruction->flags != LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS) {
         return fail(error, LAPLACE_ISA_UNKNOWN_FLAGS, instruction_index, UINT32_MAX);
@@ -162,74 +226,96 @@ static laplace_isa_status validate_instruction(
 
     input = &program->values[instruction->input_value];
     output = &program->values[instruction->output_value];
-    switch (instruction->opcode) {
-        case LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH:
-            if (instruction->version !=
-                LAPLACE_ISA_INSTRUCTION_VERSION_IDENTITY_CODEPOINT_BATCH) {
-                return fail(error, LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION,
-                            instruction_index, UINT32_MAX);
-            }
-            if (input->type != LAPLACE_ISA_VALUE_U32_VECTOR) {
-                return fail(error, LAPLACE_ISA_VALUE_TYPE_MISMATCH,
-                            instruction_index, instruction->input_value);
-            }
-            if (output->type != LAPLACE_ISA_VALUE_ID128_VECTOR) {
-                return fail(error, LAPLACE_ISA_VALUE_TYPE_MISMATCH,
-                            instruction_index, instruction->output_value);
-            }
-            if (output->capacity < input->count) {
-                return fail(error, LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT,
-                            instruction_index, instruction->output_value);
-            }
-            for (index = 0; index < input->count; ++index) {
-                uint32_t position;
-                memcpy(&position, const_value_element(input, index), sizeof(position));
-                if (position > LAPLACE_UNICODE_POSITION_MAXIMUM) {
-                    return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
-                                instruction_index, instruction->input_value);
-                }
-            }
-            return LAPLACE_ISA_OK;
-        case LAPLACE_ISA_OPCODE_TRAJECTORY_COMPOSITION_DECODE_BATCH:
-            if (program->minor <
-                    LAPLACE_ISA_INTRODUCED_MINOR_TRAJECTORY_COMPOSITION_DECODE_BATCH ||
-                instruction->version !=
-                    LAPLACE_ISA_INSTRUCTION_VERSION_TRAJECTORY_COMPOSITION_DECODE_BATCH) {
-                return fail(error, LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION,
-                            instruction_index, UINT32_MAX);
-            }
-            if (input->type != LAPLACE_ISA_VALUE_COMPOSITION_TRAJECTORY_VECTOR) {
-                return fail(error, LAPLACE_ISA_VALUE_TYPE_MISMATCH,
-                            instruction_index, instruction->input_value);
-            }
-            if (output->type != LAPLACE_ISA_VALUE_COMPOSITION_OCCURRENCE_VECTOR) {
-                return fail(error, LAPLACE_ISA_VALUE_TYPE_MISMATCH,
-                            instruction_index, instruction->output_value);
-            }
-            if (output->capacity < input->count) {
-                return fail(error, LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT,
-                            instruction_index, instruction->output_value);
-            }
-            logical_ordinal = 1;
-            for (index = 0; index < input->count; ++index) {
-                laplace_trajectory_carrier carrier;
-                laplace_composition_occurrence occurrence;
-                laplace_trajectory_status trajectory_status;
-                memcpy(&carrier, const_value_element(input, index), sizeof(carrier));
-                trajectory_status = laplace_trajectory_composition_decode_one(
-                    &carrier, logical_ordinal, &occurrence);
-                if (trajectory_status != LAPLACE_TRAJECTORY_OK ||
-                    UINT64_MAX - logical_ordinal < occurrence.run_length) {
-                    return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
-                                instruction_index, instruction->input_value);
-                }
-                logical_ordinal += occurrence.run_length;
-            }
-            return LAPLACE_ISA_OK;
-        default:
-            return fail(error, LAPLACE_ISA_UNKNOWN_OPCODE,
-                        instruction_index, UINT32_MAX);
+    binding = operation_binding_find(instruction->opcode);
+    if (binding == NULL) {
+        return fail(error, LAPLACE_ISA_UNKNOWN_OPCODE,
+                    instruction_index, UINT32_MAX);
     }
+    if (program->minor < binding->introduced_minor ||
+        instruction->version != binding->instruction_version) {
+        return fail(error, LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION,
+                    instruction_index, UINT32_MAX);
+    }
+    if (input->type != binding->input_type) {
+        return fail(error, LAPLACE_ISA_VALUE_TYPE_MISMATCH,
+                    instruction_index, instruction->input_value);
+    }
+    if (output->type != binding->output_type) {
+        return fail(error, LAPLACE_ISA_VALUE_TYPE_MISMATCH,
+                    instruction_index, instruction->output_value);
+    }
+    return binding->validate(program, instruction, instruction_index, error);
+}
+
+static laplace_isa_status validate_equal_cardinality_capacity(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input =
+        &program->values[instruction->input_value];
+    const laplace_isa_value_view* output =
+        &program->values[instruction->output_value];
+    if (output->capacity < input->count) {
+        return fail(error, LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT,
+                    instruction_index, instruction->output_value);
+    }
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status validate_identity_codepoint_batch(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input =
+        &program->values[instruction->input_value];
+    uint64_t index;
+    laplace_isa_status status = validate_equal_cardinality_capacity(
+        program, instruction, instruction_index, error);
+    if (status != LAPLACE_ISA_OK) {
+        return status;
+    }
+    for (index = 0; index < input->count; ++index) {
+        uint32_t position;
+        memcpy(&position, const_value_element(input, index), sizeof(position));
+        if (position > LAPLACE_UNICODE_POSITION_MAXIMUM) {
+            return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                        instruction_index, instruction->input_value);
+        }
+    }
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status validate_trajectory_composition_decode_batch(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input =
+        &program->values[instruction->input_value];
+    uint64_t logical_ordinal = 1;
+    uint64_t index;
+    laplace_isa_status status = validate_equal_cardinality_capacity(
+        program, instruction, instruction_index, error);
+    if (status != LAPLACE_ISA_OK) {
+        return status;
+    }
+    for (index = 0; index < input->count; ++index) {
+        laplace_trajectory_carrier carrier;
+        laplace_composition_occurrence occurrence;
+        laplace_trajectory_status trajectory_status;
+        memcpy(&carrier, const_value_element(input, index), sizeof(carrier));
+        trajectory_status = laplace_trajectory_composition_decode_one(
+            &carrier, logical_ordinal, &occurrence);
+        if (trajectory_status != LAPLACE_TRAJECTORY_OK ||
+            UINT64_MAX - logical_ordinal < occurrence.run_length) {
+            return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                        instruction_index, instruction->input_value);
+        }
+        logical_ordinal += occurrence.run_length;
+    }
+    return LAPLACE_ISA_OK;
 }
 
 static laplace_isa_status validate_global_ranges(
@@ -621,18 +707,11 @@ laplace_isa_status laplace_isa_execute(
          ++instruction_index) {
         const laplace_isa_instruction* instruction =
             &program->instructions[(size_t)instruction_index];
-        switch (instruction->opcode) {
-            case LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH:
-                status = execute_identity_codepoint_batch(program, instruction);
-                break;
-            case LAPLACE_ISA_OPCODE_TRAJECTORY_COMPOSITION_DECODE_BATCH:
-                status = execute_trajectory_composition_decode_batch(
-                    program, instruction);
-                break;
-            default:
-                status = LAPLACE_ISA_EXECUTION_FAILED;
-                break;
-        }
+        const laplace_isa_operation_binding* binding =
+            operation_binding_find(instruction->opcode);
+        status = binding == NULL
+            ? LAPLACE_ISA_EXECUTION_FAILED
+            : binding->execute(program, instruction);
         if (status != LAPLACE_ISA_OK) {
             receipt->status = status;
             receipt->executed_instruction_count = instruction_index;

@@ -21,6 +21,18 @@
       "covered_dimensions": ["generated registry", "operation metadata", "opcode lookup"]
     },
     {
+      "ctest_name": "isa.generated-registry-dispatch-contract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-MODULE-REGISTRY", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["generated registry-owned validation and dispatch", "typed operation handler selection"],
+      "defect_controls": ["private first-operation-only dispatcher"]
+    },
+    {
+      "ctest_name": "isa.mutation-private-dispatch-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-MODULE-REGISTRY", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["deliberate generated-registry bypass detection"],
+      "defect_controls": ["registered operation omitted from executable dispatch"]
+    },
+    {
       "ctest_name": "FrameworkContext.AllBoundFactsAffectFingerprint",
       "evidence_targets": ["LP-TEST-FRAMEWORK-EXECUTION-CONTEXT", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
       "covered_dimensions": ["immutable epoch mask", "authority", "resource grant", "context receipt"]
