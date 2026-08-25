@@ -95,6 +95,70 @@ RUNPATH_PATTERN = re.compile(r"Library (?:runpath|rpath): \[([^]]*)\]")
 DEJAGNU_OUTCOME_PATTERN = re.compile(
     r"^(PASS|FAIL|ERROR|UNRESOLVED|XPASS|XFAIL|UNSUPPORTED|UNTESTED):"
 )
+LLVM_UNSELECTED_REASON = (
+    "No compatible selected Clang and LLVMgold provider exists; the contract-owned "
+    "gate prevents ambient LLVM activation."
+)
+EXPECTED_BINUTILS_UNTESTED_DISPOSITIONS = [
+    {
+        "line": "UNTESTED: pr33198 with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
+        "disposition": "unselected-optional-capability",
+        "reason": LLVM_UNSELECTED_REASON,
+        "capability_id": "llvm-lto-plugin-tests",
+    },
+    {
+        "line": "UNTESTED: pr33198-fat with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
+        "disposition": "unselected-optional-capability",
+        "reason": LLVM_UNSELECTED_REASON,
+        "capability_id": "llvm-lto-plugin-tests",
+    },
+    {
+        "line": "UNTESTED: pr33198 with -R .llvm.lto",
+        "disposition": "unselected-optional-capability",
+        "reason": LLVM_UNSELECTED_REASON,
+        "capability_id": "llvm-lto-plugin-tests",
+    },
+    {
+        "line": "UNTESTED: pr33198-fat with -R .llvm.lto",
+        "disposition": "unselected-optional-capability",
+        "reason": LLVM_UNSELECTED_REASON,
+        "capability_id": "llvm-lto-plugin-tests",
+    },
+    {
+        "line": "UNTESTED: pr33246-llvm with --strip-debug --enable-deterministic-archives",
+        "disposition": "unselected-optional-capability",
+        "reason": LLVM_UNSELECTED_REASON,
+        "capability_id": "llvm-lto-plugin-tests",
+    },
+    {
+        "line": "UNTESTED: pr33246-llvm-fat with --strip-debug --enable-deterministic-archives",
+        "disposition": "unselected-optional-capability",
+        "reason": LLVM_UNSELECTED_REASON,
+        "capability_id": "llvm-lto-plugin-tests",
+    },
+    {
+        "line": "UNTESTED: bootstrap with --static",
+        "disposition": "plugin-enabled-static-bootstrap-incompatible",
+        "reason": (
+            "Upstream bootstrap.exp skips static bootstrap when selected plugin "
+            "support requires dynamic loading."
+        ),
+        "evidence_predicates": [
+            {
+                "id": "static-link-probe-executed-successfully",
+                "relative_path": "ld/ld.log",
+                "contains": " -static cs",
+                "until_contains": " -static-pie cs",
+                "forbidden_before": "error:",
+            },
+            {
+                "id": "nm-plugin-support-advertised",
+                "relative_path": "ld/ld.log",
+                "contains": "--plugin NAME      Load the specified plugin",
+            },
+        ],
+    },
+]
 
 
 class ToolchainError(RuntimeError):
@@ -156,6 +220,108 @@ def require_string_array(value: object, name: str) -> list[str]:
     if len(set(value)) != len(value):
         raise ToolchainError(f"{name} contains duplicates")
     return value
+
+
+def require_expected_outcome_dispositions(
+    test_policy: Mapping[str, Any], name: str
+) -> dict[str, list[dict[str, Any]]]:
+    raw_capabilities = test_policy.get("unselected_optional_capabilities")
+    if not isinstance(raw_capabilities, list) or not raw_capabilities:
+        raise ToolchainError(f"{name}.unselected_optional_capabilities must be non-empty")
+    capability_ids: set[str] = set()
+    for index, raw_capability in enumerate(raw_capabilities):
+        capability = require_object(
+            raw_capability, f"{name}.unselected_optional_capabilities[{index}]"
+        )
+        capability_id = require_string(
+            capability.get("id"),
+            f"{name}.unselected_optional_capabilities[{index}].id",
+        )
+        if capability_id in capability_ids:
+            raise ToolchainError(f"{name} contains duplicate capability id {capability_id}")
+        capability_ids.add(capability_id)
+
+    raw_outcomes = require_object(test_policy.get("expected_outcomes"), f"{name}.expected_outcomes")
+    outcomes: dict[str, list[dict[str, Any]]] = {}
+    lines: set[str] = set()
+    bound_capability_ids: set[str] = set()
+    for outcome, raw_entries in raw_outcomes.items():
+        if not isinstance(raw_entries, list) or not raw_entries:
+            raise ToolchainError(f"{name}.expected_outcomes.{outcome} must be a non-empty array")
+        entries: list[dict[str, Any]] = []
+        for index, raw_entry in enumerate(raw_entries):
+            entry_name = f"{name}.expected_outcomes.{outcome}[{index}]"
+            entry = require_object(raw_entry, entry_name)
+            line = require_string(entry.get("line"), f"{entry_name}.line")
+            if not line.startswith(f"{outcome}:"):
+                raise ToolchainError(f"{entry_name}.line does not match outcome {outcome}")
+            if line in lines:
+                raise ToolchainError(f"{name} contains duplicate expected outcome line: {line}")
+            lines.add(line)
+            disposition = require_string(
+                entry.get("disposition"), f"{entry_name}.disposition"
+            )
+            require_string(entry.get("reason"), f"{entry_name}.reason")
+            capability_id = entry.get("capability_id")
+            if disposition == "unselected-optional-capability":
+                capability_id = require_string(capability_id, f"{entry_name}.capability_id")
+                if capability_id not in capability_ids:
+                    raise ToolchainError(
+                        f"{entry_name} references unknown optional capability {capability_id}"
+                    )
+                bound_capability_ids.add(capability_id)
+            elif disposition == "plugin-enabled-static-bootstrap-incompatible":
+                if capability_id is not None:
+                    raise ToolchainError(
+                        f"{entry_name} static-bootstrap disposition cannot bind a capability"
+                    )
+                predicates = entry.get("evidence_predicates")
+                if not isinstance(predicates, list) or not predicates:
+                    raise ToolchainError(
+                        f"{entry_name} static-bootstrap disposition requires evidence predicates"
+                    )
+                predicate_ids: set[str] = set()
+                for predicate_index, raw_predicate in enumerate(predicates):
+                    predicate_name = (
+                        f"{entry_name}.evidence_predicates[{predicate_index}]"
+                    )
+                    predicate = require_object(raw_predicate, predicate_name)
+                    predicate_id = require_string(
+                        predicate.get("id"), f"{predicate_name}.id"
+                    )
+                    if predicate_id in predicate_ids:
+                        raise ToolchainError(
+                            f"{entry_name} contains duplicate evidence predicate {predicate_id}"
+                        )
+                    predicate_ids.add(predicate_id)
+                    relative_path = require_string(
+                        predicate.get("relative_path"), f"{predicate_name}.relative_path"
+                    )
+                    if Path(relative_path).is_absolute() or ".." in Path(relative_path).parts:
+                        raise ToolchainError(
+                            f"{predicate_name}.relative_path must remain build-relative"
+                        )
+                    require_string(predicate.get("contains"), f"{predicate_name}.contains")
+                    until_contains = predicate.get("until_contains")
+                    forbidden_before = predicate.get("forbidden_before")
+                    if (until_contains is None) != (forbidden_before is None):
+                        raise ToolchainError(
+                            f"{predicate_name} must declare both until_contains and forbidden_before"
+                        )
+                    if until_contains is not None:
+                        require_string(until_contains, f"{predicate_name}.until_contains")
+                        require_string(forbidden_before, f"{predicate_name}.forbidden_before")
+            else:
+                raise ToolchainError(f"{entry_name} has unknown disposition {disposition}")
+            entries.append(entry)
+        outcomes[outcome] = entries
+    missing_bindings = capability_ids - bound_capability_ids
+    if missing_bindings:
+        raise ToolchainError(
+            f"{name} omits expected-outcome bindings for optional capabilities: "
+            + ", ".join(sorted(missing_bindings))
+        )
+    return outcomes
 
 
 def ensure_external(path: Path, repository: Path, name: str) -> Path:
@@ -364,15 +530,12 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
         "XPASS",
     ]:
         raise ToolchainError("binutils DejaGNU failure outcomes must remain fail-closed")
-    expected_outcomes = test_policy.get("expected_outcomes")
-    expected_untested = [
-        "UNTESTED: pr33198 with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
-        "UNTESTED: pr33198-fat with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
-        "UNTESTED: pr33198 with -R .llvm.lto",
-        "UNTESTED: pr33198-fat with -R .llvm.lto",
-        "UNTESTED: bootstrap with --static",
-    ]
-    if expected_outcomes != {"UNTESTED": expected_untested}:
+    expected_outcomes = require_expected_outcome_dispositions(
+        test_policy, "build.components.gnu-binutils.test_policy"
+    )
+    if expected_outcomes != {
+        "UNTESTED": EXPECTED_BINUTILS_UNTESTED_DISPOSITIONS
+    }:
         raise ToolchainError("binutils expected untested outcomes must remain exact")
 
     receipt = require_object(contract.get("receipt"), "receipt")
@@ -753,24 +916,75 @@ def verify_dejagnu_results(
             f"{component_id} DejaGNU summary contains {len(findings)} forbidden outcomes; "
             f"first is {first['file']}: {first['line']}"
         )
-    expected_outcomes = require_object(
-        test_policy.get("expected_outcomes"),
-        f"{component_id}.test_policy.expected_outcomes",
+    expected_outcomes = require_expected_outcome_dispositions(
+        test_policy, f"{component_id}.test_policy"
     )
-    for outcome, expected_value in expected_outcomes.items():
-        expected = require_string_array(
-            expected_value, f"{component_id}.test_policy.expected_outcomes.{outcome}"
-        )
+    adjudications: dict[str, list[dict[str, Any]]] = {}
+    for outcome, entries in expected_outcomes.items():
+        expected = [require_string(entry.get("line"), "expected outcome line") for entry in entries]
         observed = outcome_lines.get(outcome)
         if observed is None or sorted(observed) != sorted(expected):
             raise ToolchainError(
                 f"{component_id} DejaGNU {outcome} outcomes differ from the selected capability contract"
             )
+        outcome_adjudications: list[dict[str, Any]] = []
+        for entry in entries:
+            adjudication = {
+                key: entry[key]
+                for key in ("line", "disposition", "reason", "capability_id")
+                if key in entry
+            }
+            evidence_receipts: list[dict[str, str]] = []
+            for raw_predicate in entry.get("evidence_predicates", []):
+                predicate = require_object(raw_predicate, "evidence predicate")
+                relative_path = Path(
+                    require_string(predicate.get("relative_path"), "evidence relative_path")
+                )
+                evidence_path = component_build / relative_path
+                if not evidence_path.is_file():
+                    raise ToolchainError(
+                        f"{component_id} outcome evidence file is absent: {relative_path}"
+                    )
+                needle = require_string(predicate.get("contains"), "evidence contains")
+                evidence_text = evidence_path.read_text(encoding="utf-8", errors="replace")
+                start = evidence_text.find(needle)
+                if start < 0:
+                    raise ToolchainError(
+                        f"{component_id} outcome evidence predicate is unsatisfied: "
+                        f"{predicate['id']}"
+                    )
+                evidence_receipt = {
+                    "id": require_string(predicate.get("id"), "evidence predicate id"),
+                    "path": str(relative_path),
+                    "sha256": sha256_file(evidence_path),
+                    "contains": needle,
+                }
+                if "until_contains" in predicate:
+                    until = require_string(
+                        predicate.get("until_contains"), "evidence until_contains"
+                    )
+                    end = evidence_text.find(until, start + len(needle))
+                    forbidden = require_string(
+                        predicate.get("forbidden_before"), "evidence forbidden_before"
+                    )
+                    if end < 0 or forbidden in evidence_text[start:end]:
+                        raise ToolchainError(
+                            f"{component_id} outcome evidence predicate is unsatisfied: "
+                            f"{predicate['id']}"
+                        )
+                    evidence_receipt["until_contains"] = until
+                    evidence_receipt["forbidden_before"] = forbidden
+                evidence_receipts.append(evidence_receipt)
+            if evidence_receipts:
+                adjudication["evidence"] = evidence_receipts
+            outcome_adjudications.append(adjudication)
+        adjudications[outcome] = outcome_adjudications
     return {
         "status": "verified",
         "format": "dejagnu-sum",
         "counts": counts,
         "expected_outcomes": expected_outcomes,
+        "adjudications": adjudications,
         "summary_files": files,
     }
 

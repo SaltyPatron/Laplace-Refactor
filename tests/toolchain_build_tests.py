@@ -190,23 +190,94 @@ class ToolchainBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(BUILD.ToolchainError, "forbidden outcomes"):
                 BUILD.verify_dejagnu_results("gnu-binutils", root, policy)
 
+    def test_dejagnu_optional_llvm_exclusions_require_capability_binding(self) -> None:
+        for mutation, expected_error in (
+            ("missing", "capability_id"),
+            ("wrong", "unknown optional capability"),
+        ):
+            with self.subTest(mutation=mutation):
+                contract = self.contract()
+                entry = contract["build"]["components"]["gnu-binutils"][
+                    "test_policy"
+                ]["expected_outcomes"]["UNTESTED"][0]
+                if mutation == "missing":
+                    entry.pop("capability_id")
+                else:
+                    entry["capability_id"] = "ambient-llvm"
+                with self.assertRaisesRegex(BUILD.ToolchainError, expected_error):
+                    BUILD.validate_contract(contract)
+
+    def test_dejagnu_dispositions_and_lines_are_typed_unique_contracts(self) -> None:
+        for mutation, expected_error in (
+            ("missing-disposition", "disposition"),
+            ("wrong-disposition", "unknown disposition"),
+            ("duplicate-line", "duplicate expected outcome line"),
+        ):
+            with self.subTest(mutation=mutation):
+                contract = self.contract()
+                entries = contract["build"]["components"]["gnu-binutils"][
+                    "test_policy"
+                ]["expected_outcomes"]["UNTESTED"]
+                if mutation == "missing-disposition":
+                    entries[0].pop("disposition")
+                elif mutation == "wrong-disposition":
+                    entries[0]["disposition"] = "skip"
+                else:
+                    entries[1]["line"] = entries[0]["line"]
+                with self.assertRaisesRegex(BUILD.ToolchainError, expected_error):
+                    BUILD.validate_contract(contract)
+
     def test_clean_dejagnu_summaries_are_receipted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             policy = self.contract()["build"]["components"]["gnu-binutils"][
                 "test_policy"
             ]
+            expected = policy["expected_outcomes"]["UNTESTED"]
             (root / "binutils.sum").write_text(
                 "PASS: stable\nXFAIL: known upstream expectation\nUNSUPPORTED: other target\n"
-                + "\n".join(policy["expected_outcomes"]["UNTESTED"])
+                + "\n".join(entry["line"] for entry in expected)
                 + "\n",
+                encoding="utf-8",
+            )
+            (root / "ld").mkdir()
+            (root / "ld/ld.log").write_text(
+                "compiler invocation -static cs1.c -o cs1.exe\n"
+                "compiler invocation -static-pie cs2.c -o cs2.exe\n"
+                "--plugin NAME      Load the specified plugin\n",
                 encoding="utf-8",
             )
             receipt = BUILD.verify_dejagnu_results("gnu-binutils", root, policy)
             self.assertEqual(receipt["counts"]["PASS"], 1)
             self.assertEqual(receipt["counts"]["XFAIL"], 1)
-            self.assertEqual(receipt["counts"]["UNTESTED"], 5)
+            self.assertEqual(receipt["counts"]["UNTESTED"], 7)
+            self.assertEqual(
+                receipt["adjudications"]["UNTESTED"][0]["capability_id"],
+                "llvm-lto-plugin-tests",
+            )
+            self.assertEqual(
+                len(receipt["adjudications"]["UNTESTED"][-1]["evidence"]), 2
+            )
             self.assertEqual(len(receipt["summary_files"]), 1)
+
+    def test_static_bootstrap_disposition_requires_observed_plugin_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            policy = self.contract()["build"]["components"]["gnu-binutils"][
+                "test_policy"
+            ]
+            expected = policy["expected_outcomes"]["UNTESTED"]
+            (root / "binutils.sum").write_text(
+                "\n".join(entry["line"] for entry in expected) + "\n",
+                encoding="utf-8",
+            )
+            (root / "ld").mkdir()
+            (root / "ld/ld.log").write_text(
+                "compiler invocation -static cs1.c -o cs1.exe\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BUILD.ToolchainError, "evidence predicate"):
+                BUILD.verify_dejagnu_results("gnu-binutils", root, policy)
 
     def test_perl_local_path_defaults_are_fail_closed(self) -> None:
         contract = self.contract()
