@@ -145,6 +145,130 @@ laplace_framework_sink_v1 Sink(MemorySink* state) {
         0u};
 }
 
+struct ProducerState final {
+    std::array<std::array<std::uint8_t, 2>, 3> bytes{{
+        {{1u, 2u}}, {{3u, 4u}}, {{5u, 6u}}}};
+    std::uint64_t next_calls{};
+    std::uint64_t invalid_batch{UINT64_MAX};
+    bool invalid_plan{};
+    bool prepared{};
+    bool finished{};
+    bool aborted{};
+};
+
+laplace_framework_status PrepareProducer(
+    void* opaque,
+    const laplace_framework_context*,
+    const laplace_digest256*,
+    const laplace_digest256*,
+    laplace_framework_producer_plan* plan) {
+    auto* state = static_cast<ProducerState*>(opaque);
+    state->next_calls = 0;
+    state->prepared = true;
+    state->finished = false;
+    state->aborted = false;
+    *plan = laplace_framework_producer_plan{};
+    FillDigest(&plan->producer_fingerprint, 0x21u);
+    FillDigest(&plan->initial_cursor_fingerprint, 0x31u);
+    plan->batch_count = static_cast<std::uint64_t>(state->bytes.size());
+    plan->total_records = static_cast<std::uint64_t>(state->bytes.size());
+    plan->total_bytes = static_cast<std::uint64_t>(
+        state->bytes.size() * state->bytes.front().size());
+    plan->record_type = LAPLACE_ISA_VALUE_U32_VECTOR;
+    plan->flags = LAPLACE_FRAMEWORK_KNOWN_PRODUCER_FLAGS;
+    if (state->invalid_plan) {
+        plan->total_bytes = 0u;
+    }
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status NextProducer(
+    void* opaque,
+    std::uint64_t batch_index,
+    laplace_framework_canonical_batch* batch,
+    laplace_digest256* cursor_fingerprint) {
+    auto* state = static_cast<ProducerState*>(opaque);
+    if (!state->prepared || batch_index >= state->bytes.size()) {
+        return LAPLACE_FRAMEWORK_PRODUCER_BATCH_FAILED;
+    }
+    ++state->next_calls;
+    const auto index = static_cast<std::size_t>(batch_index);
+    *batch = Batch(
+        state->bytes[index].data(), state->bytes[index].size(), 1u,
+        batch_index == state->invalid_batch ? batch_index + 1u : batch_index);
+    FillDigest(
+        cursor_fingerprint,
+        static_cast<std::uint8_t>(0x41u + batch_index));
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status FinishProducer(
+    void* opaque,
+    laplace_digest256* completion_fingerprint) {
+    auto* state = static_cast<ProducerState*>(opaque);
+    state->finished = true;
+    FillDigest(completion_fingerprint, 0x61u);
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+void AbortProducer(void* opaque) {
+    static_cast<ProducerState*>(opaque)->aborted = true;
+}
+
+laplace_framework_producer_v1 Producer(ProducerState* state) {
+    return laplace_framework_producer_v1{
+        state,
+        PrepareProducer,
+        NextProducer,
+        FinishProducer,
+        AbortProducer,
+        LAPLACE_FRAMEWORK_PRODUCER_ABI_MAJOR,
+        LAPLACE_FRAMEWORK_PRODUCER_ABI_MINOR,
+        LAPLACE_FRAMEWORK_KNOWN_PRODUCER_FLAGS,
+        0u};
+}
+
+struct ProducerControlState final {
+    std::vector<laplace_framework_replay_checkpoint> checkpoints;
+    std::uint64_t cancel_after_batches{UINT64_MAX};
+    bool cancelled{};
+};
+
+int ProducerCancellationRequested(void* opaque) {
+    return static_cast<ProducerControlState*>(opaque)->cancelled ? 1 : 0;
+}
+
+void ObserveProducerProgress(
+    void* opaque,
+    const laplace_framework_replay_checkpoint* checkpoint) {
+    auto* state = static_cast<ProducerControlState*>(opaque);
+    state->checkpoints.push_back(*checkpoint);
+    if (checkpoint->completed_batches == state->cancel_after_batches) {
+        state->cancelled = true;
+    }
+}
+
+laplace_framework_producer_control_v1 ProducerControl(
+    ProducerControlState* state,
+    const laplace_framework_replay_checkpoint* replay = nullptr) {
+    return laplace_framework_producer_control_v1{
+        state,
+        replay,
+        ProducerCancellationRequested,
+        ObserveProducerProgress,
+        LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MAJOR,
+        LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MINOR,
+        LAPLACE_FRAMEWORK_KNOWN_PRODUCER_CONTROL_FLAGS,
+        0u};
+}
+
+void ProducerBindings(
+    laplace_digest256* source_fingerprint,
+    laplace_digest256* recipe_fingerprint) {
+    FillDigest(source_fingerprint, 0xc4u);
+    FillDigest(recipe_fingerprint, 0xe4u);
+}
+
 struct ActivationState final {
     laplace_digest256 current_epoch{};
     std::uint32_t prepare_count{};
@@ -388,6 +512,258 @@ TEST(CanonicalStream, RejectsOrdinalGapsBeforeOpeningSinks) {
                   &context, &stream, &sink, 1u, &receipt),
               LAPLACE_FRAMEWORK_STREAM_INVALID);
     EXPECT_FALSE(memory.begun);
+}
+
+TEST(FrameworkProducer, FansCanonicalBatchesThroughEveryExistingSink) {
+    auto context = Context();
+    laplace_digest256 source_fingerprint{};
+    laplace_digest256 recipe_fingerprint{};
+    ProducerBindings(&source_fingerprint, &recipe_fingerprint);
+    ProducerState producer_state{};
+    auto producer = Producer(&producer_state);
+    ProducerControlState control_state{};
+    auto control = ProducerControl(&control_state);
+    MemorySink left{};
+    MemorySink right{};
+    std::array<laplace_framework_sink_v1, 2> sinks{{Sink(&left), Sink(&right)}};
+    laplace_framework_producer_receipt receipt{};
+
+    ASSERT_EQ(laplace_framework_run_producer(
+                  &context, &source_fingerprint, &recipe_fingerprint,
+                  &producer, &control, sinks.data(), sinks.size(), &receipt),
+              LAPLACE_FRAMEWORK_OK);
+    const std::vector<std::uint8_t> expected{1u, 2u, 3u, 4u, 5u, 6u};
+    EXPECT_EQ(left.bytes, expected);
+    EXPECT_EQ(right.bytes, expected);
+    EXPECT_TRUE(left.sealed);
+    EXPECT_TRUE(right.sealed);
+    EXPECT_FALSE(left.aborted);
+    EXPECT_FALSE(right.aborted);
+    EXPECT_TRUE(producer_state.finished);
+    EXPECT_FALSE(producer_state.aborted);
+    EXPECT_EQ(producer_state.next_calls, 3u);
+    EXPECT_EQ(receipt.stream.batch_count, 3u);
+    EXPECT_EQ(receipt.stream.total_records, 3u);
+    EXPECT_EQ(receipt.stream.total_bytes, 6u);
+    EXPECT_EQ(receipt.stream.effect_disposition,
+              LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT);
+    EXPECT_EQ(receipt.checkpoint.completed_batches, 3u);
+    EXPECT_EQ(receipt.checkpoint.completed_records, 3u);
+    EXPECT_EQ(receipt.checkpoint.completed_bytes, 6u);
+    EXPECT_EQ(receipt.progress_events, 4u);
+    EXPECT_EQ(receipt.replay_verified, 0u);
+
+    const std::array<laplace_framework_canonical_batch, 3> batches{{
+        Batch(producer_state.bytes[0].data(), 2u, 1u, 0u),
+        Batch(producer_state.bytes[1].data(), 2u, 1u, 1u),
+        Batch(producer_state.bytes[2].data(), 2u, 1u, 2u)}};
+    laplace_digest256 expected_stream{};
+    std::uint32_t record_type = 0;
+    std::uint64_t total_records = 0;
+    std::uint64_t total_bytes = 0;
+    ASSERT_EQ(laplace_framework_canonical_stream_fingerprint(
+                  batches.data(), batches.size(), &expected_stream,
+                  &record_type, &total_records, &total_bytes),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(std::memcmp(
+                  expected_stream.bytes, receipt.stream.stream_fingerprint.bytes,
+                  sizeof(expected_stream.bytes)),
+              0);
+}
+
+TEST(FrameworkProducer, CancellationReturnsExactBoundaryAndAbortsEverySink) {
+    auto context = Context();
+    laplace_digest256 source_fingerprint{};
+    laplace_digest256 recipe_fingerprint{};
+    ProducerBindings(&source_fingerprint, &recipe_fingerprint);
+
+    ProducerState initial_state{};
+    auto initial_producer = Producer(&initial_state);
+    ProducerControlState initial_control_state{};
+    initial_control_state.cancel_after_batches = 0u;
+    auto initial_control = ProducerControl(&initial_control_state);
+    MemorySink initial_memory{};
+    auto initial_sink = Sink(&initial_memory);
+    laplace_framework_producer_receipt initial_receipt{};
+    EXPECT_EQ(laplace_framework_run_producer(
+                  &context, &source_fingerprint, &recipe_fingerprint,
+                  &initial_producer, &initial_control, &initial_sink, 1u,
+                  &initial_receipt),
+              LAPLACE_FRAMEWORK_PRODUCER_CANCELLED);
+    EXPECT_EQ(initial_receipt.checkpoint.completed_batches, 0u);
+    EXPECT_FALSE(initial_memory.begun);
+    EXPECT_TRUE(initial_state.aborted);
+
+    ProducerState producer_state{};
+    auto producer = Producer(&producer_state);
+    ProducerControlState control_state{};
+    control_state.cancel_after_batches = 1u;
+    auto control = ProducerControl(&control_state);
+    MemorySink left{};
+    MemorySink right{};
+    std::array<laplace_framework_sink_v1, 2> sinks{{Sink(&left), Sink(&right)}};
+    laplace_framework_producer_receipt receipt{};
+
+    EXPECT_EQ(laplace_framework_run_producer(
+                  &context, &source_fingerprint, &recipe_fingerprint,
+                  &producer, &control, sinks.data(), sinks.size(), &receipt),
+              LAPLACE_FRAMEWORK_PRODUCER_CANCELLED);
+    EXPECT_EQ(receipt.status, LAPLACE_FRAMEWORK_PRODUCER_CANCELLED);
+    EXPECT_EQ(receipt.stream.effect_disposition, LAPLACE_FRAMEWORK_EFFECT_NONE);
+    EXPECT_EQ(receipt.checkpoint.completed_batches, 1u);
+    EXPECT_EQ(receipt.checkpoint.completed_records, 1u);
+    EXPECT_EQ(receipt.checkpoint.completed_bytes, 2u);
+    EXPECT_EQ(receipt.checkpoint.next_ordinal, 1u);
+    EXPECT_EQ(receipt.progress_events, 2u);
+    EXPECT_EQ(producer_state.next_calls, 1u);
+    EXPECT_TRUE(producer_state.aborted);
+    EXPECT_FALSE(producer_state.finished);
+    EXPECT_TRUE(left.aborted);
+    EXPECT_TRUE(right.aborted);
+    EXPECT_FALSE(left.sealed);
+    EXPECT_FALSE(right.sealed);
+    EXPECT_TRUE(left.bytes.empty());
+    EXPECT_TRUE(right.bytes.empty());
+}
+
+TEST(FrameworkProducer, ReplayRestartsAndAssertsTheExactPriorPrefix) {
+    auto context = Context();
+    laplace_digest256 source_fingerprint{};
+    laplace_digest256 recipe_fingerprint{};
+    ProducerBindings(&source_fingerprint, &recipe_fingerprint);
+
+    ProducerState interrupted_state{};
+    auto interrupted_producer = Producer(&interrupted_state);
+    ProducerControlState interrupted_control_state{};
+    interrupted_control_state.cancel_after_batches = 1u;
+    auto interrupted_control = ProducerControl(&interrupted_control_state);
+    MemorySink interrupted_memory{};
+    auto interrupted_sink = Sink(&interrupted_memory);
+    laplace_framework_producer_receipt interrupted{};
+    ASSERT_EQ(laplace_framework_run_producer(
+                  &context, &source_fingerprint, &recipe_fingerprint,
+                  &interrupted_producer, &interrupted_control,
+                  &interrupted_sink, 1u, &interrupted),
+              LAPLACE_FRAMEWORK_PRODUCER_CANCELLED);
+
+    ProducerState replay_state{};
+    auto replay_producer = Producer(&replay_state);
+    ProducerControlState replay_control_state{};
+    auto replay_control = ProducerControl(
+        &replay_control_state, &interrupted.checkpoint);
+    MemorySink replay_memory{};
+    auto replay_sink = Sink(&replay_memory);
+    laplace_framework_producer_receipt replayed{};
+    ASSERT_EQ(laplace_framework_run_producer(
+                  &context, &source_fingerprint, &recipe_fingerprint,
+                  &replay_producer, &replay_control, &replay_sink, 1u,
+                  &replayed),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(replay_state.next_calls, 3u);
+    EXPECT_EQ(replayed.replay_verified, 1u);
+    EXPECT_EQ(std::memcmp(
+                  replayed.replay_checkpoint_id.bytes,
+                  interrupted.checkpoint.checkpoint_id.bytes,
+                  sizeof(replayed.replay_checkpoint_id.bytes)),
+              0);
+    EXPECT_EQ(replay_memory.bytes,
+              (std::vector<std::uint8_t>{1u, 2u, 3u, 4u, 5u, 6u}));
+
+    ProducerState altered_state{};
+    altered_state.bytes[0][0] ^= 0x80u;
+    auto altered_producer = Producer(&altered_state);
+    ProducerControlState altered_control_state{};
+    auto altered_control = ProducerControl(
+        &altered_control_state, &interrupted.checkpoint);
+    MemorySink altered_memory{};
+    auto altered_sink = Sink(&altered_memory);
+    laplace_framework_producer_receipt altered{};
+    EXPECT_EQ(laplace_framework_run_producer(
+                  &context, &source_fingerprint, &recipe_fingerprint,
+                  &altered_producer, &altered_control, &altered_sink, 1u,
+                  &altered),
+              LAPLACE_FRAMEWORK_REPLAY_MISMATCH);
+    EXPECT_EQ(altered_state.next_calls, 1u);
+    EXPECT_TRUE(altered_state.aborted);
+    EXPECT_TRUE(altered_memory.aborted);
+    EXPECT_FALSE(altered_memory.sealed);
+    EXPECT_TRUE(altered_memory.bytes.empty());
+}
+
+TEST(FrameworkProducer, InvalidLaterBatchCannotSealAnyPartialArtifact) {
+    auto context = Context();
+    laplace_digest256 source_fingerprint{};
+    laplace_digest256 recipe_fingerprint{};
+    ProducerBindings(&source_fingerprint, &recipe_fingerprint);
+    ProducerState producer_state{};
+    producer_state.invalid_batch = 1u;
+    auto producer = Producer(&producer_state);
+    ProducerControlState control_state{};
+    auto control = ProducerControl(&control_state);
+    MemorySink left{};
+    MemorySink right{};
+    std::array<laplace_framework_sink_v1, 2> sinks{{Sink(&left), Sink(&right)}};
+    laplace_framework_producer_receipt receipt{};
+
+    EXPECT_EQ(laplace_framework_run_producer(
+                  &context, &source_fingerprint, &recipe_fingerprint,
+                  &producer, &control, sinks.data(), sinks.size(), &receipt),
+              LAPLACE_FRAMEWORK_PRODUCER_BATCH_FAILED);
+    EXPECT_EQ(receipt.stream.failed_batch_index, 1u);
+    EXPECT_EQ(receipt.checkpoint.completed_batches, 1u);
+    EXPECT_TRUE(producer_state.aborted);
+    EXPECT_FALSE(producer_state.finished);
+    EXPECT_TRUE(left.aborted);
+    EXPECT_TRUE(right.aborted);
+    EXPECT_FALSE(left.sealed);
+    EXPECT_FALSE(right.sealed);
+    EXPECT_TRUE(left.bytes.empty());
+    EXPECT_TRUE(right.bytes.empty());
+}
+
+TEST(FrameworkProducer, RejectsInvalidAbiAndPlanBeforeOpeningAnySink) {
+    auto context = Context();
+    laplace_digest256 source_fingerprint{};
+    laplace_digest256 recipe_fingerprint{};
+    ProducerBindings(&source_fingerprint, &recipe_fingerprint);
+
+    ProducerState abi_state{};
+    auto invalid_abi = Producer(&abi_state);
+    invalid_abi.abi_minor =
+        static_cast<std::uint16_t>(LAPLACE_FRAMEWORK_PRODUCER_ABI_MINOR + 1u);
+    ProducerControlState abi_control_state{};
+    auto abi_control = ProducerControl(&abi_control_state);
+    MemorySink abi_memory{};
+    auto abi_sink = Sink(&abi_memory);
+    laplace_framework_producer_receipt abi_receipt{};
+    EXPECT_EQ(laplace_framework_run_producer(
+                  &context, &source_fingerprint, &recipe_fingerprint,
+                  &invalid_abi, &abi_control, &abi_sink, 1u, &abi_receipt),
+              LAPLACE_FRAMEWORK_PRODUCER_INVALID);
+    EXPECT_FALSE(abi_state.prepared);
+    EXPECT_FALSE(abi_state.aborted);
+    EXPECT_FALSE(abi_memory.begun);
+    EXPECT_EQ(abi_receipt.stream.effect_disposition,
+              LAPLACE_FRAMEWORK_EFFECT_NONE);
+
+    ProducerState plan_state{};
+    plan_state.invalid_plan = true;
+    auto invalid_plan = Producer(&plan_state);
+    ProducerControlState plan_control_state{};
+    auto plan_control = ProducerControl(&plan_control_state);
+    MemorySink plan_memory{};
+    auto plan_sink = Sink(&plan_memory);
+    laplace_framework_producer_receipt plan_receipt{};
+    EXPECT_EQ(laplace_framework_run_producer(
+                  &context, &source_fingerprint, &recipe_fingerprint,
+                  &invalid_plan, &plan_control, &plan_sink, 1u,
+                  &plan_receipt),
+              LAPLACE_FRAMEWORK_PRODUCER_INVALID);
+    EXPECT_TRUE(plan_state.prepared);
+    EXPECT_TRUE(plan_state.aborted);
+    EXPECT_FALSE(plan_memory.begun);
+    EXPECT_EQ(plan_receipt.stream.effect_disposition,
+              LAPLACE_FRAMEWORK_EFFECT_NONE);
 }
 
 TEST(FrameworkActivation, PublishesOneAdmittedEpochTransition) {

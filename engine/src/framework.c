@@ -11,6 +11,14 @@ static const uint8_t CONTEXT_DOMAIN[] = "laplace-framework-context-v1";
 static const uint8_t STREAM_DOMAIN[] = "laplace-framework-canonical-stream-v1";
 static const uint8_t SINK_DOMAIN[] = "laplace-framework-sink-artifacts-v1";
 static const uint8_t RECEIPT_DOMAIN[] = "laplace-framework-stream-receipt-v1";
+static const uint8_t PRODUCER_PLAN_DOMAIN[] =
+    "laplace-framework-producer-plan-v1";
+static const uint8_t PRODUCER_PREFIX_DOMAIN[] =
+    "laplace-framework-producer-prefix-v1";
+static const uint8_t PRODUCER_CHECKPOINT_DOMAIN[] =
+    "laplace-framework-producer-checkpoint-v1";
+static const uint8_t PRODUCER_RECEIPT_DOMAIN[] =
+    "laplace-framework-producer-receipt-v1";
 static const uint8_t ACTIVATION_REQUEST_DOMAIN[] =
     "laplace-framework-activation-request-v1";
 static const uint8_t ACTIVATION_RECEIPT_DOMAIN[] =
@@ -54,6 +62,13 @@ static void hash_u64(blake3_hasher* hasher, uint64_t value) {
 
 static void finish_digest(blake3_hasher* hasher, laplace_digest256* digest) {
     blake3_hasher_finalize(hasher, digest->bytes, sizeof(digest->bytes));
+}
+
+static void finish_digest_copy(
+    const blake3_hasher* hasher,
+    laplace_digest256* digest) {
+    blake3_hasher copy = *hasher;
+    finish_digest(&copy, digest);
 }
 
 static int digest_is_zero(const laplace_digest256* digest) {
@@ -234,6 +249,30 @@ laplace_framework_status laplace_framework_canonical_stream_fingerprint(
     return LAPLACE_FRAMEWORK_OK;
 }
 
+static laplace_framework_status validate_sinks(
+    const laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    uint64_t* failed_sink_index) {
+    size_t sink_index;
+    if (sinks == NULL || sink_count == 0) {
+        return LAPLACE_FRAMEWORK_SINK_INVALID;
+    }
+    for (sink_index = 0; sink_index < sink_count; ++sink_index) {
+        const laplace_framework_sink_v1* sink = &sinks[sink_index];
+        if (sink->begin == NULL || sink->stage == NULL || sink->seal == NULL ||
+            sink->abort == NULL ||
+            sink->abi_major != LAPLACE_FRAMEWORK_SINK_ABI_MAJOR ||
+            sink->abi_minor > LAPLACE_FRAMEWORK_SINK_ABI_MINOR ||
+            sink->flags != 0 || sink->reserved != 0) {
+            if (failed_sink_index != NULL) {
+                *failed_sink_index = (uint64_t)sink_index;
+            }
+            return LAPLACE_FRAMEWORK_SINK_INVALID;
+        }
+    }
+    return LAPLACE_FRAMEWORK_OK;
+}
+
 static void abort_sinks(laplace_framework_sink_v1* sinks, size_t count) {
     size_t index;
     for (index = 0; index < count; ++index) {
@@ -241,6 +280,80 @@ static void abort_sinks(laplace_framework_sink_v1* sinks, size_t count) {
             sinks[index].abort(sinks[index].state);
         }
     }
+}
+
+static laplace_framework_status begin_sinks(
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    const laplace_framework_context* context,
+    uint32_t record_type,
+    uint64_t total_records,
+    uint64_t total_bytes,
+    size_t* begun,
+    uint64_t* failed_sink_index) {
+    size_t sink_index;
+    *begun = 0;
+    for (sink_index = 0; sink_index < sink_count; ++sink_index) {
+        const laplace_framework_status status = sinks[sink_index].begin(
+            sinks[sink_index].state, context, record_type,
+            total_records, total_bytes);
+        *begun = sink_index + 1u;
+        if (status != LAPLACE_FRAMEWORK_OK) {
+            *failed_sink_index = (uint64_t)sink_index;
+            return LAPLACE_FRAMEWORK_SINK_BEGIN_FAILED;
+        }
+    }
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+static laplace_framework_status stage_batch_to_sinks(
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    const laplace_framework_canonical_batch* batch,
+    uint64_t batch_index,
+    uint64_t* failed_batch_index,
+    uint64_t* failed_sink_index) {
+    size_t sink_index;
+    for (sink_index = 0; sink_index < sink_count; ++sink_index) {
+        const laplace_framework_status status = sinks[sink_index].stage(
+            sinks[sink_index].state, batch);
+        if (status != LAPLACE_FRAMEWORK_OK) {
+            *failed_batch_index = batch_index;
+            *failed_sink_index = (uint64_t)sink_index;
+            return LAPLACE_FRAMEWORK_SINK_STAGE_FAILED;
+        }
+    }
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+static laplace_framework_status seal_sinks(
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    const laplace_digest256* stream_fingerprint,
+    laplace_digest256* artifacts_fingerprint,
+    uint64_t* failed_sink_index) {
+    blake3_hasher artifact_hasher;
+    size_t sink_index;
+    blake3_hasher_init(&artifact_hasher);
+    blake3_hasher_update(
+        &artifact_hasher, SINK_DOMAIN, sizeof(SINK_DOMAIN) - 1u);
+    hash_u64(&artifact_hasher, (uint64_t)sink_count);
+    for (sink_index = 0; sink_index < sink_count; ++sink_index) {
+        laplace_digest256 artifact;
+        laplace_framework_status status;
+        memset(&artifact, 0, sizeof(artifact));
+        status = sinks[sink_index].seal(
+            sinks[sink_index].state, stream_fingerprint, &artifact);
+        if (status != LAPLACE_FRAMEWORK_OK || digest_is_zero(&artifact)) {
+            *failed_sink_index = (uint64_t)sink_index;
+            return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
+        }
+        hash_u64(&artifact_hasher, (uint64_t)sink_index);
+        blake3_hasher_update(
+            &artifact_hasher, artifact.bytes, sizeof(artifact.bytes));
+    }
+    finish_digest(&artifact_hasher, artifacts_fingerprint);
+    return LAPLACE_FRAMEWORK_OK;
 }
 
 static void hash_stream_receipt(laplace_framework_stream_receipt* receipt) {
@@ -271,6 +384,185 @@ static void hash_stream_receipt(laplace_framework_stream_receipt* receipt) {
     blake3_hasher_update(
         &hasher, receipt->sink_artifacts_fingerprint.bytes,
         sizeof(receipt->sink_artifacts_fingerprint.bytes));
+    finish_digest(&hasher, &receipt->receipt_id);
+}
+
+static void initialize_stream_hasher(
+    blake3_hasher* hasher,
+    uint32_t record_type,
+    uint64_t total_records,
+    uint64_t total_bytes) {
+    blake3_hasher_init(hasher);
+    blake3_hasher_update(hasher, STREAM_DOMAIN, sizeof(STREAM_DOMAIN) - 1u);
+    hash_u32(hasher, record_type);
+    hash_u64(hasher, total_records);
+    hash_u64(hasher, total_bytes);
+}
+
+static void hash_producer_plan(
+    const laplace_digest256* context_fingerprint,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_framework_producer_plan* plan,
+    laplace_digest256* plan_fingerprint) {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(
+        &hasher, PRODUCER_PLAN_DOMAIN, sizeof(PRODUCER_PLAN_DOMAIN) - 1u);
+    blake3_hasher_update(
+        &hasher, context_fingerprint->bytes,
+        sizeof(context_fingerprint->bytes));
+    blake3_hasher_update(
+        &hasher, source_fingerprint->bytes, sizeof(source_fingerprint->bytes));
+    blake3_hasher_update(
+        &hasher, recipe_fingerprint->bytes, sizeof(recipe_fingerprint->bytes));
+    blake3_hasher_update(
+        &hasher, plan->producer_fingerprint.bytes,
+        sizeof(plan->producer_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, plan->initial_cursor_fingerprint.bytes,
+        sizeof(plan->initial_cursor_fingerprint.bytes));
+    hash_u64(&hasher, plan->batch_count);
+    hash_u64(&hasher, plan->total_records);
+    hash_u64(&hasher, plan->total_bytes);
+    hash_u32(&hasher, plan->record_type);
+    hash_u32(&hasher, plan->flags);
+    finish_digest(&hasher, plan_fingerprint);
+}
+
+static void initialize_prefix_hasher(
+    blake3_hasher* hasher,
+    uint32_t record_type) {
+    blake3_hasher_init(hasher);
+    blake3_hasher_update(
+        hasher, PRODUCER_PREFIX_DOMAIN, sizeof(PRODUCER_PREFIX_DOMAIN) - 1u);
+    hash_u32(hasher, record_type);
+}
+
+static void update_prefix_hasher(
+    blake3_hasher* hasher,
+    uint64_t batch_index,
+    const laplace_framework_canonical_batch* batch) {
+    hash_u64(hasher, batch_index);
+    hash_u64(hasher, batch->first_ordinal);
+    hash_u64(hasher, batch->record_count);
+    hash_u64(hasher, batch->byte_count);
+    blake3_hasher_update(
+        hasher, batch->canonical_bytes, (size_t)batch->byte_count);
+}
+
+static void hash_checkpoint(laplace_framework_replay_checkpoint* checkpoint) {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(
+        &hasher, PRODUCER_CHECKPOINT_DOMAIN,
+        sizeof(PRODUCER_CHECKPOINT_DOMAIN) - 1u);
+    blake3_hasher_update(
+        &hasher, checkpoint->context_fingerprint.bytes,
+        sizeof(checkpoint->context_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, checkpoint->source_fingerprint.bytes,
+        sizeof(checkpoint->source_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, checkpoint->recipe_fingerprint.bytes,
+        sizeof(checkpoint->recipe_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, checkpoint->producer_fingerprint.bytes,
+        sizeof(checkpoint->producer_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, checkpoint->plan_fingerprint.bytes,
+        sizeof(checkpoint->plan_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, checkpoint->prefix_fingerprint.bytes,
+        sizeof(checkpoint->prefix_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, checkpoint->cursor_fingerprint.bytes,
+        sizeof(checkpoint->cursor_fingerprint.bytes));
+    hash_u64(&hasher, checkpoint->completed_batches);
+    hash_u64(&hasher, checkpoint->completed_records);
+    hash_u64(&hasher, checkpoint->completed_bytes);
+    hash_u64(&hasher, checkpoint->next_ordinal);
+    hash_u32(&hasher, checkpoint->record_type);
+    hash_u32(&hasher, checkpoint->flags);
+    finish_digest(&hasher, &checkpoint->checkpoint_id);
+}
+
+static void set_checkpoint(
+    laplace_framework_replay_checkpoint* checkpoint,
+    const laplace_digest256* context_fingerprint,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_framework_producer_plan* plan,
+    const laplace_digest256* plan_fingerprint,
+    const laplace_digest256* prefix_fingerprint,
+    const laplace_digest256* cursor_fingerprint,
+    uint64_t completed_batches,
+    uint64_t completed_records,
+    uint64_t completed_bytes) {
+    memset(checkpoint, 0, sizeof(*checkpoint));
+    checkpoint->context_fingerprint = *context_fingerprint;
+    checkpoint->source_fingerprint = *source_fingerprint;
+    checkpoint->recipe_fingerprint = *recipe_fingerprint;
+    checkpoint->producer_fingerprint = plan->producer_fingerprint;
+    checkpoint->plan_fingerprint = *plan_fingerprint;
+    checkpoint->prefix_fingerprint = *prefix_fingerprint;
+    checkpoint->cursor_fingerprint = *cursor_fingerprint;
+    checkpoint->completed_batches = completed_batches;
+    checkpoint->completed_records = completed_records;
+    checkpoint->completed_bytes = completed_bytes;
+    checkpoint->next_ordinal = completed_records;
+    checkpoint->record_type = plan->record_type;
+    checkpoint->flags = LAPLACE_FRAMEWORK_KNOWN_REPLAY_FLAGS;
+    hash_checkpoint(checkpoint);
+}
+
+static int checkpoint_checksum_is_valid(
+    const laplace_framework_replay_checkpoint* checkpoint) {
+    laplace_framework_replay_checkpoint expected;
+    if (checkpoint == NULL || checkpoint->record_type == 0 ||
+        checkpoint->flags != LAPLACE_FRAMEWORK_KNOWN_REPLAY_FLAGS ||
+        checkpoint->reserved != 0 || checkpoint->next_ordinal !=
+            checkpoint->completed_records ||
+        digest_is_zero(&checkpoint->checkpoint_id) ||
+        digest_is_zero(&checkpoint->context_fingerprint) ||
+        digest_is_zero(&checkpoint->source_fingerprint) ||
+        digest_is_zero(&checkpoint->recipe_fingerprint) ||
+        digest_is_zero(&checkpoint->producer_fingerprint) ||
+        digest_is_zero(&checkpoint->plan_fingerprint) ||
+        digest_is_zero(&checkpoint->prefix_fingerprint) ||
+        digest_is_zero(&checkpoint->cursor_fingerprint)) {
+        return 0;
+    }
+    expected = *checkpoint;
+    hash_checkpoint(&expected);
+    return digest_equal(&checkpoint->checkpoint_id, &expected.checkpoint_id);
+}
+
+static void hash_producer_receipt(
+    laplace_framework_producer_receipt* receipt) {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(
+        &hasher, PRODUCER_RECEIPT_DOMAIN,
+        sizeof(PRODUCER_RECEIPT_DOMAIN) - 1u);
+    hash_u32(&hasher, (uint32_t)receipt->status);
+    hash_u32(&hasher, receipt->replay_verified);
+    hash_u64(&hasher, receipt->progress_events);
+    blake3_hasher_update(
+        &hasher, receipt->stream.receipt_id.bytes,
+        sizeof(receipt->stream.receipt_id.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->checkpoint.checkpoint_id.bytes,
+        sizeof(receipt->checkpoint.checkpoint_id.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->plan_fingerprint.bytes,
+        sizeof(receipt->plan_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->completion_fingerprint.bytes,
+        sizeof(receipt->completion_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt->replay_checkpoint_id.bytes,
+        sizeof(receipt->replay_checkpoint_id.bytes));
     finish_digest(&hasher, &receipt->receipt_id);
 }
 
@@ -360,9 +652,7 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
     laplace_framework_stream_receipt* receipt) {
-    blake3_hasher artifact_hasher;
     laplace_framework_status status;
-    size_t sink_index;
     size_t batch_index;
     size_t batch_count;
     size_t begun = 0;
@@ -403,75 +693,316 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
         hash_stream_receipt(receipt);
         return status;
     }
-    if (sinks == NULL || sink_count == 0) {
-        receipt->status = LAPLACE_FRAMEWORK_SINK_INVALID;
+    status = validate_sinks(sinks, sink_count, &receipt->failed_sink_index);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        receipt->status = status;
         hash_stream_receipt(receipt);
-        return receipt->status;
+        return status;
     }
-    for (sink_index = 0; sink_index < sink_count; ++sink_index) {
-        const laplace_framework_sink_v1* sink = &sinks[sink_index];
-        if (sink->begin == NULL || sink->stage == NULL || sink->seal == NULL ||
-            sink->abort == NULL || sink->abi_major != LAPLACE_FRAMEWORK_SINK_ABI_MAJOR ||
-            sink->abi_minor > LAPLACE_FRAMEWORK_SINK_ABI_MINOR ||
-            sink->flags != 0 || sink->reserved != 0) {
-            receipt->status = LAPLACE_FRAMEWORK_SINK_INVALID;
-            receipt->failed_sink_index = (uint64_t)sink_index;
-            abort_sinks(sinks, begun);
-            hash_stream_receipt(receipt);
-            return receipt->status;
-        }
-        status = sink->begin(
-            sink->state, context, receipt->record_type,
-            receipt->total_records, receipt->total_bytes);
-        if (status != LAPLACE_FRAMEWORK_OK) {
-            receipt->status = LAPLACE_FRAMEWORK_SINK_BEGIN_FAILED;
-            receipt->failed_sink_index = (uint64_t)sink_index;
-            abort_sinks(sinks, sink_index + 1u);
-            hash_stream_receipt(receipt);
-            return receipt->status;
-        }
-        begun = sink_index + 1u;
+    status = begin_sinks(
+        sinks, sink_count, context, receipt->record_type,
+        receipt->total_records, receipt->total_bytes, &begun,
+        &receipt->failed_sink_index);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        receipt->status = status;
+        abort_sinks(sinks, begun);
+        hash_stream_receipt(receipt);
+        return status;
     }
     for (batch_index = 0; batch_index < batch_count; ++batch_index) {
-        for (sink_index = 0; sink_index < sink_count; ++sink_index) {
-            status = sinks[sink_index].stage(
-                sinks[sink_index].state, &stream->batches[batch_index]);
-            if (status != LAPLACE_FRAMEWORK_OK) {
-                receipt->status = LAPLACE_FRAMEWORK_SINK_STAGE_FAILED;
-                receipt->failed_batch_index = (uint64_t)batch_index;
-                receipt->failed_sink_index = (uint64_t)sink_index;
-                abort_sinks(sinks, begun);
-                hash_stream_receipt(receipt);
-                return receipt->status;
-            }
-        }
-    }
-    blake3_hasher_init(&artifact_hasher);
-    blake3_hasher_update(
-        &artifact_hasher, SINK_DOMAIN, sizeof(SINK_DOMAIN) - 1u);
-    hash_u64(&artifact_hasher, (uint64_t)sink_count);
-    for (sink_index = 0; sink_index < sink_count; ++sink_index) {
-        laplace_digest256 artifact;
-        memset(&artifact, 0, sizeof(artifact));
-        status = sinks[sink_index].seal(
-            sinks[sink_index].state, &receipt->stream_fingerprint,
-            &artifact);
-        if (status != LAPLACE_FRAMEWORK_OK || digest_is_zero(&artifact)) {
-            receipt->status = LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
-            receipt->failed_sink_index = (uint64_t)sink_index;
+        status = stage_batch_to_sinks(
+            sinks, sink_count, &stream->batches[batch_index],
+            (uint64_t)batch_index, &receipt->failed_batch_index,
+            &receipt->failed_sink_index);
+        if (status != LAPLACE_FRAMEWORK_OK) {
+            receipt->status = status;
             abort_sinks(sinks, begun);
             hash_stream_receipt(receipt);
-            return receipt->status;
+            return status;
         }
-        hash_u64(&artifact_hasher, (uint64_t)sink_index);
-        blake3_hasher_update(
-            &artifact_hasher, artifact.bytes, sizeof(artifact.bytes));
     }
-    finish_digest(&artifact_hasher, &receipt->sink_artifacts_fingerprint);
+    status = seal_sinks(
+        sinks, sink_count, &receipt->stream_fingerprint,
+        &receipt->sink_artifacts_fingerprint, &receipt->failed_sink_index);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        receipt->status = status;
+        abort_sinks(sinks, begun);
+        hash_stream_receipt(receipt);
+        return status;
+    }
     receipt->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT;
     receipt->status = LAPLACE_FRAMEWORK_OK;
     hash_stream_receipt(receipt);
     return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status laplace_framework_run_producer(
+    const laplace_framework_context* context,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_framework_producer_v1* producer,
+    const laplace_framework_producer_control_v1* control,
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    laplace_framework_producer_receipt* receipt) {
+    blake3_hasher stream_hasher;
+    blake3_hasher prefix_hasher;
+    laplace_framework_producer_plan plan;
+    laplace_digest256 prefix_fingerprint;
+    laplace_framework_status status;
+    uint64_t completed_records = 0;
+    uint64_t completed_bytes = 0;
+    uint64_t batch_index;
+    size_t begun = 0;
+    int producer_prepared = 0;
+    int replay_verified = 0;
+    if (receipt == NULL) {
+        return LAPLACE_FRAMEWORK_INVALID_ARGUMENT;
+    }
+    memset(receipt, 0, sizeof(*receipt));
+    memset(&plan, 0, sizeof(plan));
+    receipt->stream.failed_batch_index = LAPLACE_FRAMEWORK_NO_INDEX;
+    receipt->stream.failed_sink_index = LAPLACE_FRAMEWORK_NO_INDEX;
+    receipt->stream.sink_count = (uint64_t)sink_count;
+    status = laplace_framework_context_fingerprint(
+        context, &receipt->stream.context_fingerprint);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        goto fail;
+    }
+    if (source_fingerprint == NULL || recipe_fingerprint == NULL ||
+        digest_is_zero(source_fingerprint) ||
+        digest_is_zero(recipe_fingerprint)) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_INVALID;
+        goto fail;
+    }
+    receipt->stream.source_fingerprint = *source_fingerprint;
+    receipt->stream.recipe_fingerprint = *recipe_fingerprint;
+    if (producer == NULL || producer->prepare == NULL ||
+        producer->next == NULL || producer->finish == NULL ||
+        producer->abort == NULL ||
+        producer->abi_major != LAPLACE_FRAMEWORK_PRODUCER_ABI_MAJOR ||
+        producer->abi_minor > LAPLACE_FRAMEWORK_PRODUCER_ABI_MINOR ||
+        producer->flags != LAPLACE_FRAMEWORK_KNOWN_PRODUCER_FLAGS ||
+        producer->reserved != 0 || control == NULL ||
+        control->cancel_requested == NULL ||
+        control->observe_progress == NULL ||
+        control->abi_major != LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MAJOR ||
+        control->abi_minor > LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MINOR ||
+        control->flags != LAPLACE_FRAMEWORK_KNOWN_PRODUCER_CONTROL_FLAGS ||
+        control->reserved != 0) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_INVALID;
+        goto fail;
+    }
+    status = validate_sinks(
+        sinks, sink_count, &receipt->stream.failed_sink_index);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        goto fail;
+    }
+    producer_prepared = 1;
+    status = producer->prepare(
+        producer->state, context, source_fingerprint, recipe_fingerprint,
+        &plan);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_PREPARE_FAILED;
+        goto fail;
+    }
+    if (digest_is_zero(&plan.producer_fingerprint) ||
+        digest_is_zero(&plan.initial_cursor_fingerprint) ||
+        plan.batch_count == 0 || plan.total_records == 0 ||
+        plan.total_bytes == 0 || plan.record_type == 0 ||
+        plan.flags != LAPLACE_FRAMEWORK_KNOWN_PRODUCER_FLAGS ||
+        plan.reserved != 0) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_INVALID;
+        goto fail;
+    }
+    receipt->stream.batch_count = plan.batch_count;
+    receipt->stream.total_records = plan.total_records;
+    receipt->stream.total_bytes = plan.total_bytes;
+    receipt->stream.record_type = plan.record_type;
+    hash_producer_plan(
+        &receipt->stream.context_fingerprint, source_fingerprint,
+        recipe_fingerprint, &plan, &receipt->plan_fingerprint);
+    initialize_stream_hasher(
+        &stream_hasher, plan.record_type, plan.total_records, plan.total_bytes);
+    initialize_prefix_hasher(&prefix_hasher, plan.record_type);
+    finish_digest_copy(&prefix_hasher, &prefix_fingerprint);
+    set_checkpoint(
+        &receipt->checkpoint, &receipt->stream.context_fingerprint,
+        source_fingerprint, recipe_fingerprint, &plan,
+        &receipt->plan_fingerprint, &prefix_fingerprint,
+        &plan.initial_cursor_fingerprint, 0, 0, 0);
+    if (control->replay_checkpoint != NULL) {
+        const laplace_framework_replay_checkpoint* replay =
+            control->replay_checkpoint;
+        receipt->replay_checkpoint_id = replay->checkpoint_id;
+        if (!checkpoint_checksum_is_valid(replay) ||
+            replay->completed_batches > plan.batch_count ||
+            replay->completed_records > plan.total_records ||
+            replay->completed_bytes > plan.total_bytes ||
+            replay->record_type != plan.record_type ||
+            !digest_equal(
+                &replay->context_fingerprint,
+                &receipt->stream.context_fingerprint) ||
+            !digest_equal(&replay->source_fingerprint, source_fingerprint) ||
+            !digest_equal(&replay->recipe_fingerprint, recipe_fingerprint) ||
+            !digest_equal(
+                &replay->producer_fingerprint, &plan.producer_fingerprint) ||
+            !digest_equal(
+                &replay->plan_fingerprint, &receipt->plan_fingerprint)) {
+            status = LAPLACE_FRAMEWORK_REPLAY_INVALID;
+            goto fail;
+        }
+        if (replay->completed_batches == 0) {
+            if (!digest_equal(
+                    &replay->checkpoint_id,
+                    &receipt->checkpoint.checkpoint_id)) {
+                status = LAPLACE_FRAMEWORK_REPLAY_MISMATCH;
+                goto fail;
+            }
+            replay_verified = 1;
+        }
+    }
+#if !defined(LAPLACE_TEST_IGNORE_PRODUCER_CANCELLATION)
+    if (control->cancel_requested(control->state) != 0) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_CANCELLED;
+        goto fail;
+    }
+#endif
+    control->observe_progress(control->state, &receipt->checkpoint);
+    receipt->progress_events = 1;
+#if !defined(LAPLACE_TEST_IGNORE_PRODUCER_CANCELLATION)
+    if (control->cancel_requested(control->state) != 0) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_CANCELLED;
+        goto fail;
+    }
+#endif
+    status = begin_sinks(
+        sinks, sink_count, context, plan.record_type, plan.total_records,
+        plan.total_bytes, &begun, &receipt->stream.failed_sink_index);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        goto fail;
+    }
+    for (batch_index = 0; batch_index < plan.batch_count; ++batch_index) {
+        laplace_framework_canonical_batch batch;
+        laplace_digest256 cursor_fingerprint;
+        memset(&batch, 0, sizeof(batch));
+        memset(&cursor_fingerprint, 0, sizeof(cursor_fingerprint));
+#if !defined(LAPLACE_TEST_IGNORE_PRODUCER_CANCELLATION)
+        if (control->cancel_requested(control->state) != 0) {
+            status = LAPLACE_FRAMEWORK_PRODUCER_CANCELLED;
+            goto fail;
+        }
+#endif
+        status = producer->next(
+            producer->state, batch_index, &batch, &cursor_fingerprint);
+        if (status != LAPLACE_FRAMEWORK_OK) {
+            receipt->stream.failed_batch_index = batch_index;
+            status = LAPLACE_FRAMEWORK_PRODUCER_BATCH_FAILED;
+            goto fail;
+        }
+        if (batch.canonical_bytes == NULL || batch.byte_count == 0 ||
+            batch.record_count == 0 ||
+            batch.first_ordinal != completed_records ||
+            batch.record_type != plan.record_type ||
+            batch.flags != LAPLACE_FRAMEWORK_KNOWN_BATCH_FLAGS ||
+            batch.byte_count > SIZE_MAX ||
+            UINT64_MAX - completed_records < batch.record_count ||
+            UINT64_MAX - completed_bytes < batch.byte_count ||
+            digest_is_zero(&cursor_fingerprint)) {
+            receipt->stream.failed_batch_index = batch_index;
+            status = LAPLACE_FRAMEWORK_PRODUCER_BATCH_FAILED;
+            goto fail;
+        }
+        completed_records += batch.record_count;
+        completed_bytes += batch.byte_count;
+        if (completed_records > plan.total_records ||
+            completed_bytes > plan.total_bytes) {
+            receipt->stream.failed_batch_index = batch_index;
+            status = LAPLACE_FRAMEWORK_PRODUCER_BATCH_FAILED;
+            goto fail;
+        }
+        status = stage_batch_to_sinks(
+            sinks, sink_count, &batch, batch_index,
+            &receipt->stream.failed_batch_index,
+            &receipt->stream.failed_sink_index);
+        if (status != LAPLACE_FRAMEWORK_OK) {
+            goto fail;
+        }
+        blake3_hasher_update(
+            &stream_hasher, batch.canonical_bytes, (size_t)batch.byte_count);
+        update_prefix_hasher(&prefix_hasher, batch_index, &batch);
+        finish_digest_copy(&prefix_hasher, &prefix_fingerprint);
+        set_checkpoint(
+            &receipt->checkpoint, &receipt->stream.context_fingerprint,
+            source_fingerprint, recipe_fingerprint, &plan,
+            &receipt->plan_fingerprint, &prefix_fingerprint,
+            &cursor_fingerprint, batch_index + 1u, completed_records,
+            completed_bytes);
+        if (control->replay_checkpoint != NULL &&
+            control->replay_checkpoint->completed_batches ==
+                batch_index + 1u) {
+#if !defined(LAPLACE_TEST_OMIT_REPLAY_PREFIX_ASSERTION)
+            if (!digest_equal(
+                    &control->replay_checkpoint->checkpoint_id,
+                    &receipt->checkpoint.checkpoint_id)) {
+                status = LAPLACE_FRAMEWORK_REPLAY_MISMATCH;
+                goto fail;
+            }
+#endif
+            replay_verified = 1;
+        }
+        control->observe_progress(control->state, &receipt->checkpoint);
+        ++receipt->progress_events;
+    }
+    if (completed_records != plan.total_records ||
+        completed_bytes != plan.total_bytes ||
+        (control->replay_checkpoint != NULL && replay_verified == 0)) {
+        receipt->stream.failed_batch_index = plan.batch_count;
+        status = LAPLACE_FRAMEWORK_PRODUCER_BATCH_FAILED;
+        goto fail;
+    }
+#if !defined(LAPLACE_TEST_IGNORE_PRODUCER_CANCELLATION)
+    if (control->cancel_requested(control->state) != 0) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_CANCELLED;
+        goto fail;
+    }
+#endif
+    status = producer->finish(
+        producer->state, &receipt->completion_fingerprint);
+    if (status != LAPLACE_FRAMEWORK_OK ||
+        digest_is_zero(&receipt->completion_fingerprint)) {
+        status = LAPLACE_FRAMEWORK_PRODUCER_FINISH_FAILED;
+        goto fail;
+    }
+    finish_digest(&stream_hasher, &receipt->stream.stream_fingerprint);
+    status = seal_sinks(
+        sinks, sink_count, &receipt->stream.stream_fingerprint,
+        &receipt->stream.sink_artifacts_fingerprint,
+        &receipt->stream.failed_sink_index);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        goto fail;
+    }
+    receipt->stream.effect_disposition =
+        LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT;
+    receipt->stream.status = LAPLACE_FRAMEWORK_OK;
+    hash_stream_receipt(&receipt->stream);
+    receipt->replay_verified = (uint32_t)replay_verified;
+    receipt->status = LAPLACE_FRAMEWORK_OK;
+    hash_producer_receipt(receipt);
+    return LAPLACE_FRAMEWORK_OK;
+
+fail:
+    abort_sinks(sinks, begun);
+    if (producer_prepared != 0) {
+        producer->abort(producer->state);
+    }
+    receipt->stream.effect_disposition = LAPLACE_FRAMEWORK_EFFECT_NONE;
+    receipt->stream.status = status;
+    hash_stream_receipt(&receipt->stream);
+    receipt->replay_verified = (uint32_t)replay_verified;
+    receipt->status = status;
+    hash_producer_receipt(receipt);
+    return status;
 }
 
 laplace_framework_status laplace_framework_activate_staged_stream(

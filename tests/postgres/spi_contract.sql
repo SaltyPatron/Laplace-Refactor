@@ -22,9 +22,9 @@ AS $context$
         4,
         1,
         1023::bigint,
-        1::smallint,
-        2::smallint,
-        2
+        @LAPLACE_FRAMEWORK_MAJOR@::smallint,
+        @LAPLACE_FRAMEWORK_MINOR@::smallint,
+        @LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY@::integer
     )::laplace.execution_context
 $context$;
 

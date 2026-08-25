@@ -134,6 +134,70 @@ add_test(
 set_tests_properties(framework.mutation-stream-binding-omission-detected PROPERTIES
     LABELS "framework;batch;sink;receipt;mutation")
 
+add_executable(laplace_framework_producer_probe
+    framework_producer_probe.cpp)
+target_link_libraries(laplace_framework_producer_probe PRIVATE Laplace::Framework)
+target_compile_options(laplace_framework_producer_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME framework.producer-cancellation-contract
+    COMMAND laplace_framework_producer_probe)
+set_tests_properties(framework.producer-cancellation-contract PROPERTIES
+    LABELS "implementation;framework;producer;batch;sink;receipt;replay;contract")
+
+add_library(laplace_framework_producer_mutant STATIC
+    ../engine/src/framework.c)
+target_include_directories(laplace_framework_producer_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_framework_producer_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_framework_producer_mutant
+    PRIVATE LAPLACE_TEST_IGNORE_PRODUCER_CANCELLATION=1)
+target_compile_options(laplace_framework_producer_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_framework_producer_mutation_probe
+    framework_producer_probe.cpp)
+target_link_libraries(laplace_framework_producer_mutation_probe
+    PRIVATE laplace_framework_producer_mutant)
+target_compile_options(laplace_framework_producer_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME framework.mutation-producer-cancellation-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_framework_producer_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_producer_failure.cmake")
+set_tests_properties(
+    framework.mutation-producer-cancellation-omission-detected PROPERTIES
+    LABELS "framework;producer;batch;sink;receipt;replay;mutation")
+
+add_library(laplace_framework_replay_mutant STATIC
+    ../engine/src/framework.c)
+target_include_directories(laplace_framework_replay_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_framework_replay_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_framework_replay_mutant
+    PRIVATE LAPLACE_TEST_OMIT_REPLAY_PREFIX_ASSERTION=1)
+target_compile_options(laplace_framework_replay_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_framework_replay_mutation_probe
+    framework_producer_probe.cpp)
+target_link_libraries(laplace_framework_replay_mutation_probe
+    PRIVATE laplace_framework_replay_mutant)
+target_compile_options(laplace_framework_replay_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME framework.mutation-replay-prefix-assertion-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_framework_replay_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_producer_failure.cmake")
+set_tests_properties(
+    framework.mutation-replay-prefix-assertion-omission-detected PROPERTIES
+    LABELS "framework;producer;batch;sink;receipt;replay;mutation")
+
 add_executable(laplace_framework_activation_probe
     framework_activation_probe.cpp)
 target_link_libraries(laplace_framework_activation_probe PRIVATE Laplace::Framework)
@@ -503,6 +567,10 @@ endif()
 
 if(LAPLACE_POSTGRES_ENABLED)
     find_program(LAPLACE_BASH_EXECUTABLE bash REQUIRED)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql"
+        @ONLY)
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
@@ -520,7 +588,7 @@ if(LAPLACE_POSTGRES_ENABLED)
             "$<TARGET_FILE_DIR:laplace_pg>"
             "$<TARGET_FILE_DIR:laplace_engine>"
             "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
-            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_contract.sql")
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql")
     set_tests_properties(postgres.spi-isa-contract PROPERTIES
         LABELS "implementation;postgresql;spi;isa;receipt"
         RUN_SERIAL TRUE)
