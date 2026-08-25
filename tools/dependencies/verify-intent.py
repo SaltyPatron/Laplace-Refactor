@@ -35,6 +35,7 @@ CRITICAL_COMPONENTS = {
     "lichess",
     "syzygy-table-sets",
     "unicode-standard-data",
+    "github-actions-runner",
 }
 CRITICAL_ROOTS = {
     "downloaded-source-data",

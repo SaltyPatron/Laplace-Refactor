@@ -1,0 +1,35 @@
+{
+  "schema": "laplace.execution-contract/v1",
+  "version": {
+    "major": 1,
+    "minor": 0
+  },
+  "core_kinds": {
+    "unknown": 0,
+    "performance": 1,
+    "efficiency": 2
+  },
+  "cache_kinds": {
+    "data": 1,
+    "instruction": 2,
+    "unified": 3
+  },
+  "processor_flags": {
+    "online": 1,
+    "allowed": 2
+  },
+  "topology_flags": {
+    "affinity_constrained": 1,
+    "memory_constrained": 2,
+    "hybrid_cores": 4
+  },
+  "isa_flags": {
+    "x86_sse2": 1,
+    "x86_avx": 2,
+    "x86_avx2": 4,
+    "x86_avx512f": 8,
+    "x86_fma": 16,
+    "x86_bmi2": 32,
+    "arm_neon": 64
+  }
+}

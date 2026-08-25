@@ -32,12 +32,18 @@ from decoded structure. The first two public ISA instructions execute codepoint
 identity and composition-trajectory decoding through pinned opcodes and value types,
 validate the complete program before writing results, and emit BLAKE3-256
 program/input/output/receipt fingerprints. The optimized and address/undefined-behavior
-builds each pass 69 registered implementation tests. Those
+builds each pass 80 registered implementation tests. A native execution authority now
+observes caller-affinity CPU/package/core/NUMA/cache structure, hybrid core classes,
+usable and constrained memory, page size, and runtime ISA capabilities into an
+immutable caller-owned snapshot. It subtracts resources already owned by PostgreSQL,
+managed processes, and tools; partitions CPU, memory, and I/O grants without creating
+resources; and plans chunks, outer workers, and inner math-library threads inside the
+same conserved grant. Those
 tests include exact cross-runtime vectors, enumeration of all 1,114,112 codepoint
 positions, 100,000-element expanded/run identity and centroid comparisons, exact
 cancellation and subnormal rounding checks, ISA type/capacity/overlap/atomicity checks,
 perfcache corruption and semantic checks, same-directory publication, immutable mapped
-readers, an installed external identity-trajectory-and-ISA consumer, and five injected
+readers, an installed external identity-trajectory-and-ISA consumer, and six injected
 implementation defects that must fail for their exact expected reasons. The dependency
 tests also construct unresolved edges, competing loader
 candidates, incompatible ABI generations, altered archives, and escaping members and
@@ -107,35 +113,36 @@ is copied into this repository.
 
 ## Reproducible native build
 
-The commands below import the pinned source assets into this repository-local ignored
-directory, configure the SIMD BLAKE3 native build, execute the implementation suite,
-and prove that every discovered CTest test has a machine-readable evidence entry.
+The repository stores dependency intent and exact locks, never dependency source trees
+or submodules. Resolved source lives under `/opt/laplace/external`; builds, logs,
+generated artifacts, and installed outputs remain under `/opt/laplace`. The commands
+below verify the source cache, configure the SIMD BLAKE3 native build, execute the
+implementation suite, and prove that every discovered CTest test has a machine-readable
+evidence entry.
 
 ```bash
-./tools/dependencies/import-verified.sh \
-  /home/ahart/Projects/Laplace/external \
-  "$PWD/dependencies/source-complete"
-
-./tools/dependencies/verify-lock.sh "$PWD/dependencies/source-complete"
+export LAPLACE_VERIFIED_SOURCE_ROOT=/opt/laplace/external
+./tools/dependencies/verify-lock.sh "$LAPLACE_VERIFIED_SOURCE_ROOT"
 
 cmake --preset linux-dev \
-  -DLAPLACE_BLAKE3_SOURCE="$PWD/dependencies/source-complete/blake3/c" \
-  -DLAPLACE_GTEST_SOURCE="$PWD/dependencies/source-complete/googletest"
+  -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/blake3/c" \
+  -DLAPLACE_GTEST_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/googletest"
 cmake --build --preset linux-dev --parallel
 ctest --preset linux-dev
-./tools/tests/verify-registry.sh "$PWD/out/build/linux-dev"
+./tools/tests/verify-registry.sh /opt/laplace/work/laplace-refactor/build/linux-dev
 ```
 
 The instrumented build uses the same imported sources:
 
 ```bash
 cmake --preset linux-sanitize \
-  -DLAPLACE_BLAKE3_SOURCE="$PWD/dependencies/source-complete/blake3/c" \
-  -DLAPLACE_GTEST_SOURCE="$PWD/dependencies/source-complete/googletest"
+  -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/blake3/c" \
+  -DLAPLACE_GTEST_SOURCE="$LAPLACE_VERIFIED_SOURCE_ROOT/googletest"
 cmake --build --preset linux-sanitize --parallel
 ctest --preset linux-sanitize
-./tools/tests/verify-registry.sh "$PWD/out/build/linux-sanitize"
+./tools/tests/verify-registry.sh /opt/laplace/work/laplace-refactor/build/linux-sanitize
 ```
 
-The importer refuses an existing destination. That preserves an already-verified tree
-instead of silently replacing it.
+The importer can populate an empty external source root from an independently acquired
+source set. It refuses an existing destination, preserving already-verified trees
+instead of silently replacing them.

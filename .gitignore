@@ -1,18 +1,6 @@
-# Build outputs
-/out/
-/build/
-/artifacts/
-/packages/
-/test-results/
-
-# Verified upstream source and caches
-/.cache/
-/dependencies/source/
-/dependencies/source-complete/
-/dependencies/grammar-source/
-/dependencies/release-source/
-/dependencies/build/
-/dependencies/stage/
+# Build products, logs, generated artifacts, and resolved dependency trees belong under
+# /opt/laplace. They are intentionally not ignored here: an accidental repository-local
+# output must be visible to Git rather than silently accumulating beneath the checkout.
 
 # Managed and web outputs
 **/bin/

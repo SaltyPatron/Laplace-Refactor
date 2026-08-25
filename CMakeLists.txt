@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.22)
 
 project(Laplace VERSION 1.0.0 LANGUAGES C CXX)
 
+include(cmake/LaplaceOutputBoundary.cmake)
+laplace_require_external_output(
+    "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+
 include(CTest)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -58,6 +62,11 @@ include(cmake/LaplaceIsaContract.cmake)
 laplace_configure_isa_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/isa.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/isa.h")
+
+include(cmake/LaplaceExecutionContract.cmake)
+laplace_configure_execution_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/execution.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/execution.h")
 
 add_subdirectory(engine)
 add_subdirectory(tools)

@@ -19,10 +19,10 @@
     },
     {
       "id": "verified-source-cache",
-      "class": "repository-local-dependency-root",
+      "class": "installed-external-dependency-root",
       "environment": "LAPLACE_VERIFIED_SOURCE_ROOT",
-      "repository_discovery_path": "dependencies/source-complete",
-      "intent": "Verified upstream Git source trees selected by dependencies/lock.json.",
+      "linux_discovery_path": "/opt/laplace/external",
+      "intent": "Verified upstream Git source trees selected by dependencies/lock.json, outside the repository and without Git submodules.",
       "identity_requirement": "Each tree must match its exact revision, Git archive digest, clean status, and license-file digests before use."
     },
     {
@@ -30,7 +30,7 @@
       "class": "installed-dependency-root",
       "environment": "LAPLACE_INSTALL_ROOT",
       "linux_discovery_path": "/opt/laplace",
-      "intent": "Installed product, custom PostgreSQL and geometry stack, native libraries, tools, headers, and activation assets used as host observations during reconstruction.",
+      "intent": "Out-of-tree builds, logs, generated artifacts, installed product, custom PostgreSQL and geometry stack, native libraries, tools, headers, and activation assets.",
       "identity_requirement": "Installed files are observations until an activation manifest binds path, full hash, ABI closure, build receipt, and runtime capability checks."
     },
     {
