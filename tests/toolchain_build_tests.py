@@ -45,6 +45,61 @@ class ToolchainBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.ToolchainError, "cmake.test"):
             BUILD.validate_contract(contract)
 
+    def test_tcl_and_expect_must_use_shared_selected_prefix_linkage(self) -> None:
+        for component_id in ("tcl", "expect"):
+            with self.subTest(component_id):
+                contract = self.contract()
+                configure = contract["build"]["components"][component_id]["configure"]
+                configure[configure.index("--enable-shared")] = "--disable-shared"
+                with self.assertRaisesRegex(BUILD.ToolchainError, "shared linkage"):
+                    BUILD.validate_contract(contract)
+
+    def test_component_working_directory_cannot_enter_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = root / "repository"
+            repository.mkdir()
+            external = root / "external"
+            external.mkdir()
+            self.assertEqual(
+                BUILD.component_working_directory(
+                    "tcl",
+                    "private-copy-out-of-tree",
+                    external / "source",
+                    external / "build",
+                    repository,
+                ),
+                external / "build",
+            )
+            with self.assertRaisesRegex(BUILD.ToolchainError, "outside the repository"):
+                BUILD.component_working_directory(
+                    "tcl",
+                    "private-copy-out-of-tree",
+                    external / "source",
+                    repository,
+                    repository,
+                )
+
+    def test_selected_dynamic_linkage_rejects_host_runpath(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary) / "toolchain"
+            provider = prefix / "lib/libtcl8.6.so"
+            provider.parent.mkdir(parents=True)
+            provider.write_bytes(b"selected tcl")
+            receipt = {
+                "path": str(prefix / "bin/tclsh8.6"),
+                "sha256": "a" * 64,
+                "needed": ["libc.so.6", "libtcl8.6.so"],
+                "runpaths": ["/usr/lib"],
+            }
+            with self.assertRaisesRegex(BUILD.ToolchainError, "RUNPATH differs"):
+                BUILD.verify_dynamic_linkage(
+                    receipt,
+                    prefix,
+                    {"libtcl8.6.so": provider},
+                    [prefix / "lib"],
+                )
+
     def test_binutils_cannot_start_without_selected_expect_and_runtest(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             prefix = Path(temporary)
