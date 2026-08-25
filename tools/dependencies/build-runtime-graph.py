@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -344,6 +345,40 @@ def verify_release_generation(
         stdout=subprocess.DEVNULL,
     )
     return lock_sha
+
+
+def load_release_module(repository: Path) -> Any:
+    path = repository / "tools/dependencies/release-assets.py"
+    spec = importlib.util.spec_from_file_location("laplace_runtime_release_assets", path)
+    if spec is None or spec.loader is None:
+        raise GraphError(f"cannot load release verifier: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def prepare_private_sources(
+    contract: dict[str, Any], plan: dict[str, Any], repository: Path, build_root: Path
+) -> Path:
+    sources_root = build_root / "sources"
+    private_directory(sources_root)
+    lock = read_json(repository / contract["release_lock"])
+    archives = lock.get("archives")
+    if not isinstance(archives, dict):
+        raise GraphError("release lock archives must be an object")
+    release = load_release_module(repository)
+    archive_root = Path(plan["archive_root"])
+    for source_id in dict.fromkeys(component["source"] for component in plan["components"]):
+        entry = archives.get(source_id)
+        if not isinstance(entry, dict):
+            raise GraphError(f"release lock does not contain component source: {source_id}")
+        try:
+            release.import_entry(source_id, entry, archive_root, sources_root)
+            release.verify_imported_entry(source_id, entry, archive_root, sources_root)
+        except Exception as error:
+            raise GraphError(f"private source extraction failed for {source_id}: {error}") from error
+    return sources_root
 
 
 def create_plan(
@@ -700,7 +735,9 @@ def package_receipt(contract: dict[str, Any], plan: dict[str, Any]) -> dict[str,
     }
 
 
-def execute(contract: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+def execute(
+    contract: dict[str, Any], plan: dict[str, Any], repository: Path
+) -> dict[str, Any]:
     build_root = Path(plan["build_directory"])
     stage_root = Path(plan["stage_directory"])
     final_prefix = Path(plan["final_prefix"])
@@ -712,10 +749,10 @@ def execute(contract: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     (build_root / "build-plan.json").write_text(
         json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    source_generation = Path(plan["source_generation"])
+    private_sources = prepare_private_sources(contract, plan, repository, build_root)
     for component in plan["components"]:
         identifier = component["id"]
-        source = source_generation / component["source"] / component["source_subdirectory"]
+        source = private_sources / component["source"] / component["source_subdirectory"]
         if not source.is_dir():
             raise GraphError(f"component source is missing: {source}")
         component_root = build_root / "components" / identifier
@@ -734,6 +771,12 @@ def execute(contract: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             source_copy_make_component(contract, plan, component, source, build, environment, log)
         else:
             raise GraphError(f"unsupported provider: {provider}")
+    verify_release_generation(
+        repository,
+        (repository / contract["release_lock"]).resolve(),
+        Path(plan["archive_root"]),
+        Path(plan["source_generation"]),
+    )
     receipt = package_receipt(contract, plan)
     receipt["plan_sha256"] = canonical_sha256(plan)
     receipt["component_logs"] = {
@@ -784,7 +827,7 @@ def main(argv: Sequence[str]) -> int:
     if arguments.command == "plan":
         print(json.dumps(plan, indent=2, sort_keys=True))
         return 0
-    receipt = execute(contract, plan)
+    receipt = execute(contract, plan, repository)
     print(json.dumps({"plan": plan, "package": receipt}, indent=2, sort_keys=True))
     return 0
 
