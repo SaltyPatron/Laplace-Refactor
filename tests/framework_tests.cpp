@@ -75,6 +75,7 @@ struct MemorySink final {
     bool sealed{};
     bool aborted{};
     bool fail_seal{};
+    std::uint8_t artifact_tag{};
 };
 
 laplace_framework_status BeginSink(
@@ -121,6 +122,8 @@ laplace_framework_status SealSink(
         return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
     }
     *artifact_fingerprint = *stream_fingerprint;
+    artifact_fingerprint->bytes[0] = static_cast<std::uint8_t>(
+        artifact_fingerprint->bytes[0] ^ sink->artifact_tag);
     sink->sealed = true;
     return LAPLACE_FRAMEWORK_OK;
 }
@@ -426,6 +429,68 @@ TEST(CanonicalStream, FansOneStreamOutToEverySink) {
     EXPECT_EQ(receipt.effect_disposition, LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT);
 }
 
+TEST(CanonicalStream, ReturnsEveryOrderedSinkArtifactWithoutProviderInspection) {
+    auto context = Context();
+    const std::array<std::uint8_t, 4> bytes{{9u, 7u, 5u, 3u}};
+    const auto batch = Batch(bytes.data(), bytes.size(), 2u, 0u);
+    const auto stream = Stream(&batch, 1u);
+    MemorySink left{};
+    MemorySink right{};
+    left.artifact_tag = 0x11u;
+    right.artifact_tag = 0x22u;
+    std::array<laplace_framework_sink_v1, 2> sinks{{Sink(&left), Sink(&right)}};
+    std::array<laplace_digest256, 2> artifacts{};
+    laplace_framework_sink_artifact_output output{
+        artifacts.data(), artifacts.size(), 0u, 0u};
+    laplace_framework_stream_receipt receipt{};
+
+    ASSERT_EQ(laplace_framework_stage_canonical_stream_with_artifacts(
+                  &context, &stream, sinks.data(), sinks.size(), &output,
+                  &receipt),
+              LAPLACE_FRAMEWORK_OK);
+    ASSERT_EQ(output.count, artifacts.size());
+    auto expected_left = receipt.stream_fingerprint;
+    auto expected_right = receipt.stream_fingerprint;
+    expected_left.bytes[0] = static_cast<std::uint8_t>(
+        expected_left.bytes[0] ^ left.artifact_tag);
+    expected_right.bytes[0] = static_cast<std::uint8_t>(
+        expected_right.bytes[0] ^ right.artifact_tag);
+    EXPECT_EQ(std::memcmp(
+                  artifacts[0].bytes, expected_left.bytes,
+                  sizeof(expected_left.bytes)),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  artifacts[1].bytes, expected_right.bytes,
+                  sizeof(expected_right.bytes)),
+              0);
+    laplace_digest256 recomputed{};
+    ASSERT_EQ(laplace_framework_sink_artifacts_fingerprint(
+                  artifacts.data(), artifacts.size(), &recomputed),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(std::memcmp(
+                  recomputed.bytes, receipt.sink_artifacts_fingerprint.bytes,
+                  sizeof(recomputed.bytes)),
+              0);
+
+    MemorySink rejected_left{};
+    MemorySink rejected_right{};
+    std::array<laplace_framework_sink_v1, 2> rejected_sinks{{
+        Sink(&rejected_left), Sink(&rejected_right)}};
+    std::array<laplace_digest256, 1> insufficient{};
+    insufficient[0].bytes[0] = 0xffu;
+    laplace_framework_sink_artifact_output rejected_output{
+        insufficient.data(), insufficient.size(), 17u, 0u};
+    laplace_framework_stream_receipt rejected_receipt{};
+    EXPECT_EQ(laplace_framework_stage_canonical_stream_with_artifacts(
+                  &context, &stream, rejected_sinks.data(),
+                  rejected_sinks.size(), &rejected_output, &rejected_receipt),
+              LAPLACE_FRAMEWORK_INVALID_ARGUMENT);
+    EXPECT_EQ(rejected_output.count, 0u);
+    EXPECT_EQ(insufficient[0].bytes[0], 0u);
+    EXPECT_FALSE(rejected_left.begun);
+    EXPECT_FALSE(rejected_right.begun);
+}
+
 TEST(CanonicalStream, SourceAndRecipeAreMandatoryReceiptBindings) {
     auto context = Context();
     const std::array<std::uint8_t, 2> bytes{{7u, 9u}};
@@ -579,6 +644,56 @@ TEST(FrameworkProducer, FansCanonicalBatchesThroughEveryExistingSink) {
     EXPECT_EQ(std::memcmp(
                   expected_stream.bytes, receipt.stream.stream_fingerprint.bytes,
                   sizeof(expected_stream.bytes)),
+              0);
+}
+
+TEST(FrameworkProducer, ReturnsOrderedSinkArtifactsFromTheSameProducerRun) {
+    auto context = Context();
+    laplace_digest256 source_fingerprint{};
+    laplace_digest256 recipe_fingerprint{};
+    ProducerBindings(&source_fingerprint, &recipe_fingerprint);
+    ProducerState producer_state{};
+    auto producer = Producer(&producer_state);
+    ProducerControlState control_state{};
+    auto control = ProducerControl(&control_state);
+    MemorySink left{};
+    MemorySink right{};
+    left.artifact_tag = 0x31u;
+    right.artifact_tag = 0x42u;
+    std::array<laplace_framework_sink_v1, 2> sinks{{Sink(&left), Sink(&right)}};
+    std::array<laplace_digest256, 2> artifacts{};
+    laplace_framework_sink_artifact_output output{
+        artifacts.data(), artifacts.size(), 0u, 0u};
+    laplace_framework_producer_receipt receipt{};
+
+    ASSERT_EQ(laplace_framework_run_producer_with_artifacts(
+                  &context, &source_fingerprint, &recipe_fingerprint,
+                  &producer, &control, sinks.data(), sinks.size(), &output,
+                  &receipt),
+              LAPLACE_FRAMEWORK_OK);
+    ASSERT_EQ(output.count, artifacts.size());
+    auto expected_left = receipt.stream.stream_fingerprint;
+    auto expected_right = receipt.stream.stream_fingerprint;
+    expected_left.bytes[0] = static_cast<std::uint8_t>(
+        expected_left.bytes[0] ^ left.artifact_tag);
+    expected_right.bytes[0] = static_cast<std::uint8_t>(
+        expected_right.bytes[0] ^ right.artifact_tag);
+    EXPECT_EQ(std::memcmp(
+                  artifacts[0].bytes, expected_left.bytes,
+                  sizeof(expected_left.bytes)),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  artifacts[1].bytes, expected_right.bytes,
+                  sizeof(expected_right.bytes)),
+              0);
+    laplace_digest256 recomputed{};
+    ASSERT_EQ(laplace_framework_sink_artifacts_fingerprint(
+                  artifacts.data(), artifacts.size(), &recomputed),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(std::memcmp(
+                  recomputed.bytes,
+                  receipt.stream.sink_artifacts_fingerprint.bytes,
+                  sizeof(recomputed.bytes)),
               0);
 }
 

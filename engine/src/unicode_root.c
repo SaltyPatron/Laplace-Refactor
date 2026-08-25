@@ -1,7 +1,35 @@
 #include "laplace/unicode_root.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include "blake3.h"
+
+static const uint8_t unicode_root_section_domain[] =
+    "laplace-unicode-root-section-v1";
+static const uint8_t unicode_root_validation_domain[] =
+    "laplace-unicode-root-validation-v1";
+
+struct laplace_unicode_root_stream_validator {
+    laplace_unicode_root_stream_expectation expectation;
+    blake3_hasher section_hashers[4];
+    uint64_t section_counts[4];
+    uint64_t total_frame_count;
+    uint64_t total_encoded_bytes;
+    uint32_t* previous_contraction;
+    uint32_t previous_contraction_count;
+    uint32_t previous_contraction_capacity;
+    uint32_t previous_normalization[3];
+    uint16_t current_kind;
+    uint8_t has_previous_contraction;
+    uint8_t has_previous_normalization;
+    uint8_t manifest_seen;
+    uint8_t finished;
+    laplace_unicode_status status;
+    laplace_unicode_root_manifest manifest;
+    laplace_unicode_root_stream_summary summary;
+};
 
 static const uint8_t expected_payload_kind[LAPLACE_UNICODE_ATOM_FIELD_COUNT] = {
     1u, 2u, 1u, 3u, 4u, 5u, 6u, 7u, 8u, 9u, 10u, 1u, 1u,
@@ -1322,6 +1350,433 @@ laplace_unicode_status laplace_unicode_root_manifest_open(
     *manifest = decoded;
     *consumed_bytes = LAPLACE_UNICODE_ROOT_MANIFEST_BYTES;
     return LAPLACE_UNICODE_OK;
+}
+
+static int unicode_digest_equal(
+    const laplace_digest256* left,
+    const laplace_digest256* right) {
+    return memcmp(left->bytes, right->bytes, sizeof(left->bytes)) == 0;
+}
+
+static void unicode_root_section_hasher_initialize(
+    blake3_hasher* hasher,
+    uint16_t kind) {
+    uint8_t encoded_kind[2];
+    write_u16le(encoded_kind, kind);
+    blake3_hasher_init(hasher);
+    blake3_hasher_update(
+        hasher, unicode_root_section_domain,
+        sizeof(unicode_root_section_domain) - 1u);
+    blake3_hasher_update(hasher, encoded_kind, sizeof(encoded_kind));
+}
+
+static void unicode_root_section_hasher_update(
+    blake3_hasher* hasher,
+    uint64_t section_ordinal,
+    const uint8_t* payload,
+    uint32_t payload_bytes) {
+    uint8_t header[12];
+    write_u64le(header, section_ordinal);
+    write_u32le(header + 8u, payload_bytes);
+    blake3_hasher_update(hasher, header, sizeof(header));
+    blake3_hasher_update(hasher, payload, payload_bytes);
+}
+
+static void unicode_root_section_hasher_finish(
+    const blake3_hasher* hasher,
+    uint64_t section_count,
+    laplace_digest256* fingerprint) {
+    blake3_hasher copy = *hasher;
+    uint8_t encoded_count[8];
+    write_u64le(encoded_count, section_count);
+    blake3_hasher_update(&copy, encoded_count, sizeof(encoded_count));
+    blake3_hasher_finalize(
+        &copy, fingerprint->bytes, sizeof(fingerprint->bytes));
+}
+
+static laplace_unicode_status unicode_root_stream_poison(
+    laplace_unicode_root_stream_validator* validator,
+    laplace_unicode_status status) {
+    validator->status = status;
+    return status;
+}
+
+static int unicode_root_required_sections_complete(
+    const laplace_unicode_root_stream_validator* validator,
+    uint16_t next_kind) {
+    if (next_kind > LAPLACE_UNICODE_ROOT_FRAME_ATOM &&
+        validator->section_counts[0] != LAPLACE_UNICODE_ROOT_POPULATION) {
+        return 0;
+    }
+    if (next_kind > LAPLACE_UNICODE_ROOT_FRAME_DUCET_POSITION &&
+        validator->section_counts[1] != LAPLACE_UNICODE_ROOT_POPULATION) {
+        return 0;
+    }
+    return 1;
+}
+
+static int unicode_root_contraction_order_valid(
+    const laplace_unicode_root_stream_validator* validator,
+    const laplace_unicode_ducet_contraction_view* current) {
+    uint32_t index;
+    uint32_t shared;
+    if (validator->has_previous_contraction == 0u) {
+        return 1;
+    }
+    shared = validator->previous_contraction_count < current->sequence_count
+        ? validator->previous_contraction_count
+        : current->sequence_count;
+    for (index = 0u; index < shared; ++index) {
+        const uint32_t prior = validator->previous_contraction[index];
+        const uint32_t value = read_u32le(
+            current->encoded_sequence + (size_t)index * 4u);
+        if (prior < value) {
+            return 1;
+        }
+        if (prior > value) {
+            return 0;
+        }
+    }
+    return validator->previous_contraction_count < current->sequence_count;
+}
+
+static laplace_unicode_status unicode_root_remember_contraction(
+    laplace_unicode_root_stream_validator* validator,
+    const laplace_unicode_ducet_contraction_view* current) {
+    uint32_t index;
+    if (current->sequence_count > validator->previous_contraction_capacity) {
+        const size_t requested_bytes =
+            (size_t)current->sequence_count *
+            sizeof(*validator->previous_contraction);
+        uint32_t* resized;
+        if (current->sequence_count != 0u &&
+            requested_bytes / sizeof(*validator->previous_contraction) !=
+                (size_t)current->sequence_count) {
+            return LAPLACE_UNICODE_SIZE_OVERFLOW;
+        }
+        resized = (uint32_t*)realloc(
+            validator->previous_contraction, requested_bytes);
+        if (resized == NULL) {
+            return LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+        }
+        validator->previous_contraction = resized;
+        validator->previous_contraction_capacity = current->sequence_count;
+    }
+    for (index = 0u; index < current->sequence_count; ++index) {
+        validator->previous_contraction[index] = read_u32le(
+            current->encoded_sequence + (size_t)index * 4u);
+    }
+    validator->previous_contraction_count = current->sequence_count;
+    validator->has_previous_contraction = 1u;
+    return LAPLACE_UNICODE_OK;
+}
+
+static int unicode_root_normalization_order_valid(
+    const laplace_unicode_root_stream_validator* validator,
+    const laplace_unicode_normalization_composition* current) {
+    const uint32_t values[3] = {
+        current->starter_position,
+        current->combining_position,
+        current->composite_position};
+    size_t index;
+    if (validator->has_previous_normalization == 0u) {
+        return 1;
+    }
+    for (index = 0u; index < 3u; ++index) {
+        if (validator->previous_normalization[index] < values[index]) {
+            return 1;
+        }
+        if (validator->previous_normalization[index] > values[index]) {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+static void unicode_root_remember_normalization(
+    laplace_unicode_root_stream_validator* validator,
+    const laplace_unicode_normalization_composition* current) {
+    validator->previous_normalization[0] = current->starter_position;
+    validator->previous_normalization[1] = current->combining_position;
+    validator->previous_normalization[2] = current->composite_position;
+    validator->has_previous_normalization = 1u;
+}
+
+static void unicode_root_calculate_section_fingerprints(
+    const laplace_unicode_root_stream_validator* validator,
+    laplace_digest256 fingerprints[4]) {
+    size_t index;
+    for (index = 0u; index < 4u; ++index) {
+        unicode_root_section_hasher_finish(
+            &validator->section_hashers[index],
+            validator->section_counts[index], &fingerprints[index]);
+    }
+}
+
+static int unicode_root_manifest_matches(
+    const laplace_unicode_root_stream_validator* validator,
+    const laplace_unicode_root_manifest* manifest,
+    const laplace_digest256 section_fingerprints[4]) {
+    return manifest->atom_count == validator->section_counts[0] &&
+        manifest->ducet_position_count == validator->section_counts[1] &&
+        manifest->ducet_contraction_count == validator->section_counts[2] &&
+        manifest->normalization_composition_count ==
+            validator->section_counts[3] &&
+        validator->total_frame_count != UINT64_MAX &&
+        manifest->total_frame_count == validator->total_frame_count + 1u &&
+        unicode_digest_equal(
+            &manifest->source_fingerprint,
+            &validator->expectation.source_fingerprint) &&
+        unicode_digest_equal(
+            &manifest->recipe_fingerprint,
+            &validator->expectation.recipe_fingerprint) &&
+        unicode_digest_equal(
+            &manifest->numeric_provider_receipt,
+            &validator->expectation.numeric_provider_receipt) &&
+        unicode_digest_equal(
+            &manifest->stream_contract_fingerprint,
+            &validator->expectation.stream_contract_fingerprint) &&
+        unicode_digest_equal(
+            &manifest->algorithmic_hangul_rule_fingerprint,
+            &validator->expectation.algorithmic_hangul_rule_fingerprint) &&
+        unicode_digest_equal(
+            &manifest->atom_section_fingerprint, &section_fingerprints[0]) &&
+        unicode_digest_equal(
+            &manifest->ducet_position_section_fingerprint,
+            &section_fingerprints[1]) &&
+        unicode_digest_equal(
+            &manifest->ducet_contraction_section_fingerprint,
+            &section_fingerprints[2]) &&
+        unicode_digest_equal(
+            &manifest->normalization_composition_section_fingerprint,
+            &section_fingerprints[3]);
+}
+
+laplace_unicode_status laplace_unicode_root_stream_validator_create(
+    const laplace_unicode_root_stream_expectation* expectation,
+    laplace_unicode_root_stream_validator** validator) {
+    laplace_unicode_root_stream_validator* created;
+    size_t index;
+    if (expectation == NULL || validator == NULL || expectation->flags != 0u ||
+        expectation->reserved != 0u) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    *validator = NULL;
+    created = (laplace_unicode_root_stream_validator*)calloc(
+        1u, sizeof(*created));
+    if (created == NULL) {
+        return LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+    }
+    created->expectation = *expectation;
+    created->current_kind = LAPLACE_UNICODE_ROOT_FRAME_ATOM;
+    created->status = LAPLACE_UNICODE_OK;
+    for (index = 0u; index < 4u; ++index) {
+        unicode_root_section_hasher_initialize(
+            &created->section_hashers[index], (uint16_t)(index + 1u));
+    }
+    *validator = created;
+    return LAPLACE_UNICODE_OK;
+}
+
+static laplace_unicode_status unicode_root_stream_consume_frame(
+    laplace_unicode_root_stream_validator* validator,
+    const laplace_unicode_root_frame_view* frame) {
+    laplace_unicode_status status;
+    if (validator->manifest_seen != 0u ||
+        frame->value.kind < validator->current_kind ||
+        !unicode_root_required_sections_complete(
+            validator, frame->value.kind)) {
+        return unicode_root_stream_poison(
+            validator, LAPLACE_UNICODE_STREAM_ORDER_INVALID);
+    }
+    if (frame->value.kind != LAPLACE_UNICODE_ROOT_FRAME_MANIFEST) {
+        const size_t section_index = (size_t)frame->value.kind - 1u;
+#if !defined(LAPLACE_TEST_SKIP_UNICODE_STREAM_SECTION_ORDINAL_VALIDATION)
+        if (frame->value.section_ordinal !=
+            validator->section_counts[section_index]) {
+            return unicode_root_stream_poison(
+                validator, LAPLACE_UNICODE_STREAM_ORDER_INVALID);
+        }
+#endif
+        if (frame->value.kind == LAPLACE_UNICODE_ROOT_FRAME_DUCET_CONTRACTION) {
+            laplace_unicode_ducet_contraction_view contraction;
+            size_t consumed = 0u;
+            status = laplace_unicode_ducet_contraction_open(
+                frame->value.payload, frame->value.payload_bytes,
+                &contraction, &consumed);
+            if (status != LAPLACE_UNICODE_OK ||
+                !unicode_root_contraction_order_valid(
+                    validator, &contraction)) {
+                return unicode_root_stream_poison(
+                    validator, LAPLACE_UNICODE_STREAM_ORDER_INVALID);
+            }
+            status = unicode_root_remember_contraction(
+                validator, &contraction);
+            if (status != LAPLACE_UNICODE_OK) {
+                return unicode_root_stream_poison(validator, status);
+            }
+        } else if (frame->value.kind ==
+                   LAPLACE_UNICODE_ROOT_FRAME_NORMALIZATION_COMPOSITION) {
+            laplace_unicode_normalization_composition composition;
+            size_t consumed = 0u;
+            status = laplace_unicode_normalization_composition_open(
+                frame->value.payload, frame->value.payload_bytes,
+                &composition, &consumed);
+            if (status != LAPLACE_UNICODE_OK ||
+                !unicode_root_normalization_order_valid(
+                    validator, &composition)) {
+                return unicode_root_stream_poison(
+                    validator, LAPLACE_UNICODE_STREAM_ORDER_INVALID);
+            }
+            unicode_root_remember_normalization(validator, &composition);
+        }
+        unicode_root_section_hasher_update(
+            &validator->section_hashers[section_index],
+            frame->value.section_ordinal, frame->value.payload,
+            frame->value.payload_bytes);
+        ++validator->section_counts[section_index];
+        validator->current_kind = frame->value.kind;
+    } else {
+        laplace_unicode_root_manifest manifest;
+        laplace_digest256 section_fingerprints[4];
+        size_t consumed = 0u;
+        status = laplace_unicode_root_manifest_open(
+            frame->value.payload, frame->value.payload_bytes,
+            &manifest, &consumed);
+        unicode_root_calculate_section_fingerprints(
+            validator, section_fingerprints);
+        if (status != LAPLACE_UNICODE_OK ||
+            !unicode_root_manifest_matches(
+                validator, &manifest, section_fingerprints)) {
+            return unicode_root_stream_poison(
+                validator, LAPLACE_UNICODE_STREAM_MANIFEST_MISMATCH);
+        }
+        validator->manifest = manifest;
+        validator->manifest_seen = 1u;
+        validator->current_kind = frame->value.kind;
+    }
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_root_stream_validator_consume(
+    laplace_unicode_root_stream_validator* validator,
+    const uint8_t* canonical_bytes,
+    size_t byte_count,
+    uint64_t frame_count,
+    uint64_t first_frame_ordinal) {
+    uint64_t frame_index;
+    size_t offset = 0u;
+    if (validator == NULL || canonical_bytes == NULL || byte_count == 0u ||
+        frame_count == 0u) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (validator->status != LAPLACE_UNICODE_OK || validator->finished != 0u ||
+        first_frame_ordinal != validator->total_frame_count) {
+        return unicode_root_stream_poison(
+            validator, LAPLACE_UNICODE_STREAM_STATE_INVALID);
+    }
+    for (frame_index = 0u; frame_index < frame_count; ++frame_index) {
+        laplace_unicode_root_frame_view frame;
+        size_t consumed = 0u;
+        laplace_unicode_status status;
+        if (offset >= byte_count) {
+            return unicode_root_stream_poison(
+                validator, LAPLACE_UNICODE_STREAM_STATE_INVALID);
+        }
+        status = laplace_unicode_root_frame_open(
+            canonical_bytes + offset, byte_count - offset, &frame, &consumed);
+        if (status != LAPLACE_UNICODE_OK || consumed == 0u ||
+            consumed > byte_count - offset) {
+            return unicode_root_stream_poison(
+                validator, LAPLACE_UNICODE_STREAM_STATE_INVALID);
+        }
+        status = unicode_root_stream_consume_frame(validator, &frame);
+        if (status != LAPLACE_UNICODE_OK) {
+            return status;
+        }
+        if (UINT64_MAX - validator->total_frame_count < 1u ||
+            UINT64_MAX - validator->total_encoded_bytes < consumed) {
+            return unicode_root_stream_poison(
+                validator, LAPLACE_UNICODE_SIZE_OVERFLOW);
+        }
+        ++validator->total_frame_count;
+        validator->total_encoded_bytes += (uint64_t)consumed;
+        offset += consumed;
+    }
+    if (offset != byte_count) {
+        return unicode_root_stream_poison(
+            validator, LAPLACE_UNICODE_STREAM_STATE_INVALID);
+    }
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_root_stream_validator_finish(
+    laplace_unicode_root_stream_validator* validator,
+    laplace_unicode_root_stream_summary* summary) {
+    uint8_t manifest_bytes[LAPLACE_UNICODE_ROOT_MANIFEST_BYTES];
+    uint8_t encoded_total_bytes[8];
+    blake3_hasher hasher;
+    size_t index;
+    if (validator == NULL || summary == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (validator->finished != 0u) {
+        *summary = validator->summary;
+        return validator->status;
+    }
+    if (validator->status != LAPLACE_UNICODE_OK) {
+        return validator->status;
+    }
+    if (validator->manifest_seen == 0u ||
+        validator->total_frame_count != validator->manifest.total_frame_count) {
+        return unicode_root_stream_poison(
+            validator, LAPLACE_UNICODE_STREAM_INCOMPLETE);
+    }
+    memset(&validator->summary, 0, sizeof(validator->summary));
+    validator->summary.manifest = validator->manifest;
+    validator->summary.total_frame_count = validator->total_frame_count;
+    validator->summary.total_encoded_bytes = validator->total_encoded_bytes;
+    validator->summary.status = LAPLACE_UNICODE_OK;
+    unicode_root_calculate_section_fingerprints(
+        validator, validator->summary.section_fingerprints);
+    for (index = 0u; index < 4u; ++index) {
+        validator->summary.section_counts[index] =
+            validator->section_counts[index];
+    }
+    if (laplace_unicode_root_manifest_encode(
+            &validator->manifest, manifest_bytes) != LAPLACE_UNICODE_OK) {
+        return unicode_root_stream_poison(
+            validator, LAPLACE_UNICODE_STREAM_MANIFEST_MISMATCH);
+    }
+    write_u64le(encoded_total_bytes, validator->total_encoded_bytes);
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(
+        &hasher, unicode_root_validation_domain,
+        sizeof(unicode_root_validation_domain) - 1u);
+    blake3_hasher_update(&hasher, manifest_bytes, sizeof(manifest_bytes));
+    blake3_hasher_update(
+        &hasher, encoded_total_bytes, sizeof(encoded_total_bytes));
+    for (index = 0u; index < 4u; ++index) {
+        blake3_hasher_update(
+            &hasher, validator->summary.section_fingerprints[index].bytes,
+            sizeof(validator->summary.section_fingerprints[index].bytes));
+    }
+    blake3_hasher_finalize(
+        &hasher, validator->summary.receipt_id.bytes,
+        sizeof(validator->summary.receipt_id.bytes));
+    validator->finished = 1u;
+    *summary = validator->summary;
+    return LAPLACE_UNICODE_OK;
+}
+
+void laplace_unicode_root_stream_validator_destroy(
+    laplace_unicode_root_stream_validator* validator) {
+    if (validator == NULL) {
+        return;
+    }
+    free(validator->previous_contraction);
+    memset(validator, 0, sizeof(*validator));
+    free(validator);
 }
 
 typedef struct laplace_u96 {

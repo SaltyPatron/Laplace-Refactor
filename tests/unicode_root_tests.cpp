@@ -103,6 +103,24 @@ std::vector<std::uint8_t> Frame(
     return output;
 }
 
+laplace_unicode_root_stream_expectation RootExpectation() {
+    laplace_unicode_root_stream_expectation expectation{};
+    const std::array<laplace_digest256*, 5> bindings{{
+        &expectation.source_fingerprint,
+        &expectation.recipe_fingerprint,
+        &expectation.numeric_provider_receipt,
+        &expectation.stream_contract_fingerprint,
+        &expectation.algorithmic_hangul_rule_fingerprint}};
+    for (std::size_t binding = 0u; binding < bindings.size(); ++binding) {
+        for (std::size_t byte = 0u; byte < sizeof(bindings[binding]->bytes);
+             ++byte) {
+            bindings[binding]->bytes[byte] = static_cast<std::uint8_t>(
+                1u + binding * sizeof(bindings[binding]->bytes) + byte);
+        }
+    }
+    return expectation;
+}
+
 TEST(UnicodeNumeric, ExactRationalQuantizationClosesBoundariesAndZero) {
     struct Vector { double input; std::uint32_t output; };
     const std::array<Vector, 8> vectors{{
@@ -264,6 +282,43 @@ TEST(UnicodeRootFrameCodec, RejectsOrdinalOrNestedAtomCorruption) {
     EXPECT_EQ(laplace_unicode_root_frame_open(
                   encoded.data(), encoded.size(), &view, &bytes),
               LAPLACE_UNICODE_RECORD_INVALID);
+}
+
+TEST(UnicodeRootStreamValidator, RejectsCrossBatchOrdinalGapAndTruncation) {
+    const auto frame_zero = Frame(
+        LAPLACE_UNICODE_ROOT_FRAME_ATOM, 0u, Encode(Atom(0u)));
+    const auto frame_two = Frame(
+        LAPLACE_UNICODE_ROOT_FRAME_ATOM, 2u, Encode(Atom(2u)));
+    const auto expectation = RootExpectation();
+    laplace_unicode_root_stream_validator* validator = nullptr;
+    ASSERT_EQ(laplace_unicode_root_stream_validator_create(
+                  &expectation, &validator),
+              LAPLACE_UNICODE_OK);
+    ASSERT_NE(validator, nullptr);
+    EXPECT_EQ(laplace_unicode_root_stream_validator_consume(
+                  validator, frame_zero.data(), frame_zero.size(), 1u, 0u),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(laplace_unicode_root_stream_validator_consume(
+                  validator, frame_two.data(), frame_two.size(), 1u, 1u),
+              LAPLACE_UNICODE_STREAM_ORDER_INVALID);
+    laplace_unicode_root_stream_summary summary{};
+    EXPECT_EQ(laplace_unicode_root_stream_validator_finish(
+                  validator, &summary),
+              LAPLACE_UNICODE_STREAM_ORDER_INVALID);
+    laplace_unicode_root_stream_validator_destroy(validator);
+
+    validator = nullptr;
+    ASSERT_EQ(laplace_unicode_root_stream_validator_create(
+                  &expectation, &validator),
+              LAPLACE_UNICODE_OK);
+    ASSERT_NE(validator, nullptr);
+    EXPECT_EQ(laplace_unicode_root_stream_validator_consume(
+                  validator, frame_zero.data(), frame_zero.size(), 1u, 0u),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(laplace_unicode_root_stream_validator_finish(
+                  validator, &summary),
+              LAPLACE_UNICODE_STREAM_INCOMPLETE);
+    laplace_unicode_root_stream_validator_destroy(validator);
 }
 
 TEST(UnicodeDucetPositionCodec, PreservesEveryWeightMarkerAndKeyByte) {

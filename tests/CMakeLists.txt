@@ -135,11 +135,12 @@ target_include_directories(laplace_unicode_root_mutation_probe PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
     "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(laplace_unicode_root_mutation_probe PRIVATE
-    Laplace::Identity Laplace::Perfcache GTest::gtest_main)
+    Laplace::Identity Laplace::Perfcache BLAKE3::blake3 GTest::gtest_main)
 target_compile_definitions(laplace_unicode_root_mutation_probe PRIVATE
     LAPLACE_TEST_SKIP_UNICODE_ATOM_IDENTITY_VALIDATION=1
     LAPLACE_TEST_SKIP_UNICODE_FIELD_PAYLOAD_VALIDATION=1
     LAPLACE_TEST_UNICODE_ROOT_FRAME_SKIP_NESTED_VALIDATION=1
+    LAPLACE_TEST_SKIP_UNICODE_STREAM_SECTION_ORDINAL_VALIDATION=1
     LAPLACE_TEST_UNICODE_HILBERT_REVERSE_AXIS_ORDER=1)
 target_compile_options(laplace_unicode_root_mutation_probe PRIVATE
     $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>
@@ -148,7 +149,7 @@ add_test(
     NAME unicode-root.mutation-codec-and-hilbert-defects-detected
     COMMAND "${CMAKE_COMMAND}"
         "-DPROBE=$<TARGET_FILE:laplace_unicode_root_mutation_probe>"
-            "-DFILTER=UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption:UnicodeAtomPayload.RejectsNonCanonicalPayloadsAndAcceptsSortedSets:UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption:UnicodeHilbert.MatchesAllContractOrientationVectors"
+            "-DFILTER=UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption:UnicodeAtomPayload.RejectsNonCanonicalPayloadsAndAcceptsSortedSets:UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption:UnicodeRootStreamValidator.RejectsCrossBatchOrdinalGapAndTruncation:UnicodeHilbert.MatchesAllContractOrientationVectors"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(
     unicode-root.mutation-codec-and-hilbert-defects-detected PROPERTIES
@@ -488,6 +489,45 @@ add_test(
         "-DPROBE=$<TARGET_FILE:laplace_framework_stream_mutation_probe>"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_stream_failure.cmake")
 set_tests_properties(framework.mutation-stream-binding-omission-detected PROPERTIES
+    LABELS "framework;batch;sink;receipt;mutation")
+
+add_executable(laplace_framework_sink_artifact_probe
+    framework_sink_artifact_probe.cpp)
+target_link_libraries(laplace_framework_sink_artifact_probe
+    PRIVATE Laplace::Framework)
+target_compile_options(laplace_framework_sink_artifact_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME framework.ordered-sink-artifact-output-contract
+    COMMAND laplace_framework_sink_artifact_probe)
+set_tests_properties(framework.ordered-sink-artifact-output-contract PROPERTIES
+    LABELS "implementation;framework;batch;sink;receipt;contract")
+
+add_library(laplace_framework_sink_artifact_mutant STATIC
+    ../engine/src/framework.c)
+target_include_directories(laplace_framework_sink_artifact_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_framework_sink_artifact_mutant
+    PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_framework_sink_artifact_mutant
+    PRIVATE LAPLACE_TEST_OMIT_ORDERED_SINK_ARTIFACT_OUTPUT=1)
+target_compile_options(laplace_framework_sink_artifact_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_framework_sink_artifact_mutation_probe
+    framework_sink_artifact_probe.cpp)
+target_link_libraries(laplace_framework_sink_artifact_mutation_probe
+    PRIVATE laplace_framework_sink_artifact_mutant)
+target_compile_options(laplace_framework_sink_artifact_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME framework.mutation-ordered-sink-artifact-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_framework_sink_artifact_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_sink_artifact_failure.cmake")
+set_tests_properties(
+    framework.mutation-ordered-sink-artifact-omission-detected PROPERTIES
     LABELS "framework;batch;sink;receipt;mutation")
 
 add_executable(laplace_framework_producer_probe

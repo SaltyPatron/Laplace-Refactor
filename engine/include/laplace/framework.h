@@ -111,6 +111,13 @@ typedef struct laplace_framework_sink_v1 {
     uint32_t reserved;
 } laplace_framework_sink_v1;
 
+typedef struct laplace_framework_sink_artifact_output {
+    laplace_digest256* artifact_fingerprints;
+    uint64_t capacity;
+    uint64_t count;
+    uint64_t reserved;
+} laplace_framework_sink_artifact_output;
+
 typedef struct laplace_framework_stream_receipt {
     laplace_digest256 receipt_id;
     laplace_digest256 context_fingerprint;
@@ -314,6 +321,15 @@ LAPLACE_API laplace_framework_status laplace_framework_stage_canonical_stream(
     size_t sink_count,
     laplace_framework_stream_receipt* receipt);
 
+LAPLACE_API laplace_framework_status
+laplace_framework_stage_canonical_stream_with_artifacts(
+    const laplace_framework_context* context,
+    const laplace_framework_canonical_stream* stream,
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    laplace_framework_sink_artifact_output* artifact_output,
+    laplace_framework_stream_receipt* receipt);
+
 LAPLACE_API laplace_framework_status laplace_framework_run_producer(
     const laplace_framework_context* context,
     const laplace_digest256* source_fingerprint,
@@ -322,6 +338,18 @@ LAPLACE_API laplace_framework_status laplace_framework_run_producer(
     const laplace_framework_producer_control_v1* control,
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
+    laplace_framework_producer_receipt* receipt);
+
+LAPLACE_API laplace_framework_status
+laplace_framework_run_producer_with_artifacts(
+    const laplace_framework_context* context,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_framework_producer_v1* producer,
+    const laplace_framework_producer_control_v1* control,
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    laplace_framework_sink_artifact_output* artifact_output,
     laplace_framework_producer_receipt* receipt);
 
 LAPLACE_API laplace_framework_status laplace_framework_activate_staged_stream(

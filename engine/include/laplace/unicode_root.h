@@ -207,6 +207,30 @@ typedef struct laplace_unicode_source_file_view {
     uint64_t byte_count;
 } laplace_unicode_source_file_view;
 
+typedef struct laplace_unicode_root_stream_validator
+    laplace_unicode_root_stream_validator;
+
+typedef struct laplace_unicode_root_stream_expectation {
+    laplace_digest256 source_fingerprint;
+    laplace_digest256 recipe_fingerprint;
+    laplace_digest256 numeric_provider_receipt;
+    laplace_digest256 stream_contract_fingerprint;
+    laplace_digest256 algorithmic_hangul_rule_fingerprint;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_unicode_root_stream_expectation;
+
+typedef struct laplace_unicode_root_stream_summary {
+    laplace_digest256 receipt_id;
+    laplace_unicode_root_manifest manifest;
+    laplace_digest256 section_fingerprints[4];
+    uint64_t section_counts[4];
+    uint64_t total_frame_count;
+    uint64_t total_encoded_bytes;
+    uint32_t status;
+    uint32_t reserved;
+} laplace_unicode_root_stream_summary;
+
 typedef enum laplace_unicode_status {
     LAPLACE_UNICODE_OK = 0,
     LAPLACE_UNICODE_INVALID_ARGUMENT = 1,
@@ -223,7 +247,11 @@ typedef enum laplace_unicode_status {
     LAPLACE_UNICODE_SOURCE_FILE_INVALID = 12,
     LAPLACE_UNICODE_SOURCE_DIGEST_MISMATCH = 13,
     LAPLACE_UNICODE_SOURCE_VERSION_MISMATCH = 14,
-    LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE = 15
+    LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE = 15,
+    LAPLACE_UNICODE_STREAM_STATE_INVALID = 16,
+    LAPLACE_UNICODE_STREAM_ORDER_INVALID = 17,
+    LAPLACE_UNICODE_STREAM_MANIFEST_MISMATCH = 18,
+    LAPLACE_UNICODE_STREAM_INCOMPLETE = 19
 } laplace_unicode_status;
 
 enum {
@@ -374,6 +402,27 @@ LAPLACE_API laplace_unicode_status laplace_unicode_root_manifest_open(
     size_t available_bytes,
     laplace_unicode_root_manifest* manifest,
     size_t* consumed_bytes);
+
+LAPLACE_API laplace_unicode_status
+laplace_unicode_root_stream_validator_create(
+    const laplace_unicode_root_stream_expectation* expectation,
+    laplace_unicode_root_stream_validator** validator);
+
+LAPLACE_API laplace_unicode_status
+laplace_unicode_root_stream_validator_consume(
+    laplace_unicode_root_stream_validator* validator,
+    const uint8_t* canonical_bytes,
+    size_t byte_count,
+    uint64_t frame_count,
+    uint64_t first_frame_ordinal);
+
+LAPLACE_API laplace_unicode_status
+laplace_unicode_root_stream_validator_finish(
+    laplace_unicode_root_stream_validator* validator,
+    laplace_unicode_root_stream_summary* summary);
+
+LAPLACE_API void laplace_unicode_root_stream_validator_destroy(
+    laplace_unicode_root_stream_validator* validator);
 
 LAPLACE_API laplace_unicode_status laplace_unicode_quantize_component_u32(
     double component,

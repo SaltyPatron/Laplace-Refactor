@@ -2,7 +2,7 @@
   "schema": "laplace.framework-contract/v1",
   "version": {
     "major": 1,
-    "minor": 5
+    "minor": 6
   },
   "epoch_slots": {
     "source": 0,
@@ -39,7 +39,9 @@
   "sink_artifact_evidence": {
     "order": "sink-array-order",
     "aggregate": "BLAKE3-256(domain || sink-count || repeated(sink-index || artifact-fingerprint))",
-    "rule": "a consumer claiming one sink artifact must carry the complete ordered sibling set and selected index sufficient to reproduce the staged stream aggregate"
+    "rule": "a consumer claiming one sink artifact must carry the complete ordered sibling set and selected index sufficient to reproduce the staged stream aggregate",
+    "result_api": "caller-owned-capacity-checked-output-populated-only-after-every-sink-seals",
+    "failure": "count-remains-zero-and-every-addressable-output-slot-is-cleared"
   },
   "activation_provider_abi": {
     "major": 1,

@@ -84,6 +84,24 @@
       "covered_dimensions": ["single-origin stream", "multiple staged sinks", "no sink recalculation"]
     },
     {
+      "ctest_name": "CanonicalStream.ReturnsEveryOrderedSinkArtifactWithoutProviderInspection",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["ordered individual sink artifacts", "aggregate reproducibility", "capacity rejection before effects"],
+      "defect_controls": ["framework.mutation-ordered-sink-artifact-omission-detected"]
+    },
+    {
+      "ctest_name": "framework.ordered-sink-artifact-output-contract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["public ordered sibling artifact output", "aggregate parity"],
+      "defect_controls": ["framework.mutation-ordered-sink-artifact-omission-detected"]
+    },
+    {
+      "ctest_name": "framework.mutation-ordered-sink-artifact-omission-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["omitted ordered sink artifact evidence is detected"],
+      "controls": "framework.ordered-sink-artifact-output-contract"
+    },
+    {
       "ctest_name": "CanonicalStream.SealFailureAbortsEveryStagedSink",
       "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
       "covered_dimensions": ["prepare before activation", "whole-stream abort", "failure receipt"]
@@ -133,6 +151,11 @@
       "ctest_name": "FrameworkProducer.FansCanonicalBatchesThroughEveryExistingSink",
       "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-BULK-PARITY"],
       "covered_dimensions": ["typed producer ABI", "single canonical stream", "multiple existing sinks", "partition-independent stream identity"]
+    },
+    {
+      "ctest_name": "FrameworkProducer.ReturnsOrderedSinkArtifactsFromTheSameProducerRun",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["producer-run sibling artifact evidence", "sink-array ordering", "aggregate reproduction"]
     },
     {
       "ctest_name": "FrameworkProducer.CancellationReturnsExactBoundaryAndAbortsEverySink",
@@ -1000,6 +1023,12 @@
       "ctest_name": "UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
       "covered_dimensions": ["frame ordinal binding", "nested payload validation"],
+      "defect_controls": ["unicode-root.mutation-codec-and-hilbert-defects-detected"]
+    },
+    {
+      "ctest_name": "UnicodeRootStreamValidator.RejectsCrossBatchOrdinalGapAndTruncation",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["cross-batch section ordinal continuity", "poisoned validator state", "truncated root rejection"],
       "defect_controls": ["unicode-root.mutation-codec-and-hilbert-defects-detected"]
     },
     {

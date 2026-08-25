@@ -73,6 +73,28 @@
     "root-manifest-is-last-and-occurs-exactly-once",
     "root-manifest-binds-every-section-count-and-fingerprint-without-self-referencing-the-final-framework-stream-receipt"
   ],
+  "section_fingerprint": {
+    "algorithm": "BLAKE3-256",
+    "domain": "laplace-unicode-root-section-v1",
+    "preimage": "domain || frame-kind-u16le || repeated(section-ordinal-u64le || payload-bytes-u32le || exact-payload-bytes) || section-count-u64le",
+    "partition_independent": true
+  },
+  "stream_validation": {
+    "mode": "incremental-native-state-machine",
+    "batch_contract": "each-canonical-batch-contains-complete-frames-and-declares-exact-frame-count-and-global-first-ordinal",
+    "checks": [
+      "global-frame-ordinals-contiguous-across-batches",
+      "section-ordinals-contiguous-across-batches",
+      "kinds-never-reopen",
+      "contraction-sequences-strictly-lexicographic",
+      "normalization-tuples-strictly-lexicographic",
+      "terminal-manifest-counts-match-observed-counts",
+      "terminal-manifest-section-fingerprints-match-calculated-fingerprints",
+      "terminal-manifest-bindings-match-the-declared-source-recipe-numeric-contract-and-hangul-expectation"
+    ],
+    "failure": "poison-validator-and-admit-no-stream",
+    "receipt": "BLAKE3-256(laplace-unicode-root-validation-v1 || exact-terminal-manifest-bytes || total-encoded-frame-bytes-u64le || observed-section-fingerprints-in-kind-order)"
+  },
   "fanout": {
     "calculation_count": 1,
     "producer_record_type": 65536,
