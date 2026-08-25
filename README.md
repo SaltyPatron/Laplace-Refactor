@@ -98,7 +98,9 @@ DejaGNU, IPC::Run, IO::Tty, CMake, and Ninja.
 The source-built build-toolchain package then builds Perl, Texinfo, make, Tcl, Expect,
 DejaGNU, binutils,
 pkgconf, Bison, Flex, CMake, and Ninja in dependency order outside the repository. Every
-upstream suite must pass. Its input-addressed receipt publishes exact selected tool
+upstream suite in the explicitly selected configuration must pass; excluded optional
+providers and features remain typed, gated, and receipted rather than being activated
+from the ambient host. Its input-addressed receipt publishes exact selected tool
 paths and hashes for downstream build graphs, while explicitly remaining ineligible
 to activate any Laplace product runtime. Every archive is bound by URL, archive and expanded-tree SHA-256, size, member counts,
 and license digests. A 299-repository grammar lock independently
