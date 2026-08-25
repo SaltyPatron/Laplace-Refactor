@@ -1,0 +1,123 @@
+{
+  "schema": "laplace.installed-provider-lock/v1",
+  "provider_selection_sha256": "07a9f21bcb81cb669a6be3248eb889ffbceb20bfd05fc957c16373f5ed595137",
+  "selection": "installed-bytes-selected-not-product-runtime-activated",
+  "providers": {
+    "intel-oneapi-runtime": {
+      "version": "2026.1.1",
+      "immutable_root": "/opt/intel/oneapi/compiler/2026.1",
+      "package_versions": {
+        "intel-oneapi-compiler-dpcpp-cpp-common-2026.1": "2026.1.1-325",
+        "intel-oneapi-compiler-shared-runtime-2026.1": "2026.1.1-325",
+        "intel-oneapi-openmp-2026.1": "2026.1.1-325",
+        "intel-oneapi-openmp-common-2026.1": "2026.1.1-325"
+      },
+      "license_id": "LicenseRef-Intel-EULA-Developer-Tools-August-2024",
+      "files": [
+        {"role": "imf-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/compiler/2026.1/lib/libimf.so", "bytes": 4865192, "sha256": "67a4b6c27002f59f26c411f4ec384300d781365af19d6a2eb9f0dd94d2a0f470", "soname": "libimf.so"},
+        {"role": "svml-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/compiler/2026.1/lib/libsvml.so", "bytes": 28103240, "sha256": "a6dbbc425c8270c3485e40ef0924ef38ed89ced4026056fd3f1f529774c4f86c", "soname": "libsvml.so"},
+        {"role": "intlc-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/compiler/2026.1/lib/libintlc.so.5", "bytes": 415824, "sha256": "612ab119242ccda945de6eb354369b5bee6a158bc9724e4da5e466cb0ad630db", "soname": "libintlc.so.5"},
+        {"role": "irc-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/compiler/2026.1/lib/libirc.so", "bytes": 414584, "sha256": "cbe470862894afba8b467c6a46ecda00dee5e20920a7143316fa73d6aa898f88", "soname": "libirc.so"},
+        {"role": "irng-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/compiler/2026.1/lib/libirng.so", "bytes": 1100272, "sha256": "2cd4057ba6bcd9235685597098c3bdc9811e1de0a457f7a0a2aa47ce691995c7", "soname": "libirng.so"},
+        {"role": "openmp-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/compiler/2026.1/lib/libiomp5.so", "bytes": 2763824, "sha256": "19cd02fbb18d948db4c4936afc5e07929ef16d676f72d0e76e9e853e665b5146", "soname": "libiomp5.so"},
+        {"role": "mathimf-header", "class": "header", "path": "/opt/intel/oneapi/compiler/2026.1/opt/compiler/include/mathimf.h", "bytes": 23078, "sha256": "72055ef1b1e34a1c15697825f6a253045cb7481c720d28b8c65966e4c0f11409"},
+        {"role": "openmp-header", "class": "header", "path": "/opt/intel/oneapi/compiler/2026.1/opt/compiler/include/omp.h", "bytes": 31757, "sha256": "efbc54869d0fe3a0cac057f86bb272a570387382db02de0009dc4d08c3958c15"},
+        {"role": "intel-developer-tools-license", "class": "license", "path": "/opt/intel/oneapi/compiler/2026.1/share/doc/compiler/licensing/c/LICENSE", "bytes": 25224, "sha256": "febfb69a5b058f55892dc7f341108a9ca29d50e9fe85723a57eebbb826436958"},
+        {"role": "compiler-third-party-notices", "class": "license", "path": "/opt/intel/oneapi/compiler/2026.1/share/doc/compiler/licensing/c/third-party-programs.txt", "bytes": 36937, "sha256": "a81491a0243fa1d072aa636c890a6dd082ca403aca4681672cf6f69d3d516f79"},
+        {"role": "openmp-third-party-notices", "class": "license", "path": "/opt/intel/oneapi/compiler/2026.1/share/doc/compiler/licensing/openmp/third-party-programs.txt", "bytes": 31578, "sha256": "f8ce918fe7311ce279e68380a2e233f8a42b1cd3dda8f4c48d6de97a0255c1d7"}
+      ],
+      "cmake_selection": {
+        "include_root": "/opt/intel/oneapi/compiler/2026.1/opt/compiler/include",
+        "library_root": "/opt/intel/oneapi/compiler/2026.1/lib",
+        "targets": {
+          "intel-math-runtime": ["imf-runtime", "svml-runtime", "intlc-runtime", "irc-runtime", "irng-runtime"],
+          "intel-openmp-runtime": ["openmp-runtime"]
+        }
+      }
+    },
+    "onetbb": {
+      "version": "2023.1.0",
+      "immutable_root": "/opt/intel/oneapi/tbb/2023.1",
+      "package_versions": {
+        "intel-oneapi-tbb-2023.1": "2023.1.0-151",
+        "intel-oneapi-tbb-devel-2023.1": "2023.1.0-151"
+      },
+      "license_id": "LicenseRef-Intel-Simplified-Software-License-October-2022",
+      "files": [
+        {"role": "tbb-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/tbb/2023.1/lib/libtbb.so.12.19", "bytes": 4462408, "sha256": "2c1fcbc65a33771a5e02a201734774252528e10f57cef9e2f902fe209c0319e1", "soname": "libtbb.so.12"},
+        {"role": "tbbmalloc-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/tbb/2023.1/lib/libtbbmalloc.so.2.19", "bytes": 1184544, "sha256": "74410b8566ecedac338f072662272a970bb0230870c0a6ce964042bf9a26fbbb", "soname": "libtbbmalloc.so.2"},
+        {"role": "tbbbind-2-5-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/tbb/2023.1/lib/libtbbbind_2_5.so.3.19", "bytes": 238440, "sha256": "35a1edeb2cae8d1d33ec1c0230edc0502a293d4047c9ea3605b0f8c70f68e10b", "soname": "libtbbbind_2_5.so.3"},
+        {"role": "tbb-version-header", "class": "header", "path": "/opt/intel/oneapi/tbb/2023.1/include/oneapi/tbb/version.h", "bytes": 4375, "sha256": "23e053d5fe9c290949c1370fa94cf614c772aa44dbb21e94083382a08bdaa3bb"},
+        {"role": "tbb-task-arena-header", "class": "header", "path": "/opt/intel/oneapi/tbb/2023.1/include/oneapi/tbb/task_arena.h", "bytes": 26097, "sha256": "cfadf655bbb195bd1cd6f8be679c92ba9fc9fa8a4b69e6354f52ca2f0d52a371"},
+        {"role": "tbb-global-control-header", "class": "header", "path": "/opt/intel/oneapi/tbb/2023.1/include/oneapi/tbb/global_control.h", "bytes": 7506, "sha256": "3263309bad81fb5585d26f39bd82639aa39238674d92bc03d6d0bd98adb717ca"},
+        {"role": "tbb-parallel-for-header", "class": "header", "path": "/opt/intel/oneapi/tbb/2023.1/include/oneapi/tbb/parallel_for.h", "bytes": 23505, "sha256": "f93f652bde8f05c5d0588dbe9bc94f863e7ddd7beb437f40d2cbc078fe305f33"},
+        {"role": "tbb-blocked-range-header", "class": "header", "path": "/opt/intel/oneapi/tbb/2023.1/include/oneapi/tbb/blocked_range.h", "bytes": 6429, "sha256": "1958b2e02353fa1cb031ba7a4aa963626013aafe4176a675f6e9bb1973ff136c"},
+        {"role": "tbb-cmake-config", "class": "cmake-input", "path": "/opt/intel/oneapi/tbb/2023.1/lib/cmake/tbb/TBBConfig.cmake", "bytes": 5170, "sha256": "459ea25e3517377f974d193e5dbab4de308cd8316d5c47539fad09050ca1ae05"},
+        {"role": "tbb-cmake-version", "class": "cmake-input", "path": "/opt/intel/oneapi/tbb/2023.1/lib/cmake/tbb/TBBConfigVersion.cmake", "bytes": 907, "sha256": "9ee510d4cf96c4ce88471a3435d4f9d4194cf4d144919fbeb800680c79c569be"},
+        {"role": "tbb-license", "class": "license", "path": "/opt/intel/oneapi/tbb/2023.1/share/doc/tbb/licensing/license.txt", "bytes": 4180, "sha256": "4229ebf297195a64279a99566431731c411f744a34e1213a5b1e69a8fa286ea1"},
+        {"role": "tbb-third-party-notices", "class": "license", "path": "/opt/intel/oneapi/tbb/2023.1/share/doc/tbb/licensing/third-party-programs.txt", "bytes": 19503, "sha256": "1f6de0bd498c04c9283c6306379e2db2492e1c4e7d2b248c8de0e8fe9124cd03"}
+      ],
+      "cmake_selection": {
+        "include_root": "/opt/intel/oneapi/tbb/2023.1/include",
+        "library_root": "/opt/intel/oneapi/tbb/2023.1/lib",
+        "config_directory": "/opt/intel/oneapi/tbb/2023.1/lib/cmake/tbb",
+        "targets": {
+          "tbb": ["tbb-runtime"],
+          "tbbmalloc": ["tbbmalloc-runtime"],
+          "tbbbind-2-5": ["tbbbind-2-5-runtime"]
+        }
+      }
+    },
+    "onemkl": {
+      "version": "2026.1.0",
+      "immutable_root": "/opt/intel/oneapi/mkl/2026.1",
+      "package_versions": {
+        "intel-oneapi-mkl-classic-include-2026.1": "2026.1.0-236",
+        "intel-oneapi-mkl-core-2026.1": "2026.1.0-236",
+        "intel-oneapi-mkl-core-devel-2026.1": "2026.1.0-236"
+      },
+      "license_id": "LicenseRef-Intel-Simplified-Software-License-October-2022",
+      "files": [
+        {"role": "mkl-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/mkl/2026.1/lib/libmkl_rt.so.3", "bytes": 15708856, "sha256": "b2ff0e31d7cd18c91813d8f6500f37665597d89de22649d90687aa6bf7bd2c0f", "soname": "libmkl_rt.so.3"},
+        {"role": "mkl-core-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/mkl/2026.1/lib/libmkl_core.so.3", "bytes": 76168096, "sha256": "b4f086651ee5a8471140d53fedfdbbaba606287784763b0739f282872c31aa9b", "soname": "libmkl_core.so.3"},
+        {"role": "mkl-lp64-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/mkl/2026.1/lib/libmkl_intel_lp64.so.3", "bytes": 19450800, "sha256": "9dbdb7d4193679f028787da6b9b2b545e0e16b87a95a64ee7318f544da8b08ac", "soname": "libmkl_intel_lp64.so.3"},
+        {"role": "mkl-sequential-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/mkl/2026.1/lib/libmkl_sequential.so.3", "bytes": 25021272, "sha256": "4e7ff529bec90a1b0ce70299258a64a2ebae7a5a6f3ec031306a6ddb39b5a650", "soname": "libmkl_sequential.so.3"},
+        {"role": "mkl-tbb-thread-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/mkl/2026.1/lib/libmkl_tbb_thread.so.3", "bytes": 35364624, "sha256": "0df6158dcbe25787a34a50f399593cae0cf713da039bcf7c2024290826814400", "soname": "libmkl_tbb_thread.so.3"},
+        {"role": "mkl-vml-avx2-runtime", "class": "runtime-object", "path": "/opt/intel/oneapi/mkl/2026.1/lib/libmkl_vml_avx2.so.3", "bytes": 15644480, "sha256": "707ab79a97ab3d07d0e337bbc78383c2bde925f18d54acf930b2fd110550ed27", "soname": "libmkl_vml_avx2.so.3"},
+        {"role": "mkl-root-header", "class": "header", "path": "/opt/intel/oneapi/mkl/2026.1/include/mkl.h", "bytes": 1902, "sha256": "d83798d6618c830b7c429864d791fe09cebc5880a40855e05b4bafec189cf295"},
+        {"role": "mkl-version-header", "class": "header", "path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_version.h", "bytes": 1228, "sha256": "ad8144d3ca6212c5e45e8ed69bb76f71a318ed5aebdbe7fc1982790249452a03"},
+        {"role": "mkl-service-header", "class": "header", "path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_service.h", "bytes": 8048, "sha256": "02ff230034b626727576886decbdce2a01b76728e59b9d708e884d5bd153e2c7"},
+        {"role": "mkl-vml-header", "class": "header", "path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_vml.h", "bytes": 1630, "sha256": "ccec6cbab8c6b020fd9615b192ec0fb7d8a07925c976c6b4b4faf1efbedc4908"},
+        {"role": "mkl-vml-defines-header", "class": "header", "path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_vml_defines.h", "bytes": 11934, "sha256": "c2315ccb4ff10c42d8da1771454ce9f9cccfdecd0e2986585907724430253706"},
+        {"role": "mkl-vml-functions-header", "class": "header", "path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_vml_functions.h", "bytes": 965316, "sha256": "e236ba7ade2e11938b9c5a70f3905d38c78a726fa11afa4ba1bbba39929b8b5f"},
+        {"role": "mkl-cblas-header", "class": "header", "path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_cblas.h", "bytes": 87010, "sha256": "12100f333cbca07387ca3e9e51092e17f3af05f3a8aa1d93cab1b1e8420f0ec5"},
+        {"role": "mkl-lapacke-header", "class": "header", "path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_lapacke.h", "bytes": 1815845, "sha256": "00558bd2799718ab85b903e0601304b30fafda19bb5101917c371d8b7a0307cd"},
+        {"role": "mkl-sparse-blas-header", "class": "header", "path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_spblas.h", "bytes": 182913, "sha256": "a535803810fed52c8baabdb1f608c4861db4fd0a5512284e4c5acef564e00de2"},
+        {"role": "mkl-cmake-config", "class": "cmake-input", "path": "/opt/intel/oneapi/mkl/2026.1/lib/cmake/mkl/MKLConfig.cmake", "bytes": 50753, "sha256": "57d0fc30e9c1f5e6a0d3c4ff584b1a32509cdf72fe8f3b1e74c322dfc7b88742"},
+        {"role": "mkl-cmake-version", "class": "cmake-input", "path": "/opt/intel/oneapi/mkl/2026.1/lib/cmake/mkl/MKLConfigVersion.cmake", "bytes": 2745, "sha256": "82148344f53acfb0233f80533a84177a54555b2f7bb7bcb79cfb9cb031af0939"},
+        {"role": "mkl-license", "class": "license", "path": "/opt/intel/oneapi/mkl/2026.1/share/doc/mkl/licensing/license.txt", "bytes": 4246, "sha256": "c182e56595e59c88a2561ca442f7cb088cab5575a3f1c9fdebc09688d0748bd2"},
+        {"role": "mkl-third-party-notices", "class": "license", "path": "/opt/intel/oneapi/mkl/2026.1/share/doc/mkl/licensing/third-party-programs.txt", "bytes": 64052, "sha256": "a38d77d3d57579b827e3ac86cafdb71f1461a24fbd6f224e7f40e19c1bd0ea3a"},
+        {"role": "mkl-onetbb-notices", "class": "license", "path": "/opt/intel/oneapi/mkl/2026.1/share/doc/mkl/licensing/third-party-programs-oneTBB.txt", "bytes": 19504, "sha256": "d507da4fffae647ebc1bbb7e12cc5cca8087d36b0d78cc75caa96cae37688cb1"}
+      ],
+      "cmake_selection": {
+        "include_root": "/opt/intel/oneapi/mkl/2026.1/include",
+        "library_root": "/opt/intel/oneapi/mkl/2026.1/lib",
+        "config_directory": "/opt/intel/oneapi/mkl/2026.1/lib/cmake/mkl",
+        "targets": {
+          "mkl-runtime": ["mkl-runtime"],
+          "mkl-lp64-sequential": ["mkl-lp64-runtime", "mkl-sequential-runtime", "mkl-core-runtime"],
+          "mkl-lp64-tbb": ["mkl-lp64-runtime", "mkl-tbb-thread-runtime", "mkl-core-runtime"],
+          "mkl-vml-avx2": ["mkl-runtime", "mkl-vml-avx2-runtime"]
+        }
+      }
+    }
+  },
+  "authority_boundaries": {
+    "ambient-latest-symlinks-are-authority": false,
+    "installed-bytes-are-source-authority": false,
+    "selection-activates-product-runtime": false,
+    "selection-implements-unicode": false,
+    "selection-implements-scheduler": false,
+    "loaded-runtime-object-closure-requires-package-receipt": true
+  }
+}

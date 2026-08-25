@@ -30,7 +30,7 @@
       "acceleration": ["verified external source cache", "input-addressed out-of-tree build cache"],
       "receipts": ["source revisions", "archive and expanded tree hashes", "licenses", "toolchain and build flags", "staged object hashes"],
       "product_requirements": ["LP-PACKAGE-001", "LP-CLEANROOM-001"],
-      "implementation": {"state": "partial", "evidence": ["dependencies/intent.json", "dependencies/lock.json", "dependencies/release-lock.json", "contracts/postgresql-build.json", "tools/postgresql/build-package.py", "tests/postgresql_build_tests.py", "docs/delivery/SELF_HOSTED_RUNNER.md"]}
+      "implementation": {"state": "partial", "evidence": ["dependencies/intent.json", "dependencies/lock.json", "dependencies/release-lock.json", "dependencies/installed-lock.json", "tools/dependencies/verify-installed-lock.py", "tests/installed_provider_lock_tests.py", "contracts/postgresql-build.json", "tools/postgresql/build-package.py", "tests/postgresql_build_tests.py", "docs/delivery/SELF_HOSTED_RUNNER.md"]}
     },
     {
       "id": "framework.execution",
@@ -44,7 +44,7 @@
       "acceleration": ["topology-aware vector batches", "TBB arenas", "MKL thread domains", "PostgreSQL server plans"],
       "receipts": ["program", "inputs", "outputs", "epochs", "dependencies", "resources", "authority", "effects"],
       "product_requirements": ["LP-PRODUCT-001", "LP-UNIVERSAL-001", "LP-EXECUTION-001", "LP-ISA-001", "LP-FRAMEWORK-001", "LP-BULK-001", "LP-TOPOLOGY-001"],
-      "implementation": {"state": "partial", "evidence": ["contracts/framework.json", "engine/src/framework.c", "tests/framework_tests.cpp", "engine/src/isa.c", "engine/src/execution.cpp", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
+      "implementation": {"state": "partial", "evidence": ["contracts/framework.json", "engine/src/framework.c", "tests/framework_tests.cpp", "engine/src/isa.c", "engine/src/execution.cpp", "engine/src/execution_oneapi.cpp", "managed/Laplace.Managed/Transport.cs", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
     },
     {
       "id": "bootstrap.dependencies",
@@ -58,7 +58,7 @@
       "acceleration": ["versioned package prefix", "atomic activation pointer"],
       "receipts": ["package identity", "configuration identity", "loaded object hashes", "activation and rollback disposition"],
       "product_requirements": ["LP-PACKAGE-001"],
-      "implementation": {"state": "partial", "evidence": ["docs/delivery/PRODUCT_INFRASTRUCTURE.md", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
+      "implementation": {"state": "partial", "evidence": ["dependencies/installed-lock.json", "tools/dependencies/verify-installed-lock.py", "cmake/LaplaceOneApiProvider.cmake", "docs/delivery/PRODUCT_INFRASTRUCTURE.md", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
     },
     {
       "id": "bootstrap.unicode-root",

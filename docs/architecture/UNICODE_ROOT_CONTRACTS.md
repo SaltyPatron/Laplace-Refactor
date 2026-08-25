@@ -75,7 +75,9 @@ therefore has one canonical provider class: the exact inventor-host IntelLLVM
 strict floating-point flags, AVX2, high accuracy, FTZ/DAZ disabled, and sequential
 execution. Other providers may perform typed structural or coordinate observations
 but cannot publish root state. Dependency activation remains blocked until that
-oneAPI inventory is admitted by the dependency/package system.
+oneAPI inventory is admitted by the dependency/package system. The exact installed
+bytes are now selected by `dependencies/installed-lock.json`; selection alone does
+not activate them, and publication still requires package and loaded-object receipts.
 
 ## Verification boundary
 

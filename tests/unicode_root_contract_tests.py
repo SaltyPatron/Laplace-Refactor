@@ -201,6 +201,13 @@ class UnicodeRootContractTests(unittest.TestCase):
         with self.assertRaisesRegex(VALIDATOR.ContractError, "unlocked"):
             VALIDATOR.validate_contracts(self.root)
 
+    def test_numeric_provider_lock_binding_cannot_drift(self) -> None:
+        path, document = self.document("hilbert-numeric.json")
+        document["canonical_root_builder"]["installed_provider_selection_sha256"] = "0" * 64
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "installed-provider lock"):
+            VALIDATOR.validate_contracts(self.root)
+
 
 if __name__ == "__main__":
     unittest.main()

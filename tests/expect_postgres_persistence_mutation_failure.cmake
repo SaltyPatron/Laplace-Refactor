@@ -4,6 +4,7 @@ execute_process(
         "${BASH}" "${RUNNER}" persistence-mutation
         "${PG_BINDIR}" "${CONTROL_ROOT}" "${MODULE_DIRECTORY}"
         "${ENGINE_DIRECTORY}" "${NATIVE_PROBE}" "${SQL_FILE}"
+        "${SANITIZER_PRELOAD}"
     RESULT_VARIABLE result
     OUTPUT_VARIABLE output
     ERROR_VARIABLE error)

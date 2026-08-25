@@ -3,12 +3,18 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 namespace {
+
+static_assert(sizeof(laplace_execution_chunk) == 24U);
+static_assert(sizeof(laplace_execution_chunk_result) == 40U);
+static_assert(sizeof(laplace_execution_oneapi_provider_state) == 64U);
+static_assert(sizeof(laplace_execution_work_receipt) == 256U);
 
 struct SyntheticTopology final {
     std::array<laplace_execution_processor, 8> processors{};
@@ -67,6 +73,118 @@ struct SyntheticTopology final {
             LAPLACE_EXECUTION_TOPOLOGY_HYBRID_CORES;
     }
 };
+
+struct WorkTaskState final {
+    std::vector<laplace_execution_chunk> chunks;
+    std::uint64_t fail_chunk{UINT64_MAX};
+};
+
+laplace_execution_status FingerprintChunk(
+    void* const raw_state,
+    const laplace_execution_chunk* const chunk,
+    laplace_digest256* const result) {
+    auto& state = *static_cast<WorkTaskState*>(raw_state);
+    state.chunks.push_back(*chunk);
+    if (chunk->chunk_index == state.fail_chunk) {
+        return LAPLACE_EXECUTION_INVALID_ARGUMENT;
+    }
+    std::memset(
+        result->bytes,
+        static_cast<int>((chunk->chunk_index % UINT64_C(251)) + UINT64_C(1)),
+        sizeof(result->bytes));
+    return LAPLACE_EXECUTION_OK;
+}
+
+laplace_execution_status ZeroFingerprintChunk(
+    void*,
+    const laplace_execution_chunk*,
+    laplace_digest256* const result) {
+    std::memset(result, 0, sizeof(*result));
+    return LAPLACE_EXECUTION_OK;
+}
+
+struct ReverseProviderState final {
+    std::uint32_t prepare_calls{};
+    std::uint32_t finish_calls{};
+    std::uint32_t abort_calls{};
+};
+
+laplace_execution_status ReversePrepare(
+    void* const raw_state,
+    const laplace_execution_grant*,
+    const laplace_execution_work_plan*) {
+    ++static_cast<ReverseProviderState*>(raw_state)->prepare_calls;
+    return LAPLACE_EXECUTION_OK;
+}
+
+laplace_execution_status ReverseRun(
+    void*,
+    const laplace_execution_work_plan*,
+    const laplace_execution_chunk* const chunks,
+    const std::size_t chunk_count,
+    void* const task_state,
+    const laplace_execution_work_task_fn task,
+    laplace_execution_chunk_result* const results) {
+    for (std::size_t offset = 0U; offset < chunk_count; ++offset) {
+        const std::size_t index = chunk_count - offset - 1U;
+        const auto status = task(
+            task_state, &chunks[index], &results[index].result_fingerprint);
+        if (status != LAPLACE_EXECUTION_OK) {
+            results[index].state = LAPLACE_EXECUTION_CHUNK_FAILED;
+            results[index].task_status = static_cast<std::uint32_t>(status);
+            return status;
+        }
+        results[index].state = LAPLACE_EXECUTION_CHUNK_COMPLETE;
+        results[index].task_status = LAPLACE_EXECUTION_OK;
+    }
+    return LAPLACE_EXECUTION_OK;
+}
+
+laplace_execution_status ReverseFinish(void* const raw_state) {
+    ++static_cast<ReverseProviderState*>(raw_state)->finish_calls;
+    return LAPLACE_EXECUTION_OK;
+}
+
+void ReverseAbort(void* const raw_state) {
+    ++static_cast<ReverseProviderState*>(raw_state)->abort_calls;
+}
+
+laplace_execution_runtime_provider_v1 ReverseProvider(
+    ReverseProviderState& state) {
+    laplace_execution_runtime_provider_v1 provider{};
+    provider.state = &state;
+    std::memset(provider.provider_fingerprint.bytes, 0x5a,
+                sizeof(provider.provider_fingerprint.bytes));
+    provider.prepare = ReversePrepare;
+    provider.run = ReverseRun;
+    provider.finish = ReverseFinish;
+    provider.abort = ReverseAbort;
+    provider.abi_major = LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MAJOR;
+    provider.abi_minor = LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MINOR;
+    return provider;
+}
+
+laplace_execution_status OmitLastRun(
+    void*,
+    const laplace_execution_work_plan*,
+    const laplace_execution_chunk* const chunks,
+    const std::size_t chunk_count,
+    void* const task_state,
+    const laplace_execution_work_task_fn task,
+    laplace_execution_chunk_result* const results) {
+    for (std::size_t index = 0U; index + 1U < chunk_count; ++index) {
+        const auto status = task(
+            task_state, &chunks[index], &results[index].result_fingerprint);
+        if (status != LAPLACE_EXECUTION_OK) {
+            results[index].state = LAPLACE_EXECUTION_CHUNK_FAILED;
+            results[index].task_status = static_cast<std::uint32_t>(status);
+            return status;
+        }
+        results[index].state = LAPLACE_EXECUTION_CHUNK_COMPLETE;
+        results[index].task_status = LAPLACE_EXECUTION_OK;
+    }
+    return LAPLACE_EXECUTION_OK;
+}
 
 TEST(ExecutionTopology, AcceptsTypedNumaCacheHybridAndAffinityState) {
     SyntheticTopology fixture;
@@ -233,6 +351,149 @@ TEST(ExecutionPlan, ResourceFailureCannotMutatePriorPlan) {
     EXPECT_EQ(plan.chunk_count, before.chunk_count);
     EXPECT_EQ(plan.peak_memory_bytes, before.peak_memory_bytes);
     EXPECT_EQ(plan.outer_workers, before.outer_workers);
+}
+
+TEST(ExecutionRuntime, SerialAndReverseProvidersShareExactChunksAndResults) {
+    const laplace_execution_grant grant{4096U, 4U, 1U};
+    const laplace_execution_work_request request{
+        23U, 256U, 16U, 2U, 4U, 1U, 0U, 0U};
+    laplace_execution_runtime_provider_v1 serial{};
+    ASSERT_EQ(
+        laplace_execution_serial_provider(&serial), LAPLACE_EXECUTION_OK);
+    WorkTaskState serial_state;
+    laplace_execution_work_receipt serial_receipt{};
+    ASSERT_EQ(
+        laplace_execution_run_work(
+            &grant, &request, &serial, &serial_state, FingerprintChunk,
+            &serial_receipt),
+        LAPLACE_EXECUTION_OK);
+    EXPECT_EQ(serial_receipt.flags, LAPLACE_EXECUTION_WORK_CALCULATION_ONLY);
+    EXPECT_EQ(serial_receipt.completed_chunks, serial_receipt.plan.chunk_count);
+    EXPECT_EQ(serial_receipt.completed_items, request.item_count);
+    ASSERT_FALSE(serial_state.chunks.empty());
+    EXPECT_EQ(serial_state.chunks.front().first_item, 0U);
+    EXPECT_EQ(
+        serial_state.chunks.back().first_item +
+            serial_state.chunks.back().item_count,
+        request.item_count);
+
+    ReverseProviderState provider_state;
+    auto reverse = ReverseProvider(provider_state);
+    WorkTaskState reverse_state;
+    laplace_execution_work_receipt reverse_receipt{};
+    ASSERT_EQ(
+        laplace_execution_run_work(
+            &grant, &request, &reverse, &reverse_state, FingerprintChunk,
+            &reverse_receipt),
+        LAPLACE_EXECUTION_OK);
+    EXPECT_EQ(provider_state.prepare_calls, 1U);
+    EXPECT_EQ(provider_state.finish_calls, 1U);
+    EXPECT_EQ(provider_state.abort_calls, 0U);
+    EXPECT_EQ(
+        std::memcmp(
+            serial_receipt.plan_fingerprint.bytes,
+            reverse_receipt.plan_fingerprint.bytes,
+            sizeof(serial_receipt.plan_fingerprint.bytes)),
+        0);
+    EXPECT_EQ(
+        std::memcmp(
+            serial_receipt.result_fingerprint.bytes,
+            reverse_receipt.result_fingerprint.bytes,
+            sizeof(serial_receipt.result_fingerprint.bytes)),
+        0);
+    EXPECT_NE(
+        std::memcmp(
+            serial_receipt.receipt_id.bytes,
+            reverse_receipt.receipt_id.bytes,
+            sizeof(serial_receipt.receipt_id.bytes)),
+        0);
+
+    WorkTaskState repeated_state;
+    laplace_execution_work_receipt repeated_receipt{};
+    ASSERT_EQ(
+        laplace_execution_run_work(
+            &grant, &request, &serial, &repeated_state, FingerprintChunk,
+            &repeated_receipt),
+        LAPLACE_EXECUTION_OK);
+    EXPECT_EQ(
+        std::memcmp(
+            serial_receipt.receipt_id.bytes,
+            repeated_receipt.receipt_id.bytes,
+            sizeof(serial_receipt.receipt_id.bytes)),
+        0);
+}
+
+TEST(ExecutionRuntime, ExplicitCompletionStateAcceptsAnAllZeroResultFingerprint) {
+    const laplace_execution_grant grant{4096U, 2U, 1U};
+    const laplace_execution_work_request request{
+        8U, 256U, 16U, 2U, 2U, 1U, 0U, 0U};
+    laplace_execution_runtime_provider_v1 serial{};
+    ASSERT_EQ(
+        laplace_execution_serial_provider(&serial), LAPLACE_EXECUTION_OK);
+    laplace_execution_work_receipt receipt{};
+    ASSERT_EQ(
+        laplace_execution_run_work(
+            &grant, &request, &serial, nullptr, ZeroFingerprintChunk, &receipt),
+        LAPLACE_EXECUTION_OK);
+    EXPECT_EQ(receipt.completed_chunks, receipt.plan.chunk_count);
+    EXPECT_EQ(receipt.completed_items, request.item_count);
+}
+
+TEST(ExecutionRuntime, AnAllZeroProviderFingerprintRemainsAValidIdentity) {
+    const laplace_execution_grant grant{4096U, 2U, 1U};
+    const laplace_execution_work_request request{
+        8U, 256U, 16U, 2U, 2U, 1U, 0U, 0U};
+    ReverseProviderState state{};
+    auto provider = ReverseProvider(state);
+    std::memset(
+        provider.provider_fingerprint.bytes, 0,
+        sizeof(provider.provider_fingerprint.bytes));
+    WorkTaskState task_state;
+    laplace_execution_work_receipt receipt{};
+    ASSERT_EQ(
+        laplace_execution_run_work(
+            &grant, &request, &provider, &task_state, FingerprintChunk, &receipt),
+        LAPLACE_EXECUTION_OK);
+    EXPECT_EQ(receipt.completed_items, request.item_count);
+}
+
+TEST(ExecutionRuntime, MissingChunkResultAbortsAndCannotPublishSuccess) {
+    const laplace_execution_grant grant{4096U, 4U, 1U};
+    const laplace_execution_work_request request{
+        23U, 256U, 16U, 2U, 4U, 1U, 0U, 0U};
+    ReverseProviderState provider_state;
+    auto provider = ReverseProvider(provider_state);
+    provider.run = OmitLastRun;
+    WorkTaskState task_state;
+    laplace_execution_work_receipt receipt{};
+    EXPECT_EQ(
+        laplace_execution_run_work(
+            &grant, &request, &provider, &task_state, FingerprintChunk, &receipt),
+        LAPLACE_EXECUTION_RESULT_INVALID);
+    EXPECT_EQ(provider_state.prepare_calls, 1U);
+    EXPECT_EQ(provider_state.finish_calls, 0U);
+    EXPECT_EQ(provider_state.abort_calls, 1U);
+    EXPECT_LT(receipt.completed_chunks, receipt.plan.chunk_count);
+    EXPECT_EQ(receipt.status, LAPLACE_EXECUTION_RESULT_INVALID);
+}
+
+TEST(ExecutionRuntime, TaskFailureAbortsWithAnExactPartialReceipt) {
+    const laplace_execution_grant grant{4096U, 4U, 1U};
+    const laplace_execution_work_request request{
+        23U, 256U, 16U, 2U, 4U, 1U, 0U, 0U};
+    laplace_execution_runtime_provider_v1 serial{};
+    ASSERT_EQ(
+        laplace_execution_serial_provider(&serial), LAPLACE_EXECUTION_OK);
+    WorkTaskState state;
+    state.fail_chunk = 1U;
+    laplace_execution_work_receipt receipt{};
+    EXPECT_EQ(
+        laplace_execution_run_work(
+            &grant, &request, &serial, &state, FingerprintChunk, &receipt),
+        LAPLACE_EXECUTION_PROVIDER_RUN_FAILED);
+    EXPECT_EQ(receipt.completed_chunks, 1U);
+    EXPECT_EQ(receipt.completed_items, state.chunks.front().item_count);
+    EXPECT_EQ(receipt.status, LAPLACE_EXECUTION_PROVIDER_RUN_FAILED);
 }
 
 }  // namespace

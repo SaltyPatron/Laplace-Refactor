@@ -222,8 +222,8 @@
       "profiles": ["numeric-cpu", "linux", "windows"],
       "intent": ["runtime support for IntelLLVM-built vectorized native objects", "declared SVML and compiler support libraries where selected by the package"],
       "boundary": "Every loaded runtime object path and hash belongs to package identity; ambient oneAPI directories cannot select the runtime.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-installed",
+      "lock_entries": ["installed:intel-oneapi-runtime"]
     },
     {
       "id": "onemkl",
@@ -231,8 +231,8 @@
       "profiles": ["numeric-cpu", "cognition", "model-compilation"],
       "intent": ["BLAS and LAPACK kernels", "dense, sparse, factorization, fitting, and tensor calculations", "batched operator construction and evaluation"],
       "boundary": "MKL executes a typed numerical plan; it cannot define relation laws, evidence standing, cognition goals, or canonical representations.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-installed",
+      "lock_entries": ["installed:onemkl"]
     },
     {
       "id": "onetbb",
@@ -240,8 +240,8 @@
       "profiles": ["numeric-cpu", "core"],
       "intent": ["bounded task arenas", "topology-aware parallel loops", "batch chunk scheduling", "shared MKL threading layer and oversubscription control"],
       "boundary": "Scheduling changes physical execution only; partitioning and merge must satisfy the operation's deterministic parity contract.",
-      "selection": "selection-required",
-      "lock_entries": []
+      "selection": "locked-installed",
+      "lock_entries": ["installed:onetbb"]
     },
     {
       "id": "eigen",

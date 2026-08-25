@@ -100,6 +100,23 @@ tree, one SONAME selects different binaries by caller, or one process closure co
 incompatible generations of a library family. Runtime tests then execute the real
 installed capabilities; metadata resolution alone is not acceptance.
 
+### Installed Intel provider selection
+
+`dependencies/installed-lock.json` selects the inventor-host Intel runtime 2026.1.1,
+oneTBB 2023.1.0, and oneMKL 2026.1.0 by immutable versioned roots. It binds exact
+package versions, headers, runtime objects, SONAMEs, CMake inputs, license and notice
+files, byte sizes, and SHA-256 digests for the Linux x86-64 self-hosted profile. No
+`/opt/intel/oneapi/*/latest` symlink participates in the selection.
+
+Clean CI validates the lock structure, complete role sets, provider fingerprints,
+immutable paths, and authority boundaries without requiring Intel software. The
+self-hosted profile additionally verifies every installed byte, package version, and
+runtime SONAME before CMake emits exact imported provider targets. Those targets are
+available only when `LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER=ON`; exposing them does
+not link a product target, activate a product runtime, implement Unicode, or authorize
+scheduling. Product activation still requires a package receipt and verification of
+the objects actually loaded by the final process.
+
 ## Build graph
 
 One declared graph owns Linux and Windows builds. Platform files supply toolchain facts

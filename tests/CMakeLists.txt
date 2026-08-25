@@ -71,21 +71,22 @@ target_compile_options(laplace_isa_tests PRIVATE
 gtest_discover_tests(laplace_isa_tests
     PROPERTIES LABELS "implementation;isa")
 
-if(LAPLACE_ENABLE_DOTNET_BINDINGS)
-    set(laplace_dotnet_sanitizer_preload "")
-    if(CMAKE_C_FLAGS MATCHES "-fsanitize=[^ ]*address")
-        execute_process(
-            COMMAND "${CMAKE_C_COMPILER}" -print-file-name=libasan.so
-            OUTPUT_VARIABLE laplace_dotnet_sanitizer_preload
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            RESULT_VARIABLE laplace_dotnet_sanitizer_result)
-        if(NOT laplace_dotnet_sanitizer_result EQUAL 0
-           OR NOT IS_ABSOLUTE "${laplace_dotnet_sanitizer_preload}"
-           OR NOT EXISTS "${laplace_dotnet_sanitizer_preload}")
-            message(FATAL_ERROR
-                "Cannot locate the address-sanitizer runtime required by the .NET P/Invoke test")
-        endif()
+set(laplace_sanitizer_preload "")
+if(CMAKE_C_FLAGS MATCHES "-fsanitize=[^ ]*address")
+    execute_process(
+        COMMAND "${CMAKE_C_COMPILER}" -print-file-name=libasan.so
+        OUTPUT_VARIABLE laplace_sanitizer_preload
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE laplace_sanitizer_result)
+    if(NOT laplace_sanitizer_result EQUAL 0
+       OR NOT IS_ABSOLUTE "${laplace_sanitizer_preload}"
+       OR NOT EXISTS "${laplace_sanitizer_preload}")
+        message(FATAL_ERROR
+            "Cannot locate the address-sanitizer runtime required by process-hosted native tests")
     endif()
+endif()
+
+if(LAPLACE_ENABLE_DOTNET_BINDINGS)
 
     add_executable(laplace_dotnet_native_expectations
         dotnet/native_expectations.cpp)
@@ -139,7 +140,7 @@ if(LAPLACE_ENABLE_DOTNET_BINDINGS)
             "-DDOTNET=${LAPLACE_DOTNET_EXECUTABLE}"
             "-DMANAGED_TEST_DLL=${laplace_dotnet_test_dll}"
             "-DNATIVE_LIBRARY_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
-            "-DSANITIZER_PRELOAD=${laplace_dotnet_sanitizer_preload}"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/run_native_parity.cmake")
     set_tests_properties(dotnet.native-isa-parity PROPERTIES
         LABELS "implementation;dotnet;isa;bindings;receipt;contract")
@@ -212,6 +213,52 @@ target_compile_options(laplace_execution_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_execution_tests
     PROPERTIES LABELS "implementation;execution;topology;resources")
+
+if(TARGET LaplaceOneApi::TBB AND TARGET LaplaceOneApi::MKLTbb)
+    add_executable(laplace_execution_oneapi_tests
+        execution_oneapi_tests.cpp)
+    target_link_libraries(laplace_execution_oneapi_tests PRIVATE
+        Laplace::Execution
+        LaplaceOneApi::TBB
+        LaplaceOneApi::MKLTbb
+        GTest::gtest_main)
+    target_compile_options(laplace_execution_oneapi_tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    gtest_discover_tests(laplace_execution_oneapi_tests PROPERTIES
+        LABELS "implementation;execution;topology;resources;oneapi;numeric")
+
+    add_library(laplace_execution_oneapi_grant_mutant STATIC
+        ../engine/src/execution_oneapi.cpp)
+    target_include_directories(laplace_execution_oneapi_grant_mutant PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_execution_oneapi_grant_mutant PRIVATE
+        BLAKE3::blake3
+        LaplaceOneApi::TBB
+        LaplaceOneApi::MKLTbb)
+    target_compile_definitions(laplace_execution_oneapi_grant_mutant PRIVATE
+        LAPLACE_TEST_IGNORE_MKL_THREAD_GRANT=1)
+    target_compile_options(laplace_execution_oneapi_grant_mutant PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
+
+    add_executable(laplace_execution_oneapi_grant_mutation_probe
+        execution_oneapi_probe.cpp)
+    target_link_libraries(laplace_execution_oneapi_grant_mutation_probe PRIVATE
+        laplace_execution_oneapi_grant_mutant
+        Laplace::Execution
+        LaplaceOneApi::TBB
+        LaplaceOneApi::MKLTbb)
+    target_compile_options(laplace_execution_oneapi_grant_mutation_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME execution.mutation-oneapi-mkl-grant-omission-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_execution_oneapi_grant_mutation_probe>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_execution_result_failure.cmake")
+    set_tests_properties(
+        execution.mutation-oneapi-mkl-grant-omission-detected PROPERTIES
+        LABELS "execution;resources;oneapi;numeric;mutation")
+endif()
 
 add_executable(laplace_framework_tests
     framework_tests.cpp)
@@ -386,6 +433,7 @@ target_include_directories(laplace_execution_resource_mutant
         "${CMAKE_BINARY_DIR}/generated")
 target_compile_definitions(laplace_execution_resource_mutant
     PRIVATE LAPLACE_TEST_DUPLICATE_PARENT_GRANT=1)
+target_link_libraries(laplace_execution_resource_mutant PRIVATE BLAKE3::blake3)
 target_compile_options(laplace_execution_resource_mutant PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
 
@@ -402,6 +450,86 @@ add_test(
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_execution_failure.cmake")
 set_tests_properties(execution.mutation-resource-duplication-detected PROPERTIES
     LABELS "execution;resources;mutation")
+
+add_library(laplace_execution_result_mutant STATIC
+    ../engine/src/execution.cpp)
+target_include_directories(laplace_execution_result_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_execution_result_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_execution_result_mutant
+    PRIVATE LAPLACE_TEST_SKIP_CHUNK_RESULT_VALIDATION=1)
+target_compile_options(laplace_execution_result_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
+
+add_executable(laplace_execution_result_mutation_probe
+    execution_result_probe.cpp)
+target_link_libraries(laplace_execution_result_mutation_probe
+    PRIVATE laplace_execution_result_mutant)
+target_compile_options(laplace_execution_result_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME execution.mutation-missing-chunk-result-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_execution_result_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_execution_result_failure.cmake")
+set_tests_properties(execution.mutation-missing-chunk-result-detected PROPERTIES
+    LABELS "execution;resources;receipt;mutation")
+
+add_library(laplace_execution_zero_result_mutant STATIC
+    ../engine/src/execution.cpp)
+target_include_directories(laplace_execution_zero_result_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_execution_zero_result_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_execution_zero_result_mutant
+    PRIVATE LAPLACE_TEST_INFER_COMPLETION_FROM_RESULT_BYTES=1)
+target_compile_options(laplace_execution_zero_result_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
+
+add_executable(laplace_execution_zero_result_mutation_probe
+    execution_zero_result_probe.cpp)
+target_link_libraries(laplace_execution_zero_result_mutation_probe
+    PRIVATE laplace_execution_zero_result_mutant)
+target_compile_options(laplace_execution_zero_result_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME execution.mutation-result-bytes-as-completion-state-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_execution_zero_result_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_execution_result_failure.cmake")
+set_tests_properties(
+    execution.mutation-result-bytes-as-completion-state-detected PROPERTIES
+    LABELS "execution;resources;receipt;mutation")
+
+add_library(laplace_execution_zero_provider_mutant STATIC
+    ../engine/src/execution.cpp)
+target_include_directories(laplace_execution_zero_provider_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_execution_zero_provider_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_execution_zero_provider_mutant
+    PRIVATE LAPLACE_TEST_ZERO_PROVIDER_FINGERPRINT_IS_ABSENT=1)
+target_compile_options(laplace_execution_zero_provider_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
+
+add_executable(laplace_execution_zero_provider_mutation_probe
+    execution_zero_provider_probe.cpp)
+target_link_libraries(laplace_execution_zero_provider_mutation_probe
+    PRIVATE laplace_execution_zero_provider_mutant)
+target_compile_options(laplace_execution_zero_provider_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME execution.mutation-zero-provider-fingerprint-sentinel-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_execution_zero_provider_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_execution_result_failure.cmake")
+set_tests_properties(
+    execution.mutation-zero-provider-fingerprint-sentinel-detected PROPERTIES
+    LABELS "execution;resources;receipt;mutation")
 
 add_executable(laplace_isa_preflight_probe
     isa_preflight_probe.cpp)
@@ -727,7 +855,8 @@ if(LAPLACE_POSTGRES_ENABLED)
             "$<TARGET_FILE_DIR:laplace_pg>"
             "$<TARGET_FILE_DIR:laplace_engine>"
             "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
-            "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql")
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql"
+            "${laplace_sanitizer_preload}")
     set_tests_properties(postgres.spi-isa-contract PROPERTIES
         LABELS "implementation;postgresql;spi;isa;receipt"
         RUN_SERIAL TRUE)
@@ -742,7 +871,8 @@ if(LAPLACE_POSTGRES_ENABLED)
             "$<TARGET_FILE_DIR:laplace_pg>"
             "$<TARGET_FILE_DIR:laplace_engine>"
             "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
-            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_receipt_mutation.sql")
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_receipt_mutation.sql"
+            "${laplace_sanitizer_preload}")
     set_tests_properties(postgres.mutation-receipt-collision-detected PROPERTIES
         LABELS "postgresql;spi;receipt;mutation"
         RUN_SERIAL TRUE)
@@ -759,6 +889,7 @@ if(LAPLACE_POSTGRES_ENABLED)
             "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
             "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_blind_conflict_mutant>"
             "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_blind_conflict_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_persistence_mutation_failure.cmake")
     set_tests_properties(postgres.mutation-blind-persistence-conflict-detected PROPERTIES
         LABELS "postgresql;spi;persistence;identity;mutation"
@@ -792,6 +923,12 @@ if(UNIX)
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/dependency_intent_tests.py")
     set_tests_properties(dependencies.intent-contract PROPERTIES
         LABELS "implementation;package;dependencies;evidence")
+
+    add_test(
+        NAME dependencies.installed-provider-contract
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/installed_provider_lock_tests.py")
+    set_tests_properties(dependencies.installed-provider-contract PROPERTIES
+        LABELS "implementation;package;dependencies;oneapi;mutation")
 
     find_program(LAPLACE_BASH_EXECUTABLE bash REQUIRED)
     add_test(

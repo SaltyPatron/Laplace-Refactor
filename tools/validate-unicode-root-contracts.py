@@ -291,6 +291,12 @@ def _validate_hilbert_numeric(document: dict[str, Any], verify_provider: bool) -
     inventory[compiler.get("driver")] = compiler.get("driver_sha256")
     inventory[compiler.get("frontend")] = compiler.get("frontend_sha256")
     _require(inventory == EXPECTED_PROVIDER_HASHES, "canonical numeric provider inventory changed")
+    _require(
+        builder.get("installed_provider_lock") == "dependencies/installed-lock.json"
+        and builder.get("installed_provider_selection_sha256")
+        == "07a9f21bcb81cb669a6be3248eb889ffbceb20bfd05fc957c16373f5ed595137",
+        "canonical numeric provider is not bound to the selected installed-provider lock",
+    )
     _require("blocked-until" in builder.get("dependency_activation", ""), "unlocked oneAPI assets were treated as activated dependencies")
     validation = document.get("validation_classes", [])
     _require([item.get("id") for item in validation] == ["canonical-bit-replay", "noncanonical-structural", "noncanonical-coordinate-observation"], "numeric validation classes changed")

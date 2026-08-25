@@ -435,6 +435,67 @@
       "defect_controls": ["execution.mutation-resource-duplication-detected"]
     },
     {
+      "ctest_name": "ExecutionRuntime.SerialAndReverseProvidersShareExactChunksAndResults",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["provider-independent chunk plan", "schedule-order-independent result receipt", "provider-specific physical receipt"],
+      "defect_controls": ["execution.mutation-missing-chunk-result-detected"]
+    },
+    {
+      "ctest_name": "ExecutionRuntime.MissingChunkResultAbortsAndCannotPublishSuccess",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["missing provider result", "abort before finish", "typed incomplete receipt"],
+      "defect_controls": ["execution.mutation-missing-chunk-result-detected"]
+    },
+    {
+      "ctest_name": "ExecutionRuntime.ExplicitCompletionStateAcceptsAnAllZeroResultFingerprint",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["typed completion state independent of result bytes", "complete 256-bit result domain"],
+      "defect_controls": ["execution.mutation-result-bytes-as-completion-state-detected"]
+    },
+    {
+      "ctest_name": "ExecutionRuntime.AnAllZeroProviderFingerprintRemainsAValidIdentity",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["complete provider-fingerprint bit domain", "provider identity independent of execution presence"],
+      "defect_controls": ["execution.mutation-zero-provider-fingerprint-sentinel-detected"]
+    },
+    {
+      "ctest_name": "ExecutionOneApi.AppliesOneTbbAndOneMklFromTheSameConservedGrant",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-NESTED-PARALLEL-BUDGET", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["locked oneTBB task arena", "thread-local oneMKL grant", "serial and oneAPI plan and result parity", "provider-specific receipt"],
+      "defect_controls": ["execution.mutation-oneapi-mkl-grant-omission-detected"]
+    },
+    {
+      "ctest_name": "ExecutionRuntime.TaskFailureAbortsWithAnExactPartialReceipt",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
+      "covered_dimensions": ["task failure", "exact completed prefix", "provider abort"]
+    },
+    {
+      "ctest_name": "execution.mutation-missing-chunk-result-detected",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["missing chunk result validation bypass is detected"],
+      "controls": "ExecutionRuntime.MissingChunkResultAbortsAndCannotPublishSuccess"
+    },
+    {
+      "ctest_name": "execution.mutation-result-bytes-as-completion-state-detected",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["result payload promoted into execution-state sentinel is detected"],
+      "controls": "ExecutionRuntime.ExplicitCompletionStateAcceptsAnAllZeroResultFingerprint"
+    },
+    {
+      "ctest_name": "execution.mutation-zero-provider-fingerprint-sentinel-detected",
+      "evidence_targets": ["LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["provider identity bytes promoted into presence sentinel is detected"],
+      "controls": "ExecutionRuntime.AnAllZeroProviderFingerprintRemainsAValidIdentity"
+    },
+    {
+      "ctest_name": "execution.mutation-oneapi-mkl-grant-omission-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-NESTED-PARALLEL-BUDGET", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": ["oneMKL thread grant omission is detected"],
+      "controls": "ExecutionOneApi.AppliesOneTbbAndOneMklFromTheSameConservedGrant"
+    },
+    {
       "ctest_name": "execution.mutation-resource-duplication-detected",
       "evidence_targets": ["LP-TEST-NESTED-PARALLEL-BUDGET"],
       "covered_dimensions": ["duplicated parent CPU memory and I O grants are detected"],
@@ -659,7 +720,13 @@
       "ctest_name": "dependencies.intent-contract",
       "evidence_targets": ["LP-TEST-DEPENDENCY-INTENT"],
       "covered_dimensions": ["external capability classification", "downloaded dependency roots", "source-lock joins", "selection status", "semantic authority boundary"],
-      "defect_controls": ["missing source join", "duplicate source join", "missing external engine", "missing model dependency root", "empty capability intent", "Git and release version divergence", "Git and release license divergence"]
+      "defect_controls": ["missing source join", "duplicate source join", "unrelated installed-provider join", "missing external engine", "missing model dependency root", "empty capability intent", "Git and release version divergence", "Git and release license divergence"]
+    },
+    {
+      "ctest_name": "dependencies.installed-provider-contract",
+      "evidence_targets": ["LP-TEST-DEPENDENCY-INSTALLED-PROVIDER"],
+      "covered_dimensions": ["exact installed Intel runtime oneTBB and oneMKL versions", "immutable versioned include library and CMake paths", "runtime object header license and package identity", "host-free contract validation", "self-hosted exact byte and SONAME verification", "verified-only CMake selection emission", "selection without runtime activation"],
+      "defect_controls": ["provider version drift", "runtime object digest or omission", "header omission", "ambient latest path", "selection claiming activation", "CMake selection emitted without installed-byte verification"]
     },
     {
       "ctest_name": "DependencyMath.CurrentEigenAndSpectraComputeSelectedEigenpairs",

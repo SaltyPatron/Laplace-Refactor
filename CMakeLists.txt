@@ -29,8 +29,16 @@ option(LAPLACE_ENABLE_DOTNET_BINDINGS
 set(LAPLACE_DEPENDENCY_LOCK
     "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/lock.json"
     CACHE FILEPATH "Laplace dependency lock")
+set(LAPLACE_INSTALLED_PROVIDER_LOCK
+    "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/installed-lock.json"
+    CACHE FILEPATH "Selected installed-provider byte lock")
+option(LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER
+    "Verify and enable the exact selected installed oneAPI execution provider"
+    OFF)
 
 include(cmake/LaplaceDependencyLock.cmake)
+include(cmake/LaplaceOneApiProvider.cmake)
+laplace_configure_oneapi_provider()
 
 if(NOT IS_ABSOLUTE "${LAPLACE_BLAKE3_SOURCE}")
     message(FATAL_ERROR "LAPLACE_BLAKE3_SOURCE must be an absolute verified source path")
