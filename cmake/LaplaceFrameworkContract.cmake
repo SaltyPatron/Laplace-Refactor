@@ -13,17 +13,25 @@ function(laplace_configure_framework_contract contract_path output_path)
     string(JSON stream_none GET "${contract_json}" canonical_stream_flags none)
     string(JSON effect_none GET "${contract_json}" effect_dispositions none)
     string(JSON effect_staged GET "${contract_json}" effect_dispositions staged_inert)
+    string(JSON effect_admitted GET "${contract_json}" effect_dispositions activation_admitted)
+    string(JSON effect_activated GET "${contract_json}" effect_dispositions activated)
     string(JSON sink_major GET "${contract_json}" sink_abi major)
     string(JSON sink_minor GET "${contract_json}" sink_abi minor)
+    string(JSON activation_provider_major GET "${contract_json}" activation_provider_abi major)
+    string(JSON activation_provider_minor GET "${contract_json}" activation_provider_abi minor)
+    string(JSON activation_none GET "${contract_json}" activation_flags none)
     string(JSON digest_algorithm GET "${contract_json}" digest algorithm)
     string(JSON digest_bytes GET "${contract_json}" digest bytes)
 
     if(NOT contract_schema STREQUAL "laplace.framework-contract/v1")
         message(FATAL_ERROR "Unsupported framework contract schema: ${contract_schema}")
     endif()
-    if(NOT major EQUAL 1 OR NOT minor EQUAL 1
-       OR NOT sink_major EQUAL 1 OR NOT sink_minor EQUAL 0)
-        message(FATAL_ERROR "Current framework ABI must remain 1.1 and sink ABI 1.0")
+    if(NOT major EQUAL 1 OR NOT minor EQUAL 2
+       OR NOT sink_major EQUAL 1 OR NOT sink_minor EQUAL 0
+       OR NOT activation_provider_major EQUAL 1
+       OR NOT activation_provider_minor EQUAL 0)
+        message(FATAL_ERROR
+            "Current framework ABI must remain 1.2 with sink and activation provider ABI 1.0")
     endif()
     set(expected_epoch 0)
     foreach(epoch IN ITEMS source identity geometry evidence firmware dependency database perfcache numeric package)
@@ -34,7 +42,9 @@ function(laplace_configure_framework_contract contract_path output_path)
     endforeach()
     if(NOT context_bootstrap EQUAL 1 OR NOT context_read_only EQUAL 2
        OR NOT batch_none EQUAL 0 OR NOT stream_none EQUAL 0
-       OR NOT effect_none EQUAL 0 OR NOT effect_staged EQUAL 1)
+       OR NOT effect_none EQUAL 0 OR NOT effect_staged EQUAL 1
+       OR NOT effect_admitted EQUAL 2 OR NOT effect_activated EQUAL 3
+       OR NOT activation_none EQUAL 0)
         message(FATAL_ERROR "Framework flag assignment changed")
     endif()
     if(NOT digest_algorithm STREQUAL "BLAKE3-256" OR NOT digest_bytes EQUAL 32)
@@ -62,8 +72,13 @@ function(laplace_configure_framework_contract contract_path output_path)
     set(LAPLACE_FRAMEWORK_KNOWN_STREAM_FLAGS "${stream_none}")
     set(LAPLACE_FRAMEWORK_EFFECT_NONE "${effect_none}")
     set(LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT "${effect_staged}")
+    set(LAPLACE_FRAMEWORK_EFFECT_ACTIVATION_ADMITTED "${effect_admitted}")
+    set(LAPLACE_FRAMEWORK_EFFECT_ACTIVATED "${effect_activated}")
     set(LAPLACE_FRAMEWORK_SINK_ABI_MAJOR "${sink_major}")
     set(LAPLACE_FRAMEWORK_SINK_ABI_MINOR "${sink_minor}")
+    set(LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_ABI_MAJOR "${activation_provider_major}")
+    set(LAPLACE_FRAMEWORK_ACTIVATION_PROVIDER_ABI_MINOR "${activation_provider_minor}")
+    set(LAPLACE_FRAMEWORK_KNOWN_ACTIVATION_FLAGS "${activation_none}")
     set(LAPLACE_FRAMEWORK_DIGEST_BYTES "${digest_bytes}")
     get_filename_component(output_directory "${output_path}" DIRECTORY)
     file(MAKE_DIRECTORY "${output_directory}")

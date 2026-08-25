@@ -35,8 +35,11 @@ context/program/input/output/receipt fingerprints. Every program requires an exp
 immutable framework context, and the generated operation registry owns native
 validation and execution dispatch. The PostgreSQL routes accept that same typed
 context explicitly; no hidden session or database context is substituted. The
-optimized and address/undefined-behavior builds currently expose 100 registered
-core-profile tests and 102 in the PostgreSQL profile. A native execution authority now
+optimized and address/undefined-behavior builds currently expose 106 registered
+core-profile tests and 108 in the PostgreSQL profile. Staged canonical streams remain
+inert until a writable authority admits an exact staged receipt and atomically
+publishes a compare-and-swap epoch transition; stale epochs and altered receipts are
+rejected before the activation provider runs. A native execution authority now
 observes caller-affinity CPU/package/core/NUMA/cache structure, hybrid core classes,
 usable and constrained memory, page size, and runtime ISA capabilities into an
 immutable caller-owned snapshot. It subtracts resources already owned by PostgreSQL,
@@ -47,7 +50,7 @@ tests include exact cross-runtime vectors, enumeration of all 1,114,112 codepoin
 positions, 100,000-element expanded/run identity and centroid comparisons, exact
 cancellation and subnormal rounding checks, ISA type/capacity/overlap/atomicity checks,
 perfcache corruption and semantic checks, same-directory publication, immutable mapped
-readers, an installed external identity-trajectory-and-ISA consumer, and thirteen injected
+readers, an installed external identity-trajectory-and-ISA consumer, and fourteen injected
 implementation defects that must fail for their exact expected reasons. The dependency
 tests also construct unresolved edges, competing loader
 candidates, incompatible ABI generations, altered archives, and escaping members and

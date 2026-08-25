@@ -94,6 +94,40 @@
       "covered_dimensions": ["complete stream preflight", "no partial sink effects"]
     },
     {
+      "ctest_name": "FrameworkActivation.PublishesOneAdmittedEpochTransition",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["exact staged receipt", "authority-bound admission", "atomic epoch transition", "activation receipt"],
+      "defect_controls": ["framework.mutation-stale-epoch-activation-detected"]
+    },
+    {
+      "ctest_name": "FrameworkActivation.RejectsStaleEpochBeforeProviderAdmission",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["compare-and-swap epoch precondition", "no provider call before complete admission"],
+      "defect_controls": ["framework.mutation-stale-epoch-activation-detected"]
+    },
+    {
+      "ctest_name": "FrameworkActivation.RejectsAlteredStageAndReadOnlyAuthority",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["staged receipt integrity", "read-only authority rejection", "no activation callback"]
+    },
+    {
+      "ctest_name": "FrameworkActivation.FailedAtomicCommitRemainsOnlyAdmitted",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["admission versus activation disposition", "failed atomic commit abort", "unchanged epoch"]
+    },
+    {
+      "ctest_name": "framework.activation-epoch-cas-contract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["public stale-epoch activation rejection probe"],
+      "defect_controls": ["framework.mutation-stale-epoch-activation-detected"]
+    },
+    {
+      "ctest_name": "framework.mutation-stale-epoch-activation-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["omitted expected-epoch comparison is detected"],
+      "controls": "framework.activation-epoch-cas-contract"
+    },
+    {
       "ctest_name": "IdentityAbi.IsExactly128Bits",
       "evidence_targets": ["LP-TEST-IDENTITY-BLAKE3-128"],
       "covered_dimensions": ["native ABI width"]

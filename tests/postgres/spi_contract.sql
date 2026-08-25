@@ -23,7 +23,7 @@ AS $context$
         1,
         1023::bigint,
         1::smallint,
-        1::smallint,
+        2::smallint,
         2
     )::laplace.execution_context
 $context$;

@@ -26,6 +26,9 @@ enough.
   typed sink ABI that stages the same calculated stream into multiple providers,
   records only an inert staged-effect disposition, seals only after complete preflight,
   and aborts every staged sink on failure;
+- an explicit activation-provider ABI that verifies the exact staged receipt, rejects
+  read-only authority and stale expected epochs before provider admission, separates
+  admitted from activated disposition, and receipts one atomic epoch transition;
 - a generic immutable perfcache file/mapping/publication foundation with distinct
   dense-direct, sorted-fixed, and module-defined access laws; and
 - native package/consumer and dependency-verification foundations.
@@ -74,17 +77,20 @@ graph, prefaulting, reader epoch pins, or restart-free generation handoff.
 2. Canonical byte streams and staged sinks exist, but there is no decomposer producer,
    typed record-codec registry, database/perfcache provider implementation, or coherent
    epoch activation coordinator.
-3. There is no canonical persistence provider, transaction/effect admission boundary,
-   or replay/progress state machine.
+3. The generic effect-admission and epoch compare-and-swap boundary exists, but there
+   is no canonical persistence provider, PostgreSQL transaction implementation, or
+   replay/progress state machine.
 4. There is no perfcache module/epoch registry, hot-generation protocol, or complete
    loaded-artifact diagnostic surface.
 5. C ABI and PostgreSQL constants are partly generated; the SQL and C# surfaces are
    not generated as one complete contract.
-6. Current receipts bind the complete execution-context plus exact source and recipe
-   fingerprints for canonical streams, but omit their retained manifests/objects,
-   physical execution plan, durable activation disposition, loaded-object identity,
-   and other lifecycle facts required by the product.
-7. There is no authoritative Unicode/UCD/DUCET source manifest in the dependency lock.
+6. Current receipts bind the complete execution context, exact source and recipe,
+   staged artifacts, admission preparation, and activated epoch transition, but omit
+   retained manifests/objects, physical execution plan, loaded-object identity, and
+   other lifecycle facts required by the product.
+7. The downloaded Unicode 17 UCD, UCA/DUCET, emoji, security, IDNA, and conformance
+   sources exist under `/vault/Data/UCD/Public/UCD/latest`; their exact files and
+   hashes are not yet bound into the clean Unicode source manifest.
 8. There is no Super-Fibonacci/Hopf/Hilbert Unicode seed implementation in the clean
     engine.
 9. There is no canonical entity/physicality/composition/occurrence/testimony schema
@@ -112,8 +118,10 @@ audited program checkpoint. The clean repository was subsequently activated at
 `/home/ahart/Projects/Laplace` with the cutover proof in
 `docs/delivery/CANONICAL_CUTOVER.md`. Issue #8 is closed with self-hosted runner and
 custom-stack CI evidence. PR #36 makes the generated registry the sole native ISA
-dispatch authority and binds an explicit immutable execution context through native
-and PostgreSQL program/receipt identity. Issues #4 and #10 remain open because TBB/MKL application,
-cross-route resource parity, full generated bindings, complete effect/epoch/receipt
-lifecycle, and the Unicode proving module remain incomplete. The accepted slice is
-component evidence and cannot close the complete framework obligation.
+dispatch authority, binds an explicit immutable execution context through native and
+PostgreSQL program/receipt identity, binds canonical streams to source and recipe, and
+adds receipted compare-and-swap activation over inert staged artifacts. Issues #4 and
+#10 remain open because TBB/MKL application, cross-route resource parity, complete
+providers/transports, replay/progress, and the Unicode proving module remain
+incomplete. The accepted slice is component evidence and cannot close the complete
+framework obligation.
