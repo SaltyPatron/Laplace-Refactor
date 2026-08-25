@@ -45,6 +45,13 @@ class ToolchainBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.ToolchainError, "cmake.test"):
             BUILD.validate_contract(contract)
 
+    def test_perl_local_path_defaults_are_fail_closed(self) -> None:
+        contract = self.contract()
+        configure = contract["build"]["components"]["perl"]["configure"]
+        configure[configure.index("-Dlocincpth= ")] = "-Dlocincpth="
+        with self.assertRaisesRegex(BUILD.ToolchainError, "disable local paths"):
+            BUILD.validate_contract(contract)
+
     def test_canonical_source_generation_cannot_be_a_build_directory(self) -> None:
         contract = self.contract()
         contract["build"]["components"]["gnu-make"]["source_mode"] = "immutable-out-of-tree"
