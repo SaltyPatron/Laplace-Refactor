@@ -244,6 +244,7 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
     sections = require_string_array(receipt.get("required_sections"), "receipt.required_sections")
     required_sections = {
         "source_inputs",
+        "source_normalization",
         "bootstrap_inputs",
         "component_steps",
         "installed_tools",
@@ -365,6 +366,12 @@ def create_plan(contract: dict[str, Any], repository: Path) -> dict[str, Any]:
     bootstrap = verify_bootstrap(contract)
     selected, source_receipts = verify_sources(contract, repository)
     recipe = recipe_identity(contract, repository)
+    source_normalization = {
+        "algorithm": "all-non-symlink-source-objects-utime/v1",
+        "source_date_epoch": contract["environment"]["source_date_epoch"],
+        "directory_order": "children-before-parent",
+        "follow_symlinks": False,
+    }
     identity = {
         "contract": contract,
         "bootstrap": bootstrap,
@@ -377,6 +384,7 @@ def create_plan(contract: dict[str, Any], repository: Path) -> dict[str, Any]:
             for component_id in EXPECTED_ORDER
         },
         "recipe": recipe,
+        "source_normalization": source_normalization,
     }
     build_input_id = canonical_sha256(identity)
     roots = contract["logical_roots"]
@@ -392,6 +400,7 @@ def create_plan(contract: dict[str, Any], repository: Path) -> dict[str, Any]:
         "prefix": str(prefix),
         "component_order": list(EXPECTED_ORDER),
         "source_inputs": source_receipts,
+        "source_normalization": source_normalization,
         "bootstrap_inputs": bootstrap,
         "recipe": recipe,
         "parallel_jobs": contract["build"]["parallel_jobs"],
@@ -536,14 +545,68 @@ def run_logged(
 
 
 def component_source(
-    contract: dict[str, Any], component_id: str, work: Path
+    contract: dict[str, Any], repository: Path, component_id: str, work: Path
 ) -> Path:
-    immutable = Path(contract["logical_roots"]["source_generation"]) / component_id
+    release_lock = read_json(repository / contract["release_lock"])
+    entry = release_lock.get("archives", {}).get(component_id)
+    if not isinstance(entry, dict):
+        raise ToolchainError(f"release lock does not contain {component_id}")
+    archive_root = Path(contract["logical_roots"]["archive_root"])
+    release = load_release_module(repository)
     private = work / "private-sources" / component_id
     if not private.exists():
         private.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(immutable, private, symlinks=True)
+        try:
+            release.import_entry(component_id, entry, archive_root, private.parent)
+            release.verify_imported_entry(
+                component_id, entry, archive_root, private.parent
+            )
+            normalize_source_timestamps(
+                private, int(contract["environment"]["source_date_epoch"])
+            )
+        except Exception as error:
+            if private.exists():
+                shutil.rmtree(private)
+            raise ToolchainError(
+                f"private source import failed for {component_id}: {error}"
+            ) from error
     return private
+
+
+def normalize_source_timestamps(source: Path, epoch: int) -> int:
+    """Normalize dependency-sensitive source mtimes without dereferencing links."""
+    if not source.is_dir() or source.is_symlink():
+        raise ToolchainError(f"private source root is not a real directory: {source}")
+    normalized = 0
+    for root_value, _directories, files in os.walk(source, topdown=False, followlinks=False):
+        root = Path(root_value)
+        for name in files:
+            path = root / name
+            if path.is_symlink():
+                continue
+            os.utime(path, (epoch, epoch), follow_symlinks=False)
+            normalized += 1
+        os.utime(root, (epoch, epoch), follow_symlinks=False)
+        normalized += 1
+    return normalized
+
+
+def verify_normalized_source_timestamps(source: Path, epoch: int) -> int:
+    expected = epoch * 1_000_000_000
+    observed = 0
+    for root_value, _directories, files in os.walk(source, topdown=False, followlinks=False):
+        root = Path(root_value)
+        for name in files:
+            path = root / name
+            if path.is_symlink():
+                continue
+            if path.stat().st_mtime_ns != expected:
+                raise ToolchainError(f"private source timestamp is not normalized: {path}")
+            observed += 1
+        if root.stat().st_mtime_ns != expected:
+            raise ToolchainError(f"private source timestamp is not normalized: {root}")
+        observed += 1
+    return observed
 
 
 def verify_private_source_copy(
@@ -754,14 +817,23 @@ def execute_plan(
         if not isinstance(completed, list) or completed != EXPECTED_ORDER[: len(completed)]:
             raise ToolchainError("resume checkpoint is not a valid dependency prefix")
     component_steps: dict[str, list[dict[str, Any]]] = {}
+    source_normalization: dict[str, dict[str, Any]] = {}
     for component_id in EXPECTED_ORDER:
         if component_id in completed:
             continue
         component = contract["build"]["components"][component_id]
         component_build = build_root / "components" / component_id
         private_directory(component_build)
-        source = component_source(contract, component_id, work_root)
+        source = component_source(
+            contract, Path(plan["repository"]), component_id, work_root
+        )
         verify_private_source_copy(contract, Path(plan["repository"]), component_id, source.parent)
+        source_normalization[component_id] = {
+            "source_date_epoch": plan["source_normalization"]["source_date_epoch"],
+            "normalized_object_count": verify_normalized_source_timestamps(
+                source, int(plan["source_normalization"]["source_date_epoch"])
+            ),
+        }
         environment = build_environment(contract, plan, component_id)
         steps: list[dict[str, Any]] = []
         for step_name in ("configure", "build", "test", "install"):
@@ -808,6 +880,10 @@ def execute_plan(
         "build_input_id": plan["build_input_id"],
         "build_plan_sha256": canonical_sha256(plan),
         "source_inputs": plan["source_inputs"],
+        "source_normalization": {
+            "recipe": plan["source_normalization"],
+            "components": source_normalization,
+        },
         "source_generation_after": source_generation_after,
         "bootstrap_inputs": plan["bootstrap_inputs"],
         "component_steps": component_steps,

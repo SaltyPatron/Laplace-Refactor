@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,86 @@ class ToolchainBuildTests(unittest.TestCase):
         contract["build"]["components"]["gnu-make"]["source_mode"] = "immutable-out-of-tree"
         with self.assertRaisesRegex(BUILD.ToolchainError, "source mode"):
             BUILD.validate_contract(contract)
+
+    def test_private_source_is_imported_from_locked_archive_recipe(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = root / "repository"
+            work = root / "work"
+            lock = repository / "dependencies/release-lock.json"
+            lock.parent.mkdir(parents=True)
+            lock.write_text(
+                json.dumps({"archives": {"perl": {"version": "5.44.0"}}}),
+                encoding="utf-8",
+            )
+            calls: list[tuple[str, Path]] = []
+
+            class FakeRelease:
+                @staticmethod
+                def import_entry(
+                    component_id: str,
+                    entry: dict[str, object],
+                    archive_root: Path,
+                    destination: Path,
+                ) -> None:
+                    calls.append(("import", destination))
+                    source = destination / component_id
+                    source.mkdir(parents=True)
+                    (source / "Configure").write_text("locked archive bytes", encoding="utf-8")
+
+                @staticmethod
+                def verify_imported_entry(
+                    component_id: str,
+                    entry: dict[str, object],
+                    archive_root: Path,
+                    destination: Path,
+                ) -> None:
+                    calls.append(("verify", destination))
+                    self.assertEqual(
+                        (destination / component_id / "Configure").read_text(encoding="utf-8"),
+                        "locked archive bytes",
+                    )
+
+            contract = self.contract()
+            contract["release_lock"] = "dependencies/release-lock.json"
+            contract["logical_roots"]["archive_root"] = str(root / "archives")
+            contract["logical_roots"]["source_generation"] = str(
+                root / "must-not-be-read"
+            )
+            with mock.patch.object(BUILD, "load_release_module", return_value=FakeRelease):
+                source = BUILD.component_source(contract, repository, "perl", work)
+            self.assertEqual(source, work / "private-sources/perl")
+            self.assertEqual(
+                calls,
+                [("import", source.parent), ("verify", source.parent)],
+            )
+
+    def test_private_source_timestamps_are_wall_clock_independent(self) -> None:
+        epoch = 1_787_616_000
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            observed: list[list[tuple[str, int]]] = []
+            for index, wall_time in enumerate((1_600_000_000, 1_900_000_000)):
+                source = root / f"source-{index}"
+                nested = source / "nested"
+                nested.mkdir(parents=True)
+                regular = nested / "input.txt"
+                regular.write_text("same bytes", encoding="utf-8")
+                link = source / "input-link"
+                link.symlink_to("nested/input.txt")
+                for path in (regular, nested, source):
+                    BUILD.os.utime(path, (wall_time, wall_time), follow_symlinks=False)
+                BUILD.normalize_source_timestamps(source, epoch)
+                self.assertEqual(
+                    BUILD.verify_normalized_source_timestamps(source, epoch), 3
+                )
+                observed.append(
+                    [
+                        (str(path.relative_to(source)), path.stat().st_mtime_ns)
+                        for path in (source, nested, regular)
+                    ]
+                )
+            self.assertEqual(observed[0], observed[1])
 
     def test_product_runtime_activation_claim_is_rejected(self) -> None:
         contract = self.contract()
