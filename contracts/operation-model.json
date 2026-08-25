@@ -185,7 +185,7 @@
       "acceleration": ["out-of-tree builds", "hosted and self-hosted CI", "incremental package and database activation"],
       "receipts": ["source to package provenance", "loaded objects", "database schema", "active cache epochs", "whole-product acceptance"],
       "product_requirements": ["LP-PRODUCT-001", "LP-PACKAGE-001"],
-      "implementation": {"state": "partial", "evidence": ["docs/delivery/PRODUCT_INFRASTRUCTURE.md", ".github/workflows/custom-stack.yml"]}
+      "implementation": {"state": "partial", "evidence": ["docs/delivery/PRODUCT_INFRASTRUCTURE.md", "docs/delivery/POSTGRESQL_CLUSTER.md", "contracts/postgresql-cluster.json", "tools/postgresql/clusterctl.py", "tests/postgresql_cluster_tests.py", ".github/workflows/custom-stack.yml"]}
     }
   ]
 }
