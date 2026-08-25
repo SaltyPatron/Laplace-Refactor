@@ -18,6 +18,13 @@ add_test(
 set_tests_properties(postgresql-build.contract-and-mutation PROPERTIES
     LABELS "build;package;postgresql;mutation")
 
+add_test(
+    NAME postgresql-cluster.activation-contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_cluster_tests.py")
+set_tests_properties(postgresql-cluster.activation-contract PROPERTIES
+    LABELS "activation;package;postgresql;security;topology;mutation"
+    RUN_SERIAL TRUE)
+
 add_executable(laplace_dependency_math_tests
     dependency_math_tests.cpp)
 target_include_directories(laplace_dependency_math_tests SYSTEM PRIVATE

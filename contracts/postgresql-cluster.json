@@ -1,0 +1,91 @@
+{
+  "schema": "laplace.postgresql-cluster-contract/v1",
+  "version": {
+    "major": 1,
+    "minor": 0
+  },
+  "package": {
+    "manifest_schema": "laplace.package-manifest/v1",
+    "identity_algorithm": "sha256-manifest-payload-v1",
+    "postgresql_version": "18.6",
+    "release_root": "/opt/laplace/releases",
+    "active_link": "/opt/laplace/current",
+    "required_files": [
+      "pgsql-18/bin/initdb",
+      "pgsql-18/bin/pg_config",
+      "pgsql-18/bin/pg_ctl",
+      "pgsql-18/bin/pg_isready",
+      "pgsql-18/bin/postgres",
+      "pgsql-18/bin/psql",
+      "pgsql-18/lib/laplace_pg.so",
+      "pgsql-18/lib/pg_stat_statements.so",
+      "pgsql-18/share/extension/laplace.control",
+      "pgsql-18/share/extension/laplace--1.0.0.sql",
+      "lib/liblaplace_engine.so.1.0.0"
+    ],
+    "required_loaded_objects": [
+      "pgsql-18/bin/postgres",
+      "pgsql-18/lib/laplace_pg.so",
+      "pgsql-18/lib/pg_stat_statements.so",
+      "lib/liblaplace_engine.so.1.0.0"
+    ],
+    "required_capabilities": {
+      "app_effect_boundary": 1,
+      "exact_loaded_object_identity": 1,
+      "topology_bound_processor_allocation": 1
+    }
+  },
+  "instance": {
+    "id": "refactor",
+    "service": "laplace-refactor-postgresql.service",
+    "os_user": "laplace-runner",
+    "os_group": "laplace-runner",
+    "database": "laplace_refactor",
+    "admin_role": "laplace_admin",
+    "app_role": "laplace_app",
+    "port": 55433,
+    "socket_directory": "/run/laplace-refactor-postgresql",
+    "data_directory": "/opt/laplace/pgdata/refactor/data",
+    "wal_directory": "/var/lib/pgwal/refactor",
+    "temp_directory": "/pgtemp/refactor",
+    "config_directory": "/etc/laplace/instances/refactor",
+    "log_directory": "/var/log/laplace/postgresql/refactor",
+    "receipt_directory": "/opt/laplace/receipts/postgresql/refactor"
+  },
+  "security": {
+    "listen_addresses": "",
+    "socket_mode": "0770",
+    "admin_os_user": "ahart",
+    "app_os_user": "laplace-runner",
+    "admin_map": "laplace_refactor_admin",
+    "app_map": "laplace_refactor_app",
+    "allowed_preload_libraries": [
+      "pg_stat_statements"
+    ],
+    "forbid_auth_methods": [
+      "trust"
+    ],
+    "forbid_environment": [
+      "LD_LIBRARY_PATH",
+      "LD_PRELOAD"
+    ]
+  },
+  "resource_policy": {
+    "id": "co-resident-v1",
+    "minimum_cpu_slots": 2,
+    "maximum_cpu_slots": 6,
+    "minimum_memory_bytes": 4294967296,
+    "maximum_memory_bytes": 12884901888,
+    "minimum_io_slots": 1,
+    "maximum_io_slots": 4,
+    "postgresql_memory_numerator": 2,
+    "postgresql_memory_denominator": 3,
+    "memory_high_numerator": 5,
+    "memory_high_denominator": 6,
+    "max_connections_per_cpu_slot": 4,
+    "maximum_connections": 24,
+    "min_wal_size_bytes": 2147483648,
+    "max_wal_size_bytes": 8589934592,
+    "wal_headroom_multiplier": 2
+  }
+}

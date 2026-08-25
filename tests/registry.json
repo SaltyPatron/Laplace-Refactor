@@ -10,6 +10,12 @@
       "defect_controls": ["changed build driver bytes", "missing TAP support", "ambient PGXS", "inherited setgid build directory", "repository-local output", "unknown runtime SONAME"]
     },
     {
+      "ctest_name": "postgresql-cluster.activation-contract",
+      "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
+      "covered_dimensions": ["isolated PostgreSQL 18.6 instance contract", "immutable package and loaded-object identity", "peer-only runtime authentication", "topology-bounded PostgreSQL settings", "fixture plan stage commit remove lifecycle", "state-preserving rollback"],
+      "defect_controls": ["trust authentication", "occupied service port socket path or matching process", "runner-to-administrator peer mapping", "ambient loader environment", "resource grant outside declared policy", "non-package pg_config", "package or loaded-object digest mismatch", "invalid cluster system identity", "removal of operator-modified generated state"]
+    },
+    {
       "ctest_name": "FrameworkRegistry.GeneratedDescriptorsMatchIsaContract",
       "evidence_targets": ["LP-TEST-FRAMEWORK-MODULE-REGISTRY"],
       "covered_dimensions": ["generated registry", "operation metadata", "opcode lookup"]
