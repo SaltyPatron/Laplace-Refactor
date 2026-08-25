@@ -111,6 +111,8 @@ paths and hashes and rejects incomplete or conflicting package graphs.
   — content-bound physical-session audit, whole-product status, recovered action items,
   and the dependency-ordered GitHub work map.
 - `docs/delivery/` — dependency, package, installation, and release requirements.
+- [`docs/delivery/CANONICAL_CUTOVER.md`](docs/delivery/CANONICAL_CUTOVER.md) — verified
+  historical-tree preservation and clean canonical-path activation receipt.
 - `requirements/` — machine-readable requirements and acceptance identifiers.
 - `engine/` — new native engine implementation.
 - `postgres/` — PostgreSQL extension and SQL execution surface.

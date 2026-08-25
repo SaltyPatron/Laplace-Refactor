@@ -49,10 +49,16 @@ Recorded artifacts:
 | Destructive-state correlation | 1,002 invocation dispositions; 10 reflog-correlated invocations; two causally corroborated file-removal invocations; three discarded Git-unpublished bodies observed and recovered; zero unrecoverable unique-state losses observed; manifest SHA-256 `2d44c0405a687b780bb488a5f320a3fba6ab8e6861605d701e822d5e14ebc5c2` |
 | Uncommitted workspace archive | inventor changes, rescue material, and worktree recovery state |
 | Workspace archive SHA-256 | `e445a2e9f9a16457b12358c1ff01bdcf3258c7d94bb14fb754c7f22a98df7ef5` |
+| Final historical worktree inventory | 115,827 entries; 96,047 regular files; 12,419,034,844 regular-file bytes; zero read errors; two stable passes |
+| Final historical worktree manifest SHA-256 | `6b49e2d94791703e47fd2f9771f51dd6f6eb14a615f9f09456ba7bb33f64d322` |
+| Final historical worktree summary SHA-256 | `79645ce30b6c27caf8831a126b9924ac530cc903828ccd39c2fc7b236a75d421` |
 
-The complete 12 GiB current directory has not yet been moved. That final byte-preserving
-move occurs only after the new staging repository and archive manifests verify. The
-current database remains excluded.
+The complete former 12 GiB directory is now preserved at
+`/home/ahart/Projects/Laplace-archive-2026-08-24/historical-worktree`. The clean
+`SaltyPatron/Laplace-Refactor` checkout is active at the canonical
+`/home/ahart/Projects/Laplace` path. The final move and post-activation verification
+are bound in `docs/delivery/CANONICAL_CUTOVER.md`. The current database remains
+excluded.
 
 ## Claude state and temporary-state expansion
 
