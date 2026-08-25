@@ -22,7 +22,7 @@ if [[ ${#dependencies[@]} -eq 0 ]]; then
 fi
 
 for dependency in "${dependencies[@]}"; do
-    source_tree="$source_root/$dependency"
+    source_tree=$(realpath -e "$source_root/$dependency")
     revision=$(jq -r --arg dependency "$dependency" \
         '.dependencies[$dependency].revision' "$lock_file")
     expected_archive=$(jq -r --arg dependency "$dependency" \

@@ -1,14 +1,15 @@
 find_package(Git REQUIRED)
 
 function(laplace_verify_git_dependency dependency_name source_path lock_path)
+    file(REAL_PATH "${source_path}" source_path_real)
     file(READ "${lock_path}" lock_json)
     string(JSON expected_revision GET "${lock_json}" dependencies "${dependency_name}" revision)
     string(JSON expected_archive_sha GET "${lock_json}" dependencies "${dependency_name}" git_archive_sha256)
 
     execute_process(
         COMMAND "${GIT_EXECUTABLE}"
-            -c "safe.directory=${source_path}"
-            -C "${source_path}" rev-parse HEAD
+            -c "safe.directory=${source_path_real}"
+            -C "${source_path_real}" rev-parse HEAD
         RESULT_VARIABLE revision_result
         OUTPUT_VARIABLE actual_revision
         ERROR_VARIABLE revision_error
@@ -24,8 +25,8 @@ function(laplace_verify_git_dependency dependency_name source_path lock_path)
 
     execute_process(
         COMMAND "${GIT_EXECUTABLE}"
-            -c "safe.directory=${source_path}"
-            -C "${source_path}" status --porcelain=v1 --untracked-files=all
+            -c "safe.directory=${source_path_real}"
+            -C "${source_path_real}" status --porcelain=v1 --untracked-files=all
         RESULT_VARIABLE status_result
         OUTPUT_VARIABLE source_status
         ERROR_VARIABLE status_error
@@ -41,8 +42,8 @@ function(laplace_verify_git_dependency dependency_name source_path lock_path)
 
     execute_process(
         COMMAND "${GIT_EXECUTABLE}"
-            -c "safe.directory=${source_path}"
-            -C "${source_path}" archive --format=tar "${actual_revision}"
+            -c "safe.directory=${source_path_real}"
+            -C "${source_path_real}" archive --format=tar "${actual_revision}"
         COMMAND sha256sum
         RESULT_VARIABLE archive_result
         OUTPUT_VARIABLE archive_output
@@ -69,7 +70,7 @@ function(laplace_verify_git_dependency dependency_name source_path lock_path)
             "${lock_json}" dependencies "${dependency_name}" licenses ${license_index} path)
         string(JSON expected_license_sha GET
             "${lock_json}" dependencies "${dependency_name}" licenses ${license_index} sha256)
-        set(license_file "${source_path}/${license_path}")
+        set(license_file "${source_path_real}/${license_path}")
         if(NOT EXISTS "${license_file}")
             message(FATAL_ERROR
                 "${dependency_name}: locked license file is missing: ${license_path}")
