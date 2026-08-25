@@ -69,6 +69,11 @@ laplace_configure_execution_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/execution.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/execution.h")
 
+include(cmake/LaplaceFrameworkContract.cmake)
+laplace_configure_framework_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/framework.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/framework.h")
+
 add_subdirectory(engine)
 
 if(LAPLACE_PG_CONFIG)

@@ -32,7 +32,8 @@ from decoded structure. The first two public ISA instructions execute codepoint
 identity and composition-trajectory decoding through pinned opcodes and value types,
 validate the complete program before writing results, and emit BLAKE3-256
 program/input/output/receipt fingerprints. The optimized and address/undefined-behavior
-builds each pass 80 registered implementation tests. A native execution authority now
+builds currently expose 89 registered core-profile tests and 91 in the PostgreSQL
+profile. A native execution authority now
 observes caller-affinity CPU/package/core/NUMA/cache structure, hybrid core classes,
 usable and constrained memory, page size, and runtime ISA capabilities into an
 immutable caller-owned snapshot. It subtracts resources already owned by PostgreSQL,
@@ -99,6 +100,13 @@ paths and hashes and rejects incomplete or conflicting package graphs.
 - `docs/product/` — invention constitution and clean-room rules.
 - `docs/architecture/` — engine, instruction set, data, boundary, and native cognition
   mathematics specifications.
+- [`docs/architecture/OPERATIONAL_MODEL.md`](docs/architecture/OPERATIONAL_MODEL.md) —
+  whole-product execution order and the framework shared by every module.
+- [`contracts/operation-model.json`](contracts/operation-model.json) — mechanically
+  validated operational-stage graph joined to every product requirement.
+- [`docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md`](docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md)
+  — implemented, staged, and missing framework state without component-to-product
+  inflation.
 - `docs/delivery/` — dependency, package, installation, and release requirements.
 - `requirements/` — machine-readable requirements and acceptance identifiers.
 - `engine/` — new native engine implementation.

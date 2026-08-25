@@ -1,0 +1,138 @@
+{
+  "schema": "laplace.operation-model/v1",
+  "completion_rule": "all stages execute through one framework and whole-package acceptance passes",
+  "stages": [
+    {
+      "id": "framework.execution",
+      "depends_on": [],
+      "owner": "native C/C++ engine with generated PostgreSQL SQL and C# orchestration bindings",
+      "consumes": ["typed programs", "immutable execution context", "authority envelope", "resource grant"],
+      "produces": ["validated physical plan", "typed outputs", "effect disposition", "execution receipt"],
+      "persistent_authority": ["contract and epoch registries", "execution receipts"],
+      "acceleration": ["topology-aware vector batches", "TBB arenas", "MKL thread domains", "PostgreSQL server plans"],
+      "receipts": ["program", "inputs", "outputs", "epochs", "dependencies", "resources", "authority", "effects"],
+      "product_requirements": ["LP-PRODUCT-001", "LP-UNIVERSAL-001", "LP-EXECUTION-001", "LP-ISA-001", "LP-FRAMEWORK-001", "LP-BULK-001", "LP-TOPOLOGY-001"],
+      "implementation": {"state": "partial", "evidence": ["contracts/framework.json", "engine/src/framework.c", "tests/framework_tests.cpp", "engine/src/isa.c", "engine/src/execution.cpp", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
+    },
+    {
+      "id": "bootstrap.dependencies",
+      "depends_on": ["framework.execution"],
+      "owner": "package and dependency admission framework",
+      "consumes": ["upstream source", "release archives", "standards data", "models and corpora", "licenses"],
+      "produces": ["verified dependency graph", "source and data manifests", "activated package inputs"],
+      "persistent_authority": ["dependency locks", "asset manifests", "SBOM and package receipts"],
+      "acceleration": ["verified external source cache", "out-of-tree build and artifact roots"],
+      "receipts": ["source revisions", "archive hashes", "expanded tree hashes", "loaded object hashes", "licenses"],
+      "product_requirements": ["LP-PACKAGE-001", "LP-CLEANROOM-001", "LP-RECOVERY-001"],
+      "implementation": {"state": "partial", "evidence": ["dependencies/intent.json", "dependencies/lock.json", "dependencies/release-lock.json"]}
+    },
+    {
+      "id": "bootstrap.unicode-root",
+      "depends_on": ["bootstrap.dependencies"],
+      "owner": "native Unicode decomposer through the common canonical-batch framework",
+      "consumes": ["pinned UCD", "complete DUCET", "conformance inputs", "identity grammar", "Super Fibonacci Hopf Hilbert numeric recipe"],
+      "produces": ["one canonical ordered Tier-0 record stream", "bootstrap atom perfcache", "canonical Tier-0 database rows", "coherent root epoch"],
+      "persistent_authority": ["content identities", "atom physicalities", "normalization and composition relations", "root epoch manifest"],
+      "acceleration": ["dense direct atom plane", "reverse identity plane", "normalization span indexes", "4D Hilbert locality"],
+      "receipts": ["Unicode version", "source hashes", "decomposer recipe", "numeric provider", "record stream and partition hashes", "database cache parity"],
+      "product_requirements": ["LP-IDENTITY-001", "LP-IDENTITY-002", "LP-UNICODE-001", "LP-UNICODE-002", "LP-GEOMETRY-001", "LP-GEOMETRY-002", "LP-PERFCACHE-001", "LP-PERFCACHE-002", "LP-PERFCACHE-003"],
+      "implementation": {"state": "unimplemented", "evidence": ["requirements/features/geometry_glome.feature", "requirements/features/perfcache_etl.feature"]}
+    },
+    {
+      "id": "substrate.compose-physicality",
+      "depends_on": ["bootstrap.unicode-root"],
+      "owner": "native identity composition trajectory and physicality modules",
+      "consumes": ["canonical atoms", "ordered and unordered constituents", "run spans", "physicality recipe"],
+      "produces": ["content identity", "Merkle DAG", "immutable physicality", "trajectory-derived structural facts"],
+      "persistent_authority": ["entities", "physicalities", "composition occurrences", "calculation receipts"],
+      "acceleration": ["working-set identity tables", "packed trajectories", "B-tree GIN GiST BRIN and Hilbert candidate indexes"],
+      "receipts": ["identity preimage grammar", "constituents", "multiplicity", "geometry epoch", "trajectory recipe"],
+      "product_requirements": ["LP-INTERPRETATION-001", "LP-PHYSICALITY-001", "LP-RUN-001", "LP-REPRESENTATION-001"],
+      "implementation": {"state": "partial", "evidence": ["engine/src/identity.c", "engine/src/trajectory.c", "engine/src/geometry.c"]}
+    },
+    {
+      "id": "substrate.bulk-deposit",
+      "depends_on": ["substrate.compose-physicality"],
+      "owner": "native canonical-batch pipeline and PostgreSQL server persistence providers",
+      "consumes": ["complete working-set DAG", "source occurrences", "typed claims", "transaction boundary"],
+      "produces": ["set-oriented novelty result", "bulk canonical deposition", "append testimony", "durable progress"],
+      "persistent_authority": ["canonical substrate", "occurrences", "testimony", "lineage", "transaction and replay receipts"],
+      "acceleration": ["whole-working-set deduplication", "O(tiers) membership rounds", "COPY and native SPI vectors", "partitioned indexes"],
+      "receipts": ["input and output counts", "database calls", "WAL", "I/O", "cancellation and replay state", "cold and warm state"],
+      "product_requirements": ["LP-STATE-001", "LP-PERF-001", "LP-PERF-002", "LP-STORAGE-001", "LP-MATERIALIZATION-001"],
+      "implementation": {"state": "unimplemented", "evidence": ["docs/architecture/OPERATIONAL_MODEL.md", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
+    },
+    {
+      "id": "evidence.adjudicate",
+      "depends_on": ["substrate.bulk-deposit"],
+      "owner": "native evidence lineage dependence trust and adjudication modules",
+      "consumes": ["immutable testimony", "root observations", "dependence graph", "time context and trust recipe"],
+      "produces": ["immutable consensus epoch", "standing", "contradiction evidence", "referential candidates and adjudication"],
+      "persistent_authority": ["testimony", "derivation DAG", "dependence graph", "consensus and referential epochs"],
+      "acceleration": ["batch Glicko-2 calculation", "lineage closure", "epoch indexes", "derived materializations"],
+      "receipts": ["testimony boundary", "independent roots", "dependence recipe", "trust inputs", "adjudication version"],
+      "product_requirements": ["LP-IDENTITY-003", "LP-EVIDENCE-001", "LP-EVIDENCE-002", "LP-EVIDENCE-003", "LP-EVIDENCE-004"],
+      "implementation": {"state": "unimplemented", "evidence": ["requirements/features/epistemic_lineage.feature", "requirements/features/referential_identity.feature"]}
+    },
+    {
+      "id": "query.guidance-search",
+      "depends_on": ["evidence.adjudicate"],
+      "owner": "native guidance compiler typed operator and indexed search modules",
+      "consumes": ["goal", "operands and bindings", "world evidence and firmware scopes", "completion obligations", "typed knowledge deficits"],
+      "produces": ["logical cognition program", "query-relative geometry and transitions", "physical plan", "completion certificate"],
+      "persistent_authority": ["discourse and working state when explicitly committed", "program and result receipts"],
+      "acceleration": ["indexed frontier batches", "metric candidate generators", "A-star or declared best-first search", "matrix-free operators"],
+      "receipts": ["goal", "typed state", "cost and heuristic laws", "reopen and tie rules", "selected evidence and epochs"],
+      "product_requirements": ["LP-CONVERSATION-001", "LP-COGNITION-001", "LP-QUERY-001", "LP-SEARCH-001", "LP-COGNITION-002", "LP-COGNITION-003", "LP-COGNITION-004"],
+      "implementation": {"state": "unimplemented", "evidence": ["docs/architecture/NATIVE_COGNITION_MATHEMATICS.md", "requirements/features/conversation_cognition.feature", "requirements/features/query_neighborhood.feature"]}
+    },
+    {
+      "id": "cognition.realize-effect",
+      "depends_on": ["query.guidance-search"],
+      "owner": "native semantic-act selection effect admission and modality realization modules",
+      "consumes": ["completed cognition state", "candidate semantic acts", "authority envelope", "realization recipe"],
+      "produces": ["typed semantic act", "exact modality content or effect", "observed consequence"],
+      "persistent_authority": ["semantic acts", "effect envelopes", "result content identities", "consequence occurrences"],
+      "acceleration": ["trajectory statistics", "language and modality perfcaches", "bulk codecs and effect providers"],
+      "receipts": ["completion obligations", "selected act", "realizer", "exact output", "effect authorization", "world result"],
+      "product_requirements": ["LP-REALIZATION-001", "LP-LANGUAGE-001"],
+      "implementation": {"state": "unimplemented", "evidence": ["requirements/features/modality_realization.feature", "requirements/features/unicode_realization.feature"]}
+    },
+    {
+      "id": "learning.discovery-ooda",
+      "depends_on": ["cognition.realize-effect"],
+      "owner": "native learning defect Goedel experiment and calculus activation modules",
+      "consumes": ["observed consequence", "typed frays", "current calculus", "disjoint fit evaluation and counterexample boundaries"],
+      "produces": ["new testimony", "new adjudication epoch", "falsifiable extension candidates", "versioned accepted calculus"],
+      "persistent_authority": ["observations", "hypotheses", "experiments", "counterexamples", "calculus and firmware versions"],
+      "acceleration": ["motif indexes", "counterexample search", "experiment scheduling", "replay"],
+      "receipts": ["fray type", "vacancy signature", "fit boundary", "held-out evaluation", "external support", "activation authority"],
+      "product_requirements": ["LP-OODA-001", "LP-GODEL-001"],
+      "implementation": {"state": "unimplemented", "evidence": ["requirements/features/godel_ooda.feature"]}
+    },
+    {
+      "id": "model.ingest-generate",
+      "depends_on": ["evidence.adjudicate", "query.guidance-search"],
+      "owner": "native model decomposition induced-operator comparison and target compiler modules",
+      "consumes": ["model artifacts as witnesses", "substrate relation operators", "target architecture and runtime contract"],
+      "produces": ["exact model DAG", "behavioral testimony", "AImap", "target tensors", "GGUF or other runtime artifact"],
+      "persistent_authority": ["model content and occurrences", "behavioral testimony", "compiler recipes and acceptance receipts"],
+      "acceleration": ["Eigen Spectra MKL and TBB plans", "AImap perfcaches", "factorizations and target-runtime execution"],
+      "receipts": ["model bytes", "operator and gauge", "numeric certification", "target tensor closure", "runtime behavior"],
+      "product_requirements": ["LP-AIMAP-001", "LP-AIMAP-002", "LP-MODEL-001", "LP-MODEL-002", "LP-MODEL-003", "LP-MODEL-004", "LP-MODEL-005"],
+      "implementation": {"state": "unimplemented", "evidence": ["requirements/features/aimap.feature", "requirements/features/model_compilation.feature"]}
+    },
+    {
+      "id": "delivery.activate-product",
+      "depends_on": ["bootstrap.dependencies", "substrate.bulk-deposit", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate"],
+      "owner": "package installer service manager database migrator and release verifier",
+      "consumes": ["verified native engine", "PostgreSQL stack", "schemas and migrations", "orchestrators", "artifacts and acceptance evidence"],
+      "produces": ["one activated Linux and Windows Laplace product", "diagnostics", "repair rollback and support state"],
+      "persistent_authority": ["activation manifest", "installed package receipts", "service and database version state"],
+      "acceleration": ["out-of-tree builds", "hosted and self-hosted CI", "incremental package and database activation"],
+      "receipts": ["source to package provenance", "loaded objects", "database schema", "active cache epochs", "whole-product acceptance"],
+      "product_requirements": ["LP-PRODUCT-001", "LP-PACKAGE-001"],
+      "implementation": {"state": "partial", "evidence": ["docs/delivery/PRODUCT_INFRASTRUCTURE.md", ".github/workflows/custom-stack.yml"]}
+    }
+  ]
+}

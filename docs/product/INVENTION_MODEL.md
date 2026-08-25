@@ -69,7 +69,11 @@ entity.
 
 Identity answers one question: what exact canonical content is this?
 
-For a canonical atom, the identity preimage is its canonical content encoding. For a
+For a Unicode scalar atom, the identity preimage is its standard UTF-8 encoding. The
+complete codepoint-position floor uses Laplace Unicode Position Encoding v1: the
+UTF-8-compatible one-to-four-byte bit layout applied without scalar filtering. Scalar
+positions therefore retain standard UTF-8 bytes, while surrogate-position encodings
+are explicitly non-text addresses and are never claimed to be UTF-8. For a
 composition, the identity preimage is the ordered sequence of constituent identities
 under the content-composition domain. A one-constituent composition is the constituent
 itself. An empty-content representation, an absent value, and a zero identifier are
@@ -155,10 +159,22 @@ assigned, unassigned, reserved, surrogate, and noncharacter positions:
 codepoint -> complete DUCET key -> total-order rank
 ```
 
-Codepoint identity derives from canonical UTF-8 content, not from rank. Rank is the
-input to physical placement. A new Unicode or DUCET release therefore creates a new
-geometry recipe and perfcache generation while content IDs remain unchanged for
-unchanged canonical content.
+Codepoint identity derives from the pinned Laplace Unicode Position Encoding v1
+preimage, not from rank. For Unicode scalar values that preimage is byte-identical to
+standard UTF-8. Rank is the input to physical placement. A new Unicode or DUCET
+release therefore creates a new geometry recipe and perfcache generation while
+content IDs remain unchanged for unchanged canonical content.
+
+Unicode bootstrapping is one calculated ETL operation, not two implementations that
+happen to read the same release. The decomposer consumes a pinned standards manifest,
+calculates one canonical ordered atom-record stream, writes the Tier-0 bootstrap
+artifact, and bulk-deposits those exact records into PostgreSQL. The database bulk
+path may map the just-written artifact or consume the same retained batches; it may
+not independently normalize, hash, rank, or place the atoms. The database retains the
+canonical entity and physicality rows needed for referential integrity, while the
+perfcache retains their immutable direct-address acceleration form. Both bind the
+standards manifest, decomposer and geometry recipe, cardinality, ordered-stream digest,
+and partition digests before their shared epoch can activate.
 
 Every modality begins from this shared atom system. Recovered numeric scalars are
 encoded by one canonical Unicode numeric representation and compose above codepoints.
@@ -209,6 +225,13 @@ for a declared geometry recipe:
 DUCET rank -> super-Fibonacci S3 point -> four-dimensional coordinate
 ```
 
+The fixed Unicode population determines the Hopf radial split while two irrational
+phase advances distribute the fiber angles. The recipe therefore declares the
+population, constants, operation order, floating-point environment, elementary-math
+provider, rounding mode, and serialized bit contract. Its Hopf map to S2 is an
+independent conformance surface for the base and fiber distribution; it is not a
+replacement coordinate system.
+
 For a composition, the coordinate is the arithmetic centroid of its immediate
 constituent coordinates. The centroid is commutative. Two different ordered
 compositions with the same constituent multiset therefore share the same point.
@@ -234,6 +257,12 @@ The separation is absolute:
 
 A coordinate or Hilbert collision never merges identities. Proximity never becomes a
 semantic assertion by itself.
+
+Human display may rotate the four-dimensional point and project it into three
+dimensions. The view receipt identifies the rotation plane, angle, projection, and
+dropped component. It must permit every canonical component to become observable
+under an appropriate rotation and cannot write the projected result back to
+physicality, Hilbert state, or identity.
 
 Centroid and radius together remain many-to-one. Distinct constituent multisets can
 share both values. Physicality organizes and describes realization; exact constituent
@@ -655,6 +684,21 @@ A perfcache is a deterministic, immutable, memory-mapped acceleration plane deri
 from canonical PostgreSQL state or declared upstream standards. It is not independent
 truth and never owns the sole copy of testimony.
 
+It is also part of the calculation path, not merely a copy of query results. The
+Unicode atom plane supplies precomputed identities, complete collation ranks, S3
+points, Hilbert keys, UCD properties, and normalization data so a decomposer can
+calculate an entire candidate Merkle DAG before touching PostgreSQL. Leaf resolution
+is direct; parents are calculated leaf-to-trunk in memory; equal Merkle identities are
+deduplicated across the whole working set; durable novelty is then proved by batched
+trunk-to-leaf membership rounds whose count is bounded by structural depth.
+
+The atom plane does not replace the Tier-0 database population. Unicode seed is the
+root bootstrap of the later perfcache lifecycle: one decomposer calculation produces
+the boot artifact and the rows that make the substrate referentially complete. After
+activation, ordinary decomposers resolve atoms through the mapped plane instead of
+crossing PostgreSQL for every leaf, while novel composites remain bulk-deposited into
+canonical database state.
+
 There are multiple perfcaches because key spaces, semantics, density, lookup shape,
 source inputs, rebuild triggers, and activation lifetimes differ. Combining unrelated
 records into one untyped blob would destroy these contracts.
@@ -674,6 +718,11 @@ All planes use one native mapping, validation, checksum, publication, registry, 
 diagnostics foundation. Each plane supplies its own typed key codec, record validator,
 lookup implementation, source recipe, and semantic parity verifier.
 
+The common foundation does not imply one physical lookup law. Dense ordinal planes,
+sparse ordered planes, reverse indexes, adjacency/span indexes, spatial indexes, and
+module-defined layouts remain distinct. Their declared complexity and result shape are
+part of the module contract.
+
 Each artifact declares:
 
 - magic, format version, byte order, header and record sizes;
@@ -689,6 +738,18 @@ Generation writes a unique temporary artifact, verifies it through the productio
 loader and semantic verifier, flushes file and directory state, then publishes by an
 atomic same-filesystem rename. Readers map immutable complete artifacts.
 
+The Unicode standards-root artifact may be durably published before the corresponding
+database transaction commits, but it remains inactive. That transaction bulk-loads
+the records from the same decomposer result, verifies exact parity, records the
+artifact identity, and switches the active epoch. A crash before commit leaves the
+prior epoch active and at most an unreferenced immutable artifact; a committed epoch
+cannot reference an artifact that was not already made durable.
+
+All planes derived from deposited content publish only after the canonical ETL load
+and required derived reconciliation have completed. They are generated set-wise at
+that boundary, not mutated per row. Queries continue to use the prior coherent
+activation epoch until the new artifact set is complete.
+
 Activation is registry-driven. The registry validates every declared dependency,
 source fingerprint, recipe, checksum, semantic verifier, and loaded file identity. A
 required plane that is missing, stale, corrupt, or incompatible produces a typed
@@ -700,6 +761,14 @@ published while existing readers finish on the prior immutable mapping. Diagnost
 report the path, inode or platform file identity, full artifact hash, header source
 fingerprint, generation recipe, record count, activation epoch, dependent planes, and
 processes using it.
+
+PostgreSQL loads a stable control plane, not a permanently fixed data image. Before a
+registry switch, the next immutable generation is mapped, semantically verified, and
+prefaulted so activation does not turn the first application query into an I/O warmup.
+Statements and ISA programs pin one generation for their lifetime. The previous
+mapping remains usable until its last reader drains. Standards, corpus, or other data
+epoch changes therefore do not require a postmaster restart; binary control-plane or
+server upgrades retain their separate package lifecycle.
 
 Every perfcache has an exact parity test against the canonical native and PostgreSQL
 operation for every record or a mathematically complete stratified proof for an

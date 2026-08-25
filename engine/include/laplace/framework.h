@@ -1,0 +1,145 @@
+#ifndef LAPLACE_FRAMEWORK_H
+#define LAPLACE_FRAMEWORK_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include "laplace/contract/framework.h"
+#include "laplace/contract/isa.h"
+#include "laplace/execution.h"
+#include "laplace/export.h"
+#include "laplace/types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define LAPLACE_FRAMEWORK_NO_INDEX UINT64_MAX
+
+typedef struct laplace_framework_operation_descriptor {
+    uint32_t opcode;
+    uint32_t module_id;
+    uint32_t input_type;
+    uint32_t output_type;
+    uint16_t instruction_version;
+    uint16_t introduced_minor;
+    uint32_t flags;
+} laplace_framework_operation_descriptor;
+
+typedef struct laplace_framework_context {
+    laplace_digest256 epochs[LAPLACE_FRAMEWORK_EPOCH_COUNT];
+    laplace_digest256 authority_fingerprint;
+    laplace_execution_grant resource_grant;
+    uint64_t epoch_mask;
+    uint16_t major;
+    uint16_t minor;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_framework_context;
+
+typedef struct laplace_framework_canonical_batch {
+    const uint8_t* canonical_bytes;
+    uint64_t byte_count;
+    uint64_t record_count;
+    uint64_t first_ordinal;
+    uint32_t record_type;
+    uint32_t flags;
+} laplace_framework_canonical_batch;
+
+typedef enum laplace_framework_status {
+    LAPLACE_FRAMEWORK_OK = 0,
+    LAPLACE_FRAMEWORK_INVALID_ARGUMENT = 1,
+    LAPLACE_FRAMEWORK_UNSUPPORTED_VERSION = 2,
+    LAPLACE_FRAMEWORK_CONTEXT_INVALID = 3,
+    LAPLACE_FRAMEWORK_REGISTRY_INVALID = 4,
+    LAPLACE_FRAMEWORK_STREAM_INVALID = 5,
+    LAPLACE_FRAMEWORK_SINK_INVALID = 6,
+    LAPLACE_FRAMEWORK_SINK_BEGIN_FAILED = 7,
+    LAPLACE_FRAMEWORK_SINK_STAGE_FAILED = 8,
+    LAPLACE_FRAMEWORK_SINK_SEAL_FAILED = 9,
+    LAPLACE_FRAMEWORK_OVERFLOW = 10
+} laplace_framework_status;
+
+typedef laplace_framework_status (*laplace_framework_sink_begin_fn)(
+    void* state,
+    const laplace_framework_context* context,
+    uint32_t record_type,
+    uint64_t total_records,
+    uint64_t total_bytes);
+
+typedef laplace_framework_status (*laplace_framework_sink_stage_fn)(
+    void* state,
+    const laplace_framework_canonical_batch* batch);
+
+typedef laplace_framework_status (*laplace_framework_sink_seal_fn)(
+    void* state,
+    const laplace_digest256* stream_fingerprint,
+    laplace_digest256* artifact_fingerprint);
+
+typedef void (*laplace_framework_sink_abort_fn)(void* state);
+
+typedef struct laplace_framework_sink_v1 {
+    void* state;
+    laplace_framework_sink_begin_fn begin;
+    laplace_framework_sink_stage_fn stage;
+    laplace_framework_sink_seal_fn seal;
+    laplace_framework_sink_abort_fn abort;
+    uint16_t abi_major;
+    uint16_t abi_minor;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_framework_sink_v1;
+
+typedef struct laplace_framework_stream_receipt {
+    laplace_digest256 receipt_id;
+    laplace_digest256 context_fingerprint;
+    laplace_digest256 stream_fingerprint;
+    laplace_digest256 sink_artifacts_fingerprint;
+    uint64_t total_records;
+    uint64_t total_bytes;
+    uint64_t batch_count;
+    uint64_t sink_count;
+    uint64_t failed_batch_index;
+    uint64_t failed_sink_index;
+    uint32_t record_type;
+    laplace_framework_status status;
+} laplace_framework_stream_receipt;
+
+LAPLACE_API size_t laplace_framework_operation_count(void);
+
+LAPLACE_API const laplace_framework_operation_descriptor*
+laplace_framework_operations(void);
+
+LAPLACE_API const laplace_framework_operation_descriptor*
+laplace_framework_operation_find(uint32_t opcode);
+
+LAPLACE_API laplace_framework_status laplace_framework_registry_validate(void);
+
+LAPLACE_API laplace_framework_status laplace_framework_context_validate(
+    const laplace_framework_context* context);
+
+LAPLACE_API laplace_framework_status laplace_framework_context_fingerprint(
+    const laplace_framework_context* context,
+    laplace_digest256* fingerprint);
+
+LAPLACE_API laplace_framework_status laplace_framework_canonical_stream_fingerprint(
+    const laplace_framework_canonical_batch* batches,
+    size_t batch_count,
+    laplace_digest256* fingerprint,
+    uint32_t* record_type,
+    uint64_t* total_records,
+    uint64_t* total_bytes);
+
+LAPLACE_API laplace_framework_status laplace_framework_stage_canonical_stream(
+    const laplace_framework_context* context,
+    const laplace_framework_canonical_batch* batches,
+    size_t batch_count,
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    laplace_framework_stream_receipt* receipt);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

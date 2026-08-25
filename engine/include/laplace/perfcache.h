@@ -6,14 +6,11 @@
 
 #include "laplace/contract/perfcache.h"
 #include "laplace/identity.h"
+#include "laplace/types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct laplace_digest256 {
-    uint8_t bytes[LAPLACE_PERFCACHE_DIGEST_BYTES];
-} laplace_digest256;
 
 typedef struct laplace_perfcache_contract {
     laplace_id128 module_id;
@@ -25,6 +22,7 @@ typedef struct laplace_perfcache_contract {
     laplace_digest256 dependency_fingerprint;
     uint32_t key_bytes;
     uint32_t value_bytes;
+    uint32_t access_law;
     uint64_t flags;
 } laplace_perfcache_contract;
 
@@ -74,7 +72,9 @@ typedef enum laplace_perfcache_status {
     LAPLACE_PERFCACHE_FILE_TYPE_INVALID = 15,
     LAPLACE_PERFCACHE_FILE_MAPPING_FAILED = 16,
     LAPLACE_PERFCACHE_FILE_SYNC_FAILED = 17,
-    LAPLACE_PERFCACHE_FILE_RENAME_FAILED = 18
+    LAPLACE_PERFCACHE_FILE_RENAME_FAILED = 18,
+    LAPLACE_PERFCACHE_DENSE_KEY_MISMATCH = 19,
+    LAPLACE_PERFCACHE_LOOKUP_UNSUPPORTED = 20
 } laplace_perfcache_status;
 
 typedef laplace_perfcache_status (*laplace_perfcache_record_validator)(

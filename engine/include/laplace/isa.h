@@ -6,14 +6,13 @@
 #include "laplace/contract/isa.h"
 #include "laplace/export.h"
 #include "laplace/identity.h"
+#include "laplace/types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct laplace_isa_digest256 {
-    uint8_t bytes[LAPLACE_ISA_RECEIPT_DIGEST_BYTES];
-} laplace_isa_digest256;
+typedef laplace_digest256 laplace_isa_digest256;
 
 typedef struct laplace_isa_value_view {
     void* data;

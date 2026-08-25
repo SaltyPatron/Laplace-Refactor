@@ -4,6 +4,36 @@
   "acceptance_status": "contributing evidence only",
   "tests": [
     {
+      "ctest_name": "FrameworkRegistry.GeneratedDescriptorsMatchIsaContract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-MODULE-REGISTRY"],
+      "covered_dimensions": ["generated registry", "operation metadata", "opcode lookup"]
+    },
+    {
+      "ctest_name": "FrameworkContext.AllBoundFactsAffectFingerprint",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EXECUTION-CONTEXT", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["immutable epoch mask", "authority", "resource grant", "context receipt"]
+    },
+    {
+      "ctest_name": "CanonicalStream.PartitionBoundariesDoNotChangeFingerprint",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["partition-independent stream identity", "ordered canonical bytes"]
+    },
+    {
+      "ctest_name": "CanonicalStream.FansOneStreamOutToEverySink",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["single-origin stream", "multiple staged sinks", "no sink recalculation"]
+    },
+    {
+      "ctest_name": "CanonicalStream.SealFailureAbortsEveryStagedSink",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["prepare before activation", "whole-stream abort", "failure receipt"]
+    },
+    {
+      "ctest_name": "CanonicalStream.RejectsOrdinalGapsBeforeOpeningSinks",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["complete stream preflight", "no partial sink effects"]
+    },
+    {
       "ctest_name": "IdentityAbi.IsExactly128Bits",
       "evidence_targets": ["LP-TEST-IDENTITY-BLAKE3-128"],
       "covered_dimensions": ["native ABI width"]
@@ -11,7 +41,7 @@
     {
       "ctest_name": "UnicodePositionEncoding.CoversTheCompletePositionUniverse",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR"],
-      "covered_dimensions": ["encoding boundaries", "surrogate positions"]
+      "covered_dimensions": ["Laplace Unicode Position Encoding v1 boundaries", "UTF-8 scalar equivalence", "explicit non-text surrogate positions"]
     },
     {
       "ctest_name": "UnicodePositionEncoding.RejectsOnlyPositionsBeyondTheUniverse",
@@ -313,6 +343,21 @@
       "covered_dimensions": ["batch lookup", "input order", "hits", "misses"]
     },
     {
+      "ctest_name": "PerfcacheLookup.DenseU32PlaneUsesDirectZeroBasedAddressing",
+      "evidence_targets": ["LP-TEST-PERFCACHE-BATCH-LOOKUP", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["module-declared dense access law", "O(1) direct record addressing", "ordered batch hits and misses"]
+    },
+    {
+      "ctest_name": "PerfcacheValidation.DenseU32PlaneRejectsARechecksummedIndexMismatch",
+      "evidence_targets": ["LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["dense key/index parity", "rechecksummed semantic corruption"]
+    },
+    {
+      "ctest_name": "PerfcacheLookup.ModuleDefinedPlaneRequiresItsTypedLookup",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-BATCH-LOOKUP"],
+      "covered_dimensions": ["module-defined access law", "generic lookup rejection", "typed module ownership"]
+    },
+    {
       "ctest_name": "PerfcacheFile.PublishesMapsAndClosesVerifiedArtifact",
       "evidence_targets": ["LP-TEST-PERFCACHE-ATOMIC-PUBLICATION", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"],
       "covered_dimensions": ["same-directory publication", "file sync", "directory sync", "verified memory mapping"]
@@ -407,9 +452,9 @@
     },
     {
       "ctest_name": "requirements.traceability-contract",
-      "evidence_targets": ["LP-TEST-REQUIREMENTS-TRACEABILITY"],
-      "covered_dimensions": ["product requirement joins", "direct requirement uniqueness", "evidence target validity", "feature target validity"],
-      "defect_controls": ["unknown product join", "unjoined product requirement", "unknown registry evidence", "unknown feature evidence"]
+      "evidence_targets": ["LP-TEST-REQUIREMENTS-TRACEABILITY", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["product requirement joins", "direct requirement uniqueness", "evidence target validity", "feature target validity", "acyclic operation stages", "complete product-to-operation mapping"],
+      "defect_controls": ["unknown product join", "unjoined product requirement", "unknown registry evidence", "unknown feature evidence", "unmapped operation requirement", "unknown operation dependency", "operation dependency cycle"]
     },
     {
       "ctest_name": "dependencies.intent-contract",

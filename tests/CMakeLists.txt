@@ -44,6 +44,17 @@ target_compile_options(laplace_execution_tests PRIVATE
 gtest_discover_tests(laplace_execution_tests
     PROPERTIES LABELS "implementation;execution;topology;resources")
 
+add_executable(laplace_framework_tests
+    framework_tests.cpp)
+target_link_libraries(laplace_framework_tests
+    PRIVATE
+        Laplace::Framework
+        GTest::gtest_main)
+target_compile_options(laplace_framework_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_framework_tests
+    PROPERTIES LABELS "implementation;framework;registry;batch;sink;receipt")
+
 add_test(
     NAME build.repository-output-rejected
     COMMAND "${CMAKE_COMMAND}"

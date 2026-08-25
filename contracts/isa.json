@@ -14,6 +14,22 @@
     "identity_codepoint_batch": 131073,
     "trajectory_composition_decode_batch": 196609
   },
+  "modules": {
+    "identity": 2,
+    "trajectory": 3
+  },
+  "operation_contracts": {
+    "identity_codepoint_batch": {
+      "module": "identity",
+      "input_type": "u32_vector",
+      "output_type": "id128_vector"
+    },
+    "trajectory_composition_decode_batch": {
+      "module": "trajectory",
+      "input_type": "composition_trajectory_vector",
+      "output_type": "composition_occurrence_vector"
+    }
+  },
   "instruction_versions": {
     "identity_codepoint_batch": 1,
     "trajectory_composition_decode_batch": 1
