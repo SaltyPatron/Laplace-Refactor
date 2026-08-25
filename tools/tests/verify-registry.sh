@@ -29,7 +29,7 @@ if [[ "$unmapped_count" != "0" ]]; then
 fi
 
 while IFS= read -r evidence_id; do
-    if ! rg -q "^[[:space:]]+- ${evidence_id}$" "$requirements"; then
+    if ! grep -Fqx "      - ${evidence_id}" "$requirements"; then
         echo "test registry references unknown evidence target: $evidence_id" >&2
         exit 65
     fi
