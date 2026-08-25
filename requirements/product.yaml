@@ -380,6 +380,7 @@ requirements:
       - LP-TEST-DEPENDENCY-ELF-CLOSURE
       - LP-TEST-DEPENDENCY-RELEASE-ASSETS
       - LP-TEST-DEPENDENCY-INTENT
+      - LP-TEST-DEPENDENCY-INSTALLED-PROVIDER
   - id: LP-CLEANROOM-001
     statement: No current Laplace implementation artifact enters the new repository.
     evidence:

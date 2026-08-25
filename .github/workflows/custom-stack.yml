@@ -59,6 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 tools/dependencies/verify-installed-lock.py --verify-files
           lock_sha=$(sha256sum dependencies/lock.json | awk '{print $1}')
           dependency_root="/opt/laplace/external/source-generations/$lock_sha"
           test -d "$dependency_root"
@@ -83,6 +84,7 @@ jobs:
             -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
             -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
             -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
+            -DLAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER=ON \
             -DLAPLACE_PG_CONFIG="$LAPLACE_PG_CONFIG"
           printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
       - name: Build native engine and PostgreSQL extension

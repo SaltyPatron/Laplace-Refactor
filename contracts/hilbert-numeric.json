@@ -43,7 +43,9 @@
       "operation_order": "source-order-no-reassociation",
       "serialization": "u64le-coordinate-bits"
     },
-    "dependency_activation": "blocked-until-intel-oneapi-runtime-and-onemkl-have-selected-lock-and-package-entries"
+    "installed_provider_lock": "dependencies/installed-lock.json",
+    "installed_provider_selection_sha256": "07a9f21bcb81cb669a6be3248eb889ffbceb20bfd05fc957c16373f5ed595137",
+    "dependency_activation": "installed-provider-lock-selected-product-runtime-activation-blocked-until-package-and-loaded-object-receipts"
   },
   "validation_classes": [
     {"id": "canonical-bit-replay", "provider": "exact-canonical-root-builder", "comparison": "all-coordinate-and-hilbert-bits-equal", "may_publish": true},

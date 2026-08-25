@@ -32,6 +32,7 @@ class DependencyIntentTests(unittest.TestCase):
             "lock.json",
             "release-lock.json",
             "artifact-lock.json",
+            "installed-lock.json",
             "roots.json",
             "tree-sitter-grammars.lock.json",
         ):
@@ -84,6 +85,21 @@ class DependencyIntentTests(unittest.TestCase):
         component["lock_entries"].append("git:not-declared")
         self.write_intent(document)
         with self.assertRaisesRegex(INTENT.IntentError, "unknown source locks"):
+            INTENT.validate(self.root)
+
+    def test_installed_provider_cannot_be_joined_to_an_unrelated_intent(self) -> None:
+        document = self.read_intent()
+        intel = next(
+            item for item in document["components"]
+            if item["id"] == "intel-oneapi-runtime"
+        )
+        curl = next(item for item in document["components"] if item["id"] == "curl")
+        intel["selection"] = "selection-required"
+        intel["lock_entries"] = []
+        curl["selection"] = "locked-installed"
+        curl["lock_entries"] = ["installed:intel-oneapi-runtime"]
+        self.write_intent(document)
+        with self.assertRaisesRegex(INTENT.IntentError, "same-named installed provider"):
             INTENT.validate(self.root)
 
     def test_missing_external_capability_is_rejected(self) -> None:

@@ -35,8 +35,8 @@ context/program/input/output/receipt fingerprints. Every program requires an exp
 immutable framework context, and the generated operation registry owns native
 validation and execution dispatch. The PostgreSQL routes accept that same typed
 context explicitly; no hidden session or database context is substituted. The
-optimized and address/undefined-behavior builds currently expose 107 registered
-core-profile tests and 109 in the PostgreSQL profile. Staged canonical streams remain
+optimized and address/undefined-behavior builds currently expose 116 registered
+core-profile tests and 118 in the PostgreSQL profile. Staged canonical streams remain
 inert until a writable authority admits an exact staged receipt and atomically
 publishes a compare-and-swap epoch transition; stale epochs and altered receipts are
 rejected before the activation provider runs. A native execution authority now

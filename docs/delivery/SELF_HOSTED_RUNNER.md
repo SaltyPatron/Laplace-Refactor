@@ -48,7 +48,8 @@ The custom workflow verifies on every run:
 - custom PostgreSQL major version 18 through
   `/opt/laplace/pgsql-18/bin/pg_config`;
 - locked BLAKE3 and GoogleTest source roots;
-- Intel oneAPI `icx` through `/opt/intel/oneapi/compiler/latest/bin/icx`;
+- Intel oneAPI `icx` through the locked immutable
+  `/opt/intel/oneapi/compiler/2026.1/bin/icx` path;
 - .NET SDK major version 10; and
 - AVX2 in the executing host CPU flags.
 
