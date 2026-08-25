@@ -195,11 +195,61 @@
           "forbidden_outcomes": ["FAIL", "ERROR", "UNRESOLVED", "XPASS"],
           "expected_outcomes": {
             "UNTESTED": [
-              "UNTESTED: pr33198 with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
-              "UNTESTED: pr33198-fat with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
-              "UNTESTED: pr33198 with -R .llvm.lto",
-              "UNTESTED: pr33198-fat with -R .llvm.lto",
-              "UNTESTED: bootstrap with --static"
+              {
+                "line": "UNTESTED: pr33198 with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: pr33198-fat with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: pr33198 with -R .llvm.lto",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: pr33198-fat with -R .llvm.lto",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: pr33246-llvm with --strip-debug --enable-deterministic-archives",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: pr33246-llvm-fat with --strip-debug --enable-deterministic-archives",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: bootstrap with --static",
+                "disposition": "plugin-enabled-static-bootstrap-incompatible",
+                "reason": "Upstream bootstrap.exp skips static bootstrap when selected plugin support requires dynamic loading.",
+                "evidence_predicates": [
+                  {
+                    "id": "static-link-probe-executed-successfully",
+                    "relative_path": "ld/ld.log",
+                    "contains": " -static cs",
+                    "until_contains": " -static-pie cs",
+                    "forbidden_before": "error:"
+                  },
+                  {
+                    "id": "nm-plugin-support-advertised",
+                    "relative_path": "ld/ld.log",
+                    "contains": "--plugin NAME      Load the specified plugin"
+                  }
+                ]
+              }
             ]
           }
         }
