@@ -585,6 +585,12 @@
       "covered_dimensions": ["archive digest", "tree digest", "license digest", "size boundaries", "safe path import", "atomic publication", "tamper rejection"]
     },
     {
+      "ctest_name": "unicode-root.contract-and-mutation",
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT", "LP-TEST-HILBERT-NUMERIC-CONTRACT"],
+      "covered_dimensions": ["32-file Unicode 17 source authority", "complete Tier-0 atom record", "BLAKE3-256 identity collision guard", "DUCET equivalence versus placement totalization", "non-text surrogate extension", "both full alternate-handling conformance suites", "bounded Super-Fibonacci and exact Hopf convention", "four-axis Skilling Hilbert orientation", "single canonical numeric provider and noncanonical publication prohibition"],
+      "defect_controls": ["source digest change", "omitted source or field", "untyped deferred realization plane", "identity digest-prefix break", "DUCET-placement collapse", "first-weight approximation", "Hopf axis or sign change", "Hilbert bit or byte orientation change", "noncanonical numeric publication"]
+    },
+    {
       "ctest_name": "requirements.traceability-contract",
       "evidence_targets": ["LP-TEST-REQUIREMENTS-TRACEABILITY", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
       "covered_dimensions": ["product requirement joins", "direct requirement uniqueness", "evidence target validity", "feature target validity", "acyclic operation stages", "complete product-to-operation mapping"],

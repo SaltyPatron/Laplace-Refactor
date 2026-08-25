@@ -1,0 +1,73 @@
+{
+  "schema": "laplace.unicode-source-contract/v1",
+  "unicode_version": "17.0.0",
+  "population": {
+    "minimum_position": 0,
+    "maximum_position": 1114111,
+    "count": 1114112
+  },
+  "authority": {
+    "official_release_root": "https://www.unicode.org/Public/17.0.0/",
+    "local_verified_reference_root": "/vault/Data/UCD/Public/UCD/latest",
+    "license": "Unicode-3.0",
+    "license_url": "https://www.unicode.org/license.txt",
+    "rule": "relative-path-size-sha256-and-version-markers-are-authority-not-the-local-path-or-latest-alias"
+  },
+  "standards": [
+    {"id": "unicode", "version": "17.0.0", "url": "https://www.unicode.org/versions/Unicode17.0.0/"},
+    {"id": "uts10", "version": "17.0.0", "revision": 53, "url": "https://www.unicode.org/reports/tr10/tr10-53.html"},
+    {"id": "uax14", "version": "17.0.0", "revision": 55, "url": "https://www.unicode.org/reports/tr14/tr14-55.html"},
+    {"id": "uax15", "version": "17.0.0", "revision": 57, "url": "https://www.unicode.org/reports/tr15/tr15-57.html"},
+    {"id": "uax29", "version": "17.0.0", "revision": 47, "url": "https://www.unicode.org/reports/tr29/tr29-47.html"},
+    {"id": "uax44", "version": "17.0.0", "revision": 36, "url": "https://www.unicode.org/reports/tr44/tr44-36.html"}
+  ],
+  "files": [
+    {"path": "ReadMe.txt", "bytes": 963, "sha256": "f383c12b8c7ae362391b8202d45b99e2befa3c3ed473930233092b4bce318f18", "role": "release-version"},
+    {"path": "ucd/ReadMe.txt", "bytes": 740, "sha256": "9fe1a90bd32659d7953616283dc2bffaa165518aae9ace026040c42c559ba606", "role": "ucd-version"},
+    {"path": "ucd/UnicodeData.txt", "bytes": 2198209, "sha256": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c", "role": "core-properties-and-decomposition"},
+    {"path": "ucd/SpecialCasing.txt", "bytes": 17049, "sha256": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588", "role": "full-case-mappings-with-context-and-locale-conditions"},
+    {"path": "ucd/CaseFolding.txt", "bytes": 87539, "sha256": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183", "role": "full-and-simple-case-folding"},
+    {"path": "ucd/BidiBrackets.txt", "bytes": 8891, "sha256": "dadbaf38a0d0246e5b805bf8725cb81b7c621f93d030595635f5ba2c2f179428", "role": "bidi-paired-bracket-and-type"},
+    {"path": "ucd/BidiMirroring.txt", "bytes": 26827, "sha256": "a2f16fb873ab4fcdf3221cb1a8a85a134ddd6ed03603181823ff5206af3741ce", "role": "bidi-mirroring-glyph"},
+    {"path": "ucd/EastAsianWidth.txt", "bytes": 201595, "sha256": "ea7ce50f3444a050333448dffef1cadd9325af55cbb764b4a2280faf52170a33", "role": "east-asian-width-property"},
+    {"path": "ucd/Blocks.txt", "bytes": 11663, "sha256": "c0edefaf1a19771e830a82735472716af6bf3c3975f6c2a23ffbe2580fbbcb15", "role": "block-property"},
+    {"path": "ucd/PropList.txt", "bytes": 145465, "sha256": "130dcddcaadaf071008bdfce1e7743e04fdfbc910886f017d9f9ac931d8c64dd", "role": "binary-properties"},
+    {"path": "ucd/DerivedCoreProperties.txt", "bytes": 1134783, "sha256": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08", "role": "derived-core-and-indic-conjunct-properties"},
+    {"path": "ucd/DerivedNormalizationProps.txt", "bytes": 1377582, "sha256": "71fd6a206a2c0cdd41feb6b7f656aa31091db45e9cedc926985d718397f9e488", "role": "normalization-properties"},
+    {"path": "ucd/CompositionExclusions.txt", "bytes": 9007, "sha256": "2f239196ef3b5b61db5cc476e9bd80f534d15aa1b74e1be1dea5d042a344c85f", "role": "normalization-composition-exclusions"},
+    {"path": "ucd/HangulSyllableType.txt", "bytes": 51360, "sha256": "5a57450afde0d082bc5026f7458649eac3b615490cc7e3d916b0367f1593c0e3", "role": "hangul-algorithm"},
+    {"path": "ucd/Scripts.txt", "bytes": 192460, "sha256": "9f5e50d3abaee7d6ce09480f325c706f485ae3240912527e651954d2d6b035bf", "role": "script-property"},
+    {"path": "ucd/ScriptExtensions.txt", "bytes": 20707, "sha256": "ec2107e58825a1586acee8e0911ce18260394ac8b87e535ca325f1ccbeb06bc6", "role": "script-extensions"},
+    {"path": "ucd/PropertyAliases.txt", "bytes": 9619, "sha256": "4441f573caf952ffece1d7c892e7715bd7136dfc26f96eb6f268bf1e474715fb", "role": "canonical-property-names"},
+    {"path": "ucd/PropertyValueAliases.txt", "bytes": 81858, "sha256": "64e9a5f76f7a1e8b5a47d6a1f9a26522a251208f5276bdfa1559dac7cf2e827a", "role": "canonical-property-values"},
+    {"path": "ucd/emoji/emoji-data.txt", "bytes": 107324, "sha256": "2cb2bb9455cda83e8481541ecf5b6dfda66a3bb89efa3fa7c5297eccf607b72b", "role": "extended-pictographic-property"},
+    {"path": "ucd/auxiliary/GraphemeBreakProperty.txt", "bytes": 99377, "sha256": "d6b51d1d2ae5c33b451b7ed994b48f1f4dc62b2272a5831e7fd418514a6bae89", "role": "uax29-grapheme-property"},
+    {"path": "ucd/auxiliary/WordBreakProperty.txt", "bytes": 114445, "sha256": "72274cac1e6b919507db35655c3e175aa27274668a1ece95c28d2069f2ad9852", "role": "uax29-word-property"},
+    {"path": "ucd/auxiliary/SentenceBreakProperty.txt", "bytes": 221233, "sha256": "871c0c985ad95125e25b302414065a10839d068970bceb383ecec138f22a0a18", "role": "uax29-sentence-property"},
+    {"path": "ucd/LineBreak.txt", "bytes": 263180, "sha256": "e6a18fa91f8f6a6f8e534b1d3f128c21ada45bfe152eb6b1bcc5e15fd8ac92e6", "role": "uax14-line-break-property"},
+    {"path": "ucd/NormalizationTest.txt", "bytes": 2827429, "sha256": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db", "role": "uax15-conformance"},
+    {"path": "ucd/auxiliary/GraphemeBreakTest.txt", "bytes": 126570, "sha256": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec", "role": "uax29-grapheme-conformance"},
+    {"path": "ucd/auxiliary/WordBreakTest.txt", "bytes": 322136, "sha256": "1de23a75f37904abc7d206239ee8d34f8fdf0fb4ab32a7174dfbabbde25419b2", "role": "uax29-word-conformance"},
+    {"path": "ucd/auxiliary/SentenceBreakTest.txt", "bytes": 87946, "sha256": "12cb47d028ded0c1cb8a28558f95479cbcd24559c46977015c82f3b50a1cc6e4", "role": "uax29-sentence-conformance"},
+    {"path": "ucd/auxiliary/LineBreakTest.txt", "bytes": 3166819, "sha256": "e69884e0dde6a8724873f885d68c52dc14518abf9ae4ca9e2283b8773db3b752", "role": "uax14-conformance"},
+    {"path": "uca/ReadMe.txt", "bytes": 886, "sha256": "79b778c37de3d989d6fa21e27c058b587731037024b2eaaa158036ef9ffc6088", "role": "uca-version"},
+    {"path": "uca/allkeys.txt", "bytes": 2304434, "sha256": "2503d09367c2639a4fb8fd55e81aaacb0d9fb4ea26600333329bd12456b99ecd", "role": "ducet-explicit-and-implicit-collation-elements"},
+    {"path": "uca/decomps.txt", "bytes": 633213, "sha256": "a5056d31b6e3f08a8756f205682bd0b0d2f9ea1fb64af83a326425b89a3ea0db", "role": "uca-decomposition-reference"},
+    {"path": "uca/CollationTest.zip", "bytes": 4953980, "sha256": "9ba92cb7627c2d09ba537dc2035d006f44f0cafb4e2198f147897fdd9d71bb10", "role": "uca-conformance"}
+  ],
+  "version_markers": [
+    {"path": "ReadMe.txt", "contains": "Version 17.0.0"},
+    {"path": "ucd/UnicodeData.txt", "paired_release": "ucd/ReadMe.txt"},
+    {"path": "ucd/LineBreak.txt", "contains": "LineBreak-17.0.0.txt"},
+    {"path": "ucd/auxiliary/LineBreakTest.txt", "contains": "LineBreakTest-17.0.0.txt"},
+    {"path": "uca/allkeys.txt", "contains": "@version 17.0.0"}
+  ],
+  "excluded_from_tier0_v1": [
+    {"data": "character display names and annotations", "disposition": "label-realization-plane-not-atom-authority"},
+    {"data": "locale tailoring and CLDR", "disposition": "language-realization-testimony-not-DUCET-placement"},
+    {"data": "ucd/VerticalOrientation.txt", "disposition": "vertical-text-realization-plane-v1-not-atom-authority"},
+    {"data": "ucd/ArabicShaping.txt", "disposition": "script-shaping-realization-plane-v1-not-atom-authority"},
+    {"data": "emoji sequences, ZWJ sequences, and variation sequences", "disposition": "emoji-sequence-realization-plane-v1-not-atom-authority; atom-level-Extended_Pictographic-remains-in-tier0-v1"},
+    {"data": "ICU generated behavior", "disposition": "independent-validation-provider-not-source-substitute"}
+  ]
+}

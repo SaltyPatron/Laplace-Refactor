@@ -1,0 +1,68 @@
+{
+  "schema": "laplace.ducet-totalization-contract/v1",
+  "unicode_version": "17.0.0",
+  "uts10_revision": 53,
+  "ducet_source": "uca/allkeys.txt",
+  "ducet_source_sha256": "2503d09367c2639a4fb8fd55e81aaacb0d9fb4ea26600333329bd12456b99ecd",
+  "population": 1114112,
+  "uca_equivalence": {
+    "normalization": "NFD",
+    "mapping": "longest-contiguous-or-discontiguous-canonical-match",
+    "preserve_complete_collation_element_sequence": true,
+    "preserve_variable_marker": true,
+    "retained_ce_mapping_supports_alternate_handling": ["non-ignorable", "shifted"],
+    "alternate_handling": "shifted",
+    "strength": "identical",
+    "levels": ["primary", "secondary", "tertiary", "quaternary", "identical-nfd"],
+    "explicit_implicit_expansion_contraction_hangul_required": true,
+    "canonical_equivalents_compare_equal": true,
+    "key_name": "uca-17-ducet-equivalence-key-v1"
+  },
+  "surrogate_extension": {
+    "domain": "non-text-Laplace-Unicode-Position-address",
+    "range_start": 55296,
+    "range_end": 57343,
+    "is_unicode_text": false,
+    "is_standard_utf8": false,
+    "uca_conformance_claim": false,
+    "weight_recipe": "UTS10-53-section-10.1.3-unassigned-implicit-weight",
+    "implicit_primary_aaaa": "0xFBC0 + (codepoint >> 15)",
+    "implicit_primary_bbbb": "(codepoint & 0x7FFF) | 0x8000",
+    "collation_elements": ["[.AAAA.0020.0002]", "[.BBBB.0000.0000]"],
+    "conformance_disposition": "reserved-unassigned-implicit-weight-extension-tested-separately-from-UCA-text"
+  },
+  "placement_totalization": {
+    "name": "Laplace-Unicode-Placement-rank-v1",
+    "comparison": [
+      "uca-17-ducet-equivalence-key-v1",
+      "LUP-v1-position-bytes-unsigned-lexicographic-only-when-equivalence-key-equal"
+    ],
+    "tie_discriminator_is_ducet_weight": false,
+    "tie_discriminator_is_uca_level": false,
+    "tie_discriminator_name": "laplace-placement-only-position-discriminator",
+    "rank_minimum": 0,
+    "rank_maximum": 1114111,
+    "rank_is_permutation": true,
+    "rank_is_identity": false,
+    "rank_is_semantic_equivalence": false
+  },
+  "key_encoding": {
+    "weight_unit": "u16be",
+    "level_separator": "0000",
+    "identical_nfd_position": "u8-length-followed-by-LUP-v1-bytes-per-position",
+    "comparison": "unsigned-byte-lexicographic",
+    "no-truncation-or-first-weight-approximation": true
+  },
+  "conformance": {
+    "collation_archive": "uca/CollationTest.zip",
+    "collation_archive_sha256": "9ba92cb7627c2d09ba537dc2035d006f44f0cafb4e2198f147897fdd9d71bb10",
+    "required_full_suites": [
+      {"path": "CollationTest/CollationTest_NON_IGNORABLE.txt", "alternate_handling": "non-ignorable"},
+      {"path": "CollationTest/CollationTest_SHIFTED.txt", "alternate_handling": "shifted"}
+    ],
+    "short_suites_are_not_substitutes_for_full_suites": true,
+    "surrogate_test_lines_may_be-filtered_per_UTS10": true,
+    "surrogate_extension_requires-independent-vectors": true,
+    "full-rank-cardinality-and-uniqueness-required": true
+  }
+}

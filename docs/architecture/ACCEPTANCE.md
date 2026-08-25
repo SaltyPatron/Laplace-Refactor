@@ -76,6 +76,17 @@ A target-shaped value and a loadable artifact are not behavioral proof.
 - Complete DUCET order is independently verified for explicit and implicit weights,
   expansions, contractions, canonical equivalence, algorithmic Hangul, and the total
   rank permutation.
+- The retained collation-element mapping passes both official full NON_IGNORABLE and
+  SHIFTED suites. The selected UCA equivalence key remains distinct from the LUP-v1
+  tie discriminator that produces a unique placement rank; the latter cannot be
+  labelled a DUCET weight or UCA level.
+- Every atom record carries a full BLAKE3-256 identity-preimage fingerprint whose
+  first 16 bytes equal its public BLAKE3-128 content ID. Same-128/different-full-digest
+  persistence is rejected as an identity collision rather than silently merged.
+- Full case mapping/folding, bidi bracket/mirroring, East_Asian_Width, Line_Break, and
+  the declared atom-level emoji property are source-bound. Deferred shaping,
+  orientation, and emoji sequence inputs retain explicit realization-plane
+  dispositions.
 - Atom coordinates match the declared super-Fibonacci recipe within the exact numeric
   contract.
 - The fixed Unicode population count is an input to the bounded Super-Fibonacci

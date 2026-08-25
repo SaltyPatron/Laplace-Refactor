@@ -24,6 +24,7 @@ requirements:
       - LP-TEST-IDENTITY-BLAKE3-128
       - LP-TEST-IDENTITY-ROLE-EXCLUSION
       - LP-TEST-IDENTITY-EMPTY-STATES
+      - LP-TEST-UNICODE-ATOM-RECORD-CONTRACT
   - id: LP-INTERPRETATION-001
     statement: One content entity can have multiple versioned calculated physical realizations while declared and derived interpretations remain attestations that cannot instantiate a physicality or mutate identity.
     evidence:
@@ -47,6 +48,9 @@ requirements:
       - LP-TEST-DUCET-COMPLETE-ORDER
       - LP-TEST-UCD-CONFORMANCE
       - LP-TEST-NO-PRIVATE-ATOM-UNIVERSE
+      - LP-TEST-UNICODE-SOURCE-CONTRACT
+      - LP-TEST-UNICODE-ATOM-RECORD-CONTRACT
+      - LP-TEST-DUCET-TOTALIZATION-CONTRACT
   - id: LP-UNICODE-002
     statement: One versioned Unicode decomposer calculation produces a single canonical ordered Tier-0 record stream used to write both the bootstrap perfcache and the bulk database seed with exact parity and coherent activation; neither output independently recalculates the records or substitutes for the other.
     evidence:
@@ -63,6 +67,8 @@ requirements:
       - LP-TEST-HILBERT-LOCALITY
       - LP-TEST-TRAJECTORY-ORDER
       - LP-TEST-PHYSICALITY-NONIDENTITY-COLLISION
+      - LP-TEST-DUCET-TOTALIZATION-CONTRACT
+      - LP-TEST-HILBERT-NUMERIC-CONTRACT
   - id: LP-GEOMETRY-002
     statement: The fixed Unicode population uses a pinned Super Fibonacci and Hopf fibration recipe on the unit glome while every Hopf map display projection and index projection is typed receipted and subordinate to the canonical four component physicality.
     evidence:
@@ -71,6 +77,8 @@ requirements:
       - LP-TEST-SUPER-FIBONACCI-HOPF-FIBER
       - LP-TEST-GLOME-UNIT-NORM
       - LP-TEST-GLOME-PROJECTION-NONAUTHORITY
+      - LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT
+      - LP-TEST-HILBERT-NUMERIC-CONTRACT
   - id: LP-PHYSICALITY-001
     statement: Physicality is the bit perfect calculated Merkle DAG realization of an entity and directly generates exact container constituent role ordinal multiplicity contains precedes follows tier ancestry shape dimensionality geometry and trajectory relations while claims and observed uses remain attestations and occurrences outside physicality.
     evidence:

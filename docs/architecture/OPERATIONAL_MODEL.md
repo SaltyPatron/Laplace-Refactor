@@ -90,8 +90,10 @@ second implementation that happens to use the same version label is rejected.
 
 The record stream includes, under declared typed sections:
 
-- the codepoint position and stable content identity;
-- complete DUCET key and total-order rank;
+- the codepoint position, stable BLAKE3-128 content identity, and full BLAKE3-256
+  preimage-fingerprint collision guard;
+- the complete DUCET/UCA equivalence key and the separately totalized unique Laplace
+  placement rank;
 - pinned UCD properties needed by normalization, segmentation, composition, and
   realization;
 - deterministic Super-Fibonacci placement on the unit glome;
@@ -105,6 +107,11 @@ what keeps bounded Super-Fibonacci atom placement stable. Laplace Unicode Positi
 Encoding v1 permanently closes the identity preimage: scalar values use bytes
 identical to standard UTF-8, while the same variable-width bit layout addresses the
 surrogate positions without calling those non-text bytes UTF-8.
+
+The exact source, atom-record, DUCET/placement, Super-Fibonacci/Hopf, and
+Hilbert/numeric prerequisites are closed in the five machine-readable contracts
+described by `docs/architecture/UNICODE_ROOT_CONTRACTS.md`. Their presence does not
+claim that the decomposer, persistence sinks, perfcache, or activation path exists.
 
 ## 4. Identity, tier, composition, and physicality
 

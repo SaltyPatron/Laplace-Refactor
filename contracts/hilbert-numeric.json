@@ -1,0 +1,99 @@
+{
+  "schema": "laplace.hilbert-numeric-contract/v1",
+  "numeric_recipe": "Laplace-Unicode-Root-Numeric-v1",
+  "cross_provider_bit_reproduction": "not-established",
+  "canonical_root_builder": {
+    "authority": "single-provider-bit-authority",
+    "platform": "linux-x86_64-avx2",
+    "compiler": {
+      "name": "Intel-oneAPI-IntelLLVM",
+      "version_line": "Intel(R) oneAPI DPC++/C++ Compiler 2026.1.1 (2026.1.1.20260724)",
+      "driver": "/opt/intel/oneapi/compiler/2026.1/bin/icx",
+      "driver_sha256": "be7fa7c3c74c2ba2b8e1b50b0a61e37986441727899e25f3545636bde157c083",
+      "frontend": "/opt/intel/oneapi/compiler/2026.1/bin/compiler/clang-22",
+      "frontend_sha256": "bcab0d4b5e8f2dc6551198d7c282b9146dc84cf42b1332ff4c8212119176a036",
+      "flags": ["-O3", "-march=haswell", "-fp-model=strict", "-fno-fast-math", "-ffp-contract=off"]
+    },
+    "elementary_math": {
+      "name": "Intel-oneMKL-VML",
+      "version": "2026.1.0",
+      "functions": ["vmdSqrt", "vmdSinCos"],
+      "mode": ["VML_HA", "VML_FTZDAZ_OFF", "VML_ERRMODE_DEFAULT"],
+      "instruction_branch": "AVX2",
+      "threading": "sequential-single-thread",
+      "runtime_objects": [
+        {"path": "/opt/intel/oneapi/mkl/2026.1/lib/libmkl_rt.so.3", "sha256": "b2ff0e31d7cd18c91813d8f6500f37665597d89de22649d90687aa6bf7bd2c0f"},
+        {"path": "/opt/intel/oneapi/mkl/2026.1/lib/libmkl_core.so.3", "sha256": "b4f086651ee5a8471140d53fedfdbbaba606287784763b0739f282872c31aa9b"},
+        {"path": "/opt/intel/oneapi/mkl/2026.1/lib/libmkl_sequential.so.3", "sha256": "4e7ff529bec90a1b0ce70299258a64a2ebae7a5a6f3ec031306a6ddb39b5a650"},
+        {"path": "/opt/intel/oneapi/mkl/2026.1/lib/libmkl_vml_avx2.so.3", "sha256": "707ab79a97ab3d07d0e337bbc78383c2bde925f18d54acf930b2fd110550ed27"}
+      ],
+      "headers": [
+        {"path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_version.h", "sha256": "ad8144d3ca6212c5e45e8ed69bb76f71a318ed5aebdbe7fc1982790249452a03"},
+        {"path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_vml.h", "sha256": "ccec6cbab8c6b020fd9615b192ec0fb7d8a07925c976c6b4b4faf1efbedc4908"},
+        {"path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_vml_defines.h", "sha256": "c2315ccb4ff10c42d8da1771454ce9f9cccfdecd0e2986585907724430253706"},
+        {"path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_vml_functions.h", "sha256": "e236ba7ade2e11938b9c5a70f3905d38c78a726fa11afa4ba1bbba39929b8b5f"},
+        {"path": "/opt/intel/oneapi/mkl/2026.1/include/mkl_service.h", "sha256": "02ff230034b626727576886decbdce2a01b76728e59b9d708e884d5bd153e2c7"}
+      ]
+    },
+    "floating_environment": {
+      "format": "IEEE-754-binary64",
+      "rounding": "FE_TONEAREST-ties-to-even",
+      "subnormals": "preserved-FTZ-and-DAZ-off",
+      "contraction": "disabled",
+      "operation_order": "source-order-no-reassociation",
+      "serialization": "u64le-coordinate-bits"
+    },
+    "dependency_activation": "blocked-until-intel-oneapi-runtime-and-onemkl-have-selected-lock-and-package-entries"
+  },
+  "validation_classes": [
+    {"id": "canonical-bit-replay", "provider": "exact-canonical-root-builder", "comparison": "all-coordinate-and-hilbert-bits-equal", "may_publish": true},
+    {"id": "noncanonical-structural", "provider": "any-declared-independent-provider", "comparison": "finite-range-unit-glome-and-Hopf-identities-reported-under-provider-receipt", "may_publish": false},
+    {"id": "noncanonical-coordinate-observation", "provider": "any-declared-independent-provider", "comparison": "report-per-axis-absolute-and-ULP-deltas-with-no-guessed-acceptance-threshold", "may_publish": false}
+  ],
+  "quantization": {
+    "name": "Laplace-R4-binary64-to-u32-v1",
+    "input_domain": "closed-interval-minus-one-to-plus-one",
+    "formula": "roundTiesToEven(((exactBinary64(component)+1)*4294967295)/2)",
+    "calculation": "exact-rational-from-IEEE754-bits-before-final-integer-rounding",
+    "axes": ["x", "y", "z", "w"],
+    "minus_one": 0,
+    "zero": 2147483648,
+    "plus_one": 4294967295,
+    "nan-infinity-or-out-of-range": "reject"
+  },
+  "hilbert": {
+    "name": "Skilling-Global-Gray-Hilbert-v1",
+    "source": "John Skilling, Programming the Hilbert curve, AIP Conference Proceedings 707, 381-387 (2004)",
+    "doi": "10.1063/1.1751381",
+    "dimensions": 4,
+    "bits_per_axis": 32,
+    "axis_order": ["x", "y", "z", "w"],
+    "transform": "Skilling-Axes-to-Transpose-global-Gray",
+    "index_bit_order": "for-bit-31-down-to-0-append-axis-0-through-3",
+    "key_bytes": 16,
+    "key_byte_order": "most-significant-byte-first",
+    "algorithm": [
+      "M=1<<31",
+      "for Q=M;Q>1;Q>>=1: P=Q-1; for axis=0..3: if X[axis]&Q then X[0]^=P else t=(X[0]^X[axis])&P;X[0]^=t;X[axis]^=t",
+      "for axis=1..3: X[axis]^=X[axis-1]",
+      "t=0;for Q=M;Q>1;Q>>=1:if X[3]&Q then t^=Q-1",
+      "for axis=0..3:X[axis]^=t",
+      "interleave-transpose-MSB-bit-plane-first-in-axis-order"
+    ],
+    "vectors": [
+      {"axes": [0, 0, 0, 0], "key_hex": "00000000000000000000000000000000"},
+      {"axes": [1, 0, 0, 0], "key_hex": "00000000000000000000000000000001"},
+      {"axes": [0, 0, 0, 1], "key_hex": "00000000000000000000000000000003"},
+      {"axes": [2147483648, 2147483648, 2147483648, 2147483648], "key_hex": "a0000000000000000000000000000000"},
+      {"axes": [4294967295, 4294967295, 4294967295, 4294967295], "key_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      {"axes": [4294967295, 0, 0, 0], "key_hex": "ffffffffffffffffffffffffffffffff"}
+    ]
+  },
+  "authority_boundaries": {
+    "coordinate-is-not-identity": true,
+    "hilbert-is-not-identity": true,
+    "hilbert-is-locality-not-semantic-standing": true,
+    "noncanonical-provider-cannot-seed-database-or-perfcache": true,
+    "this-contract-does-not-implement-or-activate-unicode": true
+  }
+}
