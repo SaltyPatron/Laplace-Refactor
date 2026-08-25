@@ -44,7 +44,7 @@
       "acceleration": ["topology-aware vector batches", "TBB arenas", "MKL thread domains", "PostgreSQL server plans"],
       "receipts": ["program", "inputs", "outputs", "epochs", "dependencies", "resources", "authority", "effects"],
       "product_requirements": ["LP-PRODUCT-001", "LP-UNIVERSAL-001", "LP-EXECUTION-001", "LP-ISA-001", "LP-FRAMEWORK-001", "LP-BULK-001", "LP-TOPOLOGY-001"],
-      "implementation": {"state": "partial", "evidence": ["contracts/framework.json", "engine/src/framework.c", "tests/framework_tests.cpp", "engine/src/isa.c", "engine/src/execution.cpp", "engine/src/execution_oneapi.cpp", "managed/Laplace.Managed", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
+      "implementation": {"state": "partial", "evidence": ["contracts/framework.json", "engine/src/framework.c", "tests/framework_tests.cpp", "engine/src/isa.c", "engine/src/execution.cpp", "engine/src/execution_oneapi.cpp", "managed/Laplace.Managed/Transport.cs", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
     },
     {
       "id": "bootstrap.dependencies",
