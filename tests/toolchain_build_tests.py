@@ -790,6 +790,50 @@ class ToolchainBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(BUILD.ToolchainError, "escapes"):
                 BUILD.verify_consumer_manifest(manifest, prefix)
 
+    def test_logical_package_prefix_can_map_to_a_separate_physical_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            physical_prefix, manifest = self.fake_package(root / "physical")
+            logical_prefix = root / "logical-toolchain"
+            logical_prefix.symlink_to(physical_prefix, target_is_directory=True)
+            manifest["prefix"] = str(logical_prefix)
+            for tool in manifest["tools"].values():
+                relative = Path(tool["path"]).relative_to(physical_prefix)
+                tool["path"] = str(logical_prefix / relative)
+            manifest_path = physical_prefix / "share/laplace/toolchain-manifest.json"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            receipt = {
+                "schema": BUILD.PACKAGE_SCHEMA,
+                "build_input_id": manifest["build_input_id"],
+                "package_tree": BUILD.package_tree(logical_prefix),
+                "compiler_driver_traces": {"c": {"trace": "present"}},
+                "linker_map_inputs": [{"path": "/static", "sha256": "a" * 64}],
+                "activation": {"product_runtime_activation_eligible": False},
+            }
+            result = BUILD.verify_package(
+                self.contract(), logical_prefix, receipt
+            )
+            self.assertEqual(result["prefix"], str(logical_prefix))
+            self.assertEqual(result["physical_prefix"], str(physical_prefix))
+            with self.assertRaisesRegex(BUILD.ToolchainError, "prefix differs"):
+                BUILD.verify_package(self.contract(), physical_prefix, receipt)
+
+    def test_consumer_manifest_rejects_physical_symlink_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix, manifest = self.fake_package(root)
+            escape = prefix / "bin/escape"
+            escape.symlink_to("/usr/bin/true")
+            manifest["tools"]["cmake"] = {
+                "path": str(escape),
+                "sha256": BUILD.sha256_file(Path("/usr/bin/true")),
+                "version": "synthetic escaped tool v1",
+            }
+            with self.assertRaisesRegex(BUILD.ToolchainError, "physical package prefix"):
+                BUILD.verify_consumer_manifest(manifest, prefix)
+
     def test_package_receipt_requires_compiler_and_linker_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             prefix, manifest = self.fake_package(Path(temporary))

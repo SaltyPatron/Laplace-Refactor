@@ -2024,10 +2024,22 @@ def execute_plan(
     return receipt
 
 
+def logical_absolute_path(path: Path) -> Path:
+    return Path(os.path.abspath(path))
+
+
 def verify_consumer_manifest(manifest: dict[str, Any], prefix: Path) -> None:
+    logical_prefix = logical_absolute_path(prefix)
+    try:
+        physical_prefix = logical_prefix.resolve(strict=True)
+    except OSError as error:
+        raise ToolchainError(f"package prefix is unavailable: {logical_prefix}") from error
     if manifest.get("schema") != CONSUMER_SCHEMA:
         raise ToolchainError(f"consumer manifest schema must be {CONSUMER_SCHEMA}")
-    if Path(require_string(manifest.get("prefix"), "consumer_manifest.prefix")) != prefix:
+    manifest_prefix = Path(
+        require_string(manifest.get("prefix"), "consumer_manifest.prefix")
+    )
+    if manifest_prefix != logical_prefix:
         raise ToolchainError("consumer manifest prefix differs from package prefix")
     activation = require_object(manifest.get("activation"), "consumer_manifest.activation")
     if activation.get("scope") != "build-toolchain-only" or activation.get(
@@ -2041,11 +2053,22 @@ def verify_consumer_manifest(manifest: dict[str, Any], prefix: Path) -> None:
     for tool_id, value in tools.items():
         tool = require_object(value, f"consumer_manifest.tools.{tool_id}")
         path = Path(require_string(tool.get("path"), f"consumer_manifest.tools.{tool_id}.path"))
+        if path != logical_absolute_path(path):
+            raise ToolchainError(f"consumer tool path is not logically absolute: {tool_id}")
         try:
-            path.relative_to(prefix)
+            path.relative_to(logical_prefix)
         except ValueError as error:
-            raise ToolchainError(f"consumer tool escapes package prefix: {tool_id}") from error
-        if not path.is_file() or sha256_file(path.resolve()) != tool.get("sha256"):
+            raise ToolchainError(
+                f"consumer tool escapes logical package prefix: {tool_id}"
+            ) from error
+        try:
+            physical_path = path.resolve(strict=True)
+            physical_path.relative_to(physical_prefix)
+        except (OSError, ValueError) as error:
+            raise ToolchainError(
+                f"consumer tool escapes physical package prefix: {tool_id}"
+            ) from error
+        if not physical_path.is_file() or sha256_file(physical_path) != tool.get("sha256"):
             raise ToolchainError(f"consumer tool path or digest mismatch: {tool_id}")
         require_string(tool.get("version"), f"consumer_manifest.tools.{tool_id}.version")
 
@@ -2054,14 +2077,19 @@ def verify_package(
     contract: dict[str, Any], prefix: Path, receipt: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     validate_contract(contract)
-    prefix = prefix.resolve()
-    manifest_path = prefix / "share/laplace/toolchain-manifest.json"
+    logical_prefix = logical_absolute_path(prefix)
+    try:
+        physical_prefix = logical_prefix.resolve(strict=True)
+    except OSError as error:
+        raise ToolchainError(f"package prefix is unavailable: {logical_prefix}") from error
+    manifest_path = logical_prefix / "share/laplace/toolchain-manifest.json"
     manifest = read_json(manifest_path)
-    verify_consumer_manifest(manifest, prefix)
-    observed_tree = package_tree(prefix)
+    verify_consumer_manifest(manifest, logical_prefix)
+    observed_tree = package_tree(logical_prefix)
     result = {
         "schema": "laplace.toolchain-package-verification/v1",
-        "prefix": str(prefix),
+        "prefix": str(logical_prefix),
+        "physical_prefix": str(physical_prefix),
         "build_input_id": manifest["build_input_id"],
         "consumer_manifest_sha256": sha256_file(manifest_path),
         "package_tree": observed_tree,
