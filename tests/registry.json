@@ -94,6 +94,51 @@
       "covered_dimensions": ["complete stream preflight", "no partial sink effects"]
     },
     {
+      "ctest_name": "FrameworkProducer.FansCanonicalBatchesThroughEveryExistingSink",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-BULK-PARITY"],
+      "covered_dimensions": ["typed producer ABI", "single canonical stream", "multiple existing sinks", "partition-independent stream identity"]
+    },
+    {
+      "ctest_name": "FrameworkProducer.CancellationReturnsExactBoundaryAndAbortsEverySink",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["framework-owned cancellation", "exact progress checkpoint", "whole-stream sink abort", "no partial publication"],
+      "defect_controls": ["framework.mutation-producer-cancellation-omission-detected"]
+    },
+    {
+      "ctest_name": "FrameworkProducer.ReplayRestartsAndAssertsTheExactPriorPrefix",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["deterministic replay from stream origin", "exact prior-prefix assertion", "source recipe producer plan and cursor binding"],
+      "defect_controls": ["framework.mutation-replay-prefix-assertion-omission-detected"]
+    },
+    {
+      "ctest_name": "FrameworkProducer.InvalidLaterBatchCannotSealAnyPartialArtifact",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["exact ordinal validation", "late producer failure", "all-sink abort", "no partial artifact seal"]
+    },
+    {
+      "ctest_name": "FrameworkProducer.RejectsInvalidAbiAndPlanBeforeOpeningAnySink",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["producer ABI preflight", "producer plan validation", "no sink effect before valid plan", "effect none"]
+    },
+    {
+      "ctest_name": "framework.producer-cancellation-contract",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["public cancellation boundary and replay-prefix assertion probe"],
+      "defect_controls": ["framework.mutation-producer-cancellation-omission-detected", "framework.mutation-replay-prefix-assertion-omission-detected"]
+    },
+    {
+      "ctest_name": "framework.mutation-producer-cancellation-omission-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["ignored producer cancellation is detected"],
+      "controls": "framework.producer-cancellation-contract"
+    },
+    {
+      "ctest_name": "framework.mutation-replay-prefix-assertion-omission-detected",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["omitted replay-prefix assertion is detected"],
+      "controls": "framework.producer-cancellation-contract"
+    },
+    {
       "ctest_name": "FrameworkActivation.PublishesOneAdmittedEpochTransition",
       "evidence_targets": ["LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
       "covered_dimensions": ["exact staged receipt", "authority-bound admission", "atomic epoch transition", "activation receipt"],
