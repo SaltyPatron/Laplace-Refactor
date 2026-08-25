@@ -105,6 +105,22 @@ class DependencyIntentTests(unittest.TestCase):
         with self.assertRaisesRegex(INTENT.IntentError, "critical dependency root"):
             INTENT.validate(self.root)
 
+    def test_release_and_git_version_divergence_is_rejected(self) -> None:
+        path = self.root / "dependencies/lock.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["dependencies"]["postgresql"]["version"] = "REL_18_5"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(INTENT.IntentError, "Git/release version mismatch"):
+            INTENT.validate(self.root)
+
+    def test_release_and_git_license_divergence_is_rejected(self) -> None:
+        path = self.root / "dependencies/lock.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["dependencies"]["postgresql"]["licenses"][0]["sha256"] = "0" * 64
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(INTENT.IntentError, "license identity mismatch"):
+            INTENT.validate(self.root)
+
 
 if __name__ == "__main__":
     unittest.main()

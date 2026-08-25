@@ -50,6 +50,93 @@ class IntentError(RuntimeError):
     """Raised when dependency intent and committed source identity diverge."""
 
 
+def canonical_release_version(value: object, component: str, lock_kind: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise IntentError(f"{component} {lock_kind} version must be a non-empty string")
+    normalized = value.strip()
+    if normalized.startswith("REL_"):
+        normalized = normalized[4:].replace("_", ".")
+    elif normalized.startswith("v") and len(normalized) > 1 and normalized[1].isdigit():
+        normalized = normalized[1:]
+    return normalized
+
+
+def license_digest_map(
+    licenses: object, component: str, lock_kind: str
+) -> dict[str, str]:
+    if not isinstance(licenses, list) or not licenses:
+        raise IntentError(f"{component} {lock_kind} licenses must be a non-empty array")
+    result: dict[str, str] = {}
+    for entry in licenses:
+        if not isinstance(entry, dict):
+            raise IntentError(f"{component} {lock_kind} license entry must be an object")
+        path = entry.get("path")
+        digest = entry.get("sha256")
+        if not isinstance(path, str) or not path:
+            raise IntentError(f"{component} {lock_kind} license path is invalid")
+        if not isinstance(digest, str) or len(digest) != 64:
+            raise IntentError(f"{component} {lock_kind} license digest is invalid")
+        name = Path(path).name
+        prior = result.get(name)
+        if prior is not None and prior != digest:
+            raise IntentError(
+                f"{component} {lock_kind} has conflicting license identities for {name}"
+            )
+        result[name] = digest
+    return result
+
+
+def validate_release_and_git_coherence(
+    repo_root: Path, components: list[dict[str, object]]
+) -> None:
+    git_lock = load_json(repo_root / "dependencies/lock.json")
+    release_lock = load_json(repo_root / "dependencies/release-lock.json")
+    git_dependencies = git_lock.get("dependencies")
+    release_archives = release_lock.get("archives")
+    if not isinstance(git_dependencies, dict) or not isinstance(release_archives, dict):
+        raise IntentError("dependency locks do not contain their required maps")
+
+    for component in components:
+        if component.get("selection") != "locked-release-and-git":
+            continue
+        identifier = component["id"]
+        assert isinstance(identifier, str)
+        lock_entries = component.get("lock_entries")
+        assert isinstance(lock_entries, list)
+        git_names = [item[4:] for item in lock_entries if item.startswith("git:")]
+        release_names = [
+            item[8:] for item in lock_entries if item.startswith("release:")
+        ]
+        if len(git_names) != 1 or len(release_names) != 1:
+            raise IntentError(
+                f"{identifier} locked-release-and-git must select exactly one Git "
+                "source and one release archive"
+            )
+        git_entry = git_dependencies.get(git_names[0])
+        release_entry = release_archives.get(release_names[0])
+        if not isinstance(git_entry, dict) or not isinstance(release_entry, dict):
+            raise IntentError(f"{identifier} selected source is absent from its lock")
+        git_version = canonical_release_version(
+            git_entry.get("version"), identifier, "Git"
+        )
+        release_version = canonical_release_version(
+            release_entry.get("version"), identifier, "release"
+        )
+        if git_version != release_version:
+            raise IntentError(
+                f"{identifier} Git/release version mismatch: "
+                f"{git_entry.get('version')} != {release_entry.get('version')}"
+            )
+        git_licenses = license_digest_map(
+            git_entry.get("licenses"), identifier, "Git"
+        )
+        release_licenses = license_digest_map(
+            release_entry.get("licenses"), identifier, "release"
+        )
+        if git_licenses != release_licenses:
+            raise IntentError(f"{identifier} Git/release license identity mismatch")
+
+
 def load_json(path: Path) -> dict[str, object]:
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
@@ -201,6 +288,8 @@ def validate(repo_root: Path) -> tuple[int, int, int, int]:
             raise IntentError(f"{identifier} is marked locked without a lock entry")
         if "selection-required" in selection:
             unselected_count += 1
+
+    validate_release_and_git_coherence(repo_root, components)
 
     missing_critical = sorted(CRITICAL_COMPONENTS - identifiers)
     if missing_critical:
