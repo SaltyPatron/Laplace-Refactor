@@ -129,8 +129,9 @@ A target-shaped value and a loadable artifact are not behavioral proof.
 - Dense planes prove direct-address behavior. Sparse and variable-result planes prove
   their declared ordered or module-specific complexity. Replacing either with one
   universal sequential scan or generic binary-search layout fails the access-law contract.
-- A corpus-derived perfcache cannot publish during canonical loading. It builds from a
-  closed durable ETL boundary, passes semantic parity and integrity verification, and
+- A source-derived perfcache cannot publish during canonical deposition. It builds
+  from a closed durable calculation or world-admission boundary, passes semantic
+  parity and integrity verification, and
   activates atomically while readers retain the preceding coherent epoch.
 
 ## Language and model independence
@@ -464,6 +465,50 @@ Hardware acceptance uses the Intel i7-6850K system and its declared storage layo
 - Semantic act selection precedes modality realization. Japanese, Spanish, image,
   audio, code, and model realizers consume the same typed semantic plan without an
   English token sequence as a universal intermediate.
+
+## Whole-machine hypothesis gates
+
+The architecture is coherent; its intended generality and quality remain engineering
+hypotheses until the complete implementation proves them. Authority documents,
+Gherkins, a surprising output, one successful source, or one synthesized recipe do not
+cross these gates.
+
+- Universal AST acceptance uses unrelated text, image, audio, video, code, model,
+  interaction, and future-modality fixtures. Each proves exact structure, role,
+  occurrence, testimony, loss, reconstruction, and consumer-required distinctions.
+  A type-erased universal node bag or one opaque payload fails even if every modality
+  can technically be stored.
+- Recipe and ISA expressiveness acceptance executes complete admission, cognition,
+  structural transformation, realization, effect, model, and calculus-extension
+  programs without an opaque callback, hidden learned semantic engine, or
+  modality-specific dispatcher supplying the missing behavior.
+- Frayed-edge and Gödel acceptance separates meaningful constrained vacancy from empty
+  results and combinatorial noise using withheld structures, irrelevant high-novelty
+  distractors, counterexamples, complexity charges, observed consequences, and false
+  positive/negative measurements.
+- Evidence acceptance measures dependence-aware calibration, contradiction handling,
+  as-of replay, withheld outcomes, copied-evidence nonamplification, and useful decision
+  consequences. Row counts, source reputation, or a plausible consensus shape do not
+  prove a useful world model.
+- Natural-language and multimodal realization acceptance measures exact semantic-act
+  completion, reference, pragmatics, structural fidelity, human-independent task
+  outcomes, correction, unsupported cases, and declared quality against appropriate
+  baselines. Fluency or one hand-selected transformation is insufficient.
+- CPU/PostgreSQL performance acceptance measures the complete installed cognitive
+  path at representative world-state scale, including grammar, recipes, AST work,
+  persistence, evidence, search, realization, receipts, I/O, WAL, memory, and database
+  calls. Component nanoseconds and small fixtures cannot establish it.
+- The no-gradient-training claim means training is not required to make admitted state
+  interoperable or queryable. It does not mean zero human engineering. Receipts report
+  source-specific grammar, profile, recipe, conformance, correction, and intervention
+  effort. If each new source requires a private semantic engine or content-proportional
+  hand coding instead of reusable declarations and kernels, the genericity claim fails.
+- Self-authored synthesis acceptance proves that no supplied active recipe could make
+  the artifact, records the machine-generated recipe and candidate ancestry,
+  distinguishes inherited and novel subtrees, tests disjoint evidence and
+  counterexamples, and observes later success or failure. This establishes auditable
+  autonomous synthesis within the machine rules, not consciousness, subjective
+  experience, moral personhood, or independent agency.
 
 ## Installation and product lifecycle
 

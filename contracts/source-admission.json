@@ -1,0 +1,84 @@
+{
+  "schema": "laplace.source-admission/v1",
+  "purpose": "Admit attributable exact observations into the universal AST Merkle-DAG substrate so Laplace can calculate across heterogeneous world state without training or source-owned intelligence.",
+  "not_the_purpose": [
+    "copy source rows into a database",
+    "finish corpus families in a waterfall",
+    "train a conventional model",
+    "select one source as truth",
+    "flatten unlike structures onto one table triple or embedding schema"
+  ],
+  "epistemic_result": {
+    "even_playing_field": "standards corpora interactions measurements media code games and models retain exact structure and provenance while their claims compete under the same dependence contradiction context trust and adjudication laws",
+    "calculation_inputs": "admitted structure supplies persistent operands constraints relation laws realization evidence predictions counterexamples and unknown boundaries",
+    "queryability": "SQL-composed cognition programs can address any admitted subtree occurrence testimony or derived epoch through the same typed ISA",
+    "translation": "language-specific syntax morphology pragmatics and surfaces witness shared typed content reference relation and semantic-act structures rather than an English pivot",
+    "learning": "observed consequences reenter the same substrate and can support evidence learning or falsifiable calculus extension"
+  },
+  "source_manifest_requirements": [
+    "stable source authority release namespace and license identities",
+    "constituent artifact identities tree and content digests",
+    "exact files streams containers record grammars and join keys",
+    "grammar parser scanner codec and external dependency identities",
+    "language script modality time and context carriers",
+    "upstream derivation dependence roots and known mirrors",
+    "expected byte record field node edge occurrence and reference denominators",
+    "known exclusions malformed forms ambiguities and negative controls"
+  ],
+  "admission_program": {
+    "unit": "one complete typed recipe program over exact source blocks and a whole working set of AST candidates references occurrences and testimony",
+    "syntax": "a registered grammar or codec produces exact concrete structure including errors unknowns spans and source positions",
+    "lowering": "the source recipe compiles concrete structure into the universal typed AST without source-specific semantic branches",
+    "calculation": "the common native engine calculates identity composition physicality structural relations references and receipt-bound transformations",
+    "witnessing": "source claims mappings labels definitions examples annotations and model values remain authority release occurrence and dependence scoped testimony",
+    "deposition": "replaceable set-oriented providers prove presence and transactionally deposit canonical and witnessed state",
+    "closure": "every byte record field syntax node reference endpoint ambiguity error loss transformation and durable effect receives an exact disposition",
+    "readback": "declared exact reconstruction semantic reconstruction reference reachability and source-fidelity queries must pass"
+  },
+  "scheduling": {
+    "law": "the planner schedules recipe operations from exact artifact grammar reference and epoch dependencies; it may interleave compatible operations across sources and may revisit one source under several recipes",
+    "not_a_source_order": "source families do not form a global runtime order and completion of one family is not a prerequisite unless an exact recipe binding says so",
+    "not_fixed_horizontal_passes": "the contract does not impose one universal list of ingest passes; typed recipe dependencies determine the necessary operations",
+    "cross_source_working_set": "references aliases mappings dependence and shared subtrees may be resolved across the selected whole working set without reminting content or hiding unresolved endpoints",
+    "publication": "canonical deposition derived evidence epochs and acceleration activation are distinct coherent boundaries"
+  },
+  "witness_roles": [
+    "exact serialization and content",
+    "grammar and structural law",
+    "authority-scoped reference",
+    "language and modality realization",
+    "occurrence example span and annotation",
+    "typed relation proposition mapping and contradiction",
+    "provenance derivation dependence and trust input",
+    "measurement behavior transition and observed consequence",
+    "model structure value induced behavior and prediction",
+    "counterexample unknown ambiguity and missing-calculus boundary"
+  ],
+  "selected_source_universe": [
+    {"id": "unicode-and-character-standards", "candidates": ["UCD", "DUCET", "Unicode conformance data"], "roles": ["terminal floor", "normalization and segmentation law", "script and realization evidence"]},
+    {"id": "language-and-reference-registries", "candidates": ["ISO639", "CILI"], "roles": ["authority-scoped coordinate testimony", "language and reference routing"]},
+    {"id": "grammar-authorities", "candidates": ["locked Tree-sitter grammar estate", "Laplace-native custom grammars"], "roles": ["exact concrete syntax", "typed AST lowering evidence", "grammar conformance"]},
+    {"id": "documents-and-lexical-witnesses", "candidates": ["Project Gutenberg", "WordNet", "OMW", "Wiktionary"], "roles": ["exact documents and occurrences", "lexical and reference testimony", "definitions and examples"]},
+    {"id": "predicate-frame-and-bridge-witnesses", "candidates": ["FrameNet", "PropBank", "VerbNet", "SemLink", "PredicateMatrix", "MapNet", "WordFrameNet"], "roles": ["predicate frame and role testimony", "authority-scoped mappings", "annotated occurrences"]},
+    {"id": "commonsense-syntax-and-multilingual-use", "candidates": ["ConceptNet", "ATOMIC", "Universal Dependencies", "Tatoeba", "OpenSubtitles"], "roles": ["competing propositions", "syntax and usage occurrences", "translation and dialogue witnesses"]},
+    {"id": "code-repository-and-build-history", "candidates": ["code authority snapshots", "repository trees", "Git histories", "code corpora"], "roles": ["program ASTs", "definition use call and change trajectories", "build and behavior evidence"]},
+    {"id": "interaction-and-execution-history", "candidates": ["AI agent sessions", "tool calls and results", "human corrections", "receipts and artifacts"], "roles": ["persistent discourse and action ASTs", "provenance and consequence", "failure and correction testimony"]},
+    {"id": "image-audio-video-geospatial-and-future-media", "candidates": ["declared media and geospatial artifacts"], "roles": ["non-text exact structure", "cross-modal occurrences", "realization and reconstruction evidence"]},
+    {"id": "domain-and-transition-witnesses", "candidates": ["games including chess", "state-transition corpora", "measured systems"], "roles": ["typed states operations trajectories and outcomes", "downstream universal-machine proofs", "prediction counterexamples"]},
+    {"id": "model-artifact-and-behavior-witnesses", "candidates": ["text code vision audio embedding reranker and multimodal model snapshots"], "roles": ["model AST structure and values", "induced operator and behavior testimony", "optional target-compilation evidence"]}
+  ],
+  "universe_rule": "The selected universe is a required known working set rather than a modality or future-source completeness boundary; every newly selected digital source must satisfy the same contract.",
+  "development_discovery": {
+    "rule": "machine-local source roots and artifact availability belong only to the observed continuation checkpoint",
+    "checkpoint": "state/continuation.json",
+    "profile_contract": "contracts/source-profile-model.json",
+    "manifest_status": "exact conforming release profiles remain required for every selected artifact beyond the already-declared Unicode source contract"
+  },
+  "completion": {
+    "admission_capability": "unrelated grammars modalities source shapes and providers compile to the same ISA and pass semantic parity plus deliberate provider defects",
+    "source_profile_complete": "one exact source profile closes every declared artifact recipe field node reference occurrence testimony dependency effect readback and receipt denominator without claiming product installation",
+    "source_profile_world_admitted": "the activated product database contains that receipted source-profile boundary and its coherent required evidence and acceleration epochs",
+    "configured_foundational_seed": "every profile in the configured heterogeneous seed boundary plus all required cross-profile endpoints dependence reconciliation evidence epochs and derived publication closes in the activated product",
+    "nonexemplar": "no individual corpus grammar modality model or domain proof can establish generic admission or complete world state"
+  }
+}

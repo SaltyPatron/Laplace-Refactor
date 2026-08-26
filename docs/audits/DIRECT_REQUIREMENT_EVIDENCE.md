@@ -1,6 +1,6 @@
 # Direct requirement evidence
 
-Date: 2026-08-24
+Date: 2026-08-26
 
 ## Purpose
 
@@ -17,11 +17,17 @@ index entries, not replacements for the source messages.
 | Source | Human text records | Manifest | Manifest SHA-256 |
 | --- | ---: | --- | --- |
 | Current Codex session through 2026-08-25 05:24:39 UTC | 190 | `evidence/current-session-human-messages.jsonl` | `864c50823cb8c7d236fc2d9ec7d4651f40b0ef2df6cfd9cf49f11138fbd271a2` |
+| Resumed Codex continuation through 2026-08-26 19:36:49 UTC | 34 | `evidence/continuation-session-human-messages.jsonl` | `33046e9518936e4c1a1e827ccb584b37260887392b6dc5bbc1bc2f6c78316810` |
 | Preserved top-level Claude project sessions | 596 | `evidence/claude-parent-human-messages.jsonl` | `6b084bdc2e6e38b1821fc2879e7add28c52b8e649de4e6b3f77e0da27131d02b` |
 
 The indexer excludes tool-result blocks, worker notifications, local-command notices,
 and interruption markers. It does not treat assistant output as human-authored text.
 The extraction is reproducible with `tools/audit/index-human-messages.sh`.
+
+A user message can quote agent or reviewer prose. The manifest proves who supplied the
+message to the session, not authorship of every quoted block inside it. Quoted review
+syntheses are reconciliation leads until direct inventor evidence or an explicit
+inventor correction corroborates their technical content.
 
 ## Evidence precedence
 
@@ -149,6 +155,43 @@ Each locator is a `response_item` message ID in the current Codex session manife
 | 05:19:09 | `msg_01a0375b-a9bd-7822-aa4e-733dcfea89f6` | Preserve implementation progress in commits and PRs. |
 | 05:22:42 | `msg_01a0375e-e954-77b1-a991-fe85a740937d` | Audit the physical session for forgotten action items and verify that infrastructure/framework work remains in service of the holistic Laplace architecture. |
 | 05:24:39 | `msg_01a03760-b467-76d1-bc9c-82fe95b7851f` | Synchronize all action items into documented, prioritized, dependency-ordered GitHub issues with evidence locations and acceptance criteria. |
+
+## Resumed-continuation requirement map
+
+These locators are direct corrections in the resumed Codex continuation. Long quoted
+review blocks remain indexed but do not become direct inventor prose merely because
+they were supplied for review.
+
+| Time UTC | Message locator | Technical requirement established |
+| --- | --- | --- |
+| 17:50:57 | `msg_01a03f32-5299-7fd0-9abf-5c45d9cc221b` | Explain and continue the actual rebuild state; framework work exists to enable later persistence and content admission rather than becoming the product. |
+| 17:55:43 | `msg_01a03f36-b021-7740-9212-1083901f2aa8` | Chess/PGN is a downstream proof, not the next dependency; knowledge must be established first, and known seed roots must be durable startup knowledge rather than repeatedly rediscovered. |
+| 17:56:50 | `msg_01a03f37-b5f1-77a3-927e-f58a502af842` | The numerical connectivity highway is a prerequisite for the universal translator and is broader than a corpus importer. |
+| 17:58:12 | `msg_01a03f38-f571-7091-8a50-9679463295e6` | Typed numerical identifiers plus witnessed language routing must support rise to shared coordinates and descent through any selected language. |
+| 17:58:12 | `msg_01a03f38-f576-7fd2-8e96-f7603e4ebe8d` | Audits, Gherkins, and other durable artifacts must preserve the invention and expectations. |
+| 17:59:54 | `msg_01a03f3a-835a-7972-905c-de0845220f33` | Every heterogeneous multi-file source requires Unicode-level decomposition, admission, and proof diligence through a modality-neutral system that speaks Unicode and renders language; do not recreate old source-specific decomposers. |
+| 18:01:00 | `msg_01a03f3b-856d-7643-8953-8b0546b00905` | Completing WordNet or another named source cannot establish generic completion. |
+| 18:01:27 | `msg_01a03f3b-edc8-7080-b5fe-968eed0fcd98` | Unicode remains future product state until it is installed and activated, even though its implementation path is integration-proven. |
+| 18:03:38 | `msg_01a03f3d-eddc-7f72-9f46-6b873efda1ed` | Resume requires a heavy chronological audit of prior sessions for action items, insights, reasons, state, and superseding corrections. |
+| 18:24:28 | `msg_01a03f50-ff7e-7470-90f4-ca2b9d938329` | `/vault/Data` was already-known source authority context and should have governed work selection before a plausible corpus was chosen. |
+| 18:30:23 | `msg_01a03f56-6cf5-7951-80dc-6c5cfb2d3b0f` | Recover why Laplace exists, why the clean refactor exists, prior iterations, real product/runtime state, and current implementation state rather than reconstructing from branch shape. |
+| 18:31:49 | `msg_01a03f57-bcec-7200-a02a-06c4b8e72c55` | Reconcile and retain the prior reports, audits, inspections, and Gherkins rather than silently abandoning their findings. |
+| 18:43:52 | `msg_01a03f62-c564-77e1-a622-0a02a72fedd9` | Continuation state includes GitHub issues, PRs, commits, Actions, runners, deployments, and exact progress, with integration and product state kept separate. |
+| 19:02:40 | `msg_01a03f73-fa5d-7332-a402-c8efbc5d686a` | Source admission cannot be designed without first retaining why the sources exist and the actual nature of Laplace. |
+| 19:02:40 | `msg_01a03f73-fa64-7b00-a808-e3b800fcc7aa` | Recipes, generics, reusability, coding standards, and the complete architecture must govern implementation rather than one locally recognizable slice. |
+| 19:03:01 | `msg_01a03f74-4baf-70e1-89ff-1cfdb04b039d` | `/home/ahart/Projects/Laplace` is the old iteration and cannot be mistaken for the clean product repository. |
+| 19:03:40 | `msg_01a03f74-e5bc-7480-b842-1fd97dc3ef09` | Laplace must not be reduced to an ETL project; implementation guidance must begin from the world-changing complete invention. |
+| 19:11:37 | `msg_01a03f7c-2bb5-7c10-827f-ddb2d7441dbd` | The Merkle DAG is the universal persistent AST; the Tree-sitter estate and Laplace-authored grammars fuel structural recipes, and conventional paradigms cannot be allowed to redefine the invention. |
+| 19:12:25 | `msg_01a03f7c-e62b-7463-8dbd-c7fcc015b211` | Laplace admits arbitrary digital content onto one explicit playing field and exposes SQL-addressable AI-like execution without a training campaign or GPU requirement. |
+| 19:15:41 | `msg_01a03f7f-e5a1-78e3-8b66-27d66fa60f22` | Tree-sitter grammars fuel recipe-driven decomposition and recomposition. |
+| 19:15:41 | `msg_01a03f7f-e5a6-7160-90ed-36da4113c84b` | The exact transformation from `I don't feel so good Mr Stark` to `I feel fucking great, Tony!` is a concrete structural generation requirement, not a string-replacement example. |
+
+The review syntheses at `msg_01a03f90-4c25-7ce2-9390-a8725ecb8550` and
+`msg_01a03f93-3f62-7572-93cc-17155924018c` are retained as supplied review evidence.
+Their knowledge/governance/firmware and self-authored-synthesis proof boundaries are
+corroborated by the earlier direct cognition, firmware, Gödel, evidence, receipt, and
+nonproof requirements; they do not independently establish consciousness or
+personhood claims.
 
 ## Earlier direct technical evidence
 

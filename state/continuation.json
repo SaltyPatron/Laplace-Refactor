@@ -1,0 +1,259 @@
+{
+  "schema": "laplace.continuation-checkpoint/v1",
+  "classification": "observed-development-state-not-product-law",
+  "observed_at_utc": "2026-08-26T19:54:37Z",
+  "validity": {
+    "rule": "the base commit tracked patch digest untracked file digests and live runtime observations must be reverified before use",
+    "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
+    "authority_stack": "contracts/authority-stack.json"
+  },
+  "repository": {
+    "github": "SaltyPatron/Laplace-Refactor",
+    "active_branch": "phase4/composition-bulk-deposit",
+    "active_worktree": "/home/ahart/Projects/Laplace-Refactor",
+    "base_commit": "4fd790640f1efa5245565e4087b33951236e2736",
+    "published_composition_branch": false
+  },
+  "development_inputs": {
+    "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
+    "data_root": {
+      "environment": "LAPLACE_DATA_ROOT",
+      "observed_path": "/vault/Data",
+      "authority": false,
+      "observed_top_level_entries": [
+        "Atomic2020",
+        "CILI",
+        "ConceptNet",
+        "FrameNet",
+        "Games",
+        "ISO639",
+        "MapNet-0.1",
+        "OMW",
+        "OpenSubtitles",
+        "PredicateMatrix.v1.3",
+        "ProjectGutenberg",
+        "PropBank",
+        "SemLink",
+        "Tatoeba",
+        "TreeSitter",
+        "UCD",
+        "UD-Treebanks",
+        "Unicode.BAD-DONOTUSE",
+        "VerbNet",
+        "Wiktionary",
+        "WordFrameNet",
+        "Wordnet",
+        "code-authority",
+        "omw",
+        "test-data"
+      ]
+    },
+    "model_root": {
+      "environment": "LAPLACE_MODEL_ROOT",
+      "observed_path": "/vault/models",
+      "authority": false,
+      "observed_top_level_entries": [
+        ".locks",
+        "Conditional-DETR-R50",
+        "DETR-ResNet-101",
+        "Florence-2-base",
+        "Florence-2-large",
+        "Grounding-DINO-Base",
+        "RT-DETR-v1-R101",
+        "code-corpus",
+        "gguf",
+        "models--Qwen--Qwen2.5-Coder-14B-Instruct",
+        "models--Qwen--Qwen2.5-Coder-3B-Instruct",
+        "models--Qwen--Qwen2.5-Coder-7B-Instruct",
+        "models--Qwen--Qwen2.5-Coder-7B-Instruct-AWQ",
+        "models--Qwen--Qwen3-Coder-30B-A3B-Instruct",
+        "models--Qwen--Qwen3-Embedding-0.6B",
+        "models--Qwen--Qwen3-Embedding-4B",
+        "models--Qwen--Qwen3-Reranker-0.6B",
+        "models--Qwen--Qwen3-Reranker-4B",
+        "models--Qwen--Qwen3-VL-Embedding-2B",
+        "models--Qwen--Qwen3-VL-Embedding-8B",
+        "models--Qwen--Qwen3-VL-Reranker-2B",
+        "models--Qwen--Qwen3-VL-Reranker-8B",
+        "models--Qwen--Qwen3.8-27B",
+        "models--TinyLlama--TinyLlama-1.1B-Chat-v1.0",
+        "models--deepseek-ai--DeepSeek-Coder-V2-Lite-Instruct",
+        "models--deepseek-ai--deepseek-coder-33b-instruct",
+        "models--facebook--sam-audio-large",
+        "models--fishaudio--fish-speech-1.5",
+        "models--ibm-granite--granite-speech-3.3-8b",
+        "models--jinaai--jina-code-embeddings-1.5b",
+        "models--jinaai--jina-reranker-v3",
+        "models--microsoft--phi-2",
+        "models--nvidia--canary-qwen-2.5b",
+        "models--nvidia--music-flamingo-hf",
+        "models--sentence-transformers--all-MiniLM-L6-v2",
+        "stack-v2",
+        "tiny-codes",
+        "yolo11x"
+      ]
+    },
+    "old_iteration": {"observed_path": "/home/ahart/Projects/Laplace", "use": "historical behavioral counterexamples only", "authority": false},
+    "known_laplace_custom_grammar_location": {
+      "state": "historical-evidence-recovered-current-clean-room-authority-unresolved",
+      "rule": "historical artifacts prove that custom grammar work existed but cannot specify or supply the clean implementation; recover direct requirements and independently specify each required grammar",
+      "historical_observations": [
+        {
+          "kind": "Laplace-authored Tree-sitter grammar",
+          "domain": "PGN chess game notation",
+          "observed_path": "/home/ahart/Projects/Laplace-archive-2026-08-24/historical-worktree/engine/core/grammars/generated/pgn/grammar.js",
+          "bytes": 2144,
+          "sha256": "cd3eaff9197cfca8076a59de1dc09ece0574c33fcf2a6855b89e1c8ed89e5cff",
+          "git_blob": "51ce9642fb62a766bc8e7d463238f189d7ac0d09",
+          "authority": false,
+          "disposition": "behavioral evidence and downstream domain counterexample only; PGN is neither the grammar architecture nor the next admission target"
+        },
+        {
+          "kind": "Laplace-owned Tree-sitter structural query",
+          "domain": "SQL tags",
+          "observed_path": "/home/ahart/Projects/Laplace-archive-2026-08-24/historical-worktree/engine/core/grammars/sql/queries/tags.scm",
+          "bytes": 603,
+          "sha256": "1cf679e9f79c4de892dc71a52be856aa23025bf16c791785a478ed11243dc8ce",
+          "git_blob": "76554c9a3b61a028d78fa6d2549559aabb08b736",
+          "authority": false,
+          "disposition": "behavioral evidence that Laplace-owned grammar-side structure extended beyond vendored parsers; independently specify the clean behavior"
+        },
+        {
+          "kind": "historical grammar estate description",
+          "observed_path": "/home/ahart/Projects/Laplace-archive-2026-08-24/historical-worktree/engine/core/grammars/README.md",
+          "bytes": 3512,
+          "sha256": "bcd0f44924abac0ea3f81c49d7d2808c9e54f8196c211574448cc3c495245803",
+          "git_blob": "34cf5ab1d8fbb45edec5b07315e32cb94eac3fea",
+          "authority": false,
+          "reported_wired_grammars": 35,
+          "reported_upstream_or_vendor_grammars": 32,
+          "reported_dormant_grammar_submodules": 264,
+          "disposition": "inventory evidence only; its container-parser framing is a historical limitation and not product law"
+        }
+      ],
+      "clean_repository_estate": {
+        "lock_contract": "dependencies/tree-sitter-grammars.lock.json",
+        "locked_independent_upstream_repositories": 299,
+        "observed_source_root": "/vault/Data/TreeSitter",
+        "observed_top_level_directories": 303
+      },
+      "still_unresolved": [
+        "the complete directly intended Laplace-native grammar inventory",
+        "which custom grammars are required as product languages rather than source grammars",
+        "the clean-room requirements and acceptance behavior for each custom grammar"
+      ]
+    }
+  },
+  "state_classes": {
+    "implemented": "the clean repository contains the canonical implementation and exact implementation tests",
+    "integration_proven": "controlled integration executes the implementation and proves the declared behavior",
+    "product_activated": "the selected installed package and product cluster durably expose the behavior",
+    "world_admitted": "the activated product state contains one receipted selected source-profile boundary with its declared fidelity and read-reachability closure",
+    "seeded": "the activated product state contains the complete configured foundational heterogeneous world boundary with required cross-source evidence dependence reconciliation and derived closure; no individual source or profile can claim this state",
+    "released": "the exact installed package passed complete-product acceptance and was published"
+  },
+  "unicode": {
+    "implemented": true,
+    "integration_proven": true,
+    "product_activated": false,
+    "world_admitted": false,
+    "seeded": false,
+    "released": false,
+    "integration_evidence": {
+      "pull_requests": [48, 49, 51],
+      "root_stream_frames": 2230150,
+      "entity_rows": 1114112,
+      "physicality_rows": 1114112,
+      "atom_binding_rows": 1114112,
+      "direct_reverse_activation": "coherent in controlled integration",
+      "full_root_seconds": 118.74
+    },
+    "runtime_observation": {
+      "selected_postgresql_version": "18.6",
+      "observed_running_postgresql_version": "18.3",
+      "selected_port": 55433,
+      "observed_running_port": 5432,
+      "selected_active_root": "/opt/laplace/current",
+      "selected_active_root_present": false,
+      "selected_socket": "/run/laplace-refactor-postgresql",
+      "selected_socket_present": false,
+      "laplace_extension_installed": false,
+      "active_unicode_root_present": false
+    }
+  },
+  "interrupted_work": {
+    "capability": "substrate.bulk-deposit",
+    "github_issue": 15,
+    "tracked_patch_sha256": "7673cb201644bce155eb20e9f4de7a9a2aa6ca89d1926ca68479dd3f3aeadaa5",
+    "tracked_files": [
+      "CMakeLists.txt",
+      "contracts/persistence.json",
+      "engine/CMakeLists.txt",
+      "engine/include/laplace/identity.h",
+      "engine/src/identity.c",
+      "engine/src/persistence.c",
+      "tests/CMakeLists.txt",
+      "tests/identity_tests.cpp",
+      "tests/persistence_tests.cpp",
+      "tests/registry.json"
+    ],
+    "untracked_files": [
+      {"path": "cmake/LaplaceCompositionContract.cmake", "bytes": 2070, "sha256": "955fad6a7e623cd17e9ea42cadc83fc4c5d6d1a3f1e87e79934ca3f1782f9c48"},
+      {"path": "cmake/composition.h.in", "bytes": 819, "sha256": "4cb12dc700fdc7852daf6a42764f10df64e6ed4fca2b0196e17591c83506cc59"},
+      {"path": "contracts/composition.json", "bytes": 1803, "sha256": "3cd2559f3d66ceb99599a520a702048bbdc31647bedb37a0e061a3ed768d2599"},
+      {"path": "engine/include/laplace/composition.h", "bytes": 6103, "sha256": "8de7d66686fe102488d2484a92c39fc136f7481ec6de73fc0acc320a64cb639b"},
+      {"path": "engine/src/composition.cpp", "bytes": 51986, "sha256": "b2256952460c68f71d66771c4df41e08ae17bc305f5cacae616000dca2bc10e1"},
+      {"path": "tests/composition_tests.cpp", "bytes": 15185, "sha256": "e24ddff101ea494da622fbbfe14902362cf1083b6e9ee56f780844331d739db6"}
+    ],
+    "implemented_local_boundary": [
+      "complete native composition working-set construction",
+      "whole-working-set identity and physicality candidate publication",
+      "exact presence disposition application",
+      "filtered receipted framework producer publication"
+    ],
+    "next_exact_boundary": [
+      "one set-oriented receipted PostgreSQL presence provider per participating tier",
+      "exact entity and physicality dispositions",
+      "filtered producer execution through the canonical persistence sink",
+      "transactional deposition and replay receipt",
+      "positive PostgreSQL acceptance and deliberate provider defect"
+    ],
+    "whole_product_reason": "This completes the generic AST Merkle-DAG presence and deposition boundary required before Unicode product activation and before any source recipe can persist exact world state; it is not a corpus importer."
+  },
+  "github_observation": {
+    "observed_at_utc": "2026-08-26T19:54:37Z",
+    "main_commit": "4fd790640f1efa5245565e4087b33951236e2736",
+    "whole_product_issue": 23,
+    "product_cluster_issue": 12,
+    "unicode_product_activation_issue": {"number": 13, "state": "open", "reason": "integration proof does not satisfy installed PostgreSQL 18.6 product-root activation"},
+    "composition_bulk_issue": 15,
+    "highway_issue": 52,
+    "world_admission_issue": 53,
+    "product_path_gate_issue": 54,
+    "architecture_manual_issue": 50,
+    "unreconciled_dependency_pull_requests": [
+      {"number": 31, "draft": true, "base": "main", "head": "phase1/runtime-build-graph", "merge_state": "DIRTY"},
+      {"number": 35, "draft": false, "base": "phase1/runtime-build-graph", "head": "phase1/source-built-toolchain", "merge_state": "CLEAN"}
+    ],
+    "latest_main_workflow_runs": [
+      {"id": 32941384512, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "4fd790640f1efa5245565e4087b33951236e2736", "linux_dev_registered_tests": 239, "linux_sanitize_registered_tests": 239},
+      {"id": 32941384498, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "4fd790640f1efa5245565e4087b33951236e2736", "registered_tests": 258, "observed_postgresql_version": "18.3"}
+    ],
+    "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": false, "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},
+    "observed_required_checks": ["requirements", "native (linux-dev)", "native (linux-sanitize)"],
+    "required_product_path_gate_present": false,
+    "required_custom_stack_evidence_currently_missing_from_merge_gate": "postgresql-native",
+    "github_environments": 0,
+    "github_deployments": 0,
+    "github_releases": 0
+  },
+  "rejected_resume_shortcuts": [
+    "select a corpus before loading the invention",
+    "treat source admission as an ETL product",
+    "treat Tree-sitter as code-only ingestion",
+    "treat PGN WordNet or any exemplar as generic completion",
+    "treat integration activation as product activation",
+    "treat GitHub main as containing unpublished work",
+    "treat this observed checkpoint as stable product law"
+  ]
+}

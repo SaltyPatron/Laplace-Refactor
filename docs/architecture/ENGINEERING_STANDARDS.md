@@ -1,0 +1,145 @@
+# Laplace engineering standards
+
+These standards keep implementation choices subordinate to the complete invention.
+They apply to native code, PostgreSQL server integration, SQL, C#, generators, source
+recipes, tests, packages, and delivery automation. Passing formatting or compiling is
+not sufficient; the implementation must preserve the product laws.
+
+## 1. Begin with the whole operation
+
+Before implementing a component, identify the complete product behavior, its typed
+AST inputs and outputs, recipe, ISA instructions, immutable context, semantic owner,
+physical providers, persistent and derived effects, receipts, and acceptance defects.
+The current branch, one source format, one issue, or one convenient demonstration
+cannot define the abstraction.
+
+Every change answers:
+
+- why the behavior exists in the transformer-replacement machine;
+- which exact distinctions it consumes, preserves, calculates, witnesses, or realizes;
+- how it participates in the persistent Merkle-DAG world model;
+- how SQL composes it and the native engine executes it;
+- how it behaves in vector, batch, PostgreSQL, replay, cancellation, and failure paths;
+- which deliberate defect proves the test detects a wrong mechanism.
+
+## 2. One semantic implementation
+
+C/C++ and PostgreSQL server integration own every semantic operation. SQL and C# only
+orchestrate generated typed surfaces. A transport, source adapter, parser binding,
+cache, database serializer, test helper, CLI, HTTP endpoint, or target exporter cannot
+contain a second implementation of identity, AST lowering, composition, physicality,
+evidence, cognition, realization, or model semantics.
+
+Scalar operations lower to the vector-first implementation. Serial, partitioned,
+parallel, direct-native, PostgreSQL, SQL, and managed routes produce identical logical
+results and receipt meaning. An optimization may change a physical plan, never the
+operation.
+
+## 3. Generics, interfaces, and reuse
+
+Stable repeated behavior belongs in typed generic abstractions, interfaces, concepts,
+abstract lifecycle bases, or generated contracts as appropriate to the language. The
+common framework owns registry, complete-program validation, immutable context,
+canonical vector/set/run/AST batches, working-set planning, sinks and providers,
+resources, cancellation, replay, merge, progress, epochs, activation, and receipts.
+
+A module supplies only the varying law: grammar/codec metadata, typed validation,
+lowering or recomposition rules, a semantic kernel, persistence schema declarations,
+an access law, and conformance vectors. Source, language, modality, and model names may
+select declarations or witnessed state; they may not select another engine branch.
+
+Inheritance or templates are not goals by themselves. An abstraction is admitted when
+at least two materially different consumers retain the same invariant and a deliberate
+provider substitution proves the shared lifecycle. A generic abstraction cannot erase
+type, order, authority, evidence, loss, or completion distinctions.
+
+## 4. Grammars, recipes, and the universal AST
+
+Every digital structure lowers to the typed universal AST whose canonical persistent
+form is the Merkle DAG. Tree-sitter parsers, external scanners, standards parsers, and
+media codecs are replaceable concrete-syntax providers. Laplace-native grammars are
+first-class product languages. None can mint private identity or own semantic state.
+
+Recipes are immutable typed executable laws. They declare grammar inputs, lowering and
+recomposition, validation, canonicalization, loss, inverse data, required epochs,
+authority, effects, resources, vectors, completion, and receipts. Recipes compile to
+the shared ISA before execution. Opaque callbacks and importer-owned semantic switches
+are forbidden.
+
+Exact round trips reproduce original bytes. Intentional transformations create new
+content, preserve unchanged subtree identities, and record typed edits and relations.
+Unknown nodes, fields, errors, ambiguities, unsupported operations, and lossy paths are
+explicit outcomes.
+
+## 5. Native code and ABI
+
+- Use fixed-width types at persisted, generated, wire, and ABI boundaries.
+- Make ownership, lifetime, nullability, optionality, capacity, alignment, byte order,
+  overflow behavior, and error atomicity explicit.
+- C ABI structures are versioned and generated where contracts define them. C++
+  internals use RAII and typed spans/containers without leaking exceptions across C or
+  PostgreSQL boundaries.
+- Warnings required by the repository are errors. Narrowing, sign conversion, shadowing,
+  aliasing, undefined behavior, and unchecked arithmetic require explicit treatment.
+- Numeric recipes declare compiler/provider constraints; ambient fast-math or nested
+  thread settings cannot change semantics.
+- Resource use derives from the conserved topology grant. Libraries, workers, and
+  tools cannot independently oversubscribe the machine.
+
+## 6. PostgreSQL and SQL
+
+PostgreSQL extension and SPI code are normal native engine surfaces. Plans are
+schema-qualified, prepared, parameterized, set-oriented, reusable, and measured at
+representative cardinality. Per-row SQL, SPI, process, language, network, or
+transaction crossings are forbidden on primary batch paths.
+
+SQL owns transactions, constraints, indexes, set routing, program composition, and
+result projection. It does not implement recursive semantic algorithms in SQL text.
+Public functions use explicit namespaces and typed generated bindings, avoid hidden
+session settings, expose planner-visible structure where required, and retain exact
+`EXPLAIN (ANALYZE, BUFFERS, WAL)` evidence for performance claims.
+
+## 7. Managed orchestration
+
+C# owns source, session, service, product API, and external-system lifecycle. It uses
+generated types and a generic transport/lifecycle spine, batches work, applies
+backpressure, propagates cancellation and authority, and preserves native receipts.
+It does not normalize semantics, reinterpret errors, rebuild ASTs, or implement a
+private cognition path.
+
+## 8. Persistence, acceleration, and effects
+
+Canonical content/AST state, occurrences/testimony, reproducible derived epochs,
+retained inference/working state, acceleration artifacts, and external effects have
+separate authorities and publication boundaries. Presence is proven set-wise over the
+whole working set. Durable mutation is transactional, idempotent under its declared
+replay law, and never inferred from row count alone.
+
+Perfcaches are typed compiled execution planes with module-specific access laws. They
+must retain canonical semantic parity, whole-artifact validation, coherent activation,
+reader pinning, and independent replacement. They cannot become a second authority.
+
+## 9. Tests and evidence
+
+Tests execute the production implementation at the boundary they claim. Important
+tests have a deliberate mutant that changes the mechanism and must fail for the exact
+reason. Mocks may isolate a physical provider but cannot establish engine semantics,
+PostgreSQL integration, installation, conversation, model behavior, or performance.
+
+Receipts reconcile inputs, outputs, losses, unknowns, persistent effects, derived
+effects, resources, timings, and completion. Performance evidence includes the command,
+machine, real input, samples, timing boundary, CPU, memory, I/O, database calls, WAL,
+and durable output counts. Small-fixture extrapolation is prohibited.
+
+## 10. Build, generation, and repository discipline
+
+Contracts generate identifiers, ABI declarations, bindings, documentation tables, and
+other repeated authority. Generated files identify their generator and exact source
+contract and are reproducible. Dependency inputs come only from verified locks and
+checksums. Builds are out of tree; packages install into versioned roots; activation is
+atomic and independently verified.
+
+Historical implementation stays outside build, include, package, and test discovery.
+New code is authored from product requirements, independent standards, and verified
+upstream dependencies. Unrelated work is preserved, and concurrent changes use
+isolated worktrees.

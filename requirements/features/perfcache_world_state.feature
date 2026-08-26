@@ -1,8 +1,8 @@
 Feature: Perfcaches calculate and accelerate complete coherent substrate epochs
-  Unicode seed produces the canonical root database rows and atom plane together.
-  Corpus-derived planes publish only after their canonical ETL boundary is complete.
+  The Unicode root calculation produces canonical database rows and atom planes together.
+  Source-derived planes publish only after their declared canonical boundary is complete.
 
-  Scenario: Unicode seed has one calculation and two bulk outputs
+  Scenario: Unicode root has one calculation and two bulk outputs
     Given no Tier-0 database rows and no active Unicode atom plane
     And a pinned Unicode DUCET and geometry source manifest
     When the native Unicode decomposer calculates the canonical ordered atom stream
@@ -14,16 +14,16 @@ Feature: Perfcaches calculate and accelerate complete coherent substrate epochs
 
   Scenario: Stale or independently calculated bootstrap state is rejected
     Given a Tier-0 artifact that did not originate from the active decomposer execution and source receipt
-    When database seeding or epoch activation is attempted
+    When database deposition or epoch activation is attempted
     Then the operation fails even if its version label row count and sampled identities appear correct
 
-  Scenario: Interrupted Unicode seed preserves the prior epoch
+  Scenario: Interrupted Unicode root publication preserves the prior epoch
     Given a coherent active Unicode database and cache epoch
     And a newly calculated content-addressed Unicode bootstrap artifact
     When database bulk deposition parity verification or activation fails
     Then the prior database and cache epoch remains active
     And the new artifact is inactive and safely reconcilable
-    And dependent ingestion cannot observe a half-published epoch
+    And dependent programs and source admission cannot observe a half-published epoch
 
   Scenario: A warmed generation replaces another without restarting PostgreSQL
     Given PostgreSQL readers are pinned to one active immutable perfcache epoch
@@ -50,8 +50,8 @@ Feature: Perfcaches calculate and accelerate complete coherent substrate epochs
     And one common mapper validates integrity dependencies lifecycle and loaded identity
     But forcing every plane through a sorted fixed-record binary search fails activation
 
-  Scenario: Corpus planes publish at the end of ETL
-    Given a prior coherent perfcache epoch and a new canonical load in progress
+  Scenario: Source-derived planes publish after a closed world-admission boundary
+    Given a prior coherent perfcache epoch and a new canonical admission in progress
     When readers reconstruct render or route CRUD operations
     Then they continue using the prior coherent epoch
     And no row-level ingest operation mutates the mapped artifacts

@@ -1,5 +1,17 @@
 # Working agreements
 
+## Projection authority
+
+- This file is a verified agent-facing projection of governing direct evidence,
+  stable product law, and executable requirements. It is not itself inventor-direct
+  evidence, and editing it cannot create, supersede, or narrow a Laplace requirement.
+- Product authority projects `LP-PRODUCT-001`, `LP-UNIVERSAL-001`, `LP-AST-001`,
+  `LP-GOVERNANCE-001`, `LP-FIRMWARE-001`, and `LP-CLEANROOM-001`.
+- Architecture projects `LP-ISA-001`, `LP-FRAMEWORK-001`, `LP-REUSE-001`,
+  `LP-RECIPE-001`, `LP-BULK-001`, `LP-HIGHWAY-001`, and `LP-ADMISSION-001`.
+- Evidence and persistence project `LP-ACTIVATION-001`, `LP-DOC-001`, and the exact
+  acceptance and continuation boundaries loaded by `contracts/authority-stack.json`.
+
 ## Product authority
 
 - The user's direct requirements define Laplace.
@@ -28,6 +40,12 @@
 - All product behavior executes through the typed substrate instruction set.
 - Every operation has one canonical implementation.
 - Batch and bulk forms are primary and must preserve exact single-item semantics.
+- Every digital structure is represented as a typed universal AST whose canonical
+  persistent form is the content-addressed Merkle DAG.
+- Grammars and recipes decompose, transform, and recompose typed trees through the
+  common ISA; a parser, codec, source adapter, or template is not a semantic engine.
+- Centralize common behavior in typed generic interfaces, generated contracts, and
+  reusable lifecycle bases. Providers may vary physical mechanism, not meaning.
 - Text is not architecturally privileged.
 - Language, modality, source, and model are witnessed dimensions, not engine branches.
 
@@ -54,6 +72,20 @@
 
 ## Persistence
 
+- At the start of a resumed work session, load and validate
+  `contracts/authority-stack.json` in its declared order. The whole invention governs
+  before current branch, source inventory, issue state, or implementation pattern.
+- Read `state/continuation.json` only after stable product and executable authority.
+  Verify its base, dirty fingerprint, source roots, and live runtime observations; it
+  is observed development state and never product law.
+- Capability, controlled integration, installed product activation, per-source-profile
+  world admission, configured foundational seeded state, and release are distinct.
+  Never promote one state into another without its exact receipt.
+- The current branch is not sufficient continuation authority. Direct corrections,
+  supersession, the unpublished-work fingerprint, runtime state, and the complete
+  dependency graph govern continuation together.
+- Update or invalidate the continuation checkpoint in the same change that publishes,
+  completes, or supersedes its interrupted boundary.
 - Continue active work after corrections, status questions, and refinements.
 - The user controls when work stops or changes direction.
 - Report failed checks and incomplete acceptance precisely, then keep making safe
