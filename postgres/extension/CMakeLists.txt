@@ -19,7 +19,7 @@ laplace_configure_postgresql_bindings(
     "${extension_sql}"
     "${extension_control}")
 
-add_library(laplace_pg MODULE
+set(laplace_postgresql_module_sources
     src/composition_pg.c
     src/laplace_pg.c
     src/persistence_pg.c
@@ -27,139 +27,72 @@ add_library(laplace_pg MODULE
     src/perfcache_pg.c
     src/set_pg.c
     src/unicode_root_pg.c)
-target_include_directories(laplace_pg SYSTEM PRIVATE
-    "${LAPLACE_POSTGRES_INCLUDE_SERVER}"
-    "${LAPLACE_POSTGRES_INCLUDE_CLIENT}")
-target_include_directories(laplace_pg PRIVATE
-    "${CMAKE_BINARY_DIR}/generated")
-target_link_libraries(laplace_pg PRIVATE
-    BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence Laplace::Perfcache
-    Laplace::UnicodeNumeric)
-target_compile_options(laplace_pg PRIVATE
-    $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-Wno-gnu-statement-expression-from-macro-expansion;-ffp-contract=off>)
+
+function(laplace_configure_postgresql_module target)
+    target_include_directories(${target} SYSTEM PRIVATE
+        "${LAPLACE_POSTGRES_INCLUDE_SERVER}"
+        "${LAPLACE_POSTGRES_INCLUDE_CLIENT}")
+    target_include_directories(${target} PRIVATE
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(${target} PRIVATE
+        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence
+        Laplace::Perfcache Laplace::UnicodeNumeric)
+    target_compile_options(${target} PRIVATE
+        $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-Wno-gnu-statement-expression-from-macro-expansion;-ffp-contract=off>)
+    set_target_properties(${target} PROPERTIES
+        C_EXTENSIONS ON
+        PREFIX ""
+        OUTPUT_NAME "${target}"
+        BUILD_RPATH "$<TARGET_FILE_DIR:laplace_engine>")
+endfunction()
+
+add_library(laplace_pg MODULE ${laplace_postgresql_module_sources})
+laplace_configure_postgresql_module(laplace_pg)
 set_target_properties(laplace_pg PROPERTIES
-    C_EXTENSIONS ON
-    PREFIX ""
     OUTPUT_NAME "laplace_pg"
-    BUILD_RPATH "$<TARGET_FILE_DIR:laplace_engine>"
     INSTALL_RPATH "$ORIGIN/../..")
 
 if(BUILD_TESTING)
     target_compile_definitions(laplace_pg PRIVATE
         LAPLACE_POSTGRES_TESTING=1)
 
-    add_library(laplace_pg_blind_conflict_mutant MODULE
-        src/composition_pg.c
-        src/laplace_pg.c
-        src/persistence_pg.c
-        src/persistence_rows_pg.c
-        src/perfcache_pg.c
-        src/set_pg.c
-        src/unicode_root_pg.c)
-    target_include_directories(laplace_pg_blind_conflict_mutant SYSTEM PRIVATE
-        "${LAPLACE_POSTGRES_INCLUDE_SERVER}"
-        "${LAPLACE_POSTGRES_INCLUDE_CLIENT}")
-    target_include_directories(laplace_pg_blind_conflict_mutant PRIVATE
-        "${CMAKE_BINARY_DIR}/generated")
-    target_link_libraries(laplace_pg_blind_conflict_mutant PRIVATE
-        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence Laplace::Perfcache
-        Laplace::UnicodeNumeric)
-    target_compile_definitions(laplace_pg_blind_conflict_mutant PRIVATE
-        LAPLACE_POSTGRES_TESTING=1
-        LAPLACE_TEST_BLIND_CONFLICT=1)
-    target_compile_options(laplace_pg_blind_conflict_mutant PRIVATE
-        $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-Wno-gnu-statement-expression-from-macro-expansion;-ffp-contract=off>)
-    set_target_properties(laplace_pg_blind_conflict_mutant PROPERTIES
-        C_EXTENSIONS ON
-        PREFIX ""
-        OUTPUT_NAME "laplace_pg_blind_conflict_mutant"
-        BUILD_RPATH "$<TARGET_FILE_DIR:laplace_engine>")
+    function(laplace_add_postgresql_mutant target definition)
+        add_library(${target} MODULE ${laplace_postgresql_module_sources})
+        laplace_configure_postgresql_module(${target})
+        target_compile_definitions(${target} PRIVATE
+            LAPLACE_POSTGRES_TESTING=1
+            ${definition}=1)
+    endfunction()
 
-    add_library(laplace_pg_composition_presence_order_mutant MODULE
-        src/composition_pg.c
-        src/laplace_pg.c
-        src/persistence_pg.c
-        src/persistence_rows_pg.c
-        src/perfcache_pg.c
-        src/set_pg.c
-        src/unicode_root_pg.c)
-    target_include_directories(
-        laplace_pg_composition_presence_order_mutant SYSTEM PRIVATE
-        "${LAPLACE_POSTGRES_INCLUDE_SERVER}"
-        "${LAPLACE_POSTGRES_INCLUDE_CLIENT}")
-    target_include_directories(
-        laplace_pg_composition_presence_order_mutant PRIVATE
-        "${CMAKE_BINARY_DIR}/generated")
-    target_link_libraries(laplace_pg_composition_presence_order_mutant PRIVATE
-        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence Laplace::Perfcache
-        Laplace::UnicodeNumeric)
+    laplace_add_postgresql_mutant(
+        laplace_pg_blind_conflict_mutant LAPLACE_TEST_BLIND_CONFLICT)
+    laplace_add_postgresql_mutant(
+        laplace_pg_composition_presence_order_mutant
+        LAPLACE_TEST_COMPOSITION_PRESENCE_REORDER)
+    laplace_add_postgresql_mutant(
+        laplace_pg_composition_presence_blind_mutant
+        LAPLACE_TEST_COMPOSITION_PRESENCE_BLIND)
+    laplace_add_postgresql_mutant(
+        laplace_pg_composition_presence_per_row_mutant
+        LAPLACE_TEST_COMPOSITION_PRESENCE_PER_ROW)
+    laplace_add_postgresql_mutant(
+        laplace_pg_composition_presence_partial_mutant
+        LAPLACE_TEST_COMPOSITION_PRESENCE_PARTIAL)
+    laplace_add_postgresql_mutant(
+        laplace_pg_composition_presence_semantic_drift_mutant
+        LAPLACE_TEST_COMPOSITION_PRESENCE_SEMANTIC_DRIFT)
+    laplace_add_postgresql_mutant(
+        laplace_pg_composition_replay_receipt_mutant
+        LAPLACE_TEST_COMPOSITION_REPLAY_RECEIPT_VERIFY_BYPASS)
     target_compile_definitions(
-        laplace_pg_composition_presence_order_mutant PRIVATE
-        LAPLACE_POSTGRES_TESTING=1
-        LAPLACE_TEST_COMPOSITION_PRESENCE_REORDER=1)
-    target_compile_options(
-        laplace_pg_composition_presence_order_mutant PRIVATE
-        $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-Wno-gnu-statement-expression-from-macro-expansion;-ffp-contract=off>)
-    set_target_properties(
-        laplace_pg_composition_presence_order_mutant PROPERTIES
-        C_EXTENSIONS ON
-        PREFIX ""
-        OUTPUT_NAME "laplace_pg_composition_presence_order_mutant"
-        BUILD_RPATH "$<TARGET_FILE_DIR:laplace_engine>")
-
-    add_library(laplace_pg_perfcache_epoch_mutant MODULE
-        src/composition_pg.c
-        src/laplace_pg.c
-        src/persistence_pg.c
-        src/persistence_rows_pg.c
-        src/perfcache_pg.c
-        src/set_pg.c
-        src/unicode_root_pg.c)
-    target_include_directories(laplace_pg_perfcache_epoch_mutant SYSTEM PRIVATE
-        "${LAPLACE_POSTGRES_INCLUDE_SERVER}"
-        "${LAPLACE_POSTGRES_INCLUDE_CLIENT}")
-    target_include_directories(laplace_pg_perfcache_epoch_mutant PRIVATE
-        "${CMAKE_BINARY_DIR}/generated")
-    target_link_libraries(laplace_pg_perfcache_epoch_mutant PRIVATE
-        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence Laplace::Perfcache
-        Laplace::UnicodeNumeric)
-    target_compile_definitions(laplace_pg_perfcache_epoch_mutant PRIVATE
-        LAPLACE_POSTGRES_TESTING=1
-        LAPLACE_TEST_SKIP_PG_PERFCACHE_EXPECTED_EPOCH=1)
-    target_compile_options(laplace_pg_perfcache_epoch_mutant PRIVATE
-        $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-Wno-gnu-statement-expression-from-macro-expansion;-ffp-contract=off>)
-    set_target_properties(laplace_pg_perfcache_epoch_mutant PROPERTIES
-        C_EXTENSIONS ON
-        PREFIX ""
-        OUTPUT_NAME "laplace_pg_perfcache_epoch_mutant"
-        BUILD_RPATH "$<TARGET_FILE_DIR:laplace_engine>")
-
-    add_library(laplace_pg_plan_manifest_mutant MODULE
-        src/composition_pg.c
-        src/laplace_pg.c
-        src/persistence_pg.c
-        src/persistence_rows_pg.c
-        src/perfcache_pg.c
-        src/set_pg.c
-        src/unicode_root_pg.c)
-    target_include_directories(laplace_pg_plan_manifest_mutant SYSTEM PRIVATE
-        "${LAPLACE_POSTGRES_INCLUDE_SERVER}"
-        "${LAPLACE_POSTGRES_INCLUDE_CLIENT}")
-    target_include_directories(laplace_pg_plan_manifest_mutant PRIVATE
-        "${CMAKE_BINARY_DIR}/generated")
-    target_link_libraries(laplace_pg_plan_manifest_mutant PRIVATE
-        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence Laplace::Perfcache
-        Laplace::UnicodeNumeric)
-    target_compile_definitions(laplace_pg_plan_manifest_mutant PRIVATE
-        LAPLACE_POSTGRES_TESTING=1
-        LAPLACE_TEST_UNICODE_PG_PLAN_SUBSTITUTION=1)
-    target_compile_options(laplace_pg_plan_manifest_mutant PRIVATE
-        $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-Wno-gnu-statement-expression-from-macro-expansion;-ffp-contract=off>)
-    set_target_properties(laplace_pg_plan_manifest_mutant PROPERTIES
-        C_EXTENSIONS ON
-        PREFIX ""
-        OUTPUT_NAME "laplace_pg_plan_manifest_mutant"
-        BUILD_RPATH "$<TARGET_FILE_DIR:laplace_engine>")
+        laplace_pg_composition_replay_receipt_mutant PRIVATE
+        LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL=laplace_pg_persistence_run_producer_replay_receipt_mutant)
+    laplace_add_postgresql_mutant(
+        laplace_pg_perfcache_epoch_mutant
+        LAPLACE_TEST_SKIP_PG_PERFCACHE_EXPECTED_EPOCH)
+    laplace_add_postgresql_mutant(
+        laplace_pg_plan_manifest_mutant
+        LAPLACE_TEST_UNICODE_PG_PLAN_SUBSTITUTION)
 endif()
 
 install(TARGETS laplace_pg

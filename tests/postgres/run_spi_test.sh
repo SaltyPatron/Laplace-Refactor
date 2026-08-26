@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 9 ]]; then
-    echo "usage: $0 MODE PG-BINDIR CONTROL-ROOT MODULE-DIRECTORY ENGINE-DIRECTORY NATIVE-PROBE PERFCACHE-PROBE SQL-FILE SANITIZER-PRELOAD" >&2
+    echo "usage: $0 MODE PG-BINDIR CONTROL-ROOT MODULE-DIRECTORY ENGINE-DIRECTORY NATIVE-PROBE AUXILIARY-PROBE SQL-FILE SANITIZER-PRELOAD" >&2
     exit 64
 fi
 
@@ -13,7 +13,7 @@ control_root=$3
 module_directory=$4
 engine_directory=$5
 native_probe=$6
-perfcache_probe=$7
+auxiliary_probe=$7
 sql_file=$8
 sanitizer_preload=$9
 temporary_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
@@ -53,7 +53,12 @@ trap cleanup EXIT
 
 "$pg_bindir/initdb" -D "$data_directory" \
     --no-locale --encoding=UTF8 --auth=trust >/dev/null
-postgres_options="-F -k $socket_directory -p $port -c listen_addresses= -c max_prepared_transactions=4 -c laplace.perfcache_root=$perfcache_root -c extension_control_path=$control_root -c dynamic_library_path=$postgres_library_directory:$module_directory:$engine_directory"
+postgres_options="-k $socket_directory -p $port -c listen_addresses= -c max_prepared_transactions=4 -c laplace.perfcache_root=$perfcache_root -c extension_control_path=$control_root -c dynamic_library_path=$postgres_library_directory:$module_directory:$engine_directory"
+if [[ "$mode" != "composition-measurement" ]]; then
+    postgres_options="-F $postgres_options"
+else
+    postgres_options="$postgres_options -c shared_buffers=1GB -c max_wal_size=8GB -c checkpoint_timeout=30min -c track_io_timing=on -c track_wal_io_timing=on"
+fi
 if [[ "$mode" == "unicode-root" ]]; then
     postgres_options="$postgres_options -c shared_buffers=512MB -c max_wal_size=8GB -c checkpoint_timeout=30min"
 fi
@@ -73,7 +78,23 @@ psql_arguments=(
     -v ON_ERROR_STOP=1
 )
 
-if [[ "$mode" == "contract" || "$mode" == "persistence-mutation" ]]; then
+if [[ "$mode" == "composition-measurement" ]]; then
+    probe_output=$("$native_probe")
+    read_probe_value() {
+        local key=$1
+        local value
+        value=$(awk -F= -v key="$key" '$1 == key {print $2}' <<<"$probe_output")
+        if [[ ! "$value" =~ ^[0-9a-f]+$ ]]; then
+            echo "native receipt probe did not emit $key" >&2
+            exit 65
+        fi
+        printf '%s' "$value"
+    }
+    if [[ ! -x "$auxiliary_probe" ]]; then
+        echo "composition measurement client is unavailable" >&2
+        exit 84
+    fi
+elif [[ "$mode" == "contract" || "$mode" == "persistence-mutation" ]]; then
     probe_output=$("$native_probe")
     read_probe_value() {
         local key=$1
@@ -107,7 +128,15 @@ if [[ "$mode" == "contract" || "$mode" == "persistence-mutation" ]]; then
         PERSISTENCE_CONCURRENT_FRAME_2 PERSISTENCE_CONCURRENT_FRAME_3 \
         PERSISTENCE_CONCURRENT_FRAME_4 PERSISTENCE_CONCURRENT_FRAME_5 \
         PERSISTENCE_CONCURRENT_FRAME_6 \
-        PERSISTENCE_BULK_PHYSICALITY PERSISTENCE_BULK_OCCURRENCE; do
+        PERSISTENCE_BULK_PHYSICALITY PERSISTENCE_BULK_OCCURRENCE \
+        COMPOSITION_RESULT_ENTITY COMPOSITION_RESULT_PHYSICALITY \
+        COMPOSITION_RESULT_TIER COMPOSITION_WORKING_SET_RECEIPT \
+        COMPOSITION_PRESENCE_SEMANTIC_RECEIPT \
+        COMPOSITION_PRESENCE_EXECUTION_RECEIPT \
+        COMPOSITION_PRESENCE_CANDIDATE_FINGERPRINT \
+        COMPOSITION_PRESENCE_DISPOSITION_FINGERPRINT \
+        COMPOSITION_STREAM_FINGERPRINT COMPOSITION_ENTITY_DISPOSITIONS \
+        COMPOSITION_PHYSICALITY_DISPOSITIONS; do
         shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
         psql_arguments+=(-v "$shell_name=$(read_probe_value "$key")")
     done
@@ -149,7 +178,7 @@ elif [[ "$mode" != "mutation" ]]; then
 fi
 
 if [[ "$mode" == "contract" || "$mode" == "perfcache-mutation" ]]; then
-    perfcache_probe_output=$("$perfcache_probe" "$perfcache_root")
+    perfcache_probe_output=$("$auxiliary_probe" "$perfcache_root")
     declare -A perfcache_manifests
     for index in 1 2 3 4 5 6 7; do
         manifest=$(awk -F= -v key="PERFCACHE_MANIFEST_$index" \
@@ -161,6 +190,17 @@ if [[ "$mode" == "contract" || "$mode" == "perfcache-mutation" ]]; then
         perfcache_manifests[$index]=$manifest
         psql_arguments+=(-v "perfcache_manifest_$index=$manifest")
     done
+fi
+
+if [[ "$mode" == "composition-measurement" ]]; then
+    "$auxiliary_probe" \
+        "$socket_directory" "$port" "$sql_file" \
+        "$(read_probe_value PERSISTENCE_ENTITY_A)" \
+        "$(read_probe_value PERSISTENCE_ENTITY_A_WITNESS)" \
+        "$(read_probe_value PERSISTENCE_ENTITY_B)" \
+        "$(read_probe_value PERSISTENCE_ENTITY_B_WITNESS)" \
+        "${LAPLACE_COMPOSITION_MEASUREMENT_SAMPLES:-5}"
+    exit 0
 fi
 
 if [[ -n "${variable_file:-}" ]]; then

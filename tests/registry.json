@@ -385,21 +385,76 @@
       "defect_controls": ["composition.mutation-presence-filter-omission-detected"]
     },
     {
+      "ctest_name": "CompositionWorkingSet.PresenceSemanticsSurviveProviderSubstitution",
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["provider-independent semantic presence receipt", "provider-specific execution receipt", "identical ordered publication under provider substitution", "composition-producer cancellation with no published effect", "checkpoint-bound exact replay through the canonical framework"]
+    },
+    {
       "ctest_name": "CompositionWorkingSet.RejectsPartialPresenceProviderBeforePublication",
       "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
       "covered_dimensions": ["receipted presence-provider ABI", "exact returned disposition cardinality", "partial provider result rejection before stream publication", "producer remains unavailable after provider defect"]
     },
     {
       "ctest_name": "postgres.composition-working-set-contract",
+      "profiles": ["custom-stack"],
       "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
-      "covered_dimensions": ["one exact entity presence operation per participating tier", "one exact physicality presence operation for the whole set", "filtered native producer through canonical PostgreSQL persistence sink", "transactional deposition and rollback", "steady-state deterministic replay receipt", "exact public canonical readback"],
-      "defect_controls": ["postgres.mutation-composition-presence-order-detected"]
+      "covered_dimensions": ["direct-native and PostgreSQL result identity tier ordered disposition semantic-receipt and stream parity", "provider execution evidence remains physically distinct", "one exact entity presence operation per participating tier", "one exact physicality presence operation for the whole set", "filtered native producer through canonical PostgreSQL persistence sink", "full-field physicality collision rejection", "transactional deposition and rollback", "steady-state deterministic replay receipt", "corrupt replay-receipt rejection", "exact public canonical readback"],
+      "defect_controls": ["postgres.mutation-composition-presence-order-detected", "postgres.mutation-composition-presence-blind-detected", "postgres.mutation-composition-presence-per-row-detected", "postgres.mutation-composition-presence-partial-detected", "postgres.mutation-composition-presence-semantic-drift-detected", "postgres.mutation-composition-replay-receipt-collision-detected"]
     },
     {
       "ctest_name": "postgres.mutation-composition-presence-order-detected",
+      "profiles": ["custom-stack"],
       "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
       "covered_dimensions": ["reordered set-wise presence results are rejected before canonical producer publication"],
       "controls": "postgres.composition-working-set-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-composition-presence-blind-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["provider publication without any canonical-state observation is detected"],
+      "controls": "postgres.composition-working-set-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-composition-presence-per-row-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["candidate-at-a-time PostgreSQL presence exceeds the set-operation round contract and is rejected"],
+      "controls": "postgres.composition-working-set-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-composition-presence-partial-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["partial PostgreSQL disposition result is rejected before publication"],
+      "controls": "postgres.composition-working-set-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-composition-presence-semantic-drift-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["same physicality identity with changed radius cannot be treated as exact-present"],
+      "controls": "postgres.composition-working-set-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-composition-replay-receipt-collision-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["composition replay cannot bypass exact durable deposit-receipt field verification"],
+      "controls": "postgres.composition-working-set-contract"
+    },
+    {
+      "ctest_name": "postgres.composition-whole-boundary-measurement",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["65812-request recursive universal-AST input", "five fresh logical-state samples", "public native-working-set through PostgreSQL presence and transactional persistence timing boundary", "server CPU memory and proc I/O", "WAL bytes", "database calls", "durable readback denominators", "deterministic semantic and publication receipts", "integration proof state without throughput-gate extrapolation"]
+    },
+    {
+      "ctest_name": "postgres.composition-whole-boundary-receipt-contract",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["machine-readable whole-boundary receipt schema", "exact input and durable denominators", "timing CPU memory I/O database WAL and receipt completeness", "deterministic semantic receipt across samples"],
+      "defect_controls": ["zero database calls", "changed semantic receipt", "zero wall-time boundary"]
     },
     {
       "ctest_name": "composition.mutation-whole-working-set-dedup-detected",

@@ -513,7 +513,8 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_deposit_result AS (
     result_physicality_ids bytea[],
     result_tier_floors smallint[],
     working_set_receipt bytea,
-    presence_receipt bytea,
+    presence_semantic_receipt bytea,
+    presence_execution_receipt bytea,
     presence_candidate_fingerprint bytea,
     presence_disposition_fingerprint bytea,
     presence_provider_fingerprint bytea,
@@ -541,6 +542,9 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_deposit_result AS (
     plan_count integer,
     entity_presence_round_count numeric(20, 0),
     physicality_presence_round_count numeric(20, 0),
+    entity_presence_dispositions smallint[],
+    physicality_presence_dispositions smallint[],
+    estimated_peak_working_bytes numeric(20, 0),
     status integer
 );
 

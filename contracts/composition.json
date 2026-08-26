@@ -2,7 +2,7 @@
   "schema": "laplace.composition-contract/v1",
   "abi": {
     "major": 1,
-    "minor": 0
+    "minor": 1
   },
   "references": {
     "known_entity": 1,
@@ -41,7 +41,9 @@
     "physicality_round_bound": "one-set-operation-for-all-candidates",
     "collision_disposition": "reject-before-stream-publication",
     "provider_abi": 1,
-    "receipt_domain": "laplace-composition-presence-receipt-v1",
+    "semantic_receipt_domain": "laplace-composition-presence-semantic-receipt-v1",
+    "execution_receipt_domain": "laplace-composition-presence-execution-receipt-v1",
+    "receipt_separation": "semantic receipt binds candidates dispositions and logical counts while execution receipt additionally binds physical provider and round evidence",
     "provider_result": "exact-counts-round-counts-provider-fingerprint-and-provider-receipt",
     "unreceipted_application": "forbidden"
   },
@@ -55,5 +57,17 @@
       "deposit_sql_name": "composition_deposit_batch",
       "deposit_c_symbol": "laplace_pg_composition_deposit_batch"
     }
+  },
+  "whole_boundary_measurement": {
+    "schema": "laplace.composition-whole-boundary-measurement/v1",
+    "timing_boundary": "one public call including native whole-working-set construction PostgreSQL set-wise presence transactional canonical persistence and result materialization",
+    "minimum_samples": 3,
+    "fresh_state_rule": "each sample starts from the same empty logical canonical state and declares the runtime and filesystem cache treatment",
+    "durability_rule": "fsync and synchronous commit remain enabled",
+    "required_input": ["known entities", "composition requests", "operands", "PostgreSQL stored input datum bytes", "preferred batch bytes"],
+    "required_machine": ["operating system", "kernel", "architecture", "CPU model", "online processors", "page bytes", "PostgreSQL exact version"],
+    "required_sample_evidence": ["wall time", "server user and system CPU", "resident memory before and after", "process-lifetime high-water memory", "native planned peak working bytes", "read and write syscalls", "filesystem read and write bytes", "WAL bytes", "database calls", "stream bytes", "durable output counts", "working-set receipt", "presence semantic receipt", "presence execution receipt", "stream fingerprint"],
+    "proof_boundary": "representative universal-AST composition deposition integration measurement only",
+    "nonclaims": ["complete ingest throughput gate", "qualifying real-corpus seconds-per-GB gate", "cold-cache performance", "product activation"]
   }
 }

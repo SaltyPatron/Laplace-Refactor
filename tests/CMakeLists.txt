@@ -1876,10 +1876,18 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/persistence_blind_conflict_mutation.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_blind_conflict_mutation.sql"
         COPYONLY)
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/composition_presence_order_mutation.sql"
-        "${CMAKE_CURRENT_BINARY_DIR}/postgres/composition_presence_order_mutation.sql"
-        COPYONLY)
+    foreach(composition_mutation_sql
+        composition_presence_order_mutation.sql
+        composition_presence_blind_mutation.sql
+        composition_presence_per_row_mutation.sql
+        composition_presence_partial_mutation.sql
+        composition_presence_semantic_drift_mutation.sql
+        composition_replay_receipt_mutation.sql)
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/${composition_mutation_sql}"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/${composition_mutation_sql}"
+            COPYONLY)
+    endforeach()
     foreach(perfcache_sql
         perfcache_epoch_contract.sql
         perfcache_cold_lookup.sql
@@ -1899,9 +1907,26 @@ if(LAPLACE_POSTGRES_ENABLED)
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
+        Laplace::Composition
         Laplace::Isa
         Laplace::Persistence)
     target_compile_options(laplace_postgres_native_receipt_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+    find_library(LAPLACE_POSTGRES_CLIENT_LIBRARY NAMES pq REQUIRED)
+    add_executable(laplace_postgres_composition_measurement_client
+        postgres/composition_measurement_client.cpp)
+    target_include_directories(
+        laplace_postgres_composition_measurement_client SYSTEM PRIVATE
+        "${LAPLACE_POSTGRES_INCLUDE_CLIENT}")
+    target_include_directories(
+        laplace_postgres_composition_measurement_client PRIVATE
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(
+        laplace_postgres_composition_measurement_client PRIVATE
+        "${LAPLACE_POSTGRES_CLIENT_LIBRARY}")
+    target_compile_options(
+        laplace_postgres_composition_measurement_client PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 
     add_executable(laplace_postgres_perfcache_manifest_probe
@@ -1943,6 +1968,40 @@ if(LAPLACE_POSTGRES_ENABLED)
             "${laplace_sanitizer_preload}")
     set_tests_properties(postgres.composition-working-set-contract PROPERTIES
         LABELS "implementation;postgresql;composition;presence;persistence;receipt"
+        RUN_SERIAL TRUE)
+
+    set(composition_measurement_receipt
+        "${CMAKE_BINARY_DIR}/receipts/composition-whole-boundary.json")
+    add_test(
+        NAME postgres.composition-whole-boundary-measurement
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "LAPLACE_COMPOSITION_MEASUREMENT_SAMPLES=5"
+            "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            composition-measurement
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_composition_measurement_client>"
+            "${composition_measurement_receipt}"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.composition-whole-boundary-measurement PROPERTIES
+        LABELS "implementation;postgresql;composition;presence;persistence;receipt;performance"
+        FIXTURES_SETUP composition-whole-boundary-receipt
+        RUN_SERIAL TRUE
+        TIMEOUT 900)
+    add_test(
+        NAME postgres.composition-whole-boundary-receipt-contract
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/composition_performance_receipt_tests.py"
+            "${composition_measurement_receipt}")
+    set_tests_properties(
+        postgres.composition-whole-boundary-receipt-contract PROPERTIES
+        LABELS "contract;postgresql;composition;receipt;performance;mutation"
+        FIXTURES_REQUIRED composition-whole-boundary-receipt
         RUN_SERIAL TRUE)
 
     add_test(
@@ -2002,25 +2061,60 @@ if(LAPLACE_POSTGRES_ENABLED)
         LABELS "postgresql;spi;persistence;identity;mutation"
         RUN_SERIAL TRUE)
 
-    add_test(
-        NAME postgres.mutation-composition-presence-order-detected
-        COMMAND "${CMAKE_COMMAND}"
-            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
-            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
-            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
-            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
-            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
-            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
-            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
-            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
-            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_composition_presence_order_mutant>"
-            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/composition_presence_order_mutation.sql"
-            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_composition_presence_mutation_failure.cmake")
-    set_tests_properties(
-        postgres.mutation-composition-presence-order-detected PROPERTIES
-        LABELS "postgresql;composition;presence;persistence;mutation"
-        RUN_SERIAL TRUE)
+    function(laplace_add_postgresql_composition_mutation
+        test_name mutant_target sql_file expected_pattern)
+        add_test(
+            NAME ${test_name}
+            COMMAND "${CMAKE_COMMAND}"
+                "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+                "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+                "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+                "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+                "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+                "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+                "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+                "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+                "-DMUTANT_MODULE=$<TARGET_FILE:${mutant_target}>"
+                "-DMUTANT_NAME=${test_name}"
+                "-DEXPECTED_PATTERN=${expected_pattern}"
+                "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/${sql_file}"
+                "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_mutation_failure.cmake")
+        set_tests_properties(${test_name} PROPERTIES
+            LABELS "postgresql;composition;presence;persistence;receipt;mutation"
+            RUN_SERIAL TRUE)
+    endfunction()
+
+    laplace_add_postgresql_composition_mutation(
+        postgres.mutation-composition-presence-order-detected
+        laplace_pg_composition_presence_order_mutant
+        composition_presence_order_mutation.sql
+        "Laplace presence provider result order or value is invalid")
+    laplace_add_postgresql_composition_mutation(
+        postgres.mutation-composition-presence-blind-detected
+        laplace_pg_composition_presence_blind_mutant
+        composition_presence_blind_mutation.sql
+        "blind composition-presence mutant published without observing canonical state")
+    laplace_add_postgresql_composition_mutation(
+        postgres.mutation-composition-presence-per-row-detected
+        laplace_pg_composition_presence_per_row_mutant
+        composition_presence_per_row_mutation.sql
+        "status=14")
+    laplace_add_postgresql_composition_mutation(
+        postgres.mutation-composition-presence-partial-detected
+        laplace_pg_composition_presence_partial_mutant
+        composition_presence_partial_mutation.sql
+        "Laplace presence provider returned a partial set")
+    laplace_add_postgresql_composition_mutation(
+        postgres.mutation-composition-presence-semantic-drift-detected
+        laplace_pg_composition_presence_semantic_drift_mutant
+        composition_presence_semantic_drift_mutation.sql
+        "semantic-drift composition-presence mutant accepted a changed radius")
+    laplace_add_postgresql_composition_mutation(
+        postgres.mutation-composition-replay-receipt-collision-detected
+        laplace_pg_composition_replay_receipt_mutant
+        composition_replay_receipt_mutation.sql
+        "composition replay-receipt mutant accepted colliding durable fields")
 
     add_test(
         NAME postgres.mutation-perfcache-expected-epoch-detected

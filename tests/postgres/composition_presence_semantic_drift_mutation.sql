@@ -13,9 +13,15 @@ AS :'persistence_mutant_module', 'laplace_pg_composition_deposit_batch'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 DO $mutation$
+DECLARE
+    result laplace.composition_deposit_result;
 BEGIN
+    result := pg_temp.composition_fixture_deposit();
+    UPDATE laplace.physicality
+    SET radius = radius + 0.25::double precision
+    WHERE physicality_id = result.result_physicality_ids[1];
     PERFORM pg_temp.composition_fixture_deposit();
     RAISE EXCEPTION
-        'reordered composition-presence mutant escaped ordinal validation';
+        'semantic-drift composition-presence mutant accepted a changed radius';
 END
 $mutation$;

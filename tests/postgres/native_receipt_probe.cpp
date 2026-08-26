@@ -1,8 +1,10 @@
+#include "laplace/composition.h"
 #include "laplace/isa.h"
 #include "laplace/persistence.h"
 #include "laplace/trajectory.h"
 #include "../context_fixture.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -76,6 +78,50 @@ void Fill(laplace_digest256* digest, std::uint8_t seed) {
     for (std::size_t index = 0; index < sizeof(digest->bytes); ++index) {
         digest->bytes[index] = static_cast<std::uint8_t>(seed + index);
     }
+}
+
+void Repeat(laplace_digest256* digest, std::uint8_t value) {
+    std::fill(std::begin(digest->bytes), std::end(digest->bytes), value);
+}
+
+laplace_composition_status ResolveNovelCompositionPresence(
+    void*,
+    const laplace_composition_entity_candidate* entity_candidates,
+    std::size_t entity_candidate_count,
+    const laplace_persistence_physicality_record*,
+    std::size_t physicality_candidate_count,
+    std::uint8_t* entity_dispositions,
+    std::uint8_t* physicality_dispositions,
+    laplace_composition_presence_provider_result* result) {
+    if (entity_candidates == nullptr || entity_candidate_count == 0U ||
+        entity_dispositions == nullptr || result == nullptr ||
+        (physicality_candidate_count != 0U &&
+         physicality_dispositions == nullptr)) {
+        return LAPLACE_COMPOSITION_PRESENCE_INVALID;
+    }
+    std::array<bool, LAPLACE_COMPOSITION_TIER_MAXIMUM + 1U> tiers{};
+    std::uint64_t tier_count = 0U;
+    for (std::size_t index = 0U; index < entity_candidate_count; ++index) {
+        entity_dispositions[index] = LAPLACE_COMPOSITION_NOVEL;
+        const auto tier = entity_candidates[index].tier_floor;
+        if (!tiers[tier]) {
+            tiers[tier] = true;
+            ++tier_count;
+        }
+    }
+    if (physicality_candidate_count != 0U) {
+        std::fill(
+            physicality_dispositions,
+            physicality_dispositions + physicality_candidate_count,
+            static_cast<std::uint8_t>(LAPLACE_COMPOSITION_NOVEL));
+    }
+    Repeat(&result->provider_fingerprint, 0x51U);
+    Repeat(&result->provider_receipt_id, 0x71U);
+    result->returned_entity_count = entity_candidate_count;
+    result->returned_physicality_count = physicality_candidate_count;
+    result->entity_round_count = tier_count;
+    result->physicality_round_count = physicality_candidate_count == 0U ? 0U : 1U;
+    return LAPLACE_COMPOSITION_OK;
 }
 
 std::uint64_t Metadata(std::uint8_t tier, std::uint32_t atom) {
@@ -510,5 +556,119 @@ int main() {
     PrintDigest("PERSISTENCE_BULK_PHYSICALITY", bulk_physicality.physicality_id);
     PrintDigest("PERSISTENCE_BULK_OCCURRENCE", bulk_occurrence.occurrence_id);
     PrintHex("PERSISTENCE_BULK_STREAM", bulk_stream);
+
+    auto composition_context = laplace_test_context(0U);
+    composition_context.flags = 0U;
+    composition_context.resource_grant.memory_bytes = UINT64_C(67108864);
+    std::array<laplace_composition_known_entity, 2> composition_known{};
+    composition_known[0].entity_id = entity_a;
+    composition_known[0].identity_witness = witness_a;
+    Repeat(&composition_known[0].physicality_id, 0xe1U);
+    composition_known[0].centroid.component[0] = 1.0;
+    composition_known[1].entity_id = entity_b;
+    composition_known[1].identity_witness = witness_b;
+    Repeat(&composition_known[1].physicality_id, 0xe2U);
+    composition_known[1].centroid.component[1] = 1.0;
+    const std::array<laplace_composition_operand, 2> composition_operands{{
+        {0U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U},
+        {1U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U}}};
+    laplace_composition_request composition_request{};
+    composition_request.first_operand = 0U;
+    composition_request.operand_count = composition_operands.size();
+    composition_request.source_ordinal = 1U;
+    composition_request.recipe_version = 1U;
+    Repeat(&composition_request.recipe_fingerprint, 0xb1U);
+    Repeat(&composition_request.geometry_epoch, 0xc1U);
+    Repeat(&composition_request.occurrence_context_fingerprint, 0xd1U);
+    laplace_digest256 composition_source{};
+    laplace_digest256 composition_recipe{};
+    Repeat(&composition_source, 0x91U);
+    Repeat(&composition_recipe, 0xa1U);
+    const laplace_composition_working_set_input composition_input{
+        &composition_context,
+        &composition_source,
+        &composition_recipe,
+        composition_known.data(),
+        composition_known.size(),
+        composition_operands.data(),
+        composition_operands.size(),
+        &composition_request,
+        1U,
+        256U,
+        0U};
+    laplace_composition_working_set* composition_working_set = nullptr;
+    if (laplace_composition_working_set_create(
+            &composition_input, &composition_working_set) !=
+            LAPLACE_COMPOSITION_OK ||
+        composition_working_set == nullptr) {
+        return 25;
+    }
+    laplace_composition_presence_provider_v1 composition_provider{};
+    composition_provider.resolve = ResolveNovelCompositionPresence;
+    composition_provider.abi_major =
+        LAPLACE_COMPOSITION_PRESENCE_PROVIDER_ABI;
+    composition_provider.abi_minor = LAPLACE_COMPOSITION_ABI_MINOR;
+    laplace_composition_presence_receipt composition_presence{};
+    if (laplace_composition_working_set_resolve_presence(
+            composition_working_set, &composition_provider,
+            &composition_presence) != LAPLACE_COMPOSITION_OK) {
+        laplace_composition_working_set_destroy(&composition_working_set);
+        return 26;
+    }
+    laplace_composition_working_set_summary composition_summary{};
+    if (laplace_composition_working_set_summary_get(
+            composition_working_set, &composition_summary) !=
+            LAPLACE_COMPOSITION_OK) {
+        laplace_composition_working_set_destroy(&composition_working_set);
+        return 27;
+    }
+    std::size_t composition_result_count = 0U;
+    const auto* composition_results = laplace_composition_working_set_results(
+        composition_working_set, &composition_result_count);
+    std::size_t entity_disposition_count = 0U;
+    const auto* entity_dispositions =
+        laplace_composition_working_set_entity_dispositions(
+            composition_working_set, &entity_disposition_count);
+    std::size_t physicality_disposition_count = 0U;
+    const auto* physicality_dispositions =
+        laplace_composition_working_set_physicality_dispositions(
+            composition_working_set, &physicality_disposition_count);
+    if (composition_results == nullptr || composition_result_count != 1U ||
+        entity_dispositions == nullptr || entity_disposition_count == 0U ||
+        physicality_dispositions == nullptr ||
+        physicality_disposition_count == 0U) {
+        laplace_composition_working_set_destroy(&composition_working_set);
+        return 28;
+    }
+    const std::vector<std::uint8_t> entity_disposition_bytes(
+        entity_dispositions,
+        entity_dispositions + entity_disposition_count);
+    const std::vector<std::uint8_t> physicality_disposition_bytes(
+        physicality_dispositions,
+        physicality_dispositions + physicality_disposition_count);
+    const std::array<std::uint8_t, 1> composition_tier{{
+        static_cast<std::uint8_t>(composition_results[0].tier_floor)}};
+    PrintHex("COMPOSITION_RESULT_ENTITY", composition_results[0].entity_id.bytes);
+    PrintDigest(
+        "COMPOSITION_RESULT_PHYSICALITY",
+        composition_results[0].physicality_id);
+    PrintHex("COMPOSITION_RESULT_TIER", composition_tier);
+    PrintDigest("COMPOSITION_WORKING_SET_RECEIPT", composition_summary.receipt_id);
+    PrintDigest(
+        "COMPOSITION_PRESENCE_SEMANTIC_RECEIPT",
+        composition_presence.semantic_receipt_id);
+    PrintDigest(
+        "COMPOSITION_PRESENCE_EXECUTION_RECEIPT",
+        composition_presence.execution_receipt_id);
+    PrintDigest(
+        "COMPOSITION_PRESENCE_CANDIDATE_FINGERPRINT",
+        composition_presence.candidate_fingerprint);
+    PrintDigest(
+        "COMPOSITION_PRESENCE_DISPOSITION_FINGERPRINT",
+        composition_presence.disposition_fingerprint);
+    PrintDigest("COMPOSITION_STREAM_FINGERPRINT", composition_summary.stream_fingerprint);
+    PrintHex("COMPOSITION_ENTITY_DISPOSITIONS", entity_disposition_bytes);
+    PrintHex("COMPOSITION_PHYSICALITY_DISPOSITIONS", physicality_disposition_bytes);
+    laplace_composition_working_set_destroy(&composition_working_set);
     return 0;
 }
