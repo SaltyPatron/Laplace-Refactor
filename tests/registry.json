@@ -1434,9 +1434,15 @@
     },
     {
       "ctest_name": "requirements.traceability-contract",
-      "evidence_targets": ["LP-TEST-REQUIREMENTS-TRACEABILITY", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "evidence_targets": ["LP-TEST-REQUIREMENTS-TRACEABILITY"],
       "covered_dimensions": ["product requirement joins", "direct requirement uniqueness", "evidence target validity", "feature target validity", "acyclic operation stages", "complete product-to-operation mapping"],
       "defect_controls": ["unknown product join", "unjoined product requirement", "unknown registry evidence", "unknown feature evidence", "unmapped operation requirement", "unknown operation dependency", "operation dependency cycle", "operation stage without program tracking", "tracked issue without operational owner"]
+    },
+    {
+      "ctest_name": "program.invention-authority",
+      "evidence_targets": ["LP-TEST-CONTINUATION-AUTHORITY"],
+      "covered_dimensions": ["direct evidence and whole invention authority load before projected instructions and observed state", "universal AST Merkle DAG grammar recipe generic lifecycle source purpose machine layers firmware self-authored synthesis cognitive traffic finite execution processor-grade exception entity-world materialization federation placement and node support laws remain declared without claiming their implementation", "typed connection and answerability preserve relation admissibility search coverage upper-bound and why-not distinctions", "machine exceptions preserve hardware provider resource program authority epistemic and semantic distinctions plus durable recovery law", "model export rejects flattened semantic sources and unqualified faithful claims", "implementation integration product activation source-profile world admission configured foundational seed and release declarations remain separate", "exact interrupted generic composition boundary remains declared observed state; machine-local physical verification requires explicit authority"],
+      "defect_controls": ["observed state loaded before invention", "AGENTS projection promoted to direct inventor authority", "product thesis reduced to ETL", "opaque record replaces typed AST", "recipe system collapses to importer", "string replacement impersonates recomposition", "person becomes profile blob", "node gets private semantic engine", "hardware fault collapses to unknown", "source-family waterfall", "grammar estate reduced to code corpus", "evidence waits for complete world seed", "integration proof promoted to product activation", "one source promoted to foundational seed", "old iteration becomes authority"]
     },
     {
       "ctest_name": "dependencies.intent-contract",

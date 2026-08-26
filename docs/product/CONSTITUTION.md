@@ -15,6 +15,57 @@ Laplace is not a language model wrapper, retrieval layer, vector database, knowl
 graph product, model converter, or text generator. Those descriptions each remove
 essential parts of the invention.
 
+Laplace admits any exact digital content into one persistent typed abstract-syntax
+substrate, makes unlike sources and modalities compete under the same explicit
+evidence laws, and exposes the resulting calculating machine through SQL like a
+conventional AI model. It does not require a gradient-training campaign to make
+admitted sources interoperable and does not require a GPU to execute its semantic
+engine. Conventional models are optional witnessed inputs and compilation targets,
+not the location of Laplace's intelligence.
+
+Source admission is therefore not the product purpose. It supplies inspectable world
+state, grammar, realization evidence, constraints, predictions, contradictions, and
+counterexamples to the persistent machine. Laplace uses that state to calculate
+query-relative operators and searches, adjudicate testimony, select semantic acts,
+realize any supported modality, observe consequences, and extend its calculus through
+falsifiable evidence.
+
+Laplace is a computer. Its architecture comprises typed machine state, an instruction
+set, addressing and composition laws, recipes, a calculus, firmware, privilege and
+effect boundaries, persistent artifacts, and receipts. The architecture reference
+manual documents that executable machine; it is not an application overview wrapped
+around a collection of importers.
+
+Knowledge and governance of knowledge are different layers. Exact content, the AST
+Merkle DAG, physicality, occurrences, testimony, provenance, dependence, competing
+claims, historical calculations, and observed outcomes remain addressable knowledge.
+Recipes, calculus versions, active evidence epochs, goals, authority, Personality
+Firmware, and effect permission govern what may be calculated, selected, published,
+or executed over that knowledge. Governance cannot overwrite an observation, turn
+standing into testimony, turn permission into truth, or change content identity.
+
+Personality Firmware is versioned executable cognition policy over the shared machine,
+not a tone prompt and not another knowledge universe. Different firmware may allocate
+attention, demand different evidence, explore or inhibit different valid trajectories,
+and request different realizations over the same pinned knowledge. It cannot acquire
+authority, change truth, or bypass an effect envelope by changing personality.
+
+The machine has processor-grade exception semantics. Hardware, storage, network,
+provider, consistency, and durability faults are not epistemic unknowns. Invalid
+instructions and implementation defects are not semantic contradictions. Authority
+denial and finite resource exhaustion are not absence of evidence. Every exception,
+trap, interrupt, fault, cancellation, and terminal disposition has one generated
+priority, precision, restart, retry, reroute, replay, compensation, durability, and
+publication law. A failed or indeterminate effect cannot become a plausible result.
+
+Laplace capability is a whole-route property. A component lookup, renderer, parser,
+database population, model artifact, API route, or historical demonstration proves
+only its exact boundary. A capability exists only when its complete public program
+traverses the common generated registry, immutable context, recipe compiler, typed
+ISA, vector batch, presence, deposition, receipt, and exception lifecycle. Unrelated
+programs prove that lifecycle together; no feature may preserve private semantic,
+persistence, transaction, or error machinery behind a generic-looking surface.
+
 ## 2. Universality
 
 The substrate treats text, image, audio, video, code, games, model state, and future
@@ -28,6 +79,48 @@ create isolated intelligences or private execution systems.
 Cross-language, cross-modal, and cross-model relations are ordinary substrate
 relations. A result may enter through one modality and materialize through another
 without changing execution law.
+
+Application concepts and deployment topology are not exceptions to universality.
+People, organizations, external accounts, memberships, achievements, projects,
+repositories, activities, interfaces, nodes, and provider locations enter the machine
+according to their actual roles as exact content, referential state, AST structure,
+occurrences, testimony, governance, recipes, effects, and receipts. None may introduce
+a social, billing, résumé, user-profile, federation, or platform-specific semantic
+engine.
+
+A person is not a SaaS account row. Exact names and identifiers, candidate person
+referents, authenticated account mappings, authored structures, activity, testimony,
+relationships, and visibility policy remain distinct. A profile, feed, résumé,
+portfolio, or personal web is a query-relative authorized materialization over that
+world. Web, mobile, API, document, and future surfaces are realization modalities of
+the same pinned selection program. Presentation or disclosure policy cannot enter
+person identity, rewrite private or historical state, or turn an external provider
+into identity authority.
+
+External billing, sponsorship, repository, employment, school, service, certification,
+and achievement systems testify. Versioned governance recipes calculate what an
+authenticated time-scoped assertion currently permits or displays. An entitlement can
+expire while the historical assertion remains; a self-assertion remains a
+self-assertion; neither changes identity or creates truth by policy.
+
+Laplace nodes are one machine across physical forms. CPU architecture, operating
+system, memory, storage, network placement, and acceleration alter only accepted
+physical plans, capacity, and measured performance. They cannot alter identity,
+instruction meaning, evidence law, logical result, or receipt meaning. A target such
+as ARM or Raspberry Pi is unsupported until its exact ABI, package, semantic,
+durability, and complete-product tests pass; it does not receive a reduced private
+edition of Laplace.
+
+Execution, PostgreSQL, canonical storage, archive storage, source access, perfcaches,
+and federation peers may be physically disaggregated behind typed providers. Remote
+PostgreSQL means its server-owned semantic operations execute remotely. Storage that
+backs PostgreSQL must prove the database's locking, atomicity, `fsync`, and crash
+durability requirements. Physical placement never becomes a semantic branch.
+
+Federation exchanges authenticated content-addressed structures and receipts under
+explicit private, shared, and public authority. Discovery, relay, synchronization,
+availability, backup, billing, and hosted service providers are conveniences and
+witnesses. They do not own a person's identity, truth, firmware, or semantic machine.
 
 ## 3. Content identity
 
@@ -49,6 +142,20 @@ floor. Numeric `255` is the content trajectory `2 -> 5 -> 5` whether it is a cha
 value, address segment, byte maximum, sample, model value, or instruction operand.
 The surrounding composition and testimony establish its role.
 
+Append-only numerical highways provide typed coordinates for languages, scripts,
+external reference authorities, relations, modalities, representation kinds, recipes,
+trust classes, and operations. An external identifier remains authority- and
+release-scoped testimony; it never replaces content identity. A witnessed language
+realization can rise to shared content, reference, and relation coordinates and lower
+through another witnessed language realization without using English or any surface
+string as the intermediate identity. Language flags select witnessed realization;
+they do not select a different engine.
+
+Every highway identifier, alias, type, introduction version, and retirement state is
+generated into native, PostgreSQL, SQL, C#, documentation, and perfcache mirrors from
+one authority. Renumbering, reuse, mirror disagreement, unversioned aliases, and
+zero-versus-absence collisions fail before activation.
+
 Canonicalization is versioned, deterministic, and loss-aware. A transformation that
 changes content creates new content and a witnessed relation; it does not overwrite or
 rename the original content.
@@ -65,6 +172,21 @@ Identity collisions are tested across every ingestion and materialization route.
 All content can compose into ordered and unordered structures without creating a new
 modality-specific hierarchy. Composition is recursively addressable and has no fixed
 maximum depth.
+
+Every digital structure has a typed abstract syntax tree representation. Its canonical
+persistent form is the content-addressed Merkle DAG: equal subtrees share identity,
+while roles, fields, ordinals, multiplicity, occurrences, source spans, interpretations,
+and testimony remain typed paths and witnessed state around them. An opaque record,
+row, triple, token sequence, embedding, or serialized payload cannot replace that tree
+unless an exact receipt reconstructs every distinction required by its consumers.
+
+Grammars and recipes operate in both directions. Registered grammar providers recover
+exact concrete syntax, including errors, ambiguities, fields, spans, and scanner
+outputs. Versioned recipes lower that syntax to the universal typed tree and recompose
+typed trees or semantic acts into exact content. Exact inverse recipes reproduce the
+original bytes. Intentional transformations create new content and retain a receipted
+tree edit and relation to the original; they never masquerade as identity-preserving
+round trips.
 
 Structural tier is a floor. Content proven at a lower tier may participate at a higher
 tier. Content proven at a higher tier cannot be coerced into a lower tier. Tiers are not
@@ -238,6 +360,13 @@ boundaries, searched for counterexamples, charged complexity, compared by predic
 outcomes, versioned, and explicitly activated. Self-generated candidates and
 descendants never become independent corroboration of themselves.
 
+An artifact produced by a machine-synthesized recipe is a self-authored structure in
+the technical provenance sense only when the receipt proves that the active recipe was
+not explicitly supplied, names its generation boundary, distinguishes reused from new
+subtrees, and records counterexamples and later outcomes. Novel output alone proves
+neither useful generalization nor independent agency, consciousness, subjective
+experience, or personhood.
+
 Observe, orient, decide, act, and observed outcome are typed ISA stages. An effect
 outcome re-enters as exact content, physicality, occurrence, testimony, and a receipt;
 it is not reduced to an anonymous error scalar. The complete cycle remains replayable
@@ -254,6 +383,14 @@ Every emitted constituent must have a receipt that traces it to content, evidenc
 relations, trust, physical structure, and executed instructions. When support is not
 present, the result is an explicit unknown or unsupported outcome. A fluent shape is
 never evidence of correctness.
+
+Ingested model behavior is experiment-scoped testimony. Model, architecture, release,
+layer, head or expert, route, context, operation, candidate, activation, contribution,
+downstream effect, experiment, and intervention remain in its coordinate. Formal
+nonzero softmax or gating support is not proof of material causal support. Any
+effective-support filter, top-k acceleration, or pruning law is versioned, measured,
+loss-aware, tested on withheld behavior, and receipted; it cannot become truth,
+relevance, semantic authority, or universal structure.
 
 ## 9. Executable instruction set
 
@@ -290,6 +427,14 @@ boundaries. Complete ingest cannot be reported until every derived state require
 its contract is reconciled and visible. Derived work cannot serialize scalable ingest
 through one mutable hot row per proposition.
 
+Laplace persists justified sparse state rather than manufacturing an all-pairs numeric
+surface. Absent, unobserved, unknown, contradicted, and present relations are distinct
+machine states; a zero or tiny nonzero value cannot replace them. Every index and
+perfcache earns publication through measured representative workload benefit, exact
+build/write/WAL/storage/bloat cost, rebuild law, and removal condition. Acceleration
+may change physical work and timing but cannot change canonical semantics, evidence,
+completion, or receipt meaning.
+
 ## 10.1 Modular acceleration planes
 
 Perfcaches are immutable typed calculation and acceleration planes derived from
@@ -324,9 +469,9 @@ database-to-artifact bit parity succeed; interrupted bootstraps retain the prior
 epoch.
 
 Corpus, domain, composition, transition, and operator planes are generated only after
-their complete canonical ETL source boundary is durable. They are built and verified
-in bulk and atomically activated at the end of that boundary; row-by-row cache
-maintenance cannot sit on the ingest hot path. Once active, these planes can answer
+their declared canonical calculation or source-admission boundary is durable. They are
+built and verified in bulk and atomically activated at the end of that boundary;
+row-by-row cache maintenance cannot sit on the admission hot path. Once active, these planes can answer
 exact composition, reconstruction, rendering preparation, presence, and CRUD-routing
 questions without a database crossing whenever their typed contract fully covers the
 operation.
@@ -355,6 +500,13 @@ artifacts.
 Text does not receive a privileged semantic path. Performance is measured for all
 modalities at engine and complete-product boundaries. Decoding and encoding costs are
 reported rather than hidden.
+
+Product surfaces obey the same symmetry. A profile, résumé, evidence view, personal
+web, query result, achievement display, or entitlement display is a versioned
+materialization recipe over authorized state, not a bespoke canonical record. The
+receipt binds the subject referential epoch, selected evidence, governance and
+visibility policy, recipe, audience authority, result modality, and every withheld or
+unknown disposition.
 
 ## 13. Performance
 

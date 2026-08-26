@@ -49,6 +49,16 @@ Feature: Incompleteness-driven discovery and OODA feedback
     And they contribute no new independent root merely because Laplace generated them
     And separate observed outcomes remain distinguishable from those predictions
 
+  @LP-TEST-GODEL-SELF-AUTHORED-STRUCTURE @LP-TEST-GODEL-NOVELTY-NONAGENCY
+  Scenario: A synthesized recipe makes self-authorship an auditable provenance fact
+    Given no active or supplied recipe can produce a required typed structure
+    And a constrained vacancy predicts a candidate recipe and result contract
+    When Laplace synthesizes the candidate tests disjoint evidence and counterexamples receives activation and produces the structure
+    Then the receipt distinguishes supplied recipes from the synthesized recipe
+    And it names reused subtrees novel subtrees generation fitting evaluation activation and observed outcome boundaries
+    And usefulness requires the declared held-out and task-completion evidence
+    But novelty alone establishes neither independent agency consciousness subjective experience nor personhood
+
   Scenario: A discovered counterexample preserves its epistemic layer
     Given a persistent contradiction or failed prediction implicates one proposition
     When the Godel engine generates and executes a counterexample experiment

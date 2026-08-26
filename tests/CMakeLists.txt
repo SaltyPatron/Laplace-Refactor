@@ -2082,7 +2082,13 @@ if(UNIX)
         NAME requirements.traceability-contract
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/requirements_trace_tests.py")
     set_tests_properties(requirements.traceability-contract PROPERTIES
-        LABELS "implementation;requirements;evidence")
+        LABELS "contract;requirements;evidence")
+
+    add_test(
+        NAME program.invention-authority
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/program_authority_tests.py")
+    set_tests_properties(program.invention-authority PROPERTIES
+        LABELS "contract;requirements;program;authority;mutation")
 
     add_test(
         NAME dependencies.intent-contract

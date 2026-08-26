@@ -69,6 +69,12 @@ case "$source_format" in
             emit_record "$source_file" "$timestamp" "$message_id" "$session_id" "$branch" "$block_count" "$encoded_text"
         done < <(
             jq -r --arg source_session "$source_session" '
+                def generated_context_wrapper:
+                    (sub("[[:space:]]+$"; "")) as $trimmed
+                    | (($trimmed | startswith("<environment_context>"))
+                       and ($trimmed | endswith("</environment_context>")))
+                      or (($trimmed | startswith("<codex_internal_context"))
+                          and ($trimmed | endswith("</codex_internal_context>")));
                 select(
                     .type == "response_item"
                     and .payload.type == "message"
@@ -76,13 +82,19 @@ case "$source_format" in
                 )
                 | [.payload.content[] | select(.type == "input_text") | .text] as $blocks
                 | select(($blocks | length) > 0)
+                | ($blocks | join("\n")) as $text
+                # Codex serializes client-owned environment and goal-continuation
+                # envelopes as role=user messages. They can control a turn, but they
+                # are not inventor-authored evidence and may not manufacture product
+                # authority merely by occupying the user role in the event log.
+                | select(($text | generated_context_wrapper) | not)
                 | [
                     .timestamp,
                     .payload.id,
                     $source_session,
                     "-",
                     ($blocks | length),
-                    (($blocks | join("\n")) | @base64)
+                    ($text | @base64)
                 ]
                 | @tsv
             ' "$source_path"

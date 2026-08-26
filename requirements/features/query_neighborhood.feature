@@ -117,3 +117,39 @@ Feature: Program-scoped typed neighborhood calculation
     When search evaluates and returns a path
     Then the transitions remain distinct until the program's declared equivalence rule permits merging
     And target plus scalar cost alone cannot reconstruct or certify the selected path
+
+  @LP-TEST-CONNECTION-TYPED-METRIC @LP-TEST-CONNECTION-METRIC-DIVERGENCE
+  Scenario: Equal hop counts do not make unlike connections equivalent
+    Given one three-edge path uses a witnessed school organization and person chain
+    And another three-edge path uses product ownership acquisition and founder relations
+    When a query asks separately for social professional organizational technical and arbitrary graph connection
+    Then each query declares its admissible relation families direction time standing dependence costs and completion law
+    And the same endpoints may have different distances or an unknown result under those metrics
+    But raw hop count or one scalar adjacency graph cannot certify that the paths have equivalent meaning
+
+  @LP-TEST-CONNECTION-KNOWN-PATH-UPPER-BOUND @LP-TEST-CONNECTION-SEARCH-COVERAGE
+  Scenario: A known path is not proof of the shortest path
+    Given an admissible receipted path reaches the requested endpoint
+    And private inaccessible unadmitted or unresolved portions of the selected world may contain other paths
+    When search cannot close every state required by the declared boundary and optimum certificate
+    Then Laplace reports reachability and the known path cost as an upper bound
+    And shortest path remains explicitly unknown with the missing coverage and closure obligations
+    But a complete admissible search may report an optimum only with frontier exhaustion or its declared proof
+
+  @LP-TEST-CONNECTION-DEPENDENCE-NONAMPLIFICATION
+  Scenario: Copied paths and repeated claims do not create independent clustering
+    Given many claims and paths descend from one assertion while fewer traces have independent causal roots
+    When answerability and connection standing are calculated
+    Then dependence collapses copied descendants to their eligible roots
+    And structural temporal cross-modal predictive and contradiction agreement remain separate components
+    And the receipt distinguishes evidence density coverage and causal independence
+    But source count alone cannot impersonate coherent independent support
+
+  @LP-TEST-FINITE-RESOURCE-BOUNDARY @LP-TEST-WHY-NOT-TYPED-DISPOSITION @LP-TEST-PARTIAL-NONCOMPLETION @LP-TEST-BOUND-CHANGE-EXPLANATION
+  Scenario: Why not returns the exact limiting machine state
+    Given a query cannot close because of finite evidence authority time memory I O database or search resources
+    When the user asks why the requested outcome was not produced
+    Then Laplace distinguishes unsupported denied exhausted contradicted no-admissible-path incomplete-boundary partial upper-bound and unknown dispositions
+    And the receipt names the executed program explored states work counters open obligations and exact limiting boundary
+    And it states which new evidence authority resource recipe instruction or calculus extension could permit continuation
+    But partial work fluent output and best-found candidates cannot impersonate completion

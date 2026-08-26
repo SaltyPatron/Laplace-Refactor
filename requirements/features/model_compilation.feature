@@ -39,6 +39,22 @@ Feature: Laplace compiles witnessed substrate relations into neural target artif
     And every head receipt names the exact evidence, recipe, factorization, and output values
     But shuffling one relation family causes that head's mechanism test to fail
 
+  @LP-TEST-MODEL-FLATTENING-REJECTION
+  Scenario: A flattened representation cannot become the source of target intelligence
+    Given precedence containment syntax semantic-role causality context provenance trust direction and time require distinct typed operators
+    When one exporter replaces them with a universal adjacency matrix embedding similarity or scalar neighborhood
+    Then at least one independently solved relation operator and withheld behavioral fixture must disagree
+    And the exporter cannot recover the erased relation law evidence boundary direction or context from target shape
+    But successful fitting on a small academic fixture cannot certify the missing target operations
+
+  @LP-TEST-MODEL-ACCEPTANCE-INVARIANT-NAMED
+  Scenario: Faithful is not an acceptance class
+    Given an exported artifact has expected tensor shapes metadata and loadability
+    When the exporter claims that the result is faithful
+    Then the claim is rejected until it names exact preserved bytes layouts numeric bounds induced operators relation families evidence boundaries quantization error and runtime behaviors as applicable
+    And each named invariant has an independent oracle withheld fixture and deliberate defect
+    But resemblance correlation nonempty output or one successful runtime load cannot substitute for semantic and behavioral preservation
+
   Scenario: Gauge-equivalent factors compare through their induced operator
     Given query and key factors whose induced bilinear form is known
     And an invertible basis transform with its compensating inverse transform
@@ -68,6 +84,23 @@ Feature: Laplace compiles witnessed substrate relations into neural target artif
     Then every observation retains its model, architecture role, source, and value provenance
     And cross-model agreement and disagreement can be queried without selecting either model as authority
     And target construction can exclude either source model without changing substrate identity
+
+  @LP-TEST-MODEL-BEHAVIOR-COORDINATE
+  Scenario: Model behavior is admitted as a typed experiment rather than a floating probability
+    Given a declared model architecture release layer head expert route context operation and candidate
+    When the engine observes activation contribution downstream effect and a causal intervention under experiment E
+    Then every observation retains the complete behavior coordinate and source-model provenance
+    And behavior observed in another context or route remains a different witnessed occurrence
+    But a token-pair probability without context operation experiment and effect cannot become a universal semantic relation
+
+  @LP-TEST-MODEL-EFFECTIVE-SUPPORT @LP-TEST-MODEL-ARBITRARY-THRESHOLD-REJECTION
+  Scenario: Measured effective support remains distinct from formal nonzero support
+    Given a softmax or gated operator whose finite candidates all have formally nonzero support
+    And withheld probes with causal ablation cumulative-mass contribution-norm and downstream-behavior measurements
+    When a versioned effective-support recipe retains or prunes candidate contributions
+    Then the receipt records the threshold law calibration boundary retained set discarded tail measured loss and behavioral equivalence bounds
+    And top-k may accelerate candidate selection without becoming truth relevance or semantic authority
+    But changing an arbitrary cutoff so a causally material candidate disappears must fail the withheld behavioral oracle
 
   Scenario: A complete target tensor set is emitted
     When the target compiler selects substrate state and constructs every declared tensor

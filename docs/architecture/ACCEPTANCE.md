@@ -19,6 +19,26 @@ Mutation fixtures erase relation type, direction, arity, evidence lineage, rank,
 context one at a time and must fail before the generated representation is accepted.
 A target-shaped value and a loadable artifact are not behavioral proof.
 
+## Whole-route cohesion
+
+- At least three materially unrelated complete programs—including structural
+  search/recomposition, multilingual conversation, and a legal game-state transition—
+  traverse one generated registry, immutable context, recipe compiler, typed ISA,
+  canonical vector batch, set-wise presence, transactional deposition, receipt, and
+  exception lifecycle.
+- A working component, large durable row count, screenshot, route inventory, lookup,
+  rendering, artifact load, or historical demonstration proves only its named
+  boundary. It cannot promote a failed or absent complete public operation.
+- Native, PostgreSQL, SQL, managed, HTTP, MCP, and other admitted routes return the
+  same logical result or precise typed why-not disposition with equivalent receipt
+  meaning.
+- A deliberate mutation routes one fixture through a private dispatcher, attestation
+  staging path, persistence protocol, transaction boundary, or opaque internal-error
+  translation. Whole-route admission must fail for that exact reason.
+- Historical old-iteration behavior is a counterexample only. A current failure of a
+  capability known to have worked historically establishes regression or state drift,
+  not its root cause; the clean test independently constructs and detects the defect.
+
 ## Identity
 
 - Identical canonical content entering through different sources, languages, models,
@@ -129,8 +149,9 @@ A target-shaped value and a loadable artifact are not behavioral proof.
 - Dense planes prove direct-address behavior. Sparse and variable-result planes prove
   their declared ordered or module-specific complexity. Replacing either with one
   universal sequential scan or generic binary-search layout fails the access-law contract.
-- A corpus-derived perfcache cannot publish during canonical loading. It builds from a
-  closed durable ETL boundary, passes semantic parity and integrity verification, and
+- A source-derived perfcache cannot publish during canonical deposition. It builds
+  from a closed durable calculation or world-admission boundary, passes semantic
+  parity and integrity verification, and
   activates atomically while readers retain the preceding coherent epoch.
 
 ## Language and model independence
@@ -251,6 +272,14 @@ A target-shaped value and a loadable artifact are not behavioral proof.
 - A combinatorial fixture proves that derivable co-occurrence and pairwise statistics
   grow under a declared materialization bound rather than all possible pairs being
   persisted.
+- A sparse-state fixture proves that absent, unobserved, unknown, contradicted, and
+  present relations remain distinct and that no dense zero or tiny-nonzero noise floor
+  is manufactured for all possible pairs.
+- A storage census attributes exact bytes to canonical structure, retained testimony,
+  retained results, active working state, rebuildable derived state, indexes,
+  perfcaches, TOAST, WAL, temporary work, free/dead space, and bloat under an explicit
+  accounting boundary. Database size, row count, and index count alone prove nothing
+  about efficiency.
 - Batch count, not row count, bounds native calls, SPI plans, transactions, mutable
   contention points, and derived-state publication operations.
 
@@ -295,8 +324,13 @@ Hardware acceptance uses the Intel i7-6850K system and its declared storage layo
 - Representative SQL programs include `EXPLAIN (ANALYZE, BUFFERS, WAL)` evidence.
 - Tests prove required indexes are selected at representative cardinality and degree.
 - Every published index names its workload, representative cardinality and degree,
-  expected plan, scan threshold, write cost, storage cost, and removal condition. An
-  unused index or an index whose plan contract fails cannot pass package acceptance.
+  expected plan, scan threshold, build time, write and WAL cost, storage and bloat
+  cost, read CPU/I/O/latency benefit, avoided scan or recomputation work, rebuild law,
+  observation window, and removal condition. An unused, redundant, dominated, or
+  plan-contract-failing index cannot pass package acceptance.
+- Paired representative workloads execute with and without every published index or
+  perfcache. Logical results, evidence, completion, and receipt meaning remain exact;
+  the measured performance delta establishes what the extra bytes purchased.
 - Native server plans are prepared, parameterized, schema-qualified, and reused under
   their declared lifetime.
 - Query results remain exact when planner choices and batch sizes change.
@@ -340,6 +374,17 @@ Hardware acceptance uses the Intel i7-6850K system and its declared storage layo
 - Ingested query, key, value, output, embedding, normalization, feed-forward, gating,
   routing, positional, and architecture-specific values remain attributable model
   testimony rather than becoming substrate authority.
+- Every behavioral observation retains model, architecture, release, layer, head or
+  expert, route, context, operation, candidate, activation, contribution, downstream
+  effect, experiment, intervention, and source provenance. A context-free token pair
+  cannot become a universal semantic edge.
+- Formal nonzero softmax or gating support remains distinct from measured material
+  support. Effective-support filtering declares its causal or behavioral law,
+  calibration boundary, retained set, discarded tail, loss, withheld probes, and
+  behavior bounds.
+- Changing an arbitrary cutoff so a causally material contribution disappears fails
+  the withheld behavioral oracle. Top-k may accelerate candidate generation but cannot
+  establish truth, relevance, semantics, or completion.
 - Typed relation kernels calculate pairwise targets from declared substrate evidence;
   fitting and factorization reproduce those targets within declared numeric bounds on
   both training and withheld observations.
@@ -464,6 +509,142 @@ Hardware acceptance uses the Intel i7-6850K system and its declared storage layo
 - Semantic act selection precedes modality realization. Japanese, Spanish, image,
   audio, code, and model realizers consume the same typed semantic plan without an
   English token sequence as a universal intermediate.
+
+## Whole-machine hypothesis gates
+
+The architecture is coherent; its intended generality and quality remain engineering
+hypotheses until the complete implementation proves them. Authority documents,
+Gherkins, a surprising output, one successful source, or one synthesized recipe do not
+cross these gates.
+
+- Universal AST acceptance uses unrelated text, image, audio, video, code, model,
+  interaction, and future-modality fixtures. Each proves exact structure, role,
+  occurrence, testimony, loss, reconstruction, and consumer-required distinctions.
+  A type-erased universal node bag or one opaque payload fails even if every modality
+  can technically be stored.
+- Recipe and ISA expressiveness acceptance executes complete admission, cognition,
+  structural transformation, realization, effect, model, and calculus-extension
+  programs without an opaque callback, hidden learned semantic engine, or
+  modality-specific dispatcher supplying the missing behavior.
+- Frayed-edge and Gödel acceptance separates meaningful constrained vacancy from empty
+  results and combinatorial noise using withheld structures, irrelevant high-novelty
+  distractors, counterexamples, complexity charges, observed consequences, and false
+  positive/negative measurements.
+- Evidence acceptance measures dependence-aware calibration, contradiction handling,
+  as-of replay, withheld outcomes, copied-evidence nonamplification, and useful decision
+  consequences. Row counts, source reputation, or a plausible consensus shape do not
+  prove a useful world model.
+- Natural-language and multimodal realization acceptance measures exact semantic-act
+  completion, reference, pragmatics, structural fidelity, human-independent task
+  outcomes, correction, unsupported cases, and declared quality against appropriate
+  baselines. Fluency or one hand-selected transformation is insufficient.
+- CPU/PostgreSQL performance acceptance measures the complete installed cognitive
+  path at representative world-state scale, including grammar, recipes, AST work,
+  persistence, evidence, search, realization, receipts, I/O, WAL, memory, and database
+  calls. Component nanoseconds and small fixtures cannot establish it.
+- The no-gradient-training claim means training is not required to make admitted state
+  interoperable or queryable. It does not mean zero human engineering. Receipts report
+  source-specific grammar, profile, recipe, conformance, correction, and intervention
+  effort. If each new source requires a private semantic engine or content-proportional
+  hand coding instead of reusable declarations and kernels, the genericity claim fails.
+- Self-authored synthesis acceptance proves that no supplied active recipe could make
+  the artifact, records the machine-generated recipe and candidate ancestry,
+  distinguishes inherited and novel subtrees, tests disjoint evidence and
+  counterexamples, and observes later success or failure. This establishes auditable
+  autonomous synthesis within the machine rules, not consciousness, subjective
+  experience, moral personhood, or independent agency.
+
+## Typed connection, finite execution, and why-not proof
+
+- Social, professional, organizational, technical, causal, semantic, ownership, and
+  arbitrary reachability fixtures use paths with equal raw hop counts but deliberately
+  different admissible relation families. Each query must return its independently
+  solved distance or unknown disposition; one scalar adjacency or hop count must fail.
+- A discovered path establishes reachability and a known upper bound. Shortest or
+  optimal claims require the declared world boundary, transition registry, heuristic,
+  reopen law, frontier state, and completion certificate. Hidden, private, inaccessible,
+  unadmitted, or unresolved regions force an explicit coverage deficit.
+- Copied claims and paths collapse to their eligible dependence roots. Evidence volume
+  cannot impersonate independent structural, temporal, cross-modal, predictive, and
+  contradiction agreement; sparse evidence cannot be declared false merely because it
+  does not cluster densely.
+- Every program executes under finite evidence, authority, time, CPU, memory, I/O,
+  database, and search resources. Why-not acceptance distinguishes unsupported, denied,
+  exhausted, contradicted, no-admissible-path, incomplete-boundary, partial,
+  known-upper-bound, and unknown results, and names the exact continuation condition.
+
+## Machine exception and recovery proof
+
+- Inject invalid instruction and operand, implementation defect, authority denial,
+  cancellation, resource exhaustion, provider unavailability, PostgreSQL process
+  loss, hardware/storage/network failure, failed `fsync`, corrupt artifact or page,
+  consistency/durability fault, contradiction, and incomplete evidence boundary.
+- Require the exact generated condition identity, priority, precision, affected
+  instruction, physical provider, durable boundary, invalidated output, recovery law,
+  and why-not receipt across native, PostgreSQL, SQL, C#, service, and diagnostic
+  routes.
+- Prove restartable failures reroute or replay only from an accepted durable receipt
+  and produce the same logical result as uninterrupted execution. Prove terminal or
+  indeterminate failures never publish semantic success.
+- Deliberately collapse hardware fault into unknown, provider unavailable into
+  resource exhaustion, contradiction into implementation error, or a failed effect
+  into success; each mutant must fail.
+
+## Entity worlds, entitlements, and product materialization
+
+- One person fixture contains exact names, competing referents, external accounts,
+  authored artifacts, activity, relationships, memberships, achievements, professional
+  evidence, preferences, and visibility rules. No provider ID, profile blob, or account
+  row may substitute for referential resolution and universal state.
+- A pinned audience-authorized recipe materializes profile, feed, résumé, portfolio,
+  and personal-web results through web, mobile, API, and document modalities with the
+  same semantic selection, withholding, unknown, and evidence dispositions.
+- Résumé claims expand to permitted person, employer, project, repository, commit, PR,
+  review, issue, build, release, artifact, and deployment witnesses. Forged, squashed,
+  shared, pair-programmed, AI-assisted, private, and missing Git history remain typed;
+  neither Git nor an employer becomes exclusive historical authority.
+- External membership and achievement assertions retain provider, authority, time,
+  dependence, and visibility. Governance may change current entitlement or display
+  while person identity and historical testimony remain. Self-assertion cannot
+  impersonate independent authority.
+
+## Node, placement, and federation acceptance
+
+- Supported server, desktop, and future ARM or Raspberry Pi nodes execute the same
+  pinned programs with identical logical identities, evidence dispositions, results,
+  and receipt meanings. Only accepted physical plans, capacity, placement, acceleration,
+  and measured performance may differ. ARM and Raspberry Pi remain unsupported until
+  exact ABI, package, crash-recovery, semantic-parity, and representative product tests
+  pass.
+- Colocated and distributed execution fixtures vary native execution, PostgreSQL,
+  canonical storage, archive storage, perfcaches, source APIs, and federation peers.
+  Logical results remain equal; receipts report every execution, storage, network,
+  cache, consistency, and durability boundary. Remote PostgreSQL is identified as the
+  server-side execution location.
+- PostgreSQL backing providers pass locking, atomicity, `fsync`, torn-write, crash, and
+  recovery controls before activation. A consumer network share with insufficient
+  semantics must fail even when ordinary reads and writes appear successful.
+- Federation tests exchange authorized private, shared, and public projections between
+  independently controlled nodes. Authentication, content and recipe identity,
+  provenance, authority, visibility, withholding, replay convergence, and history
+  close; discovery, relay, backup, billing, or hosted availability cannot become
+  identity, truth, firmware, or semantic authority.
+
+## Model export nonflattening and named invariants
+
+- Target construction preserves distinct typed relation families, direction, time,
+  context, provenance, trust, dependence, and evidence boundaries through their
+  declared operators. Replacing them with one adjacency matrix, embedding, similarity,
+  or scalar neighborhood must fail an independently solved operator and withheld
+  behavior fixture.
+- Every preservation claim names exact bytes, layouts, numeric bounds, induced
+  operators, relation families, evidence boundaries, quantization error, and runtime
+  behavior as applicable. The unqualified word `faithful`, expected shape, loadability,
+  correlation, resemblance, or one academic fixture is rejected as proof.
+- The preserved June GGUF trace is accepted only as historical evidence for one direct
+  attestation-derived operator and its noisy or cyclic negative control. A clean
+  exporter must reproduce the declared baseline independently and cannot promote it
+  into general target intelligence, conversation, or model correctness.
 
 ## Installation and product lifecycle
 

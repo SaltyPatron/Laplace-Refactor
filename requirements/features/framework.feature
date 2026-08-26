@@ -56,3 +56,22 @@ Feature: One authority governs resources and complete operational traceability
     When trace validation runs
     Then every product requirement maps to one or more acyclic operational stages
     And every implementation disposition names existing evidence
+
+@LP-TEST-CROSS-DOMAIN-LIFECYCLE-COHESION @LP-TEST-STRUCTURE-CONVERSATION-GAME-ROUTE @LP-TEST-COMPONENT-SUCCESS-NONPRODUCT
+Feature: Unrelated product programs prove one cohesive machine
+
+  Scenario: Structure conversation and a game transition share the complete lifecycle
+    Given independently authored programs for structural container search and recomposition, multilingual conversation, and one legal game-state transition
+    When each program executes through its public product route
+    Then each traverses the same generated registry immutable context recipe compiler typed ISA canonical vector batch presence deposit receipt and exception lifecycle
+    And each route returns its typed semantic result or typed why-not disposition with route-parity receipts
+    But replacing any one route with a component-private attestation staging persistence dispatcher or error path fails whole-route admission
+
+  Scenario: Impressive component results cannot certify the product
+    Given a fixture with millions of addressable entities, exact Unicode reconstruction, and successful structural containment queries
+    And conversation returns no semantic act while a legal game transition fails through a private persistence route
+    When product capability is assessed
+    Then the structural component evidence remains valid historical evidence
+    And conversation and game capability remain unimplemented or failed
+    And aggregate counts screenshots API breadth and isolated demonstrations cannot promote either missing whole operation
+    But the clean machine must independently complete all three programs through the shared lifecycle before cohesion is accepted

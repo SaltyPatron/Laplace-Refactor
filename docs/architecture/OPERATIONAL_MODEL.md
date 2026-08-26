@@ -11,17 +11,25 @@ Laplace preserves one universal canonical state and calculates the representatio
 operator, search, artifact, or realization required by the current program.
 
 ```text
-admit exact sources and recipes
-  -> calculate canonical values and physicalities
-  -> deposit immutable canonical and witnessed state
+resolve an exact grammar and typed recipe
+  -> decompose digital content into a concrete syntax tree
+  -> lower to the universal typed AST and calculate its Merkle DAG
+  -> deposit immutable canonical and witnessed world state
   -> publish complete derived epochs and acceleration planes
   -> compile a typed goal and completion contract
   -> calculate/query/search over exact and derived state
   -> select a complete semantic act
-  -> realize or execute the act
+  -> transform and recompose the act into a modality or execute its effect
   -> observe the consequence
   -> deposit learning or propose a falsifiable calculus extension
 ```
+
+This is a cycle, not a corpus waterfall. The same machinery admits a source artifact,
+executes a query, records a conversation, realizes content, observes a tool result,
+decomposes a model, or incorporates a new calculus recipe. Source bytes are inputs to
+the machine; filling tables is not its purpose. The purpose is a persistent
+SQL-addressable intelligence that calculates across exact heterogeneous world state
+without requiring training or a GPU.
 
 The fast cognition, evidence-learning, and Goedel discovery loops share this state but
 have different mutation authority. Fast cognition cannot rewrite testimony or the
@@ -52,19 +60,31 @@ Every product module executes through the same framework:
 3. complete-program validation, authority checks, resource estimation, and effect
    admission before output or durable mutation;
 4. a canonical vector/set/run batch representation;
-5. a decomposer/calculation pipeline that emits typed batches once;
+5. a grammar/recipe compiler and decomposer/calculation pipeline that emits typed AST
+   and canonical batches once;
 6. replaceable bulk sinks for canonical persistence, perfcache construction,
    observation/testimony deposition, derived-state construction, and result streams;
 7. conserved topology-aware resource grants applied to native kernels, TBB, MKL,
    PostgreSQL, managed orchestration, and launched tools;
 8. deterministic merge, cancellation, replay, progress, and receipt behavior;
-9. generated C ABI, PostgreSQL, SQL, and C# bindings over the same operations; and
-10. diagnostics that identify every loaded object, source, recipe, epoch, plan,
+9. one generated exception, trap, interrupt, fault, recovery, and why-not registry
+   distinguishing program, implementation, physical, provider, authority, resource,
+   epistemic, and semantic machine conditions;
+10. generated C ABI, PostgreSQL, SQL, and C# bindings over the same operations; and
+11. diagnostics that identify every loaded object, source, recipe, epoch, plan,
     artifact, database boundary, and result.
 
-Modules supply typed codecs, validators, kernels, persistence schemas, perfcache access
-laws, and semantic parity checks. They do not create another dispatcher, batching
-loop, scheduler, receipt system, lifecycle, identity law, or persistence engine.
+Modules supply typed grammar providers, codecs, validators, kernels, persistence
+schemas, perfcache access laws, recomposition laws, and semantic parity checks. They do
+not create another dispatcher, batching loop, scheduler, receipt system, lifecycle,
+identity law, AST law, recipe compiler, or persistence engine.
+
+Cohesion is proven across complete programs, not inferred from common-looking
+components. Structural search and recomposition, multilingual conversation, a game
+transition, a model operation, and an authorized effect are materially unrelated
+fixtures that must traverse this same lifecycle. A mutation that diverts one through a
+private staging, persistence, transaction, or error route must fail whole-route
+admission even when every lower component still returns plausible output.
 
 ## 3. Self-hosting Unicode root
 
@@ -155,13 +175,15 @@ Physicality is an immutable calculated realization under a recipe and epoch:
 These exact structural relations are calculations, not attestations and not rows for
 every possible pair.
 
-## 5. Runtime ingestion and persistence
+## 5. Runtime world admission and persistence
 
-After the root epoch is active, every source follows one set-oriented path:
+After the root epoch is active, every source admission uses one set-oriented execution
+spine while its typed grammar and recipes determine the exact work:
 
 ```text
 exact source bytes and source receipt
-  -> edge codec produces typed observations and exact structural units
+  -> grammar or codec produces exact concrete syntax and structural units
+  -> typed recipes lower them into the universal AST and witness every disposition
   -> Tier-0 leaves resolve from the active atom plane without PostgreSQL crossings
   -> parents compose leaf-to-trunk in memory
   -> equal identities deduplicate across the whole working set
@@ -212,6 +234,14 @@ activation lifecycle.
 Indexes generate bounded candidates for declared workloads. B-tree, GIN, GiST, BRIN,
 4D Hilbert, geometry, trajectory, and perfcache access paths never define truth,
 meaning, relevance, or completion. Exact typed decoding verifies candidates.
+
+The machine spends storage on addressability only when paired representative evidence
+shows the purchase. Every published acceleration retains its selected plans, build and
+write/WAL cost, allocated/live/dead/bloated bytes under a declared accounting law,
+read CPU/I/O/latency benefit, scan or recomputation avoided, rebuild law, and removal
+condition. The same logical program executed without it must return the same semantic
+result and receipt meaning. Sparse absence and unknown state are never expanded into a
+dense zero or tiny-nonzero all-pairs plane for convenience.
 
 ## 7. Evidence, truth state, and referential identity
 
@@ -282,13 +312,59 @@ containers, architecture, layers, heads/experts, tensors, cells, bytes, and reci
 calculates induced behavior and gauge-invariant operators; and deposits attributable
 observations without making the model authoritative.
 
+Behavior is an experiment-scoped witness. Model, architecture, release, layer, head
+or expert, route, context, operation, candidate, activation, contribution, downstream
+effect, experiment, and intervention remain in the behavior coordinate. Formal
+nonzero softmax support cannot be promoted into material support. Any effective-support
+filter or top-k acceleration declares its measured causal/behavioral law, loss,
+discarded tail, withheld probes, and receipt.
+
 In the other direction, declared substrate calculations can generate AImaps,
 embeddings, indexes, Q/K/V/O and FFN tensors, rerankers, model vocabularies, GGUF, and
 other target artifacts. Every projection declares lost distinctions. Requested shape,
 rank cycling, padding, successful loading, or fluent output cannot substitute for
 calculated behavior and independent target-runtime verification.
 
-## 11. Whole-product completion rule
+The compiler cannot recover a typed relation law after an upstream representation has
+flattened relation family, direction, time, context, provenance, trust, dependence, or
+evidence boundary into one adjacency matrix, embedding, similarity, or scalar score.
+Every export claim names the exact invariant it preserves and its independent oracle.
+The unqualified word `faithful`, expected shape, successful load, correlation, or one
+academic fixture is not an acceptance class.
+
+## 11. Entity worlds are product materializations, not another application engine
+
+People, organizations, accounts, memberships, achievements, projects, repositories,
+activities, and product views use universal content, referential, AST, occurrence,
+testimony, governance, recipe, effect, and receipt state according to role. A person is
+not a SaaS account row and an external provider identifier is not person identity.
+
+The engine compiles a profile, feed, résumé, portfolio, or personal web as an
+audience-authorized query over pinned referential and evidence epochs. It preserves
+private, shared, public, withheld, contradicted, and unknown dispositions, then realizes
+the same semantic result as web, mobile, API, document, or another modality. External
+billing, sponsorship, repository, employment, school, service, certification, and
+achievement systems testify; versioned governance recipes calculate current capability
+or display without rewriting identity or history.
+
+## 12. Nodes, placement, and federation preserve one machine
+
+Every supported node executes one ISA and returns the same logical identities,
+evidence dispositions, results, and receipt meanings. CPU, operating system, form
+factor, resource capacity, storage, network, and acceleration choose a validated
+physical plan. ARM and Raspberry Pi remain unsupported targets until exact ABI,
+package, durability, semantic, and representative product acceptance passes.
+
+Execution, PostgreSQL, canonical storage, archives, sources, perfcaches, and peers can
+be distributed behind explicit providers. Remote PostgreSQL is the execution location
+for server-owned instructions. PostgreSQL backing storage proves locking, atomicity,
+`fsync`, crash, and recovery behavior before activation. Authenticated federation
+exchanges only authorized content-addressed private, shared, or public projections and
+retains provenance, authority, history, withholding, and convergence receipts. Hosted
+discovery, relay, backup, billing, and availability never become identity or semantic
+authority.
+
+## 13. Whole-product completion rule
 
 Laplace is accepted only as the complete activated package. Component tests establish
 component facts. They do not establish product completion.
@@ -308,7 +384,7 @@ The machine-readable companion is `contracts/operation-model.json`. Requirement
 trace validation must fail when a product requirement is absent from that operational
 graph.
 
-## 12. Program tracking
+## 14. Program tracking
 
 The same machine-readable graph binds every stage to its work-program phase and live
 GitHub issue owners. Issue #23 is the forest-level parent. Closed issue #24 owns the
@@ -316,6 +392,13 @@ fixed-prefix content-bound physical-session audit and remains in the graph as it
 durable evidence owner. The verifier rejects a stage without a phase or
 issue, a tracked issue without an operational owner, an undeclared issue reference,
 an unknown stage dependency, a dependency cycle, or an unmapped product requirement.
+
+GitHub Project #2, `Laplace Refactor — Machine Roadmap`, is the clean-product execution
+view. It records phase, proof state, priority, work class, and operational stage. The
+historical Project #1 belongs to the old iteration and cannot define, narrow, or
+sequence this product. The human-readable projection in `docs/product/ROADMAP.md`
+must agree with the machine graph and must never promote issue coverage into mechanism
+completion.
 
 GitHub records execution status, discussion, PRs, and CI evidence. It does not replace
 the constitution or operational contract. An issue closure is valid only when its

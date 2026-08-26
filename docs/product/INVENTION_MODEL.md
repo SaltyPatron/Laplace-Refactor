@@ -12,6 +12,14 @@ and materialization. PostgreSQL supplies durable relational state, transactions,
 indexes, query planning, and server integration. SQL and C# both orchestrate the same
 native instruction set.
 
+Laplace is therefore a computer architecture, not a data-loading application. Its
+machine state includes exact and witnessed world state; its instructions calculate
+over that state; its recipes define executable transformations; its calculus defines
+admitted laws; its firmware selects cognition policy; and its authority envelope
+controls effects. The generated architecture manual must be sufficient to implement,
+inspect, test, and program the machine without treating explanatory prose as a second
+ISA.
+
 Text, images, audio, video, code, games, models, and future modalities are not separate
 intelligences. Edge codecs recover or emit a media representation. Inside the engine,
 every modality uses the same content identities, composition forms, physicality types,
@@ -20,11 +28,10 @@ relation machinery, evidence records, trust dimensions, instructions, and receip
 The parts form this closed execution loop:
 
 ```text
-source or interaction
-  -> recover exact content
-  -> canonicalize under a declared recipe
-  -> resolve content identity
-  -> compose recursively
+source interaction program or observed consequence
+  -> recover exact concrete structure through a grammar or codec
+  -> lower through a declared recipe to the typed universal AST
+  -> resolve content identity and persistent Merkle-DAG composition
   -> witness content and relations
   -> adjudicate competing testimony
   -> address a goal and active discourse state
@@ -64,6 +71,89 @@ system, state space, operator, path cost, and realization appropriate to a parti
 question can be generated and receipted. Relevance, importance, distance, and model
 coordinates are properties of that calculation, not timeless scalar attributes of an
 entity.
+
+### 1.2 Cognitive traffic is executable machine state
+
+Laplace models not only stored knowledge but the mechanical traffic of cognition over
+that knowledge. Goals and knowledge deficits schedule work; typed addresses select
+operands; relation laws admit transitions; indexes and perfcaches generate bounded
+frontiers; search orders candidate states; evidence constrains selection; firmware
+allocates attention; authority gates effects; and observed consequences return to
+persistent world state. Control flow, data flow, evidence flow, and effect flow are
+therefore explicit instruction programs rather than behavior hidden in weights or an
+application call graph.
+
+The machine analogy is literal. The Merkle DAG is recursively addressable persistent
+structure; generated numerical highways are typed address and routing fabric;
+grammars and codecs decode and encode concrete forms; recipes compile programs; the
+ISA defines legal state transitions; firmware governs admissible scheduling choices;
+PostgreSQL supplies transactional persistent state and indexed execution; perfcaches
+supply typed derived planes; and receipts are complete execution traces.
+
+Laplace is finite. Every program consumes a declared evidence, authority, time, CPU,
+memory, I/O, database, and search boundary. Indexed A-star or another declared search
+law prioritizes admissible problem-relative traffic so the machine need not examine
+the world indiscriminately. Completion, optimum, best found under a bound, known upper
+bound, partial, unsupported, denied, exhausted, contradicted, and unknown are distinct
+results.
+
+`Why not?` is consequently a machine operation rather than a generic refusal. Its
+receipt identifies the limiting state, work already performed, open obligations, and
+the evidence, authority, resource, recipe, instruction, or calculus extension that
+would permit continuation. Hidden approximation, an omitted search boundary, or
+fluent partial output cannot impersonate completion. Making cognitive traffic
+mechanical does not by itself establish subjective experience or consciousness.
+
+Finitude is only one part of the machine's non-completion law. A healthy machine that
+exhausted its declared search budget, an inaccessible provider, a physical component
+that violated its contract, an invalid program, a denied effect, unresolved evidence,
+and a semantic contradiction are different states. Laplace therefore has an
+exception model in the processor sense: precise traps, asynchronous interrupts,
+restartable and terminal faults, cancellation, priority, durable replay boundaries,
+and receipts binding the failed instruction to its logical program and physical
+provider. If an accepted replacement exists, the same logical program may reroute and
+replay from its last durable receipt. If it does not, the machine stops without
+inventing the missing value.
+
+### 1.3 Knowledge, calculus, firmware, and authority
+
+The knowledge substrate records what exists or has been observed, asserted, derived,
+predicted, contradicted, calculated, transformed, and caused. It includes exact content
+and AST structure, physicalities, occurrences, testimony, provenance, dependence,
+historical derived epochs, working-state commitments, and observed consequences.
+
+The calculus and governance layers operate over that knowledge. They define admitted
+recipes and relation laws, evidence calculations, active epochs, goals, firmware,
+effect permissions, and publication rules. They do not become content identity or
+testimony and do not erase the state they currently reject, hide, distrust, or decline
+to act upon. The same pinned knowledge can therefore be calculated under different
+calculus, firmware, goal, context, or authority versions with complete replay.
+
+### 1.4 Application and deployment concepts are machine modalities
+
+A person or organization is resolved through exact name and identifier content,
+occurrences, candidate referents, witnessed mappings, competing testimony, and
+immutable referential epochs. It is not a special account record. Authored artifacts,
+activity, relationships, external accounts, memberships, achievements, preferences,
+and visibility policy use the same universal structures and epistemic separation as
+every other subject.
+
+A profile, feed, page, résumé, portfolio, or personal web is a query-relative
+materialization recipe over an authorized region of that referential world. The same
+selection can realize as web, mobile, API, document, or another modality without a
+surface acquiring private semantics. Billing, sponsorship, repository, employment,
+school, service, certification, and achievement systems testify; governance calculates
+current entitlement or display state while identity and historical testimony remain.
+
+Nodes also obey one architecture. Hardware and operating-system differences select
+validated physical providers and resource plans, not another ISA or semantic engine.
+Execution, PostgreSQL, durable storage, archive storage, source access, perfcaches, and
+peers may be disaggregated, but every placement is explicit and receipted. A remote
+PostgreSQL server owns the server-side operations it executes, and its backing storage
+must prove PostgreSQL durability semantics. Content-addressed authenticated federation
+shares only authorized public or shared projections while keeping central discovery,
+relay, backup, billing, and hosting providers subordinate to user-controlled identity
+and world state.
 
 ## 2. Content identity
 
@@ -119,6 +209,13 @@ one exact contract so every route emits the same 16 bytes.
 Canonicalization establishes the byte or constituent representation used for content
 identity. It does not decide what the content means or whether a proposition is true.
 
+Canonicalization is one recipe kind, not the complete recipe system. Every recipe is a
+typed executable law compiled into the common ISA. Grammar decomposition and
+recomposition, identity, physicality, testimony, adjudication, search, operator
+calculation, semantic-act realization, effects, model decomposition, target
+compilation, derived planes, firmware, and accepted calculus extensions use the same
+versioning, validation, authority, execution, and receipt lifecycle.
+
 Each canonicalization recipe declares:
 
 - accepted input forms;
@@ -131,6 +228,22 @@ Each canonicalization recipe declares:
 
 Original source bytes, recovered canonical content, and any transformed content remain
 separately addressable. Their relations preserve how one became another.
+
+Every digital input can be represented as a concrete syntax tree and lowered to the
+universal typed AST. The latter is not a programming-language-only abstraction. It is
+the recursively composable form of documents, utterances, images, audio, video, code,
+model state, instructions, evidence, semantic acts, and future modalities. Registered
+Tree-sitter grammars, Laplace-native grammars, standards parsers, and media codecs are
+syntax providers. They expose exact nodes, fields, spans, errors, ambiguities, and
+scanner outputs; a recipe owns their lowering and cannot delegate semantic identity,
+evidence, or cognition to the provider.
+
+The direction is symmetric. A realization recipe can recompose a typed tree or
+semantic act into witnessed language or another modality. A transformation such as
+changing polarity, degree, register, referential form, or prosody is an AST-to-AST
+calculation followed by recomposition. It produces new exact content and a receipt for
+every changed and reused subtree. It is not next-token continuation or untracked string
+replacement.
 
 Exact composition and semantic equivalence are different. A precomposed Unicode
 character and a base character followed by a combining mark retain different ordered
@@ -176,7 +289,7 @@ bytes equal the public BLAKE3-128 content ID. Rank is the input to physical plac
 A new Unicode or DUCET release therefore creates a new geometry recipe and perfcache
 generation while content IDs remain unchanged for unchanged canonical content.
 
-Unicode bootstrapping is one calculated ETL operation, not two implementations that
+Unicode bootstrapping is one calculated root operation, not two implementations that
 happen to read the same release. The decomposer consumes a pinned standards manifest,
 calculates one canonical ordered atom-record stream, writes the Tier-0 bootstrap
 artifact, and bulk-deposits those exact records into PostgreSQL. The database bulk
@@ -329,6 +442,23 @@ the definition of cognition. An exact A-star result additionally proves its heur
 and reopen contracts; a bounded or non-admissible search reports that different
 completion semantics instead of claiming optimality.
 
+Connection is likewise not raw hop count. Social, professional, organizational,
+technical, causal, semantic, ownership, and arbitrary reachability queries admit
+different relation families, directions, times, authority, standing, dependence,
+costs, and terminal conditions. Equal hop counts across unlike relations do not imply
+equal connection. A discovered path proves reachability and supplies a known upper
+bound. It proves a shortest or best path only when the declared search boundary,
+frontier, heuristic, reopen, and completion obligations close. Private, inaccessible,
+unadmitted, or unresolved regions remain explicit coverage deficits.
+
+Evidence density and independent convergence are also distinct. A real event may
+leave coherent causal exhaust across unrelated systems and modalities, while copied
+claims may create many dependent paths from one root. Dependence analysis prevents
+volume from impersonating independent support; sparse or private evidence can leave a
+true claim unresolved. Answerability receipts therefore name coverage, eligible roots,
+agreement dimensions, contradictions, and the exact entitlement of the machine to
+state an answer.
+
 ## 6. Trajectories and realized curves
 
 A stored composition trajectory is a lossless ordered constituent manifest. Each
@@ -378,7 +508,8 @@ run-encoded trajectories therefore produce the same parent identity. Runs exceed
 single packed count are represented by consecutive run vertices without losing the
 logical ordinal or total count.
 
-The Merkle DAG stores each distinct content and composition once. Sparse deposition
+The Merkle DAG is the persistent universal AST, not merely a storage optimization. It
+stores each distinct content and composition once. Sparse deposition
 omits entity and physicality writes already proven present, while the parent trajectory,
 witness, attestation, source scope, and occurrence counts retain what was observed.
 Deduplication never erases occurrence or evidence.
@@ -494,6 +625,53 @@ reproducible state, retained inference result, active working state, or accelera
 artifact. A statistic or pairwise relation is materialized only when a declared query,
 inference, durability, or performance contract justifies its storage. Rebuildable state
 must reproduce canonical results exactly from its source boundary and recipe.
+
+### 8.4 Storage is paid addressability
+
+Laplace spends persistent bytes deliberately to avoid repeating broad computation.
+Canonical sparse state records the structures, occurrences, testimony, and calculated
+relations that exist under their declared evidence and recipe boundaries. Absence,
+unobserved state, epistemic unknown, contradiction, and a tiny nonzero value are not
+interchangeable. The machine does not manufacture a dense all-pairs surface merely so
+every possible pair has a numeric cell.
+
+Indexes and perfcaches are calculated physical machinery for reaching canonical state.
+They may consume more bytes than the canonical tables they accelerate. That is not
+automatically waste: an accepted structure has purchased a measured reduction in
+scanning, I/O, CPU, latency, recomputation, or database crossings for a declared
+workload. It is also not automatically justified. Every acceleration names its build,
+write, WAL, storage, memory and publication costs, representative plans and
+cardinalities, observed benefit, rebuild law, accounting boundary, and removal
+condition. Redundant, dominated, unused, abandoned, or bloated structures fail that
+contract. Removing an acceleration can make the same program slower, but cannot change
+its logical result, evidence, completion state, or receipt meaning.
+
+A read-only historical census demonstrates the scale of this trade without defining a
+clean-product target. At `2026-08-26T21:59:13Z`, the isolated old iteration's
+PostgreSQL 18.3 database reported `295,775,270,591` total bytes. Across 654 user
+relations, PostgreSQL attributed `109,191,495,680` bytes to tables including TOAST and
+`186,482,507,776` bytes to indexes: a current allocated index-to-table ratio of
+`1.7078482771:1`. Exact counts completed at `21:59:44Z` and reported 52,649,911
+entities, 25,083,094 physicalities, 177,570,489 attestations, and 141,390,181 consensus
+rows, or 396,693,675 rows across those four headline populations. The whole database
+therefore averaged about 745.6 bytes per headline row, although that quotient also
+includes catalogs and hundreds of other relations and does not describe an individual
+row layout.
+
+For an explicitly illustrative ordered-pair boundary, 52,649,911 entities imply
+2,772,013,128,307,921 possible ordered slots. Treating every current consensus row as
+if it were one unique ordered entity pair would occupy only about
+`0.0000051006%` of that surface. A dense surface would require about 346.5 TB decimal
+at one bit per slot or 11.09 PB decimal at one `float32` per slot. Consensus rows are
+not proven unique entity pairs, so this is not a measured graph-density claim. It is a
+scale illustration of why an all-pairs representation is the wrong default.
+
+The same boundary does **not** prove that a complete Laplace world fits in 300 GB, that
+the old index estate is efficient, that allocated bytes are live bytes, that old state
+is complete, or that one dense model checkpoint and one witnessed database carry the
+same information. It proves only the dated catalog values and populations recorded in
+`docs/audits/OLD_ITERATION_STORAGE_CENSUS_2026-08-26.md`. Clean-product acceptance must
+measure its own storage classes, bloat, benefit, and avoided work under issue #72.
 
 ## 9. Relation algebra
 
@@ -637,6 +815,21 @@ security experiments, scientific hypotheses, conversation, and reasoning procedu
 A successful reasoning procedure can be compiled into deterministic firmware only
 after replay, defect injection, comparison, and explicit activation.
 
+The creative threshold is not opaque novelty. Laplace may detect a constrained
+vacancy, synthesize a candidate tree, recipe, grammar rule, firmware routine, cognition
+program, operator, or calculus extension, test it against evidence it did not
+manufacture, and use an accepted version to produce new exact content. The resulting
+artifact receipts every inherited subtree, transformation, candidate ancestor,
+counterexample boundary, activation decision, and genuinely new structure. It can be
+self-authored without being self-corroborating.
+
+That ancestry supports an auditable technical distinction: whether an artifact was
+produced by an explicitly supplied recipe or by a recipe synthesized by the machine.
+It does not by itself establish consciousness, subjective experience, moral
+personhood, or independent agency. Surprise is not proof of creativity, and novelty is
+not proof of usefulness; held-out prediction, reconstruction, counterexample survival,
+observed consequences, and declared task completion supply the relevant evidence.
+
 Laplace treats incompleteness as a discovery signal rather than claiming to eliminate
 it. Three feedback rates remain distinct:
 
@@ -666,10 +859,20 @@ which trajectories receive computation, how evidence is valued, how aggressively
 are explored, how contradictions are sought, when uncertainty is sufficient, and how
 results are expressed.
 
+Personality is one class of firmware behavior. It governs computational choices such
+as precision versus exploration, evidence thresholds, ambiguity investigation,
+contradiction search, goal arbitration, semantic-act preference, and requested
+realization style. A surface instruction to adopt a persona cannot substitute for this
+typed program and its decision receipt.
+
 Firmware does not contain a separate universe and does not change truth. Two firmware
 artifacts can inspect the same substrate state and choose different trajectories for
 the same goal. Every decision rule, parameter, tie break, input epoch, and resulting
 trace is content-addressed and replayable.
+
+Firmware also cannot grant itself an instruction, resource, data, or effect authority.
+Read-only authority remains read-only even when firmware aggressively investigates or
+recommends an effect.
 
 Coding firmware implements a complete engineering procedure: inspect requirements and
 contracts, research exact APIs, analyze callers and data shapes, implement through the
@@ -725,6 +928,21 @@ The initial typed planes include:
 | state transition | typed `(state, operation)` composition | resulting state identity | declared transition corpus and state semantics |
 | model factor | typed model/source/factor address | versioned factor and projection records | model testimony and factor recipe |
 
+The relation and canonical-number planes participate in a broader append-only highway
+authority. Language, script, reference-authority, relation, modality, representation,
+recipe, trust, and operation identifiers are typed numerical coordinates, not private
+enums or content hashes. A language flag selects witnessed morphology, syntax,
+pragmatics, and realization around shared coordinates. This permits exact movement
+from a source-language occurrence to common content/reference/relation state and back
+to another witnessed language without an English label as the pivot.
+
+The highway becomes durable only after its generated native, PostgreSQL, SQL, C#,
+documentation, and perfcache mirrors agree and activate coherently. It is connective
+infrastructure for recipes, AST roles, grammar symbols, references, relations,
+languages, modalities, operators, testimony, realization, and effects across the
+whole machine. Source admission is one consumer of the highway, not its purpose or
+completeness boundary.
+
 All planes use one native mapping, validation, checksum, publication, registry, and
 diagnostics foundation. Each plane supplies its own typed key codec, record validator,
 lookup implementation, source recipe, and semantic parity verifier.
@@ -756,8 +974,9 @@ artifact identity, and switches the active epoch. A crash before commit leaves t
 prior epoch active and at most an unreferenced immutable artifact; a committed epoch
 cannot reference an artifact that was not already made durable.
 
-All planes derived from deposited content publish only after the canonical ETL load
-and required derived reconciliation have completed. They are generated set-wise at
+All planes derived from deposited content publish only after the declared canonical
+calculation or world-admission boundary and required derived reconciliation have
+completed. They are generated set-wise at
 that boundary, not mutated per row. Queries continue to use the prior coherent
 activation epoch until the new artifact set is complete.
 
@@ -816,6 +1035,33 @@ A model is a witness. Its tokens, tensors, layers, heads, experts, routes, value
 architecture roles, behavior, and source provenance enter universal content,
 composition, testimony, and calculated-result forms.
 
+A transformer feed-forward network admits a useful mechanical interpretation as a
+dense learned associative key/value memory. Each hidden unit behaves approximately as
+a learned detector or key, its nonlinear activation supplies a fuzzy match weight, and
+the corresponding output row contributes a learned value. This describes the induced
+computation; it does not claim that every neuron is one readable database row because
+superposition and distributed behavior remain witnessed facts.
+
+Laplace does not need to relearn an opaque associative approximation for a relation it
+already possesses exactly. A typed physicality or trajectory, relation/operator,
+bound operands, indexed match, and explicit witnessed continuation can implement the
+declared operation directly. Controlled sparse incidence vectors, bitmap or indexed
+joins, set-wise SQL, and sparse matrix products can point exactly when the coordinate
+law is exact. Geometry, ANN, top-k, and learned activations may propose frontier
+candidates; they do not replace the typed operation, its evidence, or completion law.
+
+The intended cost boundary is:
+
+```text
+pay once: identify → canonicalize → witness → persist → index
+pay per program: resolve goal → select typed operation → search relevant state → realize
+```
+
+This does not prove that every useful learned behavior has already been decomposed into
+typed persistent structure. Coverage across compositional syntax, context, causality,
+discourse, modality, and other distributed behaviors remains a whole-machine research
+and acceptance obligation.
+
 Exact content identity supplies correspondence where canonical content matches.
 Structural and behavioral calculations propose further correlations without erasing
 source-specific state. Different model architectures coexist without being forced into
@@ -845,6 +1091,19 @@ semantic owner. Agreement, disagreement, and unexplained behavior remain attribu
 evidence that Laplace can adjudicate with corpus, lexical, syntactic, semantic, visual,
 audio, code, game, and other testimony.
 
+Behavioral admission is experiment-scoped. A behavior coordinate includes model,
+architecture, release, layer, head or expert, route, context, operation, candidate,
+activation, contribution, downstream effect, experiment, and causal intervention.
+One tiny next-token probability cannot silently become a global relation.
+
+For finite logits, softmax gives every candidate formal nonzero support. Formal support
+does not prove material causal contribution. A versioned effective-support recipe may
+use ablation, cumulative mass, a calibrated null/background distribution, downstream
+contribution norm, or another declared measured law. Pruning records the retained set,
+discarded tail, calibration boundary, loss, withheld probes, downstream behavioral
+bounds, and counterexamples. An arbitrary `top-k` cutoff is acceleration, not semantic
+authority.
+
 Cross-model comparison is operator-based rather than raw-weight-based. For query and
 key factors, the induced bilinear form `M = WQ * WK^T`, its observed pairwise logits,
 and its behavior under declared inputs are the comparable evidence. If an invertible
@@ -868,6 +1127,16 @@ architecture metadata, numeric meaning, and quantization must match the declared
 runtime contract. If that target architecture uses operations absent from native
 Laplace conversation, those operations belong to the compiled target and do not alter
 Laplace's native execution rules.
+
+The old iteration supplied a constrained historical experiment, not clean-product
+implementation. In June it compiled 678 witnessed word entities into an identity
+embedding and attestation log-odds output operator, emitted a 127 MB GGUF in 0.1
+seconds, and loaded it in an external `llama.cpp` runtime. Prompts exposed visible
+relation signal such as `king → monarch/ruler/person` and `gold → metal/heavy`, while
+continued output became noisy and cyclic. That is evidence that one substrate-derived
+operator can drive ordinary tensor machinery and that one flattened relation space is
+insufficient for the remaining target operations. It is not evidence of a general
+model compiler, conversation, arbitrary behavior preservation, or clean-product state.
 
 ## 17. Proof standard
 

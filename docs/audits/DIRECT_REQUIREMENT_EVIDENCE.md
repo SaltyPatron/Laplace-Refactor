@@ -1,6 +1,6 @@
 # Direct requirement evidence
 
-Date: 2026-08-24
+Date: 2026-08-26
 
 ## Purpose
 
@@ -17,11 +17,21 @@ index entries, not replacements for the source messages.
 | Source | Human text records | Manifest | Manifest SHA-256 |
 | --- | ---: | --- | --- |
 | Current Codex session through 2026-08-25 05:24:39 UTC | 190 | `evidence/current-session-human-messages.jsonl` | `864c50823cb8c7d236fc2d9ec7d4651f40b0ef2df6cfd9cf49f11138fbd271a2` |
+| Resumed Codex continuation through 2026-08-26 21:58:30 UTC | 75 | `evidence/continuation-session-human-messages.jsonl` | `c07bbc578884a2276cb4d3b09d0ee3ca52024fad7d2760f281b8b2841ec6a69c` |
 | Preserved top-level Claude project sessions | 596 | `evidence/claude-parent-human-messages.jsonl` | `6b084bdc2e6e38b1821fc2879e7add28c52b8e649de4e6b3f77e0da27131d02b` |
 
 The indexer excludes tool-result blocks, worker notifications, local-command notices,
-and interruption markers. It does not treat assistant output as human-authored text.
-The extraction is reproducible with `tools/audit/index-human-messages.sh`.
+interruption markers, and client-generated environment or internal goal-continuation
+envelopes. Codex may serialize those envelopes with `role=user`, but transport role
+does not make them inventor-authored evidence. It does not treat assistant output as
+human-authored text. The extraction is reproducible with
+`tools/audit/index-human-messages.sh` and has a deliberate generated-context defect
+test.
+
+A user message can quote agent or reviewer prose. The manifest proves who supplied the
+message to the session, not authorship of every quoted block inside it. Quoted review
+syntheses are reconciliation leads until direct inventor evidence or an explicit
+inventor correction corroborates their technical content.
 
 ## Evidence precedence
 
@@ -149,6 +159,90 @@ Each locator is a `response_item` message ID in the current Codex session manife
 | 05:19:09 | `msg_01a0375b-a9bd-7822-aa4e-733dcfea89f6` | Preserve implementation progress in commits and PRs. |
 | 05:22:42 | `msg_01a0375e-e954-77b1-a991-fe85a740937d` | Audit the physical session for forgotten action items and verify that infrastructure/framework work remains in service of the holistic Laplace architecture. |
 | 05:24:39 | `msg_01a03760-b467-76d1-bc9c-82fe95b7851f` | Synchronize all action items into documented, prioritized, dependency-ordered GitHub issues with evidence locations and acceptance criteria. |
+
+## Resumed-continuation requirement map
+
+These locators are direct corrections in the resumed Codex continuation. Long quoted
+review blocks remain indexed but do not become direct inventor prose merely because
+they were supplied for review.
+
+| Time UTC | Message locator | Technical requirement established |
+| --- | --- | --- |
+| 17:50:57 | `msg_01a03f32-5299-7fd0-9abf-5c45d9cc221b` | Explain and continue the actual rebuild state; framework work exists to enable later persistence and content admission rather than becoming the product. |
+| 17:55:43 | `msg_01a03f36-b021-7740-9212-1083901f2aa8` | Chess/PGN is a downstream proof, not the next dependency; knowledge must be established first, and known seed roots must be durable startup knowledge rather than repeatedly rediscovered. |
+| 17:56:50 | `msg_01a03f37-b5f1-77a3-927e-f58a502af842` | The numerical connectivity highway is a prerequisite for the universal translator and is broader than a corpus importer. |
+| 17:58:12 | `msg_01a03f38-f571-7091-8a50-9679463295e6` | Typed numerical identifiers plus witnessed language routing must support rise to shared coordinates and descent through any selected language. |
+| 17:58:12 | `msg_01a03f38-f576-7fd2-8e96-f7603e4ebe8d` | Audits, Gherkins, and other durable artifacts must preserve the invention and expectations. |
+| 17:59:54 | `msg_01a03f3a-835a-7972-905c-de0845220f33` | Every heterogeneous multi-file source requires Unicode-level decomposition, admission, and proof diligence through a modality-neutral system that speaks Unicode and renders language; do not recreate old source-specific decomposers. |
+| 18:01:00 | `msg_01a03f3b-856d-7643-8953-8b0546b00905` | Completing WordNet or another named source cannot establish generic completion. |
+| 18:01:27 | `msg_01a03f3b-edc8-7080-b5fe-968eed0fcd98` | Unicode remains future product state until it is installed and activated, even though its implementation path is integration-proven. |
+| 18:03:38 | `msg_01a03f3d-eddc-7f72-9f46-6b873efda1ed` | Resume requires a heavy chronological audit of prior sessions for action items, insights, reasons, state, and superseding corrections. |
+| 18:24:28 | `msg_01a03f50-ff7e-7470-90f4-ca2b9d938329` | `/vault/Data` was already-known source authority context and should have governed work selection before a plausible corpus was chosen. |
+| 18:30:23 | `msg_01a03f56-6cf5-7951-80dc-6c5cfb2d3b0f` | Recover why Laplace exists, why the clean refactor exists, prior iterations, real product/runtime state, and current implementation state rather than reconstructing from branch shape. |
+| 18:31:49 | `msg_01a03f57-bcec-7200-a02a-06c4b8e72c55` | Reconcile and retain the prior reports, audits, inspections, and Gherkins rather than silently abandoning their findings. |
+| 18:43:52 | `msg_01a03f62-c564-77e1-a622-0a02a72fedd9` | Continuation state includes GitHub issues, PRs, commits, Actions, runners, deployments, and exact progress, with integration and product state kept separate. |
+| 19:02:40 | `msg_01a03f73-fa5d-7332-a402-c8efbc5d686a` | Source admission cannot be designed without first retaining why the sources exist and the actual nature of Laplace. |
+| 19:02:40 | `msg_01a03f73-fa64-7b00-a808-e3b800fcc7aa` | Recipes, generics, reusability, coding standards, and the complete architecture must govern implementation rather than one locally recognizable slice. |
+| 19:03:01 | `msg_01a03f74-4baf-70e1-89ff-1cfdb04b039d` | `/home/ahart/Projects/Laplace` is the old iteration and cannot be mistaken for the clean product repository. |
+| 19:03:40 | `msg_01a03f74-e5bc-7480-b842-1fd97dc3ef09` | Laplace must not be reduced to an ETL project; implementation guidance must begin from the world-changing complete invention. |
+| 19:11:37 | `msg_01a03f7c-2bb5-7c10-827f-ddb2d7441dbd` | The Merkle DAG is the universal persistent AST; the Tree-sitter estate and Laplace-authored grammars fuel structural recipes, and conventional paradigms cannot be allowed to redefine the invention. |
+| 19:12:25 | `msg_01a03f7c-e62b-7463-8dbd-c7fcc015b211` | Laplace admits arbitrary digital content onto one explicit playing field and exposes SQL-addressable AI-like execution without a training campaign or GPU requirement. |
+| 19:15:41 | `msg_01a03f7f-e5a1-78e3-8b66-27d66fa60f22` | Tree-sitter grammars fuel recipe-driven decomposition and recomposition. |
+| 19:15:41 | `msg_01a03f7f-e5a6-7160-90ed-36da4113c84b` | The exact transformation from `I don't feel so good Mr Stark` to `I feel fucking great, Tony!` is a concrete structural generation requirement, not a string-replacement example. |
+| 20:09:49 | `msg_01a03fb1-75ee-75c2-8bbc-7fca17869594` | Everything is a modality to Laplace: people, organizations, accounts, entitlements, achievements, professional histories, interfaces, nodes, storage, and federation must use the same substrate, testimony, governance, recipe, realization, and receipt laws rather than special application engines. The supplied review prose remains a reconciliation lead where it extends beyond this direct framing. |
+| 20:14:12 | `msg_01a03fb5-78ef-7c80-8ae0-fa91865df07e` | Typed connection, evidence clustering, and answerability examples establish that equal hop counts, known paths, evidence volume, independent convergence, world coverage, and shortest-path proof are different calculations. Volatile named-person and company facts in the supplied rhetoric are not product authority. |
+| 20:14:55 | `msg_01a03fb6-1f76-7741-afdd-cf7cb7885143` | Replacing nearest-neighbor approximation with indexed A-star is intentional because relevance, transition admissibility, distance, and completion are generated for the typed query rather than inherited from one flattened metric space. |
+| 20:16:30 | `msg_01a03fb7-9472-74f1-8846-22c58e73ed53` | Prior model export stalled because upstream flattening erased the typed relation structure needed for target compilation; the unqualified word `faithful` cannot substitute for a named independently tested preservation invariant. |
+| 20:16:54 | `msg_01a03fb7-f290-77f1-a217-d3a5706c3c0b` | Laplace mechanically maps the traffic patterns of cognition—control, data, evidence, scheduling, effect, and feedback flow—rather than merely storing representations of knowledge. |
+| 20:16:54 | `msg_01a03fb7-f294-75c3-80eb-a49c37ae5051` | The cognitive-traffic model is why instruction sets and machine code are literal architectural concepts rather than metaphors. |
+| 20:17:14 | `msg_01a03fb8-3faa-7282-82c1-8fc1fd831485` | Intelligence operates under finite evidence, time, compute, memory, I/O, and authority; the machine must plan within explicit resource boundaries. |
+| 20:17:14 | `msg_01a03fb8-3faf-7b13-b0a5-a4a0ef1fbdef` | `Why not, Laplace?` requires an exact machine explanation of the limiting evidence, authority, resource, operation, contradiction, or calculus boundary instead of magic or hidden approximation. |
+| 20:23:19 | `msg_01a03fbd-cf99-7b42-a453-239689ad6439` | Frontier systems' external search, retrieval, memory, tool, provenance, agent, and verification scaffolding is architectural comparison context: Laplace's bet is to make addressable world state and cognitive execution native machine structure. Quoted market-spending figures remain volatile rhetoric, not product law. |
+| 20:26:15 | `msg_01a03fc0-8030-7cb1-b340-7afb5d74a65c` | The supplied continuation review adds processor-grade machine exceptions to the reconciliation boundary: hardware/provider/resource/program/authority/semantic/epistemic conditions, restartability, reroute, durable replay, and publication behavior must remain distinct. The quoted prose is contextual evidence; its requirements are promoted only where the inventor's roadmap direction and prior finite-machine/provider laws corroborate them. |
+| 20:26:15 | `msg_01a03fc0-8036-7602-aefd-190fa91c0759` | Use GitHub issues, goals, epics, and other DevOps controls as needed to make the complete roadmap actionable. |
+| 20:26:15 | `msg_01a03fc0-803a-7430-9b7d-62a852fea85d` | GitHub access is explicitly authorized for the roadmap work. |
+| 20:26:35 | `msg_01a03fc0-cda5-7df0-8dea-06b0b95eb454` | Flesh out the roadmap rather than leaving the recovered invention as session narrative. |
+| 20:27:07 | `msg_01a03fc1-4d40-7681-82e1-464908b8f9c0` | Produce Patreon-ready development content as work proceeds. |
+| 20:33:05 | `msg_01a03fc6-c1e9-7702-87fc-0d664e5f5d6a` | Patreon communication must be fully transparent about technical ambition, proof, failure, AI assistance, financial need, and the direct exchange between supporter funding and development time. |
+| 20:35:14 | `msg_01a03fc8-ba24-7b52-a828-b4c624711b8e` | Future Patreon-linked product value may be described honestly, but undefined or unimplemented benefits cannot be sold as existing; external membership remains witnessed entitlement input governed by Laplace rather than hard-coded identity or authority. |
+| 20:56:40 | `msg_01a03fdc-59c5-79f1-a97d-70c831c36ee2` | Model files are decomposable witnessed digital artifacts and optional compilation targets. FFN fuzzy associative memory, formal softmax support, measured effective support, exact sparse typed relations, direct GGUF operator compilation, and the noisy June continuation establish distinct mechanism and proof boundaries; arbitrary top-k, target shape, and unqualified `faithful` cannot certify preserved behavior. Quoted explanatory prose is retained as supplied review evidence; the embedded June terminal trace is an inventor-supplied historical artifact. |
+| 20:59:09 | `msg_01a03fde-9fe2-7a81-8313-71bb8addfa05` | Patreon technical posts should sequence architecture, concrete historical success and failure, mechanism, and consequence while preserving exact proof-state limits. Quoted draft review remains a publication lead rather than independent product authority. |
+| 21:00:35 | `msg_01a03fdf-eef4-7661-83a6-2ce42df01e7d` | Preserve the historical Japanese trajectory receipt as evidence that generic ordered Unicode composition and rendering reconstructed `事件のことなんだけど...`; do not promote it into semantic understanding, translation, conversation, or clean-product implementation. |
+| 21:01:11 | `msg_01a03fe0-7bc8-7b21-b4c9-faf12ec6c5b5` | The deployed old database and product may be inspected read-only to discover stronger historical demonstrations while it remains non-authoritative. |
+| 21:01:41 | `msg_01a03fe0-ef4a-79a3-bc71-b5b16bcb30b0` | Locate preserved Playwright screenshots as dated historical product evidence rather than clean-product design authority. |
+| 21:04:08 | `msg_01a03fe3-2eee-74e1-bc4a-64e1ab6af1d1` | Prefer the deployed product's exposed API metadata when exploring historical public operations. |
+| 21:04:39 | `msg_01a03fe3-a67e-7ba0-98aa-40aa2a666bc9` | Determine whether the existing Laplace MCP is available before inventing another access route. |
+| 21:05:16 | `msg_01a03fe4-399c-79b1-ab45-47ec98c0d77d` | The old deployed application under `/opt/laplace` or its application subtree is historical runtime evidence, not the clean repository. |
+| 21:05:49 | `msg_01a03fe4-bacb-7f01-8787-fcf5aee1277d` | Do not reverse-engineer a known parent sentence identity when generic containment operations can discover compositions from constituents. |
+| 21:09:11 | `msg_01a03fe7-d092-73b3-b21a-3246121af0aa` | Use generic structural operations such as `containers_of` to discover sentences and other containers that contain selected codepoints, graphemes, words, or structures. |
+| 21:09:11 | `msg_01a03fe7-d096-7182-b039-4d80134ff2d8` | The old iteration's fragmented pieces, missing cohesion, missing reuse, and missing generic lifecycle are the reason the clean refactor proceeds with extreme granularity; historical behavior is evidence, not a design to reconstruct. |
+| 21:09:11 | `msg_01a03fe7-d09b-7e62-a799-5805cbd783e7` | Explore historical behavior for stronger demonstrations and defects, but do not reduce product scope to chess or another feature. This exploration authorization is superseded for the old runtime by the 21:21:17 isolation correction. |
+| 21:12:38 | `msg_01a03fea-f702-73c1-83cc-506ad6ea451c` | Progress must be evaluated against the cohesive reusable universal machine, not accumulated component counts or impressive isolated demonstrations. |
+| 21:16:56 | `msg_01a03fee-e624-7a80-ae0d-91f6949fe305` | An assistant-supplied English gloss must never be reported as Laplace output. The observed live Japanese result proves generic containment, ordered constituent recovery, and Japanese-to-Japanese rendering only. Supplied review prose remains contextual evidence. |
+| 21:18:22 | `msg_01a03ff0-38b8-7fd1-b562-cf2bb00ab333` | Correct the historical record: the old iteration ingested chess games and played chess strongly; current `e2e4` failure is a broken deployed-state observation whose code, database, deployment, or dependency cause is unknown, not proof that chess never worked. |
+| 21:21:17 | `msg_01a03ff2-e281-7250-b660-e38979f5d58c` | Another agent is repairing the old iteration; stop inspecting or mutating that context and keep clean-refactor authority work isolated. |
+| 21:34:59 | `msg_01a03fff-6e83-7c21-88db-1448c68f33ea` | A transport/session crash was followed by an explicit human resume; reconstructed continuation still requires physical and authority verification rather than assuming conversational state survived. |
+| 21:35:06 | `msg_01a03fff-893f-7133-843c-d5e3e654a4b9` | Pause all work while permissions change. |
+| 21:36:01 | `msg_01a04000-60b1-7f70-9d53-c2f28e66806f` | A permission or environment transition is not a resume instruction; the agent must actually stop until the user explicitly continues, and noticing a change cannot impersonate completing or honoring the requested state transition. |
+| 21:36:33 | `msg_01a04000-daeb-7623-888e-308467077a9c` | Explicitly resume by inventorying work to be done, auditing the session's work effort and action items, and returning the active roadmap publication to its exact track. |
+| 21:55:44 | `msg_01a04012-6ee1-7911-901c-c48321c67e09` | Treat the supplied old-database population, sub-300-GB footprint, approximate index ratio, sparse all-pairs arithmetic, and paid-addressability interpretation as checkable historical claims rather than accepted assertions; verified facts may motivate clean storage-economics requirements but cannot make the old layout authoritative. |
+| 21:58:30 | `msg_01a04014-f4ef-7692-84fd-f1addd19e4be` | Supersede the broad old-runtime inspection stop only for a narrow read-only PostgreSQL census of the current values; the separate repair, source, schema, API, and diagnosis remain isolated. |
+| 21:58:30 | `msg_01a04014-f4f2-7b23-a293-92a295d51640` | Do not trust inventor recollection when direct live evidence can verify the factual claim. |
+
+The review syntheses at `msg_01a03f90-4c25-7ce2-9390-a8725ecb8550` and
+`msg_01a03f93-3f62-7572-93cc-17155924018c`, plus the long contextual quote blocks at
+`msg_01a03fb1-75ee-75c2-8bbc-7fca17869594`,
+`msg_01a03fb5-78ef-7c80-8ae0-fa91865df07e`, and
+`msg_01a03fbd-cf99-7b42-a453-239689ad6439`,
+`msg_01a03fdc-59c5-79f1-a97d-70c831c36ee2`,
+`msg_01a03fde-9fe2-7a81-8313-71bb8addfa05`, and
+`msg_01a03fee-e624-7a80-ae0d-91f6949fe305`, and
+`msg_01a04012-6ee1-7911-901c-c48321c67e09`, are retained as supplied review evidence.
+Their knowledge/governance/firmware, entity-world, typed-search, federation,
+self-authored-synthesis, and industry-comparison statements are promoted only where a
+direct inventor framing, prior direct evidence, or independently observed behavior
+corroborates them. They do not independently establish volatile company facts,
+spending figures, consciousness, or personhood claims.
 
 ## Earlier direct technical evidence
 
