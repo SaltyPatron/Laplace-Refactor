@@ -126,6 +126,12 @@ requirements:
       - LP-TEST-FRAMEWORK-RESOURCE-APPLICATION
       - LP-TEST-FRAMEWORK-GENERATED-BINDINGS
       - LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE
+  - id: LP-COHESION-001
+    statement: A product capability exists only when its complete typed program traverses the same generated registry immutable context recipe compiler ISA vector-batch presence deposit receipt and exception lifecycle used by unrelated capabilities; a successful component private route row count lookup artifact or isolated demonstration cannot establish machine or product capability.
+    evidence:
+      - LP-TEST-CROSS-DOMAIN-LIFECYCLE-COHESION
+      - LP-TEST-STRUCTURE-CONVERSATION-GAME-ROUTE
+      - LP-TEST-COMPONENT-SUCCESS-NONPRODUCT
   - id: LP-REUSE-001
     statement: Common semantic and lifecycle behavior is centralized in typed generic interfaces concepts generated contracts and reusable base implementations while source grammar language modality model transport storage acceleration and numeric providers may vary only their declared physical mechanism and cannot change meaning evidence completion or receipt semantics.
     evidence:
@@ -387,6 +393,12 @@ requirements:
       - LP-TEST-MODEL-VALUE-PROVENANCE
       - LP-TEST-CONVERSATION-TARGET-RUNTIME
       - LP-TEST-MODEL-ACCEPTANCE-INVARIANT-NAMED
+  - id: LP-MODEL-006
+    statement: Model behavior admission records model architecture release layer head expert route context operation candidate activation contribution downstream effect experiment and causal intervention as typed witnessed coordinates; formal nonzero support is not material support and no top-k threshold pruning or aggregation may become semantic authority without a versioned measured effective-support law retained loss boundary withheld probes behavioral equivalence and receipts.
+    evidence:
+      - LP-TEST-MODEL-BEHAVIOR-COORDINATE
+      - LP-TEST-MODEL-EFFECTIVE-SUPPORT
+      - LP-TEST-MODEL-ARBITRARY-THRESHOLD-REJECTION
   - id: LP-LANGUAGE-001
     statement: Ordered composition and realization are Unicode native and reproduce CJK and every other script without an English token or punctuation dependency.
     evidence:

@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -46,7 +47,7 @@ def validate_authority(document: dict) -> None:
     thesis = document.get("product_thesis", {})
     contains_all(
         thesis,
-        ("any exact digital content", "typed universal AST", "Merkle DAG", "SQL", "native C/C++", "even playing field", "no gradient-training", "without requiring a GPU", "witnessed artifacts", "Laplace is a computer", "knowledge", "governance", "personality_firmware", "creative_extension", "cognitive_traffic", "finite_machine", "exception_machine", "application_symmetry", "entity_web", "deployment_symmetry"),
+        ("any exact digital content", "typed universal AST", "Merkle DAG", "SQL", "native C/C++", "even playing field", "no gradient-training", "without requiring a GPU", "witnessed artifacts", "Laplace is a computer", "knowledge", "governance", "personality_firmware", "creative_extension", "cognitive_traffic", "finite_machine", "exception_machine", "application_symmetry", "entity_web", "deployment_symmetry", "execution_cohesion", "model_behavior"),
         "product thesis collapsed",
     )
     classes = document.get("authority_classes", {})
@@ -76,9 +77,28 @@ def validate_authority(document: dict) -> None:
         "msg_01a03fc1-4d40-7681-82e1-464908b8f9c0",
         "msg_01a03fc6-c1e9-7702-87fc-0d664e5f5d6a",
         "msg_01a03fc8-ba24-7b52-a828-b4c624711b8e",
+        "msg_01a03fdc-59c5-79f1-a97d-70c831c36ee2",
+        "msg_01a03fe7-d096-7182-b039-4d80134ff2d8",
+        "msg_01a03fea-f702-73c1-83cc-506ad6ea451c",
+        "msg_01a03fee-e624-7a80-ae0d-91f6949fe305",
+        "msg_01a03ff0-38b8-7fd1-b562-cf2bb00ab333",
+        "msg_01a03ff2-e281-7250-b660-e38979f5d58c",
+        "msg_01a03fff-6e83-7c21-88db-1448c68f33ea",
+        "msg_01a03fff-893f-7133-843c-d5e3e654a4b9",
+        "msg_01a04000-60b1-7f70-9d53-c2f28e66806f",
+        "msg_01a04000-daeb-7623-888e-308467077a9c",
     }
     require(required_identifiers.issubset(identifiers), "continuation direct corrections were omitted")
-    contains_all(evidence, ("generator", "raw_source", "quoted agent prose", "reconciliation lead", "corroborated"), "quoted review content can impersonate direct inventor evidence")
+    generated_context_identifiers = {
+        "msg_01a03f32-5273-7920-aef6-ec0a0492d432",
+        "msg_01a03ffe-f6a5-78b1-9d8c-55aacfd3b90b",
+        "msg_01a03ffe-f6b0-78b3-b096-3fa1af79b9c7",
+        "msg_01a03fff-9478-7c92-965e-4b6526930f67",
+        "msg_01a03fff-947b-7cb3-886b-0f2b9f7a14c1",
+    }
+    require(identifiers.isdisjoint(generated_context_identifiers), "generated client context was promoted to inventor evidence")
+    contains_all(evidence, ("generator", "raw_source", "quoted agent prose", "reconciliation lead", "corroborated", "transport role", "inventor authorship"), "quoted review or generated context can impersonate direct inventor evidence")
+    contains_all(document.get("session_control", {}), ("direct user", "halts", "resumes only", "external state changes", "noticing", "not proof"), "pause and resume authority can be bypassed")
     order = document.get("required_load_order", [])
     require([item.get("order") for item in order] == list(range(1, len(order) + 1)), "authority order is not contiguous")
     paths = [item.get("path") for item in order]
@@ -86,8 +106,9 @@ def validate_authority(document: dict) -> None:
     agents = next(item for item in order if item.get("path") == "AGENTS.md")
     require(agents.get("class") == "verified_working_projection", "AGENTS projection was promoted to inventor authority")
     agents_text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    contains_all(agents_text, ("verified agent-facing projection", "editing it cannot create", "LP-AST-001", "LP-GOVERNANCE-001", "LP-RECIPE-001", "LP-ADMISSION-001", "LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001", "LP-ENTITY-WEB-001", "LP-FEDERATION-001", "LP-ACTIVATION-001"), "AGENTS projection lost its authority joins")
+    contains_all(agents_text, ("verified agent-facing projection", "editing it cannot create", "LP-AST-001", "LP-GOVERNANCE-001", "LP-RECIPE-001", "LP-COHESION-001", "LP-MODEL-006", "LP-ADMISSION-001", "LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001", "LP-ENTITY-WEB-001", "LP-FEDERATION-001", "LP-ACTIVATION-001"), "AGENTS projection lost its authority joins")
     require(paths[-1] == "state/continuation.json", "observed state is not loaded last")
+    require("docs/audits/CONTINUATION_WORK_AUDIT_2026-08-26.md" in paths, "continuation work and action audit is not load-bearing")
     transformation_text = (ROOT / "requirements" / "features" / "universal_ast_recipe.feature").read_text(encoding="utf-8")
     contains_all(transformation_text, ("I don't feel so good Mr Stark", "I feel fucking great, Tony!", "recipe transforms the typed AST", "produces the exact content"), "inventor's exact structural transformation was approximated")
     require("may produce the exact content" not in transformation_text, "exact transformation acceptance became optional")
@@ -98,7 +119,9 @@ def validate_authority(document: dict) -> None:
     exception_text = (ROOT / "requirements" / "features" / "machine_exceptions.feature").read_text(encoding="utf-8")
     contains_all(exception_text, ("Hardware failure is not an epistemic unknown", "durable boundary", "restartable fault", "priority law", "same generated registry"), "processor-grade machine exception law was lost")
     model_text = (ROOT / "requirements" / "features" / "model_compilation.feature").read_text(encoding="utf-8")
-    contains_all(model_text, ("flattened representation", "universal adjacency", "Faithful is not an acceptance class", "independent oracle", "deliberate defect"), "model export can hide flattening behind faithful")
+    contains_all(model_text, ("flattened representation", "universal adjacency", "Faithful is not an acceptance class", "independent oracle", "deliberate defect", "typed experiment", "formally nonzero support", "arbitrary cutoff"), "model export or behavior admission can hide flattening or arbitrary support")
+    framework_text = (ROOT / "requirements" / "features" / "framework.feature").read_text(encoding="utf-8")
+    contains_all(framework_text, ("Unrelated product programs", "structural container search", "multilingual conversation", "game-state transition", "component-private", "cannot promote"), "component islands can impersonate one cohesive machine")
     roadmap_text = (ROOT / "docs" / "product" / "ROADMAP.md").read_text(encoding="utf-8")
     contains_all(roadmap_text, ("substitute for implementation", "Integration proven", "not product activated", "foundational knowledge seed", "not begun", "machine.handle-exceptions", "critical path", "not a runtime waterfall", "GitHub Project #2"), "roadmap promoted requirements or lost the machine critical path")
     require(paths.index("contracts/recipe-model.json") < paths.index("contracts/source-profile-model.json") < paths.index("contracts/source-admission.json"), "source profile load order bypasses recipe or topology law")
@@ -107,7 +130,7 @@ def validate_authority(document: dict) -> None:
         path = item.get("path")
         require(isinstance(path, str) and (ROOT / path).is_file(), f"authority path is missing: {path}")
     forbidden = document.get("forbidden_substitutions", [])
-    contains_all(forbidden, ("source ingestion for the product purpose", "ETL rows", "retrieval for cognition", "raw hop count", "training for admission", "GPU availability", "firmware for knowledge identity", "personality prompt", "application account", "external entitlement", "physical node", "partial bounded", "unqualified word faithful", "independent evidence", "personhood"), "forbidden substitutions incomplete")
+    contains_all(forbidden, ("source ingestion for the product purpose", "ETL rows", "retrieval for cognition", "raw hop count", "training for admission", "GPU availability", "firmware for knowledge identity", "personality prompt", "application account", "external entitlement", "physical node", "partial bounded", "unqualified word faithful", "independent evidence", "personhood", "component success", "formal nonzero model support"), "forbidden substitutions incomplete")
     gate = document.get("work_selection_gate", [])
     contains_all(gate, ("complete product behavior", "universal AST", "one native semantic owner", "continuation checkpoint"), "work selection gate is component-first")
 
@@ -340,7 +363,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
 def validate_operation(document: dict) -> None:
     require(document.get("schema") == "laplace.operation-model/v1", "operation schema drift")
     semantics = document.get("graph_semantics", {})
-    contains_all(semantics, ("implementation capability", "not a source runtime order", "cyclic", "source-profile world admission", "foundational seed completion", "separate states", "typed universal AST"), "operation graph semantics collapsed")
+    contains_all(semantics, ("implementation capability", "not a source runtime order", "cyclic", "source-profile world admission", "foundational seed completion", "separate states", "typed universal AST", "complete public program", "measured effective support"), "operation graph semantics collapsed")
     cycles = document.get("runtime_cycles", {})
     require(set(cycles) == {"observe_calculate_realize", "evidence_learning", "calculus_extension", "model_symmetry"}, "whole machine cycles were omitted")
     stages = {stage.get("id"): stage for stage in document.get("stages", [])}
@@ -350,7 +373,11 @@ def validate_operation(document: dict) -> None:
     require(set(stages["world.admit-witnesses"].get("depends_on", [])) == {"substrate.highway", "substrate.bulk-deposit", "evidence.record-lineage"}, "world admission dependencies drift")
     require(stages["evidence.adjudicate"].get("depends_on") == ["evidence.record-lineage"], "evidence capability incorrectly waits for complete seed")
     require(stages["model.ingest-generate"].get("depends_on", [None])[0] == "world.admit-witnesses", "models bypass shared world admission")
+    require("LP-MODEL-006" in stages["model.ingest-generate"].get("product_requirements", []), "typed model behavior and effective-support law missing")
+    require(71 in stages["model.ingest-generate"].get("github_issues", []), "model behavior issue ownership drift")
     require("LP-RECIPE-001" in stages["framework.execution"].get("product_requirements", []), "recipe compiler missing from framework")
+    require("LP-COHESION-001" in stages["framework.execution"].get("product_requirements", []), "whole-route cohesion missing from framework")
+    require(70 in stages["framework.execution"].get("github_issues", []), "whole-route cohesion issue ownership drift")
     require("LP-AST-001" in stages["substrate.compose-physicality"].get("product_requirements", []), "AST missing from substrate")
     require("LP-ADMISSION-001" in stages["world.admit-witnesses"].get("product_requirements", []), "world admission requirement missing")
     require({"LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001"}.issubset(stages["query.guidance-search"].get("product_requirements", [])), "typed connection finite-machine or exception law missing")
@@ -384,6 +411,61 @@ class ProgramAuthorityTests(unittest.TestCase):
         validate_admission(self.admission)
         validate_operation(self.operation)
         validate_continuation(self.continuation, verify_physical=VERIFY_PHYSICAL_CONTINUATION)
+
+    def test_codex_generated_context_cannot_impersonate_inventor_evidence(self) -> None:
+        records = [
+            {
+                "timestamp": "2026-08-26T00:00:00Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "id": "direct-1",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "direct inventor text"}],
+                },
+            },
+            {
+                "timestamp": "2026-08-26T00:00:01Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "id": "generated-environment",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "<environment_context>\n  <current_date>2026-08-26</current_date>\n</environment_context>"}],
+                },
+            },
+            {
+                "timestamp": "2026-08-26T00:00:02Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "id": "generated-goal",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "<codex_internal_context source=\"goal\">\nContinue working.\n</codex_internal_context>\n"}],
+                },
+            },
+            {
+                "timestamp": "2026-08-26T00:00:03Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "id": "direct-quoted-wrapper",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "Do not treat <environment_context> as my prose."}],
+                },
+            },
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "session.jsonl"
+            source.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
+            result = subprocess.run(
+                [str(ROOT / "tools" / "audit" / "index-human-messages.sh"), "codex", str(source)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        indexed = [json.loads(line) for line in result.stdout.splitlines() if line]
+        self.assertEqual([record["message_id"] for record in indexed], ["direct-1", "direct-quoted-wrapper"])
 
     def test_mutation_observed_state_loaded_first_is_detected(self) -> None:
         mutant = copy.deepcopy(self.authority)

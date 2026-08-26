@@ -70,88 +70,35 @@ people, organizations, Patreon memberships, and future modalities should all ent
 the same substrate according to their actual roles. None of them gets a private
 little engine.
 
-## Why I’m replacing “nearest” with an actual search program
+## The roadmap follows machine laws, not feature fashion
 
-One of the underlying bets in Laplace is that many AI systems flatten relationships
-too early.
-
-They put unlike things into a shared vector space, find something nearby, and then
-ask approximation to carry a tremendous amount of semantic responsibility.
-
-But three social connections, three corporate connections, and three arbitrary graph
-hops do not mean the same thing merely because the number is three.
-
-A found path also does not prove that it is the shortest path.
-
-So Laplace is intended to compile a question into a typed search program:
+Several rules now govern the roadmap from end to end:
 
 ```text
-question
-    → goal and admissible state
-    → legal typed transitions
-    → indexed, set-oriented frontier generation
-    → A* or another declared search law
-    → completion certificate or exact incompleteness
+exact structure is not an opaque record
+testimony is not truth
+nearest is not necessarily relevant
+a found path is not proof of the shortest path
+a loaded model file is not proof of preserved behavior
+unknown is not the same result as hardware fault
 ```
 
-Geometry, indexes, vectors, caches, and nearest-neighbor operations can still be
-extremely useful for generating candidates.
+Those rules affect the instruction set, recipes, indexes, evidence model, model
+compiler, exception system, product interfaces, and acceptance tests. They are not
+separate slogans or optional future features.
 
-They just do not get to impersonate truth, relevance, or proof that the search is
-complete.
+I will unpack three of them in separate posts rather than turning this roadmap update
+into a small book:
 
-This same issue is one reason my earlier model-export experiments stalled. I could
-produce artifacts with the correct shapes and make them pass interesting academic
-tests, but flattening precedence, containment, semantic role, direction, causality,
-time, provenance, and evidence dependence destroys distinctions that cannot be
-magically recovered later.
-
-I am therefore banning the vague word “faithful” as a model-export acceptance test.
-
-The machine has to name the exact invariant it claims to preserve and independently
-prove that invariant.
-
-## “Why not, Laplace?” is part of the instruction set
-
-Humans are finite.
-
-Computers are finite.
-
-Laplace will be finite too.
-
-The honest result of a calculation is not always an answer.
-
-Sometimes the result is:
-
-```text
-missing evidence
-incomplete search boundary
-authority denied
-resource exhausted
-unsupported operation
-semantic contradiction
-provider unavailable
-hardware fault
-```
-
-Those are not synonyms.
-
-A storage device failing is not the same thing as the machine not knowing something.
-
-A search budget expiring is not the same thing as evidence contradicting the claim.
-
-A denied effect is not proof that the effect is impossible.
-
-So the roadmap now includes a processor-grade exception model: typed exceptions,
-traps, faults, cancellation, restart, retry, rerouting, replay from the last proven
-durable receipt, and an exact answer to:
-
-> Why not, Laplace?
-
-A processor should not respond to a bus error by inventing a friendly value and
-continuing.
-
-Neither should an intelligence system.
+- a June experiment where I generated a 127 MB GGUF in 0.1 seconds, got real
+  substrate-derived relationships out of `llama.cpp`, and then watched generation
+  fall apart;
+- why a transformer feed-forward network can be viewed as an enormous learned fuzzy
+  key/value memory, and why Laplace tries to make many of those relationships explicit
+  and indexable; and
+- “Why not, Laplace?”—finite cognition, typed incompleteness, and why hardware faults,
+  missing evidence, denied authority, and exhausted resources must never become the
+  same generic failure.
 
 ## What is actually working today
 
@@ -205,12 +152,14 @@ easy to lose inside broad phase descriptions.
 
 Those include:
 
+- whole-route cohesion across unrelated complete programs;
 - the universal grammar and recipe compiler;
 - generic lifecycle and provider-substitution conformance;
 - machine exceptions and recovery;
 - exact heterogeneous source profiles;
 - typed connection and shortest-path certification;
 - model-export nonflattening tests;
+- experiment-scoped model behavior and measured effective support;
 - people and organizations as universal entity worlds;
 - personal-web materialization;
 - entitlement and achievement testimony;
@@ -235,7 +184,9 @@ The immediate critical path is considerably less glamorous:
 8. accept and release the complete machine only when the complete machine actually
    passes.
 
-Chess will eventually be an excellent proof of the system.
+The old iteration already demonstrated real chess capability. Chess will again be an
+excellent clean-product proof of the system once it traverses the one accepted machine
+lifecycle reproducibly.
 
 It is not the knowledge substrate and it is not the next dependency merely because a
 PGN parser would make a satisfying demonstration.
@@ -286,6 +237,7 @@ And the exact reason when the answer is:
 - Laplace Refactor: https://github.com/SaltyPatron/Laplace-Refactor
 - Current architecture/continuation authority work: https://github.com/SaltyPatron/Laplace-Refactor/pull/55
 - Whole-product program: https://github.com/SaltyPatron/Laplace-Refactor/issues/23
+- Whole-route cohesion: https://github.com/SaltyPatron/Laplace-Refactor/issues/70
 - Typed machine exceptions and recovery: https://github.com/SaltyPatron/Laplace-Refactor/issues/56
 
 DISCLAIMER: I am heavily using AI in the development of Laplace—obviously. This post

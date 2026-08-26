@@ -22,6 +22,18 @@ Every change answers:
 - how it behaves in vector, batch, PostgreSQL, replay, cancellation, and failure paths;
 - which deliberate defect proves the test detects a wrong mechanism.
 
+Component success is not product success. A lookup that returns rows, a renderer that
+reconstructs content, a target artifact that loads, a database containing millions of
+entities, or a feature-specific endpoint that responds proves only its declared
+boundary. A capability is admitted only after its complete public route passes through
+the shared registry, context, recipe compiler, ISA, batch, presence, deposition,
+receipt, and exception lifecycle.
+
+At least three materially unrelated whole operations must prove that lifecycle. A
+deliberate mutation routes one through a private dispatcher, staging path, persistence
+boundary, or opaque internal-error translation and must fail. This is the cohesion
+proof that distinguishes one machine from a collection of reusable-looking islands.
+
 ## 2. One semantic implementation
 
 C/C++ and PostgreSQL server integration own every semantic operation. SQL and C# only

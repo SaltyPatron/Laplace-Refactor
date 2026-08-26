@@ -36,6 +36,7 @@ modality, model, platform, or product surface cannot certify the universal machi
 | Unicode root in the selected PostgreSQL 18.6 product cluster | Not product activated |
 | Direct and reverse Unicode hot planes | Integration proven and measured under their declared boundary |
 | General whole-working-set composition and presence | Unpublished local work; PostgreSQL presence/deposition route incomplete |
+| Cross-domain whole-route cohesion | Unimplemented; tracked by #70 |
 | Typed machine exception registry and recovery planner | Unimplemented |
 | Universal AST grammar registry and general recipe compiler | Unimplemented |
 | Whole-machine typed numerical highway | Unimplemented |
@@ -43,6 +44,7 @@ modality, model, platform, or product surface cannot certify the universal machi
 | Heterogeneous world admission and foundational knowledge seed | Not begun in an activated product |
 | Typed A-star query, answerability, cognition, and realization | Unimplemented |
 | General model decomposition and target compiler | Unimplemented |
+| Typed model-behavior admission and measured effective support | Unimplemented; tracked by #71 |
 | Entity worlds, personal webs, entitlement policy, and product surfaces | Unimplemented |
 | Federation, distributed placement, ARM, and Raspberry Pi product support | Unimplemented |
 | Accepted installed product, GitHub deployment, and release | None |
@@ -50,6 +52,23 @@ modality, model, platform, or product surface cannot certify the universal machi
 The dirty composition worktree is fingerprinted by `state/continuation.json` and is
 not modified by this roadmap branch. Controlled Unicode integration must continue to
 be described as **when the product has Unicode**, not as activated product state.
+
+### Historical operating evidence is not present product state
+
+At the read-only August 26, 2026 audit boundary, the deployed old iteration exposed
+approximately 52.6 million entities and executed generic containment, ordered
+constituent recovery, and exact Japanese rendering. That same dated state returned no
+conversational reply for the reconstructed Japanese sentence and HTTP 500 for
+`e2e4`. The old iteration historically ingested chess games and played chess strongly;
+the observed chess failure is therefore a
+regression or broken deployment-state observation whose code, database, package, or
+dependency cause is unresolved.
+
+This evidence establishes neither that old chess never worked nor the exact cause of
+the observed failure. It establishes that historical capability, current operability,
+whole-route reproducibility, and diagnosis are separate states. Issue #70 owns the
+clean, independently implemented cohesion proof; the archive is only a behavioral
+counterexample.
 
 ## Machine traffic map
 
@@ -105,7 +124,7 @@ different structural, reference, evidence, and realization programs.
 | Stage | Primary outcome | Owners | Current proof state | Exit evidence |
 | --- | --- | --- | --- | --- |
 | `foundation.acquire-build` | Verified upstream, toolchain, package, and receipt foundation | #3, #8, #12, #54 | Partial | Repeatable clean acquisition/build/install and change-sensitive product-path gate |
-| `framework.execution` | One generated registry, context, batch spine, recipe compiler, providers, and route bindings | #4, #5, #6, #10, #57, #58 | Partial | Unrelated modules pass one shared lifecycle and provider-substitution suite |
+| `framework.execution` | One generated registry, context, batch spine, recipe compiler, providers, route bindings, and whole-route cohesion | #4, #5, #6, #10, #57, #58, #70 | Partial | Unrelated complete programs pass one lifecycle, provider-substitution, and private-route mutation suite |
 | `machine.handle-exceptions` | Generated exceptions, traps, faults, recovery, replay, and why-not | #56 | Unimplemented | Physical/program/authority/resource/semantic fault injection and route parity |
 | `bootstrap.dependencies` | Framework-mediated package and runtime activation | #3, #12 | Partial | Exact package closure, loaded-object receipt, rollback and reactivation |
 | `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, and trajectory | #7, #13 | Partial; local unpublished continuation exists | Published generic composer plus exact native/PostgreSQL acceptance |
@@ -118,7 +137,7 @@ different structural, reference, evidence, and realization programs.
 | `query.guidance-search` | Typed operators, guidance, indexed A-star, answerability, and completion | #17, #60 | Unimplemented | Independent oracles, shortest-path certificates, typed incompleteness, SQL parity |
 | `cognition.realize-effect` | Semantic-act selection, reversible realization, and authorized effects | #18 | Unimplemented | Goal completion, AST transformation, exact recomposition, effect and consequence receipts |
 | `learning.discovery-ooda` | Evidence learning, frayed-edge discovery, experiments, and calculus extension | #19 | Unimplemented | Disjoint evidence, counterexamples, OODA replay, non-self-corroboration |
-| `model.ingest-generate` | Model witnesses, induced operators, AImaps, and named-invariant target compilation | #20, #61 | Unimplemented | Target-runtime behavioral oracle rejects flattened and shape-only exports |
+| `model.ingest-generate` | Model witnesses, behavior experiments, effective support, induced operators, AImaps, and named-invariant target compilation | #20, #61, #71 | Unimplemented | Typed behavior readback and target-runtime oracles reject arbitrary pruning, flattening, and shape-only exports |
 | `product.materialize-entity-world` | People/organizations as worlds; personal webs, entitlements, identity, and surfaces | #21, #62, #63, #64, #68 | Unimplemented | Audience/visibility/security and semantic parity across generated surfaces |
 | `runtime.federate-nodes` | Authenticated world exchange, placement, convergence, and one-machine portability | #21, #65, #66, #67 | Unimplemented | Partition/replay convergence, durability proof, x86/ARM semantic parity |
 | `delivery.activate-product` | Installed package, services, generated manual, diagnostics, and release evidence | #21, #22, #50, #69 | Partial infrastructure; no product | Complete Linux/Windows lifecycle and whole-product release decision |
@@ -134,8 +153,9 @@ interesting corpus:
    presence, filtered canonical production, transactional deposition, replay, and a
    deliberate provider defect through the generic working set.
 3. Finish the universal framework obligations exposed by that work—especially the
-   grammar/recipe compiler, module admission, provider substitution, and typed machine
-   exception lifecycle—instead of allowing composition to grow a private framework.
+   grammar/recipe compiler, module admission, provider substitution, typed machine
+   exception lifecycle, and issue #70 whole-route cohesion across unrelated complete
+   programs—instead of allowing composition to grow a private framework.
 4. Establish the exact PostgreSQL 18.6 product cluster, install the accepted package,
    deposit Unicode through the generic path, verify DB/perfcache parity, and activate
    one coherent product root.
@@ -152,8 +172,10 @@ interesting corpus:
    realization over that state. KNN, ANN, geometry, perfcaches, and top-k may generate
    frontier candidates; none becomes universal relevance, truth, or completion.
 9. Prove model witness/target compilation and entity-world product surfaces as sibling
-   programs over the same machine. Do not flatten relation families for model export
-   or create social/profile-specific semantics for product delivery.
+   programs over the same machine. Admit model behavior through typed experiment
+   coordinates and measured effective-support laws under #71. Do not flatten relation
+   families for model export or create social/profile-specific semantics for product
+   delivery.
 10. Prove federation and physical placement, then portability on actual selected ARM
     hardware without creating a reduced edition.
 11. Generate the architecture manual from the same registries and release only the
