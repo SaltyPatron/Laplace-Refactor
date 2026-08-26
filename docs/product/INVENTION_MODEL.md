@@ -626,6 +626,53 @@ artifact. A statistic or pairwise relation is materialized only when a declared 
 inference, durability, or performance contract justifies its storage. Rebuildable state
 must reproduce canonical results exactly from its source boundary and recipe.
 
+### 8.4 Storage is paid addressability
+
+Laplace spends persistent bytes deliberately to avoid repeating broad computation.
+Canonical sparse state records the structures, occurrences, testimony, and calculated
+relations that exist under their declared evidence and recipe boundaries. Absence,
+unobserved state, epistemic unknown, contradiction, and a tiny nonzero value are not
+interchangeable. The machine does not manufacture a dense all-pairs surface merely so
+every possible pair has a numeric cell.
+
+Indexes and perfcaches are calculated physical machinery for reaching canonical state.
+They may consume more bytes than the canonical tables they accelerate. That is not
+automatically waste: an accepted structure has purchased a measured reduction in
+scanning, I/O, CPU, latency, recomputation, or database crossings for a declared
+workload. It is also not automatically justified. Every acceleration names its build,
+write, WAL, storage, memory and publication costs, representative plans and
+cardinalities, observed benefit, rebuild law, accounting boundary, and removal
+condition. Redundant, dominated, unused, abandoned, or bloated structures fail that
+contract. Removing an acceleration can make the same program slower, but cannot change
+its logical result, evidence, completion state, or receipt meaning.
+
+A read-only historical census demonstrates the scale of this trade without defining a
+clean-product target. At `2026-08-26T21:59:13Z`, the isolated old iteration's
+PostgreSQL 18.3 database reported `295,775,270,591` total bytes. Across 654 user
+relations, PostgreSQL attributed `109,191,495,680` bytes to tables including TOAST and
+`186,482,507,776` bytes to indexes: a current allocated index-to-table ratio of
+`1.7078482771:1`. Exact counts completed at `21:59:44Z` and reported 52,649,911
+entities, 25,083,094 physicalities, 177,570,489 attestations, and 141,390,181 consensus
+rows, or 396,693,675 rows across those four headline populations. The whole database
+therefore averaged about 745.6 bytes per headline row, although that quotient also
+includes catalogs and hundreds of other relations and does not describe an individual
+row layout.
+
+For an explicitly illustrative ordered-pair boundary, 52,649,911 entities imply
+2,772,013,128,307,921 possible ordered slots. Treating every current consensus row as
+if it were one unique ordered entity pair would occupy only about
+`0.0000051006%` of that surface. A dense surface would require about 346.5 TB decimal
+at one bit per slot or 11.09 PB decimal at one `float32` per slot. Consensus rows are
+not proven unique entity pairs, so this is not a measured graph-density claim. It is a
+scale illustration of why an all-pairs representation is the wrong default.
+
+The same boundary does **not** prove that a complete Laplace world fits in 300 GB, that
+the old index estate is efficient, that allocated bytes are live bytes, that old state
+is complete, or that one dense model checkpoint and one witnessed database carry the
+same information. It proves only the dated catalog values and populations recorded in
+`docs/audits/OLD_ITERATION_STORAGE_CENSUS_2026-08-26.md`. Clean-product acceptance must
+measure its own storage classes, bloat, benefit, and avoided work under issue #72.
+
 ## 9. Relation algebra
 
 Every relation type declares how it participates in inference. The declaration covers

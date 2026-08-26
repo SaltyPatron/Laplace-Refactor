@@ -131,6 +131,14 @@ Perfcaches are typed compiled execution planes with module-specific access laws.
 must retain canonical semantic parity, whole-artifact validation, coherent activation,
 reader pinning, and independent replacement. They cannot become a second authority.
 
+Sparse state is the default. Absence, unobserved state, unknown, contradiction, and a
+small numeric value remain distinct; code may not allocate an all-pairs surface to
+erase that distinction. Every proposed index, materialization, and perfcache includes
+a representative paired with/without workload, selected plan, build/write/WAL/storage/
+bloat cost, read CPU/I/O/latency benefit, work avoided, rebuild law, observation
+window, and removal condition. Acceleration removal may fail a performance budget but
+must preserve semantics and receipt meaning.
+
 ## 9. Tests and evidence
 
 Tests execute the production implementation at the boundary they claim. Important

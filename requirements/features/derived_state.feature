@@ -42,3 +42,20 @@ Feature: Canonical deposition and derived state scale independently and reconcil
     When its workload plan, scan threshold, write cost, storage cost, and removal condition are measured
     Then publication succeeds only if the declared query selects and uses the index
     And the package receipt retains the plan and cost evidence
+
+  Scenario: Sparse absence is not a dense noise floor
+    Given N typed entities and E witnessed or reproducibly derived typed relations
+    And absent, unobserved, unknown, contradicted, and present are distinct machine states
+    When canonical and derived storage are published
+    Then no N-squared surface of zeros or tiny nonzero values is manufactured for unobserved pairs
+    And every persisted pair names its evidence or explicit workload and value contract
+    And indexed calculation can still produce omitted reproducible results from canonical state
+    But a dense noise-floor materialization mutant fails both growth and semantic-state acceptance
+
+  Scenario: Storage pays for measured addressability without becoming truth
+    Given a representative world boundary and a proposed index or perfcache
+    When the storage census and paired workload execute with and without that acceleration
+    Then the receipt attributes canonical, testimony, derived, index, perfcache, TOAST, WAL, temporary, dead, free, and bloated bytes under declared accounting laws
+    And it reports build time, write cost, read CPU, I/O, latency, selected plans, scan or recomputation work avoided, and the removal condition
+    And removing the acceleration preserves exact logical results and receipt semantics while its measured performance benefit may disappear
+    But database size, row count, index count, or a single statistics snapshot alone cannot establish storage efficiency or index value
