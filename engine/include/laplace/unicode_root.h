@@ -7,6 +7,7 @@
 #include "laplace/export.h"
 #include "laplace/geometry.h"
 #include "laplace/identity.h"
+#include "laplace/persistence.h"
 #include "laplace/types.h"
 
 #ifdef __cplusplus
@@ -395,6 +396,19 @@ typedef enum laplace_unicode_status {
     LAPLACE_UNICODE_SOURCE_CONFLICT = 21,
     LAPLACE_UNICODE_SOURCE_INCOMPLETE = 22
 } laplace_unicode_status;
+
+/*
+ * Projects one already-emitted canonical atom into the normalized persistence
+ * records required by database sinks. The operation validates the emitted
+ * physicality identifier against the declared root recipe and copies that
+ * identifier; it never replaces it with a newly minted sink-local value.
+ * Outputs are unchanged on failure.
+ */
+LAPLACE_API laplace_unicode_status laplace_unicode_atom_persistence_project(
+    const laplace_unicode_atom_record* atom,
+    const laplace_unicode_root_stream_expectation* root,
+    laplace_persistence_entity_record* entity,
+    laplace_persistence_physicality_record* physicality);
 
 enum {
     LAPLACE_UNICODE_NUMERIC_PROVIDER_ABI_MAJOR = 1,

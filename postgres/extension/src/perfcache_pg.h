@@ -43,6 +43,29 @@ typedef struct laplace_pg_perfcache_snapshot {
     uint32 has_reservation;
 } laplace_pg_perfcache_snapshot;
 
+typedef struct laplace_pg_perfcache_admission_result {
+    laplace_pg_perfcache_epoch next_epoch;
+    laplace_digest256 manifest_fingerprint;
+    laplace_digest256 encoded_manifest_fingerprint;
+    laplace_digest256 admission_receipt_id;
+    uint32 failure_stage;
+    uint32 registry_status;
+    uint32 framework_status;
+} laplace_pg_perfcache_admission_result;
+
+typedef enum laplace_pg_perfcache_admission_stage {
+    LAPLACE_PG_PERFCACHE_ADMISSION_NONE = 0,
+    LAPLACE_PG_PERFCACHE_ADMISSION_MANIFEST_OPEN = 1,
+    LAPLACE_PG_PERFCACHE_ADMISSION_MANIFEST_VIEW = 2,
+    LAPLACE_PG_PERFCACHE_ADMISSION_MANIFEST_FINGERPRINT = 3,
+    LAPLACE_PG_PERFCACHE_ADMISSION_PREPARE = 4,
+    LAPLACE_PG_PERFCACHE_ADMISSION_SNAPSHOT = 5,
+    LAPLACE_PG_PERFCACHE_ADMISSION_ACTIVATION_CREATE = 6,
+    LAPLACE_PG_PERFCACHE_ADMISSION_FRAMEWORK_ADMISSION = 7,
+    LAPLACE_PG_PERFCACHE_ADMISSION_EPOCH_COMPARE = 8,
+    LAPLACE_PG_PERFCACHE_ADMISSION_METADATA = 9
+} laplace_pg_perfcache_admission_stage;
+
 typedef enum laplace_pg_perfcache_status {
     LAPLACE_PG_PERFCACHE_OK = 0,
     LAPLACE_PG_PERFCACHE_INVALID_ARGUMENT = 1,
@@ -63,6 +86,14 @@ laplace_pg_perfcache_status laplace_pg_perfcache_admit(
     const laplace_pg_perfcache_epoch* expected_epoch,
     const uint8* encoded_manifest,
     Size encoded_manifest_bytes);
+
+laplace_pg_perfcache_status laplace_pg_perfcache_admit_with_result(
+    uint64 expected_sequence,
+    uint32 has_expected_epoch,
+    const laplace_pg_perfcache_epoch* expected_epoch,
+    const uint8* encoded_manifest,
+    Size encoded_manifest_bytes,
+    laplace_pg_perfcache_admission_result* result);
 
 laplace_pg_perfcache_status laplace_pg_perfcache_pin_active(
     uint32 has_expected_epoch,

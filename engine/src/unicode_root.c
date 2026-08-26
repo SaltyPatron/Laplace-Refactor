@@ -44,12 +44,57 @@ struct laplace_unicode_root_stream_validator {
     laplace_unicode_root_stream_summary summary;
 };
 
+static int unicode_digest_equal(
+    const laplace_digest256* left,
+    const laplace_digest256* right);
+
 static int unicode_root_physicality_recipe_version_valid(uint32_t version) {
 #if defined(LAPLACE_TEST_ALLOW_UNICODE_PHYSICALITY_RECIPE_VERSION)
     return version != 0u;
 #else
     return version == LAPLACE_UNICODE_ATOMIC_PHYSICALITY_RECIPE_VERSION;
 #endif
+}
+
+laplace_unicode_status laplace_unicode_atom_persistence_project(
+    const laplace_unicode_atom_record* atom,
+    const laplace_unicode_root_stream_expectation* root,
+    laplace_persistence_entity_record* entity,
+    laplace_persistence_physicality_record* physicality) {
+    laplace_persistence_entity_record projected_entity;
+    laplace_persistence_physicality_record projected_physicality;
+    size_t measured_bytes = 0u;
+    if (atom == NULL || root == NULL || entity == NULL || physicality == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (root->flags != 0u || root->reserved != 0u ||
+        !unicode_root_physicality_recipe_version_valid(
+            root->physicality_recipe_version) ||
+        laplace_unicode_atom_record_measure(atom, &measured_bytes) !=
+            LAPLACE_UNICODE_OK ||
+        !unicode_digest_equal(&atom->geometry_epoch, &root->geometry_epoch)) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+    projected_entity.entity_id = atom->content_id;
+    projected_entity.identity_witness = atom->identity_preimage_fingerprint;
+    if (laplace_persistence_atomic_point_physicality(
+            &atom->content_id, root->physicality_recipe_version,
+            &root->physicality_recipe_fingerprint, &root->geometry_epoch,
+            &atom->coordinate, &projected_physicality) !=
+        LAPLACE_PERSISTENCE_OK) {
+        return LAPLACE_UNICODE_RECORD_INVALID;
+    }
+#if !defined(LAPLACE_TEST_UNICODE_PROJECT_REMINT_PHYSICALITY)
+    if (!unicode_digest_equal(
+            &atom->physicality_id,
+            &projected_physicality.physicality_id)) {
+        return LAPLACE_UNICODE_IDENTITY_MISMATCH;
+    }
+#endif
+    projected_physicality.physicality_id = atom->physicality_id;
+    *entity = projected_entity;
+    *physicality = projected_physicality;
+    return LAPLACE_UNICODE_OK;
 }
 
 static const uint8_t expected_payload_kind[LAPLACE_UNICODE_ATOM_FIELD_COUNT] = {
@@ -2011,6 +2056,7 @@ static laplace_unicode_status unicode_root_stream_consume_frame(
 #endif
         if (frame->value.kind == LAPLACE_UNICODE_ROOT_FRAME_ATOM) {
             laplace_unicode_atom_record_view atom;
+            laplace_persistence_entity_record entity;
             laplace_persistence_physicality_record physicality;
             size_t consumed = 0u;
             status = laplace_unicode_atom_record_open(
@@ -2019,23 +2065,14 @@ static laplace_unicode_status unicode_root_stream_consume_frame(
 #if !defined(LAPLACE_TEST_SKIP_UNICODE_ATOM_PHYSICALITY_VALIDATION)
             if (status != LAPLACE_UNICODE_OK ||
                 consumed != frame->value.payload_bytes ||
-                !unicode_digest_equal(
-                    &atom.value.geometry_epoch,
-                    &validator->expectation.geometry_epoch) ||
-                laplace_persistence_atomic_point_physicality(
-                    &atom.value.content_id,
-                    validator->expectation.physicality_recipe_version,
-                    &validator->expectation.physicality_recipe_fingerprint,
-                    &validator->expectation.geometry_epoch,
-                    &atom.value.coordinate, &physicality) !=
-                    LAPLACE_PERSISTENCE_OK ||
-                !unicode_digest_equal(
-                    &atom.value.physicality_id,
-                    &physicality.physicality_id)) {
+                laplace_unicode_atom_persistence_project(
+                    &atom.value, &validator->expectation,
+                    &entity, &physicality) != LAPLACE_UNICODE_OK) {
                 return unicode_root_stream_poison(
                     validator, LAPLACE_UNICODE_IDENTITY_MISMATCH);
             }
 #else
+            (void)entity;
             (void)physicality;
             if (status != LAPLACE_UNICODE_OK ||
                 consumed != frame->value.payload_bytes) {

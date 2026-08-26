@@ -1142,6 +1142,12 @@
       "defect_controls": ["unicode-root.mutation-codec-and-hilbert-defects-detected"]
     },
     {
+      "ctest_name": "UnicodeAtomPersistence.ProjectsEmittedIdentityAndRejectsPhysicalityReminting",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-UNICODE-EXACT-SEMANTIC-SEPARATION"],
+      "covered_dimensions": ["canonical atom to entity and physicality projection", "full identity witness", "emitted physicality identity", "failure atomicity"],
+      "defect_controls": ["unicode-root.mutation-physicality-remint-detected"]
+    },
+    {
       "ctest_name": "UnicodeAtomCodec.RoundTripsOneCanonicalVariableRecordExactly",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-UNICODE-ATOM-FLOOR"],
       "covered_dimensions": ["canonical variable atom wire", "exact decode and byte replay", "geometry epoch", "canonical atomic physicality identity"]
@@ -1294,6 +1300,11 @@
       "covered_dimensions": ["dense position addressing", "atom identity", "coordinate quantization", "Hilbert locality validation"]
     },
     {
+      "ctest_name": "UnicodeTier0Module.ExactPersistedContractSelectsNativeImplementation",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["persisted module identity", "exact contract selection", "unknown and changed contract rejection"]
+    },
+    {
       "ctest_name": "UnicodeTier0Module.WholeViewRejectsPartialPopulation",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
       "covered_dimensions": ["fixed complete Tier-0 population", "partial dense view rejection"],
@@ -1310,6 +1321,12 @@
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-HILBERT-NUMERIC-CONTRACT"],
       "covered_dimensions": ["identity-validation omission, nested-frame validation omission, and Hilbert axis reversal are detected"],
       "controls": "UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption;UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption;UnicodeHilbert.MatchesAllContractOrientationVectors"
+    },
+    {
+      "ctest_name": "unicode-root.mutation-physicality-remint-detected",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-UNICODE-EXACT-SEMANTIC-SEPARATION"],
+      "covered_dimensions": ["sink-local replacement of an invalid producer-emitted physicality identity is detected"],
+      "controls": "UnicodeAtomPersistence.ProjectsEmittedIdentityAndRejectsPhysicalityReminting"
     },
     {
       "ctest_name": "unicode-root.mutation-placement-permutation-validation-detected",
@@ -1365,6 +1382,20 @@
       "profiles": ["dotnet", "custom-stack"],
       "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-BULK-PARITY"],
       "covered_dimensions": ["exact native and managed ABI layout", "real P Invoke vector transport", "identity and trajectory direct-native output parity", "all receipt and error fields", "one-element scalar lowering", "version type and opcode preflight rejection", "call-scoped pin lifetime", "disposed transport rejection"]
+    },
+    {
+      "ctest_name": "postgres.unicode-root-persistence-contract",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-BOUNDED-CROSSINGS"],
+      "covered_dimensions": ["one 2230150-frame canonical stream feeding PostgreSQL and Tier-0 sibling sinks", "1114112 normalized entity physicality atom and DUCET rows", "set-oriented bounded SPI plans", "canonical transport excluded from normalized storage", "normalized heap bounded to 110 percent of packed transport", "exact SQL plan manifest", "ordered executed plan sequence", "set-wise durable effect cardinalities", "cross-sink artifact receipts", "transaction-deferred coherent activation", "indexed atom lookup"],
+      "defect_controls": ["postgres.mutation-unicode-plan-substitution-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
+    },
+    {
+      "ctest_name": "postgres.mutation-unicode-plan-substitution-detected",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-BOUNDED-CROSSINGS"],
+      "covered_dimensions": ["one substituted SQL plan changes the exact plan manifest"],
+      "controls": "postgres.unicode-root-persistence-contract"
     },
     {
       "ctest_name": "postgres.spi-isa-contract",

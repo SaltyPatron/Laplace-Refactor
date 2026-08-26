@@ -490,6 +490,33 @@ set_tests_properties(
     unicode-root.mutation-codec-and-hilbert-defects-detected PROPERTIES
     LABELS "implementation;unicode;identity;geometry;mutation")
 
+add_executable(laplace_unicode_atom_projection_mutation_probe
+    unicode_root_tests.cpp
+    ../engine/src/unicode_root.c)
+target_include_directories(
+    laplace_unicode_atom_projection_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(
+    laplace_unicode_atom_projection_mutation_probe PRIVATE
+    Laplace::Identity Laplace::Perfcache BLAKE3::blake3 GTest::gtest_main)
+target_compile_definitions(
+    laplace_unicode_atom_projection_mutation_probe PRIVATE
+    LAPLACE_TEST_UNICODE_PROJECT_REMINT_PHYSICALITY=1)
+target_compile_options(
+    laplace_unicode_atom_projection_mutation_probe PRIVATE
+    $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-root.mutation-physicality-remint-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_atom_projection_mutation_probe>"
+        "-DFILTER=UnicodeAtomPersistence.ProjectsEmittedIdentityAndRejectsPhysicalityReminting"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-root.mutation-physicality-remint-detected PROPERTIES
+    LABELS "implementation;unicode;identity;physicality;persistence;mutation")
+
 add_executable(laplace_unicode_placement_permutation_mutation_probe
     unicode_root_tests.cpp
     ../engine/src/unicode_root.c)
@@ -1690,6 +1717,10 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql"
         @ONLY)
     configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/unicode_root_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
+        @ONLY)
+    configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/persistence_concurrency_call.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_concurrency_call.sql"
         COPYONLY)
@@ -1750,6 +1781,27 @@ if(LAPLACE_POSTGRES_ENABLED)
         RUN_SERIAL TRUE)
 
     add_test(
+        NAME postgres.unicode-root-persistence-contract
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
+            "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            unicode-root
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(postgres.unicode-root-persistence-contract PROPERTIES
+        LABELS "implementation;postgresql;spi;unicode;root;persistence;perfcache;receipt"
+        RUN_SERIAL TRUE
+        SKIP_RETURN_CODE 77
+        TIMEOUT 1800)
+
+    add_test(
         NAME postgres.mutation-receipt-collision-detected
         COMMAND "${LAPLACE_BASH_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
@@ -1802,6 +1854,26 @@ if(LAPLACE_POSTGRES_ENABLED)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_perfcache_mutation_failure.cmake")
     set_tests_properties(postgres.mutation-perfcache-expected-epoch-detected PROPERTIES
         LABELS "postgresql;perfcache;epoch;mutation"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.mutation-unicode-plan-substitution-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_plan_manifest_mutant>"
+            "-DSQL_FILE=${CMAKE_CURRENT_SOURCE_DIR}/postgres/unicode_plan_manifest_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_plan_manifest_mutation_failure.cmake")
+    set_tests_properties(
+        postgres.mutation-unicode-plan-substitution-detected PROPERTIES
+        LABELS "postgresql;unicode;persistence;receipt;mutation"
         RUN_SERIAL TRUE)
 endif()
 

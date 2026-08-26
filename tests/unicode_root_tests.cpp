@@ -204,6 +204,37 @@ TEST(UnicodeNumeric, ExactRationalQuantizationClosesBoundariesAndZero) {
               LAPLACE_UNICODE_NUMERIC_OUT_OF_RANGE);
 }
 
+TEST(UnicodeAtomPersistence,
+     ProjectsEmittedIdentityAndRejectsPhysicalityReminting) {
+    auto atom = Atom(0x41U);
+    const auto expectation = RootExpectation();
+    laplace_persistence_entity_record entity{};
+    laplace_persistence_physicality_record physicality{};
+    ASSERT_EQ(laplace_unicode_atom_persistence_project(
+                  &atom, &expectation, &entity, &physicality),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(std::memcmp(&entity.entity_id, &atom.content_id,
+                          sizeof(entity.entity_id)), 0);
+    EXPECT_EQ(std::memcmp(&entity.identity_witness,
+                          &atom.identity_preimage_fingerprint,
+                          sizeof(entity.identity_witness)), 0);
+    EXPECT_EQ(std::memcmp(&physicality.physicality_id,
+                          &atom.physicality_id,
+                          sizeof(physicality.physicality_id)), 0);
+    EXPECT_EQ(std::memcmp(&physicality.centroid, &atom.coordinate,
+                          sizeof(physicality.centroid)), 0);
+
+    atom.physicality_id.bytes[0] ^= 0x80U;
+    const auto prior_entity = entity;
+    const auto prior_physicality = physicality;
+    EXPECT_EQ(laplace_unicode_atom_persistence_project(
+                  &atom, &expectation, &entity, &physicality),
+              LAPLACE_UNICODE_IDENTITY_MISMATCH);
+    EXPECT_EQ(std::memcmp(&entity, &prior_entity, sizeof(entity)), 0);
+    EXPECT_EQ(std::memcmp(&physicality, &prior_physicality,
+                          sizeof(physicality)), 0);
+}
+
 TEST(UnicodePlacementFingerprint,
      RejectsDuplicateRankBeforeCoordinateTableIdentity) {
     std::vector<std::uint32_t> ranks(LAPLACE_UNICODE_ROOT_POPULATION);
@@ -783,6 +814,39 @@ TEST(UnicodeTier0Module, ValidatesDirectAddressIdentityGeometryAndLocality) {
     EXPECT_EQ(module.validate_record(
                   module.state, atom.codepoint_position, entry.data(), entry.size()),
               LAPLACE_PERFCACHE_SEMANTIC_MISMATCH);
+}
+
+TEST(UnicodeTier0Module, ExactPersistedContractSelectsNativeImplementation) {
+    laplace_perfcache_module_v2 declared{};
+    laplace_perfcache_module_v2 resolved{};
+    laplace_perfcache_contract contract{};
+    ASSERT_EQ(laplace_perfcache_unicode_tier0_module(&declared),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    contract.module_id = declared.module_id;
+    contract.key_schema_id = declared.key_schema_id;
+    contract.value_schema_id = declared.value_schema_id;
+    contract.module_contract_fingerprint =
+        declared.module_contract_fingerprint;
+    contract.key_bytes = declared.key_bytes;
+    contract.value_bytes = declared.value_bytes;
+    contract.access_law = declared.access_law;
+
+    ASSERT_EQ(laplace_perfcache_builtin_module_resolve(&contract, &resolved),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    EXPECT_EQ(std::memcmp(resolved.module_id.bytes, declared.module_id.bytes,
+                          sizeof(declared.module_id.bytes)), 0);
+    EXPECT_EQ(resolved.validate_record, declared.validate_record);
+    EXPECT_EQ(resolved.validate_view, declared.validate_view);
+    EXPECT_EQ(resolved.key_bytes, declared.key_bytes);
+    EXPECT_EQ(resolved.value_bytes, declared.value_bytes);
+
+    contract.value_bytes += 1U;
+    EXPECT_EQ(laplace_perfcache_builtin_module_resolve(&contract, &resolved),
+              LAPLACE_PERFCACHE_REGISTRY_MODULE_SET_MISMATCH);
+    contract.value_bytes = declared.value_bytes;
+    contract.module_id.bytes[0] ^= 0x80U;
+    EXPECT_EQ(laplace_perfcache_builtin_module_resolve(&contract, &resolved),
+              LAPLACE_PERFCACHE_REGISTRY_MODULE_NOT_FOUND);
 }
 
 TEST(UnicodeTier0Module, WholeViewRejectsPartialPopulation) {

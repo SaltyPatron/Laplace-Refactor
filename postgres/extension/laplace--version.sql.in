@@ -88,6 +88,48 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.observed_occurrence_record AS (
     flags integer
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_atom_deposit_record AS (
+    root_receipt bytea,
+    codepoint_position integer,
+    placement_rank integer,
+    position_class smallint,
+    lup_v1_length smallint,
+    lup_v1_bytes bytea,
+    entity_id bytea,
+    identity_preimage_fingerprint bytea,
+    physicality_id bytea,
+    coordinate_x double precision,
+    coordinate_y double precision,
+    coordinate_z double precision,
+    coordinate_m double precision,
+    hilbert_key bytea
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_ducet_position_deposit_record AS (
+    root_receipt bytea,
+    codepoint_position integer,
+    provenance smallint,
+    element_count integer,
+    encoded_elements bytea,
+    equivalence_key bytea
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_ducet_contraction_deposit_record AS (
+    root_receipt bytea,
+    source_line_ordinal integer,
+    sequence_count integer,
+    encoded_sequence bytea,
+    element_count integer,
+    encoded_elements bytea
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_normalization_deposit_record AS (
+    root_receipt bytea,
+    starter_position integer,
+    combining_position integer,
+    composite_position integer
+);
+
 CREATE TABLE @LAPLACE_PG_SCHEMA@.canonical_entity (
     entity_id @LAPLACE_PG_SCHEMA@.content_id_128 PRIMARY KEY,
     identity_witness @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
@@ -209,6 +251,163 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt (
     recorded_by name NOT NULL DEFAULT current_user
 );
 
+CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_root_generation (
+    root_receipt @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    source_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    recipe_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    numeric_provider_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    stream_contract_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    algorithmic_hangul_rule_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    atom_record_contract_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    physicality_recipe_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    placement_rank_permutation_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    coordinate_table_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    geometry_epoch @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    physicality_recipe_version integer NOT NULL CHECK (physicality_recipe_version > 0),
+    stream_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    atom_section_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    ducet_position_section_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    ducet_contraction_section_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    normalization_section_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    atom_count bigint NOT NULL CHECK (
+        atom_count = @LAPLACE_PG_UNICODE_ROOT_POPULATION@),
+    ducet_position_count bigint NOT NULL CHECK (
+        ducet_position_count = @LAPLACE_PG_UNICODE_ROOT_POPULATION@),
+    ducet_contraction_count bigint NOT NULL CHECK (ducet_contraction_count >= 0),
+    normalization_composition_count bigint NOT NULL CHECK (normalization_composition_count >= 0),
+    total_frame_count bigint NOT NULL CHECK (
+        total_frame_count >= @LAPLACE_PG_UNICODE_ROOT_MINIMUM_FRAME_COUNT@),
+    total_encoded_bytes bigint NOT NULL CHECK (total_encoded_bytes > 0),
+    canonical_manifest bytea NOT NULL CHECK (
+        octet_length(canonical_manifest) = @LAPLACE_PG_UNICODE_ROOT_MANIFEST_BYTES@),
+    postgresql_contract_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    plan_manifest_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    plan_sequence_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    postgresql_artifact_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_atom_binding (
+    root_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    codepoint_position integer NOT NULL CHECK (
+        codepoint_position BETWEEN 0 AND @LAPLACE_PG_UNICODE_ROOT_MAX_POSITION@),
+    placement_rank integer NOT NULL CHECK (
+        placement_rank BETWEEN 0 AND @LAPLACE_PG_UNICODE_ROOT_MAX_POSITION@),
+    position_class smallint NOT NULL CHECK (position_class BETWEEN 0 AND 4),
+    lup_v1_length smallint NOT NULL CHECK (lup_v1_length BETWEEN 1 AND 4),
+    lup_v1_bytes bytea NOT NULL CHECK (octet_length(lup_v1_bytes) = lup_v1_length),
+    entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    identity_preimage_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    physicality_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.physicality(physicality_id),
+    coordinate_x double precision NOT NULL,
+    coordinate_y double precision NOT NULL,
+    coordinate_z double precision NOT NULL,
+    coordinate_m double precision NOT NULL,
+    hilbert_key bytea NOT NULL CHECK (octet_length(hilbert_key) = 16),
+    PRIMARY KEY (root_receipt, codepoint_position),
+    UNIQUE (root_receipt, placement_rank),
+    FOREIGN KEY (root_receipt)
+        REFERENCES @LAPLACE_PG_SCHEMA@.unicode_root_generation(root_receipt)
+        DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE INDEX unicode_atom_binding_entity_idx
+    ON @LAPLACE_PG_SCHEMA@.unicode_atom_binding
+    (entity_id, root_receipt, codepoint_position);
+CREATE INDEX unicode_atom_binding_physicality_idx
+    ON @LAPLACE_PG_SCHEMA@.unicode_atom_binding
+    (physicality_id, root_receipt, codepoint_position);
+CREATE INDEX unicode_atom_binding_hilbert_idx
+    ON @LAPLACE_PG_SCHEMA@.unicode_atom_binding
+    (root_receipt, hilbert_key, codepoint_position);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_ducet_position (
+    root_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    codepoint_position integer NOT NULL CHECK (
+        codepoint_position BETWEEN 0 AND @LAPLACE_PG_UNICODE_ROOT_MAX_POSITION@),
+    provenance smallint NOT NULL CHECK (provenance BETWEEN 1 AND 4),
+    element_count integer NOT NULL CHECK (element_count > 0),
+    encoded_elements bytea NOT NULL CHECK (
+        octet_length(encoded_elements) = element_count * 8),
+    equivalence_key bytea NOT NULL CHECK (octet_length(equivalence_key) > 0),
+    PRIMARY KEY (root_receipt, codepoint_position),
+    FOREIGN KEY (root_receipt)
+        REFERENCES @LAPLACE_PG_SCHEMA@.unicode_root_generation(root_receipt)
+        DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE INDEX unicode_ducet_position_equivalence_idx
+    ON @LAPLACE_PG_SCHEMA@.unicode_ducet_position
+    (root_receipt, equivalence_key, codepoint_position);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_ducet_contraction (
+    root_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    source_line_ordinal integer NOT NULL CHECK (source_line_ordinal > 0),
+    sequence_count integer NOT NULL CHECK (sequence_count > 1),
+    encoded_sequence bytea NOT NULL CHECK (
+        octet_length(encoded_sequence) = sequence_count * 4),
+    element_count integer NOT NULL CHECK (element_count > 0),
+    encoded_elements bytea NOT NULL CHECK (
+        octet_length(encoded_elements) = element_count * 8),
+    PRIMARY KEY (root_receipt, source_line_ordinal),
+    FOREIGN KEY (root_receipt)
+        REFERENCES @LAPLACE_PG_SCHEMA@.unicode_root_generation(root_receipt)
+        DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_normalization_composition (
+    root_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    starter_position integer NOT NULL CHECK (
+        starter_position BETWEEN 0 AND @LAPLACE_PG_UNICODE_ROOT_MAX_POSITION@),
+    combining_position integer NOT NULL CHECK (
+        combining_position BETWEEN 0 AND @LAPLACE_PG_UNICODE_ROOT_MAX_POSITION@),
+    composite_position integer NOT NULL CHECK (
+        composite_position BETWEEN 0 AND @LAPLACE_PG_UNICODE_ROOT_MAX_POSITION@),
+    PRIMARY KEY (root_receipt, starter_position, combining_position),
+    FOREIGN KEY (root_receipt)
+        REFERENCES @LAPLACE_PG_SCHEMA@.unicode_root_generation(root_receipt)
+        DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE INDEX unicode_normalization_composite_idx
+    ON @LAPLACE_PG_SCHEMA@.unicode_normalization_composition
+    (root_receipt, composite_position, starter_position, combining_position);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_root_deposit_receipt (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    root_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.unicode_root_generation(root_receipt),
+    producer_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    staged_stream_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    sink_artifacts_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    postgresql_artifact_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    tier0_artifact_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    perfcache_manifest_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    perfcache_encoded_manifest_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    activation_epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    admission_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    total_frame_count bigint NOT NULL CHECK (
+        total_frame_count >= @LAPLACE_PG_UNICODE_ROOT_MINIMUM_FRAME_COUNT@),
+    total_encoded_bytes bigint NOT NULL CHECK (total_encoded_bytes > 0),
+    batch_count bigint NOT NULL CHECK (batch_count > 0),
+    plan_manifest_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    plan_sequence_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    plan_count bigint NOT NULL CHECK (plan_count > 0),
+    entity_count bigint NOT NULL CHECK (entity_count > 0),
+    physicality_count bigint NOT NULL CHECK (physicality_count > 0),
+    atom_count bigint NOT NULL CHECK (atom_count > 0),
+    ducet_position_count bigint NOT NULL CHECK (ducet_position_count > 0),
+    ducet_contraction_count bigint NOT NULL CHECK (ducet_contraction_count > 0),
+    normalization_composition_count bigint NOT NULL CHECK (
+        normalization_composition_count > 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
 CREATE TABLE @LAPLACE_PG_SCHEMA@.perfcache_generation (
     activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
     epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
@@ -321,6 +520,34 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.trajectory_batch_result AS (
     item_count bigint
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_root_build_result AS (
+    root_receipt bytea,
+    producer_receipt bytea,
+    staged_stream_receipt bytea,
+    sink_artifacts_fingerprint bytea,
+    postgresql_artifact_fingerprint bytea,
+    tier0_artifact_fingerprint bytea,
+    tier0_artifact_digest bytea,
+    perfcache_manifest_fingerprint bytea,
+    perfcache_encoded_manifest_fingerprint bytea,
+    admission_receipt bytea,
+    activation_epoch_id bytea,
+    activation_epoch_fingerprint bytea,
+    total_frame_count bigint,
+    total_encoded_bytes bigint,
+    batch_count bigint,
+    plan_manifest_fingerprint bytea,
+    plan_sequence_fingerprint bytea,
+    plan_count bigint,
+    entity_count bigint,
+    physicality_count bigint,
+    atom_count bigint,
+    ducet_position_count bigint,
+    ducet_contraction_count bigint,
+    normalization_composition_count bigint,
+    tier0_artifact_bytes bigint
+);
+
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_CALCULATE_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
     integer[])
@@ -358,6 +585,23 @@ RETURNS @LAPLACE_PG_SCHEMA@.canonical_deposit_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_ROOT_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    text,
+    text,
+    text,
+    bytea,
+    bytea,
+    bigint,
+    boolean,
+    bytea,
+    bytea,
+    bigint,
+    integer)
+RETURNS @LAPLACE_PG_SCHEMA@.unicode_root_build_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_UNICODE_ROOT_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 REVOKE ALL ON SCHEMA @LAPLACE_PG_SCHEMA@ FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.execution_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.canonical_entity FROM PUBLIC;
@@ -365,6 +609,12 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.physicality FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.composition_trajectory_vertex FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.observed_occurrence FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_root_generation FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_atom_binding FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_ducet_position FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_ducet_contraction FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_normalization_composition FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_root_deposit_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_generation FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_activation_event FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_active_control FROM PUBLIC;
@@ -387,4 +637,10 @@ REVOKE EXECUTE ON FUNCTION
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_TRAJECTORY_EXECUTE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context, bytea[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_ROOT_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        text, text, text, bytea, bytea, bigint, boolean, bytea, bytea,
+        bigint, integer)
     FROM PUBLIC;
