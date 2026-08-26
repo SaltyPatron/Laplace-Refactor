@@ -85,6 +85,23 @@ Feature: Laplace compiles witnessed substrate relations into neural target artif
     And cross-model agreement and disagreement can be queried without selecting either model as authority
     And target construction can exclude either source model without changing substrate identity
 
+  @LP-TEST-MODEL-BEHAVIOR-COORDINATE
+  Scenario: Model behavior is admitted as a typed experiment rather than a floating probability
+    Given a declared model architecture release layer head expert route context operation and candidate
+    When the engine observes activation contribution downstream effect and a causal intervention under experiment E
+    Then every observation retains the complete behavior coordinate and source-model provenance
+    And behavior observed in another context or route remains a different witnessed occurrence
+    But a token-pair probability without context operation experiment and effect cannot become a universal semantic relation
+
+  @LP-TEST-MODEL-EFFECTIVE-SUPPORT @LP-TEST-MODEL-ARBITRARY-THRESHOLD-REJECTION
+  Scenario: Measured effective support remains distinct from formal nonzero support
+    Given a softmax or gated operator whose finite candidates all have formally nonzero support
+    And withheld probes with causal ablation cumulative-mass contribution-norm and downstream-behavior measurements
+    When a versioned effective-support recipe retains or prunes candidate contributions
+    Then the receipt records the threshold law calibration boundary retained set discarded tail measured loss and behavioral equivalence bounds
+    And top-k may accelerate candidate selection without becoming truth relevance or semantic authority
+    But changing an arbitrary cutoff so a causally material candidate disappears must fail the withheld behavioral oracle
+
   Scenario: A complete target tensor set is emitted
     When the target compiler selects substrate state and constructs every declared tensor
     Then the declared, selected, calculated, factorized, emitted, quantized, loaded, and executed operator inventories match exactly

@@ -58,6 +58,14 @@ trap, interrupt, fault, cancellation, and terminal disposition has one generated
 priority, precision, restart, retry, reroute, replay, compensation, durability, and
 publication law. A failed or indeterminate effect cannot become a plausible result.
 
+Laplace capability is a whole-route property. A component lookup, renderer, parser,
+database population, model artifact, API route, or historical demonstration proves
+only its exact boundary. A capability exists only when its complete public program
+traverses the common generated registry, immutable context, recipe compiler, typed
+ISA, vector batch, presence, deposition, receipt, and exception lifecycle. Unrelated
+programs prove that lifecycle together; no feature may preserve private semantic,
+persistence, transaction, or error machinery behind a generic-looking surface.
+
 ## 2. Universality
 
 The substrate treats text, image, audio, video, code, games, model state, and future
@@ -375,6 +383,14 @@ Every emitted constituent must have a receipt that traces it to content, evidenc
 relations, trust, physical structure, and executed instructions. When support is not
 present, the result is an explicit unknown or unsupported outcome. A fluent shape is
 never evidence of correctness.
+
+Ingested model behavior is experiment-scoped testimony. Model, architecture, release,
+layer, head or expert, route, context, operation, candidate, activation, contribution,
+downstream effect, experiment, and intervention remain in its coordinate. Formal
+nonzero softmax or gating support is not proof of material causal support. Any
+effective-support filter, top-k acceleration, or pruning law is versioned, measured,
+loss-aware, tested on withheld behavior, and receipted; it cannot become truth,
+relevance, semantic authority, or universal structure.
 
 ## 9. Executable instruction set
 

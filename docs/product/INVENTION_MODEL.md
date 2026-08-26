@@ -988,6 +988,33 @@ A model is a witness. Its tokens, tensors, layers, heads, experts, routes, value
 architecture roles, behavior, and source provenance enter universal content,
 composition, testimony, and calculated-result forms.
 
+A transformer feed-forward network admits a useful mechanical interpretation as a
+dense learned associative key/value memory. Each hidden unit behaves approximately as
+a learned detector or key, its nonlinear activation supplies a fuzzy match weight, and
+the corresponding output row contributes a learned value. This describes the induced
+computation; it does not claim that every neuron is one readable database row because
+superposition and distributed behavior remain witnessed facts.
+
+Laplace does not need to relearn an opaque associative approximation for a relation it
+already possesses exactly. A typed physicality or trajectory, relation/operator,
+bound operands, indexed match, and explicit witnessed continuation can implement the
+declared operation directly. Controlled sparse incidence vectors, bitmap or indexed
+joins, set-wise SQL, and sparse matrix products can point exactly when the coordinate
+law is exact. Geometry, ANN, top-k, and learned activations may propose frontier
+candidates; they do not replace the typed operation, its evidence, or completion law.
+
+The intended cost boundary is:
+
+```text
+pay once: identify → canonicalize → witness → persist → index
+pay per program: resolve goal → select typed operation → search relevant state → realize
+```
+
+This does not prove that every useful learned behavior has already been decomposed into
+typed persistent structure. Coverage across compositional syntax, context, causality,
+discourse, modality, and other distributed behaviors remains a whole-machine research
+and acceptance obligation.
+
 Exact content identity supplies correspondence where canonical content matches.
 Structural and behavioral calculations propose further correlations without erasing
 source-specific state. Different model architectures coexist without being forced into
@@ -1017,6 +1044,19 @@ semantic owner. Agreement, disagreement, and unexplained behavior remain attribu
 evidence that Laplace can adjudicate with corpus, lexical, syntactic, semantic, visual,
 audio, code, game, and other testimony.
 
+Behavioral admission is experiment-scoped. A behavior coordinate includes model,
+architecture, release, layer, head or expert, route, context, operation, candidate,
+activation, contribution, downstream effect, experiment, and causal intervention.
+One tiny next-token probability cannot silently become a global relation.
+
+For finite logits, softmax gives every candidate formal nonzero support. Formal support
+does not prove material causal contribution. A versioned effective-support recipe may
+use ablation, cumulative mass, a calibrated null/background distribution, downstream
+contribution norm, or another declared measured law. Pruning records the retained set,
+discarded tail, calibration boundary, loss, withheld probes, downstream behavioral
+bounds, and counterexamples. An arbitrary `top-k` cutoff is acceleration, not semantic
+authority.
+
 Cross-model comparison is operator-based rather than raw-weight-based. For query and
 key factors, the induced bilinear form `M = WQ * WK^T`, its observed pairwise logits,
 and its behavior under declared inputs are the comparable evidence. If an invertible
@@ -1040,6 +1080,16 @@ architecture metadata, numeric meaning, and quantization must match the declared
 runtime contract. If that target architecture uses operations absent from native
 Laplace conversation, those operations belong to the compiled target and do not alter
 Laplace's native execution rules.
+
+The old iteration supplied a constrained historical experiment, not clean-product
+implementation. In June it compiled 678 witnessed word entities into an identity
+embedding and attestation log-odds output operator, emitted a 127 MB GGUF in 0.1
+seconds, and loaded it in an external `llama.cpp` runtime. Prompts exposed visible
+relation signal such as `king → monarch/ruler/person` and `gold → metal/heavy`, while
+continued output became noisy and cyclic. That is evidence that one substrate-derived
+operator can drive ordinary tensor machinery and that one flattened relation space is
+insufficient for the remaining target operations. It is not evidence of a general
+model compiler, conversation, arbitrary behavior preservation, or clean-product state.
 
 ## 17. Proof standard
 

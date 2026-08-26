@@ -79,6 +79,13 @@ schemas, perfcache access laws, recomposition laws, and semantic parity checks. 
 not create another dispatcher, batching loop, scheduler, receipt system, lifecycle,
 identity law, AST law, recipe compiler, or persistence engine.
 
+Cohesion is proven across complete programs, not inferred from common-looking
+components. Structural search and recomposition, multilingual conversation, a game
+transition, a model operation, and an authorized effect are materially unrelated
+fixtures that must traverse this same lifecycle. A mutation that diverts one through a
+private staging, persistence, transaction, or error route must fail whole-route
+admission even when every lower component still returns plausible output.
+
 ## 3. Self-hosting Unicode root
 
 Before Unicode can establish the universal atom floor, the framework provides a
@@ -296,6 +303,13 @@ A conventional model is exact content and an attributable witness. Laplace decom
 containers, architecture, layers, heads/experts, tensors, cells, bytes, and recipes;
 calculates induced behavior and gauge-invariant operators; and deposits attributable
 observations without making the model authoritative.
+
+Behavior is an experiment-scoped witness. Model, architecture, release, layer, head
+or expert, route, context, operation, candidate, activation, contribution, downstream
+effect, experiment, and intervention remain in the behavior coordinate. Formal
+nonzero softmax support cannot be promoted into material support. Any effective-support
+filter or top-k acceleration declares its measured causal/behavioral law, loss,
+discarded tail, withheld probes, and receipt.
 
 In the other direction, declared substrate calculations can generate AImaps,
 embeddings, indexes, Q/K/V/O and FFN tensors, rerankers, model vocabularies, GGUF, and

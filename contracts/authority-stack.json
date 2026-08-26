@@ -11,6 +11,7 @@
     "personality_firmware": "versioned executable policy selects and orders admissible cognition programs over shared knowledge but cannot manufacture truth authority or privilege",
     "creative_extension": "typed incompleteness may produce a new structure recipe firmware routine program or calculus candidate with complete ancestry but activation requires disjoint evidence counterexamples and authority",
     "cognitive_traffic": "goals deficits typed addressing relation laws indexes search evidence firmware authority effects and observed consequences form explicit finite control data evidence and effect traffic through the ISA rather than hidden behavior",
+    "execution_cohesion": "only a complete public program traversing the one registry context recipe ISA batch persistence receipt and exception lifecycle establishes machine capability; component counts isolated demonstrations and historical success do not",
     "finite_machine": "every program names evidence authority resource and search boundaries and returns a typed why-not disposition instead of allowing approximation partial work or fluent output to impersonate completion",
     "exception_machine": "hardware provider resource program authority epistemic and semantic conditions have distinct processor-grade exception trap fault recovery durability and publication laws",
     "application_symmetry": "people organizations accounts entitlements achievements activities interfaces and product views use the same referential AST testimony governance recipe effect and receipt machinery rather than application-specific semantic engines",
@@ -19,7 +20,8 @@
     "result": "query-relative calculated state semantic acts effects and modality realizations with complete receipts",
     "training_requirement": "no gradient-training campaign is required to make admitted sources interoperable or queryable",
     "hardware_requirement": "the complete semantic engine executes on CPU through native and PostgreSQL server operations without requiring a GPU",
-    "model_symmetry": "conventional models may enter as witnessed artifacts and may be compiled as optional targets but do not define Laplace"
+    "model_symmetry": "conventional models may enter as witnessed artifacts and may be compiled as optional targets but do not define Laplace",
+    "model_behavior": "model behavior is experiment-scoped witnessed state; formal nonzero support differs from measured causal effective support and pruning acceleration cannot become semantic authority"
   },
   "authority_classes": {
     "inventor_direct_evidence": "exact inventor-authored messages and artifacts govern and supersede every derived class",
@@ -34,11 +36,12 @@
   "direct_evidence": {
     "index": "docs/audits/DIRECT_REQUIREMENT_EVIDENCE.md",
     "continuation_manifest": "evidence/continuation-session-human-messages.jsonl",
-    "continuation_records": 50,
-    "continuation_manifest_sha256": "441316b338f82852e28b86a1b5cb8d014e93876335f924279b3a110a9c98f131",
+    "continuation_records": 72,
+    "continuation_manifest_sha256": "0976a96d1fcc49ad1fbd199e1ae49f4f1d7e939534169f312ff628ccd4dbcad8",
     "generator": "tools/audit/index-human-messages.sh",
     "raw_source": "/home/ahart/.codex/sessions/2026/08/26/rollout-2026-08-26T17-45-46-01a03f2d-932d-7de2-9177-9fdc4adca5cc.jsonl",
-    "quotation_rule": "a human-supplied message may contain quoted agent prose; the record proves message provenance but quoted content remains a reconciliation lead until corroborated"
+    "quotation_rule": "a human-supplied message may contain quoted agent prose; the record proves message provenance but quoted content remains a reconciliation lead until corroborated",
+    "generated_context_rule": "client-owned environment and internal goal-continuation envelopes may be serialized with role user but are excluded because transport role cannot manufacture inventor authorship"
   },
   "required_load_order": [
     {"order": 1, "path": "docs/audits/DIRECT_REQUIREMENT_EVIDENCE.md", "class": "direct_evidence_index", "purpose": "exact human-message locators digests precedence and correction chronology"},
@@ -56,7 +59,8 @@
     {"order": 13, "path": "contracts/source-admission.json", "class": "executable_contract", "purpose": "complete witness topology and generic source-admission law"},
     {"order": 14, "path": "docs/architecture/ACCEPTANCE.md", "class": "executable_contract", "purpose": "implementation-level and complete-product proof boundaries"},
     {"order": 15, "path": "docs/product/ROADMAP.md", "class": "program_execution_projection", "purpose": "current proof-state critical path and GitHub ownership projected from the operational contract"},
-    {"order": 16, "path": "state/continuation.json", "class": "observed_development_state", "purpose": "verified current work and runtime checkpoint"}
+    {"order": 16, "path": "docs/audits/CONTINUATION_WORK_AUDIT_2026-08-26.md", "class": "observed_development_state", "purpose": "dated session chronology work effort action inventory process corrections and publication boundary"},
+    {"order": 17, "path": "state/continuation.json", "class": "observed_development_state", "purpose": "verified current work and runtime checkpoint"}
   ],
   "work_selection_gate": [
     "state the complete product behavior this work advances",
@@ -64,6 +68,7 @@
     "identify the one native semantic owner and every replaceable physical provider",
     "declare processor exception retry reroute replay durability and publication behavior for every failure boundary",
     "prove scalar vector batch PostgreSQL SQL and Csharp routes retain one meaning",
+    "prove materially unrelated complete programs traverse one lifecycle without private semantic persistence or error routes",
     "separate implementation integration product-activation source-profile world-admission configured foundational seed release and observed-state claims",
     "verify the continuation checkpoint against the physical worktree and live runtime",
     "reject a source corpus format branch component issue or green check as a completeness boundary"
@@ -85,6 +90,8 @@
     "self-generated descendants for independent evidence of their ancestor",
     "novel output for proof of independent agency consciousness or personhood",
     "one source or modality for generic acceptance",
+    "component success database scale screenshot API breadth or historical behavior for current whole-route capability",
+    "formal nonzero model support arbitrary top-k or an unmeasured threshold for material semantic support",
     "training for admission and interoperability",
     "GPU availability for semantic execution",
     "current branch shape for invention chronology",
@@ -94,5 +101,11 @@
   "state_boundary": {
     "checkpoint": "state/continuation.json",
     "rule": "load observed state only after the whole invention and executable contracts; stale or unavailable observations become explicit unknowns and never override product law"
+  },
+  "session_control": {
+    "pause": "a direct user stop pause cancel or equivalent instruction halts tool calls repository changes external changes and automatic goal continuation",
+    "resume": "work resumes only after a later direct user instruction explicitly resumes continues or replaces the paused task",
+    "non_resume_events": "permission environment connector runner goal or other external state changes are observations and cannot resume paused work",
+    "state_distinction": "noticing that a change occurred is not proof that the requested state transition completed and is not authority to bypass it"
   }
 }

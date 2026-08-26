@@ -19,6 +19,26 @@ Mutation fixtures erase relation type, direction, arity, evidence lineage, rank,
 context one at a time and must fail before the generated representation is accepted.
 A target-shaped value and a loadable artifact are not behavioral proof.
 
+## Whole-route cohesion
+
+- At least three materially unrelated complete programs—including structural
+  search/recomposition, multilingual conversation, and a legal game-state transition—
+  traverse one generated registry, immutable context, recipe compiler, typed ISA,
+  canonical vector batch, set-wise presence, transactional deposition, receipt, and
+  exception lifecycle.
+- A working component, large durable row count, screenshot, route inventory, lookup,
+  rendering, artifact load, or historical demonstration proves only its named
+  boundary. It cannot promote a failed or absent complete public operation.
+- Native, PostgreSQL, SQL, managed, HTTP, MCP, and other admitted routes return the
+  same logical result or precise typed why-not disposition with equivalent receipt
+  meaning.
+- A deliberate mutation routes one fixture through a private dispatcher, attestation
+  staging path, persistence protocol, transaction boundary, or opaque internal-error
+  translation. Whole-route admission must fail for that exact reason.
+- Historical old-iteration behavior is a counterexample only. A current failure of a
+  capability known to have worked historically establishes regression or state drift,
+  not its root cause; the clean test independently constructs and detects the defect.
+
 ## Identity
 
 - Identical canonical content entering through different sources, languages, models,
@@ -341,6 +361,17 @@ Hardware acceptance uses the Intel i7-6850K system and its declared storage layo
 - Ingested query, key, value, output, embedding, normalization, feed-forward, gating,
   routing, positional, and architecture-specific values remain attributable model
   testimony rather than becoming substrate authority.
+- Every behavioral observation retains model, architecture, release, layer, head or
+  expert, route, context, operation, candidate, activation, contribution, downstream
+  effect, experiment, intervention, and source provenance. A context-free token pair
+  cannot become a universal semantic edge.
+- Formal nonzero softmax or gating support remains distinct from measured material
+  support. Effective-support filtering declares its causal or behavioral law,
+  calibration boundary, retained set, discarded tail, loss, withheld probes, and
+  behavior bounds.
+- Changing an arbitrary cutoff so a causally material contribution disappears fails
+  the withheld behavioral oracle. Top-k may accelerate candidate generation but cannot
+  establish truth, relevance, semantics, or completion.
 - Typed relation kernels calculate pairwise targets from declared substrate evidence;
   fitting and factorization reproduce those targets within declared numeric bounds on
   both training and withheld observations.
@@ -597,6 +628,10 @@ cross these gates.
   operators, relation families, evidence boundaries, quantization error, and runtime
   behavior as applicable. The unqualified word `faithful`, expected shape, loadability,
   correlation, resemblance, or one academic fixture is rejected as proof.
+- The preserved June GGUF trace is accepted only as historical evidence for one direct
+  attestation-derived operator and its noisy or cyclic negative control. A clean
+  exporter must reproduce the declared baseline independently and cannot promote it
+  into general target intelligence, conversation, or model correctness.
 
 ## Installation and product lifecycle
 

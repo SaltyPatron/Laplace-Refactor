@@ -8,7 +8,7 @@
 - Product authority projects `LP-PRODUCT-001`, `LP-UNIVERSAL-001`, `LP-AST-001`,
   `LP-GOVERNANCE-001`, `LP-FIRMWARE-001`, and `LP-CLEANROOM-001`.
 - Architecture projects `LP-ISA-001`, `LP-FRAMEWORK-001`, `LP-REUSE-001`,
-  `LP-RECIPE-001`, `LP-BULK-001`, `LP-HIGHWAY-001`, `LP-ADMISSION-001`,
+  `LP-COHESION-001`, `LP-RECIPE-001`, `LP-BULK-001`, `LP-HIGHWAY-001`, `LP-ADMISSION-001`,
   `LP-CONNECTION-001`, `LP-LIMITS-001`, and `LP-EXCEPTION-001`.
 - Product-surface and node symmetry project `LP-APPLICATION-001`,
   `LP-ENTITY-WEB-001`, `LP-ENTITLEMENT-001`, `LP-NODE-001`,
@@ -72,6 +72,14 @@
 - Model export names and independently tests the exact invariant it preserves. Do not
   accept an unqualified claim of `faithful`, expected shape, loadability, correlation,
   or one academic fixture as semantic or behavioral proof.
+- A capability exists only after its complete public program traverses the shared
+  registry, context, recipe, ISA, batch, presence, deposition, receipt, and exception
+  lifecycle. Component counts, screenshots, lookups, historical behavior, and private
+  feature routes cannot promote a missing whole operation.
+- Model behavior is experiment-scoped witnessed state. Formal nonzero support is not
+  material support; top-k, pruning, or thresholding requires a versioned measured
+  causal/behavioral law, loss boundary, withheld probes, and receipts under
+  `LP-MODEL-006`.
 
 ## Evidence
 
@@ -96,6 +104,13 @@
 
 ## Persistence
 
+- A direct user stop, pause, cancel, or equivalent instruction halts every tool call,
+  repository or external mutation, read-only investigation, and automatic goal
+  continuation. Resume only after a later direct user instruction explicitly resumes,
+  continues, or replaces the paused task.
+- A permission, environment, connector, runner, goal-ledger, or other external state
+  change is an observation, not a human resume instruction. Noticing a transition is
+  not proof that it completed and cannot be used to shortcut the requested boundary.
 - At the start of a resumed work session, load and validate
   `contracts/authority-stack.json` in its declared order. The whole invention governs
   before current branch, source inventory, issue state, or implementation pattern.

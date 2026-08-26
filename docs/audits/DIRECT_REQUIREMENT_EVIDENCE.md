@@ -17,12 +17,16 @@ index entries, not replacements for the source messages.
 | Source | Human text records | Manifest | Manifest SHA-256 |
 | --- | ---: | --- | --- |
 | Current Codex session through 2026-08-25 05:24:39 UTC | 190 | `evidence/current-session-human-messages.jsonl` | `864c50823cb8c7d236fc2d9ec7d4651f40b0ef2df6cfd9cf49f11138fbd271a2` |
-| Resumed Codex continuation through 2026-08-26 20:35:14 UTC | 50 | `evidence/continuation-session-human-messages.jsonl` | `441316b338f82852e28b86a1b5cb8d014e93876335f924279b3a110a9c98f131` |
+| Resumed Codex continuation through 2026-08-26 21:36:33 UTC | 72 | `evidence/continuation-session-human-messages.jsonl` | `0976a96d1fcc49ad1fbd199e1ae49f4f1d7e939534169f312ff628ccd4dbcad8` |
 | Preserved top-level Claude project sessions | 596 | `evidence/claude-parent-human-messages.jsonl` | `6b084bdc2e6e38b1821fc2879e7add28c52b8e649de4e6b3f77e0da27131d02b` |
 
 The indexer excludes tool-result blocks, worker notifications, local-command notices,
-and interruption markers. It does not treat assistant output as human-authored text.
-The extraction is reproducible with `tools/audit/index-human-messages.sh`.
+interruption markers, and client-generated environment or internal goal-continuation
+envelopes. Codex may serialize those envelopes with `role=user`, but transport role
+does not make them inventor-authored evidence. It does not treat assistant output as
+human-authored text. The extraction is reproducible with
+`tools/audit/index-human-messages.sh` and has a deliberate generated-context defect
+test.
 
 A user message can quote agent or reviewer prose. The manifest proves who supplied the
 message to the session, not authorship of every quoted block inside it. Quoted review
@@ -201,12 +205,35 @@ they were supplied for review.
 | 20:27:07 | `msg_01a03fc1-4d40-7681-82e1-464908b8f9c0` | Produce Patreon-ready development content as work proceeds. |
 | 20:33:05 | `msg_01a03fc6-c1e9-7702-87fc-0d664e5f5d6a` | Patreon communication must be fully transparent about technical ambition, proof, failure, AI assistance, financial need, and the direct exchange between supporter funding and development time. |
 | 20:35:14 | `msg_01a03fc8-ba24-7b52-a828-b4c624711b8e` | Future Patreon-linked product value may be described honestly, but undefined or unimplemented benefits cannot be sold as existing; external membership remains witnessed entitlement input governed by Laplace rather than hard-coded identity or authority. |
+| 20:56:40 | `msg_01a03fdc-59c5-79f1-a97d-70c831c36ee2` | Model files are decomposable witnessed digital artifacts and optional compilation targets. FFN fuzzy associative memory, formal softmax support, measured effective support, exact sparse typed relations, direct GGUF operator compilation, and the noisy June continuation establish distinct mechanism and proof boundaries; arbitrary top-k, target shape, and unqualified `faithful` cannot certify preserved behavior. Quoted explanatory prose is retained as supplied review evidence; the embedded June terminal trace is an inventor-supplied historical artifact. |
+| 20:59:09 | `msg_01a03fde-9fe2-7a81-8313-71bb8addfa05` | Patreon technical posts should sequence architecture, concrete historical success and failure, mechanism, and consequence while preserving exact proof-state limits. Quoted draft review remains a publication lead rather than independent product authority. |
+| 21:00:35 | `msg_01a03fdf-eef4-7661-83a6-2ce42df01e7d` | Preserve the historical Japanese trajectory receipt as evidence that generic ordered Unicode composition and rendering reconstructed `事件のことなんだけど...`; do not promote it into semantic understanding, translation, conversation, or clean-product implementation. |
+| 21:01:11 | `msg_01a03fe0-7bc8-7b21-b4c9-faf12ec6c5b5` | The deployed old database and product may be inspected read-only to discover stronger historical demonstrations while it remains non-authoritative. |
+| 21:01:41 | `msg_01a03fe0-ef4a-79a3-bc71-b5b16bcb30b0` | Locate preserved Playwright screenshots as dated historical product evidence rather than clean-product design authority. |
+| 21:04:08 | `msg_01a03fe3-2eee-74e1-bc4a-64e1ab6af1d1` | Prefer the deployed product's exposed API metadata when exploring historical public operations. |
+| 21:04:39 | `msg_01a03fe3-a67e-7ba0-98aa-40aa2a666bc9` | Determine whether the existing Laplace MCP is available before inventing another access route. |
+| 21:05:16 | `msg_01a03fe4-399c-79b1-ab45-47ec98c0d77d` | The old deployed application under `/opt/laplace` or its application subtree is historical runtime evidence, not the clean repository. |
+| 21:05:49 | `msg_01a03fe4-bacb-7f01-8787-fcf5aee1277d` | Do not reverse-engineer a known parent sentence identity when generic containment operations can discover compositions from constituents. |
+| 21:09:11 | `msg_01a03fe7-d092-73b3-b21a-3246121af0aa` | Use generic structural operations such as `containers_of` to discover sentences and other containers that contain selected codepoints, graphemes, words, or structures. |
+| 21:09:11 | `msg_01a03fe7-d096-7182-b039-4d80134ff2d8` | The old iteration's fragmented pieces, missing cohesion, missing reuse, and missing generic lifecycle are the reason the clean refactor proceeds with extreme granularity; historical behavior is evidence, not a design to reconstruct. |
+| 21:09:11 | `msg_01a03fe7-d09b-7e62-a799-5805cbd783e7` | Explore historical behavior for stronger demonstrations and defects, but do not reduce product scope to chess or another feature. This exploration authorization is superseded for the old runtime by the 21:21:17 isolation correction. |
+| 21:12:38 | `msg_01a03fea-f702-73c1-83cc-506ad6ea451c` | Progress must be evaluated against the cohesive reusable universal machine, not accumulated component counts or impressive isolated demonstrations. |
+| 21:16:56 | `msg_01a03fee-e624-7a80-ae0d-91f6949fe305` | An assistant-supplied English gloss must never be reported as Laplace output. The observed live Japanese result proves generic containment, ordered constituent recovery, and Japanese-to-Japanese rendering only. Supplied review prose remains contextual evidence. |
+| 21:18:22 | `msg_01a03ff0-38b8-7fd1-b562-cf2bb00ab333` | Correct the historical record: the old iteration ingested chess games and played chess strongly; current `e2e4` failure is a broken deployed-state observation whose code, database, deployment, or dependency cause is unknown, not proof that chess never worked. |
+| 21:21:17 | `msg_01a03ff2-e281-7250-b660-e38979f5d58c` | Another agent is repairing the old iteration; stop inspecting or mutating that context and keep clean-refactor authority work isolated. |
+| 21:34:59 | `msg_01a03fff-6e83-7c21-88db-1448c68f33ea` | A transport/session crash was followed by an explicit human resume; reconstructed continuation still requires physical and authority verification rather than assuming conversational state survived. |
+| 21:35:06 | `msg_01a03fff-893f-7133-843c-d5e3e654a4b9` | Pause all work while permissions change. |
+| 21:36:01 | `msg_01a04000-60b1-7f70-9d53-c2f28e66806f` | A permission or environment transition is not a resume instruction; the agent must actually stop until the user explicitly continues, and noticing a change cannot impersonate completing or honoring the requested state transition. |
+| 21:36:33 | `msg_01a04000-daeb-7623-888e-308467077a9c` | Explicitly resume by inventorying work to be done, auditing the session's work effort and action items, and returning the active roadmap publication to its exact track. |
 
 The review syntheses at `msg_01a03f90-4c25-7ce2-9390-a8725ecb8550` and
 `msg_01a03f93-3f62-7572-93cc-17155924018c`, plus the long contextual quote blocks at
 `msg_01a03fb1-75ee-75c2-8bbc-7fca17869594`,
 `msg_01a03fb5-78ef-7c80-8ae0-fa91865df07e`, and
-`msg_01a03fbd-cf99-7b42-a453-239689ad6439`, are retained as supplied review evidence.
+`msg_01a03fbd-cf99-7b42-a453-239689ad6439`,
+`msg_01a03fdc-59c5-79f1-a97d-70c831c36ee2`,
+`msg_01a03fde-9fe2-7a81-8313-71bb8addfa05`, and
+`msg_01a03fee-e624-7a80-ae0d-91f6949fe305`, are retained as supplied review evidence.
 Their knowledge/governance/firmware, entity-world, typed-search, federation,
 self-authored-synthesis, and industry-comparison statements are promoted only where a
 direct inventor framing, prior direct evidence, or independently observed behavior
