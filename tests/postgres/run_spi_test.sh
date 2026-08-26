@@ -136,11 +136,13 @@ elif [[ "$mode" == "unicode-root" ]]; then
     fi
     unicode_spool_directory="$test_root/unicode-spool"
     unicode_tier0_path="$perfcache_root/unicode-tier0.bin"
+    unicode_reverse_path="$perfcache_root/unicode-identity-reverse.bin"
     mkdir -p -- "$unicode_spool_directory"
     psql_arguments+=(
         -v "unicode_source_root=$unicode_source_root"
         -v "unicode_spool_directory=$unicode_spool_directory"
-        -v "unicode_tier0_path=$unicode_tier0_path")
+        -v "unicode_tier0_path=$unicode_tier0_path"
+        -v "unicode_reverse_path=$unicode_reverse_path")
 elif [[ "$mode" != "mutation" ]]; then
     echo "unknown PostgreSQL test mode: $mode" >&2
     exit 64
@@ -172,10 +174,19 @@ if [[ "$mode" == "unicode-root" ]]; then
         echo "Unicode Tier-0 artifact was not published" >&2
         exit 80
     fi
+    if [[ ! -f "$unicode_reverse_path" ]]; then
+        echo "Unicode identity reverse artifact was not published" >&2
+        exit 82
+    fi
     unicode_tier0_bytes=$(stat -c '%s' -- "$unicode_tier0_path")
     if [[ "$unicode_tier0_bytes" != 762586574 ]]; then
         echo "Unicode Tier-0 artifact has unexpected size: $unicode_tier0_bytes" >&2
         exit 81
+    fi
+    unicode_reverse_bytes=$(stat -c '%s' -- "$unicode_reverse_path")
+    if [[ "$unicode_reverse_bytes" != 117440896 ]]; then
+        echo "Unicode identity reverse artifact has unexpected size: $unicode_reverse_bytes" >&2
+        exit 83
     fi
 fi
 

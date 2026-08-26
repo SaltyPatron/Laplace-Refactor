@@ -149,7 +149,7 @@ BEGIN
                 ('laplace.trajectory_composition_decode_calculate_batch(laplace.execution_context,bytea[])', 'i', 's'),
                 ('laplace.trajectory_composition_decode_execute_batch(laplace.execution_context,bytea[])', 'v', 'u'),
                 ('laplace.canonical_deposit_batch(laplace.execution_context,bytea,bytea,bytea[])', 'v', 'u'),
-                ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint,integer)', 'v', 'u')
+                ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint,integer)', 'v', 'u')
         ) AS expected(signature, volatility, parallel_safety)
         LEFT JOIN pg_catalog.pg_proc AS procedure
             ON procedure.oid = pg_catalog.to_regprocedure(expected.signature)

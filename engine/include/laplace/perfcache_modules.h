@@ -3,6 +3,7 @@
 
 #include "laplace/export.h"
 #include "laplace/perfcache_registry.h"
+#include "laplace/unicode_root.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,6 +16,10 @@ laplace_perfcache_framework_probe_module(
 
 LAPLACE_API laplace_perfcache_registry_status
 laplace_perfcache_unicode_tier0_module(
+    laplace_perfcache_module_v2* module);
+
+LAPLACE_API laplace_perfcache_registry_status
+laplace_perfcache_unicode_identity_reverse_module(
     laplace_perfcache_module_v2* module);
 
 /*
@@ -33,6 +38,38 @@ laplace_perfcache_unicode_tier0_validate_view(
     void* context,
     const laplace_perfcache_view* view,
     uint64_t* invalid_record_index);
+
+LAPLACE_API laplace_perfcache_status
+laplace_perfcache_unicode_identity_reverse_validate_view(
+    void* context,
+    const laplace_perfcache_view* view,
+    uint64_t* invalid_record_index);
+
+typedef struct laplace_unicode_identity_key {
+    laplace_id128 content_id;
+    laplace_digest256 identity_preimage_fingerprint;
+} laplace_unicode_identity_key;
+
+/*
+ * Typed hot accessors retain cache layout semantics in the native engine.
+ * Returned atom views remain valid only while the supplied generation pin is
+ * held. Reverse results are copied into caller-owned output storage.
+ */
+LAPLACE_API laplace_perfcache_registry_status
+laplace_perfcache_unicode_tier0_resolve_batch(
+    const laplace_perfcache_pin* pin,
+    const uint32_t* codepoint_positions,
+    size_t item_count,
+    laplace_unicode_atom_record_view* atoms,
+    uint8_t* found);
+
+LAPLACE_API laplace_perfcache_registry_status
+laplace_perfcache_unicode_identity_reverse_resolve_batch(
+    const laplace_perfcache_pin* pin,
+    const laplace_unicode_identity_key* identities,
+    size_t item_count,
+    uint32_t* codepoint_positions,
+    uint8_t* found);
 
 #ifdef __cplusplus
 }

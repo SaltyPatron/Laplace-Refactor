@@ -849,6 +849,82 @@ TEST(UnicodeTier0Module, ExactPersistedContractSelectsNativeImplementation) {
               LAPLACE_PERFCACHE_REGISTRY_MODULE_NOT_FOUND);
 }
 
+TEST(UnicodeIdentityReverseModule, ProbesCollisionChainsAndPreservesTypedEmpty) {
+    laplace_perfcache_module_v2 module{};
+    ASSERT_EQ(laplace_perfcache_unicode_identity_reverse_module(&module),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_EQ(module.access_law, LAPLACE_PERFCACHE_ACCESS_MODULE_DEFINED);
+    ASSERT_NE(module.lookup_batch, nullptr);
+    ASSERT_EQ(module.key_bytes, 48U);
+    ASSERT_EQ(module.value_bytes, 8U);
+
+    constexpr std::size_t Stride = 56U;
+    std::array<std::uint8_t, Stride * 3U> records{};
+    std::array<std::uint8_t, 48U * 3U> keys{};
+    keys[0] = 0x11U;
+    keys[48U] = 0x22U;
+    std::memcpy(records.data(), keys.data(), 48U);
+    WriteU32(records.data() + 48U, 7U);
+    records[52U] = 1U;
+    std::memcpy(records.data() + Stride, keys.data() + 48U, 48U);
+    WriteU32(records.data() + Stride + 48U, 9U);
+    records[Stride + 52U] = 1U;
+
+    laplace_perfcache_view view{};
+    view.records = records.data();
+    view.record_count = LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY;
+    view.record_stride = Stride;
+    std::array<std::uint64_t, 3U> indexes{};
+    std::array<std::uint8_t, 3U> found{};
+    std::array<std::uint8_t, 48U * 3U> lookup_keys{};
+    std::memcpy(lookup_keys.data(), keys.data() + 48U, 48U);
+    std::memcpy(lookup_keys.data() + 48U, keys.data(), 48U);
+    ASSERT_EQ(module.lookup_batch(
+                  module.state, &view, lookup_keys.data(), 3U,
+                  indexes.data(), found.data()),
+              LAPLACE_PERFCACHE_OK);
+    EXPECT_EQ(found, (std::array<std::uint8_t, 3U>{{1U, 1U, 0U}}));
+    EXPECT_EQ(indexes[0], 1U);
+    EXPECT_EQ(indexes[1], 0U);
+    EXPECT_EQ(indexes[2], UINT64_MAX);
+
+    records[Stride + 52U] = 2U;
+    EXPECT_EQ(module.lookup_batch(
+                  module.state, &view, lookup_keys.data(), 1U,
+                  indexes.data(), found.data()),
+              LAPLACE_PERFCACHE_SEMANTIC_MISMATCH);
+}
+
+TEST(UnicodeIdentityReverseModule, ReidentifiesOccupiedRecordsExactly) {
+    laplace_perfcache_module_v2 module{};
+    ASSERT_EQ(laplace_perfcache_unicode_identity_reverse_module(&module),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    const auto atom = Atom(0x41U);
+    std::array<std::uint8_t, 56U> record{};
+    std::memcpy(record.data(), atom.content_id.bytes, 16U);
+    std::memcpy(
+        record.data() + 16U,
+        atom.identity_preimage_fingerprint.bytes, 32U);
+    WriteU32(record.data() + 48U, atom.codepoint_position);
+    record[52U] = 1U;
+    EXPECT_EQ(module.validate_record(
+                  module.state, 0U, record.data(), record.size()),
+              LAPLACE_PERFCACHE_OK);
+    record[16U] ^= 0x01U;
+    EXPECT_EQ(module.validate_record(
+                  module.state, 0U, record.data(), record.size()),
+              LAPLACE_PERFCACHE_SEMANTIC_MISMATCH);
+
+    record.fill(0U);
+    EXPECT_EQ(module.validate_record(
+                  module.state, 0U, record.data(), record.size()),
+              LAPLACE_PERFCACHE_OK);
+    record[0U] = 1U;
+    EXPECT_EQ(module.validate_record(
+                  module.state, 0U, record.data(), record.size()),
+              LAPLACE_PERFCACHE_SEMANTIC_MISMATCH);
+}
+
 TEST(UnicodeTier0Module, WholeViewRejectsPartialPopulation) {
     const auto atom = Atom(0U);
     const auto metadata = Encode(atom);

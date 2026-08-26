@@ -37,6 +37,7 @@ FROM laplace.unicode_root_build_and_activate(
     :'unicode_source_root',
     :'unicode_spool_directory',
     :'unicode_tier0_path',
+    :'unicode_reverse_path',
     decode(repeat('42', 16), 'hex'),
     decode(repeat('43', 32), 'hex'),
     0,
@@ -66,15 +67,16 @@ BEGIN
        OR octet_length(build.staged_stream_receipt) <> 32
        OR octet_length(build.sink_artifacts_fingerprint) <> 32
        OR octet_length(build.postgresql_artifact_fingerprint) <> 32
-       OR octet_length(build.tier0_artifact_fingerprint) <> 32
+       OR octet_length(build.perfcache_artifact_set_fingerprint) <> 32
        OR octet_length(build.tier0_artifact_digest) <> 32
+       OR octet_length(build.reverse_artifact_digest) <> 32
        OR octet_length(build.perfcache_manifest_fingerprint) <> 32
        OR octet_length(build.perfcache_encoded_manifest_fingerprint) <> 32
        OR octet_length(build.admission_receipt) <> 32
        OR octet_length(build.plan_manifest_fingerprint) <> 32
        OR octet_length(build.plan_sequence_fingerprint) <> 32
        OR build.plan_manifest_fingerprint <>
-          decode('9f331f03785b878c03fa36c4d78384695c3bb69a573995021281fb05c7e6c72a', 'hex')
+          decode('74499f893b359982962c3dbeb5572965c8d89f22609f47c41dbd7143d08034ab', 'hex')
        OR build.activation_epoch_id <> decode(repeat('42', 16), 'hex')
        OR build.activation_epoch_fingerprint <> decode(repeat('43', 32), 'hex')
        OR build.total_frame_count <> 2230150
@@ -90,14 +92,30 @@ BEGIN
        OR build.normalization_composition_count <> 961
        OR build.tier0_artifact_digest <>
           decode('8950d9867428fd660f8a49377b0c4a693b57ef0a9807ea189e425d0bb847c291', 'hex')
-       OR build.tier0_artifact_bytes <> 762586574 THEN
+       OR build.reverse_artifact_digest <>
+          decode('6f33df84440a8f4bb19afa608befac11f17ad68123d06e043c2be7451f6ab7b1', 'hex')
+       OR build.tier0_artifact_bytes <> 762586574
+       OR build.reverse_artifact_bytes <> 117440896
+       OR build.perfcache_artifact_count <> 2
+       OR build.perfcache_dependency_count <> 1
+       OR build.reverse_dependency_module_id <>
+          decode('cb4d73fe1c7ad3784bdd69f9e22f5b3f', 'hex')
+       OR build.reverse_dependency_artifact_digest <>
+          build.tier0_artifact_digest THEN
         RAISE EXCEPTION 'Unicode root result violates the full-root contract'
             USING DETAIL = format(
-                'frames=%s encoded_bytes=%s batches=%s plans=%s tier0_bytes=%s tier0_digest=%s',
+                'frames=%s encoded_bytes=%s batches=%s plans=%s plan_manifest=%s tier0_bytes=%s reverse_bytes=%s tier0_digest=%s reverse_digest=%s artifact_count=%s dependency_count=%s dependency_module=%s dependency_digest=%s',
                 build.total_frame_count, build.total_encoded_bytes,
                 build.batch_count, build.plan_count,
+                encode(build.plan_manifest_fingerprint, 'hex'),
                 build.tier0_artifact_bytes,
-                encode(build.tier0_artifact_digest, 'hex'));
+                build.reverse_artifact_bytes,
+                encode(build.tier0_artifact_digest, 'hex'),
+                encode(build.reverse_artifact_digest, 'hex'),
+                build.perfcache_artifact_count,
+                build.perfcache_dependency_count,
+                encode(build.reverse_dependency_module_id, 'hex'),
+                encode(build.reverse_dependency_artifact_digest, 'hex'));
     END IF;
 
     IF generation.atom_count <> @LAPLACE_PG_UNICODE_ROOT_POPULATION@
@@ -116,8 +134,8 @@ BEGIN
           build.sink_artifacts_fingerprint
        OR deposit.postgresql_artifact_fingerprint <>
           build.postgresql_artifact_fingerprint
-       OR deposit.tier0_artifact_fingerprint <>
-          build.tier0_artifact_fingerprint
+       OR deposit.perfcache_artifact_set_fingerprint <>
+          build.perfcache_artifact_set_fingerprint
        OR deposit.perfcache_manifest_fingerprint <>
           build.perfcache_manifest_fingerprint
        OR deposit.perfcache_encoded_manifest_fingerprint <>

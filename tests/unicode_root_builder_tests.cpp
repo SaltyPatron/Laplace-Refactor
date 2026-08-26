@@ -3,16 +3,25 @@
 #include "laplace/perfcache_registry.h"
 #include "laplace/unicode_tier0_sink.h"
 
+#include "blake3.h"
+
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <vector>
+
+#include <sys/resource.h>
 
 #include <gtest/gtest.h>
 
@@ -77,6 +86,330 @@ std::string Hex(const laplace_digest256& value) {
         output << std::setw(2) << static_cast<unsigned>(byte);
     }
     return output.str();
+}
+
+std::string Hex(const laplace_id128& value) {
+    std::ostringstream output;
+    output << std::hex << std::setfill('0');
+    for (const std::uint8_t byte : value.bytes) {
+        output << std::setw(2) << static_cast<unsigned>(byte);
+    }
+    return output.str();
+}
+
+std::uint64_t TimevalMicroseconds(const timeval& value) {
+    return static_cast<std::uint64_t>(value.tv_sec) * UINT64_C(1000000) +
+        static_cast<std::uint64_t>(value.tv_usec);
+}
+
+std::uint64_t Percentile(
+    std::vector<std::uint64_t> values,
+    const std::size_t numerator) {
+    std::sort(values.begin(), values.end());
+    const std::size_t rank =
+        (values.size() * numerator + 99U) / 100U;
+    return values[rank == 0U ? 0U : rank - 1U];
+}
+
+void HashU32(blake3_hasher* const hasher, const std::uint32_t value) {
+    const std::array<std::uint8_t, 4> encoded{{
+        static_cast<std::uint8_t>(value),
+        static_cast<std::uint8_t>(value >> 8U),
+        static_cast<std::uint8_t>(value >> 16U),
+        static_cast<std::uint8_t>(value >> 24U)}};
+    blake3_hasher_update(hasher, encoded.data(), encoded.size());
+}
+
+struct HotLookupMeasurement {
+    std::size_t width{};
+    std::uint64_t direct_p50{};
+    std::uint64_t direct_p95{};
+    std::uint64_t direct_p99{};
+    std::uint64_t reverse_p50{};
+    std::uint64_t reverse_p95{};
+    std::uint64_t reverse_p99{};
+};
+
+void WriteHotLookupReceipt(
+    const laplace_perfcache_pin* const pin,
+    const laplace_unicode_tier0_sink_result& sink_result,
+    const laplace_perfcache_generation_receipt& prepare_receipt) {
+    const char* const receipt_path =
+        std::getenv("LAPLACE_PERFCACHE_PERFORMANCE_RECEIPT");
+    if (receipt_path == nullptr || receipt_path[0] == '\0') {
+        return;
+    }
+    constexpr std::array<std::size_t, 4> Widths{{
+        LAPLACE_PERFCACHE_HOT_BATCH_WIDTH_0,
+        LAPLACE_PERFCACHE_HOT_BATCH_WIDTH_1,
+        LAPLACE_PERFCACHE_HOT_BATCH_WIDTH_2,
+        LAPLACE_PERFCACHE_HOT_BATCH_WIDTH_3}};
+    constexpr std::size_t MaximumWidth =
+        LAPLACE_PERFCACHE_HOT_BATCH_WIDTH_3;
+    std::vector<std::uint32_t> positions(MaximumWidth);
+    std::vector<laplace_unicode_atom_record_view> atoms(MaximumWidth);
+    std::vector<laplace_unicode_identity_key> identities(MaximumWidth);
+    std::vector<std::uint32_t> reverse_positions(MaximumWidth);
+    std::vector<std::uint8_t> direct_found(MaximumWidth);
+    std::vector<std::uint8_t> reverse_found(MaximumWidth);
+    for (std::size_t index = 0U; index < MaximumWidth; ++index) {
+        positions[index] = static_cast<std::uint32_t>(
+            (static_cast<std::uint64_t>(index) * UINT64_C(2654435761) +
+             UINT64_C(17)) %
+            LAPLACE_PERFCACHE_UNICODE_TIER0_POPULATION);
+    }
+    if (laplace_perfcache_unicode_tier0_resolve_batch(
+            pin, positions.data(), positions.size(), atoms.data(),
+            direct_found.data()) != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        ADD_FAILURE() << "Tier-0 performance preparation failed";
+        return;
+    }
+    for (std::size_t index = 0U; index < MaximumWidth; ++index) {
+        if (direct_found[index] != 1U ||
+            atoms[index].value.codepoint_position != positions[index]) {
+            ADD_FAILURE() << "Tier-0 performance input parity failed at "
+                          << index;
+            return;
+        }
+        identities[index].content_id = atoms[index].value.content_id;
+        identities[index].identity_preimage_fingerprint =
+            atoms[index].value.identity_preimage_fingerprint;
+    }
+    for (std::size_t warmup = 0U;
+         warmup < LAPLACE_PERFCACHE_HOT_WARMUP_BATCH_COUNT; ++warmup) {
+        if (laplace_perfcache_unicode_tier0_resolve_batch(
+                pin, positions.data(), positions.size(), atoms.data(),
+                direct_found.data()) != LAPLACE_PERFCACHE_REGISTRY_OK ||
+            laplace_perfcache_unicode_identity_reverse_resolve_batch(
+                pin, identities.data(), identities.size(),
+                reverse_positions.data(), reverse_found.data()) !=
+                LAPLACE_PERFCACHE_REGISTRY_OK) {
+            ADD_FAILURE() << "hot lookup warmup failed";
+            return;
+        }
+    }
+
+    rusage usage_before{};
+    rusage usage_after{};
+    ASSERT_EQ(::getrusage(RUSAGE_SELF, &usage_before), 0);
+    const auto wall_start = std::chrono::steady_clock::now();
+    std::array<HotLookupMeasurement, Widths.size()> measurements{};
+    for (std::size_t width_index = 0U;
+         width_index < Widths.size(); ++width_index) {
+        const std::size_t width = Widths[width_index];
+        std::vector<std::uint64_t> direct_times;
+        std::vector<std::uint64_t> reverse_times;
+        direct_times.reserve(LAPLACE_PERFCACHE_HOT_SAMPLE_COUNT);
+        reverse_times.reserve(LAPLACE_PERFCACHE_HOT_SAMPLE_COUNT);
+        for (std::size_t sample = 0U;
+             sample < LAPLACE_PERFCACHE_HOT_SAMPLE_COUNT; ++sample) {
+            auto started = std::chrono::steady_clock::now();
+            const auto direct_status =
+                laplace_perfcache_unicode_tier0_resolve_batch(
+                    pin, positions.data(), width, atoms.data(),
+                    direct_found.data());
+            auto finished = std::chrono::steady_clock::now();
+            const auto direct_elapsed =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    finished - started).count();
+            if (direct_elapsed <= 0) {
+                ADD_FAILURE() << "hot direct timer resolution was insufficient";
+                return;
+            }
+            direct_times.push_back(
+                static_cast<std::uint64_t>(direct_elapsed));
+            started = std::chrono::steady_clock::now();
+            const auto reverse_status =
+                laplace_perfcache_unicode_identity_reverse_resolve_batch(
+                    pin, identities.data(), width, reverse_positions.data(),
+                    reverse_found.data());
+            finished = std::chrono::steady_clock::now();
+            const auto reverse_elapsed =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    finished - started).count();
+            if (reverse_elapsed <= 0) {
+                ADD_FAILURE() << "hot reverse timer resolution was insufficient";
+                return;
+            }
+            reverse_times.push_back(
+                static_cast<std::uint64_t>(reverse_elapsed));
+            if (direct_status != LAPLACE_PERFCACHE_REGISTRY_OK ||
+                reverse_status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+                ADD_FAILURE() << "timed hot lookup failed";
+                return;
+            }
+            for (std::size_t index = 0U; index < width; ++index) {
+                if (direct_found[index] != 1U ||
+                    reverse_found[index] != 1U ||
+                    atoms[index].value.codepoint_position != positions[index] ||
+                    reverse_positions[index] != positions[index]) {
+                    ADD_FAILURE() << "timed hot lookup parity failed";
+                    return;
+                }
+            }
+        }
+        measurements[width_index] = HotLookupMeasurement{
+            width,
+            Percentile(direct_times, 50U),
+            Percentile(direct_times, 95U),
+            Percentile(direct_times, 99U),
+            Percentile(reverse_times, 50U),
+            Percentile(reverse_times, 95U),
+            Percentile(reverse_times, 99U)};
+    }
+    const auto wall_end = std::chrono::steady_clock::now();
+    ASSERT_EQ(::getrusage(RUSAGE_SELF, &usage_after), 0);
+
+    blake3_hasher result_hasher{};
+    blake3_hasher_init(&result_hasher);
+    for (std::size_t index = 0U; index < MaximumWidth; ++index) {
+        HashU32(&result_hasher, positions[index]);
+        blake3_hasher_update(
+            &result_hasher, &direct_found[index], sizeof(direct_found[index]));
+        HashU32(
+            &result_hasher, atoms[index].value.codepoint_position);
+        blake3_hasher_update(
+            &result_hasher, atoms[index].value.content_id.bytes,
+            sizeof(atoms[index].value.content_id.bytes));
+        blake3_hasher_update(
+            &result_hasher,
+            atoms[index].value.identity_preimage_fingerprint.bytes,
+            sizeof(atoms[index].value.identity_preimage_fingerprint.bytes));
+        blake3_hasher_update(
+            &result_hasher, &reverse_found[index],
+            sizeof(reverse_found[index]));
+        HashU32(&result_hasher, reverse_positions[index]);
+    }
+    laplace_digest256 result_fingerprint{};
+    blake3_hasher_finalize(
+        &result_hasher, result_fingerprint.bytes,
+        sizeof(result_fingerprint.bytes));
+
+    laplace_execution_topology_size required{};
+    ASSERT_EQ(laplace_execution_topology_measure_host(&required),
+              LAPLACE_EXECUTION_OK);
+    std::vector<laplace_execution_processor> processors(
+        required.processor_count);
+    std::vector<laplace_execution_cache> caches(required.cache_count);
+    std::vector<std::uint32_t> cache_processor_ids(
+        required.cache_processor_id_count);
+    std::vector<laplace_execution_memory_domain> memory_domains(
+        required.memory_domain_count);
+    laplace_execution_topology topology{};
+    topology.processors = processors.data();
+    topology.processor_capacity = required.processor_count;
+    topology.caches = caches.data();
+    topology.cache_capacity = required.cache_count;
+    topology.cache_processor_ids = cache_processor_ids.data();
+    topology.cache_processor_id_capacity = required.cache_processor_id_count;
+    topology.memory_domains = memory_domains.data();
+    topology.memory_domain_capacity = required.memory_domain_count;
+    ASSERT_EQ(laplace_execution_topology_observe_host(&topology),
+              LAPLACE_EXECUTION_OK);
+    std::uint32_t allowed_processors = 0U;
+    for (const auto& processor : processors) {
+        if ((processor.flags & LAPLACE_EXECUTION_PROCESSOR_ALLOWED) != 0U) {
+            ++allowed_processors;
+        }
+    }
+
+    const fs::path path(receipt_path);
+    std::error_code error;
+    fs::create_directories(path.parent_path(), error);
+    ASSERT_FALSE(error);
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    ASSERT_TRUE(output.is_open());
+    const std::uint64_t wall_ns = static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            wall_end - wall_start).count());
+    const std::uint64_t user_us =
+        TimevalMicroseconds(usage_after.ru_utime) -
+        TimevalMicroseconds(usage_before.ru_utime);
+    const std::uint64_t system_us =
+        TimevalMicroseconds(usage_after.ru_stime) -
+        TimevalMicroseconds(usage_before.ru_stime);
+    output << "{\n"
+           << "  \"schema\":\"" << LAPLACE_PERFCACHE_HOT_RECEIPT_SCHEMA
+           << "\",\n"
+           << "  \"measurement_entrypoint\":\"UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks\",\n"
+           << "  \"state\":\"validated-prefaulted-materialized-generation-held-by-one-exact-epoch-pin\",\n"
+           << "  \"timing_boundary\":\"one-native-typed-batch-accessor-call-only\",\n"
+           << "  \"sample_count\":" << LAPLACE_PERFCACHE_HOT_SAMPLE_COUNT
+           << ",\n  \"warmup_batch_count\":"
+           << LAPLACE_PERFCACHE_HOT_WARMUP_BATCH_COUNT << ",\n"
+           << "  \"tier0_artifact_digest\":\""
+           << Hex(sink_result.artifact_digest) << "\",\n"
+           << "  \"reverse_artifact_digest\":\""
+           << Hex(sink_result.reverse_artifact_digest) << "\",\n"
+           << "  \"activation_epoch_id\":\""
+           << Hex(sink_result.contract.activation_epoch_id) << "\",\n"
+           << "  \"activation_epoch_fingerprint\":\""
+           << Hex(sink_result.contract.activation_epoch_fingerprint)
+           << "\",\n"
+           << "  \"source_fingerprint\":\""
+           << Hex(sink_result.contract.source_fingerprint) << "\",\n"
+           << "  \"recipe_fingerprint\":\""
+           << Hex(sink_result.contract.recipe_fingerprint) << "\",\n"
+           << "  \"tier0_module_contract_fingerprint\":\""
+           << Hex(sink_result.contract.module_contract_fingerprint)
+           << "\",\n"
+           << "  \"reverse_module_contract_fingerprint\":\""
+           << Hex(sink_result.reverse_contract.module_contract_fingerprint)
+           << "\",\n  \"tier0_artifact_bytes\":"
+           << sink_result.artifact_bytes
+           << ",\n  \"reverse_artifact_bytes\":"
+           << sink_result.reverse_artifact_bytes << ",\n"
+           << "  \"mapped_bytes\":" << prepare_receipt.mapped_bytes
+           << ",\n  \"prefaulted_bytes\":"
+           << prepare_receipt.prefaulted_bytes
+           << ",\n  \"prefaulted_pages\":"
+           << prepare_receipt.prefaulted_pages << ",\n"
+           << "  \"allowed_processors\":" << allowed_processors
+           << ",\n  \"memory_domains\":" << topology.memory_domain_count
+           << ",\n  \"usable_memory_bytes\":" << topology.usable_memory_bytes
+           << ",\n  \"page_bytes\":" << topology.page_bytes
+           << ",\n  \"topology_flags\":" << topology.flags
+           << ",\n  \"isa_flags\":" << topology.isa_flags << ",\n"
+           << "  \"compiler\":\"" << __VERSION__ << "\",\n"
+           << "  \"wall_nanoseconds\":" << wall_ns
+           << ",\n  \"user_cpu_microseconds\":" << user_us
+           << ",\n  \"system_cpu_microseconds\":" << system_us
+           << ",\n  \"maximum_resident_bytes\":"
+           << static_cast<std::uint64_t>(usage_after.ru_maxrss) * UINT64_C(1024)
+           << ",\n  \"filesystem_input_blocks\":"
+           << static_cast<std::uint64_t>(usage_after.ru_inblock -
+                                         usage_before.ru_inblock)
+           << ",\n  \"filesystem_output_blocks\":"
+           << static_cast<std::uint64_t>(usage_after.ru_oublock -
+                                         usage_before.ru_oublock)
+           << ",\n  \"database_calls\":0,\n  \"durable_outputs\":0,\n"
+           << "  \"result_fingerprint\":\""
+           << Hex(result_fingerprint) << "\",\n  \"operations\":[\n";
+    for (std::size_t index = 0U; index < measurements.size(); ++index) {
+        const auto& item = measurements[index];
+        output << "    {\"width\":" << item.width
+               << ",\"hits_per_sample\":" << item.width
+               << ",\"misses_per_sample\":0"
+               << ",\"direct_p50_batch_ns\":" << item.direct_p50
+               << ",\"direct_p95_batch_ns\":" << item.direct_p95
+               << ",\"direct_p99_batch_ns\":" << item.direct_p99
+               << ",\"direct_p50_ns_per_key\":"
+               << item.direct_p50 / item.width
+               << ",\"direct_p50_keys_per_second\":"
+               << UINT64_C(1000000000) * item.width / item.direct_p50
+               << ",\"reverse_p50_batch_ns\":" << item.reverse_p50
+               << ",\"reverse_p95_batch_ns\":" << item.reverse_p95
+               << ",\"reverse_p99_batch_ns\":" << item.reverse_p99
+               << ",\"reverse_p50_ns_per_key\":"
+               << item.reverse_p50 / item.width
+               << ",\"reverse_p50_keys_per_second\":"
+               << UINT64_C(1000000000) * item.width / item.reverse_p50
+               << "}"
+               << (index + 1U == measurements.size() ? "\n" : ",\n");
+    }
+    output << "  ]\n}\n";
+    output.close();
+    ASSERT_TRUE(output.good());
 }
 
 laplace_digest256 Digest(const std::string_view hex) {
@@ -362,7 +695,9 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
     validating.expectation = expectation;
     laplace_unicode_tier0_sink_configuration tier0_configuration{};
     const auto tier0_path = directory.Path() / "unicode-tier0.lpc";
+    const auto reverse_path = directory.Path() / "unicode-tier0-reverse.lpc";
     tier0_configuration.target_path = tier0_path.c_str();
+    tier0_configuration.reverse_target_path = reverse_path.c_str();
     tier0_configuration.root_expectation = expectation;
     FillId(&tier0_configuration.activation_epoch_id, 0xa0U);
     FillDigest(
@@ -420,31 +755,53 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
     EXPECT_EQ(
         Hex(tier0_result.artifact_digest),
         "bfc3c51d53b98731dee62c16cb6018d7a40baee25eb4db3341771ccadc2662cc");
+    EXPECT_EQ(
+        Hex(tier0_result.reverse_artifact_digest),
+        "91247d8894122397578ae09bbf884244d5793bc01ab5c1fe78cca43799ad757a");
     EXPECT_EQ(tier0_result.atom_metadata_bytes, UINT64_C(588784718));
     EXPECT_EQ(tier0_result.artifact_bytes, UINT64_C(762586574));
+    EXPECT_EQ(tier0_result.reverse_artifact_bytes, UINT64_C(117440896));
     EXPECT_TRUE(fs::is_regular_file(tier0_path));
+    EXPECT_TRUE(fs::is_regular_file(reverse_path));
 
     laplace_perfcache_module_v2 tier0_module{};
+    laplace_perfcache_module_v2 reverse_module{};
     ASSERT_EQ(laplace_perfcache_unicode_tier0_module(&tier0_module),
               LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_EQ(laplace_perfcache_unicode_identity_reverse_module(&reverse_module),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    std::array<laplace_perfcache_module_v2, 2> modules{{
+        reverse_module, tier0_module}};
     PerfcacheRegistryHandle registry{};
     ASSERT_EQ(laplace_perfcache_registry_create(
-                  &tier0_module, 1U, &registry.value),
+                  modules.data(), modules.size(), &registry.value),
               LAPLACE_PERFCACHE_REGISTRY_OK);
     laplace_perfcache_artifact_provider_v1 artifact_provider{};
     ASSERT_EQ(laplace_perfcache_file_provider(&artifact_provider),
               LAPLACE_PERFCACHE_REGISTRY_OK);
-    laplace_perfcache_generation_artifact generation_artifact{};
-    generation_artifact.path = tier0_path.c_str();
-    generation_artifact.contract = tier0_result.contract;
-    generation_artifact.expected_artifact_digest =
+    laplace_perfcache_generation_dependency reverse_dependency{};
+    reverse_dependency.module_id = tier0_module.module_id;
+    reverse_dependency.artifact_digest = tier0_result.artifact_digest;
+    std::array<laplace_perfcache_generation_artifact, 2>
+        generation_artifacts{};
+    generation_artifacts[0].path = reverse_path.c_str();
+    generation_artifacts[0].contract = tier0_result.reverse_contract;
+    generation_artifacts[0].expected_artifact_digest =
+        tier0_result.reverse_artifact_digest;
+    generation_artifacts[0].dependencies = &reverse_dependency;
+    generation_artifacts[0].dependency_count = 1U;
+    generation_artifacts[0].flags =
+        LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
+    generation_artifacts[1].path = tier0_path.c_str();
+    generation_artifacts[1].contract = tier0_result.contract;
+    generation_artifacts[1].expected_artifact_digest =
         tier0_result.artifact_digest;
-    generation_artifact.flags =
+    generation_artifacts[1].flags =
         LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
     laplace_perfcache_generation_request generation_request{};
-    generation_request.artifacts = &generation_artifact;
+    generation_request.artifacts = generation_artifacts.data();
     generation_request.staged_sink_artifact_fingerprints = artifacts.data();
-    generation_request.artifact_count = 1U;
+    generation_request.artifact_count = generation_artifacts.size();
     generation_request.staged_sink_count = artifacts.size();
     generation_request.perfcache_sink_index = 1U;
     generation_request.activation_epoch_id =
@@ -458,7 +815,7 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
         replay.stream.sink_artifacts_fingerprint;
     generation_request.sink_artifact_set_fingerprint = artifacts[1];
     ASSERT_EQ(laplace_perfcache_required_module_set_fingerprint(
-                  &tier0_module, 1U,
+                  modules.data(), modules.size(),
                   &generation_request.required_module_set_fingerprint),
               LAPLACE_PERFCACHE_REGISTRY_OK);
     laplace_perfcache_prepared_generation* prepared = nullptr;
@@ -469,11 +826,58 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
                   &prepare_receipt),
               LAPLACE_PERFCACHE_REGISTRY_OK);
     ASSERT_NE(prepared, nullptr);
-    EXPECT_EQ(prepare_receipt.artifact_count, 1U);
-    EXPECT_EQ(prepare_receipt.mapped_bytes, tier0_result.artifact_bytes);
-    EXPECT_EQ(prepare_receipt.prefaulted_bytes, tier0_result.artifact_bytes);
-    laplace_perfcache_registry_discard_prepared(&prepared);
+    EXPECT_EQ(prepare_receipt.artifact_count, 2U);
+    EXPECT_EQ(
+        prepare_receipt.mapped_bytes,
+        tier0_result.artifact_bytes + tier0_result.reverse_artifact_bytes);
+    EXPECT_EQ(
+        prepare_receipt.prefaulted_bytes,
+        tier0_result.artifact_bytes + tier0_result.reverse_artifact_bytes);
+    laplace_perfcache_generation_receipt materialized_receipt{};
+    ASSERT_EQ(laplace_perfcache_registry_materialize_prepared(
+                  registry.value, &prepared, &materialized_receipt),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
     EXPECT_EQ(prepared, nullptr);
+    const laplace_perfcache_epoch materialized_epoch{
+        tier0_configuration.activation_epoch_id,
+        tier0_configuration.activation_epoch_fingerprint};
+    laplace_perfcache_pin pin{};
+    ASSERT_EQ(laplace_perfcache_registry_pin_epoch(
+                  registry.value, &materialized_epoch, &pin),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    const std::array<std::uint32_t, 3> positions{{0U, 0x41U, 0x10ffffU}};
+    std::array<laplace_unicode_atom_record_view, 3> resolved_atoms{};
+    std::array<std::uint8_t, 3> direct_found{};
+    ASSERT_EQ(laplace_perfcache_unicode_tier0_resolve_batch(
+                  &pin, positions.data(), positions.size(),
+                  resolved_atoms.data(), direct_found.data()),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    EXPECT_EQ(direct_found,
+              (std::array<std::uint8_t, 3>{{1U, 1U, 1U}}));
+    std::array<laplace_unicode_identity_key, 4> identity_keys{};
+    for (std::size_t index = 0U; index < positions.size(); ++index) {
+        identity_keys[index].content_id =
+            resolved_atoms[index].value.content_id;
+        identity_keys[index].identity_preimage_fingerprint =
+            resolved_atoms[index].value.identity_preimage_fingerprint;
+    }
+    identity_keys[3] = identity_keys[1];
+    identity_keys[3].identity_preimage_fingerprint.bytes[31U] ^= 0x01U;
+    std::array<std::uint32_t, 4> reverse_positions{};
+    std::array<std::uint8_t, 4> reverse_found{};
+    ASSERT_EQ(laplace_perfcache_unicode_identity_reverse_resolve_batch(
+                  &pin, identity_keys.data(), identity_keys.size(),
+                  reverse_positions.data(), reverse_found.data()),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    EXPECT_EQ(reverse_found,
+              (std::array<std::uint8_t, 4>{{1U, 1U, 1U, 0U}}));
+    EXPECT_EQ(reverse_positions[0], positions[0]);
+    EXPECT_EQ(reverse_positions[1], positions[1]);
+    EXPECT_EQ(reverse_positions[2], positions[2]);
+    EXPECT_EQ(reverse_positions[3], UINT32_MAX);
+    WriteHotLookupReceipt(&pin, tier0_result, prepare_receipt);
+    ASSERT_EQ(laplace_perfcache_pin_release(&pin),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
 
     Tier0SinkHandle replay_tier0{};
     laplace_framework_sink_v1 replay_tier0_framework_sink{};
@@ -501,10 +905,16 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
               LAPLACE_PERFCACHE_OK);
     EXPECT_TRUE(SameDigest(
         replay_tier0_result.artifact_digest, tier0_result.artifact_digest));
+    EXPECT_TRUE(SameDigest(
+        replay_tier0_result.reverse_artifact_digest,
+        tier0_result.reverse_artifact_digest));
     EXPECT_TRUE(SameDigest(replay_artifacts[1], artifacts[1]));
 
     const auto cancelled_path = directory.Path() / "cancelled-tier0.lpc";
+    const auto cancelled_reverse_path =
+        directory.Path() / "cancelled-tier0-reverse.lpc";
     tier0_configuration.target_path = cancelled_path.c_str();
+    tier0_configuration.reverse_target_path = cancelled_reverse_path.c_str();
     Tier0SinkHandle cancelled_tier0{};
     laplace_framework_sink_v1 cancelled_sink{};
     ASSERT_EQ(laplace_unicode_tier0_sink_create(
@@ -521,11 +931,14 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
                   &cancelled_receipt),
               LAPLACE_FRAMEWORK_PRODUCER_CANCELLED);
     EXPECT_FALSE(fs::exists(cancelled_path));
+    EXPECT_FALSE(fs::exists(cancelled_reverse_path));
     for (const auto& entry : fs::directory_iterator(directory.Path())) {
-        EXPECT_EQ(entry.path().filename(), tier0_path.filename());
+        EXPECT_TRUE(entry.path().filename() == tier0_path.filename() ||
+                    entry.path().filename() == reverse_path.filename());
     }
 
     tier0_configuration.target_path = tier0_path.c_str();
+    tier0_configuration.reverse_target_path = reverse_path.c_str();
     Tier0SinkHandle resumed_tier0{};
     laplace_framework_sink_v1 resumed_tier0_framework_sink{};
     ASSERT_EQ(laplace_unicode_tier0_sink_create(
@@ -557,6 +970,9 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
               LAPLACE_PERFCACHE_OK);
     EXPECT_TRUE(SameDigest(
         resumed_tier0_result.artifact_digest, tier0_result.artifact_digest));
+    EXPECT_TRUE(SameDigest(
+        resumed_tier0_result.reverse_artifact_digest,
+        tier0_result.reverse_artifact_digest));
 
     const std::array<laplace_digest256, 13> expected{{
         Digest("a390dd47fce00fab8fa836fc4b8f0474212d714bc6654d42bf8e28ec3fd036e3"),

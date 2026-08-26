@@ -426,6 +426,7 @@ domains:
   - id: LAP-ALIGN-DELIVERY
     product_requirements:
       - LP-PACKAGE-001
+      - LP-DOC-001
       - LP-CLEANROOM-001
     requirements:
       - LAP-DEPENDENCY-EXISTING-ASSET-AUDIT
@@ -438,6 +439,7 @@ domains:
       - LAP-PACKAGE-LOADED-ARTIFACT-PROOF
       - LAP-PACKAGE-SBOM-PROVENANCE
       - LAP-NATIVE-TYPED-GENERIC-INTERFACES
+      - LAP-ARCHITECTURE-REFERENCE-MANUAL
   - id: LAP-ALIGN-TEST
     product_requirements:
       - LP-CLEANROOM-001

@@ -58,11 +58,15 @@ perfcache corruption and semantic checks, same-directory publication, immutable 
 readers, an installed external identity-trajectory-and-ISA consumer, and registered
 mutation tests that must fail for their exact expected reasons. A full Unicode 17
 producer run now emits one 2,230,150-frame canonical root stream and feeds both a
-validating sibling and a native dense 1,114,112-record Tier-0 perfcache sink. The
-Tier-0 artifact retains byte-exact atom records, validates full-population and hot-view
-parity, replays idempotently, cold-opens through the module registry, and prefaults
-before admission. It remains inert: the set-oriented PostgreSQL sibling, cross-sink
-database parity, and coherent root activation are still open. The dependency
+set-oriented PostgreSQL sibling and native direct/reverse perfcache bundle. The dense
+Tier-0 plane retains 1,114,112 byte-exact atom records; the 2,097,152-slot reverse
+plane maps exact content identity plus its full witness back to codepoint position by
+the declared hash/probe law. Both artifacts validate, replay idempotently, cold-open
+through the typed module registry, prefault completely, bind the reverse plane to the
+exact direct artifact digest, and activate coherently with the deposited root. A
+measured receipt covers pinned native direct/reverse batches at widths 1, 16, 256, and
+4,096 without database calls or durable effects. This proves the Unicode-root slice,
+not every perfcache family or the complete product. The dependency
 tests also construct unresolved edges, competing loader
 candidates, incompatible ABI generations, altered archives, and escaping members and
 prove each defect is rejected. This is component evidence; it is not a claim that the

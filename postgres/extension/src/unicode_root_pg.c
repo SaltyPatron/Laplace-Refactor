@@ -142,7 +142,7 @@ static const char unicode_deposit_insert_statement[] =
     "INSERT INTO " LAPLACE_PG_SCHEMA ".unicode_root_deposit_receipt("
     "receipt_id,root_receipt,producer_receipt,staged_stream_receipt,"
     "sink_artifacts_fingerprint,postgresql_artifact_fingerprint,"
-    "tier0_artifact_fingerprint,perfcache_manifest_fingerprint,"
+    "perfcache_artifact_set_fingerprint,perfcache_manifest_fingerprint,"
     "perfcache_encoded_manifest_fingerprint,activation_epoch_id,"
     "activation_epoch_fingerprint,admission_receipt,total_frame_count,"
     "total_encoded_bytes,batch_count,plan_manifest_fingerprint,"
@@ -158,7 +158,7 @@ static const char unicode_deposit_verify_statement[] =
     "AND root_receipt=$2 AND producer_receipt=$3 "
     "AND staged_stream_receipt=$4 AND sink_artifacts_fingerprint=$5 "
     "AND postgresql_artifact_fingerprint=$6 "
-    "AND tier0_artifact_fingerprint=$7 "
+    "AND perfcache_artifact_set_fingerprint=$7 "
     "AND perfcache_manifest_fingerprint=$8 "
     "AND perfcache_encoded_manifest_fingerprint=$9 "
     "AND activation_epoch_id=$10 AND activation_epoch_fingerprint=$11 "
@@ -1510,13 +1510,14 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
     char* source_root = text_to_cstring(PG_GETARG_TEXT_PP(1));
     char* spool_directory = text_to_cstring(PG_GETARG_TEXT_PP(2));
     char* tier0_path = text_to_cstring(PG_GETARG_TEXT_PP(3));
+    char* reverse_path = text_to_cstring(PG_GETARG_TEXT_PP(4));
     laplace_id128 activation_epoch_id;
     laplace_digest256 activation_epoch_fingerprint;
-    int64 expected_sequence_input = PG_GETARG_INT64(6);
-    bool expected_present = PG_GETARG_BOOL(7);
+    int64 expected_sequence_input = PG_GETARG_INT64(7);
+    bool expected_present = PG_GETARG_BOOL(8);
     laplace_pg_perfcache_epoch expected_epoch;
-    int64 maximum_batch_bytes_input = PG_GETARG_INT64(10);
-    int32 maximum_batch_frames_input = PG_GETARG_INT32(11);
+    int64 maximum_batch_bytes_input = PG_GETARG_INT64(11);
+    int32 maximum_batch_frames_input = PG_GETARG_INT32(12);
     laplace_unicode_numeric_provider_v1 numeric_provider;
     laplace_unicode_root_build_request build_request;
     laplace_unicode_root_build_summary build;
@@ -1534,7 +1535,10 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
     laplace_pg_unicode_sink_result pg_result;
     laplace_unicode_tier0_sink_result tier0_result;
     laplace_perfcache_module_v2 tier0_module;
-    laplace_perfcache_generation_artifact artifact;
+    laplace_perfcache_module_v2 reverse_module;
+    laplace_perfcache_generation_dependency reverse_dependency;
+    laplace_perfcache_generation_artifact artifacts[2];
+    laplace_perfcache_module_v2 modules[2];
     laplace_perfcache_generation_request generation;
     size_t manifest_bytes = 0u;
     size_t manifest_written = 0u;
@@ -1542,8 +1546,8 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
     laplace_digest256 manifest_encoded_fingerprint;
     laplace_pg_perfcache_admission_result admission;
     laplace_digest256 deposit_receipt;
-    Datum result_values[25];
-    bool result_nulls[25] = {false};
+    Datum result_values[31];
+    bool result_nulls[31] = {false};
     HeapTuple result_tuple;
     uint64 memory_estimate;
     laplace_unicode_root_build_status build_status;
@@ -1559,21 +1563,22 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
     memset(&expected_epoch, 0, sizeof(expected_epoch));
     laplace_pg_read_execution_context(PG_GETARG_DATUM(0), &context);
     read_exact_bytes(
-        PG_GETARG_DATUM(4), &activation_epoch_id,
+        PG_GETARG_DATUM(5), &activation_epoch_id,
         sizeof(activation_epoch_id), "activation epoch identifier");
     read_exact_bytes(
-        PG_GETARG_DATUM(5), &activation_epoch_fingerprint,
+        PG_GETARG_DATUM(6), &activation_epoch_fingerprint,
         sizeof(activation_epoch_fingerprint), "activation epoch fingerprint");
     read_exact_bytes(
-        PG_GETARG_DATUM(8), &expected_epoch.activation_epoch_id,
+        PG_GETARG_DATUM(9), &expected_epoch.activation_epoch_id,
         sizeof(expected_epoch.activation_epoch_id),
         "expected activation epoch identifier");
     read_exact_bytes(
-        PG_GETARG_DATUM(9), &expected_epoch.epoch_fingerprint,
+        PG_GETARG_DATUM(10), &expected_epoch.epoch_fingerprint,
         sizeof(expected_epoch.epoch_fingerprint),
         "expected activation epoch fingerprint");
     if (source_root[0] == '\0' || spool_directory[0] == '\0' ||
-        tier0_path[0] == '\0' || expected_sequence_input < 0 ||
+        tier0_path[0] == '\0' || reverse_path[0] == '\0' ||
+        expected_sequence_input < 0 ||
         maximum_batch_bytes_input <= 0 || maximum_batch_frames_input <= 0 ||
         (uint64)maximum_batch_bytes_input > UINT64_MAX /
             LAPLACE_PG_UNICODE_ROOT_STREAM_BYTE_MULTIPLIER ||
@@ -1585,6 +1590,18 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
     }
     memory_estimate = (uint64)maximum_batch_bytes_input *
         LAPLACE_PG_UNICODE_ROOT_STREAM_BYTE_MULTIPLIER;
+    if (memory_estimate > UINT64_MAX -
+            (uint64)LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY *
+                (LAPLACE_PERFCACHE_UNICODE_REVERSE_KEY_BYTES +
+                 LAPLACE_PERFCACHE_UNICODE_REVERSE_VALUE_BYTES)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                 errmsg("Unicode root memory estimate overflowed")));
+    }
+    memory_estimate +=
+        (uint64)LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY *
+        (LAPLACE_PERFCACHE_UNICODE_REVERSE_KEY_BYTES +
+         LAPLACE_PERFCACHE_UNICODE_REVERSE_VALUE_BYTES);
     if (memory_estimate > context.resource_grant.memory_bytes ||
         (uint64)maximum_batch_frames_input *
             LAPLACE_PG_UNICODE_ROOT_PER_FRAME_OVERHEAD_BYTES >
@@ -1616,7 +1633,10 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
     memset(&pg_result, 0, sizeof(pg_result));
     memset(&tier0_result, 0, sizeof(tier0_result));
     memset(&tier0_module, 0, sizeof(tier0_module));
-    memset(&artifact, 0, sizeof(artifact));
+    memset(&reverse_module, 0, sizeof(reverse_module));
+    memset(&reverse_dependency, 0, sizeof(reverse_dependency));
+    memset(artifacts, 0, sizeof(artifacts));
+    memset(modules, 0, sizeof(modules));
     memset(&generation, 0, sizeof(generation));
     memset(&manifest_encoded_fingerprint, 0,
            sizeof(manifest_encoded_fingerprint));
@@ -1644,6 +1664,7 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
             (laplace_pg_unicode_sink**)&pg_sink_state, &sinks[0]);
         memset(&tier0_configuration, 0, sizeof(tier0_configuration));
         tier0_configuration.target_path = tier0_path;
+        tier0_configuration.reverse_target_path = reverse_path;
         tier0_configuration.root_expectation = pg_configuration.expectation;
         tier0_configuration.activation_epoch_id = activation_epoch_id;
         tier0_configuration.activation_epoch_fingerprint =
@@ -1696,17 +1717,30 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
                      errmsg("Unicode root sibling sink artifacts diverged")));
         }
         registry_status = laplace_perfcache_unicode_tier0_module(&tier0_module);
-        if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK ||
+            laplace_perfcache_unicode_identity_reverse_module(&reverse_module) !=
+                LAPLACE_PERFCACHE_REGISTRY_OK) {
             ereport(ERROR,
                     (errcode(ERRCODE_INTERNAL_ERROR),
-                     errmsg("Unicode Tier-0 module contract is unavailable")));
+                     errmsg("Unicode perfcache module contracts are unavailable")));
         }
-        artifact.path = tier0_path;
-        artifact.contract = tier0_result.contract;
-        artifact.expected_artifact_digest = tier0_result.artifact_digest;
-        artifact.flags = LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
-        generation.artifacts = &artifact;
-        generation.artifact_count = 1u;
+        reverse_dependency.module_id = tier0_module.module_id;
+        reverse_dependency.artifact_digest = tier0_result.artifact_digest;
+        artifacts[0].path = reverse_path;
+        artifacts[0].contract = tier0_result.reverse_contract;
+        artifacts[0].expected_artifact_digest =
+            tier0_result.reverse_artifact_digest;
+        artifacts[0].dependencies = &reverse_dependency;
+        artifacts[0].dependency_count = 1u;
+        artifacts[0].flags = LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
+        artifacts[1].path = tier0_path;
+        artifacts[1].contract = tier0_result.contract;
+        artifacts[1].expected_artifact_digest = tier0_result.artifact_digest;
+        artifacts[1].flags = LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
+        modules[0] = reverse_module;
+        modules[1] = tier0_module;
+        generation.artifacts = artifacts;
+        generation.artifact_count = 2u;
         generation.staged_sink_artifact_fingerprints = sink_artifacts;
         generation.staged_sink_count = 2u;
         generation.perfcache_sink_index = 1u;
@@ -1719,7 +1753,7 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
         generation.sink_artifact_set_fingerprint =
             tier0_result.artifact_set_fingerprint;
         registry_status = laplace_perfcache_required_module_set_fingerprint(
-            &tier0_module, 1u, &generation.required_module_set_fingerprint);
+            modules, 2u, &generation.required_module_set_fingerprint);
         if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK) {
             ereport(ERROR,
                     (errcode(ERRCODE_INTERNAL_ERROR),
@@ -1786,40 +1820,54 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
     result_values[4] = PointerGetDatum(digest_bytea(&sink_artifacts[0]));
     result_values[5] = PointerGetDatum(digest_bytea(&sink_artifacts[1]));
     result_values[6] = PointerGetDatum(digest_bytea(&tier0_result.artifact_digest));
-    result_values[7] = PointerGetDatum(digest_bytea(&admission.manifest_fingerprint));
-    result_values[8] = PointerGetDatum(digest_bytea(
+    result_values[7] = PointerGetDatum(digest_bytea(
+        &tier0_result.reverse_artifact_digest));
+    result_values[8] = PointerGetDatum(digest_bytea(&admission.manifest_fingerprint));
+    result_values[9] = PointerGetDatum(digest_bytea(
         &admission.encoded_manifest_fingerprint));
-    result_values[9] = PointerGetDatum(digest_bytea(&admission.admission_receipt_id));
-    result_values[10] = PointerGetDatum(id_bytea(
+    result_values[10] = PointerGetDatum(digest_bytea(&admission.admission_receipt_id));
+    result_values[11] = PointerGetDatum(id_bytea(
         &admission.next_epoch.activation_epoch_id));
-    result_values[11] = PointerGetDatum(digest_bytea(
+    result_values[12] = PointerGetDatum(digest_bytea(
         &admission.next_epoch.epoch_fingerprint));
-    result_values[12] = Int64GetDatum(laplace_pg_checked_int64(
-        producer_receipt.stream.total_records, "Unicode root frame count"));
     result_values[13] = Int64GetDatum(laplace_pg_checked_int64(
-        producer_receipt.stream.total_bytes, "Unicode root encoded bytes"));
+        producer_receipt.stream.total_records, "Unicode root frame count"));
     result_values[14] = Int64GetDatum(laplace_pg_checked_int64(
+        producer_receipt.stream.total_bytes, "Unicode root encoded bytes"));
+    result_values[15] = Int64GetDatum(laplace_pg_checked_int64(
         producer_receipt.stream.batch_count, "Unicode root batch count"));
-    result_values[15] = PointerGetDatum(digest_bytea(
-        &pg_result.plan_manifest_fingerprint));
     result_values[16] = PointerGetDatum(digest_bytea(
+        &pg_result.plan_manifest_fingerprint));
+    result_values[17] = PointerGetDatum(digest_bytea(
         &pg_result.plan_sequence_fingerprint));
-    result_values[17] = Int64GetDatum(laplace_pg_checked_int64(
+    result_values[18] = Int64GetDatum(laplace_pg_checked_int64(
         pg_result.plan_count, "Unicode PostgreSQL plan count"));
     {
         size_t persisted_index;
         for (persisted_index = 0u; persisted_index < 6u;
              ++persisted_index) {
-            result_values[18u + persisted_index] =
+            result_values[19u + persisted_index] =
                 Int64GetDatum(laplace_pg_checked_int64(
                     pg_result.persisted_counts[persisted_index],
                     "Unicode PostgreSQL persisted cardinality"));
         }
     }
-    result_values[24] = Int64GetDatum(laplace_pg_checked_int64(
+    result_values[25] = Int64GetDatum(laplace_pg_checked_int64(
         tier0_result.artifact_bytes, "Unicode Tier-0 artifact bytes"));
+    result_values[26] = Int64GetDatum(laplace_pg_checked_int64(
+        tier0_result.reverse_artifact_bytes,
+        "Unicode reverse artifact bytes"));
+    result_values[27] = Int64GetDatum(laplace_pg_checked_int64(
+        generation.artifact_count, "Unicode perfcache artifact count"));
+    result_values[28] = Int64GetDatum(laplace_pg_checked_int64(
+        artifacts[0].dependency_count,
+        "Unicode perfcache dependency count"));
+    result_values[29] = PointerGetDatum(id_bytea(
+        &reverse_dependency.module_id));
+    result_values[30] = PointerGetDatum(digest_bytea(
+        &reverse_dependency.artifact_digest));
     result_tuple = laplace_pg_form_result_tuple(
-        fcinfo, result_values, result_nulls, 25);
+        fcinfo, result_values, result_nulls, 31);
     laplace_pg_unicode_sink_destroy(
         (laplace_pg_unicode_sink**)&pg_sink_state);
     laplace_unicode_tier0_sink_destroy(

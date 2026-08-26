@@ -115,10 +115,15 @@ surrogate positions without calling those non-text bytes UTF-8.
 
 The exact source, atom-record, DUCET/placement, Super-Fibonacci/Hopf,
 Hilbert/numeric, atomic-physicality, and root-stream contracts are described by
-`docs/architecture/UNICODE_ROOT_CONTRACTS.md`. The full canonical root producer and
-dense Tier-0 perfcache sink now execute those contracts. The set-oriented PostgreSQL
-sibling sink, database/artifact parity admission, and coherent activation path remain
-open and cannot be inferred from the existence of the root artifact.
+`docs/architecture/UNICODE_ROOT_CONTRACTS.md`. The full canonical root producer,
+dense Tier-0 direct plane, reverse identity plane, and set-oriented PostgreSQL sibling
+sink execute from one canonical stream. PostgreSQL admits the database rows and the
+complete direct/reverse artifact set under one root epoch, verifies exact dependency
+and artifact identities, and exposes the same typed native batches without decoding
+binary artifacts in SQL. Measured hot-lookup receipts time only the pinned, validated,
+prefaulted native accessors and bind their exact artifacts, topology, I/O,
+durable-output, and result identities. This is a Unicode-root proving slice; it does
+not complete every perfcache module, runtime ingestion, or issue #14.
 
 ## 4. Identity, tier, composition, and physicality
 
@@ -315,3 +320,10 @@ an unknown stage dependency, a dependency cycle, or an unmapped product requirem
 GitHub records execution status, discussion, PRs, and CI evidence. It does not replace
 the constitution or operational contract. An issue closure is valid only when its
 behavioral acceptance and required package/receipt evidence are present.
+
+Issue #50 owns a generated, versioned architecture reference manual for released
+machines. Normative instruction tables, encodings, ABI layouts, state transitions,
+status values, provider contracts, and executable traces come from their owning
+machine-readable contracts and are checked against the packaged engine. Hand-authored
+explanation may connect those facts, but neither the manual nor this operational model
+can redefine the machine. Contract/manual drift is a release failure.
