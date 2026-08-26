@@ -227,36 +227,34 @@ static int records_sorted_unique(
 #endif
 }
 
-static laplace_perfcache_status measure_internal(
-    const laplace_perfcache_spec* spec,
+static laplace_perfcache_status measure_layout_internal(
+    const laplace_perfcache_contract* contract,
+    uint64_t record_count,
+    uint64_t metadata_bytes,
     uint64_t* record_stride,
     uint64_t* records_bytes,
     uint64_t* artifact_bytes) {
     uint64_t size;
 
-    if (spec == NULL || record_stride == NULL || records_bytes == NULL ||
-        artifact_bytes == NULL || !contract_valid(&spec->contract)) {
-        return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
-    }
-    if ((spec->record_count != 0u && spec->records == NULL) ||
-        (spec->metadata_bytes != 0u && spec->metadata == NULL)) {
+    if (contract == NULL || record_stride == NULL || records_bytes == NULL ||
+        artifact_bytes == NULL || !contract_valid(contract)) {
         return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
     }
     *record_stride =
-        (uint64_t)spec->contract.key_bytes + (uint64_t)spec->contract.value_bytes;
-    if (spec->record_count > UINT64_MAX / *record_stride) {
+        (uint64_t)contract->key_bytes + (uint64_t)contract->value_bytes;
+    if (record_count > UINT64_MAX / *record_stride) {
         return LAPLACE_PERFCACHE_SIZE_OVERFLOW;
     }
-    *records_bytes = spec->record_count * *record_stride;
+    *records_bytes = record_count * *record_stride;
     size = LAPLACE_PERFCACHE_HEADER_BYTES;
     if (UINT64_MAX - size < *records_bytes) {
         return LAPLACE_PERFCACHE_SIZE_OVERFLOW;
     }
     size += *records_bytes;
-    if (UINT64_MAX - size < spec->metadata_bytes) {
+    if (UINT64_MAX - size < metadata_bytes) {
         return LAPLACE_PERFCACHE_SIZE_OVERFLOW;
     }
-    size += spec->metadata_bytes;
+    size += metadata_bytes;
     if (UINT64_MAX - size < LAPLACE_PERFCACHE_DIGEST_BYTES) {
         return LAPLACE_PERFCACHE_SIZE_OVERFLOW;
     }
@@ -266,6 +264,21 @@ static laplace_perfcache_status measure_internal(
     }
     *artifact_bytes = size;
     return LAPLACE_PERFCACHE_OK;
+}
+
+static laplace_perfcache_status measure_internal(
+    const laplace_perfcache_spec* spec,
+    uint64_t* record_stride,
+    uint64_t* records_bytes,
+    uint64_t* artifact_bytes) {
+    if (spec == NULL ||
+        (spec->record_count != 0u && spec->records == NULL) ||
+        (spec->metadata_bytes != 0u && spec->metadata == NULL)) {
+        return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
+    }
+    return measure_layout_internal(
+        &spec->contract, spec->record_count, spec->metadata_bytes,
+        record_stride, records_bytes, artifact_bytes);
 }
 
 laplace_perfcache_status laplace_perfcache_measure(
@@ -286,6 +299,122 @@ laplace_perfcache_status laplace_perfcache_measure(
     return status;
 }
 
+laplace_perfcache_status laplace_perfcache_layout_measure(
+    const laplace_perfcache_contract* contract,
+    uint64_t record_count,
+    uint64_t metadata_bytes,
+    size_t* artifact_bytes) {
+    uint64_t stride = 0u;
+    uint64_t records_bytes = 0u;
+    uint64_t measured = 0u;
+    laplace_perfcache_status status;
+    if (artifact_bytes == NULL) {
+        return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
+    }
+    status = measure_layout_internal(
+        contract, record_count, metadata_bytes,
+        &stride, &records_bytes, &measured);
+    if (status == LAPLACE_PERFCACHE_OK) {
+        *artifact_bytes = (size_t)measured;
+    }
+    return status;
+}
+
+laplace_perfcache_status laplace_perfcache_layout_seal(
+    const laplace_perfcache_contract* contract,
+    uint64_t record_count,
+    uint64_t metadata_bytes,
+    uint8_t* artifact,
+    size_t artifact_capacity,
+    size_t* artifact_bytes,
+    laplace_digest256* artifact_digest) {
+    uint64_t stride = 0u;
+    uint64_t records_bytes = 0u;
+    uint64_t measured = 0u;
+    uint64_t metadata_offset;
+    uint64_t digest_offset;
+    blake3_hasher hasher;
+    laplace_perfcache_status status;
+    if (artifact_bytes == NULL || artifact_digest == NULL) {
+        return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
+    }
+    status = measure_layout_internal(
+        contract, record_count, metadata_bytes,
+        &stride, &records_bytes, &measured);
+    if (status != LAPLACE_PERFCACHE_OK) {
+        return status;
+    }
+    *artifact_bytes = (size_t)measured;
+    if (artifact == NULL || artifact_capacity < (size_t)measured) {
+        return LAPLACE_PERFCACHE_BUFFER_TOO_SMALL;
+    }
+    status = records_access_law_valid(
+        artifact + LAPLACE_PERFCACHE_HEADER_BYTES,
+        record_count, contract, (uint32_t)stride);
+    if (status != LAPLACE_PERFCACHE_OK) {
+        return status;
+    }
+    metadata_offset = LAPLACE_PERFCACHE_HEADER_BYTES + records_bytes;
+    digest_offset = metadata_offset + metadata_bytes;
+    memset(artifact, 0, LAPLACE_PERFCACHE_HEADER_BYTES);
+    memcpy(artifact, laplace_perfcache_magic, sizeof(laplace_perfcache_magic));
+    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_VERSION,
+                 LAPLACE_PERFCACHE_FORMAT_VERSION);
+    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_HEADER_BYTES,
+                 LAPLACE_PERFCACHE_HEADER_BYTES);
+    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_FLAGS, contract->flags);
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_MODULE_ID,
+           contract->module_id.bytes, sizeof(contract->module_id.bytes));
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_KEY_SCHEMA_ID,
+           contract->key_schema_id.bytes, sizeof(contract->key_schema_id.bytes));
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_VALUE_SCHEMA_ID,
+           contract->value_schema_id.bytes,
+           sizeof(contract->value_schema_id.bytes));
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_ID,
+           contract->activation_epoch_id.bytes,
+           sizeof(contract->activation_epoch_id.bytes));
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_FINGERPRINT,
+           contract->activation_epoch_fingerprint.bytes,
+           sizeof(contract->activation_epoch_fingerprint.bytes));
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_MODULE_CONTRACT_FINGERPRINT,
+           contract->module_contract_fingerprint.bytes,
+           sizeof(contract->module_contract_fingerprint.bytes));
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_SOURCE_FINGERPRINT,
+           contract->source_fingerprint.bytes,
+           sizeof(contract->source_fingerprint.bytes));
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_RECIPE_FINGERPRINT,
+           contract->recipe_fingerprint.bytes,
+           sizeof(contract->recipe_fingerprint.bytes));
+    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_DEPENDENCY_FINGERPRINT,
+           contract->dependency_fingerprint.bytes,
+           sizeof(contract->dependency_fingerprint.bytes));
+    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORD_COUNT, record_count);
+    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_KEY_BYTES,
+                 contract->key_bytes);
+    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_VALUE_BYTES,
+                 contract->value_bytes);
+    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORD_STRIDE,
+                 (uint32_t)stride);
+    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_ACCESS_LAW,
+                 contract->access_law);
+    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORDS,
+                 LAPLACE_PERFCACHE_HEADER_BYTES);
+    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORDS_BYTES,
+                 records_bytes);
+    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_METADATA, metadata_offset);
+    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_METADATA_BYTES,
+                 metadata_bytes);
+    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_DIGEST, digest_offset);
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(&hasher, artifact, (size_t)digest_offset);
+    blake3_hasher_finalize(
+        &hasher, artifact + (size_t)digest_offset,
+        LAPLACE_PERFCACHE_DIGEST_BYTES);
+    memcpy(artifact_digest->bytes, artifact + (size_t)digest_offset,
+           sizeof(artifact_digest->bytes));
+    return LAPLACE_PERFCACHE_OK;
+}
+
 laplace_perfcache_status laplace_perfcache_write(
     const laplace_perfcache_spec* spec,
     uint8_t* artifact,
@@ -295,8 +424,7 @@ laplace_perfcache_status laplace_perfcache_write(
     uint64_t records_bytes = 0;
     uint64_t measured = 0;
     uint64_t metadata_offset;
-    uint64_t digest_offset;
-    blake3_hasher hasher;
+    laplace_digest256 artifact_digest;
     laplace_perfcache_status status;
 
     if (artifact_bytes == NULL) {
@@ -317,56 +445,7 @@ laplace_perfcache_status laplace_perfcache_write(
     }
 
     metadata_offset = LAPLACE_PERFCACHE_HEADER_BYTES + records_bytes;
-    digest_offset = metadata_offset + spec->metadata_bytes;
     memset(artifact, 0, (size_t)measured);
-    memcpy(artifact, laplace_perfcache_magic, sizeof(laplace_perfcache_magic));
-    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_VERSION,
-                 LAPLACE_PERFCACHE_FORMAT_VERSION);
-    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_HEADER_BYTES,
-                 LAPLACE_PERFCACHE_HEADER_BYTES);
-    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_FLAGS, spec->contract.flags);
-    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_MODULE_ID,
-           spec->contract.module_id.bytes,
-           sizeof(spec->contract.module_id.bytes));
-    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_KEY_SCHEMA_ID,
-           spec->contract.key_schema_id.bytes,
-           sizeof(spec->contract.key_schema_id.bytes));
-    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_VALUE_SCHEMA_ID,
-           spec->contract.value_schema_id.bytes,
-           sizeof(spec->contract.value_schema_id.bytes));
-    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_ID,
-           spec->contract.activation_epoch_id.bytes,
-           sizeof(spec->contract.activation_epoch_id.bytes));
-    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_FINGERPRINT,
-           spec->contract.activation_epoch_fingerprint.bytes,
-           sizeof(spec->contract.activation_epoch_fingerprint.bytes));
-    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_MODULE_CONTRACT_FINGERPRINT,
-           spec->contract.module_contract_fingerprint.bytes,
-           sizeof(spec->contract.module_contract_fingerprint.bytes));
-    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_SOURCE_FINGERPRINT,
-           spec->contract.source_fingerprint.bytes,
-           sizeof(spec->contract.source_fingerprint.bytes));
-    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_RECIPE_FINGERPRINT,
-           spec->contract.recipe_fingerprint.bytes,
-           sizeof(spec->contract.recipe_fingerprint.bytes));
-    memcpy(artifact + LAPLACE_PERFCACHE_OFFSET_DEPENDENCY_FINGERPRINT,
-           spec->contract.dependency_fingerprint.bytes,
-           sizeof(spec->contract.dependency_fingerprint.bytes));
-    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORD_COUNT, spec->record_count);
-    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_KEY_BYTES,
-                 spec->contract.key_bytes);
-    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_VALUE_BYTES,
-                 spec->contract.value_bytes);
-    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORD_STRIDE, (uint32_t)stride);
-    write_u32_le(artifact + LAPLACE_PERFCACHE_OFFSET_ACCESS_LAW,
-                 spec->contract.access_law);
-    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORDS,
-                 LAPLACE_PERFCACHE_HEADER_BYTES);
-    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_RECORDS_BYTES, records_bytes);
-    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_METADATA, metadata_offset);
-    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_METADATA_BYTES,
-                 spec->metadata_bytes);
-    write_u64_le(artifact + LAPLACE_PERFCACHE_OFFSET_DIGEST, digest_offset);
     if (records_bytes != 0u) {
         memcpy(artifact + LAPLACE_PERFCACHE_HEADER_BYTES,
                spec->records,
@@ -377,11 +456,9 @@ laplace_perfcache_status laplace_perfcache_write(
                spec->metadata,
                (size_t)spec->metadata_bytes);
     }
-    blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, artifact, (size_t)digest_offset);
-    blake3_hasher_finalize(
-        &hasher, artifact + (size_t)digest_offset, LAPLACE_PERFCACHE_DIGEST_BYTES);
-    return LAPLACE_PERFCACHE_OK;
+    return laplace_perfcache_layout_seal(
+        &spec->contract, spec->record_count, spec->metadata_bytes,
+        artifact, artifact_capacity, artifact_bytes, &artifact_digest);
 }
 
 static void read_contract(
