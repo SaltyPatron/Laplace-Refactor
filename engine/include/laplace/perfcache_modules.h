@@ -11,11 +11,11 @@ extern "C" {
 /* Generated identities come from contracts/perfcache.json. */
 LAPLACE_API laplace_perfcache_registry_status
 laplace_perfcache_framework_probe_module(
-    laplace_perfcache_module_v1* module);
+    laplace_perfcache_module_v2* module);
 
 LAPLACE_API laplace_perfcache_registry_status
 laplace_perfcache_unicode_tier0_module(
-    laplace_perfcache_module_v1* module);
+    laplace_perfcache_module_v2* module);
 
 LAPLACE_API laplace_perfcache_status
 laplace_perfcache_unicode_tier0_validate_view(

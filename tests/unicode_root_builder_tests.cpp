@@ -1,4 +1,7 @@
 #include "laplace/unicode_root_builder.h"
+#include "laplace/perfcache_modules.h"
+#include "laplace/perfcache_registry.h"
+#include "laplace/unicode_tier0_sink.h"
 
 #include <array>
 #include <cstddef>
@@ -46,6 +49,21 @@ struct SpoolHandle {
     ~SpoolHandle() { laplace_canonical_spool_destroy(&value); }
 };
 
+struct Tier0SinkHandle {
+    laplace_unicode_tier0_sink* value{};
+    ~Tier0SinkHandle() { laplace_unicode_tier0_sink_destroy(&value); }
+};
+
+struct PerfcacheRegistryHandle {
+    laplace_perfcache_registry* value{};
+    ~PerfcacheRegistryHandle() {
+        if (value != nullptr) {
+            EXPECT_EQ(laplace_perfcache_registry_destroy(value),
+                      LAPLACE_PERFCACHE_REGISTRY_OK);
+        }
+    }
+};
+
 bool SameDigest(
     const laplace_digest256& left,
     const laplace_digest256& right) {
@@ -90,6 +108,12 @@ void FillDigest(laplace_digest256* const digest, const std::uint8_t seed) {
     }
 }
 
+void FillId(laplace_id128* const id, const std::uint8_t seed) {
+    for (std::size_t index = 0U; index < sizeof(id->bytes); ++index) {
+        id->bytes[index] = static_cast<std::uint8_t>(seed + index);
+    }
+}
+
 laplace_framework_context Context() {
     laplace_framework_context context{};
     context.major = LAPLACE_FRAMEWORK_MAJOR;
@@ -123,6 +147,49 @@ laplace_framework_producer_control_v1 ProducerControl() {
         nullptr,
         NeverCancel,
         IgnoreProgress,
+        LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MAJOR,
+        LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MINOR,
+        LAPLACE_FRAMEWORK_KNOWN_PRODUCER_CONTROL_FLAGS,
+        0U};
+}
+
+laplace_framework_producer_control_v1 ReplayControl(
+    const laplace_framework_replay_checkpoint* const checkpoint) {
+    return laplace_framework_producer_control_v1{
+        nullptr,
+        checkpoint,
+        NeverCancel,
+        IgnoreProgress,
+        LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MAJOR,
+        LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MINOR,
+        LAPLACE_FRAMEWORK_KNOWN_PRODUCER_CONTROL_FLAGS,
+        0U};
+}
+
+struct CancelAfterFirstBatchState {
+    bool cancel{};
+};
+
+int CancelAfterFirstBatch(void* const opaque) {
+    return static_cast<CancelAfterFirstBatchState*>(opaque)->cancel ? 1 : 0;
+}
+
+void ObserveUntilFirstBatch(
+    void* const opaque,
+    const laplace_framework_replay_checkpoint* const checkpoint) {
+    auto* const state = static_cast<CancelAfterFirstBatchState*>(opaque);
+    if (checkpoint->completed_batches == 1U) {
+        state->cancel = true;
+    }
+}
+
+laplace_framework_producer_control_v1 CancelAfterOneBatchControl(
+    CancelAfterFirstBatchState* const state) {
+    return laplace_framework_producer_control_v1{
+        state,
+        nullptr,
+        CancelAfterFirstBatch,
+        ObserveUntilFirstBatch,
         LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MAJOR,
         LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MINOR,
         LAPLACE_FRAMEWORK_KNOWN_PRODUCER_CONTROL_FLAGS,
@@ -291,12 +358,25 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
     expectation.geometry_epoch = build.stream.manifest.geometry_epoch;
     expectation.physicality_recipe_version =
         build.stream.manifest.physicality_recipe_version;
-    ValidatingSink left{};
-    ValidatingSink right{};
-    left.expectation = expectation;
-    right.expectation = expectation;
+    ValidatingSink validating{};
+    validating.expectation = expectation;
+    laplace_unicode_tier0_sink_configuration tier0_configuration{};
+    const auto tier0_path = directory.Path() / "unicode-tier0.lpc";
+    tier0_configuration.target_path = tier0_path.c_str();
+    tier0_configuration.root_expectation = expectation;
+    FillId(&tier0_configuration.activation_epoch_id, 0xa0U);
+    FillDigest(
+        &tier0_configuration.activation_epoch_fingerprint, 0xb0U);
+    tier0_configuration.abi_major = LAPLACE_UNICODE_TIER0_SINK_ABI_MAJOR;
+    tier0_configuration.abi_minor = LAPLACE_UNICODE_TIER0_SINK_ABI_MINOR;
+    Tier0SinkHandle tier0{};
+    laplace_framework_sink_v1 tier0_framework_sink{};
+    ASSERT_EQ(laplace_unicode_tier0_sink_create(
+                  &tier0_configuration, &tier0.value,
+                  &tier0_framework_sink),
+              LAPLACE_PERFCACHE_OK);
     std::array<laplace_framework_sink_v1, 2> sinks{{
-        Sink(&left), Sink(&right)}};
+        Sink(&validating), tier0_framework_sink}};
     laplace_framework_producer_v1 producer{};
     ASSERT_EQ(laplace_canonical_spool_producer(spool.value, &producer),
               LAPLACE_SPOOL_OK);
@@ -311,19 +391,172 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
                   &build.source.recipe_fingerprint, &producer, &control,
                   sinks.data(), sinks.size(), &artifact_output, &replay),
               LAPLACE_FRAMEWORK_OK);
-    EXPECT_TRUE(left.sealed);
-    EXPECT_TRUE(right.sealed);
-    EXPECT_FALSE(left.aborted);
-    EXPECT_FALSE(right.aborted);
-    EXPECT_EQ(left.staged_batches, build.spool.batch_count);
-    EXPECT_EQ(right.staged_batches, build.spool.batch_count);
-    EXPECT_TRUE(SameDigest(left.summary.receipt_id, build.stream.receipt_id));
-    EXPECT_TRUE(SameDigest(right.summary.receipt_id, build.stream.receipt_id));
+    EXPECT_TRUE(validating.sealed);
+    EXPECT_FALSE(validating.aborted);
+    EXPECT_EQ(validating.staged_batches, build.spool.batch_count);
+    EXPECT_TRUE(SameDigest(
+        validating.summary.receipt_id, build.stream.receipt_id));
     ASSERT_EQ(artifact_output.count, artifacts.size());
     EXPECT_TRUE(SameDigest(artifacts[0], build.stream.receipt_id));
-    EXPECT_TRUE(SameDigest(artifacts[1], build.stream.receipt_id));
     EXPECT_TRUE(SameDigest(
         replay.stream.stream_fingerprint, build.spool.stream_fingerprint));
+
+    laplace_unicode_tier0_sink_result tier0_result{};
+    ASSERT_EQ(laplace_unicode_tier0_sink_result_get(
+                  tier0.value, &tier0_result),
+              LAPLACE_PERFCACHE_OK);
+    EXPECT_TRUE(SameDigest(
+        artifacts[1], tier0_result.artifact_set_fingerprint));
+    EXPECT_TRUE(SameDigest(
+        tier0_result.root_summary.receipt_id, build.stream.receipt_id));
+    EXPECT_TRUE(SameDigest(
+        tier0_result.root_framework_stream_fingerprint,
+        build.spool.stream_fingerprint));
+    EXPECT_EQ(tier0_result.atom_count,
+              static_cast<std::uint64_t>(LAPLACE_UNICODE_ROOT_POPULATION));
+    EXPECT_EQ(tier0_result.root_frame_count, build.spool.total_records);
+    EXPECT_EQ(tier0_result.root_encoded_bytes, build.spool.total_bytes);
+    EXPECT_GT(tier0_result.atom_metadata_bytes, 0U);
+    EXPECT_EQ(
+        Hex(tier0_result.artifact_digest),
+        "bfc3c51d53b98731dee62c16cb6018d7a40baee25eb4db3341771ccadc2662cc");
+    EXPECT_EQ(tier0_result.atom_metadata_bytes, UINT64_C(588784718));
+    EXPECT_EQ(tier0_result.artifact_bytes, UINT64_C(762586574));
+    EXPECT_TRUE(fs::is_regular_file(tier0_path));
+
+    laplace_perfcache_module_v2 tier0_module{};
+    ASSERT_EQ(laplace_perfcache_unicode_tier0_module(&tier0_module),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    PerfcacheRegistryHandle registry{};
+    ASSERT_EQ(laplace_perfcache_registry_create(
+                  &tier0_module, 1U, &registry.value),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_artifact_provider_v1 artifact_provider{};
+    ASSERT_EQ(laplace_perfcache_file_provider(&artifact_provider),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_generation_artifact generation_artifact{};
+    generation_artifact.path = tier0_path.c_str();
+    generation_artifact.contract = tier0_result.contract;
+    generation_artifact.expected_artifact_digest =
+        tier0_result.artifact_digest;
+    generation_artifact.flags =
+        LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
+    laplace_perfcache_generation_request generation_request{};
+    generation_request.artifacts = &generation_artifact;
+    generation_request.staged_sink_artifact_fingerprints = artifacts.data();
+    generation_request.artifact_count = 1U;
+    generation_request.staged_sink_count = artifacts.size();
+    generation_request.perfcache_sink_index = 1U;
+    generation_request.activation_epoch_id =
+        tier0_configuration.activation_epoch_id;
+    generation_request.epoch_fingerprint =
+        tier0_configuration.activation_epoch_fingerprint;
+    generation_request.staged_receipt_id = replay.stream.receipt_id;
+    generation_request.stream_fingerprint =
+        replay.stream.stream_fingerprint;
+    generation_request.staged_sink_artifacts_fingerprint =
+        replay.stream.sink_artifacts_fingerprint;
+    generation_request.sink_artifact_set_fingerprint = artifacts[1];
+    ASSERT_EQ(laplace_perfcache_required_module_set_fingerprint(
+                  &tier0_module, 1U,
+                  &generation_request.required_module_set_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_prepared_generation* prepared = nullptr;
+    laplace_perfcache_generation_receipt prepare_receipt{};
+    ASSERT_EQ(laplace_perfcache_registry_prepare(
+                  registry.value, &context, &replay.stream,
+                  &artifact_provider, &generation_request, &prepared,
+                  &prepare_receipt),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_NE(prepared, nullptr);
+    EXPECT_EQ(prepare_receipt.artifact_count, 1U);
+    EXPECT_EQ(prepare_receipt.mapped_bytes, tier0_result.artifact_bytes);
+    EXPECT_EQ(prepare_receipt.prefaulted_bytes, tier0_result.artifact_bytes);
+    laplace_perfcache_registry_discard_prepared(&prepared);
+    EXPECT_EQ(prepared, nullptr);
+
+    Tier0SinkHandle replay_tier0{};
+    laplace_framework_sink_v1 replay_tier0_framework_sink{};
+    ASSERT_EQ(laplace_unicode_tier0_sink_create(
+                  &tier0_configuration, &replay_tier0.value,
+                  &replay_tier0_framework_sink),
+              LAPLACE_PERFCACHE_OK);
+    ValidatingSink replay_validating{};
+    replay_validating.expectation = expectation;
+    std::array<laplace_framework_sink_v1, 2> replay_sinks{{
+        Sink(&replay_validating), replay_tier0_framework_sink}};
+    std::array<laplace_digest256, 2> replay_artifacts{};
+    laplace_framework_sink_artifact_output replay_artifact_output{
+        replay_artifacts.data(), replay_artifacts.size(), 0U, 0U};
+    laplace_framework_producer_receipt deterministic_rerun{};
+    ASSERT_EQ(laplace_framework_run_producer_with_artifacts(
+                  &context, &build.source.source_fingerprint,
+                  &build.source.recipe_fingerprint, &producer, &control,
+                  replay_sinks.data(), replay_sinks.size(),
+                  &replay_artifact_output, &deterministic_rerun),
+              LAPLACE_FRAMEWORK_OK);
+    laplace_unicode_tier0_sink_result replay_tier0_result{};
+    ASSERT_EQ(laplace_unicode_tier0_sink_result_get(
+                  replay_tier0.value, &replay_tier0_result),
+              LAPLACE_PERFCACHE_OK);
+    EXPECT_TRUE(SameDigest(
+        replay_tier0_result.artifact_digest, tier0_result.artifact_digest));
+    EXPECT_TRUE(SameDigest(replay_artifacts[1], artifacts[1]));
+
+    const auto cancelled_path = directory.Path() / "cancelled-tier0.lpc";
+    tier0_configuration.target_path = cancelled_path.c_str();
+    Tier0SinkHandle cancelled_tier0{};
+    laplace_framework_sink_v1 cancelled_sink{};
+    ASSERT_EQ(laplace_unicode_tier0_sink_create(
+                  &tier0_configuration, &cancelled_tier0.value,
+                  &cancelled_sink),
+              LAPLACE_PERFCACHE_OK);
+    CancelAfterFirstBatchState cancellation{};
+    auto cancel_control = CancelAfterOneBatchControl(&cancellation);
+    laplace_framework_producer_receipt cancelled_receipt{};
+    EXPECT_EQ(laplace_framework_run_producer(
+                  &context, &build.source.source_fingerprint,
+                  &build.source.recipe_fingerprint, &producer,
+                  &cancel_control, &cancelled_sink, 1U,
+                  &cancelled_receipt),
+              LAPLACE_FRAMEWORK_PRODUCER_CANCELLED);
+    EXPECT_FALSE(fs::exists(cancelled_path));
+    for (const auto& entry : fs::directory_iterator(directory.Path())) {
+        EXPECT_EQ(entry.path().filename(), tier0_path.filename());
+    }
+
+    tier0_configuration.target_path = tier0_path.c_str();
+    Tier0SinkHandle resumed_tier0{};
+    laplace_framework_sink_v1 resumed_tier0_framework_sink{};
+    ASSERT_EQ(laplace_unicode_tier0_sink_create(
+                  &tier0_configuration, &resumed_tier0.value,
+                  &resumed_tier0_framework_sink),
+              LAPLACE_PERFCACHE_OK);
+    ValidatingSink resumed_validating{};
+    resumed_validating.expectation = expectation;
+    std::array<laplace_framework_sink_v1, 2> resumed_sinks{{
+        Sink(&resumed_validating), resumed_tier0_framework_sink}};
+    std::array<laplace_digest256, 2> resumed_artifacts{};
+    laplace_framework_sink_artifact_output resumed_artifact_output{
+        resumed_artifacts.data(), resumed_artifacts.size(), 0U, 0U};
+    auto resume_control = ReplayControl(&cancelled_receipt.checkpoint);
+    laplace_framework_producer_receipt resumed{};
+    ASSERT_EQ(laplace_framework_run_producer_with_artifacts(
+                  &context, &build.source.source_fingerprint,
+                  &build.source.recipe_fingerprint, &producer,
+                  &resume_control, resumed_sinks.data(), resumed_sinks.size(),
+                  &resumed_artifact_output, &resumed),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(resumed.replay_verified, 1U);
+    EXPECT_TRUE(SameDigest(
+        resumed.replay_checkpoint_id, cancelled_receipt.checkpoint.checkpoint_id));
+    EXPECT_TRUE(SameDigest(resumed_artifacts[1], artifacts[1]));
+    laplace_unicode_tier0_sink_result resumed_tier0_result{};
+    ASSERT_EQ(laplace_unicode_tier0_sink_result_get(
+                  resumed_tier0.value, &resumed_tier0_result),
+              LAPLACE_PERFCACHE_OK);
+    EXPECT_TRUE(SameDigest(
+        resumed_tier0_result.artifact_digest, tier0_result.artifact_digest));
 
     const std::array<laplace_digest256, 13> expected{{
         Digest("a390dd47fce00fab8fa836fc4b8f0474212d714bc6654d42bf8e28ec3fd036e3"),

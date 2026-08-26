@@ -207,6 +207,58 @@ if(TARGET LaplaceOneApi::MKLRuntime)
     set_tests_properties(
         unicode-root-builder.mutation-placement-rank-bypass-detected PROPERTIES
         LABELS "implementation;unicode;root;producer;geometry;mutation")
+
+    add_executable(laplace_unicode_tier0_sink_offset_mutation_probe
+        unicode_root_builder_tests.cpp
+        ../engine/src/unicode_tier0_sink.cpp)
+    target_include_directories(
+        laplace_unicode_tier0_sink_offset_mutation_probe PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_compile_definitions(
+        laplace_unicode_tier0_sink_offset_mutation_probe PRIVATE
+        LAPLACE_TEST_UNICODE_TIER0_SINK_WRONG_METADATA_OFFSET=1)
+    target_link_libraries(
+        laplace_unicode_tier0_sink_offset_mutation_probe PRIVATE
+        Laplace::UnicodeRoot Laplace::UnicodeNumeric GTest::gtest_main)
+    target_compile_options(
+        laplace_unicode_tier0_sink_offset_mutation_probe PRIVATE
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME unicode-tier0-sink.mutation-metadata-offset-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_unicode_tier0_sink_offset_mutation_probe>"
+            "-DFILTER=UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+    set_tests_properties(
+        unicode-tier0-sink.mutation-metadata-offset-detected PROPERTIES
+        LABELS "implementation;unicode;root;perfcache;mutation")
+
+    add_executable(laplace_unicode_tier0_sink_physicality_mutation_probe
+        unicode_root_builder_tests.cpp
+        ../engine/src/unicode_tier0_sink.cpp)
+    target_include_directories(
+        laplace_unicode_tier0_sink_physicality_mutation_probe PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_compile_definitions(
+        laplace_unicode_tier0_sink_physicality_mutation_probe PRIVATE
+        LAPLACE_TEST_UNICODE_TIER0_SINK_WRONG_PHYSICALITY_ID=1)
+    target_link_libraries(
+        laplace_unicode_tier0_sink_physicality_mutation_probe PRIVATE
+        Laplace::UnicodeRoot Laplace::UnicodeNumeric GTest::gtest_main)
+    target_compile_options(
+        laplace_unicode_tier0_sink_physicality_mutation_probe PRIVATE
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME unicode-tier0-sink.mutation-physicality-parity-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_unicode_tier0_sink_physicality_mutation_probe>"
+            "-DFILTER=UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+    set_tests_properties(
+        unicode-tier0-sink.mutation-physicality-parity-detected PROPERTIES
+        LABELS "implementation;unicode;root;identity;geometry;perfcache;mutation")
 endif()
 
 add_executable(laplace_unicode_source_tests
@@ -487,36 +539,36 @@ set_tests_properties(
     unicode-root.mutation-physicality-recipe-version-detected PROPERTIES
     LABELS "implementation;unicode;physicality;identity;mutation")
 
-add_library(laplace_unicode_tier0_physicality_mutant STATIC
+add_library(laplace_unicode_tier0_partial_view_mutant STATIC
     ../engine/src/perfcache_modules.c)
-target_include_directories(laplace_unicode_tier0_physicality_mutant PRIVATE
+target_include_directories(laplace_unicode_tier0_partial_view_mutant PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
     "${CMAKE_BINARY_DIR}/generated")
-target_compile_definitions(laplace_unicode_tier0_physicality_mutant PRIVATE
-    LAPLACE_TEST_SKIP_UNICODE_TIER0_PHYSICALITY_VALIDATION=1)
-target_compile_options(laplace_unicode_tier0_physicality_mutant PRIVATE
+target_compile_definitions(laplace_unicode_tier0_partial_view_mutant PRIVATE
+    LAPLACE_TEST_ALLOW_UNICODE_TIER0_PARTIAL_VIEW=1)
+target_compile_options(laplace_unicode_tier0_partial_view_mutant PRIVATE
     $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
-add_executable(laplace_unicode_tier0_physicality_mutation_probe
+add_executable(laplace_unicode_tier0_partial_view_mutation_probe
     unicode_root_tests.cpp)
 target_include_directories(
-    laplace_unicode_tier0_physicality_mutation_probe PRIVATE
+    laplace_unicode_tier0_partial_view_mutation_probe PRIVATE
     "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(
-    laplace_unicode_tier0_physicality_mutation_probe PRIVATE
-    laplace_unicode_tier0_physicality_mutant
+    laplace_unicode_tier0_partial_view_mutation_probe PRIVATE
+    laplace_unicode_tier0_partial_view_mutant
     Laplace::UnicodeRoot GTest::gtest_main)
 target_compile_options(
-    laplace_unicode_tier0_physicality_mutation_probe PRIVATE
+    laplace_unicode_tier0_partial_view_mutation_probe PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 add_test(
-    NAME unicode-tier0.mutation-physicality-parity-omission-detected
+    NAME unicode-tier0.mutation-partial-population-detected
     COMMAND "${CMAKE_COMMAND}"
-        "-DPROBE=$<TARGET_FILE:laplace_unicode_tier0_physicality_mutation_probe>"
-        "-DFILTER=UnicodeTier0Module.WholeViewBindsHotPhysicalityToCanonicalAtomBytes"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_tier0_partial_view_mutation_probe>"
+        "-DFILTER=UnicodeTier0Module.WholeViewRejectsPartialPopulation"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(
-    unicode-tier0.mutation-physicality-parity-omission-detected PROPERTIES
-    LABELS "implementation;unicode;identity;geometry;perfcache;mutation")
+    unicode-tier0.mutation-partial-population-detected PROPERTIES
+    LABELS "implementation;unicode;perfcache;mutation")
 
 add_test(
     NAME postgresql-build.contract-and-mutation
@@ -1620,6 +1672,10 @@ if(UNIX)
         sink-aggregate-bypass
         LAPLACE_TEST_SKIP_PERFCACHE_SINK_AGGREGATE_VALIDATION
         PerfcacheRegistry.MultiSinkReceiptBindsEverySiblingAndSelectedArtifact)
+    laplace_add_perfcache_registry_mutant(
+        module-view-validation-bypass
+        LAPLACE_TEST_SKIP_PERFCACHE_MODULE_VIEW_VALIDATION
+        PerfcacheRegistry.ColdOpenRequiresRegisteredWholeViewSemantics)
 endif()
 
 if(LAPLACE_POSTGRES_ENABLED)

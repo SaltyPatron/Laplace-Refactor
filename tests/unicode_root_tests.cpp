@@ -755,7 +755,7 @@ TEST(UnicodeTier0Module, ValidatesDirectAddressIdentityGeometryAndLocality) {
     const auto atom = Atom(0x41u);
     const auto encoded = Encode(atom);
     std::array<std::uint8_t, 156> entry{};
-    laplace_perfcache_module_v1 module{};
+    laplace_perfcache_module_v2 module{};
     WriteU32(entry.data(), atom.codepoint_position);
     auto* value = entry.data() + 4u;
     WriteU64(value, 0u);
@@ -785,11 +785,11 @@ TEST(UnicodeTier0Module, ValidatesDirectAddressIdentityGeometryAndLocality) {
               LAPLACE_PERFCACHE_SEMANTIC_MISMATCH);
 }
 
-TEST(UnicodeTier0Module, WholeViewBindsHotPhysicalityToCanonicalAtomBytes) {
+TEST(UnicodeTier0Module, WholeViewRejectsPartialPopulation) {
     const auto atom = Atom(0U);
     const auto metadata = Encode(atom);
     std::array<std::uint8_t, 156> entry{};
-    laplace_perfcache_module_v1 module{};
+    laplace_perfcache_module_v2 module{};
     ASSERT_EQ(laplace_perfcache_unicode_tier0_module(&module),
               LAPLACE_PERFCACHE_REGISTRY_OK);
     WriteU32(entry.data(), atom.codepoint_position);
@@ -826,19 +826,13 @@ TEST(UnicodeTier0Module, WholeViewBindsHotPhysicalityToCanonicalAtomBytes) {
     view.metadata = metadata.data();
     view.metadata_bytes = metadata.size();
     std::uint64_t invalid = UINT64_MAX;
-    ASSERT_EQ(laplace_perfcache_unicode_tier0_validate_view(
-                  nullptr, &view, &invalid),
-              LAPLACE_PERFCACHE_OK);
-    EXPECT_EQ(invalid, UINT64_MAX);
-
-    value[120] ^= 0x01U;
     EXPECT_EQ(module.validate_record(
                   module.state, 0U, entry.data(), entry.size()),
               LAPLACE_PERFCACHE_OK);
     EXPECT_EQ(laplace_perfcache_unicode_tier0_validate_view(
                   nullptr, &view, &invalid),
               LAPLACE_PERFCACHE_SEMANTIC_MISMATCH);
-    EXPECT_EQ(invalid, 0U);
+    EXPECT_EQ(invalid, UINT64_MAX);
 }
 
 }  // namespace

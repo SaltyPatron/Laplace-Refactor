@@ -54,8 +54,32 @@ static laplace_perfcache_status validate_framework_probe_record(
         : LAPLACE_PERFCACHE_DENSE_KEY_MISMATCH;
 }
 
+static laplace_perfcache_status validate_framework_probe_view(
+    void* context,
+    const laplace_perfcache_view* view,
+    uint64_t* invalid_record_index) {
+    uint64_t record_index;
+    (void)context;
+    if (view == NULL || invalid_record_index == NULL ||
+        view->records == NULL || view->record_count == 0u) {
+        return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+    }
+    *invalid_record_index = UINT64_MAX;
+    for (record_index = 0u; record_index < view->record_count; ++record_index) {
+        const uint8_t* record = view->records +
+            (size_t)record_index * view->record_stride;
+        if (validate_framework_probe_record(
+                NULL, record_index, record, view->record_stride) !=
+            LAPLACE_PERFCACHE_OK) {
+            *invalid_record_index = record_index;
+            return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+        }
+    }
+    return LAPLACE_PERFCACHE_OK;
+}
+
 laplace_perfcache_registry_status laplace_perfcache_framework_probe_module(
-    laplace_perfcache_module_v1* module) {
+    laplace_perfcache_module_v2* module) {
     if (module == NULL) {
         return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
     }
@@ -76,6 +100,7 @@ laplace_perfcache_registry_status laplace_perfcache_framework_probe_module(
         return LAPLACE_PERFCACHE_REGISTRY_INTERNAL_ERROR;
     }
     module->validate_record = validate_framework_probe_record;
+    module->validate_view = validate_framework_probe_view;
     module->access_law = LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED;
     module->key_bytes = LAPLACE_PERFCACHE_FRAMEWORK_PROBE_KEY_BYTES;
     module->value_bytes = LAPLACE_PERFCACHE_FRAMEWORK_PROBE_VALUE_BYTES;
@@ -156,7 +181,7 @@ static laplace_perfcache_status validate_unicode_tier0_record(
 
 static int unicode_tier0_contract_matches(
     const laplace_perfcache_contract* contract,
-    const laplace_perfcache_module_v1* module) {
+    const laplace_perfcache_module_v2* module) {
     return memcmp(
                contract->module_id.bytes, module->module_id.bytes,
                sizeof(contract->module_id.bytes)) == 0 &&
@@ -179,13 +204,17 @@ laplace_perfcache_status laplace_perfcache_unicode_tier0_validate_view(
     void* context,
     const laplace_perfcache_view* view,
     uint64_t* invalid_record_index) {
-    laplace_perfcache_module_v1 module;
+    laplace_perfcache_module_v2 module;
     uint64_t expected_metadata_offset = 0u;
     uint64_t record_index;
     (void)context;
     if (view == NULL || invalid_record_index == NULL ||
         view->records == NULL || view->metadata == NULL ||
+#if !defined(LAPLACE_TEST_ALLOW_UNICODE_TIER0_PARTIAL_VIEW)
+        view->record_count != LAPLACE_PERFCACHE_UNICODE_TIER0_POPULATION ||
+#else
         view->record_count == 0u ||
+#endif
         laplace_perfcache_unicode_tier0_module(&module) !=
             LAPLACE_PERFCACHE_REGISTRY_OK ||
         !unicode_tier0_contract_matches(&view->contract, &module) ||
@@ -223,11 +252,8 @@ laplace_perfcache_status laplace_perfcache_unicode_tier0_validate_view(
             memcmp(
                 atom.value.identity_preimage_fingerprint.bytes,
                 value + 40u, 32u) != 0 ||
-            memcmp(atom.value.hilbert_key, value + 104u, 16u) != 0
-#if !defined(LAPLACE_TEST_SKIP_UNICODE_TIER0_PHYSICALITY_VALIDATION)
-            || memcmp(atom.value.physicality_id.bytes, value + 120u, 32u) != 0
-#endif
-            ) {
+            memcmp(atom.value.hilbert_key, value + 104u, 16u) != 0 ||
+            memcmp(atom.value.physicality_id.bytes, value + 120u, 32u) != 0) {
             *invalid_record_index = record_index;
             return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
         }
@@ -251,7 +277,7 @@ laplace_perfcache_status laplace_perfcache_unicode_tier0_validate_view(
 }
 
 laplace_perfcache_registry_status laplace_perfcache_unicode_tier0_module(
-    laplace_perfcache_module_v1* module) {
+    laplace_perfcache_module_v2* module) {
     if (module == NULL) {
         return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
     }
@@ -270,6 +296,7 @@ laplace_perfcache_registry_status laplace_perfcache_unicode_tier0_module(
         return LAPLACE_PERFCACHE_REGISTRY_INTERNAL_ERROR;
     }
     module->validate_record = validate_unicode_tier0_record;
+    module->validate_view = laplace_perfcache_unicode_tier0_validate_view;
     module->access_law = LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED;
     module->key_bytes = LAPLACE_PERFCACHE_UNICODE_TIER0_KEY_BYTES;
     module->value_bytes = LAPLACE_PERFCACHE_UNICODE_TIER0_VALUE_BYTES;

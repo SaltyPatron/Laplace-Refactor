@@ -66,12 +66,13 @@ typedef laplace_perfcache_status (*laplace_perfcache_module_lookup_fn)(
     uint64_t* record_indexes,
     uint8_t* found);
 
-typedef struct laplace_perfcache_module_v1 {
+typedef struct laplace_perfcache_module_v2 {
     laplace_id128 module_id;
     laplace_id128 key_schema_id;
     laplace_id128 value_schema_id;
     laplace_digest256 module_contract_fingerprint;
     laplace_perfcache_record_validator validate_record;
+    laplace_perfcache_view_validator validate_view;
     laplace_perfcache_module_lookup_fn lookup_batch;
     void* state;
     uint32_t access_law;
@@ -81,7 +82,7 @@ typedef struct laplace_perfcache_module_v1 {
     uint16_t abi_major;
     uint16_t abi_minor;
     uint32_t reserved;
-} laplace_perfcache_module_v1;
+} laplace_perfcache_module_v2;
 
 typedef struct laplace_perfcache_generation_dependency {
     laplace_id128 module_id;
@@ -191,7 +192,7 @@ enum {
 };
 
 LAPLACE_API laplace_perfcache_registry_status laplace_perfcache_registry_create(
-    const laplace_perfcache_module_v1* modules,
+    const laplace_perfcache_module_v2* modules,
     size_t module_count,
     laplace_perfcache_registry** registry);
 
@@ -203,7 +204,7 @@ laplace_perfcache_dependency_fingerprint(
 
 LAPLACE_API laplace_perfcache_registry_status
 laplace_perfcache_required_module_set_fingerprint(
-    const laplace_perfcache_module_v1* modules,
+    const laplace_perfcache_module_v2* modules,
     size_t module_count,
     laplace_digest256* fingerprint);
 

@@ -113,10 +113,12 @@ Encoding v1 permanently closes the identity preimage: scalar values use bytes
 identical to standard UTF-8, while the same variable-width bit layout addresses the
 surrogate positions without calling those non-text bytes UTF-8.
 
-The exact source, atom-record, DUCET/placement, Super-Fibonacci/Hopf, and
-Hilbert/numeric prerequisites are closed in the five machine-readable contracts
-described by `docs/architecture/UNICODE_ROOT_CONTRACTS.md`. Their presence does not
-claim that the decomposer, persistence sinks, perfcache, or activation path exists.
+The exact source, atom-record, DUCET/placement, Super-Fibonacci/Hopf,
+Hilbert/numeric, atomic-physicality, and root-stream contracts are described by
+`docs/architecture/UNICODE_ROOT_CONTRACTS.md`. The full canonical root producer and
+dense Tier-0 perfcache sink now execute those contracts. The set-oriented PostgreSQL
+sibling sink, database/artifact parity admission, and coherent activation path remain
+open and cannot be inferred from the existence of the root artifact.
 
 ## 4. Identity, tier, composition, and physicality
 

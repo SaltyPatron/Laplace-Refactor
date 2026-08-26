@@ -9,6 +9,7 @@ add_library(laplace_engine SHARED
     src/trajectory.c
     src/unicode_root.c
     src/unicode_root_builder.cpp
+    src/unicode_tier0_sink.cpp
     src/unicode_source.cpp
     src/unicode_properties.cpp
     src/unicode_ducet.cpp
@@ -82,8 +83,8 @@ set_target_properties(laplace_unicode_numeric PROPERTIES
 set_target_properties(laplace_engine PROPERTIES
     EXPORT_NAME Engine
     OUTPUT_NAME laplace_engine
-    VERSION "${PROJECT_VERSION}"
-    SOVERSION "${PROJECT_VERSION_MAJOR}"
+    VERSION 2.0.0
+    SOVERSION 2
     C_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON)
 target_include_directories(laplace_engine

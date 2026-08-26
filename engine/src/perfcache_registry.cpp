@@ -69,7 +69,7 @@ void Finish(blake3_hasher* hasher, laplace_digest256* output) {
 }
 
 struct RegisteredModule {
-    laplace_perfcache_module_v1 value{};
+    laplace_perfcache_module_v2 value{};
 };
 
 struct LoadedArtifact {
@@ -124,8 +124,8 @@ void CloseGeneration(LoadedGeneration* generation) {
     delete generation;
 }
 
-bool ModuleValid(const laplace_perfcache_module_v1& module) {
-    if (module.validate_record == nullptr ||
+bool ModuleValid(const laplace_perfcache_module_v2& module) {
+    if (module.validate_record == nullptr || module.validate_view == nullptr ||
         module.abi_major != LAPLACE_PERFCACHE_MODULE_ABI_MAJOR ||
         module.abi_minor > LAPLACE_PERFCACHE_MODULE_ABI_MINOR ||
         (module.flags & ~LAPLACE_PERFCACHE_MODULE_REQUIRED) != 0u ||
@@ -1084,7 +1084,7 @@ bool DecodeManifest(
 }  // namespace
 
 extern "C" laplace_perfcache_registry_status laplace_perfcache_registry_create(
-    const laplace_perfcache_module_v1* modules,
+    const laplace_perfcache_module_v2* modules,
     size_t module_count,
     laplace_perfcache_registry** registry) {
     if (modules == nullptr || module_count == 0u || registry == nullptr) {
@@ -1141,7 +1141,7 @@ laplace_perfcache_dependency_fingerprint(
 
 extern "C" laplace_perfcache_registry_status
 laplace_perfcache_required_module_set_fingerprint(
-    const laplace_perfcache_module_v1* modules,
+    const laplace_perfcache_module_v2* modules,
     size_t module_count,
     laplace_digest256* fingerprint) {
     if (modules == nullptr || module_count == 0u || fingerprint == nullptr) {
@@ -1476,6 +1476,20 @@ extern "C" laplace_perfcache_registry_status laplace_perfcache_registry_prepare(
                 CloseGeneration(generation);
                 return LAPLACE_PERFCACHE_REGISTRY_ARTIFACT_OPEN_FAILED;
             }
+            std::uint64_t invalid_view_record_index = UINT64_MAX;
+#if !defined(LAPLACE_TEST_SKIP_PERFCACHE_MODULE_VIEW_VALIDATION)
+            if (artifact.module->value.validate_view(
+                    artifact.module->value.state, &artifact.handle.view,
+                    &invalid_view_record_index) != LAPLACE_PERFCACHE_OK) {
+                FillReceipt(*generation, LAPLACE_PERFCACHE_GENERATION_REJECTED,
+                            LAPLACE_PERFCACHE_REGISTRY_ARTIFACT_OPEN_FAILED,
+                            receipt);
+                CloseGeneration(generation);
+                return LAPLACE_PERFCACHE_REGISTRY_ARTIFACT_OPEN_FAILED;
+            }
+#else
+            (void)invalid_view_record_index;
+#endif
             if (UINT64_MAX - generation->mapped_bytes <
                     artifact.handle.view.artifact_bytes ||
                 generation->mapped_bytes + artifact.handle.view.artifact_bytes >

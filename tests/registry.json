@@ -852,6 +852,12 @@
       "covered_dimensions": ["complete required-module generation", "partial generation rejection before activation"]
     },
     {
+      "ctest_name": "PerfcacheRegistry.ColdOpenRequiresRegisteredWholeViewSemantics",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION"],
+      "covered_dimensions": ["module ABI requires record and whole-view validators", "cold-open semantic validation before prefault", "valid checksum and record-local semantics cannot bypass metadata parity"],
+      "defect_controls": ["perfcache.mutation-module-view-validation-bypass-detected"]
+    },
+    {
       "ctest_name": "PerfcacheRegistry.DependencyGraphAcceptsAcyclicAndRejectsCycles",
       "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"],
       "covered_dimensions": ["typed artifact dependency identity", "acyclic generation graph", "cycle rejection before artifact open"],
@@ -932,6 +938,12 @@
       "evidence_targets": ["LP-TEST-PERFCACHE-SOURCE-RECIPE", "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
       "covered_dimensions": ["multi-sink aggregate validation bypass is detected"],
       "controls": "PerfcacheRegistry.MultiSinkReceiptBindsEverySiblingAndSelectedArtifact"
+    },
+    {
+      "ctest_name": "perfcache.mutation-module-view-validation-bypass-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION"],
+      "covered_dimensions": ["omitted cold-open whole-view semantic validation is detected"],
+      "controls": "PerfcacheRegistry.ColdOpenRequiresRegisteredWholeViewSemantics"
     },
     {
       "ctest_name": "identity.contract-vectors",
@@ -1239,9 +1251,9 @@
     {
       "ctest_name": "UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks",
       "profiles": ["custom-stack"],
-      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-S3-SEED", "LP-TEST-SUPER-FIBONACCI-FIXED-POPULATION", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
-      "covered_dimensions": ["one verified Unicode 17 source bundle", "one full 1114112-position numeric calculation", "one exact 2230150-frame canonical stream", "complete atom DUCET contraction and normalization sections", "sealed anonymous spool", "two sibling sinks replaying identical batches", "exact section stream spool and build receipts"],
-      "defect_controls": ["unicode-root-builder.mutation-placement-rank-bypass-detected"]
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-S3-SEED", "LP-TEST-SUPER-FIBONACCI-FIXED-POPULATION", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION"],
+      "covered_dimensions": ["one verified Unicode 17 source bundle", "one full 1114112-position numeric calculation", "one exact 2230150-frame canonical stream", "complete atom DUCET contraction and normalization sections", "sealed anonymous spool", "validating and Tier-0 sibling sinks consuming identical batches", "dense 1114112-record immutable Tier-0 artifact", "exact inner atom metadata", "pinned artifact digest and length", "artifact-set rather than raw-file sink fingerprint", "cold registry whole-view validation", "full prefault before admission", "deterministic rerun idempotence", "batch-boundary cancellation cleanup", "checkpoint replay-prefix verification", "exact section stream spool and build receipts"],
+      "defect_controls": ["unicode-root-builder.mutation-placement-rank-bypass-detected", "unicode-tier0-sink.mutation-metadata-offset-detected", "unicode-tier0-sink.mutation-physicality-parity-detected"]
     },
     {
       "ctest_name": "UnicodeRootBuilder.RejectsUnversionedNumericProviderBeforeSourceWork",
@@ -1263,21 +1275,35 @@
       "controls": "UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks"
     },
     {
+      "ctest_name": "unicode-tier0-sink.mutation-metadata-offset-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["a dense hot-record metadata offset that diverges from the exact canonical atom stream blocks publication"],
+      "controls": "UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks"
+    },
+    {
+      "ctest_name": "unicode-tier0-sink.mutation-physicality-parity-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["a dense hot-record physicality identity that diverges from the exact canonical atom stream blocks publication"],
+      "controls": "UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks"
+    },
+    {
       "ctest_name": "UnicodeTier0Module.ValidatesDirectAddressIdentityGeometryAndLocality",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-HILBERT-LOCALITY", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
       "covered_dimensions": ["dense position addressing", "atom identity", "coordinate quantization", "Hilbert locality validation"]
     },
     {
-      "ctest_name": "UnicodeTier0Module.WholeViewBindsHotPhysicalityToCanonicalAtomBytes",
+      "ctest_name": "UnicodeTier0Module.WholeViewRejectsPartialPopulation",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
-      "covered_dimensions": ["contiguous canonical atom metadata", "hot-record byte parity", "physicality identity parity"],
-      "defect_controls": ["unicode-tier0.mutation-physicality-parity-omission-detected"]
+      "covered_dimensions": ["fixed complete Tier-0 population", "partial dense view rejection"],
+      "defect_controls": ["unicode-tier0.mutation-partial-population-detected"]
     },
     {
-      "ctest_name": "unicode-tier0.mutation-physicality-parity-omission-detected",
+      "ctest_name": "unicode-tier0.mutation-partial-population-detected",
       "evidence_targets": ["LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
-      "covered_dimensions": ["cached physicality divergence from canonical atom bytes is detected"],
-      "controls": "UnicodeTier0Module.WholeViewBindsHotPhysicalityToCanonicalAtomBytes"
+      "covered_dimensions": ["acceptance of a partial dense Tier-0 population is detected"],
+      "controls": "UnicodeTier0Module.WholeViewRejectsPartialPopulation"
     },
     {
       "ctest_name": "unicode-root.mutation-codec-and-hilbert-defects-detected",

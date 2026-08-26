@@ -112,7 +112,7 @@ laplace_framework_context Context(const laplace_digest256& expected_epoch) {
 
 bool Generate(
     const std::filesystem::path& root,
-    const laplace_perfcache_module_v1& module,
+    const laplace_perfcache_module_v2& module,
     std::uint8_t ordinal,
     const laplace_id128& activation,
     const laplace_digest256& expected_epoch,
@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
             return 65;
         }
     }
-    laplace_perfcache_module_v1 module{};
+    laplace_perfcache_module_v2 module{};
     if (laplace_perfcache_framework_probe_module(&module) !=
         LAPLACE_PERFCACHE_REGISTRY_OK) {
         return 66;

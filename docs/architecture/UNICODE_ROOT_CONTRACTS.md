@@ -1,8 +1,9 @@
 # Unicode root contracts
 
-This document records the five contracts that must be satisfied before the Unicode
-root decomposer can be implemented. These contracts do not create records, seed a
-database, build a perfcache, or activate an epoch.
+This document records the seven contracts executed by the Unicode root producer and
+its first derived execution plane. Contracts alone do not seed a database or activate
+an epoch; the native implementation must execute them and emit independently
+validated artifacts and receipts.
 
 ## Source authority
 
@@ -79,14 +80,45 @@ oneAPI inventory is admitted by the dependency/package system. The exact install
 bytes are now selected by `dependencies/installed-lock.json`; selection alone does
 not activate them, and publication still requires package and loaded-object receipts.
 
+## Atomic physicality
+
+`contracts/unicode-atomic-physicality.json` binds every atom's DUCET placement rank
+to one exact Super-Fibonacci point and one generic immutable atomic-point
+physicality. The physicality ID includes the entity, recipe version and fingerprint,
+geometry epoch, and exact four binary64 coordinate bit patterns. It excludes the
+numeric-provider receipt, Hopf view, Hilbert key, and execution receipts. The root
+validator reidentifies every emitted physicality from that contract.
+
+## Root stream and Tier-0 execution plane
+
+`contracts/unicode-root-stream.json` defines the complete ordered frame stream: all
+1,114,112 atoms, all 1,114,112 DUCET positions, contractions, normalization
+compositions, and one terminal manifest. The native builder emits this calculation
+once into a sealed canonical spool.
+
+The native Tier-0 framework sink consumes those same frames. It materializes one
+dense direct-address record per atom, retains the exact inner atom records as
+metadata, requires the complete 1,114,112-position population, validates the full
+root stream, validates every hot record, validates the whole metadata/value view,
+seals an immutable file, and returns the perfcache
+artifact-set fingerprint to the framework. Registry cold-open repeats registered
+record and whole-view semantic validation before prefault. The published file is an
+inert derivative until the complete sibling generation is admitted and activated.
+
+The whole-view validator proves that the hot plane is a complete, contiguous,
+byte-faithful projection of the canonical atom records; it is not a second Unicode
+root calculator. Canonical origin remains bound by the framework stream receipt,
+the ordered sibling-artifact receipt, and the raw artifact digest. Registry admission
+requires all three before the derived plane can become visible.
+
 ## Verification boundary
 
-`tools/validate-unicode-root-contracts.py` checks the five contracts, optionally
+`tools/validate-unicode-root-contracts.py` checks the Unicode root contracts, optionally
 verifies every official source and numeric-provider byte, and rejects drift from the
 pinned authority boundaries. `tests/unicode_root_contract_tests.py` injects source,
 record, DUCET/placement, Hopf, Hilbert, and provider-publication defects.
 
-Issue #13 remains implementation work. The decomposer must later execute through the
-common framework, produce one canonical stream for persistence and perfcache sinks,
-run official conformance suites and full-population checks, and activate nothing
-until complete parity is admitted.
+The full root producer and dense Tier-0 sink now execute through the common framework
+and full population. The set-oriented PostgreSQL sibling sink, database/artifact
+parity admission, and coherent Unicode-root activation remain implementation work;
+the Tier-0 artifact cannot satisfy those missing obligations by existing alone.

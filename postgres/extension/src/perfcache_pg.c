@@ -139,7 +139,7 @@ static char* perfcache_root = NULL;
 static char* perfcache_dsm_tranche_name = NULL;
 static laplace_perfcache_registry* perfcache_native_registry = NULL;
 static laplace_perfcache_artifact_provider_v1 perfcache_file_provider;
-static laplace_perfcache_module_v1 perfcache_framework_probe_module;
+static laplace_perfcache_module_v2 perfcache_framework_probe_module;
 static uint64 perfcache_manifest_load_count = 0u;
 static uint64 perfcache_catalog_select_count = 0u;
 static uint64 perfcache_manifest_select_count = 0u;

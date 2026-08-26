@@ -309,16 +309,22 @@ Hardware acceptance uses the Intel i7-6850K system and its declared storage layo
 
 - Every plane registers through one native typed module ABI and declares key, value,
   dependencies, source fingerprint, recipe fingerprint, canonical operation, resource
-  shape, and integrity digest.
+  shape, integrity digest, record validator, and whole-view validator.
 - Whole-artifact checks, overflow-safe section validation, semantic record validation,
   and exact file-length checks reject deliberate corruption.
-- An artifact with a newly computed valid checksum but incorrect content ID,
-  coordinate, ordering, or lookup value is rejected by canonical semantic comparison.
+- Recomputing a file checksum cannot admit substituted content: the raw digest must
+  still belong to the selected perfcache sink in the exact staged stream receipt.
+  Record and whole-view validation separately reject incomplete populations and any
+  hot content ID, coordinate, ordering, physicality, or lookup value that diverges
+  from the retained canonical record bytes.
 - Modules publish through verified atomic replacement and activate only inside a
   coherent artifact-set epoch.
 - A replacement generation is fully mapped, validated, and prefaulted before its
   registry epoch becomes visible. Existing statements and ISA programs retain their
   pinned generation until completion; new work observes the new generation.
+- Cold reconstruction reruns the registered whole-view validator before prefault; a
+  correct checksum and record-local validation cannot substitute for metadata,
+  cross-section, or cached-value parity.
 - Updating a deterministic perfcache generation requires no postmaster restart. A
   deliberate implementation that refreshes a data epoch only through PostgreSQL
   restart fails availability and lifecycle acceptance.

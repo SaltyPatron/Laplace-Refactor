@@ -47,20 +47,51 @@ laplace_perfcache_status ValidateRecord(
         : LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
 }
 
+laplace_perfcache_status ValidateView(
+    void*, const laplace_perfcache_view* view,
+    std::uint64_t* invalid_record_index) {
+    if (view == nullptr || invalid_record_index == nullptr ||
+        view->records == nullptr || view->record_count == 0U) {
+        return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+    }
+    *invalid_record_index = std::numeric_limits<std::uint64_t>::max();
+    for (std::uint64_t index = 0U; index < view->record_count; ++index) {
+        if (ValidateRecord(
+                nullptr, index,
+                view->records + static_cast<std::size_t>(index) *
+                    view->record_stride,
+                view->record_stride) != LAPLACE_PERFCACHE_OK) {
+            *invalid_record_index = index;
+            return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+        }
+    }
+    return LAPLACE_PERFCACHE_OK;
+}
+
+laplace_perfcache_status RejectWholeView(
+    void*, const laplace_perfcache_view*,
+    std::uint64_t* invalid_record_index) {
+    if (invalid_record_index != nullptr) {
+        *invalid_record_index = 1U;
+    }
+    return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+}
+
 laplace_perfcache_status RejectLookup(
     void*, const laplace_perfcache_view*, const std::uint8_t*, std::size_t,
     std::uint64_t*, std::uint8_t*) {
     return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
 }
 
-laplace_perfcache_module_v1 Module(std::uint8_t seed) {
-    laplace_perfcache_module_v1 module{};
+laplace_perfcache_module_v2 Module(std::uint8_t seed) {
+    laplace_perfcache_module_v2 module{};
     module.module_id = Id(seed);
     module.key_schema_id = Id(static_cast<std::uint8_t>(seed + 0x10u));
     module.value_schema_id = Id(static_cast<std::uint8_t>(seed + 0x20u));
     module.module_contract_fingerprint =
         Digest(static_cast<std::uint8_t>(seed + 0x30u));
     module.validate_record = ValidateRecord;
+    module.validate_view = ValidateView;
     module.access_law = LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED;
     module.key_bytes = 4u;
     module.value_bytes = 8u;
@@ -235,7 +266,7 @@ void BindSinkEvidence(
 }
 
 laplace_perfcache_contract Contract(
-    const laplace_perfcache_module_v1& module,
+    const laplace_perfcache_module_v2& module,
     const laplace_id128& activation,
     const laplace_digest256& epoch,
     const laplace_digest256& source,
@@ -268,9 +299,9 @@ struct PreparedGeneration {
 PreparedGeneration Prepare(
     laplace_perfcache_registry* registry,
     const laplace_perfcache_artifact_provider_v1& provider,
-    const laplace_perfcache_module_v1* modules,
+    const laplace_perfcache_module_v2* modules,
     std::size_t module_count,
-    const laplace_perfcache_module_v1& module,
+    const laplace_perfcache_module_v2& module,
     const std::string& path,
     const laplace_id128& activation,
     const laplace_digest256& epoch,
@@ -837,7 +868,7 @@ TEST(PerfcacheRegistry, ReservationIsSingleWriterCasAndAbortKeepsOldEpoch) {
 }
 
 TEST(PerfcacheRegistry, RequiredModuleSetRejectsPartialGeneration) {
-    std::array<laplace_perfcache_module_v1, 2> modules{{
+    std::array<laplace_perfcache_module_v2, 2> modules{{
         Module(0x10u), Module(0x20u)}};
     laplace_perfcache_registry* registry = nullptr;
     ASSERT_EQ(laplace_perfcache_registry_create(
@@ -858,8 +889,29 @@ TEST(PerfcacheRegistry, RequiredModuleSetRejectsPartialGeneration) {
     Cleanup(directory, {path});
 }
 
+TEST(PerfcacheRegistry, ColdOpenRequiresRegisteredWholeViewSemantics) {
+    auto module = Module(0x10U);
+    module.validate_view = RejectWholeView;
+    laplace_perfcache_registry* registry = nullptr;
+    ASSERT_EQ(laplace_perfcache_registry_create(&module, 1U, &registry),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_artifact_provider_v1 provider{};
+    ASSERT_EQ(laplace_perfcache_file_provider(&provider),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    const std::string directory = NewDirectory();
+    const std::string path = directory + "/whole-view-invalid.bin";
+    auto rejected = Prepare(
+        registry, provider, &module, 1U, module, path, Id(0x70U),
+        Digest(0x90U), 0x30U, 100U,
+        LAPLACE_PERFCACHE_REGISTRY_ARTIFACT_OPEN_FAILED);
+    EXPECT_EQ(rejected.value, nullptr);
+    EXPECT_EQ(laplace_perfcache_registry_destroy(registry),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    Cleanup(directory, {path});
+}
+
 TEST(PerfcacheRegistry, DependencyGraphAcceptsAcyclicAndRejectsCycles) {
-    std::array<laplace_perfcache_module_v1, 2> modules{{
+    std::array<laplace_perfcache_module_v2, 2> modules{{
         Module(0x10u), Module(0x20u)}};
     laplace_perfcache_registry* registry = nullptr;
     ASSERT_EQ(laplace_perfcache_registry_create(
