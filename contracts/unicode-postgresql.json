@@ -1,0 +1,78 @@
+{
+  "schema": "laplace.unicode-postgresql-contract/v1",
+  "contract_fingerprint": {
+    "algorithm": "BLAKE3-256",
+    "preimage": "laplace-unicode-postgresql-sink-v2",
+    "value": "d27c9dbce616ca21cd8ac2e325530c2d6cfc317eb573ad7e21b8f17452ff49a0"
+  },
+  "binding": {
+    "sql_name": "unicode_root_build_and_activate",
+    "c_symbol": "laplace_pg_unicode_root_build_and_activate",
+    "volatility": "volatile",
+    "parallel_safety": "unsafe",
+    "public_execute": false
+  },
+  "stream": {
+    "record_type": 65536,
+    "source": "one-canonical-unicode-root-spool",
+    "batch_boundary": "between-complete-root-frames",
+    "memory_law": "one-resettable-postgresql-memory-context-per-canonical-batch",
+    "sql_law": "one-prepared-set-plan-per-nonempty-record-family-per-operation",
+    "forbidden": [
+      "per-row-SPI",
+      "SQL-frame-decoding",
+      "whole-root-allocation",
+      "blind-conflict-acceptance",
+      "sink-local-identity-minting"
+    ],
+    "working_memory_estimate": {
+      "stream_byte_multiplier": 4,
+      "per_frame_overhead_bytes": 512
+    }
+  },
+  "tables": {
+    "generation": "unicode_root_generation",
+    "atom": "unicode_atom_binding",
+    "ducet_position": "unicode_ducet_position",
+    "ducet_contraction": "unicode_ducet_contraction",
+    "normalization_composition": "unicode_normalization_composition",
+    "deposit_receipt": "unicode_root_deposit_receipt"
+  },
+  "plans": {
+    "generation_insert": 1,
+    "generation_verify": 2,
+    "entity_insert": 3,
+    "entity_verify": 4,
+    "physicality_insert": 5,
+    "physicality_verify": 6,
+    "atom_insert": 7,
+    "atom_verify": 8,
+    "ducet_position_insert": 9,
+    "ducet_position_verify": 10,
+    "ducet_contraction_insert": 11,
+    "ducet_contraction_verify": 12,
+    "normalization_insert": 13,
+    "normalization_verify": 14,
+    "effect_verify": 15,
+    "deposit_receipt_insert": 16,
+    "deposit_receipt_verify": 17
+  },
+  "plan_receipt": {
+    "manifest": "BLAKE3-256 over every numeric plan identifier and exact SQL statement",
+    "sequence": "BLAKE3-256 over the ordered plan identifiers actually invoked",
+    "effect": "exact persisted family cardinalities are verified set-wise and bound into the PostgreSQL artifact"
+  },
+  "identity": {
+    "atom_entity": "copy-emitted-content-id-and-full-identity-witness",
+    "atom_physicality": "validate-and-copy-emitted-physicality-id",
+    "canonical_transport": "receipt-input-only-never-duplicated-in-normalized-tables",
+    "float": "compare-binary64-through-float8send"
+  },
+  "activation": {
+    "required_sink_count": 2,
+    "postgresql_sink_index": 0,
+    "tier0_sink_index": 1,
+    "admission": "after-both-sinks-seal-and-sibling-artifacts-are-bound",
+    "visibility": "transaction-deferred-commit-with-expected-old-epoch-CAS"
+  }
+}

@@ -53,10 +53,15 @@ trap cleanup EXIT
 
 "$pg_bindir/initdb" -D "$data_directory" \
     --no-locale --encoding=UTF8 --auth=trust >/dev/null
+postgres_options="-F -k $socket_directory -p $port -c listen_addresses= -c max_prepared_transactions=4 -c laplace.perfcache_root=$perfcache_root -c extension_control_path=$control_root -c dynamic_library_path=$postgres_library_directory:$module_directory:$engine_directory"
+if [[ "$mode" == "unicode-root" ]]; then
+    postgres_options="$postgres_options -c shared_buffers=512MB -c max_wal_size=8GB -c checkpoint_timeout=30min"
+fi
+
 ASAN_OPTIONS="$server_asan_options" \
 LD_PRELOAD="${sanitizer_preload}${sanitizer_preload:+${LD_PRELOAD:+:}}${LD_PRELOAD:-}" \
 "$pg_bindir/pg_ctl" -D "$data_directory" -l "$server_log" \
-    -o "-F -k $socket_directory -p $port -c listen_addresses= -c max_prepared_transactions=4 -c laplace.perfcache_root=$perfcache_root -c extension_control_path=$control_root -c dynamic_library_path=$postgres_library_directory:$module_directory:$engine_directory" \
+    -o "$postgres_options" \
     -w start >/dev/null
 server_started=1
 
@@ -123,6 +128,19 @@ elif [[ "$mode" == "perfcache-mutation" ]]; then
         exit 66
     fi
     psql_arguments+=(-v "perfcache_mutant_module=$LAPLACE_MUTANT_MODULE")
+elif [[ "$mode" == "unicode-root" ]]; then
+    unicode_source_root=${LAPLACE_UNICODE_SOURCE_ROOT:-}
+    if [[ -z "$unicode_source_root" || ! -d "$unicode_source_root" ]]; then
+        echo "verified Unicode source root is unavailable: $unicode_source_root" >&2
+        exit 77
+    fi
+    unicode_spool_directory="$test_root/unicode-spool"
+    unicode_tier0_path="$perfcache_root/unicode-tier0.bin"
+    mkdir -p -- "$unicode_spool_directory"
+    psql_arguments+=(
+        -v "unicode_source_root=$unicode_source_root"
+        -v "unicode_spool_directory=$unicode_spool_directory"
+        -v "unicode_tier0_path=$unicode_tier0_path")
 elif [[ "$mode" != "mutation" ]]; then
     echo "unknown PostgreSQL test mode: $mode" >&2
     exit 64
@@ -147,6 +165,18 @@ if [[ -n "${variable_file:-}" ]]; then
     "$pg_bindir/psql" "${psql_arguments[@]}" -f "$variable_file" -f "$sql_file"
 else
     "$pg_bindir/psql" "${psql_arguments[@]}" -f "$sql_file"
+fi
+
+if [[ "$mode" == "unicode-root" ]]; then
+    if [[ ! -f "$unicode_tier0_path" ]]; then
+        echo "Unicode Tier-0 artifact was not published" >&2
+        exit 80
+    fi
+    unicode_tier0_bytes=$(stat -c '%s' -- "$unicode_tier0_path")
+    if [[ "$unicode_tier0_bytes" != 762586574 ]]; then
+        echo "Unicode Tier-0 artifact has unexpected size: $unicode_tier0_bytes" >&2
+        exit 81
+    fi
 fi
 
 if [[ "$mode" == "contract" ]]; then

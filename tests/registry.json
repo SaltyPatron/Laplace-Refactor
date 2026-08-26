@@ -1379,6 +1379,20 @@
       "covered_dimensions": ["exact native and managed ABI layout", "real P Invoke vector transport", "identity and trajectory direct-native output parity", "all receipt and error fields", "one-element scalar lowering", "version type and opcode preflight rejection", "call-scoped pin lifetime", "disposed transport rejection"]
     },
     {
+      "ctest_name": "postgres.unicode-root-persistence-contract",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-BOUNDED-CROSSINGS"],
+      "covered_dimensions": ["one 2230150-frame canonical stream feeding PostgreSQL and Tier-0 sibling sinks", "1114112 normalized entity physicality atom and DUCET rows", "set-oriented bounded SPI plans", "canonical transport excluded from normalized storage", "normalized heap bounded to 110 percent of packed transport", "exact SQL plan manifest", "ordered executed plan sequence", "set-wise durable effect cardinalities", "cross-sink artifact receipts", "transaction-deferred coherent activation", "indexed atom lookup"],
+      "defect_controls": ["postgres.mutation-unicode-plan-substitution-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
+    },
+    {
+      "ctest_name": "postgres.mutation-unicode-plan-substitution-detected",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-BOUNDED-CROSSINGS"],
+      "covered_dimensions": ["one substituted SQL plan changes the exact plan manifest"],
+      "controls": "postgres.unicode-root-persistence-contract"
+    },
+    {
       "ctest_name": "postgres.spi-isa-contract",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN"],

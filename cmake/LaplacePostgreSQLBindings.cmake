@@ -1,5 +1,7 @@
 function(laplace_configure_postgresql_bindings
-    contract_path persistence_contract_path header_template sql_template control_template
+    contract_path persistence_contract_path unicode_postgresql_contract_path
+    unicode_root_contract_path
+    header_template sql_template control_template
     header_output sql_output control_output)
     file(READ "${contract_path}" contract_json)
     string(JSON contract_schema GET "${contract_json}" schema)
@@ -49,9 +51,57 @@ function(laplace_configure_postgresql_bindings
         "${persistence_json}" occurrence_flags has_physicality)
     string(JSON persistence_plan_count LENGTH
         "${persistence_json}" bindings postgresql plan_sequence)
+    file(READ "${unicode_postgresql_contract_path}" unicode_postgresql_json)
+    file(READ "${unicode_root_contract_path}" unicode_root_json)
+    string(JSON unicode_postgresql_schema GET
+        "${unicode_postgresql_json}" schema)
+    string(JSON unicode_postgresql_contract_fingerprint GET
+        "${unicode_postgresql_json}" contract_fingerprint value)
+    string(JSON unicode_postgresql_sql GET
+        "${unicode_postgresql_json}" binding sql_name)
+    string(JSON unicode_postgresql_symbol GET
+        "${unicode_postgresql_json}" binding c_symbol)
+    string(JSON unicode_postgresql_record_type GET
+        "${unicode_postgresql_json}" stream record_type)
+    string(JSON unicode_postgresql_stream_byte_multiplier GET
+        "${unicode_postgresql_json}" stream working_memory_estimate
+        stream_byte_multiplier)
+    string(JSON unicode_postgresql_per_frame_overhead_bytes GET
+        "${unicode_postgresql_json}" stream working_memory_estimate
+        per_frame_overhead_bytes)
+    string(JSON unicode_postgresql_plan_count LENGTH
+        "${unicode_postgresql_json}" plans)
+    string(JSON unicode_root_schema GET "${unicode_root_json}" schema)
+    string(JSON unicode_root_record_type GET
+        "${unicode_root_json}" record_type)
+    string(JSON unicode_root_atom_population GET
+        "${unicode_root_json}" frame_kinds 0 count)
+    string(JSON unicode_root_ducet_population GET
+        "${unicode_root_json}" frame_kinds 1 count)
+    string(JSON unicode_root_manifest_count GET
+        "${unicode_root_json}" frame_kinds 4 count)
+    string(JSON unicode_root_manifest_bytes GET
+        "${unicode_root_json}" payload_contracts root-manifest-v2 record_bytes)
+    foreach(plan_name
+        generation_insert generation_verify
+        entity_insert entity_verify
+        physicality_insert physicality_verify
+        atom_insert atom_verify
+        ducet_position_insert ducet_position_verify
+        ducet_contraction_insert ducet_contraction_verify
+        normalization_insert normalization_verify
+        effect_verify
+        deposit_receipt_insert deposit_receipt_verify)
+        string(JSON unicode_postgresql_plan_${plan_name} GET
+            "${unicode_postgresql_json}" plans ${plan_name})
+    endforeach()
 
     if(NOT contract_schema STREQUAL "laplace.isa-contract/v1"
-       OR NOT persistence_schema STREQUAL "laplace.persistence-contract/v1")
+       OR NOT persistence_schema STREQUAL "laplace.persistence-contract/v1"
+       OR NOT unicode_postgresql_schema STREQUAL
+            "laplace.unicode-postgresql-contract/v1"
+       OR NOT unicode_root_schema STREQUAL
+            "laplace.unicode-root-stream-contract/v2")
         message(FATAL_ERROR "PostgreSQL bindings require the ISA v1 contract")
     endif()
     foreach(identifier
@@ -60,14 +110,30 @@ function(laplace_configure_postgresql_bindings
         identity_execute_sql identity_execute_symbol
         trajectory_calculate_sql trajectory_calculate_symbol
         trajectory_execute_sql trajectory_execute_symbol
-        persistence_deposit_sql persistence_deposit_symbol)
+        persistence_deposit_sql persistence_deposit_symbol
+        unicode_postgresql_sql unicode_postgresql_symbol)
         if(NOT "${${identifier}}" MATCHES "^[a-z][a-z0-9_]*$")
             message(FATAL_ERROR "Invalid PostgreSQL binding identifier: ${identifier}")
         endif()
     endforeach()
+    string(LENGTH "${unicode_postgresql_contract_fingerprint}"
+        unicode_postgresql_contract_fingerprint_length)
+    if(NOT unicode_postgresql_contract_fingerprint_length EQUAL 64
+       OR NOT unicode_postgresql_contract_fingerprint MATCHES "^[0-9a-f]+$")
+        message(FATAL_ERROR
+            "The Unicode PostgreSQL sink contract fingerprint is invalid")
+    endif()
     if(NOT carrier_encoding STREQUAL "four-little-endian-binary64-bit-patterns")
         message(FATAL_ERROR "The PostgreSQL trajectory carrier encoding is not declared")
     endif()
+    if(NOT unicode_postgresql_record_type EQUAL unicode_root_record_type
+       OR NOT unicode_root_atom_population EQUAL unicode_root_ducet_population
+       OR NOT unicode_root_manifest_count EQUAL 1)
+        message(FATAL_ERROR
+            "The Unicode PostgreSQL and canonical-root population contracts diverge")
+    endif()
+    math(EXPR unicode_root_minimum_frame_count
+        "${unicode_root_atom_population} + ${unicode_root_ducet_population} + ${unicode_root_manifest_count}")
 
     set(LAPLACE_PG_SCHEMA "${pg_schema}")
     set(LAPLACE_PG_MODULE "${pg_module}")
@@ -92,6 +158,43 @@ function(laplace_configure_postgresql_bindings
     set(LAPLACE_PG_PERSISTENCE_PHYSICALITY_FLAGS_NONE "${persistence_physicality_flags_none}")
     set(LAPLACE_PG_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY "${persistence_occurrence_has_physicality}")
     set(LAPLACE_PG_PERSISTENCE_PLAN_COUNT "${persistence_plan_count}")
+    set(LAPLACE_PG_UNICODE_ROOT_SQL "${unicode_postgresql_sql}")
+    set(LAPLACE_PG_UNICODE_ROOT_SYMBOL "${unicode_postgresql_symbol}")
+    set(LAPLACE_PG_UNICODE_ROOT_RECORD_TYPE
+        "${unicode_postgresql_record_type}")
+    set(LAPLACE_PG_UNICODE_ROOT_CONTRACT_FINGERPRINT_HEX
+        "${unicode_postgresql_contract_fingerprint}")
+    set(LAPLACE_PG_UNICODE_ROOT_PLAN_COUNT
+        "${unicode_postgresql_plan_count}")
+    set(LAPLACE_PG_UNICODE_ROOT_STREAM_BYTE_MULTIPLIER
+        "${unicode_postgresql_stream_byte_multiplier}")
+    set(LAPLACE_PG_UNICODE_ROOT_PER_FRAME_OVERHEAD_BYTES
+        "${unicode_postgresql_per_frame_overhead_bytes}")
+    set(LAPLACE_PG_UNICODE_ROOT_POPULATION
+        "${unicode_root_atom_population}")
+    set(LAPLACE_PG_UNICODE_ROOT_POPULATION
+        "${unicode_root_atom_population}" CACHE INTERNAL
+        "Generated Unicode root population used by PostgreSQL acceptance" FORCE)
+    math(EXPR LAPLACE_PG_UNICODE_ROOT_MAX_POSITION
+        "${unicode_root_atom_population} - 1")
+    set(LAPLACE_PG_UNICODE_ROOT_MINIMUM_FRAME_COUNT
+        "${unicode_root_minimum_frame_count}")
+    set(LAPLACE_PG_UNICODE_ROOT_MANIFEST_BYTES
+        "${unicode_root_manifest_bytes}")
+    foreach(plan_name
+        generation_insert generation_verify
+        entity_insert entity_verify
+        physicality_insert physicality_verify
+        atom_insert atom_verify
+        ducet_position_insert ducet_position_verify
+        ducet_contraction_insert ducet_contraction_verify
+        normalization_insert normalization_verify
+        effect_verify
+        deposit_receipt_insert deposit_receipt_verify)
+        string(TOUPPER "${plan_name}" plan_macro)
+        set("LAPLACE_PG_UNICODE_ROOT_PLAN_${plan_macro}"
+            "${unicode_postgresql_plan_${plan_name}}")
+    endforeach()
     set(LAPLACE_EXTENSION_VERSION "${PROJECT_VERSION}")
 
     foreach(output_path "${header_output}" "${sql_output}" "${control_output}")

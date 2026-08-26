@@ -139,7 +139,7 @@ static char* perfcache_root = NULL;
 static char* perfcache_dsm_tranche_name = NULL;
 static laplace_perfcache_registry* perfcache_native_registry = NULL;
 static laplace_perfcache_artifact_provider_v1 perfcache_file_provider;
-static laplace_perfcache_module_v2 perfcache_framework_probe_module;
+static laplace_digest256 perfcache_native_required_module_set_fingerprint;
 static uint64 perfcache_manifest_load_count = 0u;
 static uint64 perfcache_catalog_select_count = 0u;
 static uint64 perfcache_manifest_select_count = 0u;
@@ -194,25 +194,62 @@ static bool epoch_equal(
     return memcmp(left, right, sizeof(*left)) == 0;
 }
 
-static laplace_pg_perfcache_status ensure_native_registry(void) {
+static laplace_pg_perfcache_status ensure_native_registry_for_request(
+    const laplace_perfcache_generation_request* request) {
+    laplace_perfcache_module_v2* modules;
+    laplace_digest256 required_module_set_fingerprint;
     laplace_perfcache_registry_status status;
-    if (perfcache_native_registry != NULL) {
-        return LAPLACE_PG_PERFCACHE_OK;
+    size_t index;
+    if (request == NULL || request->artifacts == NULL ||
+        request->artifact_count == 0u) {
+        return LAPLACE_PG_PERFCACHE_INVALID_ARGUMENT;
     }
-    status = laplace_perfcache_framework_probe_module(
-        &perfcache_framework_probe_module);
-    if (status != LAPLACE_PERFCACHE_REGISTRY_OK) {
-        return LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
+    if (perfcache_native_registry != NULL) {
+        return memcmp(
+                   perfcache_native_required_module_set_fingerprint.bytes,
+                   request->required_module_set_fingerprint.bytes,
+                   sizeof(request->required_module_set_fingerprint.bytes)) == 0
+            ? LAPLACE_PG_PERFCACHE_OK
+            : LAPLACE_PG_PERFCACHE_GENERATION_MISMATCH;
+    }
+    modules = (laplace_perfcache_module_v2*)palloc0(
+        mul_size(sizeof(*modules), request->artifact_count));
+    for (index = 0u; index < request->artifact_count; ++index) {
+        status = laplace_perfcache_builtin_module_resolve(
+            &request->artifacts[index].contract, &modules[index]);
+        if (status != LAPLACE_PERFCACHE_REGISTRY_OK ||
+            (((modules[index].flags & LAPLACE_PERFCACHE_MODULE_REQUIRED) != 0u) !=
+             ((request->artifacts[index].flags &
+               LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED) != 0u))) {
+            pfree(modules);
+            return LAPLACE_PG_PERFCACHE_GENERATION_MISMATCH;
+        }
+    }
+    status = laplace_perfcache_required_module_set_fingerprint(
+        modules, request->artifact_count, &required_module_set_fingerprint);
+    if (status != LAPLACE_PERFCACHE_REGISTRY_OK ||
+        memcmp(
+            required_module_set_fingerprint.bytes,
+            request->required_module_set_fingerprint.bytes,
+            sizeof(required_module_set_fingerprint.bytes)) != 0) {
+        pfree(modules);
+        return LAPLACE_PG_PERFCACHE_GENERATION_MISMATCH;
     }
     status = laplace_perfcache_file_provider(&perfcache_file_provider);
     if (status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        pfree(modules);
         return LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
     }
     status = laplace_perfcache_registry_create(
-        &perfcache_framework_probe_module, 1u, &perfcache_native_registry);
-    return status == LAPLACE_PERFCACHE_REGISTRY_OK
-        ? LAPLACE_PG_PERFCACHE_OK
-        : LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
+        modules, request->artifact_count, &perfcache_native_registry);
+    pfree(modules);
+    if (status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        memset(&perfcache_file_provider, 0, sizeof(perfcache_file_provider));
+        return LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
+    }
+    perfcache_native_required_module_set_fingerprint =
+        required_module_set_fingerprint;
+    return LAPLACE_PG_PERFCACHE_OK;
 }
 
 static bool reset_native_registry(void) {
@@ -226,8 +263,8 @@ static bool reset_native_registry(void) {
     }
     perfcache_native_registry = NULL;
     memset(&perfcache_file_provider, 0, sizeof(perfcache_file_provider));
-    memset(&perfcache_framework_probe_module, 0,
-           sizeof(perfcache_framework_probe_module));
+    memset(&perfcache_native_required_module_set_fingerprint, 0,
+           sizeof(perfcache_native_required_module_set_fingerprint));
     perfcache_manifest_load_count = 0u;
     return true;
 }
@@ -315,7 +352,8 @@ static laplace_pg_perfcache_status prepare_native_admission(
     laplace_pg_perfcache_epoch* next_epoch,
     laplace_digest256* manifest_fingerprint,
     laplace_digest256* encoded_manifest_fingerprint,
-    laplace_digest256* admission_receipt_id) {
+    laplace_digest256* admission_receipt_id,
+    laplace_pg_perfcache_admission_result* diagnostic) {
     laplace_perfcache_generation_manifest* manifest = NULL;
     const laplace_framework_context* context = NULL;
     const laplace_framework_stream_receipt* staged = NULL;
@@ -338,26 +376,40 @@ static laplace_pg_perfcache_status prepare_native_admission(
         perfcache_native_pending.present != 0u) {
         return LAPLACE_PG_PERFCACHE_INVALID_ARGUMENT;
     }
-    status = ensure_native_registry();
-    if (status != LAPLACE_PG_PERFCACHE_OK) {
-        return status;
-    }
     registry_status = laplace_perfcache_generation_manifest_open(
         encoded_manifest, encoded_manifest_bytes, &manifest,
         encoded_manifest_fingerprint);
     if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK || manifest == NULL) {
+        diagnostic->failure_stage =
+            LAPLACE_PG_PERFCACHE_ADMISSION_MANIFEST_OPEN;
+        diagnostic->registry_status = (uint32)registry_status;
         return LAPLACE_PG_PERFCACHE_GENERATION_MISMATCH;
     }
     registry_status = laplace_perfcache_generation_manifest_view(
         manifest, &context, &staged, &request);
     if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK ||
         !manifest_paths_are_admitted(request)) {
+        diagnostic->failure_stage =
+            LAPLACE_PG_PERFCACHE_ADMISSION_MANIFEST_VIEW;
+        diagnostic->registry_status = (uint32)registry_status;
         laplace_perfcache_generation_manifest_close(manifest);
         return LAPLACE_PG_PERFCACHE_GENERATION_MISMATCH;
+    }
+    status = ensure_native_registry_for_request(request);
+    if (status != LAPLACE_PG_PERFCACHE_OK) {
+        diagnostic->failure_stage =
+            LAPLACE_PG_PERFCACHE_ADMISSION_MANIFEST_VIEW;
+        diagnostic->registry_status =
+            (uint32)LAPLACE_PERFCACHE_REGISTRY_MODULE_SET_MISMATCH;
+        laplace_perfcache_generation_manifest_close(manifest);
+        return status;
     }
     registry_status = laplace_perfcache_generation_manifest_fingerprint(
         request, manifest_fingerprint);
     if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        diagnostic->failure_stage =
+            LAPLACE_PG_PERFCACHE_ADMISSION_MANIFEST_FINGERPRINT;
+        diagnostic->registry_status = (uint32)registry_status;
         laplace_perfcache_generation_manifest_close(manifest);
         return LAPLACE_PG_PERFCACHE_GENERATION_MISMATCH;
     }
@@ -368,6 +420,8 @@ static laplace_pg_perfcache_status prepare_native_admission(
         perfcache_native_registry, context, staged, &perfcache_file_provider,
         request, &prepared, &prepared_receipt);
     if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        diagnostic->failure_stage = LAPLACE_PG_PERFCACHE_ADMISSION_PREPARE;
+        diagnostic->registry_status = (uint32)registry_status;
         laplace_perfcache_generation_manifest_close(manifest);
         return LAPLACE_PG_PERFCACHE_GENERATION_MISMATCH;
     }
@@ -375,6 +429,8 @@ static laplace_pg_perfcache_status prepare_native_admission(
     registry_status = laplace_perfcache_registry_snapshot_get(
         perfcache_native_registry, &snapshot);
     if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        diagnostic->failure_stage = LAPLACE_PG_PERFCACHE_ADMISSION_SNAPSHOT;
+        diagnostic->registry_status = (uint32)registry_status;
         laplace_perfcache_registry_discard_prepared(&prepared);
         laplace_perfcache_generation_manifest_close(manifest);
         return LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
@@ -393,6 +449,9 @@ static laplace_pg_perfcache_status prepare_native_admission(
         has_expected_native_epoch != 0u ? &expected_native_epoch : NULL,
         &activation, &activation_provider);
     if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        diagnostic->failure_stage =
+            LAPLACE_PG_PERFCACHE_ADMISSION_ACTIVATION_CREATE;
+        diagnostic->registry_status = (uint32)registry_status;
         laplace_perfcache_registry_discard_prepared(&prepared);
         laplace_perfcache_generation_manifest_close(manifest);
         return LAPLACE_PG_PERFCACHE_GENERATION_MISMATCH;
@@ -407,6 +466,9 @@ static laplace_pg_perfcache_status prepare_native_admission(
         context, staged, &activation_request, &activation_provider,
         &activation_receipt);
     if (framework_status != LAPLACE_FRAMEWORK_OK) {
+        diagnostic->failure_stage =
+            LAPLACE_PG_PERFCACHE_ADMISSION_FRAMEWORK_ADMISSION;
+        diagnostic->framework_status = (uint32)framework_status;
         laplace_perfcache_activation_destroy(activation);
         laplace_perfcache_generation_manifest_close(manifest);
         return LAPLACE_PG_PERFCACHE_GENERATION_MISMATCH;
@@ -777,19 +839,18 @@ static laplace_pg_perfcache_status native_pin_epoch(
     Datum manifest_datum;
     bytea* manifest_bytes;
     int result;
-    laplace_pg_perfcache_status status = ensure_native_registry();
-    if (status != LAPLACE_PG_PERFCACHE_OK) {
-        return status;
-    }
+    laplace_pg_perfcache_status status = LAPLACE_PG_PERFCACHE_OK;
     native_epoch.activation_epoch_id = epoch->activation_epoch_id;
     native_epoch.epoch_fingerprint = epoch->epoch_fingerprint;
-    registry_status = laplace_perfcache_registry_pin_epoch(
-        perfcache_native_registry, &native_epoch, pin);
-    if (registry_status == LAPLACE_PERFCACHE_REGISTRY_OK) {
-        return LAPLACE_PG_PERFCACHE_OK;
-    }
-    if (registry_status != LAPLACE_PERFCACHE_REGISTRY_EPOCH_MISMATCH) {
-        return LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
+    if (perfcache_native_registry != NULL) {
+        registry_status = laplace_perfcache_registry_pin_epoch(
+            perfcache_native_registry, &native_epoch, pin);
+        if (registry_status == LAPLACE_PERFCACHE_REGISTRY_OK) {
+            return LAPLACE_PG_PERFCACHE_OK;
+        }
+        if (registry_status != LAPLACE_PERFCACHE_REGISTRY_EPOCH_MISMATCH) {
+            return LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
+        }
     }
     if (SPI_connect() != SPI_OK_CONNECT) {
         return LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
@@ -851,6 +912,12 @@ static laplace_pg_perfcache_status native_pin_epoch(
         laplace_perfcache_generation_manifest_close(manifest);
         SPI_finish();
         return LAPLACE_PG_PERFCACHE_GENERATION_MISMATCH;
+    }
+    status = ensure_native_registry_for_request(request);
+    if (status != LAPLACE_PG_PERFCACHE_OK) {
+        laplace_perfcache_generation_manifest_close(manifest);
+        SPI_finish();
+        return status;
     }
     memset(&receipt, 0, sizeof(receipt));
     registry_status = laplace_perfcache_registry_prepare(
@@ -1474,17 +1541,22 @@ static laplace_pg_perfcache_status admit_epoch_metadata(
     return persistence_status;
 }
 
-laplace_pg_perfcache_status laplace_pg_perfcache_admit(
+static laplace_pg_perfcache_status perfcache_admit_core(
     uint64 expected_sequence,
     uint32 has_expected_epoch,
     const laplace_pg_perfcache_epoch* expected_epoch,
     const uint8* encoded_manifest,
-    Size encoded_manifest_bytes) {
+    Size encoded_manifest_bytes,
+    laplace_pg_perfcache_admission_result* output) {
     laplace_pg_perfcache_epoch next_epoch;
     laplace_digest256 manifest_fingerprint;
     laplace_digest256 encoded_manifest_fingerprint;
     laplace_digest256 admission_receipt_id;
     laplace_pg_perfcache_status status;
+    if (output == NULL) {
+        return LAPLACE_PG_PERFCACHE_INVALID_ARGUMENT;
+    }
+    memset(output, 0, sizeof(*output));
     if (has_expected_epoch > 1u ||
         ((has_expected_epoch != 0u) != (expected_epoch != NULL))) {
         return LAPLACE_PG_PERFCACHE_INVALID_ARGUMENT;
@@ -1501,7 +1573,7 @@ laplace_pg_perfcache_status laplace_pg_perfcache_admit(
     status = prepare_native_admission(
         encoded_manifest, encoded_manifest_bytes, &next_epoch,
         &manifest_fingerprint, &encoded_manifest_fingerprint,
-        &admission_receipt_id);
+        &admission_receipt_id, output);
     if (status != LAPLACE_PG_PERFCACHE_OK) {
         return status;
     }
@@ -1512,6 +1584,8 @@ laplace_pg_perfcache_status laplace_pg_perfcache_admit(
             expected_epoch->epoch_fingerprint.bytes,
             sizeof(expected_epoch->epoch_fingerprint.bytes)) != 0) {
         abort_native_pending();
+        output->failure_stage =
+            LAPLACE_PG_PERFCACHE_ADMISSION_EPOCH_COMPARE;
         return LAPLACE_PG_PERFCACHE_EPOCH_MISMATCH;
     }
     status = admit_epoch_metadata(
@@ -1520,8 +1594,38 @@ laplace_pg_perfcache_status laplace_pg_perfcache_admit(
         encoded_manifest, encoded_manifest_bytes, &admission_receipt_id);
     if (status != LAPLACE_PG_PERFCACHE_OK) {
         abort_native_pending();
+        output->failure_stage = LAPLACE_PG_PERFCACHE_ADMISSION_METADATA;
+        return status;
     }
-    return status;
+    output->next_epoch = next_epoch;
+    output->manifest_fingerprint = manifest_fingerprint;
+    output->encoded_manifest_fingerprint = encoded_manifest_fingerprint;
+    output->admission_receipt_id = admission_receipt_id;
+    return LAPLACE_PG_PERFCACHE_OK;
+}
+
+laplace_pg_perfcache_status laplace_pg_perfcache_admit(
+    uint64 expected_sequence,
+    uint32 has_expected_epoch,
+    const laplace_pg_perfcache_epoch* expected_epoch,
+    const uint8* encoded_manifest,
+    Size encoded_manifest_bytes) {
+    laplace_pg_perfcache_admission_result result;
+    return perfcache_admit_core(
+        expected_sequence, has_expected_epoch, expected_epoch,
+        encoded_manifest, encoded_manifest_bytes, &result);
+}
+
+laplace_pg_perfcache_status laplace_pg_perfcache_admit_with_result(
+    uint64 expected_sequence,
+    uint32 has_expected_epoch,
+    const laplace_pg_perfcache_epoch* expected_epoch,
+    const uint8* encoded_manifest,
+    Size encoded_manifest_bytes,
+    laplace_pg_perfcache_admission_result* output) {
+    return perfcache_admit_core(
+        expected_sequence, has_expected_epoch, expected_epoch,
+        encoded_manifest, encoded_manifest_bytes, output);
 }
 
 static void release_pin_internal(laplace_pg_perfcache_pin* pin) {
@@ -1885,12 +1989,19 @@ Datum laplace_pg_test_perfcache_lookup(PG_FUNCTION_ARGS) {
     Datum* output_values;
     laplace_pg_perfcache_pin* pin = NULL;
     const laplace_perfcache_view* view = NULL;
+    laplace_perfcache_module_v2 probe_module;
     laplace_perfcache_registry_status registry_status;
     ArrayType* result;
     int16 type_length;
     bool type_by_value;
     char type_alignment;
     int index;
+    if (laplace_perfcache_framework_probe_module(&probe_module) !=
+        LAPLACE_PERFCACHE_REGISTRY_OK) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("native perfcache probe module is unavailable")));
+    }
     deconstruct_array(input, INT4OID, 4, true, TYPALIGN_INT,
                       &input_values, &input_nulls, &input_count);
     if (input_count <= 0) {
@@ -1919,7 +2030,7 @@ Datum laplace_pg_test_perfcache_lookup(PG_FUNCTION_ARGS) {
     PG_TRY();
     {
         registry_status = laplace_perfcache_pin_lookup_batch(
-            &pin->native_pin, &perfcache_framework_probe_module.module_id,
+            &pin->native_pin, &probe_module.module_id,
             keys, (size_t)input_count, record_indexes, found);
         if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK) {
             ereport(ERROR,
@@ -1928,7 +2039,7 @@ Datum laplace_pg_test_perfcache_lookup(PG_FUNCTION_ARGS) {
                             (unsigned int)registry_status)));
         }
         registry_status = laplace_perfcache_pin_view(
-            &pin->native_pin, &perfcache_framework_probe_module.module_id,
+            &pin->native_pin, &probe_module.module_id,
             &view);
         if (registry_status != LAPLACE_PERFCACHE_REGISTRY_OK || view == NULL ||
             view->record_stride != 12u) {

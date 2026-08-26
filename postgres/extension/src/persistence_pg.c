@@ -5,20 +5,18 @@
 #include <string.h>
 
 #include "access/htup_details.h"
-#include "catalog/namespace.h"
 #include "catalog/pg_type.h"
 #include "executor/spi.h"
 #include "fmgr.h"
 #include "funcapi.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
-#include "utils/lsyscache.h"
-#include "utils/syscache.h"
-#include "utils/typcache.h"
 
 #include "laplace/contract/postgresql_bindings.h"
 #include "laplace/persistence.h"
 #include "laplace_pg_internal.h"
+#include "persistence_rows_pg.h"
+#include "set_pg.h"
 
 PG_FUNCTION_INFO_V1(LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL);
 
@@ -52,61 +50,6 @@ static const char* const record_type_names[4] = {
     "trajectory_vertex_record",
     "observed_occurrence_record"};
 
-static Oid schema_oid(void) {
-    return get_namespace_oid(LAPLACE_PG_SCHEMA, false);
-}
-
-static Oid composite_type_oid(const char* name) {
-    const Oid type_oid = GetSysCacheOid2(
-        TYPENAMENSP, Anum_pg_type_oid,
-        CStringGetDatum(name), ObjectIdGetDatum(schema_oid()));
-    if (!OidIsValid(type_oid)) {
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("Laplace PostgreSQL record type %s is missing", name)));
-    }
-    return type_oid;
-}
-
-static ArrayType* composite_array(
-    const char* type_name,
-    Datum* values,
-    uint64_t count) {
-    const Oid type_oid = composite_type_oid(type_name);
-    int16 type_length = 0;
-    bool type_by_value = false;
-    char type_alignment = 0;
-    if (count == 0 || count > (uint64_t)INT_MAX) {
-        ereport(ERROR,
-                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-                 errmsg("Laplace PostgreSQL record batch has an unsupported cardinality")));
-    }
-    get_typlenbyvalalign(
-        type_oid, &type_length, &type_by_value, &type_alignment);
-    return construct_array(
-        values, (int)count, type_oid,
-        type_length, type_by_value, type_alignment);
-}
-
-static Datum record_tuple(
-    const char* type_name,
-    Datum* values,
-    bool* nulls,
-    int attribute_count) {
-    const Oid type_oid = composite_type_oid(type_name);
-    TupleDesc descriptor = lookup_rowtype_tupdesc(type_oid, -1);
-    HeapTuple tuple;
-    if (descriptor->natts != attribute_count) {
-        ReleaseTupleDesc(descriptor);
-        ereport(ERROR,
-                (errcode(ERRCODE_DATATYPE_MISMATCH),
-                 errmsg("Laplace PostgreSQL persistence record binding changed")));
-    }
-    tuple = heap_form_tuple(descriptor, values, nulls);
-    ReleaseTupleDesc(descriptor);
-    return HeapTupleGetDatum(tuple);
-}
-
 static void note_plan(persistence_sink_state* state, uint32_t plan_id) {
     if (state->plan_count >= LAPLACE_PERSISTENCE_PG_PLAN_COUNT || plan_id == 0) {
         ereport(ERROR,
@@ -117,74 +60,63 @@ static void note_plan(persistence_sink_state* state, uint32_t plan_id) {
 }
 
 static ArrayType* build_entity_array(const persistence_sink_state* state) {
-    Datum* rows = (Datum*)palloc(sizeof(*rows) * (size_t)state->summary.entity_count);
+    laplace_pg_composite_binding binding;
+    Datum* rows = state->summary.entity_count == 0 ? NULL :
+        (Datum*)palloc(sizeof(*rows) * (size_t)state->summary.entity_count);
+    ArrayType* result;
     uint64_t row = 0;
     uint64_t index;
+    laplace_pg_entity_binding_open(&binding);
     for (index = 0; index < state->count; ++index) {
         const staged_record* staged = &state->records[index];
         if (staged->record.kind == LAPLACE_PERSISTENCE_RECORD_ENTITY) {
-            Datum values[2];
-            bool nulls[2] = {false, false};
-            values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                staged->record.value.entity.entity_id.bytes,
-                sizeof(staged->record.value.entity.entity_id.bytes)));
-            values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                staged->record.value.entity.identity_witness.bytes,
-                sizeof(staged->record.value.entity.identity_witness.bytes)));
-            rows[row++] = record_tuple(record_type_names[0], values, nulls, 2);
+            rows[row++] = laplace_pg_entity_record(
+                &binding, &staged->record.value.entity);
         }
     }
-    return composite_array(record_type_names[0], rows, row);
+    result = laplace_pg_composite_array(&binding, rows, row);
+    laplace_pg_composite_binding_close(&binding);
+    return result;
 }
 
 static ArrayType* build_physicality_array(const persistence_sink_state* state) {
-    Datum* rows = (Datum*)palloc(
-        sizeof(*rows) * (size_t)state->summary.physicality_count);
+    laplace_pg_composite_binding binding;
+    Datum* rows = state->summary.physicality_count == 0 ? NULL :
+        (Datum*)palloc(sizeof(*rows) *
+                      (size_t)state->summary.physicality_count);
+    ArrayType* result;
     uint64_t row = 0;
     uint64_t index;
+    laplace_pg_physicality_binding_open(&binding);
     for (index = 0; index < state->count; ++index) {
         const staged_record* staged = &state->records[index];
         if (staged->record.kind == LAPLACE_PERSISTENCE_RECORD_PHYSICALITY) {
-            const laplace_persistence_physicality_record* value =
-                &staged->record.value.physicality;
-            Datum fields[18];
-            bool nulls[18] = {false};
-            fields[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                value->physicality_id.bytes, sizeof(value->physicality_id.bytes)));
-            fields[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                value->entity_id.bytes, sizeof(value->entity_id.bytes)));
-            fields[2] = Int32GetDatum((int32)value->physicality_type);
-            fields[3] = Int32GetDatum((int32)value->vertex_class);
-            fields[4] = Int32GetDatum((int32)value->recipe_version);
-            fields[5] = Int32GetDatum((int32)value->structural_form);
-            fields[6] = Int32GetDatum((int32)value->dimension_count);
-            fields[7] = Int32GetDatum((int32)value->flags);
-            fields[8] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                value->recipe_fingerprint.bytes,
-                sizeof(value->recipe_fingerprint.bytes)));
-            fields[9] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                value->geometry_epoch.bytes, sizeof(value->geometry_epoch.bytes)));
-            fields[10] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                value->trajectory_fingerprint.bytes,
-                sizeof(value->trajectory_fingerprint.bytes)));
-            fields[11] = Float8GetDatum(value->centroid.component[0]);
-            fields[12] = Float8GetDatum(value->centroid.component[1]);
-            fields[13] = Float8GetDatum(value->centroid.component[2]);
-            fields[14] = Float8GetDatum(value->centroid.component[3]);
-            fields[15] = Float8GetDatum(value->radius);
-            fields[16] = laplace_pg_numeric_from_uint64(value->logical_count);
-            fields[17] = laplace_pg_numeric_from_uint64(value->vertex_count);
-            rows[row++] = record_tuple(record_type_names[1], fields, nulls, 18);
+            rows[row++] = laplace_pg_physicality_record(
+                &binding, &staged->record.value.physicality);
         }
     }
-    return composite_array(record_type_names[1], rows, row);
+    result = laplace_pg_composite_array(&binding, rows, row);
+    laplace_pg_composite_binding_close(&binding);
+    return result;
 }
 
 static ArrayType* build_trajectory_array(const persistence_sink_state* state) {
-    Datum* rows = (Datum*)palloc(
-        sizeof(*rows) * (size_t)state->summary.trajectory_vertex_count);
+    static const Oid attribute_types[11] = {
+        BYTEAOID, NUMERICOID, BYTEAOID, BYTEAOID, NUMERICOID,
+        INT8OID, INT8OID, INT4OID, INT4OID, INT2OID, BOOLOID};
+    static const int32 attribute_typmods[11] = {
+        -1, LAPLACE_PG_NUMERIC_TYPMOD(20, 0), -1, -1,
+        LAPLACE_PG_NUMERIC_TYPMOD(20, 0), -1, -1, -1, -1, -1, -1};
+    laplace_pg_composite_binding binding;
+    Datum* rows = state->summary.trajectory_vertex_count == 0 ? NULL :
+        (Datum*)palloc(sizeof(*rows) *
+                      (size_t)state->summary.trajectory_vertex_count);
+    ArrayType* result;
     uint64_t row = 0;
     uint64_t index;
+    laplace_pg_composite_binding_open(
+        record_type_names[2], attribute_types, attribute_typmods,
+        11, &binding);
     for (index = 0; index < state->count; ++index) {
         const staged_record* staged = &state->records[index];
         if (staged->record.kind == LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX) {
@@ -210,17 +142,30 @@ static ArrayType* build_trajectory_array(const persistence_sink_state* state) {
             fields[8] = Int32GetDatum((int32)value->occurrence.run_length);
             fields[9] = Int16GetDatum((int16)value->occurrence.tier);
             fields[10] = BoolGetDatum(value->occurrence.has_atom != 0);
-            rows[row++] = record_tuple(record_type_names[2], fields, nulls, 11);
+            rows[row++] = laplace_pg_composite_record(&binding, fields, nulls);
         }
     }
-    return composite_array(record_type_names[2], rows, row);
+    result = laplace_pg_composite_array(&binding, rows, row);
+    laplace_pg_composite_binding_close(&binding);
+    return result;
 }
 
 static ArrayType* build_occurrence_array(const persistence_sink_state* state) {
-    Datum* rows = (Datum*)palloc(
-        sizeof(*rows) * (size_t)state->summary.occurrence_count);
+    static const Oid attribute_types[7] = {
+        BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID,
+        NUMERICOID, INT4OID};
+    static const int32 attribute_typmods[7] = {
+        -1, -1, -1, -1, -1,
+        LAPLACE_PG_NUMERIC_TYPMOD(20, 0), -1};
+    laplace_pg_composite_binding binding;
+    Datum* rows = state->summary.occurrence_count == 0 ? NULL :
+        (Datum*)palloc(sizeof(*rows) * (size_t)state->summary.occurrence_count);
+    ArrayType* result;
     uint64_t row = 0;
     uint64_t index;
+    laplace_pg_composite_binding_open(
+        record_type_names[3], attribute_types, attribute_typmods,
+        7, &binding);
     for (index = 0; index < state->count; ++index) {
         const staged_record* staged = &state->records[index];
         if (staged->record.kind == LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE) {
@@ -249,35 +194,12 @@ static ArrayType* build_occurrence_array(const persistence_sink_state* state) {
                 sizeof(value->context_fingerprint.bytes)));
             fields[5] = laplace_pg_numeric_from_uint64(value->source_ordinal);
             fields[6] = Int32GetDatum((int32)value->flags);
-            rows[row++] = record_tuple(record_type_names[3], fields, nulls, 7);
+            rows[row++] = laplace_pg_composite_record(&binding, fields, nulls);
         }
     }
-    return composite_array(record_type_names[3], rows, row);
-}
-
-static Oid composite_array_oid(const char* type_name) {
-    const Oid array_oid = get_array_type(composite_type_oid(type_name));
-    if (!OidIsValid(array_oid)) {
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("Laplace PostgreSQL persistence array type is missing")));
-    }
-    return array_oid;
-}
-
-static void keep_plan(
-    SPIPlanPtr* target,
-    const char* sql,
-    int parameter_count,
-    Oid* parameter_types) {
-    if (*target == NULL) {
-        *target = SPI_prepare(sql, parameter_count, parameter_types);
-        if (*target == NULL || SPI_keepplan(*target) != 0) {
-            ereport(ERROR,
-                    (errcode(ERRCODE_INTERNAL_ERROR),
-                     errmsg("cannot prepare a Laplace set-oriented persistence plan")));
-        }
-    }
+    result = laplace_pg_composite_array(&binding, rows, row);
+    laplace_pg_composite_binding_close(&binding);
+    return result;
 }
 
 static void ensure_reference_plan(void) {
@@ -294,47 +216,41 @@ static void ensure_reference_plan(void) {
         "(SELECT count(*) FROM physicality_reference r LEFT JOIN " LAPLACE_PG_SCHEMA ".physicality p ON p.physicality_id=r.physicality_id "
         " WHERE p.physicality_id IS NULL AND NOT EXISTS (SELECT 1 FROM incoming_physicality i WHERE i.physicality_id=r.physicality_id))";
     Oid types[4] = {
-        composite_array_oid(record_type_names[0]),
-        composite_array_oid(record_type_names[1]),
-        composite_array_oid(record_type_names[2]),
-        composite_array_oid(record_type_names[3])};
-    keep_plan(&reference_plan, sql, 4, types);
+        laplace_pg_composite_array_oid(record_type_names[0]),
+        laplace_pg_composite_array_oid(record_type_names[1]),
+        laplace_pg_composite_array_oid(record_type_names[2]),
+        laplace_pg_composite_array_oid(record_type_names[3])};
+    laplace_pg_keep_plan(&reference_plan, sql, 4, types);
 }
 
 static const char* insert_sql(size_t kind) {
     static const char* const statements[4] = {
-        "INSERT INTO " LAPLACE_PG_SCHEMA ".canonical_entity(entity_id,identity_witness) SELECT entity_id,identity_witness FROM unnest($1::" LAPLACE_PG_SCHEMA ".canonical_entity_record[]) ON CONFLICT DO NOTHING",
-        "INSERT INTO " LAPLACE_PG_SCHEMA ".physicality SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA ".physicality_record[]) ON CONFLICT DO NOTHING",
+        NULL,
+        NULL,
         "INSERT INTO " LAPLACE_PG_SCHEMA ".composition_trajectory_vertex SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA ".trajectory_vertex_record[]) ON CONFLICT DO NOTHING",
         "INSERT INTO " LAPLACE_PG_SCHEMA ".observed_occurrence SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA ".observed_occurrence_record[]) ON CONFLICT DO NOTHING"};
+    if (kind == 0) {
+        return laplace_pg_entity_insert_sql();
+    }
+    if (kind == 1) {
+        return laplace_pg_physicality_insert_sql();
+    }
     return statements[kind];
 }
 
 static const char* verify_sql(size_t kind) {
     static const char* const statements[4] = {
-        "SELECT count(*) FROM unnest($1::" LAPLACE_PG_SCHEMA ".canonical_entity_record[]) i JOIN " LAPLACE_PG_SCHEMA ".canonical_entity s ON s.entity_id=i.entity_id AND s.identity_witness=i.identity_witness",
-        "SELECT count(*) FROM unnest($1::" LAPLACE_PG_SCHEMA ".physicality_record[]) i JOIN " LAPLACE_PG_SCHEMA ".physicality s ON s.physicality_id=i.physicality_id AND s.entity_id=i.entity_id AND s.physicality_type=i.physicality_type AND s.vertex_class=i.vertex_class AND s.recipe_version=i.recipe_version AND s.structural_form=i.structural_form AND s.dimension_count=i.dimension_count AND s.flags=i.flags AND s.recipe_fingerprint=i.recipe_fingerprint AND s.geometry_epoch=i.geometry_epoch AND s.trajectory_fingerprint=i.trajectory_fingerprint AND float8send(s.centroid_x)=float8send(i.centroid_x) AND float8send(s.centroid_y)=float8send(i.centroid_y) AND float8send(s.centroid_z)=float8send(i.centroid_z) AND float8send(s.centroid_m)=float8send(i.centroid_m) AND float8send(s.radius)=float8send(i.radius) AND s.logical_count=i.logical_count AND s.vertex_count=i.vertex_count",
+        NULL,
+        NULL,
         "SELECT count(*) FROM unnest($1::" LAPLACE_PG_SCHEMA ".trajectory_vertex_record[]) i JOIN " LAPLACE_PG_SCHEMA ".composition_trajectory_vertex s ON s.physicality_id=i.physicality_id AND s.vertex_index=i.vertex_index AND s.carrier=i.carrier AND s.constituent_entity_id=i.constituent_entity_id AND s.logical_ordinal=i.logical_ordinal AND s.metadata=i.metadata AND s.atom=i.atom AND s.packed_ordinal=i.packed_ordinal AND s.run_length=i.run_length AND s.tier=i.tier AND s.has_atom=i.has_atom",
         "SELECT count(*) FROM unnest($1::" LAPLACE_PG_SCHEMA ".observed_occurrence_record[]) i JOIN " LAPLACE_PG_SCHEMA ".observed_occurrence s ON s.occurrence_id=i.occurrence_id AND s.entity_id=i.entity_id AND s.physicality_id IS NOT DISTINCT FROM i.physicality_id AND s.source_fingerprint=i.source_fingerprint AND s.context_fingerprint=i.context_fingerprint AND s.source_ordinal=i.source_ordinal AND s.flags=i.flags"};
+    if (kind == 0) {
+        return laplace_pg_entity_verify_sql();
+    }
+    if (kind == 1) {
+        return laplace_pg_physicality_verify_sql();
+    }
     return statements[kind];
-}
-
-static uint64_t scalar_count(void) {
-    bool is_null = false;
-    Datum value;
-    if (SPI_processed != 1 || SPI_tuptable == NULL) {
-        ereport(ERROR,
-                (errcode(ERRCODE_INTERNAL_ERROR),
-                 errmsg("Laplace persistence verification did not return one scalar")));
-    }
-    value = SPI_getbinval(
-        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &is_null);
-    if (is_null || DatumGetInt64(value) < 0) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace persistence verification returned an invalid count")));
-    }
-    return (uint64_t)DatumGetInt64(value);
 }
 
 static void execute_reference_check(
@@ -377,7 +293,7 @@ static void execute_record_family(
     size_t kind,
     ArrayType* records,
     uint64_t count) {
-    Oid types[1] = {composite_array_oid(record_type_names[kind])};
+    Oid types[1] = {laplace_pg_composite_array_oid(record_type_names[kind])};
     Datum values[1] = {PointerGetDatum(records)};
     int result;
     uint64_t verified;
@@ -385,7 +301,7 @@ static void execute_record_family(
     if (count == 0) {
         return;
     }
-    keep_plan(&insert_plans[kind], insert_sql(kind), 1, types);
+    laplace_pg_keep_plan(&insert_plans[kind], insert_sql(kind), 1, types);
     result = SPI_execute_plan(insert_plans[kind], values, NULL, false, 0);
     note_plan(state,
         kind == 0 ? LAPLACE_PERSISTENCE_PG_PLAN_ENTITY_INSERT :
@@ -399,7 +315,7 @@ static void execute_record_family(
     }
     inserted = (uint64_t)SPI_processed;
     state->inserted[kind] = inserted;
-    keep_plan(&verify_plans[kind], verify_sql(kind), 1, types);
+    laplace_pg_keep_plan(&verify_plans[kind], verify_sql(kind), 1, types);
     result = SPI_execute_plan(verify_plans[kind], values, NULL, false, 1);
     note_plan(state,
         kind == 0 ? LAPLACE_PERSISTENCE_PG_PLAN_ENTITY_VERIFY :
@@ -411,7 +327,7 @@ static void execute_record_family(
                 (errcode(ERRCODE_INTERNAL_ERROR),
                  errmsg("Laplace persistence exact-collision verification failed")));
     }
-    verified = scalar_count();
+    verified = laplace_pg_scalar_count("persistence conflict verification");
 #if defined(LAPLACE_TEST_BLIND_CONFLICT)
     (void)verified;
 #else
@@ -608,16 +524,19 @@ static void persist_deposit_receipt(
         state->plan_sequence_fingerprint.bytes,
         sizeof(state->plan_sequence_fingerprint.bytes)));
     values[19] = Int32GetDatum((int32)state->plan_count);
-    keep_plan(&deposit_receipt_insert_plan, insert_sql_text, 20, types);
+    laplace_pg_keep_plan(
+        &deposit_receipt_insert_plan, insert_sql_text, 20, types);
     result = SPI_execute_plan(deposit_receipt_insert_plan, values, NULL, false, 0);
     if (result != SPI_OK_INSERT || SPI_processed > 1) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
                  errmsg("Laplace deposit receipt insert was not bounded")));
     }
-    keep_plan(&deposit_receipt_verify_plan, verify_sql_text, 20, types);
+    laplace_pg_keep_plan(
+        &deposit_receipt_verify_plan, verify_sql_text, 20, types);
     result = SPI_execute_plan(deposit_receipt_verify_plan, values, NULL, false, 1);
-    if (result != SPI_OK_SELECT || scalar_count() != 1u) {
+    if (result != SPI_OK_SELECT ||
+        laplace_pg_scalar_count("persistence receipt verification") != 1u) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg("Laplace deposit receipt collides with different stored fields")));

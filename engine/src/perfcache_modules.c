@@ -179,7 +179,7 @@ static laplace_perfcache_status validate_unicode_tier0_record(
     return LAPLACE_PERFCACHE_OK;
 }
 
-static int unicode_tier0_contract_matches(
+static int module_contract_matches(
     const laplace_perfcache_contract* contract,
     const laplace_perfcache_module_v2* module) {
     return memcmp(
@@ -217,7 +217,7 @@ laplace_perfcache_status laplace_perfcache_unicode_tier0_validate_view(
 #endif
         laplace_perfcache_unicode_tier0_module(&module) !=
             LAPLACE_PERFCACHE_REGISTRY_OK ||
-        !unicode_tier0_contract_matches(&view->contract, &module) ||
+        !module_contract_matches(&view->contract, &module) ||
         view->record_stride != module.key_bytes + module.value_bytes) {
         return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
     }
@@ -304,4 +304,42 @@ laplace_perfcache_registry_status laplace_perfcache_unicode_tier0_module(
     module->abi_major = LAPLACE_PERFCACHE_MODULE_ABI_MAJOR;
     module->abi_minor = LAPLACE_PERFCACHE_MODULE_ABI_MINOR;
     return LAPLACE_PERFCACHE_REGISTRY_OK;
+}
+
+laplace_perfcache_registry_status laplace_perfcache_builtin_module_resolve(
+    const laplace_perfcache_contract* contract,
+    laplace_perfcache_module_v2* module) {
+    laplace_perfcache_module_v2 candidate;
+    laplace_perfcache_registry_status status;
+    if (contract == NULL || module == NULL) {
+        return LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT;
+    }
+    status = laplace_perfcache_framework_probe_module(&candidate);
+    if (status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        return status;
+    }
+    if (memcmp(
+            contract->module_id.bytes, candidate.module_id.bytes,
+            sizeof(contract->module_id.bytes)) == 0) {
+        if (!module_contract_matches(contract, &candidate)) {
+            return LAPLACE_PERFCACHE_REGISTRY_MODULE_SET_MISMATCH;
+        }
+        *module = candidate;
+        return LAPLACE_PERFCACHE_REGISTRY_OK;
+    }
+    status = laplace_perfcache_unicode_tier0_module(&candidate);
+    if (status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        return status;
+    }
+    if (memcmp(
+            contract->module_id.bytes, candidate.module_id.bytes,
+            sizeof(contract->module_id.bytes)) == 0) {
+        if (!module_contract_matches(contract, &candidate)) {
+            return LAPLACE_PERFCACHE_REGISTRY_MODULE_SET_MISMATCH;
+        }
+        *module = candidate;
+        return LAPLACE_PERFCACHE_REGISTRY_OK;
+    }
+    memset(module, 0, sizeof(*module));
+    return LAPLACE_PERFCACHE_REGISTRY_MODULE_NOT_FOUND;
 }
