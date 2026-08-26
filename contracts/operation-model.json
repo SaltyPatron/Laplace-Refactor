@@ -151,10 +151,10 @@
       "receipts": ["input and output counts", "database calls", "WAL", "I/O", "cancellation and replay state", "cold and warm state", "canonical testimony derived index perfcache temporary dead free and bloat byte census", "paired with-and-without acceleration plan CPU I/O latency and semantic parity"],
       "product_requirements": ["LP-STATE-001", "LP-PERF-001", "LP-PERF-002", "LP-STORAGE-001", "LP-MATERIALIZATION-001"],
       "implementation": {
-        "state": "unimplemented",
-        "observed_unpublished_boundary": "the separate dirty worktree contains native whole-working-set composition and presence-disposition work fingerprinted by state/continuation.json",
-        "missing_boundary": "the set-oriented PostgreSQL presence provider filtered canonical persistence sink transactional deposition replay receipt and deliberate provider defect are not implemented or published",
-        "evidence": ["state/continuation.json", "docs/architecture/OPERATIONAL_MODEL.md", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]
+        "state": "partial",
+        "proven_boundary": "pull request 73 publishes native whole-working-set composition receipted set-oriented PostgreSQL presence filtered canonical persistence transactional deposition deterministic replay exact readback rollback and reordered-result mutation detection",
+        "missing_boundary": "direct-native PostgreSQL semantic parity remaining provider mutants whole-boundary cancellation and replay provider-choice proof and representative-scale CPU memory I/O database WAL durable-output measurements remain incomplete; product activation is not claimed",
+        "evidence": ["state/continuation.json", "contracts/composition.json", "engine/src/composition.cpp", "postgres/extension/src/composition_pg.c", "tests/composition_tests.cpp", "tests/postgres/composition_contract.sql"]
       }
     },
     {

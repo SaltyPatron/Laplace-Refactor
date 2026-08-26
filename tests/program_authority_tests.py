@@ -326,10 +326,13 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(storage.get("database_bytes") == 295775270591 and storage.get("index_bytes") == 186482507776, "historical storage measurement drift")
     require(storage.get("exact_rows", {}).get("four_population_total") == 396693675, "historical exact population total drift")
     contains_all(storage.get("nonclaims", []), ("not proven", "clean Laplace", "non-authoritative"), "historical storage census lost its nonclaims")
-    work = document.get("interrupted_work", {})
-    require(work.get("capability") == "substrate.bulk-deposit", "interrupted capability drift")
-    contains_all(work.get("whole_product_reason", ""), ("generic AST Merkle-DAG", "before Unicode product activation", "not a corpus importer"), "interrupted work lost its product reason")
-    require(len(work.get("untracked_files", [])) == 6, "interrupted untracked boundary drift")
+    work = document.get("active_work", {})
+    require(work.get("capability") == "substrate.bulk-deposit", "active capability drift")
+    require(work.get("state") == "published-partial-implementation", "partial implementation proof state drift")
+    require(work.get("pull_request") == 73, "composition pull request observation drift")
+    contains_all(work.get("whole_product_reason", ""), ("generic AST Merkle-DAG", "before Unicode product activation", "not a corpus importer"), "active work lost its product reason")
+    contains_all(work.get("remaining_acceptance_boundary", []), ("direct-native", "provider mutants", "cancellation", "representative-scale", "WAL", "500000"), "issue 15 remaining acceptance was hidden")
+    contains_all(work.get("nonclaims", []), ("not complete", "not activated", "not seeded", "not released"), "partial implementation was promoted")
     github = document.get("github_observation", {})
     require(github.get("main_commit") == document.get("repository", {}).get("base_commit"), "GitHub main and continuation base diverged")
     require(github.get("unicode_product_activation_issue", {}).get("state") == "open", "Unicode product activation issue was prematurely closed")
@@ -338,26 +341,23 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(github.get("github_environments") == 0 and github.get("github_deployments") == 0 and github.get("github_releases") == 0, "GitHub integration state was promoted to delivery state")
     require(github.get("repository_runner", {}).get("name") == "hart-server-refactor", "repository runner observation lost")
     runs = {item.get("workflow"): item for item in github.get("latest_main_workflow_runs", [])}
-    require(runs.get("clean-room-ci", {}).get("linux_dev_registered_tests") == 239 and runs.get("clean-room-ci", {}).get("linux_sanitize_registered_tests") == 239, "published hosted test-count observation drift")
-    require(runs.get("custom-stack-ci", {}).get("registered_tests") == 258 and runs.get("custom-stack-ci", {}).get("observed_postgresql_version") == "18.3", "published custom-stack observation drift")
+    require(runs.get("clean-room-ci", {}).get("linux_dev_registered_tests") == 240 and runs.get("clean-room-ci", {}).get("linux_sanitize_registered_tests") == 240, "published hosted test-count observation drift")
+    require(runs.get("custom-stack-ci", {}).get("registered_tests") == 259 and runs.get("custom-stack-ci", {}).get("observed_postgresql_version") == "18.3", "published custom-stack observation drift")
     if verify_physical:
         worktree = Path(document.get("repository", {}).get("active_worktree", ""))
         if worktree.is_dir() and (worktree / ".git").exists():
             repository = document.get("repository", {})
-            require(git_output(worktree, "rev-parse", "HEAD") == repository.get("base_commit"), "continuation base commit is stale")
+            require(git_output(worktree, "rev-parse", "origin/main") == repository.get("base_commit"), "continuation main base commit is stale")
             require(git_output(worktree, "branch", "--show-current") == repository.get("active_branch"), "continuation active branch is stale")
-            observed = physical_dirty_digest(worktree)
-            require(observed == work.get("tracked_patch_sha256"), "continuation tracked patch is stale")
-            tracked_paths = sorted(filter(None, git_output(worktree, "diff", "--name-only").splitlines()))
-            require(tracked_paths == sorted(work.get("tracked_files", [])), "continuation tracked-file boundary is stale")
-            untracked_paths = sorted(filter(None, git_output(worktree, "ls-files", "--others", "--exclude-standard").splitlines()))
-            expected_untracked = sorted(item.get("path") for item in work.get("untracked_files", []))
-            require(untracked_paths == expected_untracked, "continuation untracked-file boundary is stale")
-            for observation in work.get("untracked_files", []):
-                observed_path = worktree / observation.get("path", "")
-                require(observed_path.is_file(), f"continuation untracked file is missing: {observed_path}")
-                require(observed_path.stat().st_size == observation.get("bytes"), f"continuation untracked file size is stale: {observed_path}")
-                require(physical_file_digest(observed_path) == observation.get("sha256"), f"continuation untracked file digest is stale: {observed_path}")
+            checkpoint = work.get("published_checkpoint_commit")
+            require(git_output(worktree, "cat-file", "-t", checkpoint) == "commit", "published composition checkpoint is missing")
+            subprocess.run(
+                ["git", "merge-base", "--is-ancestor", checkpoint, "HEAD"],
+                cwd=worktree,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
         for input_name in ("data_root", "model_root"):
             root_observation = inputs.get(input_name, {})
             observed_root = Path(root_observation.get("observed_path", ""))
@@ -405,7 +405,7 @@ def validate_operation(document: dict) -> None:
     require(stages["world.admit-witnesses"].get("github_issues") == [53, 59], "world admission issue ownership drift")
     contains_all(stages["framework.execution"].get("implementation", {}), ("published code proves", "universal AST type system", "recipe compiler", "remain unimplemented"), "framework partial state overclaims the recipe machine")
     contains_all(stages["bootstrap.unicode-root"].get("implementation", {}), ("controlled integration", "PostgreSQL 18.6 product cluster", "not proven"), "Unicode integration was promoted to product or generic-machine proof")
-    contains_all(stages["substrate.bulk-deposit"].get("implementation", {}), ("separate dirty worktree", "not implemented or published"), "unpublished composition work was promoted")
+    contains_all(stages["substrate.bulk-deposit"].get("implementation", {}), ("pull request 73", "partial", "remaining provider mutants", "representative-scale", "product activation is not claimed"), "partial composition proof state drift")
     contains_all(stages["delivery.activate-product"].get("implementation", {}), ("no accepted package", "no deployment or release state"), "delivery infrastructure was promoted to product delivery")
 
 
