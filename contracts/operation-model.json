@@ -133,8 +133,8 @@
       "product_requirements": ["LP-AST-001", "LP-INTERPRETATION-001", "LP-PHYSICALITY-001", "LP-RUN-001", "LP-REPRESENTATION-001"],
       "implementation": {
         "state": "partial",
-        "proven_boundary": "draft pull request 73 publishes generic whole-working-set Merkle-DAG composition identity physicality trajectory occurrence and provider-parity mechanisms in addition to the earlier identity trajectory geometry and persistence contracts",
-        "missing_boundary": "complete generic AST grammar recipe testimony and reference closure plus accepted merge and product activation remain absent",
+        "proven_boundary": "merged pull request 73 proves generic whole-working-set Merkle-DAG composition identity physicality trajectory occurrence and provider-parity mechanisms in addition to the earlier identity trajectory geometry and persistence contracts",
+        "missing_boundary": "complete generic AST grammar recipe testimony and reference closure plus product activation remain absent",
         "evidence": ["contracts/composition.json", "contracts/persistence.json", "state/continuation.json", "engine/src/composition.cpp", "engine/src/identity.c", "engine/src/trajectory.c", "engine/src/geometry.c", "engine/src/persistence.c", "postgres/extension/src/composition_pg.c", "postgres/extension/src/persistence_pg.c", "postgres/extension/laplace--version.sql.in", "tests/composition_tests.cpp", "tests/persistence_tests.cpp", "tests/postgres/composition_contract.sql", "tests/postgres/spi_contract.sql"]
       }
     },
@@ -152,8 +152,8 @@
       "product_requirements": ["LP-STATE-001", "LP-PERF-001", "LP-PERF-002", "LP-STORAGE-001", "LP-MATERIALIZATION-001"],
       "implementation": {
         "state": "partial",
-        "proven_boundary": "pull request 73 publishes native whole-working-set composition set-oriented PostgreSQL presence filtered canonical persistence transactional deposition direct-native and PostgreSQL semantic parity provider-independent semantic receipts provider-specific execution receipts cancellation replay provider substitution exact readback rollback six provider mutants and a five-sample representative integration receipt",
-        "missing_boundary": "exact-head CI and accepted merge complete-ingest 500000-records-per-second and qualifying-real-corpus 30-seconds-per-GB gates issue 72 paired acceleration and storage economics and product activation remain incomplete",
+        "proven_boundary": "merged pull request 73 proves native whole-working-set composition set-oriented PostgreSQL presence filtered canonical persistence transactional deposition direct-native and PostgreSQL semantic parity provider-independent semantic receipts provider-specific execution receipts cancellation replay provider substitution exact readback rollback six provider mutants and a five-sample representative integration receipt",
+        "missing_boundary": "complete-ingest 500000-records-per-second and qualifying-real-corpus 30-seconds-per-GB gates issue 72 paired acceleration and storage economics and product activation remain incomplete",
         "evidence": ["state/continuation.json", "contracts/composition.json", "engine/src/composition.cpp", "postgres/extension/src/composition_pg.c", "tests/composition_tests.cpp", "tests/postgres/composition_contract.sql", "tests/postgres/composition_measurement_client.cpp", "tests/composition_performance_receipt_tests.py", "tests/registry.json"]
       }
     },

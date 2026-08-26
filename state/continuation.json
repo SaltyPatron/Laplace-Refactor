@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-26T23:42:47Z",
+  "observed_at_utc": "2026-08-26T23:55:00Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,13 +12,13 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "phase4/composition-bulk-deposit",
+    "active_branch": "phase3/product-unicode-activation",
     "active_worktree": "/home/ahart/Projects/Laplace-Refactor",
-    "base_commit": "37f8741e9360a114abc44c4c72941726bee84716",
+    "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
-    "observed_branch_head": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
-    "pull_request": 73
+    "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+    "observed_branch_head": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+    "pull_request": null
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -231,13 +231,12 @@
       "the old schema partitions and indexes remain non-authoritative"
     ]
   },
-  "active_work": {
+  "recently_completed_work": {
     "capability": "substrate.bulk-deposit",
     "github_issue": 15,
-    "state": "published-implementation-acceptance-pending-merge",
-    "branch": "phase4/composition-bulk-deposit",
+    "state": "integration-proven-and-merged",
     "pull_request": 73,
-    "published_checkpoint_commit": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
+    "main_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "implemented_and_locally_proven_boundary": [
       "complete native composition working-set construction",
       "whole-working-set identity and physicality candidate publication",
@@ -275,24 +274,59 @@
       },
       "product_activation": false
     },
-    "remaining_acceptance_boundary": [
-      "PR 73 exact-head hosted and custom-stack CI completion and merge",
+    "remaining_whole_product_boundary": [
       "500000-records-per-second complete-ingest gate measured on the declared boundary rather than inferred from the composition fixture",
       "30-seconds-per-GB qualifying-real-corpus gate measured on the declared boundary rather than inferred from stored datum or stream bytes",
       "issue 72 paired with-and-without acceleration storage compute and bloat receipts"
     ],
     "whole_product_reason": "This is the generic AST Merkle-DAG presence and deposition boundary required before Unicode product activation and before any source recipe can persist exact world state; it is not a corpus importer.",
     "nonclaims": [
-      "issue 15 is not complete until its accepted implementation is merged",
       "the complete-ingest performance gates have not passed",
       "the PostgreSQL 18.6 product cluster is not activated",
       "knowledge is not seeded",
       "the product is not released"
     ]
   },
+  "active_work": {
+    "capability": "bootstrap.unicode-root",
+    "github_issue": 13,
+    "state": "next-implementation-boundary",
+    "branch": "phase3/product-unicode-activation",
+    "pull_request": null,
+    "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+    "dependencies": {
+      "product_cluster_issue": 12,
+      "perfcache_issue": 14,
+      "bulk_deposit_issue": {"number": 15, "state": "closed", "proof_state": "integration-proven"}
+    },
+    "proven_prerequisite_boundary": [
+      "one complete Unicode calculation feeds controlled PostgreSQL and Tier-0 sibling sinks",
+      "direct and reverse Unicode perfcache construction and coherent activation semantics",
+      "generic whole-working-set set-wise presence and transactional canonical deposition",
+      "controlled integration acceptance only"
+    ],
+    "immediate_implementation_boundary": [
+      "establish the exact verified PostgreSQL 18.6 product package and isolated cluster under issue 12",
+      "install and verify the accepted Laplace package extension and loaded-object closure in that cluster",
+      "deposit the complete 1114112-position Unicode root through the accepted product boundary without a second semantic calculation",
+      "publish direct and reverse Unicode artifacts from the same retained stream and verify exact database artifact and manifest parity",
+      "activate one coherent Unicode product epoch transactionally",
+      "restart the product cluster and prove readiness public SQL readback active root identities and epoch integrity",
+      "retain an exact product-root activation receipt"
+    ],
+    "whole_product_reason": "Unicode is the exact address and rendering floor required before the typed numerical highway can connect identifiers languages grammars recipes modalities and other machine dimensions; this is product activation of one substrate root not source-family ingestion.",
+    "nonclaims": [
+      "the selected PostgreSQL 18.6 product cluster is not yet established",
+      "the accepted Laplace package is not yet installed as the product",
+      "Unicode is not yet product activated",
+      "knowledge is not seeded",
+      "the typed numerical highway is not implemented",
+      "the product is not released"
+    ]
+  },
   "github_observation": {
-    "observed_at_utc": "2026-08-26T23:42:47Z",
-    "main_commit": "37f8741e9360a114abc44c4c72941726bee84716",
+    "observed_at_utc": "2026-08-26T23:55:00Z",
+    "main_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
     "unicode_product_activation_issue": {"number": 13, "state": "open", "reason": "integration proof does not satisfy installed PostgreSQL 18.6 product-root activation"},
@@ -311,10 +345,11 @@
     },
     "composition_pull_request": {
       "number": 73,
-      "state": "open",
-      "draft": true,
-      "head_commit": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
-      "proof_state": "published issue 15 implementation acceptance pending exact-head CI and merge; complete-ingest performance product activation seed and release remain false"
+      "state": "merged",
+      "draft": false,
+      "main_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+      "issue_15_state": "closed",
+      "proof_state": "integration-proven; complete-ingest performance product activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
