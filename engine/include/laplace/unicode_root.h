@@ -217,6 +217,7 @@ typedef struct laplace_unicode_source_receipt {
 typedef struct laplace_unicode_source_bundle laplace_unicode_source_bundle;
 typedef struct laplace_unicode_core_table laplace_unicode_core_table;
 typedef struct laplace_unicode_ducet_table laplace_unicode_ducet_table;
+typedef struct laplace_unicode_placement_table laplace_unicode_placement_table;
 
 typedef struct laplace_unicode_source_file_view {
     const uint8_t* bytes;
@@ -284,6 +285,35 @@ typedef struct laplace_unicode_ducet_summary {
     uint32_t maximum_element_count;
     uint32_t status;
 } laplace_unicode_ducet_summary;
+
+typedef struct laplace_unicode_placement_position_view {
+    const laplace_unicode_collation_element* elements;
+    const uint8_t* equivalence_key;
+    uint32_t codepoint_position;
+    uint32_t placement_rank;
+    uint32_t element_count;
+    uint32_t equivalence_key_bytes;
+    uint8_t provenance;
+    uint8_t reserved[3];
+} laplace_unicode_placement_position_view;
+
+typedef struct laplace_unicode_placement_summary {
+    laplace_digest256 receipt_id;
+    laplace_digest256 source_fingerprint;
+    laplace_digest256 recipe_fingerprint;
+    laplace_digest256 equivalence_fingerprint;
+    laplace_digest256 rank_permutation_fingerprint;
+    uint64_t position_count;
+    uint64_t collation_element_count;
+    uint64_t equivalence_key_bytes;
+    uint64_t provenance_counts[4];
+    uint32_t minimum_rank;
+    uint32_t maximum_rank;
+    uint32_t maximum_element_count;
+    uint32_t maximum_equivalence_key_bytes;
+    uint32_t status;
+    uint32_t reserved;
+} laplace_unicode_placement_summary;
 
 typedef struct laplace_unicode_root_stream_validator
     laplace_unicode_root_stream_validator;
@@ -596,6 +626,25 @@ LAPLACE_API laplace_unicode_status laplace_unicode_ducet_sort_key_calculate(
     size_t key_capacity,
     uint8_t* provenance,
     size_t* key_bytes);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_placement_table_create(
+    const laplace_unicode_ducet_table* table,
+    const laplace_unicode_core_table* core,
+    laplace_unicode_placement_table** placement,
+    laplace_unicode_placement_summary* summary);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_placement_table_position(
+    const laplace_unicode_placement_table* placement,
+    uint32_t codepoint_position,
+    laplace_unicode_placement_position_view* view);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_placement_table_rank_position(
+    const laplace_unicode_placement_table* placement,
+    uint32_t placement_rank,
+    uint32_t* codepoint_position);
+
+LAPLACE_API void laplace_unicode_placement_table_destroy(
+    laplace_unicode_placement_table** placement);
 
 LAPLACE_API void laplace_unicode_ducet_table_destroy(
     laplace_unicode_ducet_table** table);

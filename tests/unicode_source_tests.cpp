@@ -230,6 +230,43 @@ DucetCalculation CalculateDucet(
     return result;
 }
 
+int CompareBytes(const std::uint8_t* left, std::uint32_t left_bytes,
+                 const std::uint8_t* right, std::uint32_t right_bytes) {
+    const std::size_t common = std::min<std::size_t>(left_bytes, right_bytes);
+    const int compared = common == 0u ? 0 : std::memcmp(left, right, common);
+    if (compared != 0) {
+        return compared;
+    }
+    if (left_bytes == right_bytes) {
+        return 0;
+    }
+    return left_bytes < right_bytes ? -1 : 1;
+}
+
+int CompareLupPositions(std::uint32_t left, std::uint32_t right) {
+    std::array<std::uint8_t, 4> left_bytes{};
+    std::array<std::uint8_t, 4> right_bytes{};
+    std::size_t left_count = 0u;
+    std::size_t right_count = 0u;
+    EXPECT_EQ(laplace_unicode_position_encode(
+                  left, left_bytes.data(), &left_count),
+              LAPLACE_IDENTITY_OK);
+    EXPECT_EQ(laplace_unicode_position_encode(
+                  right, right_bytes.data(), &right_count),
+              LAPLACE_IDENTITY_OK);
+    const std::size_t common = std::min(left_count, right_count);
+    const int compared = common == 0u
+        ? 0
+        : std::memcmp(left_bytes.data(), right_bytes.data(), common);
+    if (compared != 0) {
+        return compared;
+    }
+    if (left_count == right_count) {
+        return 0;
+    }
+    return left_count < right_count ? -1 : 1;
+}
+
 bool ParseCollationSequence(std::string_view line,
                             std::vector<std::uint32_t>& sequence) {
     const std::size_t semicolon = line.find(';');
@@ -926,6 +963,161 @@ TEST(UnicodeDucet, CalculatesNfdCompleteWeightsAndAlternateKeys) {
                   0u, 0u, 2u, 0xc2u, 0xa8u, 2u, 0xccu, 0x81u}));
 
     laplace_unicode_ducet_table_destroy(&table);
+    laplace_unicode_core_table_destroy(&core);
+    laplace_unicode_source_bundle_close(&bundle);
+}
+
+TEST(UnicodeDucet, TotalizesEveryPositionIntoUniquePlacementPermutation) {
+    if (!SourceAvailable()) {
+        GTEST_SKIP() << "pinned Unicode source root is not installed at "
+                     << SourceRoot();
+    }
+    laplace_unicode_source_bundle* bundle = nullptr;
+    laplace_unicode_source_receipt source{};
+    ASSERT_EQ(laplace_unicode_source_bundle_open(
+                  SourceRoot().c_str(), &bundle, &source),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_core_table* core = nullptr;
+    laplace_unicode_core_summary core_summary{};
+    ASSERT_EQ(laplace_unicode_core_table_create(
+                  bundle, &core, &core_summary),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_ducet_table* ducet = nullptr;
+    laplace_unicode_ducet_summary ducet_summary{};
+    ASSERT_EQ(laplace_unicode_ducet_table_create(
+                  bundle, &ducet, &ducet_summary),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_placement_table* placement = nullptr;
+    laplace_unicode_placement_summary summary{};
+    ASSERT_EQ(laplace_unicode_placement_table_create(
+                  ducet, core, &placement, &summary),
+              LAPLACE_UNICODE_OK);
+    ASSERT_NE(placement, nullptr);
+
+    EXPECT_EQ(summary.status, LAPLACE_UNICODE_OK);
+    EXPECT_EQ(summary.position_count,
+              static_cast<std::uint64_t>(LAPLACE_UNICODE_ROOT_POPULATION));
+    EXPECT_TRUE(SameDigest(summary.source_fingerprint,
+                           source.source_fingerprint));
+    EXPECT_TRUE(SameDigest(summary.recipe_fingerprint,
+                           source.recipe_fingerprint));
+    EXPECT_EQ(summary.minimum_rank, 0u);
+    EXPECT_EQ(summary.maximum_rank,
+              LAPLACE_UNICODE_ROOT_POPULATION - 1u);
+    EXPECT_EQ(summary.collation_element_count, UINT64_C(2205438));
+    EXPECT_EQ(summary.equivalence_key_bytes, UINT64_C(27821481));
+    EXPECT_EQ(summary.maximum_element_count, 18u);
+    EXPECT_EQ(summary.maximum_equivalence_key_bytes, 138u);
+    EXPECT_EQ(summary.provenance_counts[0], UINT64_C(37783));
+    EXPECT_EQ(summary.provenance_counts[1], UINT64_C(1063109));
+    EXPECT_EQ(summary.provenance_counts[2], UINT64_C(11172));
+    EXPECT_EQ(summary.provenance_counts[3], UINT64_C(2048));
+    EXPECT_EQ(summary.provenance_counts[0] + summary.provenance_counts[1] +
+                  summary.provenance_counts[2] + summary.provenance_counts[3],
+              summary.position_count);
+    const laplace_digest256 expected_equivalence{{
+        0x97u, 0x10u, 0x70u, 0x05u, 0xd6u, 0x96u, 0xc1u, 0x89u,
+        0xadu, 0x4bu, 0xbau, 0xcfu, 0x5au, 0x30u, 0xdeu, 0x9au,
+        0x28u, 0xfdu, 0x77u, 0x0au, 0xe1u, 0xddu, 0xbeu, 0xd5u,
+        0x91u, 0x2au, 0xe7u, 0xf0u, 0xe4u, 0x9cu, 0xcfu, 0x2du}};
+    const laplace_digest256 expected_permutation{{
+        0x8cu, 0xd2u, 0x42u, 0x5au, 0x9bu, 0xc8u, 0x80u, 0xefu,
+        0xb5u, 0xedu, 0xf7u, 0x93u, 0x1cu, 0x6eu, 0xddu, 0xe4u,
+        0x36u, 0x16u, 0xe5u, 0xbeu, 0x45u, 0xbfu, 0xcfu, 0x69u,
+        0xd7u, 0xa3u, 0x81u, 0x56u, 0x5cu, 0xb7u, 0xe8u, 0xbdu}};
+    const laplace_digest256 expected_receipt{{
+        0x5eu, 0xbeu, 0x9eu, 0x9eu, 0x61u, 0x5bu, 0x34u, 0xf0u,
+        0x6au, 0xaau, 0x08u, 0xb4u, 0x8au, 0x9du, 0xe7u, 0x21u,
+        0x47u, 0x87u, 0xf6u, 0x5du, 0xbcu, 0x5cu, 0x69u, 0x35u,
+        0x03u, 0x12u, 0xffu, 0x66u, 0xd1u, 0xeeu, 0x55u, 0x70u}};
+    EXPECT_TRUE(SameDigest(
+        summary.equivalence_fingerprint, expected_equivalence));
+    EXPECT_TRUE(SameDigest(
+        summary.rank_permutation_fingerprint, expected_permutation));
+    EXPECT_TRUE(SameDigest(summary.receipt_id, expected_receipt));
+
+    std::vector<std::uint8_t> seen(
+        LAPLACE_UNICODE_ROOT_POPULATION, std::uint8_t{0});
+    for (std::uint32_t position = 0u;
+         position < LAPLACE_UNICODE_ROOT_POPULATION; ++position) {
+        laplace_unicode_placement_position_view view{};
+        if (laplace_unicode_placement_table_position(
+                placement, position, &view) != LAPLACE_UNICODE_OK) {
+            ADD_FAILURE() << "position lookup failed at " << position;
+            break;
+        }
+        if (view.codepoint_position != position ||
+            view.placement_rank >= LAPLACE_UNICODE_ROOT_POPULATION ||
+            view.element_count == 0u || view.equivalence_key_bytes == 0u ||
+            view.elements == nullptr || view.equivalence_key == nullptr) {
+            ADD_FAILURE() << "incomplete placement at position " << position;
+            break;
+        }
+        if (seen[view.placement_rank] != 0u) {
+            ADD_FAILURE() << "duplicate placement rank " << view.placement_rank
+                          << " at position " << position;
+            break;
+        }
+        seen[view.placement_rank] = 1u;
+        std::uint32_t inverse = 0u;
+        if (laplace_unicode_placement_table_rank_position(
+                placement, view.placement_rank, &inverse) !=
+                LAPLACE_UNICODE_OK || inverse != position) {
+            ADD_FAILURE() << "rank inverse mismatch at position " << position;
+            break;
+        }
+    }
+    EXPECT_EQ(std::count(seen.begin(), seen.end(), std::uint8_t{1}),
+              static_cast<std::ptrdiff_t>(LAPLACE_UNICODE_ROOT_POPULATION));
+
+    laplace_unicode_placement_position_view previous{};
+    bool have_previous = false;
+    for (std::uint32_t rank = 0u;
+         rank < LAPLACE_UNICODE_ROOT_POPULATION; ++rank) {
+        std::uint32_t position = 0u;
+        ASSERT_EQ(laplace_unicode_placement_table_rank_position(
+                      placement, rank, &position),
+                  LAPLACE_UNICODE_OK);
+        laplace_unicode_placement_position_view current{};
+        ASSERT_EQ(laplace_unicode_placement_table_position(
+                      placement, position, &current),
+                  LAPLACE_UNICODE_OK);
+        ASSERT_EQ(current.placement_rank, rank);
+        if (have_previous) {
+            const int compared = CompareBytes(
+                previous.equivalence_key, previous.equivalence_key_bytes,
+                current.equivalence_key, current.equivalence_key_bytes);
+            ASSERT_LE(compared, 0) << "rank " << rank;
+            if (compared == 0) {
+                EXPECT_LT(CompareLupPositions(
+                              previous.codepoint_position,
+                              current.codepoint_position),
+                          0)
+                    << "rank " << rank;
+            }
+        }
+        previous = current;
+        have_previous = true;
+    }
+
+    laplace_unicode_placement_position_view angstrom_letter{};
+    laplace_unicode_placement_position_view angstrom_sign{};
+    ASSERT_EQ(laplace_unicode_placement_table_position(
+                  placement, 0x00c5u, &angstrom_letter),
+              LAPLACE_UNICODE_OK);
+    ASSERT_EQ(laplace_unicode_placement_table_position(
+                  placement, 0x212bu, &angstrom_sign),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(CompareBytes(
+                  angstrom_letter.equivalence_key,
+                  angstrom_letter.equivalence_key_bytes,
+                  angstrom_sign.equivalence_key,
+                  angstrom_sign.equivalence_key_bytes),
+              0);
+    EXPECT_LT(angstrom_letter.placement_rank, angstrom_sign.placement_rank);
+
+    laplace_unicode_placement_table_destroy(&placement);
+    laplace_unicode_ducet_table_destroy(&ducet);
     laplace_unicode_core_table_destroy(&core);
     laplace_unicode_source_bundle_close(&bundle);
 }

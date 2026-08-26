@@ -239,6 +239,25 @@ struct laplace_unicode_ducet_table {
     laplace_unicode_ducet_summary summary{};
 };
 
+struct PlacementEntry {
+    std::array<std::uint8_t, 4> position_discriminator{};
+    std::uint64_t element_offset{};
+    std::uint64_t key_offset{};
+    std::uint32_t element_count{};
+    std::uint32_t key_bytes{};
+    std::uint32_t rank{};
+    std::uint8_t position_discriminator_bytes{};
+    std::uint8_t provenance{};
+};
+
+struct laplace_unicode_placement_table {
+    std::vector<PlacementEntry> positions;
+    std::vector<laplace_unicode_collation_element> elements;
+    std::vector<std::uint8_t> keys;
+    std::vector<std::uint32_t> rank_positions;
+    laplace_unicode_placement_summary summary{};
+};
+
 namespace {
 
 laplace_unicode_ducet_mapping_view MappingView(const Mapping& mapping) {
@@ -822,6 +841,215 @@ bool CalculateCollation(
         calculation.elements.size() <= UINT32_MAX;
 }
 
+int ComparePlacementKeys(const laplace_unicode_placement_table& placement,
+                         std::uint32_t left, std::uint32_t right) {
+    const PlacementEntry& left_entry = placement.positions[left];
+    const PlacementEntry& right_entry = placement.positions[right];
+    const std::size_t common = std::min<std::size_t>(
+        left_entry.key_bytes, right_entry.key_bytes);
+    const int compared = common == 0u
+        ? 0
+        : std::memcmp(
+              placement.keys.data() + left_entry.key_offset,
+              placement.keys.data() + right_entry.key_offset, common);
+    if (compared != 0) {
+        return compared;
+    }
+    if (left_entry.key_bytes != right_entry.key_bytes) {
+        return left_entry.key_bytes < right_entry.key_bytes ? -1 : 1;
+    }
+    const std::size_t discriminator_common = std::min<std::size_t>(
+        left_entry.position_discriminator_bytes,
+        right_entry.position_discriminator_bytes);
+    const int discriminator_compared = discriminator_common == 0u
+        ? 0
+        : std::memcmp(
+              left_entry.position_discriminator.data(),
+              right_entry.position_discriminator.data(),
+              discriminator_common);
+    if (discriminator_compared != 0) {
+        return discriminator_compared;
+    }
+    if (left_entry.position_discriminator_bytes !=
+        right_entry.position_discriminator_bytes) {
+        return left_entry.position_discriminator_bytes <
+                right_entry.position_discriminator_bytes
+            ? -1
+            : 1;
+    }
+    return 0;
+}
+
+#if defined(LAPLACE_TEST_DUCET_PLACEMENT_COLLAPSE_EQUIVALENT_RANKS)
+bool EqualPlacementKeys(const laplace_unicode_placement_table& placement,
+                        std::uint32_t left, std::uint32_t right) {
+    const PlacementEntry& left_entry = placement.positions[left];
+    const PlacementEntry& right_entry = placement.positions[right];
+    return left_entry.key_bytes == right_entry.key_bytes &&
+        (left_entry.key_bytes == 0u ||
+         std::memcmp(
+             placement.keys.data() + left_entry.key_offset,
+             placement.keys.data() + right_entry.key_offset,
+             left_entry.key_bytes) == 0);
+}
+#endif
+
+bool FinalizePlacementFingerprints(
+    laplace_unicode_placement_table& placement,
+    const laplace_unicode_ducet_table& table) {
+    blake3_hasher equivalence{};
+    blake3_hasher_init(&equivalence);
+    HashString(equivalence, "laplace-unicode-ducet-equivalence-table-v1");
+    blake3_hasher_update(
+        &equivalence, table.summary.retained_table_fingerprint.bytes,
+        sizeof(table.summary.retained_table_fingerprint.bytes));
+    for (std::uint32_t position = 0u;
+         position < LAPLACE_UNICODE_ROOT_POPULATION; ++position) {
+        const PlacementEntry& entry = placement.positions[position];
+        HashU32(equivalence, position);
+        HashU32(equivalence, entry.provenance);
+        HashU32(equivalence, entry.element_count);
+        const auto* elements =
+            placement.elements.data() + entry.element_offset;
+        for (std::uint32_t index = 0u; index < entry.element_count; ++index) {
+            HashU16(equivalence, elements[index].primary);
+            HashU16(equivalence, elements[index].secondary);
+            HashU16(equivalence, elements[index].tertiary);
+            HashU16(equivalence, elements[index].variable);
+        }
+        HashU32(equivalence, entry.key_bytes);
+        blake3_hasher_update(
+            &equivalence, placement.keys.data() + entry.key_offset,
+            entry.key_bytes);
+    }
+    placement.summary.equivalence_fingerprint = Finish(equivalence);
+
+    blake3_hasher ranks{};
+    blake3_hasher_init(&ranks);
+    HashString(ranks, "laplace-unicode-placement-rank-permutation-v1");
+    blake3_hasher_update(
+        &ranks, placement.summary.equivalence_fingerprint.bytes,
+        sizeof(placement.summary.equivalence_fingerprint.bytes));
+    for (std::uint32_t position = 0u;
+         position < LAPLACE_UNICODE_ROOT_POPULATION; ++position) {
+        HashU32(ranks, position);
+        HashU32(ranks, placement.positions[position].rank);
+    }
+    placement.summary.rank_permutation_fingerprint = Finish(ranks);
+
+    blake3_hasher receipt{};
+    blake3_hasher_init(&receipt);
+    HashString(receipt, "laplace-unicode-placement-table-receipt-v1");
+    blake3_hasher_update(
+        &receipt, placement.summary.source_fingerprint.bytes,
+        sizeof(placement.summary.source_fingerprint.bytes));
+    blake3_hasher_update(
+        &receipt, placement.summary.recipe_fingerprint.bytes,
+        sizeof(placement.summary.recipe_fingerprint.bytes));
+    blake3_hasher_update(
+        &receipt, placement.summary.equivalence_fingerprint.bytes,
+        sizeof(placement.summary.equivalence_fingerprint.bytes));
+    blake3_hasher_update(
+        &receipt, placement.summary.rank_permutation_fingerprint.bytes,
+        sizeof(placement.summary.rank_permutation_fingerprint.bytes));
+    HashU64(receipt, placement.summary.position_count);
+    HashU64(receipt, placement.summary.collation_element_count);
+    HashU64(receipt, placement.summary.equivalence_key_bytes);
+    placement.summary.receipt_id = Finish(receipt);
+    placement.summary.status = LAPLACE_UNICODE_OK;
+    return true;
+}
+
+bool BuildPlacementTable(const laplace_unicode_ducet_table& table,
+                         const laplace_unicode_core_table* core,
+                         laplace_unicode_placement_table& placement) {
+    placement.positions.resize(LAPLACE_UNICODE_ROOT_POPULATION);
+    placement.rank_positions.resize(LAPLACE_UNICODE_ROOT_POPULATION);
+    placement.elements.reserve(
+        static_cast<std::size_t>(LAPLACE_UNICODE_ROOT_POPULATION) * 2u);
+    placement.keys.reserve(
+        static_cast<std::size_t>(LAPLACE_UNICODE_ROOT_POPULATION) * 24u);
+    placement.summary.source_fingerprint = table.summary.source_fingerprint;
+    placement.summary.recipe_fingerprint = table.summary.recipe_fingerprint;
+    CalculatedCollation calculation;
+    for (std::uint32_t position = 0u;
+         position < LAPLACE_UNICODE_ROOT_POPULATION; ++position) {
+        if (!CalculateCollation(
+                table, core, &position, 1u, LAPLACE_UNICODE_UCA_SHIFTED,
+                calculation) ||
+            calculation.elements.empty() || calculation.key.empty() ||
+            calculation.provenance < LAPLACE_UNICODE_DUCET_EXPLICIT ||
+            calculation.provenance >
+                LAPLACE_UNICODE_DUCET_LUP_SURROGATE_EXTENSION ||
+            placement.elements.size() > UINT64_MAX - calculation.elements.size() ||
+            placement.keys.size() > UINT64_MAX - calculation.key.size()) {
+            return false;
+        }
+        PlacementEntry& entry = placement.positions[position];
+        std::size_t position_discriminator_bytes = 0u;
+        if (laplace_unicode_position_encode(
+                position, entry.position_discriminator.data(),
+                &position_discriminator_bytes) != LAPLACE_IDENTITY_OK ||
+            position_discriminator_bytes == 0u ||
+            position_discriminator_bytes >
+                entry.position_discriminator.size()) {
+            return false;
+        }
+        entry.position_discriminator_bytes =
+            static_cast<std::uint8_t>(position_discriminator_bytes);
+        entry.element_offset = placement.elements.size();
+        entry.key_offset = placement.keys.size();
+        entry.element_count =
+            static_cast<std::uint32_t>(calculation.elements.size());
+        entry.key_bytes = static_cast<std::uint32_t>(calculation.key.size());
+        entry.provenance = calculation.provenance;
+        placement.elements.insert(
+            placement.elements.end(), calculation.elements.begin(),
+            calculation.elements.end());
+        placement.keys.insert(
+            placement.keys.end(), calculation.key.begin(), calculation.key.end());
+        placement.rank_positions[position] = position;
+        placement.summary.provenance_counts[entry.provenance - 1u] += 1u;
+        placement.summary.maximum_element_count = std::max(
+            placement.summary.maximum_element_count, entry.element_count);
+        placement.summary.maximum_equivalence_key_bytes = std::max(
+            placement.summary.maximum_equivalence_key_bytes, entry.key_bytes);
+    }
+    std::sort(
+        placement.rank_positions.begin(), placement.rank_positions.end(),
+        [&](std::uint32_t left, std::uint32_t right) {
+            return ComparePlacementKeys(placement, left, right) < 0;
+        });
+    for (std::uint32_t rank = 1u;
+         rank < LAPLACE_UNICODE_ROOT_POPULATION; ++rank) {
+        if (ComparePlacementKeys(
+                placement, placement.rank_positions[rank - 1u],
+                placement.rank_positions[rank]) >= 0) {
+            return false;
+        }
+    }
+    for (std::uint32_t rank = 0u;
+         rank < LAPLACE_UNICODE_ROOT_POPULATION; ++rank) {
+        const std::uint32_t position = placement.rank_positions[rank];
+#if defined(LAPLACE_TEST_DUCET_PLACEMENT_COLLAPSE_EQUIVALENT_RANKS)
+        if (rank != 0u && EqualPlacementKeys(
+                placement, placement.rank_positions[rank - 1u], position)) {
+            placement.positions[position].rank = rank - 1u;
+        } else {
+            placement.positions[position].rank = rank;
+        }
+#else
+        placement.positions[position].rank = rank;
+#endif
+    }
+    placement.summary.position_count = placement.positions.size();
+    placement.summary.collation_element_count = placement.elements.size();
+    placement.summary.equivalence_key_bytes = placement.keys.size();
+    placement.summary.minimum_rank = 0u;
+    placement.summary.maximum_rank = LAPLACE_UNICODE_ROOT_POPULATION - 1u;
+    return FinalizePlacementFingerprints(placement, table);
+}
+
 }  // namespace
 
 extern "C" laplace_unicode_status laplace_unicode_ducet_table_create(
@@ -976,6 +1204,86 @@ extern "C" laplace_unicode_status laplace_unicode_ducet_sort_key_calculate(
     std::copy(calculation.key.begin(), calculation.key.end(), key);
     *provenance = calculation.provenance;
     return LAPLACE_UNICODE_OK;
+}
+
+extern "C" laplace_unicode_status laplace_unicode_placement_table_create(
+    const laplace_unicode_ducet_table* table,
+    const laplace_unicode_core_table* core,
+    laplace_unicode_placement_table** placement,
+    laplace_unicode_placement_summary* summary) {
+    if (table == nullptr || core == nullptr || placement == nullptr ||
+        summary == nullptr) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    *placement = nullptr;
+    *summary = laplace_unicode_placement_summary{};
+    auto* created = new (std::nothrow) laplace_unicode_placement_table{};
+    if (created == nullptr) {
+        summary->status = LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+        return LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+    }
+    try {
+        if (!BuildPlacementTable(*table, core, *created)) {
+            delete created;
+            summary->status = LAPLACE_UNICODE_SOURCE_INCOMPLETE;
+            return LAPLACE_UNICODE_SOURCE_INCOMPLETE;
+        }
+    } catch (const std::bad_alloc&) {
+        delete created;
+        summary->status = LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+        return LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+    } catch (...) {
+        delete created;
+        summary->status = LAPLACE_UNICODE_SOURCE_SYNTAX_INVALID;
+        return LAPLACE_UNICODE_SOURCE_SYNTAX_INVALID;
+    }
+    *summary = created->summary;
+    *placement = created;
+    return LAPLACE_UNICODE_OK;
+}
+
+extern "C" laplace_unicode_status laplace_unicode_placement_table_position(
+    const laplace_unicode_placement_table* placement,
+    std::uint32_t codepoint_position,
+    laplace_unicode_placement_position_view* view) {
+    if (placement == nullptr || view == nullptr) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    *view = laplace_unicode_placement_position_view{};
+    if (codepoint_position >= placement->positions.size()) {
+        return LAPLACE_UNICODE_POSITION_OUT_OF_RANGE;
+    }
+    const PlacementEntry& entry = placement->positions[codepoint_position];
+    view->elements = placement->elements.data() + entry.element_offset;
+    view->equivalence_key = placement->keys.data() + entry.key_offset;
+    view->codepoint_position = codepoint_position;
+    view->placement_rank = entry.rank;
+    view->element_count = entry.element_count;
+    view->equivalence_key_bytes = entry.key_bytes;
+    view->provenance = entry.provenance;
+    return LAPLACE_UNICODE_OK;
+}
+
+extern "C" laplace_unicode_status
+laplace_unicode_placement_table_rank_position(
+    const laplace_unicode_placement_table* placement,
+    std::uint32_t placement_rank, std::uint32_t* codepoint_position) {
+    if (placement == nullptr || codepoint_position == nullptr) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (placement_rank >= placement->rank_positions.size()) {
+        return LAPLACE_UNICODE_POSITION_OUT_OF_RANGE;
+    }
+    *codepoint_position = placement->rank_positions[placement_rank];
+    return LAPLACE_UNICODE_OK;
+}
+
+extern "C" void laplace_unicode_placement_table_destroy(
+    laplace_unicode_placement_table** placement) {
+    if (placement != nullptr) {
+        delete *placement;
+        *placement = nullptr;
+    }
 }
 
 extern "C" void laplace_unicode_ducet_table_destroy(

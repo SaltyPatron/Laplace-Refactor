@@ -1045,6 +1045,13 @@
       "defect_controls": ["unicode-ducet.mutation-expansion-truncation-detected", "unicode-ducet.mutation-starter-blocker-detected"]
     },
     {
+      "ctest_name": "UnicodeDucet.TotalizesEveryPositionIntoUniquePlacementPermutation",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
+      "covered_dimensions": ["all 1114112 Unicode positions", "complete shifted-identical equivalence keys", "unique rank permutation", "rank inverse", "canonical-equivalent key preservation", "LUP position-only tie discrimination", "explicit implicit Hangul and surrogate provenance", "equivalence and permutation receipts"],
+      "defect_controls": ["unicode-ducet.mutation-placement-equivalence-collapse-detected"]
+    },
+    {
       "ctest_name": "unicode-ducet.mutation-expansion-truncation-detected",
       "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
       "covered_dimensions": ["first-CE and truncated-expansion substitution is detected"],
@@ -1055,6 +1062,12 @@
       "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
       "covered_dimensions": ["completely ignorable starter cannot be skipped as a discontiguous contraction non-starter"],
       "controls": "UnicodeDucet.HonorsLongestDiscontiguousAndStarterBlockingMatches"
+    },
+    {
+      "ctest_name": "unicode-ducet.mutation-placement-equivalence-collapse-detected",
+      "evidence_targets": ["LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
+      "covered_dimensions": ["canonical-equivalent Unicode positions cannot collapse to one placement rank"],
+      "controls": "UnicodeDucet.TotalizesEveryPositionIntoUniquePlacementPermutation"
     },
     {
       "ctest_name": "unicode-core.mutation-bidi-default-order-detected",
