@@ -33,7 +33,9 @@ static const char entity_presence_sql[] =
     ".canonical_entity_record[]) WITH ORDINALITY "
     "AS i(entity_id,identity_witness,ordinality) LEFT JOIN "
     LAPLACE_PG_SCHEMA ".canonical_entity s ON s.entity_id=i.entity_id "
-#if defined(LAPLACE_TEST_COMPOSITION_PRESENCE_REORDER)
+#if defined(LAPLACE_TEST_COMPOSITION_PRESENCE_PARTIAL)
+    "ORDER BY i.ordinality LIMIT 1";
+#elif defined(LAPLACE_TEST_COMPOSITION_PRESENCE_REORDER)
     "ORDER BY i.ordinality DESC";
 #else
     "ORDER BY i.ordinality";
@@ -51,7 +53,9 @@ static const char physicality_presence_sql[] =
     "float8send(s.centroid_y)=float8send(i.centroid_y) AND "
     "float8send(s.centroid_z)=float8send(i.centroid_z) AND "
     "float8send(s.centroid_m)=float8send(i.centroid_m) AND "
+#if !defined(LAPLACE_TEST_COMPOSITION_PRESENCE_SEMANTIC_DRIFT)
     "float8send(s.radius)=float8send(i.radius) AND "
+#endif
     "s.logical_count=i.logical_count AND s.vertex_count=i.vertex_count "
     "THEN 1 ELSE 2 END FROM unnest($1::" LAPLACE_PG_SCHEMA
     ".physicality_record[]) WITH ORDINALITY AS i("
@@ -212,6 +216,19 @@ static laplace_composition_status resolve_presence(
     hash_u64(&receipt_hasher, entity_candidate_count);
     hash_u64(&receipt_hasher, physicality_candidate_count);
 
+#if defined(LAPLACE_TEST_COMPOSITION_PRESENCE_BLIND)
+    memset(entity_dispositions, LAPLACE_COMPOSITION_NOVEL,
+           entity_candidate_count);
+    if (physicality_candidate_count != 0u) {
+        memset(physicality_dispositions, LAPLACE_COMPOSITION_NOVEL,
+               physicality_candidate_count);
+    }
+    result->returned_entity_count = entity_candidate_count;
+    result->returned_physicality_count = physicality_candidate_count;
+    result->provider_receipt_id = finish_hash(&receipt_hasher);
+    return LAPLACE_COMPOSITION_OK;
+#endif
+
     if (SPI_connect() != SPI_OK_CONNECT) {
         return LAPLACE_COMPOSITION_PRESENCE_INVALID;
     }
@@ -247,6 +264,25 @@ static laplace_composition_status resolve_presence(
             }
         }
         rows = entity_group_array(entity_candidates, indexes, count);
+#if defined(LAPLACE_TEST_COMPOSITION_PRESENCE_PER_ROW)
+        (void)rows;
+        for (index = 0u; index < count; ++index) {
+            uint8_t disposition;
+            rows = entity_group_array(
+                entity_candidates, &indexes[index], 1u);
+            values[0] = PointerGetDatum(rows);
+            query_result = SPI_execute_plan(
+                entity_presence_plan, values, NULL, true, 0);
+            if (query_result != SPI_OK_SELECT) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_INTERNAL_ERROR),
+                         errmsg("Laplace entity presence row operation failed")));
+            }
+            read_dispositions(&disposition, 1u, &receipt_hasher);
+            entity_dispositions[indexes[index]] = disposition;
+            ++result->entity_round_count;
+        }
+#else
         values[0] = PointerGetDatum(rows);
         query_result = SPI_execute_plan(
             entity_presence_plan, values, NULL, true, 0);
@@ -264,6 +300,7 @@ static laplace_composition_status resolve_presence(
             }
         }
         ++result->entity_round_count;
+#endif
     }
 
     if (physicality_candidate_count != 0u) {
@@ -545,6 +582,24 @@ static ArrayType* result_tier_array(
     return construct_array(values, (int)count, INT2OID, 2, true, TYPALIGN_SHORT);
 }
 
+static ArrayType* disposition_array(const uint8_t* dispositions, size_t count) {
+    Datum* values;
+    size_t index;
+    if (count == 0u) {
+        return construct_empty_array(INT2OID);
+    }
+    if (dispositions == NULL || count > INT_MAX) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace composition disposition view is invalid")));
+    }
+    values = (Datum*)palloc(sizeof(*values) * count);
+    for (index = 0; index < count; ++index) {
+        values[index] = Int16GetDatum((int16)dispositions[index]);
+    }
+    return construct_array(values, (int)count, INT2OID, 2, true, TYPALIGN_SHORT);
+}
+
 Datum LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL(PG_FUNCTION_ARGS) {
     laplace_framework_context context;
     laplace_digest256 source_fingerprint;
@@ -558,8 +613,12 @@ Datum LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL(PG_FUNCTION_ARGS) {
     laplace_composition_working_set_summary summary;
     const laplace_composition_result* results;
     size_t result_count = 0u;
-    Datum result_values[33];
-    bool result_nulls[33] = {false};
+    const uint8_t* entity_dispositions;
+    const uint8_t* physicality_dispositions;
+    size_t entity_disposition_count = 0u;
+    size_t physicality_disposition_count = 0u;
+    Datum result_values[37];
+    bool result_nulls[37] = {false};
     HeapTuple result_tuple;
     laplace_composition_status status;
 
@@ -608,7 +667,7 @@ Datum LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL(PG_FUNCTION_ARGS) {
                      errmsg("Laplace composition producer publication failed"),
                      errdetail("status=%d", (int)status)));
         }
-        laplace_pg_persistence_run_producer(
+        LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
             &context, &source_fingerprint, &calculation_recipe_fingerprint,
             &producer, &persistence);
         if (laplace_composition_working_set_summary_get(
@@ -625,6 +684,21 @@ Datum LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL(PG_FUNCTION_ARGS) {
                     (errcode(ERRCODE_DATA_CORRUPTED),
                      errmsg("Laplace composition result cardinality changed")));
         }
+        entity_dispositions =
+            laplace_composition_working_set_entity_dispositions(
+                working_set, &entity_disposition_count);
+        physicality_dispositions =
+            laplace_composition_working_set_physicality_dispositions(
+                working_set, &physicality_disposition_count);
+        if (entity_dispositions == NULL ||
+            entity_disposition_count != summary.unique_entity_count ||
+            physicality_disposition_count != summary.unique_physicality_count ||
+            (physicality_disposition_count != 0u &&
+             physicality_dispositions == NULL)) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace composition dispositions are unavailable")));
+        }
 
         result_values[0] = PointerGetDatum(result_id_array(
             results, result_count, false));
@@ -634,49 +708,58 @@ Datum LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL(PG_FUNCTION_ARGS) {
         result_values[3] = PointerGetDatum(laplace_pg_bytes_to_bytea(
             summary.receipt_id.bytes, sizeof(summary.receipt_id.bytes)));
         result_values[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            presence_receipt.receipt_id.bytes,
-            sizeof(presence_receipt.receipt_id.bytes)));
+            presence_receipt.semantic_receipt_id.bytes,
+            sizeof(presence_receipt.semantic_receipt_id.bytes)));
         result_values[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            presence_receipt.candidate_fingerprint.bytes, 32u));
+            presence_receipt.execution_receipt_id.bytes,
+            sizeof(presence_receipt.execution_receipt_id.bytes)));
         result_values[6] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            presence_receipt.disposition_fingerprint.bytes, 32u));
+            presence_receipt.candidate_fingerprint.bytes, 32u));
         result_values[7] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            presence_receipt.provider_fingerprint.bytes, 32u));
+            presence_receipt.disposition_fingerprint.bytes, 32u));
         result_values[8] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            presence_receipt.provider_receipt_id.bytes, 32u));
+            presence_receipt.provider_fingerprint.bytes, 32u));
         result_values[9] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            persistence.producer.receipt_id.bytes, 32u));
+            presence_receipt.provider_receipt_id.bytes, 32u));
         result_values[10] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            persistence.producer.stream.receipt_id.bytes, 32u));
+            persistence.producer.receipt_id.bytes, 32u));
         result_values[11] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            persistence.producer.stream.stream_fingerprint.bytes, 32u));
+            persistence.producer.stream.receipt_id.bytes, 32u));
         result_values[12] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            persistence.producer.stream.stream_fingerprint.bytes, 32u));
+        result_values[13] = PointerGetDatum(laplace_pg_bytes_to_bytea(
             persistence.producer.stream.sink_artifacts_fingerprint.bytes, 32u));
-        result_values[13] = laplace_pg_numeric_from_uint64(summary.unique_entity_count);
-        result_values[14] = laplace_pg_numeric_from_uint64(summary.unique_physicality_count);
-        result_values[15] = laplace_pg_numeric_from_uint64(summary.novel_entity_count);
-        result_values[16] = laplace_pg_numeric_from_uint64(summary.novel_physicality_count);
-        result_values[17] = laplace_pg_numeric_from_uint64(summary.trajectory_vertex_count);
-        result_values[18] = laplace_pg_numeric_from_uint64(summary.novel_trajectory_vertex_count);
-        result_values[19] = laplace_pg_numeric_from_uint64(summary.occurrence_count);
-        result_values[20] = laplace_pg_numeric_from_uint64(summary.logical_occurrence_count);
-        result_values[21] = laplace_pg_numeric_from_uint64(summary.batch_count);
-        result_values[22] = laplace_pg_numeric_from_uint64(summary.stream_record_count);
-        result_values[23] = laplace_pg_numeric_from_uint64(summary.stream_byte_count);
-        result_values[24] = laplace_pg_numeric_from_uint64(persistence.inserted[0]);
-        result_values[25] = laplace_pg_numeric_from_uint64(persistence.inserted[1]);
-        result_values[26] = laplace_pg_numeric_from_uint64(persistence.inserted[2]);
-        result_values[27] = laplace_pg_numeric_from_uint64(persistence.inserted[3]);
-        result_values[28] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        result_values[14] = laplace_pg_numeric_from_uint64(summary.unique_entity_count);
+        result_values[15] = laplace_pg_numeric_from_uint64(summary.unique_physicality_count);
+        result_values[16] = laplace_pg_numeric_from_uint64(summary.novel_entity_count);
+        result_values[17] = laplace_pg_numeric_from_uint64(summary.novel_physicality_count);
+        result_values[18] = laplace_pg_numeric_from_uint64(summary.trajectory_vertex_count);
+        result_values[19] = laplace_pg_numeric_from_uint64(summary.novel_trajectory_vertex_count);
+        result_values[20] = laplace_pg_numeric_from_uint64(summary.occurrence_count);
+        result_values[21] = laplace_pg_numeric_from_uint64(summary.logical_occurrence_count);
+        result_values[22] = laplace_pg_numeric_from_uint64(summary.batch_count);
+        result_values[23] = laplace_pg_numeric_from_uint64(summary.stream_record_count);
+        result_values[24] = laplace_pg_numeric_from_uint64(summary.stream_byte_count);
+        result_values[25] = laplace_pg_numeric_from_uint64(persistence.inserted[0]);
+        result_values[26] = laplace_pg_numeric_from_uint64(persistence.inserted[1]);
+        result_values[27] = laplace_pg_numeric_from_uint64(persistence.inserted[2]);
+        result_values[28] = laplace_pg_numeric_from_uint64(persistence.inserted[3]);
+        result_values[29] = PointerGetDatum(laplace_pg_bytes_to_bytea(
             persistence.plan_sequence_fingerprint.bytes, 32u));
-        result_values[29] = Int32GetDatum((int32)persistence.plan_count);
-        result_values[30] = laplace_pg_numeric_from_uint64(
-            presence_receipt.entity_round_count);
+        result_values[30] = Int32GetDatum((int32)persistence.plan_count);
         result_values[31] = laplace_pg_numeric_from_uint64(
+            presence_receipt.entity_round_count);
+        result_values[32] = laplace_pg_numeric_from_uint64(
             presence_receipt.physicality_round_count);
-        result_values[32] = Int32GetDatum((int32)LAPLACE_COMPOSITION_OK);
+        result_values[33] = PointerGetDatum(disposition_array(
+            entity_dispositions, entity_disposition_count));
+        result_values[34] = PointerGetDatum(disposition_array(
+            physicality_dispositions, physicality_disposition_count));
+        result_values[35] = laplace_pg_numeric_from_uint64(
+            summary.estimated_peak_working_bytes);
+        result_values[36] = Int32GetDatum((int32)LAPLACE_COMPOSITION_OK);
         result_tuple = laplace_pg_form_result_tuple(
-            fcinfo, result_values, result_nulls, 33);
+            fcinfo, result_values, result_nulls, 37);
     }
     PG_CATCH();
     {

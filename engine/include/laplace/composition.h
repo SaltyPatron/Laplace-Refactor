@@ -122,7 +122,8 @@ typedef struct laplace_composition_presence_provider_result {
 } laplace_composition_presence_provider_result;
 
 typedef struct laplace_composition_presence_receipt {
-    laplace_digest256 receipt_id;
+    laplace_digest256 semantic_receipt_id;
+    laplace_digest256 execution_receipt_id;
     laplace_digest256 working_set_input_fingerprint;
     laplace_digest256 candidate_fingerprint;
     laplace_digest256 disposition_fingerprint;
@@ -197,6 +198,16 @@ LAPLACE_API const laplace_composition_entity_candidate*
 laplace_composition_working_set_entity_candidates(
     const laplace_composition_working_set* working_set,
     size_t* candidate_count);
+
+LAPLACE_API const uint8_t*
+laplace_composition_working_set_entity_dispositions(
+    const laplace_composition_working_set* working_set,
+    size_t* disposition_count);
+
+LAPLACE_API const uint8_t*
+laplace_composition_working_set_physicality_dispositions(
+    const laplace_composition_working_set* working_set,
+    size_t* disposition_count);
 
 LAPLACE_API laplace_composition_status
 laplace_composition_working_set_physicality_candidate_get(

@@ -57,6 +57,8 @@ struct PresenceFixture {
     std::uint64_t entity_round_count{};
     std::uint64_t physicality_round_count{};
     bool truncate_entity_result{};
+    std::uint8_t provider_fingerprint_seed{0xA1U};
+    std::uint8_t provider_receipt_seed{0xC1U};
 };
 
 laplace_composition_status ResolvePresence(
@@ -84,8 +86,8 @@ laplace_composition_status ResolvePresence(
     std::copy(
         fixture.physicality_dispositions.begin(),
         fixture.physicality_dispositions.end(), physicality_dispositions);
-    Fill(result->provider_fingerprint, 0xA1U);
-    Fill(result->provider_receipt_id, 0xC1U);
+    Fill(result->provider_fingerprint, fixture.provider_fingerprint_seed);
+    Fill(result->provider_receipt_id, fixture.provider_receipt_seed);
     result->returned_entity_count = fixture.truncate_entity_result
         ? static_cast<std::uint64_t>(entity_candidate_count - 1U)
         : static_cast<std::uint64_t>(entity_candidate_count);
@@ -102,6 +104,117 @@ laplace_composition_presence_provider_v1 Provider(PresenceFixture& fixture) {
         ResolvePresence,
         LAPLACE_COMPOSITION_PRESENCE_PROVIDER_ABI,
         0U,
+        0U,
+        0U};
+}
+
+struct PublicationSink {
+    std::vector<std::uint8_t> bytes;
+    std::uint64_t expected_bytes{};
+    std::uint32_t record_type{};
+    bool begun{};
+    bool sealed{};
+    bool aborted{};
+};
+
+laplace_framework_status BeginPublication(
+    void* opaque,
+    const laplace_framework_context*,
+    std::uint32_t record_type,
+    std::uint64_t,
+    std::uint64_t total_bytes) {
+    auto& sink = *static_cast<PublicationSink*>(opaque);
+    sink.bytes.clear();
+    sink.expected_bytes = total_bytes;
+    sink.record_type = record_type;
+    sink.begun = true;
+    sink.sealed = false;
+    sink.aborted = false;
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status StagePublication(
+    void* opaque,
+    const laplace_framework_canonical_batch* batch) {
+    auto& sink = *static_cast<PublicationSink*>(opaque);
+    if (!sink.begun || sink.sealed || batch == nullptr ||
+        batch->record_type != sink.record_type) {
+        return LAPLACE_FRAMEWORK_SINK_STAGE_FAILED;
+    }
+    try {
+        sink.bytes.insert(
+            sink.bytes.end(), batch->canonical_bytes,
+            batch->canonical_bytes + batch->byte_count);
+    } catch (...) {
+        return LAPLACE_FRAMEWORK_SINK_STAGE_FAILED;
+    }
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status SealPublication(
+    void* opaque,
+    const laplace_digest256* stream_fingerprint,
+    laplace_digest256* artifact_fingerprint) {
+    auto& sink = *static_cast<PublicationSink*>(opaque);
+    if (!sink.begun || sink.bytes.size() != sink.expected_bytes ||
+        stream_fingerprint == nullptr || artifact_fingerprint == nullptr) {
+        return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
+    }
+    *artifact_fingerprint = *stream_fingerprint;
+    sink.sealed = true;
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+void AbortPublication(void* opaque) {
+    auto& sink = *static_cast<PublicationSink*>(opaque);
+    sink.bytes.clear();
+    sink.sealed = false;
+    sink.aborted = true;
+}
+
+laplace_framework_sink_v1 PublicationProvider(PublicationSink& sink) {
+    return laplace_framework_sink_v1{
+        &sink,
+        BeginPublication,
+        StagePublication,
+        SealPublication,
+        AbortPublication,
+        LAPLACE_FRAMEWORK_SINK_ABI_MAJOR,
+        LAPLACE_FRAMEWORK_SINK_ABI_MINOR,
+        0U,
+        0U};
+}
+
+struct PublicationControl {
+    std::vector<laplace_framework_replay_checkpoint> checkpoints;
+    std::uint64_t cancel_after_batches{UINT64_MAX};
+    bool cancelled{};
+};
+
+int PublicationCancellationRequested(void* opaque) {
+    return static_cast<PublicationControl*>(opaque)->cancelled ? 1 : 0;
+}
+
+void ObservePublication(
+    void* opaque,
+    const laplace_framework_replay_checkpoint* checkpoint) {
+    auto& control = *static_cast<PublicationControl*>(opaque);
+    control.checkpoints.push_back(*checkpoint);
+    if (checkpoint->completed_batches == control.cancel_after_batches) {
+        control.cancelled = true;
+    }
+}
+
+laplace_framework_producer_control_v1 PublicationController(
+    PublicationControl& control,
+    const laplace_framework_replay_checkpoint* replay = nullptr) {
+    return laplace_framework_producer_control_v1{
+        &control,
+        replay,
+        PublicationCancellationRequested,
+        ObservePublication,
+        LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MAJOR,
+        LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MINOR,
         0U,
         0U};
 }
@@ -236,9 +349,9 @@ TEST(CompositionWorkingSet, BuildsDeduplicatedTopologicalDagAndProducer) {
                   working_set, &summary),
               LAPLACE_COMPOSITION_OK);
     EXPECT_EQ(std::memcmp(
-                  presence_receipt.receipt_id.bytes,
+                  presence_receipt.semantic_receipt_id.bytes,
                   summary.presence_receipt_id.bytes,
-                  sizeof(presence_receipt.receipt_id.bytes)),
+                  sizeof(presence_receipt.semantic_receipt_id.bytes)),
               0);
     EXPECT_EQ(summary.presence_applied, 1U);
     EXPECT_EQ(summary.novel_entity_count, summary.unique_entity_count);
@@ -414,6 +527,178 @@ TEST(CompositionWorkingSet, PresenceFiltersExactStateBeforePublication) {
     EXPECT_EQ(persisted.trajectory_vertex_count, 0U);
     EXPECT_EQ(persisted.occurrence_count, 1U);
     laplace_composition_working_set_destroy(&working_set);
+}
+
+TEST(CompositionWorkingSet, PresenceSemanticsSurviveProviderSubstitution) {
+    auto context = laplace_test_context(3U);
+    context.resource_grant.memory_bytes = UINT64_C(4) * 1024U * 1024U;
+    laplace_digest256 source{};
+    laplace_digest256 calculation_recipe{};
+    Fill(source, 0x14U);
+    Fill(calculation_recipe, 0x34U);
+    const std::array<laplace_composition_known_entity, 2> known{{
+        Atom('e', laplace_point4d{{1.0, 0.0, 0.0, 0.0}}, 0x54U),
+        Atom('f', laplace_point4d{{0.0, 1.0, 0.0, 0.0}}, 0x74U)}};
+    const std::array<laplace_composition_operand, 2> operands{{
+        {0U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U},
+        {1U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U}}};
+    const auto request = Request(0U, operands.size(), 1U, 0x24U);
+    const laplace_composition_working_set_input input{
+        &context,
+        &source,
+        &calculation_recipe,
+        known.data(),
+        known.size(),
+        operands.data(),
+        operands.size(),
+        &request,
+        1U,
+        256U,
+        0U};
+
+    laplace_composition_working_set* direct_working_set = nullptr;
+    laplace_composition_working_set* substituted_working_set = nullptr;
+    ASSERT_EQ(laplace_composition_working_set_create(
+                  &input, &direct_working_set),
+              LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(laplace_composition_working_set_create(
+                  &input, &substituted_working_set),
+              LAPLACE_COMPOSITION_OK);
+
+    laplace_composition_working_set_summary initial{};
+    ASSERT_EQ(laplace_composition_working_set_summary_get(
+                  direct_working_set, &initial),
+              LAPLACE_COMPOSITION_OK);
+    PresenceFixture direct_presence{
+        std::vector<std::uint8_t>(
+            static_cast<std::size_t>(initial.unique_entity_count),
+            LAPLACE_COMPOSITION_NOVEL),
+        std::vector<std::uint8_t>(
+            static_cast<std::size_t>(initial.unique_physicality_count),
+            LAPLACE_COMPOSITION_NOVEL),
+        2U,
+        1U,
+        false,
+        0xA1U,
+        0xC1U};
+    auto substituted_presence = direct_presence;
+    substituted_presence.provider_fingerprint_seed = 0xA2U;
+    substituted_presence.provider_receipt_seed = 0xC2U;
+    auto direct_provider = Provider(direct_presence);
+    auto substituted_provider = Provider(substituted_presence);
+    laplace_composition_presence_receipt direct_receipt{};
+    laplace_composition_presence_receipt substituted_receipt{};
+    ASSERT_EQ(laplace_composition_working_set_resolve_presence(
+                  direct_working_set, &direct_provider, &direct_receipt),
+              LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(laplace_composition_working_set_resolve_presence(
+                  substituted_working_set, &substituted_provider,
+                  &substituted_receipt),
+              LAPLACE_COMPOSITION_OK);
+
+    EXPECT_EQ(std::memcmp(
+                  direct_receipt.candidate_fingerprint.bytes,
+                  substituted_receipt.candidate_fingerprint.bytes,
+                  sizeof(direct_receipt.candidate_fingerprint.bytes)),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  direct_receipt.disposition_fingerprint.bytes,
+                  substituted_receipt.disposition_fingerprint.bytes,
+                  sizeof(direct_receipt.disposition_fingerprint.bytes)),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  direct_receipt.semantic_receipt_id.bytes,
+                  substituted_receipt.semantic_receipt_id.bytes,
+                  sizeof(direct_receipt.semantic_receipt_id.bytes)),
+              0);
+    EXPECT_NE(std::memcmp(
+                  direct_receipt.execution_receipt_id.bytes,
+                  substituted_receipt.execution_receipt_id.bytes,
+                  sizeof(direct_receipt.execution_receipt_id.bytes)),
+              0);
+
+    laplace_composition_working_set_summary direct_summary{};
+    laplace_composition_working_set_summary substituted_summary{};
+    ASSERT_EQ(laplace_composition_working_set_summary_get(
+                  direct_working_set, &direct_summary),
+              LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(laplace_composition_working_set_summary_get(
+                  substituted_working_set, &substituted_summary),
+              LAPLACE_COMPOSITION_OK);
+    EXPECT_EQ(std::memcmp(
+                  direct_summary.presence_receipt_id.bytes,
+                  substituted_summary.presence_receipt_id.bytes,
+                  sizeof(direct_summary.presence_receipt_id.bytes)),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  direct_summary.stream_fingerprint.bytes,
+                  substituted_summary.stream_fingerprint.bytes,
+                  sizeof(direct_summary.stream_fingerprint.bytes)),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  direct_summary.receipt_id.bytes,
+                  substituted_summary.receipt_id.bytes,
+                  sizeof(direct_summary.receipt_id.bytes)),
+              0);
+    EXPECT_EQ(direct_summary.stream_record_count,
+              substituted_summary.stream_record_count);
+    EXPECT_EQ(direct_summary.stream_byte_count,
+              substituted_summary.stream_byte_count);
+
+    laplace_framework_producer_v1 direct_publication{};
+    ASSERT_EQ(laplace_composition_working_set_producer(
+                  direct_working_set, &direct_publication),
+              LAPLACE_COMPOSITION_OK);
+    ASSERT_GT(direct_summary.batch_count, 1U);
+    PublicationControl interrupted_control{};
+    interrupted_control.cancel_after_batches = 1U;
+    auto interruption = PublicationController(interrupted_control);
+    PublicationSink interrupted_sink{};
+    auto interrupted_provider = PublicationProvider(interrupted_sink);
+    laplace_framework_producer_receipt interrupted_receipt{};
+    ASSERT_EQ(laplace_framework_run_producer(
+                  &context, &source, &calculation_recipe,
+                  &direct_publication, &interruption,
+                  &interrupted_provider, 1U, &interrupted_receipt),
+              LAPLACE_FRAMEWORK_PRODUCER_CANCELLED);
+    EXPECT_EQ(interrupted_receipt.checkpoint.completed_batches, 1U);
+    EXPECT_EQ(interrupted_receipt.stream.effect_disposition,
+              LAPLACE_FRAMEWORK_EFFECT_NONE);
+    EXPECT_TRUE(interrupted_sink.aborted);
+    EXPECT_TRUE(interrupted_sink.bytes.empty());
+
+    PublicationControl replay_control{};
+    auto replay = PublicationController(
+        replay_control, &interrupted_receipt.checkpoint);
+    PublicationSink replay_sink{};
+    auto replay_provider = PublicationProvider(replay_sink);
+    laplace_framework_producer_receipt replay_receipt{};
+    ASSERT_EQ(laplace_framework_run_producer(
+                  &context, &source, &calculation_recipe,
+                  &direct_publication, &replay,
+                  &replay_provider, 1U, &replay_receipt),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(replay_receipt.replay_verified, 1U);
+    EXPECT_EQ(std::memcmp(
+                  replay_receipt.replay_checkpoint_id.bytes,
+                  interrupted_receipt.checkpoint.checkpoint_id.bytes,
+                  sizeof(replay_receipt.replay_checkpoint_id.bytes)),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  replay_receipt.stream.stream_fingerprint.bytes,
+                  direct_summary.stream_fingerprint.bytes,
+                  sizeof(direct_summary.stream_fingerprint.bytes)),
+              0);
+    EXPECT_EQ(replay_receipt.stream.total_records,
+              direct_summary.stream_record_count);
+    EXPECT_EQ(replay_receipt.stream.total_bytes,
+              direct_summary.stream_byte_count);
+    EXPECT_TRUE(replay_sink.sealed);
+    EXPECT_FALSE(replay_sink.aborted);
+    EXPECT_EQ(replay_sink.bytes.size(), direct_summary.stream_byte_count);
+
+    laplace_composition_working_set_destroy(&direct_working_set);
+    laplace_composition_working_set_destroy(&substituted_working_set);
 }
 
 TEST(CompositionWorkingSet, RejectsPartialPresenceProviderBeforePublication) {

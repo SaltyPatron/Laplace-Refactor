@@ -15,7 +15,12 @@ typedef struct laplace_pg_persistence_producer_result {
     uint32_t reserved;
 } laplace_pg_persistence_producer_result;
 
-void laplace_pg_persistence_run_producer(
+#if !defined(LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL)
+#define LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL \
+    laplace_pg_persistence_run_producer
+#endif
+
+void LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
     const laplace_framework_context* context,
     const laplace_digest256* source_fingerprint,
     const laplace_digest256* recipe_fingerprint,

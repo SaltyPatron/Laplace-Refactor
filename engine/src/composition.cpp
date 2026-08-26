@@ -1099,6 +1099,36 @@ laplace_composition_working_set_entity_candidates(
     return working_set->entities.data();
 }
 
+extern "C" const uint8_t*
+laplace_composition_working_set_entity_dispositions(
+    const laplace_composition_working_set* working_set,
+    size_t* disposition_count) {
+    if (working_set == nullptr || disposition_count == nullptr) {
+        return nullptr;
+    }
+    if (working_set->summary.presence_applied == 0U) {
+        *disposition_count = 0U;
+        return nullptr;
+    }
+    *disposition_count = working_set->entity_dispositions.size();
+    return working_set->entity_dispositions.data();
+}
+
+extern "C" const uint8_t*
+laplace_composition_working_set_physicality_dispositions(
+    const laplace_composition_working_set* working_set,
+    size_t* disposition_count) {
+    if (working_set == nullptr || disposition_count == nullptr) {
+        return nullptr;
+    }
+    if (working_set->summary.presence_applied == 0U) {
+        *disposition_count = 0U;
+        return nullptr;
+    }
+    *disposition_count = working_set->physicality_dispositions.size();
+    return working_set->physicality_dispositions.data();
+}
+
 extern "C" laplace_composition_status
 laplace_composition_working_set_physicality_candidate_get(
     const laplace_composition_working_set* working_set,
@@ -1329,7 +1359,8 @@ laplace_composition_working_set_resolve_presence(
         receipt->disposition_fingerprint = Finish(hasher);
 
         blake3_hasher_init(&hasher);
-        HashString(hasher, LAPLACE_COMPOSITION_PRESENCE_RECEIPT_DOMAIN);
+        HashString(
+            hasher, LAPLACE_COMPOSITION_PRESENCE_SEMANTIC_RECEIPT_DOMAIN);
         blake3_hasher_update(
             &hasher, receipt->working_set_input_fingerprint.bytes,
             sizeof(receipt->working_set_input_fingerprint.bytes));
@@ -1339,26 +1370,35 @@ laplace_composition_working_set_resolve_presence(
         blake3_hasher_update(
             &hasher, receipt->disposition_fingerprint.bytes,
             sizeof(receipt->disposition_fingerprint.bytes));
+        HashU64(hasher, receipt->entity_candidate_count);
+        HashU64(hasher, receipt->physicality_candidate_count);
+        HashU64(hasher, receipt->participating_tier_count);
+        HashU32(hasher, LAPLACE_COMPOSITION_OK);
+        receipt->semantic_receipt_id = Finish(hasher);
+
+        blake3_hasher_init(&hasher);
+        HashString(
+            hasher, LAPLACE_COMPOSITION_PRESENCE_EXECUTION_RECEIPT_DOMAIN);
+        blake3_hasher_update(
+            &hasher, receipt->semantic_receipt_id.bytes,
+            sizeof(receipt->semantic_receipt_id.bytes));
         blake3_hasher_update(
             &hasher, receipt->provider_fingerprint.bytes,
             sizeof(receipt->provider_fingerprint.bytes));
         blake3_hasher_update(
             &hasher, receipt->provider_receipt_id.bytes,
             sizeof(receipt->provider_receipt_id.bytes));
-        HashU64(hasher, receipt->entity_candidate_count);
-        HashU64(hasher, receipt->physicality_candidate_count);
-        HashU64(hasher, receipt->participating_tier_count);
         HashU64(hasher, receipt->entity_round_count);
         HashU64(hasher, receipt->physicality_round_count);
         HashU32(hasher, LAPLACE_COMPOSITION_OK);
-        receipt->receipt_id = Finish(hasher);
+        receipt->execution_receipt_id = Finish(hasher);
         receipt->status = LAPLACE_COMPOSITION_OK;
 
         const auto apply_status = ApplyPresence(
             working_set,
             entity_dispositions.data(), entity_dispositions.size(),
             physicality_dispositions.data(), physicality_dispositions.size(),
-            &receipt->receipt_id);
+            &receipt->semantic_receipt_id);
         if (apply_status != LAPLACE_COMPOSITION_OK) {
             receipt->status = apply_status;
             return apply_status;

@@ -43,7 +43,9 @@ static SPIPlanPtr reference_plan = NULL;
 static SPIPlanPtr insert_plans[4] = {NULL, NULL, NULL, NULL};
 static SPIPlanPtr verify_plans[4] = {NULL, NULL, NULL, NULL};
 static SPIPlanPtr deposit_receipt_insert_plan = NULL;
+#if !defined(LAPLACE_TEST_COMPOSITION_REPLAY_RECEIPT_VERIFY_BYPASS)
 static SPIPlanPtr deposit_receipt_verify_plan = NULL;
+#endif
 
 static const char* const record_type_names[4] = {
     "canonical_entity_record",
@@ -477,11 +479,13 @@ static void persist_deposit_receipt(
         "total_records,total_bytes,batch_count,sink_count,record_type,effect_disposition,status,"
         "entity_count,physicality_count,trajectory_vertex_count,occurrence_count,logical_occurrence_count,plan_sequence_fingerprint,plan_count) "
         "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) ON CONFLICT DO NOTHING";
+#if !defined(LAPLACE_TEST_COMPOSITION_REPLAY_RECEIPT_VERIFY_BYPASS)
     static const char verify_sql_text[] =
         "SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".canonical_deposit_receipt WHERE "
         "receipt_id=$1 AND context_fingerprint=$2 AND source_fingerprint=$3 AND recipe_fingerprint=$4 AND stream_fingerprint=$5 AND sink_artifacts_fingerprint=$6 AND "
         "total_records=$7 AND total_bytes=$8 AND batch_count=$9 AND sink_count=$10 AND record_type=$11 AND effect_disposition=$12 AND status=$13 AND "
         "entity_count=$14 AND physicality_count=$15 AND trajectory_vertex_count=$16 AND occurrence_count=$17 AND logical_occurrence_count=$18 AND plan_sequence_fingerprint=$19 AND plan_count=$20";
+#endif
     Oid types[20] = {
         BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID,
         NUMERICOID, NUMERICOID, NUMERICOID, NUMERICOID,
@@ -530,6 +534,7 @@ static void persist_deposit_receipt(
                 (errcode(ERRCODE_INTERNAL_ERROR),
                  errmsg("Laplace deposit receipt insert was not bounded")));
     }
+#if !defined(LAPLACE_TEST_COMPOSITION_REPLAY_RECEIPT_VERIFY_BYPASS)
     laplace_pg_keep_plan(
         &deposit_receipt_verify_plan, verify_sql_text, 20, types);
     result = SPI_execute_plan(deposit_receipt_verify_plan, values, NULL, false, 1);
@@ -539,6 +544,7 @@ static void persist_deposit_receipt(
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg("Laplace deposit receipt collides with different stored fields")));
     }
+#endif
 }
 
 static int persistence_producer_never_cancel(void* state) {
@@ -553,7 +559,7 @@ static void persistence_producer_observe_progress(
     (void)checkpoint;
 }
 
-void laplace_pg_persistence_run_producer(
+void LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
     const laplace_framework_context* context,
     const laplace_digest256* source_fingerprint,
     const laplace_digest256* recipe_fingerprint,

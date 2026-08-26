@@ -16,6 +16,6 @@ DO $mutation$
 BEGIN
     PERFORM pg_temp.composition_fixture_deposit();
     RAISE EXCEPTION
-        'reordered composition-presence mutant escaped ordinal validation';
+        'partial composition-presence mutant escaped complete-result validation';
 END
 $mutation$;

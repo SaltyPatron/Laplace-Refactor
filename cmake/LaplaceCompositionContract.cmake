@@ -21,8 +21,10 @@ function(laplace_configure_composition_contract contract_path output_path)
         "${contract_json}" producer record_type)
     string(JSON LAPLACE_COMPOSITION_PRESENCE_PROVIDER_ABI GET
         "${contract_json}" presence provider_abi)
-    string(JSON LAPLACE_COMPOSITION_PRESENCE_RECEIPT_DOMAIN GET
-        "${contract_json}" presence receipt_domain)
+    string(JSON LAPLACE_COMPOSITION_PRESENCE_SEMANTIC_RECEIPT_DOMAIN GET
+        "${contract_json}" presence semantic_receipt_domain)
+    string(JSON LAPLACE_COMPOSITION_PRESENCE_EXECUTION_RECEIPT_DOMAIN GET
+        "${contract_json}" presence execution_receipt_domain)
     string(JSON batch_boundary GET
         "${contract_json}" producer batch_boundary)
 
@@ -34,8 +36,10 @@ function(laplace_configure_composition_contract contract_path output_path)
        OR NOT LAPLACE_COMPOSITION_TIER_MAXIMUM EQUAL 31
        OR NOT LAPLACE_COMPOSITION_MAXIMUM_RUN_PER_CARRIER EQUAL 65535
        OR NOT LAPLACE_COMPOSITION_PRESENCE_PROVIDER_ABI EQUAL 1
-       OR NOT LAPLACE_COMPOSITION_PRESENCE_RECEIPT_DOMAIN STREQUAL
-            "laplace-composition-presence-receipt-v1"
+       OR NOT LAPLACE_COMPOSITION_PRESENCE_SEMANTIC_RECEIPT_DOMAIN STREQUAL
+            "laplace-composition-presence-semantic-receipt-v1"
+       OR NOT LAPLACE_COMPOSITION_PRESENCE_EXECUTION_RECEIPT_DOMAIN STREQUAL
+            "laplace-composition-presence-execution-receipt-v1"
        OR NOT batch_boundary STREQUAL "between-complete-persistence-frames")
         message(FATAL_ERROR "Composition contract v1 changed a fixed semantic boundary")
     endif()
