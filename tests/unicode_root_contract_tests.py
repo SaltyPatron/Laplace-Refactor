@@ -39,12 +39,15 @@ class UnicodeRootContractTests(unittest.TestCase):
     def write(self, path: Path, document: dict[str, object]) -> None:
         path.write_text(json.dumps(document), encoding="utf-8")
 
-    def test_all_six_contracts_are_internally_closed(self) -> None:
+    def test_all_seven_contracts_are_internally_closed(self) -> None:
         report = VALIDATOR.validate_contracts(self.root)
-        self.assertEqual(report["contract_count"], 6)
+        self.assertEqual(report["contract_count"], 7)
         self.assertEqual(report["source_file_count"], 33)
         self.assertEqual(report["population"], 1114112)
-        self.assertIn("no-unicode-implementation-or-activation", report["status"])
+        self.assertEqual(
+            report["status"],
+            "contracts-verified-canonical-root-stream-implemented-no-persistence-or-activation",
+        )
 
     def test_root_stream_cannot_split_database_and_perfcache_calculation(self) -> None:
         path, document = self.document("unicode-root-stream.json")
@@ -71,11 +74,53 @@ class UnicodeRootContractTests(unittest.TestCase):
 
     def test_root_manifest_cannot_drop_numeric_provider_receipt(self) -> None:
         path, document = self.document("unicode-root-stream.json")
-        document["payload_contracts"]["root-manifest-v1"]["bindings"].remove(
+        document["payload_contracts"]["root-manifest-v2"]["bindings"].remove(
             "canonical-numeric-provider-receipt"
         )
         self.write(path, document)
         with self.assertRaisesRegex(VALIDATOR.ContractError, "required binding"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_root_manifest_cannot_drop_physicality_recipe(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["payload_contracts"]["root-manifest-v2"]["bindings"].remove(
+            "physicality-recipe"
+        )
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "required binding"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_root_manifest_cannot_drop_placement_rank_permutation(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["payload_contracts"]["root-manifest-v2"]["bindings"].remove(
+            "placement-rank-permutation"
+        )
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "required binding"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_physicality_recipe_cannot_use_execution_receipt_as_identity(self) -> None:
+        path, document = self.document("unicode-atomic-physicality.json")
+        document["geometry_epoch"]["preimage"] += " || numeric-provider-receipt"
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "semantic input"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_physicality_recipe_must_use_canonical_constructor(self) -> None:
+        path, document = self.document("unicode-atomic-physicality.json")
+        document["physicality_identity"]["constructor"] = "unicode-private-hash"
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "canonical constructor"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_atom_wire_cannot_drop_physicality_identity(self) -> None:
+        path, document = self.document("unicode-atom-record.json")
+        document["wire"]["fixed_fields"] = [
+            item for item in document["wire"]["fixed_fields"]
+            if item["name"] != "physicality_id"
+        ]
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "physicality identity"):
             VALIDATOR.validate_contracts(self.root)
 
     def test_authoritative_unicode_17_source_bytes_match_when_available(self) -> None:

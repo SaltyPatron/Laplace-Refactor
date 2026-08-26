@@ -1,0 +1,88 @@
+{
+  "schema": "laplace.unicode-atomic-physicality-contract/v1",
+  "recipe": "Laplace-Unicode-Atomic-Physicality-v1",
+  "recipe_version": 1,
+  "population": 1114112,
+  "generic_physicality_contract": "laplace.persistence-contract/v1",
+  "variant": {
+    "physicality_type": "atomic_point",
+    "vertex_class": "none",
+    "structural_form": "atomic_point",
+    "dimension_count": 4,
+    "flags": "none",
+    "coordinate_axes": ["x", "y", "z", "w"],
+    "radius": "canonical-positive-zero-binary64",
+    "logical_count": 1,
+    "vertex_count": 0,
+    "trajectory_fingerprint": "canonical-all-zero-inactive-payload",
+    "trajectory_inactivity_authority": "typed-atomic-point-variant-not-zero-as-sentinel"
+  },
+  "placement": {
+    "atom_position_to_numeric_rank": "complete-DUCET-placement-rank-permutation",
+    "rank_permutation_fingerprint": "laplace_unicode_placement_summary.rank_permutation_fingerprint",
+    "rule": "coordinate-for-codepoint-position-equals-coordinate-population-at-placement-rank"
+  },
+  "geometry_recipe": {
+    "population": 1114112,
+    "rank_domain": {"minimum": 0, "maximum": 1114111},
+    "phi_binary64_be": "3ff6a09e667f3bcd",
+    "psi_binary64_be": "3ff88a3eaa601609",
+    "two_pi_binary64_be": "401921fb54442d18",
+    "ordered_formula": [
+      "s=binary64(rank)+0.5",
+      "t=s/binary64(1114112)",
+      "d=two_pi*s",
+      "r=sqrt(t)",
+      "R=sqrt(1.0-t)",
+      "alpha=d/phi",
+      "beta=d/psi",
+      "x=r*sin(alpha)",
+      "y=r*cos(alpha)",
+      "z=R*sin(beta)",
+      "w=R*cos(beta)"
+    ],
+    "axis_order": ["x", "y", "z", "w"],
+    "serialization": "four-ieee754-binary64-u64le",
+    "canonical_output_rule": "the-approved-root-builder-must-produce-the-exact-declared-coordinate-bits;provider-identity-is-provenance-not-physicality-identity"
+  },
+  "coordinate_table_fingerprint": {
+    "algorithm": "BLAKE3-256",
+    "domain": "laplace-unicode-atomic-coordinate-table-v1",
+    "order": "codepoint-position-ascending",
+    "preimage": "domain || repeated(codepoint-position-u32le || placement-rank-u32le || x-binary64-u64le || y-binary64-u64le || z-binary64-u64le || w-binary64-u64le) || population-u64le",
+    "rule": "fingerprint-the-realized-position-to-rank-to-coordinate-table-not-the-provider-receipt-Hopf-view-or-Hilbert-key"
+  },
+  "geometry_epoch": {
+    "algorithm": "BLAKE3-256",
+    "domain": "laplace-unicode-root-geometry-epoch-v1",
+    "preimage": "domain || physicality-recipe-fingerprint || placement-rank-permutation-fingerprint || coordinate-table-fingerprint",
+    "scope": "one-complete-Unicode-root-physicality-generation"
+  },
+  "recipe_fingerprint": {
+    "algorithm": "SHA-256",
+    "preimage": "exact-unicode-atomic-physicality.json-bytes",
+    "generated_authority": "laplace_unicode_generated_contracts"
+  },
+  "physicality_identity": {
+    "constructor": "laplace_persistence_atomic_point_physicality",
+    "preimage_authority": "contracts/persistence.json identities.physicality_preimage",
+    "atom_wire_carries": "calculated-physicality-id",
+    "sink_rule": "PostgreSQL-and-Tier0-consume-the-emitted-id-and-reject-mismatch-without-recalculation-as-authority"
+  },
+  "excluded_from_physicality_identity": [
+    "numeric-provider-receipt",
+    "numeric-provider-fingerprint",
+    "numeric-environment-fingerprint",
+    "package-receipt",
+    "resource-receipt",
+    "Hopf-S2-view",
+    "Hilbert-locality-key"
+  ],
+  "validation": [
+    "producer-calculates-one-coordinate-table-fingerprint-before-emitting-atoms",
+    "producer-calculates-one-geometry-epoch-before-emitting-atoms",
+    "every-atom-physicality-id-is-calculated-by-the-generic-canonical-constructor",
+    "root-manifest-binds-recipe-version-recipe-fingerprint-coordinate-population-fingerprint-and-geometry-epoch",
+    "root-stream-validator-reidentifies-every-atom-against-the-declared-recipe-and-geometry-epoch"
+  ]
+}

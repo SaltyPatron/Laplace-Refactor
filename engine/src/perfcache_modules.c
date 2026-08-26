@@ -154,6 +154,102 @@ static laplace_perfcache_status validate_unicode_tier0_record(
     return LAPLACE_PERFCACHE_OK;
 }
 
+static int unicode_tier0_contract_matches(
+    const laplace_perfcache_contract* contract,
+    const laplace_perfcache_module_v1* module) {
+    return memcmp(
+               contract->module_id.bytes, module->module_id.bytes,
+               sizeof(contract->module_id.bytes)) == 0 &&
+        memcmp(
+               contract->key_schema_id.bytes, module->key_schema_id.bytes,
+               sizeof(contract->key_schema_id.bytes)) == 0 &&
+        memcmp(
+               contract->value_schema_id.bytes, module->value_schema_id.bytes,
+               sizeof(contract->value_schema_id.bytes)) == 0 &&
+        memcmp(
+               contract->module_contract_fingerprint.bytes,
+               module->module_contract_fingerprint.bytes,
+               sizeof(contract->module_contract_fingerprint.bytes)) == 0 &&
+        contract->key_bytes == module->key_bytes &&
+        contract->value_bytes == module->value_bytes &&
+        contract->access_law == module->access_law;
+}
+
+laplace_perfcache_status laplace_perfcache_unicode_tier0_validate_view(
+    void* context,
+    const laplace_perfcache_view* view,
+    uint64_t* invalid_record_index) {
+    laplace_perfcache_module_v1 module;
+    uint64_t expected_metadata_offset = 0u;
+    uint64_t record_index;
+    (void)context;
+    if (view == NULL || invalid_record_index == NULL ||
+        view->records == NULL || view->metadata == NULL ||
+        view->record_count == 0u ||
+        laplace_perfcache_unicode_tier0_module(&module) !=
+            LAPLACE_PERFCACHE_REGISTRY_OK ||
+        !unicode_tier0_contract_matches(&view->contract, &module) ||
+        view->record_stride != module.key_bytes + module.value_bytes) {
+        return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+    }
+    *invalid_record_index = UINT64_MAX;
+    for (record_index = 0u; record_index < view->record_count;
+         ++record_index) {
+        const uint8_t* record = view->records +
+            (size_t)record_index * view->record_stride;
+        const uint8_t* value = record + module.key_bytes;
+        const uint64_t metadata_offset = read_u64le(value);
+        const uint32_t metadata_bytes = read_u32le(value + 8u);
+        laplace_unicode_atom_record_view atom;
+        size_t consumed = 0u;
+        size_t axis;
+        if (validate_unicode_tier0_record(
+                NULL, record_index, record, view->record_stride) !=
+                LAPLACE_PERFCACHE_OK ||
+            metadata_offset != expected_metadata_offset ||
+            metadata_offset > view->metadata_bytes ||
+            (uint64_t)metadata_bytes >
+                view->metadata_bytes - metadata_offset ||
+            laplace_unicode_atom_record_open(
+                view->metadata + metadata_offset, metadata_bytes,
+                &atom, &consumed) != LAPLACE_UNICODE_OK ||
+            consumed != metadata_bytes ||
+            atom.value.codepoint_position != record_index ||
+            atom.value.placement_rank != read_u32le(value + 12u) ||
+            atom.value.position_class != value[16] ||
+            atom.value.lup_v1_length != value[17] ||
+            memcmp(atom.value.lup_v1_bytes, value + 20u, 4u) != 0 ||
+            memcmp(atom.value.content_id.bytes, value + 24u, 16u) != 0 ||
+            memcmp(
+                atom.value.identity_preimage_fingerprint.bytes,
+                value + 40u, 32u) != 0 ||
+            memcmp(atom.value.hilbert_key, value + 104u, 16u) != 0
+#if !defined(LAPLACE_TEST_SKIP_UNICODE_TIER0_PHYSICALITY_VALIDATION)
+            || memcmp(atom.value.physicality_id.bytes, value + 120u, 32u) != 0
+#endif
+            ) {
+            *invalid_record_index = record_index;
+            return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+        }
+        for (axis = 0u; axis < 4u; ++axis) {
+            uint64_t atom_bits = 0u;
+            memcpy(
+                &atom_bits, &atom.value.coordinate.component[axis],
+                sizeof(atom_bits));
+            if (atom_bits != read_u64le(value + 72u + axis * 8u)) {
+                *invalid_record_index = record_index;
+                return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+            }
+        }
+        expected_metadata_offset += metadata_bytes;
+    }
+    if (expected_metadata_offset != view->metadata_bytes) {
+        *invalid_record_index = view->record_count;
+        return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+    }
+    return LAPLACE_PERFCACHE_OK;
+}
+
 laplace_perfcache_registry_status laplace_perfcache_unicode_tier0_module(
     laplace_perfcache_module_v1* module) {
     if (module == NULL) {

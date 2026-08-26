@@ -43,6 +43,12 @@
     "rank_minimum": 0,
     "rank_maximum": 1114111,
     "rank_is_permutation": true,
+    "rank_permutation_fingerprint": {
+      "algorithm": "BLAKE3-256",
+      "domain": "laplace-unicode-placement-rank-permutation-v1",
+      "preimage": "domain || repeated(codepoint-position-u32le || placement-rank-u32le) in codepoint-position order || population-u64le",
+      "excludes": ["equivalence-receipt", "root-recipe-fingerprint", "physicality-recipe", "numeric-provider-receipt"]
+    },
     "rank_is_identity": false,
     "rank_is_semantic_equivalence": false
   },

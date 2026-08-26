@@ -14,9 +14,11 @@ extern "C" {
 #endif
 
 enum {
+    LAPLACE_UNICODE_ROOT_ABI_MAJOR = 2,
+    LAPLACE_UNICODE_ROOT_ABI_MINOR = 0,
     LAPLACE_UNICODE_ROOT_STREAM_RECORD_TYPE = 65536,
     LAPLACE_UNICODE_ATOM_RECORD_TYPE = 65537,
-    LAPLACE_UNICODE_ROOT_FRAME_VERSION = 1,
+    LAPLACE_UNICODE_ROOT_FRAME_VERSION = 2,
     LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES = 32,
     LAPLACE_UNICODE_DUCET_POSITION_VERSION = 1,
     LAPLACE_UNICODE_DUCET_POSITION_HEADER_BYTES = 32,
@@ -25,10 +27,10 @@ enum {
     LAPLACE_UNICODE_DUCET_CONTRACTION_HEADER_BYTES = 32,
     LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_VERSION = 1,
     LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES = 32,
-    LAPLACE_UNICODE_ROOT_MANIFEST_VERSION = 1,
-    LAPLACE_UNICODE_ROOT_MANIFEST_BYTES = 352,
-    LAPLACE_UNICODE_ATOM_RECORD_VERSION = 1,
-    LAPLACE_UNICODE_ATOM_HEADER_BYTES = 132,
+    LAPLACE_UNICODE_ROOT_MANIFEST_VERSION = 2,
+    LAPLACE_UNICODE_ROOT_MANIFEST_BYTES = 512,
+    LAPLACE_UNICODE_ATOM_RECORD_VERSION = 2,
+    LAPLACE_UNICODE_ATOM_HEADER_BYTES = 196,
     LAPLACE_UNICODE_ATOM_FIELD_COUNT = 26,
     LAPLACE_UNICODE_CORE_FIELD_COUNT = LAPLACE_UNICODE_ATOM_FIELD_COUNT,
     LAPLACE_UNICODE_ATOM_FIELD_HEADER_BYTES = 8,
@@ -125,6 +127,13 @@ typedef struct laplace_unicode_root_manifest {
     laplace_digest256 ducet_contraction_section_fingerprint;
     laplace_digest256 normalization_composition_section_fingerprint;
     laplace_digest256 algorithmic_hangul_rule_fingerprint;
+    laplace_digest256 atom_record_contract_fingerprint;
+    laplace_digest256 physicality_recipe_fingerprint;
+    laplace_digest256 placement_rank_permutation_fingerprint;
+    laplace_digest256 coordinate_table_fingerprint;
+    laplace_digest256 geometry_epoch;
+    uint32_t physicality_recipe_version;
+    uint32_t reserved;
 } laplace_unicode_root_manifest;
 
 typedef struct laplace_unicode_root_frame {
@@ -191,6 +200,8 @@ typedef struct laplace_unicode_atom_record {
     laplace_digest256 identity_preimage_fingerprint;
     laplace_point4d coordinate;
     uint8_t hilbert_key[LAPLACE_UNICODE_HILBERT_KEY_BYTES];
+    laplace_digest256 geometry_epoch;
+    laplace_digest256 physicality_id;
     laplace_unicode_atom_field fields[LAPLACE_UNICODE_ATOM_FIELD_COUNT];
 } laplace_unicode_atom_record;
 
@@ -324,6 +335,12 @@ typedef struct laplace_unicode_root_stream_expectation {
     laplace_digest256 numeric_provider_receipt;
     laplace_digest256 stream_contract_fingerprint;
     laplace_digest256 algorithmic_hangul_rule_fingerprint;
+    laplace_digest256 atom_record_contract_fingerprint;
+    laplace_digest256 physicality_recipe_fingerprint;
+    laplace_digest256 placement_rank_permutation_fingerprint;
+    laplace_digest256 coordinate_table_fingerprint;
+    laplace_digest256 geometry_epoch;
+    uint32_t physicality_recipe_version;
     uint32_t flags;
     uint32_t reserved;
 } laplace_unicode_root_stream_expectation;
@@ -531,6 +548,25 @@ LAPLACE_API laplace_unicode_status laplace_unicode_root_manifest_open(
     size_t available_bytes,
     laplace_unicode_root_manifest* manifest,
     size_t* consumed_bytes);
+
+LAPLACE_API laplace_unicode_status
+laplace_unicode_placement_rank_permutation_identify(
+    const uint32_t* placement_ranks,
+    uint32_t position_count,
+    laplace_digest256* rank_permutation_fingerprint);
+
+LAPLACE_API laplace_unicode_status
+laplace_unicode_coordinate_table_identify(
+    const uint32_t* placement_ranks,
+    const laplace_point4d* coordinates_by_rank,
+    uint32_t position_count,
+    laplace_digest256* coordinate_table_fingerprint);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_geometry_epoch_identify(
+    const laplace_digest256* physicality_recipe_fingerprint,
+    const laplace_digest256* placement_rank_permutation_fingerprint,
+    const laplace_digest256* coordinate_table_fingerprint,
+    laplace_digest256* geometry_epoch);
 
 LAPLACE_API laplace_unicode_status
 laplace_unicode_root_stream_validator_create(

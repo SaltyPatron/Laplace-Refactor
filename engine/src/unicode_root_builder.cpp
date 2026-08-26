@@ -2,6 +2,7 @@
 
 #include "laplace/contract/unicode-source-manifest.h"
 #include "laplace/identity.h"
+#include "laplace/persistence.h"
 
 #include "blake3.h"
 
@@ -19,7 +20,7 @@
 namespace {
 
 constexpr std::string_view BuildReceiptDomain{
-    "laplace-unicode-root-build-v1"};
+    "laplace-unicode-root-build-v2"};
 
 bool DigestEqual(
     const laplace_digest256& left,
@@ -507,12 +508,65 @@ laplace_unicode_root_build_canonical_spool(
                 &expectation.stream_contract_fingerprint) ||
             !ContractDigest(
                 "ducet-totalization.json",
-                &expectation.algorithmic_hangul_rule_fingerprint)) {
+                &expectation.algorithmic_hangul_rule_fingerprint) ||
+            !ContractDigest(
+                "unicode-atom-record.json",
+                &expectation.atom_record_contract_fingerprint) ||
+            !ContractDigest(
+                "unicode-atomic-physicality.json",
+                &expectation.physicality_recipe_fingerprint)) {
             MarkBuildFailure(
                 summary, LAPLACE_UNICODE_ROOT_BUILD_INVARIANT_FAILURE,
                 LAPLACE_UNICODE_ROOT_BUILD_STAGE_MANIFEST,
                 LAPLACE_UNICODE_STREAM_STATE_INVALID, LAPLACE_SPOOL_OK);
             return LAPLACE_UNICODE_ROOT_BUILD_INVARIANT_FAILURE;
+        }
+        expectation.physicality_recipe_version =
+            LAPLACE_UNICODE_ATOMIC_PHYSICALITY_RECIPE_VERSION;
+        expectation.placement_rank_permutation_fingerprint =
+            summary->placement.rank_permutation_fingerprint;
+        std::vector<std::uint32_t> placement_ranks(
+            LAPLACE_UNICODE_ROOT_POPULATION);
+        for (std::uint32_t position = 0U;
+             position < LAPLACE_UNICODE_ROOT_POPULATION; ++position) {
+            laplace_unicode_placement_position_view placement_record{};
+            unicode_status = laplace_unicode_placement_table_position(
+                placement.get(), position, &placement_record);
+            if (unicode_status != LAPLACE_UNICODE_OK ||
+                placement_record.codepoint_position != position) {
+                MarkBuildFailure(
+                    summary, LAPLACE_UNICODE_ROOT_BUILD_INVARIANT_FAILURE,
+                    LAPLACE_UNICODE_ROOT_BUILD_STAGE_NUMERIC,
+                    unicode_status == LAPLACE_UNICODE_OK
+                        ? LAPLACE_UNICODE_STREAM_STATE_INVALID
+                        : unicode_status,
+                    LAPLACE_SPOOL_OK);
+                return LAPLACE_UNICODE_ROOT_BUILD_INVARIANT_FAILURE;
+            }
+            placement_ranks[position] = placement_record.placement_rank;
+        }
+        unicode_status = laplace_unicode_coordinate_table_identify(
+            placement_ranks.data(), coordinates.data(),
+            LAPLACE_UNICODE_ROOT_POPULATION,
+            &expectation.coordinate_table_fingerprint);
+        if (unicode_status != LAPLACE_UNICODE_OK) {
+            MarkBuildFailure(
+                summary, LAPLACE_UNICODE_ROOT_BUILD_UNICODE_FAILURE,
+                LAPLACE_UNICODE_ROOT_BUILD_STAGE_NUMERIC, unicode_status,
+                LAPLACE_SPOOL_OK);
+            return LAPLACE_UNICODE_ROOT_BUILD_UNICODE_FAILURE;
+        }
+        unicode_status = laplace_unicode_geometry_epoch_identify(
+            &expectation.physicality_recipe_fingerprint,
+            &expectation.placement_rank_permutation_fingerprint,
+            &expectation.coordinate_table_fingerprint,
+            &expectation.geometry_epoch);
+        if (unicode_status != LAPLACE_UNICODE_OK) {
+            MarkBuildFailure(
+                summary, LAPLACE_UNICODE_ROOT_BUILD_UNICODE_FAILURE,
+                LAPLACE_UNICODE_ROOT_BUILD_STAGE_NUMERIC, unicode_status,
+                LAPLACE_SPOOL_OK);
+            return LAPLACE_UNICODE_ROOT_BUILD_UNICODE_FAILURE;
         }
 
         laplace_canonical_spool* raw_spool = nullptr;
@@ -549,7 +603,6 @@ laplace_unicode_root_build_canonical_spool(
         for (std::uint32_t position = 0U;
              position < LAPLACE_UNICODE_ROOT_POPULATION; ++position) {
             laplace_unicode_core_record_view core_record{};
-            laplace_unicode_placement_position_view placement_record{};
             unicode_status = laplace_unicode_core_table_record(
                 core.get(), position, &core_record);
             if (unicode_status != LAPLACE_UNICODE_OK) {
@@ -559,23 +612,17 @@ laplace_unicode_root_build_canonical_spool(
                     LAPLACE_SPOOL_OK);
                 return LAPLACE_UNICODE_ROOT_BUILD_UNICODE_FAILURE;
             }
-            unicode_status = laplace_unicode_placement_table_position(
-                placement.get(), position, &placement_record);
-            if (unicode_status != LAPLACE_UNICODE_OK ||
-                core_record.codepoint_position != position ||
-                placement_record.codepoint_position != position) {
+            if (core_record.codepoint_position != position) {
                 MarkBuildFailure(
                     summary, LAPLACE_UNICODE_ROOT_BUILD_INVARIANT_FAILURE,
                     LAPLACE_UNICODE_ROOT_BUILD_STAGE_ATOMS,
-                    unicode_status == LAPLACE_UNICODE_OK
-                        ? LAPLACE_UNICODE_STREAM_STATE_INVALID
-                        : unicode_status,
+                    LAPLACE_UNICODE_STREAM_STATE_INVALID,
                     LAPLACE_SPOOL_OK);
                 return LAPLACE_UNICODE_ROOT_BUILD_INVARIANT_FAILURE;
             }
             laplace_unicode_atom_record atom{};
             atom.codepoint_position = position;
-            atom.placement_rank = placement_record.placement_rank;
+            atom.placement_rank = placement_ranks[position];
             atom.position_class = core_record.position_class;
             std::size_t lup_length = 0U;
             if (laplace_unicode_position_encode(
@@ -620,6 +667,22 @@ laplace_unicode_root_build_canonical_spool(
                     unicode_status, LAPLACE_SPOOL_OK);
                 return LAPLACE_UNICODE_ROOT_BUILD_UNICODE_FAILURE;
             }
+            atom.geometry_epoch = expectation.geometry_epoch;
+            laplace_persistence_physicality_record physicality{};
+            if (laplace_persistence_atomic_point_physicality(
+                    &atom.content_id,
+                    expectation.physicality_recipe_version,
+                    &expectation.physicality_recipe_fingerprint,
+                    &expectation.geometry_epoch, &atom.coordinate,
+                    &physicality) != LAPLACE_PERSISTENCE_OK) {
+                MarkBuildFailure(
+                    summary, LAPLACE_UNICODE_ROOT_BUILD_INVARIANT_FAILURE,
+                    LAPLACE_UNICODE_ROOT_BUILD_STAGE_ATOMS,
+                    LAPLACE_UNICODE_IDENTITY_MISMATCH,
+                    LAPLACE_SPOOL_OK);
+                return LAPLACE_UNICODE_ROOT_BUILD_INVARIANT_FAILURE;
+            }
+            atom.physicality_id = physicality.physicality_id;
             for (std::size_t field = 0U;
                  field < LAPLACE_UNICODE_ATOM_FIELD_COUNT; ++field) {
                 atom.fields[field] = core_record.fields[field];
@@ -879,6 +942,17 @@ laplace_unicode_root_build_canonical_spool(
             snapshot.section_fingerprints[3];
         manifest.algorithmic_hangul_rule_fingerprint =
             expectation.algorithmic_hangul_rule_fingerprint;
+        manifest.atom_record_contract_fingerprint =
+            expectation.atom_record_contract_fingerprint;
+        manifest.physicality_recipe_version =
+            expectation.physicality_recipe_version;
+        manifest.physicality_recipe_fingerprint =
+            expectation.physicality_recipe_fingerprint;
+        manifest.placement_rank_permutation_fingerprint =
+            expectation.placement_rank_permutation_fingerprint;
+        manifest.coordinate_table_fingerprint =
+            expectation.coordinate_table_fingerprint;
+        manifest.geometry_epoch = expectation.geometry_epoch;
         std::array<std::uint8_t, LAPLACE_UNICODE_ROOT_MANIFEST_BYTES>
             manifest_bytes{};
         unicode_status = laplace_unicode_root_manifest_encode(

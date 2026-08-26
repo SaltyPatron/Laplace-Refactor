@@ -128,7 +128,7 @@ function(laplace_configure_perfcache_contract contract_path output_path)
        OR NOT unicode_tier0_contract_fingerprint MATCHES "^[0-9a-f]+$"
        OR NOT unicode_tier0_access_law STREQUAL "dense_u32_zero_based"
        OR NOT unicode_tier0_key_bytes EQUAL 4
-       OR NOT unicode_tier0_value_bytes EQUAL 120
+       OR NOT unicode_tier0_value_bytes EQUAL 152
        OR NOT unicode_tier0_population EQUAL 1114112
        OR NOT unicode_tier0_required)
         message(FATAL_ERROR
@@ -142,7 +142,7 @@ function(laplace_configure_perfcache_contract contract_path output_path)
             "required=${unicode_tier0_required}")
     endif()
     if(NOT unicode_tier0_contract_preimage STREQUAL
-       "laplace.perfcache.module.unicode-tier0/v1|key=u32-le|value=record-offset-u64le,record-bytes-u32le,placement-rank-u32le,position-class-u8,lup-length-u8,reserved-u16,lup-bytes-4,content-id-16,identity-witness-32,coordinate-bits-32,hilbert-key-16|metadata=canonical-atom-record-stream-v1|access=dense-u32-zero-based|population=1114112|module-abi=1.1")
+       "laplace.perfcache.module.unicode-tier0/v2|key=u32-le|value=record-offset-u64le,record-bytes-u32le,placement-rank-u32le,position-class-u8,lup-length-u8,reserved-u16,lup-bytes-4,content-id-16,identity-witness-32,coordinate-bits-32,hilbert-key-16,physicality-id-32|metadata=canonical-atom-record-stream-v2|access=dense-u32-zero-based|population=1114112|module-abi=1.1")
         message(FATAL_ERROR "Unicode Tier-0 perfcache module preimage changed")
     endif()
 

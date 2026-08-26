@@ -19,6 +19,7 @@ CONTRACT_FILES = {
     "source": "unicode-source.json",
     "atom": "unicode-atom-record.json",
     "stream": "unicode-root-stream.json",
+    "physicality": "unicode-atomic-physicality.json",
     "ducet": "ducet-totalization.json",
     "geometry": "super-fibonacci-hopf.json",
     "hilbert": "hilbert-numeric.json",
@@ -195,12 +196,12 @@ def _validate_source(document: dict[str, Any], source_root: Path | None) -> None
 
 
 def _validate_atom(document: dict[str, Any]) -> None:
-    _require(document.get("schema") == "laplace.unicode-atom-record-contract/v1", "Unicode atom-record schema changed")
+    _require(document.get("schema") == "laplace.unicode-atom-record-contract/v2", "Unicode atom-record schema changed")
     _require(document.get("population") == 1114112, "Unicode atom-record population changed")
     _require(document.get("canonical_stream_order") == "codepoint-position-ascending", "Unicode atom stream lost direct position order")
     _require(document.get("record_index_equals_codepoint_position") is True, "Unicode atom record index is no longer direct")
     wire = document.get("wire", {})
-    _require(wire.get("header_bytes") == 132 and wire.get("magic_hex") == "4c554152", "Unicode atom wire header changed")
+    _require(wire.get("header_bytes") == 196 and wire.get("magic_hex") == "4c554152", "Unicode atom wire header changed")
     _require(wire.get("payload_kinds") == {
         "canonical-ascii-property-value": 1,
         "u8": 2,
@@ -223,6 +224,8 @@ def _validate_atom(document: dict[str, Any]) -> None:
     _require(any(field.get("name") == "coordinate_bits" and field.get("axis_order") == ["x", "y", "z", "w"] for field in fixed), "Unicode atom coordinate axes changed")
     _require(any(field.get("name") == "hilbert_key" and field.get("encoding") == "bytes[16]-hilbert-most-significant-byte-first" for field in fixed), "Unicode atom Hilbert bytes changed")
     _require(any(field.get("name") == "identity_preimage_fingerprint" and field.get("encoding") == "blake3-256-bytes[32]" and field.get("rule") == "first-16-bytes-equal-content-id" for field in fixed), "full Unicode identity-preimage fingerprint is missing")
+    _require(any(field.get("name") == "geometry_epoch" and field.get("offset") == 132 for field in fixed), "Unicode atom geometry epoch is missing")
+    _require(any(field.get("name") == "physicality_id" and field.get("offset") == 164 and field.get("authority") == "laplace_persistence_atomic_point_physicality" for field in fixed), "canonical Unicode atomic physicality identity is missing")
     fields = document.get("variable_fields", [])
     _require([field.get("id") for field in fields] == list(range(1, 27)), "Unicode variable field identifiers changed")
     _require([field.get("name") for field in fields] == EXPECTED_VARIABLE_FIELDS, "Unicode Tier-0 property record changed")
@@ -244,11 +247,62 @@ def _validate_atom(document: dict[str, Any]) -> None:
     _require(identity.get("full_digest_is_collision_guard_not_public_entity_id") is True, "Unicode full digest crossed the public identity boundary")
     _require(identity.get("rank_and_geometry_excluded") is True, "rank or geometry entered atom identity")
     _require(document.get("record_authority", {}).get("activation") == "forbidden-by-this-contract-slice", "contract-only work claims Unicode activation")
+    physicality = document.get("physicality", {})
+    _require(physicality.get("contract") == "laplace.unicode-atomic-physicality-contract/v1", "Unicode atom physicality contract changed")
+    _require(physicality.get("id_is_content_identity") is False, "physicality identity collapsed into content identity")
+    _require(physicality.get("id_is_calculated_once_by_root_producer") is True and physicality.get("sinks_consume_emitted_id_without_minting") is True, "Unicode sinks may mint physicality independently")
+
+
+def _validate_atomic_physicality(document: dict[str, Any]) -> None:
+    _require(document.get("schema") == "laplace.unicode-atomic-physicality-contract/v1", "Unicode atomic-physicality schema changed")
+    _require(document.get("recipe") == "Laplace-Unicode-Atomic-Physicality-v1" and document.get("recipe_version") == 1, "Unicode atomic-physicality recipe changed")
+    _require(document.get("population") == 1114112, "Unicode atomic-physicality population changed")
+    variant = document.get("variant", {})
+    _require(variant == {
+        "physicality_type": "atomic_point",
+        "vertex_class": "none",
+        "structural_form": "atomic_point",
+        "dimension_count": 4,
+        "flags": "none",
+        "coordinate_axes": ["x", "y", "z", "w"],
+        "radius": "canonical-positive-zero-binary64",
+        "logical_count": 1,
+        "vertex_count": 0,
+        "trajectory_fingerprint": "canonical-all-zero-inactive-payload",
+        "trajectory_inactivity_authority": "typed-atomic-point-variant-not-zero-as-sentinel",
+    }, "Unicode atomic-point variant changed")
+    placement = document.get("placement", {})
+    _require(placement.get("atom_position_to_numeric_rank") == "complete-DUCET-placement-rank-permutation" and placement.get("rank_permutation_fingerprint") == "laplace_unicode_placement_summary.rank_permutation_fingerprint", "Unicode physicality lost placement-permutation authority")
+    geometry = document.get("geometry_recipe", {})
+    _require(geometry.get("population") == 1114112 and geometry.get("rank_domain") == {"minimum": 0, "maximum": 1114111}, "Unicode physicality geometry domain changed")
+    _require([geometry.get("phi_binary64_be"), geometry.get("psi_binary64_be"), geometry.get("two_pi_binary64_be")] == ["3ff6a09e667f3bcd", "3ff88a3eaa601609", "401921fb54442d18"], "Unicode physicality geometry constants changed")
+    _require(geometry.get("ordered_formula") == [
+        "s=binary64(rank)+0.5", "t=s/binary64(1114112)",
+        "d=two_pi*s", "r=sqrt(t)", "R=sqrt(1.0-t)",
+        "alpha=d/phi", "beta=d/psi", "x=r*sin(alpha)",
+        "y=r*cos(alpha)", "z=R*sin(beta)", "w=R*cos(beta)",
+    ] and geometry.get("axis_order") == ["x", "y", "z", "w"], "Unicode physicality geometry law changed")
+    coordinate = document.get("coordinate_table_fingerprint", {})
+    _require(coordinate.get("algorithm") == "BLAKE3-256" and coordinate.get("domain") == "laplace-unicode-atomic-coordinate-table-v1" and coordinate.get("order") == "codepoint-position-ascending", "Unicode coordinate-table fingerprint changed")
+    epoch = document.get("geometry_epoch", {})
+    _require(epoch.get("algorithm") == "BLAKE3-256" and epoch.get("domain") == "laplace-unicode-root-geometry-epoch-v1", "Unicode geometry epoch changed")
+    _require(epoch.get("preimage") == "domain || physicality-recipe-fingerprint || placement-rank-permutation-fingerprint || coordinate-table-fingerprint", "Unicode geometry epoch lost a semantic input")
+    recipe = document.get("recipe_fingerprint", {})
+    _require(recipe == {
+        "algorithm": "SHA-256",
+        "preimage": "exact-unicode-atomic-physicality.json-bytes",
+        "generated_authority": "laplace_unicode_generated_contracts",
+    }, "Unicode physicality recipe fingerprint authority changed")
+    identity = document.get("physicality_identity", {})
+    _require(identity.get("constructor") == "laplace_persistence_atomic_point_physicality" and identity.get("atom_wire_carries") == "calculated-physicality-id", "Unicode physicality no longer uses the canonical constructor")
+    _require(identity.get("sink_rule") == "PostgreSQL-and-Tier0-consume-the-emitted-id-and-reject-mismatch-without-recalculation-as-authority", "Unicode sink physicality authority changed")
+    excluded = set(document.get("excluded_from_physicality_identity", []))
+    _require({"numeric-provider-receipt", "numeric-provider-fingerprint", "numeric-environment-fingerprint", "package-receipt", "resource-receipt", "Hopf-S2-view", "Hilbert-locality-key"} <= excluded, "execution evidence or derived locality entered physicality identity")
 
 
 def _validate_stream(document: dict[str, Any]) -> None:
-    _require(document.get("schema") == "laplace.unicode-root-stream-contract/v1", "Unicode root-stream schema changed")
-    _require(document.get("record_type") == 65536 and document.get("record_version") == 1, "Unicode root stream type or version changed")
+    _require(document.get("schema") == "laplace.unicode-root-stream-contract/v2", "Unicode root-stream schema changed")
+    _require(document.get("record_type") == 65536 and document.get("record_version") == 2, "Unicode root stream type or version changed")
     _require(document.get("canonical_order") == ["atom", "ducet-position", "ducet-contraction", "normalization-composition", "root-manifest"], "Unicode root section order changed")
     wire = document.get("wire", {})
     _require(wire.get("header_bytes") == 32 and wire.get("magic_hex") == "4c555246", "Unicode root frame header changed")
@@ -257,7 +311,7 @@ def _validate_stream(document: dict[str, Any]) -> None:
     kinds = document.get("frame_kinds", [])
     _require([item.get("id") for item in kinds] == [1, 2, 3, 4, 5], "Unicode root frame-kind enum changed")
     _require([item.get("name") for item in kinds] == document.get("canonical_order"), "Unicode root frame kinds and section order diverged")
-    _require(kinds[0].get("payload") == "Laplace-Unicode-Atom-Record-v1" and kinds[0].get("count") == 1114112, "Unicode atom section no longer carries the complete atom population")
+    _require(kinds[0].get("payload") == "Laplace-Unicode-Atom-Record-v2" and kinds[0].get("count") == 1114112, "Unicode atom section no longer carries the complete atom population")
     _require(kinds[1].get("payload") == "complete-collation-element-sequence-plus-equivalence-key-and-provenance" and kinds[1].get("count") == 1114112, "Unicode DUCET position sidecar was reduced or made partial")
     _require(kinds[2].get("payload") == "source-sequence-plus-complete-collation-element-sequence-and-provenance", "Unicode DUCET contraction sidecar was flattened or reduced")
     _require(kinds[3].get("payload") == "starter-position-plus-combining-position-plus-composite-position", "Unicode reverse-composition sidecar changed")
@@ -274,14 +328,22 @@ def _validate_stream(document: dict[str, Any]) -> None:
     contraction = payloads.get("ducet-contraction-v1", {})
     _require(contraction.get("magic_hex") == "4c554352" and contraction.get("header_bytes") == 32, "DUCET contraction wire changed")
     _require(contraction.get("sequence") == "complete-u32le-codepoint-position-sequence" and contraction.get("collation_element") == "same-complete-8-byte-DUCET-element-as-ducet-position-v1", "DUCET contraction structure was reduced")
-    manifest = payloads.get("root-manifest-v1", {})
-    _require(manifest.get("magic_hex") == "4c55524d" and manifest.get("record_bytes") == 352, "Unicode root manifest wire changed")
+    manifest = payloads.get("root-manifest-v2", {})
+    _require(manifest.get("magic_hex") == "4c55524d" and manifest.get("record_bytes") == 512, "Unicode root manifest wire changed")
     _require(manifest.get("counts") == ["atom", "ducet-position", "ducet-contraction", "normalization-composition", "total-root-frames"], "Unicode root manifest counts changed")
-    _require(manifest.get("bindings") == ["source", "recipe", "canonical-numeric-provider-receipt", "root-stream-contract", "atom-section", "ducet-position-section", "ducet-contraction-section", "normalization-composition-section", "algorithmic-Hangul-rule"], "Unicode root manifest lost a required binding")
+    _require(manifest.get("scalars") == ["physicality-recipe-version-u32le"], "Unicode root manifest physicality recipe version changed")
+    _require(manifest.get("bindings") == ["source", "recipe", "canonical-numeric-provider-receipt", "root-stream-contract", "atom-section", "ducet-position-section", "ducet-contraction-section", "normalization-composition-section", "algorithmic-Hangul-rule", "atom-record-contract", "physicality-recipe", "placement-rank-permutation", "coordinate-table", "geometry-epoch"], "Unicode root manifest lost a required binding")
     _require(manifest.get("binding_fingerprints") == {
         "root-stream-contract": "SHA-256(exact-unicode-root-stream.json-bytes)",
         "algorithmic-Hangul-rule": "SHA-256(exact-ducet-totalization.json-bytes)",
+        "atom-record-contract": "SHA-256(exact-unicode-atom-record.json-bytes)",
+        "physicality-recipe": "SHA-256(exact-unicode-atomic-physicality.json-bytes)",
+        "placement-rank-permutation": "BLAKE3-256(exact-position-to-placement-rank-permutation-under-complete-DUCET-equivalence)",
+        "coordinate-table": "BLAKE3-256(exact-position-to-rank-to-coordinate-bits)",
+        "geometry-epoch": "BLAKE3-256(physicality-recipe-placement-and-coordinate-table)",
     }, "Unicode root manifest binding fingerprint recipes changed")
+    _require(document.get("section_fingerprint", {}).get("domain") == "laplace-unicode-root-section-v2", "Unicode root section digest domain was not versioned")
+    _require(document.get("stream_validation", {}).get("receipt", "").startswith("BLAKE3-256(laplace-unicode-root-validation-v2"), "Unicode root validation receipt domain was not versioned")
     fanout = document.get("fanout", {})
     _require(fanout.get("calculation_count") == 1 and fanout.get("producer_record_type") == 65536, "Unicode root is no longer one canonical producer calculation")
     _require(fanout.get("consumer_rule") == "PostgreSQL-and-perfcache-sinks-consume-the-identical-canonical-batches-without-recalculation", "Unicode root sinks may independently recalculate")
@@ -309,6 +371,10 @@ def _validate_ducet(document: dict[str, Any]) -> None:
     _require(total.get("comparison") == ["uca-17-ducet-equivalence-key-v1", "LUP-v1-position-bytes-unsigned-lexicographic-only-when-equivalence-key-equal"], "placement totalization order changed")
     _require(total.get("tie_discriminator_is_ducet_weight") is False and total.get("tie_discriminator_is_uca_level") is False, "Laplace placement discriminator was mislabeled as a DUCET/UCA weight")
     _require(total.get("rank_is_permutation") is True and total.get("rank_is_identity") is False and total.get("rank_is_semantic_equivalence") is False, "placement rank crossed an authority boundary")
+    rank_fingerprint = total.get("rank_permutation_fingerprint", {})
+    _require(rank_fingerprint.get("algorithm") == "BLAKE3-256" and rank_fingerprint.get("domain") == "laplace-unicode-placement-rank-permutation-v1", "placement-rank fingerprint authority changed")
+    _require(rank_fingerprint.get("preimage") == "domain || repeated(codepoint-position-u32le || placement-rank-u32le) in codepoint-position order || population-u64le", "placement-rank fingerprint is not the pure rank map")
+    _require(rank_fingerprint.get("excludes") == ["equivalence-receipt", "root-recipe-fingerprint", "physicality-recipe", "numeric-provider-receipt"], "placement-rank fingerprint admitted unrelated receipt state")
     _require(document.get("key_encoding", {}).get("no-truncation-or-first-weight-approximation") is True, "first-weight DUCET approximation was admitted")
     conformance = document.get("conformance", {})
     _require(conformance.get("required_full_suites") == [
@@ -405,14 +471,15 @@ def validate_contracts(
     }
     _validate_source(documents["source"], source_root)
     _validate_atom(documents["atom"])
+    _validate_atomic_physicality(documents["physicality"])
     _validate_stream(documents["stream"])
     _validate_ducet(documents["ducet"])
     _validate_geometry(documents["geometry"])
     _validate_hilbert_numeric(documents["hilbert"], verify_numeric_provider)
-    _require(documents["source"]["population"]["count"] == documents["atom"]["population"] == documents["ducet"]["population"] == documents["geometry"]["population"], "Unicode population differs across contracts")
+    _require(documents["source"]["population"]["count"] == documents["atom"]["population"] == documents["physicality"]["population"] == documents["ducet"]["population"] == documents["geometry"]["population"], "Unicode population differs across contracts")
     _require(documents["ducet"]["ducet_source_sha256"] == EXPECTED_SOURCE_FILES["uca/allkeys.txt"][1], "DUCET contract and source manifest differ")
     return {
-        "status": "contracts-verified-no-unicode-implementation-or-activation",
+        "status": "contracts-verified-canonical-root-stream-implemented-no-persistence-or-activation",
         "contract_count": len(CONTRACT_FILES),
         "source_file_count": len(EXPECTED_SOURCE_FILES),
         "population": 1114112,

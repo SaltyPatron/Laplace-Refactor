@@ -5,19 +5,30 @@
 #include <string.h>
 
 #include "blake3.h"
+#include "laplace/contract/unicode-source-manifest.h"
+#include "laplace/persistence.h"
 
 static const uint8_t unicode_root_section_domain[] =
-    "laplace-unicode-root-section-v1";
+    "laplace-unicode-root-section-v2";
 static const uint8_t unicode_root_validation_domain[] =
-    "laplace-unicode-root-validation-v1";
+    "laplace-unicode-root-validation-v2";
+static const uint8_t unicode_root_coordinate_table_domain[] =
+    "laplace-unicode-atomic-coordinate-table-v1";
+static const uint8_t unicode_root_placement_rank_permutation_domain[] =
+    "laplace-unicode-placement-rank-permutation-v1";
+static const uint8_t unicode_root_geometry_epoch_domain[] =
+    "laplace-unicode-root-geometry-epoch-v1";
 
 struct laplace_unicode_root_stream_validator {
     laplace_unicode_root_stream_expectation expectation;
     blake3_hasher section_hashers[4];
+    blake3_hasher coordinate_table_hasher;
+    blake3_hasher placement_rank_permutation_hasher;
     uint64_t section_counts[4];
     uint64_t total_frame_count;
     uint64_t total_encoded_bytes;
     uint32_t* previous_contraction;
+    uint8_t* observed_placement_ranks;
     uint32_t previous_contraction_count;
     uint32_t previous_contraction_capacity;
     uint32_t previous_normalization[3];
@@ -32,6 +43,14 @@ struct laplace_unicode_root_stream_validator {
     laplace_unicode_root_stream_section_snapshot section_snapshot;
     laplace_unicode_root_stream_summary summary;
 };
+
+static int unicode_root_physicality_recipe_version_valid(uint32_t version) {
+#if defined(LAPLACE_TEST_ALLOW_UNICODE_PHYSICALITY_RECIPE_VERSION)
+    return version != 0u;
+#else
+    return version == LAPLACE_UNICODE_ATOMIC_PHYSICALITY_RECIPE_VERSION;
+#endif
+}
 
 static const uint8_t expected_payload_kind[LAPLACE_UNICODE_ATOM_FIELD_COUNT] = {
     1u, 2u, 1u, 3u, 4u, 5u, 6u, 7u, 8u, 9u, 10u, 1u, 1u,
@@ -742,6 +761,8 @@ laplace_unicode_status laplace_unicode_atom_record_encode(
     write_u16le(output + 124u, LAPLACE_UNICODE_ATOM_FIELD_COUNT);
     write_u32le(output + 128u,
                 (uint32_t)(required - LAPLACE_UNICODE_ATOM_HEADER_BYTES));
+    memcpy(output + 132u, record->geometry_epoch.bytes, 32u);
+    memcpy(output + 164u, record->physicality_id.bytes, 32u);
     for (field = 0u; field < LAPLACE_UNICODE_ATOM_FIELD_COUNT; ++field) {
         const laplace_unicode_atom_field* value = &record->fields[field];
         write_u16le(output + offset, value->field_id);
@@ -800,6 +821,8 @@ laplace_unicode_status laplace_unicode_atom_record_open(
     }
     memcpy(view->value.hilbert_key, encoded + 108u,
            LAPLACE_UNICODE_HILBERT_KEY_BYTES);
+    memcpy(view->value.geometry_epoch.bytes, encoded + 132u, 32u);
+    memcpy(view->value.physicality_id.bytes, encoded + 164u, 32u);
     for (field = 0u; field < LAPLACE_UNICODE_ATOM_FIELD_COUNT; ++field) {
         laplace_unicode_atom_field* value = &view->value.fields[field];
         uint32_t payload_bytes;
@@ -1365,10 +1388,12 @@ laplace_unicode_status laplace_unicode_root_manifest_encode(
     const laplace_unicode_root_manifest* manifest,
     uint8_t output[LAPLACE_UNICODE_ROOT_MANIFEST_BYTES]) {
     size_t offset = 56u;
-    const laplace_digest256* fingerprints[9];
+    const laplace_digest256* fingerprints[14];
     size_t index;
     if (manifest == NULL || output == NULL ||
-        !root_manifest_counts_valid(manifest)) {
+        !unicode_root_physicality_recipe_version_valid(
+            manifest->physicality_recipe_version) ||
+        manifest->reserved != 0u || !root_manifest_counts_valid(manifest)) {
         return LAPLACE_UNICODE_RECORD_INVALID;
     }
     fingerprints[0] = &manifest->source_fingerprint;
@@ -1380,21 +1405,27 @@ laplace_unicode_status laplace_unicode_root_manifest_encode(
     fingerprints[6] = &manifest->ducet_contraction_section_fingerprint;
     fingerprints[7] = &manifest->normalization_composition_section_fingerprint;
     fingerprints[8] = &manifest->algorithmic_hangul_rule_fingerprint;
+    fingerprints[9] = &manifest->atom_record_contract_fingerprint;
+    fingerprints[10] = &manifest->physicality_recipe_fingerprint;
+    fingerprints[11] = &manifest->placement_rank_permutation_fingerprint;
+    fingerprints[12] = &manifest->coordinate_table_fingerprint;
+    fingerprints[13] = &manifest->geometry_epoch;
     memset(output, 0, LAPLACE_UNICODE_ROOT_MANIFEST_BYTES);
     memcpy(output, "LURM", 4u);
     write_u16le(output + 4u, LAPLACE_UNICODE_ROOT_MANIFEST_VERSION);
     write_u16le(output + 6u, LAPLACE_UNICODE_ROOT_MANIFEST_BYTES);
     write_u32le(output + 8u, LAPLACE_UNICODE_ROOT_MANIFEST_BYTES);
+    write_u32le(output + 12u, manifest->physicality_recipe_version);
     write_u64le(output + 16u, manifest->atom_count);
     write_u64le(output + 24u, manifest->ducet_position_count);
     write_u64le(output + 32u, manifest->ducet_contraction_count);
     write_u64le(output + 40u, manifest->normalization_composition_count);
     write_u64le(output + 48u, manifest->total_frame_count);
-    for (index = 0u; index < 9u; ++index) {
+    for (index = 0u; index < 14u; ++index) {
         memcpy(output + offset, fingerprints[index]->bytes, 32u);
         offset += 32u;
     }
-    return offset == 344u ? LAPLACE_UNICODE_OK : LAPLACE_UNICODE_PROVIDER_FAILURE;
+    return offset == 504u ? LAPLACE_UNICODE_OK : LAPLACE_UNICODE_PROVIDER_FAILURE;
 }
 
 laplace_unicode_status laplace_unicode_root_manifest_open(
@@ -1403,7 +1434,7 @@ laplace_unicode_status laplace_unicode_root_manifest_open(
     laplace_unicode_root_manifest* manifest,
     size_t* consumed_bytes) {
     laplace_unicode_root_manifest decoded;
-    laplace_digest256* fingerprints[9];
+    laplace_digest256* fingerprints[14];
     size_t offset = 56u;
     size_t index;
     if (encoded == NULL || manifest == NULL || consumed_bytes == NULL) {
@@ -1414,7 +1445,9 @@ laplace_unicode_status laplace_unicode_root_manifest_open(
         read_u16le(encoded + 4u) != LAPLACE_UNICODE_ROOT_MANIFEST_VERSION ||
         read_u16le(encoded + 6u) != LAPLACE_UNICODE_ROOT_MANIFEST_BYTES ||
         read_u32le(encoded + 8u) != LAPLACE_UNICODE_ROOT_MANIFEST_BYTES ||
-        read_u32le(encoded + 12u) != 0u || read_u64le(encoded + 344u) != 0u) {
+        !unicode_root_physicality_recipe_version_valid(
+            read_u32le(encoded + 12u)) ||
+        read_u64le(encoded + 504u) != 0u) {
         return LAPLACE_UNICODE_RECORD_INVALID;
     }
     memset(&decoded, 0, sizeof(decoded));
@@ -1423,6 +1456,7 @@ laplace_unicode_status laplace_unicode_root_manifest_open(
     decoded.ducet_contraction_count = read_u64le(encoded + 32u);
     decoded.normalization_composition_count = read_u64le(encoded + 40u);
     decoded.total_frame_count = read_u64le(encoded + 48u);
+    decoded.physicality_recipe_version = read_u32le(encoded + 12u);
     fingerprints[0] = &decoded.source_fingerprint;
     fingerprints[1] = &decoded.recipe_fingerprint;
     fingerprints[2] = &decoded.numeric_provider_receipt;
@@ -1432,11 +1466,16 @@ laplace_unicode_status laplace_unicode_root_manifest_open(
     fingerprints[6] = &decoded.ducet_contraction_section_fingerprint;
     fingerprints[7] = &decoded.normalization_composition_section_fingerprint;
     fingerprints[8] = &decoded.algorithmic_hangul_rule_fingerprint;
-    for (index = 0u; index < 9u; ++index) {
+    fingerprints[9] = &decoded.atom_record_contract_fingerprint;
+    fingerprints[10] = &decoded.physicality_recipe_fingerprint;
+    fingerprints[11] = &decoded.placement_rank_permutation_fingerprint;
+    fingerprints[12] = &decoded.coordinate_table_fingerprint;
+    fingerprints[13] = &decoded.geometry_epoch;
+    for (index = 0u; index < 14u; ++index) {
         memcpy(fingerprints[index]->bytes, encoded + offset, 32u);
         offset += 32u;
     }
-    if (offset != 344u || !root_manifest_counts_valid(&decoded)) {
+    if (offset != 504u || !root_manifest_counts_valid(&decoded)) {
         return LAPLACE_UNICODE_RECORD_INVALID;
     }
     *manifest = decoded;
@@ -1484,6 +1523,197 @@ static void unicode_root_section_hasher_finish(
     blake3_hasher_update(&copy, encoded_count, sizeof(encoded_count));
     blake3_hasher_finalize(
         &copy, fingerprint->bytes, sizeof(fingerprint->bytes));
+}
+
+static void unicode_root_placement_rank_hasher_initialize(
+    blake3_hasher* hasher) {
+    blake3_hasher_init(hasher);
+    blake3_hasher_update(
+        hasher, unicode_root_placement_rank_permutation_domain,
+        sizeof(unicode_root_placement_rank_permutation_domain) - 1u);
+}
+
+static void unicode_root_placement_rank_hasher_update(
+    blake3_hasher* hasher,
+    uint32_t codepoint_position,
+    uint32_t placement_rank) {
+    uint8_t encoded[4];
+    write_u32le(encoded, codepoint_position);
+    blake3_hasher_update(hasher, encoded, sizeof(encoded));
+    write_u32le(encoded, placement_rank);
+    blake3_hasher_update(hasher, encoded, sizeof(encoded));
+}
+
+static void unicode_root_placement_rank_hasher_finish(
+    const blake3_hasher* hasher,
+    laplace_digest256* fingerprint) {
+    blake3_hasher copy = *hasher;
+    uint8_t population[8];
+    write_u64le(population, LAPLACE_UNICODE_ROOT_POPULATION);
+    blake3_hasher_update(&copy, population, sizeof(population));
+    blake3_hasher_finalize(
+        &copy, fingerprint->bytes, sizeof(fingerprint->bytes));
+}
+
+static int unicode_root_mark_placement_rank_once(
+    uint8_t* observed_ranks,
+    uint32_t placement_rank) {
+    const size_t byte = (size_t)placement_rank >> 3u;
+    const uint8_t bit = (uint8_t)(1u << (placement_rank & 7u));
+#if defined(LAPLACE_TEST_SKIP_UNICODE_PLACEMENT_PERMUTATION_VALIDATION)
+    (void)observed_ranks;
+    (void)byte;
+    (void)bit;
+    return 1;
+#else
+    if ((observed_ranks[byte] & bit) != 0u) {
+        return 0;
+    }
+    observed_ranks[byte] |= bit;
+    return 1;
+#endif
+}
+
+laplace_unicode_status
+laplace_unicode_placement_rank_permutation_identify(
+    const uint32_t* placement_ranks,
+    uint32_t position_count,
+    laplace_digest256* rank_permutation_fingerprint) {
+    const size_t observed_bytes =
+        ((size_t)LAPLACE_UNICODE_ROOT_POPULATION + 7u) / 8u;
+    uint8_t* observed_ranks;
+    blake3_hasher hasher;
+    uint32_t position;
+    if (placement_ranks == NULL || rank_permutation_fingerprint == NULL ||
+        position_count != LAPLACE_UNICODE_ROOT_POPULATION) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    observed_ranks = (uint8_t*)calloc(observed_bytes, 1u);
+    if (observed_ranks == NULL) {
+        return LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+    }
+    unicode_root_placement_rank_hasher_initialize(&hasher);
+    for (position = 0u; position < position_count; ++position) {
+        const uint32_t rank = placement_ranks[position];
+        if (rank >= position_count ||
+            !unicode_root_mark_placement_rank_once(observed_ranks, rank)) {
+            free(observed_ranks);
+            return LAPLACE_UNICODE_RECORD_INVALID;
+        }
+        unicode_root_placement_rank_hasher_update(&hasher, position, rank);
+    }
+    unicode_root_placement_rank_hasher_finish(
+        &hasher, rank_permutation_fingerprint);
+    free(observed_ranks);
+    return LAPLACE_UNICODE_OK;
+}
+
+static void unicode_root_coordinate_hasher_initialize(blake3_hasher* hasher) {
+    blake3_hasher_init(hasher);
+    blake3_hasher_update(
+        hasher, unicode_root_coordinate_table_domain,
+        sizeof(unicode_root_coordinate_table_domain) - 1u);
+}
+
+static void unicode_root_coordinate_hasher_update(
+    blake3_hasher* hasher,
+    uint32_t codepoint_position,
+    uint32_t placement_rank,
+    const laplace_point4d* coordinate) {
+    uint8_t encoded_u32[4];
+    uint8_t encoded_u64[8];
+    size_t axis;
+    write_u32le(encoded_u32, codepoint_position);
+    blake3_hasher_update(hasher, encoded_u32, sizeof(encoded_u32));
+    write_u32le(encoded_u32, placement_rank);
+    blake3_hasher_update(hasher, encoded_u32, sizeof(encoded_u32));
+    for (axis = 0u; axis < 4u; ++axis) {
+        uint64_t bits = 0u;
+        memcpy(&bits, &coordinate->component[axis], sizeof(bits));
+        write_u64le(encoded_u64, bits);
+        blake3_hasher_update(hasher, encoded_u64, sizeof(encoded_u64));
+    }
+}
+
+static void unicode_root_coordinate_hasher_finish(
+    const blake3_hasher* hasher,
+    laplace_digest256* fingerprint) {
+    blake3_hasher copy = *hasher;
+    uint8_t population[8];
+    write_u64le(population, LAPLACE_UNICODE_ROOT_POPULATION);
+    blake3_hasher_update(&copy, population, sizeof(population));
+    blake3_hasher_finalize(
+        &copy, fingerprint->bytes, sizeof(fingerprint->bytes));
+}
+
+laplace_unicode_status laplace_unicode_coordinate_table_identify(
+    const uint32_t* placement_ranks,
+    const laplace_point4d* coordinates_by_rank,
+    uint32_t position_count,
+    laplace_digest256* coordinate_table_fingerprint) {
+    laplace_digest256 ignored_rank_permutation_fingerprint;
+    blake3_hasher hasher;
+    laplace_unicode_status status;
+    uint32_t position;
+    if (placement_ranks == NULL || coordinates_by_rank == NULL ||
+        coordinate_table_fingerprint == NULL ||
+        position_count != LAPLACE_UNICODE_ROOT_POPULATION) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    status = laplace_unicode_placement_rank_permutation_identify(
+        placement_ranks, position_count,
+        &ignored_rank_permutation_fingerprint);
+    if (status != LAPLACE_UNICODE_OK) {
+        return status;
+    }
+    unicode_root_coordinate_hasher_initialize(&hasher);
+    for (position = 0u; position < position_count; ++position) {
+        const uint32_t rank = placement_ranks[position];
+        size_t axis;
+        if (rank >= position_count) {
+            return LAPLACE_UNICODE_RECORD_INVALID;
+        }
+        for (axis = 0u; axis < 4u; ++axis) {
+            const double component = coordinates_by_rank[rank].component[axis];
+            if (!isfinite(component) || component < -1.0 || component > 1.0) {
+                return LAPLACE_UNICODE_NUMERIC_OUT_OF_RANGE;
+            }
+        }
+        unicode_root_coordinate_hasher_update(
+            &hasher, position, rank, &coordinates_by_rank[rank]);
+    }
+    unicode_root_coordinate_hasher_finish(
+        &hasher, coordinate_table_fingerprint);
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_geometry_epoch_identify(
+    const laplace_digest256* physicality_recipe_fingerprint,
+    const laplace_digest256* placement_rank_permutation_fingerprint,
+    const laplace_digest256* coordinate_table_fingerprint,
+    laplace_digest256* geometry_epoch) {
+    blake3_hasher hasher;
+    if (physicality_recipe_fingerprint == NULL ||
+        placement_rank_permutation_fingerprint == NULL ||
+        coordinate_table_fingerprint == NULL || geometry_epoch == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(
+        &hasher, unicode_root_geometry_epoch_domain,
+        sizeof(unicode_root_geometry_epoch_domain) - 1u);
+    blake3_hasher_update(
+        &hasher, physicality_recipe_fingerprint->bytes,
+        sizeof(physicality_recipe_fingerprint->bytes));
+    blake3_hasher_update(
+        &hasher, placement_rank_permutation_fingerprint->bytes,
+        sizeof(placement_rank_permutation_fingerprint->bytes));
+    blake3_hasher_update(
+        &hasher, coordinate_table_fingerprint->bytes,
+        sizeof(coordinate_table_fingerprint->bytes));
+    blake3_hasher_finalize(
+        &hasher, geometry_epoch->bytes, sizeof(geometry_epoch->bytes));
+    return LAPLACE_UNICODE_OK;
 }
 
 static laplace_unicode_status unicode_root_stream_poison(
@@ -1639,6 +1869,22 @@ static int unicode_root_manifest_matches(
     const laplace_unicode_root_stream_validator* validator,
     const laplace_unicode_root_manifest* manifest,
     const laplace_digest256 section_fingerprints[4]) {
+    laplace_digest256 observed_placement_rank_permutation_fingerprint;
+    laplace_digest256 observed_coordinate_table_fingerprint;
+    laplace_digest256 calculated_geometry_epoch;
+    unicode_root_placement_rank_hasher_finish(
+        &validator->placement_rank_permutation_hasher,
+        &observed_placement_rank_permutation_fingerprint);
+    unicode_root_coordinate_hasher_finish(
+        &validator->coordinate_table_hasher,
+        &observed_coordinate_table_fingerprint);
+    if (laplace_unicode_geometry_epoch_identify(
+        &validator->expectation.physicality_recipe_fingerprint,
+        &observed_placement_rank_permutation_fingerprint,
+        &observed_coordinate_table_fingerprint,
+        &calculated_geometry_epoch) != LAPLACE_UNICODE_OK) {
+        return 0;
+    }
     return manifest->atom_count == validator->section_counts[0] &&
         manifest->ducet_position_count == validator->section_counts[1] &&
         manifest->ducet_contraction_count == validator->section_counts[2] &&
@@ -1662,6 +1908,34 @@ static int unicode_root_manifest_matches(
             &manifest->algorithmic_hangul_rule_fingerprint,
             &validator->expectation.algorithmic_hangul_rule_fingerprint) &&
         unicode_digest_equal(
+            &manifest->atom_record_contract_fingerprint,
+            &validator->expectation.atom_record_contract_fingerprint) &&
+        manifest->physicality_recipe_version ==
+            validator->expectation.physicality_recipe_version &&
+        unicode_digest_equal(
+            &manifest->physicality_recipe_fingerprint,
+            &validator->expectation.physicality_recipe_fingerprint) &&
+#if !defined(LAPLACE_TEST_SKIP_UNICODE_PLACEMENT_PERMUTATION_VALIDATION)
+        unicode_digest_equal(
+            &manifest->placement_rank_permutation_fingerprint,
+            &observed_placement_rank_permutation_fingerprint) &&
+        unicode_digest_equal(
+            &validator->expectation.placement_rank_permutation_fingerprint,
+            &observed_placement_rank_permutation_fingerprint) &&
+#endif
+        unicode_digest_equal(
+            &manifest->coordinate_table_fingerprint,
+            &observed_coordinate_table_fingerprint) &&
+        unicode_digest_equal(
+            &validator->expectation.coordinate_table_fingerprint,
+            &observed_coordinate_table_fingerprint) &&
+        unicode_digest_equal(
+            &manifest->geometry_epoch,
+            &calculated_geometry_epoch) &&
+        unicode_digest_equal(
+            &validator->expectation.geometry_epoch,
+            &calculated_geometry_epoch) &&
+        unicode_digest_equal(
             &manifest->atom_section_fingerprint, &section_fingerprints[0]) &&
         unicode_digest_equal(
             &manifest->ducet_position_section_fingerprint,
@@ -1679,7 +1953,10 @@ laplace_unicode_status laplace_unicode_root_stream_validator_create(
     laplace_unicode_root_stream_validator** validator) {
     laplace_unicode_root_stream_validator* created;
     size_t index;
-    if (expectation == NULL || validator == NULL || expectation->flags != 0u ||
+    if (expectation == NULL || validator == NULL ||
+        !unicode_root_physicality_recipe_version_valid(
+            expectation->physicality_recipe_version) ||
+        expectation->flags != 0u ||
         expectation->reserved != 0u) {
         return LAPLACE_UNICODE_INVALID_ARGUMENT;
     }
@@ -1689,9 +1966,19 @@ laplace_unicode_status laplace_unicode_root_stream_validator_create(
     if (created == NULL) {
         return LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
     }
+    created->observed_placement_ranks = (uint8_t*)calloc(
+        ((size_t)LAPLACE_UNICODE_ROOT_POPULATION + 7u) / 8u, 1u);
+    if (created->observed_placement_ranks == NULL) {
+        free(created);
+        return LAPLACE_UNICODE_SOURCE_MEMORY_FAILURE;
+    }
     created->expectation = *expectation;
     created->current_kind = LAPLACE_UNICODE_ROOT_FRAME_ATOM;
     created->status = LAPLACE_UNICODE_OK;
+    unicode_root_coordinate_hasher_initialize(
+        &created->coordinate_table_hasher);
+    unicode_root_placement_rank_hasher_initialize(
+        &created->placement_rank_permutation_hasher);
     for (index = 0u; index < 4u; ++index) {
         unicode_root_section_hasher_initialize(
             &created->section_hashers[index], (uint16_t)(index + 1u));
@@ -1722,7 +2009,53 @@ static laplace_unicode_status unicode_root_stream_consume_frame(
                 validator, LAPLACE_UNICODE_STREAM_ORDER_INVALID);
         }
 #endif
-        if (frame->value.kind == LAPLACE_UNICODE_ROOT_FRAME_DUCET_CONTRACTION) {
+        if (frame->value.kind == LAPLACE_UNICODE_ROOT_FRAME_ATOM) {
+            laplace_unicode_atom_record_view atom;
+            laplace_persistence_physicality_record physicality;
+            size_t consumed = 0u;
+            status = laplace_unicode_atom_record_open(
+                frame->value.payload, frame->value.payload_bytes,
+                &atom, &consumed);
+#if !defined(LAPLACE_TEST_SKIP_UNICODE_ATOM_PHYSICALITY_VALIDATION)
+            if (status != LAPLACE_UNICODE_OK ||
+                consumed != frame->value.payload_bytes ||
+                !unicode_digest_equal(
+                    &atom.value.geometry_epoch,
+                    &validator->expectation.geometry_epoch) ||
+                laplace_persistence_atomic_point_physicality(
+                    &atom.value.content_id,
+                    validator->expectation.physicality_recipe_version,
+                    &validator->expectation.physicality_recipe_fingerprint,
+                    &validator->expectation.geometry_epoch,
+                    &atom.value.coordinate, &physicality) !=
+                    LAPLACE_PERSISTENCE_OK ||
+                !unicode_digest_equal(
+                    &atom.value.physicality_id,
+                    &physicality.physicality_id)) {
+                return unicode_root_stream_poison(
+                    validator, LAPLACE_UNICODE_IDENTITY_MISMATCH);
+            }
+#else
+            (void)physicality;
+            if (status != LAPLACE_UNICODE_OK ||
+                consumed != frame->value.payload_bytes) {
+                return unicode_root_stream_poison(validator, status);
+            }
+#endif
+            if (!unicode_root_mark_placement_rank_once(
+                    validator->observed_placement_ranks,
+                    atom.value.placement_rank)) {
+                return unicode_root_stream_poison(
+                    validator, LAPLACE_UNICODE_STREAM_ORDER_INVALID);
+            }
+            unicode_root_placement_rank_hasher_update(
+                &validator->placement_rank_permutation_hasher,
+                atom.value.codepoint_position, atom.value.placement_rank);
+            unicode_root_coordinate_hasher_update(
+                &validator->coordinate_table_hasher,
+                atom.value.codepoint_position, atom.value.placement_rank,
+                &atom.value.coordinate);
+        } else if (frame->value.kind == LAPLACE_UNICODE_ROOT_FRAME_DUCET_CONTRACTION) {
             laplace_unicode_ducet_contraction_view contraction;
             size_t consumed = 0u;
             status = laplace_unicode_ducet_contraction_open(
@@ -1923,6 +2256,7 @@ void laplace_unicode_root_stream_validator_destroy(
         return;
     }
     free(validator->previous_contraction);
+    free(validator->observed_placement_ranks);
     memset(validator, 0, sizeof(*validator));
     free(validator);
 }

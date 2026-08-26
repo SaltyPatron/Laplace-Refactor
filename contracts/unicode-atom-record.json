@@ -1,19 +1,19 @@
 {
-  "schema": "laplace.unicode-atom-record-contract/v1",
+  "schema": "laplace.unicode-atom-record-contract/v2",
   "record_type": 65537,
-  "record_version": 1,
+  "record_version": 2,
   "population": 1114112,
   "canonical_stream_order": "codepoint-position-ascending",
   "record_index_equals_codepoint_position": true,
   "wire": {
-    "name": "Laplace-Unicode-Atom-Record-v1",
+    "name": "Laplace-Unicode-Atom-Record-v2",
     "byte_order": "little-endian-except-hilbert-key-and-uca-weight-units",
-    "header_bytes": 132,
+    "header_bytes": 196,
     "magic_hex": "4c554152",
     "fixed_fields": [
       {"name": "magic", "offset": 0, "encoding": "bytes[4]", "value": "4c554152"},
-      {"name": "record_version", "offset": 4, "encoding": "u16le", "value": 1},
-      {"name": "header_bytes", "offset": 6, "encoding": "u16le", "value": 132},
+      {"name": "record_version", "offset": 4, "encoding": "u16le", "value": 2},
+      {"name": "header_bytes", "offset": 6, "encoding": "u16le", "value": 196},
       {"name": "record_bytes", "offset": 8, "encoding": "u32le"},
       {"name": "codepoint_position", "offset": 12, "encoding": "u32le"},
       {"name": "placement_rank", "offset": 16, "encoding": "u32le"},
@@ -27,7 +27,9 @@
       {"name": "hilbert_key", "offset": 108, "encoding": "bytes[16]-hilbert-most-significant-byte-first"},
       {"name": "field_count", "offset": 124, "encoding": "u16le", "value": 26},
       {"name": "reserved_zero_1", "offset": 126, "encoding": "u16le", "value": 0},
-      {"name": "variable_bytes", "offset": 128, "encoding": "u32le"}
+      {"name": "variable_bytes", "offset": 128, "encoding": "u32le"},
+      {"name": "geometry_epoch", "offset": 132, "encoding": "blake3-256-bytes[32]", "authority": "laplace.unicode-atomic-physicality-contract/v1"},
+      {"name": "physicality_id", "offset": 164, "encoding": "blake3-256-bytes[32]", "authority": "laplace_persistence_atomic_point_physicality"}
     ],
     "variable_field_header": [
       {"name": "field_id", "encoding": "u16le"},
@@ -163,6 +165,13 @@
     "content_id_equals_first_16_bytes_of_identity_preimage_fingerprint": true,
     "full_digest_is_collision_guard_not_public_entity_id": true,
     "rank_and_geometry_excluded": true
+  },
+  "physicality": {
+    "contract": "laplace.unicode-atomic-physicality-contract/v1",
+    "id_is_content_identity": false,
+    "id_is_calculated_once_by_root_producer": true,
+    "stream_validator_reidentifies_from_global_manifest_recipe_and_geometry_epoch": true,
+    "sinks_consume_emitted_id_without_minting": true
   },
   "tier": {
     "atom_floor": 0,

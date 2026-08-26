@@ -280,6 +280,17 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
         build.stream.manifest.stream_contract_fingerprint;
     expectation.algorithmic_hangul_rule_fingerprint =
         build.stream.manifest.algorithmic_hangul_rule_fingerprint;
+    expectation.atom_record_contract_fingerprint =
+        build.stream.manifest.atom_record_contract_fingerprint;
+    expectation.physicality_recipe_fingerprint =
+        build.stream.manifest.physicality_recipe_fingerprint;
+    expectation.placement_rank_permutation_fingerprint =
+        build.placement.rank_permutation_fingerprint;
+    expectation.coordinate_table_fingerprint =
+        build.stream.manifest.coordinate_table_fingerprint;
+    expectation.geometry_epoch = build.stream.manifest.geometry_epoch;
+    expectation.physicality_recipe_version =
+        build.stream.manifest.physicality_recipe_version;
     ValidatingSink left{};
     ValidatingSink right{};
     left.expectation = expectation;
@@ -314,16 +325,21 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
     EXPECT_TRUE(SameDigest(
         replay.stream.stream_fingerprint, build.spool.stream_fingerprint));
 
-    const std::array<laplace_digest256, 8> expected{{
-        Digest("025aeb839533cc304565c1329f59101373690e862cbd0a90bee0a6c97fe2cc3b"),
-        Digest("e72d810a95c0e33a2b1ccd4066453348c0cd73cdcdc3fe369fa78c66204008be"),
-        Digest("451b59a4b602d252a2b61948437d889d5b6af0b82a22141791b237c69cee109d"),
-        Digest("3cbe00190e398a1af96b08b2ac865b30f45f1cf78566f7201a648ea6887b6260"),
-        Digest("186cd29226145590d60baa091774a05646ed08ede5c56dc3c256c833eaa4614b"),
-        Digest("29138acfc6520443aa30c8e69cb3732f9a434b3787c16612244521395a08c883"),
-        Digest("687592ea35ecdd2394ee2b72f28ab2d2731f4c1d2d0408220dcaed7088f5891c"),
-        Digest("2bf0846966dae06373d58c35ab51b5d2a2cc3093c98333bda099a57ced3e9b5b")}};
-    const std::array<const laplace_digest256*, 8> observed{{
+    const std::array<laplace_digest256, 13> expected{{
+        Digest("a390dd47fce00fab8fa836fc4b8f0474212d714bc6654d42bf8e28ec3fd036e3"),
+        Digest("1f3b0ddf7283401bcf91e9a8ed70f00e1bd317eff5c78dcebca22d5ad6b9c75e"),
+        Digest("a5296dd7a249bd88caed034e5347f156482580e113d6eee63217b044db6a3a83"),
+        Digest("2b8bcaf463a118c6979983767c6efb08f8c6c468f99f695b76c450eeccc1b4d6"),
+        Digest("e28ee38888d5a1944fa9d2f87e6686b8bd6c091d9ac152f8eb7d0880184790ed"),
+        Digest("d0dc5ae88a7e3a8d42aba57286b8c248033f6ed6eb7dd9ea5509390a1503b4ef"),
+        Digest("a14749f49928f3e8f0201100accae46650036abc233b0534b276ff0d32327ae1"),
+        Digest("449f0a8551dbe3eb736c2f2a026813ba36137b2bd77a386252b603110a60716c"),
+        Digest("dd4e92caaf4314bceaec0a04724fa233babebb257173e3a52e6d4c8e61218397"),
+        Digest("c888a3bfc929f66d12b56980bef98a22851927d311221ff22174a793ddc37d18"),
+        Digest("873e6c09b1bd3e45666295f8a9997a92a30ef7378a4ea852f2f521c20968f38e"),
+        Digest("042ba321f69cbe4531277601e7242ba8ac07d5bb2635ee8b5f5b62f99f0d9df2"),
+        Digest("d529d0b912b7689cfb0000b878fe7dc1d337a3c42e9ed7278b5fcd90d9ef3b06")}};
+    const std::array<const laplace_digest256*, 13> observed{{
         &build.receipt_id,
         &build.stream.receipt_id,
         &build.spool.stream_fingerprint,
@@ -331,12 +347,17 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
         &build.stream.section_fingerprints[0],
         &build.stream.section_fingerprints[1],
         &build.stream.section_fingerprints[2],
-        &build.stream.section_fingerprints[3]}};
+        &build.stream.section_fingerprints[3],
+        &build.stream.manifest.atom_record_contract_fingerprint,
+        &build.stream.manifest.physicality_recipe_fingerprint,
+        &build.stream.manifest.placement_rank_permutation_fingerprint,
+        &build.stream.manifest.coordinate_table_fingerprint,
+        &build.stream.manifest.geometry_epoch}};
     for (std::size_t index = 0U; index < observed.size(); ++index) {
         EXPECT_TRUE(SameDigest(*observed[index], expected[index]))
             << index << ":" << Hex(*observed[index]);
     }
-    EXPECT_EQ(build.spool.total_bytes, UINT64_C(670047407));
+    EXPECT_EQ(build.spool.total_bytes, UINT64_C(741350735));
     EXPECT_EQ(build.spool.batch_count, UINT64_C(546));
 }
 

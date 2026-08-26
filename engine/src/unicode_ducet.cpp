@@ -924,18 +924,17 @@ bool FinalizePlacementFingerprints(
     }
     placement.summary.equivalence_fingerprint = Finish(equivalence);
 
-    blake3_hasher ranks{};
-    blake3_hasher_init(&ranks);
-    HashString(ranks, "laplace-unicode-placement-rank-permutation-v1");
-    blake3_hasher_update(
-        &ranks, placement.summary.equivalence_fingerprint.bytes,
-        sizeof(placement.summary.equivalence_fingerprint.bytes));
+    std::vector<std::uint32_t> ranks(LAPLACE_UNICODE_ROOT_POPULATION);
     for (std::uint32_t position = 0u;
          position < LAPLACE_UNICODE_ROOT_POPULATION; ++position) {
-        HashU32(ranks, position);
-        HashU32(ranks, placement.positions[position].rank);
+        ranks[position] = placement.positions[position].rank;
     }
-    placement.summary.rank_permutation_fingerprint = Finish(ranks);
+    if (laplace_unicode_placement_rank_permutation_identify(
+            ranks.data(), static_cast<std::uint32_t>(ranks.size()),
+            &placement.summary.rank_permutation_fingerprint) !=
+        LAPLACE_UNICODE_OK) {
+        return false;
+    }
 
     blake3_hasher receipt{};
     blake3_hasher_init(&receipt);

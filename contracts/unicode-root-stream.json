@@ -1,7 +1,7 @@
 {
-  "schema": "laplace.unicode-root-stream-contract/v1",
+  "schema": "laplace.unicode-root-stream-contract/v2",
   "record_type": 65536,
-  "record_version": 1,
+  "record_version": 2,
   "canonical_order": [
     "atom",
     "ducet-position",
@@ -10,13 +10,13 @@
     "root-manifest"
   ],
   "wire": {
-    "name": "Laplace-Unicode-Root-Frame-v1",
+    "name": "Laplace-Unicode-Root-Frame-v2",
     "byte_order": "little-endian",
     "header_bytes": 32,
     "magic_hex": "4c555246",
     "fixed_fields": [
       {"name": "magic", "offset": 0, "encoding": "bytes[4]", "value": "4c555246"},
-      {"name": "record_version", "offset": 4, "encoding": "u16le", "value": 1},
+      {"name": "record_version", "offset": 4, "encoding": "u16le", "value": 2},
       {"name": "header_bytes", "offset": 6, "encoding": "u16le", "value": 32},
       {"name": "frame_bytes", "offset": 8, "encoding": "u32le"},
       {"name": "frame_kind", "offset": 12, "encoding": "u16le-enum"},
@@ -27,7 +27,7 @@
     ]
   },
   "frame_kinds": [
-    {"id": 1, "name": "atom", "payload": "Laplace-Unicode-Atom-Record-v1", "order": "codepoint-position-ascending", "count": 1114112},
+    {"id": 1, "name": "atom", "payload": "Laplace-Unicode-Atom-Record-v2", "order": "codepoint-position-ascending", "count": 1114112},
     {"id": 2, "name": "ducet-position", "payload": "complete-collation-element-sequence-plus-equivalence-key-and-provenance", "order": "codepoint-position-ascending", "count": 1114112},
     {"id": 3, "name": "ducet-contraction", "payload": "source-sequence-plus-complete-collation-element-sequence-and-provenance", "order": "unsigned-position-sequence-lexicographic", "count": "calculated-from-complete-DUCET"},
     {"id": 4, "name": "normalization-composition", "payload": "starter-position-plus-combining-position-plus-composite-position", "order": "starter-then-combining-then-composite-ascending", "count": "calculated-after-complete-atom-stream"},
@@ -57,16 +57,22 @@
       "fields": ["starter-position-u32le", "combining-position-u32le", "composite-position-u32le"],
       "rules": ["all-positions-are-unicode-position-addresses", "source-order-does-not-enter-record", "algorithmic-Hangul-rule-is-bound-by-root-manifest"]
     },
-    "root-manifest-v1": {
+    "root-manifest-v2": {
       "magic_hex": "4c55524d",
-      "record_bytes": 352,
+      "record_bytes": 512,
       "counts": ["atom", "ducet-position", "ducet-contraction", "normalization-composition", "total-root-frames"],
-      "bindings": ["source", "recipe", "canonical-numeric-provider-receipt", "root-stream-contract", "atom-section", "ducet-position-section", "ducet-contraction-section", "normalization-composition-section", "algorithmic-Hangul-rule"],
+      "scalars": ["physicality-recipe-version-u32le"],
+      "bindings": ["source", "recipe", "canonical-numeric-provider-receipt", "root-stream-contract", "atom-section", "ducet-position-section", "ducet-contraction-section", "normalization-composition-section", "algorithmic-Hangul-rule", "atom-record-contract", "physicality-recipe", "placement-rank-permutation", "coordinate-table", "geometry-epoch"],
       "binding_fingerprints": {
         "root-stream-contract": "SHA-256(exact-unicode-root-stream.json-bytes)",
-        "algorithmic-Hangul-rule": "SHA-256(exact-ducet-totalization.json-bytes)"
+        "algorithmic-Hangul-rule": "SHA-256(exact-ducet-totalization.json-bytes)",
+        "atom-record-contract": "SHA-256(exact-unicode-atom-record.json-bytes)",
+        "physicality-recipe": "SHA-256(exact-unicode-atomic-physicality.json-bytes)",
+        "placement-rank-permutation": "BLAKE3-256(exact-position-to-placement-rank-permutation-under-complete-DUCET-equivalence)",
+        "coordinate-table": "BLAKE3-256(exact-position-to-rank-to-coordinate-bits)",
+        "geometry-epoch": "BLAKE3-256(physicality-recipe-placement-and-coordinate-table)"
       },
-      "rules": ["atom-and-ducet-position-counts-equal-1114112", "total-count-includes-terminal-manifest", "manifest-does-not-contain-final-framework-stream-fingerprint"]
+      "rules": ["atom-and-ducet-position-counts-equal-1114112", "total-count-includes-terminal-manifest", "manifest-does-not-contain-final-framework-stream-fingerprint", "numeric-provider-receipt-does-not-enter-physicality-identity"]
     }
   },
   "section_rules": [
@@ -79,7 +85,7 @@
   ],
   "section_fingerprint": {
     "algorithm": "BLAKE3-256",
-    "domain": "laplace-unicode-root-section-v1",
+    "domain": "laplace-unicode-root-section-v2",
     "preimage": "domain || frame-kind-u16le || repeated(section-ordinal-u64le || payload-bytes-u32le || exact-payload-bytes) || section-count-u64le",
     "partition_independent": true
   },
@@ -94,10 +100,13 @@
       "normalization-tuples-strictly-lexicographic",
       "terminal-manifest-counts-match-observed-counts",
       "terminal-manifest-section-fingerprints-match-calculated-fingerprints",
+      "terminal-manifest-coordinate-table-fingerprint-matches-the-observed-atom-position-rank-coordinate-table",
+      "terminal-manifest-geometry-epoch-matches-the-declared-recipe-observed-coordinate-table-and-expected-placement-rank-permutation",
       "terminal-manifest-bindings-match-the-declared-source-recipe-numeric-contract-and-hangul-expectation"
+      ,"every-atom-physicality-id-reidentifies-under-the-declared-physicality-recipe-and-geometry-epoch"
     ],
     "failure": "poison-validator-and-admit-no-stream",
-    "receipt": "BLAKE3-256(laplace-unicode-root-validation-v1 || exact-terminal-manifest-bytes || total-encoded-frame-bytes-u64le || observed-section-fingerprints-in-kind-order)"
+    "receipt": "BLAKE3-256(laplace-unicode-root-validation-v2 || exact-terminal-manifest-bytes || total-encoded-frame-bytes-u64le || observed-section-fingerprints-in-kind-order)"
   },
   "fanout": {
     "calculation_count": 1,

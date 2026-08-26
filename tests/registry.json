@@ -1118,6 +1118,12 @@
       "covered_dimensions": ["exact rational binary64 to u32 quantization", "ties-to-even boundaries", "signed zero and subnormal handling"]
     },
     {
+      "ctest_name": "UnicodePlacementFingerprint.RejectsDuplicateRankBeforeCoordinateTableIdentity",
+      "evidence_targets": ["LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-S3-SEED"],
+      "covered_dimensions": ["complete position-to-rank permutation", "duplicate and missing rank rejection", "coordinate table requires validated placement authority"],
+      "defect_controls": ["unicode-root.mutation-placement-permutation-validation-detected"]
+    },
+    {
       "ctest_name": "UnicodeHilbert.MatchesAllContractOrientationVectors",
       "evidence_targets": ["LP-TEST-HILBERT-NUMERIC-CONTRACT", "LP-TEST-HILBERT-LOCALITY"],
       "covered_dimensions": ["four-axis Skilling transform", "MSB-first key orientation"],
@@ -1126,7 +1132,12 @@
     {
       "ctest_name": "UnicodeAtomCodec.RoundTripsOneCanonicalVariableRecordExactly",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-UNICODE-ATOM-FLOOR"],
-      "covered_dimensions": ["canonical variable atom wire", "exact decode and byte replay"]
+      "covered_dimensions": ["canonical variable atom wire", "exact decode and byte replay", "geometry epoch", "canonical atomic physicality identity"]
+    },
+    {
+      "ctest_name": "UnicodeAtomCodec.PhysicalityChangesWithGeometryEpochWhileContentDoesNot",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-UNICODE-EXACT-SEMANTIC-SEPARATION", "LP-TEST-S3-SEED"],
+      "covered_dimensions": ["content identity independent of geometry epoch", "physicality identity changes with geometry epoch"]
     },
     {
       "ctest_name": "UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption",
@@ -1163,6 +1174,18 @@
       "defect_controls": ["unicode-root.mutation-codec-and-hilbert-defects-detected"]
     },
     {
+      "ctest_name": "UnicodeRootStreamValidator.RejectsAtomPhysicalityOutsideBoundGeometryEpoch",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-UNICODE-EXACT-SEMANTIC-SEPARATION", "LP-TEST-S3-SEED"],
+      "covered_dimensions": ["stream-bound geometry epoch", "independent physicality reidentification", "mismatched physicality rejection before sink admission"],
+      "defect_controls": ["unicode-root.mutation-codec-and-hilbert-defects-detected"]
+    },
+    {
+      "ctest_name": "UnicodeRootStreamValidator.RejectsDuplicateObservedPlacementRank",
+      "evidence_targets": ["LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "covered_dimensions": ["observed atom position-to-rank permutation", "duplicate rank rejection before manifest admission"],
+      "defect_controls": ["unicode-root.mutation-placement-permutation-validation-detected"]
+    },
+    {
       "ctest_name": "UnicodeDucetPositionCodec.PreservesEveryWeightMarkerAndKeyByte",
       "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
       "covered_dimensions": ["complete collation-element sequence", "variable markers", "full equivalence key", "provenance"]
@@ -1186,12 +1209,18 @@
     {
       "ctest_name": "UnicodeRootManifestCodec.BindsEveryRequiredSectionWithoutCircularReceipt",
       "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-SUPER-FIBONACCI-HOPF-CONTRACT"],
-      "covered_dimensions": ["complete root counts", "ordered section fingerprints", "source recipe numeric and algorithm bindings"]
+      "covered_dimensions": ["complete root counts", "ordered section fingerprints", "source and root recipe bindings", "numeric provider receipt", "atom and Hangul contracts", "physicality recipe version and fingerprint", "observed placement-rank permutation", "observed coordinate table", "calculated geometry epoch"]
     },
     {
       "ctest_name": "UnicodeRootManifestCodec.RejectsPartialPopulationAndWrongTotal",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
       "covered_dimensions": ["complete 1114112-position atom section", "complete DUCET position section", "terminal frame accounting"]
+    },
+    {
+      "ctest_name": "UnicodeRootManifestCodec.RejectsUnsupportedPhysicalityRecipeVersion",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-UNICODE-EXACT-SEMANTIC-SEPARATION"],
+      "covered_dimensions": ["exact supported physicality recipe version on encode", "exact supported physicality recipe version on decode", "exact supported physicality recipe version before stream allocation"],
+      "defect_controls": ["unicode-root.mutation-physicality-recipe-version-detected"]
     },
     {
       "ctest_name": "UnicodeNumericProvider.CalculatesBatchWithExactReceiptAndStableBits",
@@ -1239,10 +1268,34 @@
       "covered_dimensions": ["dense position addressing", "atom identity", "coordinate quantization", "Hilbert locality validation"]
     },
     {
+      "ctest_name": "UnicodeTier0Module.WholeViewBindsHotPhysicalityToCanonicalAtomBytes",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "covered_dimensions": ["contiguous canonical atom metadata", "hot-record byte parity", "physicality identity parity"],
+      "defect_controls": ["unicode-tier0.mutation-physicality-parity-omission-detected"]
+    },
+    {
+      "ctest_name": "unicode-tier0.mutation-physicality-parity-omission-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "covered_dimensions": ["cached physicality divergence from canonical atom bytes is detected"],
+      "controls": "UnicodeTier0Module.WholeViewBindsHotPhysicalityToCanonicalAtomBytes"
+    },
+    {
       "ctest_name": "unicode-root.mutation-codec-and-hilbert-defects-detected",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-HILBERT-NUMERIC-CONTRACT"],
       "covered_dimensions": ["identity-validation omission, nested-frame validation omission, and Hilbert axis reversal are detected"],
       "controls": "UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption;UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption;UnicodeHilbert.MatchesAllContractOrientationVectors"
+    },
+    {
+      "ctest_name": "unicode-root.mutation-placement-permutation-validation-detected",
+      "evidence_targets": ["LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-S3-SEED", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "covered_dimensions": ["duplicate rank acceptance and observed placement-permutation validation omission are detected"],
+      "controls": "UnicodePlacementFingerprint.RejectsDuplicateRankBeforeCoordinateTableIdentity;UnicodeRootStreamValidator.RejectsDuplicateObservedPlacementRank"
+    },
+    {
+      "ctest_name": "unicode-root.mutation-physicality-recipe-version-detected",
+      "evidence_targets": ["LP-TEST-UNICODE-ATOM-RECORD-CONTRACT", "LP-TEST-UNICODE-EXACT-SEMANTIC-SEPARATION"],
+      "covered_dimensions": ["permissive unsupported physicality recipe version acceptance is detected"],
+      "controls": "UnicodeRootManifestCodec.RejectsUnsupportedPhysicalityRecipeVersion"
     },
     {
       "ctest_name": "requirements.traceability-contract",

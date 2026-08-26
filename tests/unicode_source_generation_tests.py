@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import shutil
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,7 @@ CONTRACT_NAMES = (
     "ducet-totalization.json",
     "super-fibonacci-hopf.json",
     "hilbert-numeric.json",
+    "unicode-atomic-physicality.json",
 )
 
 
@@ -47,6 +49,22 @@ class UnicodeSourceGenerationTests(unittest.TestCase):
             replay = generate(contracts, root / "replay.h")
             self.assertEqual(first, replay)
             self.assertIn(b"LAPLACE_UNICODE_GENERATED_SOURCE_COUNT 33u", first)
+            self.assertIn(b"LAPLACE_UNICODE_GENERATED_CONTRACT_COUNT 7u", first)
+            self.assertIn(
+                b"LAPLACE_UNICODE_ATOMIC_PHYSICALITY_CONTRACT_INDEX 6u",
+                first,
+            )
+            self.assertIn(
+                b"LAPLACE_UNICODE_ATOMIC_PHYSICALITY_RECIPE_VERSION UINT32_C(1)",
+                first,
+            )
+            physicality_digest = hashlib.sha256(
+                (contracts / "unicode-atomic-physicality.json").read_bytes()
+            ).digest()
+            initializer = ", ".join(
+                f"0x{byte:02x}u" for byte in physicality_digest
+            ).encode("ascii")
+            self.assertIn(initializer, first)
 
             source = contracts / "unicode-source.json"
             source_text = source.read_text(encoding="utf-8")
@@ -62,6 +80,13 @@ class UnicodeSourceGenerationTests(unittest.TestCase):
             atom.write_bytes(atom.read_bytes() + b"\n")
             changed = generate(contracts, root / "changed.h")
             self.assertNotEqual(first, changed)
+
+            physicality = contracts / "unicode-atomic-physicality.json"
+            physicality.write_bytes(physicality.read_bytes() + b"\n")
+            changed_physicality = generate(
+                contracts, root / "changed-physicality.h"
+            )
+            self.assertNotEqual(changed, changed_physicality)
 
 
 if __name__ == "__main__":

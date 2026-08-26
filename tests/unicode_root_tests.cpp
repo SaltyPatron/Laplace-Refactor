@@ -1,4 +1,5 @@
 #include "laplace/perfcache_modules.h"
+#include "laplace/persistence.h"
 #include "laplace/unicode_root.h"
 
 #include <array>
@@ -56,6 +57,22 @@ void AppendNormalizationEntry(
     output.insert(output.end(), value.begin(), value.end());
 }
 
+laplace_digest256 FilledDigest(const std::uint8_t seed) {
+    laplace_digest256 digest{};
+    for (std::size_t byte = 0U; byte < sizeof(digest.bytes); ++byte) {
+        digest.bytes[byte] = static_cast<std::uint8_t>(seed + byte);
+    }
+    return digest;
+}
+
+laplace_digest256 TestPhysicalityRecipeFingerprint() {
+    return FilledDigest(0xa0U);
+}
+
+laplace_digest256 TestGeometryEpoch() {
+    return FilledDigest(0xc0U);
+}
+
 laplace_unicode_atom_record Atom(std::uint32_t position) {
     laplace_unicode_atom_record record{};
     std::array<std::uint32_t, 4> axes{};
@@ -84,6 +101,14 @@ laplace_unicode_atom_record Atom(std::uint32_t position) {
     }
     EXPECT_EQ(laplace_unicode_hilbert4_encode(axes.data(), record.hilbert_key),
               LAPLACE_UNICODE_OK);
+    record.geometry_epoch = TestGeometryEpoch();
+    laplace_persistence_physicality_record physicality{};
+    const auto physicality_recipe = TestPhysicalityRecipeFingerprint();
+    EXPECT_EQ(laplace_persistence_atomic_point_physicality(
+                  &record.content_id, 1U, &physicality_recipe,
+                  &record.geometry_epoch, &record.coordinate, &physicality),
+              LAPLACE_PERSISTENCE_OK);
+    record.physicality_id = physicality.physicality_id;
     for (std::size_t field = 0; field < LAPLACE_UNICODE_ATOM_FIELD_COUNT; ++field) {
         record.fields[field].field_id = static_cast<std::uint16_t>(field + 1u);
         record.fields[field].payload_kind = PayloadKinds[field];
@@ -132,12 +157,15 @@ std::vector<std::uint8_t> Frame(
 
 laplace_unicode_root_stream_expectation RootExpectation() {
     laplace_unicode_root_stream_expectation expectation{};
-    const std::array<laplace_digest256*, 5> bindings{{
+    const std::array<laplace_digest256*, 8> bindings{{
         &expectation.source_fingerprint,
         &expectation.recipe_fingerprint,
         &expectation.numeric_provider_receipt,
         &expectation.stream_contract_fingerprint,
-        &expectation.algorithmic_hangul_rule_fingerprint}};
+        &expectation.algorithmic_hangul_rule_fingerprint,
+        &expectation.atom_record_contract_fingerprint,
+        &expectation.placement_rank_permutation_fingerprint,
+        &expectation.coordinate_table_fingerprint}};
     for (std::size_t binding = 0u; binding < bindings.size(); ++binding) {
         for (std::size_t byte = 0u; byte < sizeof(bindings[binding]->bytes);
              ++byte) {
@@ -145,6 +173,10 @@ laplace_unicode_root_stream_expectation RootExpectation() {
                 1u + binding * sizeof(bindings[binding]->bytes) + byte);
         }
     }
+    expectation.physicality_recipe_fingerprint =
+        TestPhysicalityRecipeFingerprint();
+    expectation.geometry_epoch = TestGeometryEpoch();
+    expectation.physicality_recipe_version = 1U;
     return expectation;
 }
 
@@ -170,6 +202,38 @@ TEST(UnicodeNumeric, ExactRationalQuantizationClosesBoundariesAndZero) {
     EXPECT_EQ(laplace_unicode_quantize_component_u32(
                   std::numeric_limits<double>::quiet_NaN(), &ignored),
               LAPLACE_UNICODE_NUMERIC_OUT_OF_RANGE);
+}
+
+TEST(UnicodePlacementFingerprint,
+     RejectsDuplicateRankBeforeCoordinateTableIdentity) {
+    std::vector<std::uint32_t> ranks(LAPLACE_UNICODE_ROOT_POPULATION);
+    for (std::uint32_t position = 0U;
+         position < LAPLACE_UNICODE_ROOT_POPULATION; ++position) {
+        ranks[position] = position;
+    }
+    laplace_digest256 first{};
+    laplace_digest256 replay{};
+    ASSERT_EQ(laplace_unicode_placement_rank_permutation_identify(
+                  ranks.data(), static_cast<std::uint32_t>(ranks.size()),
+                  &first),
+              LAPLACE_UNICODE_OK);
+    ASSERT_EQ(laplace_unicode_placement_rank_permutation_identify(
+                  ranks.data(), static_cast<std::uint32_t>(ranks.size()),
+                  &replay),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(std::memcmp(&first, &replay, sizeof(first)), 0);
+
+    ranks[1] = 0U;
+    EXPECT_EQ(laplace_unicode_placement_rank_permutation_identify(
+                  ranks.data(), static_cast<std::uint32_t>(ranks.size()),
+                  &replay),
+              LAPLACE_UNICODE_RECORD_INVALID);
+    const std::vector<laplace_point4d> coordinates(
+        LAPLACE_UNICODE_ROOT_POPULATION);
+    EXPECT_EQ(laplace_unicode_coordinate_table_identify(
+                  ranks.data(), coordinates.data(),
+                  static_cast<std::uint32_t>(ranks.size()), &replay),
+              LAPLACE_UNICODE_RECORD_INVALID);
 }
 
 TEST(UnicodeHilbert, MatchesAllContractOrientationVectors) {
@@ -288,8 +352,34 @@ TEST(UnicodeAtomCodec, RoundTripsOneCanonicalVariableRecordExactly) {
     EXPECT_EQ(view.value.codepoint_position, 0x41u);
     EXPECT_EQ(view.value.placement_rank, 0x41u);
     EXPECT_EQ(std::memcmp(view.value.content_id.bytes, record.content_id.bytes, 16u), 0);
+    EXPECT_EQ(std::memcmp(
+                  view.value.geometry_epoch.bytes,
+                  record.geometry_epoch.bytes, 32u), 0);
+    EXPECT_EQ(std::memcmp(
+                  view.value.physicality_id.bytes,
+                  record.physicality_id.bytes, 32u), 0);
     const auto replay = Encode(view.value);
     EXPECT_EQ(replay, encoded);
+}
+
+TEST(UnicodeAtomCodec, PhysicalityChangesWithGeometryEpochWhileContentDoesNot) {
+    const auto first = Atom(0x41u);
+    auto second = first;
+    second.geometry_epoch.bytes[0] ^= 0x01U;
+    const auto recipe = TestPhysicalityRecipeFingerprint();
+    laplace_persistence_physicality_record physicality{};
+    ASSERT_EQ(laplace_persistence_atomic_point_physicality(
+                  &second.content_id, 1U, &recipe, &second.geometry_epoch,
+                  &second.coordinate, &physicality),
+              LAPLACE_PERSISTENCE_OK);
+    second.physicality_id = physicality.physicality_id;
+    EXPECT_EQ(std::memcmp(
+                  first.content_id.bytes, second.content_id.bytes,
+                  sizeof(first.content_id.bytes)), 0);
+    EXPECT_NE(std::memcmp(
+                  first.physicality_id.bytes, second.physicality_id.bytes,
+                  sizeof(first.physicality_id.bytes)), 0);
+    EXPECT_FALSE(Encode(second).empty());
 }
 
 TEST(UnicodeAtomCodec, RejectsIdentityAndFieldKindCorruption) {
@@ -384,6 +474,45 @@ TEST(UnicodeRootStreamValidator, RejectsCrossBatchOrdinalGapAndTruncation) {
               LAPLACE_UNICODE_STREAM_INCOMPLETE);
     EXPECT_EQ(laplace_unicode_root_stream_validator_finish(
                   validator, &summary), LAPLACE_UNICODE_STREAM_INCOMPLETE);
+    laplace_unicode_root_stream_validator_destroy(validator);
+}
+
+TEST(UnicodeRootStreamValidator, RejectsAtomPhysicalityOutsideBoundGeometryEpoch) {
+    auto atom = Atom(0U);
+    atom.physicality_id.bytes[0] ^= 0x01U;
+    const auto frame = Frame(
+        LAPLACE_UNICODE_ROOT_FRAME_ATOM, 0U, Encode(atom));
+    const auto expectation = RootExpectation();
+    laplace_unicode_root_stream_validator* validator = nullptr;
+    ASSERT_EQ(laplace_unicode_root_stream_validator_create(
+                  &expectation, &validator),
+              LAPLACE_UNICODE_OK);
+    ASSERT_NE(validator, nullptr);
+    EXPECT_EQ(laplace_unicode_root_stream_validator_consume(
+                  validator, frame.data(), frame.size(), 1U, 0U),
+              LAPLACE_UNICODE_IDENTITY_MISMATCH);
+    laplace_unicode_root_stream_validator_destroy(validator);
+}
+
+TEST(UnicodeRootStreamValidator, RejectsDuplicateObservedPlacementRank) {
+    const auto first = Frame(
+        LAPLACE_UNICODE_ROOT_FRAME_ATOM, 0U, Encode(Atom(0U)));
+    auto duplicate_rank = Atom(1U);
+    duplicate_rank.placement_rank = 0U;
+    const auto second = Frame(
+        LAPLACE_UNICODE_ROOT_FRAME_ATOM, 1U, Encode(duplicate_rank));
+    const auto expectation = RootExpectation();
+    laplace_unicode_root_stream_validator* validator = nullptr;
+    ASSERT_EQ(laplace_unicode_root_stream_validator_create(
+                  &expectation, &validator),
+              LAPLACE_UNICODE_OK);
+    ASSERT_NE(validator, nullptr);
+    ASSERT_EQ(laplace_unicode_root_stream_validator_consume(
+                  validator, first.data(), first.size(), 1U, 0U),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(laplace_unicode_root_stream_validator_consume(
+                  validator, second.data(), second.size(), 1U, 1U),
+              LAPLACE_UNICODE_STREAM_ORDER_INVALID);
     laplace_unicode_root_stream_validator_destroy(validator);
 }
 
@@ -535,7 +664,8 @@ TEST(UnicodeRootManifestCodec, BindsEveryRequiredSectionWithoutCircularReceipt) 
     manifest.total_frame_count = manifest.atom_count +
         manifest.ducet_position_count + manifest.ducet_contraction_count +
         manifest.normalization_composition_count + 1u;
-    const std::array<laplace_digest256*, 9> fingerprints{{
+    manifest.physicality_recipe_version = 1U;
+    const std::array<laplace_digest256*, 14> fingerprints{{
         &manifest.source_fingerprint,
         &manifest.recipe_fingerprint,
         &manifest.numeric_provider_receipt,
@@ -544,8 +674,13 @@ TEST(UnicodeRootManifestCodec, BindsEveryRequiredSectionWithoutCircularReceipt) 
         &manifest.ducet_position_section_fingerprint,
         &manifest.ducet_contraction_section_fingerprint,
         &manifest.normalization_composition_section_fingerprint,
-        &manifest.algorithmic_hangul_rule_fingerprint}};
-    for (std::size_t digest = 0u; digest < 9u; ++digest) {
+        &manifest.algorithmic_hangul_rule_fingerprint,
+        &manifest.atom_record_contract_fingerprint,
+        &manifest.physicality_recipe_fingerprint,
+        &manifest.placement_rank_permutation_fingerprint,
+        &manifest.coordinate_table_fingerprint,
+        &manifest.geometry_epoch}};
+    for (std::size_t digest = 0u; digest < fingerprints.size(); ++digest) {
         for (std::size_t byte = 0u; byte < 32u; ++byte) {
             fingerprints[digest]->bytes[byte] = static_cast<std::uint8_t>(
                 1u + digest * 32u + byte);
@@ -572,6 +707,7 @@ TEST(UnicodeRootManifestCodec, BindsEveryRequiredSectionWithoutCircularReceipt) 
 
 TEST(UnicodeRootManifestCodec, RejectsPartialPopulationAndWrongTotal) {
     laplace_unicode_root_manifest manifest{};
+    manifest.physicality_recipe_version = 1U;
     manifest.atom_count = LAPLACE_UNICODE_ROOT_POPULATION - 1u;
     manifest.ducet_position_count = LAPLACE_UNICODE_ROOT_POPULATION;
     manifest.total_frame_count = manifest.atom_count +
@@ -584,10 +720,41 @@ TEST(UnicodeRootManifestCodec, RejectsPartialPopulationAndWrongTotal) {
               LAPLACE_UNICODE_RECORD_INVALID);
 }
 
+TEST(UnicodeRootManifestCodec, RejectsUnsupportedPhysicalityRecipeVersion) {
+    laplace_unicode_root_manifest manifest{};
+    manifest.physicality_recipe_version = 2U;
+    manifest.atom_count = LAPLACE_UNICODE_ROOT_POPULATION;
+    manifest.ducet_position_count = LAPLACE_UNICODE_ROOT_POPULATION;
+    manifest.total_frame_count = manifest.atom_count +
+        manifest.ducet_position_count + 1U;
+    std::array<std::uint8_t, LAPLACE_UNICODE_ROOT_MANIFEST_BYTES> encoded{};
+    EXPECT_EQ(laplace_unicode_root_manifest_encode(&manifest, encoded.data()),
+              LAPLACE_UNICODE_RECORD_INVALID);
+
+    manifest.physicality_recipe_version = 1U;
+    ASSERT_EQ(laplace_unicode_root_manifest_encode(&manifest, encoded.data()),
+              LAPLACE_UNICODE_OK);
+    WriteU32(encoded.data() + 12U, 2U);
+    laplace_unicode_root_manifest decoded{};
+    std::size_t consumed = 0U;
+    EXPECT_EQ(laplace_unicode_root_manifest_open(
+                  encoded.data(), encoded.size(), &decoded, &consumed),
+              LAPLACE_UNICODE_RECORD_INVALID);
+
+    auto expectation = RootExpectation();
+    expectation.physicality_recipe_version = 2U;
+    laplace_unicode_root_stream_validator* validator = nullptr;
+    EXPECT_EQ(laplace_unicode_root_stream_validator_create(
+                  &expectation, &validator),
+              LAPLACE_UNICODE_INVALID_ARGUMENT);
+    EXPECT_EQ(validator, nullptr);
+    laplace_unicode_root_stream_validator_destroy(validator);
+}
+
 TEST(UnicodeTier0Module, ValidatesDirectAddressIdentityGeometryAndLocality) {
     const auto atom = Atom(0x41u);
     const auto encoded = Encode(atom);
-    std::array<std::uint8_t, 124> entry{};
+    std::array<std::uint8_t, 156> entry{};
     laplace_perfcache_module_v1 module{};
     WriteU32(entry.data(), atom.codepoint_position);
     auto* value = entry.data() + 4u;
@@ -605,6 +772,7 @@ TEST(UnicodeTier0Module, ValidatesDirectAddressIdentityGeometryAndLocality) {
         WriteU64(value + 72u + axis * 8u, bits);
     }
     std::memcpy(value + 104u, atom.hilbert_key, 16u);
+    std::memcpy(value + 120u, atom.physicality_id.bytes, 32u);
     ASSERT_EQ(laplace_perfcache_unicode_tier0_module(&module),
               LAPLACE_PERFCACHE_REGISTRY_OK);
     EXPECT_EQ(module.access_law, LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED);
@@ -615,6 +783,62 @@ TEST(UnicodeTier0Module, ValidatesDirectAddressIdentityGeometryAndLocality) {
     EXPECT_EQ(module.validate_record(
                   module.state, atom.codepoint_position, entry.data(), entry.size()),
               LAPLACE_PERFCACHE_SEMANTIC_MISMATCH);
+}
+
+TEST(UnicodeTier0Module, WholeViewBindsHotPhysicalityToCanonicalAtomBytes) {
+    const auto atom = Atom(0U);
+    const auto metadata = Encode(atom);
+    std::array<std::uint8_t, 156> entry{};
+    laplace_perfcache_module_v1 module{};
+    ASSERT_EQ(laplace_perfcache_unicode_tier0_module(&module),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    WriteU32(entry.data(), atom.codepoint_position);
+    auto* value = entry.data() + 4U;
+    WriteU64(value, 0U);
+    WriteU32(value + 8U, static_cast<std::uint32_t>(metadata.size()));
+    WriteU32(value + 12U, atom.placement_rank);
+    value[16] = atom.position_class;
+    value[17] = atom.lup_v1_length;
+    std::memcpy(value + 20U, atom.lup_v1_bytes, 4U);
+    std::memcpy(value + 24U, atom.content_id.bytes, 16U);
+    std::memcpy(
+        value + 40U, atom.identity_preimage_fingerprint.bytes, 32U);
+    for (std::size_t axis = 0U; axis < 4U; ++axis) {
+        std::uint64_t bits = 0U;
+        std::memcpy(&bits, &atom.coordinate.component[axis], sizeof(bits));
+        WriteU64(value + 72U + axis * 8U, bits);
+    }
+    std::memcpy(value + 104U, atom.hilbert_key, 16U);
+    std::memcpy(value + 120U, atom.physicality_id.bytes, 32U);
+
+    laplace_perfcache_view view{};
+    view.contract.module_id = module.module_id;
+    view.contract.key_schema_id = module.key_schema_id;
+    view.contract.value_schema_id = module.value_schema_id;
+    view.contract.module_contract_fingerprint =
+        module.module_contract_fingerprint;
+    view.contract.key_bytes = module.key_bytes;
+    view.contract.value_bytes = module.value_bytes;
+    view.contract.access_law = module.access_law;
+    view.records = entry.data();
+    view.record_count = 1U;
+    view.record_stride = static_cast<std::uint32_t>(entry.size());
+    view.metadata = metadata.data();
+    view.metadata_bytes = metadata.size();
+    std::uint64_t invalid = UINT64_MAX;
+    ASSERT_EQ(laplace_perfcache_unicode_tier0_validate_view(
+                  nullptr, &view, &invalid),
+              LAPLACE_PERFCACHE_OK);
+    EXPECT_EQ(invalid, UINT64_MAX);
+
+    value[120] ^= 0x01U;
+    EXPECT_EQ(module.validate_record(
+                  module.state, 0U, entry.data(), entry.size()),
+              LAPLACE_PERFCACHE_OK);
+    EXPECT_EQ(laplace_perfcache_unicode_tier0_validate_view(
+                  nullptr, &view, &invalid),
+              LAPLACE_PERFCACHE_SEMANTIC_MISMATCH);
+    EXPECT_EQ(invalid, 0U);
 }
 
 }  // namespace
