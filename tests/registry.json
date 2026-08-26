@@ -1020,6 +1020,43 @@
       "defect_controls": ["unicode-core.mutation-bidi-default-order-detected"]
     },
     {
+      "ctest_name": "UnicodeDucet.RetainsCompleteMappingsAndImplicitRanges",
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT", "LP-TEST-UNICODE-SOURCE-CONTRACT"],
+      "covered_dimensions": ["all 39749 explicit mappings", "all 45860 collation elements", "per-element variable markers", "all contractions and expansions", "six assigned implicit ranges", "source-line provenance", "retained-table receipt"],
+      "defect_controls": ["unicode-ducet.mutation-expansion-truncation-detected"]
+    },
+    {
+      "ctest_name": "UnicodeDucet.CalculatesNfdCompleteWeightsAndAlternateKeys",
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
+      "covered_dimensions": ["recursive canonical NFD", "algorithmic Hangul", "complete expansions", "assigned Tangut family offsets", "property-driven Han implicit weights", "generic implicit weights", "non-text surrogate extension", "per-CE shifted state", "identical NFD position encoding"],
+      "defect_controls": ["unicode-ducet.mutation-expansion-truncation-detected"]
+    },
+    {
+      "ctest_name": "UnicodeDucet.HonorsLongestDiscontiguousAndStarterBlockingMatches",
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
+      "covered_dimensions": ["longest contiguous match", "length-three contraction", "unblocked non-starter extension", "starter blocking despite completely ignorable CE", "skipped-mark preservation"],
+      "defect_controls": ["unicode-ducet.mutation-starter-blocker-detected"]
+    },
+    {
+      "ctest_name": "UnicodeDucet.PassesBothOfficialFullUnicode17ConformanceSuites",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
+      "covered_dimensions": ["208070 full NON_IGNORABLE cases", "229860 full SHIFTED cases", "identical strength", "verified UCA 17 archive and extracted suite hashes"],
+      "defect_controls": ["unicode-ducet.mutation-expansion-truncation-detected", "unicode-ducet.mutation-starter-blocker-detected"]
+    },
+    {
+      "ctest_name": "unicode-ducet.mutation-expansion-truncation-detected",
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
+      "covered_dimensions": ["first-CE and truncated-expansion substitution is detected"],
+      "controls": "UnicodeDucet.RetainsCompleteMappingsAndImplicitRanges"
+    },
+    {
+      "ctest_name": "unicode-ducet.mutation-starter-blocker-detected",
+      "evidence_targets": ["LP-TEST-DUCET-TOTALIZATION-CONTRACT"],
+      "covered_dimensions": ["completely ignorable starter cannot be skipped as a discontiguous contraction non-starter"],
+      "controls": "UnicodeDucet.HonorsLongestDiscontiguousAndStarterBlockingMatches"
+    },
+    {
       "ctest_name": "unicode-core.mutation-bidi-default-order-detected",
       "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-ATOM-FLOOR"],
       "covered_dimensions": ["omitted specific bidi missing defaults are detected"],

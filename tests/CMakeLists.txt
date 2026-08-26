@@ -1,3 +1,54 @@
+set(_laplace_collation_archive
+    "${LAPLACE_UNICODE_SOURCE_ROOT}/uca/CollationTest.zip")
+if(EXISTS "${_laplace_collation_archive}")
+    file(SHA256 "${_laplace_collation_archive}" _laplace_collation_archive_sha256)
+    if(NOT _laplace_collation_archive_sha256 STREQUAL
+       "9ba92cb7627c2d09ba537dc2035d006f44f0cafb4e2198f147897fdd9d71bb10")
+        message(FATAL_ERROR
+            "Pinned Unicode CollationTest.zip does not match the UCA 17 contract")
+    endif()
+    set(_laplace_collation_extract_root
+        "${CMAKE_CURRENT_BINARY_DIR}/unicode-collation-17")
+    set(_laplace_collation_non_ignorable
+        "${_laplace_collation_extract_root}/CollationTest/CollationTest_NON_IGNORABLE.txt")
+    set(_laplace_collation_shifted
+        "${_laplace_collation_extract_root}/CollationTest/CollationTest_SHIFTED.txt")
+    set(_laplace_extract_collation TRUE)
+    if(EXISTS "${_laplace_collation_non_ignorable}" AND
+       EXISTS "${_laplace_collation_shifted}")
+        file(SHA256 "${_laplace_collation_non_ignorable}"
+            _laplace_collation_non_ignorable_sha256)
+        file(SHA256 "${_laplace_collation_shifted}"
+            _laplace_collation_shifted_sha256)
+        if(_laplace_collation_non_ignorable_sha256 STREQUAL
+               "6c43c92ea9c87fcefa94a2e362fb31fb0650d5c80ae420b46d9ccc02784a0c5f" AND
+           _laplace_collation_shifted_sha256 STREQUAL
+               "cbeecf871a3567e8229c869a1f7c36e777c077ee2be6470efe4fb17f01886d4b")
+            set(_laplace_extract_collation FALSE)
+        endif()
+    endif()
+    if(_laplace_extract_collation)
+        file(REMOVE_RECURSE "${_laplace_collation_extract_root}")
+        file(MAKE_DIRECTORY "${_laplace_collation_extract_root}")
+        file(ARCHIVE_EXTRACT
+            INPUT "${_laplace_collation_archive}"
+            DESTINATION "${_laplace_collation_extract_root}")
+        foreach(_laplace_suite IN ITEMS non_ignorable shifted)
+            file(SHA256 "${_laplace_collation_${_laplace_suite}}"
+                _laplace_collation_${_laplace_suite}_sha256)
+        endforeach()
+        if(NOT _laplace_collation_non_ignorable_sha256 STREQUAL
+               "6c43c92ea9c87fcefa94a2e362fb31fb0650d5c80ae420b46d9ccc02784a0c5f" OR
+           NOT _laplace_collation_shifted_sha256 STREQUAL
+               "cbeecf871a3567e8229c869a1f7c36e777c077ee2be6470efe4fb17f01886d4b")
+            message(FATAL_ERROR
+                "Extracted Unicode 17 collation suites do not match their contracts")
+        endif()
+    endif()
+    add_compile_definitions(
+        LAPLACE_UNICODE_COLLATION_TEST_ROOT="${_laplace_collation_extract_root}")
+endif()
+
 add_executable(laplace_identity_tests
     identity_tests.cpp)
 target_link_libraries(laplace_identity_tests
@@ -184,6 +235,64 @@ add_test(
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(unicode-core.mutation-script-extensions-fallback-detected PROPERTIES
     LABELS "implementation;unicode;source;mutation")
+
+add_library(laplace_unicode_ducet_truncation_mutant STATIC
+    ../engine/src/unicode_ducet.cpp)
+target_include_directories(laplace_unicode_ducet_truncation_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_ducet_truncation_mutant PRIVATE
+    BLAKE3::blake3)
+target_compile_definitions(laplace_unicode_ducet_truncation_mutant PRIVATE
+    LAPLACE_TEST_DUCET_TRUNCATE_EXPANSIONS=1)
+target_compile_options(laplace_unicode_ducet_truncation_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_unicode_ducet_truncation_mutation_probe
+    unicode_source_tests.cpp)
+target_include_directories(laplace_unicode_ducet_truncation_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_ducet_truncation_mutation_probe PRIVATE
+    laplace_unicode_ducet_truncation_mutant Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(laplace_unicode_ducet_truncation_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-ducet.mutation-expansion-truncation-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_ducet_truncation_mutation_probe>"
+        "-DFILTER=UnicodeDucet.RetainsCompleteMappingsAndImplicitRanges"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-ducet.mutation-expansion-truncation-detected PROPERTIES
+    LABELS "implementation;unicode;ducet;source;mutation")
+
+add_library(laplace_unicode_ducet_blocking_mutant STATIC
+    ../engine/src/unicode_ducet.cpp)
+target_include_directories(laplace_unicode_ducet_blocking_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_ducet_blocking_mutant PRIVATE
+    BLAKE3::blake3)
+target_compile_definitions(laplace_unicode_ducet_blocking_mutant PRIVATE
+    LAPLACE_TEST_DUCET_SKIP_IGNORABLE_STARTER_BLOCKER=1)
+target_compile_options(laplace_unicode_ducet_blocking_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_unicode_ducet_blocking_mutation_probe
+    unicode_source_tests.cpp)
+target_include_directories(laplace_unicode_ducet_blocking_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_ducet_blocking_mutation_probe PRIVATE
+    laplace_unicode_ducet_blocking_mutant Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(laplace_unicode_ducet_blocking_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-ducet.mutation-starter-blocker-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_ducet_blocking_mutation_probe>"
+        "-DFILTER=UnicodeDucet.HonorsLongestDiscontiguousAndStarterBlockingMatches"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-ducet.mutation-starter-blocker-detected PROPERTIES
+    LABELS "implementation;unicode;ducet;source;mutation")
 
 add_executable(laplace_unicode_source_fixture_tests
     unicode_source_fixture_tests.cpp

@@ -10,6 +10,7 @@ add_library(laplace_engine SHARED
     src/unicode_root.c
     src/unicode_source.cpp
     src/unicode_properties.cpp
+    src/unicode_ducet.cpp
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)

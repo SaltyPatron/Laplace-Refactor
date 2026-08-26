@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -23,6 +24,22 @@ const fs::path& SourceRoot() {
         return fs::path(configured != nullptr && configured[0] != '\0'
                             ? configured
                             : "/vault/Data/UCD/Public/UCD/latest");
+    }();
+    return root;
+}
+
+const fs::path& CollationTestRoot() {
+    static const fs::path root = [] {
+        const char* configured = std::getenv(
+            "LAPLACE_UNICODE_COLLATION_TEST_ROOT");
+        if (configured != nullptr && configured[0] != '\0') {
+            return fs::path(configured);
+        }
+#if defined(LAPLACE_UNICODE_COLLATION_TEST_ROOT)
+        return fs::path(LAPLACE_UNICODE_COLLATION_TEST_ROOT);
+#else
+        return fs::path{};
+#endif
     }();
     return root;
 }
@@ -171,6 +188,139 @@ const NormalizationValue* FindNormalizationValue(
             return value.property == property;
         });
     return found == values.end() ? nullptr : &*found;
+}
+
+struct DucetCalculation {
+    std::vector<std::uint32_t> normalized;
+    std::vector<laplace_unicode_collation_element> elements;
+    std::vector<std::uint8_t> key;
+    std::uint8_t provenance{};
+};
+
+DucetCalculation CalculateDucet(
+    const laplace_unicode_ducet_table* table,
+    const laplace_unicode_core_table* core,
+    const std::vector<std::uint32_t>& sequence,
+    std::uint8_t alternate_handling) {
+    std::uint32_t normalized_count = 0u;
+    std::uint32_t element_count = 0u;
+    std::size_t key_bytes = 0u;
+    EXPECT_EQ(laplace_unicode_ducet_sort_key_measure(
+                  table, core, sequence.data(),
+                  static_cast<std::uint32_t>(sequence.size()),
+                  alternate_handling, &normalized_count, &element_count,
+                  &key_bytes),
+              LAPLACE_UNICODE_OK);
+    DucetCalculation result;
+    result.normalized.resize(normalized_count);
+    result.elements.resize(element_count);
+    result.key.resize(key_bytes);
+    std::size_t written = 0u;
+    EXPECT_EQ(laplace_unicode_ducet_sort_key_calculate(
+                  table, core, sequence.data(),
+                  static_cast<std::uint32_t>(sequence.size()),
+                  alternate_handling, result.normalized.data(),
+                  static_cast<std::uint32_t>(result.normalized.size()),
+                  result.elements.data(),
+                  static_cast<std::uint32_t>(result.elements.size()),
+                  result.key.data(), result.key.size(),
+                  &result.provenance, &written),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(written, result.key.size());
+    return result;
+}
+
+bool ParseCollationSequence(std::string_view line,
+                            std::vector<std::uint32_t>& sequence) {
+    const std::size_t semicolon = line.find(';');
+    if (semicolon == std::string_view::npos) {
+        return false;
+    }
+    line = line.substr(0u, semicolon);
+    sequence.clear();
+    while (!line.empty()) {
+        while (!line.empty() &&
+               (line.front() == ' ' || line.front() == '\t')) {
+            line.remove_prefix(1u);
+        }
+        if (line.empty()) {
+            break;
+        }
+        const std::size_t end = line.find_first_of(" \t");
+        const std::string_view token = end == std::string_view::npos
+            ? line
+            : line.substr(0u, end);
+        std::uint32_t position = 0u;
+        const auto parsed = std::from_chars(
+            token.data(), token.data() + token.size(), position, 16);
+        if (parsed.ec != std::errc{} ||
+            parsed.ptr != token.data() + token.size() ||
+            position >= LAPLACE_UNICODE_ROOT_POPULATION) {
+            return false;
+        }
+        sequence.push_back(position);
+        if (end == std::string_view::npos) {
+            break;
+        }
+        line.remove_prefix(end + 1u);
+    }
+    return !sequence.empty();
+}
+
+bool VerifyFullCollationSuite(
+    const fs::path& path, const laplace_unicode_ducet_table* table,
+    const laplace_unicode_core_table* core,
+    std::uint8_t alternate_handling, std::uint64_t expected_cases) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input.good()) {
+        return false;
+    }
+    bool uca_version = false;
+    bool ucd_version = false;
+    std::uint64_t cases = 0u;
+    std::uint64_t line_ordinal = 0u;
+    std::vector<std::uint8_t> previous_key;
+    std::vector<std::uint32_t> sequence;
+    std::string line;
+    while (std::getline(input, line)) {
+        ++line_ordinal;
+        if (line.find("# UCA Version: 17.0.0") != std::string::npos) {
+            uca_version = true;
+        }
+        if (line.find("# UCD Version: 17.0.0") != std::string::npos) {
+            ucd_version = true;
+        }
+        const std::string_view view(line);
+        const std::size_t first = view.find_first_not_of(" \t\r");
+        if (first == std::string_view::npos || view[first] == '#') {
+            continue;
+        }
+        if (!ParseCollationSequence(view.substr(first), sequence)) {
+            ADD_FAILURE() << path << ':' << line_ordinal
+                          << " has invalid conformance input syntax";
+            return false;
+        }
+        const DucetCalculation current = CalculateDucet(
+            table, core, sequence, alternate_handling);
+        if (current.key.empty()) {
+            ADD_FAILURE() << path << ':' << line_ordinal
+                          << " did not produce a complete key";
+            return false;
+        }
+        if (!previous_key.empty() && std::lexicographical_compare(
+                current.key.begin(), current.key.end(),
+                previous_key.begin(), previous_key.end())) {
+            ADD_FAILURE() << path << ':' << line_ordinal
+                          << " sorts before the preceding official case";
+            return false;
+        }
+        previous_key = current.key;
+        ++cases;
+    }
+    EXPECT_TRUE(uca_version) << path;
+    EXPECT_TRUE(ucd_version) << path;
+    EXPECT_EQ(cases, expected_cases) << path;
+    return uca_version && ucd_version && cases == expected_cases;
 }
 
 struct FullCaseMapping {
@@ -586,6 +736,293 @@ TEST(UnicodeCoreProperties, ClassifiesEveryPositionAndAppliesBidiDefaults) {
                   table, LAPLACE_UNICODE_ROOT_POPULATION, &invalid),
               LAPLACE_UNICODE_POSITION_OUT_OF_RANGE);
     laplace_unicode_core_table_destroy(&table);
+    laplace_unicode_source_bundle_close(&bundle);
+}
+
+TEST(UnicodeDucet, RetainsCompleteMappingsAndImplicitRanges) {
+    if (!SourceAvailable()) {
+        GTEST_SKIP() << "pinned Unicode source root is not installed at "
+                     << SourceRoot();
+    }
+    laplace_unicode_source_bundle* bundle = nullptr;
+    laplace_unicode_source_receipt source{};
+    ASSERT_EQ(laplace_unicode_source_bundle_open(
+                  SourceRoot().c_str(), &bundle, &source),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_ducet_table* table = nullptr;
+    laplace_unicode_ducet_summary summary{};
+    ASSERT_EQ(laplace_unicode_ducet_table_create(bundle, &table, &summary),
+              LAPLACE_UNICODE_OK);
+    ASSERT_NE(table, nullptr);
+    EXPECT_EQ(summary.status, LAPLACE_UNICODE_OK);
+    EXPECT_TRUE(SameDigest(summary.source_fingerprint,
+                           source.source_fingerprint));
+    EXPECT_TRUE(SameDigest(summary.recipe_fingerprint,
+                           source.recipe_fingerprint));
+    EXPECT_EQ(summary.explicit_mapping_count, UINT64_C(39749));
+    EXPECT_EQ(summary.explicit_single_position_count, UINT64_C(38785));
+    EXPECT_EQ(summary.contraction_count, UINT64_C(964));
+    EXPECT_EQ(summary.expansion_mapping_count, UINT64_C(4873));
+    EXPECT_EQ(summary.collation_element_count, UINT64_C(45860));
+    EXPECT_EQ(summary.variable_collation_element_count, UINT64_C(8756));
+    EXPECT_EQ(summary.implicit_range_count, 6u);
+    EXPECT_EQ(summary.maximum_sequence_count, 3u);
+    EXPECT_EQ(summary.maximum_element_count, 18u);
+    const laplace_digest256 zero{};
+    EXPECT_FALSE(SameDigest(summary.retained_table_fingerprint, zero));
+    EXPECT_FALSE(SameDigest(summary.receipt_id, zero));
+
+    const std::uint32_t square_au_position = 0x3373u;
+    laplace_unicode_ducet_mapping_view square_au{};
+    ASSERT_EQ(laplace_unicode_ducet_table_lookup(
+                  table, &square_au_position, 1u, &square_au),
+              LAPLACE_UNICODE_OK);
+    ASSERT_EQ(square_au.sequence_count, 1u);
+    ASSERT_EQ(square_au.element_count, 2u);
+    EXPECT_EQ(square_au.elements[0].primary, 0x23ecu);
+    EXPECT_EQ(square_au.elements[1].primary, 0x2680u);
+    EXPECT_EQ(square_au.elements[0].tertiary, 0x001du);
+    EXPECT_GT(square_au.source_line_ordinal, 0u);
+
+    const std::array<std::uint32_t, 2> tibetan{{0x0f71u, 0x0f72u}};
+    laplace_unicode_ducet_mapping_view contraction{};
+    ASSERT_EQ(laplace_unicode_ducet_table_lookup(
+                  table, tibetan.data(), tibetan.size(), &contraction),
+              LAPLACE_UNICODE_OK);
+    ASSERT_EQ(contraction.sequence_count, 2u);
+    ASSERT_EQ(contraction.element_count, 1u);
+    EXPECT_EQ(contraction.elements[0].primary, 0x384fu);
+
+    const std::uint32_t space_position = 0x20u;
+    laplace_unicode_ducet_mapping_view space{};
+    ASSERT_EQ(laplace_unicode_ducet_table_lookup(
+                  table, &space_position, 1u, &space),
+              LAPLACE_UNICODE_OK);
+    ASSERT_EQ(space.element_count, 1u);
+    EXPECT_EQ(space.elements[0].variable, 1u);
+    EXPECT_EQ(space.elements[0].primary, 0x0209u);
+
+    laplace_unicode_ducet_implicit_range_view tangut{};
+    ASSERT_EQ(laplace_unicode_ducet_table_implicit_range(
+                  table, 0u, &tangut),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(tangut.first_position, 0x17000u);
+    EXPECT_EQ(tangut.last_position, 0x187ffu);
+    EXPECT_EQ(tangut.lead_primary, 0xfb00u);
+    EXPECT_GT(tangut.source_line_ordinal, 0u);
+
+    const std::uint32_t hangul_syllable = 0xac00u;
+    laplace_unicode_ducet_mapping_view absent{};
+    EXPECT_EQ(laplace_unicode_ducet_table_lookup(
+                  table, &hangul_syllable, 1u, &absent),
+              LAPLACE_UNICODE_SOURCE_INCOMPLETE);
+    laplace_unicode_ducet_table_destroy(&table);
+    EXPECT_EQ(table, nullptr);
+    laplace_unicode_source_bundle_close(&bundle);
+}
+
+TEST(UnicodeDucet, CalculatesNfdCompleteWeightsAndAlternateKeys) {
+    if (!SourceAvailable()) {
+        GTEST_SKIP() << "pinned Unicode source root is not installed at "
+                     << SourceRoot();
+    }
+    laplace_unicode_source_bundle* bundle = nullptr;
+    laplace_unicode_source_receipt source{};
+    ASSERT_EQ(laplace_unicode_source_bundle_open(
+                  SourceRoot().c_str(), &bundle, &source),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_core_table* core = nullptr;
+    laplace_unicode_core_summary core_summary{};
+    ASSERT_EQ(laplace_unicode_core_table_create(
+                  bundle, &core, &core_summary),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_ducet_table* table = nullptr;
+    laplace_unicode_ducet_summary table_summary{};
+    ASSERT_EQ(laplace_unicode_ducet_table_create(
+                  bundle, &table, &table_summary),
+              LAPLACE_UNICODE_OK);
+
+    const DucetCalculation composed = CalculateDucet(
+        table, core, {0x00c5u}, LAPLACE_UNICODE_UCA_SHIFTED);
+    const DucetCalculation decomposed = CalculateDucet(
+        table, core, {0x0041u, 0x030au}, LAPLACE_UNICODE_UCA_SHIFTED);
+    EXPECT_EQ(composed.normalized,
+              (std::vector<std::uint32_t>{0x0041u, 0x030au}));
+    EXPECT_EQ(composed.normalized, decomposed.normalized);
+    EXPECT_EQ(composed.key, decomposed.key);
+    ASSERT_EQ(composed.elements.size(), 2u);
+    EXPECT_EQ(composed.elements[0].primary, 0x23ecu);
+    EXPECT_EQ(composed.elements[1].secondary, 0x0029u);
+
+    const DucetCalculation expansion = CalculateDucet(
+        table, core, {0x3373u}, LAPLACE_UNICODE_UCA_SHIFTED);
+    ASSERT_EQ(expansion.elements.size(), 2u);
+    EXPECT_EQ(expansion.elements[0].primary, 0x23ecu);
+    EXPECT_EQ(expansion.elements[1].primary, 0x2680u);
+
+    const DucetCalculation hangul = CalculateDucet(
+        table, core, {0xac00u}, LAPLACE_UNICODE_UCA_SHIFTED);
+    EXPECT_EQ(hangul.normalized,
+              (std::vector<std::uint32_t>{0x1100u, 0x1161u}));
+    EXPECT_EQ(hangul.provenance, LAPLACE_UNICODE_DUCET_HANGUL);
+    ASSERT_EQ(hangul.elements.size(), 2u);
+    EXPECT_EQ(hangul.elements[0].primary, 0x4771u);
+    EXPECT_EQ(hangul.elements[1].primary, 0x47efu);
+
+    struct ImplicitVector {
+        std::uint32_t position;
+        std::uint16_t lead;
+        std::uint16_t trail;
+        std::uint8_t provenance;
+    };
+    static constexpr std::array<ImplicitVector, 10> ImplicitVectors{{
+        {0x17000u, 0xfb00u, 0x8000u, LAPLACE_UNICODE_DUCET_IMPLICIT},
+        {0x18d00u, 0xfb00u, 0x9d00u, LAPLACE_UNICODE_DUCET_IMPLICIT},
+        {0x18800u, 0xfb01u, 0x8000u, LAPLACE_UNICODE_DUCET_IMPLICIT},
+        {0x18d80u, 0xfb01u, 0x8580u, LAPLACE_UNICODE_DUCET_IMPLICIT},
+        {0x1b170u, 0xfb02u, 0x8000u, LAPLACE_UNICODE_DUCET_IMPLICIT},
+        {0x18b00u, 0xfb03u, 0x8000u, LAPLACE_UNICODE_DUCET_IMPLICIT},
+        {0x4e00u, 0xfb40u, 0xce00u, LAPLACE_UNICODE_DUCET_IMPLICIT},
+        {0x30000u, 0xfb86u, 0x8000u, LAPLACE_UNICODE_DUCET_IMPLICIT},
+        {0x0378u, 0xfbc0u, 0x8378u, LAPLACE_UNICODE_DUCET_IMPLICIT},
+        {0xd800u, 0xfbc1u, 0xd800u,
+         LAPLACE_UNICODE_DUCET_LUP_SURROGATE_EXTENSION}}};
+    for (const ImplicitVector& expected : ImplicitVectors) {
+        const DucetCalculation value = CalculateDucet(
+            table, core, {expected.position},
+            LAPLACE_UNICODE_UCA_SHIFTED);
+        ASSERT_EQ(value.elements.size(), 2u)
+            << "position " << std::hex << expected.position;
+        EXPECT_EQ(value.elements[0].primary, expected.lead);
+        EXPECT_EQ(value.elements[0].secondary, 0x0020u);
+        EXPECT_EQ(value.elements[0].tertiary, 0x0002u);
+        EXPECT_EQ(value.elements[1].primary, expected.trail);
+        EXPECT_EQ(value.elements[1].secondary, 0u);
+        EXPECT_EQ(value.elements[1].tertiary, 0u);
+        EXPECT_EQ(value.provenance, expected.provenance);
+    }
+
+    const DucetCalculation shifted_space = CalculateDucet(
+        table, core, {0x20u}, LAPLACE_UNICODE_UCA_SHIFTED);
+    const DucetCalculation non_ignorable_space = CalculateDucet(
+        table, core, {0x20u}, LAPLACE_UNICODE_UCA_NON_IGNORABLE);
+    const std::vector<std::uint8_t> expected_shifted_space{
+        0u, 0u, 0u, 0u, 0u, 0u, 0x02u, 0x09u,
+        0u, 0u, 1u, 0x20u};
+    const std::vector<std::uint8_t> expected_non_ignorable_space{
+        0x02u, 0x09u, 0u, 0u, 0u, 0x20u, 0u, 0u,
+        0u, 0x02u, 0u, 0u, 1u, 0x20u};
+    EXPECT_EQ(shifted_space.key, expected_shifted_space);
+    EXPECT_EQ(non_ignorable_space.key, expected_non_ignorable_space);
+
+    const DucetCalculation shifted_mixed = CalculateDucet(
+        table, core, {0x0385u}, LAPLACE_UNICODE_UCA_SHIFTED);
+    ASSERT_EQ(shifted_mixed.elements.size(), 2u);
+    EXPECT_EQ(shifted_mixed.elements[0].variable, 1u);
+    EXPECT_EQ(shifted_mixed.elements[1].variable, 0u);
+    EXPECT_EQ(shifted_mixed.key,
+              (std::vector<std::uint8_t>{
+                  0u, 0u, 0u, 0u, 0u, 0u, 0x04u, 0xe8u,
+                  0u, 0u, 2u, 0xc2u, 0xa8u, 2u, 0xccu, 0x81u}));
+
+    laplace_unicode_ducet_table_destroy(&table);
+    laplace_unicode_core_table_destroy(&core);
+    laplace_unicode_source_bundle_close(&bundle);
+}
+
+TEST(UnicodeDucet, HonorsLongestDiscontiguousAndStarterBlockingMatches) {
+    if (!SourceAvailable()) {
+        GTEST_SKIP() << "pinned Unicode source root is not installed at "
+                     << SourceRoot();
+    }
+    laplace_unicode_source_bundle* bundle = nullptr;
+    laplace_unicode_source_receipt source{};
+    ASSERT_EQ(laplace_unicode_source_bundle_open(
+                  SourceRoot().c_str(), &bundle, &source),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_core_table* core = nullptr;
+    laplace_unicode_core_summary core_summary{};
+    ASSERT_EQ(laplace_unicode_core_table_create(
+                  bundle, &core, &core_summary),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_ducet_table* table = nullptr;
+    laplace_unicode_ducet_summary table_summary{};
+    ASSERT_EQ(laplace_unicode_ducet_table_create(
+                  bundle, &table, &table_summary),
+              LAPLACE_UNICODE_OK);
+
+    const DucetCalculation contiguous = CalculateDucet(
+        table, core, {0x0438u, 0x0306u},
+        LAPLACE_UNICODE_UCA_NON_IGNORABLE);
+    ASSERT_EQ(contiguous.elements.size(), 1u);
+    EXPECT_EQ(contiguous.elements[0].primary, 0x2861u);
+
+    const DucetCalculation discontiguous = CalculateDucet(
+        table, core, {0x0438u, 0x0591u, 0x0306u},
+        LAPLACE_UNICODE_UCA_NON_IGNORABLE);
+    ASSERT_EQ(discontiguous.elements.size(), 2u);
+    EXPECT_EQ(discontiguous.elements[0].primary, 0x2861u);
+    EXPECT_EQ(discontiguous.elements[1].primary, 0u);
+    EXPECT_EQ(discontiguous.elements[1].secondary, 0u);
+    EXPECT_EQ(discontiguous.elements[1].tertiary, 0u);
+
+    const DucetCalculation starter_blocked = CalculateDucet(
+        table, core, {0x0438u, 0x0001u, 0x0306u},
+        LAPLACE_UNICODE_UCA_NON_IGNORABLE);
+    ASSERT_EQ(starter_blocked.elements.size(), 3u);
+    EXPECT_EQ(starter_blocked.elements[0].primary, 0x2854u);
+    EXPECT_EQ(starter_blocked.elements[2].primary, 0u);
+    EXPECT_EQ(starter_blocked.elements[2].tertiary, 0x0002u);
+
+    const DucetCalculation length_three = CalculateDucet(
+        table, core, {0x1611eu, 0x1611eu, 0x1611fu},
+        LAPLACE_UNICODE_UCA_NON_IGNORABLE);
+    ASSERT_EQ(length_three.elements.size(), 1u);
+    EXPECT_EQ(length_three.elements[0].primary, 0x543cu);
+
+    laplace_unicode_ducet_table_destroy(&table);
+    laplace_unicode_core_table_destroy(&core);
+    laplace_unicode_source_bundle_close(&bundle);
+}
+
+TEST(UnicodeDucet, PassesBothOfficialFullUnicode17ConformanceSuites) {
+    if (!SourceAvailable() || CollationTestRoot().empty()) {
+        GTEST_SKIP() << "pinned Unicode source or extracted conformance suites "
+                        "are unavailable";
+    }
+    const fs::path non_ignorable = CollationTestRoot() /
+        "CollationTest/CollationTest_NON_IGNORABLE.txt";
+    const fs::path shifted = CollationTestRoot() /
+        "CollationTest/CollationTest_SHIFTED.txt";
+    if (!fs::is_regular_file(non_ignorable) ||
+        !fs::is_regular_file(shifted)) {
+        GTEST_SKIP() << "full Unicode 17 collation suites were not extracted";
+    }
+    laplace_unicode_source_bundle* bundle = nullptr;
+    laplace_unicode_source_receipt source{};
+    ASSERT_EQ(laplace_unicode_source_bundle_open(
+                  SourceRoot().c_str(), &bundle, &source),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_core_table* core = nullptr;
+    laplace_unicode_core_summary core_summary{};
+    ASSERT_EQ(laplace_unicode_core_table_create(
+                  bundle, &core, &core_summary),
+              LAPLACE_UNICODE_OK);
+    laplace_unicode_ducet_table* table = nullptr;
+    laplace_unicode_ducet_summary table_summary{};
+    ASSERT_EQ(laplace_unicode_ducet_table_create(
+                  bundle, &table, &table_summary),
+              LAPLACE_UNICODE_OK);
+
+    EXPECT_TRUE(VerifyFullCollationSuite(
+        non_ignorable, table, core,
+        LAPLACE_UNICODE_UCA_NON_IGNORABLE, UINT64_C(208070)));
+    EXPECT_TRUE(VerifyFullCollationSuite(
+        shifted, table, core,
+        LAPLACE_UNICODE_UCA_SHIFTED, UINT64_C(229860)));
+
+    laplace_unicode_ducet_table_destroy(&table);
+    laplace_unicode_core_table_destroy(&core);
     laplace_unicode_source_bundle_close(&bundle);
 }
 

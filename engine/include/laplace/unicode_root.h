@@ -51,6 +51,11 @@ typedef enum laplace_unicode_ducet_provenance {
     LAPLACE_UNICODE_DUCET_LUP_SURROGATE_EXTENSION = 4
 } laplace_unicode_ducet_provenance;
 
+typedef enum laplace_unicode_uca_alternate_handling {
+    LAPLACE_UNICODE_UCA_NON_IGNORABLE = 0,
+    LAPLACE_UNICODE_UCA_SHIFTED = 1
+} laplace_unicode_uca_alternate_handling;
+
 typedef struct laplace_unicode_collation_element {
     uint16_t primary;
     uint16_t secondary;
@@ -211,6 +216,7 @@ typedef struct laplace_unicode_source_receipt {
 
 typedef struct laplace_unicode_source_bundle laplace_unicode_source_bundle;
 typedef struct laplace_unicode_core_table laplace_unicode_core_table;
+typedef struct laplace_unicode_ducet_table laplace_unicode_ducet_table;
 
 typedef struct laplace_unicode_source_file_view {
     const uint8_t* bytes;
@@ -245,6 +251,39 @@ typedef struct laplace_unicode_core_summary {
     uint32_t status;
     uint32_t reserved;
 } laplace_unicode_core_summary;
+
+typedef struct laplace_unicode_ducet_mapping_view {
+    const uint32_t* sequence;
+    const laplace_unicode_collation_element* elements;
+    uint32_t source_line_ordinal;
+    uint32_t sequence_count;
+    uint32_t element_count;
+} laplace_unicode_ducet_mapping_view;
+
+typedef struct laplace_unicode_ducet_implicit_range_view {
+    uint32_t first_position;
+    uint32_t last_position;
+    uint16_t lead_primary;
+    uint16_t reserved;
+    uint32_t source_line_ordinal;
+} laplace_unicode_ducet_implicit_range_view;
+
+typedef struct laplace_unicode_ducet_summary {
+    laplace_digest256 receipt_id;
+    laplace_digest256 source_fingerprint;
+    laplace_digest256 recipe_fingerprint;
+    laplace_digest256 retained_table_fingerprint;
+    uint64_t explicit_mapping_count;
+    uint64_t explicit_single_position_count;
+    uint64_t contraction_count;
+    uint64_t expansion_mapping_count;
+    uint64_t collation_element_count;
+    uint64_t variable_collation_element_count;
+    uint32_t implicit_range_count;
+    uint32_t maximum_sequence_count;
+    uint32_t maximum_element_count;
+    uint32_t status;
+} laplace_unicode_ducet_summary;
 
 typedef struct laplace_unicode_root_stream_validator
     laplace_unicode_root_stream_validator;
@@ -511,6 +550,55 @@ LAPLACE_API laplace_unicode_status laplace_unicode_core_table_record(
 
 LAPLACE_API void laplace_unicode_core_table_destroy(
     laplace_unicode_core_table** table);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_ducet_table_create(
+    const laplace_unicode_source_bundle* bundle,
+    laplace_unicode_ducet_table** table,
+    laplace_unicode_ducet_summary* summary);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_ducet_table_mapping(
+    const laplace_unicode_ducet_table* table,
+    uint64_t mapping_ordinal,
+    laplace_unicode_ducet_mapping_view* view);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_ducet_table_lookup(
+    const laplace_unicode_ducet_table* table,
+    const uint32_t* sequence,
+    uint32_t sequence_count,
+    laplace_unicode_ducet_mapping_view* view);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_ducet_table_implicit_range(
+    const laplace_unicode_ducet_table* table,
+    uint32_t range_ordinal,
+    laplace_unicode_ducet_implicit_range_view* view);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_ducet_sort_key_measure(
+    const laplace_unicode_ducet_table* table,
+    const laplace_unicode_core_table* core,
+    const uint32_t* sequence,
+    uint32_t sequence_count,
+    uint8_t alternate_handling,
+    uint32_t* normalized_position_count,
+    uint32_t* collation_element_count,
+    size_t* key_bytes);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_ducet_sort_key_calculate(
+    const laplace_unicode_ducet_table* table,
+    const laplace_unicode_core_table* core,
+    const uint32_t* sequence,
+    uint32_t sequence_count,
+    uint8_t alternate_handling,
+    uint32_t* normalized_positions,
+    uint32_t normalized_capacity,
+    laplace_unicode_collation_element* elements,
+    uint32_t element_capacity,
+    uint8_t* key,
+    size_t key_capacity,
+    uint8_t* provenance,
+    size_t* key_bytes);
+
+LAPLACE_API void laplace_unicode_ducet_table_destroy(
+    laplace_unicode_ducet_table** table);
 
 LAPLACE_API laplace_unicode_status laplace_unicode_numeric_oneapi_provider(
     laplace_unicode_numeric_provider_v1* provider);
