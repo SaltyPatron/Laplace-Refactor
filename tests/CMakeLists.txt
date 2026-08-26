@@ -490,6 +490,33 @@ set_tests_properties(
     unicode-root.mutation-codec-and-hilbert-defects-detected PROPERTIES
     LABELS "implementation;unicode;identity;geometry;mutation")
 
+add_executable(laplace_unicode_atom_projection_mutation_probe
+    unicode_root_tests.cpp
+    ../engine/src/unicode_root.c)
+target_include_directories(
+    laplace_unicode_atom_projection_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(
+    laplace_unicode_atom_projection_mutation_probe PRIVATE
+    Laplace::Identity Laplace::Perfcache BLAKE3::blake3 GTest::gtest_main)
+target_compile_definitions(
+    laplace_unicode_atom_projection_mutation_probe PRIVATE
+    LAPLACE_TEST_UNICODE_PROJECT_REMINT_PHYSICALITY=1)
+target_compile_options(
+    laplace_unicode_atom_projection_mutation_probe PRIVATE
+    $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-root.mutation-physicality-remint-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_atom_projection_mutation_probe>"
+        "-DFILTER=UnicodeAtomPersistence.ProjectsEmittedIdentityAndRejectsPhysicalityReminting"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-root.mutation-physicality-remint-detected PROPERTIES
+    LABELS "implementation;unicode;identity;physicality;persistence;mutation")
+
 add_executable(laplace_unicode_placement_permutation_mutation_probe
     unicode_root_tests.cpp
     ../engine/src/unicode_root.c)

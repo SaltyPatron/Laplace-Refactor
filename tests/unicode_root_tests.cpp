@@ -204,6 +204,37 @@ TEST(UnicodeNumeric, ExactRationalQuantizationClosesBoundariesAndZero) {
               LAPLACE_UNICODE_NUMERIC_OUT_OF_RANGE);
 }
 
+TEST(UnicodeAtomPersistence,
+     ProjectsEmittedIdentityAndRejectsPhysicalityReminting) {
+    auto atom = Atom(0x41U);
+    const auto expectation = RootExpectation();
+    laplace_persistence_entity_record entity{};
+    laplace_persistence_physicality_record physicality{};
+    ASSERT_EQ(laplace_unicode_atom_persistence_project(
+                  &atom, &expectation, &entity, &physicality),
+              LAPLACE_UNICODE_OK);
+    EXPECT_EQ(std::memcmp(&entity.entity_id, &atom.content_id,
+                          sizeof(entity.entity_id)), 0);
+    EXPECT_EQ(std::memcmp(&entity.identity_witness,
+                          &atom.identity_preimage_fingerprint,
+                          sizeof(entity.identity_witness)), 0);
+    EXPECT_EQ(std::memcmp(&physicality.physicality_id,
+                          &atom.physicality_id,
+                          sizeof(physicality.physicality_id)), 0);
+    EXPECT_EQ(std::memcmp(&physicality.centroid, &atom.coordinate,
+                          sizeof(physicality.centroid)), 0);
+
+    atom.physicality_id.bytes[0] ^= 0x80U;
+    const auto prior_entity = entity;
+    const auto prior_physicality = physicality;
+    EXPECT_EQ(laplace_unicode_atom_persistence_project(
+                  &atom, &expectation, &entity, &physicality),
+              LAPLACE_UNICODE_IDENTITY_MISMATCH);
+    EXPECT_EQ(std::memcmp(&entity, &prior_entity, sizeof(entity)), 0);
+    EXPECT_EQ(std::memcmp(&physicality, &prior_physicality,
+                          sizeof(physicality)), 0);
+}
+
 TEST(UnicodePlacementFingerprint,
      RejectsDuplicateRankBeforeCoordinateTableIdentity) {
     std::vector<std::uint32_t> ranks(LAPLACE_UNICODE_ROOT_POPULATION);
