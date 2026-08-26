@@ -12,6 +12,14 @@ requirements:
     evidence:
       - LP-TEST-CROSS-MODAL-PROGRAM
       - LP-TEST-MODALITY-SYMMETRY
+  - id: LP-AST-001
+    statement: Every admitted digital structure program semantic act transformation and realization has an exact typed universal AST whose canonical content-addressed persistent form is the Merkle DAG so equal subtrees reuse identity while roles occurrences syntax testimony and context remain distinct witnessed paths.
+    evidence:
+      - LP-TEST-UNIVERSAL-AST-CROSS-MODAL
+      - LP-TEST-AST-MERKLE-REUSE
+      - LP-TEST-AST-ROLE-IDENTITY-SEPARATION
+      - LP-TEST-AST-OPAQUE-FLATTENING-REJECTION
+      - LP-TEST-AST-EXACT-RECOMPOSITION
   - id: LP-IDENTITY-001
     statement: The same canonical content always produces the same identity independent of source language modality model route tier and time.
     evidence:
@@ -118,6 +126,22 @@ requirements:
       - LP-TEST-FRAMEWORK-RESOURCE-APPLICATION
       - LP-TEST-FRAMEWORK-GENERATED-BINDINGS
       - LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE
+  - id: LP-REUSE-001
+    statement: Common semantic and lifecycle behavior is centralized in typed generic interfaces concepts generated contracts and reusable base implementations while source grammar language modality model transport storage acceleration and numeric providers may vary only their declared physical mechanism and cannot change meaning evidence completion or receipt semantics.
+    evidence:
+      - LP-TEST-GENERIC-SEMANTIC-SINGLE-OWNER
+      - LP-TEST-GENERIC-PROVIDER-SUBSTITUTION
+      - LP-TEST-GENERIC-SOURCE-BRANCH-REJECTION
+      - LP-TEST-GENERIC-SCALAR-BATCH-ROUTE-PARITY
+  - id: LP-RECIPE-001
+    statement: Every decomposition recomposition transformation calculation evidence cognition realization effect model derived-plane firmware and calculus law is an immutable typed versioned recipe compiled to the common ISA with exact grammar dependencies validation loss inverse authority resource vectors completion and receipts.
+    evidence:
+      - LP-TEST-RECIPE-ISA-COMPILATION
+      - LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE
+      - LP-TEST-RECIPE-STRUCTURAL-TRANSFORMATION
+      - LP-TEST-RECIPE-LOSS-AND-INVERSE
+      - LP-TEST-RECIPE-VERSION-HISTORY
+      - LP-TEST-RECIPE-OPAQUE-CALLBACK-REJECTION
   - id: LP-BULK-001
     statement: Batch and bulk operations are primary and exactly preserve one-element semantics.
     evidence:
@@ -263,6 +287,22 @@ requirements:
       - LP-TEST-GODEL-SELF-NONCORROBORATION
       - LP-TEST-GODEL-REFUTATION-EPISTEMIC-KIND
       - LP-TEST-GODEL-CALCULUS-VERSION-REPLAY
+      - LP-TEST-GODEL-SELF-AUTHORED-STRUCTURE
+      - LP-TEST-GODEL-NOVELTY-NONAGENCY
+  - id: LP-GOVERNANCE-001
+    statement: Exact knowledge state calculus governance firmware goals realization and effect authority are distinct versioned machine layers so policy standing permission and personality can govern calculations without rewriting content observations testimony history or truth.
+    evidence:
+      - LP-TEST-KNOWLEDGE-GOVERNANCE-SEPARATION
+      - LP-TEST-GOVERNANCE-NONMUTATION
+      - LP-TEST-PERMISSION-NONEPISTEMIC
+      - LP-TEST-LAYER-VERSION-REPLAY
+  - id: LP-FIRMWARE-001
+    statement: Personality Firmware is content-addressed replayable executable cognition policy over a shared pinned knowledge state and fixed typed ISA whose computational choices may vary while semantic truth instruction availability resource authority and effect privilege cannot.
+    evidence:
+      - LP-TEST-PERSONALITY-FIRMWARE-SAME-WORLD
+      - LP-TEST-PERSONALITY-FIRMWARE-COMPUTATIONAL-DIVERGENCE
+      - LP-TEST-PERSONALITY-PROMPT-NONSUBSTITUTION
+      - LP-TEST-FIRMWARE-NO-PRIVILEGE-ESCALATION
   - id: LP-AIMAP-001
     statement: AImap coordinates are generated spectral modes of a pinned typed operator over exact physicality structure and selected epistemic layers and remain a receipt-bound modular derived artifact distinct from identity physicality testimony consensus and canonical semantics.
     evidence:
@@ -350,7 +390,7 @@ requirements:
       - LP-TEST-INDEX-WORKLOAD-ADMISSION
       - LP-TEST-MATERIALIZATION-REBUILD-PARITY
   - id: LP-PERFCACHE-001
-    statement: Perfcaches are modular typed immutable calculation and acceleration planes generated either as the bootstrap sibling output of the canonical Unicode seed or from a complete canonical ETL boundary with complete source recipes integrity and coherent atomic activation epochs.
+    statement: Perfcaches are modular typed immutable calculation and acceleration planes generated either as the bootstrap sibling output of the canonical Unicode root calculation or from a complete canonical calculation or world-admission boundary with complete recipe source integrity and coherent atomic activation epochs.
     evidence:
       - LP-TEST-PERFCACHE-TYPED-REGISTRY
       - LP-TEST-PERFCACHE-SOURCE-RECIPE
@@ -372,6 +412,32 @@ requirements:
       - LP-TEST-PERFCACHE-EPOCH-PINNED-READERS
       - LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT
       - LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN
+  - id: LP-ACTIVATION-001
+    statement: Implemented controlled integration installed product activation per-source-profile world admission configured foundational heterogeneous seed completion and released package state are distinct receipted outcomes and no earlier state may claim a later one.
+    evidence:
+      - LP-TEST-ACTIVATION-STATE-SEPARATION
+      - LP-TEST-ACTIVATION-INSTALLED-OBJECT-IDENTITY
+      - LP-TEST-ACTIVATION-PRODUCT-ROOT-RECEIPT
+  - id: LP-HIGHWAY-001
+    statement: One append-only generated numerical highway owns authority release namespace scoped grammar AST-role language script external-reference relation modality representation recipe model trust operation and effect coordinates so every machine operation can rise to shared typed state and lower to witnessed language or modality without an English pivot identifier reminting or one global integer namespace.
+    evidence:
+      - LP-TEST-HIGHWAY-CROSS-LANGUAGE
+      - LP-TEST-HIGHWAY-REGISTRY-PARITY
+      - LP-TEST-HIGHWAY-APPEND-ONLY
+      - LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION
+      - LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION
+      - LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION
+  - id: LP-ADMISSION-001
+    statement: Heterogeneous digital sources are admitted as exact typed AST structure occurrences testimony constraints realization evidence behavior predictions counterexamples and unknowns through one recipe ISA composition presence deposition and receipt lifecycle so Laplace can calculate across them without training while no source parser corpus modality or model becomes semantic authority or certifies generic completion.
+    evidence:
+      - LP-TEST-ADMISSION-EVEN-PLAYING-FIELD
+      - LP-TEST-ADMISSION-NONEXEMPLAR
+      - LP-TEST-ADMISSION-SOURCE-TOPOLOGY
+      - LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION
+      - LP-TEST-ADMISSION-DEPENDENCE
+      - LP-TEST-ADMISSION-READ-REACHABILITY
+      - LP-TEST-ADMISSION-NO-TRAINING
+      - LP-TEST-ADMISSION-GRAMMAR-NONSEMANTIC
   - id: LP-PACKAGE-001
     statement: Linux and Windows packages provide convergent install upgrade repair service and removal behavior with verified receipts.
     evidence:
@@ -394,3 +460,4 @@ requirements:
     evidence:
       - LP-TEST-CLEANROOM-SEPARATION
       - LP-TEST-REQUIREMENTS-TRACEABILITY
+      - LP-TEST-CONTINUATION-AUTHORITY

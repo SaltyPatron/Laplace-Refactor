@@ -1,0 +1,90 @@
+{
+  "schema": "laplace.source-profile-model/v1",
+  "purpose": "A source profile is the exact authority release artifact grammar recipe witness and completion declaration needed to admit one digital source boundary into Laplace world state; it is not importer configuration or a database mapping and is not a claim that the source is true.",
+  "profile_identity": {
+    "coordinate": ["kind", "authority", "release", "namespace", "local_identifier", "version"],
+    "kind": "source-profile",
+    "fingerprint": "BLAKE3-256 of the canonical profile artifact graph grammar and codec identities recipe bindings expected denominators conformance vectors and completion law",
+    "path_law": "a local discovery path is observed development state and never source identity release authority or completeness evidence",
+    "evolution": "a changed artifact grammar recipe interpretation denominator or completion law creates a new append-only profile coordinate and fingerprint"
+  },
+  "required_sections": {
+    "purpose_and_roles": [
+      "why this source contributes operands constraints structural law realization evidence behavior predictions counterexamples or unknown boundaries to the calculating machine",
+      "which witness roles it may assert and which semantic authority it is prohibited from owning"
+    ],
+    "authority_and_release": [
+      "stable publisher authority release namespace local identifier and profile version",
+      "official release roots publication markers dates supersession and mirror relationships",
+      "license identity exact license bytes digest obligations and constituent-artifact applicability"
+    ],
+    "artifact_graph": [
+      "every constituent file stream archive member sidecar index and generated dependency with exact role byte length digest and media type",
+      "container tree digest archive and expansion rules path safety duplicate-name behavior encoding and byte-order declarations",
+      "upstream derivation mirror quotation dataset ancestry and model lineage edges"
+    ],
+    "syntax_authority": [
+      "grammar parser scanner codec schema or standards algorithm identity release digest start symbol and dependency closure",
+      "concrete nodes fields aliases ordinals spans missing nodes error nodes ambiguity recovery and unknown-form disposition",
+      "the exact provider output boundary before universal AST lowering"
+    ],
+    "recipe_program": [
+      "typed recipe coordinates and fingerprints for block discovery parsing lowering canonicalization identity composition physicality reference witnessing deposition readback and recomposition as applicable",
+      "exact input and output shapes provider bindings local dependencies epochs authority effects resources loss inverse vectors completion and receipt requirements",
+      "a source-local dependency DAG that may be interleaved with other profiles by the whole-working-set planner and does not impose a global source or pass order"
+    ],
+    "universal_ast_mapping": [
+      "every concrete symbol field record attribute relation endpoint and source position mapped to a typed AST role occurrence testimony outcome or explicit loss",
+      "unchanged subtree identity reuse role order multiplicity and source occurrence preservation",
+      "exact reconstruction semantic reconstruction and intentional transformation boundaries"
+    ],
+    "highway_and_references": [
+      "authority release and namespace scoped identifier carriers join keys aliases language script modality representation relation recipe and operation coordinates",
+      "typed unresolved ambiguous external missing and retired endpoint behavior",
+      "explicit witnessed mappings rather than local integer or surface-string conflation"
+    ],
+    "epistemic_witnessing": [
+      "source claim annotation definition example measurement prediction behavior and counterexample typing",
+      "observation asserted-validity admission and supersession time plus context language modality model and trust dimensions",
+      "dependence roots and distinctions among witnessed copied derived predicted contradicted unsupported and unknown"
+    ],
+    "denominators_and_dispositions": [
+      "expected bytes containers members files records fields nodes spans edges references occurrences claims mappings errors unknowns transformations and outputs with explicit not-applicable declarations",
+      "accepted rejected duplicate reused transformed lossy unsupported malformed unresolved persisted and derived dispositions",
+      "disjoint denominator hierarchy and equations that reconcile source block batch run profile and selected-boundary receipts"
+    ],
+    "conformance_and_completion": [
+      "immutable positive conformance vectors source-specific negative controls malformed and adversarial fixtures",
+      "provider substitution scalar vector partition replay and PostgreSQL semantic parity",
+      "exact or declared semantic readback reference reachability source fidelity idempotency cancellation restart and durable effect checks",
+      "human-authored grammar profile recipe correction conformance and intervention effort plus the shared generic code reused from prior unrelated profiles",
+      "profile completion predicate and the explicit statement that profile completion cannot certify generic admission product world state or release"
+    ]
+  },
+  "generic_execution_law": {
+    "provider_boundary": "thin artifact grammar codec transport and persistence providers expose typed mechanism through common interfaces and cannot own identity AST evidence cognition realization completion or receipt meaning",
+    "recipe_boundary": "all source-varying behavior is declared as typed data and compiled through the common recipe compiler and ISA rather than a source-named semantic dispatcher or opaque callback",
+    "working_set": "the whole-working-set planner may combine compatible operations from several profiles so shared subtrees references mappings and dependence are resolved once over the selected boundary",
+    "reuse": "registry validation planning batching presence deposition receipt and lifecycle code is shared; a profile contributes declarations grammar bindings conformance vectors and only truly source-specific kernels",
+    "unsupported": "absence of a valid profile grammar recipe or declared disposition is an explicit unsupported result and never an invitation to guess"
+  },
+  "selected_boundary": {
+    "manifest": "a separately receipted run manifest names the exact ordered profile fingerprints artifact fingerprints recipe and grammar epochs and intended witness boundary",
+    "closure": "the selected boundary closes only when every profile denominator and cross-profile endpoint reconciles and every required derived publication is coherent",
+    "nonexemplar": "one completed profile family grammar modality or domain proves only its declared boundary"
+  },
+  "required_negative_controls": [
+    "local-path-used-as-source-authority",
+    "latest-alias-used-as-release-identity",
+    "constituent-file-omitted-from-artifact-graph",
+    "parser-success-used-as-semantic-or-truth-proof",
+    "source-named-callback-bypasses-recipe-ISA",
+    "concrete-field-or-error-node-silently-dropped",
+    "unscoped-local-identifier-enters-highway",
+    "surface-label-becomes-reference-identity",
+    "mirror-or-derived-source-counted-as-independent-evidence",
+    "opaque-record-replaces-universal-AST-mapping",
+    "row-count-used-as-source-closure",
+    "one-profile-completion-claims-generic-admission"
+  ]
+}

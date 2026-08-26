@@ -11,17 +11,25 @@ Laplace preserves one universal canonical state and calculates the representatio
 operator, search, artifact, or realization required by the current program.
 
 ```text
-admit exact sources and recipes
-  -> calculate canonical values and physicalities
-  -> deposit immutable canonical and witnessed state
+resolve an exact grammar and typed recipe
+  -> decompose digital content into a concrete syntax tree
+  -> lower to the universal typed AST and calculate its Merkle DAG
+  -> deposit immutable canonical and witnessed world state
   -> publish complete derived epochs and acceleration planes
   -> compile a typed goal and completion contract
   -> calculate/query/search over exact and derived state
   -> select a complete semantic act
-  -> realize or execute the act
+  -> transform and recompose the act into a modality or execute its effect
   -> observe the consequence
   -> deposit learning or propose a falsifiable calculus extension
 ```
+
+This is a cycle, not a corpus waterfall. The same machinery admits a source artifact,
+executes a query, records a conversation, realizes content, observes a tool result,
+decomposes a model, or incorporates a new calculus recipe. Source bytes are inputs to
+the machine; filling tables is not its purpose. The purpose is a persistent
+SQL-addressable intelligence that calculates across exact heterogeneous world state
+without requiring training or a GPU.
 
 The fast cognition, evidence-learning, and Goedel discovery loops share this state but
 have different mutation authority. Fast cognition cannot rewrite testimony or the
@@ -52,7 +60,8 @@ Every product module executes through the same framework:
 3. complete-program validation, authority checks, resource estimation, and effect
    admission before output or durable mutation;
 4. a canonical vector/set/run batch representation;
-5. a decomposer/calculation pipeline that emits typed batches once;
+5. a grammar/recipe compiler and decomposer/calculation pipeline that emits typed AST
+   and canonical batches once;
 6. replaceable bulk sinks for canonical persistence, perfcache construction,
    observation/testimony deposition, derived-state construction, and result streams;
 7. conserved topology-aware resource grants applied to native kernels, TBB, MKL,
@@ -62,9 +71,10 @@ Every product module executes through the same framework:
 10. diagnostics that identify every loaded object, source, recipe, epoch, plan,
     artifact, database boundary, and result.
 
-Modules supply typed codecs, validators, kernels, persistence schemas, perfcache access
-laws, and semantic parity checks. They do not create another dispatcher, batching
-loop, scheduler, receipt system, lifecycle, identity law, or persistence engine.
+Modules supply typed grammar providers, codecs, validators, kernels, persistence
+schemas, perfcache access laws, recomposition laws, and semantic parity checks. They do
+not create another dispatcher, batching loop, scheduler, receipt system, lifecycle,
+identity law, AST law, recipe compiler, or persistence engine.
 
 ## 3. Self-hosting Unicode root
 
@@ -155,13 +165,15 @@ Physicality is an immutable calculated realization under a recipe and epoch:
 These exact structural relations are calculations, not attestations and not rows for
 every possible pair.
 
-## 5. Runtime ingestion and persistence
+## 5. Runtime world admission and persistence
 
-After the root epoch is active, every source follows one set-oriented path:
+After the root epoch is active, every source admission uses one set-oriented execution
+spine while its typed grammar and recipes determine the exact work:
 
 ```text
 exact source bytes and source receipt
-  -> edge codec produces typed observations and exact structural units
+  -> grammar or codec produces exact concrete syntax and structural units
+  -> typed recipes lower them into the universal AST and witness every disposition
   -> Tier-0 leaves resolve from the active atom plane without PostgreSQL crossings
   -> parents compose leaf-to-trunk in memory
   -> equal identities deduplicate across the whole working set

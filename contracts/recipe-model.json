@@ -1,0 +1,99 @@
+{
+  "schema": "laplace.recipe-model/v1",
+  "purpose": "A recipe is typed executable law that decomposes exact inputs into typed trees or recomposes transformed trees into exact realizations through a validated substrate ISA program; it is not importer configuration or an opaque callback.",
+  "universal_tree": {
+    "abstract_form": "every admitted digital structure program query semantic act transformation result and realization has an exact typed AST form",
+    "persistent_form": "canonical AST content and composition are persisted as one content-addressed Merkle DAG",
+    "terminal_floor": "complete Unicode positions and canonical numeric compositions",
+    "node_identity": "content only under the fixed identity preimage grammar",
+    "edge_meaning": "typed role ordinal multiplicity and structural relation remain in trajectories and occurrences rather than node identity",
+    "witness_dimensions": ["source", "authority", "release", "language", "script", "modality", "model", "context", "time", "interpretation", "trust"],
+    "reuse_law": "equal subtrees converge to one content identity while every occurrence path and testimony remains independently addressable",
+    "nonflattening_law": "a record table triple graph embedding token sequence or opaque payload cannot replace the typed tree unless the receipt proves exact reconstruction of every consumer-required distinction"
+  },
+  "recipe_identity": {
+    "coordinate": ["kind", "authority", "release", "namespace", "local_identifier", "version"],
+    "fingerprint": "BLAKE3-256 of the canonical recipe declaration grammar identities dependency epochs and immutable conformance vectors",
+    "highway_binding": "the typed append-only recipe coordinate is generated through the common numerical highway",
+    "scope_law": "equal local identifiers in different kinds authorities releases or namespaces remain different coordinates unless explicit witnessed mappings relate them"
+  },
+  "recipe_kinds": [
+    "grammar-parse-lower-and-recompose",
+    "canonicalize-and-identify",
+    "compose-and-calculate-physicality",
+    "observe-and-record-testimony",
+    "derive-and-adjudicate",
+    "compile-goal-and-search",
+    "calculate-operator-and-select-act",
+    "realize-modality-or-effect",
+    "decompose-model-witness",
+    "compile-target-artifact",
+    "generate-derived-plane",
+    "execute-firmware-or-calculus-extension"
+  ],
+  "required_declaration": [
+    "typed accepted input values shapes and authorities",
+    "grammar provider identities versions start symbols and scanner dependencies where syntax is parsed",
+    "concrete-syntax to typed-universal-AST lowering and typed-AST recomposition rules",
+    "validation canonicalization and identity rules",
+    "typed output values shapes and semantic ownership",
+    "loss class discarded distinctions and inverse or reconstruction data",
+    "required source identity evidence firmware numeric geometry database and perfcache epochs",
+    "authority effects and mutation envelope",
+    "resource estimate cancellation merge partition and replay laws",
+    "immutable positive conformance and deliberate-defect vectors",
+    "complete receipt fields and completion predicates"
+  ],
+  "grammar_boundary": {
+    "providers": "Tree-sitter generated parsers scanners grammar metadata media codecs standards parsers and Laplace-native grammars are replaceable syntax providers behind one typed grammar registry",
+    "provider_output": "exact concrete syntax nodes fields byte spans errors missing nodes and source positions",
+    "laplace_lowering": "a versioned recipe lowers provider output into the universal typed AST and witnesses every grammar symbol field alias omission recovery and ambiguity",
+    "laplace_recomposition": "a versioned recipe selects and orders witnessed grammar constructions to realize a typed AST or semantic act as exact content without using token continuation as the semantic engine",
+    "round_trip": "an exact decomposition recipe and its declared inverse recompose byte-identical content; an intentional transformation recipe emits new content plus an exact tree edit and relation receipt",
+    "structural_transformation": "translation paraphrase correction register tone reference polarity degree and modality changes operate on typed AST roles and semantic acts rather than unreceipted string replacement",
+    "custom_grammars": "Laplace-native grammar providers are first-class authorities wherever the product declares its own exact syntax; the complete inventory and conformance behavior must be independently specified and cannot be inferred from historical implementation artifacts",
+    "prohibitions": [
+      "a grammar provider cannot mint private content identity",
+      "a grammar provider cannot own composition persistence evidence cognition or realization semantics",
+      "an unknown field error node ambiguity or scanner output cannot disappear without typed disposition",
+      "a programming-language grammar cannot make code architecturally privileged",
+      "a realization template cannot bypass semantic-act completion or AST transformation receipts"
+    ]
+  },
+  "compiler": {
+    "input": "canonical recipe declaration plus exact grammar source release and dependency manifests",
+    "output": "one complete typed vector-first ISA program and immutable execution context requirements",
+    "preflight": "validate the whole recipe and resulting program before any output durable mutation perfcache publication or effect",
+    "generation": "native PostgreSQL SQL Csharp documentation and diagnostic bindings are generated from the same typed registries",
+    "no_escape_hatch": "no source modality language model or recipe kind may install a private dispatcher scheduler batching loop receipt system identity law or semantic persistence path"
+  },
+  "execution": {
+    "primary_shape": "vector set run and whole-working-set batches",
+    "scalar_law": "one item lowers through the same canonical implementation",
+    "fanout_law": "one calculated canonical stream may feed multiple typed sinks without semantic recalculation",
+    "provider_law": "providers may vary parsing transport storage acceleration numeric kernel or effect mechanism only where the contract permits and cannot change semantic output order evidence completion or receipt meaning",
+    "resource_law": "all nested providers partition one conserved topology-aware resource grant",
+    "determinism_law": "partition batch size scheduling route and replay do not change logical results",
+    "persistence_law": "canonical calculated state witnessed state derived epochs acceleration planes and effects retain separate publication authority"
+  },
+  "evolution": {
+    "rule": "a semantic recipe change creates a new append-only coordinate fingerprint and receipt; it never rewrites prior content testimony calculation or epoch history",
+    "calculus_extension": "a discovered recipe or grammar extension remains a falsifiable candidate until disjoint evidence counterexamples authority and activation gates accept a new version",
+    "unknown": "unsupported grammar recipe field or operation is an explicit typed outcome rather than guessed lowering"
+  },
+  "required_negative_controls": [
+    "opaque-record-instead-of-AST",
+    "role-in-content-identity",
+    "source-specific-semantic-engine",
+    "recipe-callback-bypasses-ISA",
+    "provider-substitution-changes-meaning",
+    "scalar-and-batch-diverge",
+    "lossy-lowering-claims-exactness",
+    "unknown-field-silently-dropped",
+    "same-local-identifier-collides-across-authority-or-release",
+    "grammar-error-node-disappears",
+    "string-replacement-impersonates-structural-transformation",
+    "recomposition-loses-unchanged-subtree-identity",
+    "historical-recipe-version-is-rewritten"
+  ]
+}

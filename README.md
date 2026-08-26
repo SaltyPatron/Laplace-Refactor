@@ -21,6 +21,13 @@ Laplace product behavior exists until the implementation-level acceptance suite 
 it. A successful build, a nonempty result, an artifact of a particular size, or a
 response with the expected shape is not product acceptance.
 
+The machine-readable authority load order is `contracts/authority-stack.json`. It loads
+the complete invention, typed recipe model, universal source-admission law, acceptance
+boundary, and only then the observed checkpoint at `state/continuation.json`. A resumed
+implementation session validates that order before selecting work. In particular, the
+controlled Unicode PostgreSQL/Tier-0 activation path is integration-proven while the
+selected PostgreSQL 18.6 product cluster and product Unicode root remain inactive.
+
 The executable baseline currently contains the fixed BLAKE3-128 identity contract,
 complete Unicode-position encoding, ordered recursive composition, run-span identity
 calculation, deterministic four-dimensional arithmetic-centroid accumulation, and the
@@ -34,9 +41,11 @@ validate the complete program before writing results, and emit BLAKE3-256
 context/program/input/output/receipt fingerprints. Every program requires an explicit
 immutable framework context, and the generated operation registry owns native
 validation and execution dispatch. The PostgreSQL routes accept that same typed
-context explicitly; no hidden session or database context is substituted. The normal
-portable and address/undefined-behavior profiles currently expose 233 registered
-tests, while the selected oneAPI/PostgreSQL custom-stack profile exposes 249. Staged canonical streams remain
+context explicitly; no hidden session or database context is substituted. The
+portable, address/undefined-behavior, and selected oneAPI/PostgreSQL custom-stack
+profiles each verify their complete CTest registry; exact run IDs, commits, counts, and
+environment observations belong to the time-bound continuation checkpoint rather than
+stable architecture prose. Staged canonical streams remain
 inert until a writable authority admits an exact staged receipt and atomically
 publishes a compare-and-swap epoch transition; stale epochs and altered receipts are
 rejected before the activation provider runs. Immutable perfcache manifests now
@@ -99,6 +108,12 @@ paths and hashes and rejects incomplete or conflicting package graphs.
   receipt-producing.
 - All ingestion, query, conversation, analysis, and materialization paths use the same
   instruction set and engine contracts.
+- Every digital structure decomposes to a typed universal AST whose canonical
+  persistent form is the content-addressed Merkle DAG. Versioned recipes can transform
+  and recompose those trees into exact language, modality, model, or effect outputs.
+- Source admission gives unlike digital evidence one explicit epistemic playing field;
+  it is how the persistent calculating machine acquires world state without requiring
+  a training campaign or GPU execution.
 - Batch and bulk operations are the primary forms. Single-item calls use the same
   canonical implementation.
 - There is one implementation for each semantic fact.
@@ -128,6 +143,17 @@ paths and hashes and rejects incomplete or conflicting package graphs.
   whole-product execution order and the framework shared by every module.
 - [`contracts/operation-model.json`](contracts/operation-model.json) — mechanically
   validated operational-stage graph joined to every product requirement.
+- [`contracts/authority-stack.json`](contracts/authority-stack.json) — governing load
+  order that prevents current state or a source corpus from replacing the invention.
+- [`contracts/recipe-model.json`](contracts/recipe-model.json) — typed grammar,
+  decomposition, transformation, recomposition, and ISA compilation law.
+- [`contracts/source-profile-model.json`](contracts/source-profile-model.json) — exact
+  authority, release, artifact, grammar, recipe, AST, witness, denominator, and closure
+  declaration required for every selected source boundary.
+- [`contracts/source-admission.json`](contracts/source-admission.json) — heterogeneous
+  witness topology and generic world-state admission law without a source waterfall.
+- [`docs/architecture/ENGINEERING_STANDARDS.md`](docs/architecture/ENGINEERING_STANDARDS.md)
+  — generic, reusable, native, PostgreSQL, SQL, C#, testing, and delivery standards.
 - [`docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md`](docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md)
   — implemented, staged, and missing framework state without component-to-product
   inflation.

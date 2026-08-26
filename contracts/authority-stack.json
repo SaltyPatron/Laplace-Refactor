@@ -1,0 +1,83 @@
+{
+  "schema": "laplace.authority-stack/v1",
+  "product_thesis": {
+    "input": "any exact digital content or observed consequence",
+    "substrate": "one persistent typed universal AST whose content-addressed composition is a Merkle DAG",
+    "execution": "SQL composes typed cognition programs executed once by the native C/C++ and PostgreSQL server engine",
+    "epistemic_law": "sources languages modalities models and interpretations are attributed witnesses on one even playing field rather than competing engines or unquestioned authority",
+    "machine_identity": "Laplace is a computer with a typed architecture ISA persistent state calculus firmware and effect boundary rather than an ETL application or model wrapper",
+    "knowledge_boundary": "exact content AST physicality occurrence testimony provenance dependence historical calculations and observed outcomes remain knowledge state independent of current standing policy permission or personality",
+    "governance_boundary": "recipes calculus active epochs authority firmware goals and effect permission govern calculations over knowledge without becoming or rewriting that knowledge",
+    "personality_firmware": "versioned executable policy selects and orders admissible cognition programs over shared knowledge but cannot manufacture truth authority or privilege",
+    "creative_extension": "typed incompleteness may produce a new structure recipe firmware routine program or calculus candidate with complete ancestry but activation requires disjoint evidence counterexamples and authority",
+    "result": "query-relative calculated state semantic acts effects and modality realizations with complete receipts",
+    "training_requirement": "no gradient-training campaign is required to make admitted sources interoperable or queryable",
+    "hardware_requirement": "the complete semantic engine executes on CPU through native and PostgreSQL server operations without requiring a GPU",
+    "model_symmetry": "conventional models may enter as witnessed artifacts and may be compiled as optional targets but do not define Laplace"
+  },
+  "authority_classes": {
+    "inventor_direct_evidence": "exact inventor-authored messages and artifacts govern and supersede every derived class",
+    "direct_evidence_index": "locates and digests exact inventor evidence; its summaries aid discovery but cannot manufacture a requirement",
+    "stable_product_law": "a traceable synthesis defining what Laplace is independent of implementation or current state",
+    "verified_working_projection": "agent-facing instructions projected from governing product law and executable contracts; editing the projection cannot create inventor authority",
+    "executable_contract": "makes stable product law mechanically testable and generatable",
+    "observed_development_state": "records a time-bound verified observation and cannot change product law",
+    "historical_counterexample": "may expose a defect or lost requirement but cannot supply implementation design"
+  },
+  "direct_evidence": {
+    "index": "docs/audits/DIRECT_REQUIREMENT_EVIDENCE.md",
+    "continuation_manifest": "evidence/continuation-session-human-messages.jsonl",
+    "continuation_records": 34,
+    "continuation_manifest_sha256": "33046e9518936e4c1a1e827ccb584b37260887392b6dc5bbc1bc2f6c78316810",
+    "generator": "tools/audit/index-human-messages.sh",
+    "raw_source": "/home/ahart/.codex/sessions/2026/08/26/rollout-2026-08-26T17-45-46-01a03f2d-932d-7de2-9177-9fdc4adca5cc.jsonl",
+    "quotation_rule": "a human-supplied message may contain quoted agent prose; the record proves message provenance but quoted content remains a reconciliation lead until corroborated"
+  },
+  "required_load_order": [
+    {"order": 1, "path": "docs/audits/DIRECT_REQUIREMENT_EVIDENCE.md", "class": "direct_evidence_index", "purpose": "exact human-message locators digests precedence and correction chronology"},
+    {"order": 2, "path": "docs/product/CONSTITUTION.md", "class": "stable_product_law", "purpose": "complete product identity and invariant laws"},
+    {"order": 3, "path": "docs/product/INVENTION_MODEL.md", "class": "stable_product_law", "purpose": "causal and mathematical model of the invention"},
+    {"order": 4, "path": "AGENTS.md", "class": "verified_working_projection", "purpose": "agent-facing working agreements projected from governing law"},
+    {"order": 5, "path": "docs/architecture/OPERATIONAL_MODEL.md", "class": "stable_product_law", "purpose": "whole-machine execution cycles and shared framework"},
+    {"order": 6, "path": "docs/architecture/ISA.md", "class": "stable_product_law", "purpose": "only semantic execution vocabulary"},
+    {"order": 7, "path": "docs/architecture/BOUNDARIES.md", "class": "stable_product_law", "purpose": "semantic ownership and replaceable physical providers"},
+    {"order": 8, "path": "docs/architecture/ENGINEERING_STANDARDS.md", "class": "stable_product_law", "purpose": "generic reusable implementation and proof standards"},
+    {"order": 9, "path": "requirements/product.yaml", "class": "executable_contract", "purpose": "machine-readable product requirements and evidence identifiers"},
+    {"order": 10, "path": "contracts/operation-model.json", "class": "executable_contract", "purpose": "implementation capability dependencies and operational ownership"},
+    {"order": 11, "path": "contracts/recipe-model.json", "class": "executable_contract", "purpose": "typed grammar recipe compilation and execution law"},
+    {"order": 12, "path": "contracts/source-profile-model.json", "class": "executable_contract", "purpose": "Unicode-level exact source release artifact grammar recipe witness and closure law"},
+    {"order": 13, "path": "contracts/source-admission.json", "class": "executable_contract", "purpose": "complete witness topology and generic source-admission law"},
+    {"order": 14, "path": "docs/architecture/ACCEPTANCE.md", "class": "executable_contract", "purpose": "implementation-level and complete-product proof boundaries"},
+    {"order": 15, "path": "state/continuation.json", "class": "observed_development_state", "purpose": "verified current work and runtime checkpoint"}
+  ],
+  "work_selection_gate": [
+    "state the complete product behavior this work advances",
+    "trace the behavior through universal AST Merkle DAG recipe ISA evidence cognition and realization laws as applicable",
+    "identify the one native semantic owner and every replaceable physical provider",
+    "prove scalar vector batch PostgreSQL SQL and Csharp routes retain one meaning",
+    "separate implementation integration product-activation source-profile world-admission configured foundational seed release and observed-state claims",
+    "verify the continuation checkpoint against the physical worktree and live runtime",
+    "reject a source corpus format branch component issue or green check as a completeness boundary"
+  ],
+  "forbidden_substitutions": [
+    "source ingestion for the product purpose",
+    "ETL rows for typed AST Merkle DAG world state",
+    "retrieval for cognition",
+    "a permanent graph embedding or model for query-relative calculation",
+    "a source parser for a semantic engine",
+    "governance policy standing permission or firmware for knowledge identity or testimony",
+    "a personality prompt for executable firmware",
+    "self-generated descendants for independent evidence of their ancestor",
+    "novel output for proof of independent agency consciousness or personhood",
+    "one source or modality for generic acceptance",
+    "training for admission and interoperability",
+    "GPU availability for semantic execution",
+    "current branch shape for invention chronology",
+    "observed development state for stable product law",
+    "issue plan documentation or artifact shape for implementation acceptance"
+  ],
+  "state_boundary": {
+    "checkpoint": "state/continuation.json",
+    "rule": "load observed state only after the whole invention and executable contracts; stale or unavailable observations become explicit unknowns and never override product law"
+  }
+}

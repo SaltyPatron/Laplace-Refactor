@@ -12,10 +12,10 @@ document defines phase exits.
 | Phase | Live issues |
 | --- | --- |
 | 0 — Product authority and clean-room foundation | complete |
-| 1 — Industrial build and dependency foundation | #3, #8, #12 |
+| 1 — Industrial build and dependency foundation | #3, #8, #12, #54 |
 | 2 — Universal execution framework and ISA | #4, #5, #6, #10 |
-| 3 — Universal substrate state | #7, #13, #14, #16 |
-| 4 — Batch and bulk ingestion | #15 |
+| 3 — Universal substrate state | #7, #13, #14, #16, #52 |
+| 4 — Batch world-state admission | #15, #53 |
 | 5 — Universal query and conversation | #17, #18, #19 |
 | 6 — Model independence | #20 |
 | 7 — Complete product surfaces | #21 |
@@ -52,6 +52,10 @@ and acceptance evidence belongs to the new product.
   and Windows.
 - Produce staged dependency packages, symbols, provenance, and SBOMs.
 - Establish hermetic configure, build, test, package, and clean commands.
+- Require one change-sensitive product-path merge gate that selects exact hosted or
+  custom-stack evidence from the affected semantics, rejects missing required runner
+  execution, pins the exact PostgreSQL 18.6 product path, and retains BLAKE3-addressed
+  receipts outside transient Actions-only storage.
 
 Exit: a clean machine can acquire, verify, build, test, package, install, repeat the
 install, and verify the custom dependency runtime from declared inputs.
@@ -65,6 +69,9 @@ install, and verify the custom dependency runtime from declared inputs.
   epochs.
 - Implement one canonical vector/set/run batch representation and the common
   decomposer/calculation pipeline that produces it.
+- Implement the universal typed AST and grammar registry plus one versioned recipe
+  compiler for decomposition, transformation, recomposition, calculation, evidence,
+  cognition, realization, model, and firmware recipe kinds.
 - Implement replaceable typed sink/provider interfaces for persistence, perfcache
   generation, derived epochs, result streams, observations, and external effects.
 - Implement complete-program preflight, authority/effect admission, cancellation,
@@ -104,12 +111,26 @@ reasons.
 - Implement exact and semantic-equivalence separation for Unicode and every declared
   transformation recipe.
 - Implement transactional persistence and exact replay behavior.
+- Establish the selected PostgreSQL 18.6 product cluster, install the exact package,
+  and deposit and activate the Unicode root. Controlled integration activation is not
+  product activation.
+- Generate one append-only numerical highway for languages, scripts, external
+  reference authorities, relations, modalities, representation kinds, recipes, trust
+  classes, and operations. Prove native, PostgreSQL, SQL, C#, documentation, and
+  perfcache mirror parity and cross-language bubble-up/bubble-down without an English
+  surface pivot.
 
 Exit: exact cross-source and cross-route identity, structural round trips, competing
 testimony, lineage non-amplification, dependence-aware deterministic adjudication,
-as-of epochs, and restart behavior pass through public SQL and independent checks.
+as-of epochs, highway parity, activated product Unicode, and restart behavior pass
+through public SQL and independent checks.
 
-## Phase 4 — batch and bulk ingestion
+## Phase 4 — batch world-state admission
+
+This phase is not an ETL product. It gives the SQL-executed calculating machine exact,
+attributable, heterogeneous world state without a training campaign. Every source is a
+witness or syntax authority; no source owns identity, composition, evidence, cognition,
+or realization.
 
 - Implement universal source-block, record, composition, testimony, and persistence
   batches.
@@ -121,12 +142,39 @@ as-of epochs, and restart behavior pass through public SQL and independent check
 - Implement bounded concurrency derived from machine and source shape.
 - Implement exact progress, cancellation boundaries, restart, replay, and receipts.
 - Implement codec integration for every required modality.
+- Establish one source/profile authority covering every selected standards, grammar,
+  document, lexical, reference, predicate, frame, bridge, commonsense, syntax,
+  multilingual usage, interaction, code, media, domain, and model witness. An
+  individual source is never generic completion.
+- Require each exact release profile to declare its authority, license, constituent
+  artifact graph, grammar and scanner boundary, recipe program, universal-AST mapping,
+  highway/reference carriers, epistemic roles, denominators, dispositions, readback,
+  conformance vectors, deliberate defects, and completion law before admission.
+- Treat the locked Tree-sitter estate and Laplace-native custom grammars as first-class
+  decomposition/recomposition authorities. Thin grammar and codec providers recover
+  exact concrete syntax while versioned recipes lower and recompose the universal AST.
+- Make thin source adapters recover exact blocks and provider nodes while one native
+  shared core owns recipes, typed ASTs, references, content, composition, physicality,
+  relations, occurrences, spans, testimony, provenance, dependence, reconstruction,
+  realization preparation, and deposition.
+- Emit field-disposition and denominator-closure receipts for every source and reject
+  silent unsupported fields, unexplained loss, unresolved hidden endpoints, zero-row
+  no-ops, and copied-source support amplification.
+- Schedule recipe operations from exact artifact, grammar, reference, and epoch
+  dependencies over the whole working set. Do not impose a source-family waterfall or
+  a fixed universal list of passes. A source may participate through several recipes,
+  and compatible operations may interleave across sources.
+- Use chess as one downstream domain proof of typed state, transition, reference,
+  evidence, query, and realization behavior—not as the architecture or next corpus.
 - Meet complete ingest requirements on the i7-6850K hardware.
 
-Exit: real corpora meet exactness, durability, memory, database-call, 500,000 input
-records/second, and 30 seconds/GB requirements, with declared record units and
-normalized byte, occurrence, entity, physicality, testimony, edge, write, WAL, and
-cold/warm counters.
+Exit: the configured foundational heterogeneous world boundary is durably seeded in
+the activated product—not merely profile-complete or individually world-admitted—and
+every grammar, recipe, AST, source-fidelity, reconstruction, reachability,
+exactness, durability, memory,
+database-call, 500,000 input records/second, and 30 seconds/GB requirement passes with
+declared record units and normalized byte, occurrence, entity, physicality, testimony,
+edge, write, WAL, and cold/warm counters.
 
 ## Phase 5 — universal query and conversation
 
@@ -211,7 +259,8 @@ withheld-evidence tests, deliberate-defect tests, and target-runtime semantic be
 
 ## Phase 7 — complete product surfaces
 
-- Implement every required source family and media codec.
+- Expose every already-seeded source family and implemented media codec through the
+  complete supported product surfaces without introducing another semantic engine.
 - Implement CLI, APIs, web product, operations, billing, security, observability,
   diagnostics, and support commands.
 - Implement Linux and Windows services and packages.

@@ -1,16 +1,28 @@
 {
   "schema": "laplace.operation-model/v1",
   "completion_rule": "all stages execute through one framework and whole-package acceptance passes",
+  "graph_semantics": {
+    "stages": "implementation capability dependencies and operational ownership, not a source runtime order or a claim that product state is active",
+    "runtime": "runtime behavior is cyclic and recipe-planned over exact AST artifact reference epoch and authority dependencies",
+    "activation": "implementation integration product activation per-source-profile world admission configured foundational seed completion and release are separate states recorded by their own receipts",
+    "universality": "every stage consumes or produces typed universal AST Merkle-DAG state through one recipe compiler ISA framework and native semantic engine"
+  },
+  "runtime_cycles": {
+    "observe_calculate_realize": ["resolve grammar and recipe", "decompose exact digital content", "lower typed AST and calculate Merkle DAG", "deposit canonical and witnessed state", "publish derived epochs", "compile goal", "calculate and search", "select semantic act", "recompose modality or execute effect", "observe consequence"],
+    "evidence_learning": ["close testimony boundary", "calculate dependence and standing", "publish immutable evidence epoch", "observe later evidence without rewriting history"],
+    "calculus_extension": ["locate typed vacancy", "propose recipe grammar operator or firmware extension", "test disjoint evidence and counterexamples", "activate a new version only after authority gates"],
+    "model_symmetry": ["admit model as witnessed AST and behavior", "compare induced operators", "calculate target-neutral program", "compile optional target artifact", "validate target runtime behavior"]
+  },
   "tracking": {
     "repository": "SaltyPatron/Laplace-Refactor",
     "parent_issue": 23,
-    "tracked_issues": [3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 50],
+    "tracked_issues": [3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 50, 52, 53, 54],
     "phase_milestones": {
       "0": "Phase 0 — Product authority and clean-room foundation",
       "1": "Phase 1 — Industrial build and dependency foundation",
       "2": "Phase 2 — Universal execution framework and ISA",
       "3": "Phase 3 — Universal substrate state",
-      "4": "Phase 4 — Batch and bulk ingestion",
+      "4": "Phase 4 — Batch world-state admission",
       "5": "Phase 5 — Universal query and conversation",
       "6": "Phase 6 — Model independence",
       "7": "Phase 7 — Complete product surfaces",
@@ -21,7 +33,7 @@
     {
       "id": "foundation.acquire-build",
       "program_phases": [0, 1],
-      "github_issues": [3, 8, 12],
+      "github_issues": [3, 8, 12, 54],
       "depends_on": [],
       "owner": "minimal trusted source acquisition build and package bootstrap",
       "consumes": ["upstream source", "release archives", "standards data", "models and corpora", "licenses", "declared build toolchains"],
@@ -38,13 +50,18 @@
       "github_issues": [4, 5, 6, 10],
       "depends_on": ["foundation.acquire-build"],
       "owner": "native C/C++ engine with generated PostgreSQL SQL and C# orchestration bindings",
-      "consumes": ["typed programs", "immutable execution context", "authority envelope", "resource grant"],
-      "produces": ["validated physical plan", "typed outputs", "effect disposition", "execution receipt"],
+      "consumes": ["typed recipes and AST programs", "immutable execution context", "authority envelope", "resource grant"],
+      "produces": ["validated typed ISA and physical plan", "typed AST and value outputs", "effect disposition", "execution receipt"],
       "persistent_authority": ["contract and epoch registries", "execution receipts"],
       "acceleration": ["topology-aware vector batches", "TBB arenas", "MKL thread domains", "PostgreSQL server plans"],
       "receipts": ["program", "inputs", "outputs", "epochs", "dependencies", "resources", "authority", "effects"],
-      "product_requirements": ["LP-PRODUCT-001", "LP-UNIVERSAL-001", "LP-EXECUTION-001", "LP-ISA-001", "LP-FRAMEWORK-001", "LP-BULK-001", "LP-TOPOLOGY-001"],
-      "implementation": {"state": "partial", "evidence": ["contracts/framework.json", "engine/src/framework.c", "tests/framework_tests.cpp", "engine/src/isa.c", "engine/src/execution.cpp", "engine/src/execution_oneapi.cpp", "engine/src/perfcache_registry.cpp", "tests/perfcache_registry_tests.cpp", "postgres/extension/src/perfcache_pg.c", "postgres/extension/laplace--version.sql.in", "tests/postgres/perfcache_epoch_contract.sql", "managed/Laplace.Managed/Transport.cs", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
+      "product_requirements": ["LP-PRODUCT-001", "LP-UNIVERSAL-001", "LP-EXECUTION-001", "LP-ISA-001", "LP-FRAMEWORK-001", "LP-REUSE-001", "LP-RECIPE-001", "LP-BULK-001", "LP-TOPOLOGY-001"],
+      "implementation": {
+        "state": "partial",
+        "proven_boundary": "published code proves selected typed context registry ISA batch resource activation and receipt lifecycle slices",
+        "missing_boundary": "the universal AST type system grammar registry general recipe compiler complete ISA vocabulary and whole-product route parity remain unimplemented",
+        "evidence": ["contracts/framework.json", "contracts/recipe-model.json", "docs/architecture/ENGINEERING_STANDARDS.md", "requirements/features/universal_ast_recipe.feature", "engine/src/framework.c", "tests/framework_tests.cpp", "engine/src/isa.c", "engine/src/execution.cpp", "engine/src/execution_oneapi.cpp", "engine/src/perfcache_registry.cpp", "tests/perfcache_registry_tests.cpp", "postgres/extension/src/perfcache_pg.c", "postgres/extension/laplace--version.sql.in", "tests/postgres/perfcache_epoch_contract.sql", "managed/Laplace.Managed/Transport.cs", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]
+      }
     },
     {
       "id": "bootstrap.dependencies",
@@ -57,7 +74,7 @@
       "persistent_authority": ["activation manifests", "runtime configuration receipts", "loaded object receipts"],
       "acceleration": ["versioned package prefix", "atomic activation pointer"],
       "receipts": ["package identity", "configuration identity", "loaded object hashes", "activation and rollback disposition"],
-      "product_requirements": ["LP-PACKAGE-001"],
+      "product_requirements": ["LP-PACKAGE-001", "LP-ACTIVATION-001"],
       "implementation": {"state": "partial", "evidence": ["dependencies/installed-lock.json", "tools/dependencies/verify-installed-lock.py", "cmake/LaplaceOneApiProvider.cmake", "docs/delivery/PRODUCT_INFRASTRUCTURE.md", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
     },
     {
@@ -65,48 +82,105 @@
       "program_phases": [3],
       "github_issues": [13, 14],
       "depends_on": ["bootstrap.dependencies", "substrate.compose-physicality"],
-      "owner": "native Unicode decomposer through the common canonical-batch framework",
+      "owner": "native Unicode grammar and recipe through the common typed-AST canonical-batch framework",
       "consumes": ["pinned UCD", "complete DUCET", "conformance inputs", "identity grammar", "Super Fibonacci Hopf Hilbert numeric recipe"],
-      "produces": ["one canonical ordered Tier-0 record stream", "bootstrap atom perfcache", "canonical Tier-0 database rows", "coherent root epoch"],
+      "produces": ["one canonical ordered Tier-0 AST record stream", "bootstrap atom perfcache", "canonical Tier-0 database rows", "coherent root epoch"],
       "persistent_authority": ["content identities", "atom physicalities", "normalization and composition relations", "root epoch manifest"],
       "acceleration": ["dense direct atom plane", "reverse identity plane", "normalization span indexes", "4D Hilbert locality"],
       "receipts": ["Unicode version", "source hashes", "decomposer recipe", "numeric provider", "record stream and partition hashes", "database cache parity"],
-      "product_requirements": ["LP-IDENTITY-001", "LP-IDENTITY-002", "LP-UNICODE-001", "LP-UNICODE-002", "LP-GEOMETRY-001", "LP-GEOMETRY-002", "LP-PERFCACHE-001", "LP-PERFCACHE-002", "LP-PERFCACHE-003"],
-      "implementation": {"state": "partial", "evidence": ["contracts/unicode-source.json", "contracts/unicode-atom-record.json", "contracts/ducet-totalization.json", "contracts/super-fibonacci-hopf.json", "contracts/hilbert-numeric.json", "contracts/unicode-root-stream.json", "contracts/perfcache.json", "contracts/unicode-postgresql.json", "tools/validate-unicode-root-contracts.py", "tools/contracts/generate-unicode-source.py", "tests/unicode_root_contract_tests.py", "tests/unicode_root_tests.cpp", "tests/unicode_root_builder_tests.cpp", "tests/perfcache_performance_receipt_tests.py", "tests/unicode_numeric_tests.cpp", "tests/unicode_source_tests.cpp", "engine/src/identity.c", "engine/src/geometry.c", "engine/src/unicode_root.c", "engine/src/unicode_tier0_sink.cpp", "engine/src/unicode_numeric_oneapi.cpp", "engine/src/unicode_numeric_stub.c", "engine/src/unicode_source.cpp", "engine/src/persistence.c", "engine/src/perfcache.c", "engine/src/perfcache_file_posix.c", "engine/src/perfcache_modules.c", "engine/src/perfcache_registry.cpp", "tests/perfcache_tests.cpp", "tests/perfcache_file_tests.cpp", "tests/perfcache_registry_tests.cpp", "postgres/extension/src/persistence_pg.c", "postgres/extension/src/unicode_root_pg.c", "tests/postgres/unicode_root_contract.sql", "requirements/features/geometry_glome.feature", "requirements/features/perfcache_etl.feature"]}
+      "product_requirements": ["LP-IDENTITY-001", "LP-IDENTITY-002", "LP-UNICODE-001", "LP-UNICODE-002", "LP-GEOMETRY-001", "LP-GEOMETRY-002", "LP-PERFCACHE-001", "LP-PERFCACHE-002", "LP-PERFCACHE-003", "LP-ACTIVATION-001"],
+      "implementation": {
+        "state": "partial",
+        "proven_boundary": "the canonical Unicode root calculation PostgreSQL sibling deposition coherent direct-reverse Tier0 activation and hot lookup paths execute in controlled integration",
+        "missing_boundary": "the selected PostgreSQL 18.6 product cluster package installation product-root activation and routing through the future generic universal-AST recipe compiler are not proven",
+        "evidence": ["contracts/unicode-source.json", "contracts/unicode-atom-record.json", "contracts/ducet-totalization.json", "contracts/super-fibonacci-hopf.json", "contracts/hilbert-numeric.json", "contracts/unicode-root-stream.json", "contracts/perfcache.json", "contracts/unicode-postgresql.json", "tools/validate-unicode-root-contracts.py", "tools/contracts/generate-unicode-source.py", "tests/unicode_root_contract_tests.py", "tests/unicode_root_tests.cpp", "tests/unicode_root_builder_tests.cpp", "tests/perfcache_performance_receipt_tests.py", "tests/unicode_numeric_tests.cpp", "tests/unicode_source_tests.cpp", "engine/src/identity.c", "engine/src/geometry.c", "engine/src/unicode_root.c", "engine/src/unicode_tier0_sink.cpp", "engine/src/unicode_numeric_oneapi.cpp", "engine/src/unicode_numeric_stub.c", "engine/src/unicode_source.cpp", "engine/src/persistence.c", "engine/src/perfcache.c", "engine/src/perfcache_file_posix.c", "engine/src/perfcache_modules.c", "engine/src/perfcache_registry.cpp", "tests/perfcache_tests.cpp", "tests/perfcache_file_tests.cpp", "tests/perfcache_registry_tests.cpp", "postgres/extension/src/persistence_pg.c", "postgres/extension/src/unicode_root_pg.c", "tests/postgres/unicode_root_contract.sql", "requirements/features/geometry_glome.feature", "requirements/features/perfcache_world_state.feature"]
+      }
     },
     {
       "id": "substrate.compose-physicality",
       "program_phases": [3],
       "github_issues": [7, 13],
       "depends_on": ["bootstrap.dependencies"],
-      "owner": "native identity composition trajectory and physicality modules",
-      "consumes": ["canonical atoms", "ordered and unordered constituents", "run spans", "physicality recipe"],
-      "produces": ["content identity", "Merkle DAG", "immutable physicality", "trajectory-derived structural facts"],
+      "owner": "native universal AST identity composition trajectory and physicality modules",
+      "consumes": ["typed AST atoms", "ordered and unordered constituents", "roles and run spans", "physicality recipe"],
+      "produces": ["content identity", "persistent AST Merkle DAG", "immutable physicality", "trajectory-derived structural facts"],
       "persistent_authority": ["entities", "physicalities", "composition occurrences", "calculation receipts"],
       "acceleration": ["working-set identity tables", "packed trajectories", "B-tree GIN GiST BRIN and Hilbert candidate indexes"],
       "receipts": ["identity preimage grammar", "constituents", "multiplicity", "geometry epoch", "trajectory recipe"],
-      "product_requirements": ["LP-INTERPRETATION-001", "LP-PHYSICALITY-001", "LP-RUN-001", "LP-REPRESENTATION-001"],
-      "implementation": {"state": "partial", "evidence": ["contracts/persistence.json", "engine/src/identity.c", "engine/src/trajectory.c", "engine/src/geometry.c", "engine/src/persistence.c", "postgres/extension/src/persistence_pg.c", "postgres/extension/laplace--version.sql.in", "tests/persistence_tests.cpp", "tests/postgres/spi_contract.sql"]}
+      "product_requirements": ["LP-AST-001", "LP-INTERPRETATION-001", "LP-PHYSICALITY-001", "LP-RUN-001", "LP-REPRESENTATION-001"],
+      "implementation": {
+        "state": "partial",
+        "proven_boundary": "published code proves identity trajectory geometry and selected canonical persistence contracts; the continuation checkpoint separately fingerprints unpublished whole-working-set composition work",
+        "missing_boundary": "a published generic universal-AST composition implementation and its complete PostgreSQL presence deposition route remain absent",
+        "evidence": ["contracts/persistence.json", "state/continuation.json", "engine/src/identity.c", "engine/src/trajectory.c", "engine/src/geometry.c", "engine/src/persistence.c", "postgres/extension/src/persistence_pg.c", "postgres/extension/laplace--version.sql.in", "tests/persistence_tests.cpp", "tests/postgres/spi_contract.sql"]
+      }
     },
     {
       "id": "substrate.bulk-deposit",
-      "program_phases": [4],
+      "program_phases": [3, 4],
       "github_issues": [15],
       "depends_on": ["substrate.compose-physicality"],
       "owner": "native canonical-batch pipeline and PostgreSQL server persistence providers",
-      "consumes": ["complete working-set DAG", "source occurrences", "typed claims", "transaction boundary"],
+      "consumes": ["complete working-set AST Merkle DAG", "source occurrences", "typed claims", "transaction boundary"],
       "produces": ["set-oriented novelty result", "bulk canonical deposition", "append testimony", "durable progress"],
       "persistent_authority": ["canonical substrate", "occurrences", "testimony", "lineage", "transaction and replay receipts"],
       "acceleration": ["whole-working-set deduplication", "O(tiers) membership rounds", "COPY and native SPI vectors", "partitioned indexes"],
       "receipts": ["input and output counts", "database calls", "WAL", "I/O", "cancellation and replay state", "cold and warm state"],
       "product_requirements": ["LP-STATE-001", "LP-PERF-001", "LP-PERF-002", "LP-STORAGE-001", "LP-MATERIALIZATION-001"],
-      "implementation": {"state": "unimplemented", "evidence": ["docs/architecture/OPERATIONAL_MODEL.md", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]}
+      "implementation": {
+        "state": "unimplemented",
+        "observed_unpublished_boundary": "the separate dirty worktree contains native whole-working-set composition and presence-disposition work fingerprinted by state/continuation.json",
+        "missing_boundary": "the set-oriented PostgreSQL presence provider filtered canonical persistence sink transactional deposition replay receipt and deliberate provider defect are not implemented or published",
+        "evidence": ["state/continuation.json", "docs/architecture/OPERATIONAL_MODEL.md", "docs/audits/CLEAN_FRAMEWORK_GAP_AUDIT.md"]
+      }
+    },
+    {
+      "id": "substrate.highway",
+      "program_phases": [3],
+      "github_issues": [52],
+      "depends_on": ["bootstrap.unicode-root", "substrate.bulk-deposit"],
+      "owner": "native append-only typed numerical coordinate registry modules with generated bindings",
+      "consumes": ["Unicode and canonical number recipes", "typed registry authority", "grammar recipe relation reference language script modality model trust operation and effect declarations"],
+      "produces": ["stable scoped numerical coordinates", "cross-language and cross-modality routes", "generated native PostgreSQL SQL and C# mirrors", "coherent highway epoch"],
+      "persistent_authority": ["append-only registry generations", "authority and release scoped external references", "highway activation receipts"],
+      "acceleration": ["relation and reference routing planes", "canonical number plane", "language and script lookup planes"],
+      "receipts": ["registry source boundary", "identifier introduction and retirement versions", "generated mirror digests", "cross-language parity", "activation epoch"],
+      "product_requirements": ["LP-HIGHWAY-001", "LP-ACTIVATION-001"],
+      "implementation": {"state": "unimplemented", "evidence": ["contracts/recipe-model.json", "contracts/source-admission.json", "requirements/features/numerical_highway.feature"]}
+    },
+    {
+      "id": "evidence.record-lineage",
+      "program_phases": [3, 4],
+      "github_issues": [16],
+      "depends_on": ["substrate.highway", "substrate.bulk-deposit"],
+      "owner": "native testimony occurrence provenance dependence and lineage recording modules",
+      "consumes": ["typed AST occurrences", "source authority release and context", "claims calculations mappings transformations and unknowns", "dependence declarations"],
+      "produces": ["immutable testimony", "derivation DAG", "dependence graph", "explicit epistemic kinds and unknown boundaries"],
+      "persistent_authority": ["occurrences", "testimony", "source and calculation receipts", "root observations", "derivation and dependence edges"],
+      "acceleration": ["batch testimony deposition", "lineage closure candidates", "source and occurrence indexes"],
+      "receipts": ["source and recipe boundary", "epistemic kind", "root observations", "dependence inputs", "negative uncertain malformed and unknown dispositions"],
+      "product_requirements": ["LP-EVIDENCE-001", "LP-EVIDENCE-002", "LP-ADMISSION-001", "LP-STORAGE-001"],
+      "implementation": {"state": "unimplemented", "evidence": ["contracts/source-admission.json", "requirements/features/world_admission.feature", "requirements/features/epistemic_lineage.feature"]}
+    },
+    {
+      "id": "world.admit-witnesses",
+      "program_phases": [4],
+      "github_issues": [53],
+      "depends_on": ["substrate.highway", "substrate.bulk-deposit", "evidence.record-lineage"],
+      "owner": "native shared grammar recipe AST admission composition witnessing and deposition modules with replaceable syntax and physical providers",
+      "consumes": ["selected heterogeneous digital source boundary", "exact conforming source profiles with artifact grammar codec recipe AST witness denominator and completion declarations", "active highway and evidence recording capabilities", "canonical working-set and persistence providers"],
+      "produces": ["SQL-addressable universal world AST", "exact source occurrences and competing testimony", "calculation realization and counterexample inputs", "source fidelity and read reachability receipts"],
+      "persistent_authority": ["source artifact grammar recipe and run manifests", "canonical AST Merkle DAG", "immutable occurrences testimony provenance and dependence", "world admission receipt"],
+      "acceleration": ["source-block and AST batching", "cross-source whole-working-set deduplication", "bulk PostgreSQL deposition", "post-boundary derived indexes and perfcaches"],
+      "receipts": ["input bytes records fields and syntax nodes", "loss ambiguity error and denominator closure", "AST entity physicality occurrence testimony relation and reference counts", "database calls WAL I/O memory and time", "exact and semantic reconstruction reachability and recovery"],
+      "product_requirements": ["LP-AST-001", "LP-RECIPE-001", "LP-ADMISSION-001", "LP-BULK-001", "LP-STORAGE-001", "LP-MATERIALIZATION-001"],
+      "implementation": {"state": "unimplemented", "evidence": ["contracts/recipe-model.json", "contracts/source-profile-model.json", "contracts/source-admission.json", "requirements/features/universal_ast_recipe.feature", "requirements/features/world_admission.feature"]}
     },
     {
       "id": "evidence.adjudicate",
       "program_phases": [3],
       "github_issues": [16],
-      "depends_on": ["substrate.bulk-deposit"],
+      "depends_on": ["evidence.record-lineage"],
       "owner": "native evidence lineage dependence trust and adjudication modules",
       "consumes": ["immutable testimony", "root observations", "dependence graph", "time context and trust recipe"],
       "produces": ["immutable consensus epoch", "standing", "contradiction evidence", "referential candidates and adjudication"],
@@ -127,8 +201,8 @@
       "persistent_authority": ["discourse and working state when explicitly committed", "program and result receipts"],
       "acceleration": ["indexed frontier batches", "metric candidate generators", "A-star or declared best-first search", "matrix-free operators"],
       "receipts": ["goal", "typed state", "cost and heuristic laws", "reopen and tie rules", "selected evidence and epochs"],
-      "product_requirements": ["LP-CONVERSATION-001", "LP-COGNITION-001", "LP-QUERY-001", "LP-SEARCH-001", "LP-COGNITION-002", "LP-COGNITION-003", "LP-COGNITION-004"],
-      "implementation": {"state": "unimplemented", "evidence": ["docs/architecture/NATIVE_COGNITION_MATHEMATICS.md", "requirements/features/conversation_cognition.feature", "requirements/features/query_neighborhood.feature"]}
+      "product_requirements": ["LP-CONVERSATION-001", "LP-COGNITION-001", "LP-QUERY-001", "LP-SEARCH-001", "LP-COGNITION-002", "LP-COGNITION-003", "LP-COGNITION-004", "LP-GOVERNANCE-001", "LP-FIRMWARE-001"],
+      "implementation": {"state": "unimplemented", "evidence": ["docs/architecture/NATIVE_COGNITION_MATHEMATICS.md", "requirements/features/conversation_cognition.feature", "requirements/features/query_neighborhood.feature", "requirements/features/firmware_governance.feature"]}
     },
     {
       "id": "cognition.realize-effect",
@@ -156,13 +230,13 @@
       "acceleration": ["motif indexes", "counterexample search", "experiment scheduling", "replay"],
       "receipts": ["fray type", "vacancy signature", "fit boundary", "held-out evaluation", "external support", "activation authority"],
       "product_requirements": ["LP-OODA-001", "LP-GODEL-001"],
-      "implementation": {"state": "unimplemented", "evidence": ["requirements/features/godel_ooda.feature"]}
+      "implementation": {"state": "unimplemented", "evidence": ["requirements/features/godel_ooda.feature", "requirements/features/firmware_governance.feature"]}
     },
     {
       "id": "model.ingest-generate",
       "program_phases": [6],
       "github_issues": [20],
-      "depends_on": ["evidence.adjudicate", "query.guidance-search"],
+      "depends_on": ["world.admit-witnesses", "evidence.adjudicate", "query.guidance-search"],
       "owner": "native model decomposition induced-operator comparison and target compiler modules",
       "consumes": ["model artifacts as witnesses", "substrate relation operators", "target architecture and runtime contract"],
       "produces": ["exact model DAG", "behavioral testimony", "AImap", "target tensors", "GGUF or other runtime artifact"],
@@ -176,15 +250,20 @@
       "id": "delivery.activate-product",
       "program_phases": [7, 8],
       "github_issues": [21, 22, 50],
-      "depends_on": ["bootstrap.dependencies", "substrate.bulk-deposit", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate"],
+      "depends_on": ["bootstrap.dependencies", "world.admit-witnesses", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate"],
       "owner": "package installer service manager database migrator and release verifier",
       "consumes": ["verified native engine", "PostgreSQL stack", "schemas and migrations", "orchestrators", "artifacts and acceptance evidence"],
       "produces": ["one activated Linux and Windows Laplace product", "diagnostics", "repair rollback and support state"],
       "persistent_authority": ["activation manifest", "installed package receipts", "service and database version state"],
       "acceleration": ["out-of-tree builds", "hosted and self-hosted CI", "incremental package and database activation"],
       "receipts": ["source to package provenance", "loaded objects", "database schema", "active cache epochs", "whole-product acceptance"],
-      "product_requirements": ["LP-PRODUCT-001", "LP-PACKAGE-001", "LP-DOC-001"],
-      "implementation": {"state": "partial", "evidence": ["docs/delivery/PRODUCT_INFRASTRUCTURE.md", "docs/delivery/POSTGRESQL_CLUSTER.md", "contracts/postgresql-cluster.json", "tools/postgresql/clusterctl.py", "tests/postgresql_cluster_tests.py", ".github/workflows/custom-stack.yml"]}
+      "product_requirements": ["LP-PRODUCT-001", "LP-PACKAGE-001", "LP-DOC-001", "LP-ACTIVATION-001"],
+      "implementation": {
+        "state": "partial",
+        "proven_boundary": "published code and controlled CI prove selected package cluster and activation infrastructure components",
+        "missing_boundary": "no accepted package is installed as the product no selected PostgreSQL 18.6 product cluster is active and no deployment or release state exists",
+        "evidence": ["docs/delivery/PRODUCT_INFRASTRUCTURE.md", "docs/delivery/POSTGRESQL_CLUSTER.md", "contracts/postgresql-cluster.json", "tools/postgresql/clusterctl.py", "tests/postgresql_cluster_tests.py", ".github/workflows/custom-stack.yml"]
+      }
     }
   ]
 }
