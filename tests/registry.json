@@ -1329,6 +1329,7 @@
     },
     {
       "ctest_name": "perfcache.hot-lookup-receipt-contract-and-mutation",
+      "profiles": ["custom-stack"],
       "evidence_targets": ["LP-TEST-PERFCACHE-HOT-PERFORMANCE", "LP-TEST-PERFCACHE-BATCH-LOOKUP", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
       "covered_dimensions": ["full direct and reverse Unicode planes", "validated prefaulted exact-epoch pin", "batch widths 1 16 256 and 4096", "31-sample p50 p95 p99 latency", "topology CPU memory I/O database and durable-effect accounting", "result fingerprint"],
       "defect_controls": ["missing timing boundary", "invalid percentile ordering"]
