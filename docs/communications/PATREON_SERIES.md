@@ -14,6 +14,7 @@ product activation, world admission, acceptance, and release are never synonyms.
 | 6 | `PATREON_POST_06_WHY_NOT_LAPLACE.md` | Explain finite cognition, typed answerability, A*, exceptions, and hardware faults | Issue #56 and machine-exception Gherkins |
 | 7 | `PATREON_POST_07_JAPANESE_BEFORE_ENGLISH.md` | Make language-as-realization tangible through a historical trajectory reconstruction | Japanese terminal receipt; selected old UI screenshot |
 | 8 | `PATREON_POST_08_52M_AND_E2E4.md` | Explain the refactor through a dated regression boundary: enormous state and historically working chess coexist with null conversation and an observed failed `e2e4` whose code/database/deployment cause is unresolved | Dated health receipt, generic Japanese containment/readback, null chat receipt, dated chess HTTP 500 receipt, historical chess capability statement |
+| 9 | `PATREON_POST_09_300GB_PAID_ADDRESSABILITY.md` | Show the exact sparse-storage and paid-addressability thesis with a live read-only measurement, corrected ratio, arithmetic, and nonclaims | `OLD_ITERATION_STORAGE_CENSUS_2026-08-26.md`, issue #72 |
 
 Post 8 is a strong candidate to publish immediately after Post 3 because it answers the
 obvious question raised by the historical UI: “Why rebuild something that already

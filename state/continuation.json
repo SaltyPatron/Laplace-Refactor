@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-26T21:36:33Z",
+  "observed_at_utc": "2026-08-26T22:07:04Z",
   "validity": {
     "rule": "the base commit tracked patch digest untracked file digests and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -192,6 +192,42 @@
       "active_unicode_root_present": false
     }
   },
+  "historical_old_iteration_storage_observation": {
+    "classification": "dated-read-only-historical-evidence-not-clean-product-law",
+    "authorization": "the direct 2026-08-26T21:58:30Z user correction narrowly authorized current PostgreSQL values after the broader old-iteration isolation instruction; source inspection mutation diagnosis and the separate repair remained out of scope",
+    "observed_at_utc": "2026-08-26T21:59:13.976364Z",
+    "exact_count_completed_at_utc": "2026-08-26T21:59:44.895027Z",
+    "database": "laplace",
+    "postgresql_version": "18.3",
+    "transaction": "read-only-rolled-back",
+    "database_bytes": 295775270591,
+    "selected_user_relations": 654,
+    "table_including_toast_bytes": 109191495680,
+    "index_bytes": 186482507776,
+    "selected_relation_total_bytes": 295674003456,
+    "index_to_table_ratio": "1.7078482771452408",
+    "exact_rows": {
+      "entities": 52649911,
+      "physicalities": 25083094,
+      "attestations": 177570489,
+      "consensus": 141390181,
+      "four_population_total": 396693675
+    },
+    "illustrative_ordered_pair_boundary": {
+      "entity_slots_squared": "2772013128307921",
+      "consensus_rows_as_percent_if_every_row_were_one_unique_ordered_pair": "0.000005100631723425737100",
+      "one_bit_per_slot_bytes": "346501641038490.1250",
+      "one_float32_per_slot_bytes": "11088052513231684"
+    },
+    "receipt": "docs/audits/OLD_ITERATION_STORAGE_CENSUS_2026-08-26.md",
+    "nonclaims": [
+      "consensus rows were not proven to be unique entity pairs",
+      "allocated bytes were not proven live unbloated or uniquely required",
+      "old indexes were not proven useful or suitable for the clean product",
+      "complete clean Laplace capacity and storage efficiency were not proven",
+      "the old schema partitions and indexes remain non-authoritative"
+    ]
+  },
   "interrupted_work": {
     "capability": "substrate.bulk-deposit",
     "github_issue": 15,
@@ -232,7 +268,7 @@
     "whole_product_reason": "This completes the generic AST Merkle-DAG presence and deposition boundary required before Unicode product activation and before any source recipe can persist exact world state; it is not a corpus importer."
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-26T21:21:17Z",
+    "observed_at_utc": "2026-08-26T22:07:04Z",
     "main_commit": "4fd790640f1efa5245565e4087b33951236e2736",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
@@ -244,6 +280,7 @@
     "architecture_manual_issue": 50,
     "whole_route_cohesion_issue": 70,
     "model_effective_support_issue": 71,
+    "storage_economics_issue": 72,
     "authority_pull_request": {
       "number": 55,
       "draft": true,
@@ -254,14 +291,14 @@
       "title": "Laplace Refactor — Machine Roadmap",
       "url": "https://github.com/users/SaltyPatron/projects/2",
       "public": true,
-      "items": 40,
+      "items": 41,
       "fields": 18,
       "historical_project_1_is_authority": false
     },
     "roadmap_issue_range": {
       "first": 56,
-      "last": 71,
-      "count": 16,
+      "last": 72,
+      "count": 17,
       "proof_state": "requirements and acceptance encoded; newly described mechanisms unimplemented"
     },
     "github_subissue_hierarchy_present": true,
@@ -288,6 +325,7 @@
     "treat PGN WordNet or any exemplar as generic completion",
     "treat integration activation as product activation",
     "treat GitHub main as containing unpublished work",
+    "treat historical database size row count or index ratio as clean-product storage efficiency",
     "treat this observed checkpoint as stable product law",
     "treat a permission environment goal or other automated state change as a direct human resume instruction"
   ],

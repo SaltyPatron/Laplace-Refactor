@@ -21,7 +21,8 @@
     "training_requirement": "no gradient-training campaign is required to make admitted sources interoperable or queryable",
     "hardware_requirement": "the complete semantic engine executes on CPU through native and PostgreSQL server operations without requiring a GPU",
     "model_symmetry": "conventional models may enter as witnessed artifacts and may be compiled as optional targets but do not define Laplace",
-    "model_behavior": "model behavior is experiment-scoped witnessed state; formal nonzero support differs from measured causal effective support and pruning acceleration cannot become semantic authority"
+    "model_behavior": "model behavior is experiment-scoped witnessed state; formal nonzero support differs from measured causal effective support and pruning acceleration cannot become semantic authority",
+    "sparse_addressability": "absence unobserved state unknown contradiction and present typed relations remain distinct; Laplace persists justified sparse state and spends measured rebuildable index and perfcache bytes to avoid repeated compute without allowing acceleration to become truth"
   },
   "authority_classes": {
     "inventor_direct_evidence": "exact inventor-authored messages and artifacts govern and supersede every derived class",
@@ -36,8 +37,8 @@
   "direct_evidence": {
     "index": "docs/audits/DIRECT_REQUIREMENT_EVIDENCE.md",
     "continuation_manifest": "evidence/continuation-session-human-messages.jsonl",
-    "continuation_records": 72,
-    "continuation_manifest_sha256": "0976a96d1fcc49ad1fbd199e1ae49f4f1d7e939534169f312ff628ccd4dbcad8",
+    "continuation_records": 75,
+    "continuation_manifest_sha256": "c07bbc578884a2276cb4d3b09d0ee3ca52024fad7d2760f281b8b2841ec6a69c",
     "generator": "tools/audit/index-human-messages.sh",
     "raw_source": "/home/ahart/.codex/sessions/2026/08/26/rollout-2026-08-26T17-45-46-01a03f2d-932d-7de2-9177-9fdc4adca5cc.jsonl",
     "quotation_rule": "a human-supplied message may contain quoted agent prose; the record proves message provenance but quoted content remains a reconciliation lead until corroborated",

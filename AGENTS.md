@@ -13,8 +13,9 @@
 - Product-surface and node symmetry project `LP-APPLICATION-001`,
   `LP-ENTITY-WEB-001`, `LP-ENTITLEMENT-001`, `LP-NODE-001`,
   `LP-FEDERATION-001`, and `LP-PLACEMENT-001`.
-- Evidence and persistence project `LP-ACTIVATION-001`, `LP-DOC-001`, and the exact
-  acceptance and continuation boundaries loaded by `contracts/authority-stack.json`.
+- Evidence and persistence project `LP-STORAGE-001`, `LP-MATERIALIZATION-001`,
+  `LP-PERFCACHE-001`, `LP-ACTIVATION-001`, `LP-DOC-001`, and the exact acceptance and
+  continuation boundaries loaded by `contracts/authority-stack.json`.
 
 ## Product authority
 

@@ -36,6 +36,7 @@ modality, model, platform, or product surface cannot certify the universal machi
 | Unicode root in the selected PostgreSQL 18.6 product cluster | Not product activated |
 | Direct and reverse Unicode hot planes | Integration proven and measured under their declared boundary |
 | General whole-working-set composition and presence | Unpublished local work; PostgreSQL presence/deposition route incomplete |
+| Sparse addressability and storage-compute economics | Requirement encoded and historical census retained; clean mechanism and acceptance unimplemented under #72 |
 | Cross-domain whole-route cohesion | Unimplemented; tracked by #70 |
 | Typed machine exception registry and recovery planner | Unimplemented |
 | Universal AST grammar registry and general recipe compiler | Unimplemented |
@@ -56,7 +57,7 @@ be described as **when the product has Unicode**, not as activated product state
 ### Historical operating evidence is not present product state
 
 At the read-only August 26, 2026 audit boundary, the deployed old iteration exposed
-approximately 52.6 million entities and executed generic containment, ordered
+52,649,911 entities and executed generic containment, ordered
 constituent recovery, and exact Japanese rendering. That same dated state returned no
 conversational reply for the reconstructed Japanese sentence and HTTP 500 for
 `e2e4`. The old iteration historically ingested chess games and played chess strongly;
@@ -69,6 +70,19 @@ the observed failure. It establishes that historical capability, current operabi
 whole-route reproducibility, and diagnosis are separate states. Issue #70 owns the
 clean, independently implemented cohesion proof; the archive is only a behavioral
 counterexample.
+
+A separately authorized read-only PostgreSQL census at `2026-08-26T21:59:13Z`
+measured 295,775,270,591 whole-database bytes, 109,191,495,680 selected user
+table/TOAST bytes, 186,482,507,776 user index bytes, and a 1.7078482771:1 allocated
+index/table ratio. Exact current counts across entities, physicalities, attestations,
+and consensus totaled 396,693,675 rows. The receipt and its limits are retained in
+`docs/audits/OLD_ITERATION_STORAGE_CENSUS_2026-08-26.md`.
+
+Those values prove neither clean-product efficiency nor a complete-world capacity.
+They do not establish unique relation pairs, live versus bloated bytes, index value,
+or old-layout authority. Issue #72 converts the underlying sparse-state and paid
+addressability thesis into paired representative workload, storage-class, bloat,
+removal, and semantic-parity acceptance.
 
 ## Machine traffic map
 
@@ -128,7 +142,7 @@ different structural, reference, evidence, and realization programs.
 | `machine.handle-exceptions` | Generated exceptions, traps, faults, recovery, replay, and why-not | #56 | Unimplemented | Physical/program/authority/resource/semantic fault injection and route parity |
 | `bootstrap.dependencies` | Framework-mediated package and runtime activation | #3, #12 | Partial | Exact package closure, loaded-object receipt, rollback and reactivation |
 | `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, and trajectory | #7, #13 | Partial; local unpublished continuation exists | Published generic composer plus exact native/PostgreSQL acceptance |
-| `substrate.bulk-deposit` | Whole-working-set presence, filtered production, and transactional bulk persistence | #15 | Unimplemented in published branch | Set-wise PostgreSQL provider, replay, deliberate defect, and measured receipts |
+| `substrate.bulk-deposit` | Whole-working-set presence, filtered production, transactional bulk persistence, and paid addressability | #15, #72 | Unimplemented in published branch | Set-wise PostgreSQL provider, replay, deliberate defect, sparse-state rejection, and paired storage/compute receipts |
 | `bootstrap.unicode-root` | Product-deposited and coherently activated Unicode atom floor | #13, #14 | Integration proven; not product activated | Accepted package installed on PostgreSQL 18.6 with exact active DB/cache root |
 | `substrate.highway` | Append-only typed coordinates for every machine namespace | #52 | Unimplemented | Collision, release-scope, mirror parity, and bubble-up/bubble-down proof |
 | `evidence.record-lineage` | Immutable occurrences, testimony, derivation, and dependence roots | #16 | Unimplemented | Cross-source provenance and copied-evidence nonamplification |
@@ -151,7 +165,9 @@ interesting corpus:
    custom-stack checks are green; preserve the composition worktree fingerprint.
 2. Finish issue #15 at its actual interrupted boundary: receipted set-wise PostgreSQL
    presence, filtered canonical production, transactional deposition, replay, and a
-   deliberate provider defect through the generic working set.
+   deliberate provider defect through the generic working set. Execute #72 against
+   representative deposited state so every accepted index or perfcache proves the
+   addressability it purchases and a dense absence/noise-floor mutant fails.
 3. Finish the universal framework obligations exposed by that work—especially the
    grammar/recipe compiler, module admission, provider substitution, typed machine
    exception lifecycle, and issue #70 whole-route cohesion across unrelated complete
@@ -187,7 +203,8 @@ interesting corpus:
   coverage, generated manual inputs, and proof-state accuracy as mechanisms land.
 - **DevOps and receipts:** make the product-path gate change-sensitive, retain
   content-addressed receipts beyond transient Actions retention, reconcile stale PRs,
-  and add deployments/releases only when real installed product state exists.
+  retain exact storage-class and paired acceleration receipts, and add
+  deployments/releases only when real installed product state exists.
 - **Source reconnaissance:** inventory exact releases, files, licenses, grammars,
   identifiers, joins, denominators, errors, and negative controls without writing
   one-off importers or claiming world admission.
@@ -204,7 +221,8 @@ GitHub issue #23 owns the whole product. Phase milestones order capability exits
 Issues #10, #15, #17, #20, #21, #50, #52, and #53 own major capability programs;
 focused subissues own independently acceptable outcomes. GitHub Project #2,
 `Laplace Refactor — Machine Roadmap`, tracks phase, proof state, priority, work class,
-and operational stage.
+and operational stage. Issue #72 owns sparse addressability and measured
+storage-compute economics as a Phase 4 subissue of #15.
 
 The former Project #1 contains historical old-iteration work and is not clean-product
 authority. It must not be used to infer this roadmap or reintroduce historical

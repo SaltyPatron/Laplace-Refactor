@@ -421,12 +421,14 @@ requirements:
       - LP-TEST-NO-HOT-ROW-SERIALIZATION
       - LP-TEST-DERIVED-STATE-REBUILD
   - id: LP-MATERIALIZATION-001
-    statement: Canonical edges retained evidence reproducible statistics active working state and published accelerations are distinct storage classes and no derivable pair is persisted without a declared workload and value contract.
+    statement: Canonical edges retained evidence reproducible statistics active working state and published accelerations are distinct storage classes; absence unobserved state and epistemic unknown are not dense zero or tiny-nonzero relations; no N-squared or other derivable surface is persisted without a declared workload and value contract; and every published index or perfcache proves its measured addressability benefit build write WAL storage and bloat costs rebuild law and removal condition while remaining removable without changing canonical semantics or receipt meaning.
     evidence:
       - LP-TEST-MATERIALIZATION-CLASSIFICATION
       - LP-TEST-COMBINATORIAL-GROWTH-BOUND
       - LP-TEST-INDEX-WORKLOAD-ADMISSION
       - LP-TEST-MATERIALIZATION-REBUILD-PARITY
+      - LP-TEST-SPARSE-ABSENCE-NOISE-REJECTION
+      - LP-TEST-STORAGE-ADDRESSABILITY-ECONOMICS
   - id: LP-PERFCACHE-001
     statement: Perfcaches are modular typed immutable calculation and acceleration planes generated either as the bootstrap sibling output of the canonical Unicode root calculation or from a complete canonical calculation or world-admission boundary with complete recipe source integrity and coherent atomic activation epochs.
     evidence:

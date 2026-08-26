@@ -47,7 +47,7 @@ def validate_authority(document: dict) -> None:
     thesis = document.get("product_thesis", {})
     contains_all(
         thesis,
-        ("any exact digital content", "typed universal AST", "Merkle DAG", "SQL", "native C/C++", "even playing field", "no gradient-training", "without requiring a GPU", "witnessed artifacts", "Laplace is a computer", "knowledge", "governance", "personality_firmware", "creative_extension", "cognitive_traffic", "finite_machine", "exception_machine", "application_symmetry", "entity_web", "deployment_symmetry", "execution_cohesion", "model_behavior"),
+        ("any exact digital content", "typed universal AST", "Merkle DAG", "SQL", "native C/C++", "even playing field", "no gradient-training", "without requiring a GPU", "witnessed artifacts", "Laplace is a computer", "knowledge", "governance", "personality_firmware", "creative_extension", "cognitive_traffic", "finite_machine", "exception_machine", "application_symmetry", "entity_web", "deployment_symmetry", "execution_cohesion", "model_behavior", "sparse_addressability"),
         "product thesis collapsed",
     )
     classes = document.get("authority_classes", {})
@@ -87,6 +87,9 @@ def validate_authority(document: dict) -> None:
         "msg_01a03fff-893f-7133-843c-d5e3e654a4b9",
         "msg_01a04000-60b1-7f70-9d53-c2f28e66806f",
         "msg_01a04000-daeb-7623-888e-308467077a9c",
+        "msg_01a04012-6ee1-7911-901c-c48321c67e09",
+        "msg_01a04014-f4ef-7692-84fd-f1addd19e4be",
+        "msg_01a04014-f4f2-7b23-a293-92a295d51640",
     }
     require(required_identifiers.issubset(identifiers), "continuation direct corrections were omitted")
     generated_context_identifiers = {
@@ -106,7 +109,7 @@ def validate_authority(document: dict) -> None:
     agents = next(item for item in order if item.get("path") == "AGENTS.md")
     require(agents.get("class") == "verified_working_projection", "AGENTS projection was promoted to inventor authority")
     agents_text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    contains_all(agents_text, ("verified agent-facing projection", "editing it cannot create", "LP-AST-001", "LP-GOVERNANCE-001", "LP-RECIPE-001", "LP-COHESION-001", "LP-MODEL-006", "LP-ADMISSION-001", "LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001", "LP-ENTITY-WEB-001", "LP-FEDERATION-001", "LP-ACTIVATION-001"), "AGENTS projection lost its authority joins")
+    contains_all(agents_text, ("verified agent-facing projection", "editing it cannot create", "LP-AST-001", "LP-GOVERNANCE-001", "LP-RECIPE-001", "LP-COHESION-001", "LP-MODEL-006", "LP-ADMISSION-001", "LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001", "LP-ENTITY-WEB-001", "LP-FEDERATION-001", "LP-MATERIALIZATION-001", "LP-ACTIVATION-001"), "AGENTS projection lost its authority joins")
     require(paths[-1] == "state/continuation.json", "observed state is not loaded last")
     require("docs/audits/CONTINUATION_WORK_AUDIT_2026-08-26.md" in paths, "continuation work and action audit is not load-bearing")
     transformation_text = (ROOT / "requirements" / "features" / "universal_ast_recipe.feature").read_text(encoding="utf-8")
@@ -122,8 +125,12 @@ def validate_authority(document: dict) -> None:
     contains_all(model_text, ("flattened representation", "universal adjacency", "Faithful is not an acceptance class", "independent oracle", "deliberate defect", "typed experiment", "formally nonzero support", "arbitrary cutoff"), "model export or behavior admission can hide flattening or arbitrary support")
     framework_text = (ROOT / "requirements" / "features" / "framework.feature").read_text(encoding="utf-8")
     contains_all(framework_text, ("Unrelated product programs", "structural container search", "multilingual conversation", "game-state transition", "component-private", "cannot promote"), "component islands can impersonate one cohesive machine")
+    derived_text = (ROOT / "requirements" / "features" / "derived_state.feature").read_text(encoding="utf-8")
+    contains_all(derived_text, ("Sparse absence is not a dense noise floor", "absent, unobserved, unknown", "no N-squared surface", "Storage pays for measured addressability", "with and without", "removing the acceleration preserves exact logical results", "database size, row count, index count"), "sparse addressability or acceleration parity law was lost")
+    storage_census = (ROOT / "docs" / "audits" / "OLD_ITERATION_STORAGE_CENSUS_2026-08-26.md").read_text(encoding="utf-8")
+    contains_all(storage_census, ("295,775,270,591", "109,191,495,680", "186,482,507,776", "1.7078482771", "52,649,911", "141,390,181", "historical evidence", "does not prove"), "dated storage evidence became vague or promotional")
     roadmap_text = (ROOT / "docs" / "product" / "ROADMAP.md").read_text(encoding="utf-8")
-    contains_all(roadmap_text, ("substitute for implementation", "Integration proven", "not product activated", "foundational knowledge seed", "not begun", "machine.handle-exceptions", "critical path", "not a runtime waterfall", "GitHub Project #2"), "roadmap promoted requirements or lost the machine critical path")
+    contains_all(roadmap_text, ("substitute for implementation", "Integration proven", "not product activated", "foundational knowledge seed", "not begun", "machine.handle-exceptions", "critical path", "not a runtime waterfall", "GitHub Project #2", "#72", "paid addressability"), "roadmap promoted requirements or lost the machine critical path")
     require(paths.index("contracts/recipe-model.json") < paths.index("contracts/source-profile-model.json") < paths.index("contracts/source-admission.json"), "source profile load order bypasses recipe or topology law")
     require(paths.index("contracts/recipe-model.json") < paths.index("contracts/source-admission.json"), "source admission precedes recipe law")
     for item in order:
@@ -314,6 +321,11 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     unicode = document.get("unicode", {})
     require(unicode.get("implemented") is True and unicode.get("integration_proven") is True, "Unicode integration evidence lost")
     require(unicode.get("product_activated") is False and unicode.get("world_admitted") is False and unicode.get("seeded") is False and unicode.get("released") is False, "Unicode state was promoted")
+    storage = document.get("historical_old_iteration_storage_observation", {})
+    require(storage.get("classification") == "dated-read-only-historical-evidence-not-clean-product-law", "historical storage observation became product law")
+    require(storage.get("database_bytes") == 295775270591 and storage.get("index_bytes") == 186482507776, "historical storage measurement drift")
+    require(storage.get("exact_rows", {}).get("four_population_total") == 396693675, "historical exact population total drift")
+    contains_all(storage.get("nonclaims", []), ("not proven", "clean Laplace", "non-authoritative"), "historical storage census lost its nonclaims")
     work = document.get("interrupted_work", {})
     require(work.get("capability") == "substrate.bulk-deposit", "interrupted capability drift")
     contains_all(work.get("whole_product_reason", ""), ("generic AST Merkle-DAG", "before Unicode product activation", "not a corpus importer"), "interrupted work lost its product reason")
@@ -363,7 +375,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
 def validate_operation(document: dict) -> None:
     require(document.get("schema") == "laplace.operation-model/v1", "operation schema drift")
     semantics = document.get("graph_semantics", {})
-    contains_all(semantics, ("implementation capability", "not a source runtime order", "cyclic", "source-profile world admission", "foundational seed completion", "separate states", "typed universal AST", "complete public program", "measured effective support"), "operation graph semantics collapsed")
+    contains_all(semantics, ("implementation capability", "not a source runtime order", "cyclic", "source-profile world admission", "foundational seed completion", "separate states", "typed universal AST", "complete public program", "measured effective support", "sparse_addressability", "all-pairs noise surfaces"), "operation graph semantics collapsed")
     cycles = document.get("runtime_cycles", {})
     require(set(cycles) == {"observe_calculate_realize", "evidence_learning", "calculus_extension", "model_symmetry"}, "whole machine cycles were omitted")
     stages = {stage.get("id"): stage for stage in document.get("stages", [])}
@@ -378,6 +390,8 @@ def validate_operation(document: dict) -> None:
     require("LP-RECIPE-001" in stages["framework.execution"].get("product_requirements", []), "recipe compiler missing from framework")
     require("LP-COHESION-001" in stages["framework.execution"].get("product_requirements", []), "whole-route cohesion missing from framework")
     require(70 in stages["framework.execution"].get("github_issues", []), "whole-route cohesion issue ownership drift")
+    require(72 in stages["substrate.bulk-deposit"].get("github_issues", []), "storage economics issue ownership drift")
+    contains_all(stages["substrate.bulk-deposit"], ("workload-proven indexes", "outside semantic authority", "with-and-without acceleration", "bloat byte census"), "paid addressability execution receipts were narrowed")
     require("LP-AST-001" in stages["substrate.compose-physicality"].get("product_requirements", []), "AST missing from substrate")
     require("LP-ADMISSION-001" in stages["world.admit-witnesses"].get("product_requirements", []), "world admission requirement missing")
     require({"LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001"}.issubset(stages["query.guidance-search"].get("product_requirements", [])), "typed connection finite-machine or exception law missing")

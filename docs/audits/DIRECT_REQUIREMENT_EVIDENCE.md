@@ -17,7 +17,7 @@ index entries, not replacements for the source messages.
 | Source | Human text records | Manifest | Manifest SHA-256 |
 | --- | ---: | --- | --- |
 | Current Codex session through 2026-08-25 05:24:39 UTC | 190 | `evidence/current-session-human-messages.jsonl` | `864c50823cb8c7d236fc2d9ec7d4651f40b0ef2df6cfd9cf49f11138fbd271a2` |
-| Resumed Codex continuation through 2026-08-26 21:36:33 UTC | 72 | `evidence/continuation-session-human-messages.jsonl` | `0976a96d1fcc49ad1fbd199e1ae49f4f1d7e939534169f312ff628ccd4dbcad8` |
+| Resumed Codex continuation through 2026-08-26 21:58:30 UTC | 75 | `evidence/continuation-session-human-messages.jsonl` | `c07bbc578884a2276cb4d3b09d0ee3ca52024fad7d2760f281b8b2841ec6a69c` |
 | Preserved top-level Claude project sessions | 596 | `evidence/claude-parent-human-messages.jsonl` | `6b084bdc2e6e38b1821fc2879e7add28c52b8e649de4e6b3f77e0da27131d02b` |
 
 The indexer excludes tool-result blocks, worker notifications, local-command notices,
@@ -225,6 +225,9 @@ they were supplied for review.
 | 21:35:06 | `msg_01a03fff-893f-7133-843c-d5e3e654a4b9` | Pause all work while permissions change. |
 | 21:36:01 | `msg_01a04000-60b1-7f70-9d53-c2f28e66806f` | A permission or environment transition is not a resume instruction; the agent must actually stop until the user explicitly continues, and noticing a change cannot impersonate completing or honoring the requested state transition. |
 | 21:36:33 | `msg_01a04000-daeb-7623-888e-308467077a9c` | Explicitly resume by inventorying work to be done, auditing the session's work effort and action items, and returning the active roadmap publication to its exact track. |
+| 21:55:44 | `msg_01a04012-6ee1-7911-901c-c48321c67e09` | Treat the supplied old-database population, sub-300-GB footprint, approximate index ratio, sparse all-pairs arithmetic, and paid-addressability interpretation as checkable historical claims rather than accepted assertions; verified facts may motivate clean storage-economics requirements but cannot make the old layout authoritative. |
+| 21:58:30 | `msg_01a04014-f4ef-7692-84fd-f1addd19e4be` | Supersede the broad old-runtime inspection stop only for a narrow read-only PostgreSQL census of the current values; the separate repair, source, schema, API, and diagnosis remain isolated. |
+| 21:58:30 | `msg_01a04014-f4f2-7b23-a293-92a295d51640` | Do not trust inventor recollection when direct live evidence can verify the factual claim. |
 
 The review syntheses at `msg_01a03f90-4c25-7ce2-9390-a8725ecb8550` and
 `msg_01a03f93-3f62-7572-93cc-17155924018c`, plus the long contextual quote blocks at
@@ -233,7 +236,8 @@ The review syntheses at `msg_01a03f90-4c25-7ce2-9390-a8725ecb8550` and
 `msg_01a03fbd-cf99-7b42-a453-239689ad6439`,
 `msg_01a03fdc-59c5-79f1-a97d-70c831c36ee2`,
 `msg_01a03fde-9fe2-7a81-8313-71bb8addfa05`, and
-`msg_01a03fee-e624-7a80-ae0d-91f6949fe305`, are retained as supplied review evidence.
+`msg_01a03fee-e624-7a80-ae0d-91f6949fe305`, and
+`msg_01a04012-6ee1-7911-901c-c48321c67e09`, are retained as supplied review evidence.
 Their knowledge/governance/firmware, entity-world, typed-search, federation,
 self-authored-synthesis, and industry-comparison statements are promoted only where a
 direct inventor framing, prior direct evidence, or independently observed behavior

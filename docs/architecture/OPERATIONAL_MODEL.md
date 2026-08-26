@@ -235,6 +235,14 @@ Indexes generate bounded candidates for declared workloads. B-tree, GIN, GiST, B
 4D Hilbert, geometry, trajectory, and perfcache access paths never define truth,
 meaning, relevance, or completion. Exact typed decoding verifies candidates.
 
+The machine spends storage on addressability only when paired representative evidence
+shows the purchase. Every published acceleration retains its selected plans, build and
+write/WAL cost, allocated/live/dead/bloated bytes under a declared accounting law,
+read CPU/I/O/latency benefit, scan or recomputation avoided, rebuild law, and removal
+condition. The same logical program executed without it must return the same semantic
+result and receipt meaning. Sparse absence and unknown state are never expanded into a
+dense zero or tiny-nonzero all-pairs plane for convenience.
+
 ## 7. Evidence, truth state, and referential identity
 
 Entity, physicality, occurrence, testimony, calculation, derived inference,

@@ -272,6 +272,14 @@ A target-shaped value and a loadable artifact are not behavioral proof.
 - A combinatorial fixture proves that derivable co-occurrence and pairwise statistics
   grow under a declared materialization bound rather than all possible pairs being
   persisted.
+- A sparse-state fixture proves that absent, unobserved, unknown, contradicted, and
+  present relations remain distinct and that no dense zero or tiny-nonzero noise floor
+  is manufactured for all possible pairs.
+- A storage census attributes exact bytes to canonical structure, retained testimony,
+  retained results, active working state, rebuildable derived state, indexes,
+  perfcaches, TOAST, WAL, temporary work, free/dead space, and bloat under an explicit
+  accounting boundary. Database size, row count, and index count alone prove nothing
+  about efficiency.
 - Batch count, not row count, bounds native calls, SPI plans, transactions, mutable
   contention points, and derived-state publication operations.
 
@@ -316,8 +324,13 @@ Hardware acceptance uses the Intel i7-6850K system and its declared storage layo
 - Representative SQL programs include `EXPLAIN (ANALYZE, BUFFERS, WAL)` evidence.
 - Tests prove required indexes are selected at representative cardinality and degree.
 - Every published index names its workload, representative cardinality and degree,
-  expected plan, scan threshold, write cost, storage cost, and removal condition. An
-  unused index or an index whose plan contract fails cannot pass package acceptance.
+  expected plan, scan threshold, build time, write and WAL cost, storage and bloat
+  cost, read CPU/I/O/latency benefit, avoided scan or recomputation work, rebuild law,
+  observation window, and removal condition. An unused, redundant, dominated, or
+  plan-contract-failing index cannot pass package acceptance.
+- Paired representative workloads execute with and without every published index or
+  perfcache. Logical results, evidence, completion, and receipt meaning remain exact;
+  the measured performance delta establishes what the extra bytes purchased.
 - Native server plans are prepared, parameterized, schema-qualified, and reused under
   their declared lifetime.
 - Query results remain exact when planner choices and batch sizes change.

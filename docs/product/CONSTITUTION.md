@@ -427,6 +427,14 @@ boundaries. Complete ingest cannot be reported until every derived state require
 its contract is reconciled and visible. Derived work cannot serialize scalable ingest
 through one mutable hot row per proposition.
 
+Laplace persists justified sparse state rather than manufacturing an all-pairs numeric
+surface. Absent, unobserved, unknown, contradicted, and present relations are distinct
+machine states; a zero or tiny nonzero value cannot replace them. Every index and
+perfcache earns publication through measured representative workload benefit, exact
+build/write/WAL/storage/bloat cost, rebuild law, and removal condition. Acceleration
+may change physical work and timing but cannot change canonical semantics, evidence,
+completion, or receipt meaning.
+
 ## 10.1 Modular acceleration planes
 
 Perfcaches are immutable typed calculation and acceleration planes derived from
