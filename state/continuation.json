@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-26T22:56:24Z",
+  "observed_at_utc": "2026-08-26T23:42:47Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -16,8 +16,8 @@
     "active_worktree": "/home/ahart/Projects/Laplace-Refactor",
     "base_commit": "37f8741e9360a114abc44c4c72941726bee84716",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "42292a63f3d00a870705dfd2a7849a04b716d69d",
-    "observed_branch_head": "28b103187a607bdedf6329a0ae0d4415f9fa136b",
+    "published_checkpoint_commit": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
+    "observed_branch_head": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
     "pull_request": 73
   },
   "development_inputs": {
@@ -234,10 +234,10 @@
   "active_work": {
     "capability": "substrate.bulk-deposit",
     "github_issue": 15,
-    "state": "published-partial-implementation",
+    "state": "published-implementation-acceptance-pending-merge",
     "branch": "phase4/composition-bulk-deposit",
     "pull_request": 73,
-    "published_checkpoint_commit": "42292a63f3d00a870705dfd2a7849a04b716d69d",
+    "published_checkpoint_commit": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
     "implemented_and_locally_proven_boundary": [
       "complete native composition working-set construction",
       "whole-working-set identity and physicality candidate publication",
@@ -246,30 +246,52 @@
       "one set-wise PostgreSQL physicality-presence operation for the whole candidate set",
       "filtered receipted framework producer through the canonical PostgreSQL persistence sink",
       "transactional first deposition exact readback deterministic filtered replay and rollback",
-      "reordered PostgreSQL presence result deliberate defect"
+      "direct-native and PostgreSQL result identity tier ordered-disposition semantic-receipt and publication-stream parity",
+      "provider-independent semantic receipts separated from provider-specific execution receipts",
+      "whole-boundary provider substitution cancellation no-effect and exact checkpoint replay",
+      "blind-presence per-row-query reordered-result partial-disposition semantic-drift and replay-receipt-collision deliberate defects",
+      "five-sample representative integration measurement over 65812 recursive requests 131624 operands and 329062 canonical stream records"
     ],
     "local_evidence": {
-      "postgresql_version": "18.4",
-      "affected_tests_passed": 25,
+      "postgresql_versions": ["18.3", "18.4"],
+      "affected_tests_passed": 20,
+      "custom_stack_registered_tests": 279,
+      "custom_stack_single_run": "278 of 279 passed; the installed-consumer test lacked the self-hosted runner oneAPI loader environment and passed on exact rerun with that recorded runner environment",
+      "portable_development_run": "265 of 266 passed; the full Unicode PostgreSQL test correctly rejected the build without the canonical oneAPI numeric provider",
+      "measurement_receipt": {
+        "schema": "laplace.composition-whole-boundary-measurement/v1",
+        "proof_state": "isolated-integration-measurement-not-product-activation",
+        "machine": "Intel Core i7-6850K with 12 online processors Linux 5.15 x86_64",
+        "sample_count": 5,
+        "wall_nanoseconds_range": [7097802262, 7376583064],
+        "stream_records_per_sample": 329062,
+        "stream_bytes_per_sample": 40540304,
+        "durable_outputs_per_sample": 329063,
+        "database_calls_per_sample": 17,
+        "wal_bytes_range": [157536472, 157536616],
+        "native_estimated_peak_working_bytes": 172164992,
+        "cache_state": "fresh logical canonical state with runtime and filesystem caches not flushed",
+        "durability": "fsync on and synchronous commit"
+      },
       "product_activation": false
     },
     "remaining_acceptance_boundary": [
-      "direct-native and PostgreSQL per-candidate disposition ordering conflict and semantic-receipt parity",
-      "remaining provider mutants: blind-presence per-row-query semantic-drift partial-PostgreSQL-disposition and composition replay-collision deliberate defects",
-      "whole-boundary cancellation replay and provider-substitution parity",
-      "representative-scale command input machine samples timing CPU memory I/O database-call WAL and durable-output measurements",
-      "500000-records-per-second and 30-seconds-per-GB gates measured rather than inferred"
+      "PR 73 exact-head hosted and custom-stack CI completion and merge",
+      "500000-records-per-second complete-ingest gate measured on the declared boundary rather than inferred from the composition fixture",
+      "30-seconds-per-GB qualifying-real-corpus gate measured on the declared boundary rather than inferred from stored datum or stream bytes",
+      "issue 72 paired with-and-without acceleration storage compute and bloat receipts"
     ],
     "whole_product_reason": "This is the generic AST Merkle-DAG presence and deposition boundary required before Unicode product activation and before any source recipe can persist exact world state; it is not a corpus importer.",
     "nonclaims": [
-      "issue 15 is not complete",
+      "issue 15 is not complete until its accepted implementation is merged",
+      "the complete-ingest performance gates have not passed",
       "the PostgreSQL 18.6 product cluster is not activated",
       "knowledge is not seeded",
       "the product is not released"
     ]
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-26T22:56:24Z",
+    "observed_at_utc": "2026-08-26T23:42:47Z",
     "main_commit": "37f8741e9360a114abc44c4c72941726bee84716",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
@@ -291,7 +313,8 @@
       "number": 73,
       "state": "open",
       "draft": true,
-      "proof_state": "published partial issue 15 implementation; product activation seed and release remain false"
+      "head_commit": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
+      "proof_state": "published issue 15 implementation acceptance pending exact-head CI and merge; complete-ingest performance product activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
