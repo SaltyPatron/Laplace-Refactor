@@ -30,7 +30,7 @@ enum {
     LAPLACE_UNICODE_ATOM_RECORD_VERSION = 1,
     LAPLACE_UNICODE_ATOM_HEADER_BYTES = 132,
     LAPLACE_UNICODE_ATOM_FIELD_COUNT = 26,
-    LAPLACE_UNICODE_CORE_FIELD_COUNT = 7,
+    LAPLACE_UNICODE_CORE_FIELD_COUNT = LAPLACE_UNICODE_ATOM_FIELD_COUNT,
     LAPLACE_UNICODE_ATOM_FIELD_HEADER_BYTES = 8,
     LAPLACE_UNICODE_ROOT_POPULATION = 1114112,
     LAPLACE_UNICODE_HILBERT_KEY_BYTES = 16
@@ -234,6 +234,10 @@ typedef struct laplace_unicode_core_summary {
     uint64_t canonical_decomposition_count;
     uint64_t compatibility_decomposition_count;
     uint64_t simple_case_mapping_position_count;
+    uint64_t field_source_row_counts[LAPLACE_UNICODE_ATOM_FIELD_COUNT];
+    uint64_t field_explicit_position_counts[LAPLACE_UNICODE_ATOM_FIELD_COUNT];
+    uint64_t field_membership_counts[LAPLACE_UNICODE_ATOM_FIELD_COUNT];
+    laplace_digest256 complete_property_fingerprint;
     uint32_t unicode_data_row_count;
     uint32_t unicode_data_range_count;
     uint32_t bidi_range_count;
@@ -343,6 +347,10 @@ typedef struct laplace_unicode_numeric_provider_v1 {
 LAPLACE_API laplace_unicode_status laplace_unicode_atom_record_measure(
     const laplace_unicode_atom_record* record,
     size_t* encoded_bytes);
+
+LAPLACE_API laplace_unicode_status laplace_unicode_atom_field_payload_kind(
+    uint16_t field_id,
+    uint8_t* payload_kind);
 
 LAPLACE_API laplace_unicode_status laplace_unicode_atom_record_encode(
     const laplace_unicode_atom_record* record,

@@ -157,6 +157,34 @@ add_test(
 set_tests_properties(unicode-core.mutation-bidi-default-order-detected PROPERTIES
     LABELS "implementation;unicode;source;mutation")
 
+add_library(laplace_unicode_script_fallback_mutant STATIC
+    ../engine/src/unicode_properties.cpp)
+target_include_directories(laplace_unicode_script_fallback_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_script_fallback_mutant PRIVATE
+    BLAKE3::blake3)
+target_compile_definitions(laplace_unicode_script_fallback_mutant PRIVATE
+    LAPLACE_TEST_UNICODE_SCRIPT_EXTENSIONS_EMPTY_FALLBACK=1)
+target_compile_options(laplace_unicode_script_fallback_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_unicode_script_fallback_mutation_probe
+    unicode_source_tests.cpp)
+target_include_directories(laplace_unicode_script_fallback_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_script_fallback_mutation_probe PRIVATE
+    laplace_unicode_script_fallback_mutant Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(laplace_unicode_script_fallback_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-core.mutation-script-extensions-fallback-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_script_fallback_mutation_probe>"
+        "-DFILTER=UnicodeCoreProperties.ParsesCompleteSourceAndCanonicalizesPayloads"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(unicode-core.mutation-script-extensions-fallback-detected PROPERTIES
+    LABELS "implementation;unicode;source;mutation")
+
 add_executable(laplace_unicode_source_fixture_tests
     unicode_source_fixture_tests.cpp
     ../engine/src/unicode_source.cpp)

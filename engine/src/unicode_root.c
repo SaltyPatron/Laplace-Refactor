@@ -621,6 +621,20 @@ static int identity_fields_match(
 #endif
 }
 
+laplace_unicode_status laplace_unicode_atom_field_payload_kind(
+    uint16_t field_id,
+    uint8_t* payload_kind) {
+    if (payload_kind == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    *payload_kind = 0u;
+    if (field_id == 0u || field_id > LAPLACE_UNICODE_ATOM_FIELD_COUNT) {
+        return LAPLACE_UNICODE_FIELD_INVALID;
+    }
+    *payload_kind = expected_payload_kind[field_id - 1u];
+    return LAPLACE_UNICODE_OK;
+}
+
 static int fixed_record_valid(const laplace_unicode_atom_record* record) {
     uint8_t expected_lup[4] = {0u, 0u, 0u, 0u};
     size_t expected_length = 0u;
