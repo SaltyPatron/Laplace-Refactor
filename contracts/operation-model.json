@@ -4,7 +4,7 @@
   "tracking": {
     "repository": "SaltyPatron/Laplace-Refactor",
     "parent_issue": 23,
-    "tracked_issues": [3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
+    "tracked_issues": [3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 50],
     "phase_milestones": {
       "0": "Phase 0 — Product authority and clean-room foundation",
       "1": "Phase 1 — Industrial build and dependency foundation",
@@ -72,7 +72,7 @@
       "acceleration": ["dense direct atom plane", "reverse identity plane", "normalization span indexes", "4D Hilbert locality"],
       "receipts": ["Unicode version", "source hashes", "decomposer recipe", "numeric provider", "record stream and partition hashes", "database cache parity"],
       "product_requirements": ["LP-IDENTITY-001", "LP-IDENTITY-002", "LP-UNICODE-001", "LP-UNICODE-002", "LP-GEOMETRY-001", "LP-GEOMETRY-002", "LP-PERFCACHE-001", "LP-PERFCACHE-002", "LP-PERFCACHE-003"],
-      "implementation": {"state": "partial", "evidence": ["contracts/unicode-source.json", "contracts/unicode-atom-record.json", "contracts/ducet-totalization.json", "contracts/super-fibonacci-hopf.json", "contracts/hilbert-numeric.json", "contracts/unicode-root-stream.json", "contracts/perfcache.json", "tools/validate-unicode-root-contracts.py", "tools/contracts/generate-unicode-source.py", "tests/unicode_root_contract_tests.py", "tests/unicode_root_tests.cpp", "tests/unicode_numeric_tests.cpp", "tests/unicode_source_tests.cpp", "engine/src/identity.c", "engine/src/geometry.c", "engine/src/unicode_root.c", "engine/src/unicode_numeric_oneapi.cpp", "engine/src/unicode_numeric_stub.c", "engine/src/unicode_source.cpp", "engine/src/persistence.c", "engine/src/perfcache.c", "engine/src/perfcache_file_posix.c", "engine/src/perfcache_modules.c", "engine/src/perfcache_registry.cpp", "tests/perfcache_tests.cpp", "tests/perfcache_file_tests.cpp", "tests/perfcache_registry_tests.cpp", "postgres/extension/src/persistence_pg.c", "requirements/features/geometry_glome.feature", "requirements/features/perfcache_etl.feature"]}
+      "implementation": {"state": "partial", "evidence": ["contracts/unicode-source.json", "contracts/unicode-atom-record.json", "contracts/ducet-totalization.json", "contracts/super-fibonacci-hopf.json", "contracts/hilbert-numeric.json", "contracts/unicode-root-stream.json", "contracts/perfcache.json", "contracts/unicode-postgresql.json", "tools/validate-unicode-root-contracts.py", "tools/contracts/generate-unicode-source.py", "tests/unicode_root_contract_tests.py", "tests/unicode_root_tests.cpp", "tests/unicode_root_builder_tests.cpp", "tests/perfcache_performance_receipt_tests.py", "tests/unicode_numeric_tests.cpp", "tests/unicode_source_tests.cpp", "engine/src/identity.c", "engine/src/geometry.c", "engine/src/unicode_root.c", "engine/src/unicode_tier0_sink.cpp", "engine/src/unicode_numeric_oneapi.cpp", "engine/src/unicode_numeric_stub.c", "engine/src/unicode_source.cpp", "engine/src/persistence.c", "engine/src/perfcache.c", "engine/src/perfcache_file_posix.c", "engine/src/perfcache_modules.c", "engine/src/perfcache_registry.cpp", "tests/perfcache_tests.cpp", "tests/perfcache_file_tests.cpp", "tests/perfcache_registry_tests.cpp", "postgres/extension/src/persistence_pg.c", "postgres/extension/src/unicode_root_pg.c", "tests/postgres/unicode_root_contract.sql", "requirements/features/geometry_glome.feature", "requirements/features/perfcache_etl.feature"]}
     },
     {
       "id": "substrate.compose-physicality",
@@ -175,7 +175,7 @@
     {
       "id": "delivery.activate-product",
       "program_phases": [7, 8],
-      "github_issues": [21, 22],
+      "github_issues": [21, 22, 50],
       "depends_on": ["bootstrap.dependencies", "substrate.bulk-deposit", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate"],
       "owner": "package installer service manager database migrator and release verifier",
       "consumes": ["verified native engine", "PostgreSQL stack", "schemas and migrations", "orchestrators", "artifacts and acceptance evidence"],
@@ -183,7 +183,7 @@
       "persistent_authority": ["activation manifest", "installed package receipts", "service and database version state"],
       "acceleration": ["out-of-tree builds", "hosted and self-hosted CI", "incremental package and database activation"],
       "receipts": ["source to package provenance", "loaded objects", "database schema", "active cache epochs", "whole-product acceptance"],
-      "product_requirements": ["LP-PRODUCT-001", "LP-PACKAGE-001"],
+      "product_requirements": ["LP-PRODUCT-001", "LP-PACKAGE-001", "LP-DOC-001"],
       "implementation": {"state": "partial", "evidence": ["docs/delivery/PRODUCT_INFRASTRUCTURE.md", "docs/delivery/POSTGRESQL_CLUSTER.md", "contracts/postgresql-cluster.json", "tools/postgresql/clusterctl.py", "tests/postgresql_cluster_tests.py", ".github/workflows/custom-stack.yml"]}
     }
   ]

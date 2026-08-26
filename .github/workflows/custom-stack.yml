@@ -94,6 +94,23 @@ jobs:
         run: ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" --output-on-failure
       - name: Verify custom-stack registry
         run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY" custom-stack
+      - name: Publish measured perfcache receipt
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$LAPLACE_CI_BUILD_DIRECTORY/receipts/unicode-perfcache-hot.json"
+          if [[ -f "$receipt" ]]; then
+            {
+              echo '## Unicode perfcache hot-lookup receipt'
+              echo '```json'
+              cat "$receipt"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Unicode perfcache hot-lookup receipt was not produced.' \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Print retained PostgreSQL evidence
         if: failure()
         shell: bash

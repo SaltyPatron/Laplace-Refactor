@@ -364,6 +364,7 @@ requirements:
       - LP-TEST-PERFCACHE-ATOMIC-PUBLICATION
       - LP-TEST-PERFCACHE-INDEPENDENT-LIFECYCLE
       - LP-TEST-PERFCACHE-BATCH-LOOKUP
+      - LP-TEST-PERFCACHE-HOT-PERFORMANCE
   - id: LP-PERFCACHE-003
     statement: Immutable perfcache generations are validated and prefaulted before activation then handed to epoch pinned readers without a PostgreSQL restart while old generations remain available until all readers drain.
     evidence:
@@ -381,6 +382,13 @@ requirements:
       - LP-TEST-DEPENDENCY-RELEASE-ASSETS
       - LP-TEST-DEPENDENCY-INTENT
       - LP-TEST-DEPENDENCY-INSTALLED-PROVIDER
+  - id: LP-DOC-001
+    statement: Every release includes a versioned offline architecture reference manual generated from the same canonical contracts that own the ISA types layouts contexts receipts resources epochs records perfcaches persistence lifecycle determinism providers concurrency errors and version boundaries; explanatory prose and executable example traces cannot become parallel semantic authority.
+    evidence:
+      - LP-TEST-ARCHITECTURE-MANUAL-GENERATION
+      - LP-TEST-ARCHITECTURE-MANUAL-ABI-CONFORMANCE
+      - LP-TEST-ARCHITECTURE-MANUAL-DRIFT-REJECTION
+      - LP-TEST-ARCHITECTURE-MANUAL-TRACE-EXECUTION
   - id: LP-CLEANROOM-001
     statement: No current Laplace implementation artifact enters the new repository.
     evidence:

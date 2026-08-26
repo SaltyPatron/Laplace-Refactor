@@ -384,7 +384,7 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_root_deposit_receipt (
     staged_stream_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     sink_artifacts_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     postgresql_artifact_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    tier0_artifact_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    perfcache_artifact_set_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     perfcache_manifest_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     perfcache_encoded_manifest_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
@@ -526,8 +526,9 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_root_build_result AS (
     staged_stream_receipt bytea,
     sink_artifacts_fingerprint bytea,
     postgresql_artifact_fingerprint bytea,
-    tier0_artifact_fingerprint bytea,
+    perfcache_artifact_set_fingerprint bytea,
     tier0_artifact_digest bytea,
+    reverse_artifact_digest bytea,
     perfcache_manifest_fingerprint bytea,
     perfcache_encoded_manifest_fingerprint bytea,
     admission_receipt bytea,
@@ -545,7 +546,12 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_root_build_result AS (
     ducet_position_count bigint,
     ducet_contraction_count bigint,
     normalization_composition_count bigint,
-    tier0_artifact_bytes bigint
+    tier0_artifact_bytes bigint,
+    reverse_artifact_bytes bigint,
+    perfcache_artifact_count bigint,
+    perfcache_dependency_count bigint,
+    reverse_dependency_module_id bytea,
+    reverse_dependency_artifact_digest bytea
 );
 
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_CALCULATE_SQL@(
@@ -587,6 +593,7 @@ LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_ROOT_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
+    text,
     text,
     text,
     text,
@@ -641,6 +648,6 @@ REVOKE EXECUTE ON FUNCTION
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_ROOT_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
-        text, text, text, bytea, bytea, bigint, boolean, bytea, bytea,
+        text, text, text, text, bytea, bytea, bigint, boolean, bytea, bytea,
         bigint, integer)
     FROM PUBLIC;

@@ -2,12 +2,13 @@
   "schema": "laplace.unicode-postgresql-contract/v1",
   "contract_fingerprint": {
     "algorithm": "BLAKE3-256",
-    "preimage": "laplace-unicode-postgresql-sink-v2",
-    "value": "d27c9dbce616ca21cd8ac2e325530c2d6cfc317eb573ad7e21b8f17452ff49a0"
+    "preimage": "laplace-unicode-postgresql-sink-v3",
+    "value": "4feeed5f27c9bf96cabc11fa88037630ce74663b5f1e1723d3eeb1af0f252035"
   },
   "binding": {
     "sql_name": "unicode_root_build_and_activate",
     "c_symbol": "laplace_pg_unicode_root_build_and_activate",
+    "artifact_path_arguments": ["unicode_tier0_path", "unicode_identity_reverse_path"],
     "volatility": "volatile",
     "parallel_safety": "unsafe",
     "public_execute": false
@@ -27,7 +28,9 @@
     ],
     "working_memory_estimate": {
       "stream_byte_multiplier": 4,
-      "per_frame_overhead_bytes": 512
+      "per_frame_overhead_bytes": 512,
+      "reverse_plane_bytes": 117440512,
+      "law": "batch-working-set-plus-complete-reverse-plane-must-fit-the-conserved-memory-grant"
     }
   },
   "tables": {
@@ -72,6 +75,22 @@
     "required_sink_count": 2,
     "postgresql_sink_index": 0,
     "tier0_sink_index": 1,
+    "generation_artifact_count": 2,
+    "generation_dependency_count": 1,
+    "dependency_diagnostics": "native-typed-module-id-and-artifact-digest; SQL-does-not-decode-the-manifest",
+    "generation_artifacts": [
+      {
+        "module": "unicode_identity_reverse",
+        "required": true,
+        "dependency_count": 1,
+        "dependency": "exact-unicode-tier0-module-id-and-artifact-digest"
+      },
+      {
+        "module": "unicode_tier0",
+        "required": true,
+        "dependency_count": 0
+      }
+    ],
     "admission": "after-both-sinks-seal-and-sibling-artifacts-are-bound",
     "visibility": "transaction-deferred-commit-with-expected-old-epoch-CAS"
   }

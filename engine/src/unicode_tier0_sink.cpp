@@ -1,5 +1,6 @@
 #include "laplace/unicode_tier0_sink.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -15,11 +16,16 @@
 
 struct laplace_unicode_tier0_sink {
     std::string target_path;
+    std::string reverse_target_path;
     laplace_unicode_root_stream_expectation expectation{};
     laplace_perfcache_contract contract{};
+    laplace_perfcache_contract reverse_contract{};
     laplace_perfcache_module_v2 module{};
+    laplace_perfcache_module_v2 reverse_module{};
     laplace_unicode_root_stream_validator* validator{};
     laplace_perfcache_file_builder* builder{};
+    laplace_perfcache_file_builder* reverse_builder{};
+    std::vector<std::uint8_t> reverse_records;
     laplace_unicode_tier0_sink_result result{};
     std::uint64_t expected_root_frames{};
     std::uint64_t expected_root_bytes{};
@@ -37,6 +43,9 @@ namespace {
 constexpr std::size_t Tier0RecordBytes =
     LAPLACE_PERFCACHE_UNICODE_TIER0_KEY_BYTES +
     LAPLACE_PERFCACHE_UNICODE_TIER0_VALUE_BYTES;
+constexpr std::size_t ReverseRecordBytes =
+    LAPLACE_PERFCACHE_UNICODE_REVERSE_KEY_BYTES +
+    LAPLACE_PERFCACHE_UNICODE_REVERSE_VALUE_BYTES;
 
 bool DigestEqual(
     const laplace_digest256& left,
@@ -61,6 +70,7 @@ void ResetRuntime(laplace_unicode_tier0_sink* const state) noexcept {
         return;
     }
     laplace_perfcache_file_builder_destroy(&state->builder);
+    laplace_perfcache_file_builder_destroy(&state->reverse_builder);
     laplace_unicode_root_stream_validator_destroy(state->validator);
     state->validator = nullptr;
     state->expected_root_frames = 0U;
@@ -69,15 +79,19 @@ void ResetRuntime(laplace_unicode_tier0_sink* const state) noexcept {
     state->staged_root_bytes = 0U;
     state->atom_count = 0U;
     state->metadata_bytes = 0U;
+    state->reverse_records.clear();
     state->begun = false;
 }
 
 laplace_perfcache_status BuildContract(
     const laplace_unicode_tier0_sink_configuration& configuration,
+    const bool reverse,
     laplace_perfcache_module_v2* const module,
     laplace_perfcache_contract* const contract) noexcept {
     if (module == nullptr || contract == nullptr ||
-        laplace_perfcache_unicode_tier0_module(module) !=
+        (reverse
+             ? laplace_perfcache_unicode_identity_reverse_module(module)
+             : laplace_perfcache_unicode_tier0_module(module)) !=
             LAPLACE_PERFCACHE_REGISTRY_OK) {
         return LAPLACE_PERFCACHE_CONTRACT_MISMATCH;
     }
@@ -114,6 +128,7 @@ laplace_framework_status Begin(
     auto* const state = static_cast<laplace_unicode_tier0_sink*>(opaque);
     if (state == nullptr || context == nullptr || state->begun ||
         state->sealed || state->builder != nullptr ||
+        state->reverse_builder != nullptr ||
         state->validator != nullptr ||
         record_type != LAPLACE_UNICODE_ROOT_STREAM_RECORD_TYPE ||
         total_records <= LAPLACE_UNICODE_ROOT_POPULATION ||
@@ -121,6 +136,16 @@ laplace_framework_status Begin(
         return LAPLACE_FRAMEWORK_SINK_BEGIN_FAILED;
     }
     state->aborted = false;
+    try {
+        state->reverse_records.assign(
+            static_cast<std::size_t>(
+                LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY) *
+                ReverseRecordBytes,
+            0U);
+    } catch (...) {
+        ResetRuntime(state);
+        return LAPLACE_FRAMEWORK_SINK_BEGIN_FAILED;
+    }
     if (laplace_unicode_root_stream_validator_create(
             &state->expectation, &state->validator) != LAPLACE_UNICODE_OK ||
         laplace_perfcache_file_builder_create(
@@ -170,6 +195,47 @@ bool AppendAtom(
 #else
     WriteU64(value, metadata_offset);
 #endif
+    const std::uint8_t* const witness =
+        atom.value.identity_preimage_fingerprint.bytes;
+    std::uint64_t home = 0U;
+    for (std::size_t byte_index = 0U; byte_index < 8U; ++byte_index) {
+        home |= static_cast<std::uint64_t>(witness[byte_index]) <<
+            (byte_index * 8U);
+    }
+    home &= LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY - 1U;
+    bool reverse_inserted = false;
+    for (std::uint64_t probe = 0U;
+         probe < LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY; ++probe) {
+        const std::uint64_t slot = (home + probe) &
+            (LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY - 1U);
+        std::uint8_t* const reverse_record = state->reverse_records.data() +
+            static_cast<std::size_t>(slot) * ReverseRecordBytes;
+        std::uint8_t* const reverse_value = reverse_record +
+            LAPLACE_PERFCACHE_UNICODE_REVERSE_KEY_BYTES;
+        if (reverse_value[4U] == 0U) {
+            std::memcpy(
+                reverse_record, atom.value.content_id.bytes,
+                sizeof(atom.value.content_id.bytes));
+            std::memcpy(
+                reverse_record + sizeof(atom.value.content_id.bytes), witness,
+                sizeof(atom.value.identity_preimage_fingerprint.bytes));
+            WriteU32(reverse_value, atom.value.codepoint_position);
+            reverse_value[4U] = 1U;
+            reverse_inserted = true;
+            break;
+        }
+        if (std::memcmp(
+                reverse_record, atom.value.content_id.bytes,
+                sizeof(atom.value.content_id.bytes)) == 0 &&
+            std::memcmp(
+                reverse_record + sizeof(atom.value.content_id.bytes), witness,
+                sizeof(atom.value.identity_preimage_fingerprint.bytes)) == 0) {
+            return false;
+        }
+    }
+    if (!reverse_inserted) {
+        return false;
+    }
     WriteU32(value + 8U, frame.value.payload_bytes);
     WriteU32(value + 12U, atom.value.placement_rank);
     value[16U] = atom.value.position_class;
@@ -317,7 +383,9 @@ laplace_framework_status Seal(
     }
     std::uint64_t invalid_record_index = UINT64_MAX;
     std::size_t artifact_bytes = 0U;
+    std::size_t reverse_artifact_bytes = 0U;
     laplace_digest256 artifact_digest{};
+    laplace_digest256 reverse_artifact_digest{};
     if (laplace_perfcache_file_builder_seal(
             state->builder, state->module.validate_record,
             state->module.state, state->module.validate_view,
@@ -325,14 +393,49 @@ laplace_framework_status Seal(
             &artifact_digest) != LAPLACE_PERFCACHE_OK) {
         return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
     }
-    laplace_perfcache_generation_artifact artifact{};
-    artifact.path = state->target_path.c_str();
-    artifact.contract = state->contract;
-    artifact.expected_artifact_digest = artifact_digest;
-    artifact.flags = LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
+    if (state->reverse_records.size() !=
+            static_cast<std::size_t>(
+                LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY) *
+                ReverseRecordBytes) {
+        return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
+    }
+    laplace_perfcache_generation_dependency reverse_dependency{};
+    reverse_dependency.module_id = state->module.module_id;
+    reverse_dependency.artifact_digest = artifact_digest;
+    if (laplace_perfcache_dependency_fingerprint(
+            &reverse_dependency, 1U,
+            &state->reverse_contract.dependency_fingerprint) !=
+            LAPLACE_PERFCACHE_REGISTRY_OK ||
+        laplace_perfcache_file_builder_create(
+            state->reverse_target_path.c_str(), &state->reverse_contract,
+            LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY, 0U,
+            &state->reverse_builder) != LAPLACE_PERFCACHE_OK ||
+        laplace_perfcache_file_builder_append(
+            state->reverse_builder, 0U, state->reverse_records.data(),
+            LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY, nullptr, 0U) !=
+            LAPLACE_PERFCACHE_OK ||
+        laplace_perfcache_file_builder_seal(
+            state->reverse_builder, state->reverse_module.validate_record,
+            state->reverse_module.state, state->reverse_module.validate_view,
+            state->reverse_module.state, &invalid_record_index,
+            &reverse_artifact_bytes, &reverse_artifact_digest) !=
+            LAPLACE_PERFCACHE_OK) {
+        return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
+    }
+    std::array<laplace_perfcache_generation_artifact, 2> artifacts{};
+    artifacts[0].path = state->reverse_target_path.c_str();
+    artifacts[0].contract = state->reverse_contract;
+    artifacts[0].expected_artifact_digest = reverse_artifact_digest;
+    artifacts[0].dependencies = &reverse_dependency;
+    artifacts[0].dependency_count = 1U;
+    artifacts[0].flags = LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
+    artifacts[1].path = state->target_path.c_str();
+    artifacts[1].contract = state->contract;
+    artifacts[1].expected_artifact_digest = artifact_digest;
+    artifacts[1].flags = LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
     laplace_perfcache_generation_request request{};
-    request.artifacts = &artifact;
-    request.artifact_count = 1U;
+    request.artifacts = artifacts.data();
+    request.artifact_count = artifacts.size();
     request.activation_epoch_id = state->contract.activation_epoch_id;
     request.epoch_fingerprint =
         state->contract.activation_epoch_fingerprint;
@@ -343,20 +446,25 @@ laplace_framework_status Seal(
         return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
     }
     state->result.contract = state->contract;
+    state->result.reverse_contract = state->reverse_contract;
     state->result.root_summary = root_summary;
     state->result.root_framework_stream_fingerprint = *stream_fingerprint;
     state->result.artifact_digest = artifact_digest;
+    state->result.reverse_artifact_digest = reverse_artifact_digest;
     state->result.artifact_set_fingerprint = artifact_set_fingerprint;
     state->result.root_frame_count = state->staged_root_frames;
     state->result.root_encoded_bytes = state->staged_root_bytes;
     state->result.atom_count = state->atom_count;
     state->result.atom_metadata_bytes = state->metadata_bytes;
     state->result.artifact_bytes = artifact_bytes;
+    state->result.reverse_artifact_bytes = reverse_artifact_bytes;
     state->result.sealed = 1U;
     *artifact_fingerprint = artifact_set_fingerprint;
     state->sealed = true;
     state->begun = false;
     laplace_perfcache_file_builder_destroy(&state->builder);
+    laplace_perfcache_file_builder_destroy(&state->reverse_builder);
+    state->reverse_records.clear();
     laplace_unicode_root_stream_validator_destroy(state->validator);
     state->validator = nullptr;
     return LAPLACE_FRAMEWORK_OK;
@@ -381,7 +489,9 @@ extern "C" laplace_perfcache_status laplace_unicode_tier0_sink_create(
     laplace_framework_sink_v1* const sink) {
     if (configuration == nullptr || output_state == nullptr || sink == nullptr ||
         configuration->target_path == nullptr ||
+        configuration->reverse_target_path == nullptr ||
         configuration->target_path[0] == '\0' ||
+        configuration->reverse_target_path[0] == '\0' ||
         configuration->abi_major != LAPLACE_UNICODE_TIER0_SINK_ABI_MAJOR ||
         configuration->abi_minor > LAPLACE_UNICODE_TIER0_SINK_ABI_MINOR ||
         configuration->flags != 0U || configuration->reserved != 0U) {
@@ -392,11 +502,18 @@ extern "C" laplace_perfcache_status laplace_unicode_tier0_sink_create(
     try {
         auto state = std::make_unique<laplace_unicode_tier0_sink>();
         state->target_path = configuration->target_path;
+        state->reverse_target_path = configuration->reverse_target_path;
         state->expectation = configuration->root_expectation;
         const laplace_perfcache_status contract_status = BuildContract(
-            *configuration, &state->module, &state->contract);
+            *configuration, false, &state->module, &state->contract);
         if (contract_status != LAPLACE_PERFCACHE_OK) {
             return contract_status;
+        }
+        const laplace_perfcache_status reverse_contract_status = BuildContract(
+            *configuration, true, &state->reverse_module,
+            &state->reverse_contract);
+        if (reverse_contract_status != LAPLACE_PERFCACHE_OK) {
+            return reverse_contract_status;
         }
         laplace_unicode_root_stream_validator* expectation_validator = nullptr;
         if (laplace_unicode_root_stream_validator_create(

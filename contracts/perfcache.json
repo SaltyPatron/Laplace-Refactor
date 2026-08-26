@@ -50,6 +50,29 @@
       "population": 1114112,
       "metadata": "one byte-exact concatenation of the canonical Unicode atom record v2 frames consumed by this sink",
       "required": true
+    },
+    "unicode_identity_reverse": {
+      "module_id": "7eb954d41423919d2ffa04bc5e41483b",
+      "module_identity_preimage": "laplace.perfcache.module.unicode-identity-reverse/v1",
+      "key_schema_id": "49bd054506262933ea754514330d0c60",
+      "key_schema_preimage": "laplace.perfcache.schema.unicode-identity-reverse-key/v1|content-id-16,identity-witness-32",
+      "value_schema_id": "92c44b7d8c0aba06265b397dce3fd6ee",
+      "value_schema_preimage": "laplace.perfcache.schema.unicode-identity-reverse-value/v1|codepoint-position-u32le,occupied-u8,reserved-u24",
+      "contract_fingerprint": "f6d1a0db56270ed66e4032be928386401f0f10c02f29f64c903eaebb7c8520c2",
+      "contract_preimage": "laplace.perfcache.module.unicode-identity-reverse/v1|key=content-id-16,identity-witness-32|value=codepoint-position-u32le,occupied-u8,reserved-u24|access=module-defined|capacity=2097152|population=1114112|home=u64le-identity-witness-low64-mask|probe=linear-plus-one|empty=occupied-zero-all-other-slot-bits-zero|validation=record+whole-view|module-abi=2.0",
+      "validation": "record-and-whole-view",
+      "access_law": "module_defined",
+      "key_bytes": 48,
+      "value_bytes": 8,
+      "capacity": 2097152,
+      "population": 1114112,
+      "home_law": "u64le(identity-witness[0..7]) bitand (capacity-1)",
+      "probe_law": "linear-plus-one",
+      "complexity": "expected-O(1)+O(probe-length); worst-O(capacity)",
+      "empty_law": "occupied-zero-and-every-other-slot-byte-zero",
+      "dependency": "exact unicode_tier0 artifact digest",
+      "metadata": "none",
+      "required": true
     }
   },
   "generation_dispositions": {
@@ -77,6 +100,26 @@
     "hot_backend": "exact-native-generation-pin-and-batch-lookup-require-no-spi-read",
     "restart_rule": "data-epoch-replacement-does-not-restart-postgresql",
     "prepared_transactions": "rejected-while-an-activation-is-pending"
+  },
+  "hot_lookup_performance": {
+    "receipt_schema": "laplace.perfcache-hot-lookup-receipt/v1",
+    "state": "validated-prefaulted-materialized-generation-held-by-one-exact-epoch-pin",
+    "timing_boundary": "one-native-typed-batch-accessor-call-only",
+    "verification": "all-input-output-parity-and-result-fingerprinting-outside-timing-boundary",
+    "sample_count": 31,
+    "warmup_batch_count": 4,
+    "batch_widths": [1, 16, 256, 4096],
+    "required_percentiles": [50, 95, 99],
+    "required_receipt_fields": [
+      "source-and-recipe-bound-artifact-digests",
+      "activation-epoch-and-module-contracts",
+      "topology-affinity-isa-and-toolchain",
+      "mapped-prefaulted-bytes-and-pages",
+      "sample-count-batch-width-and-timing-boundary",
+      "wall-cpu-memory-io-database-call-and-durable-output-counts",
+      "p50-p95-p99-nanoseconds-per-batch-and-per-key",
+      "hits-misses-and-result-fingerprint"
+    ]
   },
   "bit_pattern_semantics": {
     "required_identity_and_digest_zero": "valid-value-not-absence",

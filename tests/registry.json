@@ -1257,8 +1257,8 @@
     {
       "ctest_name": "UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks",
       "profiles": ["custom-stack"],
-      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-S3-SEED", "LP-TEST-SUPER-FIBONACCI-FIXED-POPULATION", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION"],
-      "covered_dimensions": ["one verified Unicode 17 source bundle", "one full 1114112-position numeric calculation", "one exact 2230150-frame canonical stream", "complete atom DUCET contraction and normalization sections", "sealed anonymous spool", "validating and Tier-0 sibling sinks consuming identical batches", "dense 1114112-record immutable Tier-0 artifact", "exact inner atom metadata", "pinned artifact digest and length", "artifact-set rather than raw-file sink fingerprint", "cold registry whole-view validation", "full prefault before admission", "deterministic rerun idempotence", "batch-boundary cancellation cleanup", "checkpoint replay-prefix verification", "exact section stream spool and build receipts"],
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-S3-SEED", "LP-TEST-SUPER-FIBONACCI-FIXED-POPULATION", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION", "LP-TEST-PERFCACHE-BATCH-LOOKUP", "LP-TEST-PERFCACHE-HOT-PERFORMANCE"],
+      "covered_dimensions": ["one verified Unicode 17 source bundle", "one full 1114112-position numeric calculation", "one exact 2230150-frame canonical stream", "complete atom DUCET contraction and normalization sections", "sealed anonymous spool", "validating and direct/reverse perfcache sibling sink consuming identical batches", "dense 1114112-record immutable Tier-0 artifact", "module-defined 2097152-slot reverse identity artifact", "exact inner atom metadata", "pinned direct and reverse artifact digests and lengths", "artifact-set rather than raw-file sink fingerprint", "cold registry whole-view validation", "full prefault before admission", "typed direct and reverse lookup through one exact epoch pin", "31-sample hot lookup receipt at widths 1 16 256 and 4096", "deterministic rerun idempotence", "batch-boundary cancellation cleanup", "checkpoint replay-prefix verification", "exact section stream spool and build receipts"],
       "defect_controls": ["unicode-root-builder.mutation-placement-rank-bypass-detected", "unicode-tier0-sink.mutation-metadata-offset-detected", "unicode-tier0-sink.mutation-physicality-parity-detected"]
     },
     {
@@ -1309,6 +1309,30 @@
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
       "covered_dimensions": ["fixed complete Tier-0 population", "partial dense view rejection"],
       "defect_controls": ["unicode-tier0.mutation-partial-population-detected"]
+    },
+    {
+      "ctest_name": "UnicodeIdentityReverseModule.ProbesCollisionChainsAndPreservesTypedEmpty",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-BATCH-LOOKUP", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["module-defined hash-addressed reverse lookup", "declared expected-O(1) plus probe-length and worst-O(capacity) law", "deterministic collision-chain probing", "explicit typed empty slots", "batch lookup"],
+      "defect_controls": ["unicode-reverse.mutation-sorted-generic-substitution-detected"]
+    },
+    {
+      "ctest_name": "UnicodeIdentityReverseModule.ReidentifiesOccupiedRecordsExactly",
+      "evidence_targets": ["LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "covered_dimensions": ["content identity plus full witness key", "exact codepoint re-identification", "non-canonical empty-slot rejection"]
+    },
+    {
+      "ctest_name": "unicode-reverse.mutation-sorted-generic-substitution-detected",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-BATCH-LOOKUP", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["generic sorted lookup cannot replace the declared module-defined Unicode reverse access law"],
+      "controls": "UnicodeIdentityReverseModule.ProbesCollisionChainsAndPreservesTypedEmpty"
+    },
+    {
+      "ctest_name": "perfcache.hot-lookup-receipt-contract-and-mutation",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-PERFCACHE-HOT-PERFORMANCE", "LP-TEST-PERFCACHE-BATCH-LOOKUP", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["full direct and reverse Unicode planes", "validated prefaulted exact-epoch pin", "batch widths 1 16 256 and 4096", "31-sample p50 p95 p99 latency", "topology CPU memory I/O database and durable-effect accounting", "result fingerprint"],
+      "defect_controls": ["missing timing boundary", "invalid percentile ordering"]
     },
     {
       "ctest_name": "unicode-tier0.mutation-partial-population-detected",

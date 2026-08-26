@@ -172,11 +172,26 @@ if(TARGET LaplaceOneApi::MKLRuntime)
     add_executable(laplace_unicode_root_builder_tests
         unicode_root_builder_tests.cpp)
     target_link_libraries(laplace_unicode_root_builder_tests PRIVATE
-        Laplace::UnicodeRoot Laplace::UnicodeNumeric GTest::gtest_main)
+        Laplace::UnicodeRoot Laplace::UnicodeNumeric BLAKE3::blake3
+        GTest::gtest_main)
     target_compile_options(laplace_unicode_root_builder_tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
-    gtest_discover_tests(laplace_unicode_root_builder_tests PROPERTIES
-        LABELS "implementation;unicode;root;producer;spool;oneapi;receipt")
+    gtest_discover_tests(laplace_unicode_root_builder_tests
+        PROPERTIES
+            LABELS "implementation"
+            ENVIRONMENT "LAPLACE_PERFCACHE_PERFORMANCE_RECEIPT=${CMAKE_BINARY_DIR}/receipts/unicode-perfcache-hot.json"
+            FIXTURES_SETUP unicode_perfcache_performance_receipt)
+
+    add_test(
+        NAME perfcache.hot-lookup-receipt-contract-and-mutation
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/perfcache_performance_receipt_tests.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../contracts/perfcache.json"
+            "${CMAKE_BINARY_DIR}/receipts/unicode-perfcache-hot.json")
+    set_tests_properties(
+        perfcache.hot-lookup-receipt-contract-and-mutation PROPERTIES
+        FIXTURES_REQUIRED unicode_perfcache_performance_receipt
+        LABELS "implementation;unicode;perfcache;performance;receipt;mutation")
 
     add_library(laplace_unicode_root_builder_rank_mutant STATIC
         ../engine/src/unicode_root_builder.cpp)
@@ -194,7 +209,7 @@ if(TARGET LaplaceOneApi::MKLRuntime)
     target_link_libraries(
         laplace_unicode_root_builder_rank_mutation_probe PRIVATE
         laplace_unicode_root_builder_rank_mutant Laplace::UnicodeNumeric
-        GTest::gtest_main)
+        BLAKE3::blake3 GTest::gtest_main)
     target_compile_options(
         laplace_unicode_root_builder_rank_mutation_probe PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
@@ -220,7 +235,8 @@ if(TARGET LaplaceOneApi::MKLRuntime)
         LAPLACE_TEST_UNICODE_TIER0_SINK_WRONG_METADATA_OFFSET=1)
     target_link_libraries(
         laplace_unicode_tier0_sink_offset_mutation_probe PRIVATE
-        Laplace::UnicodeRoot Laplace::UnicodeNumeric GTest::gtest_main)
+        Laplace::UnicodeRoot Laplace::UnicodeNumeric BLAKE3::blake3
+        GTest::gtest_main)
     target_compile_options(
         laplace_unicode_tier0_sink_offset_mutation_probe PRIVATE
         $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
@@ -246,7 +262,8 @@ if(TARGET LaplaceOneApi::MKLRuntime)
         LAPLACE_TEST_UNICODE_TIER0_SINK_WRONG_PHYSICALITY_ID=1)
     target_link_libraries(
         laplace_unicode_tier0_sink_physicality_mutation_probe PRIVATE
-        Laplace::UnicodeRoot Laplace::UnicodeNumeric GTest::gtest_main)
+        Laplace::UnicodeRoot Laplace::UnicodeNumeric BLAKE3::blake3
+        GTest::gtest_main)
     target_compile_options(
         laplace_unicode_tier0_sink_physicality_mutation_probe PRIVATE
         $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
@@ -600,6 +617,37 @@ add_test(
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(
     unicode-tier0.mutation-partial-population-detected PROPERTIES
+    LABELS "implementation;unicode;perfcache;mutation")
+
+add_library(laplace_unicode_reverse_sorted_mutant STATIC
+    ../engine/src/perfcache_modules.c)
+target_include_directories(laplace_unicode_reverse_sorted_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_compile_definitions(laplace_unicode_reverse_sorted_mutant PRIVATE
+    LAPLACE_TEST_UNICODE_REVERSE_SORTED_SUBSTITUTION=1)
+target_compile_options(laplace_unicode_reverse_sorted_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_unicode_reverse_sorted_mutation_probe
+    unicode_root_tests.cpp)
+target_include_directories(
+    laplace_unicode_reverse_sorted_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(
+    laplace_unicode_reverse_sorted_mutation_probe PRIVATE
+    laplace_unicode_reverse_sorted_mutant
+    Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(
+    laplace_unicode_reverse_sorted_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-reverse.mutation-sorted-generic-substitution-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_reverse_sorted_mutation_probe>"
+        "-DFILTER=UnicodeIdentityReverseModule.ProbesCollisionChainsAndPreservesTypedEmpty"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-reverse.mutation-sorted-generic-substitution-detected PROPERTIES
     LABELS "implementation;unicode;perfcache;mutation")
 
 add_test(

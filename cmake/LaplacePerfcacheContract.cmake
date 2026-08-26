@@ -62,6 +62,30 @@ function(laplace_configure_perfcache_contract contract_path output_path)
         "${contract_json}" modules unicode_tier0 population)
     string(JSON unicode_tier0_required GET
         "${contract_json}" modules unicode_tier0 required)
+    string(JSON unicode_reverse_module_id GET
+        "${contract_json}" modules unicode_identity_reverse module_id)
+    string(JSON unicode_reverse_key_schema_id GET
+        "${contract_json}" modules unicode_identity_reverse key_schema_id)
+    string(JSON unicode_reverse_value_schema_id GET
+        "${contract_json}" modules unicode_identity_reverse value_schema_id)
+    string(JSON unicode_reverse_contract_fingerprint GET
+        "${contract_json}" modules unicode_identity_reverse contract_fingerprint)
+    string(JSON unicode_reverse_contract_preimage GET
+        "${contract_json}" modules unicode_identity_reverse contract_preimage)
+    string(JSON unicode_reverse_access_law GET
+        "${contract_json}" modules unicode_identity_reverse access_law)
+    string(JSON unicode_reverse_validation GET
+        "${contract_json}" modules unicode_identity_reverse validation)
+    string(JSON unicode_reverse_key_bytes GET
+        "${contract_json}" modules unicode_identity_reverse key_bytes)
+    string(JSON unicode_reverse_value_bytes GET
+        "${contract_json}" modules unicode_identity_reverse value_bytes)
+    string(JSON unicode_reverse_population GET
+        "${contract_json}" modules unicode_identity_reverse population)
+    string(JSON unicode_reverse_capacity GET
+        "${contract_json}" modules unicode_identity_reverse capacity)
+    string(JSON unicode_reverse_required GET
+        "${contract_json}" modules unicode_identity_reverse required)
     string(LENGTH "${framework_probe_module_id}" framework_probe_module_id_length)
     string(LENGTH "${framework_probe_key_schema_id}" framework_probe_key_schema_id_length)
     string(LENGTH "${framework_probe_value_schema_id}" framework_probe_value_schema_id_length)
@@ -72,6 +96,13 @@ function(laplace_configure_perfcache_contract contract_path output_path)
     string(LENGTH "${unicode_tier0_value_schema_id}" unicode_tier0_value_schema_id_length)
     string(LENGTH "${unicode_tier0_contract_fingerprint}"
         unicode_tier0_contract_fingerprint_length)
+    string(LENGTH "${unicode_reverse_module_id}" unicode_reverse_module_id_length)
+    string(LENGTH "${unicode_reverse_key_schema_id}"
+        unicode_reverse_key_schema_id_length)
+    string(LENGTH "${unicode_reverse_value_schema_id}"
+        unicode_reverse_value_schema_id_length)
+    string(LENGTH "${unicode_reverse_contract_fingerprint}"
+        unicode_reverse_contract_fingerprint_length)
     string(JSON generation_prepared GET "${contract_json}" generation_dispositions prepared)
     string(JSON generation_reserved GET "${contract_json}" generation_dispositions reserved)
     string(JSON generation_activated GET "${contract_json}" generation_dispositions activated)
@@ -79,6 +110,32 @@ function(laplace_configure_perfcache_contract contract_path output_path)
     string(JSON generation_aborted GET "${contract_json}" generation_dispositions aborted)
     string(JSON generation_materialized GET
         "${contract_json}" generation_dispositions materialized)
+    string(JSON performance_schema GET
+        "${contract_json}" hot_lookup_performance receipt_schema)
+    string(JSON performance_state GET
+        "${contract_json}" hot_lookup_performance state)
+    string(JSON performance_timing_boundary GET
+        "${contract_json}" hot_lookup_performance timing_boundary)
+    string(JSON performance_verification GET
+        "${contract_json}" hot_lookup_performance verification)
+    string(JSON performance_sample_count GET
+        "${contract_json}" hot_lookup_performance sample_count)
+    string(JSON performance_warmup_count GET
+        "${contract_json}" hot_lookup_performance warmup_batch_count)
+    string(JSON performance_width_count LENGTH
+        "${contract_json}" hot_lookup_performance batch_widths)
+    foreach(performance_width_index RANGE 0 3)
+        string(JSON performance_width_${performance_width_index} GET
+            "${contract_json}" hot_lookup_performance batch_widths
+            ${performance_width_index})
+    endforeach()
+    string(JSON performance_percentile_count LENGTH
+        "${contract_json}" hot_lookup_performance required_percentiles)
+    foreach(performance_percentile_index RANGE 0 2)
+        string(JSON performance_percentile_${performance_percentile_index} GET
+            "${contract_json}" hot_lookup_performance required_percentiles
+            ${performance_percentile_index})
+    endforeach()
 
     if(NOT contract_schema STREQUAL "laplace.perfcache-contract/v3")
         message(FATAL_ERROR "Unsupported perfcache contract schema: ${contract_schema}")
@@ -123,6 +180,27 @@ function(laplace_configure_perfcache_contract contract_path output_path)
        OR NOT generation_materialized EQUAL 6)
         message(FATAL_ERROR "Perfcache encoding contract changed")
     endif()
+    if(NOT performance_schema STREQUAL
+           "laplace.perfcache-hot-lookup-receipt/v1"
+       OR NOT performance_state STREQUAL
+           "validated-prefaulted-materialized-generation-held-by-one-exact-epoch-pin"
+       OR NOT performance_timing_boundary STREQUAL
+           "one-native-typed-batch-accessor-call-only"
+       OR NOT performance_verification STREQUAL
+           "all-input-output-parity-and-result-fingerprinting-outside-timing-boundary"
+       OR NOT performance_sample_count EQUAL 31
+       OR NOT performance_warmup_count EQUAL 4
+       OR NOT performance_width_count EQUAL 4
+       OR NOT performance_width_0 EQUAL 1
+       OR NOT performance_width_1 EQUAL 16
+       OR NOT performance_width_2 EQUAL 256
+       OR NOT performance_width_3 EQUAL 4096
+       OR NOT performance_percentile_count EQUAL 3
+       OR NOT performance_percentile_0 EQUAL 50
+       OR NOT performance_percentile_1 EQUAL 95
+       OR NOT performance_percentile_2 EQUAL 99)
+        message(FATAL_ERROR "Perfcache hot-lookup performance contract changed")
+    endif()
     if(NOT unicode_tier0_module_id_length EQUAL 32
        OR NOT unicode_tier0_module_id MATCHES "^[0-9a-f]+$"
        OR NOT unicode_tier0_key_schema_id_length EQUAL 32
@@ -150,6 +228,27 @@ function(laplace_configure_perfcache_contract contract_path output_path)
     if(NOT unicode_tier0_contract_preimage STREQUAL
        "laplace.perfcache.module.unicode-tier0/v2|key=u32-le|value=record-offset-u64le,record-bytes-u32le,placement-rank-u32le,position-class-u8,lup-length-u8,reserved-u16,lup-bytes-4,content-id-16,identity-witness-32,coordinate-bits-32,hilbert-key-16,physicality-id-32|metadata=canonical-atom-record-stream-v2|access=dense-u32-zero-based|population=1114112|validation=record+whole-view|module-abi=2.0")
         message(FATAL_ERROR "Unicode Tier-0 perfcache module preimage changed")
+    endif()
+    if(NOT unicode_reverse_module_id_length EQUAL 32
+       OR NOT unicode_reverse_module_id MATCHES "^[0-9a-f]+$"
+       OR NOT unicode_reverse_key_schema_id_length EQUAL 32
+       OR NOT unicode_reverse_key_schema_id MATCHES "^[0-9a-f]+$"
+       OR NOT unicode_reverse_value_schema_id_length EQUAL 32
+       OR NOT unicode_reverse_value_schema_id MATCHES "^[0-9a-f]+$"
+       OR NOT unicode_reverse_contract_fingerprint_length EQUAL 64
+       OR NOT unicode_reverse_contract_fingerprint MATCHES "^[0-9a-f]+$"
+       OR NOT unicode_reverse_access_law STREQUAL "module_defined"
+       OR NOT unicode_reverse_validation STREQUAL "record-and-whole-view"
+       OR NOT unicode_reverse_key_bytes EQUAL 48
+       OR NOT unicode_reverse_value_bytes EQUAL 8
+       OR NOT unicode_reverse_capacity EQUAL 2097152
+       OR NOT unicode_reverse_population EQUAL 1114112
+       OR NOT unicode_reverse_required)
+        message(FATAL_ERROR "Unicode reverse perfcache module shape changed")
+    endif()
+    if(NOT unicode_reverse_contract_preimage STREQUAL
+       "laplace.perfcache.module.unicode-identity-reverse/v1|key=content-id-16,identity-witness-32|value=codepoint-position-u32le,occupied-u8,reserved-u24|access=module-defined|capacity=2097152|population=1114112|home=u64le-identity-witness-low64-mask|probe=linear-plus-one|empty=occupied-zero-all-other-slot-bits-zero|validation=record+whole-view|module-abi=2.0")
+        message(FATAL_ERROR "Unicode reverse perfcache module preimage changed")
     endif()
 
     set(LAPLACE_PERFCACHE_FORMAT_VERSION "${format_version}")
@@ -189,6 +288,30 @@ function(laplace_configure_perfcache_contract contract_path output_path)
         "${unicode_tier0_value_bytes}")
     set(LAPLACE_PERFCACHE_UNICODE_TIER0_POPULATION
         "${unicode_tier0_population}")
+    set(LAPLACE_PERFCACHE_UNICODE_REVERSE_MODULE_ID
+        "${unicode_reverse_module_id}")
+    set(LAPLACE_PERFCACHE_UNICODE_REVERSE_KEY_SCHEMA_ID
+        "${unicode_reverse_key_schema_id}")
+    set(LAPLACE_PERFCACHE_UNICODE_REVERSE_VALUE_SCHEMA_ID
+        "${unicode_reverse_value_schema_id}")
+    set(LAPLACE_PERFCACHE_UNICODE_REVERSE_CONTRACT_FINGERPRINT
+        "${unicode_reverse_contract_fingerprint}")
+    set(LAPLACE_PERFCACHE_UNICODE_REVERSE_KEY_BYTES
+        "${unicode_reverse_key_bytes}")
+    set(LAPLACE_PERFCACHE_UNICODE_REVERSE_VALUE_BYTES
+        "${unicode_reverse_value_bytes}")
+    set(LAPLACE_PERFCACHE_UNICODE_REVERSE_POPULATION
+        "${unicode_reverse_population}")
+    set(LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY
+        "${unicode_reverse_capacity}")
+    set(LAPLACE_PERFCACHE_HOT_RECEIPT_SCHEMA "${performance_schema}")
+    set(LAPLACE_PERFCACHE_HOT_SAMPLE_COUNT "${performance_sample_count}")
+    set(LAPLACE_PERFCACHE_HOT_WARMUP_BATCH_COUNT
+        "${performance_warmup_count}")
+    set(LAPLACE_PERFCACHE_HOT_BATCH_WIDTH_0 "${performance_width_0}")
+    set(LAPLACE_PERFCACHE_HOT_BATCH_WIDTH_1 "${performance_width_1}")
+    set(LAPLACE_PERFCACHE_HOT_BATCH_WIDTH_2 "${performance_width_2}")
+    set(LAPLACE_PERFCACHE_HOT_BATCH_WIDTH_3 "${performance_width_3}")
     set(LAPLACE_PERFCACHE_GENERATION_PREPARED "${generation_prepared}")
     set(LAPLACE_PERFCACHE_GENERATION_RESERVED "${generation_reserved}")
     set(LAPLACE_PERFCACHE_GENERATION_ACTIVATED "${generation_activated}")

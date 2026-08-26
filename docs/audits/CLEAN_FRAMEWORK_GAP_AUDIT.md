@@ -38,13 +38,21 @@ enough.
   dependency graphs, binds full activation epochs and loaded-object identity, applies
   conserved-memory prefault, admits one writer through the framework effect boundary,
   atomically hands off generations, pins readers, and explicitly drains retired maps;
+- one complete Unicode 17 producer over the pinned UCD/DUCET sources, fixed
+  1,114,112-position DUCET permutation, Super-Fibonacci/Hopf/Hilbert physicality,
+  canonical record stream, set-oriented PostgreSQL root deposition, and coherent root
+  activation;
+- sibling dense-direct and reverse-identity Unicode perfcache artifacts generated from
+  that same stream, validated and prefaulted through typed native access laws, with a
+  measured hot-lookup receipt that excludes setup and verification from its timing
+  boundary;
 - a contract-generated .NET 10 ISA surface whose generic P/Invoke transport preserves
   native ABI layout, batch semantics, outputs, receipts, errors, and preflight; and
 - native package/consumer and dependency-verification foundations.
 
-These are component facts. They do not establish a canonical database, universal
-ingestion, a Unicode root, hot perfcache epochs, conversation, cognition, model
-compilation, or the complete product.
+These are component and Unicode-root facts. They do not establish the universal
+canonical schema, general ingestion, every perfcache family, conversation, cognition,
+model compilation, or the complete product.
 
 ## Acquisition/build foundation in progress
 
@@ -74,11 +82,11 @@ dispositions explicit, followed by framework-mediated activation into the isolat
 - executable requirements for the whole operation graph, Unicode bootstrap, glome
   geometry, and hot activation.
 
-The staged SPI test contains test-fixture SQL rather than production substrate
-persistence. It does not prove set-oriented canonical deposition or issue #7. The
-native perfcache lifecycle now proves the in-process registry and handoff contract; it
-does not yet prove PostgreSQL multi-process pinning, transaction-deferred activation,
-or Unicode/database parity.
+The original staged SPI test remains test-fixture SQL rather than production substrate
+persistence and does not prove general issue #7 deposition. Later slices separately
+prove root-specific set-oriented Unicode deposition, database/artifact admission, and
+PostgreSQL multi-process epoch handoff. That vertical proof does not establish a
+universal record-codec/persistence provider for arbitrary product modules.
 
 ## Missing framework pieces
 
@@ -86,15 +94,16 @@ or Unicode/database parity.
    and thread-local oneMKL execution with exact serial/provider result parity. The same
    grant is not yet applied through PostgreSQL, managed, and tool routes.
 2. Canonical byte streams, a reusable producer, staged sinks, a native file-backed
-   perfcache provider, and the in-process epoch registry exist, but there is no typed
-   record-codec registry or coherent database/perfcache cross-provider activation
-   coordinator.
-3. The generic effect-admission and epoch compare-and-swap boundary exists, but there
-   is not yet a merged canonical persistence provider or PostgreSQL transaction
-   implementation. Producer replay/progress now exists independently of persistence.
-4. The native perfcache module/epoch registry and hot-generation protocol exist. The
-   PostgreSQL multi-process adapter and complete per-artifact diagnostic surface do
-   not.
+   perfcache provider, and the epoch registry exist. Unicode has one concrete coherent
+   database/perfcache activation route, but there is no general typed record-codec
+   registry or reusable cross-provider coordinator for other modules.
+3. The generic effect-admission and epoch compare-and-swap boundary exists, and the
+   Unicode root has a PostgreSQL transaction implementation. A general canonical
+   persistence provider for composition, occurrences, testimony, and arbitrary module
+   record families is still absent. Producer replay/progress exists independently.
+4. The native perfcache module/epoch registry, hot-generation protocol, and PostgreSQL
+   multi-process adapter exist for the current modules. The complete per-artifact
+   diagnostics and typed hot-access integration for every future module do not.
 5. C ABI, PostgreSQL constants, and the generic .NET ISA transport are generated; the
    SQL surface and the complete product binding family are not yet one complete
    generated contract.
@@ -103,16 +112,15 @@ or Unicode/database parity.
    object identities, prefault totals, and activation disposition. Whole-product
    receipts still omit the physical execution plan and other lifecycle facts required
    outside this provider.
-7. The downloaded Unicode 17 UCD, UCA/DUCET, emoji, security, IDNA, and conformance
-   sources under `/vault/Data/UCD/Public/UCD/latest` are bound into the clean source
-   manifest and representation contracts, but the producing decomposer does not exist.
-8. There is no Super-Fibonacci/Hopf/Hilbert Unicode seed implementation in the clean
+7. The complete Unicode root proving module exists, including the pinned Unicode 17
+   sources, producer, DUCET/UCD behavior, Super-Fibonacci/Hopf/Hilbert physicality,
+   direct and reverse planes, root schema, deposition, and coherent activation. This
+   does not imply general source ingestion or language realization.
+8. There is no universal canonical entity/physicality/composition/occurrence/testimony
+   schema and set-oriented deposition implementation beyond the root-specific schema.
+9. There is no leaf-to-trunk working-set compose/dedup or O(tiers) durable-presence
     engine.
-9. There is no canonical entity/physicality/composition/occurrence/testimony schema
-    or set-oriented deposition implementation.
-10. There is no leaf-to-trunk working-set compose/dedup or O(tiers) durable-presence
-    engine.
-11. Evidence epochs, search, guidance, cognition, realization, Goedel/OODA, AImaps,
+10. Evidence epochs, search, guidance, cognition, realization, Goedel/OODA, AImaps,
     and model compilation remain requirements and research/implementation programs.
 
 ## Framework-first gate
@@ -137,8 +145,10 @@ dispatch authority, binds an explicit immutable execution context through native
 PostgreSQL program/receipt identity, binds canonical streams to source and recipe, and
 adds receipted compare-and-swap activation over inert staged artifacts. The current
 perfcache lifecycle work extends that boundary with immutable publication, complete
-generation admission, prefault, reader pinning, and restart-free in-process handoff.
-Issues #10 and #14 remain open because PostgreSQL multi-process/transaction parity,
-complete providers/transports, database/perfcache coordinated activation, and the
-Unicode proving module remain incomplete. The accepted slices are component evidence
-and cannot close the complete framework obligation.
+generation admission, prefault, reader pinning, and restart-free handoff. PRs #48 and
+#49 add the full Unicode root calculation and its PostgreSQL persistence/activation
+slice; the current reverse-plane slice extends that same stream with typed reverse
+lookup and measured hot-access evidence. Issues #10 and #14 remain open because the
+common framework, access-law families, cross-route resource application, and broader
+product modules remain incomplete. These accepted slices cannot close the complete
+framework or product obligation.
