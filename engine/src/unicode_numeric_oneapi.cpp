@@ -6,7 +6,6 @@
 #include "mkl_service.h"
 #include "mkl_vml.h"
 
-#include <cerrno>
 #include <cfenv>
 #include <cmath>
 #include <cstddef>
@@ -78,6 +77,7 @@ laplace_digest256 ProviderFingerprint() {
         "IntelLLVM-2026.1.1",
         "-O3|-march=haswell|-fp-model=strict|-fno-fast-math|-ffp-contract=off",
         "vmdSqrt|vmdSinCos|VML_HA|VML_FTZDAZ_OFF|VML_ERRMODE_DEFAULT",
+        "VML-status-and-declared-FP-exceptions-are-math-failure-authority",
         "MKL_THREADING_SEQUENTIAL|MKL_ENABLE_AVX2"};
     for (const char* const binding : bindings) {
         const std::size_t bytes = std::strlen(binding);
@@ -231,7 +231,6 @@ laplace_unicode_status Calculate(
         alpha[index] = d / Phi;
         beta[index] = d / Psi;
     }
-    errno = 0;
     std::feclearexcept(FE_ALL_EXCEPT);
     (void)vmlClearErrStatus();
     const MKL_INT count = static_cast<MKL_INT>(rank_count);
@@ -242,10 +241,9 @@ laplace_unicode_status Calculate(
     const int vml_status = vmlGetErrStatus();
     const int floating_status = std::fetestexcept(
         FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW);
-    const int system_error = errno;
     receipt->vml_status = static_cast<std::uint32_t>(vml_status);
     receipt->floating_exceptions = static_cast<std::uint32_t>(floating_status);
-    receipt->system_error = static_cast<std::uint32_t>(system_error);
+    receipt->system_error = 0U;
 
     blake3_hasher output_hasher{};
     blake3_hasher_init(&output_hasher);
@@ -281,7 +279,7 @@ laplace_unicode_status Calculate(
     (void)mkl_set_num_threads_local(prior_threads);
     _mm_setcsr(prior_mxcsr);
     (void)std::fesetround(prior_rounding);
-    if (vml_status != 0 || floating_status != 0 || system_error != 0) {
+    if (vml_status != 0 || floating_status != 0) {
         receipt->status = LAPLACE_UNICODE_PROVIDER_FAILURE;
         HashReceipt(receipt);
         return LAPLACE_UNICODE_PROVIDER_FAILURE;

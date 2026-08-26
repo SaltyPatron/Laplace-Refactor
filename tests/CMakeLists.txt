@@ -168,6 +168,45 @@ if(TARGET LaplaceOneApi::MKLRuntime)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
     set_tests_properties(unicode-numeric.mutation-axis-order-detected PROPERTIES
         LABELS "implementation;unicode;geometry;oneapi;numeric;receipt;mutation")
+
+    add_executable(laplace_unicode_root_builder_tests
+        unicode_root_builder_tests.cpp)
+    target_link_libraries(laplace_unicode_root_builder_tests PRIVATE
+        Laplace::UnicodeRoot Laplace::UnicodeNumeric GTest::gtest_main)
+    target_compile_options(laplace_unicode_root_builder_tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    gtest_discover_tests(laplace_unicode_root_builder_tests PROPERTIES
+        LABELS "implementation;unicode;root;producer;spool;oneapi;receipt")
+
+    add_library(laplace_unicode_root_builder_rank_mutant STATIC
+        ../engine/src/unicode_root_builder.cpp)
+    target_include_directories(laplace_unicode_root_builder_rank_mutant PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_unicode_root_builder_rank_mutant PRIVATE
+        Laplace::UnicodeRoot BLAKE3::blake3)
+    target_compile_definitions(laplace_unicode_root_builder_rank_mutant PRIVATE
+        LAPLACE_TEST_UNICODE_ROOT_BUILDER_USE_POSITION_AS_NUMERIC_RANK=1)
+    target_compile_options(laplace_unicode_root_builder_rank_mutant PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_executable(laplace_unicode_root_builder_rank_mutation_probe
+        unicode_root_builder_tests.cpp)
+    target_link_libraries(
+        laplace_unicode_root_builder_rank_mutation_probe PRIVATE
+        laplace_unicode_root_builder_rank_mutant Laplace::UnicodeNumeric
+        GTest::gtest_main)
+    target_compile_options(
+        laplace_unicode_root_builder_rank_mutation_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME unicode-root-builder.mutation-placement-rank-bypass-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_unicode_root_builder_rank_mutation_probe>"
+            "-DFILTER=UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+    set_tests_properties(
+        unicode-root-builder.mutation-placement-rank-bypass-detected PROPERTIES
+        LABELS "implementation;unicode;root;producer;geometry;mutation")
 endif()
 
 add_executable(laplace_unicode_source_tests

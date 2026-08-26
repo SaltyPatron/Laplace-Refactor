@@ -1183,6 +1183,32 @@
       "controls": "UnicodeNumericProvider.CalculatesBatchWithExactReceiptAndStableBits"
     },
     {
+      "ctest_name": "UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-S3-SEED", "LP-TEST-SUPER-FIBONACCI-FIXED-POPULATION", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["one verified Unicode 17 source bundle", "one full 1114112-position numeric calculation", "one exact 2230150-frame canonical stream", "complete atom DUCET contraction and normalization sections", "sealed anonymous spool", "two sibling sinks replaying identical batches", "exact section stream spool and build receipts"],
+      "defect_controls": ["unicode-root-builder.mutation-placement-rank-bypass-detected"]
+    },
+    {
+      "ctest_name": "UnicodeRootBuilder.RejectsUnversionedNumericProviderBeforeSourceWork",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-HILBERT-NUMERIC-CONTRACT"],
+      "covered_dimensions": ["numeric provider ABI validation before source calculation or spool creation"]
+    },
+    {
+      "ctest_name": "UnicodeRootBuilder.RejectsUnversionedBuilderBeforeSourceWork",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["root-builder ABI validation before source calculation or spool creation"]
+    },
+    {
+      "ctest_name": "unicode-root-builder.mutation-placement-rank-bypass-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-S3-SEED", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
+      "covered_dimensions": ["codepoint-position substitution for calculated placement rank changes exact root receipts and is detected"],
+      "controls": "UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks"
+    },
+    {
       "ctest_name": "UnicodeTier0Module.ValidatesDirectAddressIdentityGeometryAndLocality",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-HILBERT-LOCALITY", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
       "covered_dimensions": ["dense position addressing", "atom identity", "coordinate quantization", "Hilbert locality validation"]

@@ -339,6 +339,20 @@ typedef struct laplace_unicode_root_stream_summary {
     uint32_t reserved;
 } laplace_unicode_root_stream_summary;
 
+typedef struct laplace_unicode_root_stream_section_snapshot {
+    laplace_digest256 section_fingerprints[4];
+    uint64_t section_counts[4];
+    uint64_t total_frame_count;
+    uint64_t total_encoded_bytes;
+    uint16_t current_kind;
+    uint8_t manifest_seen;
+    uint8_t finished;
+    uint8_t sections_sealed;
+    uint8_t reserved_bytes[3];
+    uint32_t status;
+    uint32_t reserved;
+} laplace_unicode_root_stream_section_snapshot;
+
 typedef enum laplace_unicode_status {
     LAPLACE_UNICODE_OK = 0,
     LAPLACE_UNICODE_INVALID_ARGUMENT = 1,
@@ -530,6 +544,11 @@ laplace_unicode_root_stream_validator_consume(
     size_t byte_count,
     uint64_t frame_count,
     uint64_t first_frame_ordinal);
+
+LAPLACE_API laplace_unicode_status
+laplace_unicode_root_stream_validator_seal_sections(
+    laplace_unicode_root_stream_validator* validator,
+    laplace_unicode_root_stream_section_snapshot* snapshot);
 
 LAPLACE_API laplace_unicode_status
 laplace_unicode_root_stream_validator_finish(

@@ -378,9 +378,12 @@ TEST(UnicodeRootStreamValidator, RejectsCrossBatchOrdinalGapAndTruncation) {
     EXPECT_EQ(laplace_unicode_root_stream_validator_consume(
                   validator, frame_zero.data(), frame_zero.size(), 1u, 0u),
               LAPLACE_UNICODE_OK);
-    EXPECT_EQ(laplace_unicode_root_stream_validator_finish(
-                  validator, &summary),
+    laplace_unicode_root_stream_section_snapshot snapshot{};
+    EXPECT_EQ(laplace_unicode_root_stream_validator_seal_sections(
+                  validator, &snapshot),
               LAPLACE_UNICODE_STREAM_INCOMPLETE);
+    EXPECT_EQ(laplace_unicode_root_stream_validator_finish(
+                  validator, &summary), LAPLACE_UNICODE_STREAM_INCOMPLETE);
     laplace_unicode_root_stream_validator_destroy(validator);
 }
 

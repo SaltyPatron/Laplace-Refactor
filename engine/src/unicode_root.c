@@ -26,8 +26,10 @@ struct laplace_unicode_root_stream_validator {
     uint8_t has_previous_normalization;
     uint8_t manifest_seen;
     uint8_t finished;
+    uint8_t sections_sealed;
     laplace_unicode_status status;
     laplace_unicode_root_manifest manifest;
+    laplace_unicode_root_stream_section_snapshot section_snapshot;
     laplace_unicode_root_stream_summary summary;
 };
 
@@ -1603,6 +1605,36 @@ static void unicode_root_calculate_section_fingerprints(
     }
 }
 
+static laplace_unicode_status unicode_root_seal_sections_impl(
+    laplace_unicode_root_stream_validator* validator) {
+    size_t index;
+    if (validator->sections_sealed != 0u) {
+        return LAPLACE_UNICODE_OK;
+    }
+    if (!unicode_root_required_sections_complete(
+            validator, LAPLACE_UNICODE_ROOT_FRAME_MANIFEST)) {
+        return unicode_root_stream_poison(
+            validator, LAPLACE_UNICODE_STREAM_INCOMPLETE);
+    }
+    memset(&validator->section_snapshot, 0,
+           sizeof(validator->section_snapshot));
+    unicode_root_calculate_section_fingerprints(
+        validator, validator->section_snapshot.section_fingerprints);
+    for (index = 0u; index < 4u; ++index) {
+        validator->section_snapshot.section_counts[index] =
+            validator->section_counts[index];
+    }
+    validator->section_snapshot.total_frame_count =
+        validator->total_frame_count;
+    validator->section_snapshot.total_encoded_bytes =
+        validator->total_encoded_bytes;
+    validator->section_snapshot.current_kind = validator->current_kind;
+    validator->section_snapshot.status = (uint32_t)LAPLACE_UNICODE_OK;
+    validator->section_snapshot.sections_sealed = 1u;
+    validator->sections_sealed = 1u;
+    return LAPLACE_UNICODE_OK;
+}
+
 static int unicode_root_manifest_matches(
     const laplace_unicode_root_stream_validator* validator,
     const laplace_unicode_root_manifest* manifest,
@@ -1673,6 +1705,8 @@ static laplace_unicode_status unicode_root_stream_consume_frame(
     const laplace_unicode_root_frame_view* frame) {
     laplace_unicode_status status;
     if (validator->manifest_seen != 0u ||
+        (validator->sections_sealed != 0u &&
+         frame->value.kind != LAPLACE_UNICODE_ROOT_FRAME_MANIFEST) ||
         frame->value.kind < validator->current_kind ||
         !unicode_root_required_sections_complete(
             validator, frame->value.kind)) {
@@ -1730,6 +1764,10 @@ static laplace_unicode_status unicode_root_stream_consume_frame(
         laplace_unicode_root_manifest manifest;
         laplace_digest256 section_fingerprints[4];
         size_t consumed = 0u;
+        status = unicode_root_seal_sections_impl(validator);
+        if (status != LAPLACE_UNICODE_OK) {
+            return status;
+        }
         status = laplace_unicode_root_manifest_open(
             frame->value.payload, frame->value.payload_bytes,
             &manifest, &consumed);
@@ -1797,6 +1835,26 @@ laplace_unicode_status laplace_unicode_root_stream_validator_consume(
         return unicode_root_stream_poison(
             validator, LAPLACE_UNICODE_STREAM_STATE_INVALID);
     }
+    return LAPLACE_UNICODE_OK;
+}
+
+laplace_unicode_status laplace_unicode_root_stream_validator_seal_sections(
+    laplace_unicode_root_stream_validator* validator,
+    laplace_unicode_root_stream_section_snapshot* snapshot) {
+    if (validator == NULL || snapshot == NULL) {
+        return LAPLACE_UNICODE_INVALID_ARGUMENT;
+    }
+    if (validator->status != LAPLACE_UNICODE_OK) {
+        return validator->status;
+    }
+    if (validator->manifest_seen != 0u || validator->finished != 0u) {
+        return unicode_root_stream_poison(
+            validator, LAPLACE_UNICODE_STREAM_STATE_INVALID);
+    }
+    if (unicode_root_seal_sections_impl(validator) != LAPLACE_UNICODE_OK) {
+        return validator->status;
+    }
+    *snapshot = validator->section_snapshot;
     return LAPLACE_UNICODE_OK;
 }
 

@@ -8,6 +8,7 @@ add_library(laplace_engine SHARED
     src/persistence.c
     src/trajectory.c
     src/unicode_root.c
+    src/unicode_root_builder.cpp
     src/unicode_source.cpp
     src/unicode_properties.cpp
     src/unicode_ducet.cpp
