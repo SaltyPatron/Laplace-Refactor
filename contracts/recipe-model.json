@@ -7,7 +7,7 @@
     "terminal_floor": "complete Unicode positions and canonical numeric compositions",
     "node_identity": "content only under the fixed identity preimage grammar",
     "edge_meaning": "typed role ordinal multiplicity and structural relation remain in trajectories and occurrences rather than node identity",
-    "witness_dimensions": ["source", "authority", "release", "language", "script", "modality", "model", "context", "time", "interpretation", "trust"],
+    "witness_dimensions": ["source", "authority", "release", "language", "script", "modality", "model", "context", "time", "interpretation", "trust", "actor", "referent", "world", "audience", "visibility"],
     "reuse_law": "equal subtrees converge to one content identity while every occurrence path and testimony remains independently addressable",
     "nonflattening_law": "a record table triple graph embedding token sequence or opaque payload cannot replace the typed tree unless the receipt proves exact reconstruction of every consumer-required distinction"
   },
@@ -26,6 +26,8 @@
     "compile-goal-and-search",
     "calculate-operator-and-select-act",
     "realize-modality-or-effect",
+    "materialize-authorized-entity-world",
+    "federate-authorized-world-state",
     "decompose-model-witness",
     "compile-target-artifact",
     "generate-derived-plane",
@@ -40,6 +42,8 @@
     "loss class discarded distinctions and inverse or reconstruction data",
     "required source identity evidence firmware numeric geometry database and perfcache epochs",
     "authority effects and mutation envelope",
+    "subject referential epoch audience visibility disclosure and withholding rules where a recipe projects entity world state",
+    "typed exception trap fault cancellation retry reroute replay compensation and terminal-disposition behavior",
     "resource estimate cancellation merge partition and replay laws",
     "immutable positive conformance and deliberate-defect vectors",
     "complete receipt fields and completion predicates"
@@ -76,6 +80,15 @@
     "determinism_law": "partition batch size scheduling route and replay do not change logical results",
     "persistence_law": "canonical calculated state witnessed state derived epochs acceleration planes and effects retain separate publication authority"
   },
+  "application_and_federation": {
+    "universal_primitives": "people organizations accounts projects activities entitlements achievements pages nodes and provider assertions lower to the same typed AST referential occurrence testimony governance recipe effect and receipt forms according to role",
+    "projection_law": "a profile feed resume portfolio or personal web is a query-relative audience-authorized materialization recipe over pinned referential and evidence epochs rather than a mutable canonical account blob",
+    "entitlement_law": "authenticated external assertions remain time-scoped testimony while governance recipes calculate current capability display and effect authority without changing identity or history",
+    "surface_law": "web mobile API document and future product surfaces realize the same selected semantic structure and may not implement private query identity evidence entitlement or visibility semantics",
+    "federation_law": "an authenticated content-addressed exchange binds world scope audience authority recipe epochs exact structures withheld dispositions and receipts; replay converges without reminting content",
+    "provider_law": "identity billing discovery relay backup hosting storage and synchronization providers remain witnessed or physical providers and cannot become semantic authority",
+    "node_law": "CPU operating system form factor resource and placement differences select accepted physical plans only; unsupported targets remain typed unsupported rather than receiving a reduced engine"
+  },
   "evolution": {
     "rule": "a semantic recipe change creates a new append-only coordinate fingerprint and receipt; it never rewrites prior content testimony calculation or epoch history",
     "calculus_extension": "a discovered recipe or grammar extension remains a falsifiable candidate until disjoint evidence counterexamples authority and activation gates accept a new version",
@@ -94,6 +107,15 @@
     "grammar-error-node-disappears",
     "string-replacement-impersonates-structural-transformation",
     "recomposition-loses-unchanged-subtree-identity",
-    "historical-recipe-version-is-rewritten"
+    "historical-recipe-version-is-rewritten",
+    "profile-blob-becomes-person-identity",
+    "visibility-policy-enters-content-identity",
+    "external-entitlement-becomes-truth-or-privilege-without-governance",
+    "product-surface-installs-private-semantics",
+    "federation-provider-becomes-identity-authority",
+    "unsupported-node-claims-semantic-support",
+    "hardware-fault-collapses-to-unknown",
+    "failed-effect-publishes-semantic-result",
+    "replay-crosses-unreceipted-durability-boundary"
   ]
 }

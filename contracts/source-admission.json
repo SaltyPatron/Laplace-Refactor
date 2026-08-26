@@ -52,7 +52,9 @@
     "provenance derivation dependence and trust input",
     "measurement behavior transition and observed consequence",
     "model structure value induced behavior and prediction",
-    "counterexample unknown ambiguity and missing-calculus boundary"
+    "counterexample unknown ambiguity and missing-calculus boundary",
+    "person organization external-account membership entitlement achievement and visibility testimony",
+    "repository employment education service project review release deployment and professional-history testimony"
   ],
   "selected_source_universe": [
     {"id": "unicode-and-character-standards", "candidates": ["UCD", "DUCET", "Unicode conformance data"], "roles": ["terminal floor", "normalization and segmentation law", "script and realization evidence"]},
@@ -63,6 +65,8 @@
     {"id": "commonsense-syntax-and-multilingual-use", "candidates": ["ConceptNet", "ATOMIC", "Universal Dependencies", "Tatoeba", "OpenSubtitles"], "roles": ["competing propositions", "syntax and usage occurrences", "translation and dialogue witnesses"]},
     {"id": "code-repository-and-build-history", "candidates": ["code authority snapshots", "repository trees", "Git histories", "code corpora"], "roles": ["program ASTs", "definition use call and change trajectories", "build and behavior evidence"]},
     {"id": "interaction-and-execution-history", "candidates": ["AI agent sessions", "tool calls and results", "human corrections", "receipts and artifacts"], "roles": ["persistent discourse and action ASTs", "provenance and consequence", "failure and correction testimony"]},
+    {"id": "identity-organization-entitlement-and-achievement-witnesses", "candidates": ["identity and account providers", "billing sponsorship and entitlement providers", "employment education service certification and achievement authorities", "self assertions and social attestations"], "roles": ["referential candidate and external-account mapping testimony", "time-scoped entitlement and qualification assertions", "authority dependence and visibility evidence"]},
+    {"id": "professional-project-and-delivery-history", "candidates": ["repositories and Git histories", "pull requests reviews and issues", "build workflow release artifact and deployment records", "employer project and collaborator testimony"], "roles": ["authorship participation and review testimony", "project and organization trajectories", "query-relative professional evidence with dependence and contradiction"]},
     {"id": "image-audio-video-geospatial-and-future-media", "candidates": ["declared media and geospatial artifacts"], "roles": ["non-text exact structure", "cross-modal occurrences", "realization and reconstruction evidence"]},
     {"id": "domain-and-transition-witnesses", "candidates": ["games including chess", "state-transition corpora", "measured systems"], "roles": ["typed states operations trajectories and outcomes", "downstream universal-machine proofs", "prediction counterexamples"]},
     {"id": "model-artifact-and-behavior-witnesses", "candidates": ["text code vision audio embedding reranker and multimodal model snapshots"], "roles": ["model AST structure and values", "induced operator and behavior testimony", "optional target-compilation evidence"]}

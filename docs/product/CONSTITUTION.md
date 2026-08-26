@@ -50,6 +50,14 @@ attention, demand different evidence, explore or inhibit different valid traject
 and request different realizations over the same pinned knowledge. It cannot acquire
 authority, change truth, or bypass an effect envelope by changing personality.
 
+The machine has processor-grade exception semantics. Hardware, storage, network,
+provider, consistency, and durability faults are not epistemic unknowns. Invalid
+instructions and implementation defects are not semantic contradictions. Authority
+denial and finite resource exhaustion are not absence of evidence. Every exception,
+trap, interrupt, fault, cancellation, and terminal disposition has one generated
+priority, precision, restart, retry, reroute, replay, compensation, durability, and
+publication law. A failed or indeterminate effect cannot become a plausible result.
+
 ## 2. Universality
 
 The substrate treats text, image, audio, video, code, games, model state, and future
@@ -63,6 +71,48 @@ create isolated intelligences or private execution systems.
 Cross-language, cross-modal, and cross-model relations are ordinary substrate
 relations. A result may enter through one modality and materialize through another
 without changing execution law.
+
+Application concepts and deployment topology are not exceptions to universality.
+People, organizations, external accounts, memberships, achievements, projects,
+repositories, activities, interfaces, nodes, and provider locations enter the machine
+according to their actual roles as exact content, referential state, AST structure,
+occurrences, testimony, governance, recipes, effects, and receipts. None may introduce
+a social, billing, résumé, user-profile, federation, or platform-specific semantic
+engine.
+
+A person is not a SaaS account row. Exact names and identifiers, candidate person
+referents, authenticated account mappings, authored structures, activity, testimony,
+relationships, and visibility policy remain distinct. A profile, feed, résumé,
+portfolio, or personal web is a query-relative authorized materialization over that
+world. Web, mobile, API, document, and future surfaces are realization modalities of
+the same pinned selection program. Presentation or disclosure policy cannot enter
+person identity, rewrite private or historical state, or turn an external provider
+into identity authority.
+
+External billing, sponsorship, repository, employment, school, service, certification,
+and achievement systems testify. Versioned governance recipes calculate what an
+authenticated time-scoped assertion currently permits or displays. An entitlement can
+expire while the historical assertion remains; a self-assertion remains a
+self-assertion; neither changes identity or creates truth by policy.
+
+Laplace nodes are one machine across physical forms. CPU architecture, operating
+system, memory, storage, network placement, and acceleration alter only accepted
+physical plans, capacity, and measured performance. They cannot alter identity,
+instruction meaning, evidence law, logical result, or receipt meaning. A target such
+as ARM or Raspberry Pi is unsupported until its exact ABI, package, semantic,
+durability, and complete-product tests pass; it does not receive a reduced private
+edition of Laplace.
+
+Execution, PostgreSQL, canonical storage, archive storage, source access, perfcaches,
+and federation peers may be physically disaggregated behind typed providers. Remote
+PostgreSQL means its server-owned semantic operations execute remotely. Storage that
+backs PostgreSQL must prove the database's locking, atomicity, `fsync`, and crash
+durability requirements. Physical placement never becomes a semantic branch.
+
+Federation exchanges authenticated content-addressed structures and receipts under
+explicit private, shared, and public authority. Discovery, relay, synchronization,
+availability, backup, billing, and hosted service providers are conveniences and
+witnesses. They do not own a person's identity, truth, firmware, or semantic machine.
 
 ## 3. Content identity
 
@@ -426,6 +476,13 @@ artifacts.
 Text does not receive a privileged semantic path. Performance is measured for all
 modalities at engine and complete-product boundaries. Decoding and encoding costs are
 reported rather than hidden.
+
+Product surfaces obey the same symmetry. A profile, résumé, evidence view, personal
+web, query result, achievement display, or entitlement display is a versioned
+materialization recipe over authorized state, not a bespoke canonical record. The
+receipt binds the subject referential epoch, selected evidence, governance and
+visibility policy, recipe, audience authority, result modality, and every withheld or
+unknown disposition.
 
 ## 13. Performance
 

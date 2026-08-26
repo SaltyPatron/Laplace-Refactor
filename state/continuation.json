@@ -5,7 +5,9 @@
   "validity": {
     "rule": "the base commit tracked patch digest untracked file digests and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
-    "authority_stack": "contracts/authority-stack.json"
+    "authority_stack": "contracts/authority-stack.json",
+    "physical_verification_command": "LAPLACE_VERIFY_CONTINUATION_PHYSICAL=1 python3 tests/program_authority_tests.py",
+    "ci_boundary": "ordinary repository CI validates checkpoint structure and digest declarations but cannot impersonate the machine-local authority that owns and can inspect the observed worktree"
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
@@ -221,7 +223,7 @@
     "whole_product_reason": "This completes the generic AST Merkle-DAG presence and deposition boundary required before Unicode product activation and before any source recipe can persist exact world state; it is not a corpus importer."
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-26T19:54:37Z",
+    "observed_at_utc": "2026-08-26T20:49:11Z",
     "main_commit": "4fd790640f1efa5245565e4087b33951236e2736",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
@@ -231,6 +233,27 @@
     "world_admission_issue": 53,
     "product_path_gate_issue": 54,
     "architecture_manual_issue": 50,
+    "authority_pull_request": {
+      "number": 55,
+      "draft": true,
+      "purpose": "restore whole-machine continuation authority and publish the clean roadmap without claiming mechanism completion"
+    },
+    "roadmap_project": {
+      "number": 2,
+      "title": "Laplace Refactor — Machine Roadmap",
+      "url": "https://github.com/users/SaltyPatron/projects/2",
+      "public": true,
+      "items": 38,
+      "fields": 18,
+      "historical_project_1_is_authority": false
+    },
+    "roadmap_issue_range": {
+      "first": 56,
+      "last": 69,
+      "count": 14,
+      "proof_state": "requirements and acceptance encoded; newly described mechanisms unimplemented"
+    },
+    "github_subissue_hierarchy_present": true,
     "unreconciled_dependency_pull_requests": [
       {"number": 31, "draft": true, "base": "main", "head": "phase1/runtime-build-graph", "merge_state": "DIRTY"},
       {"number": 35, "draft": false, "base": "phase1/runtime-build-graph", "head": "phase1/source-built-toolchain", "merge_state": "CLEAN"}

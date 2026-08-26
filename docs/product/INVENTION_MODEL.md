@@ -72,7 +72,50 @@ question can be generated and receipted. Relevance, importance, distance, and mo
 coordinates are properties of that calculation, not timeless scalar attributes of an
 entity.
 
-### 1.2 Knowledge, calculus, firmware, and authority
+### 1.2 Cognitive traffic is executable machine state
+
+Laplace models not only stored knowledge but the mechanical traffic of cognition over
+that knowledge. Goals and knowledge deficits schedule work; typed addresses select
+operands; relation laws admit transitions; indexes and perfcaches generate bounded
+frontiers; search orders candidate states; evidence constrains selection; firmware
+allocates attention; authority gates effects; and observed consequences return to
+persistent world state. Control flow, data flow, evidence flow, and effect flow are
+therefore explicit instruction programs rather than behavior hidden in weights or an
+application call graph.
+
+The machine analogy is literal. The Merkle DAG is recursively addressable persistent
+structure; generated numerical highways are typed address and routing fabric;
+grammars and codecs decode and encode concrete forms; recipes compile programs; the
+ISA defines legal state transitions; firmware governs admissible scheduling choices;
+PostgreSQL supplies transactional persistent state and indexed execution; perfcaches
+supply typed derived planes; and receipts are complete execution traces.
+
+Laplace is finite. Every program consumes a declared evidence, authority, time, CPU,
+memory, I/O, database, and search boundary. Indexed A-star or another declared search
+law prioritizes admissible problem-relative traffic so the machine need not examine
+the world indiscriminately. Completion, optimum, best found under a bound, known upper
+bound, partial, unsupported, denied, exhausted, contradicted, and unknown are distinct
+results.
+
+`Why not?` is consequently a machine operation rather than a generic refusal. Its
+receipt identifies the limiting state, work already performed, open obligations, and
+the evidence, authority, resource, recipe, instruction, or calculus extension that
+would permit continuation. Hidden approximation, an omitted search boundary, or
+fluent partial output cannot impersonate completion. Making cognitive traffic
+mechanical does not by itself establish subjective experience or consciousness.
+
+Finitude is only one part of the machine's non-completion law. A healthy machine that
+exhausted its declared search budget, an inaccessible provider, a physical component
+that violated its contract, an invalid program, a denied effect, unresolved evidence,
+and a semantic contradiction are different states. Laplace therefore has an
+exception model in the processor sense: precise traps, asynchronous interrupts,
+restartable and terminal faults, cancellation, priority, durable replay boundaries,
+and receipts binding the failed instruction to its logical program and physical
+provider. If an accepted replacement exists, the same logical program may reroute and
+replay from its last durable receipt. If it does not, the machine stops without
+inventing the missing value.
+
+### 1.3 Knowledge, calculus, firmware, and authority
 
 The knowledge substrate records what exists or has been observed, asserted, derived,
 predicted, contradicted, calculated, transformed, and caused. It includes exact content
@@ -85,6 +128,32 @@ effect permissions, and publication rules. They do not become content identity o
 testimony and do not erase the state they currently reject, hide, distrust, or decline
 to act upon. The same pinned knowledge can therefore be calculated under different
 calculus, firmware, goal, context, or authority versions with complete replay.
+
+### 1.4 Application and deployment concepts are machine modalities
+
+A person or organization is resolved through exact name and identifier content,
+occurrences, candidate referents, witnessed mappings, competing testimony, and
+immutable referential epochs. It is not a special account record. Authored artifacts,
+activity, relationships, external accounts, memberships, achievements, preferences,
+and visibility policy use the same universal structures and epistemic separation as
+every other subject.
+
+A profile, feed, page, résumé, portfolio, or personal web is a query-relative
+materialization recipe over an authorized region of that referential world. The same
+selection can realize as web, mobile, API, document, or another modality without a
+surface acquiring private semantics. Billing, sponsorship, repository, employment,
+school, service, certification, and achievement systems testify; governance calculates
+current entitlement or display state while identity and historical testimony remain.
+
+Nodes also obey one architecture. Hardware and operating-system differences select
+validated physical providers and resource plans, not another ISA or semantic engine.
+Execution, PostgreSQL, durable storage, archive storage, source access, perfcaches, and
+peers may be disaggregated, but every placement is explicit and receipted. A remote
+PostgreSQL server owns the server-side operations it executes, and its backing storage
+must prove PostgreSQL durability semantics. Content-addressed authenticated federation
+shares only authorized public or shared projections while keeping central discovery,
+relay, backup, billing, and hosting providers subordinate to user-controlled identity
+and world state.
 
 ## 2. Content identity
 
@@ -372,6 +441,23 @@ operation is actually metric-nearest retrieval. It is one candidate generator, n
 the definition of cognition. An exact A-star result additionally proves its heuristic
 and reopen contracts; a bounded or non-admissible search reports that different
 completion semantics instead of claiming optimality.
+
+Connection is likewise not raw hop count. Social, professional, organizational,
+technical, causal, semantic, ownership, and arbitrary reachability queries admit
+different relation families, directions, times, authority, standing, dependence,
+costs, and terminal conditions. Equal hop counts across unlike relations do not imply
+equal connection. A discovered path proves reachability and supplies a known upper
+bound. It proves a shortest or best path only when the declared search boundary,
+frontier, heuristic, reopen, and completion obligations close. Private, inaccessible,
+unadmitted, or unresolved regions remain explicit coverage deficits.
+
+Evidence density and independent convergence are also distinct. A real event may
+leave coherent causal exhaust across unrelated systems and modalities, while copied
+claims may create many dependent paths from one root. Dependence analysis prevents
+volume from impersonating independent support; sparse or private evidence can leave a
+true claim unresolved. Answerability receipts therefore name coverage, eligible roots,
+agreement dimensions, contradictions, and the exact entitlement of the machine to
+state an answer.
 
 ## 6. Trajectories and realized curves
 

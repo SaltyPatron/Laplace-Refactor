@@ -40,6 +40,7 @@ The ISA is vector-first. Required value classes include:
   observation sets;
 - consensus epoch descriptors and derived-state publication boundaries;
 - temporal intervals, world scopes, referential identities, and epistemic states;
+- actor, audience, visibility, disclosure, entitlement, achievement, and node-capability values;
 - goals, discourse frames, hypotheses, counterfactual states, and plans;
 - relation-law, motif, cognition-program, firmware, and valuation values;
 - typed neighborhood components, metric-family descriptors, query-ranking programs,
@@ -54,7 +55,12 @@ The ISA is vector-first. Required value classes include:
 - instruction subprograms;
 - model structures, target-runtime values, and effect envelopes;
 - materialization blocks;
-- execution receipts and typed errors.
+- execution receipts and typed errors;
+- completion, partial, known-upper-bound, unsupported, denied, exhausted,
+  contradicted, and unknown dispositions with open-obligation and why-not receipts.
+- exception descriptors carrying condition class, priority, precision, restart,
+  retry, reroute, replay, compensation, durable boundary, invalidated outputs, and
+  publication disposition.
 
 Null, unknown, unsupported, refuted, and empty are different states.
 
@@ -136,6 +142,12 @@ operand schemas, effects, and errors live in the generated machine contract:
     construct and coherently publish versioned derived state; record program, inputs,
     source boundary, engine, dependencies, parameters, outputs, effects, and exact
     completion boundary.
+24. **Entity-world projection and federation** — select audience-authorized private,
+    shared, and public referential world state; calculate current entitlement and
+    achievement display from testimony and governance; materialize profiles, feeds,
+    résumés, portfolios, and personal webs through any supported realization modality;
+    exchange authenticated content-addressed state and receipts; plan node, PostgreSQL,
+    storage, cache, source, and peer placement without changing semantic execution.
 
 The numbering, encoding, and exact operands are contract decisions, not file-order
 accidents.
@@ -171,6 +183,10 @@ Required invariants:
 - input order and declared result order are deterministic;
 - duplicate handling is explicit;
 - partial execution cannot be reported as complete;
+- a reached endpoint cannot be reported as shortest or optimal without the declared
+  boundary and search-completion proof;
+- every incomplete result reports the exact limiting evidence, authority, resource,
+  recipe, instruction, or calculus state and the open obligations;
 - cancellation leaves a typed durable boundary and exact receipt;
 - retries and repeated ingestion preserve idempotency contracts;
 - expanded and run-span inputs produce the same content ID, centroid, logical order,
@@ -226,6 +242,28 @@ Conversation is a stored ISA program, not an endpoint-specific behavior. It must
 - materialize the requested modality;
 - witness the turn and retain a complete receipt;
 - produce the same semantics through SQL, HTTP, CLI, and other product transports.
+
+## Exceptions, traps, interrupts, faults, and recovery
+
+The instruction registry and value registry generate one exception registry consumed
+by native, PostgreSQL, SQL, C#, services, diagnostics, and the architecture manual.
+It distinguishes at minimum invalid instruction and operand, implementation defect,
+authority violation, cancellation, finite resource exhaustion, unsupported
+operation, incomplete evidence or search boundary, semantic contradiction, provider
+unavailability, hardware, storage, network, consistency, and durability faults.
+
+Every entry declares whether it is precise or asynchronous; its priority when several
+conditions coexist; whether the instruction or program is restartable, retryable,
+reroutable, replayable, compensatable, or terminal; and which outputs may be retained,
+invalidated, or published. Its receipt binds the logical program, affected
+instruction, operands, execution context, physical plan, node/provider, transaction,
+world scope, last valid durable receipt, invalidated work, and exact replay origin.
+
+A physical provider fault may select another accepted physical plan and replay the
+same logical program from a proven durable boundary. Changing provider cannot change
+logical meaning. An unavailable recovery path produces a terminal typed why-not
+state. No catch block, transport status, timeout, empty result, or fluent realization
+may collapse a machine fault into epistemic unknown or semantic success.
 
 ## Versioning
 
