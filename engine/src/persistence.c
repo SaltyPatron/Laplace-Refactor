@@ -846,8 +846,12 @@ laplace_persistence_status laplace_persistence_validate_stream(
             return close_status;
         }
     }
+#if defined(LAPLACE_TEST_PERSISTENCE_REQUIRE_ALL_FAMILIES)
     if (state.summary.entity_count == 0 || state.summary.physicality_count == 0 ||
         state.summary.occurrence_count == 0) {
+#else
+    if (state.summary.frame_count == 0) {
+#endif
         return LAPLACE_PERSISTENCE_RECORD_INVALID;
     }
     *summary = state.summary;

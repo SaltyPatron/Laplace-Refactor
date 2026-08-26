@@ -95,6 +95,11 @@ laplace_configure_persistence_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/persistence.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/persistence.h")
 
+include(cmake/LaplaceCompositionContract.cmake)
+laplace_configure_composition_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/composition.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/composition.h")
+
 include(cmake/LaplaceUnicodeSource.cmake)
 laplace_configure_unicode_source(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts"

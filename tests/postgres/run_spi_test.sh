@@ -309,6 +309,13 @@ if [[ "$mode" == "contract" ]]; then
 
     concurrency_sql="$(dirname "$sql_file")/persistence_concurrency_call.sql"
     concurrency_verify_sql="$(dirname "$sql_file")/persistence_concurrency_verify.sql"
+    deposit_receipts_before_concurrency=$(
+        "$pg_bindir/psql" "${psql_arguments[@]}" -Atqc \
+            'SELECT count(*) FROM laplace.canonical_deposit_receipt')
+    if [[ ! "$deposit_receipts_before_concurrency" =~ ^[0-9]+$ ]]; then
+        echo "cannot establish persistence receipt baseline before concurrent deposit" >&2
+        exit 84
+    fi
     concurrency_pids=()
     for worker in 1 2; do
         "$pg_bindir/psql" "${psql_arguments[@]}" -f "$concurrency_sql" \
@@ -325,7 +332,9 @@ if [[ "$mode" == "contract" ]]; then
         sed -n '1,240p' "$test_root"/concurrency-*.log >&2
         exit 67
     fi
-    "$pg_bindir/psql" "${psql_arguments[@]}" -f "$concurrency_verify_sql"
+    "$pg_bindir/psql" "${psql_arguments[@]}" \
+        -v "persistence_expected_receipt_count=$((deposit_receipts_before_concurrency + 1))" \
+        -f "$concurrency_verify_sql"
     "$pg_bindir/psql" "${psql_arguments[@]}" -f "$perfcache_recreate_sql"
 
     competing_pids=()

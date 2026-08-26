@@ -16,6 +16,7 @@
 #include "laplace/persistence.h"
 #include "laplace_pg_internal.h"
 #include "persistence_rows_pg.h"
+#include "persistence_pg.h"
 #include "set_pg.h"
 
 PG_FUNCTION_INFO_V1(LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL);
@@ -298,9 +299,6 @@ static void execute_record_family(
     int result;
     uint64_t verified;
     uint64_t inserted;
-    if (count == 0) {
-        return;
-    }
     laplace_pg_keep_plan(&insert_plans[kind], insert_sql(kind), 1, types);
     result = SPI_execute_plan(insert_plans[kind], values, NULL, false, 0);
     note_plan(state,
@@ -541,6 +539,138 @@ static void persist_deposit_receipt(
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg("Laplace deposit receipt collides with different stored fields")));
     }
+}
+
+static int persistence_producer_never_cancel(void* state) {
+    (void)state;
+    return 0;
+}
+
+static void persistence_producer_observe_progress(
+    void* state,
+    const laplace_framework_replay_checkpoint* checkpoint) {
+    (void)state;
+    (void)checkpoint;
+}
+
+void laplace_pg_persistence_run_producer(
+    const laplace_framework_context* context,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_framework_producer_v1* producer,
+    laplace_pg_persistence_producer_result* result) {
+    laplace_framework_producer_plan plan;
+    laplace_framework_canonical_batch* batches;
+    laplace_digest256 cursor;
+    laplace_digest256 completion;
+    laplace_digest256 preflight_stream_fingerprint;
+    laplace_persistence_summary summary;
+    laplace_framework_sink_v1 sink;
+    laplace_framework_producer_control_v1 control;
+    persistence_sink_state state;
+    uint32_t record_type = 0;
+    uint64_t total_records = 0;
+    uint64_t total_bytes = 0;
+    uint64_t index;
+    laplace_framework_status framework_status;
+    if (context == NULL || source_fingerprint == NULL ||
+        recipe_fingerprint == NULL || producer == NULL || result == NULL ||
+        producer->prepare == NULL || producer->next == NULL ||
+        producer->finish == NULL || producer->abort == NULL ||
+        producer->abi_major != LAPLACE_FRAMEWORK_PRODUCER_ABI_MAJOR ||
+        producer->abi_minor > LAPLACE_FRAMEWORK_PRODUCER_ABI_MINOR) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace persistence producer arguments are invalid")));
+    }
+    memset(result, 0, sizeof(*result));
+    if ((context->flags & LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY) != 0u) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+                 errmsg("read-only Laplace execution context cannot deposit canonical state")));
+    }
+    memset(&plan, 0, sizeof(plan));
+    if (producer->prepare(
+            producer->state, context, source_fingerprint, recipe_fingerprint,
+            &plan) != LAPLACE_FRAMEWORK_OK ||
+        plan.batch_count == 0u || plan.batch_count > SIZE_MAX / sizeof(*batches)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace persistence producer preflight plan is invalid")));
+    }
+    batches = (laplace_framework_canonical_batch*)palloc0(
+        (size_t)plan.batch_count * sizeof(*batches));
+    for (index = 0; index < plan.batch_count; ++index) {
+        if (producer->next(
+                producer->state, index, &batches[index], &cursor) !=
+            LAPLACE_FRAMEWORK_OK) {
+            producer->abort(producer->state);
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_EXCEPTION),
+                     errmsg("Laplace persistence producer preflight batch failed"),
+                     errdetail("batch=%llu", (unsigned long long)index)));
+        }
+    }
+    if (producer->finish(producer->state, &completion) != LAPLACE_FRAMEWORK_OK ||
+        laplace_persistence_validate_stream(
+            batches, (size_t)plan.batch_count, &summary) !=
+            LAPLACE_PERSISTENCE_OK ||
+        laplace_framework_canonical_stream_fingerprint(
+            batches, (size_t)plan.batch_count,
+            &preflight_stream_fingerprint, &record_type,
+            &total_records, &total_bytes) != LAPLACE_FRAMEWORK_OK ||
+        record_type != LAPLACE_PERSISTENCE_STREAM_RECORD_TYPE ||
+        total_records != plan.total_records || total_bytes != plan.total_bytes) {
+        producer->abort(producer->state);
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace persistence producer failed whole-stream preflight")));
+    }
+
+    memset(&state, 0, sizeof(state));
+    state.summary = summary;
+    memset(&sink, 0, sizeof(sink));
+    sink.state = &state;
+    sink.begin = sink_begin;
+    sink.stage = sink_stage;
+    sink.seal = sink_seal;
+    sink.abort = sink_abort;
+    sink.abi_major = LAPLACE_FRAMEWORK_SINK_ABI_MAJOR;
+    sink.abi_minor = LAPLACE_FRAMEWORK_SINK_ABI_MINOR;
+    memset(&control, 0, sizeof(control));
+    control.cancel_requested = persistence_producer_never_cancel;
+    control.observe_progress = persistence_producer_observe_progress;
+    control.abi_major = LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MAJOR;
+    control.abi_minor = LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MINOR;
+    framework_status = laplace_framework_run_producer(
+        context, source_fingerprint, recipe_fingerprint,
+        producer, &control, &sink, 1u, &result->producer);
+    if (framework_status != LAPLACE_FRAMEWORK_OK ||
+        memcmp(
+            result->producer.stream.stream_fingerprint.bytes,
+            preflight_stream_fingerprint.bytes,
+            sizeof(preflight_stream_fingerprint.bytes)) != 0) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace persistence producer execution diverged from preflight"),
+                 errdetail("framework_status=%d producer_status=%d stream_status=%d failed_batch=%llu failed_sink=%llu",
+                           (int)framework_status,
+                           (int)result->producer.status,
+                           (int)result->producer.stream.status,
+                           (unsigned long long)result->producer.stream.failed_batch_index,
+                           (unsigned long long)result->producer.stream.failed_sink_index)));
+    }
+    persist_deposit_receipt(&state, &result->producer.stream);
+    if (SPI_finish() != SPI_OK_FINISH) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("cannot close Laplace persistence SPI provider")));
+    }
+    state.spi_connected = 0;
+    result->summary = summary;
+    memcpy(result->inserted, state.inserted, sizeof(result->inserted));
+    result->plan_sequence_fingerprint = state.plan_sequence_fingerprint;
+    result->plan_count = state.plan_count;
 }
 
 Datum LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL(PG_FUNCTION_ARGS) {

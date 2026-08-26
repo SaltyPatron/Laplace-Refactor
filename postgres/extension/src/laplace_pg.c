@@ -39,7 +39,7 @@ PG_FUNCTION_INFO_V1(LAPLACE_PG_TRAJECTORY_EXECUTE_SYMBOL);
 static SPIPlanPtr receipt_insert_plan = NULL;
 static SPIPlanPtr receipt_select_plan = NULL;
 
-static Datum required_composite_attribute(
+Datum laplace_pg_required_composite_attribute(
     HeapTupleHeader tuple,
     int attribute_number,
     const char* attribute_name) {
@@ -54,7 +54,10 @@ static Datum required_composite_attribute(
     return value;
 }
 
-static void read_digest(Datum datum, laplace_digest256* digest, const char* field) {
+void laplace_pg_read_digest(
+    Datum datum,
+    laplace_digest256* digest,
+    const char* field) {
     bytea* value = DatumGetByteaPP(datum);
     if (VARSIZE_ANY_EXHDR(value) != (int)sizeof(digest->bytes)) {
         ereport(ERROR,
@@ -63,6 +66,31 @@ static void read_digest(Datum datum, laplace_digest256* digest, const char* fiel
                         field, sizeof(digest->bytes))));
     }
     memcpy(digest->bytes, VARDATA_ANY(value), sizeof(digest->bytes));
+}
+
+uint64_t laplace_pg_uint64_from_numeric(Datum datum, const char* field) {
+    char* text = DatumGetCString(DirectFunctionCall1(numeric_out, datum));
+    const char* cursor = text;
+    uint64_t value = 0u;
+    if (*cursor == '\0') {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+                 errmsg("%s is not an unsigned 64-bit integer", field)));
+    }
+    while (*cursor != '\0') {
+        const unsigned char character = (unsigned char)*cursor;
+        const uint64_t digit = (uint64_t)(character - (unsigned char)'0');
+        if (character < (unsigned char)'0' || character > (unsigned char)'9' ||
+            value > (UINT64_MAX - digit) / 10u) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+                     errmsg("%s is not an unsigned 64-bit integer", field)));
+        }
+        value = value * 10u + digit;
+        ++cursor;
+    }
+    pfree(text);
+    return value;
 }
 
 void laplace_pg_read_execution_context(
@@ -83,7 +111,7 @@ void laplace_pg_read_execution_context(
     int index;
 
     memset(context, 0, sizeof(*context));
-    epochs = DatumGetArrayTypeP(required_composite_attribute(tuple, 1, "epochs"));
+    epochs = DatumGetArrayTypeP(laplace_pg_required_composite_attribute(tuple, 1, "epochs"));
     if (ARR_NDIM(epochs) != 1 || ARR_ELEMTYPE(epochs) != BYTEAOID ||
         ArrayGetNItems(ARR_NDIM(epochs), ARR_DIMS(epochs)) !=
             LAPLACE_FRAMEWORK_EPOCH_COUNT) {
@@ -100,26 +128,27 @@ void laplace_pg_read_execution_context(
                     (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
                      errmsg("Laplace execution context epoch %d cannot be null", index)));
         }
-        read_digest(epoch_datums[index], &context->epochs[index], "epochs");
+        laplace_pg_read_digest(
+            epoch_datums[index], &context->epochs[index], "epochs");
     }
-    read_digest(
-        required_composite_attribute(tuple, 2, "authority_fingerprint"),
+    laplace_pg_read_digest(
+        laplace_pg_required_composite_attribute(tuple, 2, "authority_fingerprint"),
         &context->authority_fingerprint,
         "authority_fingerprint");
 
     memory_bytes = DatumGetInt64(
-        required_composite_attribute(tuple, 3, "memory_bytes"));
+        laplace_pg_required_composite_attribute(tuple, 3, "memory_bytes"));
     cpu_slots = DatumGetInt32(
-        required_composite_attribute(tuple, 4, "cpu_slots"));
+        laplace_pg_required_composite_attribute(tuple, 4, "cpu_slots"));
     io_slots = DatumGetInt32(
-        required_composite_attribute(tuple, 5, "io_slots"));
+        laplace_pg_required_composite_attribute(tuple, 5, "io_slots"));
     epoch_mask = DatumGetInt64(
-        required_composite_attribute(tuple, 6, "epoch_mask"));
+        laplace_pg_required_composite_attribute(tuple, 6, "epoch_mask"));
     major = DatumGetInt16(
-        required_composite_attribute(tuple, 7, "framework_major"));
+        laplace_pg_required_composite_attribute(tuple, 7, "framework_major"));
     minor = DatumGetInt16(
-        required_composite_attribute(tuple, 8, "framework_minor"));
-    flags = DatumGetInt32(required_composite_attribute(tuple, 9, "flags"));
+        laplace_pg_required_composite_attribute(tuple, 8, "framework_minor"));
+    flags = DatumGetInt32(laplace_pg_required_composite_attribute(tuple, 9, "flags"));
     if (memory_bytes <= 0 || cpu_slots <= 0 || io_slots < 0 || epoch_mask <= 0 ||
         major < 0 || minor < 0 || flags < 0) {
         ereport(ERROR,

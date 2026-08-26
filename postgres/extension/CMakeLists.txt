@@ -9,6 +9,7 @@ set(extension_control
 laplace_configure_postgresql_bindings(
     "${CMAKE_SOURCE_DIR}/contracts/isa.json"
     "${CMAKE_SOURCE_DIR}/contracts/persistence.json"
+    "${CMAKE_SOURCE_DIR}/contracts/composition.json"
     "${CMAKE_SOURCE_DIR}/contracts/unicode-postgresql.json"
     "${CMAKE_SOURCE_DIR}/contracts/unicode-root-stream.json"
     "${CMAKE_SOURCE_DIR}/cmake/postgresql_bindings.h.in"
@@ -19,6 +20,7 @@ laplace_configure_postgresql_bindings(
     "${extension_control}")
 
 add_library(laplace_pg MODULE
+    src/composition_pg.c
     src/laplace_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c
@@ -31,7 +33,7 @@ target_include_directories(laplace_pg SYSTEM PRIVATE
 target_include_directories(laplace_pg PRIVATE
     "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(laplace_pg PRIVATE
-    BLAKE3::blake3 Laplace::Isa Laplace::Persistence Laplace::Perfcache
+    BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence Laplace::Perfcache
     Laplace::UnicodeNumeric)
 target_compile_options(laplace_pg PRIVATE
     $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-Wno-gnu-statement-expression-from-macro-expansion;-ffp-contract=off>)
@@ -47,6 +49,7 @@ if(BUILD_TESTING)
         LAPLACE_POSTGRES_TESTING=1)
 
     add_library(laplace_pg_blind_conflict_mutant MODULE
+        src/composition_pg.c
         src/laplace_pg.c
         src/persistence_pg.c
         src/persistence_rows_pg.c
@@ -59,7 +62,7 @@ if(BUILD_TESTING)
     target_include_directories(laplace_pg_blind_conflict_mutant PRIVATE
         "${CMAKE_BINARY_DIR}/generated")
     target_link_libraries(laplace_pg_blind_conflict_mutant PRIVATE
-        BLAKE3::blake3 Laplace::Isa Laplace::Persistence Laplace::Perfcache
+        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence Laplace::Perfcache
         Laplace::UnicodeNumeric)
     target_compile_definitions(laplace_pg_blind_conflict_mutant PRIVATE
         LAPLACE_POSTGRES_TESTING=1
@@ -72,7 +75,40 @@ if(BUILD_TESTING)
         OUTPUT_NAME "laplace_pg_blind_conflict_mutant"
         BUILD_RPATH "$<TARGET_FILE_DIR:laplace_engine>")
 
+    add_library(laplace_pg_composition_presence_order_mutant MODULE
+        src/composition_pg.c
+        src/laplace_pg.c
+        src/persistence_pg.c
+        src/persistence_rows_pg.c
+        src/perfcache_pg.c
+        src/set_pg.c
+        src/unicode_root_pg.c)
+    target_include_directories(
+        laplace_pg_composition_presence_order_mutant SYSTEM PRIVATE
+        "${LAPLACE_POSTGRES_INCLUDE_SERVER}"
+        "${LAPLACE_POSTGRES_INCLUDE_CLIENT}")
+    target_include_directories(
+        laplace_pg_composition_presence_order_mutant PRIVATE
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_pg_composition_presence_order_mutant PRIVATE
+        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence Laplace::Perfcache
+        Laplace::UnicodeNumeric)
+    target_compile_definitions(
+        laplace_pg_composition_presence_order_mutant PRIVATE
+        LAPLACE_POSTGRES_TESTING=1
+        LAPLACE_TEST_COMPOSITION_PRESENCE_REORDER=1)
+    target_compile_options(
+        laplace_pg_composition_presence_order_mutant PRIVATE
+        $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-Wno-gnu-statement-expression-from-macro-expansion;-ffp-contract=off>)
+    set_target_properties(
+        laplace_pg_composition_presence_order_mutant PROPERTIES
+        C_EXTENSIONS ON
+        PREFIX ""
+        OUTPUT_NAME "laplace_pg_composition_presence_order_mutant"
+        BUILD_RPATH "$<TARGET_FILE_DIR:laplace_engine>")
+
     add_library(laplace_pg_perfcache_epoch_mutant MODULE
+        src/composition_pg.c
         src/laplace_pg.c
         src/persistence_pg.c
         src/persistence_rows_pg.c
@@ -85,7 +121,7 @@ if(BUILD_TESTING)
     target_include_directories(laplace_pg_perfcache_epoch_mutant PRIVATE
         "${CMAKE_BINARY_DIR}/generated")
     target_link_libraries(laplace_pg_perfcache_epoch_mutant PRIVATE
-        BLAKE3::blake3 Laplace::Isa Laplace::Persistence Laplace::Perfcache
+        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence Laplace::Perfcache
         Laplace::UnicodeNumeric)
     target_compile_definitions(laplace_pg_perfcache_epoch_mutant PRIVATE
         LAPLACE_POSTGRES_TESTING=1
@@ -99,6 +135,7 @@ if(BUILD_TESTING)
         BUILD_RPATH "$<TARGET_FILE_DIR:laplace_engine>")
 
     add_library(laplace_pg_plan_manifest_mutant MODULE
+        src/composition_pg.c
         src/laplace_pg.c
         src/persistence_pg.c
         src/persistence_rows_pg.c
@@ -111,7 +148,7 @@ if(BUILD_TESTING)
     target_include_directories(laplace_pg_plan_manifest_mutant PRIVATE
         "${CMAKE_BINARY_DIR}/generated")
     target_link_libraries(laplace_pg_plan_manifest_mutant PRIVATE
-        BLAKE3::blake3 Laplace::Isa Laplace::Persistence Laplace::Perfcache
+        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence Laplace::Perfcache
         Laplace::UnicodeNumeric)
     target_compile_definitions(laplace_pg_plan_manifest_mutant PRIVATE
         LAPLACE_POSTGRES_TESTING=1

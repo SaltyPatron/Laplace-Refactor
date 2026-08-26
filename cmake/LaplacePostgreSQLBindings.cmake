@@ -1,5 +1,5 @@
 function(laplace_configure_postgresql_bindings
-    contract_path persistence_contract_path unicode_postgresql_contract_path
+    contract_path persistence_contract_path composition_contract_path unicode_postgresql_contract_path
     unicode_root_contract_path
     header_template sql_template control_template
     header_output sql_output control_output)
@@ -51,6 +51,12 @@ function(laplace_configure_postgresql_bindings
         "${persistence_json}" occurrence_flags has_physicality)
     string(JSON persistence_plan_count LENGTH
         "${persistence_json}" bindings postgresql plan_sequence)
+    file(READ "${composition_contract_path}" composition_json)
+    string(JSON composition_schema GET "${composition_json}" schema)
+    string(JSON composition_deposit_sql GET
+        "${composition_json}" bindings postgresql deposit_sql_name)
+    string(JSON composition_deposit_symbol GET
+        "${composition_json}" bindings postgresql deposit_c_symbol)
     file(READ "${unicode_postgresql_contract_path}" unicode_postgresql_json)
     file(READ "${unicode_root_contract_path}" unicode_root_json)
     string(JSON unicode_postgresql_schema GET
@@ -98,6 +104,7 @@ function(laplace_configure_postgresql_bindings
 
     if(NOT contract_schema STREQUAL "laplace.isa-contract/v1"
        OR NOT persistence_schema STREQUAL "laplace.persistence-contract/v1"
+       OR NOT composition_schema STREQUAL "laplace.composition-contract/v1"
        OR NOT unicode_postgresql_schema STREQUAL
             "laplace.unicode-postgresql-contract/v1"
        OR NOT unicode_root_schema STREQUAL
@@ -111,6 +118,7 @@ function(laplace_configure_postgresql_bindings
         trajectory_calculate_sql trajectory_calculate_symbol
         trajectory_execute_sql trajectory_execute_symbol
         persistence_deposit_sql persistence_deposit_symbol
+        composition_deposit_sql composition_deposit_symbol
         unicode_postgresql_sql unicode_postgresql_symbol)
         if(NOT "${${identifier}}" MATCHES "^[a-z][a-z0-9_]*$")
             message(FATAL_ERROR "Invalid PostgreSQL binding identifier: ${identifier}")
@@ -158,6 +166,8 @@ function(laplace_configure_postgresql_bindings
     set(LAPLACE_PG_PERSISTENCE_PHYSICALITY_FLAGS_NONE "${persistence_physicality_flags_none}")
     set(LAPLACE_PG_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY "${persistence_occurrence_has_physicality}")
     set(LAPLACE_PG_PERSISTENCE_PLAN_COUNT "${persistence_plan_count}")
+    set(LAPLACE_PG_COMPOSITION_DEPOSIT_SQL "${composition_deposit_sql}")
+    set(LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL "${composition_deposit_symbol}")
     set(LAPLACE_PG_UNICODE_ROOT_SQL "${unicode_postgresql_sql}")
     set(LAPLACE_PG_UNICODE_ROOT_SYMBOL "${unicode_postgresql_symbol}")
     set(LAPLACE_PG_UNICODE_ROOT_RECORD_TYPE

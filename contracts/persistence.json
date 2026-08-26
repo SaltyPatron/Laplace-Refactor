@@ -55,11 +55,7 @@
     }
   },
   "ordering": "entities-by-content-id-then-physicality-groups-by-record-id-then-occurrences-by-record-id",
-  "required_record_families": [
-    "entity",
-    "physicality",
-    "observed_occurrence"
-  ],
+  "required_record_families": ["at-least-one-complete-valid-frame"],
   "conditional_record_families": {
     "composition": "one-or-more-contiguous-trajectory-vertices-matching-count-and-fingerprint",
     "atomic_point": "no-trajectory-vertices"

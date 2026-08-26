@@ -27,7 +27,8 @@ typedef enum laplace_identity_status {
     LAPLACE_IDENTITY_POSITION_OUT_OF_RANGE = 2,
     LAPLACE_IDENTITY_EMPTY_COMPOSITION = 3,
     LAPLACE_IDENTITY_ZERO_RUN = 4,
-    LAPLACE_IDENTITY_COUNT_OVERFLOW = 5
+    LAPLACE_IDENTITY_COUNT_OVERFLOW = 5,
+    LAPLACE_IDENTITY_WITNESS_MISMATCH = 6
 } laplace_identity_status;
 
 LAPLACE_API laplace_identity_status laplace_unicode_position_encode(
@@ -54,11 +55,26 @@ LAPLACE_API laplace_identity_status laplace_identity_composite(
     size_t child_count,
     laplace_id128* out_id);
 
+LAPLACE_API laplace_identity_status laplace_identity_composite_witness(
+    const laplace_id128* child_ids,
+    size_t child_count,
+    const laplace_digest256* collapsed_child_witness,
+    laplace_id128* out_id,
+    laplace_digest256* out_witness);
+
 LAPLACE_API laplace_identity_status laplace_identity_composite_runs(
     const laplace_id_run* runs,
     size_t run_count,
     uint64_t* out_logical_count,
     laplace_id128* out_id);
+
+LAPLACE_API laplace_identity_status laplace_identity_composite_runs_witness(
+    const laplace_id_run* runs,
+    size_t run_count,
+    const laplace_digest256* collapsed_child_witness,
+    uint64_t* out_logical_count,
+    laplace_id128* out_id,
+    laplace_digest256* out_witness);
 
 LAPLACE_API int laplace_identity_equal(
     const laplace_id128* left,

@@ -88,6 +88,38 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.observed_occurrence_record AS (
     flags integer
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_known_entity_record AS (
+    entity_id bytea,
+    identity_witness bytea,
+    physicality_id bytea,
+    centroid_x double precision,
+    centroid_y double precision,
+    centroid_z double precision,
+    centroid_m double precision,
+    atom bigint,
+    tier_floor smallint,
+    has_atom boolean
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_operand_record AS (
+    reference_index numeric(20, 0),
+    multiplicity numeric(20, 0),
+    relationship_metadata bigint,
+    reference_kind integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_request_record AS (
+    first_operand numeric(20, 0),
+    operand_count numeric(20, 0),
+    source_ordinal numeric(20, 0),
+    recipe_version integer,
+    flags integer,
+    recipe_fingerprint bytea,
+    geometry_epoch bytea,
+    occurrence_context_fingerprint bytea
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_atom_deposit_record AS (
     root_receipt bytea,
     codepoint_position integer,
@@ -476,6 +508,42 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.canonical_deposit_result AS (
     status integer
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_deposit_result AS (
+    result_entity_ids bytea[],
+    result_physicality_ids bytea[],
+    result_tier_floors smallint[],
+    working_set_receipt bytea,
+    presence_receipt bytea,
+    presence_candidate_fingerprint bytea,
+    presence_disposition_fingerprint bytea,
+    presence_provider_fingerprint bytea,
+    presence_provider_receipt bytea,
+    producer_receipt bytea,
+    staged_stream_receipt bytea,
+    stream_fingerprint bytea,
+    sink_artifacts_fingerprint bytea,
+    unique_entity_count numeric(20, 0),
+    unique_physicality_count numeric(20, 0),
+    novel_entity_count numeric(20, 0),
+    novel_physicality_count numeric(20, 0),
+    trajectory_vertex_count numeric(20, 0),
+    novel_trajectory_vertex_count numeric(20, 0),
+    occurrence_count numeric(20, 0),
+    logical_occurrence_count numeric(20, 0),
+    batch_count numeric(20, 0),
+    stream_record_count numeric(20, 0),
+    stream_byte_count numeric(20, 0),
+    entity_inserted numeric(20, 0),
+    physicality_inserted numeric(20, 0),
+    trajectory_vertex_inserted numeric(20, 0),
+    occurrence_inserted numeric(20, 0),
+    plan_sequence_fingerprint bytea,
+    plan_count integer,
+    entity_presence_round_count numeric(20, 0),
+    physicality_presence_round_count numeric(20, 0),
+    status integer
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.identity_batch_result AS (
     entity_ids bytea[],
     receipt_id bytea,
@@ -591,6 +659,18 @@ RETURNS @LAPLACE_PG_SCHEMA@.canonical_deposit_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_COMPOSITION_DEPOSIT_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    bytea,
+    bytea,
+    @LAPLACE_PG_SCHEMA@.composition_known_entity_record[],
+    @LAPLACE_PG_SCHEMA@.composition_operand_record[],
+    @LAPLACE_PG_SCHEMA@.composition_request_record[],
+    numeric)
+RETURNS @LAPLACE_PG_SCHEMA@.composition_deposit_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_ROOT_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
     text,
@@ -628,6 +708,13 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_active_control FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_CALCULATE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context, integer[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_COMPOSITION_DEPOSIT_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context, bytea, bytea,
+        @LAPLACE_PG_SCHEMA@.composition_known_entity_record[],
+        @LAPLACE_PG_SCHEMA@.composition_operand_record[],
+        @LAPLACE_PG_SCHEMA@.composition_request_record[], numeric)
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_PERSISTENCE_DEPOSIT_SQL@(

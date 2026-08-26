@@ -169,6 +169,23 @@ TEST(PersistenceContract, WholeTypedStreamValidatesAcrossBatchBoundaries) {
     EXPECT_EQ(summary.byte_count, fixture.bytes.size());
 }
 
+TEST(PersistenceContract, LegalRecordFamiliesDepositIndependently) {
+    const auto fixture = BuildFixture();
+    const auto occurrence_bytes = laplace_persistence_frame_bytes(
+        LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE);
+    const auto* occurrence = fixture.bytes.data() +
+        (fixture.bytes.size() - occurrence_bytes);
+    const auto batch = Batch(occurrence, occurrence_bytes, 1U, 0U);
+    laplace_persistence_summary summary{};
+    ASSERT_EQ(laplace_persistence_validate_stream(&batch, 1U, &summary),
+              LAPLACE_PERSISTENCE_OK);
+    EXPECT_EQ(summary.entity_count, 0U);
+    EXPECT_EQ(summary.physicality_count, 0U);
+    EXPECT_EQ(summary.trajectory_vertex_count, 0U);
+    EXPECT_EQ(summary.occurrence_count, 1U);
+    EXPECT_EQ(summary.frame_count, 1U);
+}
+
 TEST(PersistenceContract, CarrierIsExactTypedPayloadAndNotGeometry) {
     const auto fixture = BuildFixture();
     std::size_t offset =
