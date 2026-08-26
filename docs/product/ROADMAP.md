@@ -141,8 +141,8 @@ different structural, reference, evidence, and realization programs.
 | `framework.execution` | One generated registry, context, batch spine, recipe compiler, providers, route bindings, and whole-route cohesion | #4, #5, #6, #10, #57, #58, #70 | Partial | Unrelated complete programs pass one lifecycle, provider-substitution, and private-route mutation suite |
 | `machine.handle-exceptions` | Generated exceptions, traps, faults, recovery, replay, and why-not | #56 | Unimplemented | Physical/program/authority/resource/semantic fault injection and route parity |
 | `bootstrap.dependencies` | Framework-mediated package and runtime activation | #3, #12 | Partial | Exact package closure, loaded-object receipt, rollback and reactivation |
-| `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, and trajectory | #7, #13 | Partial; local unpublished continuation exists | Published generic composer plus exact native/PostgreSQL acceptance |
-| `substrate.bulk-deposit` | Whole-working-set presence, filtered production, transactional bulk persistence, and paid addressability | #15, #72 | Unimplemented in published branch | Set-wise PostgreSQL provider, replay, deliberate defect, sparse-state rejection, and paired storage/compute receipts |
+| `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, and trajectory | #7, #13 | Partial implementation published in draft PR #73 | Complete generic AST/testimony/reference closure plus exact provider parity |
+| `substrate.bulk-deposit` | Whole-working-set presence, filtered production, transactional bulk persistence, and paid addressability | #15, #72 | Partial implementation published in draft PR #73; local PostgreSQL 18.4 integration proven | Remaining provider mutants, direct/PostgreSQL parity, cancellation/replay, representative sparse-state and storage/compute receipts |
 | `bootstrap.unicode-root` | Product-deposited and coherently activated Unicode atom floor | #13, #14 | Integration proven; not product activated | Accepted package installed on PostgreSQL 18.6 with exact active DB/cache root |
 | `substrate.highway` | Append-only typed coordinates for every machine namespace | #52 | Unimplemented | Collision, release-scope, mirror parity, and bubble-up/bubble-down proof |
 | `evidence.record-lineage` | Immutable occurrences, testimony, derivation, and dependence roots | #16 | Unimplemented | Cross-source provenance and copied-evidence nonamplification |
@@ -161,11 +161,11 @@ different structural, reference, evidence, and realization programs.
 The immediate sequence is governed by the machine's dependencies rather than by an
 interesting corpus:
 
-1. Merge the continuation/architecture authority only after its hosted and exact
-   custom-stack checks are green; preserve the composition worktree fingerprint.
-2. Finish issue #15 at its actual interrupted boundary: receipted set-wise PostgreSQL
-   presence, filtered canonical production, transactional deposition, replay, and a
-   deliberate provider defect through the generic working set. Execute #72 against
+1. Keep merged continuation/architecture authority synchronized with published
+   implementation proof states; do not promote PR #73 to issue completion.
+2. Finish issue #15 from its published partial boundary: direct/PostgreSQL parity,
+   the remaining deliberate provider defects, cancellation/replay, and representative
+   whole-boundary measurements. Execute #72 against
    representative deposited state so every accepted index or perfcache proves the
    addressability it purchases and a dense absence/noise-floor mutant fails.
 3. Finish the universal framework obligations exposed by that work—especially the
