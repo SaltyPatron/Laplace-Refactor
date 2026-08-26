@@ -1300,6 +1300,11 @@
       "covered_dimensions": ["dense position addressing", "atom identity", "coordinate quantization", "Hilbert locality validation"]
     },
     {
+      "ctest_name": "UnicodeTier0Module.ExactPersistedContractSelectsNativeImplementation",
+      "evidence_targets": ["LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["persisted module identity", "exact contract selection", "unknown and changed contract rejection"]
+    },
+    {
       "ctest_name": "UnicodeTier0Module.WholeViewRejectsPartialPopulation",
       "evidence_targets": ["LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-UNICODE-SEED-SINGLE-ORIGIN"],
       "covered_dimensions": ["fixed complete Tier-0 population", "partial dense view rejection"],
