@@ -21,13 +21,13 @@
       "pgsql-18/lib/pg_stat_statements.so",
       "pgsql-18/share/extension/laplace.control",
       "pgsql-18/share/extension/laplace--1.0.0.sql",
-      "lib/liblaplace_engine.so.1.0.0"
+      "lib/liblaplace_engine.so.2.0.0"
     ],
     "required_loaded_objects": [
       "pgsql-18/bin/postgres",
       "pgsql-18/lib/laplace_pg.so",
       "pgsql-18/lib/pg_stat_statements.so",
-      "lib/liblaplace_engine.so.1.0.0"
+      "lib/liblaplace_engine.so.2.0.0"
     ],
     "required_capabilities": {
       "app_effect_boundary": 1,

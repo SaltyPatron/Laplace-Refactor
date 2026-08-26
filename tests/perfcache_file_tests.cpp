@@ -74,6 +74,21 @@ laplace_perfcache_status RejectSecondRecord(
         : LAPLACE_PERFCACHE_OK;
 }
 
+laplace_perfcache_status RequireBraceMetadata(
+    void*, const laplace_perfcache_view* view,
+    std::uint64_t* invalid_record_index) {
+    static constexpr std::array<std::uint8_t, 2> expected{{'{', '}'}};
+    if (view == nullptr || invalid_record_index == nullptr) {
+        return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
+    }
+    if (view->metadata_bytes != expected.size() ||
+        std::memcmp(view->metadata, expected.data(), expected.size()) != 0) {
+        *invalid_record_index = 0u;
+        return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+    }
+    return LAPLACE_PERFCACHE_OK;
+}
+
 laplace_perfcache_status Publish(
     const std::string& path,
     const std::vector<std::uint8_t>& artifact,
@@ -158,6 +173,102 @@ TEST(PerfcacheFile, PublishesMapsAndClosesVerifiedArtifact) {
     EXPECT_EQ(mapping.mapped_address, nullptr);
     EXPECT_EQ(mapping.native_handle, -1);
     RemoveDirectory(directory, path);
+}
+
+TEST(PerfcacheFile, StreamsCanonicalSectionsIntoOneExactImmutableArtifact) {
+    const auto contract = Contract(0x40u);
+    const auto expected = Build(contract, 10u);
+    const auto directory = NewDirectory();
+    const auto path = directory + "/streamed-plane.bin";
+    const std::array<std::uint8_t, 2> first_record{{1u, 10u}};
+    const std::array<std::uint8_t, 2> second_record{{2u, 20u}};
+    const std::array<std::uint8_t, 1> first_metadata{{'{'}};
+    const std::array<std::uint8_t, 1> second_metadata{{'}'}};
+    laplace_perfcache_file_builder* builder = nullptr;
+    ASSERT_EQ(laplace_perfcache_file_builder_create(
+                  path.c_str(), &contract, 2u, 16u, &builder),
+              LAPLACE_PERFCACHE_OK);
+    ASSERT_NE(builder, nullptr);
+    EXPECT_EQ(DirectoryEntryCount(directory), 1u);
+    ASSERT_EQ(laplace_perfcache_file_builder_append(
+                  builder, 0u, first_record.data(), 1u,
+                  first_metadata.data(), first_metadata.size()),
+              LAPLACE_PERFCACHE_OK);
+    ASSERT_EQ(laplace_perfcache_file_builder_append(
+                  builder, 1u, second_record.data(), 1u,
+                  second_metadata.data(), second_metadata.size()),
+              LAPLACE_PERFCACHE_OK);
+    std::uint64_t invalid_record = std::numeric_limits<std::uint64_t>::max();
+    std::size_t artifact_bytes = 0u;
+    laplace_digest256 artifact_digest{};
+    ASSERT_EQ(laplace_perfcache_file_builder_seal(
+                  builder, AcceptRecord, nullptr, RequireBraceMetadata, nullptr,
+                  &invalid_record,
+                  &artifact_bytes, &artifact_digest),
+              LAPLACE_PERFCACHE_OK);
+    EXPECT_EQ(invalid_record, std::numeric_limits<std::uint64_t>::max());
+    EXPECT_EQ(artifact_bytes, expected.size());
+    laplace_perfcache_mapping mapping{};
+    ASSERT_EQ(Open(path, contract, &mapping), LAPLACE_PERFCACHE_OK);
+    EXPECT_EQ(mapping.mapped_bytes, expected.size());
+    EXPECT_EQ(std::memcmp(
+                  mapping.mapped_address, expected.data(), expected.size()),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  mapping.view.artifact_digest.bytes, artifact_digest.bytes,
+                  sizeof(artifact_digest.bytes)),
+              0);
+    EXPECT_EQ(laplace_perfcache_mapping_close(&mapping),
+              LAPLACE_PERFCACHE_OK);
+    laplace_perfcache_file_builder_destroy(&builder);
+    EXPECT_EQ(builder, nullptr);
+    EXPECT_EQ(DirectoryEntryCount(directory), 1u);
+    RemoveDirectory(directory, path);
+}
+
+
+TEST(PerfcacheFile, WholeArtifactValidationPreventsPublication) {
+    const auto contract = Contract(0x40u);
+    const auto directory = NewDirectory();
+    const auto path = directory + "/invalid-metadata.bin";
+    const std::array<std::uint8_t, 4> records{{1u, 10u, 2u, 20u}};
+    const std::array<std::uint8_t, 2> metadata{{'}', '{'}};
+    laplace_perfcache_file_builder* builder = nullptr;
+    ASSERT_EQ(laplace_perfcache_file_builder_create(
+                  path.c_str(), &contract, 2u, metadata.size(), &builder),
+              LAPLACE_PERFCACHE_OK);
+    ASSERT_EQ(laplace_perfcache_file_builder_append(
+                  builder, 0u, records.data(), 2u,
+                  metadata.data(), metadata.size()),
+              LAPLACE_PERFCACHE_OK);
+    std::uint64_t invalid_record = std::numeric_limits<std::uint64_t>::max();
+    std::size_t artifact_bytes = 0u;
+    laplace_digest256 artifact_digest{};
+    EXPECT_EQ(laplace_perfcache_file_builder_seal(
+                  builder, AcceptRecord, nullptr, RequireBraceMetadata, nullptr,
+                  &invalid_record, &artifact_bytes, &artifact_digest),
+              LAPLACE_PERFCACHE_SEMANTIC_MISMATCH);
+    EXPECT_EQ(invalid_record, 0u);
+    EXPECT_NE(access(path.c_str(), F_OK), 0);
+    laplace_perfcache_file_builder_destroy(&builder);
+    EXPECT_EQ(DirectoryEntryCount(directory), 0u);
+    RemoveDirectory(directory, std::string{});
+}
+
+TEST(PerfcacheFile, AbortedStreamBuilderLeavesNoPublishedOrTemporaryArtifact) {
+    const auto contract = Contract(0x40u);
+    const auto directory = NewDirectory();
+    const auto path = directory + "/must-not-exist.bin";
+    laplace_perfcache_file_builder* builder = nullptr;
+    ASSERT_EQ(laplace_perfcache_file_builder_create(
+                  path.c_str(), &contract, 2u, 16u, &builder),
+              LAPLACE_PERFCACHE_OK);
+    EXPECT_EQ(DirectoryEntryCount(directory), 1u);
+    laplace_perfcache_file_builder_destroy(&builder);
+    EXPECT_EQ(builder, nullptr);
+    EXPECT_NE(access(path.c_str(), F_OK), 0);
+    EXPECT_EQ(DirectoryEntryCount(directory), 0u);
+    RemoveDirectory(directory, std::string{});
 }
 
 TEST(PerfcacheFile, WrittenTemporaryInodeIsValidatedBeforeImmutableLink) {

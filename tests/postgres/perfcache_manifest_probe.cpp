@@ -112,7 +112,7 @@ laplace_framework_context Context(const laplace_digest256& expected_epoch) {
 
 bool Generate(
     const std::filesystem::path& root,
-    const laplace_perfcache_module_v1& module,
+    const laplace_perfcache_module_v2& module,
     std::uint8_t ordinal,
     const laplace_id128& activation,
     const laplace_digest256& expected_epoch,
@@ -204,6 +204,11 @@ bool Generate(
                       request.sink_artifact_set_fingerprint, &staged)) {
         return false;
     }
+    const std::array<laplace_digest256, 1> sink_artifacts{{
+        request.sink_artifact_set_fingerprint}};
+    request.staged_sink_artifact_fingerprints = sink_artifacts.data();
+    request.staged_sink_count = sink_artifacts.size();
+    request.perfcache_sink_index = 0u;
     request.staged_receipt_id = staged.receipt_id;
     request.stream_fingerprint = staged.stream_fingerprint;
     request.staged_sink_artifacts_fingerprint =
@@ -250,7 +255,7 @@ int main(int argc, char** argv) {
             return 65;
         }
     }
-    laplace_perfcache_module_v1 module{};
+    laplace_perfcache_module_v2 module{};
     if (laplace_perfcache_framework_probe_module(&module) !=
         LAPLACE_PERFCACHE_REGISTRY_OK) {
         return 66;

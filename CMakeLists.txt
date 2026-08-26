@@ -24,6 +24,9 @@ set(LAPLACE_GTEST_SOURCE "" CACHE PATH "Verified upstream GoogleTest source dire
 set(LAPLACE_EIGEN_SOURCE "" CACHE PATH "Verified upstream Eigen source directory")
 set(LAPLACE_SPECTRA_SOURCE "" CACHE PATH "Verified upstream Spectra source directory")
 set(LAPLACE_PG_CONFIG "" CACHE FILEPATH "PostgreSQL pg_config for the server extension profile")
+set(LAPLACE_UNICODE_SOURCE_ROOT
+    "/vault/Data/UCD/Public/UCD/latest"
+    CACHE PATH "Pinned Unicode source-data root used by the root producer and conformance tests")
 option(LAPLACE_ENABLE_DOTNET_BINDINGS
     "Generate and build the .NET 10 typed ISA orchestration surface" OFF)
 set(LAPLACE_DEPENDENCY_LOCK

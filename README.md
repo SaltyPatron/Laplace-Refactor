@@ -35,8 +35,8 @@ context/program/input/output/receipt fingerprints. Every program requires an exp
 immutable framework context, and the generated operation registry owns native
 validation and execution dispatch. The PostgreSQL routes accept that same typed
 context explicitly; no hidden session or database context is substituted. The normal
-and address/undefined-behavior PostgreSQL profiles currently expose 173 registered
-tests. Staged canonical streams remain
+portable and address/undefined-behavior profiles currently expose 233 registered
+tests, while the selected oneAPI/PostgreSQL custom-stack profile exposes 249. Staged canonical streams remain
 inert until a writable authority admits an exact staged receipt and atomically
 publishes a compare-and-swap epoch transition; stale epochs and altered receipts are
 rejected before the activation provider runs. Immutable perfcache manifests now
@@ -55,8 +55,14 @@ tests include exact cross-runtime vectors, enumeration of all 1,114,112 codepoin
 positions, 100,000-element expanded/run identity and centroid comparisons, exact
 cancellation and subnormal rounding checks, ISA type/capacity/overlap/atomicity checks,
 perfcache corruption and semantic checks, same-directory publication, immutable mapped
-readers, an installed external identity-trajectory-and-ISA consumer, and 39 registered
-mutation tests that must fail for their exact expected reasons. The dependency
+readers, an installed external identity-trajectory-and-ISA consumer, and registered
+mutation tests that must fail for their exact expected reasons. A full Unicode 17
+producer run now emits one 2,230,150-frame canonical root stream and feeds both a
+validating sibling and a native dense 1,114,112-record Tier-0 perfcache sink. The
+Tier-0 artifact retains byte-exact atom records, validates full-population and hot-view
+parity, replays idempotently, cold-opens through the module registry, and prefaults
+before admission. It remains inert: the set-oriented PostgreSQL sibling, cross-sink
+database parity, and coherent root activation are still open. The dependency
 tests also construct unresolved edges, competing loader
 candidates, incompatible ABI generations, altered archives, and escaping members and
 prove each defect is rejected. This is component evidence; it is not a claim that the

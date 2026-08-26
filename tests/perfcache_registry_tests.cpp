@@ -47,20 +47,51 @@ laplace_perfcache_status ValidateRecord(
         : LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
 }
 
+laplace_perfcache_status ValidateView(
+    void*, const laplace_perfcache_view* view,
+    std::uint64_t* invalid_record_index) {
+    if (view == nullptr || invalid_record_index == nullptr ||
+        view->records == nullptr || view->record_count == 0U) {
+        return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+    }
+    *invalid_record_index = std::numeric_limits<std::uint64_t>::max();
+    for (std::uint64_t index = 0U; index < view->record_count; ++index) {
+        if (ValidateRecord(
+                nullptr, index,
+                view->records + static_cast<std::size_t>(index) *
+                    view->record_stride,
+                view->record_stride) != LAPLACE_PERFCACHE_OK) {
+            *invalid_record_index = index;
+            return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+        }
+    }
+    return LAPLACE_PERFCACHE_OK;
+}
+
+laplace_perfcache_status RejectWholeView(
+    void*, const laplace_perfcache_view*,
+    std::uint64_t* invalid_record_index) {
+    if (invalid_record_index != nullptr) {
+        *invalid_record_index = 1U;
+    }
+    return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
+}
+
 laplace_perfcache_status RejectLookup(
     void*, const laplace_perfcache_view*, const std::uint8_t*, std::size_t,
     std::uint64_t*, std::uint8_t*) {
     return LAPLACE_PERFCACHE_SEMANTIC_MISMATCH;
 }
 
-laplace_perfcache_module_v1 Module(std::uint8_t seed) {
-    laplace_perfcache_module_v1 module{};
+laplace_perfcache_module_v2 Module(std::uint8_t seed) {
+    laplace_perfcache_module_v2 module{};
     module.module_id = Id(seed);
     module.key_schema_id = Id(static_cast<std::uint8_t>(seed + 0x10u));
     module.value_schema_id = Id(static_cast<std::uint8_t>(seed + 0x20u));
     module.module_contract_fingerprint =
         Digest(static_cast<std::uint8_t>(seed + 0x30u));
     module.validate_record = ValidateRecord;
+    module.validate_view = ValidateView;
     module.access_law = LAPLACE_PERFCACHE_ACCESS_DENSE_U32_ZERO_BASED;
     module.key_bytes = 4u;
     module.value_bytes = 8u;
@@ -183,7 +214,8 @@ laplace_framework_stream_receipt StageReceipt(
     const laplace_framework_context& context,
     const laplace_digest256& source,
     const laplace_digest256& recipe,
-    const laplace_digest256& artifact) {
+    const laplace_digest256* artifacts,
+    std::size_t artifact_count) {
     const std::array<std::uint8_t, 4> bytes{{1u, 2u, 3u, 4u}};
     const laplace_framework_canonical_batch batch{
         bytes.data(), bytes.size(), 1u, 0u, LAPLACE_ISA_VALUE_U32_VECTOR,
@@ -194,20 +226,47 @@ laplace_framework_stream_receipt StageReceipt(
     stream.recipe_fingerprint = recipe;
     stream.batch_count = 1u;
     stream.flags = LAPLACE_FRAMEWORK_KNOWN_STREAM_FLAGS;
-    SinkState state{artifact};
-    laplace_framework_sink_v1 sink{
-        &state, BeginSink, StageSink, SealSink, AbortSink,
-        LAPLACE_FRAMEWORK_SINK_ABI_MAJOR,
-        LAPLACE_FRAMEWORK_SINK_ABI_MINOR, 0u, 0u};
+    std::vector<SinkState> states(artifact_count);
+    std::vector<laplace_framework_sink_v1> sinks(artifact_count);
+    for (std::size_t index = 0u; index < artifact_count; ++index) {
+        states[index].artifact = artifacts[index];
+        sinks[index] = laplace_framework_sink_v1{
+            &states[index], BeginSink, StageSink, SealSink, AbortSink,
+            LAPLACE_FRAMEWORK_SINK_ABI_MAJOR,
+            LAPLACE_FRAMEWORK_SINK_ABI_MINOR, 0u, 0u};
+    }
     laplace_framework_stream_receipt receipt{};
     EXPECT_EQ(laplace_framework_stage_canonical_stream(
-                  &context, &stream, &sink, 1u, &receipt),
+                  &context, &stream, sinks.data(), sinks.size(), &receipt),
               LAPLACE_FRAMEWORK_OK);
     return receipt;
 }
 
+laplace_framework_stream_receipt StageReceipt(
+    const laplace_framework_context& context,
+    const laplace_digest256& source,
+    const laplace_digest256& recipe,
+    const laplace_digest256& artifact) {
+    return StageReceipt(context, source, recipe, &artifact, 1u);
+}
+
+void BindSinkEvidence(
+    laplace_perfcache_generation_request* request,
+    const laplace_digest256* artifacts,
+    std::size_t artifact_count,
+    std::size_t perfcache_index,
+    const laplace_framework_stream_receipt& staged) {
+    request->staged_sink_artifact_fingerprints = artifacts;
+    request->staged_sink_count = artifact_count;
+    request->perfcache_sink_index = perfcache_index;
+    request->staged_receipt_id = staged.receipt_id;
+    request->stream_fingerprint = staged.stream_fingerprint;
+    request->staged_sink_artifacts_fingerprint =
+        staged.sink_artifacts_fingerprint;
+}
+
 laplace_perfcache_contract Contract(
-    const laplace_perfcache_module_v1& module,
+    const laplace_perfcache_module_v2& module,
     const laplace_id128& activation,
     const laplace_digest256& epoch,
     const laplace_digest256& source,
@@ -240,9 +299,9 @@ struct PreparedGeneration {
 PreparedGeneration Prepare(
     laplace_perfcache_registry* registry,
     const laplace_perfcache_artifact_provider_v1& provider,
-    const laplace_perfcache_module_v1* modules,
+    const laplace_perfcache_module_v2* modules,
     std::size_t module_count,
-    const laplace_perfcache_module_v1& module,
+    const laplace_perfcache_module_v2& module,
     const std::string& path,
     const laplace_id128& activation,
     const laplace_digest256& epoch,
@@ -293,10 +352,9 @@ PreparedGeneration Prepare(
     if (corrupt_receipt) {
         staged.receipt_id.bytes[0] ^= 1u;
     }
-    request.staged_receipt_id = staged.receipt_id;
-    request.stream_fingerprint = staged.stream_fingerprint;
-    request.staged_sink_artifacts_fingerprint =
-        staged.sink_artifacts_fingerprint;
+    const std::array<laplace_digest256, 1> sink_artifacts{{staged_artifact}};
+    BindSinkEvidence(
+        &request, sink_artifacts.data(), sink_artifacts.size(), 0u, staged);
     PreparedGeneration result{};
     result.context = context;
     result.staged = staged;
@@ -810,7 +868,7 @@ TEST(PerfcacheRegistry, ReservationIsSingleWriterCasAndAbortKeepsOldEpoch) {
 }
 
 TEST(PerfcacheRegistry, RequiredModuleSetRejectsPartialGeneration) {
-    std::array<laplace_perfcache_module_v1, 2> modules{{
+    std::array<laplace_perfcache_module_v2, 2> modules{{
         Module(0x10u), Module(0x20u)}};
     laplace_perfcache_registry* registry = nullptr;
     ASSERT_EQ(laplace_perfcache_registry_create(
@@ -831,8 +889,29 @@ TEST(PerfcacheRegistry, RequiredModuleSetRejectsPartialGeneration) {
     Cleanup(directory, {path});
 }
 
+TEST(PerfcacheRegistry, ColdOpenRequiresRegisteredWholeViewSemantics) {
+    auto module = Module(0x10U);
+    module.validate_view = RejectWholeView;
+    laplace_perfcache_registry* registry = nullptr;
+    ASSERT_EQ(laplace_perfcache_registry_create(&module, 1U, &registry),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_artifact_provider_v1 provider{};
+    ASSERT_EQ(laplace_perfcache_file_provider(&provider),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    const std::string directory = NewDirectory();
+    const std::string path = directory + "/whole-view-invalid.bin";
+    auto rejected = Prepare(
+        registry, provider, &module, 1U, module, path, Id(0x70U),
+        Digest(0x90U), 0x30U, 100U,
+        LAPLACE_PERFCACHE_REGISTRY_ARTIFACT_OPEN_FAILED);
+    EXPECT_EQ(rejected.value, nullptr);
+    EXPECT_EQ(laplace_perfcache_registry_destroy(registry),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    Cleanup(directory, {path});
+}
+
 TEST(PerfcacheRegistry, DependencyGraphAcceptsAcyclicAndRejectsCycles) {
-    std::array<laplace_perfcache_module_v1, 2> modules{{
+    std::array<laplace_perfcache_module_v2, 2> modules{{
         Module(0x10u), Module(0x20u)}};
     laplace_perfcache_registry* registry = nullptr;
     ASSERT_EQ(laplace_perfcache_registry_create(
@@ -890,10 +969,10 @@ TEST(PerfcacheRegistry, DependencyGraphAcceptsAcyclicAndRejectsCycles) {
     auto context = Context();
     auto staged = StageReceipt(
         context, source, recipe, request.sink_artifact_set_fingerprint);
-    request.staged_receipt_id = staged.receipt_id;
-    request.stream_fingerprint = staged.stream_fingerprint;
-    request.staged_sink_artifacts_fingerprint =
-        staged.sink_artifacts_fingerprint;
+    std::array<laplace_digest256, 1> sink_artifacts{{
+        request.sink_artifact_set_fingerprint}};
+    BindSinkEvidence(
+        &request, sink_artifacts.data(), sink_artifacts.size(), 0u, staged);
     laplace_perfcache_prepared_generation* prepared = nullptr;
     laplace_perfcache_generation_receipt receipt{};
     ASSERT_EQ(laplace_perfcache_registry_prepare(
@@ -927,10 +1006,9 @@ TEST(PerfcacheRegistry, DependencyGraphAcceptsAcyclicAndRejectsCycles) {
               LAPLACE_PERFCACHE_REGISTRY_OK);
     staged = StageReceipt(
         context, source, recipe, request.sink_artifact_set_fingerprint);
-    request.staged_receipt_id = staged.receipt_id;
-    request.stream_fingerprint = staged.stream_fingerprint;
-    request.staged_sink_artifacts_fingerprint =
-        staged.sink_artifacts_fingerprint;
+    sink_artifacts[0] = request.sink_artifact_set_fingerprint;
+    BindSinkEvidence(
+        &request, sink_artifacts.data(), sink_artifacts.size(), 0u, staged);
     prepared = nullptr;
     EXPECT_EQ(laplace_perfcache_registry_prepare(
                   registry, &context, &staged, &provider, &request,
@@ -968,6 +1046,121 @@ TEST(PerfcacheRegistry, ForgedOrUnrelatedStagedReceiptCannotPrepare) {
     Cleanup(directory, {forged_path, unrelated_path});
 }
 
+TEST(PerfcacheRegistry, MultiSinkReceiptBindsEverySiblingAndSelectedArtifact) {
+    const auto module = Module(0x10u);
+    laplace_perfcache_registry* registry = nullptr;
+    ASSERT_EQ(laplace_perfcache_registry_create(&module, 1u, &registry),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_artifact_provider_v1 provider{};
+    ASSERT_EQ(laplace_perfcache_file_provider(&provider),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    const std::string directory = NewDirectory();
+    const std::string path = directory + "/multi-sink.bin";
+    const laplace_id128 activation = Id(0x72u);
+    const laplace_digest256 epoch = Digest(0x92u);
+    const laplace_digest256 source = Digest(0x32u);
+    const laplace_digest256 recipe = Digest(0x52u);
+    const auto contract = Contract(
+        module, activation, epoch, source, recipe);
+    const auto bytes = Artifact(contract, 800u);
+    const auto artifact_digest = ArtifactDigest(bytes, contract);
+    Publish(path, bytes, contract);
+    laplace_perfcache_generation_artifact artifact{};
+    artifact.path = path.c_str();
+    artifact.contract = contract;
+    artifact.expected_artifact_digest = artifact_digest;
+    artifact.flags = LAPLACE_PERFCACHE_GENERATION_ARTIFACT_REQUIRED;
+    laplace_perfcache_generation_request request{};
+    request.artifacts = &artifact;
+    request.artifact_count = 1u;
+    request.activation_epoch_id = activation;
+    request.epoch_fingerprint = epoch;
+    ASSERT_EQ(laplace_perfcache_required_module_set_fingerprint(
+                  &module, 1u, &request.required_module_set_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_EQ(laplace_perfcache_generation_artifact_set_fingerprint(
+                  &request, &request.sink_artifact_set_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    const auto context = Context();
+    std::array<laplace_digest256, 2> sink_artifacts{{
+        Digest(0xc2u), request.sink_artifact_set_fingerprint}};
+    const auto staged = StageReceipt(
+        context, source, recipe, sink_artifacts.data(),
+        sink_artifacts.size());
+    BindSinkEvidence(
+        &request, sink_artifacts.data(), sink_artifacts.size(), 1u, staged);
+    laplace_perfcache_prepared_generation* prepared = nullptr;
+    laplace_perfcache_generation_receipt receipt{};
+    ASSERT_EQ(laplace_perfcache_registry_prepare(
+                  registry, &context, &staged, &provider, &request,
+                  &prepared, &receipt),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_NE(prepared, nullptr);
+    EXPECT_EQ(receipt.staged_sink_count, 2u);
+    EXPECT_EQ(receipt.perfcache_sink_index, 1u);
+    laplace_perfcache_registry_discard_prepared(&prepared);
+
+    std::size_t manifest_bytes = 0u;
+    ASSERT_EQ(laplace_perfcache_generation_manifest_measure(
+                  &context, &staged, &request, &manifest_bytes),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    std::vector<std::uint8_t> encoded(manifest_bytes, 0u);
+    std::size_t written = 0u;
+    laplace_digest256 manifest_fingerprint{};
+    ASSERT_EQ(laplace_perfcache_generation_manifest_write(
+                  &context, &staged, &request, encoded.data(), encoded.size(),
+                  &written, &manifest_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    laplace_perfcache_generation_manifest* manifest = nullptr;
+    ASSERT_EQ(laplace_perfcache_generation_manifest_open(
+                  encoded.data(), encoded.size(), &manifest,
+                  &manifest_fingerprint),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    const laplace_framework_context* decoded_context = nullptr;
+    const laplace_framework_stream_receipt* decoded_staged = nullptr;
+    const laplace_perfcache_generation_request* decoded_request = nullptr;
+    ASSERT_EQ(laplace_perfcache_generation_manifest_view(
+                  manifest, &decoded_context, &decoded_staged,
+                  &decoded_request),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_EQ(decoded_request->staged_sink_count, 2u);
+    EXPECT_EQ(decoded_request->perfcache_sink_index, 1u);
+    EXPECT_TRUE(Same(
+        decoded_request->staged_sink_artifact_fingerprints[0],
+        sink_artifacts[0]));
+    EXPECT_TRUE(Same(
+        decoded_request->staged_sink_artifact_fingerprints[1],
+        sink_artifacts[1]));
+    ASSERT_EQ(laplace_perfcache_registry_prepare(
+                  registry, decoded_context, decoded_staged, &provider,
+                  decoded_request, &prepared, &receipt),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    ASSERT_NE(prepared, nullptr);
+    laplace_perfcache_registry_discard_prepared(&prepared);
+    laplace_perfcache_generation_manifest_close(manifest);
+
+    sink_artifacts[0].bytes[0] ^= 1u;
+    BindSinkEvidence(
+        &request, sink_artifacts.data(), sink_artifacts.size(), 1u, staged);
+    EXPECT_EQ(laplace_perfcache_registry_prepare(
+                  registry, &context, &staged, &provider, &request,
+                  &prepared, &receipt),
+              LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT);
+    EXPECT_EQ(prepared, nullptr);
+
+    sink_artifacts[0].bytes[0] ^= 1u;
+    BindSinkEvidence(
+        &request, sink_artifacts.data(), sink_artifacts.size(), 0u, staged);
+    EXPECT_EQ(laplace_perfcache_registry_prepare(
+                  registry, &context, &staged, &provider, &request,
+                  &prepared, &receipt),
+              LAPLACE_PERFCACHE_REGISTRY_INVALID_ARGUMENT);
+    EXPECT_EQ(prepared, nullptr);
+    EXPECT_EQ(laplace_perfcache_registry_destroy(registry),
+              LAPLACE_PERFCACHE_REGISTRY_OK);
+    Cleanup(directory, {path});
+}
+
 TEST(PerfcacheRegistry, CanonicalManifestReconstructsARealGeneration) {
     const auto module = Module(0x10u);
     const std::string directory = NewDirectory();
@@ -1001,10 +1194,10 @@ TEST(PerfcacheRegistry, CanonicalManifestReconstructsARealGeneration) {
     auto context = Context();
     auto staged = StageReceipt(
         context, source, recipe, request.sink_artifact_set_fingerprint);
-    request.staged_receipt_id = staged.receipt_id;
-    request.stream_fingerprint = staged.stream_fingerprint;
-    request.staged_sink_artifacts_fingerprint =
-        staged.sink_artifacts_fingerprint;
+    const std::array<laplace_digest256, 1> sink_artifacts{{
+        request.sink_artifact_set_fingerprint}};
+    BindSinkEvidence(
+        &request, sink_artifacts.data(), sink_artifacts.size(), 0u, staged);
 
     std::size_t manifest_bytes = 0u;
     ASSERT_EQ(laplace_perfcache_generation_manifest_measure(

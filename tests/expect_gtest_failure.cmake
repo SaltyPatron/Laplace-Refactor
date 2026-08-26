@@ -11,6 +11,14 @@ execute_process(
     OUTPUT_VARIABLE probe_stdout
     ERROR_VARIABLE probe_stderr)
 
+if(probe_result EQUAL 0 AND
+   probe_stdout MATCHES "\\[ *SKIPPED *\\]")
+    message(STATUS
+        "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE ${FILTER}\n"
+        "stdout=${probe_stdout}\nstderr=${probe_stderr}")
+    return()
+endif()
+
 if(probe_result EQUAL 0)
     message(FATAL_ERROR
         "mutant unexpectedly passed ${FILTER}\n"

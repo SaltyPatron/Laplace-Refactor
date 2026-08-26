@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <vector>
 #include <utility>
 
@@ -202,6 +203,127 @@ TEST(PersistenceContract, ProvenanceReceiptIsNotARealizationIdentityInput) {
                   &fixture.physicality, &after),
               LAPLACE_PERSISTENCE_OK);
     EXPECT_EQ(std::memcmp(before.bytes, after.bytes, sizeof(before.bytes)), 0);
+}
+
+TEST(PersistenceContract, AtomicPointHasCanonicalInactiveTrajectoryState) {
+    laplace_id128 entity{};
+    laplace_digest256 witness{};
+    laplace_digest256 recipe{};
+    laplace_digest256 geometry_epoch{};
+    laplace_point4d point{{0.125, -0.25, 0.5, -0.75}};
+    ASSERT_EQ(laplace_identity_codepoint_witness(
+                  0x41u, &entity, &witness),
+              LAPLACE_IDENTITY_OK);
+    Fill(&recipe, 0x20u);
+    Fill(&geometry_epoch, 0x40u);
+    laplace_persistence_physicality_record physicality{};
+    ASSERT_EQ(laplace_persistence_atomic_point_physicality(
+                  &entity, 1u, &recipe, &geometry_epoch, &point, &physicality),
+              LAPLACE_PERSISTENCE_OK);
+    EXPECT_EQ(physicality.physicality_type,
+              LAPLACE_PERSISTENCE_PHYSICALITY_ATOMIC_POINT);
+    EXPECT_EQ(physicality.vertex_class, LAPLACE_PERSISTENCE_VERTEX_NONE);
+    EXPECT_EQ(physicality.structural_form,
+              LAPLACE_PERSISTENCE_STRUCTURAL_ATOMIC_POINT);
+    EXPECT_EQ(physicality.logical_count, 1u);
+    EXPECT_EQ(physicality.vertex_count, 0u);
+    EXPECT_TRUE(std::all_of(
+        std::begin(physicality.trajectory_fingerprint.bytes),
+        std::end(physicality.trajectory_fingerprint.bytes),
+        [](std::uint8_t value) { return value == 0u; }));
+    std::uint64_t radius_bits = UINT64_MAX;
+    std::memcpy(&radius_bits, &physicality.radius, sizeof(radius_bits));
+    EXPECT_EQ(radius_bits, 0u);
+
+    std::array<std::uint8_t, 232> frame{};
+    std::size_t written = 0u;
+    ASSERT_EQ(laplace_persistence_frame_encode_physicality(
+                  &physicality, frame.data(), frame.size(), &written),
+              LAPLACE_PERSISTENCE_OK);
+    laplace_persistence_record decoded{};
+    std::size_t consumed = 0u;
+    ASSERT_EQ(laplace_persistence_frame_decode(
+                  frame.data(), frame.size(), &decoded, &consumed),
+              LAPLACE_PERSISTENCE_OK);
+    EXPECT_EQ(consumed, frame.size());
+    EXPECT_EQ(std::memcmp(
+                  &decoded.value.physicality, &physicality,
+                  sizeof(physicality)),
+              0);
+
+    auto active_trajectory = physicality;
+    active_trajectory.trajectory_fingerprint.bytes[0] = 1u;
+    laplace_digest256 rejected{};
+    EXPECT_EQ(laplace_persistence_physicality_identify(
+                  &active_trajectory, &rejected),
+              LAPLACE_PERSISTENCE_RECORD_INVALID);
+
+    auto negative_zero = physicality;
+    const std::uint64_t negative_zero_bits = UINT64_C(1) << 63u;
+    std::memcpy(
+        &negative_zero.radius, &negative_zero_bits,
+        sizeof(negative_zero.radius));
+    EXPECT_EQ(laplace_persistence_physicality_identify(
+                  &negative_zero, &rejected),
+              LAPLACE_PERSISTENCE_RECORD_INVALID);
+
+    auto changed_point = point;
+    changed_point.component[3] = -0.5;
+    laplace_persistence_physicality_record changed{};
+    ASSERT_EQ(laplace_persistence_atomic_point_physicality(
+                  &entity, 1u, &recipe, &geometry_epoch, &changed_point,
+                  &changed),
+              LAPLACE_PERSISTENCE_OK);
+    EXPECT_NE(std::memcmp(
+                  changed.physicality_id.bytes,
+                  physicality.physicality_id.bytes,
+                  sizeof(changed.physicality_id.bytes)),
+              0);
+}
+
+TEST(PersistenceContract, AtomicPointStreamRequiresNoTrajectoryRows) {
+    Fixture fixture{};
+    ASSERT_EQ(laplace_identity_codepoint_witness(
+                  0x41u, &fixture.a, &fixture.a_witness),
+              LAPLACE_IDENTITY_OK);
+    laplace_digest256 recipe{};
+    laplace_digest256 geometry_epoch{};
+    Fill(&recipe, 0x20u);
+    Fill(&geometry_epoch, 0x40u);
+    const laplace_point4d point{{0.125, -0.25, 0.5, -0.75}};
+    ASSERT_EQ(laplace_persistence_atomic_point_physicality(
+                  &fixture.a, 1u, &recipe, &geometry_epoch, &point,
+                  &fixture.physicality),
+              LAPLACE_PERSISTENCE_OK);
+    fixture.occurrence.entity_id = fixture.a;
+    fixture.occurrence.physicality_id = fixture.physicality.physicality_id;
+    Fill(&fixture.occurrence.source_fingerprint, 0x70u);
+    Fill(&fixture.occurrence.context_fingerprint, 0xa0u);
+    fixture.occurrence.source_ordinal = 1u;
+    fixture.occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
+    ASSERT_EQ(laplace_persistence_occurrence_identify(
+                  &fixture.occurrence, &fixture.occurrence.occurrence_id),
+              LAPLACE_PERSISTENCE_OK);
+    AppendFrame(
+        &fixture, LAPLACE_PERSISTENCE_RECORD_ENTITY,
+        laplace_persistence_frame_encode_entity,
+        &fixture.a, &fixture.a_witness);
+    AppendFrame(
+        &fixture, LAPLACE_PERSISTENCE_RECORD_PHYSICALITY,
+        laplace_persistence_frame_encode_physicality, &fixture.physicality);
+    AppendFrame(
+        &fixture, LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE,
+        laplace_persistence_frame_encode_occurrence, &fixture.occurrence);
+    const auto batch = Batch(
+        fixture.bytes.data(), fixture.bytes.size(), fixture.records, 0u);
+    laplace_persistence_summary summary{};
+    ASSERT_EQ(laplace_persistence_validate_stream(&batch, 1u, &summary),
+              LAPLACE_PERSISTENCE_OK);
+    EXPECT_EQ(summary.entity_count, 1u);
+    EXPECT_EQ(summary.physicality_count, 1u);
+    EXPECT_EQ(summary.trajectory_vertex_count, 0u);
+    EXPECT_EQ(summary.logical_occurrence_count, 0u);
+    EXPECT_EQ(summary.occurrence_count, 1u);
 }
 
 TEST(PersistenceContract, LaterTrajectoryDefectCannotPublishPartialSummary) {

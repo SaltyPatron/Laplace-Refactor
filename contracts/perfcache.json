@@ -22,30 +22,33 @@
     "rule": "binds the exact generated module contract independently of the artifact payload"
   },
   "artifact_provider_abi": {"major": 1, "minor": 1},
-  "module_abi": {"major": 1, "minor": 1},
+  "module_abi": {"major": 2, "minor": 0},
   "modules": {
     "framework_probe": {
       "module_id": "9dcf5110ee3085368f65237c155ccd11",
       "key_schema_id": "d1d7384380796c44701b2d99b081e7dd",
       "value_schema_id": "55048fbdd2d7443356e9cf097f283497",
-      "contract_fingerprint": "ac065b6d543abe9b046258d0fb070018ac737388a9923d044c194aa95c4247b0",
-      "contract_preimage": "laplace.perfcache.module.framework-probe/v1|key=u32-le|value=u64-le|access=dense-u32-zero-based|module-abi=1.1",
+      "contract_fingerprint": "552d0c9695a7fdd013289bfe8ab2694735930aa85f4f30d96aa315828aeaed02",
+      "contract_preimage": "laplace.perfcache.module.framework-probe/v1|key=u32-le|value=u64-le|access=dense-u32-zero-based|validation=record+whole-view|module-abi=2.0",
+      "validation": "record-and-whole-view",
       "access_law": "dense_u32_zero_based",
       "key_bytes": 4,
       "value_bytes": 8,
       "required": true
     },
     "unicode_tier0": {
-      "module_id": "3d9bfb74108fa553d7cda6e11de34a22",
+      "module_id": "cb4d73fe1c7ad3784bdd69f9e22f5b3f",
       "key_schema_id": "94a3071b818712e79766560b00104c03",
-      "value_schema_id": "2318a2c963b44043b2394f6c9c16aae2",
-      "contract_fingerprint": "0419115b5e5e72dfcbdd1894204fa030c2090dd0c8b492841f5e3c7674d0154b",
-      "contract_preimage": "laplace.perfcache.module.unicode-tier0/v1|key=u32-le|value=record-offset-u64le,record-bytes-u32le,placement-rank-u32le,position-class-u8,lup-length-u8,reserved-u16,lup-bytes-4,content-id-16,identity-witness-32,coordinate-bits-32,hilbert-key-16|metadata=canonical-atom-record-stream-v1|access=dense-u32-zero-based|population=1114112|module-abi=1.1",
+      "value_schema_id": "77426e5a65de6a72ab29ebe8ded89097",
+      "value_schema_preimage": "laplace.perfcache.schema.unicode-tier0-value/v2|record-offset-u64le,record-bytes-u32le,placement-rank-u32le,position-class-u8,lup-length-u8,reserved-u16,lup-bytes-4,content-id-16,identity-witness-32,coordinate-bits-32,hilbert-key-16,physicality-id-32",
+      "contract_fingerprint": "4be3330a91e1f4c68087fa79da527e5c09784effc3c4e544e6b421b4942aa3d8",
+      "contract_preimage": "laplace.perfcache.module.unicode-tier0/v2|key=u32-le|value=record-offset-u64le,record-bytes-u32le,placement-rank-u32le,position-class-u8,lup-length-u8,reserved-u16,lup-bytes-4,content-id-16,identity-witness-32,coordinate-bits-32,hilbert-key-16,physicality-id-32|metadata=canonical-atom-record-stream-v2|access=dense-u32-zero-based|population=1114112|validation=record+whole-view|module-abi=2.0",
+      "validation": "record-and-whole-view",
       "access_law": "dense_u32_zero_based",
       "key_bytes": 4,
-      "value_bytes": 120,
+      "value_bytes": 152,
       "population": 1114112,
-      "metadata": "one byte-exact concatenation of the canonical Unicode atom records consumed by this sink",
+      "metadata": "one byte-exact concatenation of the canonical Unicode atom record v2 frames consumed by this sink",
       "required": true
     }
   },
@@ -56,6 +59,13 @@
     "rejected": 4,
     "aborted": 5,
     "materialized": 6
+  },
+  "generation_manifest": {
+    "version": 2,
+    "magic": "LPCMNF02",
+    "sink_evidence": "ordered-staged-sink-artifact-fingerprints-plus-perfcache-sink-index",
+    "admission": "recompute-the-framework-sink-aggregate-and-prove-the-selected-fingerprint-is-the-perfcache-artifact-set",
+    "rule": "PostgreSQL-and-perfcache-may-be-sibling-sinks-of-one-canonical-stream; neither sibling may be omitted from the generation receipt"
   },
   "postgresql_control_plane": {
     "shared_state": "database-scoped-named-dsm-fixed-layout-no-process-pointers",

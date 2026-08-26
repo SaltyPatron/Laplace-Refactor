@@ -57,6 +57,8 @@ typedef struct laplace_perfcache_mapping {
     uint64_t file_id;
 } laplace_perfcache_mapping;
 
+typedef struct laplace_perfcache_file_builder laplace_perfcache_file_builder;
+
 typedef enum laplace_perfcache_status {
     LAPLACE_PERFCACHE_OK = 0,
     LAPLACE_PERFCACHE_INVALID_ARGUMENT = 1,
@@ -88,9 +90,34 @@ typedef laplace_perfcache_status (*laplace_perfcache_record_validator)(
     const uint8_t* record,
     uint32_t record_stride);
 
+typedef laplace_perfcache_status (*laplace_perfcache_view_validator)(
+    void* context,
+    const laplace_perfcache_view* view,
+    uint64_t* invalid_record_index);
+
 LAPLACE_API laplace_perfcache_status laplace_perfcache_measure(
     const laplace_perfcache_spec* spec,
     size_t* artifact_bytes);
+
+LAPLACE_API laplace_perfcache_status laplace_perfcache_layout_measure(
+    const laplace_perfcache_contract* contract,
+    uint64_t record_count,
+    uint64_t metadata_bytes,
+    size_t* artifact_bytes);
+
+/*
+ * Seals records and metadata already placed at their canonical offsets in one
+ * caller-owned artifact buffer.  The header and terminal digest are written by
+ * the canonical perfcache codec; no second records/metadata copy is performed.
+ */
+LAPLACE_API laplace_perfcache_status laplace_perfcache_layout_seal(
+    const laplace_perfcache_contract* contract,
+    uint64_t record_count,
+    uint64_t metadata_bytes,
+    uint8_t* artifact,
+    size_t artifact_capacity,
+    size_t* artifact_bytes,
+    laplace_digest256* artifact_digest);
 
 LAPLACE_API laplace_perfcache_status laplace_perfcache_write(
     const laplace_perfcache_spec* spec,
@@ -136,6 +163,34 @@ LAPLACE_API laplace_perfcache_status laplace_perfcache_publish_file(
     laplace_perfcache_record_validator validator,
     void* validator_context,
     uint64_t* invalid_record_index);
+
+LAPLACE_API laplace_perfcache_status laplace_perfcache_file_builder_create(
+    const char* path,
+    const laplace_perfcache_contract* contract,
+    uint64_t record_count,
+    uint64_t maximum_metadata_bytes,
+    laplace_perfcache_file_builder** builder);
+
+LAPLACE_API laplace_perfcache_status laplace_perfcache_file_builder_append(
+    laplace_perfcache_file_builder* builder,
+    uint64_t first_record_index,
+    const uint8_t* records,
+    uint64_t record_count,
+    const uint8_t* metadata,
+    uint64_t metadata_bytes);
+
+LAPLACE_API laplace_perfcache_status laplace_perfcache_file_builder_seal(
+    laplace_perfcache_file_builder* builder,
+    laplace_perfcache_record_validator validator,
+    void* validator_context,
+    laplace_perfcache_view_validator view_validator,
+    void* view_validator_context,
+    uint64_t* invalid_record_index,
+    size_t* artifact_bytes,
+    laplace_digest256* artifact_digest);
+
+LAPLACE_API void laplace_perfcache_file_builder_destroy(
+    laplace_perfcache_file_builder** builder);
 
 #ifdef __cplusplus
 }

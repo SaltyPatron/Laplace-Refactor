@@ -1,3 +1,54 @@
+set(_laplace_collation_archive
+    "${LAPLACE_UNICODE_SOURCE_ROOT}/uca/CollationTest.zip")
+if(EXISTS "${_laplace_collation_archive}")
+    file(SHA256 "${_laplace_collation_archive}" _laplace_collation_archive_sha256)
+    if(NOT _laplace_collation_archive_sha256 STREQUAL
+       "9ba92cb7627c2d09ba537dc2035d006f44f0cafb4e2198f147897fdd9d71bb10")
+        message(FATAL_ERROR
+            "Pinned Unicode CollationTest.zip does not match the UCA 17 contract")
+    endif()
+    set(_laplace_collation_extract_root
+        "${CMAKE_CURRENT_BINARY_DIR}/unicode-collation-17")
+    set(_laplace_collation_non_ignorable
+        "${_laplace_collation_extract_root}/CollationTest/CollationTest_NON_IGNORABLE.txt")
+    set(_laplace_collation_shifted
+        "${_laplace_collation_extract_root}/CollationTest/CollationTest_SHIFTED.txt")
+    set(_laplace_extract_collation TRUE)
+    if(EXISTS "${_laplace_collation_non_ignorable}" AND
+       EXISTS "${_laplace_collation_shifted}")
+        file(SHA256 "${_laplace_collation_non_ignorable}"
+            _laplace_collation_non_ignorable_sha256)
+        file(SHA256 "${_laplace_collation_shifted}"
+            _laplace_collation_shifted_sha256)
+        if(_laplace_collation_non_ignorable_sha256 STREQUAL
+               "6c43c92ea9c87fcefa94a2e362fb31fb0650d5c80ae420b46d9ccc02784a0c5f" AND
+           _laplace_collation_shifted_sha256 STREQUAL
+               "cbeecf871a3567e8229c869a1f7c36e777c077ee2be6470efe4fb17f01886d4b")
+            set(_laplace_extract_collation FALSE)
+        endif()
+    endif()
+    if(_laplace_extract_collation)
+        file(REMOVE_RECURSE "${_laplace_collation_extract_root}")
+        file(MAKE_DIRECTORY "${_laplace_collation_extract_root}")
+        file(ARCHIVE_EXTRACT
+            INPUT "${_laplace_collation_archive}"
+            DESTINATION "${_laplace_collation_extract_root}")
+        foreach(_laplace_suite IN ITEMS non_ignorable shifted)
+            file(SHA256 "${_laplace_collation_${_laplace_suite}}"
+                _laplace_collation_${_laplace_suite}_sha256)
+        endforeach()
+        if(NOT _laplace_collation_non_ignorable_sha256 STREQUAL
+               "6c43c92ea9c87fcefa94a2e362fb31fb0650d5c80ae420b46d9ccc02784a0c5f" OR
+           NOT _laplace_collation_shifted_sha256 STREQUAL
+               "cbeecf871a3567e8229c869a1f7c36e777c077ee2be6470efe4fb17f01886d4b")
+            message(FATAL_ERROR
+                "Extracted Unicode 17 collation suites do not match their contracts")
+        endif()
+    endif()
+    add_compile_definitions(
+        LAPLACE_UNICODE_COLLATION_TEST_ROOT="${_laplace_collation_extract_root}")
+endif()
+
 add_executable(laplace_identity_tests
     identity_tests.cpp)
 target_link_libraries(laplace_identity_tests
@@ -10,6 +61,47 @@ target_compile_options(laplace_identity_tests PRIVATE
 include(GoogleTest)
 gtest_discover_tests(laplace_identity_tests
     PROPERTIES LABELS "implementation;identity")
+
+if(UNIX)
+    add_executable(laplace_spool_tests
+        spool_tests.cpp)
+    target_link_libraries(laplace_spool_tests PRIVATE
+        Laplace::Framework GTest::gtest_main)
+    target_compile_options(laplace_spool_tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    gtest_discover_tests(laplace_spool_tests
+        PROPERTIES LABELS "implementation;framework;spool;producer")
+
+    add_library(laplace_spool_ordinal_mutant STATIC
+        ../engine/src/spool.cpp)
+    target_include_directories(laplace_spool_ordinal_mutant PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_spool_ordinal_mutant PRIVATE
+        Laplace::Framework BLAKE3::blake3)
+    target_compile_definitions(laplace_spool_ordinal_mutant PRIVATE
+        LAPLACE_TEST_SPOOL_SKIP_ORDINAL_VALIDATION=1)
+    target_compile_options(laplace_spool_ordinal_mutant PRIVATE
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_executable(laplace_spool_ordinal_mutation_probe
+        spool_tests.cpp)
+    target_include_directories(laplace_spool_ordinal_mutation_probe PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_spool_ordinal_mutation_probe PRIVATE
+        laplace_spool_ordinal_mutant Laplace::Framework GTest::gtest_main)
+    target_compile_options(laplace_spool_ordinal_mutation_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME spool.mutation-ordinal-validation-omission-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_spool_ordinal_mutation_probe>"
+            "-DFILTER=CanonicalSpool.RejectsOrdinalAndTypeDefectsBeforeWritingAnyBytes"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+    set_tests_properties(
+        spool.mutation-ordinal-validation-omission-detected PROPERTIES
+        LABELS "implementation;framework;spool;producer;mutation")
+endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(
@@ -34,6 +126,141 @@ target_compile_options(laplace_unicode_root_tests PRIVATE
 gtest_discover_tests(laplace_unicode_root_tests
     PROPERTIES LABELS "implementation;unicode;identity;geometry;perfcache")
 
+if(TARGET LaplaceOneApi::MKLRuntime)
+    add_executable(laplace_unicode_numeric_tests
+        unicode_numeric_tests.cpp)
+    target_link_libraries(laplace_unicode_numeric_tests PRIVATE
+        Laplace::UnicodeNumeric GTest::gtest_main)
+    target_compile_options(laplace_unicode_numeric_tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    gtest_discover_tests(laplace_unicode_numeric_tests PROPERTIES
+        LABELS "implementation;unicode;geometry;oneapi;numeric;receipt")
+
+    add_library(laplace_unicode_numeric_axis_mutant STATIC
+        ../engine/src/unicode_numeric_oneapi.cpp)
+    target_include_directories(laplace_unicode_numeric_axis_mutant PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_unicode_numeric_axis_mutant PRIVATE
+        BLAKE3::blake3
+        LaplaceOneApi::MKLRuntime
+        LaplaceOneApi::IntelMathRuntime)
+    target_compile_definitions(laplace_unicode_numeric_axis_mutant PRIVATE
+        LAPLACE_TEST_UNICODE_NUMERIC_SWAP_FIRST_AXES=1)
+    target_compile_options(laplace_unicode_numeric_axis_mutant PRIVATE
+        -O3 -march=haswell -fp-model=strict -fno-fast-math -ffp-contract=off
+        -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow
+        -Wno-overriding-option)
+    add_executable(laplace_unicode_numeric_axis_mutation_probe
+        unicode_numeric_tests.cpp)
+    target_include_directories(laplace_unicode_numeric_axis_mutation_probe PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_unicode_numeric_axis_mutation_probe PRIVATE
+        laplace_unicode_numeric_axis_mutant GTest::gtest_main)
+    target_compile_options(laplace_unicode_numeric_axis_mutation_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME unicode-numeric.mutation-axis-order-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_unicode_numeric_axis_mutation_probe>"
+            "-DFILTER=UnicodeNumericProvider.CalculatesBatchWithExactReceiptAndStableBits"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+    set_tests_properties(unicode-numeric.mutation-axis-order-detected PROPERTIES
+        LABELS "implementation;unicode;geometry;oneapi;numeric;receipt;mutation")
+
+    add_executable(laplace_unicode_root_builder_tests
+        unicode_root_builder_tests.cpp)
+    target_link_libraries(laplace_unicode_root_builder_tests PRIVATE
+        Laplace::UnicodeRoot Laplace::UnicodeNumeric GTest::gtest_main)
+    target_compile_options(laplace_unicode_root_builder_tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    gtest_discover_tests(laplace_unicode_root_builder_tests PROPERTIES
+        LABELS "implementation;unicode;root;producer;spool;oneapi;receipt")
+
+    add_library(laplace_unicode_root_builder_rank_mutant STATIC
+        ../engine/src/unicode_root_builder.cpp)
+    target_include_directories(laplace_unicode_root_builder_rank_mutant PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_unicode_root_builder_rank_mutant PRIVATE
+        Laplace::UnicodeRoot BLAKE3::blake3)
+    target_compile_definitions(laplace_unicode_root_builder_rank_mutant PRIVATE
+        LAPLACE_TEST_UNICODE_ROOT_BUILDER_USE_POSITION_AS_NUMERIC_RANK=1)
+    target_compile_options(laplace_unicode_root_builder_rank_mutant PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_executable(laplace_unicode_root_builder_rank_mutation_probe
+        unicode_root_builder_tests.cpp)
+    target_link_libraries(
+        laplace_unicode_root_builder_rank_mutation_probe PRIVATE
+        laplace_unicode_root_builder_rank_mutant Laplace::UnicodeNumeric
+        GTest::gtest_main)
+    target_compile_options(
+        laplace_unicode_root_builder_rank_mutation_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME unicode-root-builder.mutation-placement-rank-bypass-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_unicode_root_builder_rank_mutation_probe>"
+            "-DFILTER=UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+    set_tests_properties(
+        unicode-root-builder.mutation-placement-rank-bypass-detected PROPERTIES
+        LABELS "implementation;unicode;root;producer;geometry;mutation")
+
+    add_executable(laplace_unicode_tier0_sink_offset_mutation_probe
+        unicode_root_builder_tests.cpp
+        ../engine/src/unicode_tier0_sink.cpp)
+    target_include_directories(
+        laplace_unicode_tier0_sink_offset_mutation_probe PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_compile_definitions(
+        laplace_unicode_tier0_sink_offset_mutation_probe PRIVATE
+        LAPLACE_TEST_UNICODE_TIER0_SINK_WRONG_METADATA_OFFSET=1)
+    target_link_libraries(
+        laplace_unicode_tier0_sink_offset_mutation_probe PRIVATE
+        Laplace::UnicodeRoot Laplace::UnicodeNumeric GTest::gtest_main)
+    target_compile_options(
+        laplace_unicode_tier0_sink_offset_mutation_probe PRIVATE
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME unicode-tier0-sink.mutation-metadata-offset-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_unicode_tier0_sink_offset_mutation_probe>"
+            "-DFILTER=UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+    set_tests_properties(
+        unicode-tier0-sink.mutation-metadata-offset-detected PROPERTIES
+        LABELS "implementation;unicode;root;perfcache;mutation")
+
+    add_executable(laplace_unicode_tier0_sink_physicality_mutation_probe
+        unicode_root_builder_tests.cpp
+        ../engine/src/unicode_tier0_sink.cpp)
+    target_include_directories(
+        laplace_unicode_tier0_sink_physicality_mutation_probe PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+    target_compile_definitions(
+        laplace_unicode_tier0_sink_physicality_mutation_probe PRIVATE
+        LAPLACE_TEST_UNICODE_TIER0_SINK_WRONG_PHYSICALITY_ID=1)
+    target_link_libraries(
+        laplace_unicode_tier0_sink_physicality_mutation_probe PRIVATE
+        Laplace::UnicodeRoot Laplace::UnicodeNumeric GTest::gtest_main)
+    target_compile_options(
+        laplace_unicode_tier0_sink_physicality_mutation_probe PRIVATE
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(
+        NAME unicode-tier0-sink.mutation-physicality-parity-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPROBE=$<TARGET_FILE:laplace_unicode_tier0_sink_physicality_mutation_probe>"
+            "-DFILTER=UnicodeRootBuilder.BuildsOneCanonicalRootAndReplaysToSiblingSinks"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+    set_tests_properties(
+        unicode-tier0-sink.mutation-physicality-parity-detected PROPERTIES
+        LABELS "implementation;unicode;root;identity;geometry;perfcache;mutation")
+endif()
+
 add_executable(laplace_unicode_source_tests
     unicode_source_tests.cpp)
 target_include_directories(laplace_unicode_source_tests PRIVATE
@@ -44,6 +271,157 @@ target_compile_options(laplace_unicode_source_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_unicode_source_tests
     PROPERTIES LABELS "implementation;unicode;source;receipt")
+
+add_library(laplace_unicode_core_bidi_mutant STATIC
+    ../engine/src/unicode_properties.cpp)
+target_include_directories(laplace_unicode_core_bidi_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_core_bidi_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_unicode_core_bidi_mutant PRIVATE
+    LAPLACE_TEST_UNICODE_CORE_IGNORE_SPECIFIC_BIDI_DEFAULTS=1)
+target_compile_options(laplace_unicode_core_bidi_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_unicode_core_bidi_mutation_probe
+    unicode_source_tests.cpp)
+target_include_directories(laplace_unicode_core_bidi_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_core_bidi_mutation_probe PRIVATE
+    laplace_unicode_core_bidi_mutant Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(laplace_unicode_core_bidi_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-core.mutation-bidi-default-order-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_core_bidi_mutation_probe>"
+        "-DFILTER=UnicodeCoreProperties.ClassifiesEveryPositionAndAppliesBidiDefaults"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(unicode-core.mutation-bidi-default-order-detected PROPERTIES
+    LABELS "implementation;unicode;source;mutation"
+    SKIP_REGULAR_EXPRESSION "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE")
+
+add_library(laplace_unicode_script_fallback_mutant STATIC
+    ../engine/src/unicode_properties.cpp)
+target_include_directories(laplace_unicode_script_fallback_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_script_fallback_mutant PRIVATE
+    BLAKE3::blake3)
+target_compile_definitions(laplace_unicode_script_fallback_mutant PRIVATE
+    LAPLACE_TEST_UNICODE_SCRIPT_EXTENSIONS_EMPTY_FALLBACK=1)
+target_compile_options(laplace_unicode_script_fallback_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_unicode_script_fallback_mutation_probe
+    unicode_source_tests.cpp)
+target_include_directories(laplace_unicode_script_fallback_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_script_fallback_mutation_probe PRIVATE
+    laplace_unicode_script_fallback_mutant Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(laplace_unicode_script_fallback_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-core.mutation-script-extensions-fallback-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_script_fallback_mutation_probe>"
+        "-DFILTER=UnicodeCoreProperties.ParsesCompleteSourceAndCanonicalizesPayloads"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(unicode-core.mutation-script-extensions-fallback-detected PROPERTIES
+    LABELS "implementation;unicode;source;mutation"
+    SKIP_REGULAR_EXPRESSION "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE")
+
+add_library(laplace_unicode_ducet_truncation_mutant STATIC
+    ../engine/src/unicode_ducet.cpp)
+target_include_directories(laplace_unicode_ducet_truncation_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_ducet_truncation_mutant PRIVATE
+    BLAKE3::blake3)
+target_compile_definitions(laplace_unicode_ducet_truncation_mutant PRIVATE
+    LAPLACE_TEST_DUCET_TRUNCATE_EXPANSIONS=1)
+target_compile_options(laplace_unicode_ducet_truncation_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_unicode_ducet_truncation_mutation_probe
+    unicode_source_tests.cpp)
+target_include_directories(laplace_unicode_ducet_truncation_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_ducet_truncation_mutation_probe PRIVATE
+    laplace_unicode_ducet_truncation_mutant Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(laplace_unicode_ducet_truncation_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-ducet.mutation-expansion-truncation-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_ducet_truncation_mutation_probe>"
+        "-DFILTER=UnicodeDucet.RetainsCompleteMappingsAndImplicitRanges"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-ducet.mutation-expansion-truncation-detected PROPERTIES
+    LABELS "implementation;unicode;ducet;source;mutation"
+    SKIP_REGULAR_EXPRESSION "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE")
+
+add_library(laplace_unicode_ducet_blocking_mutant STATIC
+    ../engine/src/unicode_ducet.cpp)
+target_include_directories(laplace_unicode_ducet_blocking_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_ducet_blocking_mutant PRIVATE
+    BLAKE3::blake3)
+target_compile_definitions(laplace_unicode_ducet_blocking_mutant PRIVATE
+    LAPLACE_TEST_DUCET_SKIP_IGNORABLE_STARTER_BLOCKER=1)
+target_compile_options(laplace_unicode_ducet_blocking_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_unicode_ducet_blocking_mutation_probe
+    unicode_source_tests.cpp)
+target_include_directories(laplace_unicode_ducet_blocking_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_ducet_blocking_mutation_probe PRIVATE
+    laplace_unicode_ducet_blocking_mutant Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(laplace_unicode_ducet_blocking_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-ducet.mutation-starter-blocker-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_ducet_blocking_mutation_probe>"
+        "-DFILTER=UnicodeDucet.HonorsLongestDiscontiguousAndStarterBlockingMatches"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-ducet.mutation-starter-blocker-detected PROPERTIES
+    LABELS "implementation;unicode;ducet;source;mutation"
+    SKIP_REGULAR_EXPRESSION "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE")
+
+add_library(laplace_unicode_placement_collapse_mutant STATIC
+    ../engine/src/unicode_ducet.cpp)
+target_include_directories(laplace_unicode_placement_collapse_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_unicode_placement_collapse_mutant PRIVATE
+    BLAKE3::blake3)
+target_compile_definitions(laplace_unicode_placement_collapse_mutant PRIVATE
+    LAPLACE_TEST_DUCET_PLACEMENT_COLLAPSE_EQUIVALENT_RANKS=1)
+target_compile_options(laplace_unicode_placement_collapse_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_unicode_placement_collapse_mutation_probe
+    unicode_source_tests.cpp)
+target_include_directories(
+    laplace_unicode_placement_collapse_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(
+    laplace_unicode_placement_collapse_mutation_probe PRIVATE
+    laplace_unicode_placement_collapse_mutant Laplace::UnicodeRoot
+    GTest::gtest_main)
+target_compile_options(
+    laplace_unicode_placement_collapse_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-ducet.mutation-placement-equivalence-collapse-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_placement_collapse_mutation_probe>"
+        "-DFILTER=UnicodeDucet.TotalizesEveryPositionIntoUniquePlacementPermutation"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-ducet.mutation-placement-equivalence-collapse-detected PROPERTIES
+    LABELS "implementation;unicode;ducet;placement;source;mutation"
+    SKIP_REGULAR_EXPRESSION "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE")
 
 add_executable(laplace_unicode_source_fixture_tests
     unicode_source_fixture_tests.cpp
@@ -91,9 +469,13 @@ target_include_directories(laplace_unicode_root_mutation_probe PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
     "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(laplace_unicode_root_mutation_probe PRIVATE
-    Laplace::Identity Laplace::Perfcache GTest::gtest_main)
+    Laplace::Identity Laplace::Perfcache BLAKE3::blake3 GTest::gtest_main)
 target_compile_definitions(laplace_unicode_root_mutation_probe PRIVATE
     LAPLACE_TEST_SKIP_UNICODE_ATOM_IDENTITY_VALIDATION=1
+    LAPLACE_TEST_SKIP_UNICODE_FIELD_PAYLOAD_VALIDATION=1
+    LAPLACE_TEST_UNICODE_ROOT_FRAME_SKIP_NESTED_VALIDATION=1
+    LAPLACE_TEST_SKIP_UNICODE_STREAM_SECTION_ORDINAL_VALIDATION=1
+    LAPLACE_TEST_SKIP_UNICODE_ATOM_PHYSICALITY_VALIDATION=1
     LAPLACE_TEST_UNICODE_HILBERT_REVERSE_AXIS_ORDER=1)
 target_compile_options(laplace_unicode_root_mutation_probe PRIVATE
     $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>
@@ -102,11 +484,96 @@ add_test(
     NAME unicode-root.mutation-codec-and-hilbert-defects-detected
     COMMAND "${CMAKE_COMMAND}"
         "-DPROBE=$<TARGET_FILE:laplace_unicode_root_mutation_probe>"
-        "-DFILTER=UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption:UnicodeHilbert.MatchesAllContractOrientationVectors"
+            "-DFILTER=UnicodeAtomCodec.RejectsIdentityAndFieldKindCorruption:UnicodeAtomPayload.RejectsNonCanonicalPayloadsAndAcceptsSortedSets:UnicodeRootFrameCodec.RejectsOrdinalOrNestedAtomCorruption:UnicodeRootStreamValidator.RejectsCrossBatchOrdinalGapAndTruncation:UnicodeRootStreamValidator.RejectsAtomPhysicalityOutsideBoundGeometryEpoch:UnicodeHilbert.MatchesAllContractOrientationVectors"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(
     unicode-root.mutation-codec-and-hilbert-defects-detected PROPERTIES
     LABELS "implementation;unicode;identity;geometry;mutation")
+
+add_executable(laplace_unicode_placement_permutation_mutation_probe
+    unicode_root_tests.cpp
+    ../engine/src/unicode_root.c)
+target_include_directories(
+    laplace_unicode_placement_permutation_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(
+    laplace_unicode_placement_permutation_mutation_probe PRIVATE
+    Laplace::Identity Laplace::Perfcache BLAKE3::blake3 GTest::gtest_main)
+target_compile_definitions(
+    laplace_unicode_placement_permutation_mutation_probe PRIVATE
+    LAPLACE_TEST_SKIP_UNICODE_PLACEMENT_PERMUTATION_VALIDATION=1)
+target_compile_options(
+    laplace_unicode_placement_permutation_mutation_probe PRIVATE
+    $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-root.mutation-placement-permutation-validation-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_placement_permutation_mutation_probe>"
+        "-DFILTER=UnicodePlacementFingerprint.RejectsDuplicateRankBeforeCoordinateTableIdentity:UnicodeRootStreamValidator.RejectsDuplicateObservedPlacementRank"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-root.mutation-placement-permutation-validation-detected PROPERTIES
+    LABELS "implementation;unicode;geometry;identity;mutation")
+
+add_executable(laplace_unicode_physicality_recipe_version_mutation_probe
+    unicode_root_tests.cpp
+    ../engine/src/unicode_root.c)
+target_include_directories(
+    laplace_unicode_physicality_recipe_version_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(
+    laplace_unicode_physicality_recipe_version_mutation_probe PRIVATE
+    Laplace::Identity Laplace::Perfcache BLAKE3::blake3 GTest::gtest_main)
+target_compile_definitions(
+    laplace_unicode_physicality_recipe_version_mutation_probe PRIVATE
+    LAPLACE_TEST_ALLOW_UNICODE_PHYSICALITY_RECIPE_VERSION=1)
+target_compile_options(
+    laplace_unicode_physicality_recipe_version_mutation_probe PRIVATE
+    $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-root.mutation-physicality-recipe-version-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_physicality_recipe_version_mutation_probe>"
+        "-DFILTER=UnicodeRootManifestCodec.RejectsUnsupportedPhysicalityRecipeVersion"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-root.mutation-physicality-recipe-version-detected PROPERTIES
+    LABELS "implementation;unicode;physicality;identity;mutation")
+
+add_library(laplace_unicode_tier0_partial_view_mutant STATIC
+    ../engine/src/perfcache_modules.c)
+target_include_directories(laplace_unicode_tier0_partial_view_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_compile_definitions(laplace_unicode_tier0_partial_view_mutant PRIVATE
+    LAPLACE_TEST_ALLOW_UNICODE_TIER0_PARTIAL_VIEW=1)
+target_compile_options(laplace_unicode_tier0_partial_view_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_unicode_tier0_partial_view_mutation_probe
+    unicode_root_tests.cpp)
+target_include_directories(
+    laplace_unicode_tier0_partial_view_mutation_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(
+    laplace_unicode_tier0_partial_view_mutation_probe PRIVATE
+    laplace_unicode_tier0_partial_view_mutant
+    Laplace::UnicodeRoot GTest::gtest_main)
+target_compile_options(
+    laplace_unicode_tier0_partial_view_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME unicode-tier0.mutation-partial-population-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_unicode_tier0_partial_view_mutation_probe>"
+        "-DFILTER=UnicodeTier0Module.WholeViewRejectsPartialPopulation"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    unicode-tier0.mutation-partial-population-detected PROPERTIES
+    LABELS "implementation;unicode;perfcache;mutation")
 
 add_test(
     NAME postgresql-build.contract-and-mutation
@@ -257,6 +724,36 @@ target_compile_options(laplace_persistence_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_persistence_tests
     PROPERTIES LABELS "implementation;persistence;identity;physicality;trajectory")
+
+add_library(laplace_persistence_atomic_point_mutant STATIC
+    ../engine/src/persistence.c)
+target_include_directories(laplace_persistence_atomic_point_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_persistence_atomic_point_mutant
+    PUBLIC Laplace::Trajectory
+    PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_persistence_atomic_point_mutant
+    PRIVATE LAPLACE_TEST_ACCEPT_ACTIVE_ATOMIC_TRAJECTORY_PAYLOAD=1)
+target_compile_options(laplace_persistence_atomic_point_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_persistence_atomic_point_mutation_probe
+    persistence_tests.cpp)
+target_link_libraries(laplace_persistence_atomic_point_mutation_probe
+    PRIVATE laplace_persistence_atomic_point_mutant GTest::gtest_main)
+target_compile_options(laplace_persistence_atomic_point_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME persistence.mutation-active-atomic-trajectory-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_persistence_atomic_point_mutation_probe>"
+        "-DFILTER=PersistenceContract.AtomicPointHasCanonicalInactiveTrajectoryState"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    persistence.mutation-active-atomic-trajectory-detected PROPERTIES
+    LABELS "persistence;identity;physicality;mutation")
 
 foreach(laplace_zero_mutant IN ITEMS identity digest)
     add_library(laplace_persistence_zero_${laplace_zero_mutant}_mutant STATIC
@@ -442,6 +939,45 @@ add_test(
         "-DPROBE=$<TARGET_FILE:laplace_framework_stream_mutation_probe>"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_stream_failure.cmake")
 set_tests_properties(framework.mutation-stream-binding-omission-detected PROPERTIES
+    LABELS "framework;batch;sink;receipt;mutation")
+
+add_executable(laplace_framework_sink_artifact_probe
+    framework_sink_artifact_probe.cpp)
+target_link_libraries(laplace_framework_sink_artifact_probe
+    PRIVATE Laplace::Framework)
+target_compile_options(laplace_framework_sink_artifact_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME framework.ordered-sink-artifact-output-contract
+    COMMAND laplace_framework_sink_artifact_probe)
+set_tests_properties(framework.ordered-sink-artifact-output-contract PROPERTIES
+    LABELS "implementation;framework;batch;sink;receipt;contract")
+
+add_library(laplace_framework_sink_artifact_mutant STATIC
+    ../engine/src/framework.c)
+target_include_directories(laplace_framework_sink_artifact_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_framework_sink_artifact_mutant
+    PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_framework_sink_artifact_mutant
+    PRIVATE LAPLACE_TEST_OMIT_ORDERED_SINK_ARTIFACT_OUTPUT=1)
+target_compile_options(laplace_framework_sink_artifact_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_framework_sink_artifact_mutation_probe
+    framework_sink_artifact_probe.cpp)
+target_link_libraries(laplace_framework_sink_artifact_mutation_probe
+    PRIVATE laplace_framework_sink_artifact_mutant)
+target_compile_options(laplace_framework_sink_artifact_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME framework.mutation-ordered-sink-artifact-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_framework_sink_artifact_mutation_probe>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_framework_sink_artifact_failure.cmake")
+set_tests_properties(
+    framework.mutation-ordered-sink-artifact-omission-detected PROPERTIES
     LABELS "framework;batch;sink;receipt;mutation")
 
 add_executable(laplace_framework_producer_probe
@@ -1137,6 +1673,14 @@ if(UNIX)
         materialization-forges-activation
         LAPLACE_TEST_MATERIALIZE_PERFCACHE_AS_ACTIVE
         PerfcacheRegistry.DurableGenerationMaterializesWithoutForgingActivation)
+    laplace_add_perfcache_registry_mutant(
+        sink-aggregate-bypass
+        LAPLACE_TEST_SKIP_PERFCACHE_SINK_AGGREGATE_VALIDATION
+        PerfcacheRegistry.MultiSinkReceiptBindsEverySiblingAndSelectedArtifact)
+    laplace_add_perfcache_registry_mutant(
+        module-view-validation-bypass
+        LAPLACE_TEST_SKIP_PERFCACHE_MODULE_VIEW_VALIDATION
+        PerfcacheRegistry.ColdOpenRequiresRegisteredWholeViewSemantics)
 endif()
 
 if(LAPLACE_POSTGRES_ENABLED)

@@ -39,12 +39,89 @@ class UnicodeRootContractTests(unittest.TestCase):
     def write(self, path: Path, document: dict[str, object]) -> None:
         path.write_text(json.dumps(document), encoding="utf-8")
 
-    def test_all_five_contracts_are_internally_closed(self) -> None:
+    def test_all_seven_contracts_are_internally_closed(self) -> None:
         report = VALIDATOR.validate_contracts(self.root)
-        self.assertEqual(report["contract_count"], 5)
-        self.assertEqual(report["source_file_count"], 32)
+        self.assertEqual(report["contract_count"], 7)
+        self.assertEqual(report["source_file_count"], 33)
         self.assertEqual(report["population"], 1114112)
-        self.assertIn("no-unicode-implementation-or-activation", report["status"])
+        self.assertEqual(
+            report["status"],
+            "contracts-verified-canonical-root-stream-implemented-no-persistence-or-activation",
+        )
+
+    def test_root_stream_cannot_split_database_and_perfcache_calculation(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["fanout"]["calculation_count"] = 2
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "one canonical producer"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_root_stream_cannot_flatten_contractions_into_atoms(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["frame_kinds"][2]["payload"] = "atom-property"
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "contraction sidecar"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_ducet_position_cannot_drop_complete_weight_sequence(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["payload_contracts"]["ducet-position-v1"]["collation_element"] = [
+            "primary-u16be"
+        ]
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "collation element"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_root_manifest_cannot_drop_numeric_provider_receipt(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["payload_contracts"]["root-manifest-v2"]["bindings"].remove(
+            "canonical-numeric-provider-receipt"
+        )
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "required binding"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_root_manifest_cannot_drop_physicality_recipe(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["payload_contracts"]["root-manifest-v2"]["bindings"].remove(
+            "physicality-recipe"
+        )
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "required binding"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_root_manifest_cannot_drop_placement_rank_permutation(self) -> None:
+        path, document = self.document("unicode-root-stream.json")
+        document["payload_contracts"]["root-manifest-v2"]["bindings"].remove(
+            "placement-rank-permutation"
+        )
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "required binding"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_physicality_recipe_cannot_use_execution_receipt_as_identity(self) -> None:
+        path, document = self.document("unicode-atomic-physicality.json")
+        document["geometry_epoch"]["preimage"] += " || numeric-provider-receipt"
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "semantic input"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_physicality_recipe_must_use_canonical_constructor(self) -> None:
+        path, document = self.document("unicode-atomic-physicality.json")
+        document["physicality_identity"]["constructor"] = "unicode-private-hash"
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "canonical constructor"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_atom_wire_cannot_drop_physicality_identity(self) -> None:
+        path, document = self.document("unicode-atom-record.json")
+        document["wire"]["fixed_fields"] = [
+            item for item in document["wire"]["fixed_fields"]
+            if item["name"] != "physicality_id"
+        ]
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "physicality identity"):
+            VALIDATOR.validate_contracts(self.root)
 
     def test_authoritative_unicode_17_source_bytes_match_when_available(self) -> None:
         source_root = Path("/vault/Data/UCD/Public/UCD/latest")
@@ -103,6 +180,22 @@ class UnicodeRootContractTests(unittest.TestCase):
         document["wire"]["payload_kinds"]["u8-boolean"] = 14
         self.write(path, document)
         with self.assertRaisesRegex(VALIDATOR.ContractError, "payload-kind"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_normalization_properties_cannot_collapse_typed_values(self) -> None:
+        path, document = self.document("unicode-atom-record.json")
+        document["variable_fields"][17]["kind"] = (
+            "sorted-canonical-ascii-key-value-set"
+        )
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "typed value"):
+            VALIDATOR.validate_contracts(self.root)
+
+    def test_full_composition_exclusion_cannot_become_ambiguous(self) -> None:
+        path, document = self.document("unicode-atom-record.json")
+        document["variable_fields"][18]["name"] = "composition_exclusion"
+        self.write(path, document)
+        with self.assertRaisesRegex(VALIDATOR.ContractError, "property record"):
             VALIDATOR.validate_contracts(self.root)
 
     def test_atom_record_without_full_identity_fingerprint_is_rejected(self) -> None:

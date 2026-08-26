@@ -28,7 +28,7 @@
     "physicality_domain": "laplace-physicality-record-v1",
     "trajectory_domain": "laplace-composition-trajectory-v1",
     "occurrence_domain": "laplace-observed-occurrence-v1",
-    "physicality_preimage": "domain || entity_id || physicality_type || vertex_class || recipe_version || structural_form || dimension_count || flags || recipe_fingerprint || geometry_epoch || trajectory_fingerprint || centroid_binary64_bits || radius_binary64_bits || logical_count || vertex_count",
+    "physicality_preimage": "domain || entity_id || physicality_type || vertex_class || recipe_version || structural_form || dimension_count || flags || recipe_fingerprint || geometry_epoch || trajectory_fingerprint || point-or-centroid-binary64-bits || radius-binary64-bits || logical_count || vertex_count",
     "physicality_provenance_excluded": [
       "execution_receipt",
       "package_receipt",
@@ -39,13 +39,16 @@
   },
   "semantic_enums": {
     "physicality_type": {
-      "composition": 1
+      "composition": 1,
+      "atomic_point": 2
     },
     "vertex_class": {
+      "none": 0,
       "trajectory_carrier": 1
     },
     "structural_form": {
-      "ordered_composition": 1
+      "ordered_composition": 1,
+      "atomic_point": 2
     },
     "physicality_flags": {
       "none": 0
@@ -55,9 +58,33 @@
   "required_record_families": [
     "entity",
     "physicality",
-    "trajectory_vertex",
     "observed_occurrence"
   ],
+  "conditional_record_families": {
+    "composition": "one-or-more-contiguous-trajectory-vertices-matching-count-and-fingerprint",
+    "atomic_point": "no-trajectory-vertices"
+  },
+  "physicality_variants": {
+    "composition": {
+      "vertex_class": "trajectory_carrier",
+      "structural_form": "ordered_composition",
+      "radius": "finite-[0,1]",
+      "logical_count": "positive",
+      "vertex_count": "positive",
+      "trajectory_fingerprint": "active-value-all-256-bit-patterns-valid"
+    },
+    "atomic_point": {
+      "vertex_class": "none",
+      "structural_form": "atomic_point",
+      "coordinate_storage": "the-existing-four-binary64-centroid-lanes-store-the-single-canonical-point",
+      "radius": "canonical-positive-zero-binary64",
+      "logical_count": 1,
+      "vertex_count": 0,
+      "trajectory_fingerprint": "canonical-all-zero-inactive-payload",
+      "inactivity_rule": "physicality-type-and-vertex-class-establish-inactivity-never-the-zero-payload-alone",
+      "identity_rule": "numeric-execution-package-and-resource-receipts-are-excluded;recipe-and-geometry-epoch-remain-semantic-inputs"
+    }
+  },
   "occurrence_flags": {
     "has_physicality": 1
   },

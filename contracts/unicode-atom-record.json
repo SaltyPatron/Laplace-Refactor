@@ -1,19 +1,19 @@
 {
-  "schema": "laplace.unicode-atom-record-contract/v1",
+  "schema": "laplace.unicode-atom-record-contract/v2",
   "record_type": 65537,
-  "record_version": 1,
+  "record_version": 2,
   "population": 1114112,
   "canonical_stream_order": "codepoint-position-ascending",
   "record_index_equals_codepoint_position": true,
   "wire": {
-    "name": "Laplace-Unicode-Atom-Record-v1",
+    "name": "Laplace-Unicode-Atom-Record-v2",
     "byte_order": "little-endian-except-hilbert-key-and-uca-weight-units",
-    "header_bytes": 132,
+    "header_bytes": 196,
     "magic_hex": "4c554152",
     "fixed_fields": [
       {"name": "magic", "offset": 0, "encoding": "bytes[4]", "value": "4c554152"},
-      {"name": "record_version", "offset": 4, "encoding": "u16le", "value": 1},
-      {"name": "header_bytes", "offset": 6, "encoding": "u16le", "value": 132},
+      {"name": "record_version", "offset": 4, "encoding": "u16le", "value": 2},
+      {"name": "header_bytes", "offset": 6, "encoding": "u16le", "value": 196},
       {"name": "record_bytes", "offset": 8, "encoding": "u32le"},
       {"name": "codepoint_position", "offset": 12, "encoding": "u32le"},
       {"name": "placement_rank", "offset": 16, "encoding": "u32le"},
@@ -27,7 +27,9 @@
       {"name": "hilbert_key", "offset": 108, "encoding": "bytes[16]-hilbert-most-significant-byte-first"},
       {"name": "field_count", "offset": 124, "encoding": "u16le", "value": 26},
       {"name": "reserved_zero_1", "offset": 126, "encoding": "u16le", "value": 0},
-      {"name": "variable_bytes", "offset": 128, "encoding": "u32le"}
+      {"name": "variable_bytes", "offset": 128, "encoding": "u32le"},
+      {"name": "geometry_epoch", "offset": 132, "encoding": "blake3-256-bytes[32]", "authority": "laplace.unicode-atomic-physicality-contract/v1"},
+      {"name": "physicality_id", "offset": 164, "encoding": "blake3-256-bytes[32]", "authority": "laplace_persistence_atomic_point_physicality"}
     ],
     "variable_field_header": [
       {"name": "field_id", "encoding": "u16le"},
@@ -48,8 +50,26 @@
       "sorted-status-and-u32le-position-sequences": 10,
       "sorted-canonical-ascii-set": 11,
       "sorted-canonical-ascii-key-value-set": 12,
-      "u8-boolean": 13
+      "u8-boolean": 13,
+      "sorted-typed-normalization-property-set": 14
     },
+    "payload_wire_grammars": {
+      "canonical-ascii-property-value": "one-or-more ASCII letters, digits, underscore, or hyphen; no terminator",
+      "u8": "exactly one unsigned byte",
+      "optional-u32le-position-and-canonical-ascii-type": "zero bytes, or u32le position followed by one ASCII letter",
+      "optional-u32le-position": "zero bytes, or one u32le position",
+      "u32le-position-sequence": "zero or more contiguous u32le positions",
+      "tagged-u32le-position-sequence": "zero bytes, or u16le tag_bytes + u16le zero + u32le position_count + canonical ASCII tag + position_count u32le positions",
+      "canonical-ascii-rational-or-empty": "zero bytes, or canonical signed integer optionally followed by slash and a nonzero canonical unsigned denominator; leading zeroes are forbidden",
+      "sorted-tagged-u32le-positions": "zero bytes, or u32le count followed by strictly tag-ascending fixed entries of u8 tag + three zero bytes + u32le position; tags 1,2,3 mean lower,title,upper",
+      "sorted-lower-title-upper-position-sequences-with-context-and-locale-condition-tokens": "zero bytes, or u32le entry_count followed by strictly byte-lexicographic entries; each entry is u16le condition_count + u16le zero + three u32le mapping counts + lower/title/upper u32le position sequences + strictly byte-lexicographic u16le-length-prefixed canonical ASCII conditions",
+      "sorted-status-and-u32le-position-sequences": "zero bytes, or u32le count followed by strictly status-ascending entries of ASCII status C/F/S/T + three zero bytes + u32le position_count + positions",
+      "sorted-canonical-ascii-set": "zero bytes, or u32le count followed by strictly byte-lexicographic u16le-length-prefixed canonical ASCII values",
+      "sorted-canonical-ascii-key-value-set": "zero bytes, or u32le count followed by strictly key-ascending u16le key_bytes + u16le value_bytes + canonical ASCII key + canonical ASCII value entries",
+      "u8-boolean": "exactly one byte equal to zero or one",
+      "sorted-typed-normalization-property-set": "zero bytes, or u32le count followed by strictly key-ascending entries of u16le key_bytes + u8 value_kind + u8 zero + u32le value_count + canonical ASCII property key + typed value; value kinds 1,2,3,4 mean binary true, canonical ASCII property value, u32le position sequence, explicit empty position sequence; kinds 1 and 4 require zero count and no value bytes; kind 2 counts ASCII bytes; kind 3 counts positions"
+    },
+    "empty_payload_rule": "only payload kinds explicitly permitting zero bytes use empty as the canonical absent-or-default representation; counted containers must be nonempty when present",
     "variable_field_rules": [
       "all-v1-fields-are-present-exactly-once",
       "field-id-order-is-strictly-ascending",
@@ -65,10 +85,48 @@
     {"id": 3, "name": "noncharacter-scalar"},
     {"id": 4, "name": "surrogate-lup-address"}
   ],
+  "source_value_canonicalization": {
+    "property_authority": "ucd/PropertyAliases.txt from the same retained and verified source bundle",
+    "property_value_authority": "ucd/PropertyValueAliases.txt from the same retained and verified source bundle",
+    "comparison": "UAX44 loose matching over ASCII property aliases",
+    "property_emission": "the formal long property alias in the second semicolon field",
+    "property_value_emission": "the long property-value alias in the third semicolon field",
+    "applies_to": ["general_category", "bidi_class", "decomposition_type", "block", "east_asian_width", "script", "script_extensions", "hangul_syllable_type", "grapheme_cluster_break", "word_break", "sentence_break", "indic_conjunct_break", "line_break"],
+    "rules": [
+      "aliases are resolved within their property namespace because value aliases are not globally unique",
+      "UnicodeData First and Last ranges are validated as one exact value interval before expansion",
+      "DerivedBidiClass ordered missing rules are applied before explicit ranges",
+      "unknown ambiguous or conflicting aliases reject the root build"
+    ]
+  },
+  "derived_default_semantics": {
+    "full_case_mappings": "an absent field-10 payload means use the UnicodeData simple mapping when present and otherwise map the position to itself; encoded SpecialCasing entries preserve explicit empty mappings and sorted locale/context conditions",
+    "case_folding": "an absent field-11 payload means identity; every explicit C/F/S/T status row is retained and sorted by status",
+    "normalization_properties": {
+      "emission": "only explicit DerivedNormalizationProps memberships are encoded; property keys use formal long aliases",
+      "binary_default": "false",
+      "quick_check_default": "Yes",
+      "mapping_default": "identity",
+      "explicit_empty_mapping": "value-kind-4 and never absence"
+    },
+    "script_extensions": "an uncovered position emits the effective Script value as a singleton set",
+    "composition_exclusion": "field-19 is the derived Full_Composition_Exclusion property used by normalization composition; raw CompositionExclusions is retained as an independently checked proper subset witness",
+    "single_value_defaults": {
+      "block": "No_Block",
+      "east_asian_width": "Neutral",
+      "script": "Unknown",
+      "hangul_syllable_type": "Not_Applicable",
+      "grapheme_cluster_break": "Other",
+      "word_break": "Other",
+      "sentence_break": "Other",
+      "indic_conjunct_break": "None",
+      "line_break": "Unknown"
+    }
+  },
   "variable_fields": [
     {"id": 1, "name": "general_category", "kind": "canonical-ascii-property-value"},
     {"id": 2, "name": "canonical_combining_class", "kind": "u8"},
-    {"id": 3, "name": "bidi_class", "kind": "canonical-ascii-property-value"},
+    {"id": 3, "name": "bidi_class", "kind": "canonical-ascii-property-value", "authority": "ucd/extracted/DerivedBidiClass.txt including ordered @missing defaults"},
     {"id": 4, "name": "bidi_paired_bracket", "kind": "optional-u32le-position-and-canonical-ascii-type"},
     {"id": 5, "name": "bidi_mirroring_glyph", "kind": "optional-u32le-position"},
     {"id": 6, "name": "canonical_decomposition", "kind": "u32le-position-sequence"},
@@ -83,8 +141,8 @@
     {"id": 15, "name": "script_extensions", "kind": "sorted-canonical-ascii-set"},
     {"id": 16, "name": "prop_list", "kind": "sorted-canonical-ascii-set"},
     {"id": 17, "name": "derived_core_properties", "kind": "sorted-canonical-ascii-set"},
-    {"id": 18, "name": "normalization_properties", "kind": "sorted-canonical-ascii-key-value-set"},
-    {"id": 19, "name": "composition_exclusion", "kind": "u8-boolean"},
+    {"id": 18, "name": "normalization_properties", "kind": "sorted-typed-normalization-property-set", "authority": "ucd/DerivedNormalizationProps.txt"},
+    {"id": 19, "name": "full_composition_exclusion", "kind": "u8-boolean", "authority": "ucd/DerivedNormalizationProps.txt Full_Composition_Exclusion with ucd/CompositionExclusions.txt subset verification"},
     {"id": 20, "name": "hangul_syllable_type", "kind": "canonical-ascii-property-value"},
     {"id": 21, "name": "grapheme_cluster_break", "kind": "canonical-ascii-property-value"},
     {"id": 22, "name": "word_break", "kind": "canonical-ascii-property-value"},
@@ -107,6 +165,13 @@
     "content_id_equals_first_16_bytes_of_identity_preimage_fingerprint": true,
     "full_digest_is_collision_guard_not_public_entity_id": true,
     "rank_and_geometry_excluded": true
+  },
+  "physicality": {
+    "contract": "laplace.unicode-atomic-physicality-contract/v1",
+    "id_is_content_identity": false,
+    "id_is_calculated_once_by_root_producer": true,
+    "stream_validator_reidentifies_from_global_manifest_recipe_and_geometry_epoch": true,
+    "sinks_consume_emitted_id_without_minting": true
   },
   "tier": {
     "atom_floor": 0,

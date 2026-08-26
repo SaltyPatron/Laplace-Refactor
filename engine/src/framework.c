@@ -293,6 +293,63 @@ static void abort_sinks(laplace_framework_sink_v1* sinks, size_t count) {
     }
 }
 
+static void clear_sink_artifact_output(
+    laplace_framework_sink_artifact_output* output,
+    size_t sink_count) {
+    size_t clear_count;
+    if (output == NULL) {
+        return;
+    }
+    output->count = 0u;
+    if (output->artifact_fingerprints != NULL &&
+        output->capacity <= (uint64_t)SIZE_MAX) {
+        clear_count = (size_t)output->capacity < sink_count
+            ? (size_t)output->capacity
+            : sink_count;
+        memset(
+            output->artifact_fingerprints, 0,
+            clear_count * sizeof(*output->artifact_fingerprints));
+    }
+}
+
+static laplace_framework_status prepare_sink_artifact_output(
+    laplace_framework_sink_artifact_output* output,
+    size_t sink_count,
+    int required) {
+    if (output == NULL) {
+        return required != 0 ? LAPLACE_FRAMEWORK_INVALID_ARGUMENT
+                             : LAPLACE_FRAMEWORK_OK;
+    }
+    if (output->artifact_fingerprints == NULL ||
+        output->capacity < (uint64_t)sink_count ||
+        output->capacity > (uint64_t)SIZE_MAX ||
+        sink_count > SIZE_MAX / sizeof(*output->artifact_fingerprints) ||
+        output->reserved != 0u) {
+        clear_sink_artifact_output(output, sink_count);
+        return LAPLACE_FRAMEWORK_INVALID_ARGUMENT;
+    }
+    clear_sink_artifact_output(output, sink_count);
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+static void initialize_sink_artifact_hasher(
+    blake3_hasher* hasher,
+    size_t artifact_count) {
+    blake3_hasher_init(hasher);
+    blake3_hasher_update(hasher, SINK_DOMAIN, sizeof(SINK_DOMAIN) - 1u);
+    hash_u64(hasher, (uint64_t)artifact_count);
+}
+
+static void update_sink_artifact_hasher(
+    blake3_hasher* hasher,
+    size_t artifact_index,
+    const laplace_digest256* artifact_fingerprint) {
+    hash_u64(hasher, (uint64_t)artifact_index);
+    blake3_hasher_update(
+        hasher, artifact_fingerprint->bytes,
+        sizeof(artifact_fingerprint->bytes));
+}
+
 static laplace_framework_status begin_sinks(
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
@@ -342,13 +399,11 @@ static laplace_framework_status seal_sinks(
     size_t sink_count,
     const laplace_digest256* stream_fingerprint,
     laplace_digest256* artifacts_fingerprint,
+    laplace_framework_sink_artifact_output* artifact_output,
     uint64_t* failed_sink_index) {
     blake3_hasher artifact_hasher;
     size_t sink_index;
-    blake3_hasher_init(&artifact_hasher);
-    blake3_hasher_update(
-        &artifact_hasher, SINK_DOMAIN, sizeof(SINK_DOMAIN) - 1u);
-    hash_u64(&artifact_hasher, (uint64_t)sink_count);
+    initialize_sink_artifact_hasher(&artifact_hasher, sink_count);
     for (sink_index = 0; sink_index < sink_count; ++sink_index) {
         laplace_digest256 artifact;
         laplace_framework_status status;
@@ -357,19 +412,47 @@ static laplace_framework_status seal_sinks(
             sinks[sink_index].state, stream_fingerprint, &artifact);
         if (status != LAPLACE_FRAMEWORK_OK) {
             *failed_sink_index = (uint64_t)sink_index;
+            clear_sink_artifact_output(artifact_output, sink_count);
             return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
         }
 #if defined(LAPLACE_TEST_REJECT_ZERO_SINK_VALUES)
         if (digest_has_canonical_zero_payload(&artifact)) {
             *failed_sink_index = (uint64_t)sink_index;
+            clear_sink_artifact_output(artifact_output, sink_count);
             return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
         }
 #endif
-        hash_u64(&artifact_hasher, (uint64_t)sink_index);
-        blake3_hasher_update(
-            &artifact_hasher, artifact.bytes, sizeof(artifact.bytes));
+#if !defined(LAPLACE_TEST_OMIT_ORDERED_SINK_ARTIFACT_OUTPUT)
+        if (artifact_output != NULL) {
+            artifact_output->artifact_fingerprints[sink_index] = artifact;
+        }
+#endif
+        update_sink_artifact_hasher(
+            &artifact_hasher, sink_index, &artifact);
     }
     finish_digest(&artifact_hasher, artifacts_fingerprint);
+    if (artifact_output != NULL) {
+        artifact_output->count = (uint64_t)sink_count;
+    }
+    return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status laplace_framework_sink_artifacts_fingerprint(
+    const laplace_digest256* artifact_fingerprints,
+    size_t artifact_count,
+    laplace_digest256* aggregate_fingerprint) {
+    blake3_hasher hasher;
+    size_t index;
+    if (artifact_fingerprints == NULL || artifact_count == 0u ||
+        aggregate_fingerprint == NULL) {
+        return LAPLACE_FRAMEWORK_INVALID_ARGUMENT;
+    }
+    initialize_sink_artifact_hasher(&hasher, artifact_count);
+    for (index = 0u; index < artifact_count; ++index) {
+        update_sink_artifact_hasher(
+            &hasher, index, &artifact_fingerprints[index]);
+    }
+    finish_digest(&hasher, aggregate_fingerprint);
     return LAPLACE_FRAMEWORK_OK;
 }
 
@@ -687,11 +770,13 @@ static void hash_activation_receipt(
     finish_digest(&hasher, &receipt->receipt_id);
 }
 
-laplace_framework_status laplace_framework_stage_canonical_stream(
+static laplace_framework_status stage_canonical_stream_impl(
     const laplace_framework_context* context,
     const laplace_framework_canonical_stream* stream,
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
+    laplace_framework_sink_artifact_output* artifact_output,
+    int artifact_output_required,
     laplace_framework_stream_receipt* receipt) {
     laplace_framework_status status;
     size_t batch_index;
@@ -704,6 +789,13 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     receipt->failed_batch_index = LAPLACE_FRAMEWORK_NO_INDEX;
     receipt->failed_sink_index = LAPLACE_FRAMEWORK_NO_INDEX;
     receipt->sink_count = (uint64_t)sink_count;
+    status = prepare_sink_artifact_output(
+        artifact_output, sink_count, artifact_output_required);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        receipt->status = status;
+        hash_stream_receipt(receipt);
+        return status;
+    }
     status = laplace_framework_context_fingerprint(
         context, &receipt->context_fingerprint);
     if (status != LAPLACE_FRAMEWORK_OK) {
@@ -771,7 +863,8 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     }
     status = seal_sinks(
         sinks, sink_count, &receipt->stream_fingerprint,
-        &receipt->sink_artifacts_fingerprint, &receipt->failed_sink_index);
+        &receipt->sink_artifacts_fingerprint, artifact_output,
+        &receipt->failed_sink_index);
     if (status != LAPLACE_FRAMEWORK_OK) {
         receipt->status = status;
         abort_sinks(sinks, begun);
@@ -784,7 +877,29 @@ laplace_framework_status laplace_framework_stage_canonical_stream(
     return LAPLACE_FRAMEWORK_OK;
 }
 
-laplace_framework_status laplace_framework_run_producer(
+laplace_framework_status laplace_framework_stage_canonical_stream(
+    const laplace_framework_context* context,
+    const laplace_framework_canonical_stream* stream,
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    laplace_framework_stream_receipt* receipt) {
+    return stage_canonical_stream_impl(
+        context, stream, sinks, sink_count, NULL, 0, receipt);
+}
+
+laplace_framework_status
+laplace_framework_stage_canonical_stream_with_artifacts(
+    const laplace_framework_context* context,
+    const laplace_framework_canonical_stream* stream,
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    laplace_framework_sink_artifact_output* artifact_output,
+    laplace_framework_stream_receipt* receipt) {
+    return stage_canonical_stream_impl(
+        context, stream, sinks, sink_count, artifact_output, 1, receipt);
+}
+
+static laplace_framework_status run_producer_impl(
     const laplace_framework_context* context,
     const laplace_digest256* source_fingerprint,
     const laplace_digest256* recipe_fingerprint,
@@ -792,6 +907,8 @@ laplace_framework_status laplace_framework_run_producer(
     const laplace_framework_producer_control_v1* control,
     laplace_framework_sink_v1* sinks,
     size_t sink_count,
+    laplace_framework_sink_artifact_output* artifact_output,
+    int artifact_output_required,
     laplace_framework_producer_receipt* receipt) {
     blake3_hasher stream_hasher;
     blake3_hasher prefix_hasher;
@@ -812,6 +929,11 @@ laplace_framework_status laplace_framework_run_producer(
     receipt->stream.failed_batch_index = LAPLACE_FRAMEWORK_NO_INDEX;
     receipt->stream.failed_sink_index = LAPLACE_FRAMEWORK_NO_INDEX;
     receipt->stream.sink_count = (uint64_t)sink_count;
+    status = prepare_sink_artifact_output(
+        artifact_output, sink_count, artifact_output_required);
+    if (status != LAPLACE_FRAMEWORK_OK) {
+        goto fail;
+    }
     status = laplace_framework_context_fingerprint(
         context, &receipt->stream.context_fingerprint);
     if (status != LAPLACE_FRAMEWORK_OK) {
@@ -1047,6 +1169,7 @@ laplace_framework_status laplace_framework_run_producer(
     status = seal_sinks(
         sinks, sink_count, &receipt->stream.stream_fingerprint,
         &receipt->stream.sink_artifacts_fingerprint,
+        artifact_output,
         &receipt->stream.failed_sink_index);
     if (status != LAPLACE_FRAMEWORK_OK) {
         goto fail;
@@ -1072,6 +1195,35 @@ fail:
     receipt->status = status;
     hash_producer_receipt(receipt);
     return status;
+}
+
+laplace_framework_status laplace_framework_run_producer(
+    const laplace_framework_context* context,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_framework_producer_v1* producer,
+    const laplace_framework_producer_control_v1* control,
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    laplace_framework_producer_receipt* receipt) {
+    return run_producer_impl(
+        context, source_fingerprint, recipe_fingerprint, producer, control,
+        sinks, sink_count, NULL, 0, receipt);
+}
+
+laplace_framework_status laplace_framework_run_producer_with_artifacts(
+    const laplace_framework_context* context,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_framework_producer_v1* producer,
+    const laplace_framework_producer_control_v1* control,
+    laplace_framework_sink_v1* sinks,
+    size_t sink_count,
+    laplace_framework_sink_artifact_output* artifact_output,
+    laplace_framework_producer_receipt* receipt) {
+    return run_producer_impl(
+        context, source_fingerprint, recipe_fingerprint, producer, control,
+        sinks, sink_count, artifact_output, 1, receipt);
 }
 
 static int activation_provider_is_valid(

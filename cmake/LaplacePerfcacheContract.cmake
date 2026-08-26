@@ -32,6 +32,8 @@ function(laplace_configure_perfcache_contract contract_path output_path)
         "${contract_json}" modules framework_probe contract_preimage)
     string(JSON framework_probe_access_law GET
         "${contract_json}" modules framework_probe access_law)
+    string(JSON framework_probe_validation GET
+        "${contract_json}" modules framework_probe validation)
     string(JSON framework_probe_key_bytes GET
         "${contract_json}" modules framework_probe key_bytes)
     string(JSON framework_probe_value_bytes GET
@@ -50,6 +52,8 @@ function(laplace_configure_perfcache_contract contract_path output_path)
         "${contract_json}" modules unicode_tier0 contract_preimage)
     string(JSON unicode_tier0_access_law GET
         "${contract_json}" modules unicode_tier0 access_law)
+    string(JSON unicode_tier0_validation GET
+        "${contract_json}" modules unicode_tier0 validation)
     string(JSON unicode_tier0_key_bytes GET
         "${contract_json}" modules unicode_tier0 key_bytes)
     string(JSON unicode_tier0_value_bytes GET
@@ -97,7 +101,7 @@ function(laplace_configure_perfcache_contract contract_path output_path)
        OR NOT dense_u32_access EQUAL 2
        OR NOT module_defined_access EQUAL 3
        OR NOT provider_major EQUAL 1 OR NOT provider_minor EQUAL 1
-       OR NOT module_major EQUAL 1 OR NOT module_minor EQUAL 1
+       OR NOT module_major EQUAL 2 OR NOT module_minor EQUAL 0
        OR NOT framework_probe_module_id_length EQUAL 32
        OR NOT framework_probe_module_id MATCHES "^[0-9a-f]+$"
        OR NOT framework_probe_key_schema_id_length EQUAL 32
@@ -107,7 +111,8 @@ function(laplace_configure_perfcache_contract contract_path output_path)
        OR NOT framework_probe_contract_fingerprint_length EQUAL 64
        OR NOT framework_probe_contract_fingerprint MATCHES "^[0-9a-f]+$"
        OR NOT framework_probe_contract_preimage STREQUAL
-          "laplace.perfcache.module.framework-probe/v1|key=u32-le|value=u64-le|access=dense-u32-zero-based|module-abi=1.1"
+          "laplace.perfcache.module.framework-probe/v1|key=u32-le|value=u64-le|access=dense-u32-zero-based|validation=record+whole-view|module-abi=2.0"
+       OR NOT framework_probe_validation STREQUAL "record-and-whole-view"
        OR NOT framework_probe_access_law STREQUAL "dense_u32_zero_based"
        OR NOT framework_probe_key_bytes EQUAL 4
        OR NOT framework_probe_value_bytes EQUAL 8
@@ -127,8 +132,9 @@ function(laplace_configure_perfcache_contract contract_path output_path)
        OR NOT unicode_tier0_contract_fingerprint_length EQUAL 64
        OR NOT unicode_tier0_contract_fingerprint MATCHES "^[0-9a-f]+$"
        OR NOT unicode_tier0_access_law STREQUAL "dense_u32_zero_based"
+       OR NOT unicode_tier0_validation STREQUAL "record-and-whole-view"
        OR NOT unicode_tier0_key_bytes EQUAL 4
-       OR NOT unicode_tier0_value_bytes EQUAL 120
+       OR NOT unicode_tier0_value_bytes EQUAL 152
        OR NOT unicode_tier0_population EQUAL 1114112
        OR NOT unicode_tier0_required)
         message(FATAL_ERROR
@@ -142,7 +148,7 @@ function(laplace_configure_perfcache_contract contract_path output_path)
             "required=${unicode_tier0_required}")
     endif()
     if(NOT unicode_tier0_contract_preimage STREQUAL
-       "laplace.perfcache.module.unicode-tier0/v1|key=u32-le|value=record-offset-u64le,record-bytes-u32le,placement-rank-u32le,position-class-u8,lup-length-u8,reserved-u16,lup-bytes-4,content-id-16,identity-witness-32,coordinate-bits-32,hilbert-key-16|metadata=canonical-atom-record-stream-v1|access=dense-u32-zero-based|population=1114112|module-abi=1.1")
+       "laplace.perfcache.module.unicode-tier0/v2|key=u32-le|value=record-offset-u64le,record-bytes-u32le,placement-rank-u32le,position-class-u8,lup-length-u8,reserved-u16,lup-bytes-4,content-id-16,identity-witness-32,coordinate-bits-32,hilbert-key-16,physicality-id-32|metadata=canonical-atom-record-stream-v2|access=dense-u32-zero-based|population=1114112|validation=record+whole-view|module-abi=2.0")
         message(FATAL_ERROR "Unicode Tier-0 perfcache module preimage changed")
     endif()
 

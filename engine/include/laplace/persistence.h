@@ -106,6 +106,15 @@ LAPLACE_API laplace_persistence_status laplace_persistence_physicality_identify(
     const laplace_persistence_physicality_record* physicality,
     laplace_digest256* physicality_id);
 
+LAPLACE_API laplace_persistence_status
+laplace_persistence_atomic_point_physicality(
+    const laplace_id128* entity_id,
+    uint32_t recipe_version,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_digest256* geometry_epoch,
+    const laplace_point4d* point,
+    laplace_persistence_physicality_record* physicality);
+
 LAPLACE_API laplace_persistence_status laplace_persistence_occurrence_identify(
     const laplace_persistence_occurrence_record* occurrence,
     laplace_digest256* occurrence_id);
