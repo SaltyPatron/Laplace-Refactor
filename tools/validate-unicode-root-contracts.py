@@ -278,6 +278,10 @@ def _validate_stream(document: dict[str, Any]) -> None:
     _require(manifest.get("magic_hex") == "4c55524d" and manifest.get("record_bytes") == 352, "Unicode root manifest wire changed")
     _require(manifest.get("counts") == ["atom", "ducet-position", "ducet-contraction", "normalization-composition", "total-root-frames"], "Unicode root manifest counts changed")
     _require(manifest.get("bindings") == ["source", "recipe", "canonical-numeric-provider-receipt", "root-stream-contract", "atom-section", "ducet-position-section", "ducet-contraction-section", "normalization-composition-section", "algorithmic-Hangul-rule"], "Unicode root manifest lost a required binding")
+    _require(manifest.get("binding_fingerprints") == {
+        "root-stream-contract": "SHA-256(exact-unicode-root-stream.json-bytes)",
+        "algorithmic-Hangul-rule": "SHA-256(exact-ducet-totalization.json-bytes)",
+    }, "Unicode root manifest binding fingerprint recipes changed")
     fanout = document.get("fanout", {})
     _require(fanout.get("calculation_count") == 1 and fanout.get("producer_record_type") == 65536, "Unicode root is no longer one canonical producer calculation")
     _require(fanout.get("consumer_rule") == "PostgreSQL-and-perfcache-sinks-consume-the-identical-canonical-batches-without-recalculation", "Unicode root sinks may independently recalculate")

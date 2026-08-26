@@ -62,6 +62,10 @@
       "record_bytes": 352,
       "counts": ["atom", "ducet-position", "ducet-contraction", "normalization-composition", "total-root-frames"],
       "bindings": ["source", "recipe", "canonical-numeric-provider-receipt", "root-stream-contract", "atom-section", "ducet-position-section", "ducet-contraction-section", "normalization-composition-section", "algorithmic-Hangul-rule"],
+      "binding_fingerprints": {
+        "root-stream-contract": "SHA-256(exact-unicode-root-stream.json-bytes)",
+        "algorithmic-Hangul-rule": "SHA-256(exact-ducet-totalization.json-bytes)"
+      },
       "rules": ["atom-and-ducet-position-counts-equal-1114112", "total-count-includes-terminal-manifest", "manifest-does-not-contain-final-framework-stream-fingerprint"]
     }
   },
