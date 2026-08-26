@@ -17,7 +17,7 @@ index entries, not replacements for the source messages.
 | Source | Human text records | Manifest | Manifest SHA-256 |
 | --- | ---: | --- | --- |
 | Current Codex session through 2026-08-25 05:24:39 UTC | 190 | `evidence/current-session-human-messages.jsonl` | `864c50823cb8c7d236fc2d9ec7d4651f40b0ef2df6cfd9cf49f11138fbd271a2` |
-| Resumed Codex continuation through 2026-08-26 19:36:49 UTC | 34 | `evidence/continuation-session-human-messages.jsonl` | `33046e9518936e4c1a1e827ccb584b37260887392b6dc5bbc1bc2f6c78316810` |
+| Resumed Codex continuation through 2026-08-26 20:35:14 UTC | 50 | `evidence/continuation-session-human-messages.jsonl` | `441316b338f82852e28b86a1b5cb8d014e93876335f924279b3a110a9c98f131` |
 | Preserved top-level Claude project sessions | 596 | `evidence/claude-parent-human-messages.jsonl` | `6b084bdc2e6e38b1821fc2879e7add28c52b8e649de4e6b3f77e0da27131d02b` |
 
 The indexer excludes tool-result blocks, worker notifications, local-command notices,
@@ -185,13 +185,33 @@ they were supplied for review.
 | 19:12:25 | `msg_01a03f7c-e62b-7463-8dbd-c7fcc015b211` | Laplace admits arbitrary digital content onto one explicit playing field and exposes SQL-addressable AI-like execution without a training campaign or GPU requirement. |
 | 19:15:41 | `msg_01a03f7f-e5a1-78e3-8b66-27d66fa60f22` | Tree-sitter grammars fuel recipe-driven decomposition and recomposition. |
 | 19:15:41 | `msg_01a03f7f-e5a6-7160-90ed-36da4113c84b` | The exact transformation from `I don't feel so good Mr Stark` to `I feel fucking great, Tony!` is a concrete structural generation requirement, not a string-replacement example. |
+| 20:09:49 | `msg_01a03fb1-75ee-75c2-8bbc-7fca17869594` | Everything is a modality to Laplace: people, organizations, accounts, entitlements, achievements, professional histories, interfaces, nodes, storage, and federation must use the same substrate, testimony, governance, recipe, realization, and receipt laws rather than special application engines. The supplied review prose remains a reconciliation lead where it extends beyond this direct framing. |
+| 20:14:12 | `msg_01a03fb5-78ef-7c80-8ae0-fa91865df07e` | Typed connection, evidence clustering, and answerability examples establish that equal hop counts, known paths, evidence volume, independent convergence, world coverage, and shortest-path proof are different calculations. Volatile named-person and company facts in the supplied rhetoric are not product authority. |
+| 20:14:55 | `msg_01a03fb6-1f76-7741-afdd-cf7cb7885143` | Replacing nearest-neighbor approximation with indexed A-star is intentional because relevance, transition admissibility, distance, and completion are generated for the typed query rather than inherited from one flattened metric space. |
+| 20:16:30 | `msg_01a03fb7-9472-74f1-8846-22c58e73ed53` | Prior model export stalled because upstream flattening erased the typed relation structure needed for target compilation; the unqualified word `faithful` cannot substitute for a named independently tested preservation invariant. |
+| 20:16:54 | `msg_01a03fb7-f290-77f1-a217-d3a5706c3c0b` | Laplace mechanically maps the traffic patterns of cognition—control, data, evidence, scheduling, effect, and feedback flow—rather than merely storing representations of knowledge. |
+| 20:16:54 | `msg_01a03fb7-f294-75c3-80eb-a49c37ae5051` | The cognitive-traffic model is why instruction sets and machine code are literal architectural concepts rather than metaphors. |
+| 20:17:14 | `msg_01a03fb8-3faa-7282-82c1-8fc1fd831485` | Intelligence operates under finite evidence, time, compute, memory, I/O, and authority; the machine must plan within explicit resource boundaries. |
+| 20:17:14 | `msg_01a03fb8-3faf-7b13-b0a5-a4a0ef1fbdef` | `Why not, Laplace?` requires an exact machine explanation of the limiting evidence, authority, resource, operation, contradiction, or calculus boundary instead of magic or hidden approximation. |
+| 20:23:19 | `msg_01a03fbd-cf99-7b42-a453-239689ad6439` | Frontier systems' external search, retrieval, memory, tool, provenance, agent, and verification scaffolding is architectural comparison context: Laplace's bet is to make addressable world state and cognitive execution native machine structure. Quoted market-spending figures remain volatile rhetoric, not product law. |
+| 20:26:15 | `msg_01a03fc0-8030-7cb1-b340-7afb5d74a65c` | The supplied continuation review adds processor-grade machine exceptions to the reconciliation boundary: hardware/provider/resource/program/authority/semantic/epistemic conditions, restartability, reroute, durable replay, and publication behavior must remain distinct. The quoted prose is contextual evidence; its requirements are promoted only where the inventor's roadmap direction and prior finite-machine/provider laws corroborate them. |
+| 20:26:15 | `msg_01a03fc0-8036-7602-aefd-190fa91c0759` | Use GitHub issues, goals, epics, and other DevOps controls as needed to make the complete roadmap actionable. |
+| 20:26:15 | `msg_01a03fc0-803a-7430-9b7d-62a852fea85d` | GitHub access is explicitly authorized for the roadmap work. |
+| 20:26:35 | `msg_01a03fc0-cda5-7df0-8dea-06b0b95eb454` | Flesh out the roadmap rather than leaving the recovered invention as session narrative. |
+| 20:27:07 | `msg_01a03fc1-4d40-7681-82e1-464908b8f9c0` | Produce Patreon-ready development content as work proceeds. |
+| 20:33:05 | `msg_01a03fc6-c1e9-7702-87fc-0d664e5f5d6a` | Patreon communication must be fully transparent about technical ambition, proof, failure, AI assistance, financial need, and the direct exchange between supporter funding and development time. |
+| 20:35:14 | `msg_01a03fc8-ba24-7b52-a828-b4c624711b8e` | Future Patreon-linked product value may be described honestly, but undefined or unimplemented benefits cannot be sold as existing; external membership remains witnessed entitlement input governed by Laplace rather than hard-coded identity or authority. |
 
 The review syntheses at `msg_01a03f90-4c25-7ce2-9390-a8725ecb8550` and
-`msg_01a03f93-3f62-7572-93cc-17155924018c` are retained as supplied review evidence.
-Their knowledge/governance/firmware and self-authored-synthesis proof boundaries are
-corroborated by the earlier direct cognition, firmware, Gödel, evidence, receipt, and
-nonproof requirements; they do not independently establish consciousness or
-personhood claims.
+`msg_01a03f93-3f62-7572-93cc-17155924018c`, plus the long contextual quote blocks at
+`msg_01a03fb1-75ee-75c2-8bbc-7fca17869594`,
+`msg_01a03fb5-78ef-7c80-8ae0-fa91865df07e`, and
+`msg_01a03fbd-cf99-7b42-a453-239689ad6439`, are retained as supplied review evidence.
+Their knowledge/governance/firmware, entity-world, typed-search, federation,
+self-authored-synthesis, and industry-comparison statements are promoted only where a
+direct inventor framing, prior direct evidence, or independently observed behavior
+corroborates them. They do not independently establish volatile company facts,
+spending figures, consciousness, or personhood claims.
 
 ## Earlier direct technical evidence
 

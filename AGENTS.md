@@ -8,7 +8,11 @@
 - Product authority projects `LP-PRODUCT-001`, `LP-UNIVERSAL-001`, `LP-AST-001`,
   `LP-GOVERNANCE-001`, `LP-FIRMWARE-001`, and `LP-CLEANROOM-001`.
 - Architecture projects `LP-ISA-001`, `LP-FRAMEWORK-001`, `LP-REUSE-001`,
-  `LP-RECIPE-001`, `LP-BULK-001`, `LP-HIGHWAY-001`, and `LP-ADMISSION-001`.
+  `LP-RECIPE-001`, `LP-BULK-001`, `LP-HIGHWAY-001`, `LP-ADMISSION-001`,
+  `LP-CONNECTION-001`, `LP-LIMITS-001`, and `LP-EXCEPTION-001`.
+- Product-surface and node symmetry project `LP-APPLICATION-001`,
+  `LP-ENTITY-WEB-001`, `LP-ENTITLEMENT-001`, `LP-NODE-001`,
+  `LP-FEDERATION-001`, and `LP-PLACEMENT-001`.
 - Evidence and persistence project `LP-ACTIVATION-001`, `LP-DOC-001`, and the exact
   acceptance and continuation boundaries loaded by `contracts/authority-stack.json`.
 
@@ -48,6 +52,26 @@
   reusable lifecycle bases. Providers may vary physical mechanism, not meaning.
 - Text is not architecturally privileged.
 - Language, modality, source, and model are witnessed dimensions, not engine branches.
+- People, organizations, accounts, entitlements, achievements, interfaces, nodes, and
+  federation are not application exceptions. They use the same referential state,
+  AST, testimony, governance, recipe, effect, and receipt machinery.
+- Profiles, feeds, résumés, portfolios, and personal webs are audience-authorized
+  materializations over entity worlds, not opaque account fields or private engines.
+- Typed connection search declares admissible relations, direction, time, standing,
+  dependence, boundary, and completion. Raw hops, KNN, ANN, and a found path cannot
+  impersonate semantic distance, optimum, or complete answerability.
+- Every program is finite. Partial, upper-bound, unsupported, denied, exhausted,
+  contradicted, and unknown results remain distinct and include an exact why-not
+  receipt.
+- Hardware faults, provider unavailability, resource exhaustion, invalid programs,
+  implementation defects, authority denial, semantic contradiction, and epistemic
+  unknowns are different machine conditions. Their generated exception law declares
+  priority, restart, retry, reroute, replay, durability, and publication behavior.
+- Hardware, operating system, storage, placement, and federation providers may change
+  validated physical plans and performance, never ISA meaning or logical results.
+- Model export names and independently tests the exact invariant it preserves. Do not
+  accept an unqualified claim of `faithful`, expected shape, loadability, correlation,
+  or one academic fixture as semantic or behavioral proof.
 
 ## Evidence
 
@@ -78,6 +102,9 @@
 - Read `state/continuation.json` only after stable product and executable authority.
   Verify its base, dirty fingerprint, source roots, and live runtime observations; it
   is observed development state and never product law.
+- Read `docs/product/ROADMAP.md` as the current program execution projection after
+  the operation and acceptance contracts. Its issue state, priorities, and sequence
+  cannot create product law or promote requirements into implementation.
 - Capability, controlled integration, installed product activation, per-source-profile
   world admission, configured foundational seeded state, and release are distinct.
   Never promote one state into another without its exact receipt.

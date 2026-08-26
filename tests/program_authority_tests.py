@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -18,6 +19,7 @@ PROFILE_PATH = ROOT / "contracts" / "source-profile-model.json"
 ADMISSION_PATH = ROOT / "contracts" / "source-admission.json"
 OPERATION_PATH = ROOT / "contracts" / "operation-model.json"
 CONTINUATION_PATH = ROOT / "state" / "continuation.json"
+VERIFY_PHYSICAL_CONTINUATION = os.environ.get("LAPLACE_VERIFY_CONTINUATION_PHYSICAL") == "1"
 
 
 def load(path: Path) -> dict:
@@ -44,11 +46,11 @@ def validate_authority(document: dict) -> None:
     thesis = document.get("product_thesis", {})
     contains_all(
         thesis,
-        ("any exact digital content", "typed universal AST", "Merkle DAG", "SQL", "native C/C++", "even playing field", "no gradient-training", "without requiring a GPU", "witnessed artifacts", "Laplace is a computer", "knowledge", "governance", "personality_firmware", "creative_extension"),
+        ("any exact digital content", "typed universal AST", "Merkle DAG", "SQL", "native C/C++", "even playing field", "no gradient-training", "without requiring a GPU", "witnessed artifacts", "Laplace is a computer", "knowledge", "governance", "personality_firmware", "creative_extension", "cognitive_traffic", "finite_machine", "exception_machine", "application_symmetry", "entity_web", "deployment_symmetry"),
         "product thesis collapsed",
     )
     classes = document.get("authority_classes", {})
-    contains_all(classes, ("exact inventor-authored messages", "locates and digests", "cannot manufacture a requirement", "traceable synthesis", "verified_working_projection", "cannot create inventor authority"), "authority provenance collapsed")
+    contains_all(classes, ("exact inventor-authored messages", "locates and digests", "cannot manufacture a requirement", "traceable synthesis", "verified_working_projection", "cannot create inventor authority", "program_execution_projection", "without creating product law"), "authority provenance collapsed")
     evidence = document.get("direct_evidence", {})
     manifest_path = ROOT / evidence.get("continuation_manifest", "")
     require(manifest_path.is_file(), "continuation direct-evidence manifest is missing")
@@ -63,6 +65,17 @@ def validate_authority(document: dict) -> None:
         "msg_01a03f7c-2bb5-7c10-827f-ddb2d7441dbd",
         "msg_01a03f7c-e62b-7463-8dbd-c7fcc015b211",
         "msg_01a03f7f-e5a6-7160-90ed-36da4113c84b",
+        "msg_01a03fb1-75ee-75c2-8bbc-7fca17869594",
+        "msg_01a03fb6-1f76-7741-afdd-cf7cb7885143",
+        "msg_01a03fb7-9472-74f1-8846-22c58e73ed53",
+        "msg_01a03fb7-f294-75c3-80eb-a49c37ae5051",
+        "msg_01a03fb8-3faf-7b13-b0a5-a4a0ef1fbdef",
+        "msg_01a03fc0-8030-7cb1-b340-7afb5d74a65c",
+        "msg_01a03fc0-8036-7602-aefd-190fa91c0759",
+        "msg_01a03fc0-cda5-7df0-8dea-06b0b95eb454",
+        "msg_01a03fc1-4d40-7681-82e1-464908b8f9c0",
+        "msg_01a03fc6-c1e9-7702-87fc-0d664e5f5d6a",
+        "msg_01a03fc8-ba24-7b52-a828-b4c624711b8e",
     }
     require(required_identifiers.issubset(identifiers), "continuation direct corrections were omitted")
     contains_all(evidence, ("generator", "raw_source", "quoted agent prose", "reconciliation lead", "corroborated"), "quoted review content can impersonate direct inventor evidence")
@@ -73,18 +86,28 @@ def validate_authority(document: dict) -> None:
     agents = next(item for item in order if item.get("path") == "AGENTS.md")
     require(agents.get("class") == "verified_working_projection", "AGENTS projection was promoted to inventor authority")
     agents_text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    contains_all(agents_text, ("verified agent-facing projection", "editing it cannot create", "LP-AST-001", "LP-GOVERNANCE-001", "LP-RECIPE-001", "LP-ADMISSION-001", "LP-ACTIVATION-001"), "AGENTS projection lost its authority joins")
+    contains_all(agents_text, ("verified agent-facing projection", "editing it cannot create", "LP-AST-001", "LP-GOVERNANCE-001", "LP-RECIPE-001", "LP-ADMISSION-001", "LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001", "LP-ENTITY-WEB-001", "LP-FEDERATION-001", "LP-ACTIVATION-001"), "AGENTS projection lost its authority joins")
     require(paths[-1] == "state/continuation.json", "observed state is not loaded last")
     transformation_text = (ROOT / "requirements" / "features" / "universal_ast_recipe.feature").read_text(encoding="utf-8")
     contains_all(transformation_text, ("I don't feel so good Mr Stark", "I feel fucking great, Tony!", "recipe transforms the typed AST", "produces the exact content"), "inventor's exact structural transformation was approximated")
     require("may produce the exact content" not in transformation_text, "exact transformation acceptance became optional")
+    connection_text = (ROOT / "requirements" / "features" / "query_neighborhood.feature").read_text(encoding="utf-8")
+    contains_all(connection_text, ("Equal hop counts", "known path is not proof", "upper bound", "Why not", "finite evidence authority", "partial work"), "typed connection or finite-machine law was lost")
+    entity_web_text = (ROOT / "requirements" / "features" / "entity_web_federation.feature").read_text(encoding="utf-8")
+    contains_all(entity_web_text, ("person cannot collapse", "personal web", "professional claim", "achievement cookies", "Raspberry Pi remains unsupported", "federation", "remote PostgreSQL"), "application or deployment modality law was lost")
+    exception_text = (ROOT / "requirements" / "features" / "machine_exceptions.feature").read_text(encoding="utf-8")
+    contains_all(exception_text, ("Hardware failure is not an epistemic unknown", "durable boundary", "restartable fault", "priority law", "same generated registry"), "processor-grade machine exception law was lost")
+    model_text = (ROOT / "requirements" / "features" / "model_compilation.feature").read_text(encoding="utf-8")
+    contains_all(model_text, ("flattened representation", "universal adjacency", "Faithful is not an acceptance class", "independent oracle", "deliberate defect"), "model export can hide flattening behind faithful")
+    roadmap_text = (ROOT / "docs" / "product" / "ROADMAP.md").read_text(encoding="utf-8")
+    contains_all(roadmap_text, ("substitute for implementation", "Integration proven", "not product activated", "foundational knowledge seed", "not begun", "machine.handle-exceptions", "critical path", "not a runtime waterfall", "GitHub Project #2"), "roadmap promoted requirements or lost the machine critical path")
     require(paths.index("contracts/recipe-model.json") < paths.index("contracts/source-profile-model.json") < paths.index("contracts/source-admission.json"), "source profile load order bypasses recipe or topology law")
     require(paths.index("contracts/recipe-model.json") < paths.index("contracts/source-admission.json"), "source admission precedes recipe law")
     for item in order:
         path = item.get("path")
         require(isinstance(path, str) and (ROOT / path).is_file(), f"authority path is missing: {path}")
     forbidden = document.get("forbidden_substitutions", [])
-    contains_all(forbidden, ("source ingestion for the product purpose", "ETL rows", "retrieval for cognition", "training for admission", "GPU availability", "firmware for knowledge identity", "personality prompt", "independent evidence", "personhood"), "forbidden substitutions incomplete")
+    contains_all(forbidden, ("source ingestion for the product purpose", "ETL rows", "retrieval for cognition", "raw hop count", "training for admission", "GPU availability", "firmware for knowledge identity", "personality prompt", "application account", "external entitlement", "physical node", "partial bounded", "unqualified word faithful", "independent evidence", "personhood"), "forbidden substitutions incomplete")
     gate = document.get("work_selection_gate", [])
     contains_all(gate, ("complete product behavior", "universal AST", "one native semantic owner", "continuation checkpoint"), "work selection gate is component-first")
 
@@ -103,6 +126,8 @@ def validate_recipe(document: dict) -> None:
         "compile-goal-and-search",
         "calculate-operator-and-select-act",
         "realize-modality-or-effect",
+        "materialize-authorized-entity-world",
+        "federate-authorized-world-state",
         "decompose-model-witness",
         "compile-target-artifact",
         "execute-firmware-or-calculus-extension",
@@ -116,6 +141,8 @@ def validate_recipe(document: dict) -> None:
     contains_all(compiler, ("ISA program", "whole recipe", "no source modality language model", "private dispatcher"), "recipe compiler permits a private engine")
     execution = document.get("execution", {})
     contains_all(execution, ("vector", "whole-working-set", "one item", "without semantic recalculation", "cannot change semantic output", "conserved", "replay"), "generic execution law incomplete")
+    application = document.get("application_and_federation", {})
+    contains_all(application, ("universal_primitives", "profile feed resume", "authenticated external assertions", "web mobile API document", "content-addressed exchange", "cannot become semantic authority", "unsupported targets"), "application or federation installed a private engine")
     controls = set(document.get("required_negative_controls", []))
     required_controls = {
         "opaque-record-instead-of-AST",
@@ -124,6 +151,13 @@ def validate_recipe(document: dict) -> None:
         "provider-substitution-changes-meaning",
         "string-replacement-impersonates-structural-transformation",
         "same-local-identifier-collides-across-authority-or-release",
+        "profile-blob-becomes-person-identity",
+        "product-surface-installs-private-semantics",
+        "federation-provider-becomes-identity-authority",
+        "unsupported-node-claims-semantic-support",
+        "hardware-fault-collapses-to-unknown",
+        "failed-effect-publishes-semantic-result",
+        "replay-crosses-unreceipted-durability-boundary",
     }
     require(required_controls.issubset(controls), "recipe deliberate defects incomplete")
 
@@ -197,6 +231,8 @@ def validate_admission(document: dict) -> None:
         "image-audio-video-geospatial-and-future-media",
         "domain-and-transition-witnesses",
         "model-artifact-and-behavior-witnesses",
+        "identity-organization-entitlement-and-achievement-witnesses",
+        "professional-project-and-delivery-history",
     }
     require(required.issubset(identifiers), "known heterogeneous witness universe was narrowed")
     grammar = next(item for item in universe if item.get("id") == "grammar-authorities")
@@ -308,7 +344,7 @@ def validate_operation(document: dict) -> None:
     cycles = document.get("runtime_cycles", {})
     require(set(cycles) == {"observe_calculate_realize", "evidence_learning", "calculus_extension", "model_symmetry"}, "whole machine cycles were omitted")
     stages = {stage.get("id"): stage for stage in document.get("stages", [])}
-    required = {"framework.execution", "substrate.compose-physicality", "substrate.bulk-deposit", "substrate.highway", "evidence.record-lineage", "world.admit-witnesses", "evidence.adjudicate", "query.guidance-search", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate"}
+    required = {"framework.execution", "machine.handle-exceptions", "substrate.compose-physicality", "substrate.bulk-deposit", "substrate.highway", "evidence.record-lineage", "world.admit-witnesses", "evidence.adjudicate", "query.guidance-search", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate", "product.materialize-entity-world", "runtime.federate-nodes"}
     require(required.issubset(stages), "whole capability graph was narrowed")
     require("seed.heterogeneous" not in stages, "monolithic seed stage returned")
     require(set(stages["world.admit-witnesses"].get("depends_on", [])) == {"substrate.highway", "substrate.bulk-deposit", "evidence.record-lineage"}, "world admission dependencies drift")
@@ -317,8 +353,15 @@ def validate_operation(document: dict) -> None:
     require("LP-RECIPE-001" in stages["framework.execution"].get("product_requirements", []), "recipe compiler missing from framework")
     require("LP-AST-001" in stages["substrate.compose-physicality"].get("product_requirements", []), "AST missing from substrate")
     require("LP-ADMISSION-001" in stages["world.admit-witnesses"].get("product_requirements", []), "world admission requirement missing")
+    require({"LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001"}.issubset(stages["query.guidance-search"].get("product_requirements", [])), "typed connection finite-machine or exception law missing")
+    require(stages["machine.handle-exceptions"].get("depends_on") == ["framework.execution"], "machine exception model bypasses the common framework")
+    require(stages["machine.handle-exceptions"].get("github_issues") == [56], "machine exception issue ownership drift")
+    require("LP-EXCEPTION-001" in stages["machine.handle-exceptions"].get("product_requirements", []), "processor-grade exception law missing")
+    require({"LP-APPLICATION-001", "LP-ENTITY-WEB-001", "LP-ENTITLEMENT-001"}.issubset(stages["product.materialize-entity-world"].get("product_requirements", [])), "entity-world product stage lost universal application semantics")
+    require({"LP-NODE-001", "LP-FEDERATION-001", "LP-PLACEMENT-001"}.issubset(stages["runtime.federate-nodes"].get("product_requirements", [])), "node federation placement stage incomplete")
+    require(stages["runtime.federate-nodes"].get("depends_on", [])[-1] == "product.materialize-entity-world", "federation bypasses authorized entity-world projection")
     require(stages["substrate.highway"].get("github_issues") == [52], "highway issue ownership drift")
-    require(stages["world.admit-witnesses"].get("github_issues") == [53], "world admission issue ownership drift")
+    require(stages["world.admit-witnesses"].get("github_issues") == [53, 59], "world admission issue ownership drift")
     contains_all(stages["framework.execution"].get("implementation", {}), ("published code proves", "universal AST type system", "recipe compiler", "remain unimplemented"), "framework partial state overclaims the recipe machine")
     contains_all(stages["bootstrap.unicode-root"].get("implementation", {}), ("controlled integration", "PostgreSQL 18.6 product cluster", "not proven"), "Unicode integration was promoted to product or generic-machine proof")
     contains_all(stages["substrate.bulk-deposit"].get("implementation", {}), ("separate dirty worktree", "not implemented or published"), "unpublished composition work was promoted")
@@ -340,7 +383,7 @@ class ProgramAuthorityTests(unittest.TestCase):
         validate_profile(self.profile)
         validate_admission(self.admission)
         validate_operation(self.operation)
-        validate_continuation(self.continuation)
+        validate_continuation(self.continuation, verify_physical=VERIFY_PHYSICAL_CONTINUATION)
 
     def test_mutation_observed_state_loaded_first_is_detected(self) -> None:
         mutant = copy.deepcopy(self.authority)
@@ -382,6 +425,24 @@ class ProgramAuthorityTests(unittest.TestCase):
         mutant["grammar_boundary"].pop("laplace_recomposition")
         mutant["grammar_boundary"].pop("structural_transformation")
         with self.assertRaisesRegex(ValueError, "symmetry"):
+            validate_recipe(mutant)
+
+    def test_mutation_person_becomes_profile_blob_is_detected(self) -> None:
+        mutant = copy.deepcopy(self.recipe)
+        mutant["application_and_federation"] = {"projection_law": "store one profile blob in a user row"}
+        with self.assertRaisesRegex(ValueError, "application or federation"):
+            validate_recipe(mutant)
+
+    def test_mutation_node_gets_private_engine_is_detected(self) -> None:
+        mutant = copy.deepcopy(self.recipe)
+        mutant["application_and_federation"]["node_law"] = "Raspberry Pi uses a separate simplified semantic engine"
+        with self.assertRaisesRegex(ValueError, "application or federation"):
+            validate_recipe(mutant)
+
+    def test_mutation_hardware_fault_collapses_to_unknown_is_detected(self) -> None:
+        mutant = copy.deepcopy(self.recipe)
+        mutant["required_negative_controls"].remove("hardware-fault-collapses-to-unknown")
+        with self.assertRaisesRegex(ValueError, "deliberate defects"):
             validate_recipe(mutant)
 
     def test_mutation_source_waterfall_is_detected(self) -> None:

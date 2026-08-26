@@ -80,7 +80,10 @@ The native engine owns:
 - induced-model-operator comparison under basis, scale, head, and neuron symmetries;
 - canonical deposition, derived-state calculation, and coherent epoch publication;
 - deterministic receipts;
-- bulk memory layouts, algorithms, and concurrency.
+- bulk memory layouts, algorithms, and concurrency;
+- audience-scoped entity-world selection, entitlement calculation, typed connection
+  search, answerability, and why-not dispositions;
+- authenticated content-addressed federation semantics and logical placement planning.
 
 The native engine also owns the common perfcache mapper, typed module registry,
 dependency graph, integrity checks, coherent activation epoch, batch lookup ABI, and
@@ -120,6 +123,15 @@ ownership, transaction integration, planned server access, set-returning executi
 catalog registration, and error translation. Server queries are schema-qualified,
 parameterized, planned, and set-based.
 
+The framework also owns the generated machine-exception lifecycle. Modules and
+providers report typed observed conditions and recovery capabilities; they do not
+invent route-local error meaning. The common executor resolves priority, invalidates
+uncommitted outputs, selects permitted retry, reroute, or replay, binds the last
+durable receipt, and prevents failed or indeterminate effects from publication. SQL,
+C#, HTTP, UI, and diagnostics translate the same exception identity without
+recategorizing hardware fault, resource exhaustion, authority denial, contradiction,
+or unknown.
+
 ## Hardware topology and resource authority
 
 One native topology service inventories processors, cores, hardware threads, NUMA
@@ -142,6 +154,18 @@ compiler and ISA profile, contraction and reduction rules, MKL compatibility con
 thread count, and accepted comparison contract. Faster hardware execution is a
 physical-plan choice and cannot change identity, evidence kind, ordering, completion,
 or semantic results.
+
+The same law applies across form factors and operating systems. A node is supported
+only after its exact ABI, package, durability, semantic-parity, and product tests pass.
+ARM, Raspberry Pi, and any future target remain explicit unsupported targets until
+that evidence exists; they do not receive a reduced engine.
+
+Execution, PostgreSQL, canonical storage, archival storage, source access, perfcaches,
+and federation peers are independent placement dimensions. The planner names each
+physical provider and network boundary. PostgreSQL server instructions execute on the
+host running PostgreSQL even when another node orchestrates them. Storage underneath
+PostgreSQL is admitted only after locking, atomicity, `fsync`, crash, and recovery
+semantics pass its provider contract.
 
 ## SQL orchestration
 
@@ -180,6 +204,13 @@ C# does not calculate substrate identities, relations, trust, trajectories,
 adjudication, candidate ranking, model operations, or conversation semantics. It uses
 generated typed bindings rather than handwritten semantic SQL.
 
+User, profile, billing, résumé, achievement, and federation services are orchestrators
+under the same boundary. They authenticate principals, carry authority and visibility
+envelopes, and transport typed programs and results. They cannot store an opaque
+canonical profile, calculate entitlement privately, flatten professional evidence,
+decide referential identity, or implement synchronization semantics outside the native
+ISA and PostgreSQL persistence contracts.
+
 Progress reported by C# is derived from reconciled run, file, segment, batch, record,
 database, and receipt state. A later successful sub-run cannot replace the incomplete
 status of its parent source.
@@ -189,6 +220,26 @@ status of its parent source.
 Media libraries decode and encode format containers. The engine converts decoded data
 to universal content, composition, physicality, relations, testimony, and receipts.
 A codec does not define a modality-specific substrate.
+
+## Product realization and federation providers
+
+A profile, feed, résumé, portfolio, personal web, entitlement display, or achievement
+display is a materialization of a pinned native semantic result. Web, mobile, API, and
+document renderers own presentation encoding only. The materialization receipt binds
+the subject referential epoch, audience, authority, visibility, selected and withheld
+state, evidence boundary, governance recipe, and output modality.
+
+Identity, account, billing, repository, employer, school, service, certification, and
+achievement systems are external witnesses. Their adapters authenticate and preserve
+exact assertions, scope, time, provenance, and dependence; they cannot decide identity,
+truth, standing, capability, or disclosure.
+
+Federation transports authenticate peers and move content-addressed structures,
+testimony, recipes, epochs, and receipts under an accepted world-scope program.
+Discovery, relay, backup, availability, billing, hosting, and synchronization services
+remain replaceable physical or witness providers. A provider cannot own user identity,
+private world state, firmware, or semantic law merely because it makes the exchange
+available.
 
 ## Generated contracts
 

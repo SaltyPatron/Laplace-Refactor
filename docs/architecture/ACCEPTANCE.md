@@ -510,6 +510,94 @@ cross these gates.
   autonomous synthesis within the machine rules, not consciousness, subjective
   experience, moral personhood, or independent agency.
 
+## Typed connection, finite execution, and why-not proof
+
+- Social, professional, organizational, technical, causal, semantic, ownership, and
+  arbitrary reachability fixtures use paths with equal raw hop counts but deliberately
+  different admissible relation families. Each query must return its independently
+  solved distance or unknown disposition; one scalar adjacency or hop count must fail.
+- A discovered path establishes reachability and a known upper bound. Shortest or
+  optimal claims require the declared world boundary, transition registry, heuristic,
+  reopen law, frontier state, and completion certificate. Hidden, private, inaccessible,
+  unadmitted, or unresolved regions force an explicit coverage deficit.
+- Copied claims and paths collapse to their eligible dependence roots. Evidence volume
+  cannot impersonate independent structural, temporal, cross-modal, predictive, and
+  contradiction agreement; sparse evidence cannot be declared false merely because it
+  does not cluster densely.
+- Every program executes under finite evidence, authority, time, CPU, memory, I/O,
+  database, and search resources. Why-not acceptance distinguishes unsupported, denied,
+  exhausted, contradicted, no-admissible-path, incomplete-boundary, partial,
+  known-upper-bound, and unknown results, and names the exact continuation condition.
+
+## Machine exception and recovery proof
+
+- Inject invalid instruction and operand, implementation defect, authority denial,
+  cancellation, resource exhaustion, provider unavailability, PostgreSQL process
+  loss, hardware/storage/network failure, failed `fsync`, corrupt artifact or page,
+  consistency/durability fault, contradiction, and incomplete evidence boundary.
+- Require the exact generated condition identity, priority, precision, affected
+  instruction, physical provider, durable boundary, invalidated output, recovery law,
+  and why-not receipt across native, PostgreSQL, SQL, C#, service, and diagnostic
+  routes.
+- Prove restartable failures reroute or replay only from an accepted durable receipt
+  and produce the same logical result as uninterrupted execution. Prove terminal or
+  indeterminate failures never publish semantic success.
+- Deliberately collapse hardware fault into unknown, provider unavailable into
+  resource exhaustion, contradiction into implementation error, or a failed effect
+  into success; each mutant must fail.
+
+## Entity worlds, entitlements, and product materialization
+
+- One person fixture contains exact names, competing referents, external accounts,
+  authored artifacts, activity, relationships, memberships, achievements, professional
+  evidence, preferences, and visibility rules. No provider ID, profile blob, or account
+  row may substitute for referential resolution and universal state.
+- A pinned audience-authorized recipe materializes profile, feed, résumé, portfolio,
+  and personal-web results through web, mobile, API, and document modalities with the
+  same semantic selection, withholding, unknown, and evidence dispositions.
+- Résumé claims expand to permitted person, employer, project, repository, commit, PR,
+  review, issue, build, release, artifact, and deployment witnesses. Forged, squashed,
+  shared, pair-programmed, AI-assisted, private, and missing Git history remain typed;
+  neither Git nor an employer becomes exclusive historical authority.
+- External membership and achievement assertions retain provider, authority, time,
+  dependence, and visibility. Governance may change current entitlement or display
+  while person identity and historical testimony remain. Self-assertion cannot
+  impersonate independent authority.
+
+## Node, placement, and federation acceptance
+
+- Supported server, desktop, and future ARM or Raspberry Pi nodes execute the same
+  pinned programs with identical logical identities, evidence dispositions, results,
+  and receipt meanings. Only accepted physical plans, capacity, placement, acceleration,
+  and measured performance may differ. ARM and Raspberry Pi remain unsupported until
+  exact ABI, package, crash-recovery, semantic-parity, and representative product tests
+  pass.
+- Colocated and distributed execution fixtures vary native execution, PostgreSQL,
+  canonical storage, archive storage, perfcaches, source APIs, and federation peers.
+  Logical results remain equal; receipts report every execution, storage, network,
+  cache, consistency, and durability boundary. Remote PostgreSQL is identified as the
+  server-side execution location.
+- PostgreSQL backing providers pass locking, atomicity, `fsync`, torn-write, crash, and
+  recovery controls before activation. A consumer network share with insufficient
+  semantics must fail even when ordinary reads and writes appear successful.
+- Federation tests exchange authorized private, shared, and public projections between
+  independently controlled nodes. Authentication, content and recipe identity,
+  provenance, authority, visibility, withholding, replay convergence, and history
+  close; discovery, relay, backup, billing, or hosted availability cannot become
+  identity, truth, firmware, or semantic authority.
+
+## Model export nonflattening and named invariants
+
+- Target construction preserves distinct typed relation families, direction, time,
+  context, provenance, trust, dependence, and evidence boundaries through their
+  declared operators. Replacing them with one adjacency matrix, embedding, similarity,
+  or scalar neighborhood must fail an independently solved operator and withheld
+  behavior fixture.
+- Every preservation claim names exact bytes, layouts, numeric bounds, induced
+  operators, relation families, evidence boundaries, quantization error, and runtime
+  behavior as applicable. The unqualified word `faithful`, expected shape, loadability,
+  correlation, resemblance, or one academic fixture is rejected as proof.
+
 ## Installation and product lifecycle
 
 - Clean install, repeated install, upgrade, repair, and uninstall execute through public

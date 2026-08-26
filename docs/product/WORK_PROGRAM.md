@@ -13,12 +13,12 @@ document defines phase exits.
 | --- | --- |
 | 0 — Product authority and clean-room foundation | complete |
 | 1 — Industrial build and dependency foundation | #3, #8, #12, #54 |
-| 2 — Universal execution framework and ISA | #4, #5, #6, #10 |
+| 2 — Universal execution framework and ISA | #4, #5, #6, #10, #56, #57, #58 |
 | 3 — Universal substrate state | #7, #13, #14, #16, #52 |
-| 4 — Batch world-state admission | #15, #53 |
-| 5 — Universal query and conversation | #17, #18, #19 |
-| 6 — Model independence | #20 |
-| 7 — Complete product surfaces | #21 |
+| 4 — Batch world-state admission | #15, #53, #59 |
+| 5 — Universal query and conversation | #17, #18, #19, #60 |
+| 6 — Model independence | #20, #61 |
+| 7 — Complete product surfaces | #21, #50, #62–#69 |
 | 8 — Full acceptance and release | #22 |
 
 Issue closure does not imply phase closure while another required issue or the phase
@@ -76,6 +76,14 @@ install, and verify the custom dependency runtime from declared inputs.
   generation, derived epochs, result streams, observations, and external effects.
 - Implement complete-program preflight, authority/effect admission, cancellation,
   replay, deterministic merge, progress, durable publication, and full receipts.
+- Generate one processor-grade exception, trap, interrupt, fault, cancellation, and
+  terminal-disposition registry. Distinguish physical faults, provider availability,
+  invalid programs, implementation defects, authority denial, resource exhaustion,
+  contradiction, incomplete boundaries, and unknown; declare priority, restart,
+  retry, reroute, replay, compensation, durability, and publication behavior.
+- Admit every module through the same lifecycle and provider-substitution conformance
+  suite so genericity, reuse, scalar-as-batch parity, and receipt completeness are
+  executed facts rather than framework vocabulary.
 - Apply one conserved topology/resource grant across native kernels, TBB arenas, MKL
   domains, PostgreSQL workers, managed orchestration, and launched tools.
 - Finalize universal value types, C ABI, ISA versioning, encoding, validation,
@@ -227,6 +235,13 @@ edge, write, WAL, and cold/warm counters.
 - Implement multilingual and cross-modal conversation.
 - Implement modality-typed exact realizers over semantic acts without an English token
   plan as the universal intermediate.
+- Implement typed social, professional, organizational, technical, causal, semantic,
+  and arbitrary connection programs whose relation admissibility, direction, time,
+  standing, dependence, cost, boundary, and completion laws remain distinct.
+- Report a found path as reachability and a known upper bound until complete search
+  certifies an optimum; implement first-class why-not receipts for missing evidence,
+  incomplete boundaries, unsupported operations, denied authority, resource exhaustion,
+  contradictions, and calculus deficits.
 - Expose identical semantics through SQL, CLI, HTTP, and product integrations.
 
 Exit: operator, defect, AImap, cognition-plan, semantic-act, and complete conversation
@@ -263,6 +278,21 @@ withheld-evidence tests, deliberate-defect tests, and target-runtime semantic be
   complete supported product surfaces without introducing another semantic engine.
 - Implement CLI, APIs, web product, operations, billing, security, observability,
   diagnostics, and support commands.
+- Implement people and organizations as universal referential worlds rather than SaaS
+  account rows, and implement profiles, feeds, résumés, portfolios, achievement and
+  entitlement views, and personal webs as audience-authorized materialization recipes.
+- Preserve external identity, billing, sponsorship, repository, employment, school,
+  service, certification, and achievement systems as witnesses while governance
+  calculates current capability, disclosure, and display.
+- Implement authenticated content-addressed federation for user-controlled private,
+  shared, and public state without making hosted discovery, relay, backup, billing, or
+  availability services identity or semantic authority.
+- Implement one support gate and semantic machine across server, desktop, ARM,
+  Raspberry Pi, and future node candidates; unsupported targets remain explicit until
+  their ABI, package, durability, semantic, and representative product tests pass.
+- Implement typed execution, PostgreSQL, canonical storage, archive, source, perfcache,
+  and peer placement providers; prove PostgreSQL storage durability and report remote
+  server-side execution honestly.
 - Implement Linux and Windows services and packages.
 - Implement install, repeat-install, upgrade, repair, and removal behavior.
 

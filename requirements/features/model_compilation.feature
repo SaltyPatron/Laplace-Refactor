@@ -39,6 +39,22 @@ Feature: Laplace compiles witnessed substrate relations into neural target artif
     And every head receipt names the exact evidence, recipe, factorization, and output values
     But shuffling one relation family causes that head's mechanism test to fail
 
+  @LP-TEST-MODEL-FLATTENING-REJECTION
+  Scenario: A flattened representation cannot become the source of target intelligence
+    Given precedence containment syntax semantic-role causality context provenance trust direction and time require distinct typed operators
+    When one exporter replaces them with a universal adjacency matrix embedding similarity or scalar neighborhood
+    Then at least one independently solved relation operator and withheld behavioral fixture must disagree
+    And the exporter cannot recover the erased relation law evidence boundary direction or context from target shape
+    But successful fitting on a small academic fixture cannot certify the missing target operations
+
+  @LP-TEST-MODEL-ACCEPTANCE-INVARIANT-NAMED
+  Scenario: Faithful is not an acceptance class
+    Given an exported artifact has expected tensor shapes metadata and loadability
+    When the exporter claims that the result is faithful
+    Then the claim is rejected until it names exact preserved bytes layouts numeric bounds induced operators relation families evidence boundaries quantization error and runtime behaviors as applicable
+    And each named invariant has an independent oracle withheld fixture and deliberate defect
+    But resemblance correlation nonempty output or one successful runtime load cannot substitute for semantic and behavioral preservation
+
   Scenario: Gauge-equivalent factors compare through their induced operator
     Given query and key factors whose induced bilinear form is known
     And an invertible basis transform with its compensating inverse transform

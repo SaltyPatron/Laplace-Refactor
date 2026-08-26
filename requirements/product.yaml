@@ -244,6 +244,30 @@ requirements:
       - LP-TEST-SEARCH-TYPED-PATH-PROVENANCE
       - LP-TEST-SEARCH-DETERMINISTIC-REPLAY
       - LP-TEST-SEARCH-CROSS-ROUTE-PARITY
+  - id: LP-CONNECTION-001
+    statement: Connection and answerability are query-relative typed calculations over declared relation families direction time context standing dependence authority and search boundaries so a discovered path proves only reachability and an upper bound unless complete search certifies the optimum while raw hop count KNN ANN and evidence volume cannot impersonate social professional causal semantic or other requested distance.
+    evidence:
+      - LP-TEST-CONNECTION-TYPED-METRIC
+      - LP-TEST-CONNECTION-KNOWN-PATH-UPPER-BOUND
+      - LP-TEST-CONNECTION-SEARCH-COVERAGE
+      - LP-TEST-CONNECTION-DEPENDENCE-NONAMPLIFICATION
+      - LP-TEST-CONNECTION-METRIC-DIVERGENCE
+  - id: LP-LIMITS-001
+    statement: Every cognition and query program executes within explicit finite evidence authority time memory CPU I O database and search boundaries and returns an exact completion partial upper bound unsupported denied exhausted contradicted or unknown disposition whose why not receipt names the limiting state work performed open obligations and condition required to continue.
+    evidence:
+      - LP-TEST-FINITE-RESOURCE-BOUNDARY
+      - LP-TEST-WHY-NOT-TYPED-DISPOSITION
+      - LP-TEST-PARTIAL-NONCOMPLETION
+      - LP-TEST-BOUND-CHANGE-EXPLANATION
+  - id: LP-EXCEPTION-001
+    statement: Laplace defines processor-grade typed exception trap interrupt fault cancellation and terminal-disposition semantics so invalid programs implementation defects hardware storage network provider consistency and durability faults authority denial resource exhaustion epistemic incompleteness and semantic contradiction remain distinct and every condition declares priority precision restart retry reroute replay compensation durability and publication behavior.
+    evidence:
+      - LP-TEST-MACHINE-EXCEPTION-TAXONOMY
+      - LP-TEST-HARDWARE-FAULT-DISPOSITION
+      - LP-TEST-FAULT-REPLAY-BOUNDARY
+      - LP-TEST-EXCEPTION-PRIORITY
+      - LP-TEST-FAILED-EFFECT-NONPUBLICATION
+      - LP-TEST-EXCEPTION-CROSS-ROUTE-PARITY
   - id: LP-COGNITION-002
     statement: Solver residual relation compatibility boundary defect innovation contradiction missing-structure evidence and counterfactual value are distinct typed calculations and no one is substituted for another.
     evidence:
@@ -333,13 +357,14 @@ requirements:
       - LP-TEST-CROSS-MODEL-WITNESS
       - LP-TEST-UNRELATED-TARGET
   - id: LP-MODEL-002
-    statement: Laplace calculates typed relational target operators from substrate observations and fits and factorizes them into the exact tensor contracts required by declared neural target architectures.
+    statement: Laplace calculates distinct typed relational target operators from their exact substrate observations and fits and factorizes them into the exact tensor contracts required by declared neural target architectures without flattening relation families evidence boundaries direction context or behavior into one adjacency embedding similarity or academically convenient projection.
     evidence:
       - LP-TEST-BASELINE-DIRECT-GGUF-REPRODUCTION
       - LP-TEST-RELATION-KERNEL-OPERATOR-FIT
       - LP-TEST-HEAD-SPECIFIC-OPERATORS
       - LP-TEST-TARGET-TENSOR-CLOSURE
       - LP-TEST-OPERATOR-DELIBERATE-DEFECT
+      - LP-TEST-MODEL-FLATTENING-REJECTION
   - id: LP-MODEL-003
     statement: Laplace decomposes ingested models into universal witnessed structure values operators and behavior and uses cross-model agreement and disagreement as evidence rather than authority.
     evidence:
@@ -355,12 +380,13 @@ requirements:
       - LP-TEST-MODEL-BULK-CPU-PERFORMANCE
       - LP-TEST-MODEL-NO-GPU-DEPENDENCY
   - id: LP-MODEL-005
-    statement: GGUF and other declared model formats are target runtime artifacts compiled from selected substrate state with exact tensor layout quantization metadata provenance and behavioral acceptance.
+    statement: GGUF and other declared model formats are target runtime artifacts compiled from selected substrate state with exact tensor layout quantization metadata provenance and behavioral acceptance whose claimed preserved property is named and independently tested; unqualified faithful shape loadability correlation resemblance or one academic fixture cannot establish semantic or behavioral preservation.
     evidence:
       - LP-TEST-GGUF-EXACT-CONTRACT
       - LP-TEST-GGUF-TARGET-RUNTIME
       - LP-TEST-MODEL-VALUE-PROVENANCE
       - LP-TEST-CONVERSATION-TARGET-RUNTIME
+      - LP-TEST-MODEL-ACCEPTANCE-INVARIANT-NAMED
   - id: LP-LANGUAGE-001
     statement: Ordered composition and realization are Unicode native and reproduce CJK and every other script without an English token or punctuation dependency.
     evidence:
@@ -438,6 +464,48 @@ requirements:
       - LP-TEST-ADMISSION-READ-REACHABILITY
       - LP-TEST-ADMISSION-NO-TRAINING
       - LP-TEST-ADMISSION-GRAMMAR-NONSEMANTIC
+  - id: LP-APPLICATION-001
+    statement: People organizations external accounts memberships achievements activities repositories product views interfaces nodes and every other application concept enter according to role as the same exact content referential state AST composition occurrence testimony governance recipe effect and receipt forms and cannot create an application specific identity evidence persistence query cognition or realization engine.
+    evidence:
+      - LP-TEST-APPLICATION-UNIVERSAL-PRIMITIVES
+      - LP-TEST-APPLICATION-PRIVATE-ENGINE-REJECTION
+      - LP-TEST-EXTERNAL-ACCOUNT-WITNESS
+  - id: LP-ENTITY-WEB-001
+    statement: A profile feed page resume portfolio and personal web are authority and visibility scoped query-relative recipe materializations over a person or organization referential world rather than canonical account fields and the same pinned projection can realize through web mobile API document or another supported modality with receipts and without rewriting private shared public or historical state.
+    evidence:
+      - LP-TEST-ENTITY-WEB-RECIPE-MATERIALIZATION
+      - LP-TEST-ENTITY-WEB-VISIBILITY-NONIDENTITY
+      - LP-TEST-RESUME-WITNESSED-EVIDENCE
+      - LP-TEST-ENTITY-WEB-CROSS-MODAL-PARITY
+      - LP-TEST-ENTITY-WEB-REPLAY
+  - id: LP-ENTITLEMENT-001
+    statement: External providers and achievement authorities contribute authenticated time scoped testimony while versioned governance recipes calculate current entitlement qualification capability and display state without changing person identity historical assertions epistemic standing or effect privilege and self assertion remains distinguishable from independent authority.
+    evidence:
+      - LP-TEST-ENTITLEMENT-TESTIMONY-GOVERNANCE-SEPARATION
+      - LP-TEST-ENTITLEMENT-HISTORY-PRESERVATION
+      - LP-TEST-ACHIEVEMENT-AUTHORITY-VISIBILITY
+      - LP-TEST-SELF-ASSERTION-NONAUTHORITY
+  - id: LP-NODE-001
+    statement: Every supported Laplace node executes the same typed ISA identity persistence evidence query and receipt semantics across CPU operating system form factor and scale while hardware resources alter only validated physical plans capacity placement acceleration and measured performance; ARM Raspberry Pi and every other target remain explicitly unsupported until their exact ABI package semantic and product acceptance passes and no target receives a private Laplace engine.
+    evidence:
+      - LP-TEST-NODE-SAME-MACHINE-SEMANTICS
+      - LP-TEST-NODE-PHYSICAL-PLAN-PARITY
+      - LP-TEST-NODE-SUPPORT-CLAIM-GATE
+      - LP-TEST-NODE-PRIVATE-ENGINE-REJECTION
+  - id: LP-FEDERATION-001
+    statement: Content addressed authenticated federation preserves user controlled private shared and public world scopes plus testimony provenance authority history and receipts while central discovery synchronization availability backup billing and relay services remain replaceable providers rather than owners of identity truth or semantic execution.
+    evidence:
+      - LP-TEST-FEDERATION-SCOPE-AUTHORITY
+      - LP-TEST-FEDERATION-CONTENT-RECEIPT-INTEGRITY
+      - LP-TEST-FEDERATION-PROVIDER-NONAUTHORITY
+      - LP-TEST-FEDERATION-REPLAY-CONVERGENCE
+  - id: LP-PLACEMENT-001
+    statement: Execution PostgreSQL canonical storage archive storage source access perfcaches and federation peers have explicit typed placement and durability providers whose physical distribution cannot change semantics; remote PostgreSQL moves the server owned semantic execution boundary and any storage backing PostgreSQL must prove required locking atomicity fsync and crash durability before activation.
+    evidence:
+      - LP-TEST-PLACEMENT-SEMANTIC-PARITY
+      - LP-TEST-REMOTE-POSTGRES-EXECUTION-BOUNDARY
+      - LP-TEST-POSTGRES-STORAGE-DURABILITY
+      - LP-TEST-PLACEMENT-RECEIPT
   - id: LP-PACKAGE-001
     statement: Linux and Windows packages provide convergent install upgrade repair service and removal behavior with verified receipts.
     evidence:

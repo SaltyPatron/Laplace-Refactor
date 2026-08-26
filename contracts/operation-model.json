@@ -5,7 +5,11 @@
     "stages": "implementation capability dependencies and operational ownership, not a source runtime order or a claim that product state is active",
     "runtime": "runtime behavior is cyclic and recipe-planned over exact AST artifact reference epoch and authority dependencies",
     "activation": "implementation integration product activation per-source-profile world admission configured foundational seed completion and release are separate states recorded by their own receipts",
-    "universality": "every stage consumes or produces typed universal AST Merkle-DAG state through one recipe compiler ISA framework and native semantic engine"
+    "universality": "every stage consumes or produces typed universal AST Merkle-DAG state through one recipe compiler ISA framework and native semantic engine",
+    "application_symmetry": "people organizations accounts entitlements achievements activities interfaces personal webs nodes and federation use universal machine state and cannot create application-specific semantic engines",
+    "finite_execution": "every query cognition and effect operates under explicit evidence authority resource and search boundaries and returns a typed why-not disposition when completion is unavailable",
+    "exception_semantics": "hardware provider resource program authority epistemic and semantic conditions are distinct generated machine states with declared priority restart retry reroute replay durability and publication laws",
+    "deployment_symmetry": "hardware platform placement storage and network providers may change physical plans capacity and performance but not ISA meaning identity evidence or logical results"
   },
   "runtime_cycles": {
     "observe_calculate_realize": ["resolve grammar and recipe", "decompose exact digital content", "lower typed AST and calculate Merkle DAG", "deposit canonical and witnessed state", "publish derived epochs", "compile goal", "calculate and search", "select semantic act", "recompose modality or execute effect", "observe consequence"],
@@ -16,7 +20,9 @@
   "tracking": {
     "repository": "SaltyPatron/Laplace-Refactor",
     "parent_issue": 23,
-    "tracked_issues": [3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 50, 52, 53, 54],
+    "project_number": 2,
+    "project_url": "https://github.com/users/SaltyPatron/projects/2",
+    "tracked_issues": [3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 50, 52, 53, 54, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69],
     "phase_milestones": {
       "0": "Phase 0 — Product authority and clean-room foundation",
       "1": "Phase 1 — Industrial build and dependency foundation",
@@ -47,7 +53,7 @@
     {
       "id": "framework.execution",
       "program_phases": [2],
-      "github_issues": [4, 5, 6, 10],
+      "github_issues": [4, 5, 6, 10, 57, 58],
       "depends_on": ["foundation.acquire-build"],
       "owner": "native C/C++ engine with generated PostgreSQL SQL and C# orchestration bindings",
       "consumes": ["typed recipes and AST programs", "immutable execution context", "authority envelope", "resource grant"],
@@ -64,10 +70,24 @@
       }
     },
     {
+      "id": "machine.handle-exceptions",
+      "program_phases": [2],
+      "github_issues": [56],
+      "depends_on": ["framework.execution"],
+      "owner": "generated native exception trap interrupt fault cancellation recovery and why-not registry with route-parity bindings",
+      "consumes": ["validated logical program", "current instruction and operands", "execution context", "physical plan and provider observations", "authority resource and completion state", "last durable receipt"],
+      "produces": ["typed machine condition", "priority and precision decision", "restart retry reroute replay compensation or terminal plan", "invalidated-output boundary", "why-not and recovery receipt"],
+      "persistent_authority": ["exception registry and ABI epoch", "fault and recovery receipts", "durable replay boundaries"],
+      "acceleration": ["generated constant-time condition lookup", "provider capability registry", "accepted alternate physical plans"],
+      "receipts": ["logical program and affected instruction", "condition class and observed causes", "node provider transaction and world scope", "last durable receipt and replay origin", "publication disposition"],
+      "product_requirements": ["LP-EXCEPTION-001", "LP-LIMITS-001", "LP-ISA-001", "LP-FRAMEWORK-001", "LP-PLACEMENT-001"],
+      "implementation": {"state": "unimplemented", "missing_boundary": "requirements and acceptance scenarios exist but no generated exception registry native dispatcher recovery planner route bindings or physical fault-injection acceptance is implemented", "evidence": ["requirements/features/machine_exceptions.feature", "docs/architecture/ISA.md", "docs/architecture/ACCEPTANCE.md"]}
+    },
+    {
       "id": "bootstrap.dependencies",
       "program_phases": [1, 2],
       "github_issues": [3, 12],
-      "depends_on": ["foundation.acquire-build", "framework.execution"],
+      "depends_on": ["foundation.acquire-build", "framework.execution", "machine.handle-exceptions"],
       "owner": "framework-mediated package and dependency activation",
       "consumes": ["verified source generations", "staged dependency packages", "generated runtime configuration", "activation authority"],
       "produces": ["activated package inputs", "runtime dependency epoch", "loaded object closure"],
@@ -165,7 +185,7 @@
     {
       "id": "world.admit-witnesses",
       "program_phases": [4],
-      "github_issues": [53],
+      "github_issues": [53, 59],
       "depends_on": ["substrate.highway", "substrate.bulk-deposit", "evidence.record-lineage"],
       "owner": "native shared grammar recipe AST admission composition witnessing and deposition modules with replaceable syntax and physical providers",
       "consumes": ["selected heterogeneous digital source boundary", "exact conforming source profiles with artifact grammar codec recipe AST witness denominator and completion declarations", "active highway and evidence recording capabilities", "canonical working-set and persistence providers"],
@@ -193,7 +213,7 @@
     {
       "id": "query.guidance-search",
       "program_phases": [5],
-      "github_issues": [17],
+      "github_issues": [17, 60],
       "depends_on": ["evidence.adjudicate"],
       "owner": "native guidance compiler typed operator and indexed search modules",
       "consumes": ["goal", "operands and bindings", "world evidence and firmware scopes", "completion obligations", "typed knowledge deficits"],
@@ -201,7 +221,7 @@
       "persistent_authority": ["discourse and working state when explicitly committed", "program and result receipts"],
       "acceleration": ["indexed frontier batches", "metric candidate generators", "A-star or declared best-first search", "matrix-free operators"],
       "receipts": ["goal", "typed state", "cost and heuristic laws", "reopen and tie rules", "selected evidence and epochs"],
-      "product_requirements": ["LP-CONVERSATION-001", "LP-COGNITION-001", "LP-QUERY-001", "LP-SEARCH-001", "LP-COGNITION-002", "LP-COGNITION-003", "LP-COGNITION-004", "LP-GOVERNANCE-001", "LP-FIRMWARE-001"],
+      "product_requirements": ["LP-CONVERSATION-001", "LP-COGNITION-001", "LP-QUERY-001", "LP-SEARCH-001", "LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001", "LP-COGNITION-002", "LP-COGNITION-003", "LP-COGNITION-004", "LP-GOVERNANCE-001", "LP-FIRMWARE-001"],
       "implementation": {"state": "unimplemented", "evidence": ["docs/architecture/NATIVE_COGNITION_MATHEMATICS.md", "requirements/features/conversation_cognition.feature", "requirements/features/query_neighborhood.feature", "requirements/features/firmware_governance.feature"]}
     },
     {
@@ -235,7 +255,7 @@
     {
       "id": "model.ingest-generate",
       "program_phases": [6],
-      "github_issues": [20],
+      "github_issues": [20, 61],
       "depends_on": ["world.admit-witnesses", "evidence.adjudicate", "query.guidance-search"],
       "owner": "native model decomposition induced-operator comparison and target compiler modules",
       "consumes": ["model artifacts as witnesses", "substrate relation operators", "target architecture and runtime contract"],
@@ -247,17 +267,45 @@
       "implementation": {"state": "unimplemented", "evidence": ["requirements/features/aimap.feature", "requirements/features/model_compilation.feature"]}
     },
     {
+      "id": "product.materialize-entity-world",
+      "program_phases": [7],
+      "github_issues": [21, 62, 63, 64, 68],
+      "depends_on": ["world.admit-witnesses", "evidence.adjudicate", "query.guidance-search", "cognition.realize-effect"],
+      "owner": "native referential world projection entitlement visibility and modality-materialization modules exposed through generated product bindings",
+      "consumes": ["person and organization referential epochs", "authored activity relationship entitlement achievement and professional-history testimony", "audience authority and visibility policy", "entity-world materialization recipe"],
+      "produces": ["authorized query-relative personal and organization webs", "profile feed resume portfolio entitlement and achievement views", "web mobile API document and future modality realizations", "withholding and unknown dispositions"],
+      "persistent_authority": ["referential and evidence epochs", "versioned visibility governance and materialization recipes", "materialization and disclosure receipts", "historical entitlement and achievement testimony"],
+      "acceleration": ["audience-scoped query plans", "typed entity-world projection perfcaches", "set-oriented evidence and activity indexes", "shared cross-surface realization preparation"],
+      "receipts": ["subject and referential epoch", "selected and withheld world scopes", "audience authority and visibility policy", "evidence roots dependence contradictions and unknowns", "recipe semantic result and output modality"],
+      "product_requirements": ["LP-APPLICATION-001", "LP-ENTITY-WEB-001", "LP-ENTITLEMENT-001", "LP-IDENTITY-003", "LP-GOVERNANCE-001", "LP-RECIPE-001", "LP-REALIZATION-001"],
+      "implementation": {"state": "unimplemented", "missing_boundary": "the clean product has no universal entity-world projection entitlement achievement or personal-web mechanism; historical UI behavior is counterexample evidence only", "evidence": ["requirements/features/entity_web_federation.feature", "docs/product/INVENTION_MODEL.md", "docs/architecture/ACCEPTANCE.md"]}
+    },
+    {
+      "id": "runtime.federate-nodes",
+      "program_phases": [7],
+      "github_issues": [21, 65, 66, 67],
+      "depends_on": ["bootstrap.dependencies", "substrate.bulk-deposit", "product.materialize-entity-world"],
+      "owner": "native authenticated content-addressed federation and placement planning with PostgreSQL durability and generated orchestration providers",
+      "consumes": ["authorized private shared and public world scopes", "content-addressed structures testimony recipes and receipts", "node capability and resource observations", "execution database storage cache source and peer placement declarations"],
+      "produces": ["convergent authenticated federation exchanges", "validated node support disposition", "same-semantics physical execution plans", "exact execution storage network and durability receipts"],
+      "persistent_authority": ["node package and ABI identities", "world-scope and federation receipts", "placement and durability contracts", "exchange replay and convergence history"],
+      "acceleration": ["local hot perfcaches", "content-addressed transfer reuse", "set-oriented synchronization", "topology-derived execution and storage plans"],
+      "receipts": ["node CPU OS package and loaded-object identity", "logical and physical plan parity", "world scope audience and authority", "remote PostgreSQL execution boundary", "storage locking atomicity fsync crash and recovery proof"],
+      "product_requirements": ["LP-NODE-001", "LP-FEDERATION-001", "LP-PLACEMENT-001", "LP-TOPOLOGY-001", "LP-PACKAGE-001", "LP-EXCEPTION-001"],
+      "implementation": {"state": "unimplemented", "missing_boundary": "no clean-product federation protocol personal-node support contract ARM or Raspberry Pi acceptance or distributed placement mechanism is implemented", "evidence": ["requirements/features/entity_web_federation.feature", "docs/product/INVENTION_MODEL.md", "docs/architecture/ACCEPTANCE.md"]}
+    },
+    {
       "id": "delivery.activate-product",
       "program_phases": [7, 8],
-      "github_issues": [21, 22, 50],
-      "depends_on": ["bootstrap.dependencies", "world.admit-witnesses", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate"],
+      "github_issues": [21, 22, 50, 69],
+      "depends_on": ["bootstrap.dependencies", "world.admit-witnesses", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate", "product.materialize-entity-world", "runtime.federate-nodes"],
       "owner": "package installer service manager database migrator and release verifier",
       "consumes": ["verified native engine", "PostgreSQL stack", "schemas and migrations", "orchestrators", "artifacts and acceptance evidence"],
       "produces": ["one activated Linux and Windows Laplace product", "diagnostics", "repair rollback and support state"],
       "persistent_authority": ["activation manifest", "installed package receipts", "service and database version state"],
       "acceleration": ["out-of-tree builds", "hosted and self-hosted CI", "incremental package and database activation"],
       "receipts": ["source to package provenance", "loaded objects", "database schema", "active cache epochs", "whole-product acceptance"],
-      "product_requirements": ["LP-PRODUCT-001", "LP-PACKAGE-001", "LP-DOC-001", "LP-ACTIVATION-001"],
+      "product_requirements": ["LP-PRODUCT-001", "LP-PACKAGE-001", "LP-DOC-001", "LP-ACTIVATION-001", "LP-NODE-001", "LP-FEDERATION-001", "LP-PLACEMENT-001"],
       "implementation": {
         "state": "partial",
         "proven_boundary": "published code and controlled CI prove selected package cluster and activation infrastructure components",
