@@ -297,7 +297,8 @@ add_test(
         "-DFILTER=UnicodeCoreProperties.ClassifiesEveryPositionAndAppliesBidiDefaults"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(unicode-core.mutation-bidi-default-order-detected PROPERTIES
-    LABELS "implementation;unicode;source;mutation")
+    LABELS "implementation;unicode;source;mutation"
+    SKIP_REGULAR_EXPRESSION "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE")
 
 add_library(laplace_unicode_script_fallback_mutant STATIC
     ../engine/src/unicode_properties.cpp)
@@ -325,7 +326,8 @@ add_test(
         "-DFILTER=UnicodeCoreProperties.ParsesCompleteSourceAndCanonicalizesPayloads"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(unicode-core.mutation-script-extensions-fallback-detected PROPERTIES
-    LABELS "implementation;unicode;source;mutation")
+    LABELS "implementation;unicode;source;mutation"
+    SKIP_REGULAR_EXPRESSION "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE")
 
 add_library(laplace_unicode_ducet_truncation_mutant STATIC
     ../engine/src/unicode_ducet.cpp)
@@ -354,7 +356,8 @@ add_test(
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(
     unicode-ducet.mutation-expansion-truncation-detected PROPERTIES
-    LABELS "implementation;unicode;ducet;source;mutation")
+    LABELS "implementation;unicode;ducet;source;mutation"
+    SKIP_REGULAR_EXPRESSION "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE")
 
 add_library(laplace_unicode_ducet_blocking_mutant STATIC
     ../engine/src/unicode_ducet.cpp)
@@ -383,7 +386,8 @@ add_test(
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(
     unicode-ducet.mutation-starter-blocker-detected PROPERTIES
-    LABELS "implementation;unicode;ducet;source;mutation")
+    LABELS "implementation;unicode;ducet;source;mutation"
+    SKIP_REGULAR_EXPRESSION "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE")
 
 add_library(laplace_unicode_placement_collapse_mutant STATIC
     ../engine/src/unicode_ducet.cpp)
@@ -416,7 +420,8 @@ add_test(
         -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(
     unicode-ducet.mutation-placement-equivalence-collapse-detected PROPERTIES
-    LABELS "implementation;unicode;ducet;placement;source;mutation")
+    LABELS "implementation;unicode;ducet;placement;source;mutation"
+    SKIP_REGULAR_EXPRESSION "LAPLACE_MUTATION_PREREQUISITE_UNAVAILABLE")
 
 add_executable(laplace_unicode_source_fixture_tests
     unicode_source_fixture_tests.cpp
