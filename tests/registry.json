@@ -338,9 +338,24 @@
       "covered_dimensions": ["native numeric composition vector"]
     },
     {
+      "ctest_name": "CompositeIdentity.FullWitnessOwnsThePublicIdentityPrefix",
+      "evidence_targets": ["LP-TEST-IDENTITY-BLAKE3-128", "LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-IDENTITY-PREIMAGE-GRAMMAR"],
+      "covered_dimensions": ["one canonical composite BLAKE3 calculation", "full collision witness", "public 128-bit prefix"]
+    },
+    {
+      "ctest_name": "CompositeIdentity.CollapsedWitnessMustBelongToTheChild",
+      "evidence_targets": ["LP-TEST-IDENTITY-EMPTY-STATES", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["single-child identity and witness collapse", "mismatched collision witness rejection"]
+    },
+    {
       "ctest_name": "RunIdentity.MatchesTheExpandedSequence",
       "evidence_targets": ["LP-TEST-RUN-EXPANDED-PARITY"],
       "covered_dimensions": ["content identity"]
+    },
+    {
+      "ctest_name": "RunIdentity.FullWitnessMatchesExpandedComposition",
+      "evidence_targets": ["LP-TEST-RUN-EXPANDED-PARITY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["run and expanded full BLAKE3-256 witness parity", "public identity prefix parity"]
     },
     {
       "ctest_name": "RunIdentity.LargeRunMatchesExpandedSequence",
@@ -358,9 +373,62 @@
       "covered_dimensions": ["native canonical byte comparison"]
     },
     {
+      "ctest_name": "CompositionWorkingSet.BuildsDeduplicatedTopologicalDagAndProducer",
+      "evidence_targets": ["LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["topological leaf-to-trunk composition", "whole-working-set identity and physicality deduplication", "tier floor outside identity", "single-child collapse with separate occurrence", "exact geometry and trajectory generation", "resource grant preflight", "invalid-later-reference failure atomicity", "framework producer batches"],
+      "defect_controls": ["composition.mutation-whole-working-set-dedup-detected"]
+    },
+    {
+      "ctest_name": "CompositionWorkingSet.PresenceFiltersExactStateBeforePublication",
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
+      "covered_dimensions": ["typed exact-presence transition", "no producer before presence proof", "novel-only entity physicality and trajectory frames", "occurrence preservation", "one-shot publication state"],
+      "defect_controls": ["composition.mutation-presence-filter-omission-detected"]
+    },
+    {
+      "ctest_name": "CompositionWorkingSet.RejectsPartialPresenceProviderBeforePublication",
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["receipted presence-provider ABI", "exact returned disposition cardinality", "partial provider result rejection before stream publication", "producer remains unavailable after provider defect"]
+    },
+    {
+      "ctest_name": "postgres.composition-working-set-contract",
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
+      "covered_dimensions": ["one exact entity presence operation per participating tier", "one exact physicality presence operation for the whole set", "filtered native producer through canonical PostgreSQL persistence sink", "transactional deposition and rollback", "steady-state deterministic replay receipt", "exact public canonical readback"],
+      "defect_controls": ["postgres.mutation-composition-presence-order-detected"]
+    },
+    {
+      "ctest_name": "postgres.mutation-composition-presence-order-detected",
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER"],
+      "covered_dimensions": ["reordered set-wise presence results are rejected before canonical producer publication"],
+      "controls": "postgres.composition-working-set-contract"
+    },
+    {
+      "ctest_name": "composition.mutation-whole-working-set-dedup-detected",
+      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["working-set identity and physicality deduplication omission is detected before publication"],
+      "controls": "CompositionWorkingSet.BuildsDeduplicatedTopologicalDagAndProducer"
+    },
+    {
+      "ctest_name": "composition.mutation-presence-filter-omission-detected",
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-OCCURRENCE-PRESERVATION"],
+      "covered_dimensions": ["exact-present state leaking back into the canonical publication stream is detected"],
+      "controls": "CompositionWorkingSet.PresenceFiltersExactStateBeforePublication"
+    },
+    {
       "ctest_name": "PersistenceContract.WholeTypedStreamValidatesAcrossBatchBoundaries",
       "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-BULK-PARITY", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-OCCURRENCE-PRESERVATION"],
       "covered_dimensions": ["versioned framed record stream", "batch-boundary independence", "entity physicality trajectory occurrence separation", "whole-stream closure"]
+    },
+    {
+      "ctest_name": "PersistenceContract.LegalRecordFamiliesDepositIndependently",
+      "evidence_targets": ["LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
+      "covered_dimensions": ["occurrence-only legal canonical batch", "durable reference resolution remains a sink concern", "typed family independence"],
+      "defect_controls": ["persistence.mutation-record-family-subset-rejected"]
+    },
+    {
+      "ctest_name": "persistence.mutation-record-family-subset-rejected",
+      "evidence_targets": ["LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["old all-record-families-per-stream restriction is detected"],
+      "controls": "PersistenceContract.LegalRecordFamiliesDepositIndependently"
     },
     {
       "ctest_name": "PersistenceContract.CarrierIsExactTypedPayloadAndNotGeometry",

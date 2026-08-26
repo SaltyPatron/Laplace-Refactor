@@ -1,10 +1,12 @@
 CREATE TEMP TABLE concurrency_expected (
     physicality bytea,
-    occurrence bytea
+    occurrence bytea,
+    receipt_count bigint
 );
 INSERT INTO concurrency_expected VALUES (
     decode(:'persistence_concurrent_physicality', 'hex'),
-    decode(:'persistence_concurrent_occurrence', 'hex')
+    decode(:'persistence_concurrent_occurrence', 'hex'),
+    :'persistence_expected_receipt_count'::bigint
 );
 
 DO $verify$
@@ -19,7 +21,8 @@ BEGIN
        OR (SELECT count(*) FROM laplace.observed_occurrence
            WHERE occurrence_id = expected.occurrence
              AND physicality_id = expected.physicality) <> 1
-       OR (SELECT count(*) FROM laplace.canonical_deposit_receipt) <> 4 THEN
+       OR (SELECT count(*) FROM laplace.canonical_deposit_receipt) <>
+          expected.receipt_count THEN
         RAISE EXCEPTION 'concurrent exact-stream deposit did not converge to one immutable state';
     END IF;
 END

@@ -11,6 +11,18 @@
 
 #include "laplace/framework.h"
 
+Datum laplace_pg_required_composite_attribute(
+    HeapTupleHeader tuple,
+    int attribute_number,
+    const char* attribute_name);
+
+void laplace_pg_read_digest(
+    Datum datum,
+    laplace_digest256* digest,
+    const char* field);
+
+uint64_t laplace_pg_uint64_from_numeric(Datum datum, const char* field);
+
 void laplace_pg_read_execution_context(
     Datum datum,
     laplace_framework_context* context);

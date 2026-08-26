@@ -12,10 +12,23 @@ enum {
     LAPLACE_RUN_BLOCK_IDENTITIES = 4096
 };
 
-static void finalize_id(blake3_hasher* hasher, laplace_id128* out_id) {
-    uint8_t digest[32];
-    blake3_hasher_finalize(hasher, digest, sizeof(digest));
-    memcpy(out_id->bytes, digest, LAPLACE_IDENTITY_BYTES);
+static void finalize_identity(
+    blake3_hasher* hasher,
+    laplace_id128* out_id,
+    laplace_digest256* out_witness) {
+    laplace_digest256 witness;
+    blake3_hasher_finalize(hasher, witness.bytes, sizeof(witness.bytes));
+    memcpy(out_id->bytes, witness.bytes, LAPLACE_IDENTITY_BYTES);
+    if (out_witness != NULL) {
+        *out_witness = witness;
+    }
+}
+
+static int witness_matches_identity(
+    const laplace_id128* id,
+    const laplace_digest256* witness) {
+    return id != NULL && witness != NULL &&
+        memcmp(id->bytes, witness->bytes, sizeof(id->bytes)) == 0;
 }
 
 static uint8_t composite_domain(void) {
@@ -128,9 +141,6 @@ laplace_identity_status laplace_identity_composite(
     const laplace_id128* child_ids,
     size_t child_count,
     laplace_id128* out_id) {
-    const uint8_t domain = composite_domain();
-    blake3_hasher hasher;
-
     if (out_id == NULL || (child_ids == NULL && child_count != 0)) {
         return LAPLACE_IDENTITY_INVALID_ARGUMENT;
     }
@@ -145,10 +155,43 @@ laplace_identity_status laplace_identity_composite(
         return LAPLACE_IDENTITY_COUNT_OVERFLOW;
     }
 
+    return laplace_identity_composite_witness(
+        child_ids, child_count, NULL, out_id, NULL);
+}
+
+laplace_identity_status laplace_identity_composite_witness(
+    const laplace_id128* child_ids,
+    size_t child_count,
+    const laplace_digest256* collapsed_child_witness,
+    laplace_id128* out_id,
+    laplace_digest256* out_witness) {
+    const uint8_t domain = composite_domain();
+    blake3_hasher hasher;
+
+    if (out_id == NULL || (child_ids == NULL && child_count != 0)) {
+        return LAPLACE_IDENTITY_INVALID_ARGUMENT;
+    }
+    if (child_count == 0) {
+        return LAPLACE_IDENTITY_EMPTY_COMPOSITION;
+    }
+    if (child_count == 1) {
+        if (out_witness == NULL) {
+            return LAPLACE_IDENTITY_INVALID_ARGUMENT;
+        }
+        if (!witness_matches_identity(&child_ids[0], collapsed_child_witness)) {
+            return LAPLACE_IDENTITY_WITNESS_MISMATCH;
+        }
+        *out_id = child_ids[0];
+        *out_witness = *collapsed_child_witness;
+        return LAPLACE_IDENTITY_OK;
+    }
+    if (child_count > SIZE_MAX / sizeof(*child_ids)) {
+        return LAPLACE_IDENTITY_COUNT_OVERFLOW;
+    }
     blake3_hasher_init(&hasher);
     blake3_hasher_update(&hasher, &domain, sizeof(domain));
     blake3_hasher_update(&hasher, child_ids, child_count * sizeof(*child_ids));
-    finalize_id(&hasher, out_id);
+    finalize_identity(&hasher, out_id, out_witness);
     return LAPLACE_IDENTITY_OK;
 }
 
@@ -157,9 +200,6 @@ laplace_identity_status laplace_identity_composite_runs(
     size_t run_count,
     uint64_t* out_logical_count,
     laplace_id128* out_id) {
-    const uint8_t domain = composite_domain();
-    laplace_id128 block[LAPLACE_RUN_BLOCK_IDENTITIES];
-    blake3_hasher hasher;
     uint64_t logical_count = 0;
     size_t run_index;
 
@@ -181,9 +221,55 @@ laplace_identity_status laplace_identity_composite_runs(
         logical_count += runs[run_index].count;
     }
 
-    *out_logical_count = logical_count;
     if (logical_count == 1) {
         *out_id = runs[0].id;
+        *out_logical_count = logical_count;
+        return LAPLACE_IDENTITY_OK;
+    }
+
+    return laplace_identity_composite_runs_witness(
+        runs, run_count, NULL, out_logical_count, out_id, NULL);
+}
+
+laplace_identity_status laplace_identity_composite_runs_witness(
+    const laplace_id_run* runs,
+    size_t run_count,
+    const laplace_digest256* collapsed_child_witness,
+    uint64_t* out_logical_count,
+    laplace_id128* out_id,
+    laplace_digest256* out_witness) {
+    const uint8_t domain = composite_domain();
+    laplace_id128 block[LAPLACE_RUN_BLOCK_IDENTITIES];
+    blake3_hasher hasher;
+    uint64_t logical_count = 0;
+    size_t run_index;
+
+    if (out_id == NULL || out_logical_count == NULL ||
+        (runs == NULL && run_count != 0)) {
+        return LAPLACE_IDENTITY_INVALID_ARGUMENT;
+    }
+    if (run_count == 0) {
+        return LAPLACE_IDENTITY_EMPTY_COMPOSITION;
+    }
+    for (run_index = 0; run_index < run_count; ++run_index) {
+        if (runs[run_index].count == 0) {
+            return LAPLACE_IDENTITY_ZERO_RUN;
+        }
+        if (UINT64_MAX - logical_count < runs[run_index].count) {
+            return LAPLACE_IDENTITY_COUNT_OVERFLOW;
+        }
+        logical_count += runs[run_index].count;
+    }
+    if (logical_count == 1) {
+        if (out_witness == NULL) {
+            return LAPLACE_IDENTITY_INVALID_ARGUMENT;
+        }
+        if (!witness_matches_identity(&runs[0].id, collapsed_child_witness)) {
+            return LAPLACE_IDENTITY_WITNESS_MISMATCH;
+        }
+        *out_id = runs[0].id;
+        *out_witness = *collapsed_child_witness;
+        *out_logical_count = logical_count;
         return LAPLACE_IDENTITY_OK;
     }
 
@@ -203,7 +289,8 @@ laplace_identity_status laplace_identity_composite_runs(
             remaining -= (uint64_t)emitted;
         }
     }
-    finalize_id(&hasher, out_id);
+    finalize_identity(&hasher, out_id, out_witness);
+    *out_logical_count = logical_count;
     return LAPLACE_IDENTITY_OK;
 }
 

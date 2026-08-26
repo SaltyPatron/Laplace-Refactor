@@ -62,6 +62,69 @@ include(GoogleTest)
 gtest_discover_tests(laplace_identity_tests
     PROPERTIES LABELS "implementation;identity")
 
+add_executable(laplace_composition_tests
+    composition_tests.cpp)
+target_link_libraries(laplace_composition_tests PRIVATE
+    Laplace::Composition GTest::gtest_main)
+target_compile_options(laplace_composition_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_composition_tests PROPERTIES
+    LABELS "implementation;composition;working-set;producer")
+
+add_library(laplace_composition_dedup_mutant STATIC
+    ../engine/src/composition.cpp)
+target_include_directories(laplace_composition_dedup_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_composition_dedup_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_composition_dedup_mutant PRIVATE
+    LAPLACE_TEST_COMPOSITION_DISABLE_WORKING_SET_DEDUP=1)
+target_compile_options(laplace_composition_dedup_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_composition_dedup_mutation_probe
+    composition_tests.cpp)
+target_link_libraries(laplace_composition_dedup_mutation_probe PRIVATE
+    laplace_composition_dedup_mutant Laplace::Engine GTest::gtest_main)
+target_compile_options(laplace_composition_dedup_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME composition.mutation-whole-working-set-dedup-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_composition_dedup_mutation_probe>"
+        "-DFILTER=CompositionWorkingSet.BuildsDeduplicatedTopologicalDagAndProducer"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    composition.mutation-whole-working-set-dedup-detected PROPERTIES
+    LABELS "implementation;composition;working-set;producer;mutation")
+
+add_library(laplace_composition_presence_mutant STATIC
+    ../engine/src/composition.cpp)
+target_include_directories(laplace_composition_presence_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_composition_presence_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_composition_presence_mutant PRIVATE
+    LAPLACE_TEST_COMPOSITION_IGNORE_PRESENCE=1)
+target_compile_options(laplace_composition_presence_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_composition_presence_mutation_probe
+    composition_tests.cpp)
+target_link_libraries(laplace_composition_presence_mutation_probe PRIVATE
+    laplace_composition_presence_mutant Laplace::Engine GTest::gtest_main)
+target_compile_options(laplace_composition_presence_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME composition.mutation-presence-filter-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_composition_presence_mutation_probe>"
+        "-DFILTER=CompositionWorkingSet.PresenceFiltersExactStateBeforePublication"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    composition.mutation-presence-filter-omission-detected PROPERTIES
+    LABELS "implementation;composition;presence;producer;mutation")
+
 if(UNIX)
     add_executable(laplace_spool_tests
         spool_tests.cpp)
@@ -799,6 +862,35 @@ target_compile_options(laplace_persistence_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_persistence_tests
     PROPERTIES LABELS "implementation;persistence;identity;physicality;trajectory")
+
+add_library(laplace_persistence_family_subset_mutant STATIC
+    ../engine/src/persistence.c)
+target_include_directories(laplace_persistence_family_subset_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_persistence_family_subset_mutant
+    PUBLIC Laplace::Trajectory
+    PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_persistence_family_subset_mutant
+    PRIVATE LAPLACE_TEST_PERSISTENCE_REQUIRE_ALL_FAMILIES=1)
+target_compile_options(laplace_persistence_family_subset_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_persistence_family_subset_mutation_probe
+    persistence_tests.cpp)
+target_link_libraries(laplace_persistence_family_subset_mutation_probe
+    PRIVATE laplace_persistence_family_subset_mutant GTest::gtest_main)
+target_compile_options(laplace_persistence_family_subset_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME persistence.mutation-record-family-subset-rejected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_persistence_family_subset_mutation_probe>"
+        "-DFILTER=PersistenceContract.LegalRecordFamiliesDepositIndependently"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    persistence.mutation-record-family-subset-rejected PROPERTIES
+    LABELS "persistence;occurrence;mutation")
 
 add_library(laplace_persistence_atomic_point_mutant STATIC
     ../engine/src/persistence.c)
@@ -1765,6 +1857,10 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql"
         @ONLY)
     configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/composition_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/composition_contract.sql"
+        @ONLY)
+    configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/unicode_root_contract.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
         @ONLY)
@@ -1779,6 +1875,10 @@ if(LAPLACE_POSTGRES_ENABLED)
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/persistence_blind_conflict_mutation.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_blind_conflict_mutation.sql"
+        COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/composition_presence_order_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/composition_presence_order_mutation.sql"
         COPYONLY)
     foreach(perfcache_sql
         perfcache_epoch_contract.sql
@@ -1826,6 +1926,23 @@ if(LAPLACE_POSTGRES_ENABLED)
             "${laplace_sanitizer_preload}")
     set_tests_properties(postgres.spi-isa-contract PROPERTIES
         LABELS "implementation;postgresql;spi;isa;receipt"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.composition-working-set-contract
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            contract
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/composition_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(postgres.composition-working-set-contract PROPERTIES
+        LABELS "implementation;postgresql;composition;presence;persistence;receipt"
         RUN_SERIAL TRUE)
 
     add_test(
@@ -1883,6 +2000,26 @@ if(LAPLACE_POSTGRES_ENABLED)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_persistence_mutation_failure.cmake")
     set_tests_properties(postgres.mutation-blind-persistence-conflict-detected PROPERTIES
         LABELS "postgresql;spi;persistence;identity;mutation"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.mutation-composition-presence-order-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_composition_presence_order_mutant>"
+            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/composition_presence_order_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_composition_presence_mutation_failure.cmake")
+    set_tests_properties(
+        postgres.mutation-composition-presence-order-detected PROPERTIES
+        LABELS "postgresql;composition;presence;persistence;mutation"
         RUN_SERIAL TRUE)
 
     add_test(

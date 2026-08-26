@@ -1,0 +1,59 @@
+{
+  "schema": "laplace.composition-contract/v1",
+  "abi": {
+    "major": 1,
+    "minor": 0
+  },
+  "references": {
+    "known_entity": 1,
+    "prior_result": 2,
+    "topological_order_required": true
+  },
+  "identity": {
+    "deduplication_key": "BLAKE3-256 identity witness with BLAKE3-128 public prefix",
+    "truncated_collision_disposition": "reject-complete-working-set",
+    "single_child": "collapse-to-child-identity-witness-physicality-and-tier"
+  },
+  "tier": {
+    "minimum": 0,
+    "maximum": 31,
+    "multi_child_rule": "one-plus-maximum-immediate-child-tier",
+    "identity_component": false
+  },
+  "trajectory": {
+    "maximum_run_per_carrier": 65535,
+    "relationship_metadata_may_not_set": ["has_atom", "tier", "atom"],
+    "large_run_rule": "split-into-consecutive-carriers-with-identical-structural-and-relationship-metadata"
+  },
+  "working_set": {
+    "deduplication_scope": "all-known-and-calculated-entities-and-physicalities",
+    "output_order": "entities-by-content-id-then-physicalities-by-record-id-then-trajectories-by-physicality-id-and-vertex-index",
+    "failure_atomicity": "no-result-visible-until-complete-working-set-validates",
+    "resource_authority": "immutable-framework-context-memory-grant"
+  },
+  "presence": {
+    "dispositions": {
+      "novel": 0,
+      "exact_present": 1
+    },
+    "application": "exactly-once-before-producer-publication",
+    "entity_round_bound": "at-most-one-set-operation-per-participating-tier",
+    "physicality_round_bound": "one-set-operation-for-all-candidates",
+    "collision_disposition": "reject-before-stream-publication",
+    "provider_abi": 1,
+    "receipt_domain": "laplace-composition-presence-receipt-v1",
+    "provider_result": "exact-counts-round-counts-provider-fingerprint-and-provider-receipt",
+    "unreceipted_application": "forbidden"
+  },
+  "producer": {
+    "record_type": 262145,
+    "batch_boundary": "between-complete-persistence-frames",
+    "one_element_semantics": "the-one-element-path-is-the-batch-path-with-count-one"
+  },
+  "bindings": {
+    "postgresql": {
+      "deposit_sql_name": "composition_deposit_batch",
+      "deposit_c_symbol": "laplace_pg_composition_deposit_batch"
+    }
+  }
+}

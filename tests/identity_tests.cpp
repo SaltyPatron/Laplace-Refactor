@@ -206,6 +206,42 @@ TEST(CompositeIdentity, Numeric255MatchesPinnedCrossRuntimeVector) {
     EXPECT_EQ(Bytes(id), Hex(LAPLACE_VECTOR_255_HEX));
 }
 
+TEST(CompositeIdentity, FullWitnessOwnsThePublicIdentityPrefix) {
+    const std::array<laplace_id128, 3> children{{
+        Codepoint(static_cast<std::uint32_t>('2')),
+        Codepoint(static_cast<std::uint32_t>('5')),
+        Codepoint(static_cast<std::uint32_t>('5'))
+    }};
+    laplace_id128 id{};
+    laplace_digest256 witness{};
+    ASSERT_EQ(laplace_identity_composite_witness(
+                  children.data(), children.size(), nullptr, &id, &witness),
+              LAPLACE_IDENTITY_OK);
+    EXPECT_EQ(std::memcmp(id.bytes, witness.bytes, sizeof(id.bytes)), 0);
+    EXPECT_EQ(Bytes(id), Hex(LAPLACE_VECTOR_255_HEX));
+}
+
+TEST(CompositeIdentity, CollapsedWitnessMustBelongToTheChild) {
+    laplace_id128 child{};
+    laplace_digest256 witness{};
+    ASSERT_EQ(laplace_identity_codepoint_witness(0x41u, &child, &witness),
+              LAPLACE_IDENTITY_OK);
+    laplace_id128 result{};
+    laplace_digest256 result_witness{};
+    ASSERT_EQ(laplace_identity_composite_witness(
+                  &child, 1u, &witness, &result, &result_witness),
+              LAPLACE_IDENTITY_OK);
+    EXPECT_TRUE(laplace_identity_equal(&child, &result));
+    EXPECT_EQ(std::memcmp(
+                  witness.bytes, result_witness.bytes, sizeof(witness.bytes)),
+              0);
+
+    witness.bytes[0] ^= 0x80u;
+    EXPECT_EQ(laplace_identity_composite_witness(
+                  &child, 1u, &witness, &result, &result_witness),
+              LAPLACE_IDENTITY_WITNESS_MISMATCH);
+}
+
 TEST(RunIdentity, MatchesTheExpandedSequence) {
     const auto two = Codepoint(static_cast<std::uint32_t>('2'));
     const auto five = Codepoint(static_cast<std::uint32_t>('5'));
@@ -221,6 +257,32 @@ TEST(RunIdentity, MatchesTheExpandedSequence) {
               LAPLACE_IDENTITY_OK);
     EXPECT_EQ(logical_count, 3u);
     EXPECT_TRUE(laplace_identity_equal(&expanded_id, &run_id));
+}
+
+TEST(RunIdentity, FullWitnessMatchesExpandedComposition) {
+    const auto two = Codepoint(static_cast<std::uint32_t>('2'));
+    const auto five = Codepoint(static_cast<std::uint32_t>('5'));
+    const std::array<laplace_id128, 3> expanded{{two, five, five}};
+    const std::array<laplace_id_run, 2> runs{{{two, 1u}, {five, 2u}}};
+    laplace_id128 expanded_id{};
+    laplace_digest256 expanded_witness{};
+    laplace_id128 run_id{};
+    laplace_digest256 run_witness{};
+    std::uint64_t logical_count = 0;
+    ASSERT_EQ(laplace_identity_composite_witness(
+                  expanded.data(), expanded.size(), nullptr,
+                  &expanded_id, &expanded_witness),
+              LAPLACE_IDENTITY_OK);
+    ASSERT_EQ(laplace_identity_composite_runs_witness(
+                  runs.data(), runs.size(), nullptr, &logical_count,
+                  &run_id, &run_witness),
+              LAPLACE_IDENTITY_OK);
+    EXPECT_EQ(logical_count, expanded.size());
+    EXPECT_TRUE(laplace_identity_equal(&expanded_id, &run_id));
+    EXPECT_EQ(std::memcmp(
+                  expanded_witness.bytes, run_witness.bytes,
+                  sizeof(run_witness.bytes)),
+              0);
 }
 
 TEST(RunIdentity, LargeRunMatchesExpandedSequence) {
