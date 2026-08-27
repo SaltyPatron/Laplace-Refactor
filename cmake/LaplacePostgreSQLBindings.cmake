@@ -67,6 +67,16 @@ function(laplace_configure_postgresql_bindings
         "${unicode_postgresql_json}" binding sql_name)
     string(JSON unicode_postgresql_symbol GET
         "${unicode_postgresql_json}" binding c_symbol)
+    string(JSON unicode_tier0_access_sql GET
+        "${unicode_postgresql_json}" access_bindings unicode_tier0 sql_name)
+    string(JSON unicode_tier0_access_symbol GET
+        "${unicode_postgresql_json}" access_bindings unicode_tier0 c_symbol)
+    string(JSON unicode_reverse_access_sql GET
+        "${unicode_postgresql_json}" access_bindings unicode_identity_reverse sql_name)
+    string(JSON unicode_reverse_access_symbol GET
+        "${unicode_postgresql_json}" access_bindings unicode_identity_reverse c_symbol)
+    string(JSON unicode_access_maximum_batch_items GET
+        "${unicode_postgresql_json}" access_bindings maximum_batch_items)
     string(JSON unicode_postgresql_record_type GET
         "${unicode_postgresql_json}" stream record_type)
     string(JSON unicode_postgresql_stream_byte_multiplier GET
@@ -119,7 +129,9 @@ function(laplace_configure_postgresql_bindings
         trajectory_execute_sql trajectory_execute_symbol
         persistence_deposit_sql persistence_deposit_symbol
         composition_deposit_sql composition_deposit_symbol
-        unicode_postgresql_sql unicode_postgresql_symbol)
+        unicode_postgresql_sql unicode_postgresql_symbol
+        unicode_tier0_access_sql unicode_tier0_access_symbol
+        unicode_reverse_access_sql unicode_reverse_access_symbol)
         if(NOT "${${identifier}}" MATCHES "^[a-z][a-z0-9_]*$")
             message(FATAL_ERROR "Invalid PostgreSQL binding identifier: ${identifier}")
         endif()
@@ -170,6 +182,12 @@ function(laplace_configure_postgresql_bindings
     set(LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL "${composition_deposit_symbol}")
     set(LAPLACE_PG_UNICODE_ROOT_SQL "${unicode_postgresql_sql}")
     set(LAPLACE_PG_UNICODE_ROOT_SYMBOL "${unicode_postgresql_symbol}")
+    set(LAPLACE_PG_UNICODE_TIER0_ACCESS_SQL "${unicode_tier0_access_sql}")
+    set(LAPLACE_PG_UNICODE_TIER0_ACCESS_SYMBOL "${unicode_tier0_access_symbol}")
+    set(LAPLACE_PG_UNICODE_REVERSE_ACCESS_SQL "${unicode_reverse_access_sql}")
+    set(LAPLACE_PG_UNICODE_REVERSE_ACCESS_SYMBOL "${unicode_reverse_access_symbol}")
+    set(LAPLACE_PG_UNICODE_ACCESS_MAXIMUM_BATCH_ITEMS
+        "${unicode_access_maximum_batch_items}")
     set(LAPLACE_PG_UNICODE_ROOT_RECORD_TYPE
         "${unicode_postgresql_record_type}")
     set(LAPLACE_PG_UNICODE_ROOT_CONTRACT_FINGERPRINT_HEX

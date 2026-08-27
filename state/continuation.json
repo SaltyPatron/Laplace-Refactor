@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-26T23:42:47Z",
+  "observed_at_utc": "2026-08-27T13:49:03Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,13 +12,14 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "phase4/composition-bulk-deposit",
+    "active_branch": "phase3/product-unicode-activation",
     "active_worktree": "/home/ahart/Projects/Laplace-Refactor",
-    "base_commit": "37f8741e9360a114abc44c4c72941726bee84716",
+    "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
-    "observed_branch_head": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
-    "pull_request": 73
+    "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+    "observed_branch_head": "baba1887727014160c06ec5749b06a839f69edd1",
+    "implementation_checkpoint_commit": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
+    "pull_request": 74
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -231,13 +232,12 @@
       "the old schema partitions and indexes remain non-authoritative"
     ]
   },
-  "active_work": {
+  "recently_completed_work": {
     "capability": "substrate.bulk-deposit",
     "github_issue": 15,
-    "state": "published-implementation-acceptance-pending-merge",
-    "branch": "phase4/composition-bulk-deposit",
+    "state": "integration-proven-and-merged",
     "pull_request": 73,
-    "published_checkpoint_commit": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
+    "main_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "implemented_and_locally_proven_boundary": [
       "complete native composition working-set construction",
       "whole-working-set identity and physicality candidate publication",
@@ -275,26 +275,984 @@
       },
       "product_activation": false
     },
-    "remaining_acceptance_boundary": [
-      "PR 73 exact-head hosted and custom-stack CI completion and merge",
+    "remaining_whole_product_boundary": [
       "500000-records-per-second complete-ingest gate measured on the declared boundary rather than inferred from the composition fixture",
       "30-seconds-per-GB qualifying-real-corpus gate measured on the declared boundary rather than inferred from stored datum or stream bytes",
       "issue 72 paired with-and-without acceleration storage compute and bloat receipts"
     ],
     "whole_product_reason": "This is the generic AST Merkle-DAG presence and deposition boundary required before Unicode product activation and before any source recipe can persist exact world state; it is not a corpus importer.",
     "nonclaims": [
-      "issue 15 is not complete until its accepted implementation is merged",
       "the complete-ingest performance gates have not passed",
       "the PostgreSQL 18.6 product cluster is not activated",
       "knowledge is not seeded",
       "the product is not released"
     ]
   },
+  "active_work": {
+    "capability": "bootstrap.unicode-root",
+    "github_issue": 13,
+    "state": "implementation-in-progress-unicode-product-activation-controller-integration-proven-successor-product-package-and-physical-cluster-activation-pending",
+    "branch": "phase3/product-unicode-activation",
+    "pull_request": 74,
+    "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+    "dependencies": {
+      "product_cluster_issue": 12,
+      "perfcache_issue": 14,
+      "bulk_deposit_issue": {"number": 15, "state": "closed", "proof_state": "integration-proven"}
+    },
+    "implementation_progress": {
+      "runtime_package": {
+        "contract_schema": "laplace.postgresql-runtime-build/v2",
+        "plan_schema": "laplace.postgresql-runtime-plan/v2",
+        "receipt_schema": "laplace.postgresql-runtime-package/v2",
+        "latest_plan_id": "0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373",
+        "logical_install_prefix": "/opt/laplace/current",
+        "staged_prefix": "/build/laplace/stage/0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373/root/opt/laplace/current",
+        "state": "inert-runtime-package-built-activation-ineligible-provider-qualification-unresolved",
+        "latest_failed_execution": {
+          "build_input_id": "30dc787a8a992ac8f9bbf4a8bea726943390c62a6453de1c8090f1987522396e",
+          "contract_generation": "v2",
+          "contract_sha256": "490a5377a6132b5fe07bb0724cebdd4ea452fa9b3fa6e80c40fc43548e3d9a92",
+          "driver_sha256": "48dd6396b42856d5f365da0db73da56572844b2bee37db6acfa1ab00739a82d1",
+          "successful_component_checkpoints": [
+            "zlib",
+            "lz4",
+            "zstandard",
+            "icu",
+            "openssl",
+            "liburing"
+          ],
+          "checkpoint_sha256": {
+            "zlib": "299ca81a89fa917e564d46cb7523bb9f375de8eb07560e4484e37f0f8de48c79",
+            "lz4": "3f493a6a1b98b5a448d3244cb4a1babb0a58300ca4bfc49bfaca25f40cebf542",
+            "zstandard": "d49233b955420182bf02735fcdcab0cda393ddf1e2614f0a74004b7f7204d8cb",
+            "icu": "fe2792a4383b5a38eb815e824522527dfae88a4ed03594462dc613ae6d637fe3",
+            "openssl": "1dd339c56968cb3801a85ad3f1e990ec736fbdaaceb4ba91e00adbe357b4f7d5",
+            "liburing": "22d87bb719687adadae713ee081735d93ef11160b9ca2185a591be9690319242"
+          },
+          "successful_test_evidence": {
+            "zstandard": "fullbench fuzzer and zstreamtest passed; the contract-disabled playTests target was not executed",
+            "icu": "ALL TESTS SUMMARY: All tests OK: testdata intltest iotest cintltst",
+            "openssl": "all tests successful: 363 files and 4369 tests"
+          },
+          "liburing_test_disposition": "failed-under-observed-runtime-provider",
+          "liburing_test_exit_code": 2,
+          "liburing_failed_tests": [
+            "conn-unreach.t",
+            "io-wq-unused-exit.t",
+            "link-timeout.t",
+            "mshot-shutdown-race.t",
+            "send_recv.t",
+            "wq-aff.t"
+          ],
+          "liburing_timed_out_tests": [
+            "cancel-fd-userdata.t",
+            "cancel-race.t",
+            "recv-mshot-fair.t",
+            "recvsend_bundle.t"
+          ],
+          "failed_component": "libxml2",
+          "libxml2_compilation_completed": true,
+          "libxml2_test_disposition": "not-executed-dynamic-loader-failure",
+          "libxml2_process_return_code": 2,
+          "failed_stage": "component-test-loading",
+          "observed_defects": [
+            "ICU direct libraries retained the canonical package-relative RUNPATH but generated pkgdata commands lost the final protective escape in a second executing shell so libicudata.so.78.3 embedded /../lib",
+            "OpenSSL libcrypto.so.4 and ossl-modules/legacy.so requested an executable GNU_STACK",
+            "disabling both generated libtool runtime mechanisms also removed the build-tree loader route so .libs/lt-runtest could not load libxml2.so.16 and the official suite did not execute"
+          ],
+          "correction": "normalize only the declared generated ICU pkgdata serializers and receipt every generated-file transition; require a non-executable stack at link and package-verification boundaries for every ELF; retain canonical install RUNPATH ownership while supplying libxml2 make check with one declared build-relative loader path recorded in its execution evidence",
+          "correction_negative_controls": [
+            "the generated-command fixture executes Make serialization and a second shell and fails when double-quoted echo is restored",
+            "the package verifier rejects an ELF whose GNU_STACK flags include execute",
+            "the contract rejects an escaping or ambient test loader path and recorded execution must exactly match the declaration"
+          ],
+          "libxml2_loader_probe": "executing .libs/lt-runtest with only the declared build/.libs loader path crossed the original dynamic-loader failure; the probe was not a suite pass because it ran outside the required build working directory",
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
+        "latest_successful_package_execution": {
+          "build_input_id": "0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373",
+          "package_receipt": "/build/laplace/build/0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373/package-receipt.json",
+          "package_receipt_sha256": "0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a",
+          "staged_tree_sha256": "807948f289b201f076c53df8c72b12ea6d2f23ec31b1a7624d6e28b967c5268a",
+          "staged_file_count": 744,
+          "staged_total_file_bytes": 182760585,
+          "component_checkpoints": {
+            "zlib": "5f02523c02ae304d00336697eb34b460afeac1a51c403963e9534998948b6b79",
+            "lz4": "5fd5dc8b176a79c846bf1b36e61d3c98518d16bfbb5858dfd4140ae08bf9e5b7",
+            "zstandard": "9bc72c80f592866202cf24c77640ac77768806313165711b7a5ac0f9c698ef2b",
+            "icu": "e60c3612138b1344b6132cabe9f81f814f76bc91dea87c692a058472c18d4e99",
+            "openssl": "8a55417dc2f79063c504a58595795f40c317b2f98b5c9f43e1002bb487a77d8c",
+            "liburing": "a224852f40a73eb9fc93327d0ffea3930fac996c4bb40a935fa9d8567da790ff",
+            "libxml2": "1d233934cfbeb4d4bbcbd9cbdb244654ad5f2ebf8f23cbd8ea5b5bcdfee9a21b"
+          },
+          "required_component_test_dispositions": {
+            "zlib": "passed",
+            "lz4": "passed",
+            "zstandard": "passed",
+            "icu": "passed",
+            "openssl": "passed",
+            "libxml2": "passed"
+          },
+          "liburing_test_disposition": "failed-under-observed-runtime-provider",
+          "liburing_failed_tests": [
+            "conn-unreach.t",
+            "io-wq-unused-exit.t",
+            "mshot-shutdown-race.t",
+            "send_recv.t",
+            "wq-aff.t"
+          ],
+          "liburing_timed_out_tests": [
+            "cancel-fd-userdata.t",
+            "cancel-race.t",
+            "recv-mshot-fair.t",
+            "recvsend_bundle.t"
+          ],
+          "corrected_boundaries_proven": [
+            "all four declared ICU generated pkgdata interfaces were normalized with before and after SHA-256 receipts and libicudata.so.78.3 retained the literal package-relative runtime-search path",
+            "the whole package contained exactly one non-executable GNU_STACK header per ELF including corrected OpenSSL libcrypto.so.4 and legacy.so",
+            "libxml2 make check passed with the exact declared .libs loader path recorded in its test execution receipt",
+            "every staged ELF passed canonical runtime-search PIE COPY-relocation and recursive direct-needed inspection"
+          ],
+          "build_input_closure_complete": false,
+          "runtime_provider_qualification_complete": false,
+          "activation_eligible": false,
+          "activation_disposition": "blocked by declared incomplete toolchain, static-link, and recursive runtime closure",
+          "product_activation_occurred": false
+        },
+        "prior_v2_package_runpath_failure": {
+          "build_input_id": "a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005",
+          "successful_component_checkpoints": ["zlib", "lz4", "zstandard", "icu", "openssl", "liburing", "libxml2"],
+          "liburing_checkpoint_sha256": "d9c67bd4472949433ed26998d1a2709a0809b908eeaa0679d41dde4c98eab69b",
+          "libxml2_checkpoint_sha256": "28c3627c3767f1fd4d39fd03d04dd5990481e31259bf64a028094e9984fda814",
+          "failed_stage": "final-package-elf-verification",
+          "observed_defects": [
+            "ICU pkgdata embedded /../lib in libicudata.so.78.3 after a nested shell expanded the make-encoded ORIGIN token",
+            "GNU libtool appended /opt/laplace/current/lib beside the canonical package-relative RUNPATH in xmllint and xmlcatalog"
+          ],
+          "source_generation_recovery": "an experimental upstream make check triggered maintainer regeneration in the verified libxml2 release tree; the entire contaminated release generation and repository-root configure output were quarantined under /build/laplace/quarantine/runpath-experiment-20260827.BIyERv and the complete generation was re-imported and verified from the locked archives",
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
+        "prior_v2_source_interface_failure": {
+          "build_input_id": "a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a",
+          "contract_generation": "v2",
+          "successful_component_checkpoints": [
+            "zlib",
+            "lz4",
+            "zstandard",
+            "icu",
+            "openssl",
+            "liburing"
+          ],
+          "liburing_checkpoint_sha256": "c5720b64db509e04b8614ebaf2702bbd74a4a313fde0265431a6ae16a2248847",
+          "liburing_test_disposition": "failed-under-observed-runtime-provider",
+          "failed_component": "libxml2",
+          "libxml2_compilation_completed": true,
+          "libxml2_ctest_passed": 8,
+          "libxml2_ctest_total": 22,
+          "libxml2_ctest_exit_code": 8,
+          "observed_defect": "the selected libxml2 2.15.3 release archive CMake test registry referenced run_and_diff.cmake and test_xmlcatalog_add_del.cmake but those helpers were absent from the exact locked archive, so fourteen registered tests could not start",
+          "correction": "every runtime component now declares and verifies its physical build and test entrypoints; libxml2 uses the complete generated Autotools interface and make check supplied by the locked release archive",
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
+        "prior_v1_successful_component_checkpoints_before_failure": [
+          "zlib",
+          "lz4",
+          "zstd",
+          "icu",
+          "openssl"
+        ],
+        "failed_execution": {
+          "build_input_id": "27ce8f6d4b633a6b40331cd0659186aa2cc62754ac0946c287b6b17fe1196a28",
+          "contract_generation": "v1-superseded-by-v2-before-package-acceptance",
+          "component": "liburing",
+          "component_version": "2.15",
+          "suite_exit_code": 2,
+          "host_kernel": "Linux 5.15.0-186-generic x86_64",
+          "io_uring_disabled": 0,
+          "failed_tests": [
+            "conn-unreach.t",
+            "io-wq-unused-exit.t",
+            "link-timeout.t",
+            "mshot-shutdown-race.t",
+            "send_recv.t",
+            "wq-aff.t"
+          ],
+          "timed_out_tests": [
+            "cancel-fd-userdata.t",
+            "cancel-race.t",
+            "recv-mshot-fair.t",
+            "recvsend_bundle.t"
+          ],
+          "disposition": "the upstream userspace-library-and-live-kernel suite failed under the observed provider; the outcome remains exact evidence but does not by itself identify the cause; no checkpoint or package receipt was issued under the superseded v1 contract"
+        },
+        "upstream_test_scope_correction": {
+          "source": "selected liburing 2.15 README",
+          "source_sha256": "1bb130b0d32f1c3f8430c7b4c5c052cc931621a3e8eec2f484310b9892e7944f",
+          "fact": "the upstream regression suite tests both liburing and live kernel io_uring support and is not expected to pass on older kernels",
+          "architectural_effect": "package construction records the exact observed outcome while product activation separately requires an accepted selected-runtime-provider qualification receipt"
+        },
+        "runtime_provider_qualification": {
+          "receipt_schema": "laplace.runtime-provider-qualification/v1",
+          "required_before_product_activation": true,
+          "required_components": ["liburing"],
+          "state": "required-not-established",
+          "current_host_is_accepted": false
+        },
+        "staging_violation": {
+          "component": "openssl",
+          "cause": "environment-only DESTDIR was ignored by the upstream OpenSSL install target",
+          "unactivated_path_written": "/opt/laplace/releases/27ce8f6d4b633a6b40331cd0659186aa2cc62754ac0946c287b6b17fe1196a28",
+          "file_count": 161,
+          "physical_bytes": 78739606,
+          "tree_sha256_before_quarantine": "ba6ad313ebd379681f7815fc8f7fbd10a1f2f781d87cfcb2ba6159583404148c",
+          "quarantine_path": "/build/laplace/quarantine/runtime-install-violation-27ce8f6d4b633a6b4",
+          "corrected_by": "explicit GNU Make DESTDIR assignment plus a deliberate mutation test",
+          "activated": false
+        },
+        "continuation_condition": "consume only exact composed PostgreSQL package receipt 6fde367d6f19ed6fbe89d141f43d927d389b3ac2a5cb7383c33193d81240a96d and its exact runtime and build-toolchain receipts; package the selected Intel and compiler support runtime providers through generic receipts; verify the complete recursive ELF closure while retaining the platform ABI as an exact declared provider boundary; require a separate accepted selected-runtime-provider qualification before any product activation",
+        "nonclaims": [
+          "the inert v2 runtime package is not activation eligible and is not an installed product",
+          "the prior liburing failures have not been waived reclassified as passes or attributed solely to the kernel",
+          "the current host and its io_uring runtime provider have not been qualified for product activation",
+          "a newer kernel has not been installed qualified or accepted",
+          "/opt/laplace/current has not been activated"
+        ]
+      },
+      "build_toolchain_package": {
+        "contract_schema": "laplace.toolchain-build-contract/v1",
+        "receipt_schema": "laplace.toolchain-package-receipt/v1",
+        "consumer_manifest_schema": "laplace.toolchain-consumer-manifest/v1",
+        "state": "verified-build-toolchain-only",
+        "build_input_id": "2e899074f53c0495ab966196c15cd89de8b0bd61c87e6591edf5b2801ef55ea6",
+        "package_receipt": "/opt/laplace/build/toolchain/2e899074f53c0495ab966196c15cd89de8b0bd61c87e6591edf5b2801ef55ea6/toolchain-package-receipt.json",
+        "package_receipt_sha256": "9cd1c23b21ab8504620faa5cf198e0d79ec625ec3a875184f757a6c1a49b1ee6",
+        "package_tree_sha256": "3a0d268c402c1d0e8ade09985bcc9ad2a2ae3532f383eab77f026c47306abcbd",
+        "package_file_count": 8283,
+        "package_total_file_bytes": 449574676,
+        "consumer_manifest_sha256": "8adbefb6068dc9b988f3b9970306a0058968c722bb72b66502eb1a3067bd4246",
+        "selected_perl": {
+          "version": "5.44.0",
+          "sha256": "cf455a35aa4899015574b4342bd6752b43503515e9362b4313be75b2af21b6c8"
+        },
+        "selected_prove": {
+          "version": "TAP::Harness v3.52 and Perl v5.44.0",
+          "sha256": "5fd20c06f857cf4c3a3e3bc46aa8986826b3710971b2c9694bec989838e31079"
+        },
+        "selected_perl_modules": {
+          "IO::Pty": {
+            "version": "1.31",
+            "provider_sha256": "ba6489cd0b74b1b0853399eb9c7dc903a4217f9e65b4ae855ce4915b27fff6f0",
+            "native_provider_sha256": "50feb3f1b3e63703b812f8c40f30d1a09b60a2d453e3ff4ddb87dfae47381d12"
+          },
+          "IO::Tty": {
+            "version": "1.31",
+            "provider_sha256": "bd6a4046efb3e781df03c5d203c8b94ec97ecf5233a270c2e7aaf1e649af0f7f",
+            "native_provider_sha256": "50feb3f1b3e63703b812f8c40f30d1a09b60a2d453e3ff4ddb87dfae47381d12"
+          },
+          "IPC::Run": {
+            "version": "20260402.0",
+            "provider_sha256": "67d86f857bfe03119e70707d08298b45b6189bf74a5bc429a329d76b0f27f82b",
+            "native_providers": []
+          }
+        },
+        "test_evidence": [
+          "Perl 5.44.0 upstream suite passed 2674 scripts and 1379258 tests",
+          "IO::Tty and IO::Pty upstream suite passed 9 files and 64 tests",
+          "IPC::Run upstream suite passed 47 files and 893 tests",
+          "CMake selected suite passed 697 tests",
+          "Ninja selected suite passed its registered test"
+        ],
+        "product_runtime_activation_eligible": false,
+        "product_activation_occurred": false
+      },
+      "postgresql_product_package": {
+        "contract_schema": "laplace.postgresql-build-contract/v2",
+        "implementation_commit": "16126c4a4a90a6710528f94aacb401cf45fdea66",
+        "state": "inert-composed-postgresql-package-built-tested-and-recursively-closed-bootstrap-executable-successor-not-yet-built-activation-ineligible",
+        "build_input_id": "006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d",
+        "build_directory": "/build/laplace/build/postgresql/006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d",
+        "staged_product_prefix": "/build/laplace/stage/postgresql/006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d/root/opt/laplace/current",
+        "toolchain_package_receipt_sha256": "9cd1c23b21ab8504620faa5cf198e0d79ec625ec3a875184f757a6c1a49b1ee6",
+        "runtime_package_receipt_sha256": "0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a",
+        "recipe_sha256": {
+          "build_driver": "a72a46802e849e8db9c50f43bf5b4352bc6a9fe3cbaeb8ca1b24e9c81245d9b3",
+          "contract": "870314e82358b9aecf6549ee6cac80aeba54b7f3b8271d4ca438fd7c6fd23e51",
+          "package_receipt_verifier": "5004c9b5dcdbde4881ded37ae9ad4acc7a762cdf06ee8bcbae3f65828a00f970",
+          "recursive_elf_verifier": "2dbf1bc4795a5ba0366ca3822cd8c1b27f375b1d62b8c79266a17124ed43b888",
+          "release_verifier": "16311644f64ce502c2717025f1258d09c22fc58a8b34cf4cb4947f383e9d80d5"
+        },
+        "selected_staged_openssl": {
+          "version": "OpenSSL 4.0.1 9 Jun 2026 (Library: OpenSSL 4.0.1 9 Jun 2026)",
+          "relative_path": "bin/openssl",
+          "sha256": "afc8a0d6fc8984d3c8ecce0029fa8c8e1bc1463152ec73562d7bc48917e0e4a6"
+        },
+        "selected_tap_prerequisites": {
+          "IO::Pty": "ba6489cd0b74b1b0853399eb9c7dc903a4217f9e65b4ae855ce4915b27fff6f0",
+          "IO::Tty": "bd6a4046efb3e781df03c5d203c8b94ec97ecf5233a270c2e7aaf1e649af0f7f",
+          "IPC::Run": "67d86f857bfe03119e70707d08298b45b6189bf74a5bc429a329d76b0f27f82b",
+          "native_IO_Tty_provider": "50feb3f1b3e63703b812f8c40f30d1a09b60a2d453e3ff4ddb87dfae47381d12"
+        },
+        "logical_install_prefix": "/opt/laplace/current/pgsql-18",
+        "final_release_semantics": "the immutable release identity belongs to the complete composed product rather than a dependency-only runtime prefix",
+        "receipt_inputs": [
+          "exact verified toolchain package receipt and staged tree",
+          "exact selected packaged Perl TAP module providers and native providers",
+          "exact runtime v2 component-package receipt and staged tree with unresolved provider qualification retained",
+          "exact installed-provider lock selection for Intel oneAPI runtime objects and license material",
+          "exact toolchain linker-map selection for packaged compiler support and platform ABI objects",
+          "exact staged OpenSSL executable version and hash",
+          "verified PostgreSQL 18.6 source release"
+        ],
+        "implemented_boundary": [
+          "shared duplicate-key-safe package-receipt verification",
+          "exact staged tree verification with runtime-subtree immutability after PostgreSQL installation",
+          "packaged Make Perl pkgconf Bison Flex and binutils selection",
+          "execution preflight proves exact Perl prove IO::Pty IO::Tty IPC::Run and native module providers",
+          "configure selection receipt proves the staged OpenSSL executable and PostgreSQL TAP prerequisites were selected",
+          "explicit staged DESTDIR install",
+          "canonical logical activation RUNPATH",
+          "whole-product build identity changes when either prerequisite receipt changes",
+          "exact component test dispositions and provider-qualification requirements survive into the composed plan",
+          "generic installed-provider selection verifies exact role version provider root bytes hashes licenses and runtime SONAMEs",
+          "Intel oneAPI and compiler support runtime objects are packaged beneath the product prefix",
+          "the whole staged product is recursively closed with zero external objects unresolved edges conflicts parse errors discovery errors or ABI-family collisions",
+          "the only host-loaded objects are the exact selected dynamic loader libc and libm platform ABI boundary",
+          "independent recursive closure re-verification reproduces the accepted graph without writing into the staged product",
+          "package activation remains false"
+        ],
+        "next_successor_build_boundary": {
+          "implementation_commit": "16126c4a4a90a6710528f94aacb401cf45fdea66",
+          "state": "implemented-and-locally-proven-successor-package-not-built",
+          "implemented": [
+            "the shared toolchain receipt verifier selects consumer-required bootstrap providers without forcing unrelated consumers to invent empty Perl linker or bootstrap requirements",
+            "the PostgreSQL contract selects exact Python 3.10.12 and dash executables by physical path version and SHA-256 from the toolchain bootstrap receipt",
+            "the PostgreSQL plan identity includes the selected bootstrap executable receipts",
+            "the build preflight proves the executing driver is the selected Python provider and that /bin/sh resolves to the selected POSIX shell provider",
+            "the build environment exports exact PYTHON SHELL and CONFIG_SHELL providers",
+            "mutations reject omitted changed or substituted bootstrap providers"
+          ],
+          "live_preflight": {
+            "python_path": "/usr/bin/python3.10",
+            "python_sha256": "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86",
+            "python_version": "Python 3.10.12",
+            "shell_path": "/usr/bin/dash",
+            "shell_sha256": "4f291296e89b784cd35479fca606f228126e3641f5bcaee68dee36583d7c9483",
+            "shell_version": "dash",
+            "bin_sh_resolved_path": "/usr/bin/dash"
+          },
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
+        "previous_rejected_execution": {
+          "build_input_id": "e473f3ccaf4aa0fb51452ff7f1292c38d5867b9384df083d052046824bdbd0f2",
+          "toolchain_build_input_id": "9efd6c909e154b7f5b02b72c950a665aec5b5011e28a5d177993274a11513d6e",
+          "build_plan_sha256": "49592e1b706256e8f1a67bdef1c37b84fa67e835f64bf3d043b68b3028fa5bf1",
+          "build_log_sha256": "9d1a30e03433131af81bfdad3cf878e90a8017d5d028b5b9d78153c3d49342ee",
+          "config_log_sha256": "ac3e690da97790a44024544242a21b59dc94d6196d2744313714222ddd7c689e",
+          "selected_ambient_openssl": "OpenSSL 3.0.2",
+          "failed_prerequisite": "IPC::Run was absent from the selected Perl provider",
+          "execution_preflight_existed": false,
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
+        "latest_rejected_execution": {
+          "build_input_id": "d783da914b7cd540591656bb17e75fd61e3c963d9f5b415aa84fe6cda34a03f3",
+          "build_plan_sha256": "ff591eb29de0019e41f9a0cb05eeba584b0e1341e88f2016b81a8b013d672d20",
+          "build_input_preflight_sha256": "539faf151ba1dd2716afbb8c119a8db77f297838a5bc21dcf744d491f9446d78",
+          "build_log_sha256": "6fe04194e489dc04a245e55c88f4a82868057f08fed2ba37d55668146e188b14",
+          "config_log_sha256": "1952f213a0d93c9d4ffe8271034c44c404662670e2332308ef11d480785720c8",
+          "preflight_proved": [
+            "exact packaged Perl IO::Pty 1.31 IO::Tty 1.31 and IPC::Run 20260402.0 providers",
+            "exact staged OpenSSL 4.0.1 executable and bytes"
+          ],
+          "configure_proved": [
+            "PostgreSQL selected the exact packaged Perl 5.44.0 and prove provider",
+            "PostgreSQL selected the exact staged OpenSSL 4.0.1 executable",
+            "PostgreSQL reported all TAP prerequisites present"
+          ],
+          "failed_stage": "configure-selection-receipt-verification",
+          "observed_defect": "the verifier expected a lowercase openssl Autoconf check label while PostgreSQL emits the exact environment variable name OPENSSL",
+          "correction": "match PostgreSQL's exact uppercase Autoconf variable label and retain the ambient-provider negative control at that same interface",
+          "compilation_started": false,
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
+        "prior_successful_package_before_recursive_closure": {
+          "receipt_schema": "laplace.postgresql-package-receipt/v2",
+          "build_input_id": "272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e",
+          "package_receipt": "/build/laplace/build/postgresql/272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e/package-receipt.json",
+          "package_receipt_sha256": "6fde367d6f19ed6fbe89d141f43d927d389b3ac2a5cb7383c33193d81240a96d",
+          "package_tree_sha256": "4b61ba439e224e155bd1f8a1764e3b28ede62112f5069fa2b01527a64db9d118",
+          "package_file_count": 2681,
+          "package_total_file_bytes": 297159336,
+          "build_plan_sha256": "92a9b294cff7e08d7fe8f58bd037a605bb7ffb10ef4a492ee3d9c5213719f548",
+          "build_input_preflight_sha256": "f1138365546bf340905421fafb95a83ff9092217029522d1b136d1a4399bb15a",
+          "build_log_sha256": "0643dafc9e2de6780b0c20eaa7ac5c0273ff5fe50703195c215e99f267ed4263",
+          "version": "PostgreSQL 18.6",
+          "completed_targets": [
+            "world-bin",
+            "check-world",
+            "install-world-bin"
+          ],
+          "input_selection_proven": [
+            "Intel oneAPI DPC++ C and C++ Compiler 2026.1.1",
+            "exact packaged GNU Make Bison Flex pkgconf binutils Perl 5.44.0 and prove providers",
+            "exact packaged IO::Pty 1.31 IO::Tty 1.31 and IPC::Run 20260402.0 providers",
+            "exact staged OpenSSL 4.0.1 executable and libraries",
+            "exact staged ICU XML LZ4 Zstandard zlib and liburing providers"
+          ],
+          "independent_package_reverification": {
+            "disposition": "exact package tree version configure and direct-needed classification reproduced",
+            "exit_code": 0
+          },
+          "recursive_elf_diagnostic": {
+            "schema": "laplace.elf-closure/v1",
+            "report_sha256": "83364b25663d3f4ae001c06d1b3145a19afbc1806ae35a1db8d00c9fcf93d49c",
+            "root_artifacts": 191,
+            "objects": 166,
+            "edges": 764,
+            "unresolved_edges": 0,
+            "resolution_conflicts": 0,
+            "custom_objects": 157,
+            "external_objects": 4,
+            "host_objects": 5,
+            "external_provider_family": "Intel oneAPI compiler 2026.1 runtime",
+            "external_sonames": [
+              "libimf.so",
+              "libintlc.so.5",
+              "libirng.so",
+              "libsvml.so"
+            ],
+            "host_platform_abi_sonames": [
+              "ld-linux-x86-64.so.2",
+              "libc.so.6",
+              "libgcc_s.so.1",
+              "libm.so.6",
+              "libstdc++.so.6"
+            ],
+            "authority": false,
+            "disposition": "diagnostic used to define the next generic closure implementation; the final receipt must be generated by the accepted package composer"
+          },
+          "build_input_closure_complete": false,
+          "recursive_elf_closure_verified": false,
+          "runtime_provider_qualification_complete": false,
+          "activation_eligible": false,
+          "activation_disposition": "blocked until selected Intel and compiler support libraries are packaged, the recursive ELF closure and platform ABI boundary are receipted, and the selected liburing runtime provider is qualified",
+          "product_activation_occurred": false
+        },
+        "latest_successful_package_execution": {
+          "receipt_schema": "laplace.postgresql-package-receipt/v2",
+          "build_input_id": "006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d",
+          "package_receipt": "/build/laplace/build/postgresql/006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d/package-receipt.json",
+          "package_receipt_sha256": "2240ad84fa52761b2795a4e9db1e77b68f27f4e39731097302883ac9cecd8b89",
+          "package_tree_sha256": "e6cca321cdde6ee7417fcc6bd6186361beac490b58712cbf828068b0576e69cb",
+          "package_file_count": 2689,
+          "package_total_file_bytes": 334091769,
+          "build_plan_sha256": "4292c1bc49572e27045516338030ba7f82629311b4e5b94abb83d677fd6fed3f",
+          "build_input_preflight_sha256": "c12be709f6ff5d3a60774cb9c585aafc9045f41ba3b3866359d1825795017e71",
+          "build_log_sha256": "fb4db41c6652f901b1d1ad47a1a828339c8cdae78fc3451beef9ab9036c002a3",
+          "version": "PostgreSQL 18.6",
+          "completed_targets": [
+            "world-bin",
+            "check-world",
+            "install-world-bin"
+          ],
+          "input_selection_proven": [
+            "Intel oneAPI DPC++ C and C++ Compiler 2026.1.1",
+            "exact packaged GNU Make Bison Flex pkgconf binutils Perl 5.44.0 and prove providers",
+            "exact packaged IO::Pty 1.31 IO::Tty 1.31 and IPC::Run 20260402.0 providers",
+            "exact staged OpenSSL 4.0.1 executable and libraries",
+            "exact staged ICU XML LZ4 Zstandard zlib and liburing providers",
+            "exact installed Intel oneAPI runtime provider 2026.1.1 selected by installed-lock role and provider hashes",
+            "exact selected compiler support and platform ABI linker-map inputs"
+          ],
+          "installed_runtime_provider": {
+            "selection_sha256": "07a9f21bcb81cb669a6be3248eb889ffbceb20bfd05fc957c16373f5ed595137",
+            "provider": "intel-oneapi-runtime",
+            "provider_version": "2026.1.1",
+            "provider_sha256": "f14ba1d659dcc7c618386955da3daf025da48ebe5589cad3875028db6aeb12e6",
+            "packaged_runtime_roles": [
+              "imf-runtime",
+              "svml-runtime",
+              "intlc-runtime",
+              "irng-runtime"
+            ],
+            "license_roles": [
+              "license",
+              "compiler-third-party-programs"
+            ]
+          },
+          "recursive_elf_closure": {
+            "receipt_schema": "laplace.postgresql-recursive-elf-closure-receipt/v1",
+            "receipt": "/build/laplace/build/postgresql/006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d/recursive-elf-closure.json",
+            "receipt_sha256": "fe9d55b1516883f6cf182adc94680ccfd73586a4fae578239c451717209418cf",
+            "root_artifacts": 198,
+            "objects": 166,
+            "edges": 774,
+            "custom_objects": 163,
+            "host_objects": 3,
+            "external_objects": 0,
+            "unresolved_edges": 0,
+            "resolution_conflicts": 0,
+            "parse_errors": 0,
+            "discovery_errors": 0,
+            "root_abi_family_collisions": 0,
+            "packaged_runtime_sonames": [
+              "libimf.so",
+              "libintlc.so.5",
+              "libirng.so",
+              "libsvml.so",
+              "libgcc_s.so.1",
+              "libstdc++.so.6"
+            ],
+            "exact_platform_abi_sonames": [
+              "ld-linux-x86-64.so.2",
+              "libc.so.6",
+              "libm.so.6"
+            ],
+            "independent_reverification": {
+              "receipt": "/build/laplace/build/postgresql/006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d/independent-recursive-elf-closure.json",
+              "receipt_sha256": "fe9d55b1516883f6cf182adc94680ccfd73586a4fae578239c451717209418cf",
+              "exit_code": 0
+            }
+          },
+          "build_input_closure_complete": false,
+          "recursive_elf_closure_verified": true,
+          "runtime_provider_qualification_complete": false,
+          "activation_eligible": false,
+          "activation_disposition": "blocked: build-input closure and runtime-provider qualification remain incomplete",
+          "product_activation_occurred": false
+        },
+        "known_unclosed_inputs": [
+          "Python standard library and imported runtime providers",
+          "configure-time host utilities",
+          "Intel-compiler-selected platform ABI startup objects static archives and support libraries for the PostgreSQL build plus applicable compiler-runtime license packaging",
+          "selected kernel and io_uring runtime-provider qualification"
+        ]
+      },
+      "accepted_postgresql_product_package": {
+        "receipt_schema": "laplace.postgresql-package-receipt/v2",
+        "build_input_id": "94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7",
+        "package_receipt": "/build/laplace/build/postgresql/94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7/package-receipt.json",
+        "package_receipt_sha256": "f80ac4a4879fdee15d4eac36ad16a7db525c56c715c922933b4b57f9880dcdfd",
+        "package_tree_sha256": "115297c23286f765a7023ddf81934410ccdc53c704a66c93a5177a97a9729d25",
+        "package_file_count": 2689,
+        "package_total_file_bytes": 334042909,
+        "build_plan_sha256": "468b52b677f4712cf1f2a7772f1b514be0ef7a351ae41976de7dda0d95220e8e",
+        "build_input_preflight_sha256": "b94310f4d8e2de1e4402d2593928c04cf9cbac4bd1ffce415c2af0977cf74b1d",
+        "build_log_sha256": "4879f1dec07041d81a47c19d2e8dbc7eca919c0400c9ea53e13b3c54736bd0c3",
+        "version": "PostgreSQL 18.6",
+        "completed_targets": [
+          "world-bin",
+          "check-world",
+          "install-world-bin"
+        ],
+        "source_test_overlay": {
+          "receipt": "/build/laplace/build/postgresql/94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7/source-test-overlays-check-world.json",
+          "receipt_sha256": "e337642808a3b67d20c39ca5c29d71235250a83a743c0afbc8527d658356268a",
+          "mode": "copy-on-write-exact-source-shadow",
+          "source_tree_sha256_before": "1f8ae7adf74b12aa3eb5258c01ed2777919de9e97f498d04388f5d69b8881dc5",
+          "source_tree_sha256_after": "1f8ae7adf74b12aa3eb5258c01ed2777919de9e97f498d04388f5d69b8881dc5",
+          "permitted_transient_generated_files": [
+            "err_warn_msg.c",
+            "err_warn_msg_informix.c"
+          ],
+          "generated_files_remaining_after_test": []
+        },
+        "runtime_provider_qualification": {
+          "schema": "laplace.runtime-provider-qualification/v1",
+          "scope": "postgresql-18.6-selected-io_uring-product-path",
+          "receipt": "/build/laplace/build/postgresql/94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7/io-uring-qualification.json",
+          "receipt_sha256": "f57b734a753e9413cc74a65b8349aaaa4d7008414fe9d66bc8d12786df33dfc9",
+          "accepted": true,
+          "test_plan": 529,
+          "io_uring_assertion_count": 175,
+          "failed_assertion_count": 0
+        },
+        "recursive_elf_closure": {
+          "receipt_schema": "laplace.postgresql-recursive-elf-closure-receipt/v1",
+          "receipt": "/build/laplace/build/postgresql/94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7/recursive-elf-closure.json",
+          "receipt_sha256": "0be23b3c8a15871a633804e6935381e55e93fc45f7f7f7080324892c08448390",
+          "root_artifacts": 198,
+          "objects": 166,
+          "edges": 1220,
+          "custom_objects": 163,
+          "host_objects": 3,
+          "external_objects": 0,
+          "unresolved_edges": 0,
+          "resolution_conflicts": 0,
+          "parse_errors": 0,
+          "discovery_errors": 0,
+          "root_abi_family_collisions": 0
+        },
+        "build_input_closure_complete": true,
+        "recursive_elf_closure_verified": true,
+        "runtime_provider_qualification_complete": true,
+        "activation_eligible": true,
+        "activation_disposition": "eligible for complete product composition",
+        "product_activation_occurred": false
+      },
+      "complete_product_package": {
+        "receipt_schema": "laplace.product-package-receipt/v1",
+        "build_plan_id": "b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf",
+        "package_id": "8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928",
+        "package_receipt": "/build/laplace/build/product/b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf/package-receipt.json",
+        "package_receipt_sha256": "dd581ffafbfd5da6a6638a1990c26fe53ea09527e4b0b1537956e5c3792b665e",
+        "package_manifest": "/build/laplace/build/product/b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf/package-manifest.json",
+        "package_manifest_sha256": "72abb060976cbf58f580c456d6f1cd94c6eb50fe97d0bf2bdb178e29c7feefb9",
+        "plan_sha256": "3b601675cc770b2d0cce6a0bee147dbb207fb3f0e0954c1f16de76f96450f9e7",
+        "build_log_sha256": "6c013a1d0746b90631b67d375585618eaddd3a7bbcad72708c52467b1a03fabe",
+        "physical_root": "/build/laplace/stage/product/b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf/root/opt/laplace/releases/8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928",
+        "package_file_count": 2745,
+        "package_symlink_count": 47,
+        "package_total_file_bytes": 532480227,
+        "build_input_closure_complete": true,
+        "build_input_roots": {
+          "blake3": "f9fc64bf583d4859b005cb72102cc90b60d21299a67cc3b28efc4f5aff821170",
+          "intel_oneapi_compiler": "de7dc7cd35879ba28085f2203dc153b1affd973be505bfa93fae699bfc95e988",
+          "onemkl": "36a1e6b1834721a659ba04dd434ad3c5791c11187891feffb75777257a95a2cf",
+          "onetbb": "b5cd7a2c22803018381d06a5c217bc71880b1b1cad58f78f422db3d7f808fa87",
+          "onetbb_hwloc": "e40e40db1f6bab0a68bc83fbbb2cc89b849c6020dd144a4846fcbf7d6d91b256"
+        },
+        "recursive_elf_closure": {
+          "receipt_schema": "laplace.product-recursive-elf-closure-receipt/v1",
+          "receipt": "/build/laplace/build/product/b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf/recursive-elf-closure.json",
+          "receipt_sha256": "a6b14c6aab214c42c8a9b85adf2ea53791d92d2966f285da37a1bd96baf74e7d",
+          "root_artifacts": 221,
+          "objects": 184,
+          "edges": 1346,
+          "custom_objects": 178,
+          "host_objects": 6,
+          "external_objects": 0,
+          "unresolved_edges": 0,
+          "resolution_conflicts": 0,
+          "parse_errors": 0,
+          "discovery_errors": 0,
+          "root_abi_family_collisions": 0,
+          "platform_abi_sha256": {
+            "ld-linux-x86-64.so.2": "8d06f393f4a93bcf9b81145a259524d66a95522a646bf8d7e05b6ffdf2e63dcc",
+            "libc.so.6": "e01b1ce7be2987f3b8560e26d0df2623f9dd5cec17be923ae28a785bc0d32d50",
+            "libm.so.6": "df621c68dbfed7e843434ef2faedb9f4d4b0543ad161e9a55eaf4d4ce2443176",
+            "libdl.so.2": "d255ba9c9e3a7c35115e578c898147edaba1a2bcf742cc3a76995ceed9d5ac4f",
+            "libpthread.so.0": "fbed9505adacada2abb37c6b43be2df6de81e742712c6025694ba48de62c7e78",
+            "librt.so.1": "83eda8758c8697323bedf48bc0186c006cca2205441a988cb0f5072b96262100"
+          }
+        },
+        "activation_eligible": true,
+        "activation_disposition": "eligible for isolated cluster planning",
+        "current_contract_activation_eligible": false,
+        "superseded_reason": "the cluster resource contract now requires the packaged native execution-resource observer needed to issue the live topology grant processor-allocation and storage receipts",
+        "successor_requirement": "bin/laplace_resource_observe must be built installed manifested and reverified through the complete product package composer",
+        "immutable_release_installed": true,
+        "installation": {
+          "receipt_schema": "laplace.product-package-installation-receipt/v1",
+          "receipt": "/opt/laplace/receipts/packages/8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928.json",
+          "receipt_sha256": "276e6002a8db85f3e5ca7207a8580cbcd4a5e7048e1ccbb5a6e7fbaf977d8e9e",
+          "installation_receipt_sha256": "7c82e967dc843fb3bf8243cccb72900e7574e7031e3148fd7c686fc13fbc69a6",
+          "installed_release": "/opt/laplace/releases/8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928",
+          "installed_package_verified": true,
+          "exact_replay_verified": true,
+          "overwrite_performed": false,
+          "root_ownership_complete": false
+        },
+        "product_activated": false
+      },
+      "successor_product_package": {
+        "receipt_schema": "laplace.product-package-receipt/v1",
+        "build_plan_id": "e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052",
+        "package_id": "60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445",
+        "package_receipt": "/build/laplace/build/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/package-receipt.json",
+        "package_receipt_sha256": "deb28a1228bab776d2e049a59563f4f442f8c85b70371f4c762edd708f6ba29e",
+        "package_manifest": "/build/laplace/build/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/package-manifest.json",
+        "package_manifest_sha256": "699b15681e2e43af65d727e22b64895468d62424543023a2c4b31f95c2d835ee",
+        "plan_sha256": "e640bc1b45d23aa09df52801abfbaedf749b17ca99d97c61730b9aa01a0f413a",
+        "build_log_sha256": "053289f303fb6b830fb123a1beee0091abc99f40b0e114f6ee449f4e0ac71274",
+        "physical_root": "/build/laplace/stage/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/root/opt/laplace/releases/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445",
+        "package_file_count": 2747,
+        "package_symlink_count": 47,
+        "package_total_file_bytes": 532926282,
+        "required_new_product_files": [
+          "bin/laplace_resource_observe",
+          "bin/laplace_unicode_activation_identify",
+          "pgsql-18/lib/laplace_pg.so"
+        ],
+        "recursive_elf_closure": {
+          "receipt": "/build/laplace/build/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/recursive-elf-closure.json",
+          "receipt_sha256": "fab5ba36f09ccde7e4f1a485e360acec533e373b0eabca3e384619490d55b077",
+          "root_artifacts": 223,
+          "objects": 186,
+          "edges": 1355,
+          "custom_objects": 180,
+          "host_objects": 6,
+          "external_objects": 0,
+          "unresolved_edges": 0,
+          "resolution_conflicts": 0,
+          "parse_errors": 0,
+          "discovery_errors": 0
+        },
+        "build_input_closure_complete": true,
+        "activation_eligible": true,
+        "immutable_release_installed": true,
+        "installation": {
+          "receipt_schema": "laplace.product-package-installation-receipt/v1",
+          "receipt": "/opt/laplace/receipts/packages/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445.json",
+          "receipt_sha256": "621c03f13b52320ca72ef41eb42816e7442b5b2ababb89fa8e038917c52e2a17",
+          "installation_receipt_sha256": "586153c0a78d8ddfecdaf9c75ce681beec4cee3f26906aaa55a96710cd973239",
+          "installed_release": "/opt/laplace/releases/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445",
+          "installed_package_verified": true,
+          "overwrite_performed": false,
+          "root_ownership_complete": false
+        },
+        "resource_observation": {
+          "schema": "laplace.execution-resource-observation/v1",
+          "receipt": "/opt/laplace/receipts/plans/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445/resource-observation.json",
+          "receipt_sha256": "f3d714070104f8b21bc518717e74ddd52620bfc89b10505669938de13d2b65fe",
+          "observation_sha256": "03172d8228622bacaf2f22ecc5f0e17226ff4628040cd9ab3246e6f61ff64d54",
+          "topology_receipt": "5e187623cbed49eaac1feb577980afd2e1bb42ff33319988cd5e6eb3c5d28353",
+          "root_grant_receipt": "4c3be64e30d76907dd38e6cc7ec15617783996c7c3376379322ee4ba45ab35a8",
+          "partition_receipt": "5485a5dddda35842134cc6cc7e345db505a4cf7ebd6f4c330bd0c550f2535c3a",
+          "processor_allocation_receipt": "3021876994296d31dbc2355dac88767bb1fb216b1ba3863246f439640b499b65",
+          "storage_observation_receipt": "bf578860ea9262c52526422e18ff98d2d91769a18fa6111fefbc5586ec54bac5",
+          "processor_ids": [0, 1, 2, 3, 4, 5],
+          "cpu_slots": 6,
+          "memory_bytes": 12884901888,
+          "io_slots": 4
+        },
+        "unprivileged_collision_observation": {
+          "receipt": "/opt/laplace/receipts/plans/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445/collision-observation-unprivileged.json",
+          "receipt_sha256": "6a1884ddf330038ff133fb69e6e0ea14828411af51a1622a6cd43e553c0df10b",
+          "observation_sha256": "92dc1d08cc33b11508849de0498223650c30674ec752cc3880c7e209ad001125",
+          "collisions": [],
+          "accepted": false,
+          "inspection_errors": [
+            "lstat /opt/laplace/pgdata/refactor/data: EACCES",
+            "lstat /opt/laplace/pgdata/refactor/perfcache: EACCES",
+            "lstat /pgtemp/refactor: EACCES",
+            "lstat /var/lib/pgwal/refactor: EACCES"
+          ]
+        },
+        "cluster_plan_issued": false,
+        "product_activated": false,
+        "next_boundary": "one authorized root activation must qualify ownership repeat collision inspection create and restart the isolated PostgreSQL 18.6 cluster and commit the active pointer before Unicode product activation may execute"
+      },
+      "current_product_package": {
+        "receipt_schema": "laplace.product-package-receipt/v1",
+        "build_plan_id": "1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c",
+        "package_id": "4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b",
+        "package_receipt": "/build/laplace/build/product/1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c/package-receipt.json",
+        "package_receipt_sha256": "e4510b25d3912a30094129e822bf62179c3a9f8216c287889b246d91c8f531b8",
+        "package_manifest": "/build/laplace/build/product/1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c/package-manifest.json",
+        "package_manifest_sha256": "aad0a29e767d8f09cc32c531b9461c2d079835c3a1e434a3c1be27e792246112",
+        "plan_sha256": "2516092c71b77c7b246d4628b7916353177859bd311fcd215f0f4350970177a6",
+        "build_log_sha256": "2b6fa48f8b7a8289c60db73c0e7088f9d6bb05d2b21171b7647f6e3024fe35be",
+        "physical_root": "/build/laplace/stage/product/1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c/root/opt/laplace/releases/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b",
+        "package_file_count": 2746,
+        "package_symlink_count": 47,
+        "package_total_file_bytes": 532714907,
+        "native_resource_observer": {
+          "path": "bin/laplace_resource_observe",
+          "sha256": "08629f039b84677b2b32e6dff957d3afca81b0e82f586f4ba586f581aa4be2da"
+        },
+        "recursive_elf_closure": {
+          "receipt_schema": "laplace.product-recursive-elf-closure-receipt/v1",
+          "receipt": "/build/laplace/build/product/1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c/recursive-elf-closure.json",
+          "receipt_sha256": "d4371f196d5b0a602ef708e978dd94b58e318c79b9aa2b1fb360b225f5ee284f",
+          "root_artifacts": 222,
+          "objects": 185,
+          "edges": 1351,
+          "custom_objects": 179,
+          "host_objects": 6,
+          "external_objects": 0,
+          "unresolved_edges": 0,
+          "resolution_conflicts": 0,
+          "parse_errors": 0,
+          "discovery_errors": 0,
+          "root_abi_family_collisions": 0
+        },
+        "build_input_closure_complete": true,
+        "activation_eligible": true,
+        "current_contract_activation_eligible": false,
+        "installation": {
+          "receipt_schema": "laplace.product-package-installation-receipt/v1",
+          "receipt": "/opt/laplace/receipts/packages/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b.json",
+          "receipt_sha256": "96ec845d1379dc0205c466552b163b9eb9113baffe665bf1a2e78410839b9088",
+          "installation_receipt_sha256": "72776e65055ae862bf6ee8404cf7ca1bdf104f9251b5a843c874ca9bcf7c074e",
+          "installed_release": "/opt/laplace/releases/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b",
+          "installed_package_verified": true,
+          "overwrite_performed": false,
+          "root_ownership_complete": false
+        },
+        "resource_observation": {
+          "schema": "laplace.execution-resource-observation/v1",
+          "receipt": "/opt/laplace/receipts/plans/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b/resource-observation.json",
+          "receipt_sha256": "5d2b947fd879a097d61de0e45945849dc7af38284c364a858f784fd082754644",
+          "observation_sha256": "196982b21915dda742adde29aee68664be14ee146b971716b4bfb81f40d65554",
+          "topology_receipt": "874654294edcf9a3f061268b95286adbad6bfa4d7f9a6ce2eb7830e5611670c8",
+          "root_grant_receipt": "4c657b89e2b1fbd35d60c8e629ed94804079b2a7ed2d1dfd9786f8473bc3ec1b",
+          "partition_receipt": "957207f5cfcaf0175867361cd6ab52b58d6f9434e21bf6b68f16bd71b3230460",
+          "processor_allocation_receipt": "9ec87cac12ff47508ab9f05a7eac0f91318f4594507cbb53449d06c6410b8620",
+          "storage_observation_receipt": "84a18319270e50351eac52f7fd6bd8e90dcbf2cbf953a50deb2f2598d836195d",
+          "processor_ids": [0, 1, 2, 3, 4, 5],
+          "cpu_slots": 6,
+          "memory_bytes": 12884901888,
+          "io_slots": 4
+        },
+        "collision_observation": {
+          "schema": "laplace.postgresql-collision-observation/v2",
+          "receipt": "/opt/laplace/receipts/plans/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b/collision-observation.json",
+          "receipt_sha256": "9d949440b2c137e76f6d4b8aad84f43cb447996da376bee04799e19af41801ed",
+          "observation_sha256": "50e90279ef7f1ca561da6393c48b7655b07a92bfe7d39264de65c804e4aa8f5a",
+          "collisions": [],
+          "accepted": false,
+          "inspection_errors": [
+            "lstat /opt/laplace/pgdata/refactor/data: EACCES",
+            "lstat /pgtemp/refactor: EACCES",
+            "lstat /var/lib/pgwal/refactor: EACCES"
+          ]
+        },
+        "cluster_plan_issued": false,
+        "product_activated": false
+      },
+      "product_cluster_activation_mechanism": {
+        "implementation_commit": "f0c57da73d339f877fad50c554b0d33cb04f4f2a",
+        "state": "implemented-and-unprivileged-acceptance-proven-physical-system-activation-not-yet-executed",
+        "implemented_boundaries": [
+          "root-owned immutable package qualification with post-change byte verification",
+          "fresh live collision reinspection before any generated or database state",
+          "checksummed UTF-8 cluster initialization and exact package PostgreSQL 18.6 execution",
+          "generated role database tablespace extension and application-effect bootstrap",
+          "packaged pg_isready readiness polling with no ambient shell readiness program",
+          "live backend identification through pg_stat_activity",
+          "exact postmaster backend laplace_pg pg_stat_statements and native engine identity through proc executable and maps inspection",
+          "generated configuration byte verification",
+          "full stop and start with changed postmaster PID stable positive system identifier and repeated loaded-object proof",
+          "atomic current-package pointer commit only after restart proof",
+          "failure stop attempt prior-pointer preservation durable state preservation and typed failure evidence"
+        ],
+        "live_unprivileged_diagnostic": {
+          "package_id": "4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b",
+          "postgresql_version": "18.6",
+          "cluster_initialized": true,
+          "pg_stat_statements_created_and_loaded": true,
+          "laplace_extension_created_and_loaded": true,
+          "positive_system_identifier_observed": true,
+          "mapped_objects_observed": [
+            "pgsql-18/bin/postgres",
+            "pgsql-18/lib/laplace_pg.so",
+            "pgsql-18/lib/pg_stat_statements.so",
+            "lib/liblaplace_engine.so.2.0.0"
+          ],
+          "product_activation_occurred": false
+        },
+        "physical_execution_boundary": "requires one authorized root invocation because the selected data WAL temporary configuration log service and root package-ownership targets are privileged; no service cluster active pointer or Unicode product root has been promoted"
+      },
+      "product_unicode_access_mechanism": {
+        "implementation_commit": "50f3a29044c96497ba60cdbbdc12921e6f67539c",
+        "state": "implemented-and-controlled-integration-proven-successor-package-built-installed-and-resource-observed-physical-activation-pending",
+        "implemented_boundaries": [
+          "one production PostgreSQL batch operation resolves ordered Unicode Tier-0 positions through one exact active native perfcache generation",
+          "one production PostgreSQL batch operation reverse-resolves ordered content identity and identity-preimage-fingerprint pairs through the same exact active generation",
+          "both operations require and return the exact Unicode evidence epoch identity and fingerprint",
+          "the PostgreSQL bridge delegates record decoding validation and search to the canonical native perfcache access law",
+          "public Tier-0 atoms are proven equal to normalized deposited PostgreSQL state at the lower interior and upper Unicode boundaries",
+          "reverse lookup is proven to invert the direct lookup exactly and stale expected epochs are rejected",
+          "the PostgreSQL test loader now prioritizes the current build module over a previously installed package so changed extension behavior cannot be tested through stale bytes"
+        ],
+        "controlled_integration_validation": {
+          "positive_full_unicode_seconds": 129.57,
+          "expected_epoch_mutation_seconds": 128.36,
+          "root_stream_frames": 2230150,
+          "positions": 1114112,
+          "public_readback_positions": [0, 65, 1114111],
+          "program_authority_static": "27 of 27 passed",
+          "program_authority_physical": "27 of 27 passed",
+          "postgresql_cluster_contract": "38 of 38 passed"
+        },
+        "product_boundary": "the exact successor package containing these public operations is installed and resource-observed, but root ownership, accepted live collision evidence, the activated cluster, and Unicode product activation remain unproven"
+      },
+      "product_unicode_activation_controller": {
+        "implementation_commit": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
+        "state": "implemented-and-controlled-integration-proven-successor-package-and-physical-execution-pending",
+        "implemented_boundaries": [
+          "one exact contract binds the activated PostgreSQL 18.6 cluster package Unicode 17 source authority generated PostgreSQL contract expected complete-root result and success and failure receipt laws",
+          "one packaged native domain-separated BLAKE3 provider derives the activation epoch authority and all framework epochs from the canonical activation request",
+          "one typed product orchestrator verifies all thirty-three source files package and live cluster identity then invokes the native Unicode root build-and-activate operation exactly once in one PostgreSQL transaction",
+          "the transaction asserts the complete 2230150-frame result 1114112 entity physicality atom and DUCET-position populations normalized families sibling artifact bytes and digests plan manifest durable generation and deposit receipts and coherent active epoch before commit",
+          "post-commit recovery rehydrates and validates exact generation deposition stream plan and artifact receipts rather than repeating or pretending the operation did not commit",
+          "success requires product restart a changed postmaster PID stable positive system identifier unchanged loaded package bytes cold application-role direct readback exact reverse inversion and unchanged artifacts",
+          "every failure emits a typed durable failure receipt and requires state reinspection before retry"
+        ],
+        "controlled_integration_validation": {
+          "unicode_product_activation_contract": "8 of 8 passed including native identity vector source mutation partial-state rejection one-call transaction reverse mutation restart cold readback crash recovery and typed failure evidence",
+          "postgresql_cluster_contract": "39 of 39 passed",
+          "complete_product_package_contract": "26 of 26 passed",
+          "portable_registered_suite": "257 of 257 passed from a clean current test graph",
+          "registry_parity": "257 registered core tests exactly matched CTest",
+          "program_authority_static": "27 of 27 passed",
+          "program_authority_physical": "27 of 27 passed",
+          "requirements_trace": "12 of 12 passed"
+        },
+        "product_boundary": "the controller has an exact installed successor package but has not executed because accepted root collision inspection and physical cluster activation require one authorized root invocation; no Unicode product activation receipt exists"
+      },
+      "local_validation": {
+        "postgresql_build_contract_and_mutation": "37 of 37 passed including packaged TAP providers staged OpenSSL execution preflight bootstrap-provider installed-provider recursive-closure and independent-output mutations",
+        "installed_provider_lock_contract_and_mutation": "10 of 10 passed including exact role provider version path byte hash license runtime-SONAME and selection-hash controls",
+        "toolchain_build_contract_and_mutation": "46 of 46 passed including Perl module native-provider and consumer-manifest mutations",
+        "runtime_build_graph_contract_and_mutation": "39 of 39 passed including source-entrypoint, second-shell RUNPATH, generated-libtool, executable-stack, controlled-test-loader, and package-verification mutations",
+        "program_authority": "27 of 27 passed including failed-runtime unqualified-provider build-toolchain-promotion rejected-PostgreSQL-promotion inert-package-promotion recursive-closure-erasure and bootstrap-successor-promotion mutations",
+        "requirements_trace": "12 of 12 passed",
+        "generic_recursive_elf_closure": "passed unresolved contained deterministic resolution ABI-generation collision competing-provider and host-boundary fixtures",
+        "postgresql_18_6_package_build": "world-bin check-world and install-world-bin completed; exact activation-eligible package receipt issued after full build-input closure io_uring product-path qualification source-test overlay control and recursive whole-tree closure",
+        "complete_product_package_contract_and_mutation": "26 of 26 passed including build-input omission provider narrowing C-linker driver library-path hwloc dependency platform-ABI package-promotion native-resource-observer and Unicode-activation-identity-provider mutations",
+        "complete_product_package_build": "current activation-eligible package 4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b built with the packaged native resource observer 2746 files 47 symlinks 532714907 bytes and zero unresolved external or conflicting ELF edges",
+        "native_resource_observation": "installed packaged observer issued topology root-grant partition processor-allocation and storage receipts for a bounded six-CPU twelve-GiB four-I/O grant",
+        "product_cluster_activation_contract_and_mutation": "39 of 39 passed including exact live-object omission invalid system identity unchanged-postmaster restart bootstrap-signature ambient-readiness and Unicode-activation-identity-provider controls",
+        "product_cluster_activation_live_diagnostic": "the accepted PostgreSQL 18.6 package initialized and ran an isolated temporary cluster; pg_stat_statements and Laplace loaded successfully and proc maps exposed all four required immutable package objects",
+        "syntax_and_diff": "Python compilation git diff whitespace and both 27-test program-authority modes passed",
+        "portable_registered_suite": "257 of 257 passed from a clean current test graph with exact registry parity",
+        "product_unicode_public_access": "full oneAPI Unicode PostgreSQL contract passed in 129.57 seconds with deposited-state parity direct/reverse inversion exact epoch return and stale-epoch rejection; the expected-epoch bypass mutant was detected in 128.36 seconds",
+        "product_unicode_activation_controller": "8 of 8 passed including exact native identity source mutation one-call transaction post-commit receipt recovery restart cold public readback reverse inversion and typed failure evidence"
+      }
+    },
+    "proven_prerequisite_boundary": [
+      "one complete Unicode calculation feeds controlled PostgreSQL and Tier-0 sibling sinks",
+      "direct and reverse Unicode perfcache construction and coherent activation semantics",
+      "generic whole-working-set set-wise presence and transactional canonical deposition",
+      "controlled integration acceptance only"
+    ],
+    "immediate_implementation_boundary": [
+      "completed: build install and observe a content-addressed successor product package containing the public Unicode perfcache operations and activation controller",
+      "rerun the live collision observation with authorized traversal of the runner-owned state roots and reject any actual occupied target before planning",
+      "issue and verify the exact isolated cluster plan from the accepted package native resource observation and accepted collision observation",
+      "initialize start and bootstrap the exact PostgreSQL 18.6 isolated cluster under issue 12",
+      "verify the accepted Laplace package extension configuration roles loaded-object closure restart readiness and public SQL boundary in that cluster",
+      "deposit the complete 1114112-position Unicode root through the accepted product boundary without a second semantic calculation",
+      "publish direct and reverse Unicode artifacts from the same retained stream and verify exact database artifact and manifest parity",
+      "activate one coherent Unicode product epoch transactionally",
+      "restart the product cluster and prove readiness public SQL readback active root identities and epoch integrity",
+      "retain an exact product-root activation receipt"
+    ],
+    "whole_product_reason": "Unicode is the exact address and rendering floor required before the typed numerical highway can connect identifiers languages grammars recipes modalities and other machine dimensions; this is product activation of one substrate root not source-family ingestion.",
+    "nonclaims": [
+      "the activation-eligible PostgreSQL 18.6 and complete Laplace product packages exist but the selected product cluster is not yet established",
+      "the exact successor Laplace package containing the public Unicode operations and activation identity provider is installed and verified at its content-addressed release path but root ownership and active product state are not established",
+      "the unprivileged collision observation cannot prove absence inside runner-owned mode-0700 state roots and is not accepted as a cluster plan input",
+      "Unicode is not yet product activated",
+      "knowledge is not seeded",
+      "the typed numerical highway is not implemented",
+      "the product is not released"
+    ]
+  },
   "github_observation": {
-    "observed_at_utc": "2026-08-26T23:42:47Z",
-    "main_commit": "37f8741e9360a114abc44c4c72941726bee84716",
+    "observed_at_utc": "2026-08-27T02:43:31Z",
+    "main_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
+    "product_cluster_project_status": "In Progress",
     "unicode_product_activation_issue": {"number": 13, "state": "open", "reason": "integration proof does not satisfy installed PostgreSQL 18.6 product-root activation"},
     "composition_bulk_issue": 15,
     "highway_issue": 52,
@@ -311,17 +1269,25 @@
     },
     "composition_pull_request": {
       "number": 73,
+      "state": "merged",
+      "draft": false,
+      "main_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+      "issue_15_state": "closed",
+      "proof_state": "integration-proven; complete-ingest performance product activation seed and release remain false"
+    },
+    "active_product_runtime_pull_request": {
+      "number": 74,
       "state": "open",
       "draft": true,
-      "head_commit": "5795fd16f4f2e72207a0821a313e81c97eabe6af",
-      "proof_state": "published issue 15 implementation acceptance pending exact-head CI and merge; complete-ingest performance product activation seed and release remain false"
+      "head_commit": "baba1887727014160c06ec5749b06a839f69edd1",
+      "proof_state": "partial implementation; product cluster activation exact public Unicode Tier-0/reverse perfcache access and the complete Unicode product activation controller are implemented and controlled-integration proven; the exact successor package is built installed and resource-observed, while accepted privileged collision completion root ownership physical cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
       "title": "Laplace Refactor — Machine Roadmap",
       "url": "https://github.com/users/SaltyPatron/projects/2",
       "public": true,
-      "items": 41,
+      "items": 42,
       "fields": 18,
       "historical_project_1_is_authority": false
     },
@@ -332,15 +1298,15 @@
       "proof_state": "requirements and acceptance encoded; newly described mechanisms unimplemented"
     },
     "github_subissue_hierarchy_present": true,
-    "unreconciled_dependency_pull_requests": [
-      {"number": 31, "draft": true, "base": "main", "head": "phase1/runtime-build-graph", "merge_state": "DIRTY"},
-      {"number": 35, "draft": false, "base": "phase1/runtime-build-graph", "head": "phase1/source-built-toolchain", "merge_state": "CLEAN"}
+    "retired_dependency_pull_requests": [
+      {"number": 31, "state": "closed", "former_base": "main", "head": "phase1/runtime-build-graph", "reconciliation": "all nine commits reconciled into draft PR 74; source branch retained as history"},
+      {"number": 35, "state": "closed", "former_base": "phase1/runtime-build-graph", "head": "phase1/source-built-toolchain", "reconciliation": "all sixteen commits reconciled into draft PR 74; source branch retained as history"}
     ],
     "latest_main_workflow_runs": [
-      {"id": 33019974408, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "37f8741e9360a114abc44c4c72941726bee84716", "linux_dev_registered_tests": 240, "linux_sanitize_registered_tests": 240},
-      {"id": 33019974406, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "37f8741e9360a114abc44c4c72941726bee84716", "registered_tests": 259, "observed_postgresql_version": "18.3"}
+      {"id": 33024951976, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409", "linux_dev_registered_tests": 251, "linux_sanitize_registered_tests": 251},
+      {"id": 33024951904, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409", "registered_tests": 279, "observed_postgresql_version": "18.3"}
     ],
-    "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": false, "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},
+    "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": true, "busy_reason": "self-hosted work was executing at observation time; no current-head PR 74 check had yet been published", "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},
     "observed_required_checks": ["requirements", "native (linux-dev)", "native (linux-sanitize)"],
     "required_product_path_gate_present": false,
     "required_custom_stack_evidence_currently_missing_from_merge_gate": "postgresql-native",
@@ -370,6 +1336,16 @@
       "instruction": "audit the session work effort and action items then continue the active roadmap work"
     },
     "current_state": "resumed-by-direct-user-instruction",
-    "correction": "the permission-profile transition at 21:35:09 UTC did not resume the paused task; the agent's intervening read-only action was unauthorized and is recorded as a process defect"
+    "correction": "the permission-profile transition at 21:35:09 UTC did not resume the paused task; the agent's intervening read-only action was unauthorized and is recorded as a process defect",
+    "latest_environment_recovery": {
+      "observed_at_utc": "2026-08-27T07:42:06Z",
+      "trigger": "the user directly resumed work after a shell failure required a host reboot",
+      "ephemeral_state": "the reboot cleared the prior /tmp build and test estate",
+      "persistent_state": "the repository commits, inert runtime package, build-toolchain package, receipts, and the prior rejected PostgreSQL build evidence survived",
+      "reverification": "both persistent package trees and receipts were reverified before a successor PostgreSQL plan was calculated",
+      "successor_execution_started": true,
+      "successor_execution_disposition": "the first post-reboot successor crossed exact input preflight and PostgreSQL configure but was rejected before compilation by a case-sensitive configure-receipt verifier defect; the corrected content-addressed successor completed compilation check-world installation and inert package verification",
+      "product_activation_occurred": false
+    }
   }
 }

@@ -626,6 +626,35 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_root_build_result AS (
     reverse_dependency_artifact_digest bytea
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_tier0_batch_result AS (
+    codepoint_positions integer[],
+    found boolean[],
+    placement_ranks integer[],
+    position_classes smallint[],
+    lup_v1_bytes bytea[],
+    entity_ids bytea[],
+    identity_preimage_fingerprints bytea[],
+    physicality_ids bytea[],
+    coordinate_x double precision[],
+    coordinate_y double precision[],
+    coordinate_z double precision[],
+    coordinate_m double precision[],
+    hilbert_keys bytea[],
+    geometry_epochs bytea[],
+    encoded_records bytea[],
+    activation_epoch_id bytea,
+    activation_epoch_fingerprint bytea
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_identity_reverse_batch_result AS (
+    content_ids bytea[],
+    identity_preimage_fingerprints bytea[],
+    found boolean[],
+    codepoint_positions integer[],
+    activation_epoch_id bytea,
+    activation_epoch_fingerprint bytea
+);
+
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_CALCULATE_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
     integer[])
@@ -693,6 +722,23 @@ RETURNS @LAPLACE_PG_SCHEMA@.unicode_root_build_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_UNICODE_ROOT_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_TIER0_ACCESS_SQL@(
+    bytea,
+    bytea,
+    integer[])
+RETURNS @LAPLACE_PG_SCHEMA@.unicode_tier0_batch_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_UNICODE_TIER0_ACCESS_SYMBOL@'
+LANGUAGE C STABLE STRICT PARALLEL UNSAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_REVERSE_ACCESS_SQL@(
+    bytea,
+    bytea,
+    bytea[],
+    bytea[])
+RETURNS @LAPLACE_PG_SCHEMA@.unicode_identity_reverse_batch_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_UNICODE_REVERSE_ACCESS_SYMBOL@'
+LANGUAGE C STABLE STRICT PARALLEL UNSAFE;
+
 REVOKE ALL ON SCHEMA @LAPLACE_PG_SCHEMA@ FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.execution_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.canonical_entity FROM PUBLIC;
@@ -712,6 +758,14 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_active_control FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_IDENTITY_CALCULATE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context, integer[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_TIER0_ACCESS_SQL@(
+        bytea, bytea, integer[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_REVERSE_ACCESS_SQL@(
+        bytea, bytea, bytea[], bytea[])
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_COMPOSITION_DEPOSIT_SQL@(

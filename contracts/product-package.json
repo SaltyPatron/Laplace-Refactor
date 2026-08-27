@@ -1,0 +1,134 @@
+{
+  "schema": "laplace.product-package-contract/v1",
+  "version": "1.0.0",
+  "postgresql": {
+    "receipt_schema": "laplace.postgresql-package-receipt/v2",
+    "version": "PostgreSQL 18.6",
+    "logical_prefix": "/opt/laplace/current/pgsql-18"
+  },
+  "laplace": {
+    "logical_prefix": "/opt/laplace/current",
+    "required_installed_providers": [
+      "intel-oneapi-runtime",
+      "onetbb",
+      "onemkl"
+    ],
+    "required_runtime_dependencies": [
+      "onetbb-hwloc"
+    ],
+    "required_capabilities": {
+      "app_effect_boundary": 1,
+      "exact_loaded_object_identity": 1,
+      "topology_bound_processor_allocation": 1
+    }
+  },
+  "runtime_dependencies": {
+    "onetbb-hwloc": {
+      "version": "1.5.0",
+      "immutable_root": "/opt/intel/oneapi/tcm/1.5",
+      "package_versions": {
+        "intel-oneapi-tcm-1.5": "1.5.0-489"
+      },
+      "license_id": "LicenseRef-Intel-Simplified-Software-License-October-2022",
+      "files": [
+        {
+          "role": "hwloc-runtime",
+          "class": "runtime-object",
+          "path": "/opt/intel/oneapi/tcm/1.5/lib/libhwloc.so.15.10.2",
+          "bytes": 433120,
+          "sha256": "34e1ad15a2d207dc116d9f88fbf5f9ab97cc5ce5e6a704e54a587e8bc7ddefff",
+          "soname": "libhwloc.so.15"
+        },
+        {
+          "role": "tcm-license",
+          "class": "license",
+          "path": "/opt/intel/oneapi/tcm/1.5/share/doc/tcm/licensing/license.txt",
+          "bytes": 4090,
+          "sha256": "6c00ae54b2a610ea009e0f5c5d3aa79023eb694c7fb72857654c53c6e99d7c97"
+        },
+        {
+          "role": "tcm-third-party-notices",
+          "class": "license",
+          "path": "/opt/intel/oneapi/tcm/1.5/share/doc/tcm/licensing/third-party-programs.txt",
+          "bytes": 14689,
+          "sha256": "0c359ebe1a1c58c3bb42eb228b6c3310361fe75d99ddb2fa29c536bf2a290955"
+        }
+      ]
+    }
+  },
+  "build": {
+    "root": "/build/laplace/build/product",
+    "stage_root": "/build/laplace/stage/product",
+    "configuration": "Release",
+    "testing": false,
+    "dotnet_bindings": false,
+    "c_compiler": "/opt/intel/oneapi/compiler/2026.1/bin/icx",
+    "cxx_compiler": "/opt/intel/oneapi/compiler/2026.1/bin/icpx",
+    "install_libdir": "lib",
+    "blake3_root": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/blake3",
+    "blake3_source": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/blake3/c",
+    "parallel_jobs": 6
+  },
+  "host_build_provider": {
+    "receipt_schema": "laplace.postgresql-host-build-provider/v1",
+    "verifier": "tools/postgresql/host-provider.py",
+    "sandbox_executable": "/usr/bin/bwrap",
+    "additional_receipted_files": [
+      "/var/lib/dpkg/status"
+    ]
+  },
+  "package": {
+    "manifest_schema": "laplace.package-manifest/v1",
+    "release_root": "/opt/laplace/releases",
+    "required_loaded_objects": [
+      "pgsql-18/bin/postgres",
+      "pgsql-18/lib/laplace_pg.so",
+      "pgsql-18/lib/pg_stat_statements.so",
+      "lib/liblaplace_engine.so.2.0.0"
+    ],
+    "required_files": [
+      "bin/laplace_resource_observe",
+      "bin/laplace_unicode_activation_identify",
+      "pgsql-18/bin/initdb",
+      "pgsql-18/bin/pg_config",
+      "pgsql-18/bin/pg_ctl",
+      "pgsql-18/bin/pg_isready",
+      "pgsql-18/bin/postgres",
+      "pgsql-18/bin/psql",
+      "pgsql-18/lib/laplace_pg.so",
+      "pgsql-18/lib/pg_stat_statements.so",
+      "pgsql-18/share/extension/laplace.control",
+      "pgsql-18/share/extension/laplace--1.0.0.sql",
+      "lib/liblaplace_engine.so.2.0.0"
+    ]
+  },
+  "runtime_closure": {
+    "verifier": "tools/dependencies/elf-closure.py",
+    "schema": "laplace.elf-closure/v1",
+    "tool_version": "1.0.0",
+    "search_subdirectories": [
+      "pgsql-18/lib",
+      "lib"
+    ],
+    "allowed_additional_platform_abi_sonames": [
+      "libdl.so.2",
+      "libpthread.so.0",
+      "librt.so.1"
+    ],
+    "required_zero_summary_fields": [
+      "unresolved_edge_count",
+      "parse_error_count",
+      "discovery_error_count",
+      "resolution_conflict_count",
+      "root_abi_family_collision_count",
+      "custom_to_external_edge_count"
+    ]
+  },
+  "activation": {
+    "requires_postgresql_build_input_closure": true,
+    "requires_postgresql_runtime_provider_qualification": true,
+    "requires_recursive_elf_closure": true,
+    "requires_product_build_input_closure": true,
+    "requires_clean_repository": true
+  }
+}

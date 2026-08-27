@@ -35,7 +35,7 @@ modality, model, platform, or product surface cannot certify the universal machi
 | Unicode root calculation and PostgreSQL/Tier-0 sibling activation | Integration proven |
 | Unicode root in the selected PostgreSQL 18.6 product cluster | Not product activated |
 | Direct and reverse Unicode hot planes | Integration proven and measured under their declared boundary |
-| General whole-working-set composition and presence | Integration acceptance published on draft PR #73; exact-head CI and merge pending; product not activated |
+| General whole-working-set composition and presence | Integration proven and merged by PR #73; product not activated |
 | Sparse addressability and storage-compute economics | One representative composition deposition receipt exists; paired acceleration removal storage-class and bloat acceptance remain open under #72 |
 | Cross-domain whole-route cohesion | Unimplemented; tracked by #70 |
 | Typed machine exception registry and recovery planner | Unimplemented |
@@ -50,7 +50,7 @@ modality, model, platform, or product surface cannot certify the universal machi
 | Federation, distributed placement, ARM, and Raspberry Pi product support | Unimplemented |
 | Accepted installed product, GitHub deployment, and release | None |
 
-The accepted local composition boundary is published on PR #73 and fingerprinted by
+The accepted composition boundary is merged by PR #73 and fingerprinted by
 `state/continuation.json`. Controlled Unicode integration must continue to be described
 as **when the product has Unicode**, not as activated product state.
 
@@ -141,9 +141,9 @@ different structural, reference, evidence, and realization programs.
 | `framework.execution` | One generated registry, context, batch spine, recipe compiler, providers, route bindings, and whole-route cohesion | #4, #5, #6, #10, #57, #58, #70 | Partial | Unrelated complete programs pass one lifecycle, provider-substitution, and private-route mutation suite |
 | `machine.handle-exceptions` | Generated exceptions, traps, faults, recovery, replay, and why-not | #56 | Unimplemented | Physical/program/authority/resource/semantic fault injection and route parity |
 | `bootstrap.dependencies` | Framework-mediated package and runtime activation | #3, #12 | Partial | Exact package closure, loaded-object receipt, rollback and reactivation |
-| `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, and trajectory | #7, #13 | Whole-working-set composition and exact provider parity published in draft PR #73 | Accepted merge plus complete generic grammar/recipe/testimony/reference closure |
-| `substrate.bulk-deposit` | Whole-working-set presence, filtered production, transactional bulk persistence, and paid addressability | #15, #72 | Issue #15 mechanism acceptance published in draft PR #73 and integration-measured on PostgreSQL 18.3/18.4 | Exact-head CI/merge, complete-ingest performance gates, and #72 paired acceleration/storage receipts |
-| `bootstrap.unicode-root` | Product-deposited and coherently activated Unicode atom floor | #13, #14 | Integration proven; not product activated | Accepted package installed on PostgreSQL 18.6 with exact active DB/cache root |
+| `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, and trajectory | #7, #13 | Whole-working-set composition and exact provider parity integration-proven by merged PR #73 | Complete generic grammar/recipe/testimony/reference closure |
+| `substrate.bulk-deposit` | Whole-working-set presence, filtered production, transactional bulk persistence, and paid addressability | #15, #72 | Issue #15 mechanism integration-proven by merged PR #73 on PostgreSQL 18.3/18.4 | Complete-ingest performance gates and #72 paired acceleration/storage receipts |
+| `bootstrap.unicode-root` | Product-deposited and coherently activated Unicode atom floor | #13, #14 | Calculation, sibling deposition, public epoch-pinned access, and the complete restart/readback controller are integration-proven; not product activated | Successor package and PostgreSQL 18.6 cluster active with exact durable DB/cache/root receipt |
 | `substrate.highway` | Append-only typed coordinates for every machine namespace | #52 | Unimplemented | Collision, release-scope, mirror parity, and bubble-up/bubble-down proof |
 | `evidence.record-lineage` | Immutable occurrences, testimony, derivation, and dependence roots | #16 | Unimplemented | Cross-source provenance and copied-evidence nonamplification |
 | `world.admit-witnesses` | Exact source profiles and heterogeneous AST world admission | #53, #59 | Unimplemented | Profile closure, cross-profile closure, readback, denominators, and seed receipt |
@@ -161,9 +161,10 @@ different structural, reference, evidence, and realization programs.
 The immediate sequence is governed by the machine's dependencies rather than by an
 interesting corpus:
 
-1. Complete exact-head CI and review for PR #73, merge the accepted issue #15
-   mechanism, and only then close issue #15. Do not promote that merge to product
-   activation or complete-ingest performance acceptance.
+1. Establish the exact PostgreSQL 18.6 product cluster, install and verify the accepted
+   package, deposit the complete Unicode root through the accepted product boundary,
+   publish the direct/reverse siblings from the same retained stream, activate one
+   coherent epoch, restart, and prove public readback and readiness.
 2. Execute the 500,000-records-per-second and qualifying-real-corpus 30-seconds-per-GB
    complete-ingest gates. Execute #72 against representative deposited state so every
    accepted index or perfcache proves the addressability it purchases and a dense
@@ -172,29 +173,26 @@ interesting corpus:
    grammar/recipe compiler, module admission, provider substitution, typed machine
    exception lifecycle, and issue #70 whole-route cohesion across unrelated complete
    programs—instead of allowing composition to grow a private framework.
-4. Establish the exact PostgreSQL 18.6 product cluster, install the accepted package,
-   deposit Unicode through the generic path, verify DB/perfcache parity, and activate
-   one coherent product root.
-5. Implement the typed numerical highway for authority, release, namespace, grammar,
+4. Implement the typed numerical highway for authority, release, namespace, grammar,
    AST role, language, script, relation, modality, representation, recipe, model,
    trust, operation, and effect coordinates. Equal local numbers never collapse
    across those dimensions without witnessed mappings.
-6. Populate exact source profiles over the known heterogeneous source universe, then
+5. Populate exact source profiles over the known heterogeneous source universe, then
    schedule recipe DAGs across the configured working set. Close artifact, syntax,
    reference, evidence, readback, denominator, performance, and publication receipts.
-7. Admit the configured foundational world boundary. This—not WordNet, PGN, or any
+6. Admit the configured foundational world boundary. This—not WordNet, PGN, or any
    other exemplar—is the knowledge-seed outcome.
-8. Build typed operators, indexed search, answerability, cognition, recomposition, and
+7. Build typed operators, indexed search, answerability, cognition, recomposition, and
    realization over that state. KNN, ANN, geometry, perfcaches, and top-k may generate
    frontier candidates; none becomes universal relevance, truth, or completion.
-9. Prove model witness/target compilation and entity-world product surfaces as sibling
+8. Prove model witness/target compilation and entity-world product surfaces as sibling
    programs over the same machine. Admit model behavior through typed experiment
    coordinates and measured effective-support laws under #71. Do not flatten relation
    families for model export or create social/profile-specific semantics for product
    delivery.
-10. Prove federation and physical placement, then portability on actual selected ARM
+9. Prove federation and physical placement, then portability on actual selected ARM
     hardware without creating a reduced edition.
-11. Generate the architecture manual from the same registries and release only the
+10. Generate the architecture manual from the same registries and release only the
     package whose complete-product receipts the manual describes.
 
 ## Parallel lanes that do not change the critical path

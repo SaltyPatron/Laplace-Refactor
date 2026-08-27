@@ -24,10 +24,20 @@ The candidate instance is intentionally disjoint:
 | Database / roles | `laplace_refactor`; `laplace_admin`; `laplace_app` |
 | Port / socket | `55433`; `/run/laplace-refactor-postgresql` |
 | Data / WAL / temporary | `/opt/laplace/pgdata/refactor/data`; `/var/lib/pgwal/refactor`; `/pgtemp/refactor` |
+| Durable perfcaches | `/opt/laplace/pgdata/refactor/perfcache` |
 | Configuration | `/etc/laplace/instances/refactor` |
 | Logs / receipts | `/var/log/laplace/postgresql/refactor`; `/opt/laplace/receipts/postgresql/refactor` |
 | Immutable package | `/opt/laplace/releases/<package-id>` |
 | Committed package link | `/opt/laplace/current` |
+
+The product extension exposes Unicode through two ordered, bounded batch
+operations: `unicode_tier0_resolve_batch` and
+`unicode_identity_reverse_resolve_batch`. Each call requires the exact active
+epoch identity and fingerprint, acquires one generation pin, and delegates the
+entire access law to the native Tier-0 or reverse module. PostgreSQL does not
+decode the cache format or recreate its lookup semantics. The application role
+receives these read operations; root construction and activation remain an
+administrative effect.
 
 Before staging and again immediately before real activation, a generic collision
 probe proves that the declared service, port, socket, state paths, and matching
@@ -38,24 +48,45 @@ rejected. `trust` is forbidden.
 
 ## Package and activation state machine
 
-`tools/postgresql/clusterctl.py` implements a fail-closed four-state lifecycle:
+`tools/postgresql/clusterctl.py` implements a fail-closed product lifecycle:
 
-1. **Plan** validates the contract, native topology/root-grant/partition and
+1. **Install package** verifies every source manifest entry, digest, mode,
+   capability, activation gate, internal symlink, and loaded-object declaration,
+   copies into a temporary content-addressed release tree, re-verifies that tree,
+   and atomically places it only when the immutable destination is absent. Exact
+   replay returns the same receipt; an existing divergent release is never
+   overwritten.
+2. **Plan** validates the contract, native topology/root-grant/partition and
    processor-allocation receipts, a storage observation, a generic collision
    observation, and a content-addressed package manifest. The package ID is SHA-256 over the
    canonical manifest payload excluding its derived ID and release-root fields.
    Planning renders configuration, bootstrap SQL,
    service definition, resource settings, and exact commands. No package bytes
    means a useful dry-run plan whose activation remains blocked.
-2. **Apply** requires every manifest file, digest, mode, required capability, and
+3. **Apply/stage** requires every manifest file, digest, mode, required capability, and
    loaded-object declaration to verify. It stages only previously absent,
-   manifest-owned files and creates dedicated state directories. It never starts
-   PostgreSQL or invokes systemd.
-3. **Commit** requires a separately acquired loaded-state observation proving the
+   manifest-owned files and creates dedicated state directories. The low-level
+   command never starts PostgreSQL or invokes systemd.
+4. **Activate product** qualifies the content-addressed package as `root:root`,
+   repeats the live collision inspection with system authority, generates and stages
+   the exact plan, initializes the checksummed cluster, reloads systemd, starts the
+   immutable-package postmaster, and bootstraps the roles, database, extensions, and
+   application effect boundary. A dedicated administrator backend loads both product
+   extensions while the controller identifies its PID through `pg_stat_activity` and
+   inspects `/proc/<pid>/exe` plus `/proc/<pid>/maps`. The postmaster, extension,
+   statistics extension, and native engine paths and bytes must equal the package
+   manifest.
+5. **Restart proof and commit** stops and starts the candidate, requires a different
+   postmaster PID with the same positive PostgreSQL system identifier, and repeats the
+   complete loaded-object and generated-configuration observation. Only after both
+   observations pass is `/opt/laplace/current` switched atomically. Failure before
+   that commit stops the candidate when possible, leaves the prior pointer untouched,
+   preserves database state, and writes a typed failure receipt.
+6. **Commit (low-level)** requires a separately acquired loaded-state observation proving the
    service, system identifier, cluster paths, generated configuration hashes, and
    exact executable/shared-object hashes. Only then is `/opt/laplace/current`
    switched atomically.
-4. **Remove** first requires an independent observation that the candidate service
+7. **Remove** first requires an independent observation that the candidate service
    is inactive and no candidate postmaster remains. It then restores the prior
    active link and removes only unchanged generated files named in the receipt.
    Database, WAL, temporary, log, and receipt state is preserved. A changed file
@@ -71,6 +102,19 @@ configuration shape is not enough: the bytes actually loaded must match.
 Planning and the complete fixture lifecycle run unprivileged today:
 
 ```sh
+python3 tools/postgresql/clusterctl.py install-package \
+  --contract contracts/postgresql-cluster.json \
+  --package-manifest /path/to/package-manifest.json \
+  --package-physical-root /staged/root \
+  --root /fixture/root \
+  --receipt /tmp/laplace-product-package-installation.json
+
+python3 tools/postgresql/clusterctl.py observe-resources \
+  --contract contracts/postgresql-cluster.json \
+  --package-manifest /path/to/package-manifest.json \
+  --package-physical-root /fixture/root \
+  --output /tmp/laplace-postgresql-resources.json
+
 python3 tools/postgresql/clusterctl.py inspect-collisions \
   --contract contracts/postgresql-cluster.json \
   --output /tmp/laplace-postgresql-collisions.json
@@ -97,12 +141,73 @@ runner-to-admin mapping, ambient loader state, grants outside declared policy,
 non-package `pg_config`, package tampering, loaded-object drift, invalid system
 identity, and removal after operator modification.
 
-Real activation is a later privileged delivery operation. It additionally
-requires the complete PostgreSQL 18.6 product package, a selected recursive ELF
-closure, independently captured loaded-state evidence, root ownership changes,
-`systemctl daemon-reload`, `initdb`, candidate service start, bootstrap, and
-verification. The lifecycle tool emits those commands but never executes them.
-No current service or cluster is a prerequisite or activation target.
+Real activation is one explicit privileged operation. It requires the complete
+PostgreSQL 18.6 product package, selected recursive ELF closure, native resource
+observation, root ownership, and an unoccupied declared cluster boundary:
+
+```sh
+sudo python3 tools/postgresql/clusterctl.py activate-product \
+  --authorize-system-root \
+  --contract contracts/postgresql-cluster.json \
+  --package-manifest /path/to/package-manifest.json \
+  --resource-observation /path/to/native-resource-observation.json \
+  --evidence-directory /opt/laplace/receipts/plans/<package-id> \
+  --output /opt/laplace/receipts/plans/<package-id>/activation-result.json
+```
+
+The evidence directory must be addressed by the selected package ID. Completed
+ownership, collision, plan, staging, command, initial-load, restart-load, failure, and
+activation evidence is retained there. The command will not treat an existing cluster,
+configuration, socket, service, or inaccessible collision target as fresh state. No
+current service or cluster is a prerequisite or activation target.
+
+## Product Unicode activation
+
+Cluster activation and Unicode activation are separate receipted product states.
+`tools/postgresql/unicodectl.py` consumes the exact activated cluster plan,
+cluster-activation receipt, package manifest, Unicode source contract, all 33 verified
+Unicode 17 source files, and the generated PostgreSQL binding contract. Its product law
+is [`contracts/unicode-product-activation.json`](../../contracts/unicode-product-activation.json).
+
+The successor package must contain
+`bin/laplace_unicode_activation_identify`. That native executable derives the
+activation identifier, epoch fingerprint, authority fingerprint, and all ten framework
+epochs from one canonical request using independent domain-separated BLAKE3 preimages.
+The orchestrator's exact bytes are also bound into the request. Python does not mint
+these typed native identities.
+
+For a new product, the controller requires an empty Unicode/perfcache control state and
+absent generation paths. It executes `unicode_root_build_and_activate` exactly once in
+one transaction, then asserts the complete 2,230,150-frame result, all 1,114,112 atom
+and DUCET-position rows, all normalized families, sibling artifact digests and sizes,
+the generated plan manifest, the durable generation/deposit receipts, and the exact
+active epoch before commit. An exact already-committed epoch is a distinct recovery
+state; every partial or unrelated state is rejected.
+
+After commit, the controller verifies both artifact files, restarts the product service,
+requires the same positive system identifier with a different postmaster PID and the
+same loaded package bytes, and enters through `laplace_app` in a fresh backend. That
+cold application route must resolve positions `0`, `65`, and `1114111`, then invert
+their content-identity/full-preimage pairs through the reverse module under the same
+epoch. The artifact bytes must remain unchanged across restart and readback. Only then
+does a content-addressed `laplace.unicode-product-activation-receipt/v1` exist. Failures
+emit a typed receipt and require state reinspection before retry.
+
+Once the successor package and product cluster receipts exist, the physical command is:
+
+```sh
+sudo python3 tools/postgresql/unicodectl.py \
+  --authorize-system-root \
+  --package-manifest /path/to/package-manifest.json \
+  --cluster-plan /opt/laplace/receipts/plans/<package-id>/cluster-plan-<digest>.json \
+  --cluster-activation-receipt /opt/laplace/receipts/plans/<package-id>/activation-complete-<digest>.json \
+  --source-root /vault/Data/UCD/Public/UCD/latest \
+  --output /opt/laplace/receipts/postgresql/refactor/unicode-activation-result.json
+```
+
+The existence of this controller and its fixture acceptance does not claim that the
+current machine has executed that command. Product activation requires the exact
+successor package, live cluster, restart, public readback, and durable receipt.
 
 ## Resource derivation
 
@@ -125,3 +230,12 @@ from the unrestricted host or a permanent machine layout. For the typed
 
 Changing the hardware observation cannot silently enlarge the contract grant.
 Changing the grant changes the plan and receipt identities.
+
+The live observation is issued by the package's
+`bin/laplace_resource_observe` executable. It calls the native execution
+topology, root-grant, and partition APIs; binds the selected logical processors;
+observes the backing filesystems for the declared data, WAL, and temporary
+paths; and emits separate topology, root-grant, partition, processor-allocation,
+and storage receipts. `clusterctl.py observe-resources` verifies that executable
+against the package manifest, invokes it without ambient loader variables, and
+adds only the canonical orchestration receipt before validating the result.

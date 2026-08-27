@@ -1,0 +1,91 @@
+{
+  "schema": "laplace.unicode-product-activation-contract/v1",
+  "version": "1.0.0",
+  "authority": {
+    "cluster_contract_schema": "laplace.postgresql-cluster-contract/v1",
+    "cluster_activation_receipt_schema": "laplace.postgresql-activation-receipt/v1",
+    "cluster_plan_schema": "laplace.postgresql-cluster-plan/v1",
+    "package_manifest_schema": "laplace.package-manifest/v1",
+    "unicode_source_contract_schema": "laplace.unicode-source-contract/v1",
+    "unicode_postgresql_contract_schema": "laplace.unicode-postgresql-contract/v1",
+    "unicode_postgresql_contract_fingerprint": "f4086d6334dc87f627177dce69b3701743b8ffa22c97e77854754dca0f04b077",
+    "unicode_version": "17.0.0",
+    "source_file_count": 33
+  },
+  "orchestrator": {
+    "repository_path": "tools/postgresql/unicodectl.py",
+    "classification": "typed-product-lifecycle-orchestrator-not-semantic-engine",
+    "bind_exact_bytes_into_request": true
+  },
+  "identity_provider": {
+    "package_path": "bin/laplace_unicode_activation_identify",
+    "output_schema": "laplace.unicode-activation-identities/v1",
+    "algorithm": "BLAKE3-256",
+    "preimage": "u64le(domain-byte-count) || domain-utf8 || u64le(canonical-request-byte-count) || canonical-request-bytes",
+    "maximum_request_bytes": 4194304,
+    "fields": {
+      "request_fingerprint": {"bytes": 32, "domain": "laplace.unicode-product-activation.request/v1"},
+      "activation_epoch_id": {"bytes": 16, "domain": "laplace.unicode-product-activation.epoch-id/v1"},
+      "activation_epoch_fingerprint": {"bytes": 32, "domain": "laplace.unicode-product-activation.epoch-fingerprint/v1"},
+      "authority_fingerprint": {"bytes": 32, "domain": "laplace.unicode-product-activation.authority/v1"},
+      "source_epoch": {"bytes": 32, "domain": "laplace.unicode-product-activation.context.source/v1"},
+      "identity_epoch": {"bytes": 32, "domain": "laplace.unicode-product-activation.context.identity/v1"},
+      "geometry_epoch": {"bytes": 32, "domain": "laplace.unicode-product-activation.context.geometry/v1"},
+      "evidence_epoch": {"bytes": 32, "domain": "laplace.unicode-product-activation.context.evidence/v1"},
+      "firmware_epoch": {"bytes": 32, "domain": "laplace.unicode-product-activation.context.firmware/v1"},
+      "dependency_epoch": {"bytes": 32, "domain": "laplace.unicode-product-activation.context.dependency/v1"},
+      "database_epoch": {"bytes": 32, "domain": "laplace.unicode-product-activation.context.database/v1"},
+      "perfcache_epoch": {"bytes": 32, "domain": "laplace.unicode-product-activation.context.perfcache/v1"},
+      "numeric_epoch": {"bytes": 32, "domain": "laplace.unicode-product-activation.context.numeric/v1"},
+      "package_epoch": {"bytes": 32, "domain": "laplace.unicode-product-activation.context.package/v1"}
+    }
+  },
+  "operation": {
+    "initial_activation_only": true,
+    "expected_old_sequence": 0,
+    "expected_old_present": false,
+    "expected_old_epoch_id": "00000000000000000000000000000000",
+    "expected_old_epoch_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+    "maximum_batch_bytes": 33554432,
+    "maximum_batch_frames": 32768,
+    "statement_timeout_seconds": 3600,
+    "restart_timeout_seconds": 240,
+    "readback_positions": [0, 65, 1114111],
+    "spool_directory_prefix": "unicode-spool-",
+    "generation_directory_prefix": "unicode-generation-",
+    "tier0_filename": "unicode-tier0.lpc",
+    "reverse_filename": "unicode-identity-reverse.lpc"
+  },
+  "execution_context": {
+    "memory_bytes": 1073741824,
+    "cpu_slots": 6,
+    "io_slots": 2,
+    "epoch_mask": 1023,
+    "framework_major": 1,
+    "framework_minor": 6,
+    "flags": 1
+  },
+  "expected_result": {
+    "total_frame_count": 2230150,
+    "entity_count": 1114112,
+    "physicality_count": 1114112,
+    "atom_count": 1114112,
+    "ducet_position_count": 1114112,
+    "ducet_contraction_count": 964,
+    "normalization_composition_count": 961,
+    "tier0_artifact_bytes": 762586574,
+    "reverse_artifact_bytes": 117440896,
+    "tier0_artifact_digest": "8950d9867428fd660f8a49377b0c4a693b57ef0a9807ea189e425d0bb847c291",
+    "reverse_artifact_digest": "6f33df84440a8f4bb19afa608befac11f17ad68123d06e043c2be7451f6ab7b1",
+    "plan_manifest_fingerprint": "74499f893b359982962c3dbeb5572965c8d89f22609f47c41dbd7143d08034ab",
+    "perfcache_artifact_count": 2,
+    "perfcache_dependency_count": 1,
+    "reverse_dependency_module_id": "cb4d73fe1c7ad3784bdd69f9e22f5b3f"
+  },
+  "receipt": {
+    "schema": "laplace.unicode-product-activation-receipt/v1",
+    "failure_schema": "laplace.unicode-product-activation-failure/v1",
+    "directory_name": "unicode",
+    "rule": "no success receipt exists until exact source preflight, one committed native sibling-sink execution, artifact verification, product restart, repeated loaded-object proof, cold direct readback, and exact reverse inversion all succeed"
+  }
+}

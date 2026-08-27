@@ -1,0 +1,422 @@
+{
+  "schema": "laplace.toolchain-build-contract/v1",
+  "classification": "source-built-build-toolchain",
+  "release_lock": "dependencies/release-lock.json",
+  "logical_roots": {
+    "source_generation": "/opt/laplace/external/release-generations/5512807219f65447991bf42f2560a941682652605d720bc9e71187af9d6266a6",
+    "archive_root": "/opt/laplace/external/acquisition-cache/source-archives",
+    "build_root": "/opt/laplace/build/toolchain",
+    "work_root": "/opt/laplace/work/toolchain",
+    "stage_root": "/opt/laplace/stage/toolchain"
+  },
+  "activation": {
+    "scope": "build-toolchain-only",
+    "product_runtime_activation_eligible": false,
+    "consumer_contract": "selected-tool-and-perl-module-paths-versions-and-hashes"
+  },
+  "environment": {
+    "rejected_nonempty": [
+      "AR",
+      "AS",
+      "BASH_ENV",
+      "CC",
+      "CFLAGS",
+      "CMAKE_GENERATOR",
+      "CMAKE_PREFIX_PATH",
+      "CMAKE_TOOLCHAIN_FILE",
+      "COMPILER_PATH",
+      "CPATH",
+      "CPP",
+      "CPPFLAGS",
+      "CPLUS_INCLUDE_PATH",
+      "C_INCLUDE_PATH",
+      "CXX",
+      "CXXFLAGS",
+      "DESTDIR",
+      "ENV",
+      "LD",
+      "LDFLAGS",
+      "LD_LIBRARY_PATH",
+      "LIBRARY_PATH",
+      "MAKE",
+      "MAKEFLAGS",
+      "MFLAGS",
+      "NINJA_STATUS",
+      "NM",
+      "OBJCOPY",
+      "OBJDUMP",
+      "PERL5LIB",
+      "PERL",
+      "PERL_LOCAL_LIB_ROOT",
+      "PERL_MB_OPT",
+      "PERL_MM_OPT",
+      "PKG_CONFIG",
+      "PKG_CONFIG_LIBDIR",
+      "PKG_CONFIG_PATH",
+      "PYTHONHOME",
+      "PYTHONPATH",
+      "RANLIB",
+      "READELF",
+      "STRIP"
+    ],
+    "locale": "C.UTF-8",
+    "source_date_epoch": "1787616000"
+  },
+  "bootstrap": {
+    "classification": "host-platform-bootstrap",
+    "system_abi": {
+      "include_roots": [
+        {"path": "/usr/lib/gcc/x86_64-linux-gnu/11/include", "tree_sha256": "63da49492ca90d2a8ee5b425c3d2c2e0cbff0f2bd8f34fc3872a24a555e685d2", "file_count": 132, "total_file_bytes": 2290532},
+        {"path": "/usr/include/x86_64-linux-gnu", "tree_sha256": "944e67a10d67930bb18c0701349311ea3cd158903df68be1830f505a9ef2196e", "file_count": 2065, "total_file_bytes": 8294878},
+        {"path": "/usr/include", "tree_sha256": "33f52d4b00af3a030565f1f5723e3e40c84677a394b529f82c764b0ad0168285", "file_count": 38358, "total_file_bytes": 413118108}
+      ],
+      "library_search_roots": [
+        "/usr/lib/x86_64-linux-gnu",
+        "/lib/x86_64-linux-gnu",
+        "/usr/lib",
+        "/lib"
+      ],
+      "library_input_contract": "resolved-linker-inputs-are-individually-receipted"
+    },
+    "tools": [
+      {"id": "cc", "path": "/usr/bin/x86_64-linux-gnu-gcc-11", "sha256": "821af3c74506283c179ca413bb33e6b528805a4dd8a5c09df125e5ad560a9e89", "version_argument": "--version"},
+      {"id": "cxx", "path": "/usr/bin/x86_64-linux-gnu-g++-11", "sha256": "2360901d864cf10bfd6296e261cb2c14053552a80377761ab07146ec9ec9a2c0", "version_argument": "--version"},
+      {"id": "ld", "path": "/usr/bin/x86_64-linux-gnu-ld.bfd", "sha256": "58937fc20c21e147883b4fdaa0fc7438a8e8f2bb886cfcaa4896100ca91139e7", "version_argument": "--version"},
+      {"id": "ar", "path": "/usr/bin/x86_64-linux-gnu-ar", "sha256": "5b394f8752fde1776992d405d76034d5017b24b9b922bedaeeaff8cc344ef044", "version_argument": "--version"},
+      {"id": "nm", "path": "/usr/bin/x86_64-linux-gnu-nm", "sha256": "ed6565c132d6f20019ff3f050043dc1b2b8bc2e8b3b94c1ffe3f34436431a5a4", "version_argument": "--version"},
+      {"id": "ranlib", "path": "/usr/bin/x86_64-linux-gnu-ranlib", "sha256": "95e470c76f1fb0383ef5c10cfdf10127aefab07dad924fe94933ec8be8a5a9fb", "version_argument": "--version"},
+      {"id": "readelf", "path": "/usr/bin/x86_64-linux-gnu-readelf", "sha256": "04db0000749aff89e4af21429340b00b536fc6f80e811c872c006507881a5560", "version_argument": "--version"},
+      {"id": "make", "path": "/usr/bin/make", "sha256": "92f646030615cd98490a68a94c0aefd87b552be3158b941c02e43b0bfdb576db", "version_argument": "--version"},
+      {"id": "tar", "path": "/usr/bin/tar", "sha256": "fd0d62eed19efd3e115aa1be44160f89d777cd1e6d6d8eb0ce7c8bdc879f59e2", "version_argument": "--version"},
+      {"id": "python", "path": "/usr/bin/python3.10", "sha256": "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86", "version_argument": "--version"},
+      {"id": "sh", "path": "/usr/bin/dash", "sha256": "4f291296e89b784cd35479fca606f228126e3641f5bcaee68dee36583d7c9483", "version_argument": "-c", "version_operand": "printf dash"},
+      {"id": "bash", "path": "/usr/bin/bash", "sha256": "59474588a312b6b6e73e5a42a59bf71e62b55416b6c9d5e4a6e1c630c2a9ecd4", "version_argument": "--version"}
+    ]
+  },
+  "build": {
+    "parallel_jobs": 6,
+    "directory_mode": "0700",
+    "component_order": [
+      "perl",
+      "io-tty",
+      "ipc-run",
+      "texinfo",
+      "gnu-make",
+      "tcl",
+      "expect",
+      "dejagnu",
+      "gnu-binutils",
+      "pkgconf",
+      "gnu-bison",
+      "flex",
+      "cmake",
+      "ninja"
+    ],
+    "components": {
+      "gnu-make": {
+        "version": "4.4.1",
+        "phase": "platform-toolchain",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["make"]
+      },
+      "perl": {
+        "version": "5.44.0",
+        "phase": "build-language-tools",
+        "source_mode": "private-copy-in-tree",
+        "configure": ["{source}/Configure", "-des", "-Dprefix={prefix}", "-Dman1dir=none", "-Dman3dir=none", "-Dcc={cc}", "-Dld={cc}", "-Dar={ar}", "-Dnm={nm}", "-Dranlib={ranlib}", "-Dlocincpth= ", "-Dloclibpth= ", "-Dglibpth=/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib", "-Dlibpth=/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib /lib", "-Dccflags=-fwrapv -fno-strict-aliasing -pipe -fstack-protector-strong -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -nostdinc -isystem /usr/lib/gcc/x86_64-linux-gnu/11/include -isystem /usr/include/x86_64-linux-gnu -isystem /usr/include", "-Dcppflags=-nostdinc -isystem /usr/lib/gcc/x86_64-linux-gnu/11/include -isystem /usr/include/x86_64-linux-gnu -isystem /usr/include", "-Dldflags=-fstack-protector-strong", "-Dinc_version_list=none", "-Dmyhostname=laplace-build", "-Dmydomain=.invalid", "-Dcf_email=build@laplace.invalid", "-Dperladmin=build@laplace.invalid"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "test"],
+        "install": ["{make}", "install"],
+        "tools": ["perl", "prove"]
+      },
+      "io-tty": {
+        "version": "1.31",
+        "phase": "postgresql-tap-test-toolchain",
+        "source_mode": "private-copy-in-tree",
+        "configure": ["{perl}", "Makefile.PL", "PREFIX={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "test"],
+        "install": ["{make}", "install"],
+        "tools": [],
+        "perl_modules": ["IO::Pty", "IO::Tty"]
+      },
+      "ipc-run": {
+        "version": "20260402.0",
+        "phase": "postgresql-tap-test-toolchain",
+        "source_mode": "private-copy-in-tree",
+        "configure": ["{perl}", "Makefile.PL", "PREFIX={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "test"],
+        "install": ["{make}", "install"],
+        "tools": [],
+        "perl_modules": ["IPC::Run"]
+      },
+      "texinfo": {
+        "version": "7.3",
+        "phase": "documentation-toolchain",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}", "--disable-nls", "--disable-perl-xs"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["makeinfo", "texi2any"]
+      },
+      "tcl": {
+        "version": "8.6.18",
+        "phase": "upstream-test-toolchain",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/unix/configure", "--prefix={prefix}", "--enable-shared", "--enable-threads"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "test"],
+        "install": ["{make}", "install"],
+        "tools": ["tclsh8.6"]
+      },
+      "expect": {
+        "version": "5.45.4",
+        "phase": "upstream-test-toolchain",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}", "--enable-shared", "--with-tcl={prefix}/lib", "--with-tclinclude={prefix}/include"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "test"],
+        "install": ["{make}", "install"],
+        "tools": ["expect"]
+      },
+      "dejagnu": {
+        "version": "1.6.3",
+        "phase": "upstream-test-toolchain",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["runtest"]
+      },
+      "gnu-binutils": {
+        "version": "2.47",
+        "phase": "platform-toolchain",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}", "--disable-nls", "--disable-werror", "--disable-gprofng"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["addr2line", "ar", "as", "c++filt", "elfedit", "gprof", "ld", "nm", "objcopy", "objdump", "ranlib", "readelf", "size", "strings", "strip"],
+        "feature_selection": {
+          "gprofng": "excluded-not-a-product-tool"
+        },
+        "test_policy": {
+          "unset_environment": ["SOURCE_DATE_EPOCH"],
+          "unselected_optional_capabilities": [
+            {
+              "id": "llvm-lto-plugin-tests",
+              "commands": ["clang", "llvm-config"]
+            }
+          ],
+          "result_format": "dejagnu-sum",
+          "forbidden_outcomes": ["FAIL", "ERROR", "UNRESOLVED", "XPASS"],
+          "expected_outcomes": {
+            "UNTESTED": [
+              {
+                "line": "UNTESTED: pr33198 with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: pr33198-fat with -R .gnu.lto_* -R .gnu.debuglto_* -R .llvm.lto -N __gnu_lto_v1",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: pr33198 with -R .llvm.lto",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: pr33198-fat with -R .llvm.lto",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: pr33246-llvm with --strip-debug --enable-deterministic-archives",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: pr33246-llvm-fat with --strip-debug --enable-deterministic-archives",
+                "disposition": "unselected-optional-capability",
+                "reason": "No compatible selected Clang and LLVMgold provider exists; the contract-owned gate prevents ambient LLVM activation.",
+                "capability_id": "llvm-lto-plugin-tests"
+              },
+              {
+                "line": "UNTESTED: bootstrap with --static",
+                "disposition": "plugin-enabled-static-bootstrap-incompatible",
+                "reason": "Upstream bootstrap.exp skips static bootstrap when selected plugin support requires dynamic loading.",
+                "evidence_predicates": [
+                  {
+                    "id": "static-link-probe-executed-successfully",
+                    "relative_path": "ld/ld.log",
+                    "contains": " -static cs",
+                    "until_contains": " -static-pie cs",
+                    "forbidden_before": "error:"
+                  },
+                  {
+                    "id": "nm-plugin-support-advertised",
+                    "relative_path": "ld/ld.log",
+                    "contains": "--plugin NAME      Load the specified plugin"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "pkgconf": {
+        "version": "3.0.6",
+        "phase": "build-language-tools",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}", "--with-system-libdir={prefix}/lib", "--with-system-includedir={prefix}/include"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["pkgconf"]
+      },
+      "gnu-bison": {
+        "version": "3.8.2",
+        "phase": "build-language-tools",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["bison"]
+      },
+      "flex": {
+        "version": "2.6.4",
+        "phase": "build-language-tools",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{source}/configure", "--prefix={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "-j{jobs}", "check"],
+        "install": ["{make}", "install"],
+        "tools": ["flex"]
+      },
+      "cmake": {
+        "version": "4.4.2",
+        "phase": "meta-build-tools",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": [
+          "{source}/bootstrap",
+          "--prefix={prefix}",
+          "--parallel={jobs}",
+          "--",
+          "-DCMake_TEST_BOOTSTRAP=ON",
+          "-DCMake_TEST_CPACK_DEB=OFF",
+          "-DCMake_TEST_CPACK_NUGET=OFF",
+          "-DCMake_TEST_CPACK_RPM=OFF",
+          "-DCMake_TEST_CTestUpdate_BZR=OFF",
+          "-DCMake_TEST_CTestUpdate_CVS=OFF",
+          "-DCMake_TEST_CTestUpdate_GIT=OFF",
+          "-DCMake_TEST_CTestUpdate_HG=OFF",
+          "-DCMake_TEST_CTestUpdate_P4=OFF",
+          "-DCMake_TEST_CTestUpdate_SVN=OFF",
+          "-DCMake_TEST_Java=OFF",
+          "-DCMake_TEST_OBJC=OFF",
+          "-DCMake_TEST_Qt4=OFF",
+          "-DCMake_TEST_Qt5=OFF",
+          "-DCMake_TEST_Qt6=OFF",
+          "-DCMake_TEST_Swift=OFF",
+          "-DCMAKE_MAKE_PROGRAM={make}",
+          "-DCMake_TEST_EXPLICIT_MAKE_PROGRAM={make}"
+        ],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{build}/bin/ctest", "--output-on-failure", "-j{jobs}"],
+        "install": ["{make}", "install"],
+        "test_capability_selection": {
+          "cache": {
+            "CMake_TEST_BOOTSTRAP": "ON",
+            "CMake_TEST_CPACK_DEB": "OFF",
+            "CMake_TEST_CPACK_NUGET": "OFF",
+            "CMake_TEST_CPACK_RPM": "OFF",
+            "CMake_TEST_CTestUpdate_BZR": "OFF",
+            "CMake_TEST_CTestUpdate_CVS": "OFF",
+            "CMake_TEST_CTestUpdate_GIT": "OFF",
+            "CMake_TEST_CTestUpdate_HG": "OFF",
+            "CMake_TEST_CTestUpdate_P4": "OFF",
+            "CMake_TEST_CTestUpdate_SVN": "OFF",
+            "CMake_TEST_Java": "OFF",
+            "CMake_TEST_OBJC": "OFF",
+            "CMake_TEST_Qt4": "OFF",
+            "CMake_TEST_Qt5": "OFF",
+            "CMake_TEST_Qt6": "OFF",
+            "CMake_TEST_Swift": "OFF"
+          },
+          "dispositions": {
+            "CMake_TEST_BOOTSTRAP": "selected-core-bootstrap-validation-under-declared-affinity",
+            "CMake_TEST_CPACK_DEB": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_CPACK_NUGET": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_CPACK_RPM": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_CTestUpdate_BZR": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_CTestUpdate_CVS": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_CTestUpdate_GIT": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_CTestUpdate_HG": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_CTestUpdate_P4": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_CTestUpdate_SVN": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_Java": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_OBJC": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_Qt4": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_Qt5": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_Qt6": "external-provider-not-selected-as-toolchain-build-input",
+            "CMake_TEST_Swift": "external-provider-not-selected-as-toolchain-build-input"
+          },
+          "make_program_cache": {
+            "CMAKE_MAKE_PROGRAM": "{make}",
+            "CMake_TEST_EXPLICIT_MAKE_PROGRAM": "{make}"
+          },
+          "result_policy": {
+            "expected_selected_test_count": 697,
+            "required_test": "BootstrapTest",
+            "bootstrap_parallelism": "{jobs}",
+            "secondary_generated_suite_disposition": "configured-but-not-executed-by-bootstrap-test"
+          }
+        },
+        "tools": ["cmake", "ctest", "cpack"]
+      },
+      "ninja": {
+        "version": "1.13.2",
+        "phase": "meta-build-tools",
+        "source_mode": "private-copy-out-of-tree",
+        "configure": ["{cmake}", "-S", "{source}", "-B", "{build}", "-G", "Unix Makefiles", "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_INSTALL_PREFIX={prefix}"],
+        "build": ["{cmake}", "--build", "{build}", "--parallel", "{jobs}"],
+        "test": ["{ctest}", "--test-dir", "{build}", "--output-on-failure", "-j{jobs}"],
+        "install": ["{cmake}", "--install", "{build}"],
+        "tools": ["ninja"]
+      }
+    }
+  },
+  "receipt": {
+    "required_sections": [
+      "source_inputs",
+      "source_normalization",
+      "bootstrap_inputs",
+      "component_steps",
+      "installed_tools",
+      "installed_perl_modules",
+      "compiler_driver_traces",
+      "linker_map_inputs",
+      "package_tree",
+      "consumer_manifest",
+      "activation"
+    ],
+    "compiler_probe_languages": ["c", "cxx"],
+    "record_dynamic_dependencies": true,
+    "record_static_link_inputs": true
+  }
+}

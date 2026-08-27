@@ -1,5 +1,5 @@
 {
-  "schema": "laplace.postgresql-build-contract/v1",
+  "schema": "laplace.postgresql-build-contract/v2",
   "source": {
     "release_lock": "dependencies/release-lock.json",
     "entry": "postgresql",
@@ -13,36 +13,171 @@
     "version_line": "Intel(R) oneAPI DPC++/C++ Compiler 2026.1.1 (2026.1.1.20260724)",
     "target": "x86_64-unknown-linux-gnu"
   },
+  "build_toolchain": {
+    "receipt_schema": "laplace.toolchain-package-receipt/v1",
+    "consumer_manifest_schema": "laplace.toolchain-consumer-manifest/v1",
+    "required_tools": [
+      "make",
+      "perl",
+      "prove",
+      "pkgconf",
+      "bison",
+      "flex",
+      "ld",
+      "as",
+      "ar",
+      "ranlib",
+      "nm",
+      "strip",
+      "objcopy",
+      "objdump",
+      "readelf"
+    ],
+    "required_perl_modules": {
+      "IO::Pty": "1.31",
+      "IO::Tty": "1.31",
+      "IPC::Run": "20260402.0"
+    },
+    "required_bootstrap_inputs": {
+      "python": {
+        "path": "/usr/bin/python3.10",
+        "sha256": "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86",
+        "version": "Python 3.10.12"
+      },
+      "sh": {
+        "path": "/usr/bin/dash",
+        "sha256": "4f291296e89b784cd35479fca606f228126e3641f5bcaee68dee36583d7c9483",
+        "version": "dash"
+      }
+    },
+    "required_linker_map_inputs": {
+      "dynamic-loader": {
+        "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "soname": "ld-linux-x86-64.so.2",
+        "classification": "platform-abi"
+      },
+      "c-runtime": {
+        "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+        "soname": "libc.so.6",
+        "classification": "platform-abi"
+      },
+      "math-runtime": {
+        "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+        "soname": "libm.so.6",
+        "classification": "platform-abi"
+      },
+      "gcc-runtime": {
+        "path": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+        "soname": "libgcc_s.so.1",
+        "classification": "packaged-compiler-support",
+        "package_relative_path": "lib/libgcc_s.so.1",
+        "package_aliases": []
+      },
+      "cxx-runtime": {
+        "path": "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30",
+        "soname": "libstdc++.so.6",
+        "classification": "packaged-compiler-support",
+        "package_relative_path": "lib/libstdc++.so.6.0.30",
+        "package_aliases": ["lib/libstdc++.so.6"]
+      }
+    }
+  },
+  "installed_runtime_provider": {
+    "lock": "dependencies/installed-lock.json",
+    "lock_schema": "laplace.installed-provider-lock/v1",
+    "provider_selection_sha256": "07a9f21bcb81cb669a6be3248eb889ffbceb20bfd05fc957c16373f5ed595137",
+    "provider": "intel-oneapi-runtime",
+    "provider_sha256": "f14ba1d659dcc7c618386955da3daf025da48ebe5589cad3875028db6aeb12e6",
+    "version": "2026.1.1",
+    "required_files": {
+      "imf-runtime": {"class": "runtime-object", "package_relative_path": "lib/libimf.so"},
+      "svml-runtime": {"class": "runtime-object", "package_relative_path": "lib/libsvml.so"},
+      "intlc-runtime": {"class": "runtime-object", "package_relative_path": "lib/libintlc.so.5"},
+      "irng-runtime": {"class": "runtime-object", "package_relative_path": "lib/libirng.so"},
+      "intel-developer-tools-license": {"class": "license", "package_relative_path": "share/licenses/intel-oneapi-runtime/LICENSE"},
+      "compiler-third-party-notices": {"class": "license", "package_relative_path": "share/licenses/intel-oneapi-runtime/third-party-programs.txt"}
+    }
+  },
+  "runtime_package": {
+    "receipt_schema": "laplace.postgresql-runtime-package/v2",
+    "install_prefix": "/opt/laplace/current",
+    "provider_qualification_receipt_schema": "laplace.runtime-provider-qualification/v1",
+    "required_provider_qualifications": ["liburing"],
+    "required_components": [
+      "zlib",
+      "lz4",
+      "zstandard",
+      "icu",
+      "openssl",
+      "liburing",
+      "libxml2"
+    ],
+    "required_build_executables": {
+      "openssl": {
+        "relative_path": "bin/openssl",
+        "version_line": "OpenSSL 4.0.1 9 Jun 2026 (Library: OpenSSL 4.0.1 9 Jun 2026)"
+      }
+    }
+  },
+  "runtime_qualification": {
+    "schema": "laplace.runtime-provider-qualification/v1",
+    "liburing": {
+      "scope": "postgresql-18.6-selected-io_uring-product-path",
+      "source_test": "src/test/modules/test_aio/t/001_aio.pl",
+      "source_test_sha256": "2193d3c4c99cab233df41e55258728ece9bc0169e20293fbf1033bef1792d912",
+      "regress_log": "src/test/modules/test_aio/tmp_check/log/regress_log_001_aio",
+      "server_log": "src/test/modules/test_aio/tmp_check/log/001_aio_io_uring.log",
+      "expected_supported_methods": ["sync", "worker", "io_uring"],
+      "expected_assertion_count": 175,
+      "expected_first_assertion": 178,
+      "expected_last_assertion": 352,
+      "expected_test_plan": 529
+    }
+  },
+  "host_build_provider": {
+    "schema": "laplace.postgresql-host-build-provider/v1",
+    "provider_id": "0b3378486ff5e39942b19b6292644e69573ad2b802307e095968aa148ca29e18",
+    "receipt": "/build/laplace/build/postgresql-host-provider/0b3378486ff5e39942b19b6292644e69573ad2b802307e095968aa148ca29e18/host-provider-receipt.json",
+    "receipt_sha256": "f831a5ab29e421a9d0b9eb72cc855e534d9113ef4d8a4c114f7e62bc0886caad",
+    "verifier": "tools/postgresql/host-provider.py",
+    "sandbox": {
+      "executable": "/usr/bin/bwrap",
+      "mode": "unshared-read-only-selected-host-provider",
+      "network": "unshared",
+      "ephemeral": ["/dev", "/proc", "/tmp"]
+    }
+  },
   "input_closure": {
-    "status": "incomplete",
+    "status": "complete",
     "selected_exact_inputs": [
       "PostgreSQL release archive and expanded tree",
       "Intel oneAPI C compiler executable",
       "Intel oneAPI C++ compiler executable",
+      "receipted build toolchain package and consumer manifest",
+      "receipted IPC::Run IO::Pty and IO::Tty providers in the selected build toolchain package",
+      "receipted PostgreSQL runtime development and library package",
+      "receipted staged OpenSSL command selected for PostgreSQL configure probes",
+      "exact runtime component test dispositions and provider-qualification requirements",
       "configure arguments and C/C++/linker flags",
+      "PostgreSQL bundled tzdata 2026c",
       "Laplace PostgreSQL build driver",
-      "Laplace release archive verifier"
+      "Laplace release archive verifier",
+      "Laplace recursive ELF closure verifier",
+      "exact installed Intel runtime provider selection",
+      "exact compiler and platform ABI inputs from the toolchain linker receipt",
+      "exact Python and POSIX shell executables from the toolchain bootstrap receipt",
+      "content-addressed /usr host provider including Python standard library configure utilities headers startup objects static archives and support libraries",
+      "content-addressed Intel oneAPI 2026.1 compiler provider root",
+      "selected host identity and exact loader account locale files",
+      "unshared read-only build sandbox exposing only selected persistent providers",
+      "declared copy-on-write upstream source-test overlays with exact generated-file receipts",
+      "PostgreSQL-selected io_uring runtime qualification bound to the runtime component receipt and host kernel"
     ],
-    "unselected_host_inputs": [
-      "GNU make",
-      "GNU binutils",
-      "Bison",
-      "Flex",
-      "Python interpreter and standard library",
-      "Perl and TAP modules",
-      "pkg-config",
-      "ICU headers and libraries",
-      "OpenSSL headers and libraries",
-      "libxml2 headers and libraries",
-      "zlib headers and libraries",
-      "LZ4 headers and libraries",
-      "Zstandard headers and libraries",
-      "liburing headers and libraries",
-      "system timezone data"
-    ],
+    "unselected_host_inputs": [],
     "activation_policy": "blocked-until-all-build-and-runtime-inputs-are-selected-packaged-and-receipted"
   },
   "build": {
+    "install_subdirectory": "pgsql-18",
     "configure_arguments": [
       "--with-icu",
       "--with-ssl=openssl",
@@ -52,7 +187,7 @@
       "--with-lz4",
       "--with-zstd",
       "--with-liburing",
-      "--with-system-tzdata=/usr/share/zoneinfo",
+      "--disable-rpath",
       "--enable-tap-tests"
     ],
     "c_flags": [
@@ -72,11 +207,34 @@
       "-fno-omit-frame-pointer"
     ],
     "linker_flags": ["-Wl,--as-needed"],
+    "install_runpath": "$ORIGIN:$ORIGIN/../lib:$ORIGIN/../../lib",
+    "source_path_policy": {
+      "build_root_mapping": ".",
+      "absolute_build_root_in_file_macro": "forbidden",
+      "absolute_build_root_in_debug_info": "forbidden"
+    },
+    "source_test_overlays": [
+      {
+        "target": "check-world",
+        "mode": "copy-on-write-exact-source-shadow",
+        "source_relative_path": "src/interfaces/ecpg/preproc/t",
+        "permitted_transient_generated_files": [
+          "err_warn_msg.c",
+          "err_warn_msg_informix.c"
+        ]
+      }
+    ],
     "make_targets": ["world-bin", "check-world", "install-world-bin"],
     "parallel_jobs": 6,
     "build_directory_mode": "0700",
-    "pkg_config_libdir": "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig",
-    "python": "/usr/bin/python3"
+    "python": "/usr/bin/python3.10",
+    "shell": "/usr/bin/dash"
+  },
+  "execution": {
+    "install_prefix": "/opt/laplace/current",
+    "release_root": "/opt/laplace/releases",
+    "build_root": "/opt/laplace/build/postgresql",
+    "stage_root": "/opt/laplace/stage/postgresql"
   },
   "environment": {
     "rejected_nonempty": [
@@ -90,28 +248,46 @@
   },
   "runtime_closure": {
     "package_sonames": [
+      "libcrypto.so.4",
       "libecpg.so.6",
-      "libpgtypes.so.3",
-      "libpq.so.5"
-    ],
-    "system_abi_sonames": [
-      "libc.so.6",
-      "libm.so.6"
-    ],
-    "selected_but_unpacked_sonames": [
-      "libcrypto.so.3",
-      "libicudata.so.70",
-      "libicui18n.so.70",
-      "libicuuc.so.70",
+      "libicudata.so.78",
+      "libicui18n.so.78",
+      "libicuio.so.78",
+      "libicutu.so.78",
+      "libicuuc.so.78",
+      "libgcc_s.so.1",
       "libimf.so",
       "libintlc.so.5",
+      "libirng.so",
       "liblz4.so.1",
-      "libssl.so.3",
+      "libpgtypes.so.3",
+      "libpq.so.5",
+      "libssl.so.4",
+      "libstdc++.so.6",
+      "libsvml.so",
       "liburing.so.2",
-      "libxml2.so.2",
+      "libxml2.so.16",
       "libz.so.1",
       "libzstd.so.1"
     ],
+    "system_abi_sonames": [
+      "ld-linux-x86-64.so.2",
+      "libc.so.6",
+      "libm.so.6"
+    ],
+    "recursive_verifier": {
+      "path": "tools/dependencies/elf-closure.py",
+      "schema": "laplace.elf-closure/v1",
+      "tool_version": "1.0.0",
+      "search_subdirectories": ["pgsql-18/lib", "lib"],
+      "required_zero_summary_fields": [
+        "unresolved_edge_count",
+        "parse_error_count",
+        "discovery_error_count",
+        "resolution_conflict_count",
+        "root_abi_family_collision_count"
+      ]
+    },
     "activation_policy": "blocked-until-selected-libraries-are-packaged-and-recursive-elf-closure-is-clean"
   }
 }

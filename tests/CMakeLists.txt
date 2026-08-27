@@ -714,10 +714,22 @@ set_tests_properties(
     LABELS "implementation;unicode;perfcache;mutation")
 
 add_test(
+    NAME toolchain-build.contract-and-mutation
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/toolchain_build_tests.py")
+set_tests_properties(toolchain-build.contract-and-mutation PROPERTIES
+    LABELS "build;package;toolchain;dependencies;mutation")
+
+add_test(
     NAME postgresql-build.contract-and-mutation
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_build_tests.py")
 set_tests_properties(postgresql-build.contract-and-mutation PROPERTIES
     LABELS "build;package;postgresql;mutation")
+
+add_test(
+    NAME postgresql-host-provider.contract-and-mutation
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_host_provider_tests.py")
+set_tests_properties(postgresql-host-provider.contract-and-mutation PROPERTIES
+    LABELS "build;package;postgresql;host-provider;mutation")
 
 add_test(
     NAME postgresql-cluster.activation-contract
@@ -725,6 +737,33 @@ add_test(
 set_tests_properties(postgresql-cluster.activation-contract PROPERTIES
     LABELS "activation;package;postgresql;security;topology;mutation"
     RUN_SERIAL TRUE)
+
+add_test(
+    NAME unicode-product.activation-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/unicode_product_activation_tests.py"
+        "$<TARGET_FILE:laplace_unicode_activation_identify>")
+set_tests_properties(unicode-product.activation-contract PROPERTIES
+    LABELS "activation;product;unicode;postgresql;perfcache;receipt;mutation"
+    RUN_SERIAL TRUE)
+
+add_test(
+    NAME product-package.contract-and-mutation
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/product_package_tests.py")
+set_tests_properties(product-package.contract-and-mutation PROPERTIES
+    LABELS "build;package;product;postgresql;activation;mutation")
+
+add_test(
+    NAME dependencies.runtime-build-graph-contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/runtime_build_graph_tests.py")
+set_tests_properties(dependencies.runtime-build-graph-contract PROPERTIES
+    LABELS "build;package;postgresql;dependencies;mutation")
+
+add_test(
+    NAME dependencies.locked-git-acquisition-contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/locked_git_acquisition_tests.py")
+set_tests_properties(dependencies.locked-git-acquisition-contract PROPERTIES
+    LABELS "acquisition;dependencies;mutation")
 
 add_executable(laplace_dependency_math_tests
     dependency_math_tests.cpp)
@@ -1904,6 +1943,10 @@ if(LAPLACE_POSTGRES_ENABLED)
             "${CMAKE_CURRENT_BINARY_DIR}/postgres/${perfcache_sql}"
             COPYONLY)
     endforeach()
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/unicode_access_epoch_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_access_epoch_mutation.sql"
+        COPYONLY)
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
@@ -2154,8 +2197,42 @@ if(LAPLACE_POSTGRES_ENABLED)
         postgres.mutation-unicode-plan-substitution-detected PROPERTIES
         LABELS "postgresql;unicode;persistence;receipt;mutation"
         RUN_SERIAL TRUE)
+
+    if(LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER)
+        add_test(
+            NAME postgres.mutation-unicode-access-expected-epoch-detected
+            COMMAND "${CMAKE_COMMAND}"
+                "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+                "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+                "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+                "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+                "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+                "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+                "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+                "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+                "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_unicode_access_epoch_mutant>"
+                "-DUNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
+                "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_access_epoch_mutation.sql"
+                "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_unicode_access_mutation_failure.cmake")
+        set_tests_properties(
+            postgres.mutation-unicode-access-expected-epoch-detected PROPERTIES
+            LABELS "postgresql;unicode;perfcache;epoch;mutation"
+            RUN_SERIAL TRUE
+            TIMEOUT 1800)
+    endif()
 endif()
 
+set(laplace_consumer_link_flags "${CMAKE_EXE_LINKER_FLAGS}")
+set(laplace_consumer_runtime_path "")
+if(LAPLACE_ONEAPI_RUNTIME_DIRECTORIES)
+    foreach(runtime_directory IN LISTS LAPLACE_ONEAPI_RUNTIME_DIRECTORIES)
+        string(APPEND laplace_consumer_link_flags
+            " -Wl,-rpath-link,${runtime_directory}")
+    endforeach()
+    list(JOIN LAPLACE_ONEAPI_RUNTIME_DIRECTORIES ":"
+        laplace_consumer_runtime_path)
+endif()
 add_test(
     NAME package.native-consumer-contract
     COMMAND "${CMAKE_COMMAND}"
@@ -2164,7 +2241,8 @@ add_test(
         "-DINSTALL_DIRECTORY=${CMAKE_BINARY_DIR}/package-test/install"
         "-DCONSUMER_BUILD_DIRECTORY=${CMAKE_BINARY_DIR}/package-test/consumer"
         "-DCONSUMER_C_FLAGS=${CMAKE_C_FLAGS}"
-        "-DCONSUMER_LINK_FLAGS=${CMAKE_EXE_LINKER_FLAGS}"
+        "-DCONSUMER_LINK_FLAGS=${laplace_consumer_link_flags}"
+        "-DCONSUMER_RUNTIME_PATH=${laplace_consumer_runtime_path}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/run_installed_consumer.cmake")
 set_tests_properties(package.native-consumer-contract PROPERTIES
     LABELS "implementation;package;consumer"

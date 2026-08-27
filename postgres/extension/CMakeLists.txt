@@ -26,6 +26,7 @@ set(laplace_postgresql_module_sources
     src/persistence_rows_pg.c
     src/perfcache_pg.c
     src/set_pg.c
+    src/unicode_perfcache_pg.c
     src/unicode_root_pg.c)
 
 function(laplace_configure_postgresql_module target)
@@ -50,7 +51,8 @@ add_library(laplace_pg MODULE ${laplace_postgresql_module_sources})
 laplace_configure_postgresql_module(laplace_pg)
 set_target_properties(laplace_pg PROPERTIES
     OUTPUT_NAME "laplace_pg"
-    INSTALL_RPATH "$ORIGIN/../..")
+    INSTALL_RPATH "$ORIGIN/../../lib"
+    INSTALL_RPATH_USE_LINK_PATH FALSE)
 
 if(BUILD_TESTING)
     target_compile_definitions(laplace_pg PRIVATE
@@ -93,12 +95,15 @@ if(BUILD_TESTING)
     laplace_add_postgresql_mutant(
         laplace_pg_plan_manifest_mutant
         LAPLACE_TEST_UNICODE_PG_PLAN_SUBSTITUTION)
+    laplace_add_postgresql_mutant(
+        laplace_pg_unicode_access_epoch_mutant
+        LAPLACE_TEST_UNICODE_ACCESS_IGNORE_EXPECTED_EPOCH)
 endif()
 
 install(TARGETS laplace_pg
-    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/postgresql/${LAPLACE_POSTGRES_MAJOR}")
+    LIBRARY DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/lib")
 install(FILES "${extension_control}" "${extension_sql}"
-    DESTINATION "${CMAKE_INSTALL_DATADIR}/postgresql/${LAPLACE_POSTGRES_MAJOR}/extension")
+    DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/share/extension")
 
 set(LAPLACE_POSTGRES_EXTENSION_TARGET laplace_pg PARENT_SCOPE)
 set(LAPLACE_POSTGRES_EXTENSION_SQL "${extension_sql}" PARENT_SCOPE)

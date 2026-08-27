@@ -11,6 +11,8 @@
     "release_root": "/opt/laplace/releases",
     "active_link": "/opt/laplace/current",
     "required_files": [
+      "bin/laplace_resource_observe",
+      "bin/laplace_unicode_activation_identify",
       "pgsql-18/bin/initdb",
       "pgsql-18/bin/pg_config",
       "pgsql-18/bin/pg_ctl",
@@ -48,6 +50,7 @@
     "data_directory": "/opt/laplace/pgdata/refactor/data",
     "wal_directory": "/var/lib/pgwal/refactor",
     "temp_directory": "/pgtemp/refactor",
+    "perfcache_directory": "/opt/laplace/pgdata/refactor/perfcache",
     "config_directory": "/etc/laplace/instances/refactor",
     "log_directory": "/var/log/laplace/postgresql/refactor",
     "receipt_directory": "/opt/laplace/receipts/postgresql/refactor"

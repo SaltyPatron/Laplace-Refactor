@@ -8,12 +8,14 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import stat
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -74,14 +76,34 @@ class PostgreSQLClusterContract(unittest.TestCase):
                 "data": {
                     "path": self.contract["instance"]["data_directory"],
                     "available_bytes": 256 * 1024**3,
+                    "backing_path": "/opt/laplace",
+                    "fragment_bytes": 4096,
                 },
                 "wal": {
                     "path": self.contract["instance"]["wal_directory"],
                     "available_bytes": 64 * 1024**3,
+                    "backing_path": "/var/lib",
+                    "fragment_bytes": 4096,
                 },
                 "temporary": {
                     "path": self.contract["instance"]["temp_directory"],
                     "available_bytes": 128 * 1024**3,
+                    "backing_path": "/",
+                    "fragment_bytes": 4096,
+                },
+            },
+            "native_authority": {
+                "schema": clusterctl.NATIVE_RESOURCE_SCHEMA,
+                "observer": {
+                    "path": clusterctl.RESOURCE_OBSERVER_PATH,
+                    "sha256": "6" * 64,
+                },
+                "allowed_processor_count": 8,
+                "processor_ids": [20, 21, 28, 29],
+                "partition_grant": {
+                    "cpu_slots": 4,
+                    "memory_bytes": 12 * 1024**3,
+                    "io_slots": 2,
                 },
             },
         }
@@ -97,6 +119,7 @@ class PostgreSQLClusterContract(unittest.TestCase):
             "root": "/",
             "target": clusterctl.collision_target(self.contract),
             "collisions": [],
+            "inspection_errors": [],
         }
         observation["observation_sha256"] = clusterctl.collision_observation_identity(
             observation
@@ -112,11 +135,22 @@ class PostgreSQLClusterContract(unittest.TestCase):
             entries.append(
                 {
                     "path": relative,
+                    "kind": "file",
                     "sha256": hashlib.sha256(content).hexdigest(),
                     "mode": mode,
                     "runpath": runpath,
                 }
             )
+        link_target = "liblaplace_engine.so.2.0.0"
+        entries.append(
+            {
+                "path": "lib/liblaplace_engine.so.2",
+                "kind": "symlink",
+                "target": link_target,
+                "sha256": hashlib.sha256(link_target.encode("utf-8")).hexdigest(),
+                "runpath": [],
+            }
+        )
         manifest = {
             "schema": clusterctl.PACKAGE_SCHEMA,
             "postgresql": {"version": "18.6", "pg_config": "pgsql-18/bin/pg_config"},
@@ -126,6 +160,13 @@ class PostgreSQLClusterContract(unittest.TestCase):
                 "topology_bound_processor_allocation": 1,
             },
             "loader_environment": {},
+            "activation_eligible": True,
+            "activation_gates": {
+                "postgresql_build_input_closure": True,
+                "postgresql_runtime_provider_qualification": True,
+                "postgresql_package_activation": True,
+                "recursive_elf_closure": True,
+            },
             "files": entries,
             "loaded_objects": self.contract["package"]["required_loaded_objects"],
         }
@@ -137,8 +178,13 @@ class PostgreSQLClusterContract(unittest.TestCase):
         for entry in entries:
             target = physical / entry["path"]
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(f"fixture:{entry['path']}\n".encode("utf-8"))
-            target.chmod(entry["mode"])
+            if target.exists() or target.is_symlink():
+                target.unlink()
+            if entry["kind"] == "symlink":
+                target.symlink_to(entry["target"])
+            else:
+                target.write_bytes(f"fixture:{entry['path']}\n".encode("utf-8"))
+                target.chmod(entry["mode"])
         return manifest
 
     def plan(self, verify_bytes: bool = True) -> dict[str, Any]:
@@ -215,17 +261,177 @@ class PostgreSQLClusterContract(unittest.TestCase):
         self.assertNotIn("LD_LIBRARY_PATH", rendered)
         self.assertIn("local all all reject", rendered)
         self.assertIn("AllowedCPUs=20 21 28 29", rendered)
+        self.assertNotIn("ExecStartPost=", rendered)
+        self.assertEqual(
+            plan["commands"]["probe_readiness"][0],
+            f"{plan['package_root']}/pgsql-18/bin/pg_isready",
+        )
         bootstrap = next(
             item["content"] for item in plan["files"] if item["path"].endswith("bootstrap.sql")
         )
         for row_by_row in (" LOOP ", "CURSOR", "WITH RECURSIVE"):
             self.assertNotIn(row_by_row, bootstrap.upper())
+        for signature in (
+            "identity_codepoint_calculate_batch(laplace.execution_context, integer[])",
+            "identity_codepoint_execute_batch(laplace.execution_context, integer[])",
+            "trajectory_composition_decode_calculate_batch(laplace.execution_context, bytea[])",
+            "trajectory_composition_decode_execute_batch(laplace.execution_context, bytea[])",
+            "unicode_tier0_resolve_batch(bytea, bytea, integer[])",
+            "unicode_identity_reverse_resolve_batch(bytea, bytea, bytea[], bytea[])",
+        ):
+            self.assertIn(signature, bootstrap)
+
+    def test_native_resource_observation_finalization_binds_packaged_observer(self) -> None:
+        native = self.valid_resource_observation()
+        native.pop("observation_sha256")
+        native["native_authority"].pop("observer")
+        result = clusterctl.finalize_native_resource_observation(
+            native,
+            {
+                "path": clusterctl.RESOURCE_OBSERVER_PATH,
+                "kind": "file",
+                "sha256": "7" * 64,
+            },
+            self.contract,
+        )
+        self.assertEqual(
+            result["native_authority"]["observer"],
+            {"path": clusterctl.RESOURCE_OBSERVER_PATH, "sha256": "7" * 64},
+        )
+        self.assertEqual(
+            result["observation_sha256"],
+            clusterctl.resource_observation_identity(result),
+        )
+
+    def test_cluster_contract_cannot_omit_native_resource_observer(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        contract["package"]["required_files"].remove(
+            clusterctl.RESOURCE_OBSERVER_PATH
+        )
+        with self.assertRaisesRegex(clusterctl.ClusterError, "resource observer"):
+            clusterctl.validate_contract(contract)
+
+    def test_cluster_contract_cannot_omit_unicode_activation_identity_provider(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        contract["package"]["required_files"].remove(
+            clusterctl.UNICODE_ACTIVATION_IDENTITY_PATH
+        )
+        with self.assertRaisesRegex(clusterctl.ClusterError, "activation identity"):
+            clusterctl.validate_contract(contract)
+
+    def test_native_processor_allocation_drift_is_rejected(self) -> None:
+        observation = self.valid_resource_observation()
+        observation["native_authority"]["processor_ids"] = [20, 21, 28, 30]
+        observation["observation_sha256"] = clusterctl.resource_observation_identity(
+            observation
+        )
+        with self.assertRaisesRegex(clusterctl.ClusterError, "processor allocation"):
+            clusterctl.validate_resource_observation(observation, self.contract)
+
+    def test_resource_observation_without_exact_native_observer_is_rejected(self) -> None:
+        observation = self.valid_resource_observation()
+        observation["native_authority"]["observer"].pop("sha256")
+        observation["observation_sha256"] = clusterctl.resource_observation_identity(
+            observation
+        )
+        with self.assertRaisesRegex(clusterctl.ClusterError, "packaged native observer"):
+            clusterctl.validate_resource_observation(observation, self.contract)
+
+    def test_exact_package_install_is_atomic_verified_and_replay_safe(self) -> None:
+        manifest = clusterctl.load_json(self.manifest_path)
+        first = clusterctl.install_package(
+            manifest,
+            self.contract,
+            self.package_physical_root,
+            self.activation_root,
+            False,
+        )
+        installed = clusterctl.prefixed(self.activation_root, manifest["root"])
+        self.assertTrue(installed.is_dir())
+        self.assertTrue(
+            clusterctl.verify_package(
+                manifest, self.contract, self.activation_root
+            ).verified
+        )
+        second = clusterctl.install_package(
+            manifest,
+            self.contract,
+            self.package_physical_root,
+            self.activation_root,
+            False,
+        )
+        self.assertEqual(first, second)
+        self.assertEqual(first["schema"], clusterctl.INSTALLATION_SCHEMA)
+        self.assertEqual(first["phase"], "installed")
+        self.assertFalse(first["overwrite_performed"])
+
+    def test_package_install_refuses_a_different_existing_release(self) -> None:
+        manifest = clusterctl.load_json(self.manifest_path)
+        clusterctl.install_package(
+            manifest,
+            self.contract,
+            self.package_physical_root,
+            self.activation_root,
+            False,
+        )
+        installed = clusterctl.prefixed(self.activation_root, manifest["root"])
+        first = next(
+            entry for entry in manifest["files"] if entry["kind"] == "file"
+        )
+        (installed / first["path"]).write_bytes(b"mutated installed package\n")
+        with self.assertRaisesRegex(clusterctl.ClusterError, "already exists"):
+            clusterctl.install_package(
+                manifest,
+                self.contract,
+                self.package_physical_root,
+                self.activation_root,
+                False,
+            )
+
+    def test_package_install_refuses_tampered_source_bytes(self) -> None:
+        manifest = clusterctl.load_json(self.manifest_path)
+        source = clusterctl.prefixed(
+            self.package_physical_root, manifest["root"]
+        )
+        first = next(
+            entry for entry in manifest["files"] if entry["kind"] == "file"
+        )
+        (source / first["path"]).write_bytes(b"mutated source package\n")
+        with self.assertRaisesRegex(clusterctl.ClusterError, "source package"):
+            clusterctl.install_package(
+                manifest,
+                self.contract,
+                self.package_physical_root,
+                self.activation_root,
+                False,
+            )
+
+    def test_system_package_install_requires_explicit_authorization(self) -> None:
+        manifest = clusterctl.load_json(self.manifest_path)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "authorize-system-root"):
+            clusterctl.install_package(
+                manifest,
+                self.contract,
+                self.package_physical_root,
+                Path("/"),
+                False,
+            )
 
     def test_activation_is_blocked_without_package_bytes(self) -> None:
         plan = self.plan(verify_bytes=False)
         self.assertTrue(plan["activation_blocked"])
         with self.assertRaisesRegex(clusterctl.ClusterError, "blocked"):
             clusterctl.apply_plan(plan, self.contract, self.activation_root, False)
+
+    def test_inert_complete_product_manifest_is_rejected(self) -> None:
+        manifest = clusterctl.load_json(self.manifest_path)
+        manifest["activation_eligible"] = False
+        manifest["activation_gates"]["postgresql_build_input_closure"] = False
+        manifest["package_id"] = clusterctl.package_identity(manifest)
+        manifest["root"] = f"/opt/laplace/releases/{manifest['package_id']}"
+        write_json(self.manifest_path, manifest)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "not activation eligible"):
+            self.plan()
 
     def test_activation_refuses_a_plan_from_another_contract(self) -> None:
         plan = self.plan()
@@ -273,6 +479,53 @@ class PostgreSQLClusterContract(unittest.TestCase):
         self.assertFalse(plan["package_verified"])
         self.assertIn("tree differs", plan["package_verification"])
 
+    def test_manifested_internal_symlink_is_verified(self) -> None:
+        plan = self.plan()
+        self.assertTrue(plan["package_verified"])
+        manifest = clusterctl.load_json(self.manifest_path)
+        link = next(item for item in manifest["files"] if item["kind"] == "symlink")
+        physical = clusterctl.prefixed(self.package_physical_root, manifest["root"])
+        (physical / link["path"]).unlink()
+        (physical / link["path"]).symlink_to("forged.so")
+        plan = self.plan()
+        self.assertFalse(plan["package_verified"])
+        self.assertIn("symlink", plan["package_verification"])
+
+    def test_broken_manifested_symlink_blocks_activation(self) -> None:
+        manifest = clusterctl.load_json(self.manifest_path)
+        link = next(item for item in manifest["files"] if item["kind"] == "symlink")
+        old_physical = clusterctl.prefixed(
+            self.package_physical_root, manifest["root"]
+        )
+        link["target"] = "missing.so"
+        link["sha256"] = hashlib.sha256(b"missing.so").hexdigest()
+        manifest.pop("package_id")
+        manifest.pop("root")
+        manifest["package_id"] = clusterctl.package_identity(manifest)
+        manifest["root"] = f"/opt/laplace/releases/{manifest['package_id']}"
+        new_physical = clusterctl.prefixed(
+            self.package_physical_root, manifest["root"]
+        )
+        new_physical.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(old_physical, new_physical)
+        target = new_physical / link["path"]
+        target.unlink()
+        target.symlink_to(link["target"])
+        write_json(self.manifest_path, manifest)
+        plan = self.plan()
+        self.assertFalse(plan["package_verified"])
+        self.assertIn("target is absent", plan["package_verification"])
+
+    def test_escaping_package_symlink_is_rejected(self) -> None:
+        def mutate(document: dict[str, Any]) -> None:
+            link = next(item for item in document["files"] if item["kind"] == "symlink")
+            link["target"] = "../../../outside"
+            link["sha256"] = hashlib.sha256(link["target"].encode("utf-8")).hexdigest()
+
+        self.write_manifest(mutate)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "escapes its package"):
+            self.plan()
+
     def test_escaping_package_runpath_is_rejected(self) -> None:
         self.write_manifest(
             lambda document: document["files"][0].update(
@@ -308,6 +561,27 @@ class PostgreSQLClusterContract(unittest.TestCase):
         occupied.mkdir(parents=True)
         observation = clusterctl.inspect_collisions(self.contract, self.activation_root)
         with self.assertRaisesRegex(clusterctl.ClusterError, "target collision"):
+            clusterctl.validate_collision_observation(observation, self.contract)
+
+    def test_inaccessible_collision_target_is_receipted_and_fails_closed(self) -> None:
+        protected = self.contract["instance"]["data_directory"]
+        real_lstat = os.lstat
+
+        def permission_mutant(path: Any, *args: Any, **kwargs: Any) -> os.stat_result:
+            if str(path).endswith(protected):
+                raise PermissionError(13, "Permission denied", str(path))
+            return real_lstat(path, *args, **kwargs)
+
+        with mock.patch.object(
+            clusterctl.os, "lstat", side_effect=permission_mutant
+        ):
+            observation = clusterctl.inspect_collisions(
+                self.contract, self.activation_root
+            )
+        self.assertEqual(observation["collisions"], [])
+        self.assertEqual(observation["inspection_errors"][0]["operation"], "lstat")
+        self.assertEqual(observation["inspection_errors"][0]["target"], protected)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "inspection is incomplete"):
             clusterctl.validate_collision_observation(observation, self.contract)
 
     def test_nonpackage_postmaster_mutant_is_rejected(self) -> None:
@@ -351,6 +625,9 @@ class PostgreSQLClusterContract(unittest.TestCase):
     def test_oversized_resource_mutants_are_rejected(self) -> None:
         resource = self.valid_resource_observation()
         resource["grant"]["memory_bytes"] = 65 * 1024**3
+        resource["native_authority"]["partition_grant"]["memory_bytes"] = (
+            65 * 1024**3
+        )
         resource["observation_sha256"] = clusterctl.resource_observation_identity(
             resource
         )
@@ -393,6 +670,159 @@ class PostgreSQLClusterContract(unittest.TestCase):
         )
         with self.assertRaisesRegex(clusterctl.ClusterError, "positive system"):
             clusterctl.verify_loaded(plan, self.contract, observation)
+
+    def test_live_loaded_observation_is_derived_from_exact_process_and_files(self) -> None:
+        plan = self.plan()
+        package_source = clusterctl.prefixed(
+            self.package_physical_root, plan["package_root"]
+        )
+        package_target = clusterctl.prefixed(self.activation_root, plan["package_root"])
+        package_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(package_source, package_target, symlinks=True)
+        clusterctl.apply_plan(plan, self.contract, self.activation_root, False)
+        service_receipt = {
+            "label": "observe-candidate-service",
+            "argv": ["systemctl", "show"],
+            "exit_code": 0,
+            "stdout_sha256": "a" * 64,
+            "stderr_sha256": "b" * 64,
+        }
+        paths = {item["path"] for item in plan["required_loaded_objects"]}
+        observation = clusterctl.compose_loaded_observation(
+            plan,
+            self.contract,
+            self.activation_root,
+            "active",
+            1201,
+            1208,
+            "8672946663471807927",
+            paths,
+            "c" * 64,
+            service_receipt,
+        )
+        clusterctl.verify_loaded(plan, self.contract, observation)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "omits required"):
+            clusterctl.compose_loaded_observation(
+                plan,
+                self.contract,
+                self.activation_root,
+                "active",
+                1201,
+                1208,
+                "8672946663471807927",
+                paths - {plan["required_loaded_objects"][0]["path"]},
+                "c" * 64,
+                service_receipt,
+            )
+
+    def test_complete_activation_restarts_before_committing_active_package(self) -> None:
+        plan = self.plan()
+        staged = clusterctl.apply_plan(
+            plan, self.contract, self.activation_root, False
+        )
+        executed: list[str] = []
+        recorded: list[str] = []
+        observations = 0
+
+        def executor(label: str, command: Any, timeout: int) -> dict[str, Any]:
+            executed.append(label)
+            return {
+                "label": label,
+                "argv": list(command),
+                "exit_code": 0,
+                "stdout_sha256": "d" * 64,
+                "stderr_sha256": "e" * 64,
+            }
+
+        def readiness(label: str, command: Any, timeout: int) -> dict[str, Any]:
+            return executor(label, command, timeout)
+
+        def observer(*_arguments: Any) -> dict[str, Any]:
+            nonlocal observations
+            observation = self.loaded_observation(plan)
+            observations += 1
+            observation["postmaster_pid"] = 2000 + observations
+            observation["backend_pid"] = 3000 + observations
+            observation["observation_sha256"] = clusterctl.state_observation_identity(
+                observation
+            )
+            return observation
+
+        result = clusterctl.execute_cluster_activation(
+            plan,
+            self.contract,
+            staged,
+            self.activation_root,
+            False,
+            [],
+            observer=observer,
+            recorder=lambda stem, _document: recorded.append(stem),
+            executor=executor,
+            readiness=readiness,
+        )
+        self.assertEqual(result["phase"], "activated")
+        self.assertTrue(result["restart_proven"])
+        self.assertEqual(recorded, ["loaded-initial", "loaded-restart"])
+        self.assertEqual(
+            executed,
+            [
+                "initialize-cluster",
+                "reload-service-manager",
+                "start-candidate-service",
+                "candidate-readiness",
+                "bootstrap-product-database",
+                "stop-candidate-for-restart-proof",
+                "start-candidate-after-restart",
+                "restart-readiness",
+            ],
+        )
+        active = clusterctl.prefixed(self.activation_root, plan["active_link"])
+        self.assertEqual(os.readlink(active), f"releases/{plan['package_id']}")
+
+    def test_restart_without_a_new_postmaster_is_rejected_before_commit(self) -> None:
+        plan = self.plan()
+        staged = clusterctl.apply_plan(
+            plan, self.contract, self.activation_root, False
+        )
+        executed: list[str] = []
+
+        def executor(label: str, command: Any, timeout: int) -> dict[str, Any]:
+            executed.append(label)
+            return {
+                "label": label,
+                "argv": list(command),
+                "exit_code": 0,
+                "stdout_sha256": "d" * 64,
+                "stderr_sha256": "e" * 64,
+            }
+
+        def readiness(label: str, command: Any, timeout: int) -> dict[str, Any]:
+            return executor(label, command, timeout)
+
+        def observer(*_arguments: Any) -> dict[str, Any]:
+            observation = self.loaded_observation(plan)
+            observation["postmaster_pid"] = 2001
+            observation["backend_pid"] = 3001
+            observation["observation_sha256"] = clusterctl.state_observation_identity(
+                observation
+            )
+            return observation
+
+        with self.assertRaisesRegex(clusterctl.ClusterError, "original postmaster"):
+            clusterctl.execute_cluster_activation(
+                plan,
+                self.contract,
+                staged,
+                self.activation_root,
+                False,
+                [],
+                observer=observer,
+                executor=executor,
+                readiness=readiness,
+            )
+        active = clusterctl.prefixed(self.activation_root, plan["active_link"])
+        self.assertFalse(active.exists())
+        self.assertIn("stop-candidate-after-failure", executed)
 
     def test_fixture_stage_commit_and_remove_preserve_database_state(self) -> None:
         plan = self.plan()

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Plan and verify an isolated Laplace PostgreSQL product cluster.
+"""Construct, activate, observe, and verify the Laplace PostgreSQL product cluster.
 
-This tool deliberately does not start PostgreSQL or invoke systemd.  It renders and
-stages only manifest-owned candidate files.  Committing the active package pointer
-requires a separately captured, exact loaded-object observation.
+The lifecycle remains fail-closed: the immutable package is not made current until a
+fresh cluster has been initialized, bootstrapped, observed through its live backend
+process, restarted, and observed again with exact package/configuration identity.
 """
 
 from __future__ import annotations
@@ -16,9 +16,13 @@ import os
 import posixpath
 import pwd
 import re
+import shutil
+import signal
 import stat
+import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
@@ -27,11 +31,16 @@ from typing import Any, Sequence
 CONTRACT_SCHEMA = "laplace.postgresql-cluster-contract/v1"
 PACKAGE_SCHEMA = "laplace.package-manifest/v1"
 RESOURCE_SCHEMA = "laplace.execution-resource-observation/v1"
-COLLISION_SCHEMA = "laplace.postgresql-collision-observation/v1"
+COLLISION_SCHEMA = "laplace.postgresql-collision-observation/v2"
 PLAN_SCHEMA = "laplace.postgresql-cluster-plan/v1"
 LOADED_SCHEMA = "laplace.postgresql-loaded-observation/v1"
 STOPPED_SCHEMA = "laplace.postgresql-stopped-observation/v1"
 ACTIVATION_SCHEMA = "laplace.postgresql-activation-receipt/v1"
+INSTALLATION_SCHEMA = "laplace.product-package-installation-receipt/v1"
+OWNERSHIP_SCHEMA = "laplace.product-package-ownership-receipt/v1"
+NATIVE_RESOURCE_SCHEMA = "laplace.native-execution-resource-observation/v1"
+RESOURCE_OBSERVER_PATH = "bin/laplace_resource_observe"
+UNICODE_ACTIVATION_IDENTITY_PATH = "bin/laplace_unicode_activation_identify"
 HEX_256 = re.compile(r"^[0-9a-f]{64}$")
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
 OS_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_-]*$")
@@ -40,6 +49,12 @@ SERVICE = re.compile(r"^[a-zA-Z0-9_.@-]+\.service$")
 
 class ClusterError(RuntimeError):
     pass
+
+
+class ActivationCommandError(ClusterError):
+    def __init__(self, message: str, receipt: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.receipt = receipt
 
 
 def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -153,6 +168,10 @@ def validate_contract(document: dict[str, Any]) -> None:
         raise ClusterError("package.required_loaded_objects contains duplicates")
     if not set(required_loaded).issubset(required_files):
         raise ClusterError("every required loaded object must be a required package file")
+    if RESOURCE_OBSERVER_PATH not in required_files:
+        raise ClusterError("package must require the native resource observer")
+    if UNICODE_ACTIVATION_IDENTITY_PATH not in required_files:
+        raise ClusterError("package must require the native Unicode activation identity provider")
     if package.get("manifest_schema") != PACKAGE_SCHEMA:
         raise ClusterError("package manifest schema declaration is invalid")
     if package.get("postgresql_version") != "18.6":
@@ -175,6 +194,7 @@ def validate_contract(document: dict[str, Any]) -> None:
         "data_directory",
         "wal_directory",
         "temp_directory",
+        "perfcache_directory",
         "config_directory",
         "log_directory",
         "receipt_directory",
@@ -286,8 +306,22 @@ def validate_resource_observation(
             raise ClusterError(f"resource observation requires exact {field}")
     grant = document.get("grant")
     storage = document.get("storage")
-    if not isinstance(grant, dict) or not isinstance(storage, dict):
+    native = document.get("native_authority")
+    if (
+        not isinstance(grant, dict)
+        or not isinstance(storage, dict)
+        or not isinstance(native, dict)
+    ):
         raise ClusterError("native resource grant and storage observation are required")
+    if native.get("schema") != NATIVE_RESOURCE_SCHEMA:
+        raise ClusterError("resource observation omits its native authority schema")
+    observer = native.get("observer")
+    if (
+        not isinstance(observer, dict)
+        or observer.get("path") != RESOURCE_OBSERVER_PATH
+        or HEX_256.fullmatch(str(observer.get("sha256", ""))) is None
+    ):
+        raise ClusterError("resource observation omits its exact packaged native observer")
     cpu_ids = grant.get("processor_ids")
     cpu_slots = grant.get("cpu_slots")
     memory_bytes = grant.get("memory_bytes")
@@ -303,6 +337,18 @@ def validate_resource_observation(
         or not isinstance(io_slots, int)
     ):
         raise ClusterError("native resource grant shape is invalid")
+    if (
+        native.get("processor_ids") != cpu_ids
+        or native.get("partition_grant")
+        != {
+            "cpu_slots": cpu_slots,
+            "memory_bytes": memory_bytes,
+            "io_slots": io_slots,
+        }
+        or not isinstance(native.get("allowed_processor_count"), int)
+        or native["allowed_processor_count"] < cpu_slots
+    ):
+        raise ClusterError("native processor allocation or partition grant differs")
     policy = contract["resource_policy"]
     if not policy["minimum_cpu_slots"] <= cpu_slots <= policy["maximum_cpu_slots"]:
         raise ClusterError("native CPU grant is outside the declared policy")
@@ -321,12 +367,108 @@ def validate_resource_observation(
             or volume.get("path") != expected_path
             or not isinstance(volume.get("available_bytes"), int)
             or volume["available_bytes"] <= 0
+            or not isinstance(volume.get("backing_path"), str)
+            or not volume["backing_path"].startswith("/")
+            or not isinstance(volume.get("fragment_bytes"), int)
+            or volume["fragment_bytes"] <= 0
         ):
             raise ClusterError(f"resource {name} storage observation is missing or mismatched")
     required_wal = policy["max_wal_size_bytes"] * policy["wal_headroom_multiplier"]
     if required_wal > storage["wal"]["available_bytes"]:
         raise ClusterError("configured WAL budget exceeds observed capacity headroom")
     return grant
+
+
+def finalize_native_resource_observation(
+    native: dict[str, Any], observer_entry: dict[str, Any], contract: dict[str, Any]
+) -> dict[str, Any]:
+    if native.get("schema") != RESOURCE_SCHEMA:
+        raise ClusterError("native observer returned the wrong resource schema")
+    if native.get("source") != "laplace_native_execution_authority":
+        raise ClusterError("native observer returned the wrong authority source")
+    if "observation_sha256" in native:
+        raise ClusterError("native observer cannot pre-author the orchestration receipt")
+    authority = native.get("native_authority")
+    if not isinstance(authority, dict) or authority.get("schema") != NATIVE_RESOURCE_SCHEMA:
+        raise ClusterError("native observer omitted its authority record")
+    grant = native.get("grant")
+    if not isinstance(grant, dict):
+        raise ClusterError("native observer omitted its partition grant")
+    authority = dict(authority)
+    authority["observer"] = {
+        "path": RESOURCE_OBSERVER_PATH,
+        "sha256": observer_entry["sha256"],
+    }
+    authority["processor_ids"] = grant.get("processor_ids")
+    authority["partition_grant"] = {
+        "cpu_slots": grant.get("cpu_slots"),
+        "memory_bytes": grant.get("memory_bytes"),
+        "io_slots": grant.get("io_slots"),
+    }
+    result = dict(native)
+    result["native_authority"] = authority
+    result["observation_sha256"] = resource_observation_identity(result)
+    validate_resource_observation(result, contract)
+    return result
+
+
+def observe_resources(
+    contract_path: Path,
+    package_path: Path,
+    package_physical_root: Path,
+) -> dict[str, Any]:
+    contract = load_json(contract_path)
+    package = load_json(package_path)
+    validate_contract(contract)
+    package_status = verify_package(package, contract, package_physical_root)
+    if not package_status.verified:
+        raise ClusterError(
+            f"native resource observation requires exact package bytes: {package_status.reason}"
+        )
+    observer_entry = package_status.files.get(RESOURCE_OBSERVER_PATH)
+    if not isinstance(observer_entry, dict) or observer_entry.get("kind") != "file":
+        raise ClusterError("package omits the native resource observer")
+    observer = prefixed(package_physical_root, package["root"]) / RESOURCE_OBSERVER_PATH
+    instance = contract["instance"]
+    policy = contract["resource_policy"]
+    command = [
+        str(observer),
+        "--data",
+        instance["data_directory"],
+        "--wal",
+        instance["wal_directory"],
+        "--temporary",
+        instance["temp_directory"],
+        "--maximum-cpu-slots",
+        str(policy["maximum_cpu_slots"]),
+        "--maximum-memory-bytes",
+        str(policy["maximum_memory_bytes"]),
+        "--maximum-io-slots",
+        str(policy["maximum_io_slots"]),
+    ]
+    completed = subprocess.run(
+        command,
+        check=False,
+        cwd="/",
+        env={"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or f"exit {completed.returncode}"
+        raise ClusterError(f"native resource observer failed: {detail}")
+    try:
+        native = json.loads(
+            completed.stdout, object_pairs_hook=reject_duplicate_keys
+        )
+    except json.JSONDecodeError as error:
+        raise ClusterError(f"native resource observer returned invalid JSON: {error}") from error
+    if not isinstance(native, dict):
+        raise ClusterError("native resource observer output must be an object")
+    return finalize_native_resource_observation(
+        native, observer_entry, contract
+    )
 
 
 def collision_observation_identity(observation: dict[str, Any]) -> str:
@@ -353,6 +495,7 @@ def collision_target(contract: dict[str, Any]) -> dict[str, Any]:
                 instance["data_directory"],
                 instance["wal_directory"],
                 instance["temp_directory"],
+                instance["perfcache_directory"],
                 instance["config_directory"],
                 instance["log_directory"],
                 instance["receipt_directory"],
@@ -378,9 +521,21 @@ def validate_collision_observation(
     collisions = observation.get("collisions")
     if not isinstance(collisions, list) or any(not isinstance(item, dict) for item in collisions):
         raise ClusterError("collision observation findings must be an array of objects")
+    inspection_errors = observation.get("inspection_errors")
+    if not isinstance(inspection_errors, list) or any(
+        not isinstance(item, dict) for item in inspection_errors
+    ):
+        raise ClusterError("collision observation inspection_errors must be an array of objects")
     expected = collision_observation_identity(observation)
     if observation.get("observation_sha256") != expected:
         raise ClusterError("collision observation digest differs from its content")
+    if inspection_errors:
+        first = inspection_errors[0]
+        raise ClusterError(
+            "cluster collision inspection is incomplete: "
+            f"{first.get('operation', 'unknown')} {first.get('target', '')}: "
+            f"{first.get('error', 'unknown error')}"
+        )
     if collisions:
         first = collisions[0]
         raise ClusterError(
@@ -394,9 +549,27 @@ def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
         raise ClusterError("collision inspection root must be absolute")
     target = collision_target(contract)
     findings: list[dict[str, Any]] = []
+    inspection_errors: list[dict[str, Any]] = []
+
+    def record_inspection_error(operation: str, target_value: Any, error: OSError) -> None:
+        inspection_errors.append(
+            {
+                "operation": operation,
+                "target": target_value,
+                "errno": error.errno,
+                "error": error.strerror or error.__class__.__name__,
+            }
+        )
+
     for path in target["paths"]:
         physical = prefixed(root, path)
-        if physical.exists() or physical.is_symlink():
+        try:
+            os.lstat(physical)
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            record_inspection_error("lstat", path, error)
+        else:
             findings.append({"kind": "path", "target": path})
     if root == Path("/"):
         service = target["service"]
@@ -406,14 +579,21 @@ def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
             "/lib/systemd/system",
         ):
             candidate = Path(directory) / service
-            if candidate.exists() or candidate.is_symlink():
+            try:
+                os.lstat(candidate)
+            except FileNotFoundError:
+                continue
+            except OSError as error:
+                record_inspection_error("lstat", str(candidate), error)
+            else:
                 findings.append({"kind": "service", "target": service})
                 break
         port_hex = f"{target['port']:04X}"
         for network_table in (Path("/proc/net/tcp"), Path("/proc/net/tcp6")):
             try:
                 rows = network_table.read_text(encoding="ascii").splitlines()[1:]
-            except OSError:
+            except OSError as error:
+                record_inspection_error("read", str(network_table), error)
                 rows = []
             if any(
                 len(fields := row.split()) > 3
@@ -426,7 +606,8 @@ def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
         socket_path = f"{target['socket_directory']}/.s.PGSQL.{target['port']}"
         try:
             unix_rows = Path("/proc/net/unix").read_text(encoding="utf-8").splitlines()[1:]
-        except OSError:
+        except OSError as error:
+            record_inspection_error("read", "/proc/net/unix", error)
             unix_rows = []
         if any(row.split()[-1] == socket_path for row in unix_rows if len(row.split()) >= 8):
             findings.append({"kind": "unix-socket", "target": socket_path})
@@ -434,17 +615,28 @@ def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
             target["socket_directory"].encode("utf-8"),
             contract["instance"]["data_directory"].encode("utf-8"),
         )
-        for process in Path("/proc").iterdir():
+        try:
+            processes = list(Path("/proc").iterdir())
+        except OSError as error:
+            record_inspection_error("list", "/proc", error)
+            processes = []
+        for process in processes:
             if not process.name.isdigit():
                 continue
             try:
                 command = (process / "cmdline").read_bytes()
-            except OSError:
+            except FileNotFoundError:
+                continue
+            except OSError as error:
+                record_inspection_error("read", str(process / "cmdline"), error)
                 continue
             if command and any(needle in command for needle in process_needles):
                 try:
                     owner_uid = process.stat().st_uid
-                except OSError:
+                except FileNotFoundError:
+                    owner_uid = None
+                except OSError as error:
+                    record_inspection_error("stat", str(process), error)
                     owner_uid = None
                 findings.append(
                     {
@@ -459,6 +651,7 @@ def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
         "root": str(root),
         "target": target,
         "collisions": findings,
+        "inspection_errors": inspection_errors,
     }
     observation["observation_sha256"] = collision_observation_identity(observation)
     return observation
@@ -503,6 +696,11 @@ def verify_package(
     for name, version in contract["package"]["required_capabilities"].items():
         if capabilities.get(name) != version:
             raise ClusterError(f"package capability {name}={version} is required")
+    if manifest.get("activation_eligible") is not True:
+        raise ClusterError("package is not activation eligible")
+    gates = manifest.get("activation_gates")
+    if not isinstance(gates, dict) or not gates or any(value is not True for value in gates.values()):
+        raise ClusterError("every package activation gate must be proven")
     environment = manifest.get("loader_environment")
     if not isinstance(environment, dict):
         raise ClusterError("package loader_environment is required")
@@ -518,6 +716,9 @@ def verify_package(
         if not isinstance(entry, dict):
             raise ClusterError("package file entry must be an object")
         relative = require_relative_path(entry.get("path"), f"package.files[{index}].path")
+        kind = entry.get("kind", "file")
+        if kind not in {"file", "symlink"}:
+            raise ClusterError(f"package file {relative} has unsupported kind")
         digest = entry.get("sha256")
         if HEX_256.fullmatch(digest or "") is None:
             raise ClusterError(f"package file {relative} has invalid SHA-256")
@@ -533,9 +734,32 @@ def verify_package(
             resolved = posixpath.normpath(posixpath.join(posixpath.dirname(relative), suffix))
             if resolved == ".." or resolved.startswith("../"):
                 raise ClusterError(f"package file {relative} has escaping RUNPATH")
-        mode = entry.get("mode")
-        if not isinstance(mode, int) or mode & 0o022 or mode not in (0o644, 0o755):
-            raise ClusterError(f"package file {relative} has unsafe or invalid mode")
+        if kind == "file":
+            mode = entry.get("mode")
+            if not isinstance(mode, int) or mode & 0o022 or mode not in (0o644, 0o755):
+                raise ClusterError(f"package file {relative} has unsafe or invalid mode")
+            if entry.get("target") is not None:
+                raise ClusterError(f"package file {relative} cannot declare a symlink target")
+        else:
+            target = entry.get("target")
+            if (
+                not isinstance(target, str)
+                or not target
+                or target.startswith("/")
+                or PurePosixPath(target).is_absolute()
+            ):
+                raise ClusterError(f"package symlink {relative} has an unsafe target")
+            resolved = posixpath.normpath(
+                posixpath.join(posixpath.dirname(relative), target)
+            )
+            if resolved == ".." or resolved.startswith("../"):
+                raise ClusterError(f"package symlink {relative} escapes its package")
+            if entry.get("mode") is not None:
+                raise ClusterError(f"package symlink {relative} cannot declare a mode")
+            if runpath:
+                raise ClusterError(f"package symlink {relative} cannot declare RUNPATH")
+            if digest != sha256_bytes(target.encode("utf-8")):
+                raise ClusterError(f"package symlink {relative} digest differs from target")
         files[relative] = entry
     missing = sorted(set(contract["package"]["required_files"]) - set(files))
     if missing:
@@ -566,14 +790,159 @@ def verify_package(
             candidate.resolve().relative_to(expected_physical_root.resolve())
         except (OSError, ValueError):
             return PackageStatus(False, f"package file escapes its root: {relative}", manifest_sha, files)
-        if not candidate.is_file() or candidate.is_symlink():
-            return PackageStatus(False, f"package file is absent: {relative}", manifest_sha, files)
-        if sha256_file(candidate) != entry["sha256"]:
-            return PackageStatus(False, f"package file digest differs: {relative}", manifest_sha, files)
-        mode = entry.get("mode")
-        if not isinstance(mode, int) or stat.S_IMODE(candidate.stat().st_mode) != mode:
-            return PackageStatus(False, f"package file mode differs: {relative}", manifest_sha, files)
+        if entry.get("kind", "file") == "symlink":
+            if not candidate.is_symlink():
+                return PackageStatus(False, f"package symlink is absent: {relative}", manifest_sha, files)
+            target = os.readlink(candidate)
+            if target != entry["target"] or sha256_bytes(target.encode("utf-8")) != entry["sha256"]:
+                return PackageStatus(False, f"package symlink differs: {relative}", manifest_sha, files)
+            if not candidate.exists():
+                return PackageStatus(
+                    False,
+                    f"package symlink target is absent: {relative}",
+                    manifest_sha,
+                    files,
+                )
+        else:
+            if not candidate.is_file() or candidate.is_symlink():
+                return PackageStatus(False, f"package file is absent: {relative}", manifest_sha, files)
+            if sha256_file(candidate) != entry["sha256"]:
+                return PackageStatus(False, f"package file digest differs: {relative}", manifest_sha, files)
+            mode = entry.get("mode")
+            if not isinstance(mode, int) or stat.S_IMODE(candidate.stat().st_mode) != mode:
+                return PackageStatus(False, f"package file mode differs: {relative}", manifest_sha, files)
     return PackageStatus(True, "all package files and modes verified", manifest_sha, files)
+
+
+def require_install_root(root: Path, authorize_system_root: bool) -> None:
+    if not root.is_absolute():
+        raise ClusterError("package installation root must be absolute")
+    if root == Path("/") and not authorize_system_root:
+        raise ClusterError(
+            "system package installation requires --authorize-system-root"
+        )
+
+
+def package_installation_receipt(
+    manifest: dict[str, Any],
+    status: PackageStatus,
+    source_physical_root: Path,
+    root: Path,
+    installed_release: Path,
+) -> dict[str, Any]:
+    file_count = 0
+    symlink_count = 0
+    total_file_bytes = 0
+    for relative, entry in status.files.items():
+        candidate = installed_release.joinpath(*PurePosixPath(relative).parts)
+        if entry.get("kind", "file") == "symlink":
+            symlink_count += 1
+        else:
+            file_count += 1
+            total_file_bytes += candidate.stat().st_size
+    core = {
+        "schema": INSTALLATION_SCHEMA,
+        "phase": "installed",
+        "package_id": manifest["package_id"],
+        "package_manifest_sha256": status.manifest_sha256,
+        "package_root": manifest["root"],
+        "installation_root": str(root),
+        "installed_release": str(installed_release),
+        "source_physical_root": str(source_physical_root.resolve()),
+        "file_count": file_count,
+        "symlink_count": symlink_count,
+        "total_file_bytes": total_file_bytes,
+        "source_package_verified": True,
+        "installed_package_verified": True,
+        "overwrite_performed": False,
+    }
+    core["installation_receipt_sha256"] = sha256_bytes(canonical_bytes(core))
+    return core
+
+
+def install_package(
+    manifest: dict[str, Any],
+    contract: dict[str, Any],
+    source_physical_root: Path,
+    root: Path,
+    authorize_system_root: bool,
+) -> dict[str, Any]:
+    """Atomically place one exact package at its content-addressed release path."""
+
+    validate_contract(contract)
+    require_install_root(root, authorize_system_root)
+    source_status = verify_package(manifest, contract, source_physical_root)
+    if not source_status.verified:
+        raise ClusterError(
+            f"source package cannot be installed: {source_status.reason}"
+        )
+    installed_release = prefixed(root, manifest["root"])
+    release_root = prefixed(root, contract["package"]["release_root"])
+    if installed_release.parent != release_root:
+        raise ClusterError("package installation target is outside the release root")
+    release_root.mkdir(parents=True, exist_ok=True, mode=0o2755)
+
+    if installed_release.exists() or installed_release.is_symlink():
+        installed_status = verify_package(manifest, contract, root)
+        if not installed_status.verified:
+            raise ClusterError(
+                "immutable package release already exists but differs from the manifest: "
+                f"{installed_status.reason}"
+            )
+        return package_installation_receipt(
+            manifest,
+            installed_status,
+            source_physical_root,
+            root,
+            installed_release,
+        )
+
+    temporary_root = Path(
+        tempfile.mkdtemp(prefix=f".{manifest['package_id']}.install.", dir=release_root)
+    )
+    temporary_release = prefixed(temporary_root, manifest["root"])
+    try:
+        for relative, entry in sorted(source_status.files.items()):
+            source = prefixed(source_physical_root, manifest["root"]).joinpath(
+                *PurePosixPath(relative).parts
+            )
+            destination = temporary_release.joinpath(*PurePosixPath(relative).parts)
+            destination.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+            if entry.get("kind", "file") == "symlink":
+                destination.symlink_to(entry["target"])
+            else:
+                with source.open("rb") as input_stream, destination.open("xb") as output_stream:
+                    shutil.copyfileobj(input_stream, output_stream, length=1024 * 1024)
+                    output_stream.flush()
+                    os.fsync(output_stream.fileno())
+                destination.chmod(entry["mode"])
+
+        staged_status = verify_package(manifest, contract, temporary_root)
+        if not staged_status.verified:
+            raise ClusterError(
+                f"copied package failed pre-install verification: {staged_status.reason}"
+            )
+        os.rename(temporary_release, installed_release)
+        parent_descriptor = os.open(release_root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent_descriptor)
+        finally:
+            os.close(parent_descriptor)
+    finally:
+        shutil.rmtree(temporary_root, ignore_errors=True)
+
+    installed_status = verify_package(manifest, contract, root)
+    if not installed_status.verified:
+        raise ClusterError(
+            f"installed package failed verification: {installed_status.reason}"
+        )
+    return package_installation_receipt(
+        manifest,
+        installed_status,
+        source_physical_root,
+        root,
+        installed_release,
+    )
 
 
 def memory_setting(bytes_value: int) -> str:
@@ -726,10 +1095,12 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 CREATE EXTENSION pg_stat_statements;
 CREATE EXTENSION laplace;
 GRANT USAGE ON SCHEMA laplace TO {app};
-GRANT EXECUTE ON FUNCTION laplace.identity_codepoint_calculate_batch(integer[]) TO {app};
-GRANT EXECUTE ON FUNCTION laplace.identity_codepoint_execute_batch(integer[]) TO {app};
-GRANT EXECUTE ON FUNCTION laplace.trajectory_composition_decode_calculate_batch(bytea[]) TO {app};
-GRANT EXECUTE ON FUNCTION laplace.trajectory_composition_decode_execute_batch(bytea[]) TO {app};
+GRANT EXECUTE ON FUNCTION laplace.identity_codepoint_calculate_batch(laplace.execution_context, integer[]) TO {app};
+GRANT EXECUTE ON FUNCTION laplace.identity_codepoint_execute_batch(laplace.execution_context, integer[]) TO {app};
+GRANT EXECUTE ON FUNCTION laplace.trajectory_composition_decode_calculate_batch(laplace.execution_context, bytea[]) TO {app};
+GRANT EXECUTE ON FUNCTION laplace.trajectory_composition_decode_execute_batch(laplace.execution_context, bytea[]) TO {app};
+GRANT EXECUTE ON FUNCTION laplace.unicode_tier0_resolve_batch(bytea, bytea, integer[]) TO {app};
+GRANT EXECUTE ON FUNCTION laplace.unicode_identity_reverse_resolve_batch(bytea, bytea, bytea[], bytea[]) TO {app};
 REVOKE ALL ON TABLE laplace.execution_receipt FROM {app};
 """
 
@@ -740,7 +1111,6 @@ def render_service(
     instance = contract["instance"]
     policy = contract["resource_policy"]
     postgres = f"{package_root}/pgsql-18/bin/postgres"
-    pg_isready = f"{package_root}/pgsql-18/bin/pg_isready"
     cpu_ids = " ".join(str(item) for item in grant["processor_ids"])
     memory_high = (
         grant["memory_bytes"]
@@ -760,7 +1130,6 @@ Group={instance['os_group']}
 RuntimeDirectory=laplace-refactor-postgresql
 RuntimeDirectoryMode=0770
 ExecStart={postgres} -D {instance['data_directory']} -c config_file={instance['config_directory']}/postgresql.conf
-ExecStartPost=/bin/bash -c 'for i in $(seq 1 120); do {pg_isready} -h {instance['socket_directory']} -p {instance['port']} >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1'
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
 KillSignal=SIGINT
@@ -780,7 +1149,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectHome=yes
 ProtectSystem=strict
-ReadWritePaths={instance['data_directory']} {instance['wal_directory']} {instance['temp_directory']} {instance['log_directory']} {instance['receipt_directory']}
+ReadWritePaths={instance['data_directory']} {instance['wal_directory']} {instance['temp_directory']} {instance['perfcache_directory']} {instance['log_directory']} {instance['receipt_directory']}
 RestrictAddressFamilies=AF_UNIX
 
 [Install]
@@ -849,6 +1218,7 @@ def build_plan(
             instance["data_directory"],
             instance["wal_directory"],
             instance["temp_directory"],
+            instance["perfcache_directory"],
             instance["log_directory"],
             instance["receipt_directory"],
         ],
@@ -899,6 +1269,15 @@ def build_plan(
             "start_candidate_service": ["systemctl", "start", instance["service"]],
             "stop_candidate_service": ["systemctl", "stop", instance["service"]],
             "daemon_reload": ["systemctl", "daemon-reload"],
+            "probe_readiness": [
+                f"{package_root}/pgsql-18/bin/pg_isready",
+                "--host",
+                instance["socket_directory"],
+                "--port",
+                str(instance["port"]),
+                "--dbname",
+                "postgres",
+            ],
         },
         "activation_blocked": not status.verified,
     }
@@ -970,6 +1349,8 @@ def validate_plan(plan: dict[str, Any], contract: dict[str, Any] | None = None) 
     package_root = str(plan.get("package_root", ""))
     if f"ExecStart={package_root}/pgsql-18/bin/postgres " not in service:
         raise ClusterError("generated service does not execute the immutable package postmaster")
+    if "ExecStartPost=" in service or "/bin/bash" in service or "$(seq " in service:
+        raise ClusterError("generated service embeds an ambient readiness program")
 
 
 def atomic_write(path: Path, content: bytes, mode: int) -> None:
@@ -1064,6 +1445,557 @@ def apply_plan(
     }
 
 
+def activation_environment() -> dict[str, str]:
+    """Return the complete environment admitted for product lifecycle commands."""
+    return {
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/usr/sbin:/usr/bin:/sbin:/bin",
+    }
+
+
+def command_execution_receipt(
+    label: str,
+    command: Sequence[str],
+    completed: subprocess.CompletedProcess[str],
+) -> dict[str, Any]:
+    return {
+        "label": label,
+        "argv": list(command),
+        "exit_code": completed.returncode,
+        "stdout_sha256": sha256_bytes(completed.stdout.encode("utf-8")),
+        "stderr_sha256": sha256_bytes(completed.stderr.encode("utf-8")),
+    }
+
+
+def execute_activation_command(
+    label: str, command: Sequence[str], timeout: int = 1800
+) -> dict[str, Any]:
+    completed = subprocess.run(
+        list(command),
+        check=False,
+        cwd="/",
+        env=activation_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=timeout,
+    )
+    receipt = command_execution_receipt(label, command, completed)
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        if len(detail) > 1000:
+            detail = detail[-1000:]
+        raise ActivationCommandError(
+            f"{label} failed with exit {completed.returncode}: {detail or 'no diagnostic'}",
+            receipt,
+        )
+    return receipt
+
+
+def await_postgresql_ready(
+    label: str, command: Sequence[str], timeout: int = 120
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    attempts = 0
+    last: subprocess.CompletedProcess[str] | None = None
+    while time.monotonic() < deadline:
+        attempts += 1
+        last = subprocess.run(
+            list(command),
+            check=False,
+            cwd="/",
+            env=activation_environment(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10,
+        )
+        if last.returncode == 0:
+            receipt = command_execution_receipt(label, command, last)
+            receipt["attempts"] = attempts
+            return receipt
+        time.sleep(0.25)
+    if last is None:
+        last = subprocess.CompletedProcess(list(command), 1, "", "no readiness attempt")
+    receipt = command_execution_receipt(label, command, last)
+    receipt["attempts"] = attempts
+    detail = last.stderr.strip() or last.stdout.strip() or "readiness timeout"
+    raise ActivationCommandError(
+        f"{label} did not establish PostgreSQL readiness after {attempts} attempts: {detail}",
+        receipt,
+    )
+
+
+def parse_systemd_state(output: str) -> tuple[str, int]:
+    fields: dict[str, str] = {}
+    for line in output.splitlines():
+        if "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        if name in fields:
+            raise ClusterError(f"systemd observation repeats {name}")
+        fields[name] = value
+    state = fields.get("ActiveState", "")
+    pid_text = fields.get("MainPID", "")
+    if state != "active" or not pid_text.isdecimal() or int(pid_text) <= 0:
+        raise ClusterError("candidate PostgreSQL service is not active with a main process")
+    return state, int(pid_text)
+
+
+def observe_systemd_service(service: str) -> tuple[str, int, dict[str, Any]]:
+    command = [
+        "/usr/bin/systemctl",
+        "show",
+        "--property=ActiveState",
+        "--property=MainPID",
+        service,
+    ]
+    completed = subprocess.run(
+        command,
+        check=False,
+        cwd="/",
+        env=activation_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=30,
+    )
+    receipt = command_execution_receipt("observe-candidate-service", command, completed)
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or f"exit {completed.returncode}"
+        raise ClusterError(f"cannot observe candidate PostgreSQL service: {detail}")
+    state, pid = parse_systemd_state(completed.stdout)
+    return state, pid, receipt
+
+
+def process_loaded_paths(proc_root: Path, pid: int) -> set[str]:
+    process = proc_root / str(pid)
+    try:
+        executable = os.readlink(process / "exe")
+        maps = (process / "maps").read_text(encoding="utf-8")
+    except OSError as error:
+        raise ClusterError(f"cannot inspect process {pid} loaded objects: {error}") from error
+    if executable.endswith(" (deleted)"):
+        raise ClusterError(f"process {pid} executable was deleted after start")
+    paths = {os.path.realpath(executable)}
+    for line in maps.splitlines():
+        fields = line.split(maxsplit=5)
+        if len(fields) != 6 or not fields[5].startswith("/"):
+            continue
+        path = fields[5]
+        if path.endswith(" (deleted)"):
+            raise ClusterError(f"process {pid} maps a deleted object: {path}")
+        paths.add(os.path.realpath(path))
+    return paths
+
+
+def compose_loaded_observation(
+    plan: dict[str, Any],
+    contract: dict[str, Any],
+    root: Path,
+    service_state: str,
+    postmaster_pid: int,
+    backend_pid: int,
+    system_identifier: str,
+    process_paths: set[str],
+    probe_sql_sha256: str,
+    service_observation: dict[str, Any],
+) -> dict[str, Any]:
+    validate_plan(plan, contract)
+    expected_paths = {item["path"] for item in plan["required_loaded_objects"]}
+    missing = sorted(expected_paths - process_paths)
+    if missing:
+        raise ClusterError(
+            "live PostgreSQL backend omits required package objects: " + ", ".join(missing)
+        )
+    loaded_objects = []
+    for expected in plan["required_loaded_objects"]:
+        target = prefixed(root, expected["path"])
+        if not target.is_file() or target.is_symlink():
+            raise ClusterError(f"loaded package object is absent or not a file: {expected['path']}")
+        digest = sha256_file(target)
+        if digest != expected["sha256"]:
+            raise ClusterError(f"loaded package object bytes differ: {expected['path']}")
+        loaded_objects.append({"path": expected["path"], "sha256": digest})
+    config_files = []
+    for expected in plan["files"]:
+        target = prefixed(root, expected["path"])
+        if not target.is_file() or target.is_symlink():
+            raise ClusterError(f"generated configuration is absent: {expected['path']}")
+        digest = sha256_file(target)
+        if digest != expected["sha256"]:
+            raise ClusterError(f"generated configuration bytes differ: {expected['path']}")
+        config_files.append({"path": expected["path"], "sha256": digest})
+    observation = {
+        "schema": LOADED_SCHEMA,
+        "source": "laplace_postgresql_loaded_probe",
+        "package_id": plan["package_id"],
+        "port": plan["instance"]["port"],
+        "socket_directory": plan["instance"]["socket_directory"],
+        "data_directory": plan["instance"]["data_directory"],
+        "service": plan["instance"]["service"],
+        "service_state": service_state,
+        "postmaster_pid": postmaster_pid,
+        "backend_pid": backend_pid,
+        "system_identifier": system_identifier,
+        "probe_sql_sha256": probe_sql_sha256,
+        "service_observation": service_observation,
+        "loaded_objects": loaded_objects,
+        "config_files": config_files,
+    }
+    observation["observation_sha256"] = state_observation_identity(observation)
+    verify_loaded(plan, contract, observation)
+    return observation
+
+
+def terminate_probe(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        process.communicate()
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+        process.communicate(timeout=10)
+    except (ProcessLookupError, subprocess.TimeoutExpired):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.communicate()
+
+
+def observe_loaded_live(
+    plan: dict[str, Any], contract: dict[str, Any], root: Path, proc_root: Path = Path("/proc")
+) -> dict[str, Any]:
+    if root != Path("/") or os.geteuid() != 0:
+        raise ClusterError("live loaded-object observation requires system root authority")
+    validate_plan(plan, contract)
+    state, postmaster_pid, service_receipt = observe_systemd_service(
+        plan["instance"]["service"]
+    )
+    expected_postmaster = f"{plan['package_root']}/pgsql-18/bin/postgres"
+    postmaster_paths = process_loaded_paths(proc_root, postmaster_pid)
+    if expected_postmaster not in postmaster_paths:
+        raise ClusterError("candidate service is not executing the planned package postmaster")
+
+    instance = plan["instance"]
+    application_name = f"laplace_loaded_{plan['plan_sha256'][:24]}"
+    probe_sql = (
+        f"SET application_name = '{application_name}'; "
+        "LOAD '$libdir/laplace_pg'; "
+        "LOAD '$libdir/pg_stat_statements'; "
+        "SELECT pg_sleep(120);"
+    )
+    psql = f"{plan['package_root']}/pgsql-18/bin/psql"
+    base = [
+        "/usr/sbin/runuser",
+        "--user",
+        contract["security"]["admin_os_user"],
+        "--",
+        psql,
+        "--host",
+        instance["socket_directory"],
+        "--port",
+        str(instance["port"]),
+        "--username",
+        instance["admin_role"],
+        "--dbname",
+        instance["database"],
+        "--no-psqlrc",
+        "--set",
+        "ON_ERROR_STOP=1",
+    ]
+    probe = subprocess.Popen(
+        [*base, "--command", probe_sql],
+        cwd="/",
+        env=activation_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    lookup_sql = (
+        "SELECT a.pid::text || '|' || c.system_identifier::text "
+        "FROM pg_catalog.pg_stat_activity AS a "
+        "CROSS JOIN pg_catalog.pg_control_system() AS c "
+        f"WHERE a.application_name = '{application_name}' "
+        "AND a.pid <> pg_catalog.pg_backend_pid() AND a.state = 'active';"
+    )
+    backend_pid: int | None = None
+    system_identifier: str | None = None
+    try:
+        deadline = time.monotonic() + 30.0
+        while time.monotonic() < deadline:
+            if probe.poll() is not None:
+                stdout, stderr = probe.communicate()
+                detail = stderr.strip() or stdout.strip() or f"exit {probe.returncode}"
+                raise ClusterError(f"loaded-object probe exited before observation: {detail}")
+            completed = subprocess.run(
+                [*base, "--tuples-only", "--no-align", "--quiet", "--command", lookup_sql],
+                check=False,
+                cwd="/",
+                env=activation_environment(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
+            )
+            if completed.returncode == 0:
+                rows = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+                if len(rows) == 1 and "|" in rows[0]:
+                    pid_text, identifier = rows[0].split("|", 1)
+                    if pid_text.isdecimal() and identifier.isdecimal():
+                        backend_pid = int(pid_text)
+                        system_identifier = identifier
+                        break
+            time.sleep(0.1)
+        if backend_pid is None or system_identifier is None:
+            raise ClusterError("timed out locating the active loaded-object probe backend")
+        process_paths = process_loaded_paths(proc_root, backend_pid) | postmaster_paths
+        return compose_loaded_observation(
+            plan,
+            contract,
+            root,
+            state,
+            postmaster_pid,
+            backend_pid,
+            system_identifier,
+            process_paths,
+            sha256_bytes(probe_sql.encode("utf-8")),
+            service_receipt,
+        )
+    finally:
+        terminate_probe(probe)
+
+
+def qualify_package_ownership(
+    package: dict[str, Any], contract: dict[str, Any]
+) -> dict[str, Any]:
+    if os.geteuid() != 0:
+        raise ClusterError("product package ownership qualification requires root")
+    status = verify_package(package, contract, Path("/"))
+    if not status.verified:
+        raise ClusterError(f"package bytes failed before ownership qualification: {status.reason}")
+    release = Path(package["root"])
+    release_root = Path(contract["package"]["release_root"])
+    if release.parent != release_root or release.name != package["package_id"]:
+        raise ClusterError("ownership qualification target is not the exact package release")
+    changed = 0
+    observed = 0
+    paths = [release]
+    for directory, names, files in os.walk(release, topdown=True, followlinks=False):
+        parent = Path(directory)
+        paths.extend(parent / name for name in names)
+        paths.extend(parent / name for name in files)
+    for path in paths:
+        metadata = path.lstat()
+        if metadata.st_uid != 0 or metadata.st_gid != 0:
+            os.chown(path, 0, 0, follow_symlinks=False)
+            changed += 1
+        metadata = path.lstat()
+        if metadata.st_uid != 0 or metadata.st_gid != 0:
+            raise ClusterError(f"package ownership did not converge to root:root: {path}")
+        observed += 1
+    verified = verify_package(package, contract, Path("/"))
+    if not verified.verified:
+        raise ClusterError(f"package bytes changed during ownership qualification: {verified.reason}")
+    receipt = {
+        "schema": OWNERSHIP_SCHEMA,
+        "package_id": package["package_id"],
+        "package_root": package["root"],
+        "owner_uid": 0,
+        "owner_gid": 0,
+        "observed_paths": observed,
+        "changed_paths": changed,
+        "package_manifest_sha256": verified.manifest_sha256,
+        "package_bytes_verified_after_change": True,
+    }
+    receipt["receipt_sha256"] = state_observation_identity(receipt)
+    return receipt
+
+
+def write_evidence_document(
+    directory: Path, stem: str, document: dict[str, Any]
+) -> Path:
+    require_absolute_path(str(directory), "evidence_directory")
+    if len(PurePosixPath(directory).parts) < 5:
+        raise ClusterError("evidence directory is too broad")
+    content = canonical_bytes(document)
+    target = directory / f"{stem}-{sha256_bytes(content)[:16]}.json"
+    if target.exists():
+        if not target.is_file() or target.is_symlink() or target.read_bytes() != content:
+            raise ClusterError(f"existing evidence path differs: {target}")
+        return target
+    atomic_write(target, content, 0o640)
+    return target
+
+
+def execute_cluster_activation(
+    plan: dict[str, Any],
+    contract: dict[str, Any],
+    staged_receipt: dict[str, Any],
+    root: Path,
+    authorize_system_root: bool,
+    command_receipts: list[dict[str, Any]],
+    observer: Any = observe_loaded_live,
+    recorder: Any | None = None,
+    executor: Any = execute_activation_command,
+    readiness: Any = await_postgresql_ready,
+) -> dict[str, Any]:
+    """Execute the complete candidate lifecycle before atomically committing it."""
+    validate_plan(plan, contract)
+    require_fixture_or_root(root, authorize_system_root)
+    if staged_receipt.get("phase") != "staged":
+        raise ClusterError("complete activation requires an exact staged receipt")
+    started = False
+
+    def run(label: str, command: Sequence[str], timeout: int = 1800) -> None:
+        try:
+            receipt = executor(label, command, timeout)
+        except ActivationCommandError as error:
+            command_receipts.append(error.receipt)
+            raise
+        command_receipts.append(receipt)
+
+    def wait_ready(label: str) -> None:
+        try:
+            receipt = readiness(label, plan["commands"]["probe_readiness"], 120)
+        except ActivationCommandError as error:
+            command_receipts.append(error.receipt)
+            raise
+        command_receipts.append(receipt)
+
+    try:
+        run("initialize-cluster", plan["commands"]["initdb"], 3600)
+        run("reload-service-manager", plan["commands"]["daemon_reload"], 60)
+        run("start-candidate-service", plan["commands"]["start_candidate_service"], 240)
+        started = True
+        wait_ready("candidate-readiness")
+        run("bootstrap-product-database", plan["commands"]["bootstrap"], 1800)
+        initial = observer(plan, contract, root)
+        if recorder is not None:
+            recorder("loaded-initial", initial)
+        run("stop-candidate-for-restart-proof", plan["commands"]["stop_candidate_service"], 240)
+        started = False
+        run("start-candidate-after-restart", plan["commands"]["start_candidate_service"], 240)
+        started = True
+        wait_ready("restart-readiness")
+        restarted = observer(plan, contract, root)
+        if recorder is not None:
+            recorder("loaded-restart", restarted)
+        if initial["system_identifier"] != restarted["system_identifier"]:
+            raise ClusterError("cluster system identity changed across restart")
+        if initial.get("postmaster_pid") == restarted.get("postmaster_pid"):
+            raise ClusterError("restart proof retained the original postmaster process")
+        if initial["loaded_objects"] != restarted["loaded_objects"]:
+            raise ClusterError("loaded package identity changed across restart")
+        if initial["config_files"] != restarted["config_files"]:
+            raise ClusterError("generated configuration changed across restart")
+        committed = commit_plan(
+            plan,
+            contract,
+            staged_receipt,
+            restarted,
+            root,
+            authorize_system_root,
+        )
+        result = dict(committed)
+        result["phase"] = "activated"
+        result["system_identifier"] = restarted["system_identifier"]
+        result["initial_loaded_observation_sha256"] = initial["observation_sha256"]
+        result["restart_loaded_observation_sha256"] = restarted["observation_sha256"]
+        result["restart_proven"] = True
+        result["command_receipts"] = list(command_receipts)
+        result["activation_receipt_sha256"] = state_observation_identity(result)
+        return result
+    except BaseException:
+        if started:
+            try:
+                run(
+                    "stop-candidate-after-failure",
+                    plan["commands"]["stop_candidate_service"],
+                    240,
+                )
+            except BaseException:
+                pass
+        raise
+
+
+def activate_product(
+    contract_path: Path,
+    package_path: Path,
+    resource_path: Path,
+    evidence_directory: Path,
+    authorize_system_root: bool,
+) -> dict[str, Any]:
+    """Perform fresh system activation and retain every completed evidence boundary."""
+    require_fixture_or_root(Path("/"), authorize_system_root)
+    contract = load_json(contract_path)
+    package = load_json(package_path)
+    validate_contract(contract)
+    if evidence_directory != Path("/opt/laplace/receipts/plans") / package.get(
+        "package_id", "invalid"
+    ):
+        raise ClusterError("system activation evidence directory must be package-addressed")
+    evidence_directory.mkdir(parents=True, exist_ok=True, mode=0o750)
+    ownership = qualify_package_ownership(package, contract)
+    write_evidence_document(evidence_directory, "package-ownership", ownership)
+
+    collision = inspect_collisions(contract, Path("/"))
+    validate_collision_observation(collision, contract)
+    collision_path = write_evidence_document(
+        evidence_directory, "collision-observation", collision
+    )
+    plan = build_plan(
+        contract_path,
+        package_path,
+        resource_path,
+        collision_path,
+        Path("/"),
+    )
+    plan_path = write_evidence_document(evidence_directory, "cluster-plan", plan)
+    staged = apply_plan(plan, contract, Path("/"), authorize_system_root)
+    write_evidence_document(evidence_directory, "activation-staged", staged)
+    command_receipts: list[dict[str, Any]] = []
+
+    def record(stem: str, document: dict[str, Any]) -> None:
+        write_evidence_document(evidence_directory, stem, document)
+
+    try:
+        activated = execute_cluster_activation(
+            plan,
+            contract,
+            staged,
+            Path("/"),
+            authorize_system_root,
+            command_receipts,
+            recorder=record,
+        )
+    except BaseException as error:
+        failure = {
+            "schema": ACTIVATION_SCHEMA,
+            "phase": "failed",
+            "package_id": package["package_id"],
+            "plan_sha256": plan["plan_sha256"],
+            "plan_path": str(plan_path),
+            "error_type": type(error).__name__,
+            "error": str(error),
+            "command_receipts": command_receipts,
+            "active_pointer_committed": False,
+            "state_preserved": True,
+        }
+        failure["activation_receipt_sha256"] = state_observation_identity(failure)
+        write_evidence_document(evidence_directory, "activation-failed", failure)
+        raise
+    activated["ownership_receipt_sha256"] = ownership["receipt_sha256"]
+    activated["collision_observation_sha256"] = collision["observation_sha256"]
+    activated["cluster_plan_path"] = str(plan_path)
+    activated.pop("activation_receipt_sha256", None)
+    activated["activation_receipt_sha256"] = state_observation_identity(activated)
+    write_evidence_document(evidence_directory, "activation-complete", activated)
+    return activated
+
+
 def verify_loaded(
     plan: dict[str, Any], contract: dict[str, Any], observation: dict[str, Any]
 ) -> None:
@@ -1086,6 +2018,31 @@ def verify_loaded(
     system_identifier = str(observation.get("system_identifier", ""))
     if not system_identifier.isdecimal() or int(system_identifier) <= 0:
         raise ClusterError("loaded observation omits a valid positive system identifier")
+    if observation.get("service_state") not in {None, "active"}:
+        raise ClusterError("loaded observation does not describe an active service")
+    for field in ("postmaster_pid", "backend_pid"):
+        value = observation.get(field)
+        if value is not None and (not isinstance(value, int) or value <= 0):
+            raise ClusterError(f"loaded observation has an invalid {field}")
+    if observation.get("source") == "laplace_postgresql_loaded_probe":
+        if observation.get("service_state") != "active":
+            raise ClusterError("live loaded observation requires an active service")
+        if not all(
+            isinstance(observation.get(field), int) and observation[field] > 0
+            for field in ("postmaster_pid", "backend_pid")
+        ):
+            raise ClusterError("live loaded observation requires postmaster and backend PIDs")
+        if observation["postmaster_pid"] == observation["backend_pid"]:
+            raise ClusterError("live loaded observation collapsed postmaster and backend identity")
+        if HEX_256.fullmatch(str(observation.get("probe_sql_sha256", ""))) is None:
+            raise ClusterError("live loaded observation omits the exact probe program")
+        service_observation = observation.get("service_observation")
+        if (
+            not isinstance(service_observation, dict)
+            or service_observation.get("exit_code") != 0
+            or service_observation.get("label") != "observe-candidate-service"
+        ):
+            raise ClusterError("live loaded observation omits its service-state receipt")
     objects = observation.get("loaded_objects")
     if not isinstance(objects, list):
         raise ClusterError("loaded object observation is required")
@@ -1229,6 +2186,18 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     plan.add_argument("--collision-observation", required=True)
     plan.add_argument("--package-physical-root")
     plan.add_argument("--output", default="-")
+    install = subparsers.add_parser("install-package")
+    install.add_argument("--contract", required=True)
+    install.add_argument("--package-manifest", required=True)
+    install.add_argument("--package-physical-root", required=True)
+    install.add_argument("--root", required=True)
+    install.add_argument("--receipt", default="-")
+    install.add_argument("--authorize-system-root", action="store_true")
+    observe = subparsers.add_parser("observe-resources")
+    observe.add_argument("--contract", required=True)
+    observe.add_argument("--package-manifest", required=True)
+    observe.add_argument("--package-physical-root", required=True)
+    observe.add_argument("--output", default="-")
     inspect = subparsers.add_parser("inspect-collisions")
     inspect.add_argument("--contract", required=True)
     inspect.add_argument("--root", default="/")
@@ -1251,6 +2220,17 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     verify.add_argument("--plan", required=True)
     verify.add_argument("--contract", required=True)
     verify.add_argument("--loaded-observation", required=True)
+    loaded = subparsers.add_parser("observe-loaded")
+    loaded.add_argument("--plan", required=True)
+    loaded.add_argument("--contract", required=True)
+    loaded.add_argument("--output", default="-")
+    activate = subparsers.add_parser("activate-product")
+    activate.add_argument("--contract", required=True)
+    activate.add_argument("--package-manifest", required=True)
+    activate.add_argument("--resource-observation", required=True)
+    activate.add_argument("--evidence-directory", required=True)
+    activate.add_argument("--output", default="-")
+    activate.add_argument("--authorize-system-root", action="store_true")
     remove = subparsers.add_parser("remove")
     remove.add_argument("--plan", required=True)
     remove.add_argument("--contract", required=True)
@@ -1272,6 +2252,24 @@ def main(argv: Sequence[str]) -> int:
             Path(arguments.resource_observation),
             Path(arguments.collision_observation),
             physical,
+        )
+        write_json(Path(arguments.output), result)
+        return 0
+    if arguments.command == "install-package":
+        result = install_package(
+            load_json(Path(arguments.package_manifest)),
+            load_json(Path(arguments.contract)),
+            Path(arguments.package_physical_root),
+            Path(arguments.root),
+            arguments.authorize_system_root,
+        )
+        write_json(Path(arguments.receipt), result)
+        return 0
+    if arguments.command == "observe-resources":
+        result = observe_resources(
+            Path(arguments.contract),
+            Path(arguments.package_manifest),
+            Path(arguments.package_physical_root),
         )
         write_json(Path(arguments.output), result)
         return 0
@@ -1308,6 +2306,24 @@ def main(argv: Sequence[str]) -> int:
             load_json(Path(arguments.loaded_observation)),
         )
         print("loaded PostgreSQL objects and configuration match the activation plan")
+        return 0
+    if arguments.command == "observe-loaded":
+        result = observe_loaded_live(
+            load_json(Path(arguments.plan)),
+            load_json(Path(arguments.contract)),
+            Path("/"),
+        )
+        write_json(Path(arguments.output), result)
+        return 0
+    if arguments.command == "activate-product":
+        result = activate_product(
+            Path(arguments.contract),
+            Path(arguments.package_manifest),
+            Path(arguments.resource_observation),
+            Path(arguments.evidence_directory),
+            arguments.authorize_system_root,
+        )
+        write_json(Path(arguments.output), result)
         return 0
     if arguments.command == "remove":
         result = remove_activation(

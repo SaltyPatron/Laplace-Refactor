@@ -149,7 +149,9 @@ BEGIN
                 ('laplace.trajectory_composition_decode_calculate_batch(laplace.execution_context,bytea[])', 'i', 's'),
                 ('laplace.trajectory_composition_decode_execute_batch(laplace.execution_context,bytea[])', 'v', 'u'),
                 ('laplace.canonical_deposit_batch(laplace.execution_context,bytea,bytea,bytea[])', 'v', 'u'),
-                ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint,integer)', 'v', 'u')
+                ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint,integer)', 'v', 'u'),
+                ('laplace.unicode_tier0_resolve_batch(bytea,bytea,integer[])', 's', 'u'),
+                ('laplace.unicode_identity_reverse_resolve_batch(bytea,bytea,bytea[],bytea[])', 's', 'u')
         ) AS expected(signature, volatility, parallel_safety)
         LEFT JOIN pg_catalog.pg_proc AS procedure
             ON procedure.oid = pg_catalog.to_regprocedure(expected.signature)
@@ -174,7 +176,9 @@ BEGIN
               'trajectory_composition_decode_calculate_batch',
               'trajectory_composition_decode_execute_batch',
               'canonical_deposit_batch',
-              'unicode_root_build_and_activate'
+              'unicode_root_build_and_activate',
+              'unicode_tier0_resolve_batch',
+              'unicode_identity_reverse_resolve_batch'
           )
           AND privilege.grantee = 0
           AND privilege.privilege_type = 'EXECUTE'

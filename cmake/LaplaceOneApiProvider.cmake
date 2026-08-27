@@ -66,6 +66,31 @@ function(laplace_configure_oneapi_provider)
         endif()
     endforeach()
 
+    set(oneapi_runtime_directories "")
+    foreach(runtime_variable IN ITEMS
+            LAPLACE_ONEAPI_INTEL_ONEAPI_RUNTIME_IMF_RUNTIME
+            LAPLACE_ONEAPI_INTEL_ONEAPI_RUNTIME_SVML_RUNTIME
+            LAPLACE_ONEAPI_INTEL_ONEAPI_RUNTIME_INTLC_RUNTIME
+            LAPLACE_ONEAPI_INTEL_ONEAPI_RUNTIME_IRC_RUNTIME
+            LAPLACE_ONEAPI_INTEL_ONEAPI_RUNTIME_IRNG_RUNTIME
+            LAPLACE_ONEAPI_INTEL_ONEAPI_RUNTIME_OPENMP_RUNTIME
+            LAPLACE_ONEAPI_ONETBB_TBB_RUNTIME
+            LAPLACE_ONEAPI_ONETBB_TBBMALLOC_RUNTIME
+            LAPLACE_ONEAPI_ONETBB_TBBBIND_2_5_RUNTIME
+            LAPLACE_ONEAPI_ONEMKL_MKL_RUNTIME
+            LAPLACE_ONEAPI_ONEMKL_MKL_CORE_RUNTIME
+            LAPLACE_ONEAPI_ONEMKL_MKL_LP64_RUNTIME
+            LAPLACE_ONEAPI_ONEMKL_MKL_SEQUENTIAL_RUNTIME
+            LAPLACE_ONEAPI_ONEMKL_MKL_TBB_THREAD_RUNTIME
+            LAPLACE_ONEAPI_ONEMKL_MKL_VML_AVX2_RUNTIME)
+        get_filename_component(
+            runtime_directory "${${runtime_variable}}" DIRECTORY)
+        list(APPEND oneapi_runtime_directories "${runtime_directory}")
+    endforeach()
+    list(REMOVE_DUPLICATES oneapi_runtime_directories)
+    set(LAPLACE_ONEAPI_RUNTIME_DIRECTORIES
+        "${oneapi_runtime_directories}" PARENT_SCOPE)
+
     laplace_oneapi_import_shared(
         LaplaceOneApiIntelImf
         "${LAPLACE_ONEAPI_INTEL_ONEAPI_RUNTIME_IMF_RUNTIME}"

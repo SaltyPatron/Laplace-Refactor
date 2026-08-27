@@ -4,16 +4,52 @@
   "acceptance_status": "contributing evidence only",
   "tests": [
     {
+      "ctest_name": "dependencies.locked-git-acquisition-contract",
+      "evidence_targets": ["LP-TEST-DEPENDENCY-INTENT"],
+      "covered_dimensions": ["central exact Git acquisition", "bounded transient retry", "atomic destination publication"],
+      "defect_controls": ["first exact-revision fetch fails", "unknown dependency"]
+    },
+    {
+      "ctest_name": "dependencies.runtime-build-graph-contract",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-ELF-CLOSURE", "LP-TEST-DEPENDENCY-RELEASE-ASSETS", "LP-TEST-DEPENDENCY-INTENT"],
+      "covered_dimensions": ["input-addressed runtime build graph", "verified source generation", "source-built toolchain consumer manifest", "provider-specific upstream tests", "external staged package", "fail-closed activation"],
+      "defect_controls": ["duplicate contract key", "ambient compiler and loader state", "unknown provider", "dependency-order inversion", "provider-test mismatch", "compile-only LZ4", "compiler digest mismatch", "missing packaged build tool", "compiler driver bypasses packaged linker", "non-PIE executable", "executable COPY relocation", "toolchain promoted to product runtime", "release-generation mismatch", "repository-local output", "unproved closure"]
+    },
+    {
+      "ctest_name": "toolchain-build.contract-and-mutation",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-RELEASE-ASSETS"],
+      "covered_dimensions": ["source-built dependency order", "input-addressed out-of-repository build", "all upstream suites in the selected configuration", "typed optional-provider exclusion", "DejaGNU outcome adjudication", "ambient tool and loader rejection", "exact installed tool paths and hashes", "compiler driver trace", "linker map and static inputs", "build-toolchain-only consumer manifest"],
+      "defect_controls": ["changed build driver bytes", "missing upstream suite", "unexpected DejaGNU result after successful command", "SOURCE_DATE_EPOCH leaked into binutils tests", "ambient optional Clang activation", "unselected gprofng packaging", "ambient tool or loader state", "repository-local output", "tool path escape", "changed installed tool bytes", "missing linker inputs", "product-runtime activation claim"]
+    },
+    {
       "ctest_name": "postgresql-build.contract-and-mutation",
       "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE"],
       "covered_dimensions": ["exact PostgreSQL build recipe", "private build home and directory", "ambient environment rejection", "TAP-test requirement", "runtime closure classification"],
-      "defect_controls": ["changed build driver bytes", "missing TAP support", "ambient PGXS", "inherited setgid build directory", "repository-local output", "unknown runtime SONAME"]
+      "defect_controls": ["changed build driver bytes", "missing TAP support", "ambient system tzdata", "ambient PGXS", "inherited setgid build directory", "repository-local output", "unknown runtime SONAME"]
+    },
+    {
+      "ctest_name": "postgresql-host-provider.contract-and-mutation",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-INTENT"],
+      "covered_dimensions": ["content-addressed host build-provider trees", "exact selected host file bytes", "receipt identity replay", "duplicate-key rejection"],
+      "defect_controls": ["mutated provider tree", "changed receipt scope", "duplicate JSON receipt key"]
     },
     {
       "ctest_name": "postgresql-cluster.activation-contract",
       "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
       "covered_dimensions": ["isolated PostgreSQL 18.6 instance contract", "immutable package and loaded-object identity", "peer-only runtime authentication", "topology-bounded PostgreSQL settings", "fixture plan stage commit remove lifecycle", "state-preserving rollback"],
       "defect_controls": ["trust authentication", "occupied service port socket path or matching process", "runner-to-administrator peer mapping", "ambient loader environment", "resource grant outside declared policy", "non-package pg_config", "package or loaded-object digest mismatch", "invalid cluster system identity", "removal of operator-modified generated state"]
+    },
+    {
+      "ctest_name": "unicode-product.activation-contract",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-IDENTITY-CROSS-ROUTE"],
+      "covered_dimensions": ["exact 33-file Unicode source preflight", "native domain-separated activation identity", "one transactional sibling-sink product activation", "exact database and artifact counts", "durable epoch CAS", "product restart", "cold public Tier-0 readback", "exact reverse inversion", "content-addressed activation receipt"],
+      "defect_controls": ["one changed source byte", "partial preexisting root", "activation identity domain collapse", "multiple native root calls", "reverse readback mutation", "unchanged postmaster", "artifact drift across restart"]
+    },
+    {
+      "ctest_name": "product-package.contract-and-mutation",
+      "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-ELF-CLOSURE", "LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
+      "covered_dimensions": ["exact PostgreSQL and Laplace product overlay", "required native execution providers", "recursive ELF closure", "immutable internal symlinks", "clean input-addressed construction", "activation eligibility", "installed native resource observation", "Unicode activation identity provider"],
+      "defect_controls": ["removed activation gate", "widened PostgreSQL version", "omitted oneAPI provider family", "missing oneTBB hwloc dependency", "changed runtime bytes", "escaped or broken symlink", "dirty repository", "external runtime edge", "omitted native resource observer", "omitted Unicode activation identity provider"]
     },
     {
       "ctest_name": "FrameworkRegistry.GeneratedDescriptorsMatchIsaContract",
@@ -1541,13 +1577,20 @@
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-BOUNDED-CROSSINGS"],
       "covered_dimensions": ["one 2230150-frame canonical stream feeding PostgreSQL and Tier-0 sibling sinks", "1114112 normalized entity physicality atom and DUCET rows", "set-oriented bounded SPI plans", "canonical transport excluded from normalized storage", "normalized heap bounded to 110 percent of packed transport", "exact SQL plan manifest", "ordered executed plan sequence", "set-wise durable effect cardinalities", "cross-sink artifact receipts", "transaction-deferred coherent activation", "indexed atom lookup"],
-      "defect_controls": ["postgres.mutation-unicode-plan-substitution-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
+      "defect_controls": ["postgres.mutation-unicode-plan-substitution-detected", "postgres.mutation-unicode-access-expected-epoch-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
     },
     {
       "ctest_name": "postgres.mutation-unicode-plan-substitution-detected",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-BOUNDED-CROSSINGS"],
       "covered_dimensions": ["one substituted SQL plan changes the exact plan manifest"],
+      "controls": "postgres.unicode-root-persistence-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-unicode-access-expected-epoch-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["public Unicode Tier-0 and reverse access cannot bypass the caller expected epoch"],
       "controls": "postgres.unicode-root-persistence-contract"
     },
     {

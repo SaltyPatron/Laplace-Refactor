@@ -1,0 +1,155 @@
+{
+  "schema": "laplace.postgresql-runtime-build/v2",
+  "release_lock": "dependencies/release-lock.json",
+  "compiler": {
+    "c_compiler": {
+      "path": "/opt/intel/oneapi/compiler/2026.1/bin/icx",
+      "sha256": "be7fa7c3c74c2ba2b8e1b50b0a61e37986441727899e25f3545636bde157c083"
+    },
+    "cxx_compiler": {
+      "path": "/opt/intel/oneapi/compiler/2026.1/bin/icpx",
+      "sha256": "be7fa7c3c74c2ba2b8e1b50b0a61e37986441727899e25f3545636bde157c083"
+    }
+  },
+  "build_toolchain": {
+    "receipt_schema": "laplace.toolchain-package-receipt/v1",
+    "consumer_manifest_schema": "laplace.toolchain-consumer-manifest/v1",
+    "required_tools": ["cmake", "ctest", "cpack", "ninja", "make", "perl", "pkgconf", "bison", "flex", "ld", "as", "ar", "ranlib", "nm", "strip", "objcopy", "objdump", "readelf"]
+  },
+  "execution": {
+    "jobs": 6,
+    "source_date_epoch": "1787616000",
+    "target_isa": "broadwell",
+    "c_flags": ["-O3", "-g", "-march=broadwell", "-fPIE", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
+    "cxx_flags": ["-O3", "-g", "-march=broadwell", "-fPIE", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
+    "link_flags": ["-pie", "-Wl,-z,noexecstack"],
+    "install_runpath": "$ORIGIN/../lib",
+    "make_runpath_encoding": "backslash-escaped-dollar-through-make-and-shell",
+    "generated_command_runpath_policy": "normalize-escaped-dollar-before-second-shell",
+    "autotools_libtool_runpath_policy": "disable-generated-hardcoding-with-declared-test-loader-path",
+    "source_path_policy": {
+      "build_root_mapping": ".",
+      "absolute_build_root_in_file_macro": "forbidden",
+      "absolute_build_root_in_debug_info": "forbidden"
+    },
+    "executable_elf": {
+      "position_independent": true,
+      "copy_relocations": "forbidden",
+      "executable_stack": "forbidden-for-every-elf"
+    },
+    "install_prefix": "/opt/laplace/current",
+    "build_root": "/opt/laplace/build",
+    "stage_root": "/opt/laplace/stage",
+    "rejected_environment": ["CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH", "CMAKE_PREFIX_PATH", "PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "DESTDIR"]
+  },
+  "input_closure": {
+    "status": "incomplete",
+    "unresolved": [
+      "platform ABI, glibc startup objects, GCC support tree, libgcc, and libstdc++ remain host inputs",
+      "linker maps and selected static-archive member provenance remain unreceipted",
+      "Python and the acquisition runtime remain unselected bootstrap inputs"
+    ],
+    "activation_policy": "blocked-until-complete-toolchain-static-link-and-recursive-runtime-closure"
+  },
+  "runtime_provider_qualification": {
+    "receipt_schema": "laplace.runtime-provider-qualification/v1",
+    "required_before_product_activation": true,
+    "components": ["liburing"],
+    "policy": "a package build may record an exact host-coupled upstream test outcome, but product activation requires a separate accepted receipt from the selected runtime provider"
+  },
+  "components": [
+    {
+      "id": "zlib",
+      "source": "zlib",
+      "provider": "cmake",
+      "languages": ["C"],
+      "source_subdirectory": ".",
+      "required_source_paths": ["CMakeLists.txt"],
+      "depends_on": [],
+      "configure_arguments": ["-DZLIB_BUILD_SHARED=ON", "-DZLIB_BUILD_STATIC=OFF", "-DZLIB_BUILD_TESTING=ON", "-DZLIB_INSTALL=ON"],
+      "test": "ctest"
+    },
+    {
+      "id": "lz4",
+      "source": "lz4",
+      "provider": "cmake",
+      "languages": ["C"],
+      "source_subdirectory": "build/cmake",
+      "required_source_paths": ["Makefile", "build/cmake/CMakeLists.txt"],
+      "depends_on": [],
+      "configure_arguments": ["-Wno-deprecated", "-DBUILD_SHARED_LIBS=ON", "-DBUILD_STATIC_LIBS=OFF", "-DLZ4_BUILD_CLI=OFF"],
+      "test": "source-copy-make-check"
+    },
+    {
+      "id": "zstandard",
+      "source": "zstandard",
+      "provider": "cmake",
+      "languages": ["C", "CXX", "ASM"],
+      "source_subdirectory": "build/cmake",
+      "required_source_paths": ["Makefile", "build/cmake/CMakeLists.txt", "tests/Makefile"],
+      "depends_on": [],
+      "configure_arguments": ["-DBUILD_SHARED_LIBS=ON", "-DBUILD_TESTING=ON", "-DZSTD_BUILD_SHARED=ON", "-DZSTD_BUILD_STATIC=ON", "-DZSTD_BUILD_PROGRAMS=OFF", "-DZSTD_BUILD_TESTS=ON", "-DZSTD_LEGACY_SUPPORT=OFF", "-DZSTD_MULTITHREAD_SUPPORT=ON"],
+      "test": "ctest"
+    },
+    {
+      "id": "icu",
+      "source": "icu",
+      "provider": "autotools",
+      "languages": ["C", "CXX"],
+      "source_subdirectory": "source",
+      "required_source_paths": ["source/configure", "source/Makefile.in"],
+      "depends_on": [],
+      "configure_arguments": ["--enable-shared", "--disable-static", "--disable-samples", "--with-data-packaging=library"],
+      "generated_command_runpath": {
+        "interface": "icu-pkgdata-makefile",
+        "makefiles": ["config/pkgdataMakefile", "data/pkgdataMakefile", "extra/uconv/pkgdataMakefile", "test/testdata/pkgdataMakefile"]
+      },
+      "test": "make-check"
+    },
+    {
+      "id": "openssl",
+      "source": "openssl",
+      "provider": "openssl",
+      "languages": ["C", "ASM"],
+      "source_subdirectory": ".",
+      "required_source_paths": ["Configure", "build.info", "test/build.info"],
+      "depends_on": [],
+      "configure_arguments": ["linux-x86_64", "shared", "no-docs"],
+      "test": "make-test"
+    },
+    {
+      "id": "liburing",
+      "source": "liburing",
+      "provider": "source-copy-make",
+      "languages": ["C"],
+      "source_subdirectory": ".",
+      "required_source_paths": ["configure", "Makefile", "test/Makefile"],
+      "depends_on": [],
+      "configure_arguments": ["--use-libc"],
+      "test": "make-runtests",
+      "test_policy": {
+        "scope": "upstream-userspace-library-and-live-kernel-regression",
+        "package_gate": "record-exact-outcome-and-continue",
+        "product_activation_gate": "separate-selected-runtime-provider-qualification",
+        "provider_dimensions": ["kernel_sysname", "kernel_release", "kernel_version", "machine", "io_uring_disabled"],
+        "source_evidence": {
+          "path": "README",
+          "sha256": "1bb130b0d32f1c3f8430c7b4c5c052cc931621a3e8eec2f484310b9892e7944f",
+          "meaning": "the selected upstream states that this regression suite exercises kernel io_uring support and is not expected to pass on older kernels"
+        }
+      }
+    },
+    {
+      "id": "libxml2",
+      "source": "libxml2",
+      "provider": "autotools",
+      "languages": ["C"],
+      "source_subdirectory": ".",
+      "required_source_paths": ["configure", "Makefile.in", "runtest.c", "runsuite.c"],
+      "depends_on": ["zlib"],
+      "configure_arguments": ["--enable-shared", "--disable-static", "--without-docs", "--without-iconv", "--without-icu", "--without-legacy", "--without-modules", "--without-python", "--without-readline", "--with-zlib"],
+      "test_loader_paths": [".libs"],
+      "test": "make-check"
+    }
+  ]
+}
