@@ -29,6 +29,17 @@ CONTRACT_SCHEMA = "laplace.postgresql-build-contract/v2"
 PLAN_SCHEMA = "laplace.postgresql-build-plan/v2"
 PACKAGE_SCHEMA = "laplace.postgresql-package-receipt/v2"
 NEEDED_PATTERN = re.compile(r"Shared library: \[([^]]+)\]")
+EXPECTED_PERL_MODULES = {
+    "IO::Pty": "1.31",
+    "IO::Tty": "1.31",
+    "IPC::Run": "20260402.0",
+}
+EXPECTED_RUNTIME_BUILD_EXECUTABLES = {
+    "openssl": {
+        "relative_path": "bin/openssl",
+        "version_line": "OpenSSL 4.0.1 9 Jun 2026 (Library: OpenSSL 4.0.1 9 Jun 2026)",
+    }
+}
 
 
 class BuildError(RuntimeError):
@@ -165,6 +176,8 @@ def validate_contract(document: dict[str, Any]) -> None:
     require_string_array(
         build_toolchain.get("required_tools"), "build_toolchain.required_tools"
     )
+    if build_toolchain.get("required_perl_modules") != EXPECTED_PERL_MODULES:
+        raise BuildError("build_toolchain.required_perl_modules must remain exact")
     if runtime_package.get("receipt_schema") != "laplace.postgresql-runtime-package/v2":
         raise BuildError("runtime_package.receipt_schema is invalid")
     if runtime_package.get("install_prefix") != "/opt/laplace/current":
@@ -182,6 +195,11 @@ def validate_contract(document: dict[str, Any]) -> None:
     )
     if not set(required_qualifications).issubset(required_runtime_components):
         raise BuildError("runtime provider qualification names an unknown component")
+    if (
+        runtime_package.get("required_build_executables")
+        != EXPECTED_RUNTIME_BUILD_EXECUTABLES
+    ):
+        raise BuildError("runtime package build executable selection must remain exact")
     if input_closure.get("status") != "incomplete":
         raise BuildError("input_closure.status must remain incomplete until every build input is selected")
     selected_inputs = require_string_array(
@@ -423,6 +441,41 @@ def verify_runtime_receipt(
         raise BuildError("runtime package file count differs from its physical tree")
     if receipt.get("total_file_bytes") != tree["total_file_bytes"]:
         raise BuildError("runtime package byte count differs from its physical tree")
+    records = {
+        item.get("path"): item
+        for item in files
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    }
+    selected_executables: dict[str, dict[str, str]] = {}
+    for name, requirement in expected["required_build_executables"].items():
+        relative = requirement["relative_path"]
+        record = records.get(relative)
+        if not isinstance(record, dict) or record.get("kind") != "file":
+            raise BuildError(f"runtime package omits selected build executable: {name}")
+        executable = prefix / relative
+        if not executable.is_file() or not os.access(executable, os.X_OK):
+            raise BuildError(f"runtime build executable is not executable: {name}")
+        result = subprocess.run(
+            [str(executable), "version"],
+            text=True,
+            capture_output=True,
+            env={
+                "HOME": str(prefix),
+                "PATH": "/usr/bin:/bin",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+            },
+        )
+        version_line = (result.stdout + result.stderr).strip().splitlines()
+        if result.returncode != 0 or not version_line:
+            raise BuildError(f"runtime build executable probe failed: {name}")
+        if version_line[0] != requirement["version_line"]:
+            raise BuildError(f"runtime build executable version differs: {name}")
+        selected_executables[name] = {
+            "relative_path": relative,
+            "sha256": require_string(record.get("sha256"), f"{name}.sha256"),
+            "version_line": version_line[0],
+        }
     if receipt.get("activation_eligible") is not False:
         raise BuildError("runtime component package cannot claim product activation")
     for field in (
@@ -449,6 +502,7 @@ def verify_runtime_receipt(
             name: component_tests[name] for name in required_components
         },
         "runtime_provider_qualification": qualification,
+        "selected_build_executables": selected_executables,
         "plan_sha256": plan_sha256,
     }
 
@@ -606,6 +660,14 @@ def build_environment(
         if directory not in tool_directories:
             tool_directories.append(directory)
     staged_product = Path(plan["staged_product_prefix"])
+    openssl_receipt = plan["runtime_package"]["selected_build_executables"]["openssl"]
+    openssl = staged_product / openssl_receipt["relative_path"]
+    if (
+        not openssl.is_file()
+        or not os.access(openssl, os.X_OK)
+        or sha256_file(openssl) != openssl_receipt["sha256"]
+    ):
+        raise BuildError("composed staged OpenSSL executable differs from its receipt")
     build_root = Path(plan["build_directory"])
     mapping = contract["build"]["source_path_policy"]["build_root_mapping"]
     source_path_flags = [
@@ -627,7 +689,9 @@ def build_environment(
         "HOME": str(home_directory.resolve()),
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
-        "PATH": ":".join([*tool_directories, compiler_directory, "/usr/bin", "/bin"]),
+        "PATH": ":".join(
+            [str(openssl.parent), *tool_directories, compiler_directory, "/usr/bin", "/bin"]
+        ),
         "CC": contract["toolchain"]["c_compiler"],
         "CXX": contract["toolchain"]["cxx_compiler"],
         "CFLAGS": " ".join(
@@ -657,6 +721,8 @@ def build_environment(
         "PKG_CONFIG_SYSROOT_DIR": str(Path(plan["stage_directory"]) / "root"),
         "MAKE": tools["make"]["path"],
         "PERL": tools["perl"]["path"],
+        "PROVE": tools["prove"]["path"],
+        "OPENSSL": str(openssl),
         "BISON": tools["bison"]["path"],
         "FLEX": tools["flex"]["path"],
         "AR": tools["ar"]["path"],
@@ -669,6 +735,98 @@ def build_environment(
         "OBJDUMP": tools["objdump"]["path"],
         "PYTHON": contract["build"]["python"],
     }
+
+
+def verify_build_input_execution(
+    plan: dict[str, Any], environment: Mapping[str, str]
+) -> dict[str, Any]:
+    perl = Path(plan["build_toolchain"]["tools"]["perl"]["path"])
+    modules = plan["build_toolchain"]["perl_modules"]
+    module_receipts: dict[str, dict[str, str]] = {}
+    for name, expected_version in EXPECTED_PERL_MODULES.items():
+        selected = modules.get(name)
+        if not isinstance(selected, dict) or selected.get("version") != expected_version:
+            raise BuildError(f"selected Perl module receipt differs: {name}")
+        program = (
+            "my $module = shift; "
+            "(my $file = $module) =~ s!::!/!g; $file .= '.pm'; "
+            "require $file; "
+            "no strict 'refs'; "
+            "print ${$module . '::VERSION'}, qq{\\n}, $INC{$file}, qq{\\n};"
+        )
+        result = subprocess.run(
+            [str(perl), "-e", program, name],
+            text=True,
+            capture_output=True,
+            env=dict(environment),
+        )
+        lines = result.stdout.strip().splitlines()
+        if result.returncode != 0 or len(lines) != 2:
+            raise BuildError(f"selected Perl module execution failed: {name}")
+        version, provider_value = lines
+        provider = Path(provider_value)
+        if version != expected_version or provider != Path(selected["path"]):
+            raise BuildError(f"selected Perl module execution identity differs: {name}")
+        if sha256_file(provider) != selected["sha256"]:
+            raise BuildError(f"selected Perl module execution bytes differ: {name}")
+        module_receipts[name] = {
+            "path": str(provider),
+            "sha256": selected["sha256"],
+            "version": version,
+        }
+
+    openssl = Path(environment["OPENSSL"])
+    selected_openssl = plan["runtime_package"]["selected_build_executables"]["openssl"]
+    result = subprocess.run(
+        [str(openssl), "version"],
+        text=True,
+        capture_output=True,
+        env=dict(environment),
+    )
+    lines = (result.stdout + result.stderr).strip().splitlines()
+    if result.returncode != 0 or not lines:
+        raise BuildError("selected staged OpenSSL execution failed")
+    if (
+        lines[0] != selected_openssl["version_line"]
+        or sha256_file(openssl) != selected_openssl["sha256"]
+    ):
+        raise BuildError("selected staged OpenSSL execution identity differs")
+    return {
+        "schema": "laplace.postgresql-build-input-preflight/v1",
+        "perl": {
+            "path": str(perl),
+            "sha256": plan["build_toolchain"]["tools"]["perl"]["sha256"],
+            "modules": module_receipts,
+        },
+        "openssl": {
+            "path": str(openssl),
+            "sha256": selected_openssl["sha256"],
+            "version_line": lines[0],
+        },
+    }
+
+
+def verify_configure_input_selection(
+    log_path: Path, environment: Mapping[str, str], preflight: Mapping[str, Any]
+) -> dict[str, str]:
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    expected = {
+        "openssl_path": f"checking for openssl... {environment['OPENSSL']}",
+        "openssl_version": (
+            "configure: using openssl: "
+            f"{preflight['openssl']['version_line']}"
+        ),
+        "tap_modules": "checking for Perl modules required for TAP tests... yes",
+    }
+    missing = [name for name, line in expected.items() if line not in text]
+    if missing:
+        raise BuildError(
+            "PostgreSQL configure did not retain exact selected inputs: "
+            + ", ".join(missing)
+        )
+    if "checking for openssl... /usr/bin/openssl" in text:
+        raise BuildError("PostgreSQL configure selected ambient OpenSSL")
+    return expected
 
 
 def run_logged(
@@ -790,7 +948,15 @@ def execute_plan(
     prefix = Path(plan["staged_product_prefix"])
     log_path = build_directory / "build.log"
     environment = build_environment(contract, plan, build_directory / ".home")
+    preflight = verify_build_input_execution(plan, environment)
+    preflight_path = build_directory / "build-input-preflight.json"
+    preflight_path.write_text(
+        json.dumps(preflight, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     run_logged(plan["configure_command"], build_directory, environment, log_path)
+    configure_input_selection = verify_configure_input_selection(
+        log_path, environment, preflight
+    )
     jobs = str(plan["parallel_jobs"])
     make = plan["build_toolchain"]["tools"]["make"]["path"]
     destination_root = Path(plan["stage_directory"]) / "root"
@@ -817,6 +983,9 @@ def execute_plan(
             "build_input_id": plan["build_input_id"],
             "build_plan_sha256": canonical_sha256(plan),
             "build_log_sha256": sha256_file(log_path),
+            "build_input_preflight": preflight,
+            "build_input_preflight_sha256": sha256_file(preflight_path),
+            "configure_input_selection": configure_input_selection,
             "completed_targets": list(plan["make_targets"]),
             "recipe": plan["recipe"],
             "runtime_package": plan["runtime_package"],

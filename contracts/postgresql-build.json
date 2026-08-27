@@ -19,6 +19,7 @@
     "required_tools": [
       "make",
       "perl",
+      "prove",
       "pkgconf",
       "bison",
       "flex",
@@ -31,7 +32,12 @@
       "objcopy",
       "objdump",
       "readelf"
-    ]
+    ],
+    "required_perl_modules": {
+      "IO::Pty": "1.31",
+      "IO::Tty": "1.31",
+      "IPC::Run": "20260402.0"
+    }
   },
   "runtime_package": {
     "receipt_schema": "laplace.postgresql-runtime-package/v2",
@@ -46,7 +52,13 @@
       "openssl",
       "liburing",
       "libxml2"
-    ]
+    ],
+    "required_build_executables": {
+      "openssl": {
+        "relative_path": "bin/openssl",
+        "version_line": "OpenSSL 4.0.1 9 Jun 2026 (Library: OpenSSL 4.0.1 9 Jun 2026)"
+      }
+    }
   },
   "input_closure": {
     "status": "incomplete",
@@ -55,7 +67,9 @@
       "Intel oneAPI C compiler executable",
       "Intel oneAPI C++ compiler executable",
       "receipted build toolchain package and consumer manifest",
+      "receipted IPC::Run IO::Pty and IO::Tty providers in the selected build toolchain package",
       "receipted PostgreSQL runtime development and library package",
+      "receipted staged OpenSSL command selected for PostgreSQL configure probes",
       "exact runtime component test dispositions and provider-qualification requirements",
       "configure arguments and C/C++/linker flags",
       "PostgreSQL bundled tzdata 2026c",
@@ -66,7 +80,6 @@
       "Python interpreter and standard library",
       "POSIX shell and configure-time host utilities",
       "compiler-selected platform ABI, startup objects, and support libraries",
-      "Perl modules outside the selected toolchain package",
       "selected kernel and runtime-provider qualification for PostgreSQL io_uring execution"
     ],
     "activation_policy": "blocked-until-all-build-and-runtime-inputs-are-selected-packaged-and-receipted"

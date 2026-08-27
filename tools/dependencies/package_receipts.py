@@ -112,12 +112,90 @@ def verify_toolchain_package_receipt(
         if not re.fullmatch(r"[0-9a-f]{64}", digest) or sha256_file(path) != digest:
             raise ReceiptError(f"toolchain tool digest mismatch: {name}")
         selected[name] = {"path": str(path), "sha256": digest, "version": version}
+    modules = manifest.get("perl_modules")
+    required_modules = expected.get("required_perl_modules")
+    if not isinstance(modules, dict) or not isinstance(required_modules, dict):
+        raise ReceiptError(
+            "toolchain Perl modules and required_perl_modules must be present"
+        )
+    if set(modules) != set(required_modules):
+        raise ReceiptError("toolchain consumer manifest Perl module set differs")
+    selected_modules: dict[str, dict[str, Any]] = {}
+    for name, required_version in required_modules.items():
+        if not isinstance(name, str) or not name or not isinstance(required_version, str):
+            raise ReceiptError("toolchain required Perl module declaration is invalid")
+        module = modules.get(name)
+        if not isinstance(module, dict):
+            raise ReceiptError(f"toolchain consumer manifest omits Perl module: {name}")
+        path = Path(require_string(module.get("path"), f"toolchain.perl_modules.{name}.path"))
+        digest = require_string(
+            module.get("sha256"), f"toolchain.perl_modules.{name}.sha256"
+        )
+        version = require_string(
+            module.get("version"), f"toolchain.perl_modules.{name}.version"
+        )
+        if version != required_version:
+            raise ReceiptError(f"toolchain Perl module version differs: {name}")
+        if not path.is_absolute() or not path_is_within(path, prefix):
+            raise ReceiptError(f"toolchain Perl module is outside its package prefix: {name}")
+        if not path.is_file() or path.is_symlink():
+            raise ReceiptError(f"toolchain Perl module provider is not a file: {name}")
+        if not re.fullmatch(r"[0-9a-f]{64}", digest) or sha256_file(path) != digest:
+            raise ReceiptError(f"toolchain Perl module digest mismatch: {name}")
+        native = module.get("native_providers")
+        if not isinstance(native, list):
+            raise ReceiptError(f"toolchain Perl module native provider list is invalid: {name}")
+        native_receipts: list[dict[str, str]] = []
+        for index, provider in enumerate(native):
+            if not isinstance(provider, dict):
+                raise ReceiptError(
+                    f"toolchain Perl module native provider is invalid: {name}[{index}]"
+                )
+            provider_path = Path(
+                require_string(
+                    provider.get("path"),
+                    f"toolchain.perl_modules.{name}.native_providers[{index}].path",
+                )
+            )
+            provider_digest = require_string(
+                provider.get("sha256"),
+                f"toolchain.perl_modules.{name}.native_providers[{index}].sha256",
+            )
+            if not provider_path.is_absolute() or not path_is_within(provider_path, prefix):
+                raise ReceiptError(
+                    f"toolchain Perl native provider is outside its package prefix: {name}"
+                )
+            if not provider_path.is_file() or provider_path.is_symlink():
+                raise ReceiptError(
+                    f"toolchain Perl native provider is not a file: {name}"
+                )
+            if (
+                not re.fullmatch(r"[0-9a-f]{64}", provider_digest)
+                or sha256_file(provider_path) != provider_digest
+            ):
+                raise ReceiptError(
+                    f"toolchain Perl native provider digest mismatch: {name}"
+                )
+            native_receipts.append(
+                {"path": str(provider_path), "sha256": provider_digest}
+            )
+        selected_modules[name] = {
+            "path": str(path),
+            "sha256": digest,
+            "version": version,
+            "native_providers": native_receipts,
+            "source_component": require_string(
+                module.get("source_component"),
+                f"toolchain.perl_modules.{name}.source_component",
+            ),
+        }
     return {
         "receipt_path": str(receipt_path.resolve()),
         "receipt_sha256": sha256_file(receipt_path),
         "build_input_id": build_input_id,
         "prefix": str(prefix),
         "tools": selected,
+        "perl_modules": selected_modules,
     }
 
 

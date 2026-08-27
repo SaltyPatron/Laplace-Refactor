@@ -38,6 +38,37 @@ class PostgreSQLBuildTests(unittest.TestCase):
         binary.chmod(0o755)
         digest = BUILD.sha256_file(binary)
         contract = self.contract()
+        module_root = prefix / "lib/perl5/site_perl/5.44.0"
+        module_paths = {
+            "IO::Pty": module_root / "IO/Pty.pm",
+            "IO::Tty": module_root / "IO/Tty.pm",
+            "IPC::Run": module_root / "IPC/Run.pm",
+        }
+        for name, path in module_paths.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"fixture {name}\n", encoding="utf-8")
+        native = module_root / "x86_64-linux/auto/IO/Tty/Tty.so"
+        native.parent.mkdir(parents=True)
+        native.write_bytes(b"fixture native provider\n")
+        perl_modules = {
+            name: {
+                "path": str(path),
+                "sha256": BUILD.sha256_file(path),
+                "version": version,
+                "native_providers": (
+                    [{"path": str(native), "sha256": BUILD.sha256_file(native)}]
+                    if name in ("IO::Pty", "IO::Tty")
+                    else []
+                ),
+                "source_component": (
+                    "io-tty" if name in ("IO::Pty", "IO::Tty") else "ipc-run"
+                ),
+            }
+            for name, (path, version) in {
+                name: (path, contract["build_toolchain"]["required_perl_modules"][name])
+                for name, path in module_paths.items()
+            }.items()
+        }
         receipt = {
             "schema": contract["build_toolchain"]["receipt_schema"],
             "build_input_id": "3" * 64,
@@ -54,6 +85,7 @@ class PostgreSQLBuildTests(unittest.TestCase):
                     }
                     for name in contract["build_toolchain"]["required_tools"]
                 },
+                "perl_modules": perl_modules,
             },
             "activation": {
                 "scope": "build-toolchain-only",
@@ -66,11 +98,37 @@ class PostgreSQLBuildTests(unittest.TestCase):
 
     def runtime_receipt(self, root: Path) -> Path:
         prefix = root / "runtime"
+        binary_directory = prefix / "bin"
+        binary_directory.mkdir(parents=True)
+        openssl = binary_directory / "openssl"
+        openssl.write_text(
+            "#!/bin/sh\nprintf '%s\\n' 'OpenSSL 4.0.1 9 Jun 2026 (Library: OpenSSL 4.0.1 9 Jun 2026)'\n",
+            encoding="utf-8",
+        )
+        openssl.chmod(0o755)
         library_directory = prefix / "lib"
         library_directory.mkdir(parents=True)
         library = library_directory / "libfixture.so"
         library.write_bytes(b"runtime bytes\n")
         records = [
+            {
+                "path": "bin",
+                "kind": "directory",
+                "mode": f"{stat.S_IMODE(binary_directory.stat().st_mode):04o}",
+                "size": 0,
+                "sha256": None,
+                "target": None,
+                "elf": None,
+            },
+            {
+                "path": "bin/openssl",
+                "kind": "file",
+                "mode": f"{stat.S_IMODE(openssl.stat().st_mode):04o}",
+                "size": openssl.stat().st_size,
+                "sha256": BUILD.sha256_file(openssl),
+                "target": None,
+                "elf": None,
+            },
             {
                 "path": "lib",
                 "kind": "directory",
@@ -145,8 +203,8 @@ class PostgreSQLBuildTests(unittest.TestCase):
             "install_prefix": contract["runtime_package"]["install_prefix"],
             "staged_prefix": str(prefix),
             "tree_sha256": digest.hexdigest(),
-            "file_count": 1,
-            "total_file_bytes": library.stat().st_size,
+            "file_count": 2,
+            "total_file_bytes": library.stat().st_size + openssl.stat().st_size,
             "files": records,
             "component_checkpoints": checkpoints,
             "component_logs": {
@@ -195,6 +253,12 @@ class PostgreSQLBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.BuildError, "enable TAP"):
             BUILD.validate_contract(contract)
 
+    def test_tap_perl_module_selection_cannot_be_narrowed(self) -> None:
+        contract = self.contract()
+        contract["build_toolchain"]["required_perl_modules"].pop("IPC::Run")
+        with self.assertRaisesRegex(BUILD.BuildError, "required_perl_modules"):
+            BUILD.validate_contract(contract)
+
     def test_ambient_system_tzdata_is_rejected(self) -> None:
         contract = self.contract()
         contract["build"]["configure_arguments"].append(
@@ -231,9 +295,22 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 name: {"path": f"/toolchain/bin/{name}"}
                 for name in self.contract()["build_toolchain"]["required_tools"]
             }
+            product = root / "stage/root/opt/laplace/current"
+            openssl = product / "bin/openssl"
+            openssl.parent.mkdir(parents=True)
+            openssl.write_bytes(b"selected openssl\n")
+            openssl.chmod(0o755)
             plan = {
                 "build_toolchain": {"prefix": "/toolchain", "tools": tools},
-                "staged_product_prefix": str(root / "stage/root/opt/laplace/current"),
+                "runtime_package": {
+                    "selected_build_executables": {
+                        "openssl": {
+                            "relative_path": "bin/openssl",
+                            "sha256": BUILD.sha256_file(openssl),
+                        }
+                    }
+                },
+                "staged_product_prefix": str(product),
                 "stage_directory": str(root / "stage"),
                 "build_directory": str(root / "build/contains-41"),
             }
@@ -241,6 +318,8 @@ class PostgreSQLBuildTests(unittest.TestCase):
             self.assertEqual(environment["HOME"], str(home.resolve()))
             self.assertEqual(home.stat().st_mode & 0o7777, 0o700)
             self.assertEqual(environment["MAKE"], "/toolchain/bin/make")
+            self.assertEqual(environment["OPENSSL"], str(openssl))
+            self.assertEqual(environment["PATH"].split(":")[0], str(openssl.parent))
             self.assertNotIn("/usr/lib", environment["PKG_CONFIG_LIBDIR"])
             self.assertIn("-ffile-prefix-map=", environment["CFLAGS"])
             self.assertIn("$$ORIGIN", environment["LDFLAGS"])
@@ -349,6 +428,44 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 set(selected["tools"]),
                 set(self.contract()["build_toolchain"]["required_tools"]),
             )
+            self.assertEqual(
+                set(selected["perl_modules"]),
+                set(self.contract()["build_toolchain"]["required_perl_modules"]),
+            )
+
+    def test_toolchain_receipt_detects_perl_module_provider_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            receipt_path = self.toolchain_receipt(root)
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            provider = Path(receipt["consumer_manifest"]["perl_modules"]["IPC::Run"]["path"])
+            provider.write_text("mutated provider\n", encoding="utf-8")
+            with self.assertRaisesRegex(BUILD.BuildError, "Perl module digest mismatch"):
+                BUILD.verify_toolchain_receipt(self.contract(), receipt_path)
+
+    def test_configure_receipt_rejects_ambient_openssl_even_with_selected_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log = Path(temporary) / "configure.log"
+            selected = "/stage/opt/laplace/current/bin/openssl"
+            version = "OpenSSL 4.0.1 9 Jun 2026 (Library: OpenSSL 4.0.1 9 Jun 2026)"
+            log.write_text(
+                "\n".join(
+                    [
+                        f"checking for openssl... {selected}",
+                        f"configure: using openssl: {version}",
+                        "checking for Perl modules required for TAP tests... yes",
+                        "checking for openssl... /usr/bin/openssl",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BUILD.BuildError, "ambient OpenSSL"):
+                BUILD.verify_configure_input_selection(
+                    log,
+                    {"OPENSSL": selected},
+                    {"openssl": {"version_line": version}},
+                )
 
     def test_runtime_receipt_binds_complete_component_set_and_exact_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -356,11 +473,27 @@ class PostgreSQLBuildTests(unittest.TestCase):
             path = self.runtime_receipt(root)
             selected = BUILD.verify_runtime_receipt(self.contract(), path)
             self.assertEqual(selected["build_input_id"], "4" * 64)
+            self.assertEqual(
+                selected["selected_build_executables"]["openssl"]["version_line"],
+                "OpenSSL 4.0.1 9 Jun 2026 (Library: OpenSSL 4.0.1 9 Jun 2026)",
+            )
             receipt = json.loads(path.read_text(encoding="utf-8"))
             receipt["component_checkpoints"].pop("liburing")
             path.write_text(json.dumps(receipt), encoding="utf-8")
             with self.assertRaisesRegex(BUILD.BuildError, "evidence set"):
                 BUILD.verify_runtime_receipt(self.contract(), path)
+
+    def test_runtime_receipt_rejects_wrong_selected_openssl_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self.runtime_receipt(Path(temporary))
+            observed = mock.Mock(
+                returncode=0,
+                stdout="OpenSSL 3.0.2 15 Mar 2022 (Library: OpenSSL 3.0.2 15 Mar 2022)\n",
+                stderr="",
+            )
+            with mock.patch.object(BUILD.subprocess, "run", return_value=observed):
+                with self.assertRaisesRegex(BUILD.BuildError, "version differs"):
+                    BUILD.verify_runtime_receipt(self.contract(), path)
 
     def test_runtime_receipt_cannot_promote_deferred_provider_qualification(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -468,6 +601,10 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 BUILD, "prepare_build_directory", return_value=(build, {})
             ), mock.patch.object(
                 BUILD, "build_environment", return_value={}
+            ), mock.patch.object(
+                BUILD, "verify_build_input_execution", return_value={}
+            ), mock.patch.object(
+                BUILD, "verify_configure_input_selection", return_value={}
             ), mock.patch.object(
                 BUILD, "run_logged", side_effect=capture
             ), mock.patch.object(

@@ -12,7 +12,7 @@
   "activation": {
     "scope": "build-toolchain-only",
     "product_runtime_activation_eligible": false,
-    "consumer_contract": "selected-tool-paths-and-hashes"
+    "consumer_contract": "selected-tool-and-perl-module-paths-versions-and-hashes"
   },
   "environment": {
     "rejected_nonempty": [
@@ -98,6 +98,8 @@
     "directory_mode": "0700",
     "component_order": [
       "perl",
+      "io-tty",
+      "ipc-run",
       "texinfo",
       "gnu-make",
       "tcl",
@@ -129,7 +131,29 @@
         "build": ["{make}", "-j{jobs}"],
         "test": ["{make}", "test"],
         "install": ["{make}", "install"],
-        "tools": ["perl"]
+        "tools": ["perl", "prove"]
+      },
+      "io-tty": {
+        "version": "1.31",
+        "phase": "postgresql-tap-test-toolchain",
+        "source_mode": "private-copy-in-tree",
+        "configure": ["{perl}", "Makefile.PL", "PREFIX={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "test"],
+        "install": ["{make}", "install"],
+        "tools": [],
+        "perl_modules": ["IO::Pty", "IO::Tty"]
+      },
+      "ipc-run": {
+        "version": "20260402.0",
+        "phase": "postgresql-tap-test-toolchain",
+        "source_mode": "private-copy-in-tree",
+        "configure": ["{perl}", "Makefile.PL", "PREFIX={prefix}"],
+        "build": ["{make}", "-j{jobs}"],
+        "test": ["{make}", "test"],
+        "install": ["{make}", "install"],
+        "tools": [],
+        "perl_modules": ["IPC::Run"]
       },
       "texinfo": {
         "version": "7.3",
@@ -384,6 +408,7 @@
       "bootstrap_inputs",
       "component_steps",
       "installed_tools",
+      "installed_perl_modules",
       "compiler_driver_traces",
       "linker_map_inputs",
       "package_tree",

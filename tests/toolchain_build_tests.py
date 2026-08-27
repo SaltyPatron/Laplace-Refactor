@@ -46,6 +46,18 @@ class ToolchainBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.ToolchainError, "cmake.test"):
             BUILD.validate_contract(contract)
 
+    def test_postgresql_tap_perl_modules_cannot_be_omitted(self) -> None:
+        contract = self.contract()
+        contract["build"]["components"]["ipc-run"]["perl_modules"] = []
+        with self.assertRaisesRegex(BUILD.ToolchainError, "at least one tool or Perl module"):
+            BUILD.validate_contract(contract)
+
+    def test_postgresql_tap_perl_module_suite_cannot_be_narrowed(self) -> None:
+        contract = self.contract()
+        contract["build"]["components"]["io-tty"]["test"] = ["{make}", "test", "TEST_FILES=t/constants.t"]
+        with self.assertRaisesRegex(BUILD.ToolchainError, "complete selected suite"):
+            BUILD.validate_contract(contract)
+
     def test_upstream_test_command_cannot_be_narrowed(self) -> None:
         contract = self.contract()
         contract["build"]["components"]["gnu-binutils"]["test"].append(
@@ -758,11 +770,39 @@ class ToolchainBuildTests(unittest.TestCase):
                 "sha256": BUILD.sha256_file(path),
                 "version": "synthetic tool v1",
             }
+        perl = binary_directory / "perl"
+        perl.write_text(
+            "#!/usr/bin/python3\n"
+            "import json, os, pathlib, sys\n"
+            "module = sys.argv[-1]\n"
+            "versions = {'IO::Pty':'1.31','IO::Tty':'1.31','IPC::Run':'20260402.0'}\n"
+            "suffixes = {'IO::Pty':'IO/Pty.pm','IO::Tty':'IO/Tty.pm','IPC::Run':'IPC/Run.pm'}\n"
+            "prefix = pathlib.Path(os.path.abspath(sys.argv[0])).parent.parent\n"
+            "provider = next(p for p in prefix.rglob(pathlib.Path(suffixes[module]).name) if p.as_posix().endswith(suffixes[module]))\n"
+            "print(json.dumps({'module':module,'provider':str(provider),'version':versions[module]},sort_keys=True))\n",
+            encoding="utf-8",
+        )
+        perl.chmod(0o755)
+        tools["perl"] = {
+            "path": str(perl),
+            "sha256": BUILD.sha256_file(perl),
+            "version": "synthetic Perl v1",
+        }
+        site = prefix / "lib/perl5/site_perl/5.44.0"
+        for relative in ("IO/Pty.pm", "IO/Tty.pm", "IPC/Run.pm"):
+            provider = site / relative
+            provider.parent.mkdir(parents=True, exist_ok=True)
+            provider.write_text(f"synthetic {relative}\n", encoding="utf-8")
+        native = site / "x86_64-linux/auto/IO/Tty/Tty.so"
+        native.parent.mkdir(parents=True)
+        native.write_bytes(b"synthetic native provider\n")
+        perl_modules = BUILD.installed_perl_module_receipts(prefix)
         manifest = {
             "schema": BUILD.CONSUMER_SCHEMA,
             "build_input_id": "b" * 64,
             "prefix": str(prefix),
             "tools": tools,
+            "perl_modules": perl_modules,
             "activation": {
                 "scope": "build-toolchain-only",
                 "product_runtime_activation_eligible": False,
@@ -783,6 +823,26 @@ class ToolchainBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(BUILD.ToolchainError, "readelf"):
                 BUILD.verify_consumer_manifest(manifest, prefix)
 
+    def test_consumer_manifest_detects_selected_perl_module_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix, manifest = self.fake_package(Path(temporary))
+            BUILD.verify_consumer_manifest(manifest, prefix)
+            provider = Path(manifest["perl_modules"]["IPC::Run"]["path"])
+            provider.write_text("mutated IPC::Run provider\n", encoding="utf-8")
+            with self.assertRaisesRegex(BUILD.ToolchainError, "Perl module receipts differ"):
+                BUILD.verify_consumer_manifest(manifest, prefix)
+
+    def test_consumer_manifest_detects_selected_native_perl_provider_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix, manifest = self.fake_package(Path(temporary))
+            BUILD.verify_consumer_manifest(manifest, prefix)
+            provider = Path(
+                manifest["perl_modules"]["IO::Tty"]["native_providers"][0]["path"]
+            )
+            provider.write_bytes(b"mutated native provider\n")
+            with self.assertRaisesRegex(BUILD.ToolchainError, "Perl module receipts differ"):
+                BUILD.verify_consumer_manifest(manifest, prefix)
+
     def test_consumer_manifest_cannot_escape_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             prefix, manifest = self.fake_package(Path(temporary))
@@ -800,6 +860,12 @@ class ToolchainBuildTests(unittest.TestCase):
             for tool in manifest["tools"].values():
                 relative = Path(tool["path"]).relative_to(physical_prefix)
                 tool["path"] = str(logical_prefix / relative)
+            for module in manifest["perl_modules"].values():
+                relative = Path(module["path"]).relative_to(physical_prefix)
+                module["path"] = str(logical_prefix / relative)
+                for provider in module["native_providers"]:
+                    relative = Path(provider["path"]).relative_to(physical_prefix)
+                    provider["path"] = str(logical_prefix / relative)
             manifest_path = physical_prefix / "share/laplace/toolchain-manifest.json"
             manifest_path.write_text(
                 json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -808,6 +874,7 @@ class ToolchainBuildTests(unittest.TestCase):
                 "schema": BUILD.PACKAGE_SCHEMA,
                 "build_input_id": manifest["build_input_id"],
                 "package_tree": BUILD.package_tree(logical_prefix),
+                "installed_perl_modules": manifest["perl_modules"],
                 "compiler_driver_traces": {"c": {"trace": "present"}},
                 "linker_map_inputs": [{"path": "/static", "sha256": "a" * 64}],
                 "activation": {"product_runtime_activation_eligible": False},
@@ -841,6 +908,7 @@ class ToolchainBuildTests(unittest.TestCase):
                 "schema": BUILD.PACKAGE_SCHEMA,
                 "build_input_id": manifest["build_input_id"],
                 "package_tree": BUILD.package_tree(prefix),
+                "installed_perl_modules": manifest["perl_modules"],
                 "compiler_driver_traces": {},
                 "linker_map_inputs": [],
                 "activation": {"product_runtime_activation_eligible": False},
@@ -855,6 +923,7 @@ class ToolchainBuildTests(unittest.TestCase):
                 "schema": BUILD.PACKAGE_SCHEMA,
                 "build_input_id": manifest["build_input_id"],
                 "package_tree": BUILD.package_tree(prefix),
+                "installed_perl_modules": manifest["perl_modules"],
                 "compiler_driver_traces": {"c": {"trace": "present"}},
                 "linker_map_inputs": [{"path": "/static", "sha256": "a" * 64}],
                 "activation": {"product_runtime_activation_eligible": True},

@@ -24,6 +24,8 @@ PACKAGE_SCHEMA = "laplace.toolchain-package-receipt/v1"
 CONSUMER_SCHEMA = "laplace.toolchain-consumer-manifest/v1"
 EXPECTED_ORDER = [
     "perl",
+    "io-tty",
+    "ipc-run",
     "texinfo",
     "gnu-make",
     "tcl",
@@ -38,6 +40,8 @@ EXPECTED_ORDER = [
 ]
 EXPECTED_VERSIONS = {
     "perl": "5.44.0",
+    "io-tty": "1.31",
+    "ipc-run": "20260402.0",
     "texinfo": "7.3",
     "gnu-make": "4.4.1",
     "tcl": "8.6.18",
@@ -52,6 +56,8 @@ EXPECTED_VERSIONS = {
 }
 EXPECTED_TEST_COMMANDS = {
     "perl": ["{make}", "test"],
+    "io-tty": ["{make}", "test"],
+    "ipc-run": ["{make}", "test"],
     "texinfo": ["{make}", "-j{jobs}", "check"],
     "gnu-make": ["{make}", "-j{jobs}", "check"],
     "tcl": ["{make}", "-j{jobs}", "test"],
@@ -63,6 +69,26 @@ EXPECTED_TEST_COMMANDS = {
     "flex": ["{make}", "-j{jobs}", "check"],
     "cmake": ["{build}/bin/ctest", "--output-on-failure", "-j{jobs}"],
     "ninja": ["{ctest}", "--test-dir", "{build}", "--output-on-failure", "-j{jobs}"],
+}
+EXPECTED_PERL_MODULES = {
+    "IO::Pty": {
+        "version": "1.31",
+        "provider_suffix": "IO/Pty.pm",
+        "native_provider_suffixes": ["auto/IO/Tty/Tty.so"],
+        "source_component": "io-tty",
+    },
+    "IO::Tty": {
+        "version": "1.31",
+        "provider_suffix": "IO/Tty.pm",
+        "native_provider_suffixes": ["auto/IO/Tty/Tty.so"],
+        "source_component": "io-tty",
+    },
+    "IPC::Run": {
+        "version": "20260402.0",
+        "provider_suffix": "IPC/Run.pm",
+        "native_provider_suffixes": [],
+        "source_component": "ipc-run",
+    },
 }
 EXPECTED_CMAKE_TEST_CAPABILITY_CACHE = {
     "CMake_TEST_BOOTSTRAP": "ON",
@@ -119,6 +145,7 @@ REQUIRED_TOOL_IDS = {
     "objcopy",
     "objdump",
     "perl",
+    "prove",
     "pkgconf",
     "ranlib",
     "readelf",
@@ -253,6 +280,16 @@ def require_string(value: object, name: str) -> str:
 def require_string_array(value: object, name: str) -> list[str]:
     if not isinstance(value, list) or not value:
         raise ToolchainError(f"{name} must be a non-empty string array")
+    if any(not isinstance(item, str) or not item for item in value):
+        raise ToolchainError(f"{name} must contain only non-empty strings")
+    if len(set(value)) != len(value):
+        raise ToolchainError(f"{name} contains duplicates")
+    return value
+
+
+def require_optional_string_array(value: object, name: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ToolchainError(f"{name} must be a string array")
     if any(not isinstance(item, str) or not item for item in value):
         raise ToolchainError(f"{name} must contain only non-empty strings")
     if len(set(value)) != len(value):
@@ -400,8 +437,12 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
         raise ToolchainError("activation.scope must be build-toolchain-only")
     if activation.get("product_runtime_activation_eligible") is not False:
         raise ToolchainError("toolchain package can never claim product-runtime activation")
-    if activation.get("consumer_contract") != "selected-tool-paths-and-hashes":
-        raise ToolchainError("activation.consumer_contract must expose selected tool paths and hashes")
+    if activation.get("consumer_contract") != (
+        "selected-tool-and-perl-module-paths-versions-and-hashes"
+    ):
+        raise ToolchainError(
+            "activation.consumer_contract must expose selected tool and Perl module identities"
+        )
 
     environment = require_object(contract.get("environment"), "environment")
     rejected = require_string_array(
@@ -498,6 +539,7 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
     if set(components) != set(EXPECTED_ORDER):
         raise ToolchainError("build.components must exactly match component_order")
     declared_tools: set[str] = set()
+    declared_perl_modules: set[str] = set()
     for component_id in EXPECTED_ORDER:
         component = require_object(components[component_id], f"build.components.{component_id}")
         if component.get("version") != EXPECTED_VERSIONS[component_id]:
@@ -511,12 +553,30 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
             require_string_array(component.get(step), f"build.components.{component_id}.{step}")
         if component["test"] != EXPECTED_TEST_COMMANDS[component_id]:
             raise ToolchainError(f"{component_id}.test must execute the complete selected suite")
-        declared_tools.update(
-            require_string_array(component.get("tools"), f"build.components.{component_id}.tools")
+        tools = require_optional_string_array(
+            component.get("tools"), f"build.components.{component_id}.tools"
         )
+        perl_modules = require_optional_string_array(
+            component.get("perl_modules", []),
+            f"build.components.{component_id}.perl_modules",
+        )
+        if not tools and not perl_modules:
+            raise ToolchainError(
+                f"{component_id} must publish at least one tool or Perl module"
+            )
+        declared_tools.update(tools)
+        declared_perl_modules.update(perl_modules)
     missing_tools = sorted(REQUIRED_TOOL_IDS - declared_tools)
     if missing_tools:
         raise ToolchainError(f"toolchain consumer manifest is missing tools: {', '.join(missing_tools)}")
+    if declared_perl_modules != set(EXPECTED_PERL_MODULES):
+        raise ToolchainError("toolchain consumer manifest Perl module set is incomplete")
+    for module, expectation in EXPECTED_PERL_MODULES.items():
+        component_id = expectation["source_component"]
+        if module not in components[component_id].get("perl_modules", []):
+            raise ToolchainError(
+                f"Perl module {module} is not owned by {component_id}"
+            )
     perl_configure = components["perl"]["configure"]
     for closed_local_path in (
         "-Dlocincpth= ",
@@ -614,6 +674,7 @@ def validate_contract(contract: dict[str, Any], repository: Path | None = None) 
         "bootstrap_inputs",
         "component_steps",
         "installed_tools",
+        "installed_perl_modules",
         "compiler_driver_traces",
         "linker_map_inputs",
         "package_tree",
@@ -1136,6 +1197,7 @@ def format_command(
         "ar": bootstrap["ar"]["path"],
         "ranlib": bootstrap["ranlib"]["path"],
         "nm": bootstrap["nm"]["path"],
+        "perl": str(prefix / "bin/perl"),
     }
     return [argument.format(**replacements) for argument in template]
 
@@ -1580,6 +1642,108 @@ def installed_tool_receipts(contract: dict[str, Any], prefix: Path) -> dict[str,
     return dict(sorted(tools.items()))
 
 
+def perl_module_probe(prefix: Path, module: str) -> dict[str, str]:
+    perl = prefix / "bin/perl"
+    if not perl.is_file() or not os.access(perl, os.X_OK):
+        raise ToolchainError(f"selected Perl executable is unavailable: {perl}")
+    program = (
+        "use JSON::PP (); "
+        "my $module = shift; "
+        "(my $file = $module) =~ s!::!/!g; $file .= '.pm'; "
+        "require $file; "
+        "no strict 'refs'; "
+        "my $version = ${$module . '::VERSION'}; "
+        "print JSON::PP->new->canonical->encode({"
+        "module => $module, provider => $INC{$file}, version => \"$version\"}), qq{\\n};"
+    )
+    environment = {
+        "HOME": str(prefix),
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+    }
+    result = subprocess.run(
+        [str(perl), "-e", program, module],
+        text=True,
+        capture_output=True,
+        env=environment,
+    )
+    if result.returncode != 0:
+        raise ToolchainError(
+            f"selected Perl module probe failed for {module}: "
+            f"{(result.stdout + result.stderr).strip()}"
+        )
+    try:
+        observed = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise ToolchainError(f"selected Perl module probe was not JSON: {module}") from error
+    if not isinstance(observed, dict) or observed.get("module") != module:
+        raise ToolchainError(f"selected Perl module probe identity differs: {module}")
+    return {
+        "provider": require_string(observed.get("provider"), f"{module}.provider"),
+        "version": require_string(observed.get("version"), f"{module}.version"),
+    }
+
+
+def installed_perl_module_receipts(
+    prefix: Path, modules: Sequence[str] | None = None
+) -> dict[str, dict[str, Any]]:
+    selected = sorted(modules if modules is not None else EXPECTED_PERL_MODULES)
+    unknown = sorted(set(selected) - set(EXPECTED_PERL_MODULES))
+    if unknown:
+        raise ToolchainError(f"unknown selected Perl modules: {', '.join(unknown)}")
+    receipts: dict[str, dict[str, Any]] = {}
+    for module in selected:
+        expectation = EXPECTED_PERL_MODULES[module]
+        probe = perl_module_probe(prefix, module)
+        if probe["version"] != expectation["version"]:
+            raise ToolchainError(
+                f"selected Perl module {module} version differs: {probe['version']}"
+            )
+        provider = Path(probe["provider"])
+        try:
+            relative_provider = provider.relative_to(prefix)
+        except ValueError as error:
+            raise ToolchainError(
+                f"selected Perl module provider escapes package prefix: {module}"
+            ) from error
+        if not relative_provider.as_posix().endswith(expectation["provider_suffix"]):
+            raise ToolchainError(
+                f"selected Perl module provider path differs: {module}"
+            )
+        if not provider.is_file() or provider.is_symlink():
+            raise ToolchainError(f"selected Perl module provider is not a file: {provider}")
+        native_providers: list[dict[str, str]] = []
+        for suffix in expectation["native_provider_suffixes"]:
+            matches = [
+                candidate
+                for candidate in prefix.rglob(Path(suffix).name)
+                if candidate.is_file()
+                and not candidate.is_symlink()
+                and candidate.relative_to(prefix).as_posix().endswith(suffix)
+            ]
+            if len(matches) != 1:
+                raise ToolchainError(
+                    f"selected Perl module {module} native provider {suffix} "
+                    f"matched {len(matches)} package files"
+                )
+            native = matches[0]
+            native_providers.append(
+                {
+                    "path": str(native),
+                    "sha256": sha256_file(native),
+                }
+            )
+        receipts[module] = {
+            "path": str(provider),
+            "sha256": sha256_file(provider),
+            "version": probe["version"],
+            "native_providers": native_providers,
+            "source_component": expectation["source_component"],
+        }
+    return receipts
+
+
 def absolute_existing_inputs(text: str) -> list[dict[str, Any]]:
     paths: set[Path] = set()
     for match in ABSOLUTE_PATH_PATTERN.findall(text):
@@ -1675,6 +1839,24 @@ def verify_component_installation(
     bootstrap: Mapping[str, Mapping[str, str]],
     home: Path,
 ) -> dict[str, Any]:
+    component = next(
+        (
+            name
+            for name, expectation in EXPECTED_PERL_MODULES.items()
+            if expectation["source_component"] == component_id
+        ),
+        None,
+    )
+    if component is not None:
+        modules = sorted(
+            name
+            for name, expectation in EXPECTED_PERL_MODULES.items()
+            if expectation["source_component"] == component_id
+        )
+        return {
+            "status": "verified",
+            "perl_modules": installed_perl_module_receipts(prefix, modules),
+        }
     if component_id == "gnu-binutils":
         forbidden = [prefix / "bin/gprofng", prefix / "bin/gp-display-html"]
         present = [str(path) for path in forbidden if path.exists()]
@@ -1847,13 +2029,17 @@ def package_tree(prefix: Path, excluded: set[Path] | None = None) -> dict[str, A
 
 
 def write_consumer_manifest(
-    plan: dict[str, Any], prefix: Path, tools: dict[str, dict[str, str]]
+    plan: dict[str, Any],
+    prefix: Path,
+    tools: dict[str, dict[str, str]],
+    perl_modules: dict[str, dict[str, Any]],
 ) -> tuple[Path, dict[str, Any]]:
     manifest = {
         "schema": CONSUMER_SCHEMA,
         "build_input_id": plan["build_input_id"],
         "prefix": str(prefix),
         "tools": tools,
+        "perl_modules": perl_modules,
         "activation": {
             "scope": "build-toolchain-only",
             "product_runtime_activation_eligible": False,
@@ -1986,9 +2172,12 @@ def execute_plan(
     if source_generation_after != plan["source_inputs"]:
         raise ToolchainError("canonical source generation changed during the build")
     tools = installed_tool_receipts(contract, prefix)
+    perl_modules = installed_perl_module_receipts(prefix)
     environment = build_environment(contract, plan, "ninja")
     compiler_traces, linker_inputs = compiler_receipts(plan, prefix, environment)
-    manifest_path, manifest = write_consumer_manifest(plan, prefix, tools)
+    manifest_path, manifest = write_consumer_manifest(
+        plan, prefix, tools, perl_modules
+    )
     tree = package_tree(prefix)
     receipt = {
         "schema": PACKAGE_SCHEMA,
@@ -2003,6 +2192,7 @@ def execute_plan(
         "bootstrap_inputs": plan["bootstrap_inputs"],
         "component_steps": component_steps,
         "installed_tools": tools,
+        "installed_perl_modules": perl_modules,
         "compiler_driver_traces": compiler_traces,
         "linker_map_inputs": linker_inputs,
         "package_tree": tree,
@@ -2071,6 +2261,14 @@ def verify_consumer_manifest(manifest: dict[str, Any], prefix: Path) -> None:
         if not physical_path.is_file() or sha256_file(physical_path) != tool.get("sha256"):
             raise ToolchainError(f"consumer tool path or digest mismatch: {tool_id}")
         require_string(tool.get("version"), f"consumer_manifest.tools.{tool_id}.version")
+    perl_modules = require_object(
+        manifest.get("perl_modules"), "consumer_manifest.perl_modules"
+    )
+    if set(perl_modules) != set(EXPECTED_PERL_MODULES):
+        raise ToolchainError("consumer manifest Perl module set differs")
+    observed_modules = installed_perl_module_receipts(logical_prefix)
+    if perl_modules != observed_modules:
+        raise ToolchainError("consumer manifest Perl module receipts differ")
 
 
 def verify_package(
@@ -2103,6 +2301,10 @@ def verify_package(
             raise ToolchainError("package receipt and consumer manifest identities differ")
         if receipt.get("package_tree") != observed_tree:
             raise ToolchainError("package tree differs from its build receipt")
+        if receipt.get("installed_perl_modules") != manifest.get("perl_modules"):
+            raise ToolchainError(
+                "package receipt and consumer manifest Perl module receipts differ"
+            )
         activation = receipt.get("activation", {})
         if activation.get("product_runtime_activation_eligible") is not False:
             raise ToolchainError("package receipt illegally claims product-runtime activation")
