@@ -47,6 +47,12 @@
     ],
     "activation_policy": "blocked-until-complete-toolchain-static-link-and-recursive-runtime-closure"
   },
+  "runtime_provider_qualification": {
+    "receipt_schema": "laplace.runtime-provider-qualification/v1",
+    "required_before_product_activation": true,
+    "components": ["liburing"],
+    "policy": "a package build may record an exact host-coupled upstream test outcome, but product activation requires a separate accepted receipt from the selected runtime provider"
+  },
   "components": [
     {
       "id": "zlib",
@@ -106,7 +112,18 @@
       "source_subdirectory": ".",
       "depends_on": [],
       "configure_arguments": ["--use-libc"],
-      "test": "make-runtests"
+      "test": "make-runtests",
+      "test_policy": {
+        "scope": "upstream-userspace-library-and-live-kernel-regression",
+        "package_gate": "record-exact-outcome-and-continue",
+        "product_activation_gate": "separate-selected-runtime-provider-qualification",
+        "provider_dimensions": ["kernel_sysname", "kernel_release", "kernel_version", "machine", "io_uring_disabled"],
+        "source_evidence": {
+          "path": "README",
+          "sha256": "1bb130b0d32f1c3f8430c7b4c5c052cc931621a3e8eec2f484310b9892e7944f",
+          "meaning": "the selected upstream states that this regression suite exercises kernel io_uring support and is not expected to pass on older kernels"
+        }
+      }
     },
     {
       "id": "libxml2",

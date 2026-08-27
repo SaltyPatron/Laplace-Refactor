@@ -43,6 +43,18 @@ TESTS = {
     "source-copy-make-check",
 }
 LANGUAGES = {"C", "CXX", "ASM"}
+TEST_PACKAGE_GATES = {"required-pass", "record-exact-outcome-and-continue"}
+TEST_ACTIVATION_GATES = {
+    "component-test-pass",
+    "separate-selected-runtime-provider-qualification",
+}
+PROVIDER_DIMENSIONS = {
+    "kernel_sysname",
+    "kernel_release",
+    "kernel_version",
+    "machine",
+    "io_uring_disabled",
+}
 NEEDED_PATTERN = re.compile(r"Shared library: \[([^]]+)\]")
 RUNPATH_PATTERN = re.compile(r"Library r(?:un)?path: \[([^]]*)\]", re.IGNORECASE)
 ELF_TYPE_PATTERN = re.compile(r"^\s*Type:\s+([A-Z]+)\b", re.MULTILINE)
@@ -177,6 +189,81 @@ def require_string_list(value: object, field: str, allow_empty: bool = False) ->
     return value
 
 
+def component_test_policy(component: Mapping[str, Any]) -> dict[str, Any]:
+    declared = component.get("test_policy")
+    if declared is None:
+        return {
+            "scope": "upstream-component-test",
+            "package_gate": "required-pass",
+            "product_activation_gate": "component-test-pass",
+            "provider_dimensions": [],
+            "source_evidence": None,
+        }
+    if not isinstance(declared, dict):
+        raise GraphError(f"{component.get('id', 'component')}.test_policy must be an object")
+    return dict(declared)
+
+
+def validate_component_test_policy(component: Mapping[str, Any]) -> None:
+    identifier = require_string(component.get("id"), "component.id")
+    policy = component_test_policy(component)
+    require_string(policy.get("scope"), f"{identifier}.test_policy.scope")
+    package_gate = require_string(
+        policy.get("package_gate"), f"{identifier}.test_policy.package_gate"
+    )
+    if package_gate not in TEST_PACKAGE_GATES:
+        raise GraphError(f"unsupported package test gate for {identifier}: {package_gate}")
+    activation_gate = require_string(
+        policy.get("product_activation_gate"),
+        f"{identifier}.test_policy.product_activation_gate",
+    )
+    if activation_gate not in TEST_ACTIVATION_GATES:
+        raise GraphError(
+            f"unsupported activation test gate for {identifier}: {activation_gate}"
+        )
+    dimensions = require_string_list(
+        policy.get("provider_dimensions", []),
+        f"{identifier}.test_policy.provider_dimensions",
+        allow_empty=True,
+    )
+    unknown_dimensions = sorted(set(dimensions) - PROVIDER_DIMENSIONS)
+    if unknown_dimensions:
+        raise GraphError(
+            f"unsupported runtime-provider dimension for {identifier}: "
+            + ", ".join(unknown_dimensions)
+        )
+    if package_gate == "required-pass":
+        if activation_gate != "component-test-pass" or dimensions:
+            raise GraphError(
+                f"required-pass test policy cannot defer provider qualification: {identifier}"
+            )
+        return
+    if activation_gate != "separate-selected-runtime-provider-qualification":
+        raise GraphError(
+            f"recorded host-coupled test requires separate provider qualification: {identifier}"
+        )
+    if not dimensions:
+        raise GraphError(
+            f"recorded host-coupled test must identify provider dimensions: {identifier}"
+        )
+    evidence = policy.get("source_evidence")
+    if not isinstance(evidence, dict):
+        raise GraphError(f"recorded test policy requires source evidence: {identifier}")
+    evidence_path = require_string(
+        evidence.get("path"), f"{identifier}.test_policy.source_evidence.path"
+    )
+    if Path(evidence_path).is_absolute() or ".." in Path(evidence_path).parts:
+        raise GraphError(f"test-policy source evidence path is unsafe: {identifier}")
+    digest = require_string(
+        evidence.get("sha256"), f"{identifier}.test_policy.source_evidence.sha256"
+    )
+    if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise GraphError(f"test-policy source evidence digest is invalid: {identifier}")
+    require_string(
+        evidence.get("meaning"), f"{identifier}.test_policy.source_evidence.meaning"
+    )
+
+
 def validate_contract(contract: dict[str, Any]) -> None:
     if contract.get("schema") != SCHEMA:
         raise GraphError(f"contract schema must be {SCHEMA}")
@@ -301,6 +388,31 @@ def validate_contract(contract: dict[str, Any]) -> None:
             raise GraphError(
                 f"test contract {test} is incompatible with provider {provider} for {identifier}"
             )
+        validate_component_test_policy(component)
+
+    qualification = contract.get("runtime_provider_qualification")
+    if not isinstance(qualification, dict):
+        raise GraphError("runtime_provider_qualification must be an object")
+    if qualification.get("receipt_schema") != "laplace.runtime-provider-qualification/v1":
+        raise GraphError("runtime-provider qualification receipt schema is invalid")
+    if qualification.get("required_before_product_activation") is not True:
+        raise GraphError("runtime-provider qualification must gate product activation")
+    qualified_components = require_string_list(
+        qualification.get("components"), "runtime_provider_qualification.components"
+    )
+    if not set(qualified_components).issubset(identifiers):
+        raise GraphError("runtime-provider qualification names an unknown component")
+    policy_components = [
+        component["id"]
+        for component in components
+        if component_test_policy(component)["product_activation_gate"]
+        == "separate-selected-runtime-provider-qualification"
+    ]
+    if qualified_components != policy_components:
+        raise GraphError(
+            "runtime-provider qualification components differ from component test policies"
+        )
+    require_string(qualification.get("policy"), "runtime_provider_qualification.policy")
 
 
 def validate_environment(contract: dict[str, Any], environment: Mapping[str, str]) -> None:
@@ -668,8 +780,13 @@ def provider_environment(
 
 
 def run_logged(
-    command: Sequence[str], cwd: Path, environment: Mapping[str, str], log: Path
-) -> None:
+    command: Sequence[str],
+    cwd: Path,
+    environment: Mapping[str, str],
+    log: Path,
+    *,
+    require_success: bool = True,
+) -> int:
     with log.open("a", encoding="utf-8") as output:
         output.write("$ " + json.dumps(list(command), separators=(",", ":")) + "\n")
         output.flush()
@@ -687,8 +804,140 @@ def run_logged(
             sys.stdout.write(line)
             output.write(line)
         code = process.wait()
-        if code != 0:
+        output.write(f"# laplace-process-return-code: {code}\n")
+        if code >= 0:
+            output.write(f"# laplace-exit-code: {code}\n")
+        else:
+            output.write(f"# laplace-signal: {-code}\n")
+        output.flush()
+        if code != 0 and require_success:
             raise GraphError(f"command exited {code}: {command[0]}")
+        return code
+
+
+def runtime_provider_observation(dimensions: Sequence[str]) -> dict[str, Any]:
+    uname = os.uname()
+    available: dict[str, Any] = {
+        "kernel_sysname": uname.sysname,
+        "kernel_release": uname.release,
+        "kernel_version": uname.version,
+        "machine": uname.machine,
+    }
+    if "io_uring_disabled" in dimensions:
+        path = Path("/proc/sys/kernel/io_uring_disabled")
+        try:
+            available["io_uring_disabled"] = int(path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError) as error:
+            raise GraphError(f"cannot observe io_uring_disabled: {error}") from error
+    return {dimension: available[dimension] for dimension in dimensions}
+
+
+def execute_component_test(
+    component: Mapping[str, Any],
+    command: Sequence[str],
+    cwd: Path,
+    environment: Mapping[str, str],
+    log: Path,
+    source: Path,
+) -> dict[str, Any]:
+    policy = component_test_policy(component)
+    package_gate = policy["package_gate"]
+    evidence_record: dict[str, Any] | None = None
+    evidence = policy.get("source_evidence")
+    if isinstance(evidence, dict):
+        evidence_path = source / evidence["path"]
+        if not evidence_path.is_file() or evidence_path.is_symlink():
+            raise GraphError(
+                f"test-policy source evidence is missing: {component['id']}"
+            )
+        observed_digest = sha256_file(evidence_path)
+        if observed_digest != evidence["sha256"]:
+            raise GraphError(
+                f"test-policy source evidence differs: {component['id']}"
+            )
+        evidence_record = {
+            "path": evidence["path"],
+            "sha256": observed_digest,
+            "meaning": evidence["meaning"],
+        }
+    code = run_logged(
+        command,
+        cwd,
+        environment,
+        log,
+        require_success=package_gate == "required-pass",
+    )
+    if code == 0:
+        disposition = "passed"
+        exit_code: int | None = 0
+        signal: int | None = None
+    elif code > 0:
+        disposition = "failed-under-observed-runtime-provider"
+        exit_code = code
+        signal = None
+    else:
+        disposition = "terminated-by-signal-under-observed-runtime-provider"
+        exit_code = None
+        signal = -code
+    return {
+        "scope": policy["scope"],
+        "command": list(command),
+        "process_return_code": code,
+        "exit_code": exit_code,
+        "signal": signal,
+        "disposition": disposition,
+        "package_gate": package_gate,
+        "product_activation_gate": policy["product_activation_gate"],
+        "provider_observation": runtime_provider_observation(
+            policy.get("provider_dimensions", [])
+        ),
+        "source_evidence": evidence_record,
+    }
+
+
+def validate_recorded_test_execution(
+    component: Mapping[str, Any], execution: object
+) -> None:
+    identifier = component["id"]
+    if not isinstance(execution, dict):
+        raise GraphError(f"component test execution is invalid: {identifier}")
+    policy = component_test_policy(component)
+    for field in ("scope", "package_gate", "product_activation_gate"):
+        if execution.get(field) != policy[field]:
+            raise GraphError(f"component test {field} mismatch: {identifier}")
+    command = execution.get("command")
+    if not isinstance(command, list) or not command or any(
+        not isinstance(item, str) or not item for item in command
+    ):
+        raise GraphError(f"component test command is invalid: {identifier}")
+    return_code = execution.get("process_return_code")
+    if not isinstance(return_code, int):
+        raise GraphError(f"component test return code is invalid: {identifier}")
+    expected_exit_code = return_code if return_code >= 0 else None
+    expected_signal = -return_code if return_code < 0 else None
+    if execution.get("exit_code") != expected_exit_code:
+        raise GraphError(f"component test exit code mismatch: {identifier}")
+    if execution.get("signal") != expected_signal:
+        raise GraphError(f"component test signal mismatch: {identifier}")
+    expected_disposition = "passed"
+    if return_code > 0:
+        expected_disposition = "failed-under-observed-runtime-provider"
+    elif return_code < 0:
+        expected_disposition = "terminated-by-signal-under-observed-runtime-provider"
+    if execution.get("disposition") != expected_disposition:
+        raise GraphError(f"component test disposition mismatch: {identifier}")
+    if policy["package_gate"] == "required-pass" and return_code != 0:
+        raise GraphError(f"required component test did not pass: {identifier}")
+    provider = execution.get("provider_observation")
+    dimensions = policy.get("provider_dimensions", [])
+    if not isinstance(provider, dict) or list(provider) != dimensions:
+        raise GraphError(f"component runtime-provider observation mismatch: {identifier}")
+    evidence = policy.get("source_evidence")
+    if evidence is None:
+        if execution.get("source_evidence") is not None:
+            raise GraphError(f"unexpected component source evidence: {identifier}")
+    elif execution.get("source_evidence") != evidence:
+        raise GraphError(f"component source evidence mismatch: {identifier}")
 
 
 def cmake_component(
@@ -699,7 +948,7 @@ def cmake_component(
     build: Path,
     environment: dict[str, str],
     log: Path,
-) -> None:
+) -> dict[str, Any]:
     tools = plan["tools"]
     compilers = contract["compiler"]
     final = Path(plan["install_prefix"])
@@ -754,23 +1003,28 @@ def cmake_component(
         log,
     )
     if component["test"] == "ctest":
-        run_logged(
+        test_execution = execute_component_test(
+            component,
             [tools["ctest"]["path"], "--test-dir", str(build), "--output-on-failure"],
             build.parent,
             environment,
             log,
+            source,
         )
     elif component["test"] == "source-copy-make-check":
         test_source = build.parent / "test-source"
         shutil.copytree(source.parents[1], test_source, symlinks=True)
-        run_logged(
+        test_execution = execute_component_test(
+            component,
             [tools["make"]["path"], f"-j{contract['execution']['jobs']}", "check"],
             test_source,
             environment,
             log,
+            source,
         )
     install_environment = {**environment, "DESTDIR": str(Path(plan["stage_directory"]) / "root")}
     run_logged([cmake, "--install", str(build)], build.parent, install_environment, log)
+    return test_execution
 
 
 def autotools_component(
@@ -781,7 +1035,7 @@ def autotools_component(
     build: Path,
     environment: dict[str, str],
     log: Path,
-) -> None:
+) -> dict[str, Any]:
     make = plan["tools"]["make"]["path"]
     run_logged(
         [str(source / "configure"), f"--prefix={plan['install_prefix']}", *component["configure_arguments"]],
@@ -791,9 +1045,17 @@ def autotools_component(
     )
     run_logged([make, f"-j{contract['execution']['jobs']}"], build, environment, log)
     if component["test"] == "make-check":
-        run_logged([make, f"-j{contract['execution']['jobs']}", "check"], build, environment, log)
+        test_execution = execute_component_test(
+            component,
+            [make, f"-j{contract['execution']['jobs']}", "check"],
+            build,
+            environment,
+            log,
+            source,
+        )
     install_environment = {**environment, "DESTDIR": str(Path(plan["stage_directory"]) / "root")}
     run_logged([make, "install"], build, install_environment, log)
+    return test_execution
 
 
 def openssl_component(
@@ -804,7 +1066,7 @@ def openssl_component(
     build: Path,
     environment: dict[str, str],
     log: Path,
-) -> None:
+) -> dict[str, Any]:
     make = plan["tools"]["make"]["path"]
     perl = plan["tools"]["perl"]["path"]
     final = Path(plan["install_prefix"])
@@ -822,7 +1084,14 @@ def openssl_component(
         log,
     )
     run_logged([make, f"-j{contract['execution']['jobs']}"], build, environment, log)
-    run_logged([make, f"-j{contract['execution']['jobs']}", "test"], build, environment, log)
+    test_execution = execute_component_test(
+        component,
+        [make, f"-j{contract['execution']['jobs']}", "test"],
+        build,
+        environment,
+        log,
+        source,
+    )
     destination_root = Path(plan["stage_directory"]) / "root"
     install_environment = {**environment, "DESTDIR": str(destination_root)}
     run_logged(
@@ -831,6 +1100,7 @@ def openssl_component(
         install_environment,
         log,
     )
+    return test_execution
 
 
 def source_copy_make_component(
@@ -841,7 +1111,7 @@ def source_copy_make_component(
     build: Path,
     environment: dict[str, str],
     log: Path,
-) -> None:
+) -> dict[str, Any]:
     make = plan["tools"]["make"]["path"]
     copied = build / "source"
     shutil.copytree(source, copied, symlinks=True)
@@ -853,9 +1123,17 @@ def source_copy_make_component(
     )
     run_logged([make, f"-j{contract['execution']['jobs']}", "all"], copied, environment, log)
     if component["test"] == "make-runtests":
-        run_logged([make, "runtests"], copied, environment, log)
+        test_execution = execute_component_test(
+            component,
+            [make, "runtests"],
+            copied,
+            environment,
+            log,
+            source,
+        )
     install_environment = {**environment, "DESTDIR": str(Path(plan["stage_directory"]) / "root")}
     run_logged([make, "install"], copied, install_environment, log)
+    return test_execution
 
 
 def elf_metadata(path: Path, readelf: Path) -> dict[str, Any] | None:
@@ -991,6 +1269,7 @@ def write_component_checkpoint(
     component: dict[str, Any],
     component_index: int,
     previous_checkpoint_sha256: str | None,
+    test_execution: dict[str, Any],
 ) -> dict[str, Any]:
     component_root = build_root / "components" / component["id"]
     log = component_root / "build.log"
@@ -1005,6 +1284,7 @@ def write_component_checkpoint(
         "component_contract_sha256": canonical_sha256(component),
         "previous_checkpoint_sha256": previous_checkpoint_sha256,
         "build_log_sha256": sha256_file(log),
+        "test_execution": test_execution,
         "stage_tree": tree_state(staged_prefix),
     }
     if checkpoint["stage_tree"]["exists"] is not True:
@@ -1036,6 +1316,7 @@ def validate_component_checkpoint(
     for field, expected in expected_fields.items():
         if checkpoint.get(field) != expected:
             raise GraphError(f"component checkpoint {field} mismatch: {identifier}")
+    validate_recorded_test_execution(component, checkpoint.get("test_execution"))
     if checkpoint.get("checkpoint_sha256") != checkpoint_identity(checkpoint):
         raise GraphError(f"component checkpoint digest mismatch: {identifier}")
     stage = checkpoint.get("stage_tree")
@@ -1172,19 +1453,19 @@ def execute(
             contract, environment, provider
         )
         if provider == "cmake":
-            cmake_component(
+            test_execution = cmake_component(
                 contract, plan, component, source, build, component_environment, log
             )
         elif provider == "autotools":
-            autotools_component(
+            test_execution = autotools_component(
                 contract, plan, component, source, build, component_environment, log
             )
         elif provider == "openssl":
-            openssl_component(
+            test_execution = openssl_component(
                 contract, plan, component, source, build, component_environment, log
             )
         elif provider == "source-copy-make":
-            source_copy_make_component(
+            test_execution = source_copy_make_component(
                 contract, plan, component, source, build, component_environment, log
             )
         else:
@@ -1196,6 +1477,7 @@ def execute(
             component,
             component_index,
             previous_checkpoint_sha256,
+            test_execution,
         )
         previous_checkpoint_sha256 = checkpoint["checkpoint_sha256"]
     verify_release_generation(
@@ -1206,6 +1488,10 @@ def execute(
     )
     receipt = package_receipt(contract, plan)
     receipt["plan_sha256"] = canonical_sha256(plan)
+    checkpoint_documents = {
+        component["id"]: read_json(checkpoint_path(build_root, component["id"]))
+        for component in plan["components"]
+    }
     receipt["component_logs"] = {
         component["id"]: sha256_file(
             build_root / "components" / component["id"] / "build.log"
@@ -1213,10 +1499,31 @@ def execute(
         for component in plan["components"]
     }
     receipt["component_checkpoints"] = {
-        component["id"]: read_json(checkpoint_path(build_root, component["id"]))[
-            "checkpoint_sha256"
-        ]
+        component["id"]: checkpoint_documents[component["id"]]["checkpoint_sha256"]
         for component in plan["components"]
+    }
+    receipt["component_test_executions"] = {
+        component["id"]: checkpoint_documents[component["id"]]["test_execution"]
+        for component in plan["components"]
+    }
+    qualification = contract["runtime_provider_qualification"]
+    receipt["runtime_provider_qualification"] = {
+        "schema": qualification["receipt_schema"],
+        "complete": False,
+        "required_before_product_activation": True,
+        "required_components": qualification["components"],
+        "requirements": {
+            identifier: {
+                "component_checkpoint_sha256": receipt["component_checkpoints"][identifier],
+                "test_execution_sha256": canonical_sha256(
+                    receipt["component_test_executions"][identifier]
+                ),
+                "observed_disposition": receipt["component_test_executions"][identifier][
+                    "disposition"
+                ],
+            }
+            for identifier in qualification["components"]
+        },
     }
     write_json_atomic(build_root / "package-receipt.json", receipt)
     return receipt

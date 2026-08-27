@@ -24,6 +24,22 @@ sys.modules[SPEC.name] = BUILD
 SPEC.loader.exec_module(BUILD)
 
 
+def passing_test_execution(component: dict[str, object]) -> dict[str, object]:
+    policy = BUILD.component_test_policy(component)
+    return {
+        "scope": policy["scope"],
+        "command": ["/fixture/test"],
+        "process_return_code": 0,
+        "exit_code": 0,
+        "signal": None,
+        "disposition": "passed",
+        "package_gate": policy["package_gate"],
+        "product_activation_gate": policy["product_activation_gate"],
+        "provider_observation": {},
+        "source_evidence": None,
+    }
+
+
 class RuntimeBuildGraphTests(unittest.TestCase):
     def contract(self) -> dict[str, object]:
         return BUILD.read_json(REPO_ROOT / "contracts/postgresql-runtime-build.json")
@@ -115,6 +131,87 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         contract["components"][1]["test"] = "make-test"
         with self.assertRaisesRegex(BUILD.GraphError, "incompatible with provider"):
             BUILD.validate_contract(contract)
+
+    def test_host_coupled_suite_requires_separate_provider_qualification(self) -> None:
+        contract = self.contract()
+        liburing = next(
+            component for component in contract["components"] if component["id"] == "liburing"
+        )
+        self.assertEqual(
+            liburing["test_policy"]["package_gate"],
+            "record-exact-outcome-and-continue",
+        )
+        self.assertEqual(
+            contract["runtime_provider_qualification"]["components"], ["liburing"]
+        )
+
+        contract["runtime_provider_qualification"]["components"] = ["zlib"]
+        with self.assertRaisesRegex(BUILD.GraphError, "differ from component test policies"):
+            BUILD.validate_contract(contract)
+
+    def test_failed_host_coupled_suite_is_receipted_without_becoming_acceptance(self) -> None:
+        component = copy.deepcopy(
+            next(
+                item
+                for item in self.contract()["components"]
+                if item["id"] == "liburing"
+            )
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            evidence = root / "README"
+            evidence.write_text("kernel-coupled suite\n", encoding="utf-8")
+            component["test_policy"]["source_evidence"]["sha256"] = BUILD.sha256_file(
+                evidence
+            )
+            with mock.patch.object(BUILD, "run_logged", return_value=2), mock.patch.object(
+                BUILD,
+                "runtime_provider_observation",
+                return_value={
+                    "kernel_sysname": "Linux",
+                    "kernel_release": "fixture",
+                    "kernel_version": "fixture-version",
+                    "machine": "x86_64",
+                    "io_uring_disabled": 0,
+                },
+            ):
+                execution = BUILD.execute_component_test(
+                    component,
+                    ["/toolchain/make", "runtests"],
+                    root,
+                    {},
+                    root / "build.log",
+                    root,
+                )
+        self.assertEqual(execution["process_return_code"], 2)
+        self.assertEqual(execution["exit_code"], 2)
+        self.assertIsNone(execution["signal"])
+        self.assertEqual(
+            execution["disposition"], "failed-under-observed-runtime-provider"
+        )
+        self.assertEqual(
+            execution["product_activation_gate"],
+            "separate-selected-runtime-provider-qualification",
+        )
+        BUILD.validate_recorded_test_execution(component, execution)
+
+        mutated = copy.deepcopy(execution)
+        mutated["disposition"] = "passed"
+        with self.assertRaisesRegex(BUILD.GraphError, "disposition mismatch"):
+            BUILD.validate_recorded_test_execution(component, mutated)
+
+        signaled = copy.deepcopy(execution)
+        signaled["process_return_code"] = -9
+        signaled["exit_code"] = None
+        signaled["signal"] = 9
+        signaled["disposition"] = (
+            "terminated-by-signal-under-observed-runtime-provider"
+        )
+        BUILD.validate_recorded_test_execution(component, signaled)
+
+        signaled["signal"] = 15
+        with self.assertRaisesRegex(BUILD.GraphError, "signal mismatch"):
+            BUILD.validate_recorded_test_execution(component, signaled)
 
     def test_compile_only_lz4_regression_is_rejected(self) -> None:
         contract = self.contract()
@@ -253,8 +350,9 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         contract = self.contract()
         captured: list[list[str]] = []
 
-        def capture(command: object, *_args: object, **_kwargs: object) -> None:
+        def capture(command: object, *_args: object, **_kwargs: object) -> int:
             captured.append(list(command))
+            return 0
 
         plan = {
             "tools": {
@@ -292,8 +390,9 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         contract = self.contract()
         captured: list[list[str]] = []
 
-        def capture(command: object, *_args: object, **_kwargs: object) -> None:
+        def capture(command: object, *_args: object, **_kwargs: object) -> int:
             captured.append(list(command))
+            return 0
 
         with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
             BUILD, "run_logged", side_effect=capture
@@ -617,7 +716,13 @@ esac
             library = staged_prefix / "libz.so"
             library.write_bytes(b"exact package bytes")
             BUILD.write_component_checkpoint(
-                plan, build_root, staged_prefix, component, 0, None
+                plan,
+                build_root,
+                staged_prefix,
+                component,
+                0,
+                None,
+                passing_test_execution(component),
             )
             completed = BUILD.completed_component_checkpoints(
                 plan, build_root, staged_prefix
@@ -659,6 +764,7 @@ esac
                     component,
                     index,
                     previous,
+                    passing_test_execution(component),
                 )
                 previous = checkpoint["checkpoint_sha256"]
             BUILD.checkpoint_path(build_root, "first").unlink()

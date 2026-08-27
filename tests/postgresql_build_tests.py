@@ -98,6 +98,47 @@ class PostgreSQLBuildTests(unittest.TestCase):
             digest.update(len(encoded).to_bytes(8, "big"))
             digest.update(encoded)
         contract = self.contract()
+        component_tests = {
+            name: {
+                "scope": "upstream-component-test",
+                "command": ["/toolchain/test", name],
+                "process_return_code": 0,
+                "exit_code": 0,
+                "signal": None,
+                "disposition": "passed",
+                "package_gate": "required-pass",
+                "product_activation_gate": "component-test-pass",
+                "provider_observation": {},
+                "source_evidence": None,
+            }
+            for name in contract["runtime_package"]["required_components"]
+        }
+        component_tests["liburing"] = {
+            "scope": "upstream-userspace-library-and-live-kernel-regression",
+            "command": ["/toolchain/make", "runtests"],
+            "process_return_code": 2,
+            "exit_code": 2,
+            "signal": None,
+            "disposition": "failed-under-observed-runtime-provider",
+            "package_gate": "record-exact-outcome-and-continue",
+            "product_activation_gate": "separate-selected-runtime-provider-qualification",
+            "provider_observation": {
+                "kernel_sysname": "Linux",
+                "kernel_release": "fixture",
+                "kernel_version": "fixture-version",
+                "machine": "x86_64",
+                "io_uring_disabled": 0,
+            },
+            "source_evidence": {
+                "path": "README",
+                "sha256": "1" * 64,
+                "meaning": "fixture kernel-coupled suite evidence",
+            },
+        }
+        checkpoints = {
+            name: "5" * 64
+            for name in contract["runtime_package"]["required_components"]
+        }
         receipt = {
             "schema": contract["runtime_package"]["receipt_schema"],
             "build_input_id": "4" * 64,
@@ -107,13 +148,30 @@ class PostgreSQLBuildTests(unittest.TestCase):
             "file_count": 1,
             "total_file_bytes": library.stat().st_size,
             "files": records,
-            "component_checkpoints": {
-                name: "5" * 64
-                for name in contract["runtime_package"]["required_components"]
-            },
+            "component_checkpoints": checkpoints,
             "component_logs": {
                 name: "6" * 64
                 for name in contract["runtime_package"]["required_components"]
+            },
+            "component_test_executions": component_tests,
+            "runtime_provider_qualification": {
+                "schema": contract["runtime_package"][
+                    "provider_qualification_receipt_schema"
+                ],
+                "complete": False,
+                "required_before_product_activation": True,
+                "required_components": ["liburing"],
+                "requirements": {
+                    "liburing": {
+                        "component_checkpoint_sha256": checkpoints["liburing"],
+                        "test_execution_sha256": BUILD.canonical_sha256(
+                            component_tests["liburing"]
+                        ),
+                        "observed_disposition": component_tests["liburing"][
+                            "disposition"
+                        ],
+                    }
+                },
             },
             "plan_sha256": "7" * 64,
             "build_input_closure_complete": False,
@@ -302,6 +360,39 @@ class PostgreSQLBuildTests(unittest.TestCase):
             receipt["component_checkpoints"].pop("liburing")
             path.write_text(json.dumps(receipt), encoding="utf-8")
             with self.assertRaisesRegex(BUILD.BuildError, "evidence set"):
+                BUILD.verify_runtime_receipt(self.contract(), path)
+
+    def test_runtime_receipt_cannot_promote_deferred_provider_qualification(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = self.runtime_receipt(root)
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+            receipt["runtime_provider_qualification"]["complete"] = True
+            path.write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(BUILD.BuildError, "cannot claim"):
+                BUILD.verify_runtime_receipt(self.contract(), path)
+
+    def test_runtime_provider_qualification_binds_exact_failed_test_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = self.runtime_receipt(root)
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+            receipt["component_test_executions"]["liburing"]["process_return_code"] = 0
+            path.write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(BUILD.BuildError, "test identity mismatch"):
+                BUILD.verify_runtime_receipt(self.contract(), path)
+
+    def test_ordinary_runtime_component_failure_cannot_use_provider_deferral(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = self.runtime_receipt(root)
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+            execution = receipt["component_test_executions"]["zlib"]
+            execution["process_return_code"] = 1
+            execution["exit_code"] = 1
+            execution["disposition"] = "failed-under-observed-runtime-provider"
+            path.write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(BUILD.BuildError, "ordinary runtime component"):
                 BUILD.verify_runtime_receipt(self.contract(), path)
 
     def test_runtime_receipt_detects_physical_byte_mutation(self) -> None:

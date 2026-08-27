@@ -169,9 +169,19 @@ def validate_contract(document: dict[str, Any]) -> None:
         raise BuildError("runtime_package.receipt_schema is invalid")
     if runtime_package.get("install_prefix") != "/opt/laplace/current":
         raise BuildError("runtime package must target the stable product activation prefix")
-    require_string_array(
+    required_runtime_components = require_string_array(
         runtime_package.get("required_components"), "runtime_package.required_components"
     )
+    if runtime_package.get("provider_qualification_receipt_schema") != (
+        "laplace.runtime-provider-qualification/v1"
+    ):
+        raise BuildError("runtime provider qualification receipt schema is invalid")
+    required_qualifications = require_string_array(
+        runtime_package.get("required_provider_qualifications"),
+        "runtime_package.required_provider_qualifications",
+    )
+    if not set(required_qualifications).issubset(required_runtime_components):
+        raise BuildError("runtime provider qualification names an unknown component")
     if input_closure.get("status") != "incomplete":
         raise BuildError("input_closure.status must remain incomplete until every build input is selected")
     selected_inputs = require_string_array(
@@ -306,11 +316,17 @@ def verify_runtime_receipt(
     )
     checkpoints = receipt.get("component_checkpoints")
     component_logs = receipt.get("component_logs")
-    if not isinstance(checkpoints, dict) or not isinstance(component_logs, dict):
-        raise BuildError("runtime package component checkpoints and logs are required")
+    component_tests = receipt.get("component_test_executions")
+    if not all(
+        isinstance(item, dict) for item in (checkpoints, component_logs, component_tests)
+    ):
+        raise BuildError(
+            "runtime package component checkpoints logs and test executions are required"
+        )
     required_components = expected["required_components"]
-    if sorted(checkpoints) != sorted(required_components) or sorted(component_logs) != sorted(
-        required_components
+    if any(
+        sorted(evidence) != sorted(required_components)
+        for evidence in (checkpoints, component_logs, component_tests)
     ):
         raise BuildError("runtime package component evidence set is incomplete")
     if any(
@@ -325,6 +341,72 @@ def verify_runtime_receipt(
         for name in required_components
     ):
         raise BuildError("runtime package component log identity is invalid")
+    if any(not isinstance(component_tests[name], dict) for name in required_components):
+        raise BuildError("runtime package component test execution is invalid")
+    qualification = receipt.get("runtime_provider_qualification")
+    if not isinstance(qualification, dict):
+        raise BuildError("runtime provider qualification requirement is missing")
+    if qualification.get("schema") != expected["provider_qualification_receipt_schema"]:
+        raise BuildError("runtime provider qualification schema mismatch")
+    if qualification.get("complete") is not False:
+        raise BuildError("runtime package cannot claim provider qualification completion")
+    if qualification.get("required_before_product_activation") is not True:
+        raise BuildError("runtime provider qualification no longer gates activation")
+    required_qualifications = expected["required_provider_qualifications"]
+    if qualification.get("required_components") != required_qualifications:
+        raise BuildError("runtime provider qualification component set mismatch")
+    requirements = qualification.get("requirements")
+    if not isinstance(requirements, dict) or sorted(requirements) != sorted(
+        required_qualifications
+    ):
+        raise BuildError("runtime provider qualification evidence set is incomplete")
+    for name in required_qualifications:
+        execution = component_tests[name]
+        if execution.get("product_activation_gate") != (
+            "separate-selected-runtime-provider-qualification"
+        ):
+            raise BuildError("runtime component bypasses provider qualification")
+        if execution.get("package_gate") != "record-exact-outcome-and-continue":
+            raise BuildError("runtime component test outcome was not retained")
+        requirement = requirements[name]
+        if not isinstance(requirement, dict):
+            raise BuildError("runtime provider qualification requirement is invalid")
+        if requirement.get("component_checkpoint_sha256") != checkpoints[name]:
+            raise BuildError("runtime provider qualification checkpoint mismatch")
+        if requirement.get("test_execution_sha256") != canonical_sha256(execution):
+            raise BuildError("runtime provider qualification test identity mismatch")
+        if requirement.get("observed_disposition") != execution.get("disposition"):
+            raise BuildError("runtime provider qualification disposition mismatch")
+    for name in required_components:
+        execution = component_tests[name]
+        command = execution.get("command")
+        return_code = execution.get("process_return_code")
+        if not isinstance(command, list) or not command or any(
+            not isinstance(item, str) or not item for item in command
+        ):
+            raise BuildError("runtime component test command is invalid")
+        if not isinstance(return_code, int):
+            raise BuildError("runtime component test return code is invalid")
+        expected_exit_code = return_code if return_code >= 0 else None
+        expected_signal = -return_code if return_code < 0 else None
+        if execution.get("exit_code") != expected_exit_code:
+            raise BuildError("runtime component test exit code mismatch")
+        if execution.get("signal") != expected_signal:
+            raise BuildError("runtime component test signal mismatch")
+        expected_disposition = "passed"
+        if return_code > 0:
+            expected_disposition = "failed-under-observed-runtime-provider"
+        elif return_code < 0:
+            expected_disposition = "terminated-by-signal-under-observed-runtime-provider"
+        if execution.get("disposition") != expected_disposition:
+            raise BuildError("runtime component test disposition mismatch")
+        if name not in required_qualifications:
+            if (
+                execution.get("package_gate") != "required-pass"
+                or execution.get("product_activation_gate") != "component-test-pass"
+                or return_code != 0
+            ):
+                raise BuildError("ordinary runtime component test did not pass")
     plan_sha256 = require_string(
         receipt.get("plan_sha256"), "runtime_package.plan_sha256"
     )
@@ -363,6 +445,10 @@ def verify_runtime_receipt(
             name: checkpoints[name] for name in required_components
         },
         "component_logs": {name: component_logs[name] for name in required_components},
+        "component_test_executions": {
+            name: component_tests[name] for name in required_components
+        },
+        "runtime_provider_qualification": qualification,
         "plan_sha256": plan_sha256,
     }
 
