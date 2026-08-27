@@ -34,6 +34,12 @@
       "defect_controls": ["mutated provider tree", "changed receipt scope", "duplicate JSON receipt key"]
     },
     {
+      "ctest_name": "postgresql-package-publication.contract-and-mutation",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-INTENT", "LP-TEST-PACKAGE-LINUX"],
+      "covered_dimensions": ["private build-state isolation", "content-addressed immutable publication", "runner-readable PostgreSQL and toolchain bytes", "byte-identical source receipt ancestry", "atomic replay"],
+      "defect_controls": ["incomplete source proof state", "source-tree mutation", "published-tree mutation", "publication-receipt mutation", "absolute symlink escape"]
+    },
+    {
       "ctest_name": "postgresql-cluster.activation-contract",
       "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
       "covered_dimensions": ["isolated PostgreSQL 18.6 instance contract", "immutable package and loaded-object identity", "peer-only runtime authentication", "topology-bounded PostgreSQL settings", "fixture plan stage commit remove lifecycle", "state-preserving rollback"],
