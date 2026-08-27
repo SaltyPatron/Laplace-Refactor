@@ -140,6 +140,17 @@ class ProductActivationGatewayTests(unittest.TestCase):
 
     def test_contract_and_exact_request_round_trip(self) -> None:
         activation.validate_contract(self.base_contract)
+        package_contract = activation.load_json(
+            REPOSITORY / "contracts/product-package.json"
+        )
+        self.assertEqual(
+            self.base_contract["product"]["package_manifest_root"],
+            package_contract["build"]["root"],
+        )
+        self.assertEqual(
+            self.base_contract["product"]["package_stage_root"],
+            package_contract["build"]["stage_root"],
+        )
         with tempfile.TemporaryDirectory(prefix="laplace-activation-request-") as temporary:
             contract, continuation, environment, _manifest, _resource = self.fixture(Path(temporary))
             request = activation.build_request(contract, continuation, environment, KEY, NOW)

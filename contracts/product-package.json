@@ -58,8 +58,8 @@
     }
   },
   "build": {
-    "root": "/build/laplace/build/product",
-    "stage_root": "/build/laplace/stage/product",
+    "root": "/build/laplace/runner/product/build",
+    "stage_root": "/build/laplace/runner/product/stage",
     "configuration": "Release",
     "testing": false,
     "dotnet_bindings": false,

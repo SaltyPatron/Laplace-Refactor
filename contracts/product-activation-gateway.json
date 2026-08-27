@@ -42,8 +42,8 @@
     ]
   },
   "product": {
-    "package_manifest_root": "/build/laplace/build/product",
-    "package_stage_root": "/build/laplace/stage/product",
+    "package_manifest_root": "/build/laplace/runner/product/build",
+    "package_stage_root": "/build/laplace/runner/product/stage",
     "package_receipt_schema": "laplace.product-package-receipt/v1",
     "package_installation_schema": "laplace.product-package-installation-receipt/v1",
     "package_release_root": "/opt/laplace/releases",

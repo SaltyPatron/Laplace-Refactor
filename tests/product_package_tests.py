@@ -64,6 +64,13 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "publication receipt"):
             PACKAGE.validate_contract(mutant)
 
+    def test_product_build_cannot_return_to_owner_private_roots(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["build"]["root"] = "/build/laplace/build/product"
+        mutant["build"]["stage_root"] = "/build/laplace/stage/product"
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "CI runner workspace"):
+            PACKAGE.validate_contract(mutant)
+
     def test_all_selected_oneapi_provider_families_are_required(self) -> None:
         mutant = copy.deepcopy(self.contract)
         mutant["laplace"]["required_installed_providers"].remove("onemkl")

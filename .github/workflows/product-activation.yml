@@ -49,6 +49,11 @@ jobs:
           test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
           python3 tools/delivery/postgresql_package_publication.py verify \
             --receipt "$publication" >/dev/null
+          build_root=$(jq -er '.build.root' contracts/product-package.json)
+          stage_root=$(jq -er '.build.stage_root' contracts/product-package.json)
+          test "$build_root" = /build/laplace/runner/product/build
+          test "$stage_root" = /build/laplace/runner/product/stage
+          test -w /build/laplace
       - name: Execute activation gateway contract and mutation tests
         run: |
           python3 tests/highway_product_activation_tests.py

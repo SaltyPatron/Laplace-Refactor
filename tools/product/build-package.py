@@ -208,6 +208,13 @@ def validate_contract(contract: dict[str, Any]) -> None:
         "blake3_source",
     ):
         require_absolute(build.get(field), f"build.{field}")
+    if (
+        build.get("root") != "/build/laplace/runner/product/build"
+        or build.get("stage_root") != "/build/laplace/runner/product/stage"
+    ):
+        raise ProductPackageError(
+            "product build and stage roots must use the declared CI runner workspace"
+        )
     blake3_root = Path(build["blake3_root"])
     blake3_source = Path(build["blake3_source"])
     if not blake3_source.is_relative_to(blake3_root) or blake3_source == blake3_root:
