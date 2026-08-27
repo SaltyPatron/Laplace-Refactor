@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T13:49:03Z",
+  "observed_at_utc": "2026-08-27T14:15:51Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,13 +12,13 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "phase3/product-unicode-activation",
+    "active_branch": "phase3/live-product-activation",
     "active_worktree": "/home/ahart/Projects/Laplace-Refactor",
-    "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+    "base_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "baba1887727014160c06ec5749b06a839f69edd1",
-    "implementation_checkpoint_commit": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
+    "published_checkpoint_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
+    "observed_branch_head": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
+    "implementation_checkpoint_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,10 +291,10 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-unicode-product-activation-controller-integration-proven-successor-product-package-and-physical-cluster-activation-pending",
-    "branch": "phase3/product-unicode-activation",
+    "state": "implementation-merged-unicode-product-activation-controller-integration-proven-successor-product-package-installed-and-physical-cluster-activation-pending",
+    "branch": "phase3/live-product-activation",
     "pull_request": 74,
-    "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+    "base_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
     "dependencies": {
       "product_cluster_issue": 12,
       "perfcache_issue": 14,
@@ -1248,8 +1248,8 @@
     ]
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-27T02:43:31Z",
-    "main_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+    "observed_at_utc": "2026-08-27T14:15:51Z",
+    "main_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
     "product_cluster_project_status": "In Progress",
@@ -1275,12 +1275,14 @@
       "issue_15_state": "closed",
       "proof_state": "integration-proven; complete-ingest performance product activation seed and release remain false"
     },
-    "active_product_runtime_pull_request": {
+    "product_runtime_pull_request": {
       "number": 74,
-      "state": "open",
-      "draft": true,
-      "head_commit": "baba1887727014160c06ec5749b06a839f69edd1",
-      "proof_state": "partial implementation; product cluster activation exact public Unicode Tier-0/reverse perfcache access and the complete Unicode product activation controller are implemented and controlled-integration proven; the exact successor package is built installed and resource-observed, while accepted privileged collision completion root ownership physical cluster activation Unicode activation seed and release remain false"
+      "state": "merged",
+      "draft": false,
+      "head_commit": "e6cb1181173354c1326c08ed4ec725d880caa29b",
+      "main_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
+      "merged_at_utc": "2026-08-27T14:15:13Z",
+      "proof_state": "implementation merged; product cluster activation exact public Unicode Tier-0/reverse perfcache access and the complete Unicode product activation controller are implemented and controlled-integration proven; the exact successor package is built installed and resource-observed, while accepted privileged collision completion root ownership physical cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
