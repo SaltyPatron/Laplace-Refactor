@@ -191,6 +191,7 @@ def validate_contract(document: dict[str, Any]) -> None:
         "data_directory",
         "wal_directory",
         "temp_directory",
+        "perfcache_directory",
         "config_directory",
         "log_directory",
         "receipt_directory",
@@ -491,6 +492,7 @@ def collision_target(contract: dict[str, Any]) -> dict[str, Any]:
                 instance["data_directory"],
                 instance["wal_directory"],
                 instance["temp_directory"],
+                instance["perfcache_directory"],
                 instance["config_directory"],
                 instance["log_directory"],
                 instance["receipt_directory"],
@@ -1094,6 +1096,8 @@ GRANT EXECUTE ON FUNCTION laplace.identity_codepoint_calculate_batch(laplace.exe
 GRANT EXECUTE ON FUNCTION laplace.identity_codepoint_execute_batch(laplace.execution_context, integer[]) TO {app};
 GRANT EXECUTE ON FUNCTION laplace.trajectory_composition_decode_calculate_batch(laplace.execution_context, bytea[]) TO {app};
 GRANT EXECUTE ON FUNCTION laplace.trajectory_composition_decode_execute_batch(laplace.execution_context, bytea[]) TO {app};
+GRANT EXECUTE ON FUNCTION laplace.unicode_tier0_resolve_batch(bytea, bytea, integer[]) TO {app};
+GRANT EXECUTE ON FUNCTION laplace.unicode_identity_reverse_resolve_batch(bytea, bytea, bytea[], bytea[]) TO {app};
 REVOKE ALL ON TABLE laplace.execution_receipt FROM {app};
 """
 
@@ -1142,7 +1146,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectHome=yes
 ProtectSystem=strict
-ReadWritePaths={instance['data_directory']} {instance['wal_directory']} {instance['temp_directory']} {instance['log_directory']} {instance['receipt_directory']}
+ReadWritePaths={instance['data_directory']} {instance['wal_directory']} {instance['temp_directory']} {instance['perfcache_directory']} {instance['log_directory']} {instance['receipt_directory']}
 RestrictAddressFamilies=AF_UNIX
 
 [Install]
@@ -1211,6 +1215,7 @@ def build_plan(
             instance["data_directory"],
             instance["wal_directory"],
             instance["temp_directory"],
+            instance["perfcache_directory"],
             instance["log_directory"],
             instance["receipt_directory"],
         ],

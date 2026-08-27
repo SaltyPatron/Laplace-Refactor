@@ -26,6 +26,7 @@ set(laplace_postgresql_module_sources
     src/persistence_rows_pg.c
     src/perfcache_pg.c
     src/set_pg.c
+    src/unicode_perfcache_pg.c
     src/unicode_root_pg.c)
 
 function(laplace_configure_postgresql_module target)
@@ -94,6 +95,9 @@ if(BUILD_TESTING)
     laplace_add_postgresql_mutant(
         laplace_pg_plan_manifest_mutant
         LAPLACE_TEST_UNICODE_PG_PLAN_SUBSTITUTION)
+    laplace_add_postgresql_mutant(
+        laplace_pg_unicode_access_epoch_mutant
+        LAPLACE_TEST_UNICODE_ACCESS_IGNORE_EXPECTED_EPOCH)
 endif()
 
 install(TARGETS laplace_pg

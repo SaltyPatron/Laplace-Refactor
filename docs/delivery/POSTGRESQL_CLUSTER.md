@@ -24,9 +24,19 @@ The candidate instance is intentionally disjoint:
 | Database / roles | `laplace_refactor`; `laplace_admin`; `laplace_app` |
 | Port / socket | `55433`; `/run/laplace-refactor-postgresql` |
 | Data / WAL / temporary | `/opt/laplace/pgdata/refactor/data`; `/var/lib/pgwal/refactor`; `/pgtemp/refactor` |
+| Durable perfcaches | `/opt/laplace/pgdata/refactor/perfcache` |
 | Configuration | `/etc/laplace/instances/refactor` |
 | Logs / receipts | `/var/log/laplace/postgresql/refactor`; `/opt/laplace/receipts/postgresql/refactor` |
 | Immutable package | `/opt/laplace/releases/<package-id>` |
+
+The product extension exposes Unicode through two ordered, bounded batch
+operations: `unicode_tier0_resolve_batch` and
+`unicode_identity_reverse_resolve_batch`. Each call requires the exact active
+epoch identity and fingerprint, acquires one generation pin, and delegates the
+entire access law to the native Tier-0 or reverse module. PostgreSQL does not
+decode the cache format or recreate its lookup semantics. The application role
+receives these read operations; root construction and activation remain an
+administrative effect.
 | Committed package link | `/opt/laplace/current` |
 
 Before staging and again immediately before real activation, a generic collision

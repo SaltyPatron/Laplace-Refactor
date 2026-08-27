@@ -266,6 +266,102 @@ BEGIN
 END
 $contract$;
 
+DO $contract$
+DECLARE
+    tier0 laplace.unicode_tier0_batch_result;
+    reverse laplace.unicode_identity_reverse_batch_result;
+    expected record;
+BEGIN
+    SELECT (laplace.unicode_tier0_resolve_batch(
+        decode(repeat('42', 16), 'hex'),
+        decode(repeat('43', 32), 'hex'),
+        ARRAY[0, 65, 1114111])).*
+    INTO STRICT tier0;
+
+    SELECT
+        array_agg(binding.placement_rank ORDER BY binding.codepoint_position)
+            AS placement_ranks,
+        array_agg(binding.position_class ORDER BY binding.codepoint_position)
+            AS position_classes,
+        array_agg(binding.lup_v1_bytes ORDER BY binding.codepoint_position)
+            AS lup_v1_bytes,
+        array_agg(binding.entity_id::bytea ORDER BY binding.codepoint_position)
+            AS entity_ids,
+        array_agg(binding.identity_preimage_fingerprint::bytea
+                  ORDER BY binding.codepoint_position)
+            AS identity_preimage_fingerprints,
+        array_agg(binding.physicality_id::bytea ORDER BY binding.codepoint_position)
+            AS physicality_ids,
+        array_agg(binding.coordinate_x ORDER BY binding.codepoint_position)
+            AS coordinate_x,
+        array_agg(binding.coordinate_y ORDER BY binding.codepoint_position)
+            AS coordinate_y,
+        array_agg(binding.coordinate_z ORDER BY binding.codepoint_position)
+            AS coordinate_z,
+        array_agg(binding.coordinate_m ORDER BY binding.codepoint_position)
+            AS coordinate_m,
+        array_agg(binding.hilbert_key ORDER BY binding.codepoint_position)
+            AS hilbert_keys
+    INTO STRICT expected
+    FROM laplace.unicode_atom_binding AS binding
+    WHERE binding.codepoint_position IN (0, 65, 1114111);
+
+    IF tier0.codepoint_positions <> ARRAY[0, 65, 1114111]
+       OR tier0.found <> ARRAY[true, true, true]
+       OR tier0.placement_ranks <> expected.placement_ranks
+       OR tier0.position_classes <> expected.position_classes
+       OR tier0.lup_v1_bytes <> expected.lup_v1_bytes
+       OR tier0.entity_ids <> expected.entity_ids
+       OR tier0.identity_preimage_fingerprints <>
+          expected.identity_preimage_fingerprints
+       OR tier0.physicality_ids <> expected.physicality_ids
+       OR tier0.coordinate_x <> expected.coordinate_x
+       OR tier0.coordinate_y <> expected.coordinate_y
+       OR tier0.coordinate_z <> expected.coordinate_z
+       OR tier0.coordinate_m <> expected.coordinate_m
+       OR tier0.hilbert_keys <> expected.hilbert_keys
+       OR tier0.activation_epoch_id <> decode(repeat('42', 16), 'hex')
+       OR tier0.activation_epoch_fingerprint <> decode(repeat('43', 32), 'hex')
+       OR cardinality(tier0.geometry_epochs) <> 3
+       OR cardinality(tier0.encoded_records) <> 3
+       OR EXISTS (
+            SELECT 1
+            FROM unnest(tier0.encoded_records) AS encoded(record)
+            WHERE octet_length(encoded.record) <= 196) THEN
+        RAISE EXCEPTION
+            'production Unicode Tier-0 batch access diverged from deposited state';
+    END IF;
+
+    SELECT (laplace.unicode_identity_reverse_resolve_batch(
+        tier0.activation_epoch_id,
+        tier0.activation_epoch_fingerprint,
+        tier0.entity_ids,
+        tier0.identity_preimage_fingerprints)).*
+    INTO STRICT reverse;
+    IF reverse.content_ids <> tier0.entity_ids
+       OR reverse.identity_preimage_fingerprints <>
+          tier0.identity_preimage_fingerprints
+       OR reverse.found <> ARRAY[true, true, true]
+       OR reverse.codepoint_positions <> ARRAY[0, 65, 1114111]
+       OR reverse.activation_epoch_id <> tier0.activation_epoch_id
+       OR reverse.activation_epoch_fingerprint <>
+          tier0.activation_epoch_fingerprint THEN
+        RAISE EXCEPTION
+            'production Unicode identity reverse access does not invert Tier-0';
+    END IF;
+
+    BEGIN
+        PERFORM laplace.unicode_tier0_resolve_batch(
+            decode(repeat('41', 16), 'hex'),
+            decode(repeat('43', 32), 'hex'),
+            ARRAY[65]);
+        RAISE EXCEPTION 'stale Unicode access epoch was accepted';
+    EXCEPTION
+        WHEN object_not_in_prerequisite_state THEN NULL;
+    END;
+END
+$contract$;
+
 EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
 SELECT codepoint_position, entity_id, physicality_id
 FROM laplace.unicode_atom_binding

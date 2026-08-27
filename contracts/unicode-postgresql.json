@@ -2,8 +2,8 @@
   "schema": "laplace.unicode-postgresql-contract/v1",
   "contract_fingerprint": {
     "algorithm": "BLAKE3-256",
-    "preimage": "laplace-unicode-postgresql-sink-v3",
-    "value": "4feeed5f27c9bf96cabc11fa88037630ce74663b5f1e1723d3eeb1af0f252035"
+    "preimage": "laplace-unicode-postgresql-sink-v4",
+    "value": "f4086d6334dc87f627177dce69b3701743b8ffa22c97e77854754dca0f04b077"
   },
   "binding": {
     "sql_name": "unicode_root_build_and_activate",
@@ -12,6 +12,28 @@
     "volatility": "volatile",
     "parallel_safety": "unsafe",
     "public_execute": false
+  },
+  "access_bindings": {
+    "maximum_batch_items": 4096,
+    "unicode_tier0": {
+      "sql_name": "unicode_tier0_resolve_batch",
+      "c_symbol": "laplace_pg_unicode_tier0_resolve_batch",
+      "input": "exact expected activation epoch plus ordered codepoint positions",
+      "output": "ordered native-decoded Unicode atom views plus canonical encoded records",
+      "volatility": "stable",
+      "parallel_safety": "unsafe",
+      "public_execute": false
+    },
+    "unicode_identity_reverse": {
+      "sql_name": "unicode_identity_reverse_resolve_batch",
+      "c_symbol": "laplace_pg_unicode_identity_reverse_resolve_batch",
+      "input": "exact expected activation epoch plus ordered content-identity/preimage-fingerprint keys",
+      "output": "ordered exact codepoint positions and found dispositions",
+      "volatility": "stable",
+      "parallel_safety": "unsafe",
+      "public_execute": false
+    },
+    "law": "one exact generation pin and one native typed batch resolution per SQL call; PostgreSQL transports but does not reimplement either perfcache access law"
   },
   "stream": {
     "record_type": 65536,

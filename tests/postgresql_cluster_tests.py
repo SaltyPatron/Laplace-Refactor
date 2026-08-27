@@ -276,6 +276,8 @@ class PostgreSQLClusterContract(unittest.TestCase):
             "identity_codepoint_execute_batch(laplace.execution_context, integer[])",
             "trajectory_composition_decode_calculate_batch(laplace.execution_context, bytea[])",
             "trajectory_composition_decode_execute_batch(laplace.execution_context, bytea[])",
+            "unicode_tier0_resolve_batch(bytea, bytea, integer[])",
+            "unicode_identity_reverse_resolve_batch(bytea, bytea, bytea[], bytea[])",
         ):
             self.assertIn(signature, bootstrap)
 

@@ -1934,6 +1934,10 @@ if(LAPLACE_POSTGRES_ENABLED)
             "${CMAKE_CURRENT_BINARY_DIR}/postgres/${perfcache_sql}"
             COPYONLY)
     endforeach()
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/unicode_access_epoch_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_access_epoch_mutation.sql"
+        COPYONLY)
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
@@ -2184,6 +2188,30 @@ if(LAPLACE_POSTGRES_ENABLED)
         postgres.mutation-unicode-plan-substitution-detected PROPERTIES
         LABELS "postgresql;unicode;persistence;receipt;mutation"
         RUN_SERIAL TRUE)
+
+    if(LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER)
+        add_test(
+            NAME postgres.mutation-unicode-access-expected-epoch-detected
+            COMMAND "${CMAKE_COMMAND}"
+                "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+                "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+                "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+                "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+                "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+                "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+                "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+                "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+                "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_unicode_access_epoch_mutant>"
+                "-DUNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
+                "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_access_epoch_mutation.sql"
+                "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_unicode_access_mutation_failure.cmake")
+        set_tests_properties(
+            postgres.mutation-unicode-access-expected-epoch-detected PROPERTIES
+            LABELS "postgresql;unicode;perfcache;epoch;mutation"
+            RUN_SERIAL TRUE
+            TIMEOUT 1800)
+    endif()
 endif()
 
 set(laplace_consumer_link_flags "${CMAKE_EXE_LINKER_FLAGS}")

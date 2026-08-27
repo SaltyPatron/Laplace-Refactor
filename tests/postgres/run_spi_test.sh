@@ -53,13 +53,13 @@ trap cleanup EXIT
 
 "$pg_bindir/initdb" -D "$data_directory" \
     --no-locale --encoding=UTF8 --auth=trust >/dev/null
-postgres_options="-k $socket_directory -p $port -c listen_addresses= -c max_prepared_transactions=4 -c laplace.perfcache_root=$perfcache_root -c extension_control_path=$control_root -c dynamic_library_path=$postgres_library_directory:$module_directory:$engine_directory"
+postgres_options="-k $socket_directory -p $port -c listen_addresses= -c max_prepared_transactions=4 -c laplace.perfcache_root=$perfcache_root -c extension_control_path=$control_root -c dynamic_library_path=$module_directory:$postgres_library_directory:$engine_directory"
 if [[ "$mode" != "composition-measurement" ]]; then
     postgres_options="-F $postgres_options"
 else
     postgres_options="$postgres_options -c shared_buffers=1GB -c max_wal_size=8GB -c checkpoint_timeout=30min -c track_io_timing=on -c track_wal_io_timing=on"
 fi
-if [[ "$mode" == "unicode-root" ]]; then
+if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ]]; then
     postgres_options="$postgres_options -c shared_buffers=512MB -c max_wal_size=8GB -c checkpoint_timeout=30min"
 fi
 
@@ -157,7 +157,7 @@ elif [[ "$mode" == "perfcache-mutation" ]]; then
         exit 66
     fi
     psql_arguments+=(-v "perfcache_mutant_module=$LAPLACE_MUTANT_MODULE")
-elif [[ "$mode" == "unicode-root" ]]; then
+elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ]]; then
     unicode_source_root=${LAPLACE_UNICODE_SOURCE_ROOT:-}
     if [[ -z "$unicode_source_root" || ! -d "$unicode_source_root" ]]; then
         echo "verified Unicode source root is unavailable: $unicode_source_root" >&2
@@ -172,6 +172,13 @@ elif [[ "$mode" == "unicode-root" ]]; then
         -v "unicode_spool_directory=$unicode_spool_directory"
         -v "unicode_tier0_path=$unicode_tier0_path"
         -v "unicode_reverse_path=$unicode_reverse_path")
+    if [[ "$mode" == "unicode-access-mutation" ]]; then
+        if [[ -z "${LAPLACE_MUTANT_MODULE:-}" || ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
+            echo "Unicode access mutant module is missing" >&2
+            exit 66
+        fi
+        psql_arguments+=(-v "unicode_access_mutant_module=$LAPLACE_MUTANT_MODULE")
+    fi
 elif [[ "$mode" != "mutation" ]]; then
     echo "unknown PostgreSQL test mode: $mode" >&2
     exit 64
@@ -209,7 +216,7 @@ else
     "$pg_bindir/psql" "${psql_arguments[@]}" -f "$sql_file"
 fi
 
-if [[ "$mode" == "unicode-root" ]]; then
+if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ]]; then
     if [[ ! -f "$unicode_tier0_path" ]]; then
         echo "Unicode Tier-0 artifact was not published" >&2
         exit 80

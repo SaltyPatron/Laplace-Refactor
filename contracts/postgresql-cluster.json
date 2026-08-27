@@ -49,6 +49,7 @@
     "data_directory": "/opt/laplace/pgdata/refactor/data",
     "wal_directory": "/var/lib/pgwal/refactor",
     "temp_directory": "/pgtemp/refactor",
+    "perfcache_directory": "/opt/laplace/pgdata/refactor/perfcache",
     "config_directory": "/etc/laplace/instances/refactor",
     "log_directory": "/var/log/laplace/postgresql/refactor",
     "receipt_directory": "/opt/laplace/receipts/postgresql/refactor"
