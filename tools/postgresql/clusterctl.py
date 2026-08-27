@@ -1933,9 +1933,12 @@ def activate_product(
     contract = load_json(contract_path)
     package = load_json(package_path)
     validate_contract(contract)
-    if evidence_directory != Path("/opt/laplace/receipts/plans") / package.get(
-        "package_id", "invalid"
-    ):
+    expected_evidence = (
+        Path(contract["instance"]["receipt_directory"])
+        / "cluster-activation"
+        / package.get("package_id", "invalid")
+    )
+    if evidence_directory != expected_evidence:
         raise ClusterError("system activation evidence directory must be package-addressed")
     evidence_directory.mkdir(parents=True, exist_ok=True, mode=0o750)
     ownership = qualify_package_ownership(package, contract)

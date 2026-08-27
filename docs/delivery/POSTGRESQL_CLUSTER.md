@@ -141,7 +141,9 @@ runner-to-admin mapping, ambient loader state, grants outside declared policy,
 non-package `pg_config`, package tampering, loaded-object drift, invalid system
 identity, and removal after operator modification.
 
-Real activation is one explicit privileged operation. It requires the complete
+Real activation is one explicit privileged operation. The low-level controller shown
+below is the root implementation boundary, not the normal product operator surface.
+It requires the complete
 PostgreSQL 18.6 product package, selected recursive ELF closure, native resource
 observation, root ownership, and an unoccupied declared cluster boundary:
 
@@ -151,8 +153,8 @@ sudo python3 tools/postgresql/clusterctl.py activate-product \
   --contract contracts/postgresql-cluster.json \
   --package-manifest /path/to/package-manifest.json \
   --resource-observation /path/to/native-resource-observation.json \
-  --evidence-directory /opt/laplace/receipts/plans/<package-id> \
-  --output /opt/laplace/receipts/plans/<package-id>/activation-result.json
+  --evidence-directory /opt/laplace/receipts/postgresql/refactor/cluster-activation/<package-id> \
+  --output /opt/laplace/receipts/postgresql/refactor/cluster-activation/<package-id>/activation-result.json
 ```
 
 The evidence directory must be addressed by the selected package ID. Completed
@@ -160,6 +162,33 @@ ownership, collision, plan, staging, command, initial-load, restart-load, failur
 activation evidence is retained there. The command will not treat an existing cluster,
 configuration, socket, service, or inaccessible collision target as fresh state. No
 current service or cluster is a prerequisite or activation target.
+
+### CI/CD activation gateway
+
+Normal product activation is dispatched by
+`.github/workflows/product-activation.yml` on the protected `product` environment and
+executes as `laplace-runner`. The workflow compiles one request from the exact
+activation-eligible successor recorded in `state/continuation.json`, binds the main
+commit, workflow run, package-manifest bytes, resource-observation bytes, Unicode
+source root, and gateway contract, and authenticates that canonical request with the
+protected deployment key.
+
+The runner can cross the root boundary only through the immutable executable at
+`/opt/laplace/deployment/current/bin/laplace-product-activate`. Its sudo policy names
+exactly `probe` and `execute-request`; it grants no shell, Python, repository path,
+wildcard argument, systemctl, file-copy, or arbitrary controller authority. The root
+gateway verifies its own root-owned content-addressed bundle before accepting bounded
+stdin, verifies the request authentication and time window, then invokes the bundled
+copies of `clusterctl.py` and `unicodectl.py` with paths derived from the signed package
+identity. Repository checkout code never executes as root.
+
+The gateway installs once through
+`tools/delivery/install_product_activation_gateway.py`. That bootstrap creates the
+root-owned controller bundle, root-only deployment key, exact sudoers entry, and
+version pointer. It is infrastructure establishment, not a recurring product install.
+Subsequent PostgreSQL and Unicode activations run entirely through CI/CD. Exact replay
+returns the existing content-addressed result; a changed key, request, route, package,
+resource receipt, path, cluster restart proof, or Unicode readback proof fails closed.
 
 ## Product Unicode activation
 
@@ -193,20 +222,23 @@ epoch. The artifact bytes must remain unchanged across restart and readback. Onl
 does a content-addressed `laplace.unicode-product-activation-receipt/v1` exist. Failures
 emit a typed receipt and require state reinspection before retry.
 
-Once the successor package and product cluster receipts exist, the physical command is:
+Once the successor package and product cluster receipts exist, the underlying Unicode
+controller command is:
 
 ```sh
 sudo python3 tools/postgresql/unicodectl.py \
   --authorize-system-root \
   --package-manifest /path/to/package-manifest.json \
-  --cluster-plan /opt/laplace/receipts/plans/<package-id>/cluster-plan-<digest>.json \
-  --cluster-activation-receipt /opt/laplace/receipts/plans/<package-id>/activation-complete-<digest>.json \
+  --cluster-plan /opt/laplace/receipts/postgresql/refactor/cluster-activation/<package-id>/cluster-plan-<digest>.json \
+  --cluster-activation-receipt /opt/laplace/receipts/postgresql/refactor/cluster-activation/<package-id>/activation-complete-<digest>.json \
   --source-root /vault/Data/UCD/Public/UCD/latest \
   --output /opt/laplace/receipts/postgresql/refactor/unicode-activation-result.json
 ```
 
-The existence of this controller and its fixture acceptance does not claim that the
-current machine has executed that command. Product activation requires the exact
+The CI/CD gateway composes this controller immediately after exact cluster activation;
+an operator does not have to discover receipt filenames or invoke it separately. The
+existence of the controller, gateway, and fixture acceptance does not claim that the
+current machine has activated the product. Product activation still requires the exact
 successor package, live cluster, restart, public readback, and durable receipt.
 
 ## Resource derivation

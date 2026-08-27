@@ -46,6 +46,12 @@
       "defect_controls": ["one changed source byte", "partial preexisting root", "activation identity domain collapse", "multiple native root calls", "reverse readback mutation", "unchanged postmaster", "artifact drift across restart"]
     },
     {
+      "ctest_name": "product-activation.gateway-contract",
+      "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-CONTINUATION-AUTHORITY", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
+      "covered_dimensions": ["laplace-runner CI/CD request compilation", "bounded authenticated root gateway", "immutable root-owned controller bundle", "exact package and resource receipt binding", "cluster and Unicode activation chaining", "content-addressed result and replay"],
+      "defect_controls": ["pull-request or non-main deployment", "changed request after authentication", "stale request", "path escape", "changed package or resource bytes", "duplicate JSON authority", "gateway key drift", "incomplete cluster restart receipt"]
+    },
+    {
       "ctest_name": "product-package.contract-and-mutation",
       "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-ELF-CLOSURE", "LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
       "covered_dimensions": ["exact PostgreSQL and Laplace product overlay", "required native execution providers", "recursive ELF closure", "immutable internal symlinks", "clean input-addressed construction", "activation eligibility", "installed native resource observation", "Unicode activation identity provider"],

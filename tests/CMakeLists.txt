@@ -748,6 +748,14 @@ set_tests_properties(unicode-product.activation-contract PROPERTIES
     RUN_SERIAL TRUE)
 
 add_test(
+    NAME product-activation.gateway-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/product_activation_gateway_tests.py")
+set_tests_properties(product-activation.gateway-contract PROPERTIES
+    LABELS "activation;delivery;product;postgresql;unicode;security;mutation"
+    RUN_SERIAL TRUE)
+
+add_test(
     NAME product-package.contract-and-mutation
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/product_package_tests.py")
 set_tests_properties(product-package.contract-and-mutation PROPERTIES
