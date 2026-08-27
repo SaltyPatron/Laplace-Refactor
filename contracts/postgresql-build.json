@@ -37,6 +37,53 @@
       "IO::Pty": "1.31",
       "IO::Tty": "1.31",
       "IPC::Run": "20260402.0"
+    },
+    "required_linker_map_inputs": {
+      "dynamic-loader": {
+        "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "soname": "ld-linux-x86-64.so.2",
+        "classification": "platform-abi"
+      },
+      "c-runtime": {
+        "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+        "soname": "libc.so.6",
+        "classification": "platform-abi"
+      },
+      "math-runtime": {
+        "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+        "soname": "libm.so.6",
+        "classification": "platform-abi"
+      },
+      "gcc-runtime": {
+        "path": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+        "soname": "libgcc_s.so.1",
+        "classification": "packaged-compiler-support",
+        "package_relative_path": "lib/libgcc_s.so.1",
+        "package_aliases": []
+      },
+      "cxx-runtime": {
+        "path": "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30",
+        "soname": "libstdc++.so.6",
+        "classification": "packaged-compiler-support",
+        "package_relative_path": "lib/libstdc++.so.6.0.30",
+        "package_aliases": ["lib/libstdc++.so.6"]
+      }
+    }
+  },
+  "installed_runtime_provider": {
+    "lock": "dependencies/installed-lock.json",
+    "lock_schema": "laplace.installed-provider-lock/v1",
+    "provider_selection_sha256": "07a9f21bcb81cb669a6be3248eb889ffbceb20bfd05fc957c16373f5ed595137",
+    "provider": "intel-oneapi-runtime",
+    "provider_sha256": "f14ba1d659dcc7c618386955da3daf025da48ebe5589cad3875028db6aeb12e6",
+    "version": "2026.1.1",
+    "required_files": {
+      "imf-runtime": {"class": "runtime-object", "package_relative_path": "lib/libimf.so"},
+      "svml-runtime": {"class": "runtime-object", "package_relative_path": "lib/libsvml.so"},
+      "intlc-runtime": {"class": "runtime-object", "package_relative_path": "lib/libintlc.so.5"},
+      "irng-runtime": {"class": "runtime-object", "package_relative_path": "lib/libirng.so"},
+      "intel-developer-tools-license": {"class": "license", "package_relative_path": "share/licenses/intel-oneapi-runtime/LICENSE"},
+      "compiler-third-party-notices": {"class": "license", "package_relative_path": "share/licenses/intel-oneapi-runtime/third-party-programs.txt"}
     }
   },
   "runtime_package": {
@@ -74,7 +121,10 @@
       "configure arguments and C/C++/linker flags",
       "PostgreSQL bundled tzdata 2026c",
       "Laplace PostgreSQL build driver",
-      "Laplace release archive verifier"
+      "Laplace release archive verifier",
+      "Laplace recursive ELF closure verifier",
+      "exact installed Intel runtime provider selection",
+      "exact compiler and platform ABI inputs from the toolchain linker receipt"
     ],
     "unselected_host_inputs": [
       "Python interpreter and standard library",
@@ -147,25 +197,42 @@
       "libecpg.so.6",
       "libicudata.so.78",
       "libicui18n.so.78",
+      "libicuio.so.78",
+      "libicutu.so.78",
       "libicuuc.so.78",
+      "libgcc_s.so.1",
+      "libimf.so",
+      "libintlc.so.5",
+      "libirng.so",
       "liblz4.so.1",
       "libpgtypes.so.3",
       "libpq.so.5",
       "libssl.so.4",
+      "libstdc++.so.6",
+      "libsvml.so",
       "liburing.so.2",
       "libxml2.so.16",
       "libz.so.1",
       "libzstd.so.1"
     ],
     "system_abi_sonames": [
+      "ld-linux-x86-64.so.2",
       "libc.so.6",
       "libm.so.6"
     ],
-    "selected_but_unpacked_sonames": [
-      "libimf.so",
-      "libintlc.so.5",
-      "libsvml.so"
-    ],
+    "recursive_verifier": {
+      "path": "tools/dependencies/elf-closure.py",
+      "schema": "laplace.elf-closure/v1",
+      "tool_version": "1.0.0",
+      "search_subdirectories": ["pgsql-18/lib", "lib"],
+      "required_zero_summary_fields": [
+        "unresolved_edge_count",
+        "parse_error_count",
+        "discovery_error_count",
+        "resolution_conflict_count",
+        "root_abi_family_collision_count"
+      ]
+    },
     "activation_policy": "blocked-until-selected-libraries-are-packaged-and-recursive-elf-closure-is-clean"
   }
 }

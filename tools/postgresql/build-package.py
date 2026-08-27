@@ -22,6 +22,7 @@ if str(DEPENDENCY_TOOLS) not in sys.path:
 from package_receipts import (  # noqa: E402
     ReceiptError,
     verify_recorded_package_tree,
+    verify_installed_provider_selection,
     verify_toolchain_package_receipt,
 )
 
@@ -86,10 +87,14 @@ def build_recipe_identity(
     driver = (driver_path or Path(__file__)).resolve()
     verifier = (repository / "tools/dependencies/release-assets.py").resolve()
     receipt_verifier = (repository / "tools/dependencies/package_receipts.py").resolve()
+    closure_verifier = (
+        repository / contract["runtime_closure"]["recursive_verifier"]["path"]
+    ).resolve()
     for name, path in (
         ("build driver", driver),
         ("release verifier", verifier),
         ("package receipt verifier", receipt_verifier),
+        ("recursive ELF closure verifier", closure_verifier),
     ):
         if not path.is_file():
             raise BuildError(f"{name} is missing: {path}")
@@ -106,6 +111,10 @@ def build_recipe_identity(
         "package_receipt_verifier": {
             "path": "tools/dependencies/package_receipts.py",
             "sha256": sha256_file(receipt_verifier),
+        },
+        "recursive_elf_closure_verifier": {
+            "path": contract["runtime_closure"]["recursive_verifier"]["path"],
+            "sha256": sha256_file(closure_verifier),
         },
     }
 
@@ -130,6 +139,7 @@ def validate_contract(document: dict[str, Any]) -> None:
     source = document.get("source")
     toolchain = document.get("toolchain")
     build_toolchain = document.get("build_toolchain")
+    installed_runtime_provider = document.get("installed_runtime_provider")
     runtime_package = document.get("runtime_package")
     input_closure = document.get("input_closure")
     build = document.get("build")
@@ -142,6 +152,7 @@ def validate_contract(document: dict[str, Any]) -> None:
             source,
             toolchain,
             build_toolchain,
+            installed_runtime_provider,
             runtime_package,
             input_closure,
             build,
@@ -178,6 +189,41 @@ def validate_contract(document: dict[str, Any]) -> None:
     )
     if build_toolchain.get("required_perl_modules") != EXPECTED_PERL_MODULES:
         raise BuildError("build_toolchain.required_perl_modules must remain exact")
+    required_linker_inputs = build_toolchain.get("required_linker_map_inputs")
+    if not isinstance(required_linker_inputs, dict) or not required_linker_inputs:
+        raise BuildError("build_toolchain.required_linker_map_inputs must be present")
+    linker_classes: set[str] = set()
+    for role, requirement in required_linker_inputs.items():
+        if not isinstance(role, str) or not role or not isinstance(requirement, dict):
+            raise BuildError("build toolchain linker-map requirement is invalid")
+        path = Path(require_string(requirement.get("path"), f"linker input {role}.path"))
+        if not path.is_absolute():
+            raise BuildError(f"linker input path must be absolute: {role}")
+        require_string(requirement.get("soname"), f"linker input {role}.soname")
+        classification = require_string(
+            requirement.get("classification"), f"linker input {role}.classification"
+        )
+        if classification not in {"platform-abi", "packaged-compiler-support"}:
+            raise BuildError(f"linker input classification is invalid: {role}")
+        linker_classes.add(classification)
+        if classification == "packaged-compiler-support" and not requirement.get(
+            "package_relative_path"
+        ):
+            raise BuildError(f"packaged linker input lacks a package path: {role}")
+    if linker_classes != {"platform-abi", "packaged-compiler-support"}:
+        raise BuildError("linker-map requirements must select platform and packaged support")
+    for field in (
+        "lock",
+        "lock_schema",
+        "provider_selection_sha256",
+        "provider",
+        "provider_sha256",
+        "version",
+    ):
+        require_string(installed_runtime_provider.get(field), f"installed_runtime_provider.{field}")
+    required_provider_files = installed_runtime_provider.get("required_files")
+    if not isinstance(required_provider_files, dict) or not required_provider_files:
+        raise BuildError("installed runtime provider required file selection is missing")
     if runtime_package.get("receipt_schema") != "laplace.postgresql-runtime-package/v2":
         raise BuildError("runtime_package.receipt_schema is invalid")
     if runtime_package.get("install_prefix") != "/opt/laplace/current":
@@ -262,10 +308,6 @@ def validate_contract(document: dict[str, Any]) -> None:
     categories = (
         require_string_array(closure.get("package_sonames"), "runtime_closure.package_sonames"),
         require_string_array(closure.get("system_abi_sonames"), "runtime_closure.system_abi_sonames"),
-        require_string_array(
-            closure.get("selected_but_unpacked_sonames"),
-            "runtime_closure.selected_but_unpacked_sonames",
-        ),
     )
     flattened = [item for category in categories for item in category]
     if len(flattened) != len(set(flattened)):
@@ -273,6 +315,20 @@ def validate_contract(document: dict[str, Any]) -> None:
     policy = require_string(closure.get("activation_policy"), "runtime_closure.activation_policy")
     if policy != "blocked-until-selected-libraries-are-packaged-and-recursive-elf-closure-is-clean":
         raise BuildError("runtime closure activation policy is not fail-closed")
+    verifier = closure.get("recursive_verifier")
+    if not isinstance(verifier, dict):
+        raise BuildError("runtime recursive verifier contract is missing")
+    require_string(verifier.get("path"), "runtime_closure.recursive_verifier.path")
+    require_string(verifier.get("schema"), "runtime_closure.recursive_verifier.schema")
+    require_string(verifier.get("tool_version"), "runtime_closure.recursive_verifier.tool_version")
+    require_string_array(
+        verifier.get("search_subdirectories"),
+        "runtime_closure.recursive_verifier.search_subdirectories",
+    )
+    require_string_array(
+        verifier.get("required_zero_summary_fields"),
+        "runtime_closure.recursive_verifier.required_zero_summary_fields",
+    )
 
 
 def validate_environment(contract: dict[str, Any], environment: Mapping[str, str]) -> None:
@@ -310,6 +366,18 @@ def verify_toolchain_receipt(
     try:
         return verify_toolchain_package_receipt(
             contract["build_toolchain"], receipt_path
+        )
+    except ReceiptError as error:
+        raise BuildError(str(error)) from error
+
+
+def verify_installed_runtime_provider(
+    contract: dict[str, Any], repository: Path, readelf: Path
+) -> dict[str, Any]:
+    lock_path = repository / contract["installed_runtime_provider"]["lock"]
+    try:
+        return verify_installed_provider_selection(
+            contract["installed_runtime_provider"], lock_path, readelf
         )
     except ReceiptError as error:
         raise BuildError(str(error)) from error
@@ -579,6 +647,11 @@ def create_plan(
         "cxx": validate_compiler(contract, "cxx"),
     }
     build_toolchain = verify_toolchain_receipt(contract, toolchain_receipt)
+    installed_runtime_provider = verify_installed_runtime_provider(
+        contract,
+        repository,
+        Path(build_toolchain["tools"]["readelf"]["path"]),
+    )
     runtime_package = verify_runtime_receipt(contract, runtime_receipt)
     recipe = build_recipe_identity(contract, repository)
     source = ensure_external(source_root, repository, "source root")
@@ -600,6 +673,7 @@ def create_plan(
         },
         "compilers": compilers,
         "build_toolchain": build_toolchain,
+        "installed_runtime_provider": installed_runtime_provider,
         "runtime_package": runtime_package,
         "recipe": recipe,
         "source_verification_sha256": canonical_sha256(source_receipt),
@@ -638,6 +712,7 @@ def create_plan(
         "release_prefix": str(release_prefix),
         "compilers": compilers,
         "build_toolchain": build_toolchain,
+        "installed_runtime_provider": installed_runtime_provider,
         "runtime_package": runtime_package,
         "recipe": recipe,
         "configure_command": configure_command,
@@ -889,9 +964,88 @@ def verify_runtime_bytes_in_composed_tree(
         raise BuildError(f"composed runtime package differs: {error}") from error
 
 
+def copy_receipted_runtime_file(
+    source_receipt: Mapping[str, Any], destination: Path, *, resume: bool
+) -> dict[str, Any]:
+    source = Path(require_string(source_receipt.get("path"), "runtime provider path"))
+    expected_sha = require_string(source_receipt.get("sha256"), "runtime provider sha256")
+    expected_size = source_receipt.get("size_bytes")
+    if (
+        not source.is_file()
+        or source.is_symlink()
+        or not isinstance(expected_size, int)
+        or source.stat().st_size != expected_size
+        or sha256_file(source) != expected_sha
+    ):
+        raise BuildError(f"selected runtime provider bytes differ: {source}")
+    if resume:
+        if (
+            not destination.is_file()
+            or destination.is_symlink()
+            or destination.stat().st_size != expected_size
+            or sha256_file(destination) != expected_sha
+        ):
+            raise BuildError(f"resumed packaged runtime provider differs: {destination}")
+    else:
+        if destination.exists() or destination.is_symlink():
+            raise BuildError(f"runtime provider destination already exists: {destination}")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination, follow_symlinks=False)
+        if destination.stat().st_size != expected_size or sha256_file(destination) != expected_sha:
+            raise BuildError(f"packaged runtime provider copy differs: {destination}")
+    return {
+        "source_path": str(source),
+        "package_path": str(destination),
+        "sha256": expected_sha,
+        "size_bytes": expected_size,
+    }
+
+
+def package_selected_runtime_providers(
+    plan: dict[str, Any], product_prefix: Path, *, resume: bool
+) -> dict[str, Any]:
+    packaged: dict[str, dict[str, Any]] = {}
+    selected_provider = plan["installed_runtime_provider"]
+    for role, source_receipt in selected_provider["files"].items():
+        relative = source_receipt["package_relative_path"]
+        packaged[f"installed-provider:{role}"] = copy_receipted_runtime_file(
+            source_receipt, product_prefix / relative, resume=resume
+        )
+    for role, source_receipt in plan["build_toolchain"]["linker_map_inputs"].items():
+        relative = source_receipt.get("package_relative_path")
+        if relative is None:
+            continue
+        destination = product_prefix / relative
+        packaged[f"toolchain-linker-input:{role}"] = copy_receipted_runtime_file(
+            source_receipt, destination, resume=resume
+        )
+        for alias in source_receipt["package_aliases"]:
+            alias_path = product_prefix / alias
+            expected_target = os.path.relpath(destination, alias_path.parent)
+            if resume:
+                if not alias_path.is_symlink() or os.readlink(alias_path) != expected_target:
+                    raise BuildError(f"resumed runtime provider alias differs: {alias_path}")
+            else:
+                if alias_path.exists() or alias_path.is_symlink():
+                    raise BuildError(f"runtime provider alias already exists: {alias_path}")
+                alias_path.parent.mkdir(parents=True, exist_ok=True)
+                alias_path.symlink_to(expected_target)
+            packaged[f"toolchain-linker-alias:{role}:{alias}"] = {
+                "package_path": str(alias_path),
+                "target": expected_target,
+            }
+    return {
+        "schema": "laplace.postgresql-packaged-runtime-providers/v1",
+        "installed_provider_lock_sha256": selected_provider["lock_sha256"],
+        "provider_selection_sha256": selected_provider["provider_selection_sha256"],
+        "files": packaged,
+        "product_runtime_activated": False,
+    }
+
+
 def prepare_build_directory(
     contract: dict[str, Any], plan: dict[str, Any], resume: bool
-) -> tuple[Path, dict[str, Any]]:
+) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     build_directory = Path(plan["build_directory"])
     stage_directory = Path(plan["stage_directory"])
     product_prefix = Path(plan["staged_product_prefix"])
@@ -919,9 +1073,7 @@ def prepare_build_directory(
                 raise BuildError(
                     f"resume {name} directory mode must be 0700: observed {observed_mode:04o}"
                 )
-        verify_runtime_bytes_in_composed_tree(
-            plan, runtime_receipt, allow_additions=False
-        )
+        verify_runtime_bytes_in_composed_tree(plan, runtime_receipt, allow_additions=True)
     else:
         if build_directory.exists() or stage_directory.exists():
             raise BuildError("build and stage destinations must not already exist")
@@ -936,13 +1088,16 @@ def prepare_build_directory(
         verify_runtime_bytes_in_composed_tree(
             plan, runtime_receipt, allow_additions=False
         )
-    return build_directory, runtime_receipt
+    packaged_runtime_providers = package_selected_runtime_providers(
+        plan, product_prefix, resume=resume
+    )
+    return build_directory, runtime_receipt, packaged_runtime_providers
 
 
 def execute_plan(
     contract: dict[str, Any], plan: dict[str, Any], resume: bool = False
 ) -> dict[str, Any]:
-    build_directory, runtime_receipt = prepare_build_directory(
+    build_directory, runtime_receipt, packaged_runtime_providers = prepare_build_directory(
         contract, plan, resume
     )
     prefix = Path(plan["staged_product_prefix"])
@@ -977,6 +1132,10 @@ def execute_plan(
         contract,
         prefix,
         Path(plan["build_toolchain"]["tools"]["readelf"]["path"]),
+        repository=Path(__file__).resolve().parents[2],
+        toolchain=plan["build_toolchain"],
+        installed_provider=plan["installed_runtime_provider"],
+        closure_output=build_directory / "recursive-elf-closure.json",
     )
     receipt.update(
         {
@@ -989,6 +1148,8 @@ def execute_plan(
             "completed_targets": list(plan["make_targets"]),
             "recipe": plan["recipe"],
             "runtime_package": plan["runtime_package"],
+            "installed_runtime_provider": plan["installed_runtime_provider"],
+            "packaged_runtime_providers": packaged_runtime_providers,
             "build_toolchain": plan["build_toolchain"],
             "release_prefix": plan["release_prefix"],
         }
@@ -1043,17 +1204,176 @@ def classify_needed(contract: dict[str, Any], needed: set[str]) -> dict[str, lis
     closure = contract["runtime_closure"]
     package = set(closure["package_sonames"])
     system = set(closure["system_abi_sonames"])
-    unpacked = set(closure["selected_but_unpacked_sonames"])
     return {
         "package": sorted(needed & package),
         "system_abi": sorted(needed & system),
-        "selected_but_unpacked": sorted(needed & unpacked),
-        "unknown": sorted(needed - package - system - unpacked),
+        "unknown": sorted(needed - package - system),
+    }
+
+
+def verify_recursive_elf_closure(
+    contract: dict[str, Any],
+    repository: Path,
+    prefix: Path,
+    toolchain: Mapping[str, Any],
+    installed_provider: Mapping[str, Any],
+    output_path: Path,
+) -> dict[str, Any]:
+    verifier = contract["runtime_closure"]["recursive_verifier"]
+    tool_path = (repository / verifier["path"]).resolve()
+    if not tool_path.is_file():
+        raise BuildError(f"recursive ELF closure verifier is missing: {tool_path}")
+    platform_inputs = {
+        role: item
+        for role, item in toolchain["linker_map_inputs"].items()
+        if item["classification"] == "platform-abi"
+    }
+    loader = platform_inputs.get("dynamic-loader")
+    if loader is None:
+        raise BuildError("toolchain receipt omits the selected dynamic loader")
+    command = [
+        sys.executable,
+        str(tool_path),
+        "--root",
+        str(prefix),
+        "--custom-prefix",
+        str(prefix),
+        "--process-cwd",
+        "/",
+        "--readelf",
+        toolchain["tools"]["readelf"]["path"],
+        "--loader",
+        loader["path"],
+        "--output",
+        str(output_path),
+        "--strict",
+    ]
+    search_directories: list[str] = []
+    for relative in verifier["search_subdirectories"]:
+        directory = prefix / relative
+        if not directory.is_dir() or directory.is_symlink():
+            raise BuildError(f"recursive ELF search directory is missing: {directory}")
+        search_directories.append(str(directory))
+        command.extend(("--search-dir", str(directory)))
+    result = subprocess.run(command, text=True, capture_output=True)
+    if not output_path.is_file():
+        raise BuildError("recursive ELF closure verifier produced no receipt")
+    report = read_json(output_path)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise BuildError(
+            f"recursive ELF closure verifier rejected the package ({result.returncode}): {detail}"
+        )
+    if report.get("schema") != verifier["schema"] or report.get("tool_version") != verifier[
+        "tool_version"
+    ]:
+        raise BuildError("recursive ELF closure receipt schema or tool version differs")
+    inputs = report.get("inputs")
+    summary = report.get("summary")
+    objects = report.get("objects")
+    if not isinstance(inputs, dict) or not isinstance(summary, dict) or not isinstance(objects, list):
+        raise BuildError("recursive ELF closure receipt structure is incomplete")
+    if (
+        inputs.get("roots") != [str(prefix)]
+        or inputs.get("custom_prefix") != str(prefix)
+        or inputs.get("process_cwd") != "/"
+        or inputs.get("environment_library_path_used") is not False
+        or sorted(inputs.get("explicit_search_directories", []))
+        != sorted(search_directories)
+    ):
+        raise BuildError("recursive ELF closure receipt input boundary differs")
+    for field in verifier["required_zero_summary_fields"]:
+        if summary.get(field) != 0:
+            raise BuildError(f"recursive ELF closure is not clean: {field}")
+    by_path = {
+        item.get("path"): item for item in objects if isinstance(item, dict)
+    }
+    external_objects = [
+        item for item in objects if item.get("classification") == "external-prefix"
+    ]
+    if external_objects:
+        raise BuildError("recursive ELF closure selected an external runtime provider")
+    observed_host = {
+        item.get("path"): item
+        for item in objects
+        if item.get("classification") == "host-system"
+    }
+    expected_host = {str(Path(item["path"]).resolve()): item for item in platform_inputs.values()}
+    if set(observed_host) != set(expected_host):
+        raise BuildError("recursive ELF closure host ABI object set differs")
+    for path, expected in expected_host.items():
+        item = observed_host[path]
+        if item.get("sha256") != expected["sha256"] or item.get("elf", {}).get(
+            "soname"
+        ) != expected["soname"]:
+            raise BuildError(f"recursive ELF closure host ABI identity differs: {path}")
+    host_loader = report.get("host_loader")
+    if not isinstance(host_loader, dict) or (
+        host_loader.get("path") != str(Path(loader["path"]).resolve())
+        or host_loader.get("sha256") != loader["sha256"]
+    ):
+        raise BuildError("recursive ELF closure loader identity differs")
+    packaged_runtime_objects: dict[str, dict[str, Any]] = {}
+    expected_packaged: list[tuple[str, Mapping[str, Any]]] = []
+    expected_packaged.extend(
+        (f"installed-provider:{role}", item)
+        for role, item in installed_provider["files"].items()
+        if item["class"] == "runtime-object"
+    )
+    expected_packaged.extend(
+        (f"toolchain-linker-input:{role}", item)
+        for role, item in toolchain["linker_map_inputs"].items()
+        if item["classification"] == "packaged-compiler-support"
+    )
+    for role, expected in expected_packaged:
+        packaged_path = str((prefix / expected["package_relative_path"]).resolve())
+        item = by_path.get(packaged_path)
+        if (
+            not isinstance(item, dict)
+            or item.get("classification") != "custom-prefix"
+            or item.get("sha256") != expected["sha256"]
+            or item.get("elf", {}).get("soname") != expected["soname"]
+        ):
+            raise BuildError(f"recursive ELF closure omitted selected packaged provider: {role}")
+        packaged_runtime_objects[role] = {
+            "path": packaged_path,
+            "sha256": item["sha256"],
+            "soname": item["elf"]["soname"],
+        }
+    return {
+        "schema": "laplace.postgresql-recursive-elf-closure-receipt/v1",
+        "verifier": {
+            "path": verifier["path"],
+            "sha256": sha256_file(tool_path),
+            "schema": report["schema"],
+            "tool_version": report["tool_version"],
+        },
+        "report_path": str(output_path.resolve()),
+        "report_sha256": sha256_file(output_path),
+        "summary": summary,
+        "platform_abi_objects": {
+            role: {
+                "path": str(Path(item["path"]).resolve()),
+                "sha256": item["sha256"],
+                "soname": item["soname"],
+            }
+            for role, item in platform_inputs.items()
+        },
+        "packaged_runtime_objects": packaged_runtime_objects,
+        "verified": True,
+        "product_runtime_activated": False,
     }
 
 
 def verify_package(
-    contract: dict[str, Any], prefix: Path, readelf: Path
+    contract: dict[str, Any],
+    prefix: Path,
+    readelf: Path,
+    *,
+    repository: Path,
+    toolchain: Mapping[str, Any],
+    installed_provider: Mapping[str, Any],
+    closure_output: Path,
 ) -> dict[str, Any]:
     validate_contract(contract)
     prefix = prefix.resolve()
@@ -1075,11 +1395,15 @@ def verify_package(
     tree_sha, file_count, total_bytes, needed = package_tree(prefix, readelf)
     closure = classify_needed(contract, needed)
     if closure["unknown"]:
-        disposition = "blocked: package has undeclared direct ELF dependencies"
-    elif closure["selected_but_unpacked"]:
-        disposition = "blocked: selected runtime libraries remain outside the package"
-    else:
-        disposition = "blocked: recursive ELF closure has not been packaged and verified"
+        raise BuildError("package has undeclared direct ELF dependencies")
+    recursive_closure = verify_recursive_elf_closure(
+        contract,
+        repository,
+        prefix,
+        toolchain,
+        installed_provider,
+        closure_output,
+    )
     return {
         "schema": PACKAGE_SCHEMA,
         "prefix": str(prefix),
@@ -1090,9 +1414,12 @@ def verify_package(
         "total_file_bytes": total_bytes,
         "direct_elf_needed": closure,
         "build_input_closure_complete": False,
-        "recursive_elf_closure_verified": False,
+        "recursive_elf_closure": recursive_closure,
+        "recursive_elf_closure_verified": True,
         "activation_eligible": False,
-        "activation_disposition": disposition,
+        "activation_disposition": (
+            "blocked: build-input closure and runtime-provider qualification remain incomplete"
+        ),
     }
 
 
@@ -1155,12 +1482,25 @@ def main(argv: Sequence[str]) -> int:
         toolchain = verify_toolchain_receipt(
             contract, Path(arguments.toolchain_receipt)
         )
+        installed_provider = verify_installed_runtime_provider(
+            contract,
+            repository,
+            Path(toolchain["tools"]["readelf"]["path"]),
+        )
+        closure_output = (
+            Path(arguments.prefix).resolve().parent
+            / f".{Path(arguments.prefix).resolve().name}-recursive-elf-closure.json"
+        )
         print(
             json.dumps(
                 verify_package(
                     contract,
                     Path(arguments.prefix),
                     Path(toolchain["tools"]["readelf"]["path"]),
+                    repository=repository,
+                    toolchain=toolchain,
+                    installed_provider=installed_provider,
+                    closure_output=closure_output,
                 ),
                 indent=2,
                 sort_keys=True,

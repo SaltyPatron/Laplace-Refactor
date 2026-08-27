@@ -8,6 +8,7 @@ import json
 import os
 import re
 import stat
+import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
@@ -189,6 +190,77 @@ def verify_toolchain_package_receipt(
                 f"toolchain.perl_modules.{name}.source_component",
             ),
         }
+    linker_inputs = receipt.get("linker_map_inputs")
+    required_linker_inputs = expected.get("required_linker_map_inputs", {})
+    if not isinstance(linker_inputs, list) or not isinstance(required_linker_inputs, dict):
+        raise ReceiptError("toolchain linker-map inputs and requirements must be present")
+    indexed_linker_inputs: dict[str, dict[str, Any]] = {}
+    for index, item in enumerate(linker_inputs):
+        if not isinstance(item, dict):
+            raise ReceiptError(f"toolchain linker_map_inputs[{index}] must be an object")
+        raw_path = require_string(
+            item.get("path"), f"toolchain.linker_map_inputs[{index}].path"
+        )
+        path = Path(raw_path)
+        digest = require_string(
+            item.get("sha256"), f"toolchain.linker_map_inputs[{index}].sha256"
+        )
+        size = item.get("size_bytes")
+        if raw_path in indexed_linker_inputs:
+            raise ReceiptError(f"toolchain linker-map input path is duplicated: {raw_path}")
+        if not path.is_absolute() or not isinstance(size, int) or size <= 0:
+            raise ReceiptError(f"toolchain linker-map input identity is invalid: {raw_path}")
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ReceiptError(f"toolchain linker-map input digest is invalid: {raw_path}")
+        indexed_linker_inputs[raw_path] = {
+            "path": raw_path,
+            "sha256": digest,
+            "size_bytes": size,
+        }
+    selected_linker_inputs: dict[str, dict[str, Any]] = {}
+    for role, requirement in required_linker_inputs.items():
+        if not isinstance(role, str) or not role or not isinstance(requirement, dict):
+            raise ReceiptError("toolchain required linker-map input declaration is invalid")
+        raw_path = require_string(
+            requirement.get("path"), f"toolchain.required_linker_map_inputs.{role}.path"
+        )
+        selected_input = indexed_linker_inputs.get(raw_path)
+        if selected_input is None:
+            raise ReceiptError(f"toolchain receipt omits required linker-map input: {role}")
+        path = Path(raw_path)
+        if not path.is_file() or path.is_symlink():
+            raise ReceiptError(f"toolchain linker-map input is not a physical file: {role}")
+        if path.stat().st_size != selected_input["size_bytes"]:
+            raise ReceiptError(f"toolchain linker-map input size differs: {role}")
+        if sha256_file(path) != selected_input["sha256"]:
+            raise ReceiptError(f"toolchain linker-map input digest differs: {role}")
+        selected_linker_inputs[role] = {
+            **selected_input,
+            "soname": require_string(
+                requirement.get("soname"),
+                f"toolchain.required_linker_map_inputs.{role}.soname",
+            ),
+            "classification": require_string(
+                requirement.get("classification"),
+                f"toolchain.required_linker_map_inputs.{role}.classification",
+            ),
+        }
+        package_relative_path = requirement.get("package_relative_path")
+        if package_relative_path is not None:
+            selected_linker_inputs[role]["package_relative_path"] = safe_relative_path(
+                package_relative_path,
+                f"toolchain.required_linker_map_inputs.{role}.package_relative_path",
+            )
+        aliases = requirement.get("package_aliases", [])
+        if not isinstance(aliases, list):
+            raise ReceiptError(f"toolchain required linker-map aliases are invalid: {role}")
+        selected_linker_inputs[role]["package_aliases"] = [
+            safe_relative_path(
+                alias,
+                f"toolchain.required_linker_map_inputs.{role}.package_aliases[{index}]",
+            )
+            for index, alias in enumerate(aliases)
+        ]
     return {
         "receipt_path": str(receipt_path.resolve()),
         "receipt_sha256": sha256_file(receipt_path),
@@ -196,6 +268,7 @@ def verify_toolchain_package_receipt(
         "prefix": str(prefix),
         "tools": selected,
         "perl_modules": selected_modules,
+        "linker_map_inputs": selected_linker_inputs,
     }
 
 
@@ -205,6 +278,123 @@ def safe_relative_path(value: object, field: str) -> str:
     if path.is_absolute() or ".." in path.parts or text != path.as_posix():
         raise ReceiptError(f"{field} must be a normalized package-relative path")
     return text
+
+
+def verify_installed_provider_selection(
+    expected: Mapping[str, Any], lock_path: Path, readelf: Path
+) -> dict[str, Any]:
+    """Select exact installed-provider roles without promoting installation to authority."""
+    document = read_json(lock_path)
+    if document.get("schema") != expected.get("lock_schema"):
+        raise ReceiptError("installed provider lock schema mismatch")
+    if document.get("selection") != "installed-bytes-selected-not-product-runtime-activated":
+        raise ReceiptError("installed provider selection crossed the activation boundary")
+    providers = document.get("providers")
+    if not isinstance(providers, dict):
+        raise ReceiptError("installed provider lock omits its provider map")
+    selection_sha256 = require_string(
+        document.get("provider_selection_sha256"), "installed_provider.provider_selection_sha256"
+    )
+    observed_selection_sha256 = hashlib.sha256(
+        json.dumps(
+            providers, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    ).hexdigest()
+    if (
+        selection_sha256 != expected.get("provider_selection_sha256")
+        or selection_sha256 != observed_selection_sha256
+    ):
+        raise ReceiptError("installed provider selection fingerprint differs")
+    provider_id = require_string(expected.get("provider"), "installed_provider.provider")
+    provider = providers.get(provider_id)
+    if not isinstance(provider, dict):
+        raise ReceiptError(f"installed provider lock omits selected provider: {provider_id}")
+    provider_sha256 = hashlib.sha256(
+        json.dumps(
+            provider, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    ).hexdigest()
+    if provider_sha256 != expected.get("provider_sha256"):
+        raise ReceiptError(f"installed provider exact identity differs: {provider_id}")
+    if provider.get("version") != expected.get("version"):
+        raise ReceiptError(f"installed provider version differs: {provider_id}")
+    root = Path(require_string(provider.get("immutable_root"), "installed_provider.immutable_root"))
+    if not root.is_absolute() or "latest" in root.parts:
+        raise ReceiptError("installed provider root must be absolute and immutable")
+    files = provider.get("files")
+    requirements = expected.get("required_files")
+    if not isinstance(files, list) or not isinstance(requirements, dict) or not requirements:
+        raise ReceiptError("installed provider file selection is incomplete")
+    by_role: dict[str, dict[str, Any]] = {}
+    for index, item in enumerate(files):
+        if not isinstance(item, dict):
+            raise ReceiptError(f"installed provider files[{index}] must be an object")
+        role = require_string(item.get("role"), f"installed_provider.files[{index}].role")
+        if role in by_role:
+            raise ReceiptError(f"installed provider file role is duplicated: {role}")
+        by_role[role] = item
+    selected: dict[str, dict[str, Any]] = {}
+    for role, requirement in requirements.items():
+        if not isinstance(role, str) or not role or not isinstance(requirement, dict):
+            raise ReceiptError("installed provider required file declaration is invalid")
+        item = by_role.get(role)
+        if item is None:
+            raise ReceiptError(f"installed provider omits required file role: {role}")
+        file_class = require_string(item.get("class"), f"installed_provider.{role}.class")
+        if file_class != requirement.get("class"):
+            raise ReceiptError(f"installed provider file class differs: {role}")
+        path = Path(require_string(item.get("path"), f"installed_provider.{role}.path"))
+        if not path.is_absolute() or not path_is_within(path, root) or "latest" in path.parts:
+            raise ReceiptError(f"installed provider file escapes its immutable root: {role}")
+        digest = require_string(item.get("sha256"), f"installed_provider.{role}.sha256")
+        size = item.get("bytes")
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", digest)
+            or not isinstance(size, int)
+            or size <= 0
+            or not path.is_file()
+            or path.is_symlink()
+            or path.stat().st_size != size
+            or sha256_file(path) != digest
+        ):
+            raise ReceiptError(f"installed provider file bytes differ: {role}")
+        selected_item: dict[str, Any] = {
+            "path": str(path),
+            "sha256": digest,
+            "size_bytes": size,
+            "class": file_class,
+            "package_relative_path": safe_relative_path(
+                requirement.get("package_relative_path"),
+                f"installed_provider.required_files.{role}.package_relative_path",
+            ),
+        }
+        if file_class == "runtime-object":
+            soname = require_string(item.get("soname"), f"installed_provider.{role}.soname")
+            result = subprocess.run(
+                [str(readelf), "-d", str(path)], text=True, capture_output=True
+            )
+            observed_sonames = re.findall(r"\(SONAME\).*\[([^]]+)\]", result.stdout)
+            if result.returncode != 0 or observed_sonames != [soname]:
+                raise ReceiptError(f"installed provider runtime SONAME differs: {role}")
+            selected_item["soname"] = soname
+        selected[role] = selected_item
+    boundaries = document.get("authority_boundaries")
+    if not isinstance(boundaries, dict) or boundaries.get(
+        "selection-activates-product-runtime"
+    ) is not False or boundaries.get(
+        "loaded-runtime-object-closure-requires-package-receipt"
+    ) is not True:
+        raise ReceiptError("installed provider authority boundary differs")
+    return {
+        "lock_path": str(lock_path.resolve()),
+        "lock_sha256": sha256_file(lock_path),
+        "provider_selection_sha256": selection_sha256,
+        "provider": provider_id,
+        "provider_sha256": provider_sha256,
+        "version": provider["version"],
+        "files": selected,
+        "selection_activates_product_runtime": False,
+    }
 
 
 def verify_recorded_package_tree(

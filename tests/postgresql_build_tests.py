@@ -30,14 +30,13 @@ class PostgreSQLBuildTests(unittest.TestCase):
             (REPO_ROOT / "contracts/postgresql-build.json").read_text(encoding="utf-8")
         )
 
-    def toolchain_receipt(self, root: Path) -> Path:
+    def toolchain_receipt(self, root: Path, contract: dict[str, object]) -> Path:
         prefix = root / "toolchain"
         binary = prefix / "bin/tool"
         binary.parent.mkdir(parents=True)
         binary.write_bytes(Path("/bin/true").read_bytes())
         binary.chmod(0o755)
         digest = BUILD.sha256_file(binary)
-        contract = self.contract()
         module_root = prefix / "lib/perl5/site_perl/5.44.0"
         module_paths = {
             "IO::Pty": module_root / "IO/Pty.pm",
@@ -91,7 +90,23 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 "scope": "build-toolchain-only",
                 "product_runtime_activation_eligible": False,
             },
+            "linker_map_inputs": [],
         }
+        linker_root = root / "linker-inputs"
+        linker_root.mkdir()
+        for role, requirement in contract["build_toolchain"][
+            "required_linker_map_inputs"
+        ].items():
+            linker_input = linker_root / role
+            linker_input.write_bytes(f"fixture {role}\n".encode("utf-8"))
+            requirement["path"] = str(linker_input)
+            receipt["linker_map_inputs"].append(
+                {
+                    "path": str(linker_input),
+                    "sha256": BUILD.sha256_file(linker_input),
+                    "size_bytes": linker_input.stat().st_size,
+                }
+            )
         path = root / "toolchain-receipt.json"
         path.write_text(json.dumps(receipt), encoding="utf-8")
         return path
@@ -333,6 +348,9 @@ class PostgreSQLBuildTests(unittest.TestCase):
             (verifier.parent / "package_receipts.py").write_text(
                 "receipt-verifier-v1", encoding="utf-8"
             )
+            (verifier.parent / "elf-closure.py").write_text(
+                "elf-closure-v1", encoding="utf-8"
+            )
             driver = root / "driver.py"
             driver.write_text("driver-v1", encoding="utf-8")
             first = BUILD.build_recipe_identity(self.contract(), root, driver)
@@ -395,9 +413,12 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 (build / "build-plan.json").write_text(
                     json.dumps(plan), encoding="utf-8"
                 )
-                observed, _ = BUILD.prepare_build_directory(
-                    self.contract(), plan, resume=True
-                )
+                with mock.patch.object(
+                    BUILD, "package_selected_runtime_providers", return_value={}
+                ):
+                    observed, _, _ = BUILD.prepare_build_directory(
+                        self.contract(), plan, resume=True
+                    )
                 self.assertEqual(observed, build)
 
     def test_source_must_be_a_named_member_of_verified_release_import(self) -> None:
@@ -411,18 +432,22 @@ class PostgreSQLBuildTests(unittest.TestCase):
         self.assertEqual(closure["system_abi"], ["libc.so.6"])
         self.assertEqual(closure["unknown"], ["libmystery.so.1"])
 
-    def test_host_feature_and_intel_runtime_libraries_block_activation(self) -> None:
+    def test_host_feature_and_intel_runtime_libraries_have_distinct_package_roles(self) -> None:
         closure = BUILD.classify_needed(
             self.contract(), {"libpq.so.5", "libssl.so.4", "libimf.so", "libc.so.6"}
         )
-        self.assertEqual(closure["package"], ["libpq.so.5", "libssl.so.4"])
+        self.assertEqual(
+            closure["package"], ["libimf.so", "libpq.so.5", "libssl.so.4"]
+        )
         self.assertEqual(closure["system_abi"], ["libc.so.6"])
-        self.assertEqual(closure["selected_but_unpacked"], ["libimf.so"])
+        self.assertEqual(closure["unknown"], [])
 
     def test_toolchain_receipt_selects_every_required_build_tool(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
+            contract = self.contract()
+            receipt = self.toolchain_receipt(Path(temporary), contract)
             selected = BUILD.verify_toolchain_receipt(
-                self.contract(), self.toolchain_receipt(Path(temporary))
+                contract, receipt
             )
             self.assertEqual(
                 set(selected["tools"]),
@@ -436,12 +461,26 @@ class PostgreSQLBuildTests(unittest.TestCase):
     def test_toolchain_receipt_detects_perl_module_provider_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            receipt_path = self.toolchain_receipt(root)
+            contract = self.contract()
+            receipt_path = self.toolchain_receipt(root, contract)
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
             provider = Path(receipt["consumer_manifest"]["perl_modules"]["IPC::Run"]["path"])
             provider.write_text("mutated provider\n", encoding="utf-8")
             with self.assertRaisesRegex(BUILD.BuildError, "Perl module digest mismatch"):
-                BUILD.verify_toolchain_receipt(self.contract(), receipt_path)
+                BUILD.verify_toolchain_receipt(contract, receipt_path)
+
+    def test_toolchain_receipt_detects_linker_input_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            contract = self.contract()
+            receipt_path = self.toolchain_receipt(root, contract)
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            linker_input = Path(receipt["linker_map_inputs"][0]["path"])
+            linker_input.write_bytes(b"mutated linker input\n")
+            with self.assertRaisesRegex(
+                BUILD.BuildError, "linker-map input (size|digest) differs"
+            ):
+                BUILD.verify_toolchain_receipt(contract, receipt_path)
 
     def test_configure_receipt_rejects_ambient_openssl_even_with_selected_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -550,11 +589,18 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 "staged_product_prefix": str(product),
                 "staged_postgresql_prefix": str(product / "pgsql-18"),
                 "runtime_package": selected,
+                "installed_runtime_provider": {
+                    "files": {},
+                    "lock_sha256": "8" * 64,
+                    "provider_selection_sha256": "9" * 64,
+                },
+                "build_toolchain": {"linker_map_inputs": {}},
             }
-            observed_build, receipt = BUILD.prepare_build_directory(
+            observed_build, receipt, providers = BUILD.prepare_build_directory(
                 self.contract(), plan, resume=False
             )
             self.assertEqual(observed_build, build)
+            self.assertEqual(providers["files"], {})
             self.assertEqual(
                 (product / "lib/libfixture.so").read_bytes(), b"runtime bytes\n"
             )
@@ -567,6 +613,159 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 BUILD.verify_runtime_bytes_in_composed_tree(
                     plan, receipt, allow_additions=True
                 )
+
+    def test_runtime_provider_packaging_is_receipted_and_resume_detects_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            product = root / "product"
+            product.mkdir()
+            intel = root / "libimf.so"
+            intel.write_bytes(b"intel runtime\n")
+            support = root / "libstdc++.so.6.0.30"
+            support.write_bytes(b"compiler support\n")
+            plan = {
+                "installed_runtime_provider": {
+                    "lock_sha256": "1" * 64,
+                    "provider_selection_sha256": "2" * 64,
+                    "files": {
+                        "imf-runtime": {
+                            "path": str(intel),
+                            "sha256": BUILD.sha256_file(intel),
+                            "size_bytes": intel.stat().st_size,
+                            "class": "runtime-object",
+                            "soname": "libimf.so",
+                            "package_relative_path": "lib/libimf.so",
+                        }
+                    },
+                },
+                "build_toolchain": {
+                    "linker_map_inputs": {
+                        "cxx-runtime": {
+                            "path": str(support),
+                            "sha256": BUILD.sha256_file(support),
+                            "size_bytes": support.stat().st_size,
+                            "soname": "libstdc++.so.6",
+                            "classification": "packaged-compiler-support",
+                            "package_relative_path": "lib/libstdc++.so.6.0.30",
+                            "package_aliases": ["lib/libstdc++.so.6"],
+                        }
+                    }
+                },
+            }
+            receipt = BUILD.package_selected_runtime_providers(
+                plan, product, resume=False
+            )
+            self.assertFalse(receipt["product_runtime_activated"])
+            self.assertEqual((product / "lib/libimf.so").read_bytes(), b"intel runtime\n")
+            self.assertEqual(
+                (product / "lib/libstdc++.so.6").readlink(),
+                Path("libstdc++.so.6.0.30"),
+            )
+            (product / "lib/libimf.so").write_bytes(b"mutated\n")
+            with self.assertRaisesRegex(
+                BUILD.BuildError, "resumed packaged runtime provider differs"
+            ):
+                BUILD.package_selected_runtime_providers(plan, product, resume=True)
+
+    def test_recursive_closure_rejects_external_or_substituted_providers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix = (root / "product").resolve()
+            (prefix / "pgsql-18/lib").mkdir(parents=True)
+            (prefix / "lib").mkdir()
+            loader = root / "ld-linux-x86-64.so.2"
+            loader.write_bytes(b"loader\n")
+            packaged = prefix / "lib/libimf.so"
+            packaged.write_bytes(b"intel\n")
+            toolchain = {
+                "tools": {"readelf": {"path": "/toolchain/readelf"}},
+                "linker_map_inputs": {
+                    "dynamic-loader": {
+                        "path": str(loader),
+                        "sha256": BUILD.sha256_file(loader),
+                        "size_bytes": loader.stat().st_size,
+                        "soname": "ld-linux-x86-64.so.2",
+                        "classification": "platform-abi",
+                        "package_aliases": [],
+                    }
+                },
+            }
+            installed = {
+                "files": {
+                    "imf-runtime": {
+                        "path": "/provider/libimf.so",
+                        "sha256": BUILD.sha256_file(packaged),
+                        "size_bytes": packaged.stat().st_size,
+                        "class": "runtime-object",
+                        "soname": "libimf.so",
+                        "package_relative_path": "lib/libimf.so",
+                    }
+                }
+            }
+            output = root / "closure.json"
+            report = {
+                "schema": "laplace.elf-closure/v1",
+                "tool_version": "1.0.0",
+                "inputs": {
+                    "roots": [str(prefix)],
+                    "custom_prefix": str(prefix),
+                    "process_cwd": "/",
+                    "environment_library_path_used": False,
+                    "explicit_search_directories": sorted(
+                        [str(prefix / "pgsql-18/lib"), str(prefix / "lib")]
+                    ),
+                },
+                "host_loader": {
+                    "path": str(loader.resolve()),
+                    "sha256": BUILD.sha256_file(loader),
+                },
+                "summary": {
+                    field: 0
+                    for field in self.contract()["runtime_closure"][
+                        "recursive_verifier"
+                    ]["required_zero_summary_fields"]
+                },
+                "objects": [
+                    {
+                        "path": str(loader.resolve()),
+                        "sha256": BUILD.sha256_file(loader),
+                        "classification": "host-system",
+                        "elf": {"soname": "ld-linux-x86-64.so.2"},
+                    },
+                    {
+                        "path": str(packaged.resolve()),
+                        "sha256": BUILD.sha256_file(packaged),
+                        "classification": "custom-prefix",
+                        "elf": {"soname": "libimf.so"},
+                    },
+                ],
+            }
+
+            def verify(candidate: dict[str, object]) -> dict[str, object]:
+                output.write_text(json.dumps(candidate), encoding="utf-8")
+                with mock.patch.object(
+                    BUILD.subprocess, "run", return_value=mock.Mock(returncode=0)
+                ):
+                    return BUILD.verify_recursive_elf_closure(
+                        self.contract(), REPO_ROOT, prefix, toolchain, installed, output
+                    )
+
+            self.assertTrue(verify(report)["verified"])
+            external = json.loads(json.dumps(report))
+            external["objects"].append(
+                {
+                    "path": "/ambient/libmystery.so",
+                    "sha256": "3" * 64,
+                    "classification": "external-prefix",
+                    "elf": {"soname": "libmystery.so"},
+                }
+            )
+            with self.assertRaisesRegex(BUILD.BuildError, "external runtime provider"):
+                verify(external)
+            omitted = json.loads(json.dumps(report))
+            omitted["objects"] = [omitted["objects"][0]]
+            with self.assertRaisesRegex(BUILD.BuildError, "omitted selected packaged provider"):
+                verify(omitted)
 
     def test_execute_uses_selected_make_and_explicit_install_destdir(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -585,6 +784,7 @@ class PostgreSQLBuildTests(unittest.TestCase):
                     }
                 },
                 "runtime_package": {"receipt_path": str(root / "runtime.json")},
+                "installed_runtime_provider": {},
                 "configure_command": ["/source/configure"],
                 "parallel_jobs": 6,
                 "make_targets": ["world-bin", "check-world", "install-world-bin"],
@@ -598,7 +798,7 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 captured.append(list(command))
 
             with mock.patch.object(
-                BUILD, "prepare_build_directory", return_value=(build, {})
+                BUILD, "prepare_build_directory", return_value=(build, {}, {})
             ), mock.patch.object(
                 BUILD, "build_environment", return_value={}
             ), mock.patch.object(
@@ -639,9 +839,19 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 BUILD,
                 "package_tree",
                 return_value=("8" * 64, 2, 16, {"libc.so.6"}),
-            ) as package_tree:
+            ) as package_tree, mock.patch.object(
+                BUILD,
+                "verify_recursive_elf_closure",
+                return_value={"verified": True},
+            ):
                 receipt = BUILD.verify_package(
-                    self.contract(), prefix, Path("/toolchain/readelf")
+                    self.contract(),
+                    prefix,
+                    Path("/toolchain/readelf"),
+                    repository=REPO_ROOT,
+                    toolchain={},
+                    installed_provider={},
+                    closure_output=Path(temporary) / "closure.json",
                 )
             package_tree.assert_called_once_with(prefix.resolve(), Path("/toolchain/readelf"))
             self.assertEqual(receipt["version"], "PostgreSQL 18.6")
@@ -665,7 +875,7 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 "receipt_sha256": "3" * 64,
                 "build_input_id": "4" * 64,
                 "prefix": "/toolchain",
-                "tools": {},
+                "tools": {"readelf": {"path": "/toolchain/readelf"}},
             }
             runtime = {
                 "receipt_path": str(root / "runtime.json"),
@@ -684,6 +894,10 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 BUILD, "verify_toolchain_receipt", return_value=toolchain
             ), mock.patch.object(
                 BUILD, "verify_runtime_receipt", return_value=runtime
+            ), mock.patch.object(
+                BUILD,
+                "verify_installed_runtime_provider",
+                return_value={"provider_selection_sha256": "9" * 64},
             ), mock.patch.object(
                 BUILD, "verify_release_import", return_value={"verified": True}
             ):
