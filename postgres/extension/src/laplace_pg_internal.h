@@ -10,6 +10,7 @@
 #include "fmgr.h"
 
 #include "laplace/framework.h"
+#include "laplace/isa.h"
 
 Datum laplace_pg_required_composite_attribute(
     HeapTupleHeader tuple,
@@ -38,5 +39,10 @@ HeapTuple laplace_pg_form_result_tuple(
     Datum* values,
     bool* nulls,
     int expected_attributes);
+
+void laplace_pg_persist_execution_receipt(
+    const laplace_isa_receipt* receipt,
+    uint64_t item_count,
+    uint32_t opcode);
 
 #endif

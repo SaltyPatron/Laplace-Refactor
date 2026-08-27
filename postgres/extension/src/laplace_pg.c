@@ -18,6 +18,7 @@
 
 #include "laplace/isa.h"
 #include "laplace/framework.h"
+#include "laplace/highway.h"
 #include "laplace/trajectory.h"
 #include "laplace/contract/postgresql_bindings.h"
 #include "laplace_pg_internal.h"
@@ -35,6 +36,8 @@ PG_FUNCTION_INFO_V1(LAPLACE_PG_IDENTITY_CALCULATE_SYMBOL);
 PG_FUNCTION_INFO_V1(LAPLACE_PG_IDENTITY_EXECUTE_SYMBOL);
 PG_FUNCTION_INFO_V1(LAPLACE_PG_TRAJECTORY_CALCULATE_SYMBOL);
 PG_FUNCTION_INFO_V1(LAPLACE_PG_TRAJECTORY_EXECUTE_SYMBOL);
+PG_FUNCTION_INFO_V1(LAPLACE_PG_HIGHWAY_CALCULATE_SYMBOL);
+PG_FUNCTION_INFO_V1(LAPLACE_PG_HIGHWAY_EXECUTE_SYMBOL);
 
 static SPIPlanPtr receipt_insert_plan = NULL;
 static SPIPlanPtr receipt_select_plan = NULL;
@@ -287,7 +290,7 @@ static int stored_receipt_matches(
            DatumGetInt32(tuple_value(tuple, descriptor, 13)) == (int32)opcode;
 }
 
-static void persist_receipt(
+void laplace_pg_persist_execution_receipt(
     const laplace_isa_receipt* receipt,
     uint64_t item_count,
     uint32_t opcode) {
@@ -473,7 +476,8 @@ static Datum identity_codepoint_batch(
                         (unsigned long long)error.instruction_index)));
     }
     if (publish_receipt) {
-        persist_receipt(&receipt, (uint64_t)input_count, instruction.opcode);
+        laplace_pg_persist_execution_receipt(
+            &receipt, (uint64_t)input_count, instruction.opcode);
     }
 
     entity_datums = (Datum*)palloc(sizeof(*entity_datums) * (size_t)input_count);
@@ -649,7 +653,8 @@ static Datum trajectory_composition_decode_batch(
         logical_count += occurrences[index].run_length;
     }
     if (publish_receipt) {
-        persist_receipt(&receipt, (uint64_t)input_count, instruction.opcode);
+        laplace_pg_persist_execution_receipt(
+            &receipt, (uint64_t)input_count, instruction.opcode);
     }
 
     result_values[0] = PointerGetDatum(form_occurrence_array(occurrences, input_count));
@@ -665,4 +670,174 @@ Datum LAPLACE_PG_TRAJECTORY_CALCULATE_SYMBOL(PG_FUNCTION_ARGS) {
 
 Datum LAPLACE_PG_TRAJECTORY_EXECUTE_SYMBOL(PG_FUNCTION_ARGS) {
     return trajectory_composition_decode_batch(fcinfo, true);
+}
+
+static Oid highway_key_type_oid(void) {
+    Oid namespace_id = get_namespace_oid(LAPLACE_PG_SCHEMA, false);
+    Oid type_id = GetSysCacheOid2(
+        TYPENAMENSP, Anum_pg_type_oid,
+        CStringGetDatum("highway_key"), ObjectIdGetDatum(namespace_id));
+    if (!OidIsValid(type_id)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_UNDEFINED_OBJECT),
+                 errmsg("Laplace highway key type is not installed")));
+    }
+    return type_id;
+}
+
+static void read_highway_id(Datum datum, laplace_id128* value, const char* field) {
+    bytea* bytes = DatumGetByteaPP(datum);
+    if (VARSIZE_ANY_EXHDR(bytes) != (int)sizeof(value->bytes)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
+                 errmsg("Laplace highway %s must contain exactly %zu bytes",
+                        field, sizeof(value->bytes))));
+    }
+    memcpy(value->bytes, VARDATA_ANY(bytes), sizeof(value->bytes));
+}
+
+static void read_highway_key(Datum datum, laplace_highway_key* key) {
+    HeapTupleHeader tuple = DatumGetHeapTupleHeader(datum);
+    int32 kind = DatumGetInt32(
+        laplace_pg_required_composite_attribute(tuple, 1, "kind"));
+    int64 version = DatumGetInt64(
+        laplace_pg_required_composite_attribute(tuple, 6, "version"));
+    memset(key, 0, sizeof(*key));
+    if (kind <= 0 || version <= 0) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace highway kind and version must be positive")));
+    }
+    key->kind = (uint32_t)kind;
+    key->version = (uint64_t)version;
+    read_highway_id(
+        laplace_pg_required_composite_attribute(tuple, 2, "authority"),
+        &key->authority, "authority");
+    read_highway_id(
+        laplace_pg_required_composite_attribute(tuple, 3, "release"),
+        &key->release, "release");
+    read_highway_id(
+        laplace_pg_required_composite_attribute(tuple, 4, "namespace"),
+        &key->name_space, "namespace");
+    read_highway_id(
+        laplace_pg_required_composite_attribute(tuple, 5, "local_identifier"),
+        &key->local_identifier, "local identifier");
+}
+
+static Datum highway_coordinate_batch(
+    FunctionCallInfo fcinfo,
+    bool publish_receipt) {
+    laplace_framework_context context;
+    ArrayType* input = PG_GETARG_ARRAYTYPE_P(1);
+    Oid element_type = highway_key_type_oid();
+    Datum* input_datums = NULL;
+    bool* input_nulls = NULL;
+    int input_count = 0;
+    int16 type_length;
+    bool type_by_value;
+    char type_alignment;
+    laplace_highway_key* keys;
+    laplace_highway_coordinate* coordinates;
+    laplace_isa_value_view views[2];
+    laplace_isa_instruction instruction;
+    laplace_isa_program program;
+    laplace_isa_receipt receipt;
+    laplace_isa_error error;
+    laplace_isa_status status;
+    Datum* coordinate_datums;
+    Datum* fingerprint_datums;
+    Datum result_values[14];
+    bool result_nulls[14] = {false};
+    HeapTuple result_tuple;
+    int index;
+
+    laplace_pg_read_execution_context(PG_GETARG_DATUM(0), &context);
+    if (ARR_ELEMTYPE(input) != element_type) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATATYPE_MISMATCH),
+                 errmsg("Laplace highway batch has the wrong element type")));
+    }
+    get_typlenbyvalalign(
+        element_type, &type_length, &type_by_value, &type_alignment);
+    deconstruct_array(input, element_type, type_length, type_by_value,
+                      type_alignment, &input_datums, &input_nulls, &input_count);
+    if (input_count <= 0) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("highway batch must contain at least one key")));
+    }
+    keys = (laplace_highway_key*)palloc0(
+        sizeof(*keys) * (size_t)input_count);
+    coordinates = (laplace_highway_coordinate*)palloc0(
+        sizeof(*coordinates) * (size_t)input_count);
+    for (index = 0; index < input_count; ++index) {
+        if (input_nulls[index]) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                     errmsg("highway batch cannot contain null keys")));
+        }
+        read_highway_key(input_datums[index], &keys[index]);
+    }
+
+    memset(views, 0, sizeof(views));
+    views[0].data = keys;
+    views[0].count = (uint64_t)input_count;
+    views[0].capacity = (uint64_t)input_count;
+    views[0].stride_bytes = (uint32_t)sizeof(*keys);
+    views[0].type = LAPLACE_ISA_VALUE_HIGHWAY_KEY_VECTOR;
+    views[1].data = coordinates;
+    views[1].capacity = (uint64_t)input_count;
+    views[1].stride_bytes = (uint32_t)sizeof(*coordinates);
+    views[1].type = LAPLACE_ISA_VALUE_HIGHWAY_COORDINATE_VECTOR;
+
+    memset(&instruction, 0, sizeof(instruction));
+    instruction.opcode = LAPLACE_ISA_OPCODE_HIGHWAY_COORDINATE_CALCULATE_BATCH;
+    instruction.input_value = 0u;
+    instruction.output_value = 1u;
+    instruction.version =
+        LAPLACE_ISA_INSTRUCTION_VERSION_HIGHWAY_COORDINATE_CALCULATE_BATCH;
+    program = make_program(&context, &instruction, views);
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&error, 0, sizeof(error));
+    status = laplace_isa_execute(&program, &receipt, &error);
+    if (status != LAPLACE_ISA_OK) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("highway ISA batch rejected status %d at instruction %llu",
+                        (int)status,
+                        (unsigned long long)error.instruction_index)));
+    }
+    if (publish_receipt) {
+        laplace_pg_persist_execution_receipt(
+            &receipt, (uint64_t)input_count, instruction.opcode);
+    }
+
+    coordinate_datums = (Datum*)palloc(
+        sizeof(*coordinate_datums) * (size_t)input_count);
+    fingerprint_datums = (Datum*)palloc(
+        sizeof(*fingerprint_datums) * (size_t)input_count);
+    for (index = 0; index < input_count; ++index) {
+        coordinate_datums[index] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            coordinates[index].coordinate.bytes,
+            sizeof(coordinates[index].coordinate.bytes)));
+        fingerprint_datums[index] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            coordinates[index].collision_fingerprint.bytes,
+            sizeof(coordinates[index].collision_fingerprint.bytes)));
+    }
+    result_values[0] = PointerGetDatum(construct_array(
+        coordinate_datums, input_count, BYTEAOID, -1, false, TYPALIGN_INT));
+    result_values[1] = PointerGetDatum(construct_array(
+        fingerprint_datums, input_count, BYTEAOID, -1, false, TYPALIGN_INT));
+    receipt_result_values(result_values, 2, &receipt, (uint64_t)input_count);
+    result_tuple = laplace_pg_form_result_tuple(
+        fcinfo, result_values, result_nulls, 14);
+    return HeapTupleGetDatum(result_tuple);
+}
+
+Datum LAPLACE_PG_HIGHWAY_CALCULATE_SYMBOL(PG_FUNCTION_ARGS) {
+    return highway_coordinate_batch(fcinfo, false);
+}
+
+Datum LAPLACE_PG_HIGHWAY_EXECUTE_SYMBOL(PG_FUNCTION_ARGS) {
+    return highway_coordinate_batch(fcinfo, true);
 }

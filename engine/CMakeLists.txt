@@ -3,6 +3,8 @@ add_library(laplace_engine SHARED
     src/geometry.c
     src/execution.cpp
     src/framework.c
+    src/highway.c
+    src/highway_ast.cpp
     src/spool.cpp
     src/isa.c
     src/persistence.c
@@ -39,6 +41,7 @@ add_library(Laplace::Execution ALIAS laplace_engine)
 add_library(Laplace::Framework ALIAS laplace_engine)
 add_library(Laplace::Persistence ALIAS laplace_engine)
 add_library(Laplace::Composition ALIAS laplace_engine)
+add_library(Laplace::Highway ALIAS laplace_engine)
 add_library(Laplace::UnicodeRoot ALIAS laplace_engine)
 
 if(TARGET LaplaceOneApi::MKLRuntime)
@@ -127,4 +130,5 @@ install(FILES
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/framework.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/persistence.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/composition.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/highway.h"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")

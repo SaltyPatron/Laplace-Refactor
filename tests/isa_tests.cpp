@@ -1,4 +1,5 @@
 #include "laplace/isa.h"
+#include "laplace/highway.h"
 #include "laplace/trajectory.h"
 #include "context_fixture.h"
 
@@ -58,6 +59,34 @@ laplace_isa_value_view OccurrenceOutputView(
         0u};
 }
 
+laplace_isa_value_view HighwayInputView(
+    laplace_highway_key* data,
+    std::size_t count) {
+    return {data, static_cast<std::uint64_t>(count),
+            static_cast<std::uint64_t>(count),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_HIGHWAY_KEY_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view HighwayOutputView(
+    laplace_highway_coordinate* data,
+    std::size_t capacity) {
+    return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_HIGHWAY_COORDINATE_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view HighwayRegistryOutputView(
+    laplace_highway_registry_receipt* data,
+    std::size_t capacity) {
+    return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_HIGHWAY_REGISTRY_RECEIPT_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
 laplace_isa_instruction IdentityInstruction(
     std::uint32_t input,
     std::uint32_t output) {
@@ -78,6 +107,38 @@ laplace_isa_instruction TrajectoryDecodeInstruction(
         output,
         LAPLACE_ISA_INSTRUCTION_VERSION_TRAJECTORY_COMPOSITION_DECODE_BATCH,
         LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
+laplace_isa_instruction HighwayInstruction(
+    std::uint32_t input,
+    std::uint32_t output) {
+    return {LAPLACE_ISA_OPCODE_HIGHWAY_COORDINATE_CALCULATE_BATCH,
+            input, output,
+            LAPLACE_ISA_INSTRUCTION_VERSION_HIGHWAY_COORDINATE_CALCULATE_BATCH,
+            LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
+laplace_isa_instruction HighwayRegistryInstruction(
+    std::uint32_t input,
+    std::uint32_t output) {
+    return {LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH,
+            input, output,
+            LAPLACE_ISA_INSTRUCTION_VERSION_HIGHWAY_REGISTRY_MATERIALIZE_BATCH,
+            LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
+laplace_id128 HighwayId(std::uint8_t seed) {
+    laplace_id128 value{};
+    for (std::size_t index = 0; index < sizeof(value.bytes); ++index) {
+        value.bytes[index] = static_cast<std::uint8_t>(seed + index);
+    }
+    return value;
+}
+
+laplace_highway_key HighwayKey(std::uint32_t kind, std::uint8_t seed) {
+    return {kind, 0u, HighwayId(seed), HighwayId(static_cast<std::uint8_t>(seed + 0x10u)),
+            HighwayId(static_cast<std::uint8_t>(seed + 0x20u)),
+            HighwayId(static_cast<std::uint8_t>(seed + 0x30u)), 1u};
 }
 
 laplace_isa_program Program(
@@ -101,11 +162,79 @@ laplace_isa_program Program(
 
 TEST(IsaAbi, ContractAssignmentsAreStable) {
     static_assert(LAPLACE_ISA_MAJOR == 1u);
-    static_assert(LAPLACE_ISA_MINOR == 2u);
+    static_assert(LAPLACE_ISA_MINOR == 4u);
     static_assert(LAPLACE_ISA_VALUE_U32_VECTOR != LAPLACE_ISA_VALUE_ID128_VECTOR);
     static_assert(sizeof(laplace_isa_digest256) == 32u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH, 0x00020001u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_TRAJECTORY_COMPOSITION_DECODE_BATCH, 0x00030001u);
+    EXPECT_EQ(LAPLACE_ISA_OPCODE_HIGHWAY_COORDINATE_CALCULATE_BATCH, 0x00040001u);
+    EXPECT_EQ(LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH, 0x00040002u);
+}
+
+TEST(IsaExecution, HighwayBatchMatchesCanonicalNativeOperationAndReceipt) {
+    std::array<laplace_highway_key, 3> keys{{
+        HighwayKey(LAPLACE_HIGHWAY_KIND_LANGUAGE, 0x10u),
+        HighwayKey(LAPLACE_HIGHWAY_KIND_RECIPE, 0x20u),
+        HighwayKey(LAPLACE_HIGHWAY_KIND_EFFECT, 0x30u)}};
+    std::array<laplace_highway_coordinate, 3> outputs{};
+    std::array<laplace_isa_value_view, 2> values{{
+        HighwayInputView(keys.data(), keys.size()),
+        HighwayOutputView(outputs.data(), outputs.size())}};
+    auto instruction = HighwayInstruction(0u, 1u);
+    auto program = Program(&instruction, 1u, values.data(), values.size());
+    laplace_isa_receipt receipt{};
+    laplace_isa_error error{};
+
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(values[1].count, keys.size());
+    EXPECT_EQ(receipt.executed_instruction_count, 1u);
+    for (std::size_t index = 0; index < keys.size(); ++index) {
+        laplace_highway_coordinate expected{};
+        ASSERT_EQ(laplace_highway_coordinate_calculate(&keys[index], &expected),
+                  LAPLACE_HIGHWAY_OK);
+        EXPECT_EQ(std::memcmp(&expected, &outputs[index], sizeof(expected)), 0);
+    }
+
+    const auto original_receipt = receipt;
+    keys[1].release.bytes[0] ^= 0x80u;
+    values[1].count = 0u;
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    EXPECT_NE(std::memcmp(original_receipt.input_fingerprint.bytes,
+                          receipt.input_fingerprint.bytes,
+                          sizeof(receipt.input_fingerprint.bytes)), 0);
+    EXPECT_NE(std::memcmp(original_receipt.receipt_id.bytes,
+                          receipt.receipt_id.bytes,
+                          sizeof(receipt.receipt_id.bytes)), 0);
+}
+
+TEST(IsaExecution, HighwayRegistryMaterializationUsesTheCanonicalLifecycleOperation) {
+    std::array<std::uint32_t, 2> versions{{
+        LAPLACE_HIGHWAY_REGISTRY_VERSION,
+        LAPLACE_HIGHWAY_REGISTRY_VERSION}};
+    std::array<laplace_highway_registry_receipt, 2> outputs{};
+    std::array<laplace_isa_value_view, 2> values{{
+        InputView(versions.data(), versions.size()),
+        HighwayRegistryOutputView(outputs.data(), outputs.size())}};
+    auto instruction = HighwayRegistryInstruction(0u, 1u);
+    auto program = Program(&instruction, 1u, values.data(), values.size());
+    laplace_isa_receipt receipt{};
+    laplace_isa_error error{};
+
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(values[1].count, versions.size());
+    laplace_highway_registry_receipt expected{};
+    ASSERT_EQ(laplace_highway_registry_materialize(program.context, &expected),
+              LAPLACE_HIGHWAY_OK);
+    EXPECT_EQ(std::memcmp(&outputs[0], &expected, sizeof(expected)), 0);
+    EXPECT_EQ(std::memcmp(&outputs[1], &expected, sizeof(expected)), 0);
+
+    versions[1] += 1u;
+    values[1].count = 0u;
+    std::memset(outputs.data(), 0xa5, sizeof(outputs));
+    const auto before = outputs;
+    EXPECT_EQ(laplace_isa_execute(&program, &receipt, &error),
+              LAPLACE_ISA_INPUT_OUT_OF_RANGE);
+    EXPECT_EQ(std::memcmp(outputs.data(), before.data(), sizeof(outputs)), 0);
 }
 
 TEST(IsaContext, IsMandatoryAndBoundToProgramAndReceiptIdentity) {

@@ -5,7 +5,13 @@ on:
     paths:
       - .github/workflows/product-activation.yml
       - contracts/product-activation-gateway.json
+      - contracts/highway-product-activation.json
+      - contracts/highway.json
       - tools/delivery/**
+      - tools/postgresql/highwayctl.py
+      - postgres/extension/src/highway_registry_pg.c
+      - postgres/extension/laplace--version.sql.in
+      - tests/highway_product_activation_tests.py
       - tests/product_activation_gateway_tests.py
   workflow_dispatch:
 
@@ -33,7 +39,9 @@ jobs:
           test "$(id -un)" = laplace-runner
           sudo -n -l
       - name: Execute activation gateway contract and mutation tests
-        run: python3 tests/product_activation_gateway_tests.py
+        run: |
+          python3 tests/highway_product_activation_tests.py
+          python3 tests/product_activation_gateway_tests.py
 
   activate-product:
     if: github.event_name == 'workflow_dispatch'
@@ -71,7 +79,7 @@ jobs:
             --output "$request"
           chmod 0600 "$request"
           printf 'LAPLACE_ACTIVATION_REQUEST=%s\n' "$request" >> "$GITHUB_ENV"
-      - name: Activate PostgreSQL and Unicode through the root gateway
+      - name: Activate PostgreSQL, Unicode, and the canonical Highway through the root gateway
         shell: bash
         run: |
           set -euo pipefail
@@ -80,9 +88,10 @@ jobs:
             execute-request < "$LAPLACE_ACTIVATION_REQUEST" > "$result"
           jq -e '
             .schema == "laplace.product-activation-gateway-result/v1" and
-            .phase == "product-and-unicode-activated" and
+            .phase == "product-unicode-and-highway-activated" and
             (.cluster_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
-            (.unicode_activation_receipt_sha256 | test("^[0-9a-f]{64}$"))
+            (.unicode_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
+            (.highway_activation_receipt_sha256 | test("^[0-9a-f]{64}$"))
           ' "$result" >/dev/null
           {
             echo '## Product activation result'

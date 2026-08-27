@@ -149,7 +149,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ActivationGatewayError("request maximum age is invalid")
     for section, names in (
         (gateway, ("release_root", "active_link", "executable", "sudoers_path", "receipt_root", "python")),
-        (product, ("package_manifest_root", "package_release_root", "plan_receipt_root", "cluster_activation_root", "unicode_source_root", "unicode_result")),
+        (product, ("package_manifest_root", "package_release_root", "plan_receipt_root", "cluster_activation_root", "unicode_source_root", "unicode_result", "highway_result")),
     ):
         for name in names:
             require_absolute(section.get(name), f"{name}")
@@ -159,7 +159,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
     for relative in files:
         if not isinstance(relative, str) or PurePosixPath(relative).is_absolute() or ".." in PurePosixPath(relative).parts:
             raise ActivationGatewayError("trusted bundle contains an unsafe path")
-    if operation.get("name") != "activate-product-and-unicode" or operation.get("system_root_authorization") is not True:
+    if operation.get("name") != "activate-product-unicode-and-highway" or operation.get("system_root_authorization") is not True:
         raise ActivationGatewayError("whole-product activation operation differs")
 
 
@@ -416,6 +416,18 @@ def validate_unicode_success(contract: dict[str, Any], result: dict[str, Any], p
         raise ActivationGatewayError("Unicode activation result is not exact and complete")
 
 
+def validate_highway_success(contract: dict[str, Any], result: dict[str, Any], package_id: str) -> None:
+    if (
+        result.get("schema") != contract["operation"]["highway_success_schema"]
+        or result.get("phase") != "product-activated"
+        or result.get("package_id") != package_id
+        or result.get("restart_proven") is not True
+        or result.get("cold_application_readback_proven") is not True
+        or result.get("receipt_sha256") != document_identity(result, "receipt_sha256")
+    ):
+        raise ActivationGatewayError("Highway activation result is not exact and complete")
+
+
 def verify_installed_bundle(
     executable: Path, require_root_ownership: bool = False
 ) -> tuple[Path, dict[str, Any]]:
@@ -475,6 +487,7 @@ def execute_request(
     evidence = Path(contract["product"]["cluster_activation_root"]) / package_id
     cluster_result_path = evidence / "activation-result.json"
     unicode_result_path = Path(contract["product"]["unicode_result"])
+    highway_result_path = Path(contract["product"]["highway_result"])
     receipt_path = Path(contract["gateway"]["receipt_root"]) / f"{request['request_id']}.json"
     existing_result = load_json(receipt_path) if receipt_path.exists() else None
     python = contract["gateway"]["python"]
@@ -505,16 +518,33 @@ def execute_request(
     command_receipts.append(run_fixed("activate-product-unicode", unicode_command, 14400))
     unicode_result = load_json(unicode_result_path)
     validate_unicode_success(contract, unicode_result, package_id)
+    highway_command = [
+        python, str(controllers / "highwayctl.py"), "--authorize-system-root",
+        "--contract", str(contracts / "highway-product-activation.json"),
+        "--cluster-contract", str(contracts / "postgresql-cluster.json"),
+        "--unicode-contract", str(contracts / "unicode-product-activation.json"),
+        "--registry-contract", str(contracts / "highway.json"),
+        "--package-manifest", payload["package"]["manifest"],
+        "--cluster-plan", str(plan_path),
+        "--cluster-activation-receipt", str(cluster_result_path),
+        "--unicode-activation-receipt", str(unicode_result_path),
+        "--output", str(highway_result_path),
+    ]
+    command_receipts.append(run_fixed("activate-product-highway", highway_command, 3600))
+    highway_result = load_json(highway_result_path)
+    validate_highway_success(contract, highway_result, package_id)
     result = {
         "schema": RESULT_SCHEMA,
-        "phase": "product-and-unicode-activated",
+        "phase": "product-unicode-and-highway-activated",
         "request_id": request["request_id"],
         "package_id": package_id,
         "repository_commit": payload["repository"]["commit"],
         "cluster_activation_receipt_sha256": cluster_result["activation_receipt_sha256"],
         "unicode_activation_receipt_sha256": unicode_result["receipt_sha256"],
+        "highway_activation_receipt_sha256": highway_result["receipt_sha256"],
         "cluster_result": str(cluster_result_path),
         "unicode_result": str(unicode_result_path),
+        "highway_result": str(highway_result_path),
         "command_receipts": command_receipts,
         "exact_replay": existing_result is not None,
     }
@@ -523,7 +553,8 @@ def execute_request(
         required = {
             "schema", "phase", "request_id", "package_id", "repository_commit",
             "cluster_activation_receipt_sha256", "unicode_activation_receipt_sha256",
-            "cluster_result", "unicode_result", "command_receipts", "exact_replay",
+            "highway_activation_receipt_sha256", "cluster_result", "unicode_result",
+            "highway_result", "command_receipts", "exact_replay",
             "result_sha256",
         }
         if (
@@ -538,6 +569,8 @@ def execute_request(
             != cluster_result["activation_receipt_sha256"]
             or existing_result.get("unicode_activation_receipt_sha256")
             != unicode_result["receipt_sha256"]
+            or existing_result.get("highway_activation_receipt_sha256")
+            != highway_result["receipt_sha256"]
         ):
             raise ActivationGatewayError(
                 "existing gateway result collides with revalidated product state"

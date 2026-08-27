@@ -31,7 +31,10 @@ class InstallError(RuntimeError):
 SOURCE_MAP = {
     "bin/laplace-product-activate": "tools/delivery/product_activation.py",
     "controllers/clusterctl.py": "tools/postgresql/clusterctl.py",
+    "controllers/highwayctl.py": "tools/postgresql/highwayctl.py",
     "controllers/unicodectl.py": "tools/postgresql/unicodectl.py",
+    "contracts/highway-product-activation.json": "contracts/highway-product-activation.json",
+    "contracts/highway.json": "contracts/highway.json",
     "contracts/postgresql-cluster.json": "contracts/postgresql-cluster.json",
     "contracts/product-activation-gateway.json": "contracts/product-activation-gateway.json",
     "contracts/unicode-postgresql.json": "contracts/unicode-postgresql.json",

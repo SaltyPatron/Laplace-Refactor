@@ -1101,6 +1101,7 @@ GRANT EXECUTE ON FUNCTION laplace.trajectory_composition_decode_calculate_batch(
 GRANT EXECUTE ON FUNCTION laplace.trajectory_composition_decode_execute_batch(laplace.execution_context, bytea[]) TO {app};
 GRANT EXECUTE ON FUNCTION laplace.unicode_tier0_resolve_batch(bytea, bytea, integer[]) TO {app};
 GRANT EXECUTE ON FUNCTION laplace.unicode_identity_reverse_resolve_batch(bytea, bytea, bytea[], bytea[]) TO {app};
+GRANT EXECUTE ON FUNCTION laplace.highway_registry_resolve_active(laplace.execution_context) TO {app};
 REVOKE ALL ON TABLE laplace.execution_receipt FROM {app};
 """
 

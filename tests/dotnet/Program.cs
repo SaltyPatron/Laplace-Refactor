@@ -32,14 +32,24 @@ internal static class Program
         Require(LaplaceIsaContract.ReceiptDigestAlgorithm == "BLAKE3-256" &&
             LaplaceIsaContract.ReceiptDigestBytes == 32,
             "generated receipt descriptor differs");
-        Require(LaplaceIsaContract.ValueTypes.Length == 4,
+        Require(LaplaceIsaContract.Minor == 4,
+            "generated ISA minor version differs");
+        Require(LaplaceIsaContract.ValueTypes.Length == 7,
             "generated value type inventory differs");
-        Require(LaplaceIsaContract.Operations.Length == 2,
+        Require(LaplaceIsaContract.Operations.Length == 4,
             "generated operation inventory differs");
         Require(IdentityCodepointBatch.Descriptor == LaplaceIsaContract.Operations[0],
             "generated identity declaration differs from descriptor inventory");
         Require(TrajectoryCompositionDecodeBatch.Descriptor == LaplaceIsaContract.Operations[1],
             "generated trajectory declaration differs from descriptor inventory");
+        Require(HighwayCoordinateCalculateBatch.Descriptor == LaplaceIsaContract.Operations[2],
+            "generated highway declaration differs from descriptor inventory");
+        Require(HighwayRegistryMaterializeBatch.Descriptor == LaplaceIsaContract.Operations[3],
+            "generated highway registry declaration differs from descriptor inventory");
+        Require(LaplaceHighwayContract.Version == 1U &&
+            LaplaceHighwayContract.KindLanguage == 3U &&
+            LaplaceHighwayContract.KindOperation == 14U,
+            "generated highway registry mirror differs");
     }
 
     private static void VerifyAbi(Fixture fixture)
@@ -82,6 +92,37 @@ internal static class Program
             "managed trajectory receipt differs from direct native receipt");
         Require(RawEqual(trajectory.Error, fixture.TrajectoryError),
             "managed trajectory error fields differ from direct native result");
+
+        var highway = client.ExecuteBatch<
+            HighwayCoordinateCalculateBatch,
+            LaplaceHighwayKey,
+            LaplaceHighwayCoordinate>(fixture.HighwayKeys, context);
+        Require(highway.Status == LaplaceIsaStatus.Ok,
+            "managed highway execution failed");
+        Require(highway.OutputCount == (ulong)fixture.HighwayCoordinates.Length,
+            "managed highway output count differs");
+        Require(RawEqual(highway.Output, fixture.HighwayCoordinates),
+            "managed highway output differs from direct native output");
+        Require(RawEqual(highway.Receipt, fixture.HighwayReceipt),
+            "managed highway receipt differs from direct native receipt");
+        Require(RawEqual(highway.Error, fixture.HighwayError),
+            "managed highway error fields differ from direct native result");
+
+        var highwayRegistry = client.ExecuteBatch<
+            HighwayRegistryMaterializeBatch,
+            uint,
+            LaplaceHighwayRegistryReceipt>(fixture.HighwayRegistryVersions, context);
+        Require(highwayRegistry.Status == LaplaceIsaStatus.Ok,
+            "managed highway registry execution failed");
+        Require(highwayRegistry.OutputCount ==
+            (ulong)fixture.HighwayRegistryOutputs.Length,
+            "managed highway registry output count differs");
+        Require(RawEqual(highwayRegistry.Output, fixture.HighwayRegistryOutputs),
+            "managed highway registry output differs from direct native output");
+        Require(RawEqual(highwayRegistry.Receipt, fixture.HighwayRegistryReceipt),
+            "managed highway registry ISA receipt differs from direct native receipt");
+        Require(RawEqual(highwayRegistry.Error, fixture.HighwayRegistryError),
+            "managed highway registry error fields differ from direct native result");
     }
 
     private static void VerifyScalarLowering(Fixture fixture)
@@ -220,7 +261,15 @@ internal sealed record Fixture(
     LaplaceTrajectoryCarrier[] Carriers,
     LaplaceCompositionOccurrence[] Occurrences,
     LaplaceIsaReceipt TrajectoryReceipt,
-    LaplaceIsaError TrajectoryError)
+    LaplaceIsaError TrajectoryError,
+    LaplaceHighwayKey[] HighwayKeys,
+    LaplaceHighwayCoordinate[] HighwayCoordinates,
+    LaplaceIsaReceipt HighwayReceipt,
+    LaplaceIsaError HighwayError,
+    uint[] HighwayRegistryVersions,
+    LaplaceHighwayRegistryReceipt[] HighwayRegistryOutputs,
+    LaplaceIsaReceipt HighwayRegistryReceipt,
+    LaplaceIsaError HighwayRegistryError)
 {
     private static readonly byte[] Magic = [
         0x4c, 0x50, 0x44, 0x4e, 0x45, 0x54, 0x31, 0x00,
@@ -238,7 +287,11 @@ internal sealed record Fixture(
         uint layoutCount = input.ReadUInt32();
         uint identityCount = input.ReadUInt32();
         uint trajectoryCount = input.ReadUInt32();
-        if (version != 1 || layoutCount > 1024 || identityCount > 1024 || trajectoryCount > 1024)
+        uint highwayCount = input.ReadUInt32();
+        uint highwayRegistryCount = input.ReadUInt32();
+        if (version != 3 || layoutCount > 1024 || identityCount > 1024 ||
+            trajectoryCount > 1024 || highwayCount > 1024 ||
+            highwayRegistryCount > 1024)
         {
             throw new InvalidDataException("direct-native fixture header is invalid");
         }
@@ -260,6 +313,16 @@ internal sealed record Fixture(
             ReadArray<LaplaceCompositionOccurrence>(input, trajectoryCount);
         LaplaceIsaReceipt trajectoryReceipt = ReadOne<LaplaceIsaReceipt>(input);
         LaplaceIsaError trajectoryError = ReadOne<LaplaceIsaError>(input);
+        LaplaceHighwayKey[] highwayKeys = ReadArray<LaplaceHighwayKey>(input, highwayCount);
+        LaplaceHighwayCoordinate[] highwayCoordinates =
+            ReadArray<LaplaceHighwayCoordinate>(input, highwayCount);
+        LaplaceIsaReceipt highwayReceipt = ReadOne<LaplaceIsaReceipt>(input);
+        LaplaceIsaError highwayError = ReadOne<LaplaceIsaError>(input);
+        uint[] highwayRegistryVersions = ReadArray<uint>(input, highwayRegistryCount);
+        LaplaceHighwayRegistryReceipt[] highwayRegistryOutputs =
+            ReadArray<LaplaceHighwayRegistryReceipt>(input, highwayRegistryCount);
+        LaplaceIsaReceipt highwayRegistryReceipt = ReadOne<LaplaceIsaReceipt>(input);
+        LaplaceIsaError highwayRegistryError = ReadOne<LaplaceIsaError>(input);
         if (stream.Position != stream.Length)
         {
             throw new InvalidDataException("direct-native fixture has trailing bytes");
@@ -274,7 +337,15 @@ internal sealed record Fixture(
             carriers,
             occurrences,
             trajectoryReceipt,
-            trajectoryError);
+            trajectoryError,
+            highwayKeys,
+            highwayCoordinates,
+            highwayReceipt,
+            highwayError,
+            highwayRegistryVersions,
+            highwayRegistryOutputs,
+            highwayRegistryReceipt,
+            highwayRegistryError);
     }
 
     private static T ReadOne<T>(BinaryReader input) where T : unmanaged =>

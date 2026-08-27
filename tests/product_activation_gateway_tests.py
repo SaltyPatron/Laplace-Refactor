@@ -58,6 +58,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
         product["cluster_activation_root"] = str(root / "cluster-activation")
         product["unicode_source_root"] = str(root / "unicode-source")
         product["unicode_result"] = str(root / "unicode-result.json")
+        product["highway_result"] = str(root / "highway-result.json")
         gateway["receipt_root"] = str(root / "deployment-receipts")
         gateway["release_root"] = str(root / "gateway-releases")
         gateway["active_link"] = str(root / "gateway-current")
@@ -230,6 +231,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
             evidence = root / "cluster-activation" / PACKAGE_ID
             cluster_result_path = evidence / "activation-result.json"
             unicode_result_path = Path(contract["product"]["unicode_result"])
+            highway_result_path = Path(contract["product"]["highway_result"])
             calls: list[str] = []
 
             def fake_run(label: str, command: list[str], _timeout: int) -> dict:
@@ -248,7 +250,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
                     }
                     result["activation_receipt_sha256"] = activation.document_identity(result, "activation_receipt_sha256")
                     cluster_result_path.write_bytes(activation.canonical_bytes(result))
-                else:
+                elif label == "activate-product-unicode":
                     result = {
                         "schema": contract["operation"]["unicode_success_schema"],
                         "phase": "product-activated",
@@ -259,6 +261,16 @@ class ProductActivationGatewayTests(unittest.TestCase):
                     }
                     result["receipt_sha256"] = activation.document_identity(result, "receipt_sha256")
                     unicode_result_path.write_bytes(activation.canonical_bytes(result))
+                else:
+                    result = {
+                        "schema": contract["operation"]["highway_success_schema"],
+                        "phase": "product-activated",
+                        "package_id": PACKAGE_ID,
+                        "restart_proven": True,
+                        "cold_application_readback_proven": True,
+                    }
+                    result["receipt_sha256"] = activation.document_identity(result, "receipt_sha256")
+                    highway_result_path.write_bytes(activation.canonical_bytes(result))
                 return {"label": label, "argv": command, "exit_code": 0, "stdout_sha256": "00", "stderr_sha256": "00"}
 
             with mock.patch.object(activation.os, "geteuid", return_value=0), mock.patch.object(
@@ -271,11 +283,13 @@ class ProductActivationGatewayTests(unittest.TestCase):
                 [
                     "activate-product-cluster",
                     "activate-product-unicode",
+                    "activate-product-highway",
                     "activate-product-unicode",
+                    "activate-product-highway",
                 ],
             )
             self.assertEqual(result, replay)
-            self.assertEqual(result["phase"], "product-and-unicode-activated")
+            self.assertEqual(result["phase"], "product-unicode-and-highway-activated")
 
     def test_incomplete_success_receipts_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-gateway-receipt-") as temporary:

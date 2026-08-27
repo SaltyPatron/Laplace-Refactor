@@ -1,5 +1,6 @@
 #include "laplace/composition.h"
 #include "laplace/isa.h"
+#include "laplace/highway.h"
 #include "laplace/persistence.h"
 #include "laplace/trajectory.h"
 #include "../context_fixture.h"
@@ -82,6 +83,14 @@ void Fill(laplace_digest256* digest, std::uint8_t seed) {
 
 void Repeat(laplace_digest256* digest, std::uint8_t value) {
     std::fill(std::begin(digest->bytes), std::end(digest->bytes), value);
+}
+
+laplace_id128 HighwayId(std::uint8_t seed) {
+    laplace_id128 value{};
+    for (std::size_t index = 0; index < sizeof(value.bytes); ++index) {
+        value.bytes[index] = static_cast<std::uint8_t>(seed + index);
+    }
+    return value;
 }
 
 laplace_composition_status ResolveNovelCompositionPresence(
@@ -221,6 +230,76 @@ int main() {
     }
     PrintReceipt("TRAJECTORY", trajectory_receipt);
     PrintHex("TRAJECTORY_ENTITY", occurrence.entity_id.bytes);
+
+    std::array<laplace_highway_key, 2> highway_keys{{
+        {LAPLACE_HIGHWAY_KIND_LANGUAGE, 0u, HighwayId(0x10u), HighwayId(0x30u),
+         HighwayId(0x50u), HighwayId(0x70u), 1u},
+        {LAPLACE_HIGHWAY_KIND_EFFECT, 0u, HighwayId(0x10u), HighwayId(0x31u),
+         HighwayId(0x50u), HighwayId(0x70u), 1u}}};
+    std::array<laplace_highway_coordinate, 2> highway_coordinates{};
+    std::array<laplace_isa_value_view, 2> highway_values{{
+        {highway_keys.data(), highway_keys.size(), highway_keys.size(),
+         static_cast<std::uint32_t>(sizeof(highway_keys[0])),
+         LAPLACE_ISA_VALUE_HIGHWAY_KEY_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {highway_coordinates.data(), 0u, highway_coordinates.size(),
+         static_cast<std::uint32_t>(sizeof(highway_coordinates[0])),
+         LAPLACE_ISA_VALUE_HIGHWAY_COORDINATE_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction highway_instruction{
+        LAPLACE_ISA_OPCODE_HIGHWAY_COORDINATE_CALCULATE_BATCH,
+        0u, 1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_HIGHWAY_COORDINATE_CALCULATE_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto highway_program = Program(&highway_instruction, highway_values.data());
+    laplace_isa_receipt highway_receipt{};
+    laplace_isa_error highway_error{};
+    if (laplace_isa_execute(
+            &highway_program, &highway_receipt, &highway_error) != LAPLACE_ISA_OK) {
+        return 31;
+    }
+    PrintReceipt("HIGHWAY", highway_receipt);
+    PrintHex("HIGHWAY_COORDINATE_0", highway_coordinates[0].coordinate.bytes);
+    PrintHex("HIGHWAY_COORDINATE_1", highway_coordinates[1].coordinate.bytes);
+    PrintHex("HIGHWAY_FINGERPRINT_0",
+             highway_coordinates[0].collision_fingerprint.bytes);
+    PrintHex("HIGHWAY_FINGERPRINT_1",
+             highway_coordinates[1].collision_fingerprint.bytes);
+
+    std::array<std::uint32_t, 1> registry_versions{{
+        LAPLACE_HIGHWAY_REGISTRY_VERSION}};
+    std::array<laplace_highway_registry_receipt, 1> registry_outputs{};
+    std::array<laplace_isa_value_view, 2> registry_values{{
+        {registry_versions.data(), registry_versions.size(),
+         registry_versions.size(),
+         static_cast<std::uint32_t>(sizeof(registry_versions[0])),
+         LAPLACE_ISA_VALUE_U32_VECTOR, LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {registry_outputs.data(), 0u, registry_outputs.size(),
+         static_cast<std::uint32_t>(sizeof(registry_outputs[0])),
+         LAPLACE_ISA_VALUE_HIGHWAY_REGISTRY_RECEIPT_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction registry_instruction{
+        LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH,
+        0u, 1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_HIGHWAY_REGISTRY_MATERIALIZE_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto registry_program = Program(&registry_instruction, registry_values.data());
+    laplace_isa_receipt registry_isa_receipt{};
+    laplace_isa_error registry_error{};
+    if (laplace_isa_execute(
+            &registry_program, &registry_isa_receipt, &registry_error) !=
+        LAPLACE_ISA_OK) {
+        return 32;
+    }
+    PrintReceipt("REGISTRY_ISA", registry_isa_receipt);
+    PrintHex("REGISTRY_MATERIALIZATION_RECEIPT",
+             registry_outputs[0].receipt_id.bytes);
+    PrintHex("REGISTRY_FINGERPRINT",
+             registry_outputs[0].registry_fingerprint.bytes);
+    PrintHex("REGISTRY_EPOCH_ID",
+             registry_outputs[0].activation_epoch_id.bytes);
+    PrintHex("REGISTRY_EPOCH_FINGERPRINT",
+             registry_outputs[0].activation_epoch_fingerprint.bytes);
 
     laplace_id128 entity_a{};
     laplace_id128 entity_b{};

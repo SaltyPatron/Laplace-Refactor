@@ -21,6 +21,7 @@ laplace_configure_postgresql_bindings(
 
 set(laplace_postgresql_module_sources
     src/composition_pg.c
+    src/highway_registry_pg.c
     src/laplace_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c

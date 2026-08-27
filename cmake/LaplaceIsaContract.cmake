@@ -17,18 +17,36 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" value_types composition_trajectory_vector)
     string(JSON value_occurrence GET
         "${contract_json}" value_types composition_occurrence_vector)
+    string(JSON value_highway_key GET
+        "${contract_json}" value_types highway_key_vector)
+    string(JSON value_highway_coordinate GET
+        "${contract_json}" value_types highway_coordinate_vector)
+    string(JSON value_highway_registry_receipt GET
+        "${contract_json}" value_types highway_registry_receipt_vector)
     string(JSON opcode_identity_codepoint GET
         "${contract_json}" opcodes identity_codepoint_batch)
     string(JSON opcode_trajectory_decode GET
         "${contract_json}" opcodes trajectory_composition_decode_batch)
+    string(JSON opcode_highway_coordinate GET
+        "${contract_json}" opcodes highway_coordinate_calculate_batch)
+    string(JSON opcode_highway_registry_materialize GET
+        "${contract_json}" opcodes highway_registry_materialize_batch)
     string(JSON instruction_version_identity_codepoint GET
         "${contract_json}" instruction_versions identity_codepoint_batch)
     string(JSON instruction_version_trajectory_decode GET
         "${contract_json}" instruction_versions trajectory_composition_decode_batch)
+    string(JSON instruction_version_highway_coordinate GET
+        "${contract_json}" instruction_versions highway_coordinate_calculate_batch)
+    string(JSON instruction_version_highway_registry_materialize GET
+        "${contract_json}" instruction_versions highway_registry_materialize_batch)
     string(JSON introduced_minor_identity GET
         "${contract_json}" introduced_minor identity_codepoint_batch)
     string(JSON introduced_minor_trajectory_decode GET
         "${contract_json}" introduced_minor trajectory_composition_decode_batch)
+    string(JSON introduced_minor_highway_coordinate GET
+        "${contract_json}" introduced_minor highway_coordinate_calculate_batch)
+    string(JSON introduced_minor_highway_registry_materialize GET
+        "${contract_json}" introduced_minor highway_registry_materialize_batch)
     string(JSON receipt_algorithm GET "${contract_json}" receipt digest_algorithm)
     string(JSON receipt_bytes GET "${contract_json}" receipt digest_bytes)
     string(JSON receipt_detail_full GET "${contract_json}" receipt detail_full)
@@ -40,23 +58,31 @@ function(laplace_configure_isa_contract contract_path output_path)
     if(NOT contract_schema STREQUAL "laplace.isa-contract/v1")
         message(FATAL_ERROR "Unsupported ISA contract schema: ${contract_schema}")
     endif()
-    if(NOT major EQUAL 1 OR NOT minor EQUAL 2)
-        message(FATAL_ERROR "Current ISA version must remain 1.2")
+    if(NOT major EQUAL 1 OR NOT minor EQUAL 4)
+        message(FATAL_ERROR "Current ISA version must remain 1.4")
     endif()
     if(NOT context_required OR NOT context_framework_major EQUAL 1
        OR NOT context_program_binding OR NOT context_receipt_binding)
         message(FATAL_ERROR "ISA execution context binding contract changed")
     endif()
     if(NOT value_u32 EQUAL 1 OR NOT value_id128 EQUAL 2
-       OR NOT value_trajectory EQUAL 3 OR NOT value_occurrence EQUAL 4)
+       OR NOT value_trajectory EQUAL 3 OR NOT value_occurrence EQUAL 4
+       OR NOT value_highway_key EQUAL 5 OR NOT value_highway_coordinate EQUAL 6
+       OR NOT value_highway_registry_receipt EQUAL 7)
         message(FATAL_ERROR "ISA value type assignments changed")
     endif()
     if(NOT opcode_identity_codepoint EQUAL 131073
        OR NOT opcode_trajectory_decode EQUAL 196609
+       OR NOT opcode_highway_coordinate EQUAL 262145
+       OR NOT opcode_highway_registry_materialize EQUAL 262146
        OR NOT instruction_version_identity_codepoint EQUAL 1
        OR NOT instruction_version_trajectory_decode EQUAL 1
+       OR NOT instruction_version_highway_coordinate EQUAL 1
+       OR NOT instruction_version_highway_registry_materialize EQUAL 1
        OR NOT introduced_minor_identity EQUAL 0
-       OR NOT introduced_minor_trajectory_decode EQUAL 1)
+       OR NOT introduced_minor_trajectory_decode EQUAL 1
+       OR NOT introduced_minor_highway_coordinate EQUAL 3
+       OR NOT introduced_minor_highway_registry_materialize EQUAL 4)
         message(FATAL_ERROR "ISA opcode assignment changed")
     endif()
     if(NOT receipt_algorithm STREQUAL "BLAKE3-256" OR NOT receipt_bytes EQUAL 32)
@@ -73,17 +99,34 @@ function(laplace_configure_isa_contract contract_path output_path)
     endif()
 
     math(EXPR operation_last "${operation_count} - 1")
+    set(remaining_operations "")
+    foreach(index RANGE 0 ${operation_last})
+        string(JSON operation_name MEMBER
+            "${contract_json}" operation_contracts ${index})
+        list(APPEND remaining_operations "${operation_name}")
+    endforeach()
     set(operation_registry "")
     set(previous_opcode 0)
-    foreach(index RANGE 0 ${operation_last})
-        string(JSON operation_name MEMBER "${contract_json}" operation_contracts ${index})
+    set(emitted_count 0)
+    while(remaining_operations)
+        set(operation_name "")
+        set(operation_opcode 4294967296)
+        foreach(candidate IN LISTS remaining_operations)
+            string(JSON candidate_opcode GET "${contract_json}" opcodes ${candidate})
+            if(candidate_opcode LESS operation_opcode)
+                set(operation_name "${candidate}")
+                set(operation_opcode "${candidate_opcode}")
+            elseif(candidate_opcode EQUAL operation_opcode)
+                message(FATAL_ERROR "ISA operation registry contains a duplicate opcode")
+            endif()
+        endforeach()
+        list(REMOVE_ITEM remaining_operations "${operation_name}")
         string(JSON operation_module GET
             "${contract_json}" operation_contracts ${operation_name} module)
         string(JSON operation_input GET
             "${contract_json}" operation_contracts ${operation_name} input_type)
         string(JSON operation_output GET
             "${contract_json}" operation_contracts ${operation_name} output_type)
-        string(JSON operation_opcode GET "${contract_json}" opcodes ${operation_name})
         string(JSON operation_version GET
             "${contract_json}" instruction_versions ${operation_name})
         string(JSON operation_minor GET
@@ -95,16 +138,17 @@ function(laplace_configure_isa_contract contract_path output_path)
         string(JSON operation_output_id GET
             "${contract_json}" value_types ${operation_output})
         if(operation_opcode LESS_EQUAL previous_opcode)
-            message(FATAL_ERROR "ISA operation registry must be ordered by unique opcode")
+            message(FATAL_ERROR "ISA operation registry sort failed")
         endif()
         set(previous_opcode "${operation_opcode}")
         string(TOUPPER "${operation_name}" operation_symbol)
         string(APPEND operation_registry
             "    X(${operation_symbol}, ${operation_name}, UINT32_C(${operation_opcode}), UINT16_C(${operation_version}), UINT16_C(${operation_minor}), UINT32_C(${operation_input_id}), UINT32_C(${operation_output_id}), UINT32_C(${operation_module_id}))")
-        if(NOT index EQUAL operation_last)
+        math(EXPR emitted_count "${emitted_count} + 1")
+        if(NOT emitted_count EQUAL operation_count)
             string(APPEND operation_registry " \\\n")
         endif()
-    endforeach()
+    endwhile()
 
     set(LAPLACE_ISA_MAJOR "${major}")
     set(LAPLACE_ISA_MINOR "${minor}")
@@ -112,17 +156,33 @@ function(laplace_configure_isa_contract contract_path output_path)
     set(LAPLACE_ISA_VALUE_ID128_VECTOR "${value_id128}")
     set(LAPLACE_ISA_VALUE_COMPOSITION_TRAJECTORY_VECTOR "${value_trajectory}")
     set(LAPLACE_ISA_VALUE_COMPOSITION_OCCURRENCE_VECTOR "${value_occurrence}")
+    set(LAPLACE_ISA_VALUE_HIGHWAY_KEY_VECTOR "${value_highway_key}")
+    set(LAPLACE_ISA_VALUE_HIGHWAY_COORDINATE_VECTOR "${value_highway_coordinate}")
+    set(LAPLACE_ISA_VALUE_HIGHWAY_REGISTRY_RECEIPT_VECTOR
+        "${value_highway_registry_receipt}")
     set(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH "${opcode_identity_codepoint}")
     set(LAPLACE_ISA_OPCODE_TRAJECTORY_COMPOSITION_DECODE_BATCH
         "${opcode_trajectory_decode}")
+    set(LAPLACE_ISA_OPCODE_HIGHWAY_COORDINATE_CALCULATE_BATCH
+        "${opcode_highway_coordinate}")
+    set(LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH
+        "${opcode_highway_registry_materialize}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_IDENTITY_CODEPOINT_BATCH
         "${instruction_version_identity_codepoint}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_TRAJECTORY_COMPOSITION_DECODE_BATCH
         "${instruction_version_trajectory_decode}")
+    set(LAPLACE_ISA_INSTRUCTION_VERSION_HIGHWAY_COORDINATE_CALCULATE_BATCH
+        "${instruction_version_highway_coordinate}")
+    set(LAPLACE_ISA_INSTRUCTION_VERSION_HIGHWAY_REGISTRY_MATERIALIZE_BATCH
+        "${instruction_version_highway_registry_materialize}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_IDENTITY_CODEPOINT_BATCH
         "${introduced_minor_identity}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_TRAJECTORY_COMPOSITION_DECODE_BATCH
         "${introduced_minor_trajectory_decode}")
+    set(LAPLACE_ISA_INTRODUCED_MINOR_HIGHWAY_COORDINATE_CALCULATE_BATCH
+        "${introduced_minor_highway_coordinate}")
+    set(LAPLACE_ISA_INTRODUCED_MINOR_HIGHWAY_REGISTRY_MATERIALIZE_BATCH
+        "${introduced_minor_highway_registry_materialize}")
     set(LAPLACE_ISA_RECEIPT_DIGEST_BYTES "${receipt_bytes}")
     set(LAPLACE_ISA_RECEIPT_DETAIL_FULL "${receipt_detail_full}")
     set(LAPLACE_ISA_KNOWN_PROGRAM_FLAGS "${program_flags}")

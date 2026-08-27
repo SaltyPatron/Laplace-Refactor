@@ -94,6 +94,34 @@ VALUES (
     decode(:'trajectory_entity', 'hex')
 );
 
+CREATE TEMP TABLE highway_expected (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    receipt bytea NOT NULL,
+    context_fingerprint bytea NOT NULL,
+    program_fingerprint bytea NOT NULL,
+    input_fingerprint bytea NOT NULL,
+    output_fingerprint bytea NOT NULL,
+    coordinates bytea[] NOT NULL,
+    collision_fingerprints bytea[] NOT NULL
+);
+
+INSERT INTO highway_expected VALUES (
+    true,
+    decode(:'highway_receipt', 'hex'),
+    decode(:'highway_context', 'hex'),
+    decode(:'highway_program', 'hex'),
+    decode(:'highway_input', 'hex'),
+    decode(:'highway_output', 'hex'),
+    ARRAY[
+        decode(:'highway_coordinate_0', 'hex'),
+        decode(:'highway_coordinate_1', 'hex')
+    ],
+    ARRAY[
+        decode(:'highway_fingerprint_0', 'hex'),
+        decode(:'highway_fingerprint_1', 'hex')
+    ]
+);
+
 CREATE TEMP TABLE persistence_expected (
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
     source_fingerprint bytea NOT NULL,
@@ -148,6 +176,10 @@ BEGIN
                 ('laplace.identity_codepoint_execute_batch(laplace.execution_context,integer[])', 'v', 'u'),
                 ('laplace.trajectory_composition_decode_calculate_batch(laplace.execution_context,bytea[])', 'i', 's'),
                 ('laplace.trajectory_composition_decode_execute_batch(laplace.execution_context,bytea[])', 'v', 'u'),
+                ('laplace.highway_coordinate_calculate_batch(laplace.execution_context,laplace.highway_key[])', 'i', 's'),
+                ('laplace.highway_coordinate_execute_batch(laplace.execution_context,laplace.highway_key[])', 'v', 'u'),
+                ('laplace.highway_registry_admit_and_activate(laplace.execution_context,numeric)', 'v', 'u'),
+                ('laplace.highway_registry_resolve_active(laplace.execution_context)', 's', 'u'),
                 ('laplace.canonical_deposit_batch(laplace.execution_context,bytea,bytea,bytea[])', 'v', 'u'),
                 ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint,integer)', 'v', 'u'),
                 ('laplace.unicode_tier0_resolve_batch(bytea,bytea,integer[])', 's', 'u'),
@@ -175,6 +207,10 @@ BEGIN
               'identity_codepoint_execute_batch',
               'trajectory_composition_decode_calculate_batch',
               'trajectory_composition_decode_execute_batch',
+              'highway_coordinate_calculate_batch',
+              'highway_coordinate_execute_batch',
+              'highway_registry_admit_and_activate',
+              'highway_registry_resolve_active',
               'canonical_deposit_batch',
               'unicode_root_build_and_activate',
               'unicode_tier0_resolve_batch',
@@ -226,7 +262,7 @@ BEGIN
        OR result.instruction_count <> 1
        OR result.executed_instruction_count <> 1
        OR result.isa_major <> 1
-       OR result.isa_minor <> 2
+       OR result.isa_minor <> 4
        OR result.status <> 0
        OR result.item_count <> 3 THEN
         RAISE EXCEPTION 'SPI identity receipt differs from the native receipt';
@@ -305,6 +341,92 @@ BEGIN
     END IF;
     IF (SELECT count(*) FROM laplace.execution_receipt) <> batch_receipt_count + 1 THEN
         RAISE EXCEPTION 'one identity batch did not publish exactly one receipt';
+    END IF;
+END
+$contract$;
+
+DO $contract$
+DECLARE
+    keys laplace.highway_key[] := ARRAY[
+        ROW(
+            3,
+            decode('101112131415161718191a1b1c1d1e1f', 'hex'),
+            decode('303132333435363738393a3b3c3d3e3f', 'hex'),
+            decode('505152535455565758595a5b5c5d5e5f', 'hex'),
+            decode('707172737475767778797a7b7c7d7e7f', 'hex'),
+            1
+        )::laplace.highway_key,
+        ROW(
+            16,
+            decode('101112131415161718191a1b1c1d1e1f', 'hex'),
+            decode('3132333435363738393a3b3c3d3e3f40', 'hex'),
+            decode('505152535455565758595a5b5c5d5e5f', 'hex'),
+            decode('707172737475767778797a7b7c7d7e7f', 'hex'),
+            1
+        )::laplace.highway_key
+    ];
+    calculated laplace.highway_batch_result;
+    result laplace.highway_batch_result;
+    repeated laplace.highway_batch_result;
+    expected highway_expected%ROWTYPE;
+    receipt_count bigint;
+    before_xmin xid;
+    before_ctid tid;
+BEGIN
+    SELECT * INTO STRICT expected FROM highway_expected;
+    SELECT count(*) INTO receipt_count FROM laplace.execution_receipt;
+    calculated := laplace.highway_coordinate_calculate_batch(
+        pg_temp.execution_context(), keys);
+    IF (SELECT count(*) FROM laplace.execution_receipt) <> receipt_count THEN
+        RAISE EXCEPTION 'pure highway calculation published durable state';
+    END IF;
+    result := laplace.highway_coordinate_execute_batch(
+        pg_temp.execution_context(), keys);
+    IF calculated IS DISTINCT FROM result THEN
+        RAISE EXCEPTION 'pure and durable highway routes differ';
+    END IF;
+    IF result.coordinates IS DISTINCT FROM expected.coordinates
+       OR result.collision_fingerprints IS DISTINCT FROM expected.collision_fingerprints
+       OR result.receipt_id <> expected.receipt
+       OR result.context_fingerprint <> expected.context_fingerprint
+       OR result.program_fingerprint <> expected.program_fingerprint
+       OR result.input_fingerprint <> expected.input_fingerprint
+       OR result.output_fingerprint <> expected.output_fingerprint
+       OR result.instruction_count <> 1
+       OR result.executed_instruction_count <> 1
+       OR result.isa_major <> 1
+       OR result.isa_minor <> 4
+       OR result.status <> 0
+       OR result.item_count <> 2 THEN
+        RAISE EXCEPTION 'PostgreSQL highway result differs from direct native ISA';
+    END IF;
+    IF result.coordinates[1] = result.coordinates[2] THEN
+        RAISE EXCEPTION 'release-scoped coordinates collapsed';
+    END IF;
+
+    SELECT xmin, ctid INTO before_xmin, before_ctid
+    FROM laplace.execution_receipt WHERE receipt_id = result.receipt_id;
+    repeated := laplace.highway_coordinate_execute_batch(
+        pg_temp.execution_context(), keys);
+    IF repeated IS DISTINCT FROM result OR NOT EXISTS (
+        SELECT 1 FROM laplace.execution_receipt
+        WHERE receipt_id = result.receipt_id
+          AND xmin = before_xmin AND ctid = before_ctid
+    ) THEN
+        RAISE EXCEPTION 'highway replay changed its result or durable receipt';
+    END IF;
+
+    SELECT count(*) INTO receipt_count FROM laplace.execution_receipt;
+    keys[2].release := decode(repeat('00', 16), 'hex');
+    BEGIN
+        PERFORM laplace.highway_coordinate_execute_batch(
+            pg_temp.execution_context(), keys);
+        RAISE EXCEPTION 'zero release scope was accepted';
+    EXCEPTION
+        WHEN invalid_parameter_value THEN NULL;
+    END;
+    IF (SELECT count(*) FROM laplace.execution_receipt) <> receipt_count THEN
+        RAISE EXCEPTION 'invalid highway batch published a receipt';
     END IF;
 END
 $contract$;

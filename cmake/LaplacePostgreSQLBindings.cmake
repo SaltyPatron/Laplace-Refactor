@@ -25,6 +25,22 @@ function(laplace_configure_postgresql_bindings
         "${contract_json}" bindings postgresql trajectory_composition_decode_batch execute_c_symbol)
     string(JSON carrier_encoding GET
         "${contract_json}" bindings postgresql trajectory_composition_decode_batch carrier_encoding)
+    string(JSON highway_calculate_sql GET
+        "${contract_json}" bindings postgresql highway_coordinate_calculate_batch calculate_sql_name)
+    string(JSON highway_calculate_symbol GET
+        "${contract_json}" bindings postgresql highway_coordinate_calculate_batch calculate_c_symbol)
+    string(JSON highway_execute_sql GET
+        "${contract_json}" bindings postgresql highway_coordinate_calculate_batch execute_sql_name)
+    string(JSON highway_execute_symbol GET
+        "${contract_json}" bindings postgresql highway_coordinate_calculate_batch execute_c_symbol)
+    string(JSON highway_registry_activate_sql GET
+        "${contract_json}" bindings postgresql highway_registry_materialize_batch activate_sql_name)
+    string(JSON highway_registry_activate_symbol GET
+        "${contract_json}" bindings postgresql highway_registry_materialize_batch activate_c_symbol)
+    string(JSON highway_registry_resolve_sql GET
+        "${contract_json}" bindings postgresql highway_registry_materialize_batch resolve_sql_name)
+    string(JSON highway_registry_resolve_symbol GET
+        "${contract_json}" bindings postgresql highway_registry_materialize_batch resolve_c_symbol)
     file(READ "${persistence_contract_path}" persistence_json)
     string(JSON persistence_schema GET "${persistence_json}" schema)
     string(JSON persistence_deposit_sql GET
@@ -127,6 +143,10 @@ function(laplace_configure_postgresql_bindings
         identity_execute_sql identity_execute_symbol
         trajectory_calculate_sql trajectory_calculate_symbol
         trajectory_execute_sql trajectory_execute_symbol
+        highway_calculate_sql highway_calculate_symbol
+        highway_execute_sql highway_execute_symbol
+        highway_registry_activate_sql highway_registry_activate_symbol
+        highway_registry_resolve_sql highway_registry_resolve_symbol
         persistence_deposit_sql persistence_deposit_symbol
         composition_deposit_sql composition_deposit_symbol
         unicode_postgresql_sql unicode_postgresql_symbol
@@ -165,6 +185,18 @@ function(laplace_configure_postgresql_bindings
     set(LAPLACE_PG_TRAJECTORY_CALCULATE_SYMBOL "${trajectory_calculate_symbol}")
     set(LAPLACE_PG_TRAJECTORY_EXECUTE_SQL "${trajectory_execute_sql}")
     set(LAPLACE_PG_TRAJECTORY_EXECUTE_SYMBOL "${trajectory_execute_symbol}")
+    set(LAPLACE_PG_HIGHWAY_CALCULATE_SQL "${highway_calculate_sql}")
+    set(LAPLACE_PG_HIGHWAY_CALCULATE_SYMBOL "${highway_calculate_symbol}")
+    set(LAPLACE_PG_HIGHWAY_EXECUTE_SQL "${highway_execute_sql}")
+    set(LAPLACE_PG_HIGHWAY_EXECUTE_SYMBOL "${highway_execute_symbol}")
+    set(LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SQL
+        "${highway_registry_activate_sql}")
+    set(LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SYMBOL
+        "${highway_registry_activate_symbol}")
+    set(LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SQL
+        "${highway_registry_resolve_sql}")
+    set(LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SYMBOL
+        "${highway_registry_resolve_symbol}")
     set(LAPLACE_PG_CARRIER_ENCODING "${carrier_encoding}")
     set(LAPLACE_PG_PERSISTENCE_DEPOSIT_SQL "${persistence_deposit_sql}")
     set(LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL "${persistence_deposit_symbol}")
