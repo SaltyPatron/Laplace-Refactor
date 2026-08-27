@@ -83,6 +83,12 @@ class ProductPackageTests(unittest.TestCase):
             tools_cmake,
         )
 
+    def test_product_library_directory_cannot_diverge_from_manifest(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["build"]["install_libdir"] = "lib64"
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "canonical lib"):
+            PACKAGE.validate_contract(mutant)
+
     def test_provider_runtime_and_soname_are_copied(self) -> None:
         prefix = self.root / "package"
         prefix.mkdir()

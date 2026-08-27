@@ -144,6 +144,8 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ProductPackageError("BLAKE3 source must be contained by its repository root")
     if build.get("configuration") != "Release":
         raise ProductPackageError("product package must use the Release configuration")
+    if build.get("install_libdir") != "lib":
+        raise ProductPackageError("product package must use the canonical lib directory")
     if build.get("testing") is not False or build.get("dotnet_bindings") is not False:
         raise ProductPackageError("runtime product package cannot include test or SDK builds")
     if not isinstance(build.get("parallel_jobs"), int) or not 1 <= build["parallel_jobs"] <= 64:
@@ -1070,6 +1072,7 @@ def execute_plan(
         f"-DCMAKE_RANLIB={toolchain['ranlib']['path']}",
         f"-DCMAKE_LINKER={toolchain['ld']['path']}",
         f"-DCMAKE_INSTALL_PREFIX={contract['laplace']['logical_prefix']}",
+        f"-DCMAKE_INSTALL_LIBDIR={build['install_libdir']}",
         f"-DBUILD_TESTING={'ON' if build['testing'] else 'OFF'}",
         f"-DLAPLACE_ENABLE_DOTNET_BINDINGS={'ON' if build['dotnet_bindings'] else 'OFF'}",
         f"-DLAPLACE_BLAKE3_SOURCE={build['blake3_source']}",
