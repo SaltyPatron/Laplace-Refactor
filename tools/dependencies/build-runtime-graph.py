@@ -317,6 +317,14 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise GraphError(
             "execution.install_runpath must be the package-relative $ORIGIN/../lib"
         )
+    if execution.get("make_runpath_encoding") != (
+        "backslash-escaped-dollar-through-make-and-shell"
+    ):
+        raise GraphError("execution.make_runpath_encoding is invalid")
+    if execution.get("autotools_libtool_runpath_policy") != (
+        "disable-generated-hardcoding-and-runpath-variable"
+    ):
+        raise GraphError("execution.autotools_libtool_runpath_policy is invalid")
     source_path_policy = execution.get("source_path_policy")
     if not isinstance(source_path_policy, dict):
         raise GraphError("execution.source_path_policy must be an object")
@@ -799,10 +807,11 @@ def provider_environment(
 ) -> dict[str, str]:
     """Encode canonical link policy for the selected build recipe.
 
-    CMake receives RUNPATH through its typed cache argument.  Make expands a
-    single dollar sign while materializing a recipe, so Make-backed providers
-    require a doubled dollar in the recipe representation to deliver the same
-    canonical ``$ORIGIN`` bytes to the linker.
+    CMake receives RUNPATH through its typed cache argument.  Make-backed
+    providers use a backslash-escaped, doubled dollar.  Make reduces ``$$`` to
+    one dollar and the remaining backslash protects that dollar from both a
+    direct recipe shell and a generator command that embeds the flags in a
+    double-quoted value (ICU's pkgdata interface is one such command).
     """
     result = dict(environment)
     if provider == "cmake":
@@ -810,11 +819,68 @@ def provider_environment(
     if provider not in {"autotools", "openssl", "source-copy-make"}:
         raise GraphError(f"unsupported provider environment: {provider}")
     canonical = contract["execution"]["install_runpath"]
-    make_encoded = canonical.replace("$", "$$")
+    make_encoded = canonical.replace("$", r"\$$")
     result["LDFLAGS"] = " ".join(
-        [result["LDFLAGS"], f"-Wl,-rpath,'{make_encoded}'"]
+        [result["LDFLAGS"], f"-Wl,-rpath,{make_encoded}"]
     )
     return result
+
+
+def constrain_generated_libtool_runpath(build: Path, log: Path) -> dict[str, Any]:
+    """Make the common package RUNPATH the only libtool runtime-search law.
+
+    GNU libtool normally adds the configured logical installation directory to
+    executables linked with an uninstalled libtool library.  That behavior is
+    correct for conventional prefix installation but would add an absolute
+    ``/opt/laplace/current/lib`` entry beside the package-relative RUNPATH.
+    The common provider already supplies the canonical RUNPATH through
+    ``LDFLAGS``.  Disable both generated libtool fallback mechanisms after
+    configure and receipt the exact generated-interface transition in the
+    component build log.
+    """
+
+    libtool = build / "libtool"
+    observation: dict[str, Any] = {
+        "schema": "laplace.autotools-libtool-runpath-normalization/v1",
+        "path": "libtool",
+        "present": libtool.exists(),
+        "applied": False,
+        "before_sha256": None,
+        "after_sha256": None,
+    }
+    if libtool.exists() or libtool.is_symlink():
+        if not libtool.is_file() or libtool.is_symlink():
+            raise GraphError("generated autotools libtool must be a physical file")
+        original = libtool.read_text(encoding="utf-8")
+        normalized = original
+        replacements = (
+            (r"(?m)^runpath_var=.*$", 'runpath_var=""', "runpath_var"),
+            (
+                r"(?m)^hardcode_libdir_flag_spec=.*$",
+                'hardcode_libdir_flag_spec=""',
+                "hardcode_libdir_flag_spec",
+            ),
+        )
+        for pattern, replacement, field in replacements:
+            normalized, count = re.subn(pattern, replacement, normalized)
+            if count != 1:
+                raise GraphError(
+                    f"generated autotools libtool has {count} {field} assignments"
+                )
+        before = hashlib.sha256(original.encode("utf-8")).hexdigest()
+        after = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        libtool.write_text(normalized, encoding="utf-8")
+        observation.update(
+            {
+                "applied": True,
+                "before_sha256": before,
+                "after_sha256": after,
+            }
+        )
+    with log.open("a", encoding="utf-8") as output:
+        output.write(json.dumps(observation, sort_keys=True, separators=(",", ":")))
+        output.write("\n")
+    return observation
 
 
 def run_logged(
@@ -1081,6 +1147,7 @@ def autotools_component(
         environment,
         log,
     )
+    constrain_generated_libtool_runpath(build, log)
     run_logged([make, f"-j{contract['execution']['jobs']}"], build, environment, log)
     if component["test"] == "make-check":
         test_execution = execute_component_test(

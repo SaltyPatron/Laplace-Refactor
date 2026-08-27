@@ -7,6 +7,7 @@ import copy
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -77,6 +78,12 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(BUILD.GraphError, "package-relative"):
             BUILD.validate_contract(contract)
+
+        for field in ("make_runpath_encoding", "autotools_libtool_runpath_policy"):
+            contract = self.contract()
+            contract["execution"][field] = "conventional-absolute-prefix"
+            with self.assertRaisesRegex(BUILD.GraphError, field):
+                BUILD.validate_contract(contract)
 
     def test_install_prefix_must_be_the_stable_product_activation_path(self) -> None:
         contract = self.contract()
@@ -496,10 +503,10 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                 contract, environment, provider
             )
             self.assertIn(
-                "-Wl,-rpath,'$$ORIGIN/../lib'", make_environment["LDFLAGS"]
+                r"-Wl,-rpath,\$$ORIGIN/../lib", make_environment["LDFLAGS"]
             )
             self.assertNotIn(
-                "-Wl,-rpath,'$ORIGIN/../lib' ", make_environment["LDFLAGS"]
+                "-Wl,-rpath,'$$ORIGIN/../lib'", make_environment["LDFLAGS"]
             )
         self.assertNotIn("/opt/laplace/releases", environment["LDFLAGS"])
         for field in ("CFLAGS", "CXXFLAGS"):
@@ -511,6 +518,87 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                 f"-fdebug-prefix-map={temporary}/build/contains-41=.",
                 environment[field],
             )
+
+    def test_make_runpath_encoding_survives_direct_and_nested_shells(self) -> None:
+        contract = self.contract()
+        encoded = BUILD.provider_environment(
+            contract, {"LDFLAGS": "-pie"}, "autotools"
+        )["LDFLAGS"]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            makefile = root / "Makefile"
+            makefile.write_text(
+                "RPATH = "
+                + encoded
+                + "\nall:\n"
+                + '\t@printf "%s\\n" $(RPATH) > direct\n'
+                + '\t@printf "%s\\n" "GENLIB=$(RPATH)" > nested\n',
+                encoding="utf-8",
+            )
+            environment = dict(os.environ)
+            environment.pop("ORIGIN", None)
+            subprocess.run(
+                ["make", "-C", str(root), "all"],
+                check=True,
+                text=True,
+                capture_output=True,
+                env=environment,
+            )
+            direct_expected = "-pie\n-Wl,-rpath,$ORIGIN/../lib\n"
+            nested_expected = "GENLIB=-pie -Wl,-rpath,$ORIGIN/../lib\n"
+            self.assertEqual(
+                (root / "direct").read_text(encoding="utf-8"), direct_expected
+            )
+            self.assertEqual(
+                (root / "nested").read_text(encoding="utf-8"), nested_expected
+            )
+
+            makefile.write_text(
+                makefile.read_text(encoding="utf-8").replace(r"\$$ORIGIN", "$$ORIGIN"),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                ["make", "-C", str(root), "all"],
+                check=True,
+                text=True,
+                capture_output=True,
+                env=environment,
+            )
+            self.assertNotEqual(
+                (root / "nested").read_text(encoding="utf-8"), nested_expected
+            )
+
+    def test_generated_libtool_cannot_add_a_private_install_runpath(self) -> None:
+        fixture = (
+            "#!/bin/sh\n"
+            "runpath_var=LD_RUN_PATH\n"
+            'hardcode_libdir_flag_spec="\\$wl-rpath \\$wl\\$libdir"\n'
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build = root / "build"
+            build.mkdir()
+            libtool = build / "libtool"
+            log = root / "build.log"
+            libtool.write_text(fixture, encoding="utf-8")
+            observation = BUILD.constrain_generated_libtool_runpath(build, log)
+            self.assertTrue(observation["applied"])
+            self.assertEqual(
+                libtool.read_text(encoding="utf-8"),
+                '#!/bin/sh\nrunpath_var=""\nhardcode_libdir_flag_spec=""\n',
+            )
+            self.assertEqual(
+                json.loads(log.read_text(encoding="utf-8")), observation
+            )
+
+            libtool.write_text(fixture + "runpath_var=SECOND\n", encoding="utf-8")
+            with self.assertRaisesRegex(BUILD.GraphError, "2 runpath_var assignments"):
+                BUILD.constrain_generated_libtool_runpath(build, log)
+
+            libtool.unlink()
+            libtool.symlink_to("missing-generated-interface")
+            with self.assertRaisesRegex(BUILD.GraphError, "physical file"):
+                BUILD.constrain_generated_libtool_runpath(build, log)
 
     def test_provider_environment_rejects_private_dispatch(self) -> None:
         with self.assertRaisesRegex(BUILD.GraphError, "unsupported provider environment"):
