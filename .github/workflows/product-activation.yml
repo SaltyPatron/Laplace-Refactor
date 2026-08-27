@@ -108,10 +108,8 @@ jobs:
           expected_plan_sha=$(jq -er '.plan_sha256' "$plan")
           product_receipt="$build_directory/package-receipt.json"
           if [[ ! -f "$product_receipt" ]]; then
-            result="$RUNNER_TEMP/laplace-product-build-result.json"
             python3 tools/product/build-package.py build \
-              --postgresql-publication '${{ steps.inputs.outputs.postgresql_publication }}' > "$result"
-            product_receipt=$(jq -er '.manifest' "$result" | sed 's|/package-manifest.json$|/package-receipt.json|')
+              --postgresql-publication '${{ steps.inputs.outputs.postgresql_publication }}'
           fi
           test -f "$product_receipt"
           test ! -L "$product_receipt"
@@ -132,8 +130,7 @@ jobs:
             *"$logical_release") source_root="${physical_release%"$logical_release"}" ;;
             *) echo 'product physical root does not end in its logical release root' >&2; exit 1 ;;
           esac
-          build_id=$(basename "$(dirname "$manifest")")
-          expected_source_root="/build/laplace/stage/product/$build_id/root"
+          expected_source_root="$(jq -er '.stage_directory' "$plan")/root"
           test "$source_root" = "$expected_source_root"
           test -d "$physical_release"
           resource_directory="/opt/laplace/receipts/plans/$package_id"
