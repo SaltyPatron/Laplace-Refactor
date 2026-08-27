@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T12:16:27Z",
+  "observed_at_utc": "2026-08-27T12:32:34Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "5d8cffb5941e348e0a3def8f97ac04f559cae87b",
-    "implementation_checkpoint_commit": "5d8cffb5941e348e0a3def8f97ac04f559cae87b",
+    "observed_branch_head": "f0c57da73d339f877fad50c554b0d33cb04f4f2a",
+    "implementation_checkpoint_commit": "f0c57da73d339f877fad50c554b0d33cb04f4f2a",
     "pull_request": 74
   },
   "development_inputs": {
@@ -1039,6 +1039,39 @@
         "cluster_plan_issued": false,
         "product_activated": false
       },
+      "product_cluster_activation_mechanism": {
+        "implementation_commit": "f0c57da73d339f877fad50c554b0d33cb04f4f2a",
+        "state": "implemented-and-unprivileged-acceptance-proven-physical-system-activation-not-yet-executed",
+        "implemented_boundaries": [
+          "root-owned immutable package qualification with post-change byte verification",
+          "fresh live collision reinspection before any generated or database state",
+          "checksummed UTF-8 cluster initialization and exact package PostgreSQL 18.6 execution",
+          "generated role database tablespace extension and application-effect bootstrap",
+          "packaged pg_isready readiness polling with no ambient shell readiness program",
+          "live backend identification through pg_stat_activity",
+          "exact postmaster backend laplace_pg pg_stat_statements and native engine identity through proc executable and maps inspection",
+          "generated configuration byte verification",
+          "full stop and start with changed postmaster PID stable positive system identifier and repeated loaded-object proof",
+          "atomic current-package pointer commit only after restart proof",
+          "failure stop attempt prior-pointer preservation durable state preservation and typed failure evidence"
+        ],
+        "live_unprivileged_diagnostic": {
+          "package_id": "4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b",
+          "postgresql_version": "18.6",
+          "cluster_initialized": true,
+          "pg_stat_statements_created_and_loaded": true,
+          "laplace_extension_created_and_loaded": true,
+          "positive_system_identifier_observed": true,
+          "mapped_objects_observed": [
+            "pgsql-18/bin/postgres",
+            "pgsql-18/lib/laplace_pg.so",
+            "pgsql-18/lib/pg_stat_statements.so",
+            "lib/liblaplace_engine.so.2.0.0"
+          ],
+          "product_activation_occurred": false
+        },
+        "physical_execution_boundary": "requires one authorized root invocation because the selected data WAL temporary configuration log service and root package-ownership targets are privileged; no service cluster active pointer or Unicode product root has been promoted"
+      },
       "local_validation": {
         "postgresql_build_contract_and_mutation": "37 of 37 passed including packaged TAP providers staged OpenSSL execution preflight bootstrap-provider installed-provider recursive-closure and independent-output mutations",
         "installed_provider_lock_contract_and_mutation": "10 of 10 passed including exact role provider version path byte hash license runtime-SONAME and selection-hash controls",
@@ -1051,7 +1084,9 @@
         "complete_product_package_contract_and_mutation": "24 of 24 passed including build-input omission provider narrowing C-linker driver library-path hwloc dependency platform-ABI and package-promotion mutations",
         "complete_product_package_build": "current activation-eligible package 4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b built with the packaged native resource observer 2746 files 47 symlinks 532714907 bytes and zero unresolved external or conflicting ELF edges",
         "native_resource_observation": "installed packaged observer issued topology root-grant partition processor-allocation and storage receipts for a bounded six-CPU twelve-GiB four-I/O grant",
-        "syntax_and_diff": "Python compilation and git diff whitespace checks passed",
+        "product_cluster_activation_contract_and_mutation": "38 of 38 passed including exact live-object omission invalid system identity unchanged-postmaster restart bootstrap-signature and ambient-readiness controls",
+        "product_cluster_activation_live_diagnostic": "the accepted PostgreSQL 18.6 package initialized and ran an isolated temporary cluster; pg_stat_statements and Laplace loaded successfully and proc maps exposed all four required immutable package objects",
+        "syntax_and_diff": "Python compilation git diff whitespace and both 27-test program-authority modes passed",
         "portable_registered_suite": "268 of 269 passed; the sole failure was the known canonical oneAPI numeric-provider absence in the portable Unicode PostgreSQL test"
       }
     },

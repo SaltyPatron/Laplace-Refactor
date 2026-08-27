@@ -956,7 +956,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "5d8cffb5941e348e0a3def8f97ac04f559cae87b",
+        == "f0c57da73d339f877fad50c554b0d33cb04f4f2a",
         "product-package implementation checkpoint drift",
     )
     require(postgresql.get("implementation_commit") == "16126c4a4a90a6710528f94aacb401cf45fdea66", "historical PostgreSQL composer checkpoint drift")
