@@ -129,8 +129,19 @@ def validate_contract(contract: dict[str, Any]) -> None:
         for name, version in capabilities.items()
     ):
         raise ProductPackageError("Laplace capabilities are invalid")
-    for field in ("root", "stage_root", "c_compiler", "cxx_compiler", "blake3_source"):
+    for field in (
+        "root",
+        "stage_root",
+        "c_compiler",
+        "cxx_compiler",
+        "blake3_root",
+        "blake3_source",
+    ):
         require_absolute(build.get(field), f"build.{field}")
+    blake3_root = Path(build["blake3_root"])
+    blake3_source = Path(build["blake3_source"])
+    if not blake3_source.is_relative_to(blake3_root) or blake3_source == blake3_root:
+        raise ProductPackageError("BLAKE3 source must be contained by its repository root")
     if build.get("configuration") != "Release":
         raise ProductPackageError("product package must use the Release configuration")
     if build.get("testing") is not False or build.get("dotnet_bindings") is not False:
@@ -532,7 +543,7 @@ def create_plan(
     lock, providers, provider_roots = verify_installed_providers(
         contract, installed_lock_path
     )
-    blake3_root = require_absolute(contract["build"]["blake3_source"], "build.blake3_source")
+    blake3_root = require_absolute(contract["build"]["blake3_root"], "build.blake3_root")
     build_input_roots = {
         "blake3": exact_tree_receipt(blake3_root),
         **provider_roots,

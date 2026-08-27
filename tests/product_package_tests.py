@@ -70,6 +70,12 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "additional host"):
             PACKAGE.validate_contract(mutant)
 
+    def test_blake3_revision_root_cannot_be_collapsed_to_source_subtree(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["build"]["blake3_root"] = mutant["build"]["blake3_source"]
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "BLAKE3 source"):
+            PACKAGE.validate_contract(mutant)
+
     def test_provider_runtime_and_soname_are_copied(self) -> None:
         prefix = self.root / "package"
         prefix.mkdir()
