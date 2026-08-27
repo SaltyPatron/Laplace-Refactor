@@ -11,6 +11,7 @@
     "release_root": "/opt/laplace/releases",
     "active_link": "/opt/laplace/current",
     "required_files": [
+      "bin/laplace_resource_observe",
       "pgsql-18/bin/initdb",
       "pgsql-18/bin/pg_config",
       "pgsql-18/bin/pg_ctl",

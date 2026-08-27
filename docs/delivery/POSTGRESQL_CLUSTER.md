@@ -84,6 +84,12 @@ python3 tools/postgresql/clusterctl.py install-package \
   --root /fixture/root \
   --receipt /tmp/laplace-product-package-installation.json
 
+python3 tools/postgresql/clusterctl.py observe-resources \
+  --contract contracts/postgresql-cluster.json \
+  --package-manifest /path/to/package-manifest.json \
+  --package-physical-root /fixture/root \
+  --output /tmp/laplace-postgresql-resources.json
+
 python3 tools/postgresql/clusterctl.py inspect-collisions \
   --contract contracts/postgresql-cluster.json \
   --output /tmp/laplace-postgresql-collisions.json
@@ -138,3 +144,12 @@ from the unrestricted host or a permanent machine layout. For the typed
 
 Changing the hardware observation cannot silently enlarge the contract grant.
 Changing the grant changes the plan and receipt identities.
+
+The live observation is issued by the package's
+`bin/laplace_resource_observe` executable. It calls the native execution
+topology, root-grant, and partition APIs; binds the selected logical processors;
+observes the backing filesystems for the declared data, WAL, and temporary
+paths; and emits separate topology, root-grant, partition, processor-allocation,
+and storage receipts. `clusterctl.py observe-resources` verifies that executable
+against the package manifest, invokes it without ambient loader variables, and
+adds only the canonical orchestration receipt before validating the result.

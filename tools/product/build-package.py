@@ -238,6 +238,8 @@ def validate_contract(contract: dict[str, Any]) -> None:
             require_relative(value, f"package.{field}[{index}]")
     if not set(package["required_loaded_objects"]).issubset(package["required_files"]):
         raise ProductPackageError("loaded objects must be required package files")
+    if "bin/laplace_resource_observe" not in package["required_files"]:
+        raise ProductPackageError("package must contain the native resource observer")
     if closure.get("schema") != "laplace.elf-closure/v1" or closure.get(
         "tool_version"
     ) != "1.0.0":

@@ -110,6 +110,12 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "platform ABI"):
             PACKAGE.validate_contract(mutant)
 
+    def test_native_resource_observer_cannot_be_omitted(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["package"]["required_files"].remove("bin/laplace_resource_observe")
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "resource observer"):
+            PACKAGE.validate_contract(mutant)
+
     def test_external_runtime_edges_cannot_escape_the_zero_gate(self) -> None:
         mutant = copy.deepcopy(self.contract)
         mutant["runtime_closure"]["required_zero_summary_fields"].remove(

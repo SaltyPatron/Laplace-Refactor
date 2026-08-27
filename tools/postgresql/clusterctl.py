@@ -18,6 +18,7 @@ import pwd
 import re
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -34,6 +35,8 @@ LOADED_SCHEMA = "laplace.postgresql-loaded-observation/v1"
 STOPPED_SCHEMA = "laplace.postgresql-stopped-observation/v1"
 ACTIVATION_SCHEMA = "laplace.postgresql-activation-receipt/v1"
 INSTALLATION_SCHEMA = "laplace.product-package-installation-receipt/v1"
+NATIVE_RESOURCE_SCHEMA = "laplace.native-execution-resource-observation/v1"
+RESOURCE_OBSERVER_PATH = "bin/laplace_resource_observe"
 HEX_256 = re.compile(r"^[0-9a-f]{64}$")
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
 OS_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_-]*$")
@@ -155,6 +158,8 @@ def validate_contract(document: dict[str, Any]) -> None:
         raise ClusterError("package.required_loaded_objects contains duplicates")
     if not set(required_loaded).issubset(required_files):
         raise ClusterError("every required loaded object must be a required package file")
+    if RESOURCE_OBSERVER_PATH not in required_files:
+        raise ClusterError("package must require the native resource observer")
     if package.get("manifest_schema") != PACKAGE_SCHEMA:
         raise ClusterError("package manifest schema declaration is invalid")
     if package.get("postgresql_version") != "18.6":
@@ -288,8 +293,22 @@ def validate_resource_observation(
             raise ClusterError(f"resource observation requires exact {field}")
     grant = document.get("grant")
     storage = document.get("storage")
-    if not isinstance(grant, dict) or not isinstance(storage, dict):
+    native = document.get("native_authority")
+    if (
+        not isinstance(grant, dict)
+        or not isinstance(storage, dict)
+        or not isinstance(native, dict)
+    ):
         raise ClusterError("native resource grant and storage observation are required")
+    if native.get("schema") != NATIVE_RESOURCE_SCHEMA:
+        raise ClusterError("resource observation omits its native authority schema")
+    observer = native.get("observer")
+    if (
+        not isinstance(observer, dict)
+        or observer.get("path") != RESOURCE_OBSERVER_PATH
+        or HEX_256.fullmatch(str(observer.get("sha256", ""))) is None
+    ):
+        raise ClusterError("resource observation omits its exact packaged native observer")
     cpu_ids = grant.get("processor_ids")
     cpu_slots = grant.get("cpu_slots")
     memory_bytes = grant.get("memory_bytes")
@@ -305,6 +324,18 @@ def validate_resource_observation(
         or not isinstance(io_slots, int)
     ):
         raise ClusterError("native resource grant shape is invalid")
+    if (
+        native.get("processor_ids") != cpu_ids
+        or native.get("partition_grant")
+        != {
+            "cpu_slots": cpu_slots,
+            "memory_bytes": memory_bytes,
+            "io_slots": io_slots,
+        }
+        or not isinstance(native.get("allowed_processor_count"), int)
+        or native["allowed_processor_count"] < cpu_slots
+    ):
+        raise ClusterError("native processor allocation or partition grant differs")
     policy = contract["resource_policy"]
     if not policy["minimum_cpu_slots"] <= cpu_slots <= policy["maximum_cpu_slots"]:
         raise ClusterError("native CPU grant is outside the declared policy")
@@ -323,12 +354,108 @@ def validate_resource_observation(
             or volume.get("path") != expected_path
             or not isinstance(volume.get("available_bytes"), int)
             or volume["available_bytes"] <= 0
+            or not isinstance(volume.get("backing_path"), str)
+            or not volume["backing_path"].startswith("/")
+            or not isinstance(volume.get("fragment_bytes"), int)
+            or volume["fragment_bytes"] <= 0
         ):
             raise ClusterError(f"resource {name} storage observation is missing or mismatched")
     required_wal = policy["max_wal_size_bytes"] * policy["wal_headroom_multiplier"]
     if required_wal > storage["wal"]["available_bytes"]:
         raise ClusterError("configured WAL budget exceeds observed capacity headroom")
     return grant
+
+
+def finalize_native_resource_observation(
+    native: dict[str, Any], observer_entry: dict[str, Any], contract: dict[str, Any]
+) -> dict[str, Any]:
+    if native.get("schema") != RESOURCE_SCHEMA:
+        raise ClusterError("native observer returned the wrong resource schema")
+    if native.get("source") != "laplace_native_execution_authority":
+        raise ClusterError("native observer returned the wrong authority source")
+    if "observation_sha256" in native:
+        raise ClusterError("native observer cannot pre-author the orchestration receipt")
+    authority = native.get("native_authority")
+    if not isinstance(authority, dict) or authority.get("schema") != NATIVE_RESOURCE_SCHEMA:
+        raise ClusterError("native observer omitted its authority record")
+    grant = native.get("grant")
+    if not isinstance(grant, dict):
+        raise ClusterError("native observer omitted its partition grant")
+    authority = dict(authority)
+    authority["observer"] = {
+        "path": RESOURCE_OBSERVER_PATH,
+        "sha256": observer_entry["sha256"],
+    }
+    authority["processor_ids"] = grant.get("processor_ids")
+    authority["partition_grant"] = {
+        "cpu_slots": grant.get("cpu_slots"),
+        "memory_bytes": grant.get("memory_bytes"),
+        "io_slots": grant.get("io_slots"),
+    }
+    result = dict(native)
+    result["native_authority"] = authority
+    result["observation_sha256"] = resource_observation_identity(result)
+    validate_resource_observation(result, contract)
+    return result
+
+
+def observe_resources(
+    contract_path: Path,
+    package_path: Path,
+    package_physical_root: Path,
+) -> dict[str, Any]:
+    contract = load_json(contract_path)
+    package = load_json(package_path)
+    validate_contract(contract)
+    package_status = verify_package(package, contract, package_physical_root)
+    if not package_status.verified:
+        raise ClusterError(
+            f"native resource observation requires exact package bytes: {package_status.reason}"
+        )
+    observer_entry = package_status.files.get(RESOURCE_OBSERVER_PATH)
+    if not isinstance(observer_entry, dict) or observer_entry.get("kind") != "file":
+        raise ClusterError("package omits the native resource observer")
+    observer = prefixed(package_physical_root, package["root"]) / RESOURCE_OBSERVER_PATH
+    instance = contract["instance"]
+    policy = contract["resource_policy"]
+    command = [
+        str(observer),
+        "--data",
+        instance["data_directory"],
+        "--wal",
+        instance["wal_directory"],
+        "--temporary",
+        instance["temp_directory"],
+        "--maximum-cpu-slots",
+        str(policy["maximum_cpu_slots"]),
+        "--maximum-memory-bytes",
+        str(policy["maximum_memory_bytes"]),
+        "--maximum-io-slots",
+        str(policy["maximum_io_slots"]),
+    ]
+    completed = subprocess.run(
+        command,
+        check=False,
+        cwd="/",
+        env={"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or f"exit {completed.returncode}"
+        raise ClusterError(f"native resource observer failed: {detail}")
+    try:
+        native = json.loads(
+            completed.stdout, object_pairs_hook=reject_duplicate_keys
+        )
+    except json.JSONDecodeError as error:
+        raise ClusterError(f"native resource observer returned invalid JSON: {error}") from error
+    if not isinstance(native, dict):
+        raise ClusterError("native resource observer output must be an object")
+    return finalize_native_resource_observation(
+        native, observer_entry, contract
+    )
 
 
 def collision_observation_identity(observation: dict[str, Any]) -> str:
@@ -1464,6 +1591,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     install.add_argument("--root", required=True)
     install.add_argument("--receipt", default="-")
     install.add_argument("--authorize-system-root", action="store_true")
+    observe = subparsers.add_parser("observe-resources")
+    observe.add_argument("--contract", required=True)
+    observe.add_argument("--package-manifest", required=True)
+    observe.add_argument("--package-physical-root", required=True)
+    observe.add_argument("--output", default="-")
     inspect = subparsers.add_parser("inspect-collisions")
     inspect.add_argument("--contract", required=True)
     inspect.add_argument("--root", default="/")
@@ -1519,6 +1651,14 @@ def main(argv: Sequence[str]) -> int:
             arguments.authorize_system_root,
         )
         write_json(Path(arguments.receipt), result)
+        return 0
+    if arguments.command == "observe-resources":
+        result = observe_resources(
+            Path(arguments.contract),
+            Path(arguments.package_manifest),
+            Path(arguments.package_physical_root),
+        )
+        write_json(Path(arguments.output), result)
         return 0
     if arguments.command == "inspect-collisions":
         result = inspect_collisions(

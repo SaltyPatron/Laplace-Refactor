@@ -87,6 +87,7 @@
       "lib/liblaplace_engine.so.2.0.0"
     ],
     "required_files": [
+      "bin/laplace_resource_observe",
       "pgsql-18/bin/initdb",
       "pgsql-18/bin/pg_config",
       "pgsql-18/bin/pg_ctl",

@@ -76,14 +76,34 @@ class PostgreSQLClusterContract(unittest.TestCase):
                 "data": {
                     "path": self.contract["instance"]["data_directory"],
                     "available_bytes": 256 * 1024**3,
+                    "backing_path": "/opt/laplace",
+                    "fragment_bytes": 4096,
                 },
                 "wal": {
                     "path": self.contract["instance"]["wal_directory"],
                     "available_bytes": 64 * 1024**3,
+                    "backing_path": "/var/lib",
+                    "fragment_bytes": 4096,
                 },
                 "temporary": {
                     "path": self.contract["instance"]["temp_directory"],
                     "available_bytes": 128 * 1024**3,
+                    "backing_path": "/",
+                    "fragment_bytes": 4096,
+                },
+            },
+            "native_authority": {
+                "schema": clusterctl.NATIVE_RESOURCE_SCHEMA,
+                "observer": {
+                    "path": clusterctl.RESOURCE_OBSERVER_PATH,
+                    "sha256": "6" * 64,
+                },
+                "allowed_processor_count": 8,
+                "processor_ids": [20, 21, 28, 29],
+                "partition_grant": {
+                    "cpu_slots": 4,
+                    "memory_bytes": 12 * 1024**3,
+                    "io_slots": 2,
                 },
             },
         }
@@ -246,6 +266,54 @@ class PostgreSQLClusterContract(unittest.TestCase):
         )
         for row_by_row in (" LOOP ", "CURSOR", "WITH RECURSIVE"):
             self.assertNotIn(row_by_row, bootstrap.upper())
+
+    def test_native_resource_observation_finalization_binds_packaged_observer(self) -> None:
+        native = self.valid_resource_observation()
+        native.pop("observation_sha256")
+        native["native_authority"].pop("observer")
+        result = clusterctl.finalize_native_resource_observation(
+            native,
+            {
+                "path": clusterctl.RESOURCE_OBSERVER_PATH,
+                "kind": "file",
+                "sha256": "7" * 64,
+            },
+            self.contract,
+        )
+        self.assertEqual(
+            result["native_authority"]["observer"],
+            {"path": clusterctl.RESOURCE_OBSERVER_PATH, "sha256": "7" * 64},
+        )
+        self.assertEqual(
+            result["observation_sha256"],
+            clusterctl.resource_observation_identity(result),
+        )
+
+    def test_cluster_contract_cannot_omit_native_resource_observer(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        contract["package"]["required_files"].remove(
+            clusterctl.RESOURCE_OBSERVER_PATH
+        )
+        with self.assertRaisesRegex(clusterctl.ClusterError, "resource observer"):
+            clusterctl.validate_contract(contract)
+
+    def test_native_processor_allocation_drift_is_rejected(self) -> None:
+        observation = self.valid_resource_observation()
+        observation["native_authority"]["processor_ids"] = [20, 21, 28, 30]
+        observation["observation_sha256"] = clusterctl.resource_observation_identity(
+            observation
+        )
+        with self.assertRaisesRegex(clusterctl.ClusterError, "processor allocation"):
+            clusterctl.validate_resource_observation(observation, self.contract)
+
+    def test_resource_observation_without_exact_native_observer_is_rejected(self) -> None:
+        observation = self.valid_resource_observation()
+        observation["native_authority"]["observer"].pop("sha256")
+        observation["observation_sha256"] = clusterctl.resource_observation_identity(
+            observation
+        )
+        with self.assertRaisesRegex(clusterctl.ClusterError, "packaged native observer"):
+            clusterctl.validate_resource_observation(observation, self.contract)
 
     def test_exact_package_install_is_atomic_verified_and_replay_safe(self) -> None:
         manifest = clusterctl.load_json(self.manifest_path)
@@ -535,6 +603,9 @@ class PostgreSQLClusterContract(unittest.TestCase):
     def test_oversized_resource_mutants_are_rejected(self) -> None:
         resource = self.valid_resource_observation()
         resource["grant"]["memory_bytes"] = 65 * 1024**3
+        resource["native_authority"]["partition_grant"]["memory_bytes"] = (
+            65 * 1024**3
+        )
         resource["observation_sha256"] = clusterctl.resource_observation_identity(
             resource
         )
