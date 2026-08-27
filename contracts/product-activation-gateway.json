@@ -1,0 +1,60 @@
+{
+  "schema": "laplace.product-activation-gateway-contract/v1",
+  "version": "1.0.0",
+  "repository": {
+    "slug": "SaltyPatron/Laplace-Refactor",
+    "deployment_ref": "refs/heads/main",
+    "deployment_event": "workflow_dispatch",
+    "runner_user": "laplace-runner",
+    "runner_group": "laplace-runner"
+  },
+  "request": {
+    "schema": "laplace.product-activation-request/v1",
+    "result_schema": "laplace.product-activation-gateway-result/v1",
+    "hmac_algorithm": "HMAC-SHA-256",
+    "hmac_domain": "laplace.product-activation-request/v1",
+    "maximum_bytes": 65536,
+    "maximum_age_seconds": 3600,
+    "secret_environment": "LAPLACE_ACTIVATION_HMAC_KEY_B64",
+    "secret_path": "/etc/laplace/product-activation.key"
+  },
+  "gateway": {
+    "release_root": "/opt/laplace/deployment/releases",
+    "active_link": "/opt/laplace/deployment/current",
+    "executable": "/opt/laplace/deployment/current/bin/laplace-product-activate",
+    "sudoers_path": "/etc/sudoers.d/laplace-product-activation",
+    "receipt_root": "/opt/laplace/receipts/deployments",
+    "python": "/usr/bin/python3"
+  },
+  "trusted_bundle": {
+    "files": [
+      "bin/laplace-product-activate",
+      "contracts/postgresql-cluster.json",
+      "contracts/product-activation-gateway.json",
+      "contracts/unicode-postgresql.json",
+      "contracts/unicode-product-activation.json",
+      "contracts/unicode-source.json",
+      "controllers/clusterctl.py",
+      "controllers/unicodectl.py"
+    ]
+  },
+  "product": {
+    "package_manifest_root": "/build/laplace/build/product",
+    "package_release_root": "/opt/laplace/releases",
+    "plan_receipt_root": "/opt/laplace/receipts/plans",
+    "cluster_activation_root": "/opt/laplace/receipts/postgresql/refactor/cluster-activation",
+    "unicode_source_root": "/vault/Data/UCD/Public/UCD/latest",
+    "unicode_result": "/opt/laplace/receipts/postgresql/refactor/unicode-activation-result.json"
+  },
+  "operation": {
+    "name": "activate-product-and-unicode",
+    "cluster_subcommand": "activate-product",
+    "system_root_authorization": true,
+    "cluster_success_schema": "laplace.postgresql-activation-receipt/v1",
+    "unicode_success_schema": "laplace.unicode-product-activation-receipt/v1",
+    "cluster_success_phase": "activated",
+    "require_active_pointer_commit": true,
+    "require_restart_proof": true,
+    "allow_exact_success_replay": true
+  }
+}

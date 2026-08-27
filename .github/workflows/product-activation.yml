@@ -1,0 +1,92 @@
+name: product-activation
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/product-activation.yml
+      - contracts/product-activation-gateway.json
+      - tools/delivery/**
+      - tests/product_activation_gateway_tests.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-activation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runner-authority:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Inspect the established deployment authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          sudo -n -l
+      - name: Execute activation gateway contract and mutation tests
+        run: python3 tests/product_activation_gateway_tests.py
+
+  activate-product:
+    if: github.event_name == 'workflow_dispatch'
+    needs: runner-authority
+    environment: product
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+    timeout-minutes: 300
+    env:
+      LAPLACE_ACTIVATION_HMAC_KEY_B64: ${{ secrets.LAPLACE_ACTIVATION_HMAC_KEY_B64 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify protected deployment context and installed gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test -n "$LAPLACE_ACTIVATION_HMAC_KEY_B64"
+          test -x /opt/laplace/deployment/current/bin/laplace-product-activate
+          sudo -n /opt/laplace/deployment/current/bin/laplace-product-activate probe
+      - name: Compile the exact authenticated activation request
+        shell: bash
+        run: |
+          set -euo pipefail
+          request="$RUNNER_TEMP/laplace-product-activation-request.json"
+          python3 tools/delivery/product_activation.py create-request \
+            --contract contracts/product-activation-gateway.json \
+            --continuation state/continuation.json \
+            --output "$request"
+          chmod 0600 "$request"
+          printf 'LAPLACE_ACTIVATION_REQUEST=%s\n' "$request" >> "$GITHUB_ENV"
+      - name: Activate PostgreSQL and Unicode through the root gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/laplace-product-activation-result.json"
+          sudo -n /opt/laplace/deployment/current/bin/laplace-product-activate \
+            execute-request < "$LAPLACE_ACTIVATION_REQUEST" > "$result"
+          jq -e '
+            .schema == "laplace.product-activation-gateway-result/v1" and
+            .phase == "product-and-unicode-activated" and
+            (.cluster_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
+            (.unicode_activation_receipt_sha256 | test("^[0-9a-f]{64}$"))
+          ' "$result" >/dev/null
+          {
+            echo '## Product activation result'
+            echo '```json'
+            cat "$result"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
