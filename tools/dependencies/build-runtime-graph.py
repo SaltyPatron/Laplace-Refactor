@@ -306,10 +306,14 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise GraphError("runtime executables must be position independent")
     if executable_elf.get("copy_relocations") != "forbidden":
         raise GraphError("runtime executable COPY relocations must be forbidden")
+    if executable_elf.get("executable_stack") != "forbidden-for-every-elf":
+        raise GraphError("runtime package executable stacks must be forbidden")
     if "-fPIE" not in execution["c_flags"] or "-fPIE" not in execution["cxx_flags"]:
         raise GraphError("runtime C and C++ compilation must select -fPIE")
     if "-pie" not in execution["link_flags"]:
         raise GraphError("runtime executable linking must select -pie")
+    if "-Wl,-z,noexecstack" not in execution["link_flags"]:
+        raise GraphError("runtime linking must select a non-executable stack")
     install_runpath = require_string(
         execution.get("install_runpath"), "execution.install_runpath"
     )
@@ -321,8 +325,12 @@ def validate_contract(contract: dict[str, Any]) -> None:
         "backslash-escaped-dollar-through-make-and-shell"
     ):
         raise GraphError("execution.make_runpath_encoding is invalid")
+    if execution.get("generated_command_runpath_policy") != (
+        "normalize-escaped-dollar-before-second-shell"
+    ):
+        raise GraphError("execution.generated_command_runpath_policy is invalid")
     if execution.get("autotools_libtool_runpath_policy") != (
-        "disable-generated-hardcoding-and-runpath-variable"
+        "disable-generated-hardcoding-with-declared-test-loader-path"
     ):
         raise GraphError("execution.autotools_libtool_runpath_policy is invalid")
     source_path_policy = execution.get("source_path_policy")
@@ -411,6 +419,50 @@ def validate_contract(contract: dict[str, Any]) -> None:
             raise GraphError(
                 f"test contract {test} is incompatible with provider {provider} for {identifier}"
             )
+        generated_command = component.get("generated_command_runpath")
+        if generated_command is not None:
+            if provider != "autotools" or not isinstance(generated_command, dict):
+                raise GraphError(
+                    f"{identifier}.generated_command_runpath requires an autotools object"
+                )
+            if generated_command.get("interface") != "icu-pkgdata-makefile":
+                raise GraphError(
+                    f"{identifier}.generated_command_runpath interface is unsupported"
+                )
+            makefiles = require_string_list(
+                generated_command.get("makefiles"),
+                f"{identifier}.generated_command_runpath.makefiles",
+            )
+            for makefile in makefiles:
+                relative = Path(makefile)
+                if (
+                    relative.is_absolute()
+                    or ".." in relative.parts
+                    or relative.as_posix() != makefile
+                ):
+                    raise GraphError(
+                        f"{identifier}.generated_command_runpath contains an unsafe path: "
+                        f"{makefile}"
+                    )
+        test_loader_paths = require_string_list(
+            component.get("test_loader_paths", []),
+            f"{identifier}.test_loader_paths",
+            allow_empty=True,
+        )
+        if test_loader_paths and provider != "autotools":
+            raise GraphError(
+                f"{identifier}.test_loader_paths requires the autotools provider"
+            )
+        for loader_path in test_loader_paths:
+            relative = Path(loader_path)
+            if (
+                relative.is_absolute()
+                or ".." in relative.parts
+                or relative.as_posix() != loader_path
+            ):
+                raise GraphError(
+                    f"{identifier}.test_loader_paths contains an unsafe path: {loader_path}"
+                )
         validate_component_test_policy(component)
 
     qualification = contract.get("runtime_provider_qualification")
@@ -809,9 +861,11 @@ def provider_environment(
 
     CMake receives RUNPATH through its typed cache argument.  Make-backed
     providers use a backslash-escaped, doubled dollar.  Make reduces ``$$`` to
-    one dollar and the remaining backslash protects that dollar from both a
-    direct recipe shell and a generator command that embeds the flags in a
-    double-quoted value (ICU's pkgdata interface is one such command).
+    one dollar and the remaining backslash protects that dollar from the
+    direct recipe shell.  Interfaces that persist the resulting command for a
+    second shell require a separate, receipted generated-interface
+    normalization; one level of quoting cannot honestly prove an arbitrary
+    number of later executions.
     """
     result = dict(environment)
     if provider == "cmake":
@@ -824,6 +878,68 @@ def provider_environment(
         [result["LDFLAGS"], f"-Wl,-rpath,{make_encoded}"]
     )
     return result
+
+
+def constrain_generated_command_runpath(
+    build: Path, specification: dict[str, Any] | None, log: Path
+) -> dict[str, Any]:
+    """Preserve the package-relative RUNPATH through a generated second shell.
+
+    ICU's generated pkgdata Makefiles serialize ``SHLIB.c`` into a command
+    file and the pkgdata executable later runs that command through another
+    shell.  The ordinary Make encoding correctly protects the direct recipe,
+    but a double-quoted serializer removes the final protective backslash.
+    Normalize only the declared physical generated interfaces so the command
+    file retains ``\$ORIGIN`` for that second shell.  Source bytes remain
+    untouched and every generated-interface transition is digested.
+    """
+
+    observation: dict[str, Any] = {
+        "schema": "laplace.generated-command-runpath-normalization/v1",
+        "interface": None,
+        "files": [],
+        "applied": False,
+    }
+    if specification is None:
+        with log.open("a", encoding="utf-8") as output:
+            output.write(json.dumps(observation, sort_keys=True, separators=(",", ":")))
+            output.write("\n")
+        return observation
+    interface = specification["interface"]
+    if interface != "icu-pkgdata-makefile":
+        raise GraphError(f"unsupported generated command interface: {interface}")
+    pattern = re.compile(
+        r'(?m)^\t@echo GENLIB="\$\(SHLIB\.c\)" >> \$\(OUTPUTFILE\)$'
+    )
+    replacement = "\t@printf '%s\\n' 'GENLIB=$(SHLIB.c)' >> $(OUTPUTFILE)"
+    records: list[dict[str, Any]] = []
+    for relative in specification["makefiles"]:
+        path = build / relative
+        if not path.is_file() or path.is_symlink():
+            raise GraphError(
+                f"generated command interface must be a physical file: {relative}"
+            )
+        original = path.read_text(encoding="utf-8")
+        normalized, count = pattern.subn(lambda _match: replacement, original)
+        if count != 1:
+            raise GraphError(
+                f"generated command interface has {count} GENLIB serializers: {relative}"
+            )
+        before = hashlib.sha256(original.encode("utf-8")).hexdigest()
+        after = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        path.write_text(normalized, encoding="utf-8")
+        records.append(
+            {
+                "path": relative,
+                "before_sha256": before,
+                "after_sha256": after,
+            }
+        )
+    observation.update({"interface": interface, "files": records, "applied": True})
+    with log.open("a", encoding="utf-8") as output:
+        output.write(json.dumps(observation, sort_keys=True, separators=(",", ":")))
+        output.write("\n")
+    return observation
 
 
 def constrain_generated_libtool_runpath(build: Path, log: Path) -> dict[str, Any]:
@@ -1032,6 +1148,10 @@ def validate_recorded_test_execution(
         raise GraphError(f"component test disposition mismatch: {identifier}")
     if policy["package_gate"] == "required-pass" and return_code != 0:
         raise GraphError(f"required component test did not pass: {identifier}")
+    if execution.get("controlled_test_loader_paths", []) != component.get(
+        "test_loader_paths", []
+    ):
+        raise GraphError(f"component controlled test loader paths mismatch: {identifier}")
     provider = execution.get("provider_observation")
     dimensions = policy.get("provider_dimensions", [])
     if not isinstance(provider, dict) or list(provider) != dimensions:
@@ -1148,16 +1268,48 @@ def autotools_component(
         log,
     )
     constrain_generated_libtool_runpath(build, log)
+    constrain_generated_command_runpath(
+        build, component.get("generated_command_runpath"), log
+    )
     run_logged([make, f"-j{contract['execution']['jobs']}"], build, environment, log)
     if component["test"] == "make-check":
+        loader_paths = component.get("test_loader_paths", [])
+        test_environment = dict(environment)
+        resolved_loader_paths: list[str] = []
+        for relative in loader_paths:
+            path = build / relative
+            if not path.is_dir() or path.is_symlink():
+                raise GraphError(
+                    f"controlled test loader path must be a physical directory: "
+                    f"{component['id']}:{relative}"
+                )
+            resolved_loader_paths.append(str(path))
+        if resolved_loader_paths:
+            if test_environment.get("LD_LIBRARY_PATH"):
+                raise GraphError("controlled test loader path encountered ambient state")
+            test_environment["LD_LIBRARY_PATH"] = ":".join(resolved_loader_paths)
+        with log.open("a", encoding="utf-8") as output:
+            output.write(
+                json.dumps(
+                    {
+                        "schema": "laplace.controlled-test-loader-path/v1",
+                        "relative_paths": loader_paths,
+                        "resolved_paths": resolved_loader_paths,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            )
+            output.write("\n")
         test_execution = execute_component_test(
             component,
             [make, f"-j{contract['execution']['jobs']}", "check"],
             build,
-            environment,
+            test_environment,
             log,
             source,
         )
+        test_execution["controlled_test_loader_paths"] = list(loader_paths)
     install_environment = {**environment, "DESTDIR": str(Path(plan["stage_directory"]) / "root")}
     run_logged([make, "install"], build, install_environment, log)
     return test_execution
@@ -1264,6 +1416,21 @@ def elf_metadata(path: Path, readelf: Path) -> dict[str, Any] | None:
     elf_type = elf_type_match.group(1)
     interpreter_match = INTERPRETER_PATTERN.search(outputs["program_headers"])
     interpreter = interpreter_match.group(1) if interpreter_match else None
+    stack_lines = [
+        line
+        for line in outputs["program_headers"].splitlines()
+        if line.lstrip().startswith("GNU_STACK")
+    ]
+    if len(stack_lines) != 1:
+        raise GraphError(
+            f"packaged ELF has {len(stack_lines)} GNU_STACK program headers: {path}"
+        )
+    stack_fields = stack_lines[0].split()
+    if len(stack_fields) < 2:
+        raise GraphError(f"packaged ELF GNU_STACK header is malformed: {path}")
+    stack_flags = stack_fields[-2]
+    if "E" in stack_flags:
+        raise GraphError(f"packaged ELF requests an executable stack: {path}")
     executable = interpreter is not None or elf_type == "EXEC"
     copy_relocations = COPY_RELOCATION_PATTERN.findall(outputs["relocations"])
     if executable and elf_type != "DYN":
@@ -1277,6 +1444,8 @@ def elf_metadata(path: Path, readelf: Path) -> dict[str, Any] | None:
         "type": elf_type,
         "executable": executable,
         "interpreter": interpreter,
+        "gnu_stack_flags": stack_flags,
+        "executable_stack": False,
         "copy_relocation_count": len(copy_relocations),
         "copy_relocation_types": sorted(set(copy_relocations)),
         "needed": sorted(set(NEEDED_PATTERN.findall(outputs["dynamic"]))),

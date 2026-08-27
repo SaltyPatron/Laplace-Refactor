@@ -22,10 +22,11 @@
     "target_isa": "broadwell",
     "c_flags": ["-O3", "-g", "-march=broadwell", "-fPIE", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
     "cxx_flags": ["-O3", "-g", "-march=broadwell", "-fPIE", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
-    "link_flags": ["-pie"],
+    "link_flags": ["-pie", "-Wl,-z,noexecstack"],
     "install_runpath": "$ORIGIN/../lib",
     "make_runpath_encoding": "backslash-escaped-dollar-through-make-and-shell",
-    "autotools_libtool_runpath_policy": "disable-generated-hardcoding-and-runpath-variable",
+    "generated_command_runpath_policy": "normalize-escaped-dollar-before-second-shell",
+    "autotools_libtool_runpath_policy": "disable-generated-hardcoding-with-declared-test-loader-path",
     "source_path_policy": {
       "build_root_mapping": ".",
       "absolute_build_root_in_file_macro": "forbidden",
@@ -33,7 +34,8 @@
     },
     "executable_elf": {
       "position_independent": true,
-      "copy_relocations": "forbidden"
+      "copy_relocations": "forbidden",
+      "executable_stack": "forbidden-for-every-elf"
     },
     "install_prefix": "/opt/laplace/current",
     "build_root": "/opt/laplace/build",
@@ -98,6 +100,10 @@
       "required_source_paths": ["source/configure", "source/Makefile.in"],
       "depends_on": [],
       "configure_arguments": ["--enable-shared", "--disable-static", "--disable-samples", "--with-data-packaging=library"],
+      "generated_command_runpath": {
+        "interface": "icu-pkgdata-makefile",
+        "makefiles": ["config/pkgdataMakefile", "data/pkgdataMakefile", "extra/uconv/pkgdataMakefile", "test/testdata/pkgdataMakefile"]
+      },
       "test": "make-check"
     },
     {
@@ -142,6 +148,7 @@
       "required_source_paths": ["configure", "Makefile.in", "runtest.c", "runsuite.c"],
       "depends_on": ["zlib"],
       "configure_arguments": ["--enable-shared", "--disable-static", "--without-docs", "--without-iconv", "--without-icu", "--without-legacy", "--without-modules", "--without-python", "--without-readline", "--with-zlib"],
+      "test_loader_paths": [".libs"],
       "test": "make-check"
     }
   ]

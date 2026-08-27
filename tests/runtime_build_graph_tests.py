@@ -58,6 +58,7 @@ class RuntimeBuildGraphTests(unittest.TestCase):
             ("c_flags", "-fPIE", "C and C\\+\\+ compilation"),
             ("cxx_flags", "-fPIE", "C and C\\+\\+ compilation"),
             ("link_flags", "-pie", "executable linking"),
+            ("link_flags", "-Wl,-z,noexecstack", "non-executable stack"),
         ):
             contract = self.contract()
             contract["execution"][field] = [
@@ -71,6 +72,11 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.GraphError, "COPY relocations"):
             BUILD.validate_contract(contract)
 
+        contract = self.contract()
+        contract["execution"]["executable_elf"]["executable_stack"] = "allowed"
+        with self.assertRaisesRegex(BUILD.GraphError, "executable stacks"):
+            BUILD.validate_contract(contract)
+
     def test_install_runpath_must_be_package_relative(self) -> None:
         contract = self.contract()
         contract["execution"]["install_runpath"] = (
@@ -79,7 +85,11 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.GraphError, "package-relative"):
             BUILD.validate_contract(contract)
 
-        for field in ("make_runpath_encoding", "autotools_libtool_runpath_policy"):
+        for field in (
+            "make_runpath_encoding",
+            "generated_command_runpath_policy",
+            "autotools_libtool_runpath_policy",
+        ):
             contract = self.contract()
             contract["execution"][field] = "conventional-absolute-prefix"
             with self.assertRaisesRegex(BUILD.GraphError, field):
@@ -264,6 +274,7 @@ class RuntimeBuildGraphTests(unittest.TestCase):
             component["required_source_paths"],
             ["configure", "Makefile.in", "runtest.c", "runsuite.c"],
         )
+        self.assertEqual(component["test_loader_paths"], [".libs"])
 
         mutated = copy.deepcopy(component)
         mutated["required_source_paths"].append("run_and_diff.cmake")
@@ -275,6 +286,12 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                 BUILD.GraphError, "libxml2:run_and_diff.cmake"
             ):
                 BUILD.verify_component_source_requirements(mutated, source_root)
+
+        contract = self.contract()
+        libxml2 = next(item for item in contract["components"] if item["id"] == "libxml2")
+        libxml2["test_loader_paths"] = ["../ambient"]
+        with self.assertRaisesRegex(BUILD.GraphError, "unsafe path"):
+            BUILD.validate_contract(contract)
 
     def test_selected_tool_digest_mismatch_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -568,6 +585,103 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                 (root / "nested").read_text(encoding="utf-8"), nested_expected
             )
 
+    def test_generated_command_runpath_survives_the_second_shell(self) -> None:
+        contract = self.contract()
+        encoded = BUILD.provider_environment(
+            contract, {"LDFLAGS": "-pie"}, "autotools"
+        )["LDFLAGS"]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build = root / "build"
+            interface = build / "config/pkgdataMakefile"
+            interface.parent.mkdir(parents=True)
+            capture = root / "capture"
+            capture.write_text(
+                "#!/bin/sh\nprintf '%s\\n' \"$@\" > executed\n",
+                encoding="utf-8",
+            )
+            capture.chmod(0o755)
+            interface.write_text(
+                "SHLIB.c = "
+                + str(capture)
+                + " "
+                + encoded
+                + "\nOUTPUTFILE = generated\nall: $(OUTPUTFILE)\n"
+                + "$(OUTPUTFILE):\n"
+                + '\t@echo GENLIB="$(SHLIB.c)" >> $(OUTPUTFILE)\n',
+                encoding="utf-8",
+            )
+            log = root / "build.log"
+            specification = {
+                "interface": "icu-pkgdata-makefile",
+                "makefiles": ["config/pkgdataMakefile"],
+            }
+            observation = BUILD.constrain_generated_command_runpath(
+                build, specification, log
+            )
+            self.assertTrue(observation["applied"])
+            environment = dict(os.environ)
+            environment.pop("ORIGIN", None)
+            make_result = subprocess.run(
+                ["make", "-C", str(interface.parent), "-f", interface.name, "all"],
+                check=False,
+                text=True,
+                capture_output=True,
+                env=environment,
+            )
+            self.assertEqual(
+                make_result.returncode,
+                0,
+                make_result.stdout + make_result.stderr,
+            )
+            generated = (interface.parent / "generated").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn(r"\$ORIGIN/../lib", generated)
+            subprocess.run(
+                generated.removeprefix("GENLIB=").strip(),
+                cwd=root,
+                env=environment,
+                shell=True,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(
+                (root / "executed").read_text(encoding="utf-8"),
+                "-pie\n-Wl,-rpath,$ORIGIN/../lib\n",
+            )
+
+            interface.write_text(
+                interface.read_text(encoding="utf-8").replace(
+                    "@printf '%s\\n' 'GENLIB=$(SHLIB.c)'",
+                    '@echo GENLIB="$(SHLIB.c)"',
+                ),
+                encoding="utf-8",
+            )
+            (interface.parent / "generated").unlink()
+            subprocess.run(
+                ["make", "-C", str(interface.parent), "-f", interface.name, "all"],
+                check=True,
+                text=True,
+                capture_output=True,
+                env=environment,
+            )
+            broken = (interface.parent / "generated").read_text(encoding="utf-8")
+            subprocess.run(
+                broken.removeprefix("GENLIB=").strip(),
+                cwd=root,
+                env=environment,
+                shell=True,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(
+                (root / "executed").read_text(encoding="utf-8"),
+                "-pie\n-Wl,-rpath,$ORIGIN/../lib\n",
+            )
+
     def test_generated_libtool_cannot_add_a_private_install_runpath(self) -> None:
         fixture = (
             "#!/bin/sh\n"
@@ -764,7 +878,7 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                 """#!/bin/sh
 case "$1" in
   -hW) printf '%s\\n' '  Type:                              EXEC (Executable file)' ;;
-  -lW) printf '%s\\n' '      [Requesting program interpreter: /lib64/ld-linux-x86-64.so.2]' ;;
+  -lW) printf '%s\\n' '      [Requesting program interpreter: /lib64/ld-linux-x86-64.so.2]' '  GNU_STACK      0x000000 0x0000000000000000 0x0000000000000000 0x000000 0x000000 RW  0x10' ;;
   -dW) printf '%s\\n' ' 0x0000000000000001 (NEEDED) Shared library: [libc.so.6]' ;;
   -rW) : ;;
 esac
@@ -797,6 +911,7 @@ esac
             self.assertTrue(elf["executable"])
             self.assertEqual(elf["type"], "DYN")
             self.assertEqual(elf["copy_relocation_count"], 0)
+            self.assertFalse(elf["executable_stack"])
 
     def test_package_rejects_absolute_runpath_and_accepts_declared_relative_runpath(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -810,7 +925,7 @@ esac
                 """#!/bin/sh
 case "$1" in
   -hW) printf '%s\\n' '  Type:                              DYN (Shared object file)' ;;
-  -lW) : ;;
+  -lW) printf '%s\\n' '  GNU_STACK      0x000000 0x0000000000000000 0x0000000000000000 0x000000 0x000000 RW  0x10' ;;
   -dW) printf '%s\\n' ' 0x000000000000001d (RUNPATH) Library runpath: [/opt/laplace/releases/example/lib]' ;;
   -rW) : ;;
 esac
@@ -836,6 +951,15 @@ esac
             receipt = BUILD.package_receipt(self.contract(), plan)
             elf = next(item["elf"] for item in receipt["files"] if item["path"] == "libfixture.so")
             self.assertEqual(elf["runpaths"], ["$ORIGIN/../lib"])
+
+            readelf.write_text(
+                readelf.read_text(encoding="utf-8").replace(
+                    "0x000000 RW  0x10", "0x000000 RWE 0x10"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BUILD.GraphError, "executable stack"):
+                BUILD.package_receipt(self.contract(), plan)
 
     def test_component_checkpoint_resume_requires_exact_staged_tree_and_log(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

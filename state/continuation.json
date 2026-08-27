@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T04:27:20Z",
+  "observed_at_utc": "2026-08-27T05:14:24Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "aea8a90d89c63c86081bca8c92ca4c80ce04f8bb",
-    "implementation_checkpoint_commit": "aea8a90d89c63c86081bca8c92ca4c80ce04f8bb",
+    "observed_branch_head": "224137985126e3bd11827c87eeb0ed040f82b55c",
+    "implementation_checkpoint_commit": "224137985126e3bd11827c87eeb0ed040f82b55c",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-runtime-runpath-corrected-reexecution-ready-provider-qualification-pending",
+    "state": "implementation-in-progress-third-v2-execution-preserved-three-defects-corrected-clean-plan-ready-provider-qualification-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -305,28 +305,42 @@
         "contract_schema": "laplace.postgresql-runtime-build/v2",
         "plan_schema": "laplace.postgresql-runtime-plan/v2",
         "receipt_schema": "laplace.postgresql-runtime-package/v2",
-        "latest_plan_id": "791c2a54626e1951bf71f1261aa9f4953d339af82de1ae8f0744ced1dcbf914f",
+        "latest_plan_id": "0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373",
         "logical_install_prefix": "/opt/laplace/current",
-        "staged_prefix": "/build/laplace/stage/791c2a54626e1951bf71f1261aa9f4953d339af82de1ae8f0744ced1dcbf914f/root/opt/laplace/current",
-        "state": "second-v2-execution-preserved-failed-package-runpath-verification-corrected-reexecution-ready-package-not-built-provider-qualification-unresolved",
+        "staged_prefix": "/build/laplace/stage/0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373/root/opt/laplace/current",
+        "state": "third-v2-execution-preserved-failed-libxml2-test-loading-three-defects-corrected-clean-plan-ready-package-not-built-provider-qualification-unresolved",
         "latest_failed_execution": {
-          "build_input_id": "a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005",
+          "build_input_id": "30dc787a8a992ac8f9bbf4a8bea726943390c62a6453de1c8090f1987522396e",
           "contract_generation": "v2",
+          "contract_sha256": "490a5377a6132b5fe07bb0724cebdd4ea452fa9b3fa6e80c40fc43548e3d9a92",
+          "driver_sha256": "48dd6396b42856d5f365da0db73da56572844b2bee37db6acfa1ab00739a82d1",
           "successful_component_checkpoints": [
             "zlib",
             "lz4",
             "zstandard",
             "icu",
             "openssl",
-            "liburing",
-            "libxml2"
+            "liburing"
           ],
-          "liburing_checkpoint_sha256": "d9c67bd4472949433ed26998d1a2709a0809b908eeaa0679d41dde4c98eab69b",
+          "checkpoint_sha256": {
+            "zlib": "299ca81a89fa917e564d46cb7523bb9f375de8eb07560e4484e37f0f8de48c79",
+            "lz4": "3f493a6a1b98b5a448d3244cb4a1babb0a58300ca4bfc49bfaca25f40cebf542",
+            "zstandard": "d49233b955420182bf02735fcdcab0cda393ddf1e2614f0a74004b7f7204d8cb",
+            "icu": "fe2792a4383b5a38eb815e824522527dfae88a4ed03594462dc613ae6d637fe3",
+            "openssl": "1dd339c56968cb3801a85ad3f1e990ec736fbdaaceb4ba91e00adbe357b4f7d5",
+            "liburing": "22d87bb719687adadae713ee081735d93ef11160b9ca2185a591be9690319242"
+          },
+          "successful_test_evidence": {
+            "zstandard": "fullbench fuzzer and zstreamtest passed; the contract-disabled playTests target was not executed",
+            "icu": "ALL TESTS SUMMARY: All tests OK: testdata intltest iotest cintltst",
+            "openssl": "all tests successful: 363 files and 4369 tests"
+          },
           "liburing_test_disposition": "failed-under-observed-runtime-provider",
           "liburing_test_exit_code": 2,
           "liburing_failed_tests": [
             "conn-unreach.t",
             "io-wq-unused-exit.t",
+            "link-timeout.t",
             "mshot-shutdown-race.t",
             "send_recv.t",
             "wq-aff.t"
@@ -337,18 +351,35 @@
             "recv-mshot-fair.t",
             "recvsend_bundle.t"
           ],
+          "failed_component": "libxml2",
+          "libxml2_compilation_completed": true,
+          "libxml2_test_disposition": "not-executed-dynamic-loader-failure",
+          "libxml2_process_return_code": 2,
+          "failed_stage": "component-test-loading",
+          "observed_defects": [
+            "ICU direct libraries retained the canonical package-relative RUNPATH but generated pkgdata commands lost the final protective escape in a second executing shell so libicudata.so.78.3 embedded /../lib",
+            "OpenSSL libcrypto.so.4 and ossl-modules/legacy.so requested an executable GNU_STACK",
+            "disabling both generated libtool runtime mechanisms also removed the build-tree loader route so .libs/lt-runtest could not load libxml2.so.16 and the official suite did not execute"
+          ],
+          "correction": "normalize only the declared generated ICU pkgdata serializers and receipt every generated-file transition; require a non-executable stack at link and package-verification boundaries for every ELF; retain canonical install RUNPATH ownership while supplying libxml2 make check with one declared build-relative loader path recorded in its execution evidence",
+          "correction_negative_controls": [
+            "the generated-command fixture executes Make serialization and a second shell and fails when double-quoted echo is restored",
+            "the package verifier rejects an ELF whose GNU_STACK flags include execute",
+            "the contract rejects an escaping or ambient test loader path and recorded execution must exactly match the declaration"
+          ],
+          "libxml2_loader_probe": "executing .libs/lt-runtest with only the declared build/.libs loader path crossed the original dynamic-loader failure; the probe was not a suite pass because it ran outside the required build working directory",
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
+        "prior_v2_package_runpath_failure": {
+          "build_input_id": "a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005",
+          "successful_component_checkpoints": ["zlib", "lz4", "zstandard", "icu", "openssl", "liburing", "libxml2"],
+          "liburing_checkpoint_sha256": "d9c67bd4472949433ed26998d1a2709a0809b908eeaa0679d41dde4c98eab69b",
           "libxml2_checkpoint_sha256": "28c3627c3767f1fd4d39fd03d04dd5990481e31259bf64a028094e9984fda814",
-          "libxml2_test_disposition": "passed",
           "failed_stage": "final-package-elf-verification",
           "observed_defects": [
             "ICU pkgdata embedded /../lib in libicudata.so.78.3 after a nested shell expanded the make-encoded ORIGIN token",
             "GNU libtool appended /opt/laplace/current/lib beside the canonical package-relative RUNPATH in xmllint and xmlcatalog"
-          ],
-          "correction": "Make-backed providers use a backslash-escaped doubled dollar that survives direct recipes and nested shell generators; generated Autotools libtool disables its private hardcode and runpath-variable mechanisms so the common canonical package-relative RUNPATH remains the only runtime-search law",
-          "correction_negative_controls": [
-            "a direct and nested-shell Make fixture fails when the backslash protection is removed",
-            "generated libtool normalization rejects duplicate runpath_var assignments",
-            "the package verifier continues to reject any absolute malformed or noncanonical ELF runtime-search entry"
           ],
           "source_generation_recovery": "an experimental upstream make check triggered maintainer regeneration in the verified libxml2 release tree; the entire contaminated release generation and repository-root configure output were quarantined under /build/laplace/quarantine/runpath-experiment-20260827.BIyERv and the complete generation was re-imported and verified from the locked archives",
           "package_receipt_issued": false,
@@ -432,7 +463,7 @@
           "corrected_by": "explicit GNU Make DESTDIR assignment plus a deliberate mutation test",
           "activated": false
         },
-        "continuation_condition": "execute exact runtime plan 791c2a54626e1951bf71f1261aa9f4953d339af82de1ae8f0744ced1dcbf914f through the re-imported verified source generation and corrected common Make and libtool runtime-search law; record every component test and the liburing host-coupled suite outcome exactly; accept only a staged package whose every ELF has the canonical package-relative RUNPATH; issue only an inert runtime package whose provider qualification remains incomplete; compose the inert PostgreSQL product package; require a separate accepted selected-runtime-provider qualification before any product activation",
+        "continuation_condition": "execute exact runtime plan 0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373 through the re-imported verified source generation and the three receipted corrections; record every component test and the liburing host-coupled suite outcome exactly; accept only a staged package whose every ELF has the canonical package-relative RUNPATH and a non-executable GNU_STACK; issue only an inert runtime package whose provider qualification remains incomplete; compose the inert PostgreSQL product package; require a separate accepted selected-runtime-provider qualification before any product activation",
         "nonclaims": [
           "the v2 runtime package has not been built to completion",
           "the prior liburing failures have not been waived reclassified as passes or attributed solely to the kernel",
