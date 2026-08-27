@@ -133,7 +133,8 @@ jobs:
           expected_source_root="$(jq -er '.stage_directory' "$plan")/root"
           test "$source_root" = "$expected_source_root"
           test -d "$physical_release"
-          resource_directory="/opt/laplace/receipts/plans/$package_id"
+          plan_receipt_root=$(jq -er '.product.plan_receipt_root' contracts/product-activation-gateway.json)
+          resource_directory="$plan_receipt_root/$package_id"
           resource_observation="$resource_directory/resource-observation.json"
           install -d -m 2750 "$resource_directory"
           python3 tools/postgresql/clusterctl.py observe-resources \

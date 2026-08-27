@@ -293,6 +293,14 @@ class ProductActivationGatewayTests(unittest.TestCase):
         )
         self.assertNotIn("/build/laplace/stage/product/$build_id/root", workflow)
         self.assertIn(
+            "plan_receipt_root=$(jq -er '.product.plan_receipt_root' contracts/product-activation-gateway.json)",
+            workflow,
+        )
+        self.assertNotIn(
+            'resource_directory="/opt/laplace/receipts/plans/$package_id"',
+            workflow,
+        )
+        self.assertIn(
             "Verify the exact runner-readable PostgreSQL publication", workflow
         )
         self.assertGreaterEqual(
@@ -302,6 +310,12 @@ class ProductActivationGatewayTests(unittest.TestCase):
         self.assertIn("--product-receipt '${{ needs.compose-product.outputs.product_receipt }}'", workflow)
         self.assertIn("--resource-observation '${{ needs.compose-product.outputs.resource_observation }}'", workflow)
         self.assertIn("execute-request < \"$LAPLACE_ACTIVATION_REQUEST\"", workflow)
+
+    def test_pre_activation_receipts_use_the_declared_runner_owned_root(self) -> None:
+        self.assertEqual(
+            self.base_contract["product"]["plan_receipt_root"],
+            "/build/laplace/runner/product/receipts/plans",
+        )
 
     def test_execute_chains_cluster_unicode_and_exact_replay(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-gateway-execute-") as temporary:
