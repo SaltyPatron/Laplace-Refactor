@@ -435,8 +435,10 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         active_correction.get("branch") == "fix/product-activation-binding"
         and active_correction.get("base_commit")
         == "d4fc99374fb8d686e212568e4be540913f886b74"
+        and active_correction.get("implementation_commit")
+        == "e09c05c419e45cc4a1278d8ada54f5403156b2d2"
         and active_correction.get("state")
-        == "unpublished-implementation-under-validation",
+        == "committed-implementation-external-validation-pending",
         "active activation correction identity drift",
     )
     contains_all(
@@ -1102,7 +1104,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "d4fc99374fb8d686e212568e4be540913f886b74",
+        == "e09c05c419e45cc4a1278d8ada54f5403156b2d2",
         "Highway implementation checkpoint drift",
     )
     successor = progress.get("successor_product_package", {})

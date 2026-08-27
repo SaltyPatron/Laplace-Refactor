@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T22:32:58Z",
+  "observed_at_utc": "2026-08-27T22:40:05Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
     "published_composition_branch": true,
     "published_checkpoint_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
-    "observed_branch_head": "d4fc99374fb8d686e212568e4be540913f886b74",
-    "implementation_checkpoint_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
+    "observed_branch_head": "e09c05c419e45cc4a1278d8ada54f5403156b2d2",
+    "implementation_checkpoint_commit": "e09c05c419e45cc4a1278d8ada54f5403156b2d2",
     "pull_request": null
   },
   "development_inputs": {
@@ -357,7 +357,8 @@
         "active_correction": {
           "branch": "fix/product-activation-binding",
           "base_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
-          "state": "unpublished-implementation-under-validation",
+          "implementation_commit": "e09c05c419e45cc4a1278d8ada54f5403156b2d2",
+          "state": "committed-implementation-external-validation-pending",
           "boundary": [
             "native execution observation is an explicitly incomplete candidate receipt until the PostgreSQL controller binds it to an exact verified package ID and manifest digest",
             "the final execution-resource observation schema requires exact package ID package-manifest digest and self-hash and every consumer rejects changed bindings",
@@ -373,7 +374,7 @@
             "native_resource_observer": "compiled successfully from the changed source through the current CMake graph"
           },
           "nonclaims": [
-            "the correction is not merged",
+            "the correction is not merged into main",
             "the correction has not passed protected runner execution",
             "the product cluster is not activated",
             "Unicode and the Highway are not product activated"
