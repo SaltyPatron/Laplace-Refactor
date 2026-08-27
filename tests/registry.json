@@ -1577,13 +1577,20 @@
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-BOUNDED-CROSSINGS"],
       "covered_dimensions": ["one 2230150-frame canonical stream feeding PostgreSQL and Tier-0 sibling sinks", "1114112 normalized entity physicality atom and DUCET rows", "set-oriented bounded SPI plans", "canonical transport excluded from normalized storage", "normalized heap bounded to 110 percent of packed transport", "exact SQL plan manifest", "ordered executed plan sequence", "set-wise durable effect cardinalities", "cross-sink artifact receipts", "transaction-deferred coherent activation", "indexed atom lookup"],
-      "defect_controls": ["postgres.mutation-unicode-plan-substitution-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
+      "defect_controls": ["postgres.mutation-unicode-plan-substitution-detected", "postgres.mutation-unicode-access-expected-epoch-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
     },
     {
       "ctest_name": "postgres.mutation-unicode-plan-substitution-detected",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-BOUNDED-CROSSINGS"],
       "covered_dimensions": ["one substituted SQL plan changes the exact plan manifest"],
+      "controls": "postgres.unicode-root-persistence-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-unicode-access-expected-epoch-detected",
+      "profiles": ["custom-stack"],
+      "evidence_targets": ["LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
+      "covered_dimensions": ["public Unicode Tier-0 and reverse access cannot bypass the caller expected epoch"],
       "controls": "postgres.unicode-root-persistence-contract"
     },
     {
