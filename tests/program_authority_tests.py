@@ -352,6 +352,8 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(
         highway.get("implementation_commit")
         == "8f1de40c3d13cd959a7a802c3a5a3682c38df556"
+        and highway.get("delivery_pipeline_commit")
+        == "9b3554b462a1227bb09eedc037da8203c1b8bcec"
         and highway.get("pull_request") == 77
         and highway.get("contract_schema")
         == "laplace.highway-registry-contract/v1"
@@ -378,6 +380,8 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "read-only context-pinned",
             "Highway product controller",
             "protected laplace-runner gateway",
+            "current-main product package",
+            "root gateway install or revalidate",
         ),
         "Highway implementation boundary was narrowed",
     )
@@ -392,7 +396,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "153.17",
             "29 of 29",
             "3 of 3",
-            "8 of 8",
+            "9 of 9",
         ),
         "Highway controlled-integration evidence drift",
     )
@@ -1024,7 +1028,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "8f1de40c3d13cd959a7a802c3a5a3682c38df556",
+        == "9b3554b462a1227bb09eedc037da8203c1b8bcec",
         "Highway implementation checkpoint drift",
     )
     successor = progress.get("successor_product_package", {})
@@ -1201,7 +1205,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and highway_pr.get("base_commit")
         == "e448fcb7d97d8cdbde4fa7a1fdbe8b6a4ebe9ad3"
         and highway_pr.get("head_commit")
-        == "8f1de40c3d13cd959a7a802c3a5a3682c38df556",
+        == "9b3554b462a1227bb09eedc037da8203c1b8bcec",
         "Highway PR observation drift",
     )
     contains_all(
@@ -1213,7 +1217,9 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "shared presence and deposition",
             "active application readback",
             "product gateway",
+            "current-main package composition installation chain",
             "CI",
+            "root gateway trust-anchor installation",
             "installed-product activation remain incomplete",
         ),
         "Highway PR was promoted beyond evidence",
