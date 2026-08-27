@@ -76,6 +76,13 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "BLAKE3 source"):
             PACKAGE.validate_contract(mutant)
 
+    def test_c_utility_uses_cxx_linker_for_cxx_engine_closure(self) -> None:
+        tools_cmake = (REPOSITORY / "tools/CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn(
+            "set_property(TARGET laplace_identity_inspect PROPERTY LINKER_LANGUAGE CXX)",
+            tools_cmake,
+        )
+
     def test_provider_runtime_and_soname_are_copied(self) -> None:
         prefix = self.root / "package"
         prefix.mkdir()
