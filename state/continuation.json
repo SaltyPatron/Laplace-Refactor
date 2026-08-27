@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T05:14:24Z",
+  "observed_at_utc": "2026-08-27T05:57:38Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "224137985126e3bd11827c87eeb0ed040f82b55c",
-    "implementation_checkpoint_commit": "224137985126e3bd11827c87eeb0ed040f82b55c",
+    "observed_branch_head": "08426cd601576665fc1eade77e1393d880e4077e",
+    "implementation_checkpoint_commit": "08426cd601576665fc1eade77e1393d880e4077e",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-third-v2-execution-preserved-three-defects-corrected-clean-plan-ready-provider-qualification-pending",
+    "state": "implementation-in-progress-inert-runtime-package-built-postgresql-plan-ready-provider-qualification-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -308,7 +308,7 @@
         "latest_plan_id": "0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373",
         "logical_install_prefix": "/opt/laplace/current",
         "staged_prefix": "/build/laplace/stage/0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373/root/opt/laplace/current",
-        "state": "third-v2-execution-preserved-failed-libxml2-test-loading-three-defects-corrected-clean-plan-ready-package-not-built-provider-qualification-unresolved",
+        "state": "inert-runtime-package-built-activation-ineligible-provider-qualification-unresolved",
         "latest_failed_execution": {
           "build_input_id": "30dc787a8a992ac8f9bbf4a8bea726943390c62a6453de1c8090f1987522396e",
           "contract_generation": "v2",
@@ -369,6 +369,56 @@
           ],
           "libxml2_loader_probe": "executing .libs/lt-runtest with only the declared build/.libs loader path crossed the original dynamic-loader failure; the probe was not a suite pass because it ran outside the required build working directory",
           "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
+        "latest_successful_package_execution": {
+          "build_input_id": "0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373",
+          "package_receipt": "/build/laplace/build/0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373/package-receipt.json",
+          "package_receipt_sha256": "0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a",
+          "staged_tree_sha256": "807948f289b201f076c53df8c72b12ea6d2f23ec31b1a7624d6e28b967c5268a",
+          "staged_file_count": 744,
+          "staged_total_file_bytes": 182760585,
+          "component_checkpoints": {
+            "zlib": "5f02523c02ae304d00336697eb34b460afeac1a51c403963e9534998948b6b79",
+            "lz4": "5fd5dc8b176a79c846bf1b36e61d3c98518d16bfbb5858dfd4140ae08bf9e5b7",
+            "zstandard": "9bc72c80f592866202cf24c77640ac77768806313165711b7a5ac0f9c698ef2b",
+            "icu": "e60c3612138b1344b6132cabe9f81f814f76bc91dea87c692a058472c18d4e99",
+            "openssl": "8a55417dc2f79063c504a58595795f40c317b2f98b5c9f43e1002bb487a77d8c",
+            "liburing": "a224852f40a73eb9fc93327d0ffea3930fac996c4bb40a935fa9d8567da790ff",
+            "libxml2": "1d233934cfbeb4d4bbcbd9cbdb244654ad5f2ebf8f23cbd8ea5b5bcdfee9a21b"
+          },
+          "required_component_test_dispositions": {
+            "zlib": "passed",
+            "lz4": "passed",
+            "zstandard": "passed",
+            "icu": "passed",
+            "openssl": "passed",
+            "libxml2": "passed"
+          },
+          "liburing_test_disposition": "failed-under-observed-runtime-provider",
+          "liburing_failed_tests": [
+            "conn-unreach.t",
+            "io-wq-unused-exit.t",
+            "mshot-shutdown-race.t",
+            "send_recv.t",
+            "wq-aff.t"
+          ],
+          "liburing_timed_out_tests": [
+            "cancel-fd-userdata.t",
+            "cancel-race.t",
+            "recv-mshot-fair.t",
+            "recvsend_bundle.t"
+          ],
+          "corrected_boundaries_proven": [
+            "all four declared ICU generated pkgdata interfaces were normalized with before and after SHA-256 receipts and libicudata.so.78.3 retained the literal package-relative runtime-search path",
+            "the whole package contained exactly one non-executable GNU_STACK header per ELF including corrected OpenSSL libcrypto.so.4 and legacy.so",
+            "libxml2 make check passed with the exact declared .libs loader path recorded in its test execution receipt",
+            "every staged ELF passed canonical runtime-search PIE COPY-relocation and recursive direct-needed inspection"
+          ],
+          "build_input_closure_complete": false,
+          "runtime_provider_qualification_complete": false,
+          "activation_eligible": false,
+          "activation_disposition": "blocked by declared incomplete toolchain, static-link, and recursive runtime closure",
           "product_activation_occurred": false
         },
         "prior_v2_package_runpath_failure": {
@@ -463,9 +513,9 @@
           "corrected_by": "explicit GNU Make DESTDIR assignment plus a deliberate mutation test",
           "activated": false
         },
-        "continuation_condition": "execute exact runtime plan 0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373 through the re-imported verified source generation and the three receipted corrections; record every component test and the liburing host-coupled suite outcome exactly; accept only a staged package whose every ELF has the canonical package-relative RUNPATH and a non-executable GNU_STACK; issue only an inert runtime package whose provider qualification remains incomplete; compose the inert PostgreSQL product package; require a separate accepted selected-runtime-provider qualification before any product activation",
+        "continuation_condition": "consume only exact runtime receipt 0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a in PostgreSQL build plan e473f3ccaf4aa0fb51452ff7f1292c38d5867b9384df083d052046824bdbd0f2; preserve the runtime subtree byte-for-byte while building testing and staging PostgreSQL 18.6; issue only an inert composed product package whose input and provider qualification remain incomplete; require a separate accepted selected-runtime-provider qualification before any product activation",
         "nonclaims": [
-          "the v2 runtime package has not been built to completion",
+          "the inert v2 runtime package is not activation eligible and is not an installed product",
           "the prior liburing failures have not been waived reclassified as passes or attributed solely to the kernel",
           "the current host and its io_uring runtime provider have not been qualified for product activation",
           "a newer kernel has not been installed qualified or accepted",
@@ -475,7 +525,11 @@
       "postgresql_product_package": {
         "contract_schema": "laplace.postgresql-build-contract/v2",
         "implementation_commit": "fbfbacfef9290e790475c01ecd5e64c2c40c8cff",
-        "state": "composer-implemented-not-package-built",
+        "state": "deterministic-plan-ready-not-package-built",
+        "build_input_id": "e473f3ccaf4aa0fb51452ff7f1292c38d5867b9384df083d052046824bdbd0f2",
+        "build_directory": "/build/laplace/build/postgresql/e473f3ccaf4aa0fb51452ff7f1292c38d5867b9384df083d052046824bdbd0f2",
+        "staged_product_prefix": "/build/laplace/stage/postgresql/e473f3ccaf4aa0fb51452ff7f1292c38d5867b9384df083d052046824bdbd0f2/root/opt/laplace/current",
+        "runtime_package_receipt_sha256": "0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a",
         "logical_install_prefix": "/opt/laplace/current/pgsql-18",
         "final_release_semantics": "the immutable release identity belongs to the complete composed product rather than a dependency-only runtime prefix",
         "receipt_inputs": [
@@ -503,7 +557,7 @@
       },
       "local_validation": {
         "postgresql_build_contract_and_mutation": "25 of 25 passed",
-        "runtime_build_graph_contract_and_mutation": "38 of 38 passed including source-entrypoint, nested-shell RUNPATH, generated-libtool, and package-verification mutations",
+        "runtime_build_graph_contract_and_mutation": "39 of 39 passed including source-entrypoint, second-shell RUNPATH, generated-libtool, executable-stack, controlled-test-loader, and package-verification mutations",
         "program_authority": "21 of 21 passed including failed-runtime and unqualified-provider promotion mutations",
         "requirements_trace": "12 of 12 passed",
         "targeted_registered_tests": "4 of 4 passed for PostgreSQL build runtime graph requirements trace and program authority",

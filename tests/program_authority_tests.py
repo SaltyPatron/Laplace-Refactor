@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-third-v2-execution-preserved-three-defects-corrected-clean-plan-ready-provider-qualification-pending",
+        == "implementation-in-progress-inert-runtime-package-built-postgresql-plan-ready-provider-qualification-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -347,7 +347,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(runtime.get("receipt_schema") == "laplace.postgresql-runtime-package/v2", "runtime receipt generation drift")
     require(
         runtime.get("state")
-        == "third-v2-execution-preserved-failed-libxml2-test-loading-three-defects-corrected-clean-plan-ready-package-not-built-provider-qualification-unresolved",
+        == "inert-runtime-package-built-activation-ineligible-provider-qualification-unresolved",
         "runtime package proof state drift",
     )
     require(
@@ -431,6 +431,49 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and prior_package_failure.get("product_activation_occurred") is False,
         "prior package RUNPATH failure was promoted",
     )
+    successful_package = runtime.get("latest_successful_package_execution", {})
+    require(
+        successful_package.get("build_input_id")
+        == "0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373"
+        and successful_package.get("package_receipt_sha256")
+        == "0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a"
+        and successful_package.get("staged_tree_sha256")
+        == "807948f289b201f076c53df8c72b12ea6d2f23ec31b1a7624d6e28b967c5268a",
+        "successful inert runtime package identity drift",
+    )
+    require(
+        successful_package.get("staged_file_count") == 744
+        and successful_package.get("staged_total_file_bytes") == 182760585,
+        "successful inert runtime package tree extent drift",
+    )
+    require(
+        set(successful_package.get("component_checkpoints", {}))
+        == {"zlib", "lz4", "zstandard", "icu", "openssl", "liburing", "libxml2"}
+        and set(successful_package.get("required_component_test_dispositions", {}).values())
+        == {"passed"}
+        and successful_package.get("liburing_test_disposition")
+        == "failed-under-observed-runtime-provider",
+        "successful runtime component evidence drift",
+    )
+    require(
+        set(successful_package.get("liburing_failed_tests", []))
+        == {"conn-unreach.t", "io-wq-unused-exit.t", "mshot-shutdown-race.t", "send_recv.t", "wq-aff.t"}
+        and set(successful_package.get("liburing_timed_out_tests", []))
+        == {"cancel-fd-userdata.t", "cancel-race.t", "recv-mshot-fair.t", "recvsend_bundle.t"},
+        "successful package liburing provider evidence drift",
+    )
+    contains_all(
+        successful_package.get("corrected_boundaries_proven", []),
+        ("ICU", "libicudata.so.78.3", "GNU_STACK", "libcrypto.so.4", "libxml2 make check", ".libs", "runtime-search", "COPY-relocation"),
+        "successful runtime package lost corrected physical evidence",
+    )
+    require(
+        successful_package.get("build_input_closure_complete") is False
+        and successful_package.get("runtime_provider_qualification_complete") is False
+        and successful_package.get("activation_eligible") is False
+        and successful_package.get("product_activation_occurred") is False,
+        "inert runtime package was promoted to an accepted product",
+    )
     source_interface_failure = runtime.get("prior_v2_source_interface_failure", {})
     require(
         source_interface_failure.get("build_input_id")
@@ -509,18 +552,25 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(staging_violation.get("activated") is False, "unactivated OpenSSL staging violation became activation")
     require(staging_violation.get("file_count") == 161 and staging_violation.get("physical_bytes") == 78739606, "OpenSSL staging violation evidence drift")
     contains_all(staging_violation, ("environment-only DESTDIR", "quarantine", "GNU Make DESTDIR", "mutation test"), "OpenSSL staging violation or correction was hidden")
-    contains_all(runtime.get("continuation_condition", ""), ("exact runtime plan", "three receipted corrections", "record every component test", "canonical package-relative RUNPATH", "non-executable GNU_STACK", "inert runtime package", "compose the inert PostgreSQL", "separate accepted selected-runtime-provider qualification"), "runtime continuation was approximated")
-    contains_all(runtime.get("nonclaims", []), ("not been built to completion", "not been waived", "not been qualified", "not been installed qualified or accepted", "not been activated"), "runtime package or provider was promoted beyond evidence")
+    contains_all(runtime.get("continuation_condition", ""), ("exact runtime receipt", "PostgreSQL build plan", "byte-for-byte", "PostgreSQL 18.6", "inert composed product package", "separate accepted selected-runtime-provider qualification"), "runtime continuation was approximated")
+    contains_all(runtime.get("nonclaims", []), ("not activation eligible", "not an installed product", "not been waived", "not been qualified", "not been installed qualified or accepted", "not been activated"), "runtime package or provider was promoted beyond evidence")
     postgresql = progress.get("postgresql_product_package", {})
     require(postgresql.get("contract_schema") == "laplace.postgresql-build-contract/v2", "PostgreSQL product composer contract drift")
-    require(postgresql.get("state") == "composer-implemented-not-package-built", "PostgreSQL package proof state drift")
+    require(postgresql.get("state") == "deterministic-plan-ready-not-package-built", "PostgreSQL package proof state drift")
+    require(
+        postgresql.get("build_input_id")
+        == "e473f3ccaf4aa0fb51452ff7f1292c38d5867b9384df083d052046824bdbd0f2"
+        and postgresql.get("runtime_package_receipt_sha256")
+        == "0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a",
+        "PostgreSQL deterministic plan identity drift",
+    )
     require(postgresql.get("logical_install_prefix") == "/opt/laplace/current/pgsql-18", "PostgreSQL logical product prefix drift")
     contains_all(postgresql.get("receipt_inputs", []), ("unresolved provider qualification retained", "PostgreSQL 18.6"), "PostgreSQL input receipts lost the provider gate")
     contains_all(postgresql.get("implemented_boundary", []), ("duplicate-key-safe", "runtime-subtree immutability", "packaged Make", "DESTDIR", "RUNPATH", "provider-qualification requirements", "activation remains false"), "PostgreSQL product composition boundary was narrowed")
     contains_all(postgresql.get("known_unclosed_inputs", []), ("ambient Python", "POSIX", "platform ABI", "Perl modules", "selected kernel", "runtime-provider qualification"), "PostgreSQL input closure was overstated")
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "224137985126e3bd11827c87eeb0ed040f82b55c",
+        == "08426cd601576665fc1eade77e1393d880e4077e",
         "runtime correction implementation checkpoint drift",
     )
     require(
