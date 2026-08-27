@@ -38,6 +38,17 @@ jobs:
           set -euo pipefail
           test "$(id -un)" = laplace-runner
           sudo -n -l
+      - name: Verify the exact runner-readable PostgreSQL publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          publication=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.publication.receipt' state/continuation.json)
+          expected_sha=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.publication.receipt_sha256' state/continuation.json)
+          test -r "$publication"
+          test ! -L "$publication"
+          test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
+          python3 tools/delivery/postgresql_package_publication.py verify \
+            --receipt "$publication" >/dev/null
       - name: Execute activation gateway contract and mutation tests
         run: |
           python3 tests/highway_product_activation_tests.py

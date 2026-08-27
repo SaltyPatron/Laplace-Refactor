@@ -274,6 +274,12 @@ class ProductActivationGatewayTests(unittest.TestCase):
         self.assertIn("environment: product", workflow)
         self.assertIn("test \"$GITHUB_REF\" = refs/heads/main", workflow)
         self.assertIn("tools/product/build-package.py build", workflow)
+        self.assertIn(
+            "Verify the exact runner-readable PostgreSQL publication", workflow
+        )
+        self.assertGreaterEqual(
+            workflow.count("postgresql_package_publication.py verify"), 2
+        )
         self.assertIn("tools/postgresql/clusterctl.py observe-resources", workflow)
         self.assertIn("--product-receipt '${{ needs.compose-product.outputs.product_receipt }}'", workflow)
         self.assertIn("--resource-observation '${{ needs.compose-product.outputs.resource_observation }}'", workflow)
