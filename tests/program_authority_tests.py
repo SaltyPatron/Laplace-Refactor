@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-unicode-product-activation-controller-integration-proven-successor-product-package-and-physical-cluster-activation-pending",
+        == "implementation-merged-unicode-product-activation-controller-integration-proven-successor-product-package-installed-and-physical-cluster-activation-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -956,7 +956,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
+        == "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
         "product-package implementation checkpoint drift",
     )
     successor = progress.get("successor_product_package", {})
@@ -1079,9 +1079,16 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(github.get("main_commit") == document.get("repository", {}).get("base_commit"), "GitHub main and continuation base diverged")
     require(github.get("product_cluster_project_status") == "In Progress", "active product-cluster work returned to Todo")
     require(github.get("unicode_product_activation_issue", {}).get("state") == "open", "Unicode product activation issue was prematurely closed")
-    active_pr = github.get("active_product_runtime_pull_request", {})
-    require(active_pr.get("number") == 74 and active_pr.get("state") == "open" and active_pr.get("draft") is True, "active runtime PR observation drift")
-    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "product cluster activation", "public Unicode Tier-0/reverse perfcache access", "Unicode product activation controller", "successor package", "root ownership", "physical cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
+    runtime_pr = github.get("product_runtime_pull_request", {})
+    require(
+        runtime_pr.get("number") == 74
+        and runtime_pr.get("state") == "merged"
+        and runtime_pr.get("draft") is False
+        and runtime_pr.get("main_commit")
+        == "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
+        "runtime PR merge observation drift",
+    )
+    contains_all(runtime_pr.get("proof_state", ""), ("implementation merged", "product cluster activation", "public Unicode Tier-0/reverse perfcache access", "Unicode product activation controller", "successor package", "root ownership", "physical cluster activation", "Unicode activation", "seed", "release remain false"), "merged runtime PR was promoted beyond evidence")
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
