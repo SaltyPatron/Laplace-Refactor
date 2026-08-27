@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-inert-postgresql-18.6-product-package-recursive-runtime-closure-proven-build-input-and-provider-qualification-pending",
+        == "implementation-in-progress-inert-postgresql-18.6-product-package-recursive-runtime-closure-proven-bootstrap-executables-selected-successor-rebuild-and-remaining-input-qualification-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -594,7 +594,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     postgresql = progress.get("postgresql_product_package", {})
     require(postgresql.get("contract_schema") == "laplace.postgresql-build-contract/v2", "PostgreSQL product composer contract drift")
-    require(postgresql.get("state") == "inert-composed-postgresql-package-built-tested-and-recursively-closed-activation-ineligible", "PostgreSQL package proof state drift")
+    require(postgresql.get("state") == "inert-composed-postgresql-package-built-tested-and-recursively-closed-bootstrap-executable-successor-not-yet-built-activation-ineligible", "PostgreSQL package proof state drift")
     require(
         postgresql.get("build_input_id")
         == "006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d"
@@ -607,7 +607,31 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(postgresql.get("logical_install_prefix") == "/opt/laplace/current/pgsql-18", "PostgreSQL logical product prefix drift")
     contains_all(postgresql.get("receipt_inputs", []), ("Perl TAP", "staged OpenSSL", "unresolved provider qualification retained", "installed-provider lock selection", "linker-map", "PostgreSQL 18.6"), "PostgreSQL input receipts lost exact providers or the provider gate")
     contains_all(postgresql.get("implemented_boundary", []), ("duplicate-key-safe", "runtime-subtree immutability", "packaged Make", "execution preflight", "configure selection receipt", "DESTDIR", "RUNPATH", "installed-provider selection", "recursively closed", "dynamic loader libc and libm", "independent recursive closure", "provider-qualification requirements", "activation remains false"), "PostgreSQL product composition boundary was narrowed")
-    contains_all(postgresql.get("known_unclosed_inputs", []), ("ambient Python", "POSIX", "build-time startup", "compiler-runtime license", "selected kernel", "runtime-provider qualification"), "PostgreSQL input closure was overstated")
+    contains_all(postgresql.get("known_unclosed_inputs", []), ("Python standard library", "configure-time host utilities", "Intel-compiler-selected", "static archives", "compiler-runtime license", "selected kernel", "runtime-provider qualification"), "PostgreSQL input closure was overstated")
+    successor = postgresql.get("next_successor_build_boundary", {})
+    require(
+        successor.get("implementation_commit")
+        == "16126c4a4a90a6710528f94aacb401cf45fdea66"
+        and successor.get("state")
+        == "implemented-and-locally-proven-successor-package-not-built"
+        and successor.get("package_receipt_issued") is False
+        and successor.get("product_activation_occurred") is False,
+        "PostgreSQL bootstrap successor was promoted without a package receipt",
+    )
+    contains_all(
+        successor.get("implemented", []),
+        ("shared toolchain receipt verifier", "Python 3.10.12", "dash", "plan identity", "executing driver", "/bin/sh", "PYTHON SHELL and CONFIG_SHELL", "mutations"),
+        "PostgreSQL bootstrap executable boundary was narrowed",
+    )
+    successor_preflight = successor.get("live_preflight", {})
+    require(
+        successor_preflight.get("python_sha256")
+        == "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86"
+        and successor_preflight.get("shell_sha256")
+        == "4f291296e89b784cd35479fca606f228126e3641f5bcaee68dee36583d7c9483"
+        and successor_preflight.get("bin_sh_resolved_path") == "/usr/bin/dash",
+        "PostgreSQL bootstrap executable preflight identity drift",
+    )
     previous_postgresql = postgresql.get("previous_rejected_execution", {})
     require(
         previous_postgresql.get("build_input_id")
@@ -714,12 +738,12 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "d47575dafe6b49f61ede03e2541db488f5f3f313",
+        == "16126c4a4a90a6710528f94aacb401cf45fdea66",
         "runtime correction implementation checkpoint drift",
     )
     require(
         postgresql.get("implementation_commit")
-        == "d47575dafe6b49f61ede03e2541db488f5f3f313",
+        == "16126c4a4a90a6710528f94aacb401cf45fdea66",
         "PostgreSQL composer implementation checkpoint drift",
     )
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
@@ -1104,6 +1128,15 @@ class ProgramAuthorityTests(unittest.TestCase):
         ]["latest_successful_package_execution"]
         package["recursive_elf_closure_verified"] = False
         with self.assertRaisesRegex(ValueError, "inert PostgreSQL package"):
+            validate_continuation(mutant, verify_physical=False)
+
+    def test_mutation_bootstrap_successor_is_promoted_without_package(self) -> None:
+        mutant = copy.deepcopy(self.continuation)
+        successor = mutant["active_work"]["implementation_progress"][
+            "postgresql_product_package"
+        ]["next_successor_build_boundary"]
+        successor["package_receipt_issued"] = True
+        with self.assertRaisesRegex(ValueError, "bootstrap successor was promoted"):
             validate_continuation(mutant, verify_physical=False)
 
     def test_mutation_profile_completion_promoted_to_seed_is_detected(self) -> None:

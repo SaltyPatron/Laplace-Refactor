@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T08:39:54Z",
+  "observed_at_utc": "2026-08-27T08:55:12Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "d47575dafe6b49f61ede03e2541db488f5f3f313",
-    "implementation_checkpoint_commit": "d47575dafe6b49f61ede03e2541db488f5f3f313",
+    "observed_branch_head": "16126c4a4a90a6710528f94aacb401cf45fdea66",
+    "implementation_checkpoint_commit": "16126c4a4a90a6710528f94aacb401cf45fdea66",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-inert-postgresql-18.6-product-package-recursive-runtime-closure-proven-build-input-and-provider-qualification-pending",
+    "state": "implementation-in-progress-inert-postgresql-18.6-product-package-recursive-runtime-closure-proven-bootstrap-executables-selected-successor-rebuild-and-remaining-input-qualification-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -571,8 +571,8 @@
       },
       "postgresql_product_package": {
         "contract_schema": "laplace.postgresql-build-contract/v2",
-        "implementation_commit": "d47575dafe6b49f61ede03e2541db488f5f3f313",
-        "state": "inert-composed-postgresql-package-built-tested-and-recursively-closed-activation-ineligible",
+        "implementation_commit": "16126c4a4a90a6710528f94aacb401cf45fdea66",
+        "state": "inert-composed-postgresql-package-built-tested-and-recursively-closed-bootstrap-executable-successor-not-yet-built-activation-ineligible",
         "build_input_id": "006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d",
         "build_directory": "/build/laplace/build/postgresql/006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d",
         "staged_product_prefix": "/build/laplace/stage/postgresql/006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d/root/opt/laplace/current",
@@ -624,6 +624,29 @@
           "independent recursive closure re-verification reproduces the accepted graph without writing into the staged product",
           "package activation remains false"
         ],
+        "next_successor_build_boundary": {
+          "implementation_commit": "16126c4a4a90a6710528f94aacb401cf45fdea66",
+          "state": "implemented-and-locally-proven-successor-package-not-built",
+          "implemented": [
+            "the shared toolchain receipt verifier selects consumer-required bootstrap providers without forcing unrelated consumers to invent empty Perl linker or bootstrap requirements",
+            "the PostgreSQL contract selects exact Python 3.10.12 and dash executables by physical path version and SHA-256 from the toolchain bootstrap receipt",
+            "the PostgreSQL plan identity includes the selected bootstrap executable receipts",
+            "the build preflight proves the executing driver is the selected Python provider and that /bin/sh resolves to the selected POSIX shell provider",
+            "the build environment exports exact PYTHON SHELL and CONFIG_SHELL providers",
+            "mutations reject omitted changed or substituted bootstrap providers"
+          ],
+          "live_preflight": {
+            "python_path": "/usr/bin/python3.10",
+            "python_sha256": "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86",
+            "python_version": "Python 3.10.12",
+            "shell_path": "/usr/bin/dash",
+            "shell_sha256": "4f291296e89b784cd35479fca606f228126e3641f5bcaee68dee36583d7c9483",
+            "shell_version": "dash",
+            "bin_sh_resolved_path": "/usr/bin/dash"
+          },
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
         "previous_rejected_execution": {
           "build_input_id": "e473f3ccaf4aa0fb51452ff7f1292c38d5867b9384df083d052046824bdbd0f2",
           "toolchain_build_input_id": "9efd6c909e154b7f5b02b72c950a665aec5b5011e28a5d177993274a11513d6e",
@@ -805,18 +828,18 @@
           "product_activation_occurred": false
         },
         "known_unclosed_inputs": [
-          "ambient Python and its standard-library input closure",
-          "POSIX shell configure utilities and remaining bootstrap input closure",
-          "compiler-selected build-time startup static and support input closure plus applicable compiler-runtime license packaging",
+          "Python standard library and imported runtime providers",
+          "configure-time host utilities",
+          "Intel-compiler-selected platform ABI startup objects static archives and support libraries for the PostgreSQL build plus applicable compiler-runtime license packaging",
           "selected kernel and io_uring runtime-provider qualification"
         ]
       },
       "local_validation": {
-        "postgresql_build_contract_and_mutation": "32 of 32 passed including packaged TAP providers staged OpenSSL execution preflight installed-provider recursive-closure and independent-output mutations",
+        "postgresql_build_contract_and_mutation": "37 of 37 passed including packaged TAP providers staged OpenSSL execution preflight bootstrap-provider installed-provider recursive-closure and independent-output mutations",
         "installed_provider_lock_contract_and_mutation": "10 of 10 passed including exact role provider version path byte hash license runtime-SONAME and selection-hash controls",
         "toolchain_build_contract_and_mutation": "46 of 46 passed including Perl module native-provider and consumer-manifest mutations",
         "runtime_build_graph_contract_and_mutation": "39 of 39 passed including source-entrypoint, second-shell RUNPATH, generated-libtool, executable-stack, controlled-test-loader, and package-verification mutations",
-        "program_authority": "26 of 26 passed including failed-runtime unqualified-provider build-toolchain-promotion rejected-PostgreSQL-promotion inert-package-promotion and recursive-closure-erasure mutations",
+        "program_authority": "27 of 27 passed including failed-runtime unqualified-provider build-toolchain-promotion rejected-PostgreSQL-promotion inert-package-promotion recursive-closure-erasure and bootstrap-successor-promotion mutations",
         "requirements_trace": "12 of 12 passed",
         "generic_recursive_elf_closure": "passed unresolved contained deterministic resolution ABI-generation collision competing-provider and host-boundary fixtures",
         "postgresql_18_6_package_build": "world-bin check-world and install-world-bin completed; exact inert package receipt and accepted recursive whole-tree closure receipt issued and independently reverified",
@@ -881,8 +904,8 @@
       "number": 74,
       "state": "open",
       "draft": true,
-      "head_commit": "d47575dafe6b49f61ede03e2541db488f5f3f313",
-      "proof_state": "partial implementation; PostgreSQL 18.6 whole-tree recursive loaded-object closure is proven with exact packaged Intel and compiler support providers and an exact three-object host ABI boundary; build-input closure selected-kernel runtime-provider qualification product package installation cluster activation Unicode activation seed and release remain false"
+      "head_commit": "16126c4a4a90a6710528f94aacb401cf45fdea66",
+      "proof_state": "partial implementation; PostgreSQL 18.6 whole-tree recursive loaded-object closure is proven and exact Python and POSIX shell bootstrap executable selection is implemented and locally preflighted for the successor build; the successor package has not been built and Python standard-library configure-utility Intel build-time linker input selected-kernel runtime-provider qualification package installation cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
