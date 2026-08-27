@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-26T23:55:00Z",
+  "observed_at_utc": "2026-08-27T02:19:01Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,7 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
+    "observed_branch_head": "b3d9a95e79f8ab60fb826f9f48760ec4606428e4",
+    "implementation_checkpoint_commit": "b3d9a95e79f8ab60fb826f9f48760ec4606428e4",
     "pull_request": null
   },
   "development_inputs": {
@@ -290,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "next-implementation-boundary",
+    "state": "implementation-in-progress-blocked-on-runtime-acceptance",
     "branch": "phase3/product-unicode-activation",
     "pull_request": null,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -298,6 +299,100 @@
       "product_cluster_issue": 12,
       "perfcache_issue": 14,
       "bulk_deposit_issue": {"number": 15, "state": "closed", "proof_state": "integration-proven"}
+    },
+    "implementation_progress": {
+      "runtime_package": {
+        "contract_schema": "laplace.postgresql-runtime-build/v2",
+        "plan_schema": "laplace.postgresql-runtime-plan/v2",
+        "receipt_schema": "laplace.postgresql-runtime-package/v2",
+        "latest_plan_id": "90d33cc8fe8b6775987d0f7735e325b56342716861ed02cefc8073c5a70cc3f8",
+        "logical_install_prefix": "/opt/laplace/current",
+        "staged_prefix": "/build/laplace/stage/90d33cc8fe8b6775987d0f7735e325b56342716861ed02cefc8073c5a70cc3f8/root/opt/laplace/current",
+        "state": "composer-implemented-plan-derived-package-not-accepted",
+        "successful_component_checkpoints_before_failure": [
+          "zlib",
+          "lz4",
+          "zstd",
+          "icu",
+          "openssl"
+        ],
+        "failed_execution": {
+          "build_input_id": "27ce8f6d4b633a6b40331cd0659186aa2cc62754ac0946c287b6b17fe1196a28",
+          "contract_generation": "v1-superseded-by-v2-before-package-acceptance",
+          "component": "liburing",
+          "component_version": "2.15",
+          "suite_exit_code": 2,
+          "host_kernel": "Linux 5.15.0-186-generic x86_64",
+          "io_uring_disabled": 0,
+          "failed_tests": [
+            "conn-unreach.t",
+            "io-wq-unused-exit.t",
+            "link-timeout.t",
+            "mshot-shutdown-race.t",
+            "send_recv.t",
+            "wq-aff.t"
+          ],
+          "timed_out_tests": [
+            "cancel-fd-userdata.t",
+            "cancel-race.t",
+            "recv-mshot-fair.t",
+            "recvsend_bundle.t"
+          ],
+          "disposition": "runtime acceptance unsatisfied on the observed host; no checkpoint receipt or package receipt was issued for liburing or the complete runtime"
+        },
+        "staging_violation": {
+          "component": "openssl",
+          "cause": "environment-only DESTDIR was ignored by the upstream OpenSSL install target",
+          "unactivated_path_written": "/opt/laplace/releases/27ce8f6d4b633a6b40331cd0659186aa2cc62754ac0946c287b6b17fe1196a28",
+          "file_count": 161,
+          "physical_bytes": 78739606,
+          "tree_sha256_before_quarantine": "ba6ad313ebd379681f7815fc8f7fbd10a1f2f781d87cfcb2ba6159583404148c",
+          "quarantine_path": "/build/laplace/quarantine/runtime-install-violation-27ce8f6d4b633a6b4",
+          "corrected_by": "explicit GNU Make DESTDIR assignment plus a deliberate mutation test",
+          "activated": false
+        },
+        "continuation_condition": "execute the exact v2 runtime plan in a selected supported kernel and runtime environment where the complete upstream liburing suite passes; the available but uninstalled Ubuntu HWE candidate is 6.8.0-136 and must not be treated as accepted until the complete suite passes",
+        "nonclaims": [
+          "the v2 runtime package has not been built to completion",
+          "the liburing failures have not been waived or reclassified as passes",
+          "a newer kernel has not been installed or accepted",
+          "/opt/laplace/current has not been activated"
+        ]
+      },
+      "postgresql_product_package": {
+        "contract_schema": "laplace.postgresql-build-contract/v2",
+        "implementation_commit": "b3d9a95e79f8ab60fb826f9f48760ec4606428e4",
+        "state": "composer-implemented-not-package-built",
+        "logical_install_prefix": "/opt/laplace/current/pgsql-18",
+        "final_release_semantics": "the immutable release identity belongs to the complete composed product rather than a dependency-only runtime prefix",
+        "receipt_inputs": [
+          "exact verified toolchain package receipt and staged tree",
+          "exact accepted runtime v2 package receipt and staged tree",
+          "verified PostgreSQL 18.6 source release"
+        ],
+        "implemented_boundary": [
+          "shared duplicate-key-safe package-receipt verification",
+          "exact staged tree verification with runtime-subtree immutability after PostgreSQL installation",
+          "packaged Make Perl pkgconf Bison Flex and binutils selection",
+          "explicit staged DESTDIR install",
+          "canonical logical activation RUNPATH",
+          "whole-product build identity changes when either prerequisite receipt changes",
+          "package activation remains false"
+        ],
+        "known_unclosed_inputs": [
+          "ambient Python",
+          "POSIX and configure utilities",
+          "compiler-selected platform ABI startup and support objects",
+          "out-of-package Perl modules"
+        ]
+      },
+      "local_validation": {
+        "postgresql_build_contract_and_mutation": "22 of 22 passed",
+        "runtime_build_graph_contract_and_mutation": "32 of 32 passed",
+        "program_authority": "20 of 20 passed including the failed-runtime promotion mutation",
+        "requirements_trace": "12 of 12 passed",
+        "portable_registered_suite": "268 of 269 passed; the sole failure was the known canonical oneAPI numeric-provider absence in the portable Unicode PostgreSQL test"
+      }
     },
     "proven_prerequisite_boundary": [
       "one complete Unicode calculation feeds controlled PostgreSQL and Tier-0 sibling sinks",
