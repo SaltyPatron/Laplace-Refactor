@@ -73,7 +73,21 @@ class ProductPackageTests(unittest.TestCase):
 
     def test_runtime_dependency_bytes_are_exact(self) -> None:
         mutant = copy.deepcopy(self.contract)
-        mutant["runtime_dependencies"]["onetbb-hwloc"]["files"][0]["sha256"] = "0" * 64
+        provider_root = self.root / "runtime-dependency"
+        provider_file = provider_root / "lib/libhwloc.so.15.10.2"
+        provider_file.parent.mkdir(parents=True)
+        provider_file.write_bytes(b"selected runtime dependency\n")
+        mutant["runtime_dependencies"]["onetbb-hwloc"] = {
+            "immutable_root": str(provider_root),
+            "package_versions": {},
+            "files": [
+                {
+                    "path": str(provider_file),
+                    "bytes": provider_file.stat().st_size,
+                    "sha256": "0" * 64,
+                }
+            ],
+        }
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "bytes differ"):
             PACKAGE.verify_runtime_dependencies(mutant)
 
