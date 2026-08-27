@@ -335,7 +335,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     work = document.get("active_work", {})
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(work.get("state") == "implementation-in-progress-blocked-on-runtime-acceptance", "Unicode activation implementation state drift")
-    require(work.get("github_issue") == 13 and work.get("pull_request") is None, "Unicode activation ownership drift")
+    require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
     progress = work.get("implementation_progress", {})
     runtime = progress.get("runtime_package", {})
     require(runtime.get("contract_schema") == "laplace.postgresql-runtime-build/v2", "runtime contract generation drift")
@@ -370,8 +370,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(postgresql.get("known_unclosed_inputs", []), ("ambient Python", "POSIX", "platform ABI", "Perl modules"), "PostgreSQL input closure was overstated")
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == postgresql.get("implementation_commit")
-        == document.get("repository", {}).get("observed_branch_head"),
+        == postgresql.get("implementation_commit"),
         "implementation checkpoint identities diverged",
     )
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
@@ -379,14 +378,21 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(work.get("nonclaims", []), ("not yet established", "not yet installed", "not yet product activated", "not seeded", "not implemented", "not released"), "Unicode activation work was promoted beyond evidence")
     github = document.get("github_observation", {})
     require(github.get("main_commit") == document.get("repository", {}).get("base_commit"), "GitHub main and continuation base diverged")
+    require(github.get("product_cluster_project_status") == "In Progress", "active product-cluster work returned to Todo")
     require(github.get("unicode_product_activation_issue", {}).get("state") == "open", "Unicode product activation issue was prematurely closed")
+    active_pr = github.get("active_product_runtime_pull_request", {})
+    require(active_pr.get("number") == 74 and active_pr.get("state") == "open" and active_pr.get("draft") is True, "active runtime PR observation drift")
+    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "acceptance", "activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
+    retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
+    require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
+    contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
     require(github.get("product_path_gate_issue") == 54 and github.get("required_product_path_gate_present") is False, "product-path gate observation drift")
     contains_all(github.get("observed_required_checks", []), ("requirements", "native (linux-dev)", "native (linux-sanitize)"), "required-check observation narrowed")
     require(github.get("github_environments") == 0 and github.get("github_deployments") == 0 and github.get("github_releases") == 0, "GitHub integration state was promoted to delivery state")
     require(github.get("repository_runner", {}).get("name") == "hart-server-refactor", "repository runner observation lost")
     runs = {item.get("workflow"): item for item in github.get("latest_main_workflow_runs", [])}
-    require(runs.get("clean-room-ci", {}).get("linux_dev_registered_tests") == 240 and runs.get("clean-room-ci", {}).get("linux_sanitize_registered_tests") == 240, "published hosted test-count observation drift")
-    require(runs.get("custom-stack-ci", {}).get("registered_tests") == 259 and runs.get("custom-stack-ci", {}).get("observed_postgresql_version") == "18.3", "published custom-stack observation drift")
+    require(runs.get("clean-room-ci", {}).get("linux_dev_registered_tests") == 251 and runs.get("clean-room-ci", {}).get("linux_sanitize_registered_tests") == 251, "published hosted test-count observation drift")
+    require(runs.get("custom-stack-ci", {}).get("registered_tests") == 279 and runs.get("custom-stack-ci", {}).get("observed_postgresql_version") == "18.3", "published custom-stack observation drift")
     if verify_physical:
         worktree = Path(document.get("repository", {}).get("active_worktree", ""))
         if worktree.is_dir() and (worktree / ".git").exists():
@@ -397,6 +403,15 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             require(git_output(worktree, "cat-file", "-t", checkpoint) == "commit", "published composition checkpoint is missing")
             subprocess.run(
                 ["git", "merge-base", "--is-ancestor", checkpoint, "HEAD"],
+                cwd=worktree,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            observed_head = repository.get("observed_branch_head")
+            require(git_output(worktree, "cat-file", "-t", observed_head) == "commit", "observed branch checkpoint is missing")
+            subprocess.run(
+                ["git", "merge-base", "--is-ancestor", observed_head, "HEAD"],
                 cwd=worktree,
                 check=True,
                 stdout=subprocess.PIPE,

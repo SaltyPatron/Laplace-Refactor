@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T02:19:01Z",
+  "observed_at_utc": "2026-08-27T02:22:49Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,9 +17,9 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "b3d9a95e79f8ab60fb826f9f48760ec4606428e4",
+    "observed_branch_head": "fd93685bc3598d8ae5748e07cc321bd9b6c1e066",
     "implementation_checkpoint_commit": "b3d9a95e79f8ab60fb826f9f48760ec4606428e4",
-    "pull_request": null
+    "pull_request": 74
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -293,7 +293,7 @@
     "github_issue": 13,
     "state": "implementation-in-progress-blocked-on-runtime-acceptance",
     "branch": "phase3/product-unicode-activation",
-    "pull_request": null,
+    "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "dependencies": {
       "product_cluster_issue": 12,
@@ -420,10 +420,11 @@
     ]
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-26T23:55:00Z",
+    "observed_at_utc": "2026-08-27T02:22:49Z",
     "main_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
+    "product_cluster_project_status": "In Progress",
     "unicode_product_activation_issue": {"number": 13, "state": "open", "reason": "integration proof does not satisfy installed PostgreSQL 18.6 product-root activation"},
     "composition_bulk_issue": 15,
     "highway_issue": 52,
@@ -446,12 +447,19 @@
       "issue_15_state": "closed",
       "proof_state": "integration-proven; complete-ingest performance product activation seed and release remain false"
     },
+    "active_product_runtime_pull_request": {
+      "number": 74,
+      "state": "open",
+      "draft": true,
+      "head_commit": "fd93685bc3598d8ae5748e07cc321bd9b6c1e066",
+      "proof_state": "partial implementation; exact runtime acceptance product package cluster activation Unicode activation seed and release remain false"
+    },
     "roadmap_project": {
       "number": 2,
       "title": "Laplace Refactor — Machine Roadmap",
       "url": "https://github.com/users/SaltyPatron/projects/2",
       "public": true,
-      "items": 41,
+      "items": 42,
       "fields": 18,
       "historical_project_1_is_authority": false
     },
@@ -462,15 +470,15 @@
       "proof_state": "requirements and acceptance encoded; newly described mechanisms unimplemented"
     },
     "github_subissue_hierarchy_present": true,
-    "unreconciled_dependency_pull_requests": [
-      {"number": 31, "draft": true, "base": "main", "head": "phase1/runtime-build-graph", "merge_state": "DIRTY"},
-      {"number": 35, "draft": false, "base": "phase1/runtime-build-graph", "head": "phase1/source-built-toolchain", "merge_state": "CLEAN"}
+    "retired_dependency_pull_requests": [
+      {"number": 31, "state": "closed", "former_base": "main", "head": "phase1/runtime-build-graph", "reconciliation": "all nine commits reconciled into draft PR 74; source branch retained as history"},
+      {"number": 35, "state": "closed", "former_base": "phase1/runtime-build-graph", "head": "phase1/source-built-toolchain", "reconciliation": "all sixteen commits reconciled into draft PR 74; source branch retained as history"}
     ],
     "latest_main_workflow_runs": [
-      {"id": 33019974408, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "37f8741e9360a114abc44c4c72941726bee84716", "linux_dev_registered_tests": 240, "linux_sanitize_registered_tests": 240},
-      {"id": 33019974406, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "37f8741e9360a114abc44c4c72941726bee84716", "registered_tests": 259, "observed_postgresql_version": "18.3"}
+      {"id": 33024951976, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409", "linux_dev_registered_tests": 251, "linux_sanitize_registered_tests": 251},
+      {"id": 33024951904, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409", "registered_tests": 279, "observed_postgresql_version": "18.3"}
     ],
-    "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": false, "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},
+    "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": true, "busy_reason": "executing draft PR 74 custom-stack CI at observation time", "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},
     "observed_required_checks": ["requirements", "native (linux-dev)", "native (linux-sanitize)"],
     "required_product_path_gate_present": false,
     "required_custom_stack_evidence_currently_missing_from_merge_gate": "postgresql-native",
