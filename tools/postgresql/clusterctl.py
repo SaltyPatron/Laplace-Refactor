@@ -30,7 +30,8 @@ from typing import Any, Sequence
 
 CONTRACT_SCHEMA = "laplace.postgresql-cluster-contract/v1"
 PACKAGE_SCHEMA = "laplace.package-manifest/v1"
-RESOURCE_SCHEMA = "laplace.execution-resource-observation/v1"
+RESOURCE_SCHEMA = "laplace.execution-resource-observation/v2"
+RESOURCE_CANDIDATE_SCHEMA = "laplace.execution-resource-observation-candidate/v1"
 COLLISION_SCHEMA = "laplace.postgresql-collision-observation/v2"
 PLAN_SCHEMA = "laplace.postgresql-cluster-plan/v1"
 LOADED_SCHEMA = "laplace.postgresql-loaded-observation/v1"
@@ -293,6 +294,10 @@ def validate_resource_observation(
         raise ClusterError(f"resource observation schema must be {RESOURCE_SCHEMA}")
     if document.get("source") != "laplace_native_execution_authority":
         raise ClusterError("resource observation must come from native execution authority")
+    if HEX_256.fullmatch(str(document.get("package_id", ""))) is None:
+        raise ClusterError("resource observation requires its exact package identity")
+    if HEX_256.fullmatch(str(document.get("package_manifest_sha256", ""))) is None:
+        raise ClusterError("resource observation requires its exact package manifest digest")
     if document.get("observation_sha256") != resource_observation_identity(document):
         raise ClusterError("resource observation digest differs from its content")
     for field in (
@@ -379,11 +384,22 @@ def validate_resource_observation(
     return grant
 
 
+def validate_resource_package_binding(
+    document: dict[str, Any], package: dict[str, Any]
+) -> None:
+    if document.get("package_id") != package.get("package_id"):
+        raise ClusterError("resource observation package identity differs")
+    manifest_sha256 = sha256_bytes(canonical_bytes(package))
+    if document.get("package_manifest_sha256") != manifest_sha256:
+        raise ClusterError("resource observation package manifest differs")
+
+
 def finalize_native_resource_observation(
-    native: dict[str, Any], observer_entry: dict[str, Any], contract: dict[str, Any]
+    native: dict[str, Any], observer_entry: dict[str, Any], contract: dict[str, Any],
+    package_id: str, package_manifest_sha256: str,
 ) -> dict[str, Any]:
-    if native.get("schema") != RESOURCE_SCHEMA:
-        raise ClusterError("native observer returned the wrong resource schema")
+    if native.get("schema") != RESOURCE_CANDIDATE_SCHEMA:
+        raise ClusterError("native observer returned the wrong resource candidate schema")
     if native.get("source") != "laplace_native_execution_authority":
         raise ClusterError("native observer returned the wrong authority source")
     if "observation_sha256" in native:
@@ -406,6 +422,9 @@ def finalize_native_resource_observation(
         "io_slots": grant.get("io_slots"),
     }
     result = dict(native)
+    result["schema"] = RESOURCE_SCHEMA
+    result["package_id"] = package_id
+    result["package_manifest_sha256"] = package_manifest_sha256
     result["native_authority"] = authority
     result["observation_sha256"] = resource_observation_identity(result)
     validate_resource_observation(result, contract)
@@ -466,9 +485,12 @@ def observe_resources(
         raise ClusterError(f"native resource observer returned invalid JSON: {error}") from error
     if not isinstance(native, dict):
         raise ClusterError("native resource observer output must be an object")
-    return finalize_native_resource_observation(
-        native, observer_entry, contract
+    result = finalize_native_resource_observation(
+        native, observer_entry, contract, package["package_id"],
+        package_status.manifest_sha256,
     )
+    validate_resource_package_binding(result, package)
+    return result
 
 
 def collision_observation_identity(observation: dict[str, Any]) -> str:
@@ -1173,6 +1195,8 @@ def build_plan(
     grant = validate_resource_observation(resource_observation, contract)
     validate_collision_observation(collision_observation, contract)
     status = verify_package(package, contract, physical_root)
+    if status.verified:
+        validate_resource_package_binding(resource_observation, package)
     package_root = package["root"]
     settings = generate_settings(contract, grant)
     instance = contract["instance"]

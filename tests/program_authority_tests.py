@@ -402,10 +402,65 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         ),
         "Highway controlled-integration evidence drift",
     )
+    activation_attempt = highway.get("latest_protected_activation_attempt", {})
+    require(
+        activation_attempt.get("workflow_run") == 33121232332
+        and activation_attempt.get("head_commit")
+        == "d4fc99374fb8d686e212568e4be540913f886b74"
+        and activation_attempt.get("runner_authority") == "success"
+        and activation_attempt.get("activate_product") == "skipped"
+        and activation_attempt.get("product_plan_id")
+        == "c508f913261822bc7e73ea7921d046879bb0cd13a06221c5141dbb23dc03f228"
+        and activation_attempt.get("package_id")
+        == "e07dfc117dd736a8931b9517b985e5b2c3615be13124f00e57940eb42904ef4f"
+        and activation_attempt.get("package_manifest_sha256")
+        == "9228e0ea446eaa4142f1de640dcaee8fe236d73cfcc4b9ef11b11858215444a2"
+        and activation_attempt.get("resource_observation_sha256")
+        == "e30bbf56d7ed5c00f02f5a94e5ee41efeb31fe7f8d78aa8dad05b6d3a1e5ac27"
+        and activation_attempt.get("product_activated") is False,
+        "latest protected activation evidence was hidden or promoted",
+    )
+    require(
+        activation_attempt.get("observed_grant")
+        == {"cpu_slots": 6, "memory_bytes": 12884901888, "io_slots": 4},
+        "protected activation resource grant drift",
+    )
+    contains_all(
+        activation_attempt,
+        ("failed-after-package", "no exact package", "product_activated"),
+        "protected activation failure boundary was narrowed",
+    )
+    active_correction = highway.get("active_correction", {})
+    require(
+        active_correction.get("branch") == "fix/product-activation-binding"
+        and active_correction.get("base_commit")
+        == "d4fc99374fb8d686e212568e4be540913f886b74"
+        and active_correction.get("implementation_commit")
+        == "e09c05c419e45cc4a1278d8ada54f5403156b2d2"
+        and active_correction.get("pull_request") == 81
+        and active_correction.get("published_head_commit")
+        == "2e7eb7990e14418bac1ca271eba662794ec2d17e"
+        and active_correction.get("state")
+        == "published-pull-request-exact-head-validation-pending",
+        "active activation correction identity drift",
+    )
+    contains_all(
+        active_correction.get("boundary", []),
+        (
+            "incomplete candidate receipt",
+            "package-manifest digest",
+            "one compose command",
+            "exclusive compact selection result",
+        ),
+        "activation correction boundary was narrowed",
+    )
     contains_all(
         highway.get("missing_boundary", []),
         (
             "PR 77",
+            "PR 80",
+            "run 33121232332",
+            "unpublished",
             "protected product workflow",
             "successor registry",
             "whole-seed",
@@ -1052,7 +1107,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "fa19a6a693694992a7d10e1c715d1115b3a89bbe",
+        == "e09c05c419e45cc4a1278d8ada54f5403156b2d2",
         "Highway implementation checkpoint drift",
     )
     successor = progress.get("successor_product_package", {})
@@ -1176,11 +1231,11 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(
         work.get("immediate_implementation_boundary", []),
         (
-            "runner-readable inputs",
-            "merge the publication consumer",
-            "content-addressed product package",
+            "package-bound resource-observation",
+            "single-pass composition",
+            "selects or builds one exact package once",
             "laplace-runner authority",
-            "protected product-activation workflow",
+            "root-owned deployment gateway",
             "PostgreSQL 18.6",
             "cold application-role active readback",
             "loaded-object identity",
@@ -1195,9 +1250,9 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         work.get("nonclaims", []),
         (
             "PR 77 is merged",
-            "checks passed",
-            "failed before product composition",
-            "not yet a merged product input",
+            "PR 80 is merged",
+            "built package e07dfc117dd736a8931b9517b985e5b2c3615be13124f00e57940eb42904ef4f",
+            "unpublished and unproven",
             "Unicode is not yet product activated",
             "Highway is implemented",
             "not product activated",
@@ -1251,6 +1306,40 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         ),
         "Highway PR was promoted beyond evidence",
     )
+    publication_pr = github.get("product_publication_pull_request", {})
+    require(
+        publication_pr.get("number") == 80
+        and publication_pr.get("state") == "merged"
+        and publication_pr.get("draft") is False
+        and publication_pr.get("base_commit")
+        == "fb8d354cb8732660d4806e4a658ad9064e47f73d"
+        and publication_pr.get("head_commit")
+        == "27115c62a9af612f95dee415b232637dd99f45bb"
+        and publication_pr.get("merge_commit")
+        == "d4fc99374fb8d686e212568e4be540913f886b74",
+        "product publication PR observation drift",
+    )
+    contains_all(
+        publication_pr.get("proof_state", ""),
+        ("runner-readable", "current-main", "no product activation"),
+        "product publication PR was promoted beyond evidence",
+    )
+    binding_pr = github.get("active_activation_binding_pull_request", {})
+    require(
+        binding_pr.get("number") == 81
+        and binding_pr.get("state") == "open"
+        and binding_pr.get("draft") is False
+        and binding_pr.get("base_commit")
+        == "d4fc99374fb8d686e212568e4be540913f886b74"
+        and binding_pr.get("head_commit")
+        == "2e7eb7990e14418bac1ca271eba662794ec2d17e",
+        "activation binding PR observation drift",
+    )
+    contains_all(
+        binding_pr.get("proof_state", ""),
+        ("published", "exact-head CI", "runner execution", "remain pending"),
+        "activation binding PR was promoted beyond evidence",
+    )
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
@@ -1264,16 +1353,34 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         "repository runner observation lost",
     )
     runs = {item.get("workflow"): item for item in github.get("latest_main_workflow_runs", [])}
-    require(runs.get("clean-room-ci", {}).get("linux_dev_registered_tests") == 267 and runs.get("clean-room-ci", {}).get("linux_sanitize_registered_tests") == 267, "published hosted test-count observation drift")
-    require(runs.get("custom-stack-ci", {}).get("registered_tests") == 296 and runs.get("custom-stack-ci", {}).get("observed_postgresql_version") == "18.3", "published custom-stack observation drift")
+    require(
+        runs.get("clean-room-ci", {}).get("id") == 33121196882
+        and runs.get("clean-room-ci", {}).get("conclusion") == "success"
+        and runs.get("clean-room-ci", {}).get("head_commit")
+        == "d4fc99374fb8d686e212568e4be540913f886b74",
+        "latest main clean-room observation drift",
+    )
+    require(
+        runs.get("custom-stack-ci", {}).get("id") == 33121196866
+        and runs.get("custom-stack-ci", {}).get("conclusion") == "cancelled"
+        and runs.get("custom-stack-ci", {}).get("head_commit")
+        == "d4fc99374fb8d686e212568e4be540913f886b74",
+        "latest main custom-stack observation drift",
+    )
     product_activation_run = runs.get("product-activation", {})
     require(
-        product_activation_run.get("id") == 33111425265
+        product_activation_run.get("id") == 33121232332
         and product_activation_run.get("conclusion") == "failure"
         and product_activation_run.get("runner_authority") == "success"
         and product_activation_run.get("compose_product")
-        == "failed-before-composition-private-input-not-runner-readable"
-        and product_activation_run.get("activate_product") == "skipped",
+        == "failed-after-current-main-package-and-resource-observation-before-activation-request"
+        and product_activation_run.get("activate_product") == "skipped"
+        and product_activation_run.get("package_id")
+        == "e07dfc117dd736a8931b9517b985e5b2c3615be13124f00e57940eb42904ef4f"
+        and product_activation_run.get("package_manifest_sha256")
+        == "9228e0ea446eaa4142f1de640dcaee8fe236d73cfcc4b9ef11b11858215444a2"
+        and product_activation_run.get("resource_observation_sha256")
+        == "e30bbf56d7ed5c00f02f5a94e5ee41efeb31fe7f8d78aa8dad05b6d3a1e5ac27",
         "failed protected product-activation observation was hidden or promoted",
     )
     if verify_physical:

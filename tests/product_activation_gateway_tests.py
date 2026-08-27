@@ -97,11 +97,15 @@ class ProductActivationGatewayTests(unittest.TestCase):
         )
         resource = root / "plans" / PACKAGE_ID / "resource-observation.json"
         resource.parent.mkdir(parents=True)
-        resource.write_bytes(
-            activation.canonical_bytes(
-                {"schema": "laplace.execution-resource-observation/v1", "observation_sha256": "31" * 32}
-            )
+        resource_document = {
+            "schema": "laplace.execution-resource-observation/v2",
+            "package_id": PACKAGE_ID,
+            "package_manifest_sha256": activation.sha256_file(manifest),
+        }
+        resource_document["observation_sha256"] = (
+            activation.resource_observation_identity(resource_document)
         )
+        resource.write_bytes(activation.canonical_bytes(resource_document) + b"\n")
         (root / "unicode-source").mkdir()
         continuation = {
             "active_work": {
@@ -121,7 +125,9 @@ class ProductActivationGatewayTests(unittest.TestCase):
                         "resource_observation": {
                             "receipt": str(resource),
                             "receipt_sha256": activation.sha256_file(resource),
-                            "observation_sha256": "31" * 32,
+                            "observation_sha256": resource_document[
+                                "observation_sha256"
+                            ],
                         },
                     }
                 }
@@ -230,6 +236,58 @@ class ProductActivationGatewayTests(unittest.TestCase):
                 activation.build_request(contract, continuation, environment, KEY, NOW)
             self.assertTrue(manifest.is_file())
 
+    def test_resource_receipt_must_bind_the_signed_package(self) -> None:
+        for field, value in (
+            ("package_id", "61" * 32),
+            ("package_manifest_sha256", "62" * 32),
+        ):
+            with self.subTest(field=field), tempfile.TemporaryDirectory(
+                prefix="laplace-activation-resource-binding-"
+            ) as temporary:
+                contract, _continuation, environment, manifest, resource = self.fixture(
+                    Path(temporary)
+                )
+                document = activation.load_json(resource)
+                document[field] = value
+                resource.write_bytes(activation.canonical_bytes(document))
+                with self.assertRaisesRegex(
+                    activation.ActivationGatewayError,
+                    "resource observation is not bound to the signed product package",
+                ):
+                    activation.build_request(
+                        contract,
+                        {},
+                        environment,
+                        KEY,
+                        NOW,
+                        manifest.parent / "package-receipt.json",
+                        resource,
+                    )
+
+    def test_resource_receipt_self_hash_mutant_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="laplace-activation-resource-self-hash-"
+        ) as temporary:
+            contract, _continuation, environment, manifest, resource = self.fixture(
+                Path(temporary)
+            )
+            document = activation.load_json(resource)
+            document["observation_sha256"] = "63" * 32
+            resource.write_bytes(activation.canonical_bytes(document) + b"\n")
+            with self.assertRaisesRegex(
+                activation.ActivationGatewayError,
+                "resource observation is not bound to the signed product package",
+            ):
+                activation.build_request(
+                    contract,
+                    {},
+                    environment,
+                    KEY,
+                    NOW,
+                    manifest.parent / "package-receipt.json",
+                    resource,
+                )
+
     def test_duplicate_json_key_is_rejected(self) -> None:
         with self.assertRaisesRegex(activation.ActivationGatewayError, "duplicate JSON key"):
             activation.parse_json(b'{"schema":"a","schema":"b"}')
@@ -284,11 +342,13 @@ class ProductActivationGatewayTests(unittest.TestCase):
         self.assertIn("if: github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn("environment: product", workflow)
         self.assertIn("test \"$GITHUB_REF\" = refs/heads/main", workflow)
-        self.assertIn("tools/product/build-package.py build", workflow)
+        self.assertIn("tools/product/build-package.py compose", workflow)
+        self.assertNotIn("tools/product/build-package.py plan", workflow)
+        self.assertNotIn("tools/product/build-package.py build", workflow)
         self.assertNotIn("laplace-product-build-result.json", workflow)
         self.assertNotIn("jq -er '.manifest' \"$result\"", workflow)
         self.assertIn(
-            "expected_source_root=\"$(jq -er '.stage_directory' \"$plan\")/root\"",
+            "expected_source_root=\"$(jq -er '.stage_directory' \"$selection\")/root\"",
             workflow,
         )
         self.assertNotIn("/build/laplace/stage/product/$build_id/root", workflow)

@@ -20,6 +20,7 @@ CONTRACT_SCHEMA = "laplace.product-package-contract/v1"
 MANIFEST_SCHEMA = "laplace.package-manifest/v1"
 RECEIPT_SCHEMA = "laplace.product-package-receipt/v1"
 PLAN_SCHEMA = "laplace.product-package-plan/v1"
+SELECTION_SCHEMA = "laplace.product-package-selection/v1"
 PUBLICATION_SCHEMA = "laplace.postgresql-package-publication-receipt/v1"
 QUALIFICATION_SCHEMA = "laplace.runtime-provider-qualification/v1"
 HEX_256 = re.compile(r"^[0-9a-f]{64}$")
@@ -1593,6 +1594,70 @@ def execute_plan(
     return receipt
 
 
+def select_or_build_product(
+    contract: dict[str, Any], repository: Path, plan: dict[str, Any]
+) -> dict[str, Any]:
+    build_directory = Path(plan["build_directory"])
+    receipt_path = build_directory / "package-receipt.json"
+    built_new = False
+    if not receipt_path.exists():
+        execute_plan(contract, repository, plan)
+        built_new = True
+    if not receipt_path.is_file() or receipt_path.is_symlink():
+        raise ProductPackageError("product package receipt is absent or not physical")
+    receipt = load_json(receipt_path)
+    if (
+        receipt.get("schema") != RECEIPT_SCHEMA
+        or receipt.get("plan_sha256") != plan["plan_sha256"]
+        or receipt.get("activation_eligible") is not True
+        or receipt.get("build_input_closure_complete") is not True
+        or receipt.get("product_activated") is not False
+    ):
+        raise ProductPackageError("selected product package receipt differs from its exact plan")
+    manifest_path = Path(require_string(receipt.get("manifest"), "product receipt manifest"))
+    expected_manifest_path = build_directory / "package-manifest.json"
+    if manifest_path != expected_manifest_path or not manifest_path.is_file() or manifest_path.is_symlink():
+        raise ProductPackageError("selected product manifest is absent or not paired with its receipt")
+    if sha256_file(manifest_path) != receipt.get("manifest_sha256"):
+        raise ProductPackageError("selected product manifest bytes differ from its receipt")
+    manifest = load_json(manifest_path)
+    package_id = require_string(receipt.get("package_id"), "product receipt package id")
+    if HEX_256.fullmatch(package_id) is None or manifest.get("package_id") != package_id:
+        raise ProductPackageError("selected product package identity differs")
+    expected_physical_root = Path(plan["stage_directory"]) / "root" / str(
+        manifest.get("root", "")
+    ).lstrip("/")
+    if receipt.get("physical_root") != str(expected_physical_root) or not expected_physical_root.is_dir():
+        raise ProductPackageError("selected product physical root differs from its plan")
+    return {
+        "schema": SELECTION_SCHEMA,
+        "plan_id": plan["plan_id"],
+        "plan_sha256": plan["plan_sha256"],
+        "build_directory": plan["build_directory"],
+        "stage_directory": plan["stage_directory"],
+        "product_receipt": str(receipt_path),
+        "package_id": package_id,
+        "built_new": built_new,
+    }
+
+
+def write_result(path: str, value: dict[str, Any]) -> None:
+    content = canonical_bytes(value)
+    if path == "-":
+        sys.stdout.buffer.write(content)
+        return
+    output = Path(path)
+    if not output.parent.is_dir():
+        raise ProductPackageError("result output parent is absent")
+    try:
+        with output.open("xb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except FileExistsError as error:
+        raise ProductPackageError("result output already exists") from error
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", default=".")
@@ -1602,10 +1667,12 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("validate-contract")
-    for name in ("plan", "build"):
+    for name in ("plan", "build", "compose"):
         command = subparsers.add_parser(name)
         command.add_argument("--postgresql-publication", required=True)
         command.add_argument("--allow-dirty", action="store_true")
+        if name == "compose":
+            command.add_argument("--output", default="-")
     return parser.parse_args(argv)
 
 
@@ -1632,8 +1699,13 @@ def main(argv: Sequence[str]) -> int:
     )
     if arguments.command == "plan":
         print(json.dumps(plan, indent=2, sort_keys=True))
-    else:
+    elif arguments.command == "build":
         print(json.dumps(execute_plan(contract, repository, plan), indent=2, sort_keys=True))
+    else:
+        write_result(
+            arguments.output,
+            select_or_build_product(contract, repository, plan),
+        )
     return 0
 
 

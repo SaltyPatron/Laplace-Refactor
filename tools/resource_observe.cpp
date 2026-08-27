@@ -339,7 +339,7 @@ int Run(const Options& options) {
               << "  \"partition_receipt\": " << Json(partition_receipt) << ",\n"
               << "  \"processor_allocation_receipt\": " << Json(processor_receipt) << ",\n"
               << "  \"root_grant_receipt\": " << Json(root_receipt) << ",\n"
-              << "  \"schema\": \"laplace.execution-resource-observation/v1\",\n"
+              << "  \"schema\": \"laplace.execution-resource-observation-candidate/v1\",\n"
               << "  \"source\": \"laplace_native_execution_authority\",\n"
               << "  \"storage\": {\n";
     EmitStorage("data", storage[0], true);

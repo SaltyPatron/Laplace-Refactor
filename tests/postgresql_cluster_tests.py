@@ -50,17 +50,26 @@ class PostgreSQLClusterContract(unittest.TestCase):
         self.activation_root = self.root / "activation-root"
         self.activation_root.mkdir()
         write_json(self.contract_path, self.contract)
-        write_json(self.resource_path, self.valid_resource_observation())
+        package = self.create_package()
+        write_json(self.manifest_path, package)
+        write_json(self.resource_path, self.valid_resource_observation(package))
         write_json(self.collision_path, self.valid_collision_observation())
-        write_json(self.manifest_path, self.create_package())
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def valid_resource_observation(self) -> dict[str, Any]:
+    def valid_resource_observation(
+        self, package: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        if package is None:
+            package = clusterctl.load_json(self.manifest_path)
         observation = {
             "schema": clusterctl.RESOURCE_SCHEMA,
             "source": "laplace_native_execution_authority",
+            "package_id": package["package_id"],
+            "package_manifest_sha256": clusterctl.sha256_bytes(
+                clusterctl.canonical_bytes(package)
+            ),
             "topology_receipt": "1" * 64,
             "root_grant_receipt": "2" * 64,
             "partition_receipt": "3" * 64,
@@ -283,6 +292,9 @@ class PostgreSQLClusterContract(unittest.TestCase):
 
     def test_native_resource_observation_finalization_binds_packaged_observer(self) -> None:
         native = self.valid_resource_observation()
+        package_id = native.pop("package_id")
+        package_manifest_sha256 = native.pop("package_manifest_sha256")
+        native["schema"] = clusterctl.RESOURCE_CANDIDATE_SCHEMA
         native.pop("observation_sha256")
         native["native_authority"].pop("observer")
         result = clusterctl.finalize_native_resource_observation(
@@ -293,6 +305,8 @@ class PostgreSQLClusterContract(unittest.TestCase):
                 "sha256": "7" * 64,
             },
             self.contract,
+            package_id,
+            package_manifest_sha256,
         )
         self.assertEqual(
             result["native_authority"]["observer"],
@@ -302,6 +316,25 @@ class PostgreSQLClusterContract(unittest.TestCase):
             result["observation_sha256"],
             clusterctl.resource_observation_identity(result),
         )
+
+    def test_resource_observation_package_binding_mutants_are_rejected(self) -> None:
+        for field, value in (
+            ("package_id", "a" * 64),
+            ("package_manifest_sha256", "b" * 64),
+        ):
+            observation = self.valid_resource_observation()
+            observation[field] = value
+            observation["observation_sha256"] = (
+                clusterctl.resource_observation_identity(observation)
+            )
+            expected = (
+                "resource observation package identity differs"
+                if field == "package_id"
+                else "resource observation package manifest differs"
+            )
+            package = clusterctl.load_json(self.manifest_path)
+            with self.assertRaisesRegex(clusterctl.ClusterError, expected):
+                clusterctl.validate_resource_package_binding(observation, package)
 
     def test_cluster_contract_cannot_omit_native_resource_observer(self) -> None:
         contract = copy.deepcopy(self.contract)
