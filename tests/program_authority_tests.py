@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-activation-eligible-postgresql-and-complete-product-packages-built-isolated-cluster-and-unicode-product-activation-pending",
+        == "implementation-in-progress-exact-product-package-installed-isolated-cluster-and-unicode-product-activation-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -828,9 +828,23 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and complete_product.get("package_total_file_bytes") == 532480227
         and complete_product.get("build_input_closure_complete") is True
         and complete_product.get("activation_eligible") is True
-        and complete_product.get("immutable_release_installed") is False
+        and complete_product.get("immutable_release_installed") is True
         and complete_product.get("product_activated") is False,
         "complete product package extent or proof state drift",
+    )
+    installation = complete_product.get("installation", {})
+    require(
+        installation.get("receipt_schema")
+        == "laplace.product-package-installation-receipt/v1"
+        and installation.get("receipt_sha256")
+        == "276e6002a8db85f3e5ca7207a8580cbcd4a5e7048e1ccbb5a6e7fbaf977d8e9e"
+        and installation.get("installation_receipt_sha256")
+        == "7c82e967dc843fb3bf8243cccb72900e7574e7031e3148fd7c686fc13fbc69a6"
+        and installation.get("installed_package_verified") is True
+        and installation.get("exact_replay_verified") is True
+        and installation.get("overwrite_performed") is False
+        and installation.get("root_ownership_complete") is False,
+        "complete product installation receipt drift",
     )
     complete_closure = complete_product.get("recursive_elf_closure", {})
     require(
@@ -863,20 +877,20 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "4ca2f7184cd801536ea9c963080fdd7b73632054",
+        == "6f28f5c3ab891938805b0d8c0978eae38b5b6b2f",
         "product-package implementation checkpoint drift",
     )
     require(postgresql.get("implementation_commit") == "16126c4a4a90a6710528f94aacb401cf45fdea66", "historical PostgreSQL composer checkpoint drift")
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
     contains_all(work.get("immediate_implementation_boundary", []), ("PostgreSQL 18.6", "accepted Laplace package", "1114112", "without a second semantic calculation", "direct and reverse", "restart", "product-root activation receipt"), "Unicode product-activation boundary was narrowed")
-    contains_all(work.get("nonclaims", []), ("not yet established", "not yet installed", "not yet product activated", "not seeded", "not implemented", "not released"), "Unicode activation work was promoted beyond evidence")
+    contains_all(work.get("nonclaims", []), ("not yet established", "root ownership", "not established", "not yet product activated", "not seeded", "not implemented", "not released"), "Unicode activation work was promoted beyond evidence")
     github = document.get("github_observation", {})
     require(github.get("main_commit") == document.get("repository", {}).get("base_commit"), "GitHub main and continuation base diverged")
     require(github.get("product_cluster_project_status") == "In Progress", "active product-cluster work returned to Todo")
     require(github.get("unicode_product_activation_issue", {}).get("state") == "open", "Unicode product activation issue was prematurely closed")
     active_pr = github.get("active_product_runtime_pull_request", {})
     require(active_pr.get("number") == 74 and active_pr.get("state") == "open" and active_pr.get("draft") is True, "active runtime PR observation drift")
-    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "activation-eligible PostgreSQL 18.6", "complete Laplace product packages", "immutable installation", "cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
+    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "atomically installed", "content-addressed release path", "root ownership", "cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
@@ -1063,12 +1077,21 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             complete_product_physical_root.is_dir(),
             "complete staged product root is missing from the observed machine",
         )
-        immutable_product_release = Path("/opt/laplace/releases") / complete_product.get(
-            "package_id", ""
-        )
+        installation_receipt_path = Path(installation.get("receipt", ""))
         require(
-            not immutable_product_release.exists(),
-            "continuation claims the immutable product release is uninstalled but it exists",
+            installation_receipt_path.is_file()
+            and physical_file_digest(installation_receipt_path)
+            == installation.get("receipt_sha256"),
+            "physical package installation receipt differs from continuation state",
+        )
+        physical_installation = load(installation_receipt_path)
+        immutable_product_release = Path(installation.get("installed_release", ""))
+        require(
+            physical_installation.get("installation_receipt_sha256")
+            == installation.get("installation_receipt_sha256")
+            and physical_installation.get("installed_package_verified") is True
+            and immutable_product_release.is_dir(),
+            "physical immutable package installation differs from continuation state",
         )
         for closure_key in ("receipt", "independent_reverification"):
             closure_value = recursive_elf.get(closure_key, {})

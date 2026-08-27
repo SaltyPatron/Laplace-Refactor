@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T11:52:53Z",
+  "observed_at_utc": "2026-08-27T12:01:36Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "4ca2f7184cd801536ea9c963080fdd7b73632054",
-    "implementation_checkpoint_commit": "4ca2f7184cd801536ea9c963080fdd7b73632054",
+    "observed_branch_head": "6f28f5c3ab891938805b0d8c0978eae38b5b6b2f",
+    "implementation_checkpoint_commit": "6f28f5c3ab891938805b0d8c0978eae38b5b6b2f",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-activation-eligible-postgresql-and-complete-product-packages-built-isolated-cluster-and-unicode-product-activation-pending",
+    "state": "implementation-in-progress-exact-product-package-installed-isolated-cluster-and-unicode-product-activation-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -944,7 +944,18 @@
         },
         "activation_eligible": true,
         "activation_disposition": "eligible for isolated cluster planning",
-        "immutable_release_installed": false,
+        "immutable_release_installed": true,
+        "installation": {
+          "receipt_schema": "laplace.product-package-installation-receipt/v1",
+          "receipt": "/opt/laplace/receipts/packages/8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928.json",
+          "receipt_sha256": "276e6002a8db85f3e5ca7207a8580cbcd4a5e7048e1ccbb5a6e7fbaf977d8e9e",
+          "installation_receipt_sha256": "7c82e967dc843fb3bf8243cccb72900e7574e7031e3148fd7c686fc13fbc69a6",
+          "installed_release": "/opt/laplace/releases/8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928",
+          "installed_package_verified": true,
+          "exact_replay_verified": true,
+          "overwrite_performed": false,
+          "root_ownership_complete": false
+        },
         "product_activated": false
       },
       "local_validation": {
@@ -969,7 +980,6 @@
       "controlled integration acceptance only"
     ],
     "immediate_implementation_boundary": [
-      "install the activation-eligible package bytes at their immutable /opt/laplace/releases package identity without replacing an existing release",
       "generate and receipt the live native execution-resource observation and collision observation required by the isolated cluster plan",
       "initialize start and bootstrap the exact PostgreSQL 18.6 isolated cluster under issue 12",
       "verify the accepted Laplace package extension configuration roles loaded-object closure restart readiness and public SQL boundary in that cluster",
@@ -982,7 +992,7 @@
     "whole_product_reason": "Unicode is the exact address and rendering floor required before the typed numerical highway can connect identifiers languages grammars recipes modalities and other machine dimensions; this is product activation of one substrate root not source-family ingestion.",
     "nonclaims": [
       "the activation-eligible PostgreSQL 18.6 and complete Laplace product packages exist but the selected product cluster is not yet established",
-      "the activation-eligible Laplace package is staged but not yet installed at its immutable product release path",
+      "the exact Laplace package is installed and verified at its content-addressed release path but root ownership and active product state are not established",
       "Unicode is not yet product activated",
       "knowledge is not seeded",
       "the typed numerical highway is not implemented",
@@ -1021,8 +1031,8 @@
       "number": 74,
       "state": "open",
       "draft": true,
-      "head_commit": "4ca2f7184cd801536ea9c963080fdd7b73632054",
-      "proof_state": "partial implementation; activation-eligible PostgreSQL 18.6 and complete Laplace product packages have been physically built with complete input closure runtime-provider qualification full upstream tests recursive loaded-object closure and exact platform ABI receipts; immutable installation cluster activation Unicode activation seed and release remain false"
+      "head_commit": "6f28f5c3ab891938805b0d8c0978eae38b5b6b2f",
+      "proof_state": "partial implementation; the activation-eligible complete Laplace product package is atomically installed and verified at its content-addressed release path with exact replay and no overwrite; root ownership cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
