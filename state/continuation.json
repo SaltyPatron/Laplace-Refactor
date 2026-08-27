@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T12:01:36Z",
+  "observed_at_utc": "2026-08-27T12:10:09Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "6f28f5c3ab891938805b0d8c0978eae38b5b6b2f",
-    "implementation_checkpoint_commit": "6f28f5c3ab891938805b0d8c0978eae38b5b6b2f",
+    "observed_branch_head": "5d8cffb5941e348e0a3def8f97ac04f559cae87b",
+    "implementation_checkpoint_commit": "5d8cffb5941e348e0a3def8f97ac04f559cae87b",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-exact-product-package-installed-isolated-cluster-and-unicode-product-activation-pending",
+    "state": "implementation-in-progress-native-resource-observer-implemented-successor-product-package-rebuild-and-cluster-activation-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -944,6 +944,9 @@
         },
         "activation_eligible": true,
         "activation_disposition": "eligible for isolated cluster planning",
+        "current_contract_activation_eligible": false,
+        "superseded_reason": "the cluster resource contract now requires the packaged native execution-resource observer needed to issue the live topology grant processor-allocation and storage receipts",
+        "successor_requirement": "bin/laplace_resource_observe must be built installed manifested and reverified through the complete product package composer",
         "immutable_release_installed": true,
         "installation": {
           "receipt_schema": "laplace.product-package-installation-receipt/v1",
@@ -980,6 +983,8 @@
       "controlled integration acceptance only"
     ],
     "immediate_implementation_boundary": [
+      "rebuild the complete activation-eligible package with the packaged native execution-resource observer through the accepted clean product composer",
+      "atomically install and verify the successor package at its new content-addressed release identity without overwriting the historical installed package",
       "generate and receipt the live native execution-resource observation and collision observation required by the isolated cluster plan",
       "initialize start and bootstrap the exact PostgreSQL 18.6 isolated cluster under issue 12",
       "verify the accepted Laplace package extension configuration roles loaded-object closure restart readiness and public SQL boundary in that cluster",
@@ -993,6 +998,7 @@
     "nonclaims": [
       "the activation-eligible PostgreSQL 18.6 and complete Laplace product packages exist but the selected product cluster is not yet established",
       "the exact Laplace package is installed and verified at its content-addressed release path but root ownership and active product state are not established",
+      "the installed package is historical under the current contract because it predates the required packaged native execution-resource observer",
       "Unicode is not yet product activated",
       "knowledge is not seeded",
       "the typed numerical highway is not implemented",
@@ -1031,8 +1037,8 @@
       "number": 74,
       "state": "open",
       "draft": true,
-      "head_commit": "6f28f5c3ab891938805b0d8c0978eae38b5b6b2f",
-      "proof_state": "partial implementation; the activation-eligible complete Laplace product package is atomically installed and verified at its content-addressed release path with exact replay and no overwrite; root ownership cluster activation Unicode activation seed and release remain false"
+      "head_commit": "5d8cffb5941e348e0a3def8f97ac04f559cae87b",
+      "proof_state": "partial implementation; the native execution-resource observer and exact package-bound observation route are implemented and locally proven, while the prior installed package is retained as historical evidence; successor package build and installation root ownership cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,

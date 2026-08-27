@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-exact-product-package-installed-isolated-cluster-and-unicode-product-activation-pending",
+        == "implementation-in-progress-native-resource-observer-implemented-successor-product-package-rebuild-and-cluster-activation-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -828,9 +828,15 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and complete_product.get("package_total_file_bytes") == 532480227
         and complete_product.get("build_input_closure_complete") is True
         and complete_product.get("activation_eligible") is True
+        and complete_product.get("current_contract_activation_eligible") is False
         and complete_product.get("immutable_release_installed") is True
         and complete_product.get("product_activated") is False,
         "complete product package extent or proof state drift",
+    )
+    contains_all(
+        complete_product,
+        ("native execution-resource observer", "bin/laplace_resource_observe"),
+        "successor product package requirement was hidden",
     )
     installation = complete_product.get("installation", {})
     require(
@@ -877,12 +883,12 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "6f28f5c3ab891938805b0d8c0978eae38b5b6b2f",
+        == "5d8cffb5941e348e0a3def8f97ac04f559cae87b",
         "product-package implementation checkpoint drift",
     )
     require(postgresql.get("implementation_commit") == "16126c4a4a90a6710528f94aacb401cf45fdea66", "historical PostgreSQL composer checkpoint drift")
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
-    contains_all(work.get("immediate_implementation_boundary", []), ("PostgreSQL 18.6", "accepted Laplace package", "1114112", "without a second semantic calculation", "direct and reverse", "restart", "product-root activation receipt"), "Unicode product-activation boundary was narrowed")
+    contains_all(work.get("immediate_implementation_boundary", []), ("native execution-resource observer", "successor package", "PostgreSQL 18.6", "accepted Laplace package", "1114112", "without a second semantic calculation", "direct and reverse", "restart", "product-root activation receipt"), "Unicode product-activation boundary was narrowed")
     contains_all(work.get("nonclaims", []), ("not yet established", "root ownership", "not established", "not yet product activated", "not seeded", "not implemented", "not released"), "Unicode activation work was promoted beyond evidence")
     github = document.get("github_observation", {})
     require(github.get("main_commit") == document.get("repository", {}).get("base_commit"), "GitHub main and continuation base diverged")
@@ -890,7 +896,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(github.get("unicode_product_activation_issue", {}).get("state") == "open", "Unicode product activation issue was prematurely closed")
     active_pr = github.get("active_product_runtime_pull_request", {})
     require(active_pr.get("number") == 74 and active_pr.get("state") == "open" and active_pr.get("draft") is True, "active runtime PR observation drift")
-    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "atomically installed", "content-addressed release path", "root ownership", "cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
+    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "native execution-resource observer", "successor package", "root ownership", "cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
