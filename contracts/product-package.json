@@ -33,7 +33,10 @@
   "host_build_provider": {
     "receipt_schema": "laplace.postgresql-host-build-provider/v1",
     "verifier": "tools/postgresql/host-provider.py",
-    "sandbox_executable": "/usr/bin/bwrap"
+    "sandbox_executable": "/usr/bin/bwrap",
+    "additional_receipted_roots": [
+      "/var/lib/dpkg"
+    ]
   },
   "package": {
     "manifest_schema": "laplace.package-manifest/v1",

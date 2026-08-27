@@ -142,6 +142,8 @@ def validate_contract(contract: dict[str, Any]) -> None:
     require_relative(host_provider.get("verifier"), "host_build_provider.verifier")
     if host_provider.get("sandbox_executable") != "/usr/bin/bwrap":
         raise ProductPackageError("product build sandbox executable is invalid")
+    if host_provider.get("additional_receipted_roots") != ["/var/lib/dpkg"]:
+        raise ProductPackageError("additional host build-provider roots are invalid")
     if package.get("manifest_schema") != MANIFEST_SCHEMA:
         raise ProductPackageError("product package manifest schema is invalid")
     if package.get("release_root") != "/opt/laplace/releases":
@@ -522,6 +524,9 @@ def create_plan(
         "blake3": exact_tree_receipt(blake3_root),
         **provider_roots,
     }
+    for root_value in contract["host_build_provider"]["additional_receipted_roots"]:
+        root = require_absolute(root_value, "host_build_provider.additional_receipted_roots")
+        build_input_roots[f"host:{root}"] = exact_tree_receipt(root)
     source = repository_identity(repository, require_clean)
     driver = Path(__file__).resolve()
     recipe = {

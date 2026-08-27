@@ -64,6 +64,12 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "provider set"):
             PACKAGE.validate_contract(mutant)
 
+    def test_package_database_provider_cannot_be_omitted(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["host_build_provider"]["additional_receipted_roots"] = []
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "additional host"):
+            PACKAGE.validate_contract(mutant)
+
     def test_provider_runtime_and_soname_are_copied(self) -> None:
         prefix = self.root / "package"
         prefix.mkdir()
