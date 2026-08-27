@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-inert-runtime-and-toolchain-packages-verified-successor-postgresql-plan-ready-provider-qualification-pending",
+        == "implementation-in-progress-inert-postgresql-18.6-product-package-built-runtime-closure-and-provider-qualification-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -552,7 +552,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(staging_violation.get("activated") is False, "unactivated OpenSSL staging violation became activation")
     require(staging_violation.get("file_count") == 161 and staging_violation.get("physical_bytes") == 78739606, "OpenSSL staging violation evidence drift")
     contains_all(staging_violation, ("environment-only DESTDIR", "quarantine", "GNU Make DESTDIR", "mutation test"), "OpenSSL staging violation or correction was hidden")
-    contains_all(runtime.get("continuation_condition", ""), ("exact runtime receipt", "PostgreSQL build plan", "byte-for-byte", "PostgreSQL 18.6", "inert composed product package", "separate accepted selected-runtime-provider qualification"), "runtime continuation was approximated")
+    contains_all(runtime.get("continuation_condition", ""), ("exact composed PostgreSQL package receipt", "exact runtime", "build-toolchain receipts", "Intel", "recursive ELF closure", "platform ABI", "separate accepted selected-runtime-provider qualification"), "runtime continuation was approximated")
     contains_all(runtime.get("nonclaims", []), ("not activation eligible", "not an installed product", "not been waived", "not been qualified", "not been installed qualified or accepted", "not been activated"), "runtime package or provider was promoted beyond evidence")
     toolchain = progress.get("build_toolchain_package", {})
     require(toolchain.get("contract_schema") == "laplace.toolchain-build-contract/v1", "toolchain package contract drift")
@@ -594,7 +594,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     postgresql = progress.get("postgresql_product_package", {})
     require(postgresql.get("contract_schema") == "laplace.postgresql-build-contract/v2", "PostgreSQL product composer contract drift")
-    require(postgresql.get("state") == "successor-deterministic-plan-ready-not-package-built", "PostgreSQL package proof state drift")
+    require(postgresql.get("state") == "inert-composed-postgresql-package-built-and-tested-activation-ineligible-runtime-closure-incomplete", "PostgreSQL package proof state drift")
     require(
         postgresql.get("build_input_id")
         == "272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e"
@@ -634,6 +634,49 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         latest_rejected_postgresql,
         ("IO::Pty", "IPC::Run", "OpenSSL 4.0.1", "TAP prerequisites", "uppercase Autoconf", "ambient-provider negative control"),
         "latest PostgreSQL configure proof or correction was hidden",
+    )
+    successful_postgresql = postgresql.get("latest_successful_package_execution", {})
+    require(
+        successful_postgresql.get("receipt_schema")
+        == "laplace.postgresql-package-receipt/v2"
+        and successful_postgresql.get("build_input_id")
+        == "272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e"
+        and successful_postgresql.get("package_receipt_sha256")
+        == "6fde367d6f19ed6fbe89d141f43d927d389b3ac2a5cb7383c33193d81240a96d"
+        and successful_postgresql.get("package_tree_sha256")
+        == "4b61ba439e224e155bd1f8a1764e3b28ede62112f5069fa2b01527a64db9d118",
+        "successful PostgreSQL package identity drift",
+    )
+    require(
+        successful_postgresql.get("package_file_count") == 2681
+        and successful_postgresql.get("package_total_file_bytes") == 297159336
+        and successful_postgresql.get("completed_targets")
+        == ["world-bin", "check-world", "install-world-bin"],
+        "successful PostgreSQL package extent or test boundary drift",
+    )
+    recursive_elf = successful_postgresql.get("recursive_elf_diagnostic", {})
+    require(
+        recursive_elf.get("root_artifacts") == 191
+        and recursive_elf.get("objects") == 166
+        and recursive_elf.get("edges") == 764
+        and recursive_elf.get("unresolved_edges") == 0
+        and recursive_elf.get("resolution_conflicts") == 0
+        and recursive_elf.get("external_objects") == 4
+        and recursive_elf.get("host_objects") == 5,
+        "PostgreSQL recursive ELF diagnostic drift",
+    )
+    contains_all(
+        recursive_elf,
+        ("Intel oneAPI", "libimf.so", "libirng.so", "ld-linux-x86-64.so.2", "libstdc++.so.6", "final receipt must be generated"),
+        "PostgreSQL recursive ELF blocker or diagnostic boundary was hidden",
+    )
+    require(
+        successful_postgresql.get("build_input_closure_complete") is False
+        and successful_postgresql.get("recursive_elf_closure_verified") is False
+        and successful_postgresql.get("runtime_provider_qualification_complete") is False
+        and successful_postgresql.get("activation_eligible") is False
+        and successful_postgresql.get("product_activation_occurred") is False,
+        "successful inert PostgreSQL package was promoted beyond its closure evidence",
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
@@ -955,6 +998,17 @@ class ProgramAuthorityTests(unittest.TestCase):
         rejected["compilation_started"] = True
         rejected["package_receipt_issued"] = True
         with self.assertRaisesRegex(ValueError, "latest rejected PostgreSQL"):
+            validate_continuation(mutant, verify_physical=False)
+
+    def test_mutation_inert_postgresql_package_is_promoted(self) -> None:
+        mutant = copy.deepcopy(self.continuation)
+        package = mutant["active_work"]["implementation_progress"][
+            "postgresql_product_package"
+        ]["latest_successful_package_execution"]
+        package["build_input_closure_complete"] = True
+        package["recursive_elf_closure_verified"] = True
+        package["activation_eligible"] = True
+        with self.assertRaisesRegex(ValueError, "inert PostgreSQL package"):
             validate_continuation(mutant, verify_physical=False)
 
     def test_mutation_profile_completion_promoted_to_seed_is_detected(self) -> None:

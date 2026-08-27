@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T07:55:37Z",
+  "observed_at_utc": "2026-08-27T08:06:07Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-inert-runtime-and-toolchain-packages-verified-successor-postgresql-plan-ready-provider-qualification-pending",
+    "state": "implementation-in-progress-inert-postgresql-18.6-product-package-built-runtime-closure-and-provider-qualification-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -513,7 +513,7 @@
           "corrected_by": "explicit GNU Make DESTDIR assignment plus a deliberate mutation test",
           "activated": false
         },
-        "continuation_condition": "consume only exact runtime receipt 0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a and exact build-toolchain receipt 9cd1c23b21ab8504620faa5cf198e0d79ec625ec3a875184f757a6c1a49b1ee6 in PostgreSQL build plan 272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e; preserve the runtime subtree byte-for-byte while building testing and staging PostgreSQL 18.6; select and prove the staged OpenSSL 4.0.1 executable and exact packaged Perl TAP providers before configure; issue only an inert composed product package whose remaining input and provider qualification remain incomplete; require a separate accepted selected-runtime-provider qualification before any product activation",
+        "continuation_condition": "consume only exact composed PostgreSQL package receipt 6fde367d6f19ed6fbe89d141f43d927d389b3ac2a5cb7383c33193d81240a96d and its exact runtime and build-toolchain receipts; package the selected Intel and compiler support runtime providers through generic receipts; verify the complete recursive ELF closure while retaining the platform ABI as an exact declared provider boundary; require a separate accepted selected-runtime-provider qualification before any product activation",
         "nonclaims": [
           "the inert v2 runtime package is not activation eligible and is not an installed product",
           "the prior liburing failures have not been waived reclassified as passes or attributed solely to the kernel",
@@ -572,7 +572,7 @@
       "postgresql_product_package": {
         "contract_schema": "laplace.postgresql-build-contract/v2",
         "implementation_commit": "f2afa2ddc59d70c41a870652f4418f0a857336d6",
-        "state": "successor-deterministic-plan-ready-not-package-built",
+        "state": "inert-composed-postgresql-package-built-and-tested-activation-ineligible-runtime-closure-incomplete",
         "build_input_id": "272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e",
         "build_directory": "/build/laplace/build/postgresql/272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e",
         "staged_product_prefix": "/build/laplace/stage/postgresql/272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e/root/opt/laplace/current",
@@ -650,6 +650,69 @@
           "package_receipt_issued": false,
           "product_activation_occurred": false
         },
+        "latest_successful_package_execution": {
+          "receipt_schema": "laplace.postgresql-package-receipt/v2",
+          "build_input_id": "272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e",
+          "package_receipt": "/build/laplace/build/postgresql/272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e/package-receipt.json",
+          "package_receipt_sha256": "6fde367d6f19ed6fbe89d141f43d927d389b3ac2a5cb7383c33193d81240a96d",
+          "package_tree_sha256": "4b61ba439e224e155bd1f8a1764e3b28ede62112f5069fa2b01527a64db9d118",
+          "package_file_count": 2681,
+          "package_total_file_bytes": 297159336,
+          "build_plan_sha256": "92a9b294cff7e08d7fe8f58bd037a605bb7ffb10ef4a492ee3d9c5213719f548",
+          "build_input_preflight_sha256": "f1138365546bf340905421fafb95a83ff9092217029522d1b136d1a4399bb15a",
+          "build_log_sha256": "0643dafc9e2de6780b0c20eaa7ac5c0273ff5fe50703195c215e99f267ed4263",
+          "version": "PostgreSQL 18.6",
+          "completed_targets": [
+            "world-bin",
+            "check-world",
+            "install-world-bin"
+          ],
+          "input_selection_proven": [
+            "Intel oneAPI DPC++ C and C++ Compiler 2026.1.1",
+            "exact packaged GNU Make Bison Flex pkgconf binutils Perl 5.44.0 and prove providers",
+            "exact packaged IO::Pty 1.31 IO::Tty 1.31 and IPC::Run 20260402.0 providers",
+            "exact staged OpenSSL 4.0.1 executable and libraries",
+            "exact staged ICU XML LZ4 Zstandard zlib and liburing providers"
+          ],
+          "independent_package_reverification": {
+            "disposition": "exact package tree version configure and direct-needed classification reproduced",
+            "exit_code": 0
+          },
+          "recursive_elf_diagnostic": {
+            "schema": "laplace.elf-closure/v1",
+            "report_sha256": "83364b25663d3f4ae001c06d1b3145a19afbc1806ae35a1db8d00c9fcf93d49c",
+            "root_artifacts": 191,
+            "objects": 166,
+            "edges": 764,
+            "unresolved_edges": 0,
+            "resolution_conflicts": 0,
+            "custom_objects": 157,
+            "external_objects": 4,
+            "host_objects": 5,
+            "external_provider_family": "Intel oneAPI compiler 2026.1 runtime",
+            "external_sonames": [
+              "libimf.so",
+              "libintlc.so.5",
+              "libirng.so",
+              "libsvml.so"
+            ],
+            "host_platform_abi_sonames": [
+              "ld-linux-x86-64.so.2",
+              "libc.so.6",
+              "libgcc_s.so.1",
+              "libm.so.6",
+              "libstdc++.so.6"
+            ],
+            "authority": false,
+            "disposition": "diagnostic used to define the next generic closure implementation; the final receipt must be generated by the accepted package composer"
+          },
+          "build_input_closure_complete": false,
+          "recursive_elf_closure_verified": false,
+          "runtime_provider_qualification_complete": false,
+          "activation_eligible": false,
+          "activation_disposition": "blocked until selected Intel and compiler support libraries are packaged, the recursive ELF closure and platform ABI boundary are receipted, and the selected liburing runtime provider is qualified",
+          "product_activation_occurred": false
+        },
         "known_unclosed_inputs": [
           "ambient Python",
           "POSIX and configure utilities",
@@ -661,8 +724,9 @@
         "postgresql_build_contract_and_mutation": "29 of 29 passed including packaged TAP providers staged OpenSSL execution preflight and configure-selection mutations",
         "toolchain_build_contract_and_mutation": "46 of 46 passed including Perl module native-provider and consumer-manifest mutations",
         "runtime_build_graph_contract_and_mutation": "39 of 39 passed including source-entrypoint, second-shell RUNPATH, generated-libtool, executable-stack, controlled-test-loader, and package-verification mutations",
-        "program_authority": "24 of 24 passed including failed-runtime unqualified-provider build-toolchain-promotion and both rejected-PostgreSQL-promotion mutations",
+        "program_authority": "25 of 25 passed including failed-runtime unqualified-provider build-toolchain-promotion rejected-PostgreSQL-promotion and inert-package-promotion mutations",
         "requirements_trace": "12 of 12 passed",
+        "postgresql_18_6_package_build": "world-bin check-world and install-world-bin completed; exact inert package receipt issued and independently reverified",
         "syntax_and_diff": "Python compilation and git diff whitespace checks passed",
         "portable_registered_suite": "268 of 269 passed; the sole failure was the known canonical oneAPI numeric-provider absence in the portable Unicode PostgreSQL test"
       }
@@ -789,7 +853,7 @@
       "persistent_state": "the repository commits, inert runtime package, build-toolchain package, receipts, and the prior rejected PostgreSQL build evidence survived",
       "reverification": "both persistent package trees and receipts were reverified before a successor PostgreSQL plan was calculated",
       "successor_execution_started": true,
-      "successor_execution_disposition": "the first post-reboot successor crossed exact input preflight and PostgreSQL configure but was rejected before compilation by a case-sensitive configure-receipt verifier defect; a corrected content-addressed successor plan is ready",
+      "successor_execution_disposition": "the first post-reboot successor crossed exact input preflight and PostgreSQL configure but was rejected before compilation by a case-sensitive configure-receipt verifier defect; the corrected content-addressed successor completed compilation check-world installation and inert package verification",
       "product_activation_occurred": false
     }
   }
