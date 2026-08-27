@@ -440,6 +440,117 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_root_deposit_receipt (
     recorded_by name NOT NULL DEFAULT current_user
 );
 
+CREATE TABLE @LAPLACE_PG_SCHEMA@.highway_registry_generation (
+    activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    activation_epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    registry_version bigint NOT NULL CHECK (registry_version > 0),
+    registry_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    root_entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    root_physicality_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.physicality(physicality_id),
+    source_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    recipe_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    isa_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.execution_receipt(receipt_id),
+    working_set_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    producer_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    staged_stream_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    stream_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    sink_artifacts_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    kind_count bigint NOT NULL CHECK (kind_count > 0),
+    alias_count bigint NOT NULL CHECK (alias_count >= 0),
+    disposition_count bigint NOT NULL CHECK (disposition_count > 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    PRIMARY KEY (activation_epoch_id, activation_epoch_fingerprint),
+    UNIQUE (registry_version, registry_fingerprint)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.highway_registry_kind_projection (
+    activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    activation_epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    kind_id integer NOT NULL CHECK (kind_id > 0),
+    name_entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    introduced bigint NOT NULL CHECK (introduced > 0),
+    retired bigint NOT NULL CHECK (retired = 0 OR retired >= introduced),
+    PRIMARY KEY (activation_epoch_id, activation_epoch_fingerprint, kind_id),
+    UNIQUE (activation_epoch_id, activation_epoch_fingerprint, name_entity_id),
+    FOREIGN KEY (activation_epoch_id, activation_epoch_fingerprint)
+        REFERENCES @LAPLACE_PG_SCHEMA@.highway_registry_generation(
+            activation_epoch_id, activation_epoch_fingerprint)
+        DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.highway_registry_alias_projection (
+    activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    activation_epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    alias_name_entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    kind_id integer NOT NULL CHECK (kind_id > 0),
+    introduced bigint NOT NULL CHECK (introduced > 0),
+    retired bigint NOT NULL CHECK (retired = 0 OR retired >= introduced),
+    PRIMARY KEY (
+        activation_epoch_id, activation_epoch_fingerprint,
+        alias_name_entity_id),
+    FOREIGN KEY (activation_epoch_id, activation_epoch_fingerprint, kind_id)
+        REFERENCES @LAPLACE_PG_SCHEMA@.highway_registry_kind_projection(
+            activation_epoch_id, activation_epoch_fingerprint, kind_id)
+        DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.highway_registry_disposition_projection (
+    activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    activation_epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    disposition_id integer NOT NULL CHECK (disposition_id > 0),
+    name_entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    PRIMARY KEY (
+        activation_epoch_id, activation_epoch_fingerprint, disposition_id),
+    UNIQUE (activation_epoch_id, activation_epoch_fingerprint, name_entity_id),
+    FOREIGN KEY (activation_epoch_id, activation_epoch_fingerprint)
+        REFERENCES @LAPLACE_PG_SCHEMA@.highway_registry_generation(
+            activation_epoch_id, activation_epoch_fingerprint)
+        DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.highway_registry_activation_event (
+    sequence bigint PRIMARY KEY CHECK (sequence > 0),
+    activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    activation_epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    admission_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    activation_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    activation_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    activation_transaction_id xid NOT NULL,
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    FOREIGN KEY (activation_epoch_id, activation_epoch_fingerprint)
+        REFERENCES @LAPLACE_PG_SCHEMA@.highway_registry_generation(
+            activation_epoch_id, activation_epoch_fingerprint)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.highway_registry_active_control (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    sequence bigint NOT NULL CHECK (sequence >= 0),
+    active_present boolean NOT NULL,
+    activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    activation_epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    admission_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    activation_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    activation_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+);
+
+INSERT INTO @LAPLACE_PG_SCHEMA@.highway_registry_active_control(
+    singleton, sequence, active_present, activation_epoch_id,
+    activation_epoch_fingerprint, admission_receipt, activation_receipt,
+    activation_fingerprint)
+VALUES (
+    true, 0, false, decode(repeat('00', 16), 'hex'),
+    decode(repeat('00', 32), 'hex'), decode(repeat('00', 32), 'hex'),
+    decode(repeat('00', 32), 'hex'),
+    decode(repeat('00', 32), 'hex'));
+
 CREATE TABLE @LAPLACE_PG_SCHEMA@.perfcache_generation (
     activation_epoch_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
     epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
@@ -592,6 +703,98 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.trajectory_batch_result AS (
     item_count bigint
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.highway_key AS (
+    kind integer,
+    authority @LAPLACE_PG_SCHEMA@.content_id_128,
+    release @LAPLACE_PG_SCHEMA@.content_id_128,
+    namespace @LAPLACE_PG_SCHEMA@.content_id_128,
+    local_identifier @LAPLACE_PG_SCHEMA@.content_id_128,
+    version bigint
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.highway_batch_result AS (
+    coordinates bytea[],
+    collision_fingerprints bytea[],
+    receipt_id bytea,
+    context_fingerprint bytea,
+    program_fingerprint bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    instruction_count bigint,
+    executed_instruction_count bigint,
+    isa_major smallint,
+    isa_minor smallint,
+    receipt_detail integer,
+    status integer,
+    item_count bigint
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.highway_registry_activation_result AS (
+    root_entity_id bytea,
+    root_physicality_id bytea,
+    root_tier_floor smallint,
+    registry_version bigint,
+    registry_fingerprint bytea,
+    registry_epoch_id bytea,
+    registry_epoch_fingerprint bytea,
+    isa_receipt bytea,
+    source_fingerprint bytea,
+    recipe_fingerprint bytea,
+    unicode_root_receipt bytea,
+    unicode_activation_epoch_id bytea,
+    unicode_activation_epoch_fingerprint bytea,
+    working_set_receipt bytea,
+    presence_semantic_receipt bytea,
+    presence_execution_receipt bytea,
+    producer_receipt bytea,
+    staged_stream_receipt bytea,
+    stream_fingerprint bytea,
+    sink_artifacts_fingerprint bytea,
+    admission_receipt bytea,
+    activation_receipt bytea,
+    activation_fingerprint bytea,
+    activation_sequence bigint,
+    effect_disposition integer,
+    kind_name_entity_ids bytea[],
+    alias_name_entity_ids bytea[],
+    disposition_name_entity_ids bytea[],
+    atom_count bigint,
+    request_count bigint,
+    unique_entity_count numeric(20, 0),
+    unique_physicality_count numeric(20, 0),
+    novel_entity_count numeric(20, 0),
+    novel_physicality_count numeric(20, 0),
+    entity_inserted numeric(20, 0),
+    physicality_inserted numeric(20, 0),
+    trajectory_vertex_inserted numeric(20, 0),
+    occurrence_inserted numeric(20, 0),
+    plan_sequence_fingerprint bytea,
+    plan_count integer,
+    status integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.highway_registry_active_result AS (
+    registry_version bigint,
+    registry_fingerprint bytea,
+    registry_epoch_id bytea,
+    registry_epoch_fingerprint bytea,
+    root_entity_id bytea,
+    root_physicality_id bytea,
+    activation_sequence bigint,
+    activation_receipt bytea,
+    activation_fingerprint bytea,
+    isa_receipt bytea,
+    kind_ids integer[],
+    kind_name_entity_ids bytea[],
+    alias_kind_ids integer[],
+    alias_name_entity_ids bytea[],
+    disposition_ids integer[],
+    disposition_name_entity_ids bytea[],
+    unicode_activation_epoch_id bytea,
+    unicode_activation_epoch_fingerprint bytea,
+    status integer
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_root_build_result AS (
     root_receipt bytea,
     producer_receipt bytea,
@@ -683,6 +886,33 @@ RETURNS @LAPLACE_PG_SCHEMA@.trajectory_batch_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_TRAJECTORY_EXECUTE_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_CALCULATE_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.highway_key[])
+RETURNS @LAPLACE_PG_SCHEMA@.highway_batch_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_HIGHWAY_CALCULATE_SYMBOL@'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_EXECUTE_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.highway_key[])
+RETURNS @LAPLACE_PG_SCHEMA@.highway_batch_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_HIGHWAY_EXECUTE_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    numeric)
+RETURNS @LAPLACE_PG_SCHEMA@.highway_registry_activation_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context)
+RETURNS @LAPLACE_PG_SCHEMA@.highway_registry_active_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SYMBOL@'
+LANGUAGE C STABLE STRICT PARALLEL UNSAFE;
+
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_PERSISTENCE_DEPOSIT_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
     bytea,
@@ -752,6 +982,12 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_ducet_position FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_ducet_contraction FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_normalization_composition FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_root_deposit_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.highway_registry_generation FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.highway_registry_kind_projection FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.highway_registry_alias_projection FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.highway_registry_disposition_projection FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.highway_registry_activation_event FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.highway_registry_active_control FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_generation FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_activation_event FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.perfcache_active_control FROM PUBLIC;
@@ -789,6 +1025,24 @@ REVOKE EXECUTE ON FUNCTION
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_TRAJECTORY_EXECUTE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context, bytea[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_CALCULATE_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.highway_key[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_EXECUTE_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.highway_key[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context, numeric)
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context)
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_ROOT_SQL@(

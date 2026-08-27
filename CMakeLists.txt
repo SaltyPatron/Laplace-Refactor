@@ -102,6 +102,12 @@ laplace_configure_composition_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/composition.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/composition.h")
 
+include(cmake/LaplaceHighwayContract.cmake)
+laplace_configure_highway_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/highway.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-highway.py"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
 include(cmake/LaplaceUnicodeSource.cmake)
 laplace_configure_unicode_source(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts"
@@ -115,7 +121,8 @@ if(LAPLACE_ENABLE_DOTNET_BINDINGS)
     laplace_configure_dotnet_bindings(
         "${CMAKE_CURRENT_SOURCE_DIR}/contracts/isa.json"
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/bindings/generate-dotnet.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/managed/Laplace.Managed/Laplace.Managed.csproj")
+        "${CMAKE_CURRENT_SOURCE_DIR}/managed/Laplace.Managed/Laplace.Managed.csproj"
+        "${LAPLACE_HIGHWAY_GENERATED_CSHARP}")
 endif()
 
 if(LAPLACE_PG_CONFIG)

@@ -58,6 +58,44 @@ public struct LaplaceCompositionOccurrence
     public ushort Reserved;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceHighwayKey
+{
+    public uint Kind;
+    public uint Reserved;
+    public LaplaceId128 Authority;
+    public LaplaceId128 Release;
+    public LaplaceId128 Namespace;
+    public LaplaceId128 LocalIdentifier;
+    public ulong Version;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceHighwayCoordinate
+{
+    public LaplaceId128 Coordinate;
+    public LaplaceDigest256 CollisionFingerprint;
+    public uint Kind;
+    public uint Reserved;
+    public ulong Version;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceHighwayRegistryReceipt
+{
+    public LaplaceDigest256 ReceiptId;
+    public LaplaceDigest256 ContextFingerprint;
+    public LaplaceDigest256 RegistryFingerprint;
+    public LaplaceId128 ActivationEpochId;
+    public LaplaceDigest256 ActivationEpochFingerprint;
+    public ulong RegistryVersion;
+    public ulong KindCount;
+    public ulong AliasCount;
+    public ulong DispositionCount;
+    public uint Status;
+    public uint Reserved;
+}
+
 public enum LaplaceIsaStatus : uint
 {
     Ok = 0,
@@ -212,6 +250,32 @@ public static class LaplaceNativeAbi
         OffsetOf<LaplaceCompositionOccurrence>(nameof(LaplaceCompositionOccurrence.Tier)),
         OffsetOf<LaplaceCompositionOccurrence>(nameof(LaplaceCompositionOccurrence.HasAtom)),
         OffsetOf<LaplaceCompositionOccurrence>(nameof(LaplaceCompositionOccurrence.Reserved)),
+        checked((uint)Marshal.SizeOf<LaplaceHighwayKey>()),
+        OffsetOf<LaplaceHighwayKey>(nameof(LaplaceHighwayKey.Kind)),
+        OffsetOf<LaplaceHighwayKey>(nameof(LaplaceHighwayKey.Reserved)),
+        OffsetOf<LaplaceHighwayKey>(nameof(LaplaceHighwayKey.Authority)),
+        OffsetOf<LaplaceHighwayKey>(nameof(LaplaceHighwayKey.Release)),
+        OffsetOf<LaplaceHighwayKey>(nameof(LaplaceHighwayKey.Namespace)),
+        OffsetOf<LaplaceHighwayKey>(nameof(LaplaceHighwayKey.LocalIdentifier)),
+        OffsetOf<LaplaceHighwayKey>(nameof(LaplaceHighwayKey.Version)),
+        checked((uint)Marshal.SizeOf<LaplaceHighwayCoordinate>()),
+        OffsetOf<LaplaceHighwayCoordinate>(nameof(LaplaceHighwayCoordinate.Coordinate)),
+        OffsetOf<LaplaceHighwayCoordinate>(nameof(LaplaceHighwayCoordinate.CollisionFingerprint)),
+        OffsetOf<LaplaceHighwayCoordinate>(nameof(LaplaceHighwayCoordinate.Kind)),
+        OffsetOf<LaplaceHighwayCoordinate>(nameof(LaplaceHighwayCoordinate.Reserved)),
+        OffsetOf<LaplaceHighwayCoordinate>(nameof(LaplaceHighwayCoordinate.Version)),
+        checked((uint)Marshal.SizeOf<LaplaceHighwayRegistryReceipt>()),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.ReceiptId)),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.ContextFingerprint)),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.RegistryFingerprint)),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.ActivationEpochId)),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.ActivationEpochFingerprint)),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.RegistryVersion)),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.KindCount)),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.AliasCount)),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.DispositionCount)),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.Status)),
+        OffsetOf<LaplaceHighwayRegistryReceipt>(nameof(LaplaceHighwayRegistryReceipt.Reserved)),
         checked((uint)Marshal.SizeOf<NativeAbi.ValueView>()),
         OffsetOf<NativeAbi.ValueView>("Data"),
         OffsetOf<NativeAbi.ValueView>("Count"),

@@ -30,6 +30,66 @@ AS $context$
     )::laplace.execution_context
 $context$;
 
+CREATE FUNCTION pg_temp.highway_registry_context()
+RETURNS laplace.execution_context
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $context$
+    SELECT ROW(
+        ARRAY[
+            decode(repeat('10', 32), 'hex'),
+            decode(repeat('11', 32), 'hex'),
+            decode(repeat('12', 32), 'hex'),
+            decode(repeat('13', 32), 'hex'),
+            decode(repeat('14', 32), 'hex'),
+            decode(repeat('15', 32), 'hex'),
+            decode(repeat('16', 32), 'hex'),
+            decode(repeat('43', 32), 'hex'),
+            decode(repeat('18', 32), 'hex'),
+            decode(repeat('19', 32), 'hex')
+        ],
+        decode(repeat('a5', 32), 'hex'),
+        1073741824::bigint,
+        6,
+        2,
+        1023::bigint,
+        @LAPLACE_FRAMEWORK_MAJOR@::smallint,
+        @LAPLACE_FRAMEWORK_MINOR@::smallint,
+        @LAPLACE_FRAMEWORK_CONTEXT_BOOTSTRAP@::integer
+    )::laplace.execution_context
+$context$;
+
+CREATE FUNCTION pg_temp.highway_registry_read_context()
+RETURNS laplace.execution_context
+LANGUAGE SQL STABLE PARALLEL UNSAFE
+AS $context$
+    SELECT ROW(
+        ARRAY[
+            decode(repeat('10', 32), 'hex'),
+            decode(repeat('11', 32), 'hex'),
+            decode(repeat('12', 32), 'hex'),
+            decode(repeat('13', 32), 'hex'),
+            decode(repeat('14', 32), 'hex'),
+            decode(repeat('15', 32), 'hex'),
+            decode(repeat('16', 32), 'hex'),
+            (SELECT epoch_fingerprint
+             FROM laplace.perfcache_active_control
+             WHERE singleton AND active_present),
+            (SELECT activation_epoch_fingerprint
+             FROM laplace.highway_registry_active_control
+             WHERE singleton AND active_present),
+            decode(repeat('19', 32), 'hex')
+        ],
+        decode(repeat('a5', 32), 'hex'),
+        1073741824::bigint,
+        6,
+        2,
+        1023::bigint,
+        @LAPLACE_FRAMEWORK_MAJOR@::smallint,
+        @LAPLACE_FRAMEWORK_MINOR@::smallint,
+        @LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY@::integer
+    )::laplace.execution_context
+$context$;
+
 CREATE TEMP TABLE unicode_build_result AS
 SELECT result.*
 FROM laplace.unicode_root_build_and_activate(
@@ -262,6 +322,184 @@ BEGIN
        OR active.admission_receipt_id <>
           (SELECT admission_receipt FROM unicode_build_result) THEN
         RAISE EXCEPTION 'Unicode Tier-0 epoch was not atomically activated';
+    END IF;
+END
+$contract$;
+
+CREATE TEMP TABLE highway_registry_counts_before AS
+SELECT
+    (SELECT count(*) FROM laplace.canonical_entity) AS entity_count,
+    (SELECT count(*) FROM laplace.physicality) AS physicality_count,
+    (SELECT count(*) FROM laplace.composition_trajectory_vertex) AS vertex_count,
+    (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count;
+
+CREATE TEMP TABLE highway_registry_result AS
+SELECT deposited.*
+FROM laplace.highway_registry_admit_and_activate(
+    pg_temp.highway_registry_context(), 1048576::numeric) AS deposited;
+
+CREATE TEMP TABLE highway_registry_replay AS
+SELECT deposited.*
+FROM laplace.highway_registry_admit_and_activate(
+    pg_temp.highway_registry_context(), 1048576::numeric) AS deposited;
+
+CREATE TEMP TABLE highway_registry_active AS
+SELECT active.*
+FROM laplace.highway_registry_resolve_active(
+    pg_temp.highway_registry_read_context()) AS active;
+
+DO $contract$
+DECLARE
+    deposited highway_registry_result%ROWTYPE;
+    replay highway_registry_replay%ROWTYPE;
+    active highway_registry_active%ROWTYPE;
+    before_counts highway_registry_counts_before%ROWTYPE;
+BEGIN
+    SELECT * INTO STRICT deposited FROM highway_registry_result;
+    SELECT * INTO STRICT replay FROM highway_registry_replay;
+    SELECT * INTO STRICT active FROM highway_registry_active;
+    SELECT * INTO STRICT before_counts FROM highway_registry_counts_before;
+    IF deposited.status <> 0
+       OR deposited.registry_version <> 1
+       OR deposited.registry_fingerprint <> deposited.source_fingerprint
+       OR octet_length(deposited.root_entity_id) <> 16
+       OR octet_length(deposited.root_physicality_id) <> 32
+       OR octet_length(deposited.registry_epoch_id) <> 16
+       OR octet_length(deposited.registry_epoch_fingerprint) <> 32
+       OR octet_length(deposited.isa_receipt) <> 32
+       OR octet_length(deposited.recipe_fingerprint) <> 32
+       OR octet_length(deposited.admission_receipt) <> 32
+       OR octet_length(deposited.activation_receipt) <> 32
+       OR octet_length(deposited.activation_fingerprint) <> 32
+       OR deposited.activation_sequence <> 1
+       OR deposited.effect_disposition <> 3
+       OR deposited.unicode_root_receipt <>
+          (SELECT root_receipt FROM unicode_build_result)
+       OR deposited.unicode_activation_epoch_id <>
+          decode(repeat('42', 16), 'hex')
+       OR deposited.unicode_activation_epoch_fingerprint <>
+          decode(repeat('43', 32), 'hex')
+       OR cardinality(deposited.kind_name_entity_ids) <> 16
+       OR cardinality(deposited.alias_name_entity_ids) <> 0
+       OR cardinality(deposited.disposition_name_entity_ids) <> 8
+       OR deposited.atom_count <= 0
+       OR deposited.request_count <= 24
+       OR deposited.unique_entity_count <= 24
+       OR deposited.unique_physicality_count <= 24
+       OR deposited.novel_entity_count <= 0
+       OR deposited.novel_physicality_count <= 0
+       OR deposited.entity_inserted <= 0
+       OR deposited.physicality_inserted <= 0
+       OR deposited.trajectory_vertex_inserted <= 0
+       OR deposited.occurrence_inserted <= 0
+       OR deposited.plan_count <= 0 THEN
+        RAISE EXCEPTION
+            'Highway registry did not traverse the canonical Unicode/AST/deposition lifecycle: %',
+            deposited;
+    END IF;
+    IF active.status <> 0
+       OR active.registry_version <> deposited.registry_version
+       OR active.registry_fingerprint <> deposited.registry_fingerprint
+       OR active.registry_epoch_id <> deposited.registry_epoch_id
+       OR active.registry_epoch_fingerprint <> deposited.registry_epoch_fingerprint
+       OR active.root_entity_id <> deposited.root_entity_id
+       OR active.root_physicality_id <> deposited.root_physicality_id
+       OR active.activation_sequence <> deposited.activation_sequence
+       OR active.activation_receipt <> deposited.activation_receipt
+       OR active.activation_fingerprint <> deposited.activation_fingerprint
+       OR cardinality(active.kind_ids) <> 16
+       OR cardinality(active.kind_name_entity_ids) <> 16
+       OR cardinality(active.alias_kind_ids) <> 0
+       OR cardinality(active.alias_name_entity_ids) <> 0
+       OR cardinality(active.disposition_ids) <> 8
+       OR cardinality(active.disposition_name_entity_ids) <> 8
+       OR active.unicode_activation_epoch_id <> deposited.unicode_activation_epoch_id
+       OR active.unicode_activation_epoch_fingerprint <>
+          deposited.unicode_activation_epoch_fingerprint THEN
+        RAISE EXCEPTION
+            'Active Highway public readback differs from admitted canonical state: %',
+            active;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM laplace.canonical_entity
+        WHERE entity_id = deposited.root_entity_id)
+       OR NOT EXISTS (
+        SELECT 1 FROM laplace.physicality
+        WHERE physicality_id = deposited.root_physicality_id
+          AND entity_id = deposited.root_entity_id)
+       OR NOT EXISTS (
+        SELECT 1 FROM laplace.execution_receipt
+        WHERE receipt_id = deposited.isa_receipt
+          AND opcode = 262146)
+       OR NOT EXISTS (
+        SELECT 1 FROM laplace.canonical_deposit_receipt
+        WHERE stream_fingerprint = deposited.stream_fingerprint
+          AND source_fingerprint = deposited.source_fingerprint
+          AND recipe_fingerprint = deposited.recipe_fingerprint
+          AND plan_sequence_fingerprint = deposited.plan_sequence_fingerprint)
+       OR NOT EXISTS (
+        SELECT 1 FROM laplace.highway_registry_generation
+        WHERE activation_epoch_id = deposited.registry_epoch_id
+          AND activation_epoch_fingerprint =
+              deposited.registry_epoch_fingerprint
+          AND root_entity_id = deposited.root_entity_id
+          AND root_physicality_id = deposited.root_physicality_id
+          AND registry_fingerprint = deposited.registry_fingerprint)
+       OR (SELECT count(*) FROM laplace.highway_registry_kind_projection
+           WHERE activation_epoch_id = deposited.registry_epoch_id
+             AND activation_epoch_fingerprint =
+                 deposited.registry_epoch_fingerprint) <> 16
+       OR (SELECT count(*) FROM laplace.highway_registry_alias_projection
+           WHERE activation_epoch_id = deposited.registry_epoch_id
+             AND activation_epoch_fingerprint =
+                 deposited.registry_epoch_fingerprint) <> 0
+       OR (SELECT count(*) FROM laplace.highway_registry_disposition_projection
+           WHERE activation_epoch_id = deposited.registry_epoch_id
+             AND activation_epoch_fingerprint =
+                 deposited.registry_epoch_fingerprint) <> 8
+       OR NOT EXISTS (
+        SELECT 1 FROM laplace.highway_registry_active_control
+        WHERE singleton AND active_present AND sequence = 1
+          AND activation_epoch_id = deposited.registry_epoch_id
+          AND activation_epoch_fingerprint =
+              deposited.registry_epoch_fingerprint
+          AND admission_receipt = deposited.admission_receipt
+          AND activation_receipt = deposited.activation_receipt
+          AND activation_fingerprint = deposited.activation_fingerprint)
+       OR NOT EXISTS (
+        SELECT 1 FROM laplace.highway_registry_activation_event
+        WHERE sequence = 1
+          AND activation_epoch_id = deposited.registry_epoch_id
+          AND activation_epoch_fingerprint =
+              deposited.registry_epoch_fingerprint
+          AND admission_receipt = deposited.admission_receipt
+          AND activation_receipt = deposited.activation_receipt
+          AND activation_fingerprint = deposited.activation_fingerprint)
+       OR (SELECT count(*) FROM laplace.canonical_entity) <=
+          before_counts.entity_count
+       OR (SELECT count(*) FROM laplace.physicality) <=
+          before_counts.physicality_count
+       OR (SELECT count(*) FROM laplace.composition_trajectory_vertex) <=
+          before_counts.vertex_count
+       OR (SELECT count(*) FROM laplace.observed_occurrence) <=
+          before_counts.occurrence_count THEN
+        RAISE EXCEPTION
+            'Highway registry receipts do not identify durable canonical state';
+    END IF;
+    IF replay.root_entity_id <> deposited.root_entity_id
+       OR replay.root_physicality_id <> deposited.root_physicality_id
+       OR replay.admission_receipt <> deposited.admission_receipt
+       OR replay.activation_receipt <> deposited.activation_receipt
+       OR replay.activation_fingerprint <> deposited.activation_fingerprint
+       OR replay.activation_sequence <> deposited.activation_sequence
+       OR replay.effect_disposition <> deposited.effect_disposition
+       OR replay.entity_inserted <> 0
+       OR replay.physicality_inserted <> 0
+       OR replay.trajectory_vertex_inserted <> 0
+       OR replay.occurrence_inserted <> 0 THEN
+        RAISE EXCEPTION
+            'Highway registry replay changed identity, receipts, or durable rows: first=% replay=%',
+            deposited, replay;
     END IF;
 END
 $contract$;

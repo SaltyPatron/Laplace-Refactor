@@ -12,8 +12,11 @@
   <Target Name="RequireLaplaceGeneratedIsa" BeforeTargets="BeforeCompile">
     <Error Condition="'$(GeneratedIsaSource)' == ''" Text="GeneratedIsaSource is required." />
     <Error Condition="!Exists('$(GeneratedIsaSource)')" Text="Generated ISA source does not exist: $(GeneratedIsaSource)" />
+    <Error Condition="'$(GeneratedHighwaySource)' == ''" Text="GeneratedHighwaySource is required." />
+    <Error Condition="!Exists('$(GeneratedHighwaySource)')" Text="Generated highway source does not exist: $(GeneratedHighwaySource)" />
   </Target>
   <ItemGroup>
     <Compile Include="$(GeneratedIsaSource)" Link="Generated/IsaContract.g.cs" />
+    <Compile Include="$(GeneratedHighwaySource)" Link="Generated/HighwayContract.g.cs" />
   </ItemGroup>
 </Project>

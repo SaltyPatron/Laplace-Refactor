@@ -66,12 +66,19 @@ INSERT INTO composition_fixture VALUES (
     decode(:'composition_physicality_dispositions', 'hex')
 );
 
-CREATE FUNCTION pg_temp.composition_fixture_deposit(
+CREATE FUNCTION pg_temp.composition_fixture_inputs(
     source_ordinal numeric DEFAULT 1::numeric)
-RETURNS laplace.composition_deposit_result
+RETURNS TABLE(
+    execution_context laplace.execution_context,
+    source_fingerprint bytea,
+    calculation_recipe_fingerprint bytea,
+    known_entities laplace.composition_known_entity_record[],
+    operands laplace.composition_operand_record[],
+    requests laplace.composition_request_record[],
+    preferred_batch_bytes numeric)
 LANGUAGE SQL VOLATILE PARALLEL UNSAFE
 AS $fixture$
-    SELECT laplace.composition_deposit_batch(
+    SELECT
         pg_temp.composition_context(),
         decode(repeat('91', 32), 'hex'),
         decode(repeat('a1', 32), 'hex'),
@@ -105,9 +112,105 @@ AS $fixture$
                 decode(repeat('d1', 32), 'hex')
             )::laplace.composition_request_record
         ],
-        256::numeric)
+        256::numeric
     FROM composition_fixture
     WHERE singleton
+$fixture$;
+
+CREATE FUNCTION pg_temp.composition_fixture_deposit(
+    source_ordinal numeric DEFAULT 1::numeric)
+RETURNS laplace.composition_deposit_result
+LANGUAGE SQL VOLATILE PARALLEL UNSAFE
+AS $fixture$
+    SELECT laplace.composition_deposit_batch(
+        inputs.execution_context,
+        inputs.source_fingerprint,
+        inputs.calculation_recipe_fingerprint,
+        inputs.known_entities,
+        inputs.operands,
+        inputs.requests,
+        inputs.preferred_batch_bytes)
+    FROM pg_temp.composition_fixture_inputs(source_ordinal) AS inputs
+$fixture$;
+
+-- Exercise a set with two independently calculated tier-1 candidates.  The
+-- ordinary fixture intentionally collapses to one candidate on replay, which
+-- cannot expose ordering, partial-set, or per-row provider defects.
+CREATE FUNCTION pg_temp.composition_fixture_pair_inputs(
+    source_ordinal numeric DEFAULT 100::numeric)
+RETURNS TABLE(
+    execution_context laplace.execution_context,
+    source_fingerprint bytea,
+    calculation_recipe_fingerprint bytea,
+    known_entities laplace.composition_known_entity_record[],
+    operands laplace.composition_operand_record[],
+    requests laplace.composition_request_record[],
+    preferred_batch_bytes numeric)
+LANGUAGE SQL VOLATILE PARALLEL UNSAFE
+AS $fixture$
+    SELECT
+        pg_temp.composition_context(),
+        decode(repeat('92', 32), 'hex'),
+        decode(repeat('a2', 32), 'hex'),
+        ARRAY[
+            ROW(
+                entity_a, entity_a_witness,
+                decode(repeat('e1', 32), 'hex'),
+                1.0::double precision, 0.0::double precision,
+                0.0::double precision, 0.0::double precision,
+                0::bigint, 0::smallint, false
+            )::laplace.composition_known_entity_record,
+            ROW(
+                entity_b, entity_b_witness,
+                decode(repeat('e2', 32), 'hex'),
+                0.0::double precision, 1.0::double precision,
+                0.0::double precision, 0.0::double precision,
+                0::bigint, 0::smallint, false
+            )::laplace.composition_known_entity_record
+        ],
+        ARRAY[
+            ROW(0::numeric, 1::numeric, 0::bigint, 1, 0)
+                ::laplace.composition_operand_record,
+            ROW(1::numeric, 1::numeric, 0::bigint, 1, 0)
+                ::laplace.composition_operand_record,
+            ROW(1::numeric, 1::numeric, 0::bigint, 1, 0)
+                ::laplace.composition_operand_record,
+            ROW(0::numeric, 1::numeric, 0::bigint, 1, 0)
+                ::laplace.composition_operand_record
+        ],
+        ARRAY[
+            ROW(
+                0::numeric, 2::numeric, source_ordinal, 1, 0,
+                decode(repeat('b1', 32), 'hex'),
+                decode(repeat('c1', 32), 'hex'),
+                decode(repeat('d1', 32), 'hex')
+            )::laplace.composition_request_record,
+            ROW(
+                2::numeric, 2::numeric, source_ordinal + 1::numeric, 1, 0,
+                decode(repeat('b1', 32), 'hex'),
+                decode(repeat('c1', 32), 'hex'),
+                decode(repeat('d2', 32), 'hex')
+            )::laplace.composition_request_record
+        ],
+        256::numeric
+    FROM composition_fixture
+    WHERE singleton
+$fixture$;
+
+CREATE FUNCTION pg_temp.composition_fixture_pair_deposit(
+    source_ordinal numeric DEFAULT 100::numeric)
+RETURNS laplace.composition_deposit_result
+LANGUAGE SQL VOLATILE PARALLEL UNSAFE
+AS $fixture$
+    SELECT laplace.composition_deposit_batch(
+        inputs.execution_context,
+        inputs.source_fingerprint,
+        inputs.calculation_recipe_fingerprint,
+        inputs.known_entities,
+        inputs.operands,
+        inputs.requests,
+        inputs.preferred_batch_bytes)
+    FROM pg_temp.composition_fixture_pair_inputs(source_ordinal) AS inputs
 $fixture$;
 
 DO $contract$

@@ -5,7 +5,13 @@ on:
     paths:
       - .github/workflows/product-activation.yml
       - contracts/product-activation-gateway.json
+      - contracts/highway-product-activation.json
+      - contracts/highway.json
       - tools/delivery/**
+      - tools/postgresql/highwayctl.py
+      - postgres/extension/src/highway_registry_pg.c
+      - postgres/extension/laplace--version.sql.in
+      - tests/highway_product_activation_tests.py
       - tests/product_activation_gateway_tests.py
   workflow_dispatch:
 
@@ -33,11 +39,108 @@ jobs:
           test "$(id -un)" = laplace-runner
           sudo -n -l
       - name: Execute activation gateway contract and mutation tests
-        run: python3 tests/product_activation_gateway_tests.py
+        run: |
+          python3 tests/highway_product_activation_tests.py
+          python3 tests/product_activation_gateway_tests.py
+
+  compose-product:
+    if: github.event_name == 'workflow_dispatch'
+    needs: runner-authority
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - postgres-18
+      - avx2
+    timeout-minutes: 120
+    outputs:
+      product_receipt: ${{ steps.compose.outputs.product_receipt }}
+      resource_observation: ${{ steps.compose.outputs.resource_observation }}
+      package_id: ${{ steps.compose.outputs.package_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify protected product-build context and accepted PostgreSQL input
+        id: inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          git diff --quiet
+          git diff --cached --quiet
+          postgresql_receipt=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.package_receipt' state/continuation.json)
+          expected_sha=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.package_receipt_sha256' state/continuation.json)
+          test -f "$postgresql_receipt"
+          test ! -L "$postgresql_receipt"
+          test "$(sha256sum "$postgresql_receipt" | awk '{print $1}')" = "$expected_sha"
+          printf 'postgresql_receipt=%s\n' "$postgresql_receipt" >> "$GITHUB_OUTPUT"
+      - name: Compose or verify the exact content-addressed product package
+        id: compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/laplace-product-plan.json"
+          python3 tools/product/build-package.py plan \
+            --postgresql-receipt '${{ steps.inputs.outputs.postgresql_receipt }}' > "$plan"
+          build_directory=$(jq -er '.build_directory' "$plan")
+          expected_plan_sha=$(jq -er '.plan_sha256' "$plan")
+          product_receipt="$build_directory/package-receipt.json"
+          if [[ ! -f "$product_receipt" ]]; then
+            result="$RUNNER_TEMP/laplace-product-build-result.json"
+            python3 tools/product/build-package.py build \
+              --postgresql-receipt '${{ steps.inputs.outputs.postgresql_receipt }}' > "$result"
+            product_receipt=$(jq -er '.manifest' "$result" | sed 's|/package-manifest.json$|/package-receipt.json|')
+          fi
+          test -f "$product_receipt"
+          test ! -L "$product_receipt"
+          test "$(jq -er '.plan_sha256' "$product_receipt")" = "$expected_plan_sha"
+          test "$(jq -er '.activation_eligible' "$product_receipt")" = true
+          test "$(jq -er '.build_input_closure_complete' "$product_receipt")" = true
+          test "$(jq -er '.product_activated' "$product_receipt")" = false
+          manifest=$(jq -er '.manifest' "$product_receipt")
+          expected_manifest_sha=$(jq -er '.manifest_sha256' "$product_receipt")
+          test -f "$manifest"
+          test ! -L "$manifest"
+          test "$(sha256sum "$manifest" | awk '{print $1}')" = "$expected_manifest_sha"
+          package_id=$(jq -er '.package_id' "$product_receipt")
+          test "$(jq -er '.package_id' "$manifest")" = "$package_id"
+          physical_release=$(jq -er '.physical_root' "$product_receipt")
+          logical_release=$(jq -er '.root' "$manifest")
+          case "$physical_release" in
+            *"$logical_release") source_root="${physical_release%"$logical_release"}" ;;
+            *) echo 'product physical root does not end in its logical release root' >&2; exit 1 ;;
+          esac
+          build_id=$(basename "$(dirname "$manifest")")
+          expected_source_root="/build/laplace/stage/product/$build_id/root"
+          test "$source_root" = "$expected_source_root"
+          test -d "$physical_release"
+          resource_directory="/opt/laplace/receipts/plans/$package_id"
+          resource_observation="$resource_directory/resource-observation.json"
+          install -d -m 2750 "$resource_directory"
+          python3 tools/postgresql/clusterctl.py observe-resources \
+            --contract contracts/postgresql-cluster.json \
+            --package-manifest "$manifest" \
+            --package-physical-root "$source_root" \
+            --output "$resource_observation"
+          test "$(jq -er '.package_id' "$resource_observation")" = "$package_id"
+          test "$(jq -er '.observation_sha256' "$resource_observation")" != null
+          printf 'product_receipt=%s\n' "$product_receipt" >> "$GITHUB_OUTPUT"
+          printf 'resource_observation=%s\n' "$resource_observation" >> "$GITHUB_OUTPUT"
+          printf 'package_id=%s\n' "$package_id" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Product package selected for activation'
+            echo '```json'
+            jq '{schema, package_id, manifest, manifest_sha256, physical_root, activation_eligible, build_input_closure_complete}' "$product_receipt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   activate-product:
     if: github.event_name == 'workflow_dispatch'
-    needs: runner-authority
+    needs: compose-product
     environment: product
     runs-on:
       - self-hosted
@@ -68,10 +171,12 @@ jobs:
           python3 tools/delivery/product_activation.py create-request \
             --contract contracts/product-activation-gateway.json \
             --continuation state/continuation.json \
+            --product-receipt '${{ needs.compose-product.outputs.product_receipt }}' \
+            --resource-observation '${{ needs.compose-product.outputs.resource_observation }}' \
             --output "$request"
           chmod 0600 "$request"
           printf 'LAPLACE_ACTIVATION_REQUEST=%s\n' "$request" >> "$GITHUB_ENV"
-      - name: Activate PostgreSQL and Unicode through the root gateway
+      - name: Activate PostgreSQL, Unicode, and the canonical Highway through the root gateway
         shell: bash
         run: |
           set -euo pipefail
@@ -80,9 +185,11 @@ jobs:
             execute-request < "$LAPLACE_ACTIVATION_REQUEST" > "$result"
           jq -e '
             .schema == "laplace.product-activation-gateway-result/v1" and
-            .phase == "product-and-unicode-activated" and
+            .phase == "product-unicode-and-highway-activated" and
+            (.package_installation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
             (.cluster_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
-            (.unicode_activation_receipt_sha256 | test("^[0-9a-f]{64}$"))
+            (.unicode_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
+            (.highway_activation_receipt_sha256 | test("^[0-9a-f]{64}$"))
           ' "$result" >/dev/null
           {
             echo '## Product activation result'

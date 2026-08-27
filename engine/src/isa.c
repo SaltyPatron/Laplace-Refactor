@@ -7,6 +7,7 @@
 
 #include "blake3.h"
 #include "laplace/framework.h"
+#include "laplace/highway.h"
 #include "laplace/trajectory.h"
 
 static const uint8_t PROGRAM_DOMAIN[] = "laplace-isa-program-v1";
@@ -112,6 +113,12 @@ static uint32_t value_element_bytes(uint32_t type) {
             return (uint32_t)sizeof(laplace_trajectory_carrier);
         case LAPLACE_ISA_VALUE_COMPOSITION_OCCURRENCE_VECTOR:
             return (uint32_t)sizeof(laplace_composition_occurrence);
+        case LAPLACE_ISA_VALUE_HIGHWAY_KEY_VECTOR:
+            return (uint32_t)sizeof(laplace_highway_key);
+        case LAPLACE_ISA_VALUE_HIGHWAY_COORDINATE_VECTOR:
+            return (uint32_t)sizeof(laplace_highway_coordinate);
+        case LAPLACE_ISA_VALUE_HIGHWAY_REGISTRY_RECEIPT_VECTOR:
+            return (uint32_t)sizeof(laplace_highway_registry_receipt);
         default:
             return 0;
     }
@@ -315,6 +322,57 @@ static laplace_isa_status validate_trajectory_composition_decode_batch(
                         instruction_index, instruction->input_value);
         }
         logical_ordinal += occurrence.run_length;
+    }
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status validate_highway_coordinate_calculate_batch(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input =
+        &program->values[instruction->input_value];
+    laplace_isa_status status = validate_equal_cardinality_capacity(
+        program, instruction, instruction_index, error);
+    uint64_t index;
+    if (status != LAPLACE_ISA_OK) {
+        return status;
+    }
+    for (index = 0; index < input->count; ++index) {
+        laplace_highway_key key;
+        laplace_highway_coordinate coordinate;
+        memcpy(&key, const_value_element(input, index), sizeof(key));
+        if (laplace_highway_coordinate_calculate(&key, &coordinate) !=
+            LAPLACE_HIGHWAY_OK) {
+            return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                        instruction_index, instruction->input_value);
+        }
+    }
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status validate_highway_registry_materialize_batch(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input =
+        &program->values[instruction->input_value];
+    laplace_isa_status status = validate_equal_cardinality_capacity(
+        program, instruction, instruction_index, error);
+    uint64_t index;
+    if (status != LAPLACE_ISA_OK) {
+        return status;
+    }
+    for (index = 0; index < input->count; ++index) {
+        uint32_t requested_version;
+        memcpy(&requested_version, const_value_element(input, index),
+               sizeof(requested_version));
+        if (requested_version != LAPLACE_HIGHWAY_REGISTRY_VERSION) {
+            return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                        instruction_index, instruction->input_value);
+        }
     }
     return LAPLACE_ISA_OK;
 }
@@ -560,6 +618,63 @@ static void hash_value_vector(
                                      sizeof(occurrence.has_atom));
                 break;
             }
+            case LAPLACE_ISA_VALUE_HIGHWAY_KEY_VECTOR: {
+                laplace_highway_key key;
+                memcpy(&key, item, sizeof(key));
+                hash_u32(hasher, key.kind);
+                hash_u32(hasher, key.reserved);
+                blake3_hasher_update(
+                    hasher, key.authority.bytes, sizeof(key.authority.bytes));
+                blake3_hasher_update(
+                    hasher, key.release.bytes, sizeof(key.release.bytes));
+                blake3_hasher_update(
+                    hasher, key.name_space.bytes, sizeof(key.name_space.bytes));
+                blake3_hasher_update(
+                    hasher, key.local_identifier.bytes,
+                    sizeof(key.local_identifier.bytes));
+                hash_u64(hasher, key.version);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_HIGHWAY_COORDINATE_VECTOR: {
+                laplace_highway_coordinate coordinate;
+                memcpy(&coordinate, item, sizeof(coordinate));
+                blake3_hasher_update(
+                    hasher, coordinate.coordinate.bytes,
+                    sizeof(coordinate.coordinate.bytes));
+                blake3_hasher_update(
+                    hasher, coordinate.collision_fingerprint.bytes,
+                    sizeof(coordinate.collision_fingerprint.bytes));
+                hash_u32(hasher, coordinate.kind);
+                hash_u32(hasher, coordinate.reserved);
+                hash_u64(hasher, coordinate.version);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_HIGHWAY_REGISTRY_RECEIPT_VECTOR: {
+                laplace_highway_registry_receipt receipt;
+                memcpy(&receipt, item, sizeof(receipt));
+                blake3_hasher_update(
+                    hasher, receipt.receipt_id.bytes,
+                    sizeof(receipt.receipt_id.bytes));
+                blake3_hasher_update(
+                    hasher, receipt.context_fingerprint.bytes,
+                    sizeof(receipt.context_fingerprint.bytes));
+                blake3_hasher_update(
+                    hasher, receipt.registry_fingerprint.bytes,
+                    sizeof(receipt.registry_fingerprint.bytes));
+                blake3_hasher_update(
+                    hasher, receipt.activation_epoch_id.bytes,
+                    sizeof(receipt.activation_epoch_id.bytes));
+                blake3_hasher_update(
+                    hasher, receipt.activation_epoch_fingerprint.bytes,
+                    sizeof(receipt.activation_epoch_fingerprint.bytes));
+                hash_u64(hasher, receipt.registry_version);
+                hash_u64(hasher, receipt.kind_count);
+                hash_u64(hasher, receipt.alias_count);
+                hash_u64(hasher, receipt.disposition_count);
+                hash_u32(hasher, receipt.status);
+                hash_u32(hasher, receipt.reserved);
+                break;
+            }
             default:
                 break;
         }
@@ -688,6 +803,61 @@ static laplace_isa_status execute_trajectory_composition_decode_batch(
         }
         memcpy(value_element(output, index), &occurrence, sizeof(occurrence));
         logical_ordinal += occurrence.run_length;
+    }
+    output->count = input->count;
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status execute_highway_coordinate_calculate_batch(
+    laplace_isa_program* program,
+    const laplace_isa_instruction* instruction) {
+    laplace_isa_value_view* input = &program->values[instruction->input_value];
+    laplace_isa_value_view* output = &program->values[instruction->output_value];
+    uint64_t index;
+
+    if (input->stride_bytes == (uint32_t)sizeof(laplace_highway_key) &&
+        output->stride_bytes == (uint32_t)sizeof(laplace_highway_coordinate) &&
+        (uintptr_t)input->data % _Alignof(laplace_highway_key) == 0 &&
+        (uintptr_t)output->data % _Alignof(laplace_highway_coordinate) == 0 &&
+        input->count <= SIZE_MAX) {
+        const laplace_highway_status status =
+            laplace_highway_coordinate_calculate_batch(
+                (const laplace_highway_key*)input->data,
+                (size_t)input->count,
+                (laplace_highway_coordinate*)output->data);
+        if (status != LAPLACE_HIGHWAY_OK) {
+            return LAPLACE_ISA_EXECUTION_FAILED;
+        }
+    } else {
+        for (index = 0; index < input->count; ++index) {
+            laplace_highway_key key;
+            laplace_highway_coordinate coordinate;
+            memcpy(&key, const_value_element(input, index), sizeof(key));
+            if (laplace_highway_coordinate_calculate(&key, &coordinate) !=
+                LAPLACE_HIGHWAY_OK) {
+                return LAPLACE_ISA_EXECUTION_FAILED;
+            }
+            memcpy(value_element(output, index), &coordinate, sizeof(coordinate));
+        }
+    }
+    output->count = input->count;
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status execute_highway_registry_materialize_batch(
+    laplace_isa_program* program,
+    const laplace_isa_instruction* instruction) {
+    laplace_isa_value_view* input = &program->values[instruction->input_value];
+    laplace_isa_value_view* output = &program->values[instruction->output_value];
+    uint64_t index;
+
+    for (index = 0; index < input->count; ++index) {
+        laplace_highway_registry_receipt receipt;
+        if (laplace_highway_registry_materialize(
+                program->context, &receipt) != LAPLACE_HIGHWAY_OK) {
+            return LAPLACE_ISA_EXECUTION_FAILED;
+        }
+        memcpy(value_element(output, index), &receipt, sizeof(receipt));
     }
     output->count = input->count;
     return LAPLACE_ISA_OK;

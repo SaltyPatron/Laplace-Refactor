@@ -40,7 +40,7 @@ modality, model, platform, or product surface cannot certify the universal machi
 | Cross-domain whole-route cohesion | Unimplemented; tracked by #70 |
 | Typed machine exception registry and recovery planner | Unimplemented |
 | Universal AST grammar registry and general recipe compiler | Unimplemented |
-| Whole-machine typed numerical highway | Unimplemented |
+| Whole-machine typed numerical highway | Partial: exact generated registry and scoped coordinates, ISA materialization, canonical Unicode-backed AST admission, shared presence/deposition, controlled numeric-epoch activation, epoch-pinned active readback, and protected product-controller/gateway composition implemented; protected product activation and whole-seed topology remain incomplete |
 | Exact non-Unicode source profiles | Not populated |
 | Heterogeneous world admission and foundational knowledge seed | Not begun in an activated product |
 | Typed A-star query, answerability, cognition, and realization | Unimplemented |
@@ -144,7 +144,7 @@ different structural, reference, evidence, and realization programs.
 | `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, and trajectory | #7, #13 | Whole-working-set composition and exact provider parity integration-proven by merged PR #73 | Complete generic grammar/recipe/testimony/reference closure |
 | `substrate.bulk-deposit` | Whole-working-set presence, filtered production, transactional bulk persistence, and paid addressability | #15, #72 | Issue #15 mechanism integration-proven by merged PR #73 on PostgreSQL 18.3/18.4 | Complete-ingest performance gates and #72 paired acceleration/storage receipts |
 | `bootstrap.unicode-root` | Product-deposited and coherently activated Unicode atom floor | #13, #14 | Calculation, sibling deposition, public epoch-pinned access, and the complete restart/readback controller are integration-proven; not product activated | Successor package and PostgreSQL 18.6 cluster active with exact durable DB/cache/root receipt |
-| `substrate.highway` | Append-only typed coordinates for every machine namespace | #52 | Unimplemented | Collision, release-scope, mirror parity, and bubble-up/bubble-down proof |
+| `substrate.highway` | Append-only typed coordinates for every machine namespace | #52 | Partial: generated registry, exact scoped coordinate operation, ISA 1.4 materialization, native/PostgreSQL/C# mirrors, canonical Unicode-backed AST admission, shared set-wise presence/deposition, controlled durable activation, restart replay, epoch-pinned active readback, and protected product-controller/gateway composition are implemented; product activation has not run | Activate the exact product package/cluster/Unicode/Highway chain, then implement whole-seed topology, append-only successor activation, and cross-language/cross-modality bubble-up/bubble-down proof |
 | `evidence.record-lineage` | Immutable occurrences, testimony, derivation, and dependence roots | #16 | Unimplemented | Cross-source provenance and copied-evidence nonamplification |
 | `world.admit-witnesses` | Exact source profiles and heterogeneous AST world admission | #53, #59 | Unimplemented | Profile closure, cross-profile closure, readback, denominators, and seed receipt |
 | `evidence.adjudicate` | Immutable standing, contradiction, and referential epochs | #16 | Unimplemented | Deterministic dependence-aware adjudication and as-of replay |
@@ -154,7 +154,7 @@ different structural, reference, evidence, and realization programs.
 | `model.ingest-generate` | Model witnesses, behavior experiments, effective support, induced operators, AImaps, and named-invariant target compilation | #20, #61, #71 | Unimplemented | Typed behavior readback and target-runtime oracles reject arbitrary pruning, flattening, and shape-only exports |
 | `product.materialize-entity-world` | People/organizations as worlds; personal webs, entitlements, identity, and surfaces | #21, #62, #63, #64, #68 | Unimplemented | Audience/visibility/security and semantic parity across generated surfaces |
 | `runtime.federate-nodes` | Authenticated world exchange, placement, convergence, and one-machine portability | #21, #65, #66, #67 | Unimplemented | Partition/replay convergence, durability proof, x86/ARM semantic parity |
-| `delivery.activate-product` | Installed package, services, generated manual, diagnostics, and release evidence | #21, #22, #50, #69 | Partial infrastructure; no product | Complete Linux/Windows lifecycle and whole-product release decision |
+| `delivery.activate-product` | Installed package, services, generated manual, diagnostics, and release evidence | #21, #22, #50, #69 | Partial: current-main package composition/revalidation, signed package selection, root installation, isolated cluster, Unicode, and Highway workflow are implemented; root gateway and product are not activated | Install the immutable root gateway trust anchor, execute protected activation, then complete Linux/Windows lifecycle and whole-product release decision |
 
 ## Critical path from the interrupted work
 
@@ -173,10 +173,14 @@ interesting corpus:
    grammar/recipe compiler, module admission, provider substitution, typed machine
    exception lifecycle, and issue #70 whole-route cohesion across unrelated complete
    programs—instead of allowing composition to grow a private framework.
-4. Implement the typed numerical highway for authority, release, namespace, grammar,
-   AST role, language, script, relation, modality, representation, recipe, model,
-   trust, operation, and effect coordinates. Equal local numbers never collapse
-   across those dimensions without witnessed mappings.
+4. Run the protected product activation chain now that the registry traverses the
+   common Unicode-backed AST, recipe, whole-working-set, presence, canonical deposition,
+   framework activation, receipt, restart, replay, and application-readback lifecycle.
+   Then populate canonical authority, release, namespace, grammar, AST role, language,
+   script, relation, modality, representation, recipe, model, trust, operation, and
+   effect topology; implement append-only successor activation and witnessed
+   bubble-up/bubble-down routes. Equal local numbers never collapse across those
+   dimensions without witnessed mappings.
 5. Populate exact source profiles over the known heterogeneous source universe, then
    schedule recipe DAGs across the configured working set. Close artifact, syntax,
    reference, evidence, readback, denominator, performance, and publication receipts.

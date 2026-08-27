@@ -2,7 +2,7 @@
   "schema": "laplace.isa-contract/v1",
   "version": {
     "major": 1,
-    "minor": 2
+    "minor": 4
   },
   "execution_context": {
     "required": true,
@@ -14,15 +14,21 @@
     "u32_vector": 1,
     "id128_vector": 2,
     "composition_trajectory_vector": 3,
-    "composition_occurrence_vector": 4
+    "composition_occurrence_vector": 4,
+    "highway_key_vector": 5,
+    "highway_coordinate_vector": 6,
+    "highway_registry_receipt_vector": 7
   },
   "opcodes": {
     "identity_codepoint_batch": 131073,
-    "trajectory_composition_decode_batch": 196609
+    "trajectory_composition_decode_batch": 196609,
+    "highway_coordinate_calculate_batch": 262145,
+    "highway_registry_materialize_batch": 262146
   },
   "modules": {
     "identity": 2,
-    "trajectory": 3
+    "trajectory": 3,
+    "highway": 4
   },
   "operation_contracts": {
     "identity_codepoint_batch": {
@@ -34,15 +40,29 @@
       "module": "trajectory",
       "input_type": "composition_trajectory_vector",
       "output_type": "composition_occurrence_vector"
+    },
+    "highway_coordinate_calculate_batch": {
+      "module": "highway",
+      "input_type": "highway_key_vector",
+      "output_type": "highway_coordinate_vector"
+    },
+    "highway_registry_materialize_batch": {
+      "module": "highway",
+      "input_type": "u32_vector",
+      "output_type": "highway_registry_receipt_vector"
     }
   },
   "instruction_versions": {
     "identity_codepoint_batch": 1,
-    "trajectory_composition_decode_batch": 1
+    "trajectory_composition_decode_batch": 1,
+    "highway_coordinate_calculate_batch": 1,
+    "highway_registry_materialize_batch": 1
   },
   "introduced_minor": {
     "identity_codepoint_batch": 0,
-    "trajectory_composition_decode_batch": 1
+    "trajectory_composition_decode_batch": 1,
+    "highway_coordinate_calculate_batch": 3,
+    "highway_registry_materialize_batch": 4
   },
   "receipt": {
     "digest_algorithm": "BLAKE3-256",
@@ -59,11 +79,16 @@
         "u32_vector": "global::System.UInt32",
         "id128_vector": "global::Laplace.Managed.LaplaceId128",
         "composition_trajectory_vector": "global::Laplace.Managed.LaplaceTrajectoryCarrier",
-        "composition_occurrence_vector": "global::Laplace.Managed.LaplaceCompositionOccurrence"
+        "composition_occurrence_vector": "global::Laplace.Managed.LaplaceCompositionOccurrence",
+        "highway_key_vector": "global::Laplace.Managed.LaplaceHighwayKey",
+        "highway_coordinate_vector": "global::Laplace.Managed.LaplaceHighwayCoordinate",
+        "highway_registry_receipt_vector": "global::Laplace.Managed.LaplaceHighwayRegistryReceipt"
       },
       "operation_declarations": {
         "identity_codepoint_batch": "IdentityCodepointBatch",
-        "trajectory_composition_decode_batch": "TrajectoryCompositionDecodeBatch"
+        "trajectory_composition_decode_batch": "TrajectoryCompositionDecodeBatch",
+        "highway_coordinate_calculate_batch": "HighwayCoordinateCalculateBatch",
+        "highway_registry_materialize_batch": "HighwayRegistryMaterializeBatch"
       }
     },
     "postgresql": {
@@ -81,6 +106,18 @@
         "execute_sql_name": "trajectory_composition_decode_execute_batch",
         "execute_c_symbol": "laplace_pg_trajectory_composition_decode_execute_batch",
         "carrier_encoding": "four-little-endian-binary64-bit-patterns"
+      },
+      "highway_coordinate_calculate_batch": {
+        "calculate_sql_name": "highway_coordinate_calculate_batch",
+        "calculate_c_symbol": "laplace_pg_highway_coordinate_calculate_batch",
+        "execute_sql_name": "highway_coordinate_execute_batch",
+        "execute_c_symbol": "laplace_pg_highway_coordinate_execute_batch"
+      },
+      "highway_registry_materialize_batch": {
+        "activate_sql_name": "highway_registry_admit_and_activate",
+        "activate_c_symbol": "laplace_pg_highway_registry_admit_and_activate",
+        "resolve_sql_name": "highway_registry_resolve_active",
+        "resolve_c_symbol": "laplace_pg_highway_registry_resolve_active"
       }
     }
   },

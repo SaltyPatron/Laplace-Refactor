@@ -1,4 +1,5 @@
 #include "laplace/framework.h"
+#include "laplace/highway.h"
 #include "laplace/isa.h"
 #include "laplace/trajectory.h"
 #include "../context_fixture.h"
@@ -21,6 +22,9 @@ static_assert(std::is_standard_layout_v<laplace_digest256>);
 static_assert(std::is_standard_layout_v<laplace_id128>);
 static_assert(std::is_standard_layout_v<laplace_trajectory_carrier>);
 static_assert(std::is_standard_layout_v<laplace_composition_occurrence>);
+static_assert(std::is_standard_layout_v<laplace_highway_key>);
+static_assert(std::is_standard_layout_v<laplace_highway_coordinate>);
+static_assert(std::is_standard_layout_v<laplace_highway_registry_receipt>);
 static_assert(std::is_standard_layout_v<laplace_isa_value_view>);
 static_assert(std::is_standard_layout_v<laplace_isa_instruction>);
 static_assert(std::is_standard_layout_v<laplace_isa_program>);
@@ -84,7 +88,7 @@ int main(int argc, char** argv) {
         return 64;
     }
 
-    const std::array<std::size_t, 57> native_layout{{
+    const std::array<std::size_t, 83> native_layout{{
         sizeof(laplace_digest256),
         sizeof(laplace_id128),
         sizeof(laplace_trajectory_carrier),
@@ -98,6 +102,32 @@ int main(int argc, char** argv) {
         offsetof(laplace_composition_occurrence, tier),
         offsetof(laplace_composition_occurrence, has_atom),
         offsetof(laplace_composition_occurrence, reserved),
+        sizeof(laplace_highway_key),
+        offsetof(laplace_highway_key, kind),
+        offsetof(laplace_highway_key, reserved),
+        offsetof(laplace_highway_key, authority),
+        offsetof(laplace_highway_key, release),
+        offsetof(laplace_highway_key, name_space),
+        offsetof(laplace_highway_key, local_identifier),
+        offsetof(laplace_highway_key, version),
+        sizeof(laplace_highway_coordinate),
+        offsetof(laplace_highway_coordinate, coordinate),
+        offsetof(laplace_highway_coordinate, collision_fingerprint),
+        offsetof(laplace_highway_coordinate, kind),
+        offsetof(laplace_highway_coordinate, reserved),
+        offsetof(laplace_highway_coordinate, version),
+        sizeof(laplace_highway_registry_receipt),
+        offsetof(laplace_highway_registry_receipt, receipt_id),
+        offsetof(laplace_highway_registry_receipt, context_fingerprint),
+        offsetof(laplace_highway_registry_receipt, registry_fingerprint),
+        offsetof(laplace_highway_registry_receipt, activation_epoch_id),
+        offsetof(laplace_highway_registry_receipt, activation_epoch_fingerprint),
+        offsetof(laplace_highway_registry_receipt, registry_version),
+        offsetof(laplace_highway_registry_receipt, kind_count),
+        offsetof(laplace_highway_registry_receipt, alias_count),
+        offsetof(laplace_highway_registry_receipt, disposition_count),
+        offsetof(laplace_highway_registry_receipt, status),
+        offsetof(laplace_highway_registry_receipt, reserved),
         sizeof(laplace_isa_value_view),
         offsetof(laplace_isa_value_view, data),
         offsetof(laplace_isa_value_view, count),
@@ -226,6 +256,68 @@ int main(int argc, char** argv) {
         return 5;
     }
 
+    std::array<laplace_highway_key, 2> highway_keys{{
+        {LAPLACE_HIGHWAY_KIND_LANGUAGE, 0u,
+         identities[0], identities[1], identities[2], identities[3], 1u},
+        {LAPLACE_HIGHWAY_KIND_OPERATION, 0u,
+         identities[3], identities[2], identities[1], identities[0], 7u},
+    }};
+    std::array<laplace_highway_coordinate, 2> highway_coordinates{};
+    std::array<laplace_isa_value_view, 2> highway_values{{
+        {highway_keys.data(), highway_keys.size(), highway_keys.size(),
+         static_cast<std::uint32_t>(sizeof(highway_keys[0])),
+         LAPLACE_ISA_VALUE_HIGHWAY_KEY_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {highway_coordinates.data(), 0u, highway_coordinates.size(),
+         static_cast<std::uint32_t>(sizeof(highway_coordinates[0])),
+         LAPLACE_ISA_VALUE_HIGHWAY_COORDINATE_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction highway_instruction{
+        LAPLACE_ISA_OPCODE_HIGHWAY_COORDINATE_CALCULATE_BATCH,
+        0u,
+        1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_HIGHWAY_COORDINATE_CALCULATE_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto highway_program = Program(
+        &highway_instruction, highway_values.data(), &context);
+    laplace_isa_receipt highway_receipt{};
+    laplace_isa_error highway_error{};
+    if (laplace_isa_execute(
+            &highway_program, &highway_receipt, &highway_error) !=
+        LAPLACE_ISA_OK) {
+        std::fputs("direct native highway ISA execution failed\n", stderr);
+        return 6;
+    }
+
+    std::array<std::uint32_t, 1> highway_registry_versions{{
+        LAPLACE_HIGHWAY_REGISTRY_VERSION}};
+    std::array<laplace_highway_registry_receipt, 1> highway_registry_outputs{};
+    std::array<laplace_isa_value_view, 2> highway_registry_values{{
+        {highway_registry_versions.data(), highway_registry_versions.size(),
+         highway_registry_versions.size(),
+         static_cast<std::uint32_t>(sizeof(highway_registry_versions[0])),
+         LAPLACE_ISA_VALUE_U32_VECTOR, LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {highway_registry_outputs.data(), 0u, highway_registry_outputs.size(),
+         static_cast<std::uint32_t>(sizeof(highway_registry_outputs[0])),
+         LAPLACE_ISA_VALUE_HIGHWAY_REGISTRY_RECEIPT_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction highway_registry_instruction{
+        LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH,
+        0u,
+        1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_HIGHWAY_REGISTRY_MATERIALIZE_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto highway_registry_program = Program(
+        &highway_registry_instruction, highway_registry_values.data(), &context);
+    laplace_isa_receipt highway_registry_receipt{};
+    laplace_isa_error highway_registry_error{};
+    if (laplace_isa_execute(
+            &highway_registry_program, &highway_registry_receipt,
+            &highway_registry_error) != LAPLACE_ISA_OK) {
+        std::fputs("direct native highway registry ISA execution failed\n", stderr);
+        return 7;
+    }
+
     const std::filesystem::path target(argv[1]);
     std::filesystem::create_directories(target.parent_path());
     std::ofstream output(target, std::ios::binary | std::ios::trunc);
@@ -234,14 +326,20 @@ int main(int argc, char** argv) {
         return 73;
     }
     Write(output, MAGIC);
-    const std::uint32_t fixture_version = 1u;
+    const std::uint32_t fixture_version = 3u;
     const std::uint32_t layout_count = static_cast<std::uint32_t>(layout.size());
     const std::uint32_t identity_count = static_cast<std::uint32_t>(positions.size());
     const std::uint32_t trajectory_count = static_cast<std::uint32_t>(carriers.size());
+    const std::uint32_t highway_count =
+        static_cast<std::uint32_t>(highway_keys.size());
+    const std::uint32_t highway_registry_count =
+        static_cast<std::uint32_t>(highway_registry_versions.size());
     Write(output, fixture_version);
     Write(output, layout_count);
     Write(output, identity_count);
     Write(output, trajectory_count);
+    Write(output, highway_count);
+    Write(output, highway_registry_count);
     Write(output, layout);
     Write(output, context);
     Write(output, positions);
@@ -252,6 +350,14 @@ int main(int argc, char** argv) {
     Write(output, occurrences);
     Write(output, trajectory_receipt);
     Write(output, trajectory_error);
+    Write(output, highway_keys);
+    Write(output, highway_coordinates);
+    Write(output, highway_receipt);
+    Write(output, highway_error);
+    Write(output, highway_registry_versions);
+    Write(output, highway_registry_outputs);
+    Write(output, highway_registry_receipt);
+    Write(output, highway_registry_error);
     output.close();
     return output ? 0 : 74;
 }

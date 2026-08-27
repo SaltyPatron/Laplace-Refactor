@@ -1,4 +1,5 @@
-function(laplace_configure_dotnet_bindings contract_path generator_path project_path)
+function(laplace_configure_dotnet_bindings
+        contract_path generator_path project_path highway_source)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     find_program(LAPLACE_DOTNET_EXECUTABLE NAMES dotnet REQUIRED)
     execute_process(
@@ -38,10 +39,12 @@ function(laplace_configure_dotnet_bindings contract_path generator_path project_
             --configuration Release
             --nologo
             "-p:GeneratedIsaSource=${generated_source}"
+            "-p:GeneratedHighwaySource=${highway_source}"
             "-p:LaplaceManagedBuildRoot=${managed_root}"
             "-p:RestoreConfigFile=${nuget_config}"
         DEPENDS
             "${generated_source}"
+            "${highway_source}"
             "${project_path}"
             "${CMAKE_CURRENT_SOURCE_DIR}/Directory.Build.props"
             "${CMAKE_CURRENT_SOURCE_DIR}/managed/Laplace.Managed/Abi.cs"
@@ -54,6 +57,7 @@ function(laplace_configure_dotnet_bindings contract_path generator_path project_
 
     set(LAPLACE_DOTNET_EXECUTABLE "${LAPLACE_DOTNET_EXECUTABLE}" PARENT_SCOPE)
     set(LAPLACE_DOTNET_GENERATED_SOURCE "${generated_source}" PARENT_SCOPE)
+    set(LAPLACE_DOTNET_HIGHWAY_SOURCE "${highway_source}" PARENT_SCOPE)
     set(LAPLACE_DOTNET_MANAGED_ROOT "${managed_root}" PARENT_SCOPE)
     set(LAPLACE_DOTNET_MANAGED_DLL "${managed_dll}" PARENT_SCOPE)
     set(LAPLACE_DOTNET_NUGET_CONFIG "${nuget_config}" PARENT_SCOPE)

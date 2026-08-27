@@ -168,10 +168,14 @@ current service or cluster is a prerequisite or activation target.
 Normal product activation is dispatched by
 `.github/workflows/product-activation.yml` on the protected `product` environment and
 executes as `laplace-runner`. The workflow compiles one request from the exact
-activation-eligible successor recorded in `state/continuation.json`, binds the main
-commit, workflow run, package-manifest bytes, resource-observation bytes, Unicode
-source root, and gateway contract, and authenticates that canonical request with the
-protected deployment key.
+accepted PostgreSQL receipt and the current clean `main` checkout. It composes or
+revalidates the corresponding content-addressed Laplace product package, observes the
+native resource allocation against those staged bytes, and binds the main commit,
+workflow run, product-package receipt, package-manifest bytes, staged source root,
+resource-observation bytes, Unicode source root, and gateway contract. It authenticates
+that canonical request with the protected deployment key; an older package recorded by
+a continuation checkpoint cannot substitute for the package built from the dispatched
+commit.
 
 The runner can cross the root boundary only through the immutable executable at
 `/opt/laplace/deployment/current/bin/laplace-product-activate`. Its sudo policy names
@@ -179,16 +183,21 @@ exactly `probe` and `execute-request`; it grants no shell, Python, repository pa
 wildcard argument, systemctl, file-copy, or arbitrary controller authority. The root
 gateway verifies its own root-owned content-addressed bundle before accepting bounded
 stdin, verifies the request authentication and time window, then invokes the bundled
-copies of `clusterctl.py` and `unicodectl.py` with paths derived from the signed package
-identity. Repository checkout code never executes as root.
+copies of `clusterctl.py`, `unicodectl.py`, and `highwayctl.py` with paths derived from
+the signed package identity. The gateway first installs or exactly revalidates the
+signed content-addressed package through `clusterctl.py install-package`; it then
+activates the isolated cluster, Unicode root, and Highway. Repository checkout code
+never executes as root.
 
 The gateway installs once through
 `tools/delivery/install_product_activation_gateway.py`. That bootstrap creates the
 root-owned controller bundle, root-only deployment key, exact sudoers entry, and
 version pointer. It is infrastructure establishment, not a recurring product install.
-Subsequent PostgreSQL and Unicode activations run entirely through CI/CD. Exact replay
-returns the existing content-addressed result; a changed key, request, route, package,
-resource receipt, path, cluster restart proof, or Unicode readback proof fails closed.
+Subsequent package composition, installation, PostgreSQL, Unicode, and Highway
+activations run through CI/CD. Exact replay returns the existing content-addressed
+result; a changed key, request, route, package receipt, package source root, resource
+receipt, cluster restart proof, Unicode readback proof, or Highway active-readback
+proof fails closed.
 
 ## Product Unicode activation
 

@@ -46,9 +46,15 @@
       "defect_controls": ["one changed source byte", "partial preexisting root", "activation identity domain collapse", "multiple native root calls", "reverse readback mutation", "unchanged postmaster", "artifact drift across restart"]
     },
     {
+      "ctest_name": "highway-product.activation-contract",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-IDENTITY-CROSS-ROUTE"],
+      "covered_dimensions": ["canonical Highway registry ISA materialization", "active Unicode atom resolution", "universal AST composition", "set-wise presence and canonical deposition", "typed registry projection activation", "product restart", "cold application-role active-registry readback", "content-addressed activation receipt"],
+      "defect_controls": ["partial preexisting Highway state", "fresh activation with zero canonical writes", "stale Unicode epoch", "stale numerical epoch", "wrong application role route", "unchanged postmaster"]
+    },
+    {
       "ctest_name": "product-activation.gateway-contract",
       "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-CONTINUATION-AUTHORITY", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
-      "covered_dimensions": ["laplace-runner CI/CD request compilation", "bounded authenticated root gateway", "immutable root-owned controller bundle", "exact package and resource receipt binding", "cluster and Unicode activation chaining", "content-addressed result and replay"],
+      "covered_dimensions": ["laplace-runner CI/CD request compilation", "bounded authenticated root gateway", "immutable root-owned controller bundle", "exact package and resource receipt binding", "cluster Unicode and Highway activation chaining", "application-role active Highway readback", "content-addressed result and replay"],
       "defect_controls": ["pull-request or non-main deployment", "changed request after authentication", "stale request", "path escape", "changed package or resource bytes", "duplicate JSON authority", "gateway key drift", "incomplete cluster restart receipt"]
     },
     {
@@ -1566,17 +1572,60 @@
       "controls": "DependencyMath.CurrentEigenAndSpectraComputeSelectedEigenpairs"
     },
     {
+      "ctest_name": "highway.generated-mirror-and-append-only-contract",
+      "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY"],
+      "covered_dimensions": ["one validated authority generates native PostgreSQL SQL Csharp documentation diagnostics and perfcache mirrors", "byte-reproducible mirror manifest", "append-only kind disposition name identifier alias introduction retirement and coordinate law"],
+      "defect_controls": ["duplicate JSON key", "missing or repeated mirror", "zero kind identifier", "kind renumbering", "kind removal", "backdated alias"]
+    },
+    {
+      "ctest_name": "HighwayCoordinate.ExactScopeAndVersionDetermineDistinctCoordinates",
+      "evidence_targets": ["LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION", "LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION"],
+      "covered_dimensions": ["kind authority release namespace local identifier and version are all coordinate inputs", "same local identifier cannot collide across declared scope"],
+      "defect_controls": ["highway.mutation-release-scope-omission-detected"]
+    },
+    {
+      "ctest_name": "HighwayCoordinate.EveryMachineKindUsesOneOperation",
+      "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION"],
+      "covered_dimensions": ["all generated grammar AST language script authority release reference relation modality representation recipe model trust operation firmware and effect kinds use one native calculation"]
+    },
+    {
+      "ctest_name": "HighwayCoordinate.ZeroAbsenceAndInvalidInputsNeverPublishPartialOutput",
+      "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION"],
+      "covered_dimensions": ["zero scope zero version unknown kind and invalid reserved fields remain typed failures", "whole batch preflight prevents partial publication"]
+    },
+    {
+      "ctest_name": "HighwayRegistry.GeneratedRowsAndMaterializationReceiptAreExact",
+      "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["generated kind alias and disposition rows are the native registry authority", "registry activation epoch is independent of execution context", "materialization receipt binds the execution context and complete registry identity"]
+    },
+    {
+      "ctest_name": "highway.mutation-release-scope-omission-detected",
+      "evidence_targets": ["LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION"],
+      "covered_dimensions": ["omitting the release scope from coordinate identity is detected"],
+      "controls": "HighwayCoordinate.ExactScopeAndVersionDetermineDistinctCoordinates"
+    },
+    {
+      "ctest_name": "IsaExecution.HighwayBatchMatchesCanonicalNativeOperationAndReceipt",
+      "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["one generated ISA opcode owns highway batch execution", "ISA output and receipt match the canonical native calculation"]
+    },
+    {
+      "ctest_name": "IsaExecution.HighwayRegistryMaterializationUsesTheCanonicalLifecycleOperation",
+      "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["one generated ISA opcode owns highway registry materialization", "batch preflight rejects unsupported registry versions before any output", "materialization output matches the canonical native lifecycle receipt"]
+    },
+    {
       "ctest_name": "dotnet.generated-isa-contract",
       "profiles": ["dotnet", "custom-stack"],
-      "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE"],
-      "covered_dimensions": ["byte-reproducible contract generation", "typed value operation and version descriptors", "complete generated operation declarations"],
+      "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE", "LP-TEST-HIGHWAY-REGISTRY-PARITY"],
+      "covered_dimensions": ["byte-reproducible contract generation", "typed value operation and version descriptors", "complete generated identity trajectory highway-coordinate and highway-registry operation declarations"],
       "defect_controls": ["removed generated operation declaration is detected"]
     },
     {
       "ctest_name": "dotnet.native-isa-parity",
       "profiles": ["dotnet", "custom-stack"],
-      "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-BULK-PARITY"],
-      "covered_dimensions": ["exact native and managed ABI layout", "real P Invoke vector transport", "identity and trajectory direct-native output parity", "all receipt and error fields", "one-element scalar lowering", "version type and opcode preflight rejection", "call-scoped pin lifetime", "disposed transport rejection"]
+      "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-BULK-PARITY", "LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION"],
+      "covered_dimensions": ["exact native and managed ABI layout", "real P Invoke vector transport", "identity trajectory highway-coordinate and highway-registry direct-native output parity", "all receipt and error fields", "generated highway registry constants", "one-element scalar lowering", "version type and opcode preflight rejection", "call-scoped pin lifetime", "disposed transport rejection"]
     },
     {
       "ctest_name": "postgres.unicode-root-persistence-contract",
@@ -1602,8 +1651,8 @@
     {
       "ctest_name": "postgres.spi-isa-contract",
       "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN"],
-      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL output parity", "direct C and PostgreSQL receipt parity", "parallel-safe pure calculation", "one set-oriented SPI persistence provider", "durable-or-in-batch reference preflight", "normalized entity physicality trajectory and occurrence storage", "full identity witness collision detection", "immutable exact plan-sequence receipt", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-vertex single native batch", "bounded storage", "candidate index plus exact native trajectory proof", "concurrent idempotent deposit", "database-scoped named DSM control plane without preload", "immutable generation manifests and activation-admission events", "durable active-epoch singleton CAS", "transaction and savepoint deferred activation", "native preflight before durable commit", "committed-XID visibility-gap recovery", "exact full-epoch shared and native pins", "resource-owner error cleanup", "cold-backend manifest reconstruction validation prefault and exact pin", "SQL-free repeated hot native batch lookup", "configured-root and missing-artifact rejection", "concurrent old-generation reader and new-generation activation", "competing activator exclusion", "retired generation drain", "same-postmaster extension drop and recreation", "unchanged postmaster start time"],
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN", "LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY", "LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION"],
+      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL identity trajectory and highway-coordinate output parity", "direct C and PostgreSQL identity trajectory and highway-coordinate receipt parity", "highway release scope separation and fail-closed zero scope", "parallel-safe pure calculation", "one set-oriented SPI persistence provider", "durable-or-in-batch reference preflight", "normalized entity physicality trajectory and occurrence storage", "full identity witness collision detection", "immutable exact plan-sequence receipt", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-vertex single native batch", "bounded storage", "candidate index plus exact native trajectory proof", "concurrent idempotent deposit", "database-scoped named DSM control plane without preload", "immutable generation manifests and activation-admission events", "durable active-epoch singleton CAS", "transaction and savepoint deferred activation", "native preflight before durable commit", "committed-XID visibility-gap recovery", "exact full-epoch shared and native pins", "resource-owner error cleanup", "cold-backend manifest reconstruction validation prefault and exact pin", "SQL-free repeated hot native batch lookup", "configured-root and missing-artifact rejection", "concurrent old-generation reader and new-generation activation", "competing activator exclusion", "retired generation drain", "same-postmaster extension drop and recreation", "unchanged postmaster start time"],
       "defect_controls": ["postgres.mutation-receipt-collision-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
     },
     {

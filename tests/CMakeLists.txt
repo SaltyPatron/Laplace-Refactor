@@ -180,6 +180,48 @@ add_test(
 set_tests_properties(unicode-source.generated-manifest-contract PROPERTIES
     LABELS "contracts;unicode;source;generation;mutation")
 
+add_test(
+    NAME highway.generated-mirror-and-append-only-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/highway_generation_tests.py")
+set_tests_properties(highway.generated-mirror-and-append-only-contract PROPERTIES
+    LABELS "contracts;highway;generation;parity;mutation")
+
+add_executable(laplace_highway_tests highway_tests.cpp)
+target_link_libraries(laplace_highway_tests PRIVATE
+    Laplace::Highway GTest::gtest_main)
+target_compile_options(laplace_highway_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_highway_tests PROPERTIES
+    LABELS "implementation;highway;coordinate;batch")
+
+add_library(laplace_highway_release_scope_mutant STATIC
+    ../engine/src/highway.c)
+target_include_directories(laplace_highway_release_scope_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_highway_release_scope_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_highway_release_scope_mutant PRIVATE
+    LAPLACE_TEST_HIGHWAY_OMIT_RELEASE_SCOPE=1)
+target_compile_options(laplace_highway_release_scope_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_highway_release_scope_mutation_probe highway_tests.cpp)
+target_include_directories(laplace_highway_release_scope_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_highway_release_scope_mutation_probe PRIVATE
+    laplace_highway_release_scope_mutant Laplace::Framework GTest::gtest_main)
+target_compile_options(laplace_highway_release_scope_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME highway.mutation-release-scope-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_highway_release_scope_mutation_probe>"
+        "-DFILTER=HighwayCoordinate.ExactScopeAndVersionDetermineDistinctCoordinates"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(highway.mutation-release-scope-omission-detected PROPERTIES
+    LABELS "implementation;highway;coordinate;mutation")
+
 add_executable(laplace_unicode_root_tests
     unicode_root_tests.cpp)
 target_link_libraries(laplace_unicode_root_tests PRIVATE
@@ -748,11 +790,19 @@ set_tests_properties(unicode-product.activation-contract PROPERTIES
     RUN_SERIAL TRUE)
 
 add_test(
+    NAME highway-product.activation-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/highway_product_activation_tests.py")
+set_tests_properties(highway-product.activation-contract PROPERTIES
+    LABELS "activation;product;highway;postgresql;receipt;mutation"
+    RUN_SERIAL TRUE)
+
+add_test(
     NAME product-activation.gateway-contract
     COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/product_activation_gateway_tests.py")
 set_tests_properties(product-activation.gateway-contract PROPERTIES
-    LABELS "activation;delivery;product;postgresql;unicode;security;mutation"
+    LABELS "activation;delivery;product;postgresql;unicode;highway;security;mutation"
     RUN_SERIAL TRUE)
 
 add_test(
@@ -850,6 +900,7 @@ if(LAPLACE_ENABLE_DOTNET_BINDINGS)
             --configuration Release
             --nologo
             "-p:GeneratedIsaSource=${LAPLACE_DOTNET_GENERATED_SOURCE}"
+            "-p:GeneratedHighwaySource=${LAPLACE_DOTNET_HIGHWAY_SOURCE}"
             "-p:LaplaceManagedBuildRoot=${LAPLACE_DOTNET_MANAGED_ROOT}"
             "-p:RestoreConfigFile=${LAPLACE_DOTNET_NUGET_CONFIG}"
         DEPENDS
@@ -1486,6 +1537,7 @@ set_tests_properties(isa.preflight-atomicity-contract PROPERTIES
 add_library(laplace_isa_preflight_mutant STATIC
     ../engine/src/identity.c
     ../engine/src/framework.c
+    ../engine/src/highway.c
     ../engine/src/isa.c
     ../engine/src/trajectory.c)
 target_include_directories(laplace_isa_preflight_mutant
@@ -1525,6 +1577,7 @@ set_tests_properties(isa.generated-registry-dispatch-contract PROPERTIES
 add_library(laplace_isa_registry_mutant STATIC
     ../engine/src/identity.c
     ../engine/src/framework.c
+    ../engine/src/highway.c
     ../engine/src/isa.c
     ../engine/src/trajectory.c)
 target_include_directories(laplace_isa_registry_mutant
@@ -1564,6 +1617,7 @@ set_tests_properties(isa.execution-context-binding-contract PROPERTIES
 add_library(laplace_isa_context_mutant STATIC
     ../engine/src/identity.c
     ../engine/src/framework.c
+    ../engine/src/highway.c
     ../engine/src/isa.c
     ../engine/src/trajectory.c)
 target_include_directories(laplace_isa_context_mutant

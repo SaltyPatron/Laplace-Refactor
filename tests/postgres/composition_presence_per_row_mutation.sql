@@ -1,6 +1,6 @@
 \ir composition_contract.sql
 
-CREATE OR REPLACE FUNCTION laplace.composition_deposit_batch(
+CREATE FUNCTION pg_temp.composition_mutant_deposit(
     laplace.execution_context,
     bytea,
     bytea,
@@ -9,12 +9,21 @@ CREATE OR REPLACE FUNCTION laplace.composition_deposit_batch(
     laplace.composition_request_record[],
     numeric)
 RETURNS laplace.composition_deposit_result
-AS :'persistence_mutant_module', 'laplace_pg_composition_deposit_batch'
+AS :'persistence_mutant_module',
+   'laplace_pg_composition_deposit_presence_per_row_mutant'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 DO $mutation$
 BEGIN
-    PERFORM pg_temp.composition_fixture_deposit();
+    PERFORM pg_temp.composition_mutant_deposit(
+        inputs.execution_context,
+        inputs.source_fingerprint,
+        inputs.calculation_recipe_fingerprint,
+        inputs.known_entities,
+        inputs.operands,
+        inputs.requests,
+        inputs.preferred_batch_bytes)
+    FROM pg_temp.composition_fixture_pair_inputs() AS inputs;
     RAISE EXCEPTION
         'per-row composition-presence mutant escaped set-operation round bounds';
 END

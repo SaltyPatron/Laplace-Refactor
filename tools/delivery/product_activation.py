@@ -149,17 +149,24 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ActivationGatewayError("request maximum age is invalid")
     for section, names in (
         (gateway, ("release_root", "active_link", "executable", "sudoers_path", "receipt_root", "python")),
-        (product, ("package_manifest_root", "package_release_root", "plan_receipt_root", "cluster_activation_root", "unicode_source_root", "unicode_result")),
+        (product, ("package_manifest_root", "package_stage_root", "package_release_root", "plan_receipt_root", "cluster_activation_root", "unicode_source_root", "unicode_result", "highway_result")),
     ):
         for name in names:
             require_absolute(section.get(name), f"{name}")
+    if (
+        product.get("package_receipt_schema")
+        != "laplace.product-package-receipt/v1"
+        or product.get("package_installation_schema")
+        != "laplace.product-package-installation-receipt/v1"
+    ):
+        raise ActivationGatewayError("product package receipt schemas differ")
     files = trusted.get("files")
     if not isinstance(files, list) or not files or files != sorted(set(files)):
         raise ActivationGatewayError("trusted bundle file list must be sorted and unique")
     for relative in files:
         if not isinstance(relative, str) or PurePosixPath(relative).is_absolute() or ".." in PurePosixPath(relative).parts:
             raise ActivationGatewayError("trusted bundle contains an unsafe path")
-    if operation.get("name") != "activate-product-and-unicode" or operation.get("system_root_authorization") is not True:
+    if operation.get("name") != "activate-product-unicode-and-highway" or operation.get("system_root_authorization") is not True:
         raise ActivationGatewayError("whole-product activation operation differs")
 
 
@@ -196,37 +203,60 @@ def parse_utc(value: Any) -> dt.datetime:
     return parsed
 
 
-def validate_payload_paths(contract: dict[str, Any], payload: dict[str, Any]) -> tuple[Path, Path, Path]:
-    package = payload.get("package")
+def validate_payload_paths(
+    contract: dict[str, Any], payload: dict[str, Any]
+) -> tuple[Path, Path, Path, Path, Path]:
+    package = require_exact_keys(
+        payload.get("package"),
+        {
+            "id",
+            "manifest",
+            "manifest_sha256",
+            "receipt",
+            "receipt_sha256",
+            "source_root",
+        },
+        "activation request package",
+    )
     resource = payload.get("resource_observation")
     unicode = payload.get("unicode")
-    if not all(isinstance(value, dict) for value in (package, resource, unicode)):
+    if not all(isinstance(value, dict) for value in (resource, unicode)):
         raise ActivationGatewayError("activation request input sections are incomplete")
     package_id = require_hex(package.get("id"), HEX_64, "package id")
     manifest = require_absolute(package.get("manifest"), "package manifest")
+    receipt = require_absolute(package.get("receipt"), "package receipt")
+    package_source_root = require_absolute(package.get("source_root"), "package source root")
     resource_path = require_absolute(resource.get("path"), "resource observation")
-    source_root = require_absolute(unicode.get("source_root"), "Unicode source root")
+    unicode_source_root = require_absolute(unicode.get("source_root"), "Unicode source root")
     manifest_root = Path(contract["product"]["package_manifest_root"])
     require_below(manifest, manifest_root, "package manifest")
     if manifest.name != "package-manifest.json" or len(manifest.relative_to(manifest_root).parts) != 2:
         raise ActivationGatewayError("package manifest is not in one content-addressed build directory")
-    require_hex(manifest.parent.name, HEX_64, "product build plan id")
+    build_plan_id = require_hex(manifest.parent.name, HEX_64, "product build plan id")
+    if receipt != manifest.parent / "package-receipt.json":
+        raise ActivationGatewayError("package receipt is not paired with its manifest")
+    expected_source_root = Path(contract["product"]["package_stage_root"]) / build_plan_id / "root"
+    if package_source_root != expected_source_root:
+        raise ActivationGatewayError("package source root differs from its addressed build plan")
     expected_resource = Path(contract["product"]["plan_receipt_root"]) / package_id / "resource-observation.json"
     if resource_path != expected_resource:
         raise ActivationGatewayError("resource observation is not package-addressed")
-    if source_root != Path(contract["product"]["unicode_source_root"]):
+    if unicode_source_root != Path(contract["product"]["unicode_source_root"]):
         raise ActivationGatewayError("Unicode source root differs from the product contract")
-    return manifest, resource_path, source_root
+    return manifest, receipt, expected_source_root, resource_path, unicode_source_root
 
 
 def validate_physical_inputs(contract: dict[str, Any], payload: dict[str, Any]) -> None:
-    manifest_path, resource_path, _source_root = validate_payload_paths(contract, payload)
+    manifest_path, receipt_path, package_source_root, resource_path, _unicode_source_root = validate_payload_paths(contract, payload)
     package = payload["package"]
     resource = payload["resource_observation"]
     manifest_digest = require_hex(package.get("manifest_sha256"), HEX_64, "package manifest digest")
+    receipt_digest = require_hex(package.get("receipt_sha256"), HEX_64, "package receipt digest")
     resource_digest = require_hex(resource.get("sha256"), HEX_64, "resource observation digest")
     if sha256_file(manifest_path) != manifest_digest:
         raise ActivationGatewayError("package manifest bytes differ from the signed request")
+    if sha256_file(receipt_path) != receipt_digest:
+        raise ActivationGatewayError("package receipt bytes differ from the signed request")
     if sha256_file(resource_path) != resource_digest:
         raise ActivationGatewayError("resource observation bytes differ from the signed request")
     manifest = load_json(manifest_path)
@@ -235,6 +265,51 @@ def validate_physical_inputs(contract: dict[str, Any], payload: dict[str, Any]) 
     expected_root = f"{contract['product']['package_release_root']}/{package['id']}"
     if manifest.get("root") != expected_root:
         raise ActivationGatewayError("package manifest root differs from the product release root")
+    receipt = load_json(receipt_path)
+    expected_physical_root = package_source_root.joinpath(*PurePosixPath(expected_root).parts[1:])
+    if (
+        receipt.get("schema") != contract["product"]["package_receipt_schema"]
+        or receipt.get("package_id") != package["id"]
+        or receipt.get("manifest") != str(manifest_path)
+        or receipt.get("manifest_sha256") != manifest_digest
+        or receipt.get("physical_root") != str(expected_physical_root)
+        or receipt.get("activation_eligible") is not True
+        or receipt.get("build_input_closure_complete") is not True
+        or receipt.get("product_activated") is not False
+    ):
+        raise ActivationGatewayError("product package receipt is not exact and activation eligible")
+
+
+def delivery_selection_from_receipts(
+    contract: dict[str, Any], package_receipt_path: Path, resource_path: Path
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    receipt = load_json(package_receipt_path)
+    manifest_path = require_absolute(receipt.get("manifest"), "product receipt manifest")
+    manifest = load_json(manifest_path)
+    build_plan_id = require_hex(manifest_path.parent.name, HEX_64, "product build plan id")
+    package_id = require_hex(receipt.get("package_id"), HEX_64, "product receipt package id")
+    package_source_root = Path(contract["product"]["package_stage_root"]) / build_plan_id / "root"
+    resource = load_json(resource_path)
+    selection = {
+        "id": package_id,
+        "manifest": str(manifest_path),
+        "manifest_sha256": sha256_file(manifest_path),
+        "receipt": str(package_receipt_path),
+        "receipt_sha256": sha256_file(package_receipt_path),
+        "source_root": str(package_source_root),
+    }
+    observation = {
+        "path": str(resource_path),
+        "sha256": sha256_file(resource_path),
+        "observation_sha256": resource.get("observation_sha256"),
+    }
+    probe = {
+        "package": selection,
+        "resource_observation": observation,
+        "unicode": {"source_root": contract["product"]["unicode_source_root"]},
+    }
+    validate_physical_inputs(contract, probe)
+    return selection, observation
 
 
 def build_request(
@@ -243,6 +318,8 @@ def build_request(
     environment: Mapping[str, str],
     key: bytes,
     now: dt.datetime,
+    package_receipt_path: Path | None = None,
+    resource_observation_path: Path | None = None,
 ) -> dict[str, Any]:
     validate_contract(contract)
     repository = contract["repository"]
@@ -257,19 +334,46 @@ def build_request(
     run_attempt = environment.get("GITHUB_RUN_ATTEMPT", "")
     if not run_id.isdecimal() or int(run_id) <= 0 or not run_attempt.isdecimal() or int(run_attempt) <= 0:
         raise ActivationGatewayError("workflow run identity is invalid")
-    successor = (
-        continuation.get("active_work", {})
-        .get("implementation_progress", {})
-        .get("successor_product_package")
-    )
-    if not isinstance(successor, dict) or successor.get("activation_eligible") is not True:
-        raise ActivationGatewayError("continuation does not select an activation-eligible successor package")
-    if successor.get("immutable_release_installed") is not True:
-        raise ActivationGatewayError("successor package is not recorded as immutably installed")
-    installation = successor.get("installation", {})
-    if installation.get("installed_package_verified") is not True:
-        raise ActivationGatewayError("successor installed package is not verified")
-    resource = successor.get("resource_observation", {})
+    if (package_receipt_path is None) != (resource_observation_path is None):
+        raise ActivationGatewayError("product receipt and resource observation must be selected together")
+    if package_receipt_path is not None and resource_observation_path is not None:
+        selected_package, selected_resource = delivery_selection_from_receipts(
+            contract, package_receipt_path, resource_observation_path
+        )
+    else:
+        successor = (
+            continuation.get("active_work", {})
+            .get("implementation_progress", {})
+            .get("successor_product_package")
+        )
+        if not isinstance(successor, dict) or successor.get("activation_eligible") is not True:
+            raise ActivationGatewayError("continuation does not select an activation-eligible successor package")
+        if successor.get("immutable_release_installed") is not True:
+            raise ActivationGatewayError("successor package is not recorded as immutably installed")
+        installation = successor.get("installation", {})
+        if installation.get("installed_package_verified") is not True:
+            raise ActivationGatewayError("successor installed package is not verified")
+        physical_release = require_absolute(successor.get("physical_root"), "successor package physical root")
+        manifest_path = require_absolute(successor.get("package_manifest"), "successor package manifest")
+        build_plan_id = require_hex(manifest_path.parent.name, HEX_64, "successor product build plan id")
+        source_root = Path(contract["product"]["package_stage_root"]) / build_plan_id / "root"
+        expected_release = source_root.joinpath(*PurePosixPath(f"{contract['product']['package_release_root']}/{successor.get('package_id')}").parts[1:])
+        if physical_release != expected_release:
+            raise ActivationGatewayError("successor package physical root differs from its build plan")
+        resource = successor.get("resource_observation", {})
+        selected_package = {
+            "id": successor.get("package_id"),
+            "manifest": str(manifest_path),
+            "manifest_sha256": successor.get("package_manifest_sha256"),
+            "receipt": successor.get("package_receipt"),
+            "receipt_sha256": successor.get("package_receipt_sha256"),
+            "source_root": str(source_root),
+        }
+        selected_resource = {
+            "path": resource.get("receipt"),
+            "sha256": resource.get("receipt_sha256"),
+            "observation_sha256": resource.get("observation_sha256"),
+        }
     payload = {
         "schema": REQUEST_SCHEMA,
         "operation": contract["operation"]["name"],
@@ -283,16 +387,8 @@ def build_request(
             "actor": environment.get("GITHUB_ACTOR", ""),
         },
         "contract_sha256": sha256_bytes(canonical_bytes(contract)),
-        "package": {
-            "id": successor.get("package_id"),
-            "manifest": successor.get("package_manifest"),
-            "manifest_sha256": successor.get("package_manifest_sha256"),
-        },
-        "resource_observation": {
-            "path": resource.get("receipt"),
-            "sha256": resource.get("receipt_sha256"),
-            "observation_sha256": resource.get("observation_sha256"),
-        },
+        "package": selected_package,
+        "resource_observation": selected_resource,
         "unicode": {"source_root": contract["product"]["unicode_source_root"]},
     }
     if not payload["repository"]["actor"]:
@@ -338,7 +434,15 @@ def validate_request(
         "activation request repository authority",
     )
     require_exact_keys(
-        payload.get("package"), {"id", "manifest", "manifest_sha256"},
+        payload.get("package"),
+        {
+            "id",
+            "manifest",
+            "manifest_sha256",
+            "receipt",
+            "receipt_sha256",
+            "source_root",
+        },
         "activation request package",
     )
     require_exact_keys(
@@ -416,6 +520,41 @@ def validate_unicode_success(contract: dict[str, Any], result: dict[str, Any], p
         raise ActivationGatewayError("Unicode activation result is not exact and complete")
 
 
+def validate_highway_success(contract: dict[str, Any], result: dict[str, Any], package_id: str) -> None:
+    if (
+        result.get("schema") != contract["operation"]["highway_success_schema"]
+        or result.get("phase") != "product-activated"
+        or result.get("package_id") != package_id
+        or result.get("restart_proven") is not True
+        or result.get("cold_application_readback_proven") is not True
+        or result.get("receipt_sha256") != document_identity(result, "receipt_sha256")
+    ):
+        raise ActivationGatewayError("Highway activation result is not exact and complete")
+
+
+def validate_package_installation(
+    contract: dict[str, Any], result: dict[str, Any], payload: dict[str, Any]
+) -> None:
+    package = payload["package"]
+    expected_release = f"{contract['product']['package_release_root']}/{package['id']}"
+    if (
+        result.get("schema") != contract["product"]["package_installation_schema"]
+        or result.get("phase") != "installed"
+        or result.get("package_id") != package["id"]
+        or result.get("package_manifest_sha256") != package["manifest_sha256"]
+        or result.get("package_root") != expected_release
+        or result.get("installation_root") != "/"
+        or result.get("installed_release") != expected_release
+        or result.get("source_physical_root") != str(Path(package["source_root"]).resolve())
+        or result.get("source_package_verified") is not True
+        or result.get("installed_package_verified") is not True
+        or result.get("overwrite_performed") is not False
+        or result.get("installation_receipt_sha256")
+        != document_identity(result, "installation_receipt_sha256")
+    ):
+        raise ActivationGatewayError("product package installation result is not exact and complete")
+
+
 def verify_installed_bundle(
     executable: Path, require_root_ownership: bool = False
 ) -> tuple[Path, dict[str, Any]]:
@@ -473,14 +612,37 @@ def execute_request(
     payload = validate_request(contract, request, key, now)
     package_id = payload["package"]["id"]
     evidence = Path(contract["product"]["cluster_activation_root"]) / package_id
+    installation_result_path = evidence / "package-installation.json"
     cluster_result_path = evidence / "activation-result.json"
     unicode_result_path = Path(contract["product"]["unicode_result"])
+    highway_result_path = Path(contract["product"]["highway_result"])
     receipt_path = Path(contract["gateway"]["receipt_root"]) / f"{request['request_id']}.json"
     existing_result = load_json(receipt_path) if receipt_path.exists() else None
     python = contract["gateway"]["python"]
     controllers = bundle / "controllers"
     contracts = bundle / "contracts"
     command_receipts: list[dict[str, Any]] = []
+    install_command = [
+        python,
+        str(controllers / "clusterctl.py"),
+        "install-package",
+        "--authorize-system-root",
+        "--contract",
+        str(contracts / "postgresql-cluster.json"),
+        "--package-manifest",
+        payload["package"]["manifest"],
+        "--package-physical-root",
+        payload["package"]["source_root"],
+        "--root",
+        "/",
+        "--receipt",
+        str(installation_result_path),
+    ]
+    command_receipts.append(
+        run_fixed("install-product-package", install_command, 3600)
+    )
+    installation_result = load_json(installation_result_path)
+    validate_package_installation(contract, installation_result, payload)
     if not cluster_result_path.exists():
         cluster_command = [
             python, str(controllers / "clusterctl.py"), "activate-product", "--authorize-system-root",
@@ -505,16 +667,36 @@ def execute_request(
     command_receipts.append(run_fixed("activate-product-unicode", unicode_command, 14400))
     unicode_result = load_json(unicode_result_path)
     validate_unicode_success(contract, unicode_result, package_id)
+    highway_command = [
+        python, str(controllers / "highwayctl.py"), "--authorize-system-root",
+        "--contract", str(contracts / "highway-product-activation.json"),
+        "--cluster-contract", str(contracts / "postgresql-cluster.json"),
+        "--unicode-contract", str(contracts / "unicode-product-activation.json"),
+        "--registry-contract", str(contracts / "highway.json"),
+        "--package-manifest", payload["package"]["manifest"],
+        "--cluster-plan", str(plan_path),
+        "--cluster-activation-receipt", str(cluster_result_path),
+        "--unicode-activation-receipt", str(unicode_result_path),
+        "--output", str(highway_result_path),
+    ]
+    command_receipts.append(run_fixed("activate-product-highway", highway_command, 3600))
+    highway_result = load_json(highway_result_path)
+    validate_highway_success(contract, highway_result, package_id)
     result = {
         "schema": RESULT_SCHEMA,
-        "phase": "product-and-unicode-activated",
+        "phase": "product-unicode-and-highway-activated",
         "request_id": request["request_id"],
         "package_id": package_id,
         "repository_commit": payload["repository"]["commit"],
+        "package_installation_receipt_sha256": installation_result[
+            "installation_receipt_sha256"
+        ],
         "cluster_activation_receipt_sha256": cluster_result["activation_receipt_sha256"],
         "unicode_activation_receipt_sha256": unicode_result["receipt_sha256"],
+        "highway_activation_receipt_sha256": highway_result["receipt_sha256"],
         "cluster_result": str(cluster_result_path),
         "unicode_result": str(unicode_result_path),
+        "highway_result": str(highway_result_path),
         "command_receipts": command_receipts,
         "exact_replay": existing_result is not None,
     }
@@ -522,8 +704,10 @@ def execute_request(
     if existing_result is not None:
         required = {
             "schema", "phase", "request_id", "package_id", "repository_commit",
+            "package_installation_receipt_sha256",
             "cluster_activation_receipt_sha256", "unicode_activation_receipt_sha256",
-            "cluster_result", "unicode_result", "command_receipts", "exact_replay",
+            "highway_activation_receipt_sha256", "cluster_result", "unicode_result",
+            "highway_result", "command_receipts", "exact_replay",
             "result_sha256",
         }
         if (
@@ -534,10 +718,14 @@ def execute_request(
             or existing_result.get("package_id") != package_id
             or existing_result.get("repository_commit")
             != payload["repository"]["commit"]
+            or existing_result.get("package_installation_receipt_sha256")
+            != installation_result["installation_receipt_sha256"]
             or existing_result.get("cluster_activation_receipt_sha256")
             != cluster_result["activation_receipt_sha256"]
             or existing_result.get("unicode_activation_receipt_sha256")
             != unicode_result["receipt_sha256"]
+            or existing_result.get("highway_activation_receipt_sha256")
+            != highway_result["receipt_sha256"]
         ):
             raise ActivationGatewayError(
                 "existing gateway result collides with revalidated product state"
@@ -562,6 +750,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     create = subparsers.add_parser("create-request")
     create.add_argument("--contract", default="contracts/product-activation-gateway.json")
     create.add_argument("--continuation", default="state/continuation.json")
+    create.add_argument("--product-receipt")
+    create.add_argument("--resource-observation")
     create.add_argument("--output", required=True)
     execute = subparsers.add_parser("execute-request")
     execute.add_argument("--contract")
@@ -580,6 +770,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         request = build_request(
             contract, load_json(Path(arguments.continuation)), os.environ,
             decode_key(os.environ[key_name]), dt.datetime.now(dt.timezone.utc),
+            Path(arguments.product_receipt) if arguments.product_receipt else None,
+            Path(arguments.resource_observation) if arguments.resource_observation else None,
         )
         atomic_write(Path(arguments.output), canonical_bytes(request), 0o600)
         return 0

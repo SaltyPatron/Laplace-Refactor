@@ -1,0 +1,54 @@
+{
+  "schema": "laplace.highway-product-activation-contract/v1",
+  "version": "1.0.0",
+  "authority": {
+    "cluster_contract_schema": "laplace.postgresql-cluster-contract/v1",
+    "cluster_activation_receipt_schema": "laplace.postgresql-activation-receipt/v1",
+    "cluster_plan_schema": "laplace.postgresql-cluster-plan/v1",
+    "package_manifest_schema": "laplace.package-manifest/v1",
+    "unicode_activation_receipt_schema": "laplace.unicode-product-activation-receipt/v1",
+    "unicode_activation_contract_schema": "laplace.unicode-product-activation-contract/v1",
+    "highway_registry_contract_schema": "laplace.highway-registry-contract/v1",
+    "highway_registry_contract_sha256": "da4930ad76eca61fabfbd880f129a2223f5478744c056a9c4d312ea93ddf4bf7",
+    "highway_registry_fingerprint": "14c9b853a6beade10617cf702a7cf080a23d5e059090e5e95d682738c1fb6843",
+    "highway_registry_version": 1
+  },
+  "orchestrator": {
+    "repository_path": "tools/postgresql/highwayctl.py",
+    "classification": "typed-product-lifecycle-orchestrator-not-semantic-engine",
+    "bind_exact_bytes_into_request": true
+  },
+  "operation": {
+    "initial_activation_only": true,
+    "expected_old_sequence": 0,
+    "preferred_batch_bytes": 1048576,
+    "statement_timeout_seconds": 900,
+    "restart_timeout_seconds": 240
+  },
+  "execution_context": {
+    "memory_bytes": 1073741824,
+    "cpu_slots": 6,
+    "io_slots": 2,
+    "epoch_mask": 1023,
+    "framework_major": 1,
+    "framework_minor": 6,
+    "activation_flags": 1,
+    "read_flags": 2
+  },
+  "expected_result": {
+    "registry_version": 1,
+    "registry_fingerprint": "14c9b853a6beade10617cf702a7cf080a23d5e059090e5e95d682738c1fb6843",
+    "kind_count": 16,
+    "alias_count": 0,
+    "disposition_count": 8,
+    "activation_sequence": 1,
+    "effect_disposition": 3,
+    "status": 0
+  },
+  "receipt": {
+    "schema": "laplace.highway-product-activation-receipt/v1",
+    "failure_schema": "laplace.highway-product-activation-failure/v1",
+    "directory_name": "highway",
+    "rule": "no success receipt exists until the canonical Highway registry traverses ISA materialization, active Unicode resolution, universal AST composition, set-wise presence, canonical deposition, typed projection activation, product restart, and application-role active readback"
+  }
+}

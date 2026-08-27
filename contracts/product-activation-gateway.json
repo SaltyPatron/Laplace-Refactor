@@ -29,29 +29,37 @@
   "trusted_bundle": {
     "files": [
       "bin/laplace-product-activate",
+      "contracts/highway-product-activation.json",
+      "contracts/highway.json",
       "contracts/postgresql-cluster.json",
       "contracts/product-activation-gateway.json",
       "contracts/unicode-postgresql.json",
       "contracts/unicode-product-activation.json",
       "contracts/unicode-source.json",
       "controllers/clusterctl.py",
+      "controllers/highwayctl.py",
       "controllers/unicodectl.py"
     ]
   },
   "product": {
     "package_manifest_root": "/build/laplace/build/product",
+    "package_stage_root": "/build/laplace/stage/product",
+    "package_receipt_schema": "laplace.product-package-receipt/v1",
+    "package_installation_schema": "laplace.product-package-installation-receipt/v1",
     "package_release_root": "/opt/laplace/releases",
     "plan_receipt_root": "/opt/laplace/receipts/plans",
     "cluster_activation_root": "/opt/laplace/receipts/postgresql/refactor/cluster-activation",
     "unicode_source_root": "/vault/Data/UCD/Public/UCD/latest",
-    "unicode_result": "/opt/laplace/receipts/postgresql/refactor/unicode-activation-result.json"
+    "unicode_result": "/opt/laplace/receipts/postgresql/refactor/unicode-activation-result.json",
+    "highway_result": "/opt/laplace/receipts/postgresql/refactor/highway-activation-result.json"
   },
   "operation": {
-    "name": "activate-product-and-unicode",
+    "name": "activate-product-unicode-and-highway",
     "cluster_subcommand": "activate-product",
     "system_root_authorization": true,
     "cluster_success_schema": "laplace.postgresql-activation-receipt/v1",
     "unicode_success_schema": "laplace.unicode-product-activation-receipt/v1",
+    "highway_success_schema": "laplace.highway-product-activation-receipt/v1",
     "cluster_success_phase": "activated",
     "require_active_pointer_commit": true,
     "require_restart_proof": true,

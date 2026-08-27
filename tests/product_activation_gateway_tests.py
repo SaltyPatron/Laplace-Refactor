@@ -53,11 +53,13 @@ class ProductActivationGatewayTests(unittest.TestCase):
         gateway = contract["gateway"]
         request = contract["request"]
         product["package_manifest_root"] = str(root / "build")
+        product["package_stage_root"] = str(root / "stage")
         product["package_release_root"] = str(root / "releases")
         product["plan_receipt_root"] = str(root / "plans")
         product["cluster_activation_root"] = str(root / "cluster-activation")
         product["unicode_source_root"] = str(root / "unicode-source")
         product["unicode_result"] = str(root / "unicode-result.json")
+        product["highway_result"] = str(root / "highway-result.json")
         gateway["receipt_root"] = str(root / "deployment-receipts")
         gateway["release_root"] = str(root / "gateway-releases")
         gateway["active_link"] = str(root / "gateway-current")
@@ -73,6 +75,26 @@ class ProductActivationGatewayTests(unittest.TestCase):
             "root": f"{product['package_release_root']}/{PACKAGE_ID}",
         }
         manifest.write_bytes(activation.canonical_bytes(manifest_document))
+        source_root = root / "stage" / BUILD_ID / "root"
+        physical_release = source_root.joinpath(
+            *Path(manifest_document["root"]).parts[1:]
+        )
+        physical_release.mkdir(parents=True)
+        package_receipt = manifest.parent / "package-receipt.json"
+        package_receipt.write_bytes(
+            activation.canonical_bytes(
+                {
+                    "schema": product["package_receipt_schema"],
+                    "package_id": PACKAGE_ID,
+                    "manifest": str(manifest),
+                    "manifest_sha256": activation.sha256_file(manifest),
+                    "physical_root": str(physical_release),
+                    "activation_eligible": True,
+                    "build_input_closure_complete": True,
+                    "product_activated": False,
+                }
+            )
+        )
         resource = root / "plans" / PACKAGE_ID / "resource-observation.json"
         resource.parent.mkdir(parents=True)
         resource.write_bytes(
@@ -88,8 +110,13 @@ class ProductActivationGatewayTests(unittest.TestCase):
                         "activation_eligible": True,
                         "immutable_release_installed": True,
                         "package_id": PACKAGE_ID,
+                        "package_receipt": str(package_receipt),
+                        "package_receipt_sha256": activation.sha256_file(
+                            package_receipt
+                        ),
                         "package_manifest": str(manifest),
                         "package_manifest_sha256": activation.sha256_file(manifest),
+                        "physical_root": str(physical_release),
                         "installation": {"installed_package_verified": True},
                         "resource_observation": {
                             "receipt": str(resource),
@@ -119,6 +146,33 @@ class ProductActivationGatewayTests(unittest.TestCase):
             payload = activation.validate_request(contract, request, KEY, NOW)
             self.assertEqual(payload["package"]["id"], PACKAGE_ID)
             self.assertEqual(request["request_id"], activation.sha256_bytes(activation.canonical_bytes(payload)))
+
+    def test_current_workflow_receipts_select_the_package_without_stale_continuation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-activation-current-") as temporary:
+            contract, _continuation, environment, manifest, resource = self.fixture(
+                Path(temporary)
+            )
+            package_receipt = manifest.parent / "package-receipt.json"
+            request = activation.build_request(
+                contract,
+                {},
+                environment,
+                KEY,
+                NOW,
+                package_receipt,
+                resource,
+            )
+            payload = activation.validate_request(contract, request, KEY, NOW)
+            self.assertEqual(payload["package"]["receipt"], str(package_receipt))
+            self.assertEqual(
+                payload["package"]["source_root"],
+                str(Path(temporary) / "stage" / BUILD_ID / "root"),
+            )
+            package_receipt.write_text("{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(
+                activation.ActivationGatewayError, "package receipt bytes"
+            ):
+                activation.validate_request(contract, request, KEY, NOW)
 
     def test_wrong_route_stale_request_and_changed_hmac_are_distinct_failures(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-activation-negative-") as temporary:
@@ -158,7 +212,9 @@ class ProductActivationGatewayTests(unittest.TestCase):
             resource.write_text("changed\n", encoding="utf-8")
             with self.assertRaisesRegex(activation.ActivationGatewayError, "resource observation bytes"):
                 activation.validate_request(contract, request, KEY, NOW)
-            continuation["active_work"]["implementation_progress"]["successor_product_package"]["package_manifest"] = str(root / "outside.json")
+            continuation["active_work"]["implementation_progress"]["successor_product_package"]["package_manifest"] = str(
+                root / "outside" / BUILD_ID / "package-manifest.json"
+            )
             with self.assertRaisesRegex(activation.ActivationGatewayError, "escapes"):
                 activation.build_request(contract, continuation, environment, KEY, NOW)
             self.assertTrue(manifest.is_file())
@@ -217,6 +273,10 @@ class ProductActivationGatewayTests(unittest.TestCase):
         self.assertIn("if: github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn("environment: product", workflow)
         self.assertIn("test \"$GITHUB_REF\" = refs/heads/main", workflow)
+        self.assertIn("tools/product/build-package.py build", workflow)
+        self.assertIn("tools/postgresql/clusterctl.py observe-resources", workflow)
+        self.assertIn("--product-receipt '${{ needs.compose-product.outputs.product_receipt }}'", workflow)
+        self.assertIn("--resource-observation '${{ needs.compose-product.outputs.resource_observation }}'", workflow)
         self.assertIn("execute-request < \"$LAPLACE_ACTIVATION_REQUEST\"", workflow)
 
     def test_execute_chains_cluster_unicode_and_exact_replay(self) -> None:
@@ -230,11 +290,45 @@ class ProductActivationGatewayTests(unittest.TestCase):
             evidence = root / "cluster-activation" / PACKAGE_ID
             cluster_result_path = evidence / "activation-result.json"
             unicode_result_path = Path(contract["product"]["unicode_result"])
+            highway_result_path = Path(contract["product"]["highway_result"])
             calls: list[str] = []
 
             def fake_run(label: str, command: list[str], _timeout: int) -> dict:
                 calls.append(label)
-                if label == "activate-product-cluster":
+                if label == "install-product-package":
+                    evidence.mkdir(parents=True, exist_ok=True)
+                    installation = {
+                        "schema": contract["product"]["package_installation_schema"],
+                        "phase": "installed",
+                        "package_id": PACKAGE_ID,
+                        "package_manifest_sha256": request["payload"]["package"][
+                            "manifest_sha256"
+                        ],
+                        "package_root": f"{contract['product']['package_release_root']}/{PACKAGE_ID}",
+                        "installation_root": "/",
+                        "installed_release": f"{contract['product']['package_release_root']}/{PACKAGE_ID}",
+                        "source_physical_root": str(
+                            Path(request["payload"]["package"]["source_root"]).resolve()
+                        ),
+                        "file_count": 1,
+                        "symlink_count": 0,
+                        "total_file_bytes": 1,
+                        "source_package_verified": True,
+                        "installed_package_verified": True,
+                        "overwrite_performed": False,
+                    }
+                    installation["installation_receipt_sha256"] = (
+                        activation.document_identity(
+                            installation, "installation_receipt_sha256"
+                        )
+                    )
+                    installation_path = Path(
+                        command[command.index("--receipt") + 1]
+                    )
+                    installation_path.write_bytes(
+                        activation.canonical_bytes(installation)
+                    )
+                elif label == "activate-product-cluster":
                     evidence.mkdir(parents=True, exist_ok=True)
                     plan = evidence / "cluster-plan-fixture.json"
                     plan.write_text("{}\n", encoding="utf-8")
@@ -248,7 +342,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
                     }
                     result["activation_receipt_sha256"] = activation.document_identity(result, "activation_receipt_sha256")
                     cluster_result_path.write_bytes(activation.canonical_bytes(result))
-                else:
+                elif label == "activate-product-unicode":
                     result = {
                         "schema": contract["operation"]["unicode_success_schema"],
                         "phase": "product-activated",
@@ -259,6 +353,16 @@ class ProductActivationGatewayTests(unittest.TestCase):
                     }
                     result["receipt_sha256"] = activation.document_identity(result, "receipt_sha256")
                     unicode_result_path.write_bytes(activation.canonical_bytes(result))
+                else:
+                    result = {
+                        "schema": contract["operation"]["highway_success_schema"],
+                        "phase": "product-activated",
+                        "package_id": PACKAGE_ID,
+                        "restart_proven": True,
+                        "cold_application_readback_proven": True,
+                    }
+                    result["receipt_sha256"] = activation.document_identity(result, "receipt_sha256")
+                    highway_result_path.write_bytes(activation.canonical_bytes(result))
                 return {"label": label, "argv": command, "exit_code": 0, "stdout_sha256": "00", "stderr_sha256": "00"}
 
             with mock.patch.object(activation.os, "geteuid", return_value=0), mock.patch.object(
@@ -269,13 +373,17 @@ class ProductActivationGatewayTests(unittest.TestCase):
             self.assertEqual(
                 calls,
                 [
+                    "install-product-package",
                     "activate-product-cluster",
                     "activate-product-unicode",
+                    "activate-product-highway",
+                    "install-product-package",
                     "activate-product-unicode",
+                    "activate-product-highway",
                 ],
             )
             self.assertEqual(result, replay)
-            self.assertEqual(result["phase"], "product-and-unicode-activated")
+            self.assertEqual(result["phase"], "product-unicode-and-highway-activated")
 
     def test_incomplete_success_receipts_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-gateway-receipt-") as temporary:
