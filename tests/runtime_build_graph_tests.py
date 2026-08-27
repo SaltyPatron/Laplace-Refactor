@@ -219,6 +219,56 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.GraphError, "unsupported test contract"):
             BUILD.validate_contract(contract)
 
+    def test_every_component_declares_physical_build_and_test_entrypoints(self) -> None:
+        contract = self.contract()
+        BUILD.validate_contract(contract)
+
+        mutated = copy.deepcopy(contract)
+        mutated["components"][0].pop("required_source_paths")
+        with self.assertRaisesRegex(BUILD.GraphError, "required_source_paths"):
+            BUILD.validate_contract(mutated)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            source_root = Path(temporary)
+            for relative in ("configure", "tests/Makefile"):
+                path = source_root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f"fixture {relative}\n", encoding="utf-8")
+            component = {
+                "id": "fixture",
+                "required_source_paths": ["configure", "tests/Makefile"],
+            }
+            evidence = BUILD.verify_component_source_requirements(component, source_root)
+            self.assertEqual([item["path"] for item in evidence], component["required_source_paths"])
+
+            (source_root / "tests/Makefile").unlink()
+            with self.assertRaisesRegex(
+                BUILD.GraphError, "required component source path is missing"
+            ):
+                BUILD.verify_component_source_requirements(component, source_root)
+
+    def test_libxml2_uses_the_complete_release_archive_test_interface(self) -> None:
+        component = next(
+            item for item in self.contract()["components"] if item["id"] == "libxml2"
+        )
+        self.assertEqual(component["provider"], "autotools")
+        self.assertEqual(component["test"], "make-check")
+        self.assertEqual(
+            component["required_source_paths"],
+            ["configure", "Makefile.in", "runtest.c", "runsuite.c"],
+        )
+
+        mutated = copy.deepcopy(component)
+        mutated["required_source_paths"].append("run_and_diff.cmake")
+        with tempfile.TemporaryDirectory() as temporary:
+            source_root = Path(temporary)
+            for relative in component["required_source_paths"]:
+                (source_root / relative).write_text("fixture\n", encoding="utf-8")
+            with self.assertRaisesRegex(
+                BUILD.GraphError, "libxml2:run_and_diff.cmake"
+            ):
+                BUILD.verify_component_source_requirements(mutated, source_root)
+
     def test_selected_tool_digest_mismatch_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             compiler = Path(temporary) / "compiler"

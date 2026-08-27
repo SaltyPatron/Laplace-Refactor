@@ -60,6 +60,7 @@
       "provider": "cmake",
       "languages": ["C"],
       "source_subdirectory": ".",
+      "required_source_paths": ["CMakeLists.txt"],
       "depends_on": [],
       "configure_arguments": ["-DZLIB_BUILD_SHARED=ON", "-DZLIB_BUILD_STATIC=OFF", "-DZLIB_BUILD_TESTING=ON", "-DZLIB_INSTALL=ON"],
       "test": "ctest"
@@ -70,6 +71,7 @@
       "provider": "cmake",
       "languages": ["C"],
       "source_subdirectory": "build/cmake",
+      "required_source_paths": ["Makefile", "build/cmake/CMakeLists.txt"],
       "depends_on": [],
       "configure_arguments": ["-Wno-deprecated", "-DBUILD_SHARED_LIBS=ON", "-DBUILD_STATIC_LIBS=OFF", "-DLZ4_BUILD_CLI=OFF"],
       "test": "source-copy-make-check"
@@ -80,6 +82,7 @@
       "provider": "cmake",
       "languages": ["C", "CXX", "ASM"],
       "source_subdirectory": "build/cmake",
+      "required_source_paths": ["Makefile", "build/cmake/CMakeLists.txt", "tests/Makefile"],
       "depends_on": [],
       "configure_arguments": ["-DBUILD_SHARED_LIBS=ON", "-DBUILD_TESTING=ON", "-DZSTD_BUILD_SHARED=ON", "-DZSTD_BUILD_STATIC=ON", "-DZSTD_BUILD_PROGRAMS=OFF", "-DZSTD_BUILD_TESTS=ON", "-DZSTD_LEGACY_SUPPORT=OFF", "-DZSTD_MULTITHREAD_SUPPORT=ON"],
       "test": "ctest"
@@ -90,6 +93,7 @@
       "provider": "autotools",
       "languages": ["C", "CXX"],
       "source_subdirectory": "source",
+      "required_source_paths": ["source/configure", "source/Makefile.in"],
       "depends_on": [],
       "configure_arguments": ["--enable-shared", "--disable-static", "--disable-samples", "--with-data-packaging=library"],
       "test": "make-check"
@@ -100,6 +104,7 @@
       "provider": "openssl",
       "languages": ["C", "ASM"],
       "source_subdirectory": ".",
+      "required_source_paths": ["Configure", "build.info", "test/build.info"],
       "depends_on": [],
       "configure_arguments": ["linux-x86_64", "shared", "no-docs"],
       "test": "make-test"
@@ -110,6 +115,7 @@
       "provider": "source-copy-make",
       "languages": ["C"],
       "source_subdirectory": ".",
+      "required_source_paths": ["configure", "Makefile", "test/Makefile"],
       "depends_on": [],
       "configure_arguments": ["--use-libc"],
       "test": "make-runtests",
@@ -128,12 +134,13 @@
     {
       "id": "libxml2",
       "source": "libxml2",
-      "provider": "cmake",
+      "provider": "autotools",
       "languages": ["C"],
       "source_subdirectory": ".",
+      "required_source_paths": ["configure", "Makefile.in", "runtest.c", "runsuite.c"],
       "depends_on": ["zlib"],
-      "configure_arguments": ["-DBUILD_SHARED_LIBS=ON", "-DLIBXML2_WITH_DOCS=OFF", "-DLIBXML2_WITH_ICONV=OFF", "-DLIBXML2_WITH_ICU=OFF", "-DLIBXML2_WITH_LEGACY=OFF", "-DLIBXML2_WITH_MODULES=OFF", "-DLIBXML2_WITH_PYTHON=OFF", "-DLIBXML2_WITH_READLINE=OFF", "-DLIBXML2_WITH_TESTS=ON", "-DLIBXML2_WITH_ZLIB=ON"],
-      "test": "ctest"
+      "configure_arguments": ["--enable-shared", "--disable-static", "--without-docs", "--without-iconv", "--without-icu", "--without-legacy", "--without-modules", "--without-python", "--without-readline", "--with-zlib"],
+      "test": "make-check"
     }
   ]
 }

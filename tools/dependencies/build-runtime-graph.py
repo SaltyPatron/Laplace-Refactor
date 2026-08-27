@@ -362,6 +362,21 @@ def validate_contract(contract: dict[str, Any]) -> None:
                 f"unsupported language for {identifier}: {', '.join(unknown_languages)}"
             )
         require_string(component.get("source_subdirectory"), f"{identifier}.source_subdirectory")
+        required_source_paths = require_string_list(
+            component.get("required_source_paths"),
+            f"{identifier}.required_source_paths",
+        )
+        for required_path in required_source_paths:
+            relative = Path(required_path)
+            if (
+                relative.is_absolute()
+                or ".." in relative.parts
+                or relative.as_posix() != required_path
+            ):
+                raise GraphError(
+                    f"{identifier}.required_source_paths contains an unsafe path: "
+                    f"{required_path}"
+                )
         dependencies = require_string_list(
             component.get("depends_on"), f"{identifier}.depends_on", allow_empty=True
         )
@@ -627,6 +642,29 @@ def normalize_tree_timestamps(root: Path, epoch_seconds: int) -> None:
     for path in [*paths, root]:
         if not path.is_symlink():
             os.utime(path, ns=(timestamp, timestamp))
+
+
+def verify_component_source_requirements(
+    component: Mapping[str, Any], source_root: Path
+) -> list[dict[str, Any]]:
+    """Verify the build and test entrypoints selected from the locked source tree."""
+
+    evidence: list[dict[str, Any]] = []
+    for relative_text in component["required_source_paths"]:
+        path = source_root / relative_text
+        if not path.is_file() or path.is_symlink():
+            raise GraphError(
+                f"required component source path is missing: "
+                f"{component['id']}:{relative_text}"
+            )
+        evidence.append(
+            {
+                "path": relative_text,
+                "sha256": sha256_file(path),
+                "size": path.stat().st_size,
+            }
+        )
+    return evidence
 
 
 def create_plan(
@@ -1440,7 +1478,9 @@ def execute(
         plan["components"][completed_count:], start=completed_count
     ):
         identifier = component["id"]
-        source = private_sources / component["source"] / component["source_subdirectory"]
+        source_root = private_sources / component["source"]
+        verify_component_source_requirements(component, source_root)
+        source = source_root / component["source_subdirectory"]
         if not source.is_dir():
             raise GraphError(f"component source is missing: {source}")
         component_root = build_root / "components" / identifier
