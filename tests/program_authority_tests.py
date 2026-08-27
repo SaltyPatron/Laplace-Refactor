@@ -900,7 +900,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and current_product.get("package_total_file_bytes") == 532714907
         and current_product.get("build_input_closure_complete") is True
         and current_product.get("activation_eligible") is True
-        and current_product.get("current_contract_activation_eligible") is True
+        and current_product.get("current_contract_activation_eligible") is False
         and current_product.get("cluster_plan_issued") is False
         and current_product.get("product_activated") is False,
         "current product package extent or proof state drift",
@@ -956,8 +956,29 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "f0c57da73d339f877fad50c554b0d33cb04f4f2a",
+        == "50f3a29044c96497ba60cdbbdc12921e6f67539c",
         "product-package implementation checkpoint drift",
+    )
+    unicode_access = progress.get("product_unicode_access_mechanism", {})
+    require(
+        unicode_access.get("implementation_commit")
+        == "50f3a29044c96497ba60cdbbdc12921e6f67539c"
+        and unicode_access.get("state")
+        == "implemented-and-controlled-integration-proven-successor-package-not-yet-built",
+        "product Unicode public-access checkpoint drift",
+    )
+    contains_all(
+        unicode_access.get("implemented_boundaries", []),
+        (
+            "production PostgreSQL batch operation",
+            "exact Unicode evidence epoch",
+            "canonical native perfcache access law",
+            "normalized deposited PostgreSQL state",
+            "reverse lookup",
+            "stale expected epochs",
+            "current build module",
+        ),
+        "product Unicode public-access boundary narrowed",
     )
     require(postgresql.get("implementation_commit") == "16126c4a4a90a6710528f94aacb401cf45fdea66", "historical PostgreSQL composer checkpoint drift")
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
@@ -969,7 +990,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(github.get("unicode_product_activation_issue", {}).get("state") == "open", "Unicode product activation issue was prematurely closed")
     active_pr = github.get("active_product_runtime_pull_request", {})
     require(active_pr.get("number") == 74 and active_pr.get("state") == "open" and active_pr.get("draft") is True, "active runtime PR observation drift")
-    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "successor package", "native execution-resource observer", "EACCES", "root ownership", "cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
+    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "product cluster activation", "public Unicode Tier-0/reverse perfcache access", "installed package predates", "successor package", "root ownership", "cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")

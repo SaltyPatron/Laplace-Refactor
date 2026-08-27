@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T12:32:34Z",
+  "observed_at_utc": "2026-08-27T13:04:05Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "f0c57da73d339f877fad50c554b0d33cb04f4f2a",
-    "implementation_checkpoint_commit": "f0c57da73d339f877fad50c554b0d33cb04f4f2a",
+    "observed_branch_head": "50f3a29044c96497ba60cdbbdc12921e6f67539c",
+    "implementation_checkpoint_commit": "50f3a29044c96497ba60cdbbdc12921e6f67539c",
     "pull_request": 74
   },
   "development_inputs": {
@@ -997,7 +997,7 @@
         },
         "build_input_closure_complete": true,
         "activation_eligible": true,
-        "current_contract_activation_eligible": true,
+        "current_contract_activation_eligible": false,
         "installation": {
           "receipt_schema": "laplace.product-package-installation-receipt/v1",
           "receipt": "/opt/laplace/receipts/packages/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b.json",
@@ -1072,6 +1072,30 @@
         },
         "physical_execution_boundary": "requires one authorized root invocation because the selected data WAL temporary configuration log service and root package-ownership targets are privileged; no service cluster active pointer or Unicode product root has been promoted"
       },
+      "product_unicode_access_mechanism": {
+        "implementation_commit": "50f3a29044c96497ba60cdbbdc12921e6f67539c",
+        "state": "implemented-and-controlled-integration-proven-successor-package-not-yet-built",
+        "implemented_boundaries": [
+          "one production PostgreSQL batch operation resolves ordered Unicode Tier-0 positions through one exact active native perfcache generation",
+          "one production PostgreSQL batch operation reverse-resolves ordered content identity and identity-preimage-fingerprint pairs through the same exact active generation",
+          "both operations require and return the exact Unicode evidence epoch identity and fingerprint",
+          "the PostgreSQL bridge delegates record decoding validation and search to the canonical native perfcache access law",
+          "public Tier-0 atoms are proven equal to normalized deposited PostgreSQL state at the lower interior and upper Unicode boundaries",
+          "reverse lookup is proven to invert the direct lookup exactly and stale expected epochs are rejected",
+          "the PostgreSQL test loader now prioritizes the current build module over a previously installed package so changed extension behavior cannot be tested through stale bytes"
+        ],
+        "controlled_integration_validation": {
+          "positive_full_unicode_seconds": 129.57,
+          "expected_epoch_mutation_seconds": 128.36,
+          "root_stream_frames": 2230150,
+          "positions": 1114112,
+          "public_readback_positions": [0, 65, 1114111],
+          "program_authority_static": "27 of 27 passed",
+          "program_authority_physical": "27 of 27 passed",
+          "postgresql_cluster_contract": "38 of 38 passed"
+        },
+        "product_boundary": "the installed package predates this implementation; a content-addressed successor package and activated product cluster are required before these public operations or Unicode can be claimed product-active"
+      },
       "local_validation": {
         "postgresql_build_contract_and_mutation": "37 of 37 passed including packaged TAP providers staged OpenSSL execution preflight bootstrap-provider installed-provider recursive-closure and independent-output mutations",
         "installed_provider_lock_contract_and_mutation": "10 of 10 passed including exact role provider version path byte hash license runtime-SONAME and selection-hash controls",
@@ -1087,7 +1111,8 @@
         "product_cluster_activation_contract_and_mutation": "38 of 38 passed including exact live-object omission invalid system identity unchanged-postmaster restart bootstrap-signature and ambient-readiness controls",
         "product_cluster_activation_live_diagnostic": "the accepted PostgreSQL 18.6 package initialized and ran an isolated temporary cluster; pg_stat_statements and Laplace loaded successfully and proc maps exposed all four required immutable package objects",
         "syntax_and_diff": "Python compilation git diff whitespace and both 27-test program-authority modes passed",
-        "portable_registered_suite": "268 of 269 passed; the sole failure was the known canonical oneAPI numeric-provider absence in the portable Unicode PostgreSQL test"
+        "portable_registered_suite": "268 of 269 passed; the sole failure was the known canonical oneAPI numeric-provider absence in the portable Unicode PostgreSQL test",
+        "product_unicode_public_access": "full oneAPI Unicode PostgreSQL contract passed in 129.57 seconds with deposited-state parity direct/reverse inversion exact epoch return and stale-epoch rejection; the expected-epoch bypass mutant was detected in 128.36 seconds"
       }
     },
     "proven_prerequisite_boundary": [
@@ -1097,6 +1122,8 @@
       "controlled integration acceptance only"
     ],
     "immediate_implementation_boundary": [
+      "implement and mutation-test one receipted Unicode product activation controller spanning exact cluster identity source verification one transactional native build-and-activate invocation restart and cold public readback",
+      "build install and observe a content-addressed successor product package containing the public Unicode perfcache operations and activation controller",
       "rerun the live collision observation with authorized traversal of the runner-owned state roots and reject any actual occupied target before planning",
       "issue and verify the exact isolated cluster plan from the accepted package native resource observation and accepted collision observation",
       "initialize start and bootstrap the exact PostgreSQL 18.6 isolated cluster under issue 12",
@@ -1112,7 +1139,7 @@
       "the activation-eligible PostgreSQL 18.6 and complete Laplace product packages exist but the selected product cluster is not yet established",
       "the exact Laplace package is installed and verified at its content-addressed release path but root ownership and active product state are not established",
       "the installed package is historical under the current contract because it predates the required packaged native execution-resource observer",
-      "the current successor package and native resource observation are accepted but no cluster plan was issued because live collision inspection could not traverse three runner-owned state roots",
+      "the installed package and native resource observation were accepted under their original contract, but the package predates the current public Unicode access implementation and is no longer activation-eligible under the current contract",
       "Unicode is not yet product activated",
       "knowledge is not seeded",
       "the typed numerical highway is not implemented",
@@ -1151,8 +1178,8 @@
       "number": 74,
       "state": "open",
       "draft": true,
-      "head_commit": "5d8cffb5941e348e0a3def8f97ac04f559cae87b",
-      "proof_state": "partial implementation; the successor package containing the native execution-resource observer is built installed and verified and its live bounded resource observation is accepted; collision inspection recorded three EACCES conditions rather than claiming absence, so privileged collision completion root ownership cluster activation Unicode activation seed and release remain false"
+      "head_commit": "50f3a29044c96497ba60cdbbdc12921e6f67539c",
+      "proof_state": "partial implementation; product cluster activation and exact public Unicode Tier-0/reverse perfcache access are implemented and controlled-integration proven, but the installed package predates the Unicode access implementation; a successor package privileged collision completion root ownership cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
