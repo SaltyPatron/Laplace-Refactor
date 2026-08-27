@@ -22,7 +22,11 @@
 #include "persistence_pg.h"
 #include "set_pg.h"
 
-PG_FUNCTION_INFO_V1(LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL);
+#if !defined(LAPLACE_PG_COMPOSITION_ENTRYPOINT)
+#define LAPLACE_PG_COMPOSITION_ENTRYPOINT LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL
+#endif
+
+PG_FUNCTION_INFO_V1(LAPLACE_PG_COMPOSITION_ENTRYPOINT);
 
 static SPIPlanPtr entity_presence_plan = NULL;
 static SPIPlanPtr physicality_presence_plan = NULL;
@@ -695,7 +699,7 @@ void laplace_pg_composition_execute(
     PG_END_TRY();
 }
 
-Datum LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL(PG_FUNCTION_ARGS) {
+Datum LAPLACE_PG_COMPOSITION_ENTRYPOINT(PG_FUNCTION_ARGS) {
     laplace_framework_context context;
     laplace_digest256 source_fingerprint;
     laplace_digest256 calculation_recipe_fingerprint;

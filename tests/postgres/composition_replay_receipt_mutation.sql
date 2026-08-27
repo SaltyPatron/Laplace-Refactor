@@ -9,7 +9,8 @@ CREATE OR REPLACE FUNCTION laplace.composition_deposit_batch(
     laplace.composition_request_record[],
     numeric)
 RETURNS laplace.composition_deposit_result
-AS :'persistence_mutant_module', 'laplace_pg_composition_deposit_batch'
+AS :'persistence_mutant_module',
+   'laplace_pg_composition_deposit_replay_receipt_mutant'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 DO $mutation$
