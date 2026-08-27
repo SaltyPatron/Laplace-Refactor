@@ -40,6 +40,7 @@ INSTALLATION_SCHEMA = "laplace.product-package-installation-receipt/v1"
 OWNERSHIP_SCHEMA = "laplace.product-package-ownership-receipt/v1"
 NATIVE_RESOURCE_SCHEMA = "laplace.native-execution-resource-observation/v1"
 RESOURCE_OBSERVER_PATH = "bin/laplace_resource_observe"
+UNICODE_ACTIVATION_IDENTITY_PATH = "bin/laplace_unicode_activation_identify"
 HEX_256 = re.compile(r"^[0-9a-f]{64}$")
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
 OS_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_-]*$")
@@ -169,6 +170,8 @@ def validate_contract(document: dict[str, Any]) -> None:
         raise ClusterError("every required loaded object must be a required package file")
     if RESOURCE_OBSERVER_PATH not in required_files:
         raise ClusterError("package must require the native resource observer")
+    if UNICODE_ACTIVATION_IDENTITY_PATH not in required_files:
+        raise ClusterError("package must require the native Unicode activation identity provider")
     if package.get("manifest_schema") != PACKAGE_SCHEMA:
         raise ClusterError("package manifest schema declaration is invalid")
     if package.get("postgresql_version") != "18.6":

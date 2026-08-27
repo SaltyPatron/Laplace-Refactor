@@ -17,3 +17,12 @@ set_target_properties(laplace_resource_observe PROPERTIES
     INSTALL_RPATH_USE_LINK_PATH FALSE)
 install(TARGETS laplace_resource_observe
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+add_executable(laplace_unicode_activation_identify
+    unicode_activation_identify.cpp)
+target_link_libraries(laplace_unicode_activation_identify PRIVATE
+    BLAKE3::blake3)
+target_compile_options(laplace_unicode_activation_identify PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+install(TARGETS laplace_unicode_activation_identify
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")

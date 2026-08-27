@@ -116,6 +116,14 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "resource observer"):
             PACKAGE.validate_contract(mutant)
 
+    def test_unicode_activation_identity_provider_cannot_be_omitted(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["package"]["required_files"].remove(
+            "bin/laplace_unicode_activation_identify"
+        )
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "activation identity"):
+            PACKAGE.validate_contract(mutant)
+
     def test_external_runtime_edges_cannot_escape_the_zero_gate(self) -> None:
         mutant = copy.deepcopy(self.contract)
         mutant["runtime_closure"]["required_zero_summary_fields"].remove(

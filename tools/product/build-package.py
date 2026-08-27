@@ -240,6 +240,10 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ProductPackageError("loaded objects must be required package files")
     if "bin/laplace_resource_observe" not in package["required_files"]:
         raise ProductPackageError("package must contain the native resource observer")
+    if "bin/laplace_unicode_activation_identify" not in package["required_files"]:
+        raise ProductPackageError(
+            "package must contain the native Unicode activation identity provider"
+        )
     if closure.get("schema") != "laplace.elf-closure/v1" or closure.get(
         "tool_version"
     ) != "1.0.0":

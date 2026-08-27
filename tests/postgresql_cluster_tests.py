@@ -311,6 +311,14 @@ class PostgreSQLClusterContract(unittest.TestCase):
         with self.assertRaisesRegex(clusterctl.ClusterError, "resource observer"):
             clusterctl.validate_contract(contract)
 
+    def test_cluster_contract_cannot_omit_unicode_activation_identity_provider(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        contract["package"]["required_files"].remove(
+            clusterctl.UNICODE_ACTIVATION_IDENTITY_PATH
+        )
+        with self.assertRaisesRegex(clusterctl.ClusterError, "activation identity"):
+            clusterctl.validate_contract(contract)
+
     def test_native_processor_allocation_drift_is_rejected(self) -> None:
         observation = self.valid_resource_observation()
         observation["native_authority"]["processor_ids"] = [20, 21, 28, 30]

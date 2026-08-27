@@ -28,6 +28,7 @@ The candidate instance is intentionally disjoint:
 | Configuration | `/etc/laplace/instances/refactor` |
 | Logs / receipts | `/var/log/laplace/postgresql/refactor`; `/opt/laplace/receipts/postgresql/refactor` |
 | Immutable package | `/opt/laplace/releases/<package-id>` |
+| Committed package link | `/opt/laplace/current` |
 
 The product extension exposes Unicode through two ordered, bounded batch
 operations: `unicode_tier0_resolve_batch` and
@@ -37,7 +38,6 @@ entire access law to the native Tier-0 or reverse module. PostgreSQL does not
 decode the cache format or recreate its lookup semantics. The application role
 receives these read operations; root construction and activation remain an
 administrative effect.
-| Committed package link | `/opt/laplace/current` |
 
 Before staging and again immediately before real activation, a generic collision
 probe proves that the declared service, port, socket, state paths, and matching
@@ -160,6 +160,54 @@ ownership, collision, plan, staging, command, initial-load, restart-load, failur
 activation evidence is retained there. The command will not treat an existing cluster,
 configuration, socket, service, or inaccessible collision target as fresh state. No
 current service or cluster is a prerequisite or activation target.
+
+## Product Unicode activation
+
+Cluster activation and Unicode activation are separate receipted product states.
+`tools/postgresql/unicodectl.py` consumes the exact activated cluster plan,
+cluster-activation receipt, package manifest, Unicode source contract, all 33 verified
+Unicode 17 source files, and the generated PostgreSQL binding contract. Its product law
+is [`contracts/unicode-product-activation.json`](../../contracts/unicode-product-activation.json).
+
+The successor package must contain
+`bin/laplace_unicode_activation_identify`. That native executable derives the
+activation identifier, epoch fingerprint, authority fingerprint, and all ten framework
+epochs from one canonical request using independent domain-separated BLAKE3 preimages.
+The orchestrator's exact bytes are also bound into the request. Python does not mint
+these typed native identities.
+
+For a new product, the controller requires an empty Unicode/perfcache control state and
+absent generation paths. It executes `unicode_root_build_and_activate` exactly once in
+one transaction, then asserts the complete 2,230,150-frame result, all 1,114,112 atom
+and DUCET-position rows, all normalized families, sibling artifact digests and sizes,
+the generated plan manifest, the durable generation/deposit receipts, and the exact
+active epoch before commit. An exact already-committed epoch is a distinct recovery
+state; every partial or unrelated state is rejected.
+
+After commit, the controller verifies both artifact files, restarts the product service,
+requires the same positive system identifier with a different postmaster PID and the
+same loaded package bytes, and enters through `laplace_app` in a fresh backend. That
+cold application route must resolve positions `0`, `65`, and `1114111`, then invert
+their content-identity/full-preimage pairs through the reverse module under the same
+epoch. The artifact bytes must remain unchanged across restart and readback. Only then
+does a content-addressed `laplace.unicode-product-activation-receipt/v1` exist. Failures
+emit a typed receipt and require state reinspection before retry.
+
+Once the successor package and product cluster receipts exist, the physical command is:
+
+```sh
+sudo python3 tools/postgresql/unicodectl.py \
+  --authorize-system-root \
+  --package-manifest /path/to/package-manifest.json \
+  --cluster-plan /opt/laplace/receipts/plans/<package-id>/cluster-plan-<digest>.json \
+  --cluster-activation-receipt /opt/laplace/receipts/plans/<package-id>/activation-complete-<digest>.json \
+  --source-root /vault/Data/UCD/Public/UCD/latest \
+  --output /opt/laplace/receipts/postgresql/refactor/unicode-activation-result.json
+```
+
+The existence of this controller and its fixture acceptance does not claim that the
+current machine has executed that command. Product activation requires the exact
+successor package, live cluster, restart, public readback, and durable receipt.
 
 ## Resource derivation
 

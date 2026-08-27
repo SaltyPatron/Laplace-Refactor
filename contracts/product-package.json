@@ -88,6 +88,7 @@
     ],
     "required_files": [
       "bin/laplace_resource_observe",
+      "bin/laplace_unicode_activation_identify",
       "pgsql-18/bin/initdb",
       "pgsql-18/bin/pg_config",
       "pgsql-18/bin/pg_ctl",

@@ -739,6 +739,15 @@ set_tests_properties(postgresql-cluster.activation-contract PROPERTIES
     RUN_SERIAL TRUE)
 
 add_test(
+    NAME unicode-product.activation-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/unicode_product_activation_tests.py"
+        "$<TARGET_FILE:laplace_unicode_activation_identify>")
+set_tests_properties(unicode-product.activation-contract PROPERTIES
+    LABELS "activation;product;unicode;postgresql;perfcache;receipt;mutation"
+    RUN_SERIAL TRUE)
+
+add_test(
     NAME product-package.contract-and-mutation
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/product_package_tests.py")
 set_tests_properties(product-package.contract-and-mutation PROPERTIES
