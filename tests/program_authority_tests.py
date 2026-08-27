@@ -342,18 +342,18 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(
         work.get("github_issue") == 52
         and work.get("pull_request") == 77
-        and work.get("branch") == "phase3/typed-numerical-highway"
+        and work.get("branch") == "main"
         and work.get("base_commit")
-        == "e448fcb7d97d8cdbde4fa7a1fdbe8b6a4ebe9ad3",
+        == "2f35422039589a17de553c068dd50ce18645406c",
         "Highway implementation ownership drift",
     )
     progress = work.get("implementation_progress", {})
     highway = progress.get("typed_numerical_highway", {})
     require(
         highway.get("implementation_commit")
-        == "8f1de40c3d13cd959a7a802c3a5a3682c38df556"
+        == "2f35422039589a17de553c068dd50ce18645406c"
         and highway.get("delivery_pipeline_commit")
-        == "9b3554b462a1227bb09eedc037da8203c1b8bcec"
+        == "2f35422039589a17de553c068dd50ce18645406c"
         and highway.get("pull_request") == 77
         and highway.get("contract_schema")
         == "laplace.highway-registry-contract/v1"
@@ -390,13 +390,15 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         highway_validation,
         (
             "296 of 296",
-            "555.37 seconds",
+            "583.85 seconds",
             "135.49",
             "136.42",
+            "140.64",
             "153.17",
-            "29 of 29",
+            "30 of 30",
             "3 of 3",
             "9 of 9",
+            "six of six effective PostgreSQL mutants",
         ),
         "Highway controlled-integration evidence drift",
     )
@@ -880,6 +882,28 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and accepted_postgresql.get("product_activation_occurred") is False,
         "accepted PostgreSQL package proof state drift",
     )
+    accepted_postgresql_publication = accepted_postgresql.get("publication", {})
+    require(
+        accepted_postgresql_publication.get("receipt_schema")
+        == "laplace.postgresql-package-publication-receipt/v1"
+        and accepted_postgresql_publication.get("publication_id")
+        == "4b72b3782f3a766b35b5cd8d061c72dc4ca223d0d3e823a4aa4a4b96d043993a"
+        and accepted_postgresql_publication.get("receipt")
+        == "/opt/laplace/receipts/postgresql/4b72b3782f3a766b35b5cd8d061c72dc4ca223d0d3e823a4aa4a4b96d043993a.json"
+        and accepted_postgresql_publication.get("receipt_sha256")
+        == "8260fdc87e8911a4ccef6c9f284426910fc71835db5a1cb67576045e56016549"
+        and accepted_postgresql_publication.get("source_receipt_sha256")
+        == accepted_postgresql.get("package_receipt_sha256")
+        and accepted_postgresql_publication.get("postgresql_tree_sha256")
+        == accepted_postgresql.get("package_tree_sha256")
+        and accepted_postgresql_publication.get("toolchain_tree_sha256")
+        == "3a0d268c402c1d0e8ade09985bcc9ad2a2ae3532f383eab77f026c47306abcbd"
+        and accepted_postgresql_publication.get("consumer_group")
+        == "laplace-runner"
+        and accepted_postgresql_publication.get("publication_complete") is True
+        and accepted_postgresql_publication.get("product_activation_occurred") is False,
+        "accepted PostgreSQL runner-readable publication drift",
+    )
     complete_product = progress.get("complete_product_package", {})
     require(
         complete_product.get("receipt_schema")
@@ -1028,7 +1052,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "9b3554b462a1227bb09eedc037da8203c1b8bcec",
+        == "fa19a6a693694992a7d10e1c715d1115b3a89bbe",
         "Highway implementation checkpoint drift",
     )
     successor = progress.get("successor_product_package", {})
@@ -1152,8 +1176,8 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(
         work.get("immediate_implementation_boundary", []),
         (
-            "exact-head",
-            "merge PR 77",
+            "runner-readable inputs",
+            "merge the publication consumer",
             "content-addressed product package",
             "laplace-runner authority",
             "protected product-activation workflow",
@@ -1170,9 +1194,10 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(
         work.get("nonclaims", []),
         (
-            "PR 77 is open",
-            "checks are still running",
-            "workflow has not executed",
+            "PR 77 is merged",
+            "checks passed",
+            "failed before product composition",
+            "not yet a merged product input",
             "Unicode is not yet product activated",
             "Highway is implemented",
             "not product activated",
@@ -1199,13 +1224,15 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     highway_pr = github.get("highway_pull_request", {})
     require(
         highway_pr.get("number") == 77
-        and highway_pr.get("state") == "open"
+        and highway_pr.get("state") == "merged"
         and highway_pr.get("draft") is False
         and highway_pr.get("mergeable") is True
         and highway_pr.get("base_commit")
         == "e448fcb7d97d8cdbde4fa7a1fdbe8b6a4ebe9ad3"
         and highway_pr.get("head_commit")
-        == "9b3554b462a1227bb09eedc037da8203c1b8bcec",
+        == "58f3e9998cea7fcd890fbdfa4a61d05f998d4649"
+        and highway_pr.get("merge_commit")
+        == "2f35422039589a17de553c068dd50ce18645406c",
         "Highway PR observation drift",
     )
     contains_all(
@@ -1218,7 +1245,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "active application readback",
             "product gateway",
             "current-main package composition installation chain",
-            "CI",
+            "merged",
             "root gateway trust-anchor installation",
             "installed-product activation remain incomplete",
         ),
@@ -1230,10 +1257,25 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(github.get("product_path_gate_issue") == 54 and github.get("required_product_path_gate_present") is True, "product-path gate observation drift")
     contains_all(github.get("observed_required_checks", []), ("requirements", "native (linux-dev)", "native (linux-sanitize)"), "required-check observation narrowed")
     require(github.get("github_environments") == 1 and github.get("github_deployments") == 0 and github.get("github_releases") == 0, "GitHub integration state was promoted to delivery state")
-    require(github.get("repository_runner", {}).get("name") == "hart-server-refactor", "repository runner observation lost")
+    require(
+        github.get("repository_runner", {}).get("name") == "hart-server-refactor"
+        and github.get("repository_runner", {}).get("status") == "online"
+        and github.get("repository_runner", {}).get("busy") is False,
+        "repository runner observation lost",
+    )
     runs = {item.get("workflow"): item for item in github.get("latest_main_workflow_runs", [])}
-    require(runs.get("clean-room-ci", {}).get("linux_dev_registered_tests") == 251 and runs.get("clean-room-ci", {}).get("linux_sanitize_registered_tests") == 251, "published hosted test-count observation drift")
-    require(runs.get("custom-stack-ci", {}).get("registered_tests") == 279 and runs.get("custom-stack-ci", {}).get("observed_postgresql_version") == "18.3", "published custom-stack observation drift")
+    require(runs.get("clean-room-ci", {}).get("linux_dev_registered_tests") == 267 and runs.get("clean-room-ci", {}).get("linux_sanitize_registered_tests") == 267, "published hosted test-count observation drift")
+    require(runs.get("custom-stack-ci", {}).get("registered_tests") == 296 and runs.get("custom-stack-ci", {}).get("observed_postgresql_version") == "18.3", "published custom-stack observation drift")
+    product_activation_run = runs.get("product-activation", {})
+    require(
+        product_activation_run.get("id") == 33111425265
+        and product_activation_run.get("conclusion") == "failure"
+        and product_activation_run.get("runner_authority") == "success"
+        and product_activation_run.get("compose_product")
+        == "failed-before-composition-private-input-not-runner-readable"
+        and product_activation_run.get("activate_product") == "skipped",
+        "failed protected product-activation observation was hidden or promoted",
+    )
     if verify_physical:
         worktree = Path(document.get("repository", {}).get("active_worktree", ""))
         if worktree.is_dir() and (worktree / ".git").exists():
@@ -1294,19 +1336,50 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
                 is True,
                 "physical PostgreSQL recursive closure differs from continuation state",
             )
-        accepted_postgresql_receipt_path = Path(
-            accepted_postgresql.get("package_receipt", "")
+        accepted_postgresql_publication_path = Path(
+            accepted_postgresql_publication.get("receipt", "")
         )
         require(
-            accepted_postgresql_receipt_path.is_file(),
-            "accepted PostgreSQL package receipt is missing from the observed machine",
+            accepted_postgresql_publication_path.is_file(),
+            "accepted PostgreSQL runner-readable publication receipt is missing from the observed machine",
         )
         require(
-            physical_file_digest(accepted_postgresql_receipt_path)
+            physical_file_digest(accepted_postgresql_publication_path)
+            == accepted_postgresql_publication.get("receipt_sha256"),
+            "accepted PostgreSQL runner-readable publication receipt digest differs from continuation state",
+        )
+        physical_publication = load(accepted_postgresql_publication_path)
+        physical_publication_postgresql = physical_publication.get("postgresql", {})
+        physical_publication_toolchain = physical_publication.get("toolchain", {})
+        physical_publication_source_receipt_path = Path(
+            physical_publication.get("source_receipt", {}).get("path", "")
+        )
+        require(
+            physical_publication.get("schema")
+            == accepted_postgresql_publication.get("receipt_schema")
+            and physical_publication.get("publication_id")
+            == accepted_postgresql_publication.get("publication_id")
+            and physical_publication.get("source_receipt_sha256")
+            == accepted_postgresql_publication.get("source_receipt_sha256")
+            and physical_publication.get("postgresql_tree_sha256")
+            == accepted_postgresql_publication.get("postgresql_tree_sha256")
+            and physical_publication.get("toolchain_tree_sha256")
+            == accepted_postgresql_publication.get("toolchain_tree_sha256")
+            and physical_publication.get("consumer_group")
+            == accepted_postgresql_publication.get("consumer_group")
+            and physical_publication.get("publication_complete") is True
+            and physical_publication.get("source_product_activation_occurred") is False
+            and Path(physical_publication_postgresql.get("prefix", "")).is_dir()
+            and Path(physical_publication_toolchain.get("prefix", "")).is_dir()
+            and physical_publication_source_receipt_path.is_file(),
+            "accepted PostgreSQL runner-readable publication identity or extent differs from continuation state",
+        )
+        require(
+            physical_file_digest(physical_publication_source_receipt_path)
             == accepted_postgresql.get("package_receipt_sha256"),
-            "accepted PostgreSQL package receipt digest differs from continuation state",
+            "published PostgreSQL source receipt is not byte-identical to the accepted source receipt",
         )
-        physical_accepted_postgresql = load(accepted_postgresql_receipt_path)
+        physical_accepted_postgresql = load(physical_publication_source_receipt_path)
         physical_accepted_postgresql_closure = physical_accepted_postgresql.get(
             "recursive_elf_closure", {}
         )
@@ -1329,29 +1402,27 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             == accepted_postgresql_closure.get("receipt_sha256"),
             "physical accepted PostgreSQL package identity or proof state differs from continuation state",
         )
-        for accepted_postgresql_evidence_path, accepted_postgresql_evidence_sha256 in (
+        for accepted_publication_evidence_path, accepted_publication_evidence_sha256 in (
             (
-                accepted_postgresql_overlay.get("receipt", ""),
-                accepted_postgresql_overlay.get("receipt_sha256"),
+                physical_publication_toolchain.get("source_receipt", ""),
+                physical_publication.get("toolchain_receipt_sha256"),
             ),
             (
-                accepted_runtime_qualification.get("receipt", ""),
-                accepted_runtime_qualification.get("receipt_sha256"),
-            ),
-            (
-                accepted_postgresql_closure.get("receipt", ""),
-                accepted_postgresql_closure.get("receipt_sha256"),
+                physical_publication.get("host_provider", {}).get(
+                    "source_receipt", ""
+                ),
+                physical_publication.get("host_provider_receipt_sha256"),
             ),
         ):
-            accepted_evidence_path = Path(accepted_postgresql_evidence_path)
+            accepted_evidence_path = Path(accepted_publication_evidence_path)
             require(
                 accepted_evidence_path.is_file(),
-                f"accepted PostgreSQL evidence receipt is missing: {accepted_evidence_path}",
+                f"published PostgreSQL evidence receipt is missing: {accepted_evidence_path}",
             )
             require(
                 physical_file_digest(accepted_evidence_path)
-                == accepted_postgresql_evidence_sha256,
-                f"accepted PostgreSQL evidence receipt digest differs: {accepted_evidence_path}",
+                == accepted_publication_evidence_sha256,
+                f"published PostgreSQL evidence receipt digest differs: {accepted_evidence_path}",
             )
         complete_product_receipt_path = Path(complete_product.get("package_receipt", ""))
         require(
@@ -1739,6 +1810,15 @@ class ProgramAuthorityTests(unittest.TestCase):
         rejected["compilation_started"] = True
         rejected["package_receipt_issued"] = True
         with self.assertRaisesRegex(ValueError, "latest rejected PostgreSQL"):
+            validate_continuation(mutant, verify_physical=False)
+
+    def test_mutation_runner_readable_postgresql_publication_is_erased(self) -> None:
+        mutant = copy.deepcopy(self.continuation)
+        accepted = mutant["active_work"]["implementation_progress"][
+            "accepted_postgresql_product_package"
+        ]
+        accepted.pop("publication")
+        with self.assertRaisesRegex(ValueError, "runner-readable publication"):
             validate_continuation(mutant, verify_physical=False)
 
     def test_mutation_inert_postgresql_package_is_promoted(self) -> None:
