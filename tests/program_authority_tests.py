@@ -597,7 +597,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(postgresql.get("state") == "successor-deterministic-plan-ready-not-package-built", "PostgreSQL package proof state drift")
     require(
         postgresql.get("build_input_id")
-        == "d783da914b7cd540591656bb17e75fd61e3c963d9f5b415aa84fe6cda34a03f3"
+        == "272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e"
         and postgresql.get("toolchain_package_receipt_sha256")
         == "9cd1c23b21ab8504620faa5cf198e0d79ec625ec3a875184f757a6c1a49b1ee6"
         and postgresql.get("runtime_package_receipt_sha256")
@@ -619,14 +619,30 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and previous_postgresql.get("product_activation_occurred") is False,
         "rejected PostgreSQL execution evidence was erased or promoted",
     )
+    latest_rejected_postgresql = postgresql.get("latest_rejected_execution", {})
+    require(
+        latest_rejected_postgresql.get("build_input_id")
+        == "d783da914b7cd540591656bb17e75fd61e3c963d9f5b415aa84fe6cda34a03f3"
+        and latest_rejected_postgresql.get("failed_stage")
+        == "configure-selection-receipt-verification"
+        and latest_rejected_postgresql.get("compilation_started") is False
+        and latest_rejected_postgresql.get("package_receipt_issued") is False
+        and latest_rejected_postgresql.get("product_activation_occurred") is False,
+        "latest rejected PostgreSQL configure receipt was erased or promoted",
+    )
+    contains_all(
+        latest_rejected_postgresql,
+        ("IO::Pty", "IPC::Run", "OpenSSL 4.0.1", "TAP prerequisites", "uppercase Autoconf", "ambient-provider negative control"),
+        "latest PostgreSQL configure proof or correction was hidden",
+    )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "63ba0df51cfaeff7489d0de6f192437b42c67d6c",
+        == "f2afa2ddc59d70c41a870652f4418f0a857336d6",
         "runtime correction implementation checkpoint drift",
     )
     require(
         postgresql.get("implementation_commit")
-        == "63ba0df51cfaeff7489d0de6f192437b42c67d6c",
+        == "f2afa2ddc59d70c41a870652f4418f0a857336d6",
         "PostgreSQL composer implementation checkpoint drift",
     )
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
@@ -929,6 +945,16 @@ class ProgramAuthorityTests(unittest.TestCase):
         rejected["package_receipt_issued"] = True
         rejected["product_activation_occurred"] = True
         with self.assertRaisesRegex(ValueError, "rejected PostgreSQL execution"):
+            validate_continuation(mutant, verify_physical=False)
+
+    def test_mutation_latest_rejected_postgresql_execution_is_promoted(self) -> None:
+        mutant = copy.deepcopy(self.continuation)
+        rejected = mutant["active_work"]["implementation_progress"][
+            "postgresql_product_package"
+        ]["latest_rejected_execution"]
+        rejected["compilation_started"] = True
+        rejected["package_receipt_issued"] = True
+        with self.assertRaisesRegex(ValueError, "latest rejected PostgreSQL"):
             validate_continuation(mutant, verify_physical=False)
 
     def test_mutation_profile_completion_promoted_to_seed_is_detected(self) -> None:

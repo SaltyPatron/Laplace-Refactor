@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T07:42:06Z",
+  "observed_at_utc": "2026-08-27T07:55:37Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "63ba0df51cfaeff7489d0de6f192437b42c67d6c",
-    "implementation_checkpoint_commit": "63ba0df51cfaeff7489d0de6f192437b42c67d6c",
+    "observed_branch_head": "f2afa2ddc59d70c41a870652f4418f0a857336d6",
+    "implementation_checkpoint_commit": "f2afa2ddc59d70c41a870652f4418f0a857336d6",
     "pull_request": 74
   },
   "development_inputs": {
@@ -513,7 +513,7 @@
           "corrected_by": "explicit GNU Make DESTDIR assignment plus a deliberate mutation test",
           "activated": false
         },
-        "continuation_condition": "consume only exact runtime receipt 0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a and exact build-toolchain receipt 9cd1c23b21ab8504620faa5cf198e0d79ec625ec3a875184f757a6c1a49b1ee6 in PostgreSQL build plan d783da914b7cd540591656bb17e75fd61e3c963d9f5b415aa84fe6cda34a03f3; preserve the runtime subtree byte-for-byte while building testing and staging PostgreSQL 18.6; select and prove the staged OpenSSL 4.0.1 executable and exact packaged Perl TAP providers before configure; issue only an inert composed product package whose remaining input and provider qualification remain incomplete; require a separate accepted selected-runtime-provider qualification before any product activation",
+        "continuation_condition": "consume only exact runtime receipt 0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a and exact build-toolchain receipt 9cd1c23b21ab8504620faa5cf198e0d79ec625ec3a875184f757a6c1a49b1ee6 in PostgreSQL build plan 272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e; preserve the runtime subtree byte-for-byte while building testing and staging PostgreSQL 18.6; select and prove the staged OpenSSL 4.0.1 executable and exact packaged Perl TAP providers before configure; issue only an inert composed product package whose remaining input and provider qualification remain incomplete; require a separate accepted selected-runtime-provider qualification before any product activation",
         "nonclaims": [
           "the inert v2 runtime package is not activation eligible and is not an installed product",
           "the prior liburing failures have not been waived reclassified as passes or attributed solely to the kernel",
@@ -571,15 +571,15 @@
       },
       "postgresql_product_package": {
         "contract_schema": "laplace.postgresql-build-contract/v2",
-        "implementation_commit": "63ba0df51cfaeff7489d0de6f192437b42c67d6c",
+        "implementation_commit": "f2afa2ddc59d70c41a870652f4418f0a857336d6",
         "state": "successor-deterministic-plan-ready-not-package-built",
-        "build_input_id": "d783da914b7cd540591656bb17e75fd61e3c963d9f5b415aa84fe6cda34a03f3",
-        "build_directory": "/build/laplace/build/postgresql/d783da914b7cd540591656bb17e75fd61e3c963d9f5b415aa84fe6cda34a03f3",
-        "staged_product_prefix": "/build/laplace/stage/postgresql/d783da914b7cd540591656bb17e75fd61e3c963d9f5b415aa84fe6cda34a03f3/root/opt/laplace/current",
+        "build_input_id": "272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e",
+        "build_directory": "/build/laplace/build/postgresql/272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e",
+        "staged_product_prefix": "/build/laplace/stage/postgresql/272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e/root/opt/laplace/current",
         "toolchain_package_receipt_sha256": "9cd1c23b21ab8504620faa5cf198e0d79ec625ec3a875184f757a6c1a49b1ee6",
         "runtime_package_receipt_sha256": "0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a",
         "recipe_sha256": {
-          "build_driver": "551afd74b7b8f1265ce12256576622468239dfdc7813a2194fcb9f84d8ef020c",
+          "build_driver": "842c42daaa3a9a3f27f909edc219eaf5b8835895497bf32689317352a3f9f7c0",
           "contract": "6d2c23739b8cc6193ea2064fc30ef27114053c12ea5f137fe313531abaf62131",
           "package_receipt_verifier": "e9f9edfbc8d10563b63f4c688cb6cd68f3b58950d5d5eaca695eb13537ae67b3",
           "release_verifier": "16311644f64ce502c2717025f1258d09c22fc58a8b34cf4cb4947f383e9d80d5"
@@ -628,6 +628,28 @@
           "package_receipt_issued": false,
           "product_activation_occurred": false
         },
+        "latest_rejected_execution": {
+          "build_input_id": "d783da914b7cd540591656bb17e75fd61e3c963d9f5b415aa84fe6cda34a03f3",
+          "build_plan_sha256": "ff591eb29de0019e41f9a0cb05eeba584b0e1341e88f2016b81a8b013d672d20",
+          "build_input_preflight_sha256": "539faf151ba1dd2716afbb8c119a8db77f297838a5bc21dcf744d491f9446d78",
+          "build_log_sha256": "6fe04194e489dc04a245e55c88f4a82868057f08fed2ba37d55668146e188b14",
+          "config_log_sha256": "1952f213a0d93c9d4ffe8271034c44c404662670e2332308ef11d480785720c8",
+          "preflight_proved": [
+            "exact packaged Perl IO::Pty 1.31 IO::Tty 1.31 and IPC::Run 20260402.0 providers",
+            "exact staged OpenSSL 4.0.1 executable and bytes"
+          ],
+          "configure_proved": [
+            "PostgreSQL selected the exact packaged Perl 5.44.0 and prove provider",
+            "PostgreSQL selected the exact staged OpenSSL 4.0.1 executable",
+            "PostgreSQL reported all TAP prerequisites present"
+          ],
+          "failed_stage": "configure-selection-receipt-verification",
+          "observed_defect": "the verifier expected a lowercase openssl Autoconf check label while PostgreSQL emits the exact environment variable name OPENSSL",
+          "correction": "match PostgreSQL's exact uppercase Autoconf variable label and retain the ambient-provider negative control at that same interface",
+          "compilation_started": false,
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
         "known_unclosed_inputs": [
           "ambient Python",
           "POSIX and configure utilities",
@@ -639,7 +661,7 @@
         "postgresql_build_contract_and_mutation": "29 of 29 passed including packaged TAP providers staged OpenSSL execution preflight and configure-selection mutations",
         "toolchain_build_contract_and_mutation": "46 of 46 passed including Perl module native-provider and consumer-manifest mutations",
         "runtime_build_graph_contract_and_mutation": "39 of 39 passed including source-entrypoint, second-shell RUNPATH, generated-libtool, executable-stack, controlled-test-loader, and package-verification mutations",
-        "program_authority": "23 of 23 passed including failed-runtime unqualified-provider build-toolchain-promotion and rejected-PostgreSQL-promotion mutations",
+        "program_authority": "24 of 24 passed including failed-runtime unqualified-provider build-toolchain-promotion and both rejected-PostgreSQL-promotion mutations",
         "requirements_trace": "12 of 12 passed",
         "syntax_and_diff": "Python compilation and git diff whitespace checks passed",
         "portable_registered_suite": "268 of 269 passed; the sole failure was the known canonical oneAPI numeric-provider absence in the portable Unicode PostgreSQL test"
@@ -766,7 +788,8 @@
       "ephemeral_state": "the reboot cleared the prior /tmp build and test estate",
       "persistent_state": "the repository commits, inert runtime package, build-toolchain package, receipts, and the prior rejected PostgreSQL build evidence survived",
       "reverification": "both persistent package trees and receipts were reverified before a successor PostgreSQL plan was calculated",
-      "successor_execution_started": false,
+      "successor_execution_started": true,
+      "successor_execution_disposition": "the first post-reboot successor crossed exact input preflight and PostgreSQL configure but was rejected before compilation by a case-sensitive configure-receipt verifier defect; a corrected content-addressed successor plan is ready",
       "product_activation_occurred": false
     }
   }
