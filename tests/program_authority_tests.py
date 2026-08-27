@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-inert-runtime-package-built-postgresql-plan-ready-provider-qualification-pending",
+        == "implementation-in-progress-inert-runtime-and-toolchain-packages-verified-successor-postgresql-plan-ready-provider-qualification-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -554,28 +554,79 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(staging_violation, ("environment-only DESTDIR", "quarantine", "GNU Make DESTDIR", "mutation test"), "OpenSSL staging violation or correction was hidden")
     contains_all(runtime.get("continuation_condition", ""), ("exact runtime receipt", "PostgreSQL build plan", "byte-for-byte", "PostgreSQL 18.6", "inert composed product package", "separate accepted selected-runtime-provider qualification"), "runtime continuation was approximated")
     contains_all(runtime.get("nonclaims", []), ("not activation eligible", "not an installed product", "not been waived", "not been qualified", "not been installed qualified or accepted", "not been activated"), "runtime package or provider was promoted beyond evidence")
+    toolchain = progress.get("build_toolchain_package", {})
+    require(toolchain.get("contract_schema") == "laplace.toolchain-build-contract/v1", "toolchain package contract drift")
+    require(toolchain.get("receipt_schema") == "laplace.toolchain-package-receipt/v1", "toolchain package receipt drift")
+    require(toolchain.get("consumer_manifest_schema") == "laplace.toolchain-consumer-manifest/v1", "toolchain consumer manifest drift")
+    require(toolchain.get("state") == "verified-build-toolchain-only", "toolchain package proof state drift")
+    require(
+        toolchain.get("build_input_id")
+        == "2e899074f53c0495ab966196c15cd89de8b0bd61c87e6591edf5b2801ef55ea6"
+        and toolchain.get("package_receipt_sha256")
+        == "9cd1c23b21ab8504620faa5cf198e0d79ec625ec3a875184f757a6c1a49b1ee6"
+        and toolchain.get("package_tree_sha256")
+        == "3a0d268c402c1d0e8ade09985bcc9ad2a2ae3532f383eab77f026c47306abcbd"
+        and toolchain.get("consumer_manifest_sha256")
+        == "8adbefb6068dc9b988f3b9970306a0058968c722bb72b66502eb1a3067bd4246",
+        "toolchain package identity drift",
+    )
+    require(
+        toolchain.get("package_file_count") == 8283
+        and toolchain.get("package_total_file_bytes") == 449574676,
+        "toolchain package extent drift",
+    )
+    perl_modules = toolchain.get("selected_perl_modules", {})
+    require(
+        perl_modules.get("IO::Pty", {}).get("provider_sha256")
+        == "ba6489cd0b74b1b0853399eb9c7dc903a4217f9e65b4ae855ce4915b27fff6f0"
+        and perl_modules.get("IO::Tty", {}).get("provider_sha256")
+        == "bd6a4046efb3e781df03c5d203c8b94ec97ecf5233a270c2e7aaf1e649af0f7f"
+        and perl_modules.get("IPC::Run", {}).get("provider_sha256")
+        == "67d86f857bfe03119e70707d08298b45b6189bf74a5bc429a329d76b0f27f82b"
+        and perl_modules.get("IO::Tty", {}).get("native_provider_sha256")
+        == "50feb3f1b3e63703b812f8c40f30d1a09b60a2d453e3ff4ddb87dfae47381d12",
+        "toolchain packaged Perl provider identity drift",
+    )
+    require(
+        toolchain.get("product_runtime_activation_eligible") is False
+        and toolchain.get("product_activation_occurred") is False,
+        "build toolchain was promoted into product runtime state",
+    )
     postgresql = progress.get("postgresql_product_package", {})
     require(postgresql.get("contract_schema") == "laplace.postgresql-build-contract/v2", "PostgreSQL product composer contract drift")
-    require(postgresql.get("state") == "deterministic-plan-ready-not-package-built", "PostgreSQL package proof state drift")
+    require(postgresql.get("state") == "successor-deterministic-plan-ready-not-package-built", "PostgreSQL package proof state drift")
     require(
         postgresql.get("build_input_id")
-        == "e473f3ccaf4aa0fb51452ff7f1292c38d5867b9384df083d052046824bdbd0f2"
+        == "d783da914b7cd540591656bb17e75fd61e3c963d9f5b415aa84fe6cda34a03f3"
+        and postgresql.get("toolchain_package_receipt_sha256")
+        == "9cd1c23b21ab8504620faa5cf198e0d79ec625ec3a875184f757a6c1a49b1ee6"
         and postgresql.get("runtime_package_receipt_sha256")
         == "0e85406c0d32338e192577eebeaca3771f73fc925bf01cd7634f2877dfc89b8a",
         "PostgreSQL deterministic plan identity drift",
     )
     require(postgresql.get("logical_install_prefix") == "/opt/laplace/current/pgsql-18", "PostgreSQL logical product prefix drift")
-    contains_all(postgresql.get("receipt_inputs", []), ("unresolved provider qualification retained", "PostgreSQL 18.6"), "PostgreSQL input receipts lost the provider gate")
-    contains_all(postgresql.get("implemented_boundary", []), ("duplicate-key-safe", "runtime-subtree immutability", "packaged Make", "DESTDIR", "RUNPATH", "provider-qualification requirements", "activation remains false"), "PostgreSQL product composition boundary was narrowed")
-    contains_all(postgresql.get("known_unclosed_inputs", []), ("ambient Python", "POSIX", "platform ABI", "Perl modules", "selected kernel", "runtime-provider qualification"), "PostgreSQL input closure was overstated")
+    contains_all(postgresql.get("receipt_inputs", []), ("Perl TAP", "staged OpenSSL", "unresolved provider qualification retained", "PostgreSQL 18.6"), "PostgreSQL input receipts lost exact providers or the provider gate")
+    contains_all(postgresql.get("implemented_boundary", []), ("duplicate-key-safe", "runtime-subtree immutability", "packaged Make", "execution preflight", "configure selection receipt", "DESTDIR", "RUNPATH", "provider-qualification requirements", "activation remains false"), "PostgreSQL product composition boundary was narrowed")
+    contains_all(postgresql.get("known_unclosed_inputs", []), ("ambient Python", "POSIX", "platform ABI", "selected kernel", "runtime-provider qualification"), "PostgreSQL input closure was overstated")
+    previous_postgresql = postgresql.get("previous_rejected_execution", {})
+    require(
+        previous_postgresql.get("build_input_id")
+        == "e473f3ccaf4aa0fb51452ff7f1292c38d5867b9384df083d052046824bdbd0f2"
+        and previous_postgresql.get("selected_ambient_openssl") == "OpenSSL 3.0.2"
+        and "IPC::Run" in previous_postgresql.get("failed_prerequisite", "")
+        and previous_postgresql.get("execution_preflight_existed") is False
+        and previous_postgresql.get("package_receipt_issued") is False
+        and previous_postgresql.get("product_activation_occurred") is False,
+        "rejected PostgreSQL execution evidence was erased or promoted",
+    )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "08426cd601576665fc1eade77e1393d880e4077e",
+        == "63ba0df51cfaeff7489d0de6f192437b42c67d6c",
         "runtime correction implementation checkpoint drift",
     )
     require(
         postgresql.get("implementation_commit")
-        == "fbfbacfef9290e790475c01ecd5e64c2c40c8cff",
+        == "63ba0df51cfaeff7489d0de6f192437b42c67d6c",
         "PostgreSQL composer implementation checkpoint drift",
     )
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
@@ -858,6 +909,26 @@ class ProgramAuthorityTests(unittest.TestCase):
         qualification["state"] = "accepted"
         qualification["current_host_is_accepted"] = True
         with self.assertRaisesRegex(ValueError, "promoted without qualification"):
+            validate_continuation(mutant, verify_physical=False)
+
+    def test_mutation_build_toolchain_promoted_to_product_runtime_is_detected(self) -> None:
+        mutant = copy.deepcopy(self.continuation)
+        toolchain = mutant["active_work"]["implementation_progress"][
+            "build_toolchain_package"
+        ]
+        toolchain["product_runtime_activation_eligible"] = True
+        toolchain["product_activation_occurred"] = True
+        with self.assertRaisesRegex(ValueError, "build toolchain was promoted"):
+            validate_continuation(mutant, verify_physical=False)
+
+    def test_mutation_rejected_postgresql_execution_is_promoted(self) -> None:
+        mutant = copy.deepcopy(self.continuation)
+        rejected = mutant["active_work"]["implementation_progress"][
+            "postgresql_product_package"
+        ]["previous_rejected_execution"]
+        rejected["package_receipt_issued"] = True
+        rejected["product_activation_occurred"] = True
+        with self.assertRaisesRegex(ValueError, "rejected PostgreSQL execution"):
             validate_continuation(mutant, verify_physical=False)
 
     def test_mutation_profile_completion_promoted_to_seed_is_detected(self) -> None:
