@@ -14,15 +14,23 @@ LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 DO $mutation$
 DECLARE
+    fixture composition_fixture%ROWTYPE;
     result laplace.composition_deposit_result;
 BEGIN
-    result := pg_temp.composition_fixture_deposit();
-    IF result.novel_entity_count = 3
-       AND result.novel_physicality_count = 1
+    SELECT * INTO STRICT fixture FROM composition_fixture;
+    result := pg_temp.composition_fixture_pair_deposit();
+    IF fixture.expected_result_entity = ANY(result.result_entity_ids)
+       AND fixture.expected_result_physicality = ANY(result.result_physicality_ids)
+       AND result.unique_entity_count = 2
+       AND result.unique_physicality_count = 2
+       AND result.novel_entity_count = result.unique_entity_count
+       AND result.novel_physicality_count = result.unique_physicality_count
        AND result.entity_presence_round_count = 0
        AND result.physicality_presence_round_count = 0
-       AND result.entity_presence_dispositions = ARRAY[0, 0, 0]::smallint[]
-       AND result.physicality_presence_dispositions = ARRAY[0]::smallint[] THEN
+       AND result.entity_presence_dispositions = ARRAY[0, 0]::smallint[]
+       AND result.physicality_presence_dispositions = ARRAY[0, 0]::smallint[]
+       AND result.entity_inserted < result.novel_entity_count
+       AND result.physicality_inserted < result.novel_physicality_count THEN
         RAISE EXCEPTION
             'blind composition-presence mutant published without observing canonical state';
     END IF;

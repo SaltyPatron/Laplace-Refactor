@@ -14,7 +14,7 @@ LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 DO $mutation$
 BEGIN
-    PERFORM pg_temp.composition_fixture_deposit();
+    PERFORM pg_temp.composition_fixture_pair_deposit();
     RAISE EXCEPTION
         'reordered composition-presence mutant escaped ordinal validation';
 END

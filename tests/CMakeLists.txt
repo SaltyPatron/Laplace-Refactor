@@ -2214,12 +2214,12 @@ if(LAPLACE_POSTGRES_ENABLED)
         postgres.mutation-composition-presence-semantic-drift-detected
         laplace_pg_composition_presence_semantic_drift_mutant
         composition_presence_semantic_drift_mutation.sql
-        "semantic-drift composition-presence mutant accepted a changed radius")
+        "Laplace presence candidate collides with different canonical fields")
     laplace_add_postgresql_composition_mutation(
         postgres.mutation-composition-replay-receipt-collision-detected
         laplace_pg_composition_replay_receipt_mutant
         composition_replay_receipt_mutation.sql
-        "composition replay-receipt mutant accepted colliding durable fields")
+        "Laplace deposit receipt collides with different stored fields")
 
     add_test(
         NAME postgres.mutation-perfcache-expected-epoch-detected
