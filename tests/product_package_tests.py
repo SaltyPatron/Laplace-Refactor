@@ -64,6 +64,19 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "provider set"):
             PACKAGE.validate_contract(mutant)
 
+    def test_onetbb_hwloc_runtime_dependency_cannot_be_omitted(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["laplace"]["required_runtime_dependencies"] = []
+        mutant["runtime_dependencies"] = {}
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "runtime dependency set"):
+            PACKAGE.validate_contract(mutant)
+
+    def test_runtime_dependency_bytes_are_exact(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["runtime_dependencies"]["onetbb-hwloc"]["files"][0]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "bytes differ"):
+            PACKAGE.verify_runtime_dependencies(mutant)
+
     def test_package_database_provider_cannot_be_omitted(self) -> None:
         mutant = copy.deepcopy(self.contract)
         mutant["host_build_provider"]["additional_receipted_files"] = []

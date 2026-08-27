@@ -123,6 +123,73 @@ def validate_contract(contract: dict[str, Any]) -> None:
     providers = laplace.get("required_installed_providers")
     if providers != ["intel-oneapi-runtime", "onetbb", "onemkl"]:
         raise ProductPackageError("complete selected oneAPI provider set is required")
+    runtime_dependency_names = laplace.get("required_runtime_dependencies")
+    if runtime_dependency_names != ["onetbb-hwloc"]:
+        raise ProductPackageError("complete selected runtime dependency set is required")
+    runtime_dependencies = contract.get("runtime_dependencies")
+    if (
+        not isinstance(runtime_dependencies, dict)
+        or list(runtime_dependencies) != runtime_dependency_names
+    ):
+        raise ProductPackageError("runtime dependency map differs from the required set")
+    for provider_name, provider in runtime_dependencies.items():
+        if not isinstance(provider, dict):
+            raise ProductPackageError(f"runtime dependency is invalid: {provider_name}")
+        immutable_root = require_absolute(
+            provider.get("immutable_root"),
+            f"runtime_dependencies.{provider_name}.immutable_root",
+        )
+        if "latest" in immutable_root.parts:
+            raise ProductPackageError(f"runtime dependency is not versioned: {provider_name}")
+        for field in ("version", "license_id"):
+            require_string(provider.get(field), f"runtime_dependencies.{provider_name}.{field}")
+        package_versions = provider.get("package_versions")
+        if not isinstance(package_versions, dict) or not package_versions or any(
+            not isinstance(name, str)
+            or not name
+            or not isinstance(version, str)
+            or not version
+            for name, version in package_versions.items()
+        ):
+            raise ProductPackageError(
+                f"runtime dependency package versions are invalid: {provider_name}"
+            )
+        files = provider.get("files")
+        if not isinstance(files, list) or not files:
+            raise ProductPackageError(f"runtime dependency files are absent: {provider_name}")
+        roles: set[str] = set()
+        paths: set[str] = set()
+        classes: set[str] = set()
+        for item in files:
+            if not isinstance(item, dict):
+                raise ProductPackageError(f"runtime dependency file is invalid: {provider_name}")
+            role = require_string(item.get("role"), f"runtime dependency {provider_name} role")
+            item_class = item.get("class")
+            path = require_absolute(item.get("path"), f"runtime dependency {provider_name} path")
+            digest = require_string(item.get("sha256"), f"runtime dependency {provider_name} sha256")
+            size = item.get("bytes")
+            if role in roles or str(path) in paths:
+                raise ProductPackageError(f"runtime dependency repeats a role or path: {provider_name}")
+            if item_class not in {"runtime-object", "license"}:
+                raise ProductPackageError(f"runtime dependency file class is invalid: {provider_name}")
+            if (
+                not path.is_relative_to(immutable_root)
+                or not isinstance(size, int)
+                or size <= 0
+                or HEX_256.fullmatch(digest) is None
+            ):
+                raise ProductPackageError(f"runtime dependency file identity is invalid: {path}")
+            if item_class == "runtime-object":
+                require_string(item.get("soname"), f"runtime dependency {provider_name} SONAME")
+            elif "soname" in item:
+                raise ProductPackageError(f"runtime dependency license declares a SONAME: {path}")
+            roles.add(role)
+            paths.add(str(path))
+            classes.add(item_class)
+        if classes != {"runtime-object", "license"}:
+            raise ProductPackageError(
+                f"runtime dependency requires runtime and license evidence: {provider_name}"
+            )
     capabilities = laplace.get("required_capabilities")
     if not isinstance(capabilities, dict) or any(
         not isinstance(name, str) or not isinstance(version, int) or version <= 0
@@ -528,6 +595,42 @@ def verify_installed_providers(
     return lock, selected, provider_roots
 
 
+def verify_runtime_dependencies(
+    contract: Mapping[str, Any],
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, dict[str, Any]]]:
+    selected: dict[str, list[dict[str, Any]]] = {}
+    roots: dict[str, dict[str, Any]] = {}
+    for name in contract["laplace"]["required_runtime_dependencies"]:
+        provider = contract["runtime_dependencies"][name]
+        immutable_root = require_absolute(
+            provider["immutable_root"], f"runtime dependency {name} immutable_root"
+        )
+        roots[f"runtime-dependency:{name}"] = exact_tree_receipt(immutable_root)
+        selected[name] = []
+        for item in provider["files"]:
+            path = require_absolute(item["path"], f"runtime dependency {name} path")
+            if (
+                not path.is_file()
+                or path.is_symlink()
+                or path.stat().st_size != item["bytes"]
+                or sha256_file(path) != item["sha256"]
+                or not path.is_relative_to(immutable_root)
+            ):
+                raise ProductPackageError(f"runtime dependency bytes differ: {path}")
+            selected[name].append(dict(item))
+        for package, version in provider["package_versions"].items():
+            result = subprocess.run(
+                ["/usr/bin/dpkg-query", "-W", "-f=${Version}", package],
+                text=True,
+                capture_output=True,
+            )
+            if result.returncode != 0 or result.stdout != version:
+                raise ProductPackageError(
+                    f"runtime dependency package version differs: {package}"
+                )
+    return selected, roots
+
+
 def create_plan(
     contract: dict[str, Any],
     repository: Path,
@@ -545,10 +648,14 @@ def create_plan(
     lock, providers, provider_roots = verify_installed_providers(
         contract, installed_lock_path
     )
+    runtime_dependencies, runtime_dependency_roots = verify_runtime_dependencies(
+        contract
+    )
     blake3_root = require_absolute(contract["build"]["blake3_root"], "build.blake3_root")
     build_input_roots = {
         "blake3": exact_tree_receipt(blake3_root),
         **provider_roots,
+        **runtime_dependency_roots,
     }
     build_input_files: dict[str, dict[str, Any]] = {}
     for file_value in contract["host_build_provider"]["additional_receipted_files"]:
@@ -605,6 +712,7 @@ def create_plan(
         },
         "installed_provider_lock": str(installed_lock_path.resolve()),
         "installed_providers": providers,
+        "runtime_dependencies": runtime_dependencies,
         "build_input_roots": build_input_roots,
         "build_input_files": build_input_files,
         "product_toolchain": toolchain,
@@ -1036,7 +1144,10 @@ def execute_plan(
     shutil.copytree(source_prefix, staged_prefix, symlinks=True)
     if tree_fingerprint(staged_prefix) != source_tree:
         raise ProductPackageError("PostgreSQL copy differs before Laplace overlay")
-    provider_receipts = copy_provider_files(plan["installed_providers"], staged_prefix)
+    provider_receipts = copy_provider_files(
+        {**plan["installed_providers"], **plan["runtime_dependencies"]},
+        staged_prefix,
+    )
     laplace_build = build_directory / "laplace"
     log = build_directory / "build.log"
     build = contract["build"]
