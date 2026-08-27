@@ -90,8 +90,30 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 "scope": "build-toolchain-only",
                 "product_runtime_activation_eligible": False,
             },
+            "bootstrap_inputs": {},
             "linker_map_inputs": [],
         }
+        bootstrap_root = root / "bootstrap-inputs"
+        bootstrap_root.mkdir()
+        for name, requirement in contract["build_toolchain"][
+            "required_bootstrap_inputs"
+        ].items():
+            bootstrap_input = bootstrap_root / name
+            bootstrap_input.write_bytes(Path("/bin/true").read_bytes())
+            bootstrap_input.chmod(0o755)
+            requirement["path"] = str(bootstrap_input)
+            requirement["sha256"] = BUILD.sha256_file(bootstrap_input)
+            receipt["bootstrap_inputs"][name] = {
+                "path": str(bootstrap_input),
+                "sha256": requirement["sha256"],
+                "version": requirement["version"],
+            }
+        contract["build"]["python"] = contract["build_toolchain"][
+            "required_bootstrap_inputs"
+        ]["python"]["path"]
+        contract["build"]["shell"] = contract["build_toolchain"][
+            "required_bootstrap_inputs"
+        ]["sh"]["path"]
         linker_root = root / "linker-inputs"
         linker_root.mkdir()
         for role, requirement in contract["build_toolchain"][
@@ -290,6 +312,20 @@ class PostgreSQLBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.BuildError, "must remain incomplete"):
             BUILD.validate_contract(contract)
 
+    def test_toolchain_linker_receipt_cannot_impersonate_intel_build_trace(self) -> None:
+        contract = self.contract()
+        contract["input_closure"]["unselected_host_inputs"].remove(
+            "Intel-compiler-selected platform ABI startup objects static archives and support libraries for the PostgreSQL build"
+        )
+        with self.assertRaisesRegex(BUILD.BuildError, "unselected_host_inputs"):
+            BUILD.validate_contract(contract)
+
+    def test_bootstrap_input_selection_cannot_be_narrowed(self) -> None:
+        contract = self.contract()
+        contract["build_toolchain"]["required_bootstrap_inputs"].pop("sh")
+        with self.assertRaisesRegex(BUILD.BuildError, "required_bootstrap_inputs"):
+            BUILD.validate_contract(contract)
+
     def test_duplicate_contract_key_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "contract.json"
@@ -334,10 +370,67 @@ class PostgreSQLBuildTests(unittest.TestCase):
             self.assertEqual(home.stat().st_mode & 0o7777, 0o700)
             self.assertEqual(environment["MAKE"], "/toolchain/bin/make")
             self.assertEqual(environment["OPENSSL"], str(openssl))
+            self.assertEqual(environment["PYTHON"], "/usr/bin/python3.10")
+            self.assertEqual(environment["SHELL"], "/usr/bin/dash")
+            self.assertEqual(environment["CONFIG_SHELL"], "/usr/bin/dash")
             self.assertEqual(environment["PATH"].split(":")[0], str(openssl.parent))
             self.assertNotIn("/usr/lib", environment["PKG_CONFIG_LIBDIR"])
             self.assertIn("-ffile-prefix-map=", environment["CFLAGS"])
             self.assertIn("$$ORIGIN", environment["LDFLAGS"])
+
+    def test_bootstrap_execution_binds_python_and_posix_shell(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            python = root / "python"
+            python.write_text(
+                "#!/bin/sh\nprintf '%s\\n' 'Python fixture-1'\n", encoding="utf-8"
+            )
+            python.chmod(0o755)
+            shell = root / "sh"
+            shell.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            shell.chmod(0o755)
+            plan = {
+                "build_toolchain": {
+                    "bootstrap_inputs": {
+                        "python": {
+                            "path": str(python),
+                            "sha256": BUILD.sha256_file(python),
+                            "version": "Python fixture-1",
+                        },
+                        "sh": {
+                            "path": str(shell),
+                            "sha256": BUILD.sha256_file(shell),
+                            "version": "fixture-sh",
+                        },
+                    }
+                }
+            }
+            environment = {
+                "PYTHON": str(python),
+                "SHELL": str(shell),
+                "CONFIG_SHELL": str(shell),
+            }
+            receipt = BUILD.verify_bootstrap_input_execution(
+                plan,
+                environment,
+                executing_python=python,
+                shebang_shell=shell,
+            )
+            self.assertEqual(receipt["python"]["version"], "Python fixture-1")
+            self.assertEqual(receipt["sh"]["bin_sh_resolved_path"], str(shell))
+
+            other_python = root / "other-python"
+            other_python.write_bytes(python.read_bytes())
+            other_python.chmod(0o755)
+            with self.assertRaisesRegex(
+                BUILD.BuildError, "Python bootstrap provider"
+            ):
+                BUILD.verify_bootstrap_input_execution(
+                    plan,
+                    environment,
+                    executing_python=other_python,
+                    shebang_shell=shell,
+                )
 
     def test_build_recipe_identity_changes_with_driver_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -457,6 +550,34 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 set(selected["perl_modules"]),
                 set(self.contract()["build_toolchain"]["required_perl_modules"]),
             )
+            self.assertEqual(set(selected["bootstrap_inputs"]), {"python", "sh"})
+
+    def test_toolchain_receipt_detects_bootstrap_input_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            contract = self.contract()
+            receipt_path = self.toolchain_receipt(root, contract)
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            python = Path(receipt["bootstrap_inputs"]["python"]["path"])
+            python.write_bytes(b"mutated Python bootstrap provider\n")
+            python.chmod(0o755)
+            with self.assertRaisesRegex(
+                BUILD.BuildError, "bootstrap input bytes differ"
+            ):
+                BUILD.verify_toolchain_receipt(contract, receipt_path)
+
+    def test_toolchain_receipt_rejects_missing_bootstrap_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            contract = self.contract()
+            receipt_path = self.toolchain_receipt(root, contract)
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            receipt["bootstrap_inputs"].pop("sh")
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(
+                BUILD.BuildError, "omits required bootstrap input"
+            ):
+                BUILD.verify_toolchain_receipt(contract, receipt_path)
 
     def test_toolchain_receipt_detects_perl_module_provider_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

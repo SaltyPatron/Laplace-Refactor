@@ -113,14 +113,14 @@ def verify_toolchain_package_receipt(
         if not re.fullmatch(r"[0-9a-f]{64}", digest) or sha256_file(path) != digest:
             raise ReceiptError(f"toolchain tool digest mismatch: {name}")
         selected[name] = {"path": str(path), "sha256": digest, "version": version}
-    modules = manifest.get("perl_modules")
-    required_modules = expected.get("required_perl_modules")
+    modules = manifest.get("perl_modules", {})
+    required_modules = expected.get("required_perl_modules", {})
     if not isinstance(modules, dict) or not isinstance(required_modules, dict):
         raise ReceiptError(
             "toolchain Perl modules and required_perl_modules must be present"
         )
-    if set(modules) != set(required_modules):
-        raise ReceiptError("toolchain consumer manifest Perl module set differs")
+    if not set(required_modules).issubset(modules):
+        raise ReceiptError("toolchain consumer manifest omits a required Perl module")
     selected_modules: dict[str, dict[str, Any]] = {}
     for name, required_version in required_modules.items():
         if not isinstance(name, str) or not name or not isinstance(required_version, str):
@@ -190,7 +190,57 @@ def verify_toolchain_package_receipt(
                 f"toolchain.perl_modules.{name}.source_component",
             ),
         }
-    linker_inputs = receipt.get("linker_map_inputs")
+    bootstrap_inputs = receipt.get("bootstrap_inputs", {})
+    required_bootstrap_inputs = expected.get("required_bootstrap_inputs", {})
+    if not isinstance(bootstrap_inputs, dict) or not isinstance(
+        required_bootstrap_inputs, dict
+    ):
+        raise ReceiptError(
+            "toolchain bootstrap inputs and required_bootstrap_inputs must be present"
+        )
+    selected_bootstrap_inputs: dict[str, dict[str, str]] = {}
+    for name, requirement in required_bootstrap_inputs.items():
+        if not isinstance(name, str) or not name or not isinstance(requirement, dict):
+            raise ReceiptError("toolchain required bootstrap input declaration is invalid")
+        selected_input = bootstrap_inputs.get(name)
+        if not isinstance(selected_input, dict):
+            raise ReceiptError(f"toolchain receipt omits required bootstrap input: {name}")
+        expected_path = require_string(
+            requirement.get("path"), f"toolchain.required_bootstrap_inputs.{name}.path"
+        )
+        expected_sha256 = require_string(
+            requirement.get("sha256"),
+            f"toolchain.required_bootstrap_inputs.{name}.sha256",
+        )
+        expected_version = require_string(
+            requirement.get("version"),
+            f"toolchain.required_bootstrap_inputs.{name}.version",
+        )
+        path = Path(
+            require_string(
+                selected_input.get("path"), f"toolchain.bootstrap_inputs.{name}.path"
+            )
+        )
+        digest = require_string(
+            selected_input.get("sha256"),
+            f"toolchain.bootstrap_inputs.{name}.sha256",
+        )
+        version = require_string(
+            selected_input.get("version"),
+            f"toolchain.bootstrap_inputs.{name}.version",
+        )
+        if str(path) != expected_path or digest != expected_sha256 or version != expected_version:
+            raise ReceiptError(f"toolchain bootstrap input identity differs: {name}")
+        if not path.is_absolute() or not path.is_file() or path.is_symlink():
+            raise ReceiptError(f"toolchain bootstrap input is not a physical file: {name}")
+        if not os.access(path, os.X_OK) or sha256_file(path) != digest:
+            raise ReceiptError(f"toolchain bootstrap input bytes differ: {name}")
+        selected_bootstrap_inputs[name] = {
+            "path": str(path),
+            "sha256": digest,
+            "version": version,
+        }
+    linker_inputs = receipt.get("linker_map_inputs", [])
     required_linker_inputs = expected.get("required_linker_map_inputs", {})
     if not isinstance(linker_inputs, list) or not isinstance(required_linker_inputs, dict):
         raise ReceiptError("toolchain linker-map inputs and requirements must be present")
@@ -268,6 +318,7 @@ def verify_toolchain_package_receipt(
         "prefix": str(prefix),
         "tools": selected,
         "perl_modules": selected_modules,
+        "bootstrap_inputs": selected_bootstrap_inputs,
         "linker_map_inputs": selected_linker_inputs,
     }
 

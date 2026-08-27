@@ -35,6 +35,13 @@ EXPECTED_PERL_MODULES = {
     "IO::Tty": "1.31",
     "IPC::Run": "20260402.0",
 }
+EXPECTED_BOOTSTRAP_INPUTS = {"python", "sh"}
+EXPECTED_UNSELECTED_HOST_INPUTS = [
+    "Python standard library and imported runtime providers",
+    "configure-time host utilities",
+    "Intel-compiler-selected platform ABI startup objects static archives and support libraries for the PostgreSQL build",
+    "selected kernel and runtime-provider qualification for PostgreSQL io_uring execution",
+]
 EXPECTED_RUNTIME_BUILD_EXECUTABLES = {
     "openssl": {
         "relative_path": "bin/openssl",
@@ -189,6 +196,25 @@ def validate_contract(document: dict[str, Any]) -> None:
     )
     if build_toolchain.get("required_perl_modules") != EXPECTED_PERL_MODULES:
         raise BuildError("build_toolchain.required_perl_modules must remain exact")
+    required_bootstrap_inputs = build_toolchain.get("required_bootstrap_inputs")
+    if not isinstance(required_bootstrap_inputs, dict) or set(
+        required_bootstrap_inputs
+    ) != EXPECTED_BOOTSTRAP_INPUTS:
+        raise BuildError("build_toolchain.required_bootstrap_inputs must remain exact")
+    for name, requirement in required_bootstrap_inputs.items():
+        if not isinstance(requirement, dict):
+            raise BuildError(f"bootstrap input declaration is invalid: {name}")
+        path = Path(
+            require_string(
+                requirement.get("path"), f"bootstrap input {name}.path"
+            )
+        )
+        digest = require_string(
+            requirement.get("sha256"), f"bootstrap input {name}.sha256"
+        )
+        require_string(requirement.get("version"), f"bootstrap input {name}.version")
+        if not path.is_absolute() or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise BuildError(f"bootstrap input identity is invalid: {name}")
     required_linker_inputs = build_toolchain.get("required_linker_map_inputs")
     if not isinstance(required_linker_inputs, dict) or not required_linker_inputs:
         raise BuildError("build_toolchain.required_linker_map_inputs must be present")
@@ -253,9 +279,11 @@ def validate_contract(document: dict[str, Any]) -> None:
     )
     if "PostgreSQL bundled tzdata 2026c" not in selected_inputs:
         raise BuildError("input_closure must bind PostgreSQL bundled tzdata 2026c")
-    require_string_array(
+    unselected_host_inputs = require_string_array(
         input_closure.get("unselected_host_inputs"), "input_closure.unselected_host_inputs"
     )
+    if unselected_host_inputs != EXPECTED_UNSELECTED_HOST_INPUTS:
+        raise BuildError("input_closure.unselected_host_inputs must remain exact")
     if input_closure.get("activation_policy") != (
         "blocked-until-all-build-and-runtime-inputs-are-selected-packaged-and-receipted"
     ):
@@ -290,6 +318,12 @@ def validate_contract(document: dict[str, Any]) -> None:
     targets = require_string_array(build.get("make_targets"), "build.make_targets")
     if targets != ["world-bin", "check-world", "install-world-bin"]:
         raise BuildError("build.make_targets must build, test, then install the complete binary world")
+    selected_python = Path(require_string(build.get("python"), "build.python"))
+    selected_shell = Path(require_string(build.get("shell"), "build.shell"))
+    if selected_python != Path(required_bootstrap_inputs["python"]["path"]):
+        raise BuildError("build.python differs from the selected bootstrap provider")
+    if selected_shell != Path(required_bootstrap_inputs["sh"]["path"]):
+        raise BuildError("build.shell differs from the selected bootstrap provider")
     if not isinstance(build.get("parallel_jobs"), int) or build["parallel_jobs"] < 1:
         raise BuildError("build.parallel_jobs must be positive")
     if build.get("build_directory_mode") != "0700":
@@ -809,12 +843,73 @@ def build_environment(
         "OBJCOPY": tools["objcopy"]["path"],
         "OBJDUMP": tools["objdump"]["path"],
         "PYTHON": contract["build"]["python"],
+        "SHELL": contract["build"]["shell"],
+        "CONFIG_SHELL": contract["build"]["shell"],
+    }
+
+
+def verify_bootstrap_input_execution(
+    plan: Mapping[str, Any],
+    environment: Mapping[str, str],
+    *,
+    executing_python: Path | None = None,
+    shebang_shell: Path = Path("/bin/sh"),
+) -> dict[str, dict[str, str]]:
+    bootstrap_inputs = plan["build_toolchain"]["bootstrap_inputs"]
+    selected_python = bootstrap_inputs["python"]
+    python = Path(environment["PYTHON"])
+    if (
+        python != Path(selected_python["path"])
+        or (executing_python or Path(sys.executable)).resolve() != python.resolve()
+        or not python.is_file()
+        or python.is_symlink()
+        or sha256_file(python) != selected_python["sha256"]
+    ):
+        raise BuildError("executing Python bootstrap provider differs from its receipt")
+    python_version = subprocess.run(
+        [str(python), "--version"], text=True, capture_output=True
+    )
+    observed_python_version = (
+        python_version.stdout + python_version.stderr
+    ).strip()
+    if (
+        python_version.returncode != 0
+        or observed_python_version != selected_python["version"]
+    ):
+        raise BuildError("executing Python bootstrap version differs from its receipt")
+
+    selected_shell = bootstrap_inputs["sh"]
+    shell = Path(environment["SHELL"])
+    if (
+        environment.get("CONFIG_SHELL") != str(shell)
+        or shell != Path(selected_shell["path"])
+        or shebang_shell.resolve() != shell.resolve()
+        or not shell.is_file()
+        or shell.is_symlink()
+        or sha256_file(shell) != selected_shell["sha256"]
+    ):
+        raise BuildError("executing POSIX shell bootstrap provider differs from its receipt")
+
+    return {
+        "python": {
+            "path": str(python),
+            "sha256": selected_python["sha256"],
+            "version": observed_python_version,
+        },
+        "sh": {
+            "path": str(shell),
+            "sha256": selected_shell["sha256"],
+            "version": selected_shell["version"],
+            "bin_sh_resolved_path": str(shebang_shell.resolve()),
+        },
     }
 
 
 def verify_build_input_execution(
     plan: dict[str, Any], environment: Mapping[str, str]
 ) -> dict[str, Any]:
+    bootstrap_inputs = verify_bootstrap_input_execution(plan, environment)
+
     perl = Path(plan["build_toolchain"]["tools"]["perl"]["path"])
     modules = plan["build_toolchain"]["perl_modules"]
     module_receipts: dict[str, dict[str, str]] = {}
@@ -868,6 +963,7 @@ def verify_build_input_execution(
         raise BuildError("selected staged OpenSSL execution identity differs")
     return {
         "schema": "laplace.postgresql-build-input-preflight/v1",
+        "bootstrap_inputs": bootstrap_inputs,
         "perl": {
             "path": str(perl),
             "sha256": plan["build_toolchain"]["tools"]["perl"]["sha256"],
