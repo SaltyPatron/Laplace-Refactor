@@ -47,7 +47,7 @@
     "package_receipt_schema": "laplace.product-package-receipt/v1",
     "package_installation_schema": "laplace.product-package-installation-receipt/v1",
     "package_release_root": "/opt/laplace/releases",
-    "plan_receipt_root": "/opt/laplace/receipts/plans",
+    "plan_receipt_root": "/build/laplace/runner/product/receipts/plans",
     "cluster_activation_root": "/opt/laplace/receipts/postgresql/refactor/cluster-activation",
     "unicode_source_root": "/vault/Data/UCD/Public/UCD/latest",
     "unicode_result": "/opt/laplace/receipts/postgresql/refactor/unicode-activation-result.json",
