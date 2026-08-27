@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T02:22:49Z",
+  "observed_at_utc": "2026-08-27T02:43:31Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "fd93685bc3598d8ae5748e07cc321bd9b6c1e066",
-    "implementation_checkpoint_commit": "b3d9a95e79f8ab60fb826f9f48760ec4606428e4",
+    "observed_branch_head": "fbfbacfef9290e790475c01ecd5e64c2c40c8cff",
+    "implementation_checkpoint_commit": "fbfbacfef9290e790475c01ecd5e64c2c40c8cff",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-blocked-on-runtime-acceptance",
+    "state": "implementation-in-progress-runtime-package-execution-ready-provider-qualification-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -305,11 +305,11 @@
         "contract_schema": "laplace.postgresql-runtime-build/v2",
         "plan_schema": "laplace.postgresql-runtime-plan/v2",
         "receipt_schema": "laplace.postgresql-runtime-package/v2",
-        "latest_plan_id": "90d33cc8fe8b6775987d0f7735e325b56342716861ed02cefc8073c5a70cc3f8",
+        "latest_plan_id": "a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a",
         "logical_install_prefix": "/opt/laplace/current",
-        "staged_prefix": "/build/laplace/stage/90d33cc8fe8b6775987d0f7735e325b56342716861ed02cefc8073c5a70cc3f8/root/opt/laplace/current",
-        "state": "composer-implemented-plan-derived-package-not-accepted",
-        "successful_component_checkpoints_before_failure": [
+        "staged_prefix": "/build/laplace/stage/a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a/root/opt/laplace/current",
+        "state": "composer-implemented-execution-ready-package-not-built-provider-qualification-unresolved",
+        "prior_v1_successful_component_checkpoints_before_failure": [
           "zlib",
           "lz4",
           "zstd",
@@ -338,7 +338,20 @@
             "recv-mshot-fair.t",
             "recvsend_bundle.t"
           ],
-          "disposition": "runtime acceptance unsatisfied on the observed host; no checkpoint receipt or package receipt was issued for liburing or the complete runtime"
+          "disposition": "the upstream userspace-library-and-live-kernel suite failed under the observed provider; the outcome remains exact evidence but does not by itself identify the cause; no checkpoint or package receipt was issued under the superseded v1 contract"
+        },
+        "upstream_test_scope_correction": {
+          "source": "selected liburing 2.15 README",
+          "source_sha256": "1bb130b0d32f1c3f8430c7b4c5c052cc931621a3e8eec2f484310b9892e7944f",
+          "fact": "the upstream regression suite tests both liburing and live kernel io_uring support and is not expected to pass on older kernels",
+          "architectural_effect": "package construction records the exact observed outcome while product activation separately requires an accepted selected-runtime-provider qualification receipt"
+        },
+        "runtime_provider_qualification": {
+          "receipt_schema": "laplace.runtime-provider-qualification/v1",
+          "required_before_product_activation": true,
+          "required_components": ["liburing"],
+          "state": "required-not-established",
+          "current_host_is_accepted": false
         },
         "staging_violation": {
           "component": "openssl",
@@ -351,23 +364,24 @@
           "corrected_by": "explicit GNU Make DESTDIR assignment plus a deliberate mutation test",
           "activated": false
         },
-        "continuation_condition": "execute the exact v2 runtime plan in a selected supported kernel and runtime environment where the complete upstream liburing suite passes; the available but uninstalled Ubuntu HWE candidate is 6.8.0-136 and must not be treated as accepted until the complete suite passes",
+        "continuation_condition": "execute exact runtime plan a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a; record every component test and the liburing host-coupled suite outcome exactly; issue only an inert runtime package whose provider qualification remains incomplete; compose the inert PostgreSQL product package; require a separate accepted selected-runtime-provider qualification before any product activation",
         "nonclaims": [
           "the v2 runtime package has not been built to completion",
-          "the liburing failures have not been waived or reclassified as passes",
-          "a newer kernel has not been installed or accepted",
+          "the prior liburing failures have not been waived reclassified as passes or attributed solely to the kernel",
+          "the current host and its io_uring runtime provider have not been qualified for product activation",
+          "a newer kernel has not been installed qualified or accepted",
           "/opt/laplace/current has not been activated"
         ]
       },
       "postgresql_product_package": {
         "contract_schema": "laplace.postgresql-build-contract/v2",
-        "implementation_commit": "b3d9a95e79f8ab60fb826f9f48760ec4606428e4",
+        "implementation_commit": "fbfbacfef9290e790475c01ecd5e64c2c40c8cff",
         "state": "composer-implemented-not-package-built",
         "logical_install_prefix": "/opt/laplace/current/pgsql-18",
         "final_release_semantics": "the immutable release identity belongs to the complete composed product rather than a dependency-only runtime prefix",
         "receipt_inputs": [
           "exact verified toolchain package receipt and staged tree",
-          "exact accepted runtime v2 package receipt and staged tree",
+          "exact runtime v2 component-package receipt and staged tree with unresolved provider qualification retained",
           "verified PostgreSQL 18.6 source release"
         ],
         "implemented_boundary": [
@@ -377,20 +391,23 @@
           "explicit staged DESTDIR install",
           "canonical logical activation RUNPATH",
           "whole-product build identity changes when either prerequisite receipt changes",
+          "exact component test dispositions and provider-qualification requirements survive into the composed plan",
           "package activation remains false"
         ],
         "known_unclosed_inputs": [
           "ambient Python",
           "POSIX and configure utilities",
           "compiler-selected platform ABI startup and support objects",
-          "out-of-package Perl modules"
+          "out-of-package Perl modules",
+          "selected kernel and io_uring runtime-provider qualification"
         ]
       },
       "local_validation": {
-        "postgresql_build_contract_and_mutation": "22 of 22 passed",
-        "runtime_build_graph_contract_and_mutation": "32 of 32 passed",
-        "program_authority": "20 of 20 passed including the failed-runtime promotion mutation",
+        "postgresql_build_contract_and_mutation": "25 of 25 passed",
+        "runtime_build_graph_contract_and_mutation": "34 of 34 passed",
+        "program_authority": "21 of 21 passed including failed-runtime and unqualified-provider promotion mutations",
         "requirements_trace": "12 of 12 passed",
+        "targeted_registered_tests": "4 of 4 passed for PostgreSQL build runtime graph requirements trace and program authority",
         "portable_registered_suite": "268 of 269 passed; the sole failure was the known canonical oneAPI numeric-provider absence in the portable Unicode PostgreSQL test"
       }
     },
@@ -420,7 +437,7 @@
     ]
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-27T02:22:49Z",
+    "observed_at_utc": "2026-08-27T02:43:31Z",
     "main_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
@@ -451,8 +468,8 @@
       "number": 74,
       "state": "open",
       "draft": true,
-      "head_commit": "fd93685bc3598d8ae5748e07cc321bd9b6c1e066",
-      "proof_state": "partial implementation; exact runtime acceptance product package cluster activation Unicode activation seed and release remain false"
+      "head_commit": "fbfbacfef9290e790475c01ecd5e64c2c40c8cff",
+      "proof_state": "partial implementation; runtime package execution is ready while selected-provider qualification product package cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
@@ -478,7 +495,7 @@
       {"id": 33024951976, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409", "linux_dev_registered_tests": 251, "linux_sanitize_registered_tests": 251},
       {"id": 33024951904, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409", "registered_tests": 279, "observed_postgresql_version": "18.3"}
     ],
-    "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": true, "busy_reason": "executing draft PR 74 custom-stack CI at observation time", "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},
+    "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": true, "busy_reason": "self-hosted work was executing at observation time; no current-head PR 74 check had yet been published", "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},
     "observed_required_checks": ["requirements", "native (linux-dev)", "native (linux-sanitize)"],
     "required_product_path_gate_present": false,
     "required_custom_stack_evidence_currently_missing_from_merge_gate": "postgresql-native",
