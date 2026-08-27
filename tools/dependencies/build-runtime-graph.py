@@ -17,10 +17,19 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+DEPENDENCY_TOOLS = Path(__file__).resolve().parent
+if str(DEPENDENCY_TOOLS) not in sys.path:
+    sys.path.insert(0, str(DEPENDENCY_TOOLS))
 
-SCHEMA = "laplace.postgresql-runtime-build/v1"
-PLAN_SCHEMA = "laplace.postgresql-runtime-plan/v1"
-RECEIPT_SCHEMA = "laplace.postgresql-runtime-package/v1"
+from package_receipts import (  # noqa: E402
+    ReceiptError,
+    verify_toolchain_package_receipt,
+)
+
+
+SCHEMA = "laplace.postgresql-runtime-build/v2"
+PLAN_SCHEMA = "laplace.postgresql-runtime-plan/v2"
+RECEIPT_SCHEMA = "laplace.postgresql-runtime-package/v2"
 CHECKPOINT_SCHEMA = "laplace.postgresql-runtime-component-checkpoint/v1"
 TREE_SCHEMA = "laplace.package-tree-state/v1"
 TOOLCHAIN_RECEIPT_SCHEMA = "laplace.toolchain-package-receipt/v1"
@@ -230,9 +239,11 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise GraphError("absolute runtime build roots in __FILE__ must be forbidden")
     if source_path_policy.get("absolute_build_root_in_debug_info") != "forbidden":
         raise GraphError("absolute runtime build roots in debug information must be forbidden")
-    for field in ("final_prefix_root", "build_root", "stage_root"):
+    for field in ("install_prefix", "build_root", "stage_root"):
         if not Path(require_string(execution.get(field), f"execution.{field}")).is_absolute():
             raise GraphError(f"execution.{field} must be absolute")
+    if execution["install_prefix"] != "/opt/laplace/current":
+        raise GraphError("runtime install_prefix must equal the product activation prefix")
     if closure.get("status") != "incomplete":
         raise GraphError("input_closure must remain incomplete until all tool inputs close")
     require_string_list(closure.get("unresolved"), "input_closure.unresolved")
@@ -313,67 +324,13 @@ def verify_compilers(contract: dict[str, Any]) -> dict[str, dict[str, str]]:
     return result
 
 
-def path_is_within(path: Path, prefix: Path) -> bool:
-    try:
-        path.resolve().relative_to(prefix.resolve())
-    except ValueError:
-        return False
-    return True
-
-
 def verify_toolchain_receipt(
     contract: dict[str, Any], receipt_path: Path
 ) -> dict[str, Any]:
-    receipt = read_json(receipt_path)
-    expected = contract["build_toolchain"]
-    if receipt.get("schema") != expected["receipt_schema"]:
-        raise GraphError("toolchain receipt schema mismatch")
-    build_input_id = require_string(receipt.get("build_input_id"), "toolchain.build_input_id")
-    if not re.fullmatch(r"[0-9a-f]{64}", build_input_id):
-        raise GraphError("toolchain build_input_id must be lowercase SHA-256")
-    package = receipt.get("package")
-    manifest = receipt.get("consumer_manifest")
-    activation = receipt.get("activation")
-    if not all(isinstance(item, dict) for item in (package, manifest, activation)):
-        raise GraphError("toolchain receipt package, consumer_manifest, and activation are required")
-    prefix = Path(require_string(package.get("prefix"), "toolchain.package.prefix"))
-    if not prefix.is_absolute() or not prefix.is_dir():
-        raise GraphError("toolchain package prefix must be an existing absolute directory")
-    if manifest.get("schema") != expected["consumer_manifest_schema"]:
-        raise GraphError("toolchain consumer manifest schema mismatch")
-    if manifest.get("build_input_id") != build_input_id:
-        raise GraphError("toolchain receipt and consumer manifest build_input_id differ")
-    if manifest.get("prefix") != str(prefix):
-        raise GraphError("toolchain receipt and consumer manifest prefix differ")
-    if activation.get("scope") != "build-toolchain-only":
-        raise GraphError("toolchain activation scope must be build-toolchain-only")
-    if activation.get("product_runtime_activation_eligible") is not False:
-        raise GraphError("build toolchain cannot be product-runtime activation eligible")
-    tools = manifest.get("tools")
-    if not isinstance(tools, dict):
-        raise GraphError("toolchain consumer manifest tools must be an object")
-    selected: dict[str, dict[str, str]] = {}
-    for name in expected["required_tools"]:
-        tool = tools.get(name)
-        if not isinstance(tool, dict):
-            raise GraphError(f"toolchain consumer manifest omits required tool: {name}")
-        path = Path(require_string(tool.get("path"), f"toolchain.tools.{name}.path"))
-        digest = require_string(tool.get("sha256"), f"toolchain.tools.{name}.sha256")
-        version = require_string(tool.get("version"), f"toolchain.tools.{name}.version")
-        if not path.is_absolute() or not path_is_within(path, prefix):
-            raise GraphError(f"toolchain tool is outside its package prefix: {name}")
-        if not path.is_file() or not os.access(path, os.X_OK):
-            raise GraphError(f"toolchain tool is not executable: {name}")
-        if not re.fullmatch(r"[0-9a-f]{64}", digest) or sha256_file(path) != digest:
-            raise GraphError(f"toolchain tool digest mismatch: {name}")
-        selected[name] = {"path": str(path), "sha256": digest, "version": version}
-    return {
-        "receipt_path": str(receipt_path.resolve()),
-        "receipt_sha256": sha256_file(receipt_path),
-        "build_input_id": build_input_id,
-        "prefix": str(prefix),
-        "tools": selected,
-    }
+    try:
+        return verify_toolchain_package_receipt(contract["build_toolchain"], receipt_path)
+    except ReceiptError as error:
+        raise GraphError(str(error)) from error
 
 
 def normalize_compiler_driver_trace(trace: str) -> str:
@@ -586,8 +543,8 @@ def create_plan(
     }
     build_id = canonical_sha256(identity)
     execution = contract["execution"]
-    final_prefix = ensure_external(
-        Path(execution["final_prefix_root"]) / build_id, repository, "final prefix"
+    install_prefix = ensure_external(
+        Path(execution["install_prefix"]), repository, "install prefix"
     )
     build_directory = ensure_external(
         Path(execution["build_root"]) / build_id, repository, "build directory"
@@ -595,7 +552,7 @@ def create_plan(
     stage_directory = ensure_external(
         Path(execution["stage_root"]) / build_id, repository, "stage directory"
     )
-    staged_prefix = stage_directory / "root" / final_prefix.relative_to("/")
+    staged_prefix = stage_directory / "root" / install_prefix.relative_to("/")
     return {
         "schema": PLAN_SCHEMA,
         "build_input_id": build_id,
@@ -604,7 +561,7 @@ def create_plan(
         "archive_root": str(archive_root.resolve()),
         "build_directory": str(build_directory),
         "stage_directory": str(stage_directory),
-        "final_prefix": str(final_prefix),
+        "install_prefix": str(install_prefix),
         "staged_prefix": str(staged_prefix),
         "components": contract["components"],
         "compilers": compilers,
@@ -745,7 +702,7 @@ def cmake_component(
 ) -> None:
     tools = plan["tools"]
     compilers = contract["compiler"]
-    final = Path(plan["final_prefix"])
+    final = Path(plan["install_prefix"])
     staged = Path(plan["staged_prefix"])
     cmake = tools["cmake"]["path"]
     ninja = tools["ninja"]["path"]
@@ -827,7 +784,7 @@ def autotools_component(
 ) -> None:
     make = plan["tools"]["make"]["path"]
     run_logged(
-        [str(source / "configure"), f"--prefix={plan['final_prefix']}", *component["configure_arguments"]],
+        [str(source / "configure"), f"--prefix={plan['install_prefix']}", *component["configure_arguments"]],
         build,
         environment,
         log,
@@ -850,7 +807,7 @@ def openssl_component(
 ) -> None:
     make = plan["tools"]["make"]["path"]
     perl = plan["tools"]["perl"]["path"]
-    final = Path(plan["final_prefix"])
+    final = Path(plan["install_prefix"])
     run_logged(
         [
             perl,
@@ -866,8 +823,14 @@ def openssl_component(
     )
     run_logged([make, f"-j{contract['execution']['jobs']}"], build, environment, log)
     run_logged([make, f"-j{contract['execution']['jobs']}", "test"], build, environment, log)
-    install_environment = {**environment, "DESTDIR": str(Path(plan["stage_directory"]) / "root")}
-    run_logged([make, "install_sw", "install_ssldirs"], build, install_environment, log)
+    destination_root = Path(plan["stage_directory"]) / "root"
+    install_environment = {**environment, "DESTDIR": str(destination_root)}
+    run_logged(
+        [make, "install_sw", "install_ssldirs", f"DESTDIR={destination_root}"],
+        build,
+        install_environment,
+        log,
+    )
 
 
 def source_copy_make_component(
@@ -883,7 +846,7 @@ def source_copy_make_component(
     copied = build / "source"
     shutil.copytree(source, copied, symlinks=True)
     run_logged(
-        [str(copied / "configure"), f"--prefix={plan['final_prefix']}", *component["configure_arguments"]],
+        [str(copied / "configure"), f"--prefix={plan['install_prefix']}", *component["configure_arguments"]],
         copied,
         environment,
         log,
@@ -997,7 +960,7 @@ def package_receipt(contract: dict[str, Any], plan: dict[str, Any]) -> dict[str,
     return {
         "schema": RECEIPT_SCHEMA,
         "build_input_id": plan["build_input_id"],
-        "final_prefix": plan["final_prefix"],
+        "install_prefix": plan["install_prefix"],
         "staged_prefix": plan["staged_prefix"],
         "tree_sha256": digest.hexdigest(),
         "file_count": sum(1 for item in files if item["kind"] == "file"),
@@ -1148,10 +1111,7 @@ def execute(
 ) -> dict[str, Any]:
     build_root = Path(plan["build_directory"])
     stage_root = Path(plan["stage_directory"])
-    final_prefix = Path(plan["final_prefix"])
     staged_prefix = Path(plan["staged_prefix"])
-    if final_prefix.exists() or final_prefix.is_symlink():
-        raise GraphError("final package destination must not already exist")
     if resume:
         for name, path in (("build", build_root), ("stage", stage_root)):
             if (

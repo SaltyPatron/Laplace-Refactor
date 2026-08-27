@@ -62,6 +62,12 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.GraphError, "package-relative"):
             BUILD.validate_contract(contract)
 
+    def test_install_prefix_must_be_the_stable_product_activation_path(self) -> None:
+        contract = self.contract()
+        contract["execution"]["install_prefix"] = "/opt/laplace/releases/private-slice"
+        with self.assertRaisesRegex(BUILD.GraphError, "product activation prefix"):
+            BUILD.validate_contract(contract)
+
     def test_absolute_build_paths_are_forbidden_in_compiler_outputs(self) -> None:
         for field, value, message in (
             ("build_root_mapping", "/build", "stable relative compiler path"),
@@ -255,7 +261,7 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                 name: {"path": f"/toolchain/{name}"}
                 for name in ("cmake", "ninja", "ctest", "make", "ar", "ld", "nm", "objcopy", "objdump", "ranlib", "strip")
             },
-            "final_prefix": "/opt/laplace/releases/fixture",
+            "install_prefix": "/opt/laplace/current",
             "staged_prefix": "/stage/fixture",
             "stage_directory": "/stage",
         }
@@ -281,6 +287,39 @@ class RuntimeBuildGraphTests(unittest.TestCase):
             f"-DCMAKE_INSTALL_RPATH={contract['execution']['install_runpath']}",
             configure,
         )
+
+    def test_openssl_install_receives_destdir_as_a_make_assignment(self) -> None:
+        contract = self.contract()
+        captured: list[list[str]] = []
+
+        def capture(command: object, *_args: object, **_kwargs: object) -> None:
+            captured.append(list(command))
+
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            BUILD, "run_logged", side_effect=capture
+        ):
+            root = Path(temporary)
+            stage = root / "stage"
+            plan = {
+                "tools": {
+                    "make": {"path": "/toolchain/make"},
+                    "perl": {"path": "/toolchain/perl"},
+                },
+                "install_prefix": "/opt/laplace/current",
+                "stage_directory": str(stage),
+            }
+            BUILD.openssl_component(
+                contract,
+                plan,
+                contract["components"][4],
+                root / "source",
+                root / "build",
+                {},
+                root / "log",
+            )
+        install = captured[-1]
+        self.assertIn(f"DESTDIR={stage / 'root'}", install)
+        self.assertNotIn("/opt/laplace/current", install)
 
     def test_build_environment_uses_declared_package_relative_runpath(self) -> None:
         contract = self.contract()
@@ -410,7 +449,7 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         contract = self.contract()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            contract["execution"]["final_prefix_root"] = str(root / "releases")
+            contract["execution"]["install_prefix"] = "/opt/laplace/current"
             contract["execution"]["build_root"] = str(root / "build")
             contract["execution"]["stage_root"] = str(root / "stage")
             compilers = {
@@ -449,7 +488,7 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                 Path(first["staged_prefix"]),
                 Path(first["stage_directory"])
                 / "root"
-                / Path(first["final_prefix"]).relative_to("/"),
+                / Path(first["install_prefix"]).relative_to("/"),
             )
 
     def test_repository_local_output_is_rejected(self) -> None:
@@ -465,7 +504,7 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                 self.contract(),
                 {
                     "build_input_id": "2" * 64,
-                    "final_prefix": "/opt/laplace/releases/example",
+                    "install_prefix": "/opt/laplace/current",
                     "staged_prefix": str(prefix),
                     "tools": {"readelf": {"path": "/usr/bin/readelf"}},
                 },
@@ -498,7 +537,7 @@ esac
             readelf.chmod(0o755)
             plan = {
                 "build_input_id": "2" * 64,
-                "final_prefix": "/opt/laplace/releases/example",
+                "install_prefix": "/opt/laplace/current",
                 "staged_prefix": str(prefix),
                 "tools": {"readelf": {"path": str(readelf)}},
             }
@@ -544,7 +583,7 @@ esac
             readelf.chmod(0o755)
             plan = {
                 "build_input_id": "2" * 64,
-                "final_prefix": "/opt/laplace/releases/example",
+                "install_prefix": "/opt/laplace/current",
                 "staged_prefix": str(prefix),
                 "tools": {"readelf": {"path": str(readelf)}},
             }

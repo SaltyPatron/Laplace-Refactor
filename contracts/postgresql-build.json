@@ -1,5 +1,5 @@
 {
-  "schema": "laplace.postgresql-build-contract/v1",
+  "schema": "laplace.postgresql-build-contract/v2",
   "source": {
     "release_lock": "dependencies/release-lock.json",
     "entry": "postgresql",
@@ -13,36 +13,62 @@
     "version_line": "Intel(R) oneAPI DPC++/C++ Compiler 2026.1.1 (2026.1.1.20260724)",
     "target": "x86_64-unknown-linux-gnu"
   },
+  "build_toolchain": {
+    "receipt_schema": "laplace.toolchain-package-receipt/v1",
+    "consumer_manifest_schema": "laplace.toolchain-consumer-manifest/v1",
+    "required_tools": [
+      "make",
+      "perl",
+      "pkgconf",
+      "bison",
+      "flex",
+      "ld",
+      "as",
+      "ar",
+      "ranlib",
+      "nm",
+      "strip",
+      "objcopy",
+      "objdump",
+      "readelf"
+    ]
+  },
+  "runtime_package": {
+    "receipt_schema": "laplace.postgresql-runtime-package/v2",
+    "install_prefix": "/opt/laplace/current",
+    "required_components": [
+      "zlib",
+      "lz4",
+      "zstandard",
+      "icu",
+      "openssl",
+      "liburing",
+      "libxml2"
+    ]
+  },
   "input_closure": {
     "status": "incomplete",
     "selected_exact_inputs": [
       "PostgreSQL release archive and expanded tree",
       "Intel oneAPI C compiler executable",
       "Intel oneAPI C++ compiler executable",
+      "receipted build toolchain package and consumer manifest",
+      "receipted PostgreSQL runtime development and library package",
       "configure arguments and C/C++/linker flags",
       "PostgreSQL bundled tzdata 2026c",
       "Laplace PostgreSQL build driver",
       "Laplace release archive verifier"
     ],
     "unselected_host_inputs": [
-      "GNU make",
-      "GNU binutils",
-      "Bison",
-      "Flex",
       "Python interpreter and standard library",
-      "Perl and TAP modules",
-      "pkg-config",
-      "ICU headers and libraries",
-      "OpenSSL headers and libraries",
-      "libxml2 headers and libraries",
-      "zlib headers and libraries",
-      "LZ4 headers and libraries",
-      "Zstandard headers and libraries",
-      "liburing headers and libraries"
+      "POSIX shell and configure-time host utilities",
+      "compiler-selected platform ABI, startup objects, and support libraries",
+      "Perl modules outside the selected toolchain package"
     ],
     "activation_policy": "blocked-until-all-build-and-runtime-inputs-are-selected-packaged-and-receipted"
   },
   "build": {
+    "install_subdirectory": "pgsql-18",
     "configure_arguments": [
       "--with-icu",
       "--with-ssl=openssl",
@@ -71,11 +97,22 @@
       "-fno-omit-frame-pointer"
     ],
     "linker_flags": ["-Wl,--as-needed"],
+    "install_runpath": "$ORIGIN:$ORIGIN/../lib:$ORIGIN/../../lib",
+    "source_path_policy": {
+      "build_root_mapping": ".",
+      "absolute_build_root_in_file_macro": "forbidden",
+      "absolute_build_root_in_debug_info": "forbidden"
+    },
     "make_targets": ["world-bin", "check-world", "install-world-bin"],
     "parallel_jobs": 6,
     "build_directory_mode": "0700",
-    "pkg_config_libdir": "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig",
     "python": "/usr/bin/python3"
+  },
+  "execution": {
+    "install_prefix": "/opt/laplace/current",
+    "release_root": "/opt/laplace/releases",
+    "build_root": "/opt/laplace/build/postgresql",
+    "stage_root": "/opt/laplace/stage/postgresql"
   },
   "environment": {
     "rejected_nonempty": [
@@ -89,27 +126,28 @@
   },
   "runtime_closure": {
     "package_sonames": [
+      "libcrypto.so.4",
       "libecpg.so.6",
+      "libicudata.so.78",
+      "libicui18n.so.78",
+      "libicuuc.so.78",
+      "liblz4.so.1",
       "libpgtypes.so.3",
-      "libpq.so.5"
+      "libpq.so.5",
+      "libssl.so.4",
+      "liburing.so.2",
+      "libxml2.so.16",
+      "libz.so.1",
+      "libzstd.so.1"
     ],
     "system_abi_sonames": [
       "libc.so.6",
       "libm.so.6"
     ],
     "selected_but_unpacked_sonames": [
-      "libcrypto.so.3",
-      "libicudata.so.70",
-      "libicui18n.so.70",
-      "libicuuc.so.70",
       "libimf.so",
       "libintlc.so.5",
-      "liblz4.so.1",
-      "libssl.so.3",
-      "liburing.so.2",
-      "libxml2.so.2",
-      "libz.so.1",
-      "libzstd.so.1"
+      "libsvml.so"
     ],
     "activation_policy": "blocked-until-selected-libraries-are-packaged-and-recursive-elf-closure-is-clean"
   }

@@ -1,5 +1,5 @@
 {
-  "schema": "laplace.postgresql-runtime-build/v1",
+  "schema": "laplace.postgresql-runtime-build/v2",
   "release_lock": "dependencies/release-lock.json",
   "compiler": {
     "c_compiler": {
@@ -33,7 +33,7 @@
       "position_independent": true,
       "copy_relocations": "forbidden"
     },
-    "final_prefix_root": "/opt/laplace/releases",
+    "install_prefix": "/opt/laplace/current",
     "build_root": "/opt/laplace/build",
     "stage_root": "/opt/laplace/stage",
     "rejected_environment": ["CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH", "CMAKE_PREFIX_PATH", "PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "DESTDIR"]

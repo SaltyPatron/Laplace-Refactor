@@ -15,10 +15,19 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+DEPENDENCY_TOOLS = Path(__file__).resolve().parents[1] / "dependencies"
+if str(DEPENDENCY_TOOLS) not in sys.path:
+    sys.path.insert(0, str(DEPENDENCY_TOOLS))
 
-CONTRACT_SCHEMA = "laplace.postgresql-build-contract/v1"
-PLAN_SCHEMA = "laplace.postgresql-build-plan/v1"
-PACKAGE_SCHEMA = "laplace.postgresql-package-receipt/v1"
+from package_receipts import (  # noqa: E402
+    ReceiptError,
+    verify_recorded_package_tree,
+    verify_toolchain_package_receipt,
+)
+
+CONTRACT_SCHEMA = "laplace.postgresql-build-contract/v2"
+PLAN_SCHEMA = "laplace.postgresql-build-plan/v2"
+PACKAGE_SCHEMA = "laplace.postgresql-package-receipt/v2"
 NEEDED_PATTERN = re.compile(r"Shared library: \[([^]]+)\]")
 
 
@@ -65,7 +74,12 @@ def build_recipe_identity(
 ) -> dict[str, Any]:
     driver = (driver_path or Path(__file__)).resolve()
     verifier = (repository / "tools/dependencies/release-assets.py").resolve()
-    for name, path in (("build driver", driver), ("release verifier", verifier)):
+    receipt_verifier = (repository / "tools/dependencies/package_receipts.py").resolve()
+    for name, path in (
+        ("build driver", driver),
+        ("release verifier", verifier),
+        ("package receipt verifier", receipt_verifier),
+    ):
         if not path.is_file():
             raise BuildError(f"{name} is missing: {path}")
     return {
@@ -77,6 +91,10 @@ def build_recipe_identity(
         "release_verifier": {
             "path": "tools/dependencies/release-assets.py",
             "sha256": sha256_file(verifier),
+        },
+        "package_receipt_verifier": {
+            "path": "tools/dependencies/package_receipts.py",
+            "sha256": sha256_file(receipt_verifier),
         },
     }
 
@@ -100,16 +118,29 @@ def validate_contract(document: dict[str, Any]) -> None:
         raise BuildError(f"contract schema must be {CONTRACT_SCHEMA}")
     source = document.get("source")
     toolchain = document.get("toolchain")
+    build_toolchain = document.get("build_toolchain")
+    runtime_package = document.get("runtime_package")
     input_closure = document.get("input_closure")
     build = document.get("build")
+    execution = document.get("execution")
     environment = document.get("environment")
     closure = document.get("runtime_closure")
     if not all(
         isinstance(section, dict)
-        for section in (source, toolchain, input_closure, build, environment, closure)
+        for section in (
+            source,
+            toolchain,
+            build_toolchain,
+            runtime_package,
+            input_closure,
+            build,
+            execution,
+            environment,
+            closure,
+        )
     ):
         raise BuildError(
-            "contract source, toolchain, input_closure, build, environment, and runtime_closure must be objects"
+            "contract source, toolchains, runtime package, build, execution, environment, and closure must be objects"
         )
     require_string(source.get("release_lock"), "source.release_lock")
     require_string(source.get("entry"), "source.entry")
@@ -125,6 +156,22 @@ def validate_contract(document: dict[str, Any]) -> None:
             raise BuildError(f"toolchain.{role}_compiler_sha256 must be lowercase SHA-256")
     require_string(toolchain.get("version_line"), "toolchain.version_line")
     require_string(toolchain.get("target"), "toolchain.target")
+    if build_toolchain.get("receipt_schema") != "laplace.toolchain-package-receipt/v1":
+        raise BuildError("build_toolchain.receipt_schema is invalid")
+    if build_toolchain.get("consumer_manifest_schema") != (
+        "laplace.toolchain-consumer-manifest/v1"
+    ):
+        raise BuildError("build_toolchain.consumer_manifest_schema is invalid")
+    require_string_array(
+        build_toolchain.get("required_tools"), "build_toolchain.required_tools"
+    )
+    if runtime_package.get("receipt_schema") != "laplace.postgresql-runtime-package/v2":
+        raise BuildError("runtime_package.receipt_schema is invalid")
+    if runtime_package.get("install_prefix") != "/opt/laplace/current":
+        raise BuildError("runtime package must target the stable product activation prefix")
+    require_string_array(
+        runtime_package.get("required_components"), "runtime_package.required_components"
+    )
     if input_closure.get("status") != "incomplete":
         raise BuildError("input_closure.status must remain incomplete until every build input is selected")
     selected_inputs = require_string_array(
@@ -153,6 +200,19 @@ def validate_contract(document: dict[str, Any]) -> None:
         if required not in cxx_flags:
             raise BuildError(f"build.cxx_flags must contain {required}")
     require_string_array(build.get("linker_flags"), "build.linker_flags")
+    if build.get("install_subdirectory") != "pgsql-18":
+        raise BuildError("PostgreSQL install_subdirectory must be pgsql-18")
+    if build.get("install_runpath") != "$ORIGIN:$ORIGIN/../lib:$ORIGIN/../../lib":
+        raise BuildError("PostgreSQL install_runpath must resolve package-owned libraries")
+    source_path_policy = build.get("source_path_policy")
+    if not isinstance(source_path_policy, dict):
+        raise BuildError("build.source_path_policy must be an object")
+    if source_path_policy.get("build_root_mapping") != ".":
+        raise BuildError("PostgreSQL build roots must map to a stable relative compiler path")
+    if source_path_policy.get("absolute_build_root_in_file_macro") != "forbidden":
+        raise BuildError("absolute PostgreSQL build roots in __FILE__ must be forbidden")
+    if source_path_policy.get("absolute_build_root_in_debug_info") != "forbidden":
+        raise BuildError("absolute PostgreSQL build roots in debug information must be forbidden")
     targets = require_string_array(build.get("make_targets"), "build.make_targets")
     if targets != ["world-bin", "check-world", "install-world-bin"]:
         raise BuildError("build.make_targets must build, test, then install the complete binary world")
@@ -160,8 +220,13 @@ def validate_contract(document: dict[str, Any]) -> None:
         raise BuildError("build.parallel_jobs must be positive")
     if build.get("build_directory_mode") != "0700":
         raise BuildError("build.build_directory_mode must be 0700")
-    require_string(build.get("pkg_config_libdir"), "build.pkg_config_libdir")
     require_string(build.get("python"), "build.python")
+    for field in ("install_prefix", "release_root", "build_root", "stage_root"):
+        path = Path(require_string(execution.get(field), f"execution.{field}"))
+        if not path.is_absolute():
+            raise BuildError(f"execution.{field} must be absolute")
+    if execution["install_prefix"] != runtime_package["install_prefix"]:
+        raise BuildError("PostgreSQL and runtime install prefixes differ")
     rejected = require_string_array(environment.get("rejected_nonempty"), "environment.rejected_nonempty")
     for name in ("PGXS", "LD_LIBRARY_PATH", "CMAKE_PREFIX_PATH", "PKG_CONFIG_PATH"):
         if name not in rejected:
@@ -209,6 +274,97 @@ def validate_compiler(contract: dict[str, Any], role: str) -> dict[str, str]:
     if f"Target: {toolchain['target']}" not in lines:
         raise BuildError("selected compiler target does not match the contract")
     return {"path": str(compiler), "sha256": observed_sha, "version_line": lines[0]}
+
+
+def verify_toolchain_receipt(
+    contract: dict[str, Any], receipt_path: Path
+) -> dict[str, Any]:
+    try:
+        return verify_toolchain_package_receipt(
+            contract["build_toolchain"], receipt_path
+        )
+    except ReceiptError as error:
+        raise BuildError(str(error)) from error
+
+
+def verify_runtime_receipt(
+    contract: dict[str, Any], receipt_path: Path
+) -> dict[str, Any]:
+    receipt = read_json(receipt_path)
+    expected = contract["runtime_package"]
+    if receipt.get("schema") != expected["receipt_schema"]:
+        raise BuildError("runtime package receipt schema mismatch")
+    build_input_id = require_string(
+        receipt.get("build_input_id"), "runtime_package.build_input_id"
+    )
+    if not re.fullmatch(r"[0-9a-f]{64}", build_input_id):
+        raise BuildError("runtime package build_input_id must be lowercase SHA-256")
+    if receipt.get("install_prefix") != expected["install_prefix"]:
+        raise BuildError("runtime package install prefix differs from the product prefix")
+    prefix = Path(
+        require_string(receipt.get("staged_prefix"), "runtime_package.staged_prefix")
+    )
+    checkpoints = receipt.get("component_checkpoints")
+    component_logs = receipt.get("component_logs")
+    if not isinstance(checkpoints, dict) or not isinstance(component_logs, dict):
+        raise BuildError("runtime package component checkpoints and logs are required")
+    required_components = expected["required_components"]
+    if sorted(checkpoints) != sorted(required_components) or sorted(component_logs) != sorted(
+        required_components
+    ):
+        raise BuildError("runtime package component evidence set is incomplete")
+    if any(
+        not isinstance(checkpoints[name], str)
+        or re.fullmatch(r"[0-9a-f]{64}", checkpoints[name]) is None
+        for name in required_components
+    ):
+        raise BuildError("runtime package component checkpoint identity is invalid")
+    if any(
+        not isinstance(component_logs[name], str)
+        or re.fullmatch(r"[0-9a-f]{64}", component_logs[name]) is None
+        for name in required_components
+    ):
+        raise BuildError("runtime package component log identity is invalid")
+    plan_sha256 = require_string(
+        receipt.get("plan_sha256"), "runtime_package.plan_sha256"
+    )
+    if re.fullmatch(r"[0-9a-f]{64}", plan_sha256) is None:
+        raise BuildError("runtime package plan_sha256 must be lowercase SHA-256")
+    files = receipt.get("files")
+    try:
+        tree = verify_recorded_package_tree(
+            prefix, files, receipt.get("tree_sha256")
+        )
+    except ReceiptError as error:
+        raise BuildError(str(error)) from error
+    if receipt.get("file_count") != tree["file_count"]:
+        raise BuildError("runtime package file count differs from its physical tree")
+    if receipt.get("total_file_bytes") != tree["total_file_bytes"]:
+        raise BuildError("runtime package byte count differs from its physical tree")
+    if receipt.get("activation_eligible") is not False:
+        raise BuildError("runtime component package cannot claim product activation")
+    for field in (
+        "build_input_closure_complete",
+        "static_link_closure_verified",
+        "recursive_runtime_closure_verified",
+    ):
+        if receipt.get(field) is not False:
+            raise BuildError(f"runtime component package {field} proof state is invalid")
+    return {
+        "receipt_path": str(receipt_path.resolve()),
+        "receipt_sha256": sha256_file(receipt_path),
+        "build_input_id": build_input_id,
+        "install_prefix": receipt["install_prefix"],
+        "staged_prefix": str(prefix),
+        "tree_sha256": tree["tree_sha256"],
+        "file_count": tree["file_count"],
+        "total_file_bytes": tree["total_file_bytes"],
+        "component_checkpoints": {
+            name: checkpoints[name] for name in required_components
+        },
+        "component_logs": {name: component_logs[name] for name in required_components},
+        "plan_sha256": plan_sha256,
+    }
 
 
 def ensure_external(path: Path, repository: Path, name: str) -> Path:
@@ -273,8 +429,8 @@ def create_plan(
     repository: Path,
     archive_root: Path,
     source_root: Path,
-    build_root: Path,
-    stage_root: Path,
+    toolchain_receipt: Path,
+    runtime_receipt: Path,
 ) -> dict[str, Any]:
     validate_contract(contract)
     release = selected_release(contract, repository)
@@ -282,11 +438,17 @@ def create_plan(
         "c": validate_compiler(contract, "c"),
         "cxx": validate_compiler(contract, "cxx"),
     }
+    build_toolchain = verify_toolchain_receipt(contract, toolchain_receipt)
+    runtime_package = verify_runtime_receipt(contract, runtime_receipt)
     recipe = build_recipe_identity(contract, repository)
     source = ensure_external(source_root, repository, "source root")
     source_receipt = verify_release_import(contract, repository, archive_root, source)
-    build_base = ensure_external(build_root, repository, "build root")
-    stage_base = ensure_external(stage_root, repository, "stage root")
+    build_base = ensure_external(
+        Path(contract["execution"]["build_root"]), repository, "build root"
+    )
+    stage_base = ensure_external(
+        Path(contract["execution"]["stage_root"]), repository, "stage root"
+    )
     if not (source / "configure").is_file():
         raise BuildError(f"PostgreSQL configure script is missing: {source}")
     identity_input = {
@@ -297,6 +459,8 @@ def create_plan(
             "tree_sha256": release["tree_sha256"],
         },
         "compilers": compilers,
+        "build_toolchain": build_toolchain,
+        "runtime_package": runtime_package,
         "recipe": recipe,
         "source_verification_sha256": canonical_sha256(source_receipt),
         "execution_paths": {
@@ -307,10 +471,17 @@ def create_plan(
     }
     build_id = canonical_sha256(identity_input)
     build_directory = build_base / build_id
-    prefix = stage_base / build_id / "postgresql-18"
+    stage_directory = stage_base / build_id
+    install_prefix = Path(contract["execution"]["install_prefix"])
+    postgresql_install_prefix = install_prefix / contract["build"]["install_subdirectory"]
+    staged_product_prefix = stage_directory / "root" / install_prefix.relative_to("/")
+    staged_postgresql_prefix = (
+        stage_directory / "root" / postgresql_install_prefix.relative_to("/")
+    )
+    release_prefix = Path(contract["execution"]["release_root"]) / build_id
     configure_command = [
         str(source / "configure"),
-        f"--prefix={prefix}",
+        f"--prefix={postgresql_install_prefix}",
         *contract["build"]["configure_arguments"],
     ]
     return {
@@ -319,8 +490,15 @@ def create_plan(
         "source_root": str(source),
         "source_verification_sha256": canonical_sha256(source_receipt),
         "build_directory": str(build_directory),
-        "prefix": str(prefix),
+        "stage_directory": str(stage_directory),
+        "install_prefix": str(install_prefix),
+        "postgresql_install_prefix": str(postgresql_install_prefix),
+        "staged_product_prefix": str(staged_product_prefix),
+        "staged_postgresql_prefix": str(staged_postgresql_prefix),
+        "release_prefix": str(release_prefix),
         "compilers": compilers,
+        "build_toolchain": build_toolchain,
+        "runtime_package": runtime_package,
         "recipe": recipe,
         "configure_command": configure_command,
         "c_flags": contract["build"]["c_flags"],
@@ -331,8 +509,30 @@ def create_plan(
     }
 
 
-def build_environment(contract: dict[str, Any], home_directory: Path) -> dict[str, str]:
+def build_environment(
+    contract: dict[str, Any], plan: dict[str, Any], home_directory: Path
+) -> dict[str, str]:
     compiler_directory = str(Path(contract["toolchain"]["c_compiler"]).parent)
+    tools = plan["build_toolchain"]["tools"]
+    tool_directories: list[str] = []
+    for tool in tools.values():
+        directory = str(Path(tool["path"]).parent)
+        if directory not in tool_directories:
+            tool_directories.append(directory)
+    staged_product = Path(plan["staged_product_prefix"])
+    build_root = Path(plan["build_directory"])
+    mapping = contract["build"]["source_path_policy"]["build_root_mapping"]
+    source_path_flags = [
+        f"-ffile-prefix-map={build_root}={mapping}",
+        f"-fdebug-prefix-map={build_root}={mapping}",
+    ]
+    make_encoded_runpath = contract["build"]["install_runpath"].replace("$", "$$")
+    linker_flags = [
+        f"-B{Path(plan['build_toolchain']['prefix']) / 'bin'}",
+        f"-L{staged_product / 'lib'}",
+        *contract["build"]["linker_flags"],
+        f"-Wl,-rpath,'{make_encoded_runpath}'",
+    ]
     home_directory.mkdir(exist_ok=True)
     os.chmod(home_directory, 0o700)
     if stat.S_IMODE(home_directory.stat().st_mode) != 0o700:
@@ -341,13 +541,46 @@ def build_environment(contract: dict[str, Any], home_directory: Path) -> dict[st
         "HOME": str(home_directory.resolve()),
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
-        "PATH": f"{compiler_directory}:/usr/bin:/bin",
+        "PATH": ":".join([*tool_directories, compiler_directory, "/usr/bin", "/bin"]),
         "CC": contract["toolchain"]["c_compiler"],
         "CXX": contract["toolchain"]["cxx_compiler"],
-        "CFLAGS": " ".join(contract["build"]["c_flags"]),
-        "CXXFLAGS": " ".join(contract["build"]["cxx_flags"]),
-        "LDFLAGS": " ".join(contract["build"]["linker_flags"]),
-        "PKG_CONFIG_LIBDIR": contract["build"]["pkg_config_libdir"],
+        "CFLAGS": " ".join(
+            [
+                f"-B{Path(plan['build_toolchain']['prefix']) / 'bin'}",
+                *contract["build"]["c_flags"],
+                *source_path_flags,
+            ]
+        ),
+        "CXXFLAGS": " ".join(
+            [
+                f"-B{Path(plan['build_toolchain']['prefix']) / 'bin'}",
+                *contract["build"]["cxx_flags"],
+                *source_path_flags,
+            ]
+        ),
+        "CPPFLAGS": f"-I{staged_product / 'include'}",
+        "LDFLAGS": " ".join(linker_flags),
+        "LD_LIBRARY_PATH": str(staged_product / "lib"),
+        "PKG_CONFIG": tools["pkgconf"]["path"],
+        "PKG_CONFIG_LIBDIR": ":".join(
+            [
+                str(staged_product / "lib/pkgconfig"),
+                str(staged_product / "share/pkgconfig"),
+            ]
+        ),
+        "PKG_CONFIG_SYSROOT_DIR": str(Path(plan["stage_directory"]) / "root"),
+        "MAKE": tools["make"]["path"],
+        "PERL": tools["perl"]["path"],
+        "BISON": tools["bison"]["path"],
+        "FLEX": tools["flex"]["path"],
+        "AR": tools["ar"]["path"],
+        "AS": tools["as"]["path"],
+        "LD": tools["ld"]["path"],
+        "NM": tools["nm"]["path"],
+        "RANLIB": tools["ranlib"]["path"],
+        "STRIP": tools["strip"]["path"],
+        "OBJCOPY": tools["objcopy"]["path"],
+        "OBJDUMP": tools["objdump"]["path"],
         "PYTHON": contract["build"]["python"],
     }
 
@@ -387,44 +620,112 @@ def create_private_build_directory(path: Path) -> None:
         )
 
 
-def prepare_build_directory(plan: dict[str, Any], resume: bool) -> Path:
+def reverify_runtime_input(
+    contract: dict[str, Any], plan: dict[str, Any]
+) -> dict[str, Any]:
+    selected = verify_runtime_receipt(
+        contract, Path(plan["runtime_package"]["receipt_path"])
+    )
+    if selected != plan["runtime_package"]:
+        raise BuildError("runtime package input differs from the exact build plan")
+    return read_json(Path(selected["receipt_path"]))
+
+
+def verify_runtime_bytes_in_composed_tree(
+    plan: dict[str, Any], receipt: dict[str, Any], *, allow_additions: bool
+) -> None:
+    try:
+        verify_recorded_package_tree(
+            Path(plan["staged_product_prefix"]),
+            receipt.get("files"),
+            receipt.get("tree_sha256"),
+            allow_additions=allow_additions,
+        )
+    except ReceiptError as error:
+        raise BuildError(f"composed runtime package differs: {error}") from error
+
+
+def prepare_build_directory(
+    contract: dict[str, Any], plan: dict[str, Any], resume: bool
+) -> tuple[Path, dict[str, Any]]:
     build_directory = Path(plan["build_directory"])
-    prefix = Path(plan["prefix"])
+    stage_directory = Path(plan["stage_directory"])
+    product_prefix = Path(plan["staged_product_prefix"])
+    postgresql_prefix = Path(plan["staged_postgresql_prefix"])
     plan_path = build_directory / "build-plan.json"
+    runtime_receipt = reverify_runtime_input(contract, plan)
     if resume:
-        if not build_directory.is_dir() or not plan_path.is_file():
-            raise BuildError("resume requires an existing build directory and build-plan.json")
-        if prefix.exists():
-            raise BuildError("resume refuses a build with an existing package prefix")
+        if (
+            not build_directory.is_dir()
+            or build_directory.is_symlink()
+            or not stage_directory.is_dir()
+            or stage_directory.is_symlink()
+            or not plan_path.is_file()
+        ):
+            raise BuildError(
+                "resume requires physical build/stage directories and build-plan.json"
+            )
+        if postgresql_prefix.exists() or postgresql_prefix.is_symlink():
+            raise BuildError("resume refuses an already-installed PostgreSQL subtree")
         if read_json(plan_path) != plan:
             raise BuildError("resume build plan differs from the requested exact plan")
-        observed_mode = stat.S_IMODE(build_directory.stat().st_mode)
-        if observed_mode != 0o700:
-            raise BuildError(
-                f"resume build directory mode must be 0700: observed {observed_mode:04o}"
-            )
+        for name, path in (("build", build_directory), ("stage", stage_directory)):
+            observed_mode = stat.S_IMODE(path.stat().st_mode)
+            if observed_mode != 0o700:
+                raise BuildError(
+                    f"resume {name} directory mode must be 0700: observed {observed_mode:04o}"
+                )
+        verify_runtime_bytes_in_composed_tree(
+            plan, runtime_receipt, allow_additions=False
+        )
     else:
-        if build_directory.exists() or prefix.exists():
-            raise BuildError("build and package destinations must not already exist")
+        if build_directory.exists() or stage_directory.exists():
+            raise BuildError("build and stage destinations must not already exist")
         create_private_build_directory(build_directory)
+        create_private_build_directory(stage_directory)
         plan_path.write_text(
             json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-    return build_directory
+        source = Path(plan["runtime_package"]["staged_prefix"])
+        product_prefix.parent.mkdir(parents=True)
+        shutil.copytree(source, product_prefix, symlinks=True)
+        verify_runtime_bytes_in_composed_tree(
+            plan, runtime_receipt, allow_additions=False
+        )
+    return build_directory, runtime_receipt
 
 
 def execute_plan(
     contract: dict[str, Any], plan: dict[str, Any], resume: bool = False
 ) -> dict[str, Any]:
-    build_directory = prepare_build_directory(plan, resume)
-    prefix = Path(plan["prefix"])
+    build_directory, runtime_receipt = prepare_build_directory(
+        contract, plan, resume
+    )
+    prefix = Path(plan["staged_product_prefix"])
     log_path = build_directory / "build.log"
-    environment = build_environment(contract, build_directory / ".home")
+    environment = build_environment(contract, plan, build_directory / ".home")
     run_logged(plan["configure_command"], build_directory, environment, log_path)
     jobs = str(plan["parallel_jobs"])
+    make = plan["build_toolchain"]["tools"]["make"]["path"]
+    destination_root = Path(plan["stage_directory"]) / "root"
     for target in plan["make_targets"]:
-        run_logged(["make", f"-j{jobs}", target], build_directory, environment, log_path)
-    receipt = verify_package(contract, prefix)
+        command = [make, f"-j{jobs}", target]
+        target_environment = environment
+        if target == "install-world-bin":
+            command.append(f"DESTDIR={destination_root}")
+            target_environment = {
+                **environment,
+                "DESTDIR": str(destination_root),
+            }
+        run_logged(command, build_directory, target_environment, log_path)
+    verify_runtime_bytes_in_composed_tree(
+        plan, runtime_receipt, allow_additions=True
+    )
+    receipt = verify_package(
+        contract,
+        prefix,
+        Path(plan["build_toolchain"]["tools"]["readelf"]["path"]),
+    )
     receipt.update(
         {
             "build_input_id": plan["build_input_id"],
@@ -432,6 +733,9 @@ def execute_plan(
             "build_log_sha256": sha256_file(log_path),
             "completed_targets": list(plan["make_targets"]),
             "recipe": plan["recipe"],
+            "runtime_package": plan["runtime_package"],
+            "build_toolchain": plan["build_toolchain"],
+            "release_prefix": plan["release_prefix"],
         }
     )
     (build_directory / "package-receipt.json").write_text(
@@ -440,17 +744,19 @@ def execute_plan(
     return receipt
 
 
-def elf_needed(path: Path) -> set[str]:
+def elf_needed(path: Path, readelf: Path) -> set[str]:
     with path.open("rb") as source:
         if source.read(4) != b"\x7fELF":
             return set()
-    result = subprocess.run(["readelf", "-d", str(path)], text=True, capture_output=True)
+    result = subprocess.run(
+        [str(readelf), "-d", str(path)], text=True, capture_output=True
+    )
     if result.returncode != 0:
         raise BuildError(f"readelf failed for {path}: {result.stderr.strip()}")
     return set(NEEDED_PATTERN.findall(result.stdout))
 
 
-def package_tree(prefix: Path) -> tuple[str, int, int, set[str]]:
+def package_tree(prefix: Path, readelf: Path) -> tuple[str, int, int, set[str]]:
     digest = hashlib.sha256()
     file_count = 0
     total_bytes = 0
@@ -466,7 +772,7 @@ def package_tree(prefix: Path) -> tuple[str, int, int, set[str]]:
             content = sha256_file(path).encode("ascii")
             file_count += 1
             total_bytes += path.stat().st_size
-            needed.update(elf_needed(path))
+            needed.update(elf_needed(path, readelf))
         elif path.is_dir():
             kind = b"directory"
             content = b""
@@ -491,11 +797,14 @@ def classify_needed(contract: dict[str, Any], needed: set[str]) -> dict[str, lis
     }
 
 
-def verify_package(contract: dict[str, Any], prefix: Path) -> dict[str, Any]:
+def verify_package(
+    contract: dict[str, Any], prefix: Path, readelf: Path
+) -> dict[str, Any]:
     validate_contract(contract)
     prefix = prefix.resolve()
-    pg_config = prefix / "bin/pg_config"
-    postgres = prefix / "bin/postgres"
+    pgsql = prefix / contract["build"]["install_subdirectory"]
+    pg_config = pgsql / "bin/pg_config"
+    postgres = pgsql / "bin/postgres"
     if not pg_config.is_file() or not postgres.is_file():
         raise BuildError("package does not contain pg_config and postgres")
     version = subprocess.run(
@@ -508,7 +817,7 @@ def verify_package(contract: dict[str, Any], prefix: Path) -> dict[str, Any]:
     ).stdout.strip()
     if "--enable-tap-tests" not in configure:
         raise BuildError("installed PostgreSQL was not built with TAP-test support")
-    tree_sha, file_count, total_bytes, needed = package_tree(prefix)
+    tree_sha, file_count, total_bytes, needed = package_tree(prefix, readelf)
     closure = classify_needed(contract, needed)
     if closure["unknown"]:
         disposition = "blocked: package has undeclared direct ELF dependencies"
@@ -541,20 +850,21 @@ def parse_arguments(argv: Sequence[str]) -> argparse.Namespace:
     plan = subparsers.add_parser("plan")
     plan.add_argument("--archive-root", required=True)
     plan.add_argument("--source-root", required=True)
-    plan.add_argument("--build-root", required=True)
-    plan.add_argument("--stage-root", required=True)
+    plan.add_argument("--toolchain-receipt", required=True)
+    plan.add_argument("--runtime-receipt", required=True)
     build = subparsers.add_parser("build")
     build.add_argument("--archive-root", required=True)
     build.add_argument("--source-root", required=True)
-    build.add_argument("--build-root", required=True)
-    build.add_argument("--stage-root", required=True)
+    build.add_argument("--toolchain-receipt", required=True)
+    build.add_argument("--runtime-receipt", required=True)
     resume = subparsers.add_parser("resume")
     resume.add_argument("--archive-root", required=True)
     resume.add_argument("--source-root", required=True)
-    resume.add_argument("--build-root", required=True)
-    resume.add_argument("--stage-root", required=True)
+    resume.add_argument("--toolchain-receipt", required=True)
+    resume.add_argument("--runtime-receipt", required=True)
     package = subparsers.add_parser("verify-package")
     package.add_argument("--prefix", required=True)
+    package.add_argument("--toolchain-receipt", required=True)
     return parser.parse_args(argv)
 
 
@@ -577,8 +887,8 @@ def main(argv: Sequence[str]) -> int:
             repository,
             Path(arguments.archive_root),
             Path(arguments.source_root),
-            Path(arguments.build_root),
-            Path(arguments.stage_root),
+            Path(arguments.toolchain_receipt),
+            Path(arguments.runtime_receipt),
         )
         if arguments.command in ("build", "resume"):
             receipt = execute_plan(contract, plan, resume=arguments.command == "resume")
@@ -587,7 +897,20 @@ def main(argv: Sequence[str]) -> int:
             print(json.dumps(plan, indent=2, sort_keys=True))
         return 0
     if arguments.command == "verify-package":
-        print(json.dumps(verify_package(contract, Path(arguments.prefix)), indent=2, sort_keys=True))
+        toolchain = verify_toolchain_receipt(
+            contract, Path(arguments.toolchain_receipt)
+        )
+        print(
+            json.dumps(
+                verify_package(
+                    contract,
+                    Path(arguments.prefix),
+                    Path(toolchain["tools"]["readelf"]["path"]),
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
     raise BuildError(f"unknown command: {arguments.command}")
 
