@@ -285,6 +285,13 @@ class ProductActivationGatewayTests(unittest.TestCase):
         self.assertIn("environment: product", workflow)
         self.assertIn("test \"$GITHUB_REF\" = refs/heads/main", workflow)
         self.assertIn("tools/product/build-package.py build", workflow)
+        self.assertNotIn("laplace-product-build-result.json", workflow)
+        self.assertNotIn("jq -er '.manifest' \"$result\"", workflow)
+        self.assertIn(
+            "expected_source_root=\"$(jq -er '.stage_directory' \"$plan\")/root\"",
+            workflow,
+        )
+        self.assertNotIn("/build/laplace/stage/product/$build_id/root", workflow)
         self.assertIn(
             "Verify the exact runner-readable PostgreSQL publication", workflow
         )
