@@ -247,6 +247,86 @@ class PostgreSQLClusterContract(unittest.TestCase):
         for row_by_row in (" LOOP ", "CURSOR", "WITH RECURSIVE"):
             self.assertNotIn(row_by_row, bootstrap.upper())
 
+    def test_exact_package_install_is_atomic_verified_and_replay_safe(self) -> None:
+        manifest = clusterctl.load_json(self.manifest_path)
+        first = clusterctl.install_package(
+            manifest,
+            self.contract,
+            self.package_physical_root,
+            self.activation_root,
+            False,
+        )
+        installed = clusterctl.prefixed(self.activation_root, manifest["root"])
+        self.assertTrue(installed.is_dir())
+        self.assertTrue(
+            clusterctl.verify_package(
+                manifest, self.contract, self.activation_root
+            ).verified
+        )
+        second = clusterctl.install_package(
+            manifest,
+            self.contract,
+            self.package_physical_root,
+            self.activation_root,
+            False,
+        )
+        self.assertEqual(first, second)
+        self.assertEqual(first["schema"], clusterctl.INSTALLATION_SCHEMA)
+        self.assertEqual(first["phase"], "installed")
+        self.assertFalse(first["overwrite_performed"])
+
+    def test_package_install_refuses_a_different_existing_release(self) -> None:
+        manifest = clusterctl.load_json(self.manifest_path)
+        clusterctl.install_package(
+            manifest,
+            self.contract,
+            self.package_physical_root,
+            self.activation_root,
+            False,
+        )
+        installed = clusterctl.prefixed(self.activation_root, manifest["root"])
+        first = next(
+            entry for entry in manifest["files"] if entry["kind"] == "file"
+        )
+        (installed / first["path"]).write_bytes(b"mutated installed package\n")
+        with self.assertRaisesRegex(clusterctl.ClusterError, "already exists"):
+            clusterctl.install_package(
+                manifest,
+                self.contract,
+                self.package_physical_root,
+                self.activation_root,
+                False,
+            )
+
+    def test_package_install_refuses_tampered_source_bytes(self) -> None:
+        manifest = clusterctl.load_json(self.manifest_path)
+        source = clusterctl.prefixed(
+            self.package_physical_root, manifest["root"]
+        )
+        first = next(
+            entry for entry in manifest["files"] if entry["kind"] == "file"
+        )
+        (source / first["path"]).write_bytes(b"mutated source package\n")
+        with self.assertRaisesRegex(clusterctl.ClusterError, "source package"):
+            clusterctl.install_package(
+                manifest,
+                self.contract,
+                self.package_physical_root,
+                self.activation_root,
+                False,
+            )
+
+    def test_system_package_install_requires_explicit_authorization(self) -> None:
+        manifest = clusterctl.load_json(self.manifest_path)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "authorize-system-root"):
+            clusterctl.install_package(
+                manifest,
+                self.contract,
+                self.package_physical_root,
+                Path("/"),
+                False,
+            )
+
     def test_activation_is_blocked_without_package_bytes(self) -> None:
         plan = self.plan(verify_bytes=False)
         self.assertTrue(plan["activation_blocked"])

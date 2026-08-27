@@ -38,24 +38,30 @@ rejected. `trust` is forbidden.
 
 ## Package and activation state machine
 
-`tools/postgresql/clusterctl.py` implements a fail-closed four-state lifecycle:
+`tools/postgresql/clusterctl.py` implements a fail-closed five-state lifecycle:
 
-1. **Plan** validates the contract, native topology/root-grant/partition and
+1. **Install package** verifies every source manifest entry, digest, mode,
+   capability, activation gate, internal symlink, and loaded-object declaration,
+   copies into a temporary content-addressed release tree, re-verifies that tree,
+   and atomically places it only when the immutable destination is absent. Exact
+   replay returns the same receipt; an existing divergent release is never
+   overwritten.
+2. **Plan** validates the contract, native topology/root-grant/partition and
    processor-allocation receipts, a storage observation, a generic collision
    observation, and a content-addressed package manifest. The package ID is SHA-256 over the
    canonical manifest payload excluding its derived ID and release-root fields.
    Planning renders configuration, bootstrap SQL,
    service definition, resource settings, and exact commands. No package bytes
    means a useful dry-run plan whose activation remains blocked.
-2. **Apply** requires every manifest file, digest, mode, required capability, and
+3. **Apply** requires every manifest file, digest, mode, required capability, and
    loaded-object declaration to verify. It stages only previously absent,
    manifest-owned files and creates dedicated state directories. It never starts
    PostgreSQL or invokes systemd.
-3. **Commit** requires a separately acquired loaded-state observation proving the
+4. **Commit** requires a separately acquired loaded-state observation proving the
    service, system identifier, cluster paths, generated configuration hashes, and
    exact executable/shared-object hashes. Only then is `/opt/laplace/current`
    switched atomically.
-4. **Remove** first requires an independent observation that the candidate service
+5. **Remove** first requires an independent observation that the candidate service
    is inactive and no candidate postmaster remains. It then restores the prior
    active link and removes only unchanged generated files named in the receipt.
    Database, WAL, temporary, log, and receipt state is preserved. A changed file
@@ -71,6 +77,13 @@ configuration shape is not enough: the bytes actually loaded must match.
 Planning and the complete fixture lifecycle run unprivileged today:
 
 ```sh
+python3 tools/postgresql/clusterctl.py install-package \
+  --contract contracts/postgresql-cluster.json \
+  --package-manifest /path/to/package-manifest.json \
+  --package-physical-root /staged/root \
+  --root /fixture/root \
+  --receipt /tmp/laplace-product-package-installation.json
+
 python3 tools/postgresql/clusterctl.py inspect-collisions \
   --contract contracts/postgresql-cluster.json \
   --output /tmp/laplace-postgresql-collisions.json

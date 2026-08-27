@@ -16,6 +16,7 @@ import os
 import posixpath
 import pwd
 import re
+import shutil
 import stat
 import sys
 import tempfile
@@ -32,6 +33,7 @@ PLAN_SCHEMA = "laplace.postgresql-cluster-plan/v1"
 LOADED_SCHEMA = "laplace.postgresql-loaded-observation/v1"
 STOPPED_SCHEMA = "laplace.postgresql-stopped-observation/v1"
 ACTIVATION_SCHEMA = "laplace.postgresql-activation-receipt/v1"
+INSTALLATION_SCHEMA = "laplace.product-package-installation-receipt/v1"
 HEX_256 = re.compile(r"^[0-9a-f]{64}$")
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
 OS_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_-]*$")
@@ -669,6 +671,137 @@ def verify_package(
             if not isinstance(mode, int) or stat.S_IMODE(candidate.stat().st_mode) != mode:
                 return PackageStatus(False, f"package file mode differs: {relative}", manifest_sha, files)
     return PackageStatus(True, "all package files and modes verified", manifest_sha, files)
+
+
+def require_install_root(root: Path, authorize_system_root: bool) -> None:
+    if not root.is_absolute():
+        raise ClusterError("package installation root must be absolute")
+    if root == Path("/") and not authorize_system_root:
+        raise ClusterError(
+            "system package installation requires --authorize-system-root"
+        )
+
+
+def package_installation_receipt(
+    manifest: dict[str, Any],
+    status: PackageStatus,
+    source_physical_root: Path,
+    root: Path,
+    installed_release: Path,
+) -> dict[str, Any]:
+    file_count = 0
+    symlink_count = 0
+    total_file_bytes = 0
+    for relative, entry in status.files.items():
+        candidate = installed_release.joinpath(*PurePosixPath(relative).parts)
+        if entry.get("kind", "file") == "symlink":
+            symlink_count += 1
+        else:
+            file_count += 1
+            total_file_bytes += candidate.stat().st_size
+    core = {
+        "schema": INSTALLATION_SCHEMA,
+        "phase": "installed",
+        "package_id": manifest["package_id"],
+        "package_manifest_sha256": status.manifest_sha256,
+        "package_root": manifest["root"],
+        "installation_root": str(root),
+        "installed_release": str(installed_release),
+        "source_physical_root": str(source_physical_root.resolve()),
+        "file_count": file_count,
+        "symlink_count": symlink_count,
+        "total_file_bytes": total_file_bytes,
+        "source_package_verified": True,
+        "installed_package_verified": True,
+        "overwrite_performed": False,
+    }
+    core["installation_receipt_sha256"] = sha256_bytes(canonical_bytes(core))
+    return core
+
+
+def install_package(
+    manifest: dict[str, Any],
+    contract: dict[str, Any],
+    source_physical_root: Path,
+    root: Path,
+    authorize_system_root: bool,
+) -> dict[str, Any]:
+    """Atomically place one exact package at its content-addressed release path."""
+
+    validate_contract(contract)
+    require_install_root(root, authorize_system_root)
+    source_status = verify_package(manifest, contract, source_physical_root)
+    if not source_status.verified:
+        raise ClusterError(
+            f"source package cannot be installed: {source_status.reason}"
+        )
+    installed_release = prefixed(root, manifest["root"])
+    release_root = prefixed(root, contract["package"]["release_root"])
+    if installed_release.parent != release_root:
+        raise ClusterError("package installation target is outside the release root")
+    release_root.mkdir(parents=True, exist_ok=True, mode=0o2755)
+
+    if installed_release.exists() or installed_release.is_symlink():
+        installed_status = verify_package(manifest, contract, root)
+        if not installed_status.verified:
+            raise ClusterError(
+                "immutable package release already exists but differs from the manifest: "
+                f"{installed_status.reason}"
+            )
+        return package_installation_receipt(
+            manifest,
+            installed_status,
+            source_physical_root,
+            root,
+            installed_release,
+        )
+
+    temporary_root = Path(
+        tempfile.mkdtemp(prefix=f".{manifest['package_id']}.install.", dir=release_root)
+    )
+    temporary_release = prefixed(temporary_root, manifest["root"])
+    try:
+        for relative, entry in sorted(source_status.files.items()):
+            source = prefixed(source_physical_root, manifest["root"]).joinpath(
+                *PurePosixPath(relative).parts
+            )
+            destination = temporary_release.joinpath(*PurePosixPath(relative).parts)
+            destination.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+            if entry.get("kind", "file") == "symlink":
+                destination.symlink_to(entry["target"])
+            else:
+                with source.open("rb") as input_stream, destination.open("xb") as output_stream:
+                    shutil.copyfileobj(input_stream, output_stream, length=1024 * 1024)
+                    output_stream.flush()
+                    os.fsync(output_stream.fileno())
+                destination.chmod(entry["mode"])
+
+        staged_status = verify_package(manifest, contract, temporary_root)
+        if not staged_status.verified:
+            raise ClusterError(
+                f"copied package failed pre-install verification: {staged_status.reason}"
+            )
+        os.rename(temporary_release, installed_release)
+        parent_descriptor = os.open(release_root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent_descriptor)
+        finally:
+            os.close(parent_descriptor)
+    finally:
+        shutil.rmtree(temporary_root, ignore_errors=True)
+
+    installed_status = verify_package(manifest, contract, root)
+    if not installed_status.verified:
+        raise ClusterError(
+            f"installed package failed verification: {installed_status.reason}"
+        )
+    return package_installation_receipt(
+        manifest,
+        installed_status,
+        source_physical_root,
+        root,
+        installed_release,
+    )
 
 
 def memory_setting(bytes_value: int) -> str:
@@ -1324,6 +1457,13 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     plan.add_argument("--collision-observation", required=True)
     plan.add_argument("--package-physical-root")
     plan.add_argument("--output", default="-")
+    install = subparsers.add_parser("install-package")
+    install.add_argument("--contract", required=True)
+    install.add_argument("--package-manifest", required=True)
+    install.add_argument("--package-physical-root", required=True)
+    install.add_argument("--root", required=True)
+    install.add_argument("--receipt", default="-")
+    install.add_argument("--authorize-system-root", action="store_true")
     inspect = subparsers.add_parser("inspect-collisions")
     inspect.add_argument("--contract", required=True)
     inspect.add_argument("--root", default="/")
@@ -1369,6 +1509,16 @@ def main(argv: Sequence[str]) -> int:
             physical,
         )
         write_json(Path(arguments.output), result)
+        return 0
+    if arguments.command == "install-package":
+        result = install_package(
+            load_json(Path(arguments.package_manifest)),
+            load_json(Path(arguments.contract)),
+            Path(arguments.package_physical_root),
+            Path(arguments.root),
+            arguments.authorize_system_root,
+        )
+        write_json(Path(arguments.receipt), result)
         return 0
     if arguments.command == "inspect-collisions":
         result = inspect_collisions(
