@@ -154,7 +154,7 @@ different structural, reference, evidence, and realization programs.
 | `model.ingest-generate` | Model witnesses, behavior experiments, effective support, induced operators, AImaps, and named-invariant target compilation | #20, #61, #71 | Unimplemented | Typed behavior readback and target-runtime oracles reject arbitrary pruning, flattening, and shape-only exports |
 | `product.materialize-entity-world` | People/organizations as worlds; personal webs, entitlements, identity, and surfaces | #21, #62, #63, #64, #68 | Unimplemented | Audience/visibility/security and semantic parity across generated surfaces |
 | `runtime.federate-nodes` | Authenticated world exchange, placement, convergence, and one-machine portability | #21, #65, #66, #67 | Unimplemented | Partition/replay convergence, durability proof, x86/ARM semantic parity |
-| `delivery.activate-product` | Installed package, services, generated manual, diagnostics, and release evidence | #21, #22, #50, #69 | Partial infrastructure; no product | Complete Linux/Windows lifecycle and whole-product release decision |
+| `delivery.activate-product` | Installed package, services, generated manual, diagnostics, and release evidence | #21, #22, #50, #69 | Partial: current-main package composition/revalidation, signed package selection, root installation, isolated cluster, Unicode, and Highway workflow are implemented; root gateway and product are not activated | Install the immutable root gateway trust anchor, execute protected activation, then complete Linux/Windows lifecycle and whole-product release decision |
 
 ## Critical path from the interrupted work
 

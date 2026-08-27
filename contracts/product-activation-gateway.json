@@ -43,6 +43,9 @@
   },
   "product": {
     "package_manifest_root": "/build/laplace/build/product",
+    "package_stage_root": "/build/laplace/stage/product",
+    "package_receipt_schema": "laplace.product-package-receipt/v1",
+    "package_installation_schema": "laplace.product-package-installation-receipt/v1",
     "package_release_root": "/opt/laplace/releases",
     "plan_receipt_root": "/opt/laplace/receipts/plans",
     "cluster_activation_root": "/opt/laplace/receipts/postgresql/refactor/cluster-activation",
