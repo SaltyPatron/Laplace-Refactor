@@ -62,6 +62,17 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.GraphError, "package-relative"):
             BUILD.validate_contract(contract)
 
+    def test_absolute_build_paths_are_forbidden_in_compiler_outputs(self) -> None:
+        for field, value, message in (
+            ("build_root_mapping", "/build", "stable relative compiler path"),
+            ("absolute_build_root_in_file_macro", "allowed", "__FILE__"),
+            ("absolute_build_root_in_debug_info", "allowed", "debug information"),
+        ):
+            contract = self.contract()
+            contract["execution"]["source_path_policy"][field] = value
+            with self.assertRaisesRegex(BUILD.GraphError, message):
+                BUILD.validate_contract(contract)
+
     def test_duplicate_contract_key_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "contract.json"
@@ -284,14 +295,38 @@ class RuntimeBuildGraphTests(unittest.TestCase):
                     "tools": tools,
                     "staged_prefix": f"{temporary}/stage/root/opt/laplace/runtime",
                     "stage_directory": f"{temporary}/stage",
+                    "build_directory": f"{temporary}/build/contains-41",
                     "toolchain_prefix": "/toolchain",
                 },
                 Path(temporary) / "home",
             )
-        self.assertIn(
-            "-Wl,-rpath,'$ORIGIN/../lib'", environment["LDFLAGS"]
-        )
+        self.assertNotIn("-Wl,-rpath", environment["LDFLAGS"])
+        cmake_environment = BUILD.provider_environment(contract, environment, "cmake")
+        self.assertEqual(cmake_environment["LDFLAGS"], environment["LDFLAGS"])
+        for provider in ("autotools", "openssl", "source-copy-make"):
+            make_environment = BUILD.provider_environment(
+                contract, environment, provider
+            )
+            self.assertIn(
+                "-Wl,-rpath,'$$ORIGIN/../lib'", make_environment["LDFLAGS"]
+            )
+            self.assertNotIn(
+                "-Wl,-rpath,'$ORIGIN/../lib' ", make_environment["LDFLAGS"]
+            )
         self.assertNotIn("/opt/laplace/releases", environment["LDFLAGS"])
+        for field in ("CFLAGS", "CXXFLAGS"):
+            self.assertIn(
+                f"-ffile-prefix-map={temporary}/build/contains-41=.",
+                environment[field],
+            )
+            self.assertIn(
+                f"-fdebug-prefix-map={temporary}/build/contains-41=.",
+                environment[field],
+            )
+
+    def test_provider_environment_rejects_private_dispatch(self) -> None:
+        with self.assertRaisesRegex(BUILD.GraphError, "unsupported provider environment"):
+            BUILD.provider_environment(self.contract(), {"LDFLAGS": "-pie"}, "private")
 
     def test_release_generation_name_must_equal_lock_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -221,6 +221,15 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise GraphError(
             "execution.install_runpath must be the package-relative $ORIGIN/../lib"
         )
+    source_path_policy = execution.get("source_path_policy")
+    if not isinstance(source_path_policy, dict):
+        raise GraphError("execution.source_path_policy must be an object")
+    if source_path_policy.get("build_root_mapping") != ".":
+        raise GraphError("runtime build roots must map to a stable relative compiler path")
+    if source_path_policy.get("absolute_build_root_in_file_macro") != "forbidden":
+        raise GraphError("absolute runtime build roots in __FILE__ must be forbidden")
+    if source_path_policy.get("absolute_build_root_in_debug_info") != "forbidden":
+        raise GraphError("absolute runtime build roots in debug information must be forbidden")
     for field in ("final_prefix_root", "build_root", "stage_root"):
         if not Path(require_string(execution.get(field), f"execution.{field}")).is_absolute():
             raise GraphError(f"execution.{field} must be absolute")
@@ -626,6 +635,12 @@ def build_environment(
         if directory not in tool_directories:
             tool_directories.append(directory)
     flags = contract["execution"]
+    build_root = Path(plan["build_directory"])
+    mapped_root = flags["source_path_policy"]["build_root_mapping"]
+    source_path_flags = [
+        f"-ffile-prefix-map={build_root}={mapped_root}",
+        f"-fdebug-prefix-map={build_root}={mapped_root}",
+    ]
     return {
         "HOME": str(home),
         "LANG": "C.UTF-8",
@@ -634,13 +649,24 @@ def build_environment(
         "PATH": ":".join([*tool_directories, "/usr/bin", "/bin"]),
         "CC": compilers["c_compiler"]["path"],
         "CXX": compilers["cxx_compiler"]["path"],
-        "CFLAGS": " ".join([f"-B{Path(plan['toolchain_prefix']) / 'bin'}", *flags["c_flags"]]),
-        "CXXFLAGS": " ".join([f"-B{Path(plan['toolchain_prefix']) / 'bin'}", *flags["cxx_flags"]]),
+        "CFLAGS": " ".join(
+            [
+                f"-B{Path(plan['toolchain_prefix']) / 'bin'}",
+                *flags["c_flags"],
+                *source_path_flags,
+            ]
+        ),
+        "CXXFLAGS": " ".join(
+            [
+                f"-B{Path(plan['toolchain_prefix']) / 'bin'}",
+                *flags["cxx_flags"],
+                *source_path_flags,
+            ]
+        ),
         "CPPFLAGS": f"-I{staged / 'include'}",
         "LDFLAGS": " ".join(
             [
                 f"-L{staged / 'lib'}",
-                f"-Wl,-rpath,'{flags['install_runpath']}'",
                 *flags["link_flags"],
             ]
         ),
@@ -659,6 +685,29 @@ def build_environment(
         "OBJCOPY": tools["objcopy"]["path"],
         "OBJDUMP": tools["objdump"]["path"],
     }
+
+
+def provider_environment(
+    contract: dict[str, Any], environment: Mapping[str, str], provider: str
+) -> dict[str, str]:
+    """Encode canonical link policy for the selected build recipe.
+
+    CMake receives RUNPATH through its typed cache argument.  Make expands a
+    single dollar sign while materializing a recipe, so Make-backed providers
+    require a doubled dollar in the recipe representation to deliver the same
+    canonical ``$ORIGIN`` bytes to the linker.
+    """
+    result = dict(environment)
+    if provider == "cmake":
+        return result
+    if provider not in {"autotools", "openssl", "source-copy-make"}:
+        raise GraphError(f"unsupported provider environment: {provider}")
+    canonical = contract["execution"]["install_runpath"]
+    make_encoded = canonical.replace("$", "$$")
+    result["LDFLAGS"] = " ".join(
+        [result["LDFLAGS"], f"-Wl,-rpath,'{make_encoded}'"]
+    )
+    return result
 
 
 def run_logged(
@@ -1159,14 +1208,25 @@ def execute(
         build.mkdir()
         log = component_root / "build.log"
         provider = component["provider"]
+        component_environment = provider_environment(
+            contract, environment, provider
+        )
         if provider == "cmake":
-            cmake_component(contract, plan, component, source, build, environment, log)
+            cmake_component(
+                contract, plan, component, source, build, component_environment, log
+            )
         elif provider == "autotools":
-            autotools_component(contract, plan, component, source, build, environment, log)
+            autotools_component(
+                contract, plan, component, source, build, component_environment, log
+            )
         elif provider == "openssl":
-            openssl_component(contract, plan, component, source, build, environment, log)
+            openssl_component(
+                contract, plan, component, source, build, component_environment, log
+            )
         elif provider == "source-copy-make":
-            source_copy_make_component(contract, plan, component, source, build, environment, log)
+            source_copy_make_component(
+                contract, plan, component, source, build, component_environment, log
+            )
         else:
             raise GraphError(f"unsupported provider: {provider}")
         checkpoint = write_component_checkpoint(

@@ -24,6 +24,11 @@
     "cxx_flags": ["-O3", "-g", "-march=broadwell", "-fPIE", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
     "link_flags": ["-pie"],
     "install_runpath": "$ORIGIN/../lib",
+    "source_path_policy": {
+      "build_root_mapping": ".",
+      "absolute_build_root_in_file_macro": "forbidden",
+      "absolute_build_root_in_debug_info": "forbidden"
+    },
     "executable_elf": {
       "position_independent": true,
       "copy_relocations": "forbidden"
