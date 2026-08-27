@@ -437,8 +437,11 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         == "d4fc99374fb8d686e212568e4be540913f886b74"
         and active_correction.get("implementation_commit")
         == "e09c05c419e45cc4a1278d8ada54f5403156b2d2"
+        and active_correction.get("pull_request") == 81
+        and active_correction.get("published_head_commit")
+        == "2e7eb7990e14418bac1ca271eba662794ec2d17e"
         and active_correction.get("state")
-        == "committed-implementation-external-validation-pending",
+        == "published-pull-request-exact-head-validation-pending",
         "active activation correction identity drift",
     )
     contains_all(
@@ -1320,6 +1323,22 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         publication_pr.get("proof_state", ""),
         ("runner-readable", "current-main", "no product activation"),
         "product publication PR was promoted beyond evidence",
+    )
+    binding_pr = github.get("active_activation_binding_pull_request", {})
+    require(
+        binding_pr.get("number") == 81
+        and binding_pr.get("state") == "open"
+        and binding_pr.get("draft") is False
+        and binding_pr.get("base_commit")
+        == "d4fc99374fb8d686e212568e4be540913f886b74"
+        and binding_pr.get("head_commit")
+        == "2e7eb7990e14418bac1ca271eba662794ec2d17e",
+        "activation binding PR observation drift",
+    )
+    contains_all(
+        binding_pr.get("proof_state", ""),
+        ("published", "exact-head CI", "runner execution", "remain pending"),
+        "activation binding PR was promoted beyond evidence",
     )
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")

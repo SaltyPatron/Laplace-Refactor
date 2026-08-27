@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T22:40:05Z",
+  "observed_at_utc": "2026-08-27T22:41:06Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,9 +17,9 @@
     "base_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
     "published_composition_branch": true,
     "published_checkpoint_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
-    "observed_branch_head": "e09c05c419e45cc4a1278d8ada54f5403156b2d2",
+    "observed_branch_head": "2e7eb7990e14418bac1ca271eba662794ec2d17e",
     "implementation_checkpoint_commit": "e09c05c419e45cc4a1278d8ada54f5403156b2d2",
-    "pull_request": null
+    "pull_request": 81
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -358,7 +358,9 @@
           "branch": "fix/product-activation-binding",
           "base_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
           "implementation_commit": "e09c05c419e45cc4a1278d8ada54f5403156b2d2",
-          "state": "committed-implementation-external-validation-pending",
+          "pull_request": 81,
+          "published_head_commit": "2e7eb7990e14418bac1ca271eba662794ec2d17e",
+          "state": "published-pull-request-exact-head-validation-pending",
           "boundary": [
             "native execution observation is an explicitly incomplete candidate receipt until the PostgreSQL controller binds it to an exact verified package ID and manifest digest",
             "the final execution-resource observation schema requires exact package ID package-manifest digest and self-hash and every consumer rejects changed bindings",
@@ -1354,7 +1356,7 @@
     ]
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-27T22:32:58Z",
+    "observed_at_utc": "2026-08-27T22:41:06Z",
     "main_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
@@ -1417,6 +1419,14 @@
       "merge_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
       "merged_at_utc": "2026-08-27T22:07:27Z",
       "proof_state": "runner-readable PostgreSQL publication and current-main product-package composition are merged; protected run 33121232332 composed an exact package but no product activation occurred"
+    },
+    "active_activation_binding_pull_request": {
+      "number": 81,
+      "state": "open",
+      "draft": false,
+      "base_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
+      "head_commit": "2e7eb7990e14418bac1ca271eba662794ec2d17e",
+      "proof_state": "package-bound execution-resource observation and single-pass product composition implementation are published; exact-head CI merge protected runner execution and product activation remain pending"
     },
     "roadmap_project": {
       "number": 2,
