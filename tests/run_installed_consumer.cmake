@@ -14,6 +14,9 @@ endif()
 if(NOT DEFINED CONSUMER_LINK_FLAGS)
     set(CONSUMER_LINK_FLAGS "")
 endif()
+if(NOT DEFINED CONSUMER_RUNTIME_PATH)
+    set(CONSUMER_RUNTIME_PATH "")
+endif()
 
 function(installed_tree_fingerprint root output_variable)
     file(GLOB_RECURSE installed_files
@@ -74,7 +77,10 @@ if(NOT build_result EQUAL 0)
     message(FATAL_ERROR "Installed-package consumer build failed")
 endif()
 execute_process(
-    COMMAND "${CONSUMER_BUILD_DIRECTORY}/laplace_consumer"
+    COMMAND "${CMAKE_COMMAND}" -E env
+        --unset=LD_PRELOAD
+        "LD_LIBRARY_PATH=${CONSUMER_RUNTIME_PATH}"
+        "${CONSUMER_BUILD_DIRECTORY}/laplace_consumer"
     RESULT_VARIABLE consumer_result)
 if(NOT consumer_result EQUAL 0)
     message(FATAL_ERROR

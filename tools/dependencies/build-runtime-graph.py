@@ -21,6 +21,8 @@ from typing import Any, Mapping, Sequence
 SCHEMA = "laplace.postgresql-runtime-build/v1"
 PLAN_SCHEMA = "laplace.postgresql-runtime-plan/v1"
 RECEIPT_SCHEMA = "laplace.postgresql-runtime-package/v1"
+CHECKPOINT_SCHEMA = "laplace.postgresql-runtime-component-checkpoint/v1"
+TREE_SCHEMA = "laplace.package-tree-state/v1"
 TOOLCHAIN_RECEIPT_SCHEMA = "laplace.toolchain-package-receipt/v1"
 TOOLCHAIN_MANIFEST_SCHEMA = "laplace.toolchain-consumer-manifest/v1"
 PROVIDERS = {"cmake", "autotools", "openssl", "source-copy-make"}
@@ -79,6 +81,75 @@ def canonical_sha256(value: object) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+
+
+def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
+    temporary = path.with_name(f".{path.name}.temporary")
+    try:
+        with temporary.open("x", encoding="utf-8") as output:
+            output.write(json.dumps(value, indent=2, sort_keys=True) + "\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def tree_state(root: Path) -> dict[str, Any]:
+    if not root.exists() and not root.is_symlink():
+        return {
+            "schema": TREE_SCHEMA,
+            "exists": False,
+            "tree_sha256": canonical_sha256([]),
+            "entry_count": 0,
+            "file_count": 0,
+            "total_file_bytes": 0,
+        }
+    if not root.is_dir() or root.is_symlink():
+        raise GraphError(f"package tree root is not a physical directory: {root}")
+    records: list[dict[str, Any]] = []
+    file_count = 0
+    total_file_bytes = 0
+    for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
+        relative = path.relative_to(root).as_posix()
+        mode = f"{stat.S_IMODE(path.lstat().st_mode):04o}"
+        if path.is_symlink():
+            record = {
+                "path": relative,
+                "kind": "symlink",
+                "mode": mode,
+                "target": os.readlink(path),
+            }
+        elif path.is_file():
+            size = path.stat().st_size
+            file_count += 1
+            total_file_bytes += size
+            record = {
+                "path": relative,
+                "kind": "file",
+                "mode": mode,
+                "size": size,
+                "sha256": sha256_file(path),
+            }
+        elif path.is_dir():
+            record = {"path": relative, "kind": "directory", "mode": mode}
+        else:
+            raise GraphError(f"unsupported package tree object: {path}")
+        records.append(record)
+    return {
+        "schema": TREE_SCHEMA,
+        "exists": True,
+        "tree_sha256": canonical_sha256(records),
+        "entry_count": len(records),
+        "file_count": file_count,
+        "total_file_bytes": total_file_bytes,
+    }
 
 
 def require_string(value: object, field: str) -> str:
@@ -143,6 +214,13 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise GraphError("runtime C and C++ compilation must select -fPIE")
     if "-pie" not in execution["link_flags"]:
         raise GraphError("runtime executable linking must select -pie")
+    install_runpath = require_string(
+        execution.get("install_runpath"), "execution.install_runpath"
+    )
+    if install_runpath != "$ORIGIN/../lib":
+        raise GraphError(
+            "execution.install_runpath must be the package-relative $ORIGIN/../lib"
+        )
     for field in ("final_prefix_root", "build_root", "stage_root"):
         if not Path(require_string(execution.get(field), f"execution.{field}")).is_absolute():
             raise GraphError(f"execution.{field} must be absolute")
@@ -430,6 +508,39 @@ def prepare_private_sources(
     return sources_root
 
 
+def verify_private_sources(
+    contract: dict[str, Any], plan: dict[str, Any], repository: Path, build_root: Path
+) -> Path:
+    sources_root = build_root / "sources"
+    if (
+        not sources_root.is_dir()
+        or sources_root.is_symlink()
+        or stat.S_IMODE(sources_root.stat().st_mode) != 0o700
+    ):
+        raise GraphError("resumed private source root is missing, linked, or not mode 0700")
+    lock = read_json(repository / contract["release_lock"])
+    archives = lock.get("archives")
+    if not isinstance(archives, dict):
+        raise GraphError("release lock archives must be an object")
+    source_ids = list(dict.fromkeys(component["source"] for component in plan["components"]))
+    observed = sorted(path.name for path in sources_root.iterdir())
+    if observed != sorted(source_ids):
+        raise GraphError("resumed private source set differs from the build plan")
+    release = load_release_module(repository)
+    archive_root = Path(plan["archive_root"])
+    for source_id in source_ids:
+        entry = archives.get(source_id)
+        if not isinstance(entry, dict):
+            raise GraphError(f"release lock does not contain component source: {source_id}")
+        try:
+            release.verify_imported_entry(source_id, entry, archive_root, sources_root)
+        except Exception as error:
+            raise GraphError(
+                f"resumed private source verification failed for {source_id}: {error}"
+            ) from error
+    return sources_root
+
+
 def normalize_tree_timestamps(root: Path, epoch_seconds: int) -> None:
     if epoch_seconds < 0 or not root.is_dir() or root.is_symlink():
         raise GraphError(f"cannot normalize private source tree: {root}")
@@ -509,7 +620,6 @@ def build_environment(
     compilers = contract["compiler"]
     tools = plan["tools"]
     staged = Path(plan["staged_prefix"])
-    final = Path(plan["final_prefix"])
     tool_directories = []
     for selected in tools.values():
         directory = str(Path(selected["path"]).parent)
@@ -530,7 +640,7 @@ def build_environment(
         "LDFLAGS": " ".join(
             [
                 f"-L{staged / 'lib'}",
-                f"-Wl,-rpath,{final / 'lib'}",
+                f"-Wl,-rpath,'{flags['install_runpath']}'",
                 *flags["link_flags"],
             ]
         ),
@@ -624,7 +734,7 @@ def cmake_component(
             f"-DCMAKE_RANLIB={tools['ranlib']['path']}",
             f"-DCMAKE_STRIP={tools['strip']['path']}",
             f"-DCMAKE_BUILD_RPATH={staged / 'lib'}",
-            f"-DCMAKE_INSTALL_RPATH={final / 'lib'}",
+            f"-DCMAKE_INSTALL_RPATH={contract['execution']['install_runpath']}",
             *component["configure_arguments"],
         ],
         build.parent,
@@ -802,6 +912,18 @@ def package_receipt(contract: dict[str, Any], plan: dict[str, Any]) -> dict[str,
             file_sha = sha256_file(path)
             content = file_sha
             elf = elf_metadata(path, Path(plan["tools"]["readelf"]["path"]))
+            if elf is not None:
+                permitted_runpath = contract["execution"]["install_runpath"]
+                invalid_runpaths = [
+                    runpath
+                    for runpath in elf["runpaths"]
+                    if runpath != permitted_runpath or Path(runpath).is_absolute()
+                ]
+                if invalid_runpaths:
+                    raise GraphError(
+                        f"packaged ELF has a non-package-relative RUNPATH: {path}: "
+                        + ", ".join(invalid_runpaths)
+                    )
         elif path.is_dir():
             kind = "directory"
             content = ""
@@ -840,22 +962,193 @@ def package_receipt(contract: dict[str, Any], plan: dict[str, Any]) -> dict[str,
     }
 
 
+def checkpoint_path(build_root: Path, component_id: str) -> Path:
+    return build_root / "components" / component_id / "checkpoint.json"
+
+
+def checkpoint_identity(checkpoint: dict[str, Any]) -> str:
+    payload = dict(checkpoint)
+    payload.pop("checkpoint_sha256", None)
+    return canonical_sha256(payload)
+
+
+def write_component_checkpoint(
+    plan: dict[str, Any],
+    build_root: Path,
+    staged_prefix: Path,
+    component: dict[str, Any],
+    component_index: int,
+    previous_checkpoint_sha256: str | None,
+) -> dict[str, Any]:
+    component_root = build_root / "components" / component["id"]
+    log = component_root / "build.log"
+    if not log.is_file():
+        raise GraphError(f"component build log is missing: {component['id']}")
+    checkpoint = {
+        "schema": CHECKPOINT_SCHEMA,
+        "build_input_id": plan["build_input_id"],
+        "plan_sha256": canonical_sha256(plan),
+        "component_id": component["id"],
+        "component_index": component_index,
+        "component_contract_sha256": canonical_sha256(component),
+        "previous_checkpoint_sha256": previous_checkpoint_sha256,
+        "build_log_sha256": sha256_file(log),
+        "stage_tree": tree_state(staged_prefix),
+    }
+    if checkpoint["stage_tree"]["exists"] is not True:
+        raise GraphError(f"component installed no staged package tree: {component['id']}")
+    checkpoint["checkpoint_sha256"] = checkpoint_identity(checkpoint)
+    write_json_atomic(checkpoint_path(build_root, component["id"]), checkpoint)
+    return checkpoint
+
+
+def validate_component_checkpoint(
+    checkpoint: dict[str, Any],
+    plan: dict[str, Any],
+    build_root: Path,
+    component: dict[str, Any],
+    component_index: int,
+    previous_checkpoint_sha256: str | None,
+) -> None:
+    identifier = component["id"]
+    if checkpoint.get("schema") != CHECKPOINT_SCHEMA:
+        raise GraphError(f"component checkpoint schema mismatch: {identifier}")
+    expected_fields = {
+        "build_input_id": plan["build_input_id"],
+        "plan_sha256": canonical_sha256(plan),
+        "component_id": identifier,
+        "component_index": component_index,
+        "component_contract_sha256": canonical_sha256(component),
+        "previous_checkpoint_sha256": previous_checkpoint_sha256,
+    }
+    for field, expected in expected_fields.items():
+        if checkpoint.get(field) != expected:
+            raise GraphError(f"component checkpoint {field} mismatch: {identifier}")
+    if checkpoint.get("checkpoint_sha256") != checkpoint_identity(checkpoint):
+        raise GraphError(f"component checkpoint digest mismatch: {identifier}")
+    stage = checkpoint.get("stage_tree")
+    if not isinstance(stage, dict) or stage.get("schema") != TREE_SCHEMA:
+        raise GraphError(f"component checkpoint stage tree is invalid: {identifier}")
+    log = build_root / "components" / identifier / "build.log"
+    if not log.is_file() or checkpoint.get("build_log_sha256") != sha256_file(log):
+        raise GraphError(f"component build log differs from checkpoint: {identifier}")
+
+
+def completed_component_checkpoints(
+    plan: dict[str, Any], build_root: Path, staged_prefix: Path
+) -> list[dict[str, Any]]:
+    completed: list[dict[str, Any]] = []
+    missing_seen = False
+    previous: str | None = None
+    for index, component in enumerate(plan["components"]):
+        path = checkpoint_path(build_root, component["id"])
+        if path.is_symlink():
+            raise GraphError(f"component checkpoint must not be a symlink: {component['id']}")
+        if not path.exists():
+            missing_seen = True
+            continue
+        if not path.is_file():
+            raise GraphError(f"component checkpoint is not a physical file: {component['id']}")
+        if missing_seen:
+            raise GraphError(
+                f"component checkpoints are not contiguous at {component['id']}"
+            )
+        checkpoint = read_json(path)
+        validate_component_checkpoint(
+            checkpoint, plan, build_root, component, index, previous
+        )
+        completed.append(checkpoint)
+        previous = checkpoint["checkpoint_sha256"]
+    expected_stage = (
+        completed[-1]["stage_tree"]
+        if completed
+        else {
+            "schema": TREE_SCHEMA,
+            "exists": False,
+            "tree_sha256": canonical_sha256([]),
+            "entry_count": 0,
+            "file_count": 0,
+            "total_file_bytes": 0,
+        }
+    )
+    if tree_state(staged_prefix) != expected_stage:
+        raise GraphError("staged package tree differs from the last durable checkpoint")
+    return completed
+
+
+def quarantine_interrupted_component(build_root: Path, component_id: str) -> None:
+    component_root = build_root / "components" / component_id
+    if not component_root.exists() and not component_root.is_symlink():
+        return
+    if component_root.is_symlink() or not component_root.is_dir():
+        raise GraphError(f"interrupted component root is not a physical directory: {component_id}")
+    interrupted = build_root / "interrupted-components"
+    private_directory(interrupted)
+    suffix = tree_state(component_root)["tree_sha256"][:16]
+    destination = interrupted / f"{component_id}-{suffix}"
+    if destination.exists():
+        raise GraphError(f"interrupted component evidence already exists: {destination}")
+    component_root.rename(destination)
+
+
 def execute(
-    contract: dict[str, Any], plan: dict[str, Any], repository: Path
+    contract: dict[str, Any],
+    plan: dict[str, Any],
+    repository: Path,
+    resume: bool = False,
 ) -> dict[str, Any]:
     build_root = Path(plan["build_directory"])
     stage_root = Path(plan["stage_directory"])
     final_prefix = Path(plan["final_prefix"])
-    if build_root.exists() or stage_root.exists() or final_prefix.exists():
-        raise GraphError("build, stage, and final package destinations must not already exist")
-    private_directory(build_root)
-    private_directory(stage_root)
+    staged_prefix = Path(plan["staged_prefix"])
+    if final_prefix.exists() or final_prefix.is_symlink():
+        raise GraphError("final package destination must not already exist")
+    if resume:
+        for name, path in (("build", build_root), ("stage", stage_root)):
+            if (
+                not path.is_dir()
+                or path.is_symlink()
+                or stat.S_IMODE(path.stat().st_mode) != 0o700
+            ):
+                raise GraphError(
+                    f"resumed {name} directory is missing, linked, or not mode 0700"
+                )
+        stored_plan = read_json(build_root / "build-plan.json")
+        if stored_plan != plan:
+            raise GraphError("resumed build plan differs from the exact current plan")
+        completed = completed_component_checkpoints(plan, build_root, staged_prefix)
+        private_sources = verify_private_sources(
+            contract, plan, repository, build_root
+        )
+        completed_count = len(completed)
+        for component in plan["components"][completed_count + 1 :]:
+            future_root = build_root / "components" / component["id"]
+            if future_root.exists() or future_root.is_symlink():
+                raise GraphError(
+                    f"future component state exists beyond the resume frontier: {component['id']}"
+                )
+        if completed_count < len(plan["components"]):
+            quarantine_interrupted_component(
+                build_root, plan["components"][completed_count]["id"]
+            )
+    else:
+        if build_root.exists() or stage_root.exists():
+            raise GraphError("build and stage destinations must not already exist")
+        private_directory(build_root)
+        private_directory(stage_root)
+        write_json_atomic(build_root / "build-plan.json", plan)
+        private_sources = prepare_private_sources(
+            contract, plan, repository, build_root
+        )
+        completed = []
     environment = build_environment(contract, plan, build_root / ".home")
-    (build_root / "build-plan.json").write_text(
-        json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    previous_checkpoint_sha256 = (
+        completed[-1]["checkpoint_sha256"] if completed else None
     )
-    private_sources = prepare_private_sources(contract, plan, repository, build_root)
-    for component in plan["components"]:
+    completed_count = len(completed)
+    for component_index, component in enumerate(
+        plan["components"][completed_count:], start=completed_count
+    ):
         identifier = component["id"]
         source = private_sources / component["source"] / component["source_subdirectory"]
         if not source.is_dir():
@@ -876,6 +1169,15 @@ def execute(
             source_copy_make_component(contract, plan, component, source, build, environment, log)
         else:
             raise GraphError(f"unsupported provider: {provider}")
+        checkpoint = write_component_checkpoint(
+            plan,
+            build_root,
+            staged_prefix,
+            component,
+            component_index,
+            previous_checkpoint_sha256,
+        )
+        previous_checkpoint_sha256 = checkpoint["checkpoint_sha256"]
     verify_release_generation(
         repository,
         (repository / contract["release_lock"]).resolve(),
@@ -890,9 +1192,13 @@ def execute(
         )
         for component in plan["components"]
     }
-    (build_root / "package-receipt.json").write_text(
-        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    receipt["component_checkpoints"] = {
+        component["id"]: read_json(checkpoint_path(build_root, component["id"]))[
+            "checkpoint_sha256"
+        ]
+        for component in plan["components"]
+    }
+    write_json_atomic(build_root / "package-receipt.json", receipt)
     return receipt
 
 
@@ -903,7 +1209,7 @@ def parse_arguments(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--archive-root", required=True)
     parser.add_argument("--source-generation", required=True)
     parser.add_argument("--toolchain-receipt")
-    parser.add_argument("command", choices=("validate", "plan", "build"))
+    parser.add_argument("command", choices=("validate", "plan", "build", "resume"))
     return parser.parse_args(argv)
 
 
@@ -920,7 +1226,7 @@ def main(argv: Sequence[str]) -> int:
         print(json.dumps({"schema": SCHEMA, "status": "valid"}, sort_keys=True))
         return 0
     if not arguments.toolchain_receipt:
-        raise GraphError("plan and build require --toolchain-receipt")
+        raise GraphError("plan, build, and resume require --toolchain-receipt")
     validate_environment(contract, os.environ)
     plan = create_plan(
         contract,
@@ -932,7 +1238,9 @@ def main(argv: Sequence[str]) -> int:
     if arguments.command == "plan":
         print(json.dumps(plan, indent=2, sort_keys=True))
         return 0
-    receipt = execute(contract, plan, repository)
+    receipt = execute(
+        contract, plan, repository, resume=arguments.command == "resume"
+    )
     print(json.dumps({"plan": plan, "package": receipt}, indent=2, sort_keys=True))
     return 0
 

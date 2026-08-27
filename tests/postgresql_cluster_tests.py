@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -97,6 +98,7 @@ class PostgreSQLClusterContract(unittest.TestCase):
             "root": "/",
             "target": clusterctl.collision_target(self.contract),
             "collisions": [],
+            "inspection_errors": [],
         }
         observation["observation_sha256"] = clusterctl.collision_observation_identity(
             observation
@@ -308,6 +310,27 @@ class PostgreSQLClusterContract(unittest.TestCase):
         occupied.mkdir(parents=True)
         observation = clusterctl.inspect_collisions(self.contract, self.activation_root)
         with self.assertRaisesRegex(clusterctl.ClusterError, "target collision"):
+            clusterctl.validate_collision_observation(observation, self.contract)
+
+    def test_inaccessible_collision_target_is_receipted_and_fails_closed(self) -> None:
+        protected = self.contract["instance"]["data_directory"]
+        real_lstat = os.lstat
+
+        def permission_mutant(path: Any, *args: Any, **kwargs: Any) -> os.stat_result:
+            if str(path).endswith(protected):
+                raise PermissionError(13, "Permission denied", str(path))
+            return real_lstat(path, *args, **kwargs)
+
+        with mock.patch.object(
+            clusterctl.os, "lstat", side_effect=permission_mutant
+        ):
+            observation = clusterctl.inspect_collisions(
+                self.contract, self.activation_root
+            )
+        self.assertEqual(observation["collisions"], [])
+        self.assertEqual(observation["inspection_errors"][0]["operation"], "lstat")
+        self.assertEqual(observation["inspection_errors"][0]["target"], protected)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "inspection is incomplete"):
             clusterctl.validate_collision_observation(observation, self.contract)
 
     def test_nonpackage_postmaster_mutant_is_rejected(self) -> None:

@@ -54,6 +54,14 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.GraphError, "COPY relocations"):
             BUILD.validate_contract(contract)
 
+    def test_install_runpath_must_be_package_relative(self) -> None:
+        contract = self.contract()
+        contract["execution"]["install_runpath"] = (
+            "/opt/laplace/releases/example/lib"
+        )
+        with self.assertRaisesRegex(BUILD.GraphError, "package-relative"):
+            BUILD.validate_contract(contract)
+
     def test_duplicate_contract_key_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "contract.json"
@@ -258,6 +266,32 @@ class RuntimeBuildGraphTests(unittest.TestCase):
             f"-DCMAKE_C_COMPILER={contract['compiler']['c_compiler']['path']}", configure
         )
         self.assertFalse(any(item.startswith("-DCMAKE_CXX_COMPILER=") for item in configure))
+        self.assertIn(
+            f"-DCMAKE_INSTALL_RPATH={contract['execution']['install_runpath']}",
+            configure,
+        )
+
+    def test_build_environment_uses_declared_package_relative_runpath(self) -> None:
+        contract = self.contract()
+        tools = {
+            name: {"path": f"/toolchain/bin/{name}"}
+            for name in contract["build_toolchain"]["required_tools"]
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            environment = BUILD.build_environment(
+                contract,
+                {
+                    "tools": tools,
+                    "staged_prefix": f"{temporary}/stage/root/opt/laplace/runtime",
+                    "stage_directory": f"{temporary}/stage",
+                    "toolchain_prefix": "/toolchain",
+                },
+                Path(temporary) / "home",
+            )
+        self.assertIn(
+            "-Wl,-rpath,'$ORIGIN/../lib'", environment["LDFLAGS"]
+        )
+        self.assertNotIn("/opt/laplace/releases", environment["LDFLAGS"])
 
     def test_release_generation_name_must_equal_lock_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -452,6 +486,110 @@ esac
             self.assertTrue(elf["executable"])
             self.assertEqual(elf["type"], "DYN")
             self.assertEqual(elf["copy_relocation_count"], 0)
+
+    def test_package_rejects_absolute_runpath_and_accepts_declared_relative_runpath(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix = root / "package"
+            prefix.mkdir()
+            library = prefix / "libfixture.so"
+            library.write_bytes(b"\x7fELFfixture")
+            readelf = root / "readelf"
+            readelf.write_text(
+                """#!/bin/sh
+case "$1" in
+  -hW) printf '%s\\n' '  Type:                              DYN (Shared object file)' ;;
+  -lW) : ;;
+  -dW) printf '%s\\n' ' 0x000000000000001d (RUNPATH) Library runpath: [/opt/laplace/releases/example/lib]' ;;
+  -rW) : ;;
+esac
+""",
+                encoding="utf-8",
+            )
+            readelf.chmod(0o755)
+            plan = {
+                "build_input_id": "2" * 64,
+                "final_prefix": "/opt/laplace/releases/example",
+                "staged_prefix": str(prefix),
+                "tools": {"readelf": {"path": str(readelf)}},
+            }
+            with self.assertRaisesRegex(BUILD.GraphError, "non-package-relative RUNPATH"):
+                BUILD.package_receipt(self.contract(), plan)
+
+            readelf.write_text(
+                readelf.read_text(encoding="utf-8").replace(
+                    "/opt/laplace/releases/example/lib", "$ORIGIN/../lib"
+                ),
+                encoding="utf-8",
+            )
+            receipt = BUILD.package_receipt(self.contract(), plan)
+            elf = next(item["elf"] for item in receipt["files"] if item["path"] == "libfixture.so")
+            self.assertEqual(elf["runpaths"], ["$ORIGIN/../lib"])
+
+    def test_component_checkpoint_resume_requires_exact_staged_tree_and_log(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build_root = root / "build"
+            staged_prefix = root / "stage" / "root" / "opt" / "laplace" / "runtime"
+            component = {"id": "zlib", "source": "zlib"}
+            plan = {
+                "build_input_id": "7" * 64,
+                "components": [component],
+            }
+            component_root = build_root / "components" / "zlib"
+            component_root.mkdir(parents=True)
+            (component_root / "build.log").write_text("tested and installed\n", encoding="utf-8")
+            staged_prefix.mkdir(parents=True)
+            library = staged_prefix / "libz.so"
+            library.write_bytes(b"exact package bytes")
+            BUILD.write_component_checkpoint(
+                plan, build_root, staged_prefix, component, 0, None
+            )
+            completed = BUILD.completed_component_checkpoints(
+                plan, build_root, staged_prefix
+            )
+            self.assertEqual([item["component_id"] for item in completed], ["zlib"])
+
+            library.write_bytes(b"mutated package bytes")
+            with self.assertRaisesRegex(BUILD.GraphError, "staged package tree differs"):
+                BUILD.completed_component_checkpoints(plan, build_root, staged_prefix)
+
+            library.write_bytes(b"exact package bytes")
+            (component_root / "build.log").write_text("mutated log\n", encoding="utf-8")
+            with self.assertRaisesRegex(BUILD.GraphError, "build log differs"):
+                BUILD.completed_component_checkpoints(plan, build_root, staged_prefix)
+
+    def test_component_checkpoint_chain_must_be_contiguous(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build_root = root / "build"
+            staged_prefix = root / "stage" / "runtime"
+            staged_prefix.mkdir(parents=True)
+            components = [
+                {"id": "first", "source": "first"},
+                {"id": "second", "source": "second"},
+            ]
+            plan = {"build_input_id": "8" * 64, "components": components}
+            previous = None
+            for index, component in enumerate(components):
+                component_root = build_root / "components" / component["id"]
+                component_root.mkdir(parents=True)
+                (component_root / "build.log").write_text(
+                    f"{component['id']} complete\n", encoding="utf-8"
+                )
+                (staged_prefix / component["id"]).write_text("bytes\n", encoding="utf-8")
+                checkpoint = BUILD.write_component_checkpoint(
+                    plan,
+                    build_root,
+                    staged_prefix,
+                    component,
+                    index,
+                    previous,
+                )
+                previous = checkpoint["checkpoint_sha256"]
+            BUILD.checkpoint_path(build_root, "first").unlink()
+            with self.assertRaisesRegex(BUILD.GraphError, "not contiguous"):
+                BUILD.completed_component_checkpoints(plan, build_root, staged_prefix)
 
 
 if __name__ == "__main__":

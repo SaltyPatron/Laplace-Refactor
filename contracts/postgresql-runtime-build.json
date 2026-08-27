@@ -23,6 +23,7 @@
     "c_flags": ["-O3", "-g", "-march=broadwell", "-fPIE", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
     "cxx_flags": ["-O3", "-g", "-march=broadwell", "-fPIE", "-fno-fast-math", "-ffp-contract=off", "-fno-omit-frame-pointer"],
     "link_flags": ["-pie"],
+    "install_runpath": "$ORIGIN/../lib",
     "executable_elf": {
       "position_independent": true,
       "copy_relocations": "forbidden"

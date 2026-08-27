@@ -27,7 +27,7 @@ from typing import Any, Sequence
 CONTRACT_SCHEMA = "laplace.postgresql-cluster-contract/v1"
 PACKAGE_SCHEMA = "laplace.package-manifest/v1"
 RESOURCE_SCHEMA = "laplace.execution-resource-observation/v1"
-COLLISION_SCHEMA = "laplace.postgresql-collision-observation/v1"
+COLLISION_SCHEMA = "laplace.postgresql-collision-observation/v2"
 PLAN_SCHEMA = "laplace.postgresql-cluster-plan/v1"
 LOADED_SCHEMA = "laplace.postgresql-loaded-observation/v1"
 STOPPED_SCHEMA = "laplace.postgresql-stopped-observation/v1"
@@ -378,9 +378,21 @@ def validate_collision_observation(
     collisions = observation.get("collisions")
     if not isinstance(collisions, list) or any(not isinstance(item, dict) for item in collisions):
         raise ClusterError("collision observation findings must be an array of objects")
+    inspection_errors = observation.get("inspection_errors")
+    if not isinstance(inspection_errors, list) or any(
+        not isinstance(item, dict) for item in inspection_errors
+    ):
+        raise ClusterError("collision observation inspection_errors must be an array of objects")
     expected = collision_observation_identity(observation)
     if observation.get("observation_sha256") != expected:
         raise ClusterError("collision observation digest differs from its content")
+    if inspection_errors:
+        first = inspection_errors[0]
+        raise ClusterError(
+            "cluster collision inspection is incomplete: "
+            f"{first.get('operation', 'unknown')} {first.get('target', '')}: "
+            f"{first.get('error', 'unknown error')}"
+        )
     if collisions:
         first = collisions[0]
         raise ClusterError(
@@ -394,9 +406,27 @@ def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
         raise ClusterError("collision inspection root must be absolute")
     target = collision_target(contract)
     findings: list[dict[str, Any]] = []
+    inspection_errors: list[dict[str, Any]] = []
+
+    def record_inspection_error(operation: str, target_value: Any, error: OSError) -> None:
+        inspection_errors.append(
+            {
+                "operation": operation,
+                "target": target_value,
+                "errno": error.errno,
+                "error": error.strerror or error.__class__.__name__,
+            }
+        )
+
     for path in target["paths"]:
         physical = prefixed(root, path)
-        if physical.exists() or physical.is_symlink():
+        try:
+            os.lstat(physical)
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            record_inspection_error("lstat", path, error)
+        else:
             findings.append({"kind": "path", "target": path})
     if root == Path("/"):
         service = target["service"]
@@ -406,14 +436,21 @@ def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
             "/lib/systemd/system",
         ):
             candidate = Path(directory) / service
-            if candidate.exists() or candidate.is_symlink():
+            try:
+                os.lstat(candidate)
+            except FileNotFoundError:
+                continue
+            except OSError as error:
+                record_inspection_error("lstat", str(candidate), error)
+            else:
                 findings.append({"kind": "service", "target": service})
                 break
         port_hex = f"{target['port']:04X}"
         for network_table in (Path("/proc/net/tcp"), Path("/proc/net/tcp6")):
             try:
                 rows = network_table.read_text(encoding="ascii").splitlines()[1:]
-            except OSError:
+            except OSError as error:
+                record_inspection_error("read", str(network_table), error)
                 rows = []
             if any(
                 len(fields := row.split()) > 3
@@ -426,7 +463,8 @@ def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
         socket_path = f"{target['socket_directory']}/.s.PGSQL.{target['port']}"
         try:
             unix_rows = Path("/proc/net/unix").read_text(encoding="utf-8").splitlines()[1:]
-        except OSError:
+        except OSError as error:
+            record_inspection_error("read", "/proc/net/unix", error)
             unix_rows = []
         if any(row.split()[-1] == socket_path for row in unix_rows if len(row.split()) >= 8):
             findings.append({"kind": "unix-socket", "target": socket_path})
@@ -434,17 +472,28 @@ def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
             target["socket_directory"].encode("utf-8"),
             contract["instance"]["data_directory"].encode("utf-8"),
         )
-        for process in Path("/proc").iterdir():
+        try:
+            processes = list(Path("/proc").iterdir())
+        except OSError as error:
+            record_inspection_error("list", "/proc", error)
+            processes = []
+        for process in processes:
             if not process.name.isdigit():
                 continue
             try:
                 command = (process / "cmdline").read_bytes()
-            except OSError:
+            except FileNotFoundError:
+                continue
+            except OSError as error:
+                record_inspection_error("read", str(process / "cmdline"), error)
                 continue
             if command and any(needle in command for needle in process_needles):
                 try:
                     owner_uid = process.stat().st_uid
-                except OSError:
+                except FileNotFoundError:
+                    owner_uid = None
+                except OSError as error:
+                    record_inspection_error("stat", str(process), error)
                     owner_uid = None
                 findings.append(
                     {
@@ -459,6 +508,7 @@ def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
         "root": str(root),
         "target": target,
         "collisions": findings,
+        "inspection_errors": inspection_errors,
     }
     observation["observation_sha256"] = collision_observation_identity(observation)
     return observation

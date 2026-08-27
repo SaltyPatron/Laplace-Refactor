@@ -2174,6 +2174,16 @@ if(LAPLACE_POSTGRES_ENABLED)
         RUN_SERIAL TRUE)
 endif()
 
+set(laplace_consumer_link_flags "${CMAKE_EXE_LINKER_FLAGS}")
+set(laplace_consumer_runtime_path "")
+if(LAPLACE_ONEAPI_RUNTIME_DIRECTORIES)
+    foreach(runtime_directory IN LISTS LAPLACE_ONEAPI_RUNTIME_DIRECTORIES)
+        string(APPEND laplace_consumer_link_flags
+            " -Wl,-rpath-link,${runtime_directory}")
+    endforeach()
+    list(JOIN LAPLACE_ONEAPI_RUNTIME_DIRECTORIES ":"
+        laplace_consumer_runtime_path)
+endif()
 add_test(
     NAME package.native-consumer-contract
     COMMAND "${CMAKE_COMMAND}"
@@ -2182,7 +2192,8 @@ add_test(
         "-DINSTALL_DIRECTORY=${CMAKE_BINARY_DIR}/package-test/install"
         "-DCONSUMER_BUILD_DIRECTORY=${CMAKE_BINARY_DIR}/package-test/consumer"
         "-DCONSUMER_C_FLAGS=${CMAKE_C_FLAGS}"
-        "-DCONSUMER_LINK_FLAGS=${CMAKE_EXE_LINKER_FLAGS}"
+        "-DCONSUMER_LINK_FLAGS=${laplace_consumer_link_flags}"
+        "-DCONSUMER_RUNTIME_PATH=${laplace_consumer_runtime_path}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/run_installed_consumer.cmake")
 set_tests_properties(package.native-consumer-contract PROPERTIES
     LABELS "implementation;package;consumer"
