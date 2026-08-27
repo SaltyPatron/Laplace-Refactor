@@ -605,7 +605,7 @@ static ArrayType* disposition_array(const uint8_t* dispositions, size_t count) {
     return construct_array(values, (int)count, INT2OID, 2, true, TYPALIGN_SHORT);
 }
 
-void laplace_pg_composition_execution_destroy(
+void LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(
     laplace_pg_composition_execution* execution) {
     if (execution == NULL) {
         return;
@@ -614,7 +614,7 @@ void laplace_pg_composition_execution_destroy(
     memset(execution, 0, sizeof(*execution));
 }
 
-void laplace_pg_composition_execute(
+void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
     const laplace_composition_working_set_input* input,
     laplace_pg_composition_execution* execution) {
     laplace_composition_presence_provider_v1 presence_provider;
@@ -693,7 +693,7 @@ void laplace_pg_composition_execute(
     }
     PG_CATCH();
     {
-        laplace_pg_composition_execution_destroy(execution);
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(execution);
         PG_RE_THROW();
     }
     PG_END_TRY();
@@ -737,7 +737,7 @@ Datum LAPLACE_PG_COMPOSITION_ENTRYPOINT(PG_FUNCTION_ARGS) {
     memset(&execution, 0, sizeof(execution));
     PG_TRY();
     {
-        laplace_pg_composition_execute(&input, &execution);
+        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(&input, &execution);
         results = execution.results;
         result_count = execution.result_count;
         entity_dispositions = execution.entity_dispositions;
@@ -809,10 +809,10 @@ Datum LAPLACE_PG_COMPOSITION_ENTRYPOINT(PG_FUNCTION_ARGS) {
     }
     PG_CATCH();
     {
-        laplace_pg_composition_execution_destroy(&execution);
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(&execution);
         PG_RE_THROW();
     }
     PG_END_TRY();
-    laplace_pg_composition_execution_destroy(&execution);
+    LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(&execution);
     PG_RETURN_DATUM(HeapTupleGetDatum(result_tuple));
 }

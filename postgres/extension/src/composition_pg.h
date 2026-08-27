@@ -20,11 +20,20 @@ typedef struct laplace_pg_composition_execution {
     size_t physicality_disposition_count;
 } laplace_pg_composition_execution;
 
-void laplace_pg_composition_execute(
+#if !defined(LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL)
+#define LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL laplace_pg_composition_execute
+#endif
+
+#if !defined(LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL)
+#define LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL \
+    laplace_pg_composition_execution_destroy
+#endif
+
+void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
     const laplace_composition_working_set_input* input,
     laplace_pg_composition_execution* execution);
 
-void laplace_pg_composition_execution_destroy(
+void LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(
     laplace_pg_composition_execution* execution);
 
 #endif

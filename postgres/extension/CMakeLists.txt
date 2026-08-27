@@ -74,37 +74,49 @@ if(BUILD_TESTING)
         LAPLACE_TEST_COMPOSITION_PRESENCE_REORDER)
     target_compile_definitions(
         laplace_pg_composition_presence_order_mutant PRIVATE
-        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_order_mutant)
+        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_order_mutant
+        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_presence_order_mutant
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_presence_order_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_composition_presence_blind_mutant
         LAPLACE_TEST_COMPOSITION_PRESENCE_BLIND)
     target_compile_definitions(
         laplace_pg_composition_presence_blind_mutant PRIVATE
-        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_blind_mutant)
+        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_blind_mutant
+        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_presence_blind_mutant
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_presence_blind_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_composition_presence_per_row_mutant
         LAPLACE_TEST_COMPOSITION_PRESENCE_PER_ROW)
     target_compile_definitions(
         laplace_pg_composition_presence_per_row_mutant PRIVATE
-        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_per_row_mutant)
+        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_per_row_mutant
+        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_presence_per_row_mutant
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_presence_per_row_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_composition_presence_partial_mutant
         LAPLACE_TEST_COMPOSITION_PRESENCE_PARTIAL)
     target_compile_definitions(
         laplace_pg_composition_presence_partial_mutant PRIVATE
-        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_partial_mutant)
+        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_partial_mutant
+        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_presence_partial_mutant
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_presence_partial_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_composition_presence_semantic_drift_mutant
         LAPLACE_TEST_COMPOSITION_PRESENCE_SEMANTIC_DRIFT)
     target_compile_definitions(
         laplace_pg_composition_presence_semantic_drift_mutant PRIVATE
-        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_semantic_drift_mutant)
+        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_semantic_drift_mutant
+        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_presence_semantic_drift_mutant
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_presence_semantic_drift_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_composition_replay_receipt_mutant
         LAPLACE_TEST_COMPOSITION_REPLAY_RECEIPT_VERIFY_BYPASS)
     target_compile_definitions(
         laplace_pg_composition_replay_receipt_mutant PRIVATE
         LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_replay_receipt_mutant
+        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_replay_receipt_mutant
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_replay_receipt_mutant
         LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL=laplace_pg_persistence_run_producer_replay_receipt_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_perfcache_epoch_mutant

@@ -17,14 +17,14 @@ DO $mutation$
 DECLARE
     result laplace.composition_deposit_result;
 BEGIN
-    SELECT pg_temp.composition_mutant_deposit(
+    SELECT (pg_temp.composition_mutant_deposit(
         inputs.execution_context,
         inputs.source_fingerprint,
         inputs.calculation_recipe_fingerprint,
         inputs.known_entities,
         inputs.operands,
         inputs.requests,
-        inputs.preferred_batch_bytes)
+        inputs.preferred_batch_bytes)).*
     INTO STRICT result
     FROM pg_temp.composition_fixture_inputs() AS inputs;
     UPDATE laplace.physicality

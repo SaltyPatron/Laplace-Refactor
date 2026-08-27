@@ -19,14 +19,14 @@ DECLARE
     result laplace.composition_deposit_result;
 BEGIN
     SELECT * INTO STRICT fixture FROM composition_fixture;
-    SELECT pg_temp.composition_mutant_deposit(
+    SELECT (pg_temp.composition_mutant_deposit(
         inputs.execution_context,
         inputs.source_fingerprint,
         inputs.calculation_recipe_fingerprint,
         inputs.known_entities,
         inputs.operands,
         inputs.requests,
-        inputs.preferred_batch_bytes)
+        inputs.preferred_batch_bytes)).*
     INTO STRICT result
     FROM pg_temp.composition_fixture_pair_inputs() AS inputs;
     IF fixture.expected_result_entity = ANY(result.result_entity_ids)

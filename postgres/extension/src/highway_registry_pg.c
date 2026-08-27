@@ -1163,7 +1163,7 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SYMBOL(PG_FUNCTION_ARGS) {
         input.requests = ast.requests;
         input.request_count = ast.request_count;
         input.preferred_batch_bytes = preferred_batch_bytes;
-        laplace_pg_composition_execute(&input, &execution);
+        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(&input, &execution);
         if (ast.root_result_index >= execution.result_count) {
             ereport(ERROR,
                     (errcode(ERRCODE_DATA_CORRUPTED),
@@ -1291,12 +1291,12 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SYMBOL(PG_FUNCTION_ARGS) {
         result_values[40] = Int32GetDatum((int32)execution.summary.status);
         tuple = laplace_pg_form_result_tuple(
             fcinfo, result_values, result_nulls, 41);
-        laplace_pg_composition_execution_destroy(&execution);
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(&execution);
         laplace_highway_registry_ast_plan_destroy(&ast_plan);
     }
     PG_CATCH();
     {
-        laplace_pg_composition_execution_destroy(&execution);
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(&execution);
         laplace_highway_registry_ast_plan_destroy(&ast_plan);
         PG_RE_THROW();
     }
