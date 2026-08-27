@@ -333,14 +333,82 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(completed.get("implemented_and_locally_proven_boundary", []), ("direct-native", "provider-independent", "cancellation", "blind-presence", "five-sample", "329062"), "issue 15 implementation acceptance was narrowed")
     contains_all(completed.get("remaining_whole_product_boundary", []), ("500000", "30-seconds-per-GB", "issue 72"), "whole-product performance boundary was hidden")
     work = document.get("active_work", {})
-    require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
+    require(work.get("capability") == "substrate.highway", "active capability drift")
     require(
         work.get("state")
-        == "unicode-product-activation-controller-integration-proven-successor-package-installed-protected-cicd-gateway-implementation-committed-root-gateway-bootstrap-pending",
-        "Unicode activation implementation state drift",
+        == "canonical-highway-coordinate-registry-isa-unicode-backed-ast-shared-deposition-controlled-activation-active-readback-and-protected-product-gateway-implemented-product-activation-pending",
+        "Highway implementation state drift",
     )
-    require(work.get("github_issue") == 13 and work.get("pull_request") == 76, "Unicode activation ownership drift")
+    require(
+        work.get("github_issue") == 52
+        and work.get("pull_request") == 77
+        and work.get("branch") == "phase3/typed-numerical-highway"
+        and work.get("base_commit")
+        == "e448fcb7d97d8cdbde4fa7a1fdbe8b6a4ebe9ad3",
+        "Highway implementation ownership drift",
+    )
     progress = work.get("implementation_progress", {})
+    highway = progress.get("typed_numerical_highway", {})
+    require(
+        highway.get("implementation_commit")
+        == "8f1de40c3d13cd959a7a802c3a5a3682c38df556"
+        and highway.get("pull_request") == 77
+        and highway.get("contract_schema")
+        == "laplace.highway-registry-contract/v1"
+        and highway.get("registry_version") == 1
+        and highway.get("registry_fingerprint")
+        == "14c9b853a6beade10617cf702a7cf080a23d5e059090e5e95d682738c1fb6843"
+        and highway.get("isa_version") == "1.4",
+        "Highway implementation identity drift",
+    )
+    require(
+        highway.get("state")
+        == "implemented-and-controlled-integration-proven-product-activation-not-executed",
+        "Highway proof state drift",
+    )
+    contains_all(
+        highway.get("implemented_boundary", []),
+        (
+            "sixteen typed coordinate kinds",
+            "typed ISA",
+            "Unicode-backed universal AST",
+            "whole-working-set set-wise presence",
+            "durable numeric epoch",
+            "zero duplicate canonical rows",
+            "read-only context-pinned",
+            "Highway product controller",
+            "protected laplace-runner gateway",
+        ),
+        "Highway implementation boundary was narrowed",
+    )
+    highway_validation = highway.get("controlled_integration_validation", {})
+    contains_all(
+        highway_validation,
+        (
+            "296 of 296",
+            "555.37 seconds",
+            "135.49",
+            "136.42",
+            "153.17",
+            "29 of 29",
+            "3 of 3",
+            "8 of 8",
+        ),
+        "Highway controlled-integration evidence drift",
+    )
+    contains_all(
+        highway.get("missing_boundary", []),
+        (
+            "PR 77",
+            "protected product workflow",
+            "successor registry",
+            "whole-seed",
+            "bubble-up",
+            "bubble-down",
+            "world admission",
+        ),
+        "Highway incomplete product boundary was hidden",
+    )
     runtime = progress.get("runtime_package", {})
     require(runtime.get("contract_schema") == "laplace.postgresql-runtime-build/v2", "runtime contract generation drift")
     require(runtime.get("plan_schema") == "laplace.postgresql-runtime-plan/v2", "runtime plan generation drift")
@@ -956,8 +1024,8 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "22241897fff72836c67abca064d8b67227dedfd4",
-        "product-package implementation checkpoint drift",
+        == "8f1de40c3d13cd959a7a802c3a5a3682c38df556",
+        "Highway implementation checkpoint drift",
     )
     successor = progress.get("successor_product_package", {})
     require(
@@ -1072,9 +1140,44 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         "Unicode activation controller was promoted beyond evidence",
     )
     require(postgresql.get("implementation_commit") == "16126c4a4a90a6710528f94aacb401cf45fdea66", "historical PostgreSQL composer checkpoint drift")
-    contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
-    contains_all(work.get("immediate_implementation_boundary", []), ("authorized traversal", "cluster plan", "PostgreSQL 18.6", "accepted Laplace package", "1114112", "without a second semantic calculation", "direct and reverse", "restart", "product-root activation receipt"), "Unicode product-activation boundary was narrowed")
-    contains_all(work.get("nonclaims", []), ("not yet established", "root ownership", "not established", "not yet product activated", "not seeded", "not implemented", "not released"), "Unicode activation work was promoted beyond evidence")
+    contains_all(
+        work.get("whole_product_reason", ""),
+        ("Highway", "coordinate", "routing", "sources", "languages", "modalities", "not a multilingual lookup table"),
+        "active Highway work lost its whole-product reason",
+    )
+    contains_all(
+        work.get("immediate_implementation_boundary", []),
+        (
+            "exact-head",
+            "merge PR 77",
+            "content-addressed product package",
+            "laplace-runner authority",
+            "protected product-activation workflow",
+            "PostgreSQL 18.6",
+            "cold application-role active readback",
+            "loaded-object identity",
+            "successor path",
+            "whole-seed",
+            "bubble-up",
+            "bubble-down",
+        ),
+        "Highway product-activation and continuation boundary was narrowed",
+    )
+    contains_all(
+        work.get("nonclaims", []),
+        (
+            "PR 77 is open",
+            "checks are still running",
+            "workflow has not executed",
+            "Unicode is not yet product activated",
+            "Highway is implemented",
+            "not product activated",
+            "world is not admitted",
+            "not seeded",
+            "not released",
+        ),
+        "Highway work was promoted beyond evidence",
+    )
     github = document.get("github_observation", {})
     require(github.get("main_commit") == document.get("repository", {}).get("base_commit"), "GitHub main and continuation base diverged")
     require(github.get("product_cluster_project_status") == "In Progress", "active product-cluster work returned to Todo")
@@ -1089,10 +1192,36 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         "runtime PR merge observation drift",
     )
     contains_all(runtime_pr.get("proof_state", ""), ("implementation merged", "product cluster activation", "public Unicode Tier-0/reverse perfcache access", "Unicode product activation controller", "successor package", "root ownership", "physical cluster activation", "Unicode activation", "seed", "release remain false"), "merged runtime PR was promoted beyond evidence")
+    highway_pr = github.get("highway_pull_request", {})
+    require(
+        highway_pr.get("number") == 77
+        and highway_pr.get("state") == "open"
+        and highway_pr.get("draft") is False
+        and highway_pr.get("mergeable") is True
+        and highway_pr.get("base_commit")
+        == "e448fcb7d97d8cdbde4fa7a1fdbe8b6a4ebe9ad3"
+        and highway_pr.get("head_commit")
+        == "8f1de40c3d13cd959a7a802c3a5a3682c38df556",
+        "Highway PR observation drift",
+    )
+    contains_all(
+        highway_pr.get("proof_state", ""),
+        (
+            "canonical Highway registry",
+            "typed ISA",
+            "Unicode-backed universal AST",
+            "shared presence and deposition",
+            "active application readback",
+            "product gateway",
+            "CI",
+            "installed-product activation remain incomplete",
+        ),
+        "Highway PR was promoted beyond evidence",
+    )
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
-    require(github.get("product_path_gate_issue") == 54 and github.get("required_product_path_gate_present") is False, "product-path gate observation drift")
+    require(github.get("product_path_gate_issue") == 54 and github.get("required_product_path_gate_present") is True, "product-path gate observation drift")
     contains_all(github.get("observed_required_checks", []), ("requirements", "native (linux-dev)", "native (linux-sanitize)"), "required-check observation narrowed")
     require(github.get("github_environments") == 1 and github.get("github_deployments") == 0 and github.get("github_releases") == 0, "GitHub integration state was promoted to delivery state")
     require(github.get("repository_runner", {}).get("name") == "hart-server-refactor", "repository runner observation lost")
@@ -1536,6 +1665,24 @@ class ProgramAuthorityTests(unittest.TestCase):
         mutant = copy.deepcopy(self.continuation)
         mutant["unicode"]["seeded"] = True
         with self.assertRaisesRegex(ValueError, "promoted"):
+            validate_continuation(mutant, verify_physical=False)
+
+    def test_mutation_highway_registry_identity_drift_is_detected(self) -> None:
+        mutant = copy.deepcopy(self.continuation)
+        highway = mutant["active_work"]["implementation_progress"][
+            "typed_numerical_highway"
+        ]
+        highway["registry_fingerprint"] = "00" * 32
+        with self.assertRaisesRegex(ValueError, "Highway implementation identity drift"):
+            validate_continuation(mutant, verify_physical=False)
+
+    def test_mutation_highway_integration_is_promoted_to_product_is_detected(self) -> None:
+        mutant = copy.deepcopy(self.continuation)
+        highway = mutant["active_work"]["implementation_progress"][
+            "typed_numerical_highway"
+        ]
+        highway["state"] = "product-activated"
+        with self.assertRaisesRegex(ValueError, "Highway proof state drift"):
             validate_continuation(mutant, verify_physical=False)
 
     def test_mutation_failed_runtime_promoted_to_accepted_package_is_detected(self) -> None:
