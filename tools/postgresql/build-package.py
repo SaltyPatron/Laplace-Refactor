@@ -30,24 +30,32 @@ CONTRACT_SCHEMA = "laplace.postgresql-build-contract/v2"
 PLAN_SCHEMA = "laplace.postgresql-build-plan/v2"
 PACKAGE_SCHEMA = "laplace.postgresql-package-receipt/v2"
 NEEDED_PATTERN = re.compile(r"Shared library: \[([^]]+)\]")
+RUNPATH_PATTERN = re.compile(r"\((?:RUNPATH|RPATH)\).*\[([^]]*)\]")
 EXPECTED_PERL_MODULES = {
     "IO::Pty": "1.31",
     "IO::Tty": "1.31",
     "IPC::Run": "20260402.0",
 }
 EXPECTED_BOOTSTRAP_INPUTS = {"python", "sh"}
-EXPECTED_UNSELECTED_HOST_INPUTS = [
-    "Python standard library and imported runtime providers",
-    "configure-time host utilities",
-    "Intel-compiler-selected platform ABI startup objects static archives and support libraries for the PostgreSQL build",
-    "selected kernel and runtime-provider qualification for PostgreSQL io_uring execution",
-]
+EXPECTED_UNSELECTED_HOST_INPUTS: list[str] = []
 EXPECTED_RUNTIME_BUILD_EXECUTABLES = {
     "openssl": {
         "relative_path": "bin/openssl",
         "version_line": "OpenSSL 4.0.1 9 Jun 2026 (Library: OpenSSL 4.0.1 9 Jun 2026)",
     }
 }
+EXPECTED_SOURCE_TEST_OVERLAYS = [
+    {
+        "target": "check-world",
+        "mode": "copy-on-write-exact-source-shadow",
+        "source_relative_path": "src/interfaces/ecpg/preproc/t",
+        "permitted_transient_generated_files": [
+            "err_warn_msg.c",
+            "err_warn_msg_informix.c",
+        ],
+    }
+]
+IO_URING_ASSERTION_PATTERN = re.compile(r"\bok (\d+) - io_uring:")
 
 
 class BuildError(RuntimeError):
@@ -88,6 +96,39 @@ def canonical_sha256(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def exact_tree_receipt(root: Path) -> dict[str, Any]:
+    if not root.is_dir() or root.is_symlink():
+        raise BuildError(f"exact tree root must be a physical directory: {root}")
+    entries: list[dict[str, Any]] = []
+    for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
+        relative = path.relative_to(root).as_posix()
+        status = path.lstat()
+        record: dict[str, Any] = {
+            "path": relative,
+            "mode": f"{stat.S_IMODE(status.st_mode):04o}",
+        }
+        if stat.S_ISLNK(status.st_mode):
+            record.update({"kind": "symlink", "target": os.readlink(path)})
+        elif stat.S_ISDIR(status.st_mode):
+            record.update({"kind": "directory"})
+        elif stat.S_ISREG(status.st_mode):
+            record.update(
+                {
+                    "kind": "file",
+                    "size_bytes": status.st_size,
+                    "sha256": sha256_file(path),
+                }
+            )
+        else:
+            raise BuildError(f"exact tree contains an unsupported object: {path}")
+        entries.append(record)
+    return {
+        "root": str(root),
+        "entries": entries,
+        "tree_sha256": canonical_sha256(entries),
+    }
+
+
 def build_recipe_identity(
     contract: dict[str, Any], repository: Path, driver_path: Path | None = None
 ) -> dict[str, Any]:
@@ -97,11 +138,15 @@ def build_recipe_identity(
     closure_verifier = (
         repository / contract["runtime_closure"]["recursive_verifier"]["path"]
     ).resolve()
+    host_provider_verifier = (
+        repository / contract["host_build_provider"]["verifier"]
+    ).resolve()
     for name, path in (
         ("build driver", driver),
         ("release verifier", verifier),
         ("package receipt verifier", receipt_verifier),
         ("recursive ELF closure verifier", closure_verifier),
+        ("host build provider verifier", host_provider_verifier),
     ):
         if not path.is_file():
             raise BuildError(f"{name} is missing: {path}")
@@ -122,6 +167,10 @@ def build_recipe_identity(
         "recursive_elf_closure_verifier": {
             "path": contract["runtime_closure"]["recursive_verifier"]["path"],
             "sha256": sha256_file(closure_verifier),
+        },
+        "host_build_provider_verifier": {
+            "path": contract["host_build_provider"]["verifier"],
+            "sha256": sha256_file(host_provider_verifier),
         },
     }
 
@@ -148,6 +197,8 @@ def validate_contract(document: dict[str, Any]) -> None:
     build_toolchain = document.get("build_toolchain")
     installed_runtime_provider = document.get("installed_runtime_provider")
     runtime_package = document.get("runtime_package")
+    runtime_qualification = document.get("runtime_qualification")
+    host_build_provider = document.get("host_build_provider")
     input_closure = document.get("input_closure")
     build = document.get("build")
     execution = document.get("execution")
@@ -161,6 +212,8 @@ def validate_contract(document: dict[str, Any]) -> None:
             build_toolchain,
             installed_runtime_provider,
             runtime_package,
+            runtime_qualification,
+            host_build_provider,
             input_closure,
             build,
             execution,
@@ -272,25 +325,81 @@ def validate_contract(document: dict[str, Any]) -> None:
         != EXPECTED_RUNTIME_BUILD_EXECUTABLES
     ):
         raise BuildError("runtime package build executable selection must remain exact")
-    if input_closure.get("status") != "incomplete":
-        raise BuildError("input_closure.status must remain incomplete until every build input is selected")
+    liburing_qualification = runtime_qualification.get("liburing")
+    if (
+        runtime_qualification.get("schema")
+        != runtime_package["provider_qualification_receipt_schema"]
+        or not isinstance(liburing_qualification, dict)
+    ):
+        raise BuildError("PostgreSQL io_uring qualification contract is invalid")
+    expected_qualification = {
+        "scope": "postgresql-18.6-selected-io_uring-product-path",
+        "source_test": "src/test/modules/test_aio/t/001_aio.pl",
+        "source_test_sha256": (
+            "2193d3c4c99cab233df41e55258728ece9bc0169e20293fbf1033bef1792d912"
+        ),
+        "regress_log": (
+            "src/test/modules/test_aio/tmp_check/log/regress_log_001_aio"
+        ),
+        "server_log": (
+            "src/test/modules/test_aio/tmp_check/log/001_aio_io_uring.log"
+        ),
+        "expected_supported_methods": ["sync", "worker", "io_uring"],
+        "expected_assertion_count": 175,
+        "expected_first_assertion": 178,
+        "expected_last_assertion": 352,
+        "expected_test_plan": 529,
+    }
+    if liburing_qualification != expected_qualification:
+        raise BuildError("PostgreSQL io_uring qualification boundary must remain exact")
+    if input_closure.get("status") != "complete":
+        raise BuildError("input_closure.status must remain complete after provider closure")
     selected_inputs = require_string_array(
         input_closure.get("selected_exact_inputs"), "input_closure.selected_exact_inputs"
     )
     if "PostgreSQL bundled tzdata 2026c" not in selected_inputs:
         raise BuildError("input_closure must bind PostgreSQL bundled tzdata 2026c")
-    unselected_host_inputs = require_string_array(
-        input_closure.get("unselected_host_inputs"), "input_closure.unselected_host_inputs"
-    )
+    unselected_host_inputs = input_closure.get("unselected_host_inputs")
+    if not isinstance(unselected_host_inputs, list) or any(
+        not isinstance(item, str) or not item for item in unselected_host_inputs
+    ):
+        raise BuildError("input_closure.unselected_host_inputs must be a string array")
     if unselected_host_inputs != EXPECTED_UNSELECTED_HOST_INPUTS:
         raise BuildError("input_closure.unselected_host_inputs must remain exact")
     if input_closure.get("activation_policy") != (
         "blocked-until-all-build-and-runtime-inputs-are-selected-packaged-and-receipted"
     ):
         raise BuildError("input_closure.activation_policy must be fail-closed")
+    if host_build_provider.get("schema") != "laplace.postgresql-host-build-provider/v1":
+        raise BuildError("host build provider schema differs")
+    provider_id = require_string(
+        host_build_provider.get("provider_id"), "host_build_provider.provider_id"
+    )
+    receipt_digest = require_string(
+        host_build_provider.get("receipt_sha256"),
+        "host_build_provider.receipt_sha256",
+    )
+    if re.fullmatch(r"[0-9a-f]{64}", provider_id) is None or re.fullmatch(
+        r"[0-9a-f]{64}", receipt_digest
+    ) is None:
+        raise BuildError("host build provider identities must be lowercase SHA-256")
+    if not Path(require_string(host_build_provider.get("receipt"), "host provider receipt")).is_absolute():
+        raise BuildError("host build provider receipt must be absolute")
+    if host_build_provider.get("verifier") != "tools/postgresql/host-provider.py":
+        raise BuildError("host build provider verifier differs")
+    sandbox = host_build_provider.get("sandbox")
+    if not isinstance(sandbox, dict) or sandbox != {
+        "executable": "/usr/bin/bwrap",
+        "mode": "unshared-read-only-selected-host-provider",
+        "network": "unshared",
+        "ephemeral": ["/dev", "/proc", "/tmp"],
+    }:
+        raise BuildError("host build provider sandbox boundary differs")
     configure = require_string_array(build.get("configure_arguments"), "build.configure_arguments")
     if "--enable-tap-tests" not in configure:
         raise BuildError("PostgreSQL build must enable TAP tests")
+    if "--disable-rpath" not in configure:
+        raise BuildError("PostgreSQL upstream absolute rpath generation must be disabled")
     if any(argument.startswith("--with-system-tzdata") for argument in configure):
         raise BuildError("PostgreSQL must use its selected bundled tzdata")
     flags = require_string_array(build.get("c_flags"), "build.c_flags")
@@ -315,6 +424,21 @@ def validate_contract(document: dict[str, Any]) -> None:
         raise BuildError("absolute PostgreSQL build roots in __FILE__ must be forbidden")
     if source_path_policy.get("absolute_build_root_in_debug_info") != "forbidden":
         raise BuildError("absolute PostgreSQL build roots in debug information must be forbidden")
+    source_test_overlays = build.get("source_test_overlays")
+    if source_test_overlays != EXPECTED_SOURCE_TEST_OVERLAYS:
+        raise BuildError("PostgreSQL source-test overlay boundary must remain exact")
+    for overlay in source_test_overlays:
+        relative = Path(overlay["source_relative_path"])
+        generated = [
+            Path(path) for path in overlay["permitted_transient_generated_files"]
+        ]
+        if relative.is_absolute() or ".." in relative.parts or relative == Path("."):
+            raise BuildError("PostgreSQL source-test overlay path must be a contained relative path")
+        if any(
+            path.is_absolute() or ".." in path.parts or len(path.parts) != 1
+            for path in generated
+        ):
+            raise BuildError("PostgreSQL generated source-test files must be direct relative files")
     targets = require_string_array(build.get("make_targets"), "build.make_targets")
     if targets != ["world-bin", "check-world", "install-world-bin"]:
         raise BuildError("build.make_targets must build, test, then install the complete binary world")
@@ -403,6 +527,64 @@ def verify_toolchain_receipt(
         )
     except ReceiptError as error:
         raise BuildError(str(error)) from error
+
+
+def verify_host_build_provider(
+    contract: Mapping[str, Any], repository: Path
+) -> dict[str, Any]:
+    selected = contract["host_build_provider"]
+    receipt_path = Path(selected["receipt"])
+    verifier = (repository / selected["verifier"]).resolve()
+    if (
+        not receipt_path.is_file()
+        or receipt_path.is_symlink()
+        or sha256_file(receipt_path) != selected["receipt_sha256"]
+    ):
+        raise BuildError("host build provider receipt bytes differ")
+    result = subprocess.run(
+        [contract["build"]["python"], str(verifier), "verify", "--receipt", str(receipt_path)],
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        raise BuildError(
+            "host build provider verification failed: "
+            + (result.stderr.strip() or result.stdout.strip())
+        )
+    try:
+        receipt = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise BuildError("host build provider verifier returned invalid JSON") from error
+    if (
+        not isinstance(receipt, dict)
+        or receipt.get("schema") != selected["schema"]
+        or receipt.get("provider_id") != selected["provider_id"]
+        or receipt.get("scope") != "build-time-provider-only"
+        or receipt.get("product_runtime_authority") is not False
+    ):
+        raise BuildError("host build provider receipt boundary differs")
+    roots = receipt.get("roots")
+    files = receipt.get("files")
+    if (
+        not isinstance(roots, list)
+        or [item.get("path") for item in roots]
+        != ["/usr", "/opt/intel/oneapi/compiler/2026.1"]
+        or not isinstance(files, list)
+        or [item.get("path") for item in files]
+        != [
+            "/etc/ld.so.cache",
+            "/etc/passwd",
+            "/etc/group",
+            "/etc/nsswitch.conf",
+            "/etc/localtime",
+        ]
+    ):
+        raise BuildError("host build provider persistent input set differs")
+    return {
+        **receipt,
+        "receipt_path": str(receipt_path),
+        "receipt_sha256": selected["receipt_sha256"],
+    }
 
 
 def verify_installed_runtime_provider(
@@ -687,6 +869,7 @@ def create_plan(
         Path(build_toolchain["tools"]["readelf"]["path"]),
     )
     runtime_package = verify_runtime_receipt(contract, runtime_receipt)
+    host_build_provider = verify_host_build_provider(contract, repository)
     recipe = build_recipe_identity(contract, repository)
     source = ensure_external(source_root, repository, "source root")
     source_receipt = verify_release_import(contract, repository, archive_root, source)
@@ -709,6 +892,7 @@ def create_plan(
         "build_toolchain": build_toolchain,
         "installed_runtime_provider": installed_runtime_provider,
         "runtime_package": runtime_package,
+        "host_build_provider": host_build_provider,
         "recipe": recipe,
         "source_verification_sha256": canonical_sha256(source_receipt),
         "execution_paths": {
@@ -748,6 +932,7 @@ def create_plan(
         "build_toolchain": build_toolchain,
         "installed_runtime_provider": installed_runtime_provider,
         "runtime_package": runtime_package,
+        "host_build_provider": host_build_provider,
         "recipe": recipe,
         "configure_command": configure_command,
         "c_flags": contract["build"]["c_flags"],
@@ -1024,6 +1209,158 @@ def run_logged(
             raise BuildError(f"command exited {return_code}: {command[0]}")
 
 
+def prepare_source_test_overlays(
+    contract: Mapping[str, Any], plan: Mapping[str, Any], target: str
+) -> list[dict[str, Any]]:
+    source_root = Path(plan["source_root"])
+    build_directory = Path(plan["build_directory"])
+    prepared: list[dict[str, Any]] = []
+    declarations = [
+        declaration
+        for declaration in contract["build"]["source_test_overlays"]
+        if declaration["target"] == target
+    ]
+    for ordinal, declaration in enumerate(declarations):
+        source_path = source_root / declaration["source_relative_path"]
+        overlay_path = build_directory / ".source-test-overlays" / str(ordinal)
+        if overlay_path.exists() or overlay_path.is_symlink():
+            raise BuildError(f"source-test overlay destination already exists: {overlay_path}")
+        source_receipt = exact_tree_receipt(source_path)
+        overlay_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source_path, overlay_path, symlinks=True)
+        overlay_receipt = exact_tree_receipt(overlay_path)
+        if overlay_receipt["entries"] != source_receipt["entries"]:
+            raise BuildError("source-test overlay copy differs from the selected source tree")
+        prepared.append(
+            {
+                **declaration,
+                "source_path": str(source_path),
+                "overlay_path": str(overlay_path),
+                "source_before": source_receipt,
+                "overlay_before": overlay_receipt,
+            }
+        )
+    return prepared
+
+
+def inspect_source_test_overlays(
+    prepared: Sequence[Mapping[str, Any]], *, require_complete: bool
+) -> dict[str, Any]:
+    receipts: list[dict[str, Any]] = []
+    all_accepted = True
+    for overlay in prepared:
+        source_after = exact_tree_receipt(Path(overlay["source_path"]))
+        if source_after["entries"] != overlay["source_before"]["entries"]:
+            raise BuildError("selected PostgreSQL source changed during source-test execution")
+        overlay_after = exact_tree_receipt(Path(overlay["overlay_path"]))
+        permitted_generated = set(overlay["permitted_transient_generated_files"])
+        after_by_path = {entry["path"]: entry for entry in overlay_after["entries"]}
+        generated = {
+            path: after_by_path[path]
+            for path in sorted(permitted_generated & set(after_by_path))
+        }
+        retained_entries = [
+            entry
+            for entry in overlay_after["entries"]
+            if entry["path"] not in permitted_generated
+        ]
+        if retained_entries != overlay["overlay_before"]["entries"]:
+            raise BuildError("source-test overlay changed outside its generated-file allowance")
+        for path, entry in generated.items():
+            if entry.get("kind") != "file":
+                raise BuildError(f"source-test generated path is not a file: {path}")
+        absent_after_test = sorted(permitted_generated - set(generated))
+        accepted = require_complete
+        all_accepted = all_accepted and accepted
+        receipts.append(
+            {
+                "target": overlay["target"],
+                "mode": overlay["mode"],
+                "source_relative_path": overlay["source_relative_path"],
+                "source_tree_sha256_before": overlay["source_before"]["tree_sha256"],
+                "source_tree_sha256_after": source_after["tree_sha256"],
+                "overlay_tree_sha256_before": overlay["overlay_before"]["tree_sha256"],
+                "overlay_tree_sha256_after": overlay_after["tree_sha256"],
+                "permitted_transient_generated_files": sorted(permitted_generated),
+                "generated_files_remaining_after_test": generated,
+                "permitted_files_absent_after_test": absent_after_test,
+                "accepted": accepted,
+            }
+        )
+    return {
+        "schema": "laplace.postgresql-source-test-overlay-receipt/v1",
+        "accepted": all_accepted and bool(prepared),
+        "overlays": receipts,
+    }
+
+
+def sandboxed_build_command(
+    contract: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    command: Sequence[str],
+    source_test_overlays: Sequence[Mapping[str, Any]] = (),
+) -> list[str]:
+    receipt = plan["host_build_provider"]
+    executable = contract["host_build_provider"]["sandbox"]["executable"]
+    arguments = [executable, "--die-with-parent", "--unshare-all"]
+    created: set[str] = set()
+
+    def ensure_parents(path: Path) -> None:
+        for parent in reversed(path.parents[:-1]):
+            value = str(parent)
+            if value != "/" and value not in created:
+                arguments.extend(("--dir", value))
+                created.add(value)
+
+    arguments.extend(("--ro-bind", "/usr", "/usr"))
+    created.add("/usr")
+    for target, source in (
+        ("/bin", "usr/bin"),
+        ("/lib", "usr/lib"),
+        ("/lib64", "usr/lib64"),
+        ("/sbin", "usr/sbin"),
+    ):
+        arguments.extend(("--symlink", source, target))
+        created.add(target)
+    for item in receipt["roots"]:
+        path = Path(item["path"])
+        if path == Path("/usr"):
+            continue
+        ensure_parents(path)
+        arguments.extend(("--ro-bind", str(path), str(path)))
+        created.add(str(path))
+    for item in receipt["files"]:
+        path = Path(item["path"])
+        ensure_parents(path)
+        arguments.extend(("--ro-bind", str(path), str(path)))
+    for path_value, writable in (
+        (plan["source_root"], False),
+        (plan["build_toolchain"]["prefix"], False),
+        (plan["build_directory"], True),
+        (plan["stage_directory"], True),
+    ):
+        path = Path(path_value)
+        ensure_parents(path)
+        arguments.extend(
+            ("--bind" if writable else "--ro-bind", str(path), str(path))
+        )
+        created.add(str(path))
+    source_root = Path(plan["source_root"])
+    overlay_root = Path(plan["build_directory"]) / ".source-test-overlays"
+    for overlay in source_test_overlays:
+        source_path = Path(overlay["source_path"])
+        overlay_path = Path(overlay["overlay_path"])
+        if not source_path.is_relative_to(source_root) or not overlay_path.is_relative_to(
+            overlay_root
+        ):
+            raise BuildError("source-test overlay escaped its declared source or build root")
+        arguments.extend(("--bind", str(overlay_path), str(source_path)))
+    arguments.extend(("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"))
+    arguments.extend(("--chdir", plan["build_directory"], "--"))
+    arguments.extend(command)
+    return arguments
+
+
 def create_private_build_directory(path: Path) -> None:
     """Create an owner-only build boundary even below a shared setgid parent."""
     path.mkdir(parents=True)
@@ -1204,23 +1541,72 @@ def execute_plan(
     preflight_path.write_text(
         json.dumps(preflight, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    run_logged(plan["configure_command"], build_directory, environment, log_path)
+    run_logged(
+        sandboxed_build_command(contract, plan, plan["configure_command"]),
+        build_directory,
+        environment,
+        log_path,
+    )
     configure_input_selection = verify_configure_input_selection(
         log_path, environment, preflight
     )
     jobs = str(plan["parallel_jobs"])
     make = plan["build_toolchain"]["tools"]["make"]["path"]
     destination_root = Path(plan["stage_directory"]) / "root"
+    source_test_overlay_receipts: list[dict[str, Any]] = []
     for target in plan["make_targets"]:
         command = [make, f"-j{jobs}", target]
         target_environment = environment
+        source_test_overlays = prepare_source_test_overlays(contract, plan, target)
+        overlay_receipt_path = build_directory / f"source-test-overlays-{target}.json"
         if target == "install-world-bin":
             command.append(f"DESTDIR={destination_root}")
             target_environment = {
                 **environment,
                 "DESTDIR": str(destination_root),
             }
-        run_logged(command, build_directory, target_environment, log_path)
+        try:
+            run_logged(
+                sandboxed_build_command(
+                    contract, plan, command, source_test_overlays
+                ),
+                build_directory,
+                target_environment,
+                log_path,
+            )
+        except BuildError:
+            if source_test_overlays:
+                failed_overlay_receipt = inspect_source_test_overlays(
+                    source_test_overlays, require_complete=False
+                )
+                overlay_receipt_path.write_text(
+                    json.dumps(failed_overlay_receipt, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+            raise
+        if source_test_overlays:
+            overlay_receipt = inspect_source_test_overlays(
+                source_test_overlays, require_complete=True
+            )
+            overlay_receipt_path.write_text(
+                json.dumps(overlay_receipt, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            source_test_overlay_receipts.append(
+                {
+                    **overlay_receipt,
+                    "receipt_path": str(overlay_receipt_path),
+                    "receipt_sha256": sha256_file(overlay_receipt_path),
+                }
+            )
+    io_uring_qualification = qualify_postgresql_io_uring(
+        contract, plan, build_directory, log_path
+    )
+    qualification_path = build_directory / "io-uring-qualification.json"
+    qualification_path.write_text(
+        json.dumps(io_uring_qualification, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     verify_runtime_bytes_in_composed_tree(
         plan, runtime_receipt, allow_additions=True
     )
@@ -1232,6 +1618,16 @@ def execute_plan(
         toolchain=plan["build_toolchain"],
         installed_provider=plan["installed_runtime_provider"],
         closure_output=build_directory / "recursive-elf-closure.json",
+    )
+    host_build_provider_after = verify_host_build_provider(
+        contract, Path(__file__).resolve().parents[2]
+    )
+    if host_build_provider_after != plan["host_build_provider"]:
+        raise BuildError("host build provider changed during PostgreSQL construction")
+    activation_eligible = (
+        io_uring_qualification["accepted"] is True
+        and receipt["recursive_elf_closure_verified"] is True
+        and receipt["runpath_verification"]["package_relative_only"] is True
     )
     receipt.update(
         {
@@ -1248,12 +1644,160 @@ def execute_plan(
             "packaged_runtime_providers": packaged_runtime_providers,
             "build_toolchain": plan["build_toolchain"],
             "release_prefix": plan["release_prefix"],
+            "runtime_provider_qualification": {
+                **io_uring_qualification,
+                "receipt_path": str(qualification_path),
+                "receipt_sha256": sha256_file(qualification_path),
+            },
+            "runtime_provider_qualification_complete": True,
+            "host_build_provider": host_build_provider_after,
+            "source_test_overlays": source_test_overlay_receipts,
+            "build_input_closure_complete": True,
+            "activation_eligible": activation_eligible,
+            "activation_disposition": (
+                "eligible for complete product composition"
+                if activation_eligible
+                else "blocked: selected package qualification did not complete"
+            ),
         }
     )
     (build_directory / "package-receipt.json").write_text(
         json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return receipt
+
+
+def qualify_postgresql_io_uring(
+    contract: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    build_directory: Path,
+    build_log: Path,
+) -> dict[str, Any]:
+    requirement = contract["runtime_qualification"]["liburing"]
+    source_test = Path(plan["source_root"]) / requirement["source_test"]
+    regress_log = build_directory / requirement["regress_log"]
+    server_log = build_directory / requirement["server_log"]
+    for name, path in (
+        ("source test", source_test),
+        ("regress log", regress_log),
+        ("server log", server_log),
+        ("build log", build_log),
+    ):
+        if not path.is_file() or path.is_symlink():
+            raise BuildError(f"PostgreSQL io_uring qualification {name} is absent")
+    if sha256_file(source_test) != requirement["source_test_sha256"]:
+        raise BuildError("PostgreSQL io_uring qualification source test differs")
+
+    regress = regress_log.read_text(encoding="utf-8", errors="strict")
+    supported = ", ".join(requirement["expected_supported_methods"])
+    if f"supported io_method values are: {supported}" not in regress:
+        raise BuildError("PostgreSQL io_uring was not in the supported method set")
+    if "Name: io_uring" not in regress:
+        raise BuildError("PostgreSQL io_uring test node was not created")
+    if "ok 178 - io_uring: initdb" not in regress:
+        raise BuildError("PostgreSQL io_uring initdb assertion did not pass")
+    if "ok 179 - io_uring: io_method set correctly" not in regress:
+        raise BuildError("PostgreSQL did not retain io_method=io_uring")
+    if re.search(r"\bnot ok\b", regress):
+        raise BuildError("PostgreSQL io_uring qualification contains a failed assertion")
+    assertions = [int(value) for value in IO_URING_ASSERTION_PATTERN.findall(regress)]
+    expected_assertions = list(
+        range(
+            requirement["expected_first_assertion"],
+            requirement["expected_last_assertion"] + 1,
+        )
+    )
+    if (
+        assertions != expected_assertions
+        or len(assertions) != requirement["expected_assertion_count"]
+    ):
+        raise BuildError("PostgreSQL io_uring assertion boundary differs")
+    if re.search(
+        rf"\b1\.\.{requirement['expected_test_plan']}\s*$", regress, re.MULTILINE
+    ) is None:
+        raise BuildError("PostgreSQL io_uring TAP plan differs")
+
+    server = server_log.read_text(encoding="utf-8", errors="strict")
+    if (
+        "starting PostgreSQL 18.6" not in server
+        or "database system is ready to accept connections" not in server
+        or "database system is shut down" not in server
+    ):
+        raise BuildError("PostgreSQL io_uring server lifecycle was not completed")
+    build_output = build_log.read_text(encoding="utf-8", errors="strict")
+    if re.search(r"^t/001_aio\.pl\s+\.+\s+ok\s*$", build_output, re.MULTILINE) is None:
+        raise BuildError("PostgreSQL check-world did not report the io_uring TAP file passed")
+
+    runtime = plan["runtime_package"]
+    runtime_requirement = runtime["runtime_provider_qualification"]["requirements"][
+        "liburing"
+    ]
+    execution = runtime["component_test_executions"]["liburing"]
+    if (
+        runtime_requirement["component_checkpoint_sha256"]
+        != runtime["component_checkpoints"]["liburing"]
+        or runtime_requirement["test_execution_sha256"]
+        != canonical_sha256(execution)
+    ):
+        raise BuildError("PostgreSQL qualification lost its liburing input identity")
+
+    uname = os.uname()
+    provider = execution.get("provider_observation")
+    observed_host = {
+        "kernel_sysname": uname.sysname,
+        "kernel_release": uname.release,
+        "kernel_version": uname.version,
+        "machine": uname.machine,
+        "io_uring_disabled": int(
+            Path("/proc/sys/kernel/io_uring_disabled").read_text(encoding="ascii").strip()
+        ),
+    }
+    if not isinstance(provider, dict) or any(
+        provider.get(name) != value for name, value in observed_host.items()
+    ):
+        raise BuildError("PostgreSQL qualification host differs from the liburing test host")
+
+    return {
+        "schema": contract["runtime_qualification"]["schema"],
+        "component": "liburing",
+        "scope": requirement["scope"],
+        "accepted": True,
+        "postgresql_build_input_id": plan["build_input_id"],
+        "postgresql_version": contract["source"]["version"],
+        "runtime_component_checkpoint_sha256": runtime_requirement[
+            "component_checkpoint_sha256"
+        ],
+        "runtime_component_test_execution_sha256": runtime_requirement[
+            "test_execution_sha256"
+        ],
+        "runtime_component_observed_disposition": runtime_requirement[
+            "observed_disposition"
+        ],
+        "host": observed_host,
+        "source_test": {
+            "path": str(source_test),
+            "sha256": sha256_file(source_test),
+        },
+        "regress_log": {
+            "path": str(regress_log),
+            "sha256": sha256_file(regress_log),
+            "io_uring_assertion_count": len(assertions),
+            "first_assertion": assertions[0],
+            "last_assertion": assertions[-1],
+            "test_plan": requirement["expected_test_plan"],
+            "failed_assertion_count": 0,
+        },
+        "server_log": {
+            "path": str(server_log),
+            "sha256": sha256_file(server_log),
+            "lifecycle_complete": True,
+        },
+        "build_log": {
+            "path": str(build_log),
+            "sha256": sha256_file(build_log),
+            "check_world_passed": True,
+        },
+    }
 
 
 def elf_needed(path: Path, readelf: Path) -> set[str]:
@@ -1266,6 +1810,48 @@ def elf_needed(path: Path, readelf: Path) -> set[str]:
     if result.returncode != 0:
         raise BuildError(f"readelf failed for {path}: {result.stderr.strip()}")
     return set(NEEDED_PATTERN.findall(result.stdout))
+
+
+def verify_package_relative_runpaths(prefix: Path, readelf: Path) -> dict[str, Any]:
+    elf_count = 0
+    runpath_entry_count = 0
+    for path in sorted(prefix.rglob("*")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        with path.open("rb") as source:
+            if source.read(4) != b"\x7fELF":
+                continue
+        elf_count += 1
+        result = subprocess.run(
+            [str(readelf), "-d", str(path)], text=True, capture_output=True
+        )
+        if result.returncode != 0:
+            raise BuildError(f"readelf failed while verifying package RUNPATH: {path}")
+        relative = path.relative_to(prefix)
+        for line in result.stdout.splitlines():
+            match = RUNPATH_PATTERN.search(line)
+            if match is None:
+                continue
+            for entry in (item for item in match.group(1).split(":") if item):
+                runpath_entry_count += 1
+                if entry != "$ORIGIN" and not entry.startswith("$ORIGIN/"):
+                    raise BuildError(
+                        f"package ELF has non-package RUNPATH: {relative}: {entry}"
+                    )
+                suffix = entry.removeprefix("$ORIGIN").lstrip("/")
+                resolved = Path(os.path.normpath(path.parent / suffix))
+                try:
+                    resolved.relative_to(prefix)
+                except ValueError as error:
+                    raise BuildError(
+                        f"package ELF RUNPATH escapes package: {relative}: {entry}"
+                    ) from error
+    return {
+        "schema": "laplace.postgresql-runpath-verification/v1",
+        "elf_count": elf_count,
+        "runpath_entry_count": runpath_entry_count,
+        "package_relative_only": True,
+    }
 
 
 def package_tree(prefix: Path, readelf: Path) -> tuple[str, int, int, set[str]]:
@@ -1493,6 +2079,7 @@ def verify_package(
     if "--enable-tap-tests" not in configure:
         raise BuildError("installed PostgreSQL was not built with TAP-test support")
     tree_sha, file_count, total_bytes, needed = package_tree(prefix, readelf)
+    runpath_verification = verify_package_relative_runpaths(prefix, readelf)
     closure = classify_needed(contract, needed)
     if closure["unknown"]:
         raise BuildError("package has undeclared direct ELF dependencies")
@@ -1513,6 +2100,7 @@ def verify_package(
         "file_count": file_count,
         "total_file_bytes": total_bytes,
         "direct_elf_needed": closure,
+        "runpath_verification": runpath_verification,
         "build_input_closure_complete": False,
         "recursive_elf_closure": recursive_closure,
         "recursive_elf_closure_verified": True,

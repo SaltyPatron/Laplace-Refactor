@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import hashlib
 import json
+import os
 import stat
 import sys
 import tempfile
@@ -29,6 +30,150 @@ class PostgreSQLBuildTests(unittest.TestCase):
         return json.loads(
             (REPO_ROOT / "contracts/postgresql-build.json").read_text(encoding="utf-8")
         )
+
+    def test_build_sandbox_is_networkless_and_mounts_only_declared_inputs(self) -> None:
+        contract = self.contract()
+        plan = {
+            "source_root": "/evidence/source",
+            "build_directory": "/work/build",
+            "stage_directory": "/work/stage",
+            "build_toolchain": {"prefix": "/evidence/toolchain"},
+            "host_build_provider": {
+                "roots": [
+                    {"path": "/usr"},
+                    {"path": "/opt/intel/oneapi/compiler/2026.1"},
+                ],
+                "files": [
+                    {"path": "/etc/ld.so.cache"},
+                    {"path": "/etc/nsswitch.conf"},
+                ],
+            },
+        }
+        command = ["/evidence/source/configure", "--disable-rpath"]
+        overlays = [
+            {
+                "source_path": "/evidence/source/src/interfaces/ecpg/preproc/t",
+                "overlay_path": "/work/build/.source-test-overlays/0",
+            }
+        ]
+
+        sandbox = BUILD.sandboxed_build_command(contract, plan, command, overlays)
+
+        self.assertEqual(sandbox[0], contract["host_build_provider"]["sandbox"]["executable"])
+        self.assertIn("--unshare-all", sandbox)
+        self.assertNotIn("--share-net", sandbox)
+        self.assertIn("--tmpfs", sandbox)
+        self.assertIn("/tmp", sandbox)
+        self.assertIn("--proc", sandbox)
+        self.assertIn("--dev", sandbox)
+        for path in (
+            "/usr",
+            "/opt/intel/oneapi/compiler/2026.1",
+            "/etc/ld.so.cache",
+            "/etc/nsswitch.conf",
+            "/evidence/source",
+            "/evidence/toolchain",
+        ):
+            self.assertIn(["--ro-bind", path, path], [sandbox[index : index + 3] for index in range(len(sandbox) - 2)])
+        for path in ("/work/build", "/work/stage"):
+            self.assertIn(["--bind", path, path], [sandbox[index : index + 3] for index in range(len(sandbox) - 2)])
+        self.assertIn(
+            [
+                "--bind",
+                "/work/build/.source-test-overlays/0",
+                "/evidence/source/src/interfaces/ecpg/preproc/t",
+            ],
+            [sandbox[index : index + 3] for index in range(len(sandbox) - 2)],
+        )
+        self.assertEqual(sandbox[-len(command) :], command)
+
+    def test_source_test_overlay_receipts_only_declared_generated_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source/src/interfaces/ecpg/preproc/t"
+            source.mkdir(parents=True)
+            (source / "err_warn_msg.pgc").write_text("EXEC SQL SELECT 1;\n", encoding="utf-8")
+            (source / "err_warn_msg_informix.pgc").write_text(
+                "EXEC SQL SELECT 2;\n", encoding="utf-8"
+            )
+            build = root / "build"
+            build.mkdir()
+            plan = {
+                "source_root": str(root / "source"),
+                "build_directory": str(build),
+            }
+
+            overlays = BUILD.prepare_source_test_overlays(
+                self.contract(), plan, "check-world"
+            )
+            overlay = Path(overlays[0]["overlay_path"])
+            (overlay / "err_warn_msg.c").write_text("generated one\n", encoding="utf-8")
+            (overlay / "err_warn_msg_informix.c").write_text(
+                "generated two\n", encoding="utf-8"
+            )
+
+            receipt = BUILD.inspect_source_test_overlays(
+                overlays, require_complete=True
+            )
+            self.assertTrue(receipt["accepted"])
+            self.assertEqual(
+                set(receipt["overlays"][0]["generated_files_remaining_after_test"]),
+                {"err_warn_msg.c", "err_warn_msg_informix.c"},
+            )
+
+    def test_source_test_overlay_accepts_transient_outputs_removed_by_upstream_test(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source/src/interfaces/ecpg/preproc/t"
+            source.mkdir(parents=True)
+            (source / "err_warn_msg.pgc").write_text(
+                "EXEC SQL SELECT 1;\n", encoding="utf-8"
+            )
+            (source / "err_warn_msg_informix.pgc").write_text(
+                "EXEC SQL SELECT 2;\n", encoding="utf-8"
+            )
+            build = root / "build"
+            build.mkdir()
+            plan = {
+                "source_root": str(root / "source"),
+                "build_directory": str(build),
+            }
+
+            overlays = BUILD.prepare_source_test_overlays(
+                self.contract(), plan, "check-world"
+            )
+            receipt = BUILD.inspect_source_test_overlays(
+                overlays, require_complete=True
+            )
+
+            self.assertTrue(receipt["accepted"])
+            self.assertEqual(
+                receipt["overlays"][0]["generated_files_remaining_after_test"], {}
+            )
+            self.assertEqual(
+                set(receipt["overlays"][0]["permitted_files_absent_after_test"]),
+                {"err_warn_msg.c", "err_warn_msg_informix.c"},
+            )
+
+    def test_source_test_overlay_input_mutation_is_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source/src/interfaces/ecpg/preproc/t"
+            source.mkdir(parents=True)
+            (source / "err_warn_msg.pgc").write_text("selected input\n", encoding="utf-8")
+            build = root / "build"
+            build.mkdir()
+            plan = {
+                "source_root": str(root / "source"),
+                "build_directory": str(build),
+            }
+            overlays = BUILD.prepare_source_test_overlays(
+                self.contract(), plan, "check-world"
+            )
+            overlay = Path(overlays[0]["overlay_path"])
+            (overlay / "err_warn_msg.pgc").write_text("mutated input\n", encoding="utf-8")
+            with self.assertRaisesRegex(BUILD.BuildError, "outside its generated-file"):
+                BUILD.inspect_source_test_overlays(overlays, require_complete=False)
 
     def toolchain_receipt(self, root: Path, contract: dict[str, object]) -> Path:
         prefix = root / "toolchain"
@@ -290,6 +435,184 @@ class PostgreSQLBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.BuildError, "enable TAP"):
             BUILD.validate_contract(contract)
 
+    def test_upstream_absolute_rpath_generation_is_rejected(self) -> None:
+        contract = self.contract()
+        contract["build"]["configure_arguments"].remove("--disable-rpath")
+        with self.assertRaisesRegex(BUILD.BuildError, "absolute rpath"):
+            BUILD.validate_contract(contract)
+
+    def io_uring_fixture(
+        self, root: Path
+    ) -> tuple[dict[str, object], dict[str, object], Path, Path]:
+        contract = self.contract()
+        source = root / "source"
+        build = root / "build"
+        source_test = source / contract["runtime_qualification"]["liburing"][
+            "source_test"
+        ]
+        source_test.parent.mkdir(parents=True)
+        source_test.write_text("fixture io_uring test\n", encoding="utf-8")
+        contract["runtime_qualification"]["liburing"][
+            "source_test_sha256"
+        ] = BUILD.sha256_file(source_test)
+        regress_log = build / contract["runtime_qualification"]["liburing"][
+            "regress_log"
+        ]
+        regress_log.parent.mkdir(parents=True)
+        assertions = [
+            "ok 178 - io_uring: initdb",
+            "ok 179 - io_uring: io_method set correctly",
+            *[
+                f"ok {number} - io_uring: fixture"
+                for number in range(180, 353)
+            ],
+        ]
+        regress_log.write_text(
+            "# supported io_method values are: sync, worker, io_uring\n"
+            "Name: io_uring\n"
+            + "\n".join(assertions)
+            + "\n1..529\n",
+            encoding="utf-8",
+        )
+        server_log = build / contract["runtime_qualification"]["liburing"][
+            "server_log"
+        ]
+        server_log.write_text(
+            "LOG: starting PostgreSQL 18.6\n"
+            "LOG: database system is ready to accept connections\n"
+            "LOG: database system is shut down\n",
+            encoding="utf-8",
+        )
+        build_log = build / "build.log"
+        build_log.write_text("t/001_aio.pl ......... ok\n", encoding="utf-8")
+        uname = os.uname()
+        execution = {
+            "disposition": "failed-under-observed-runtime-provider",
+            "provider_observation": {
+                "kernel_sysname": uname.sysname,
+                "kernel_release": uname.release,
+                "kernel_version": uname.version,
+                "machine": uname.machine,
+                "io_uring_disabled": int(
+                    Path("/proc/sys/kernel/io_uring_disabled")
+                    .read_text(encoding="ascii")
+                    .strip()
+                ),
+            },
+        }
+        plan = {
+            "source_root": str(source),
+            "build_input_id": "a" * 64,
+            "runtime_package": {
+                "component_checkpoints": {"liburing": "b" * 64},
+                "component_test_executions": {"liburing": execution},
+                "runtime_provider_qualification": {
+                    "requirements": {
+                        "liburing": {
+                            "component_checkpoint_sha256": "b" * 64,
+                            "test_execution_sha256": BUILD.canonical_sha256(execution),
+                            "observed_disposition": execution["disposition"],
+                        }
+                    }
+                },
+            },
+        }
+        return contract, plan, build, build_log
+
+    def test_postgresql_selected_io_uring_path_is_qualified(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            contract, plan, build, build_log = self.io_uring_fixture(Path(temporary))
+            receipt = BUILD.qualify_postgresql_io_uring(
+                contract, plan, build, build_log
+            )
+            self.assertTrue(receipt["accepted"])
+            self.assertEqual(receipt["regress_log"]["io_uring_assertion_count"], 175)
+            self.assertEqual(receipt["regress_log"]["test_plan"], 529)
+
+    def test_io_uring_failed_assertion_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            contract, plan, build, build_log = self.io_uring_fixture(Path(temporary))
+            regress = build / contract["runtime_qualification"]["liburing"][
+                "regress_log"
+            ]
+            regress.write_text(
+                regress.read_text(encoding="utf-8").replace(
+                    "ok 200 - io_uring:", "not ok 200 - io_uring:"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BUILD.BuildError, "failed assertion"):
+                BUILD.qualify_postgresql_io_uring(contract, plan, build, build_log)
+
+    def test_io_uring_assertion_boundary_mutation_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            contract, plan, build, build_log = self.io_uring_fixture(Path(temporary))
+            regress = build / contract["runtime_qualification"]["liburing"][
+                "regress_log"
+            ]
+            regress.write_text(
+                regress.read_text(encoding="utf-8").replace(
+                    "ok 352 - io_uring: fixture\n", ""
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BUILD.BuildError, "assertion boundary"):
+                BUILD.qualify_postgresql_io_uring(contract, plan, build, build_log)
+
+    def test_io_uring_provider_host_mutation_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            contract, plan, build, build_log = self.io_uring_fixture(Path(temporary))
+            plan["runtime_package"]["component_test_executions"]["liburing"][
+                "provider_observation"
+            ]["kernel_release"] = "different"
+            execution = plan["runtime_package"]["component_test_executions"][
+                "liburing"
+            ]
+            plan["runtime_package"]["runtime_provider_qualification"]["requirements"][
+                "liburing"
+            ]["test_execution_sha256"] = BUILD.canonical_sha256(execution)
+            with self.assertRaisesRegex(BUILD.BuildError, "host differs"):
+                BUILD.qualify_postgresql_io_uring(contract, plan, build, build_log)
+
+    def test_absolute_installed_runpath_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary)
+            binary = prefix / "pgsql-18/bin/postgres"
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b"\x7fELFfixture")
+            observed = mock.Mock(
+                returncode=0,
+                stdout=(
+                    " 0x000000000000001d (RUNPATH) Library runpath: "
+                    "[$ORIGIN:/opt/laplace/current/pgsql-18/lib]\n"
+                ),
+                stderr="",
+            )
+            with mock.patch.object(BUILD.subprocess, "run", return_value=observed):
+                with self.assertRaisesRegex(BUILD.BuildError, "non-package RUNPATH"):
+                    BUILD.verify_package_relative_runpaths(prefix, Path("/readelf"))
+
+    def test_package_relative_installed_runpath_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary)
+            binary = prefix / "pgsql-18/bin/postgres"
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b"\x7fELFfixture")
+            observed = mock.Mock(
+                returncode=0,
+                stdout=(
+                    " 0x000000000000001d (RUNPATH) Library runpath: "
+                    "[$ORIGIN:$ORIGIN/../lib:$ORIGIN/../../lib]\n"
+                ),
+                stderr="",
+            )
+            with mock.patch.object(BUILD.subprocess, "run", return_value=observed):
+                receipt = BUILD.verify_package_relative_runpaths(
+                    prefix, Path("/readelf")
+                )
+            self.assertTrue(receipt["package_relative_only"])
+            self.assertEqual(receipt["runpath_entry_count"], 3)
+
     def test_tap_perl_module_selection_cannot_be_narrowed(self) -> None:
         contract = self.contract()
         contract["build_toolchain"]["required_perl_modules"].pop("IPC::Run")
@@ -304,20 +627,26 @@ class PostgreSQLBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.BuildError, "selected bundled tzdata"):
             BUILD.validate_contract(contract)
 
-    def test_incomplete_build_input_closure_is_explicit_and_fail_closed(self) -> None:
+    def test_closed_build_input_provider_boundary_is_explicit_and_fail_closed(self) -> None:
         contract = self.contract()
-        self.assertEqual(contract["input_closure"]["status"], "incomplete")
-        self.assertTrue(contract["input_closure"]["unselected_host_inputs"])
-        contract["input_closure"]["status"] = "complete"
-        with self.assertRaisesRegex(BUILD.BuildError, "must remain incomplete"):
+        self.assertEqual(contract["input_closure"]["status"], "complete")
+        self.assertEqual(contract["input_closure"]["unselected_host_inputs"], [])
+        contract["input_closure"]["status"] = "incomplete"
+        with self.assertRaisesRegex(BUILD.BuildError, "must remain complete"):
             BUILD.validate_contract(contract)
 
-    def test_toolchain_linker_receipt_cannot_impersonate_intel_build_trace(self) -> None:
+    def test_source_test_overlay_boundary_cannot_be_widened(self) -> None:
         contract = self.contract()
-        contract["input_closure"]["unselected_host_inputs"].remove(
-            "Intel-compiler-selected platform ABI startup objects static archives and support libraries for the PostgreSQL build"
-        )
-        with self.assertRaisesRegex(BUILD.BuildError, "unselected_host_inputs"):
+        contract["build"]["source_test_overlays"][0][
+            "permitted_transient_generated_files"
+        ].append("unexpected.c")
+        with self.assertRaisesRegex(BUILD.BuildError, "overlay boundary"):
+            BUILD.validate_contract(contract)
+
+    def test_host_provider_receipt_cannot_become_an_ambient_relative_path(self) -> None:
+        contract = self.contract()
+        contract["host_build_provider"]["receipt"] = "ambient/receipt.json"
+        with self.assertRaisesRegex(BUILD.BuildError, "must be absolute"):
             BUILD.validate_contract(contract)
 
     def test_bootstrap_input_selection_cannot_be_narrowed(self) -> None:
@@ -444,6 +773,9 @@ class PostgreSQLBuildTests(unittest.TestCase):
             (verifier.parent / "elf-closure.py").write_text(
                 "elf-closure-v1", encoding="utf-8"
             )
+            host_verifier = root / "tools/postgresql/host-provider.py"
+            host_verifier.parent.mkdir(parents=True)
+            host_verifier.write_text("host-provider-v1", encoding="utf-8")
             driver = root / "driver.py"
             driver.write_text("driver-v1", encoding="utf-8")
             first = BUILD.build_recipe_identity(self.contract(), root, driver)
@@ -897,8 +1229,10 @@ class PostgreSQLBuildTests(unittest.TestCase):
             plan = {
                 "build_directory": str(build),
                 "stage_directory": str(root / "stage"),
+                "source_root": str(root / "source"),
                 "staged_product_prefix": str(root / "stage/root/opt/laplace/current"),
                 "build_toolchain": {
+                    "prefix": "/toolchain",
                     "tools": {
                         "make": {"path": selected_make},
                         "readelf": {"path": "/toolchain/bin/readelf"},
@@ -912,6 +1246,7 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 "build_input_id": "6" * 64,
                 "recipe": {"driver": "fixture"},
                 "release_prefix": "/opt/laplace/releases/fixture",
+                "host_build_provider": {"provider_id": "8" * 64},
             }
             captured: list[list[str]] = []
 
@@ -927,11 +1262,30 @@ class PostgreSQLBuildTests(unittest.TestCase):
             ), mock.patch.object(
                 BUILD, "verify_configure_input_selection", return_value={}
             ), mock.patch.object(
+                BUILD, "prepare_source_test_overlays", return_value=[]
+            ), mock.patch.object(
                 BUILD, "run_logged", side_effect=capture
             ), mock.patch.object(
                 BUILD, "verify_runtime_bytes_in_composed_tree"
             ), mock.patch.object(
-                BUILD, "verify_package", return_value={}
+                BUILD,
+                "qualify_postgresql_io_uring",
+                return_value={"schema": "fixture", "accepted": True},
+            ), mock.patch.object(
+                BUILD,
+                "verify_package",
+                return_value={
+                    "recursive_elf_closure_verified": True,
+                    "runpath_verification": {"package_relative_only": True},
+                },
+            ), mock.patch.object(
+                BUILD,
+                "sandboxed_build_command",
+                side_effect=lambda _contract, _plan, command, _overlays=(): list(command),
+            ), mock.patch.object(
+                BUILD,
+                "verify_host_build_provider",
+                return_value=plan["host_build_provider"],
             ), mock.patch.object(
                 BUILD, "sha256_file", return_value="7" * 64
             ):
@@ -1015,6 +1369,10 @@ class PostgreSQLBuildTests(unittest.TestCase):
                 BUILD, "verify_toolchain_receipt", return_value=toolchain
             ), mock.patch.object(
                 BUILD, "verify_runtime_receipt", return_value=runtime
+            ), mock.patch.object(
+                BUILD,
+                "verify_host_build_provider",
+                return_value={"provider_id": "a" * 64},
             ), mock.patch.object(
                 BUILD,
                 "verify_installed_runtime_provider",

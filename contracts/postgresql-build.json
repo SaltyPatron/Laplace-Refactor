@@ -119,8 +119,36 @@
       }
     }
   },
+  "runtime_qualification": {
+    "schema": "laplace.runtime-provider-qualification/v1",
+    "liburing": {
+      "scope": "postgresql-18.6-selected-io_uring-product-path",
+      "source_test": "src/test/modules/test_aio/t/001_aio.pl",
+      "source_test_sha256": "2193d3c4c99cab233df41e55258728ece9bc0169e20293fbf1033bef1792d912",
+      "regress_log": "src/test/modules/test_aio/tmp_check/log/regress_log_001_aio",
+      "server_log": "src/test/modules/test_aio/tmp_check/log/001_aio_io_uring.log",
+      "expected_supported_methods": ["sync", "worker", "io_uring"],
+      "expected_assertion_count": 175,
+      "expected_first_assertion": 178,
+      "expected_last_assertion": 352,
+      "expected_test_plan": 529
+    }
+  },
+  "host_build_provider": {
+    "schema": "laplace.postgresql-host-build-provider/v1",
+    "provider_id": "0b3378486ff5e39942b19b6292644e69573ad2b802307e095968aa148ca29e18",
+    "receipt": "/build/laplace/build/postgresql-host-provider/0b3378486ff5e39942b19b6292644e69573ad2b802307e095968aa148ca29e18/host-provider-receipt.json",
+    "receipt_sha256": "f831a5ab29e421a9d0b9eb72cc855e534d9113ef4d8a4c114f7e62bc0886caad",
+    "verifier": "tools/postgresql/host-provider.py",
+    "sandbox": {
+      "executable": "/usr/bin/bwrap",
+      "mode": "unshared-read-only-selected-host-provider",
+      "network": "unshared",
+      "ephemeral": ["/dev", "/proc", "/tmp"]
+    }
+  },
   "input_closure": {
-    "status": "incomplete",
+    "status": "complete",
     "selected_exact_inputs": [
       "PostgreSQL release archive and expanded tree",
       "Intel oneAPI C compiler executable",
@@ -137,14 +165,15 @@
       "Laplace recursive ELF closure verifier",
       "exact installed Intel runtime provider selection",
       "exact compiler and platform ABI inputs from the toolchain linker receipt",
-      "exact Python and POSIX shell executables from the toolchain bootstrap receipt"
+      "exact Python and POSIX shell executables from the toolchain bootstrap receipt",
+      "content-addressed /usr host provider including Python standard library configure utilities headers startup objects static archives and support libraries",
+      "content-addressed Intel oneAPI 2026.1 compiler provider root",
+      "selected host identity and exact loader account locale files",
+      "unshared read-only build sandbox exposing only selected persistent providers",
+      "declared copy-on-write upstream source-test overlays with exact generated-file receipts",
+      "PostgreSQL-selected io_uring runtime qualification bound to the runtime component receipt and host kernel"
     ],
-    "unselected_host_inputs": [
-      "Python standard library and imported runtime providers",
-      "configure-time host utilities",
-      "Intel-compiler-selected platform ABI startup objects static archives and support libraries for the PostgreSQL build",
-      "selected kernel and runtime-provider qualification for PostgreSQL io_uring execution"
-    ],
+    "unselected_host_inputs": [],
     "activation_policy": "blocked-until-all-build-and-runtime-inputs-are-selected-packaged-and-receipted"
   },
   "build": {
@@ -158,6 +187,7 @@
       "--with-lz4",
       "--with-zstd",
       "--with-liburing",
+      "--disable-rpath",
       "--enable-tap-tests"
     ],
     "c_flags": [
@@ -183,6 +213,17 @@
       "absolute_build_root_in_file_macro": "forbidden",
       "absolute_build_root_in_debug_info": "forbidden"
     },
+    "source_test_overlays": [
+      {
+        "target": "check-world",
+        "mode": "copy-on-write-exact-source-shadow",
+        "source_relative_path": "src/interfaces/ecpg/preproc/t",
+        "permitted_transient_generated_files": [
+          "err_warn_msg.c",
+          "err_warn_msg_informix.c"
+        ]
+      }
+    ],
     "make_targets": ["world-bin", "check-world", "install-world-bin"],
     "parallel_jobs": 6,
     "build_directory_mode": "0700",

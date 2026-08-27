@@ -78,6 +78,8 @@ set_target_properties(laplace_unicode_numeric PROPERTIES
     OUTPUT_NAME laplace_unicode_numeric
     VERSION "${PROJECT_VERSION}"
     SOVERSION "${PROJECT_VERSION_MAJOR}"
+    INSTALL_RPATH "$ORIGIN"
+    INSTALL_RPATH_USE_LINK_PATH FALSE
     C_VISIBILITY_PRESET hidden
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON)
@@ -87,6 +89,8 @@ set_target_properties(laplace_engine PROPERTIES
     OUTPUT_NAME laplace_engine
     VERSION 2.0.0
     SOVERSION 2
+    INSTALL_RPATH "$ORIGIN"
+    INSTALL_RPATH_USE_LINK_PATH FALSE
     C_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON)
 target_include_directories(laplace_engine

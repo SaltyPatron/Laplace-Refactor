@@ -553,6 +553,11 @@ def verify_package(
     for name, version in contract["package"]["required_capabilities"].items():
         if capabilities.get(name) != version:
             raise ClusterError(f"package capability {name}={version} is required")
+    if manifest.get("activation_eligible") is not True:
+        raise ClusterError("package is not activation eligible")
+    gates = manifest.get("activation_gates")
+    if not isinstance(gates, dict) or not gates or any(value is not True for value in gates.values()):
+        raise ClusterError("every package activation gate must be proven")
     environment = manifest.get("loader_environment")
     if not isinstance(environment, dict):
         raise ClusterError("package loader_environment is required")
@@ -568,6 +573,9 @@ def verify_package(
         if not isinstance(entry, dict):
             raise ClusterError("package file entry must be an object")
         relative = require_relative_path(entry.get("path"), f"package.files[{index}].path")
+        kind = entry.get("kind", "file")
+        if kind not in {"file", "symlink"}:
+            raise ClusterError(f"package file {relative} has unsupported kind")
         digest = entry.get("sha256")
         if HEX_256.fullmatch(digest or "") is None:
             raise ClusterError(f"package file {relative} has invalid SHA-256")
@@ -583,9 +591,32 @@ def verify_package(
             resolved = posixpath.normpath(posixpath.join(posixpath.dirname(relative), suffix))
             if resolved == ".." or resolved.startswith("../"):
                 raise ClusterError(f"package file {relative} has escaping RUNPATH")
-        mode = entry.get("mode")
-        if not isinstance(mode, int) or mode & 0o022 or mode not in (0o644, 0o755):
-            raise ClusterError(f"package file {relative} has unsafe or invalid mode")
+        if kind == "file":
+            mode = entry.get("mode")
+            if not isinstance(mode, int) or mode & 0o022 or mode not in (0o644, 0o755):
+                raise ClusterError(f"package file {relative} has unsafe or invalid mode")
+            if entry.get("target") is not None:
+                raise ClusterError(f"package file {relative} cannot declare a symlink target")
+        else:
+            target = entry.get("target")
+            if (
+                not isinstance(target, str)
+                or not target
+                or target.startswith("/")
+                or PurePosixPath(target).is_absolute()
+            ):
+                raise ClusterError(f"package symlink {relative} has an unsafe target")
+            resolved = posixpath.normpath(
+                posixpath.join(posixpath.dirname(relative), target)
+            )
+            if resolved == ".." or resolved.startswith("../"):
+                raise ClusterError(f"package symlink {relative} escapes its package")
+            if entry.get("mode") is not None:
+                raise ClusterError(f"package symlink {relative} cannot declare a mode")
+            if runpath:
+                raise ClusterError(f"package symlink {relative} cannot declare RUNPATH")
+            if digest != sha256_bytes(target.encode("utf-8")):
+                raise ClusterError(f"package symlink {relative} digest differs from target")
         files[relative] = entry
     missing = sorted(set(contract["package"]["required_files"]) - set(files))
     if missing:
@@ -616,13 +647,27 @@ def verify_package(
             candidate.resolve().relative_to(expected_physical_root.resolve())
         except (OSError, ValueError):
             return PackageStatus(False, f"package file escapes its root: {relative}", manifest_sha, files)
-        if not candidate.is_file() or candidate.is_symlink():
-            return PackageStatus(False, f"package file is absent: {relative}", manifest_sha, files)
-        if sha256_file(candidate) != entry["sha256"]:
-            return PackageStatus(False, f"package file digest differs: {relative}", manifest_sha, files)
-        mode = entry.get("mode")
-        if not isinstance(mode, int) or stat.S_IMODE(candidate.stat().st_mode) != mode:
-            return PackageStatus(False, f"package file mode differs: {relative}", manifest_sha, files)
+        if entry.get("kind", "file") == "symlink":
+            if not candidate.is_symlink():
+                return PackageStatus(False, f"package symlink is absent: {relative}", manifest_sha, files)
+            target = os.readlink(candidate)
+            if target != entry["target"] or sha256_bytes(target.encode("utf-8")) != entry["sha256"]:
+                return PackageStatus(False, f"package symlink differs: {relative}", manifest_sha, files)
+            if not candidate.exists():
+                return PackageStatus(
+                    False,
+                    f"package symlink target is absent: {relative}",
+                    manifest_sha,
+                    files,
+                )
+        else:
+            if not candidate.is_file() or candidate.is_symlink():
+                return PackageStatus(False, f"package file is absent: {relative}", manifest_sha, files)
+            if sha256_file(candidate) != entry["sha256"]:
+                return PackageStatus(False, f"package file digest differs: {relative}", manifest_sha, files)
+            mode = entry.get("mode")
+            if not isinstance(mode, int) or stat.S_IMODE(candidate.stat().st_mode) != mode:
+                return PackageStatus(False, f"package file mode differs: {relative}", manifest_sha, files)
     return PackageStatus(True, "all package files and modes verified", manifest_sha, files)
 
 

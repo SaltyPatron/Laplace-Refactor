@@ -726,11 +726,23 @@ set_tests_properties(postgresql-build.contract-and-mutation PROPERTIES
     LABELS "build;package;postgresql;mutation")
 
 add_test(
+    NAME postgresql-host-provider.contract-and-mutation
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_host_provider_tests.py")
+set_tests_properties(postgresql-host-provider.contract-and-mutation PROPERTIES
+    LABELS "build;package;postgresql;host-provider;mutation")
+
+add_test(
     NAME postgresql-cluster.activation-contract
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_cluster_tests.py")
 set_tests_properties(postgresql-cluster.activation-contract PROPERTIES
     LABELS "activation;package;postgresql;security;topology;mutation"
     RUN_SERIAL TRUE)
+
+add_test(
+    NAME product-package.contract-and-mutation
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/product_package_tests.py")
+set_tests_properties(product-package.contract-and-mutation PROPERTIES
+    LABELS "build;package;product;postgresql;activation;mutation")
 
 add_test(
     NAME dependencies.runtime-build-graph-contract
