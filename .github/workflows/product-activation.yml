@@ -72,12 +72,14 @@ jobs:
           test "$GITHUB_EVENT_NAME" = workflow_dispatch
           git diff --quiet
           git diff --cached --quiet
-          postgresql_receipt=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.package_receipt' state/continuation.json)
-          expected_sha=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.package_receipt_sha256' state/continuation.json)
-          test -f "$postgresql_receipt"
-          test ! -L "$postgresql_receipt"
-          test "$(sha256sum "$postgresql_receipt" | awk '{print $1}')" = "$expected_sha"
-          printf 'postgresql_receipt=%s\n' "$postgresql_receipt" >> "$GITHUB_OUTPUT"
+          postgresql_publication=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.publication.receipt' state/continuation.json)
+          expected_sha=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.publication.receipt_sha256' state/continuation.json)
+          test -f "$postgresql_publication"
+          test ! -L "$postgresql_publication"
+          test "$(sha256sum "$postgresql_publication" | awk '{print $1}')" = "$expected_sha"
+          python3 tools/delivery/postgresql_package_publication.py verify \
+            --receipt "$postgresql_publication" >/dev/null
+          printf 'postgresql_publication=%s\n' "$postgresql_publication" >> "$GITHUB_OUTPUT"
       - name: Compose or verify the exact content-addressed product package
         id: compose
         shell: bash
@@ -85,14 +87,14 @@ jobs:
           set -euo pipefail
           plan="$RUNNER_TEMP/laplace-product-plan.json"
           python3 tools/product/build-package.py plan \
-            --postgresql-receipt '${{ steps.inputs.outputs.postgresql_receipt }}' > "$plan"
+            --postgresql-publication '${{ steps.inputs.outputs.postgresql_publication }}' > "$plan"
           build_directory=$(jq -er '.build_directory' "$plan")
           expected_plan_sha=$(jq -er '.plan_sha256' "$plan")
           product_receipt="$build_directory/package-receipt.json"
           if [[ ! -f "$product_receipt" ]]; then
             result="$RUNNER_TEMP/laplace-product-build-result.json"
             python3 tools/product/build-package.py build \
-              --postgresql-receipt '${{ steps.inputs.outputs.postgresql_receipt }}' > "$result"
+              --postgresql-publication '${{ steps.inputs.outputs.postgresql_publication }}' > "$result"
             product_receipt=$(jq -er '.manifest' "$result" | sed 's|/package-manifest.json$|/package-receipt.json|')
           fi
           test -f "$product_receipt"

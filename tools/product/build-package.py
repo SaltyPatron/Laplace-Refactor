@@ -20,6 +20,7 @@ CONTRACT_SCHEMA = "laplace.product-package-contract/v1"
 MANIFEST_SCHEMA = "laplace.package-manifest/v1"
 RECEIPT_SCHEMA = "laplace.product-package-receipt/v1"
 PLAN_SCHEMA = "laplace.product-package-plan/v1"
+PUBLICATION_SCHEMA = "laplace.postgresql-package-publication-receipt/v1"
 QUALIFICATION_SCHEMA = "laplace.runtime-provider-qualification/v1"
 HEX_256 = re.compile(r"^[0-9a-f]{64}$")
 RUNPATH_PATTERN = re.compile(r"\((?:RUNPATH|RPATH)\).*\[([^]]*)\]")
@@ -114,6 +115,8 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ProductPackageError("product package contract sections must be objects")
     if postgresql.get("receipt_schema") != "laplace.postgresql-package-receipt/v2":
         raise ProductPackageError("PostgreSQL package receipt schema is invalid")
+    if postgresql.get("publication_receipt_schema") != PUBLICATION_SCHEMA:
+        raise ProductPackageError("PostgreSQL publication receipt schema is invalid")
     if postgresql.get("version") != "PostgreSQL 18.6":
         raise ProductPackageError("product package must select exact PostgreSQL 18.6")
     if postgresql.get("logical_prefix") != "/opt/laplace/current/pgsql-18":
@@ -357,17 +360,188 @@ def verify_receipted_file(record: Mapping[str, Any], field: str) -> Path:
     return path
 
 
-def verify_product_toolchain(postgresql: Mapping[str, Any]) -> dict[str, Any]:
+def published_tree_receipt(root: Path) -> dict[str, Any]:
+    if not root.is_dir() or root.is_symlink():
+        raise ProductPackageError(f"published package root must be physical: {root}")
+    digest = hashlib.sha256()
+    file_count = 0
+    symlink_count = 0
+    directory_count = 0
+    total_file_bytes = 0
+    for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
+        relative_text = path.relative_to(root).as_posix()
+        relative = relative_text.encode("utf-8")
+        mode = stat.S_IMODE(path.lstat().st_mode)
+        if path.is_symlink():
+            kind = b"symlink"
+            target = os.readlink(path)
+            target_path = Path(target)
+            if target_path.is_absolute():
+                raise ProductPackageError(
+                    f"published package has an absolute symlink: {relative_text}"
+                )
+            resolved = (path.parent / target_path).resolve(strict=False)
+            try:
+                resolved.relative_to(root.resolve())
+            except ValueError as error:
+                raise ProductPackageError(
+                    f"published package symlink escapes its root: {relative_text}"
+                ) from error
+            if not resolved.exists():
+                raise ProductPackageError(
+                    f"published package symlink is broken: {relative_text}"
+                )
+            content = target.encode("utf-8")
+            symlink_count += 1
+        elif path.is_file():
+            kind = b"file"
+            content = sha256_file(path).encode("ascii")
+            file_count += 1
+            total_file_bytes += path.stat().st_size
+        elif path.is_dir():
+            kind = b"directory"
+            content = b""
+            directory_count += 1
+        else:
+            raise ProductPackageError(
+                f"published package has an unsupported object: {relative_text}"
+            )
+        for field in (relative, kind, str(mode).encode("ascii"), content):
+            digest.update(len(field).to_bytes(8, "big"))
+            digest.update(field)
+    return {
+        "tree_sha256": digest.hexdigest(),
+        "file_count": file_count,
+        "symlink_count": symlink_count,
+        "directory_count": directory_count,
+        "total_file_bytes": total_file_bytes,
+    }
+
+
+def verify_postgresql_publication(
+    contract: Mapping[str, Any], publication_path: Path
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not publication_path.is_file() or publication_path.is_symlink():
+        raise ProductPackageError("PostgreSQL publication receipt must be a physical file")
+    publication = load_json(publication_path)
+    if publication.get("schema") != contract["postgresql"][
+        "publication_receipt_schema"
+    ]:
+        raise ProductPackageError("PostgreSQL publication receipt schema differs")
+    recorded_path = require_absolute(
+        publication.get("receipt_path"), "postgresql_publication.receipt_path"
+    )
+    if recorded_path != publication_path.resolve():
+        raise ProductPackageError("PostgreSQL publication receipt path differs")
+    self_digest = require_string(
+        publication.get("receipt_sha256"), "postgresql_publication.receipt_sha256"
+    )
+    payload = dict(publication)
+    payload.pop("receipt_sha256", None)
+    if HEX_256.fullmatch(self_digest) is None or canonical_sha256(payload) != self_digest:
+        raise ProductPackageError("PostgreSQL publication receipt self-digest differs")
+    root = require_absolute(
+        publication.get("publication_root"), "postgresql_publication.publication_root"
+    )
+    if not root.is_dir() or root.is_symlink():
+        raise ProductPackageError("PostgreSQL publication root is absent")
+    source_record = publication.get("source_receipt")
+    postgresql_record = publication.get("postgresql")
+    toolchain_record = publication.get("toolchain")
+    host_record = publication.get("host_provider")
+    if not all(
+        isinstance(item, dict)
+        for item in (source_record, postgresql_record, toolchain_record, host_record)
+    ):
+        raise ProductPackageError("PostgreSQL publication receipt is incomplete")
+    source_path = require_absolute(
+        source_record.get("path"), "postgresql_publication.source_receipt.path"
+    )
+    source_sha256 = require_string(
+        source_record.get("sha256"), "postgresql_publication.source_receipt.sha256"
+    )
+    if (
+        not source_path.is_relative_to(root)
+        or not source_path.is_file()
+        or source_path.is_symlink()
+        or HEX_256.fullmatch(source_sha256) is None
+        or sha256_file(source_path) != source_sha256
+    ):
+        raise ProductPackageError("published PostgreSQL source receipt bytes differ")
+    source = load_json(source_path)
+    if (
+        source.get("schema") != contract["postgresql"]["receipt_schema"]
+        or source.get("version") != contract["postgresql"]["version"]
+        or source.get("build_input_id") != publication.get("build_input_id")
+        or source.get("tree_sha256") != publication.get("postgresql_tree_sha256")
+        or source.get("activation_eligible") is not True
+        or source.get("build_input_closure_complete") is not True
+        or source.get("runtime_provider_qualification_complete") is not True
+        or source.get("recursive_elf_closure_verified") is not True
+    ):
+        raise ProductPackageError("published PostgreSQL source proof state differs")
+    for name, record in (
+        ("postgresql", postgresql_record),
+        ("toolchain", toolchain_record),
+    ):
+        prefix = require_absolute(
+            record.get("prefix"), f"postgresql_publication.{name}.prefix"
+        )
+        if not prefix.is_relative_to(root):
+            raise ProductPackageError(f"published {name} prefix escaped publication root")
+        observed = published_tree_receipt(prefix)
+        for field in (
+            "tree_sha256",
+            "file_count",
+            "symlink_count",
+            "directory_count",
+            "total_file_bytes",
+        ):
+            if observed[field] != record.get(field):
+                raise ProductPackageError(f"published {name} package differs: {field}")
+    if postgresql_record.get("tree_sha256") != source.get("tree_sha256"):
+        raise ProductPackageError("published PostgreSQL tree differs from source receipt")
+    for name, record in (("toolchain", toolchain_record), ("host provider", host_record)):
+        receipt = require_absolute(
+            record.get("source_receipt"),
+            f"postgresql_publication.{name}.source_receipt",
+        )
+        digest = require_string(
+            record.get("source_receipt_sha256"),
+            f"postgresql_publication.{name}.source_receipt_sha256",
+        )
+        if (
+            not receipt.is_relative_to(root)
+            or not receipt.is_file()
+            or receipt.is_symlink()
+            or HEX_256.fullmatch(digest) is None
+            or sha256_file(receipt) != digest
+        ):
+            raise ProductPackageError(f"published {name} receipt bytes differ")
+    if publication.get("publication_complete") is not True:
+        raise ProductPackageError("PostgreSQL publication is incomplete")
+    return publication, source
+
+
+def verify_product_toolchain(
+    postgresql: Mapping[str, Any], publication: Mapping[str, Any]
+) -> dict[str, Any]:
     selected = postgresql.get("build_toolchain")
     if not isinstance(selected, dict):
         raise ProductPackageError("PostgreSQL receipt omits its selected build toolchain")
+    published = publication.get("toolchain")
+    if not isinstance(published, dict):
+        raise ProductPackageError("PostgreSQL publication omits its toolchain")
     receipt_path = require_absolute(
-        selected.get("receipt_path"), "postgresql_receipt.build_toolchain.receipt_path"
+        published.get("source_receipt"),
+        "postgresql_publication.toolchain.source_receipt",
     )
     receipt_sha256 = require_string(
-        selected.get("receipt_sha256"),
-        "postgresql_receipt.build_toolchain.receipt_sha256",
+        published.get("source_receipt_sha256"),
+        "postgresql_publication.toolchain.source_receipt_sha256",
     )
+    if receipt_sha256 != selected.get("receipt_sha256"):
+        raise ProductPackageError("published and selected toolchain receipts differ")
     if (
         not receipt_path.is_file()
         or receipt_path.is_symlink()
@@ -381,30 +555,19 @@ def verify_product_toolchain(postgresql: Mapping[str, Any]) -> dict[str, Any]:
     ):
         raise ProductPackageError("selected build-toolchain receipt identity differs")
     package = receipt.get("package")
-    if not isinstance(package, dict):
+    manifest = receipt.get("consumer_manifest")
+    if not isinstance(package, dict) or not isinstance(manifest, dict):
         raise ProductPackageError("build-toolchain receipt omits its consumer manifest")
-    manifest_path = require_absolute(
-        package.get("consumer_manifest_path"),
-        "build_toolchain.package.consumer_manifest_path",
-    )
-    manifest_sha256 = require_string(
-        package.get("consumer_manifest_sha256"),
-        "build_toolchain.package.consumer_manifest_sha256",
-    )
-    prefix = require_absolute(package.get("prefix"), "build_toolchain.package.prefix")
-    if (
-        not manifest_path.is_file()
-        or manifest_path.is_symlink()
-        or sha256_file(manifest_path) != manifest_sha256
-        or not prefix.is_dir()
-        or prefix.is_symlink()
-    ):
-        raise ProductPackageError("build-toolchain consumer manifest or prefix differs")
-    manifest = load_json(manifest_path)
+    source_prefix = require_absolute(package.get("prefix"), "build_toolchain.package.prefix")
+    if str(source_prefix) != published.get("source_prefix"):
+        raise ProductPackageError("published toolchain source prefix differs")
+    prefix = require_absolute(published.get("prefix"), "published toolchain prefix")
+    if not prefix.is_dir() or prefix.is_symlink():
+        raise ProductPackageError("published build-toolchain prefix is absent")
     if (
         manifest.get("schema") != "laplace.toolchain-consumer-manifest/v1"
         or manifest.get("build_input_id") != selected.get("build_input_id")
-        or Path(str(manifest.get("prefix", ""))) != prefix
+        or Path(str(manifest.get("prefix", ""))) != source_prefix
     ):
         raise ProductPackageError("build-toolchain consumer manifest identity differs")
     tools = manifest.get("tools")
@@ -416,12 +579,18 @@ def verify_product_toolchain(postgresql: Mapping[str, Any]) -> dict[str, Any]:
         record = tools.get(name)
         if not isinstance(record, dict):
             raise ProductPackageError(f"build-toolchain omits selected {name}")
-        path = verify_receipted_file(record, f"build_toolchain.tools.{name}")
-        if not path.is_relative_to(prefix):
+        source_path = require_absolute(record.get("path"), f"build_toolchain.tools.{name}.path")
+        if not source_path.is_relative_to(source_prefix):
             raise ProductPackageError(f"selected {name} escaped the toolchain prefix")
-        verified_tools[name] = dict(record)
+        path = prefix / source_path.relative_to(source_prefix)
+        mapped = {**record, "path": str(path)}
+        verify_receipted_file(mapped, f"published build_toolchain.tools.{name}")
+        verified_tools[name] = mapped
     selected_readelf = selected.get("tools", {}).get("readelf")
-    if selected_readelf != verified_tools["readelf"]:
+    if not isinstance(selected_readelf, dict) or any(
+        selected_readelf.get(field) != verified_tools["readelf"].get(field)
+        for field in ("sha256", "version")
+    ):
         raise ProductPackageError("PostgreSQL and product toolchain readelf differ")
     return {
         "schema": "laplace.product-build-toolchain/v1",
@@ -429,8 +598,8 @@ def verify_product_toolchain(postgresql: Mapping[str, Any]) -> dict[str, Any]:
         "receipt_path": str(receipt_path),
         "receipt_sha256": receipt_sha256,
         "prefix": str(prefix),
-        "consumer_manifest_path": str(manifest_path),
-        "consumer_manifest_sha256": manifest_sha256,
+        "source_prefix": str(source_prefix),
+        "consumer_manifest_sha256": canonical_sha256(manifest),
         "tools": verified_tools,
     }
 
@@ -490,20 +659,29 @@ def exact_file_receipt(path: Path) -> dict[str, Any]:
 
 
 def verify_host_build_provider(
-    contract: Mapping[str, Any], repository: Path, postgresql: Mapping[str, Any]
+    contract: Mapping[str, Any],
+    repository: Path,
+    postgresql: Mapping[str, Any],
+    publication: Mapping[str, Any],
 ) -> dict[str, Any]:
     selected = postgresql.get("host_build_provider")
     if not isinstance(selected, dict) or selected.get("schema") != contract[
         "host_build_provider"
     ]["receipt_schema"]:
         raise ProductPackageError("PostgreSQL receipt omits its exact host build provider")
+    published = publication.get("host_provider")
+    if not isinstance(published, dict):
+        raise ProductPackageError("PostgreSQL publication omits its host provider")
     receipt_path = require_absolute(
-        selected.get("receipt_path"), "postgresql_receipt.host_build_provider.receipt_path"
+        published.get("source_receipt"),
+        "postgresql_publication.host_provider.source_receipt",
     )
     receipt_sha256 = require_string(
-        selected.get("receipt_sha256"),
-        "postgresql_receipt.host_build_provider.receipt_sha256",
+        published.get("source_receipt_sha256"),
+        "postgresql_publication.host_provider.source_receipt_sha256",
     )
+    if receipt_sha256 != selected.get("receipt_sha256"):
+        raise ProductPackageError("published and selected host-provider receipts differ")
     verifier = (repository / contract["host_build_provider"]["verifier"]).resolve()
     if (
         not receipt_path.is_file()
@@ -530,6 +708,8 @@ def verify_host_build_provider(
         raise ProductPackageError("host build provider differs from the PostgreSQL receipt")
     return {
         **selected,
+        "receipt_path": str(receipt_path),
+        "receipt_sha256": receipt_sha256,
         "verifier": {
             "path": contract["host_build_provider"]["verifier"],
             "sha256": sha256_file(verifier),
@@ -538,17 +718,38 @@ def verify_host_build_provider(
 
 
 def verify_postgresql_receipt(
-    contract: dict[str, Any], receipt_path: Path
+    contract: dict[str, Any],
+    receipt: dict[str, Any],
+    publication: Mapping[str, Any],
 ) -> tuple[dict[str, Any], Path, Path]:
-    receipt = load_json(receipt_path)
     if receipt.get("schema") != contract["postgresql"]["receipt_schema"]:
         raise ProductPackageError("PostgreSQL package receipt schema differs")
     if receipt.get("version") != contract["postgresql"]["version"]:
         raise ProductPackageError("PostgreSQL package version differs")
-    prefix = require_absolute(receipt.get("prefix"), "postgresql_receipt.prefix")
-    readelf = require_absolute(
+    postgresql_publication = publication.get("postgresql")
+    toolchain_publication = publication.get("toolchain")
+    if not isinstance(postgresql_publication, dict) or not isinstance(
+        toolchain_publication, dict
+    ):
+        raise ProductPackageError("PostgreSQL publication physical mappings are absent")
+    prefix = require_absolute(
+        postgresql_publication.get("prefix"), "postgresql_publication.postgresql.prefix"
+    )
+    source_toolchain_prefix = require_absolute(
+        toolchain_publication.get("source_prefix"),
+        "postgresql_publication.toolchain.source_prefix",
+    )
+    published_toolchain_prefix = require_absolute(
+        toolchain_publication.get("prefix"), "postgresql_publication.toolchain.prefix"
+    )
+    source_readelf = require_absolute(
         receipt.get("build_toolchain", {}).get("tools", {}).get("readelf", {}).get("path"),
         "postgresql_receipt.build_toolchain.tools.readelf.path",
+    )
+    if not source_readelf.is_relative_to(source_toolchain_prefix):
+        raise ProductPackageError("selected readelf escaped the source toolchain")
+    readelf = published_toolchain_prefix / source_readelf.relative_to(
+        source_toolchain_prefix
     )
     if not prefix.is_dir() or prefix.is_symlink() or not readelf.is_file():
         raise ProductPackageError("PostgreSQL package bytes or selected readelf are absent")
@@ -656,17 +857,22 @@ def verify_runtime_dependencies(
 def create_plan(
     contract: dict[str, Any],
     repository: Path,
-    postgresql_receipt_path: Path,
+    postgresql_publication_path: Path,
     installed_lock_path: Path,
     *,
     require_clean: bool = True,
 ) -> dict[str, Any]:
     validate_contract(contract)
-    postgresql, prefix, readelf = verify_postgresql_receipt(
-        contract, postgresql_receipt_path
+    publication, published_source = verify_postgresql_publication(
+        contract, postgresql_publication_path.resolve()
     )
-    toolchain = verify_product_toolchain(postgresql)
-    host_build_provider = verify_host_build_provider(contract, repository, postgresql)
+    postgresql, prefix, readelf = verify_postgresql_receipt(
+        contract, published_source, publication
+    )
+    toolchain = verify_product_toolchain(postgresql, publication)
+    host_build_provider = verify_host_build_provider(
+        contract, repository, postgresql, publication
+    )
     lock, providers, provider_roots = verify_installed_providers(
         contract, installed_lock_path
     )
@@ -691,7 +897,8 @@ def create_plan(
         "contract_sha256": canonical_sha256(contract),
         "driver_sha256": sha256_file(driver),
         "installed_lock_sha256": sha256_file(installed_lock_path),
-        "postgresql_receipt_sha256": sha256_file(postgresql_receipt_path),
+        "postgresql_publication_sha256": sha256_file(postgresql_publication_path),
+        "postgresql_receipt_sha256": publication["source_receipt"]["sha256"],
         "toolchain_receipt_sha256": toolchain["receipt_sha256"],
         "host_build_provider_receipt_sha256": host_build_provider["receipt_sha256"],
         "build_input_roots": build_input_roots,
@@ -719,8 +926,11 @@ def create_plan(
         "staged_prefix": str(staged_prefix),
         "repository_root": str(repository),
         "postgresql": {
-            "receipt_path": str(postgresql_receipt_path.resolve()),
-            "receipt_sha256": sha256_file(postgresql_receipt_path),
+            "publication_path": str(postgresql_publication_path.resolve()),
+            "publication_sha256": sha256_file(postgresql_publication_path),
+            "publication_id": publication["publication_id"],
+            "receipt_path": publication["source_receipt"]["path"],
+            "receipt_sha256": publication["source_receipt"]["sha256"],
             "prefix": str(prefix),
             "tree_sha256": postgresql.get("tree_sha256"),
             "build_input_id": postgresql.get("build_input_id"),
@@ -772,11 +982,20 @@ def tree_fingerprint(root: Path) -> dict[str, tuple[Any, ...]]:
 def reverify_product_build_inputs(
     contract: Mapping[str, Any], repository: Path, plan: Mapping[str, Any]
 ) -> dict[str, Any]:
-    postgresql = load_json(Path(plan["postgresql"]["receipt_path"]))
-    toolchain = verify_product_toolchain(postgresql)
+    publication_path = Path(plan["postgresql"]["publication_path"])
+    if sha256_file(publication_path) != plan["postgresql"]["publication_sha256"]:
+        raise ProductPackageError("PostgreSQL publication receipt changed")
+    publication, postgresql = verify_postgresql_publication(
+        contract, publication_path
+    )
+    if publication["publication_id"] != plan["postgresql"]["publication_id"]:
+        raise ProductPackageError("PostgreSQL publication identity changed")
+    toolchain = verify_product_toolchain(postgresql, publication)
     if toolchain != plan["product_toolchain"]:
         raise ProductPackageError("product build toolchain changed during construction")
-    host_provider = verify_host_build_provider(contract, repository, postgresql)
+    host_provider = verify_host_build_provider(
+        contract, repository, postgresql, publication
+    )
     if host_provider != plan["host_build_provider"]:
         raise ProductPackageError("host build provider changed during product construction")
     roots = {
@@ -1193,7 +1412,9 @@ def execute_plan(
     create_private_directory(stage_directory)
     staged_prefix = Path(plan["staged_prefix"])
     staged_prefix.parent.mkdir(parents=True)
-    postgresql_receipt = load_json(Path(plan["postgresql"]["receipt_path"]))
+    _, postgresql_receipt = verify_postgresql_publication(
+        contract, Path(plan["postgresql"]["publication_path"])
+    )
     source_prefix = Path(plan["postgresql"]["prefix"])
     source_tree = tree_fingerprint(source_prefix)
     shutil.copytree(source_prefix, staged_prefix, symlinks=True)
@@ -1376,7 +1597,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     subparsers.add_parser("validate-contract")
     for name in ("plan", "build"):
         command = subparsers.add_parser(name)
-        command.add_argument("--postgresql-receipt", required=True)
+        command.add_argument("--postgresql-publication", required=True)
         command.add_argument("--allow-dirty", action="store_true")
     return parser.parse_args(argv)
 
@@ -1398,7 +1619,7 @@ def main(argv: Sequence[str]) -> int:
     plan = create_plan(
         contract,
         repository,
-        Path(arguments.postgresql_receipt),
+        Path(arguments.postgresql_publication),
         installed_lock,
         require_clean=not arguments.allow_dirty,
     )

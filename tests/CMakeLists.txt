@@ -774,6 +774,12 @@ set_tests_properties(postgresql-host-provider.contract-and-mutation PROPERTIES
     LABELS "build;package;postgresql;host-provider;mutation")
 
 add_test(
+    NAME postgresql-package-publication.contract-and-mutation
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_package_publication_tests.py")
+set_tests_properties(postgresql-package-publication.contract-and-mutation PROPERTIES
+    LABELS "build;package;postgresql;publication;delivery;mutation")
+
+add_test(
     NAME postgresql-cluster.activation-contract
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_cluster_tests.py")
 set_tests_properties(postgresql-cluster.activation-contract PROPERTIES

@@ -58,6 +58,12 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "exact PostgreSQL 18.6"):
             PACKAGE.validate_contract(mutant)
 
+    def test_postgresql_publication_receipt_cannot_be_bypassed(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["postgresql"].pop("publication_receipt_schema")
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "publication receipt"):
+            PACKAGE.validate_contract(mutant)
+
     def test_all_selected_oneapi_provider_families_are_required(self) -> None:
         mutant = copy.deepcopy(self.contract)
         mutant["laplace"]["required_installed_providers"].remove("onemkl")
