@@ -336,10 +336,10 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-merged-unicode-product-activation-controller-integration-proven-successor-product-package-installed-and-physical-cluster-activation-pending",
+        == "unicode-product-activation-controller-integration-proven-successor-package-installed-protected-cicd-gateway-implementation-committed-root-gateway-bootstrap-pending",
         "Unicode activation implementation state drift",
     )
-    require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
+    require(work.get("github_issue") == 13 and work.get("pull_request") == 76, "Unicode activation ownership drift")
     progress = work.get("implementation_progress", {})
     runtime = progress.get("runtime_package", {})
     require(runtime.get("contract_schema") == "laplace.postgresql-runtime-build/v2", "runtime contract generation drift")
@@ -956,7 +956,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
+        == "22241897fff72836c67abca064d8b67227dedfd4",
         "product-package implementation checkpoint drift",
     )
     successor = progress.get("successor_product_package", {})
@@ -1094,7 +1094,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
     require(github.get("product_path_gate_issue") == 54 and github.get("required_product_path_gate_present") is False, "product-path gate observation drift")
     contains_all(github.get("observed_required_checks", []), ("requirements", "native (linux-dev)", "native (linux-sanitize)"), "required-check observation narrowed")
-    require(github.get("github_environments") == 0 and github.get("github_deployments") == 0 and github.get("github_releases") == 0, "GitHub integration state was promoted to delivery state")
+    require(github.get("github_environments") == 1 and github.get("github_deployments") == 0 and github.get("github_releases") == 0, "GitHub integration state was promoted to delivery state")
     require(github.get("repository_runner", {}).get("name") == "hart-server-refactor", "repository runner observation lost")
     runs = {item.get("workflow"): item for item in github.get("latest_main_workflow_runs", [])}
     require(runs.get("clean-room-ci", {}).get("linux_dev_registered_tests") == 251 and runs.get("clean-room-ci", {}).get("linux_sanitize_registered_tests") == 251, "published hosted test-count observation drift")
@@ -1356,7 +1356,15 @@ def validate_operation(document: dict) -> None:
     contains_all(stages["framework.execution"].get("implementation", {}), ("published code proves", "universal AST type system", "recipe compiler", "remain unimplemented"), "framework partial state overclaims the recipe machine")
     contains_all(stages["bootstrap.unicode-root"].get("implementation", {}), ("controlled integration", "PostgreSQL 18.6 product cluster", "not proven"), "Unicode integration was promoted to product or generic-machine proof")
     contains_all(stages["substrate.bulk-deposit"].get("implementation", {}), ("merged pull request 73", "semantic parity", "provider-independent", "six provider mutants", "five-sample", "500000-records-per-second", "product activation"), "composition proof state drift")
-    contains_all(stages["delivery.activate-product"].get("implementation", {}), ("no accepted package", "no deployment or release state"), "delivery infrastructure was promoted to product delivery")
+    contains_all(
+        stages["delivery.activate-product"].get("implementation", {}),
+        (
+            "root-owned activation gateway is not yet physically installed",
+            "no selected PostgreSQL 18.6 product cluster is active",
+            "no whole-product deployment or release state exists",
+        ),
+        "delivery infrastructure was promoted to product delivery",
+    )
 
 
 class ProgramAuthorityTests(unittest.TestCase):

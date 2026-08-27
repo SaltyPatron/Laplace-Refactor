@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T14:15:51Z",
+  "observed_at_utc": "2026-08-27T15:54:31Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,14 +12,14 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "phase3/live-product-activation",
+    "active_branch": "delivery/product-activation-cicd",
     "active_worktree": "/home/ahart/Projects/Laplace-Refactor",
-    "base_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
+    "base_commit": "0e10f86c73074066799c860aa0edd8f3edfd56e2",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
-    "observed_branch_head": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
-    "implementation_checkpoint_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
-    "pull_request": 74
+    "published_checkpoint_commit": "22241897fff72836c67abca064d8b67227dedfd4",
+    "observed_branch_head": "22241897fff72836c67abca064d8b67227dedfd4",
+    "implementation_checkpoint_commit": "22241897fff72836c67abca064d8b67227dedfd4",
+    "pull_request": 76
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -291,10 +291,10 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-merged-unicode-product-activation-controller-integration-proven-successor-product-package-installed-and-physical-cluster-activation-pending",
-    "branch": "phase3/live-product-activation",
-    "pull_request": 74,
-    "base_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
+    "state": "unicode-product-activation-controller-integration-proven-successor-package-installed-protected-cicd-gateway-implementation-committed-root-gateway-bootstrap-pending",
+    "branch": "delivery/product-activation-cicd",
+    "pull_request": 76,
+    "base_commit": "0e10f86c73074066799c860aa0edd8f3edfd56e2",
     "dependencies": {
       "product_cluster_issue": 12,
       "perfcache_issue": 14,
@@ -1148,7 +1148,7 @@
           ],
           "product_activation_occurred": false
         },
-        "physical_execution_boundary": "requires one authorized root invocation because the selected data WAL temporary configuration log service and root package-ownership targets are privileged; no service cluster active pointer or Unicode product root has been promoted"
+        "physical_execution_boundary": "the protected product environment and signed runner request path exist, but the immutable root gateway and its exact sudoers commands are not installed; the observed runner authority contains only legacy service controls, so no service cluster active pointer or Unicode product root has been promoted"
       },
       "product_unicode_access_mechanism": {
         "implementation_commit": "50f3a29044c96497ba60cdbbdc12921e6f67539c",
@@ -1248,8 +1248,8 @@
     ]
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-27T14:15:51Z",
-    "main_commit": "3a74773608ede6d7fde8fc13c4bef6ffa5369aed",
+    "observed_at_utc": "2026-08-27T15:54:31Z",
+    "main_commit": "0e10f86c73074066799c860aa0edd8f3edfd56e2",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
     "product_cluster_project_status": "In Progress",
@@ -1312,7 +1312,7 @@
     "observed_required_checks": ["requirements", "native (linux-dev)", "native (linux-sanitize)"],
     "required_product_path_gate_present": false,
     "required_custom_stack_evidence_currently_missing_from_merge_gate": "postgresql-native",
-    "github_environments": 0,
+    "github_environments": 1,
     "github_deployments": 0,
     "github_releases": 0
   },
