@@ -81,6 +81,13 @@ def document_identity(document: Mapping[str, Any], field: str) -> str:
     return sha256_bytes(canonical_bytes({key: value for key, value in document.items() if key != field}))
 
 
+def resource_observation_identity(document: Mapping[str, Any]) -> str:
+    payload = {
+        key: value for key, value in document.items() if key != "observation_sha256"
+    }
+    return sha256_bytes(canonical_bytes(payload) + b"\n")
+
+
 def atomic_write(path: Path, content: bytes, mode: int = 0o640) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o750)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -278,6 +285,19 @@ def validate_physical_inputs(contract: dict[str, Any], payload: dict[str, Any]) 
         or receipt.get("product_activated") is not False
     ):
         raise ActivationGatewayError("product package receipt is not exact and activation eligible")
+    resource_document = load_json(resource_path)
+    if (
+        resource_document.get("schema") != "laplace.execution-resource-observation/v2"
+        or resource_document.get("package_id") != package["id"]
+        or resource_document.get("package_manifest_sha256") != manifest_digest
+        or resource_document.get("observation_sha256")
+        != resource_observation_identity(resource_document)
+        or resource_document.get("observation_sha256")
+        != resource.get("observation_sha256")
+    ):
+        raise ActivationGatewayError(
+            "resource observation is not bound to the signed product package"
+        )
 
 
 def delivery_selection_from_receipts(

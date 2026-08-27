@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T20:44:49Z",
+  "observed_at_utc": "2026-08-27T22:32:58Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,14 +12,14 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "delivery/product-receipt-publication",
-    "active_worktree": "/build/laplace/worktrees/product-receipt-publication",
-    "base_commit": "2f35422039589a17de553c068dd50ce18645406c",
+    "active_branch": "fix/product-activation-binding",
+    "active_worktree": "/build/laplace/worktrees/product-activation-binding",
+    "base_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "2f35422039589a17de553c068dd50ce18645406c",
-    "observed_branch_head": "fa19a6a693694992a7d10e1c715d1115b3a89bbe",
-    "implementation_checkpoint_commit": "fa19a6a693694992a7d10e1c715d1115b3a89bbe",
-    "pull_request": 77
+    "published_checkpoint_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
+    "observed_branch_head": "d4fc99374fb8d686e212568e4be540913f886b74",
+    "implementation_checkpoint_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
+    "pull_request": null
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -331,10 +331,59 @@
           "product_activation_gateway": "9 of 9 passed including direct current-workflow receipt selection and changed package-receipt rejection",
           "postgresql_composition_mutants": "six of six effective PostgreSQL mutants passed after independent ELF deposit execute and destroy symbols prevented production-module interposition"
         },
+        "latest_protected_activation_attempt": {
+          "workflow_run": 33121232332,
+          "head_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
+          "runner_authority": "success",
+          "compose_product": "failed-after-package-and-resource-observation-before-activation-request",
+          "activate_product": "skipped",
+          "product_plan_id": "c508f913261822bc7e73ea7921d046879bb0cd13a06221c5141dbb23dc03f228",
+          "product_plan_sha256": "890127461f3c1577f01634ddff54dfbf7ff46e2dd46c6103ae2941ad792a4fab",
+          "package_id": "e07dfc117dd736a8931b9517b985e5b2c3615be13124f00e57940eb42904ef4f",
+          "package_manifest_sha256": "9228e0ea446eaa4142f1de640dcaee8fe236d73cfcc4b9ef11b11858215444a2",
+          "package_file_count": 2749,
+          "package_symlink_count": 47,
+          "package_total_file_bytes": 533022865,
+          "resource_observation_sha256": "e30bbf56d7ed5c00f02f5a94e5ee41efeb31fe7f8d78aa8dad05b6d3a1e5ac27",
+          "resource_observation_schema": "laplace.execution-resource-observation/v1",
+          "observed_grant": {
+            "cpu_slots": 6,
+            "memory_bytes": 12884901888,
+            "io_slots": 4
+          },
+          "failure": "the workflow required package_id from a resource receipt whose v1 schema described execution resources but carried no exact package or package-manifest binding",
+          "product_activated": false
+        },
+        "active_correction": {
+          "branch": "fix/product-activation-binding",
+          "base_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
+          "state": "unpublished-implementation-under-validation",
+          "boundary": [
+            "native execution observation is an explicitly incomplete candidate receipt until the PostgreSQL controller binds it to an exact verified package ID and manifest digest",
+            "the final execution-resource observation schema requires exact package ID package-manifest digest and self-hash and every consumer rejects changed bindings",
+            "product package plan selection build verification and compact result publication execute through one compose command so unchanged accepted packages are reused without a second planning and hashing pass",
+            "the activation workflow consumes only the exclusive compact selection result and passes the exact package-bound observation into the signed activation request"
+          ],
+          "local_validation": {
+            "focused_contract_and_mutation_tests": "81 of 81 passed across PostgreSQL cluster product activation gateway and product package selection",
+            "program_authority_static": "30 of 30 passed",
+            "program_authority_physical": "30 of 30 passed against main d4fc99374fb8d686e212568e4be540913f886b74 and branch fix/product-activation-binding",
+            "requirements_trace": "12 of 12 passed",
+            "registered_ctest_boundary": "5 of 5 passed for the changed PostgreSQL cluster activation gateway product package requirements and invention-authority programs",
+            "native_resource_observer": "compiled successfully from the changed source through the current CMake graph"
+          },
+          "nonclaims": [
+            "the correction is not merged",
+            "the correction has not passed protected runner execution",
+            "the product cluster is not activated",
+            "Unicode and the Highway are not product activated"
+          ]
+        },
         "missing_boundary": [
           "PR 77 merged as 2f35422039589a17de553c068dd50ce18645406c after all exact-head and exact post-merge clean-room custom-stack and runner-authority checks passed",
-          "protected product-activation run 33111425265 failed before composition because the laplace-runner consumer could not traverse the owner-private accepted PostgreSQL build directory",
-          "runner-readable immutable PostgreSQL package publication 4b72b3782f3a766b35b5cd8d061c72dc4ca223d0d3e823a4aa4a4b96d043993a is physically verified but its workflow consumer change is not yet merged",
+          "PR 80 merged as d4fc99374fb8d686e212568e4be540913f886b74 and the protected runner can consume the immutable PostgreSQL publication and compose a current-main product package",
+          "protected product-activation run 33121232332 produced package e07dfc117dd736a8931b9517b985e5b2c3615be13124f00e57940eb42904ef4f and a native resource observation then failed because the observation was not bound to that exact package and manifest",
+          "the package-bound resource-receipt and single-pass composition correction is unpublished and has not executed through the protected runner",
           "the root-owned activation gateway trust anchor is not physically installed and the protected product workflow has not activated the PostgreSQL 18.6 cluster Unicode root and Highway",
           "append-only successor registry activation is not implemented",
           "canonical whole-seed identifier and mapping topology is not admitted",
@@ -1281,11 +1330,9 @@
       "all listed product activation evidence remains controlled integration evidence until the protected workflow executes against the installed product"
     ],
     "immediate_implementation_boundary": [
-      "publish the exact accepted PostgreSQL package and toolchain as immutable runner-readable inputs without changing owner-private build evidence",
-      "merge the publication consumer through exact clean-room custom-stack and runner-authority checks",
-      "compose and install the exact content-addressed product package containing the Highway extension controller and protected gateway changes",
+      "publish the package-bound resource-observation and single-pass composition correction through exact clean-room custom-stack and runner-authority checks",
+      "redispatch the protected product workflow and prove that it selects or builds one exact package once then signs the exact package-bound resource observation",
       "verify or install the root-owned deployment gateway through the established laplace-runner authority instead of a manual PostgreSQL path",
-      "redispatch the protected product-activation workflow against the merged publication consumer",
       "obtain exact PostgreSQL 18.6 cluster Unicode-root and Highway activation receipts plus cold application-role active readback",
       "verify restart readiness loaded-object identity direct and reverse Unicode parity and active Highway registry identity in the installed product",
       "then implement the append-only Highway successor path canonical whole-seed identifier and mapping topology and heterogeneous source admission",
@@ -1294,8 +1341,9 @@
     "whole_product_reason": "The Highway is the shared typed coordinate and routing substrate across sources releases namespaces languages grammars recipes modalities models operations effects governance firmware and product state; it is not a multilingual lookup table importer embedding or private feature route.",
     "nonclaims": [
       "PR 77 is merged and its exact-head and exact post-merge checks passed",
-      "protected product-activation run 33111425265 failed before product composition and did not execute the new Highway path",
-      "the runner-readable PostgreSQL publication is physically accepted but not yet a merged product input",
+      "PR 80 is merged and the runner-readable PostgreSQL publication is now a current-main product input",
+      "protected product-activation run 33121232332 built package e07dfc117dd736a8931b9517b985e5b2c3615be13124f00e57940eb42904ef4f but failed before activation because its native resource observation did not contain an exact package binding",
+      "the package-bound resource-observation and single-pass composition correction is unpublished and unproven on the protected runner",
       "Unicode is not yet product activated",
       "the typed numerical Highway is implemented and controlled-integration proven but not product activated",
       "the append-only successor registry whole-seed topology bubble routes and heterogeneous world admission remain unimplemented",
@@ -1305,8 +1353,8 @@
     ]
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-27T20:44:49Z",
-    "main_commit": "2f35422039589a17de553c068dd50ce18645406c",
+    "observed_at_utc": "2026-08-27T22:32:58Z",
+    "main_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
     "product_cluster_project_status": "In Progress",
@@ -1359,6 +1407,16 @@
         "runner_authority": "success"
       }
     },
+    "product_publication_pull_request": {
+      "number": 80,
+      "state": "merged",
+      "draft": false,
+      "base_commit": "fb8d354cb8732660d4806e4a658ad9064e47f73d",
+      "head_commit": "27115c62a9af612f95dee415b232637dd99f45bb",
+      "merge_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
+      "merged_at_utc": "2026-08-27T22:07:27Z",
+      "proof_state": "runner-readable PostgreSQL publication and current-main product-package composition are merged; protected run 33121232332 composed an exact package but no product activation occurred"
+    },
     "roadmap_project": {
       "number": 2,
       "title": "Laplace Refactor — Machine Roadmap",
@@ -1380,9 +1438,9 @@
       {"number": 35, "state": "closed", "former_base": "phase1/runtime-build-graph", "head": "phase1/source-built-toolchain", "reconciliation": "all sixteen commits reconciled into draft PR 74; source branch retained as history"}
     ],
     "latest_main_workflow_runs": [
-      {"id": 33111326556, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "2f35422039589a17de553c068dd50ce18645406c", "linux_dev_registered_tests": 267, "linux_sanitize_registered_tests": 267},
-      {"id": 33111326597, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "2f35422039589a17de553c068dd50ce18645406c", "registered_tests": 296, "observed_postgresql_version": "18.3"},
-      {"id": 33111425265, "workflow": "product-activation", "conclusion": "failure", "head_commit": "2f35422039589a17de553c068dd50ce18645406c", "runner_authority": "success", "compose_product": "failed-before-composition-private-input-not-runner-readable", "activate_product": "skipped"}
+      {"id": 33121196882, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "d4fc99374fb8d686e212568e4be540913f886b74"},
+      {"id": 33121196866, "workflow": "custom-stack-ci", "conclusion": "cancelled", "head_commit": "d4fc99374fb8d686e212568e4be540913f886b74"},
+      {"id": 33121232332, "workflow": "product-activation", "conclusion": "failure", "head_commit": "d4fc99374fb8d686e212568e4be540913f886b74", "runner_authority": "success", "compose_product": "failed-after-current-main-package-and-resource-observation-before-activation-request", "activate_product": "skipped", "package_id": "e07dfc117dd736a8931b9517b985e5b2c3615be13124f00e57940eb42904ef4f", "package_manifest_sha256": "9228e0ea446eaa4142f1de640dcaee8fe236d73cfcc4b9ef11b11858215444a2", "resource_observation_sha256": "e30bbf56d7ed5c00f02f5a94e5ee41efeb31fe7f8d78aa8dad05b6d3a1e5ac27", "failure": "resource observation v1 had no exact package or package-manifest binding"}
     ],
     "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": false, "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},
     "observed_required_checks": ["requirements", "native (linux-dev)", "native (linux-sanitize)"],

@@ -246,6 +246,49 @@ class ProductPackageTests(unittest.TestCase):
         self.assertFalse(gates["product_build_input_closure"])
         self.assertFalse(all(gates.values()))
 
+    def test_product_selection_reuses_only_an_exact_receipted_plan(self) -> None:
+        build = self.root / "build"
+        stage = self.root / "stage"
+        build.mkdir()
+        release = stage / "root/opt/laplace/releases" / ("a" * 64)
+        release.mkdir(parents=True)
+        manifest = {
+            "schema": PACKAGE.MANIFEST_SCHEMA,
+            "package_id": "a" * 64,
+            "root": f"/opt/laplace/releases/{'a' * 64}",
+        }
+        manifest_path = build / "package-manifest.json"
+        manifest_path.write_bytes(PACKAGE.canonical_bytes(manifest))
+        receipt = {
+            "schema": PACKAGE.RECEIPT_SCHEMA,
+            "plan_sha256": "b" * 64,
+            "package_id": "a" * 64,
+            "manifest": str(manifest_path),
+            "manifest_sha256": PACKAGE.sha256_file(manifest_path),
+            "physical_root": str(release),
+            "activation_eligible": True,
+            "build_input_closure_complete": True,
+            "product_activated": False,
+        }
+        receipt_path = build / "package-receipt.json"
+        receipt_path.write_bytes(PACKAGE.canonical_bytes(receipt))
+        plan = {
+            "plan_id": "c" * 64,
+            "plan_sha256": "b" * 64,
+            "build_directory": str(build),
+            "stage_directory": str(stage),
+        }
+        selection = PACKAGE.select_or_build_product(
+            self.contract, REPOSITORY, plan
+        )
+        self.assertFalse(selection["built_new"])
+        self.assertEqual(selection["product_receipt"], str(receipt_path))
+
+        receipt["plan_sha256"] = "d" * 64
+        receipt_path.write_bytes(PACKAGE.canonical_bytes(receipt))
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "exact plan"):
+            PACKAGE.select_or_build_product(self.contract, REPOSITORY, plan)
+
     def test_selected_tool_bytes_are_reverified(self) -> None:
         tool = self.root / "cmake"
         tool.write_bytes(b"selected cmake\n")
