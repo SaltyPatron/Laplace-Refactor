@@ -102,6 +102,22 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "canonical lib"):
             PACKAGE.validate_contract(mutant)
 
+    def test_product_platform_abi_expansion_cannot_be_narrowed(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["runtime_closure"]["allowed_additional_platform_abi_sonames"].remove(
+            "librt.so.1"
+        )
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "platform ABI"):
+            PACKAGE.validate_contract(mutant)
+
+    def test_external_runtime_edges_cannot_escape_the_zero_gate(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["runtime_closure"]["required_zero_summary_fields"].remove(
+            "custom_to_external_edge_count"
+        )
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "zero gates"):
+            PACKAGE.validate_contract(mutant)
+
     def test_provider_runtime_and_soname_are_copied(self) -> None:
         prefix = self.root / "package"
         prefix.mkdir()

@@ -249,6 +249,22 @@ def validate_contract(contract: dict[str, Any]) -> None:
             not isinstance(item, str) or not item for item in values
         ):
             raise ProductPackageError(f"runtime_closure.{field} is invalid")
+    if closure.get("allowed_additional_platform_abi_sonames") != [
+        "libdl.so.2",
+        "libpthread.so.0",
+        "librt.so.1",
+    ]:
+        raise ProductPackageError("product platform ABI expansion is invalid")
+    required_zero = {
+        "unresolved_edge_count",
+        "parse_error_count",
+        "discovery_error_count",
+        "resolution_conflict_count",
+        "root_abi_family_collision_count",
+        "custom_to_external_edge_count",
+    }
+    if set(closure["required_zero_summary_fields"]) != required_zero:
+        raise ProductPackageError("product recursive closure zero gates are incomplete")
     if set(activation) != {
         "requires_postgresql_build_input_closure",
         "requires_postgresql_runtime_provider_qualification",
@@ -1081,16 +1097,49 @@ def verify_recursive_closure(
         for item in report.get("objects", [])
         if isinstance(item, dict) and item.get("classification") == "host-system"
     }
-    if set(observed_host) != set(expected_host):
-        raise ProductPackageError("product selected a different platform ABI object set")
+    if not set(expected_host).issubset(observed_host):
+        raise ProductPackageError("product omitted a PostgreSQL platform ABI object")
     for path, expected in expected_host.items():
         if observed_host[path].get("sha256") != expected.get("sha256"):
             raise ProductPackageError(f"product platform ABI bytes differ: {path}")
+    additional_paths = set(observed_host) - set(expected_host)
+    allowed_additional = set(closure["allowed_additional_platform_abi_sonames"])
+    host_roots = [
+        Path(item["path"]).resolve()
+        for item in postgresql_receipt.get("host_build_provider", {}).get("roots", [])
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    ]
+    additional: dict[str, dict[str, str]] = {}
+    for path in sorted(additional_paths):
+        item = observed_host[path]
+        elf = item.get("elf")
+        soname = elf.get("soname") if isinstance(elf, dict) else None
+        digest = item.get("sha256")
+        resolved = Path(path).resolve()
+        if (
+            soname not in allowed_additional
+            or soname in additional
+            or not isinstance(digest, str)
+            or HEX_256.fullmatch(digest) is None
+            or not any(resolved.is_relative_to(root) for root in host_roots)
+        ):
+            raise ProductPackageError(f"product selected an undeclared platform ABI object: {path}")
+        additional[soname] = {
+            "path": path,
+            "sha256": digest,
+            "soname": soname,
+        }
+    if set(additional) != allowed_additional:
+        raise ProductPackageError("product platform ABI expansion is incomplete")
     return {
         "schema": "laplace.product-recursive-elf-closure-receipt/v1",
         "report": str(output_path),
         "report_sha256": sha256_file(output_path),
         "summary": summary,
+        "platform_abi_objects": {
+            "postgresql": platform,
+            "product_additional": additional,
+        },
         "verified": True,
     }
 

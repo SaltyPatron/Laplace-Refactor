@@ -108,12 +108,18 @@
       "pgsql-18/lib",
       "lib"
     ],
+    "allowed_additional_platform_abi_sonames": [
+      "libdl.so.2",
+      "libpthread.so.0",
+      "librt.so.1"
+    ],
     "required_zero_summary_fields": [
       "unresolved_edge_count",
       "parse_error_count",
       "discovery_error_count",
       "resolution_conflict_count",
-      "root_abi_family_collision_count"
+      "root_abi_family_collision_count",
+      "custom_to_external_edge_count"
     ]
   },
   "activation": {
