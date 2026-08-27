@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "50f3a29044c96497ba60cdbbdc12921e6f67539c",
-    "implementation_checkpoint_commit": "50f3a29044c96497ba60cdbbdc12921e6f67539c",
+    "observed_branch_head": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
+    "implementation_checkpoint_commit": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-successor-product-package-installed-native-resource-observation-issued-privileged-collision-inspection-and-cluster-activation-pending",
+    "state": "implementation-in-progress-unicode-product-activation-controller-integration-proven-successor-product-package-and-physical-cluster-activation-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -1096,6 +1096,30 @@
         },
         "product_boundary": "the installed package predates this implementation; a content-addressed successor package and activated product cluster are required before these public operations or Unicode can be claimed product-active"
       },
+      "product_unicode_activation_controller": {
+        "implementation_commit": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
+        "state": "implemented-and-controlled-integration-proven-successor-package-and-physical-execution-pending",
+        "implemented_boundaries": [
+          "one exact contract binds the activated PostgreSQL 18.6 cluster package Unicode 17 source authority generated PostgreSQL contract expected complete-root result and success and failure receipt laws",
+          "one packaged native domain-separated BLAKE3 provider derives the activation epoch authority and all framework epochs from the canonical activation request",
+          "one typed product orchestrator verifies all thirty-three source files package and live cluster identity then invokes the native Unicode root build-and-activate operation exactly once in one PostgreSQL transaction",
+          "the transaction asserts the complete 2230150-frame result 1114112 entity physicality atom and DUCET-position populations normalized families sibling artifact bytes and digests plan manifest durable generation and deposit receipts and coherent active epoch before commit",
+          "post-commit recovery rehydrates and validates exact generation deposition stream plan and artifact receipts rather than repeating or pretending the operation did not commit",
+          "success requires product restart a changed postmaster PID stable positive system identifier unchanged loaded package bytes cold application-role direct readback exact reverse inversion and unchanged artifacts",
+          "every failure emits a typed durable failure receipt and requires state reinspection before retry"
+        ],
+        "controlled_integration_validation": {
+          "unicode_product_activation_contract": "8 of 8 passed including native identity vector source mutation partial-state rejection one-call transaction reverse mutation restart cold readback crash recovery and typed failure evidence",
+          "postgresql_cluster_contract": "39 of 39 passed",
+          "complete_product_package_contract": "26 of 26 passed",
+          "portable_registered_suite": "257 of 257 passed from a clean current test graph",
+          "registry_parity": "257 registered core tests exactly matched CTest",
+          "program_authority_static": "27 of 27 passed",
+          "program_authority_physical": "27 of 27 passed",
+          "requirements_trace": "12 of 12 passed"
+        },
+        "product_boundary": "the controller has not executed against an accepted successor package and active physical product cluster; no Unicode product activation receipt exists"
+      },
       "local_validation": {
         "postgresql_build_contract_and_mutation": "37 of 37 passed including packaged TAP providers staged OpenSSL execution preflight bootstrap-provider installed-provider recursive-closure and independent-output mutations",
         "installed_provider_lock_contract_and_mutation": "10 of 10 passed including exact role provider version path byte hash license runtime-SONAME and selection-hash controls",
@@ -1105,14 +1129,15 @@
         "requirements_trace": "12 of 12 passed",
         "generic_recursive_elf_closure": "passed unresolved contained deterministic resolution ABI-generation collision competing-provider and host-boundary fixtures",
         "postgresql_18_6_package_build": "world-bin check-world and install-world-bin completed; exact activation-eligible package receipt issued after full build-input closure io_uring product-path qualification source-test overlay control and recursive whole-tree closure",
-        "complete_product_package_contract_and_mutation": "24 of 24 passed including build-input omission provider narrowing C-linker driver library-path hwloc dependency platform-ABI and package-promotion mutations",
+        "complete_product_package_contract_and_mutation": "26 of 26 passed including build-input omission provider narrowing C-linker driver library-path hwloc dependency platform-ABI package-promotion native-resource-observer and Unicode-activation-identity-provider mutations",
         "complete_product_package_build": "current activation-eligible package 4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b built with the packaged native resource observer 2746 files 47 symlinks 532714907 bytes and zero unresolved external or conflicting ELF edges",
         "native_resource_observation": "installed packaged observer issued topology root-grant partition processor-allocation and storage receipts for a bounded six-CPU twelve-GiB four-I/O grant",
-        "product_cluster_activation_contract_and_mutation": "38 of 38 passed including exact live-object omission invalid system identity unchanged-postmaster restart bootstrap-signature and ambient-readiness controls",
+        "product_cluster_activation_contract_and_mutation": "39 of 39 passed including exact live-object omission invalid system identity unchanged-postmaster restart bootstrap-signature ambient-readiness and Unicode-activation-identity-provider controls",
         "product_cluster_activation_live_diagnostic": "the accepted PostgreSQL 18.6 package initialized and ran an isolated temporary cluster; pg_stat_statements and Laplace loaded successfully and proc maps exposed all four required immutable package objects",
         "syntax_and_diff": "Python compilation git diff whitespace and both 27-test program-authority modes passed",
-        "portable_registered_suite": "268 of 269 passed; the sole failure was the known canonical oneAPI numeric-provider absence in the portable Unicode PostgreSQL test",
-        "product_unicode_public_access": "full oneAPI Unicode PostgreSQL contract passed in 129.57 seconds with deposited-state parity direct/reverse inversion exact epoch return and stale-epoch rejection; the expected-epoch bypass mutant was detected in 128.36 seconds"
+        "portable_registered_suite": "257 of 257 passed from a clean current test graph with exact registry parity",
+        "product_unicode_public_access": "full oneAPI Unicode PostgreSQL contract passed in 129.57 seconds with deposited-state parity direct/reverse inversion exact epoch return and stale-epoch rejection; the expected-epoch bypass mutant was detected in 128.36 seconds",
+        "product_unicode_activation_controller": "8 of 8 passed including exact native identity source mutation one-call transaction post-commit receipt recovery restart cold public readback reverse inversion and typed failure evidence"
       }
     },
     "proven_prerequisite_boundary": [
@@ -1122,7 +1147,6 @@
       "controlled integration acceptance only"
     ],
     "immediate_implementation_boundary": [
-      "implement and mutation-test one receipted Unicode product activation controller spanning exact cluster identity source verification one transactional native build-and-activate invocation restart and cold public readback",
       "build install and observe a content-addressed successor product package containing the public Unicode perfcache operations and activation controller",
       "rerun the live collision observation with authorized traversal of the runner-owned state roots and reject any actual occupied target before planning",
       "issue and verify the exact isolated cluster plan from the accepted package native resource observation and accepted collision observation",
@@ -1178,8 +1202,8 @@
       "number": 74,
       "state": "open",
       "draft": true,
-      "head_commit": "50f3a29044c96497ba60cdbbdc12921e6f67539c",
-      "proof_state": "partial implementation; product cluster activation and exact public Unicode Tier-0/reverse perfcache access are implemented and controlled-integration proven, but the installed package predates the Unicode access implementation; a successor package privileged collision completion root ownership cluster activation Unicode activation seed and release remain false"
+      "head_commit": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
+      "proof_state": "partial implementation; product cluster activation exact public Unicode Tier-0/reverse perfcache access and the complete Unicode product activation controller are implemented and controlled-integration proven, but the installed package predates those Unicode boundaries; a successor package privileged collision completion root ownership physical cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,

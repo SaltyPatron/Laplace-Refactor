@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-successor-product-package-installed-native-resource-observation-issued-privileged-collision-inspection-and-cluster-activation-pending",
+        == "implementation-in-progress-unicode-product-activation-controller-integration-proven-successor-product-package-and-physical-cluster-activation-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -956,7 +956,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "50f3a29044c96497ba60cdbbdc12921e6f67539c",
+        == "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
         "product-package implementation checkpoint drift",
     )
     unicode_access = progress.get("product_unicode_access_mechanism", {})
@@ -980,6 +980,33 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         ),
         "product Unicode public-access boundary narrowed",
     )
+    unicode_activation = progress.get("product_unicode_activation_controller", {})
+    require(
+        unicode_activation.get("implementation_commit")
+        == "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44"
+        and unicode_activation.get("state")
+        == "implemented-and-controlled-integration-proven-successor-package-and-physical-execution-pending",
+        "product Unicode activation-controller checkpoint drift",
+    )
+    contains_all(
+        unicode_activation.get("implemented_boundaries", []),
+        (
+            "exact contract",
+            "native domain-separated BLAKE3 provider",
+            "all thirty-three source files",
+            "exactly once",
+            "2230150-frame",
+            "post-commit recovery",
+            "cold application-role direct readback",
+            "typed durable failure receipt",
+        ),
+        "product Unicode activation-controller boundary narrowed",
+    )
+    contains_all(
+        unicode_activation.get("product_boundary", ""),
+        ("not executed", "successor package", "physical product cluster", "no Unicode product activation receipt"),
+        "Unicode activation controller was promoted beyond evidence",
+    )
     require(postgresql.get("implementation_commit") == "16126c4a4a90a6710528f94aacb401cf45fdea66", "historical PostgreSQL composer checkpoint drift")
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
     contains_all(work.get("immediate_implementation_boundary", []), ("authorized traversal", "cluster plan", "PostgreSQL 18.6", "accepted Laplace package", "1114112", "without a second semantic calculation", "direct and reverse", "restart", "product-root activation receipt"), "Unicode product-activation boundary was narrowed")
@@ -990,7 +1017,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(github.get("unicode_product_activation_issue", {}).get("state") == "open", "Unicode product activation issue was prematurely closed")
     active_pr = github.get("active_product_runtime_pull_request", {})
     require(active_pr.get("number") == 74 and active_pr.get("state") == "open" and active_pr.get("draft") is True, "active runtime PR observation drift")
-    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "product cluster activation", "public Unicode Tier-0/reverse perfcache access", "installed package predates", "successor package", "root ownership", "cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
+    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "product cluster activation", "public Unicode Tier-0/reverse perfcache access", "Unicode product activation controller", "installed package predates", "successor package", "root ownership", "physical cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
