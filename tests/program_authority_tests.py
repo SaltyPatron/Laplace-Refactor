@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-runtime-source-interface-corrected-reexecution-ready-provider-qualification-pending",
+        == "implementation-in-progress-runtime-runpath-corrected-reexecution-ready-provider-qualification-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -347,36 +347,78 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(runtime.get("receipt_schema") == "laplace.postgresql-runtime-package/v2", "runtime receipt generation drift")
     require(
         runtime.get("state")
-        == "first-v2-execution-preserved-failed-libxml2-source-interface-corrected-reexecution-ready-package-not-built-provider-qualification-unresolved",
+        == "second-v2-execution-preserved-failed-package-runpath-verification-corrected-reexecution-ready-package-not-built-provider-qualification-unresolved",
         "runtime package proof state drift",
     )
     require(
         runtime.get("latest_plan_id")
-        == "a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005",
+        == "791c2a54626e1951bf71f1261aa9f4953d339af82de1ae8f0744ced1dcbf914f",
         "runtime package plan identity drift",
     )
     require(runtime.get("logical_install_prefix") == "/opt/laplace/current", "runtime logical activation prefix drift")
     latest_failure = runtime.get("latest_failed_execution", {})
     require(
         latest_failure.get("build_input_id")
-        == "a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a",
+        == "a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005",
         "failed v2 runtime plan identity drift",
     )
     require(
         latest_failure.get("successful_component_checkpoints")
-        == ["zlib", "lz4", "zstandard", "icu", "openssl", "liburing"],
+        == ["zlib", "lz4", "zstandard", "icu", "openssl", "liburing", "libxml2"],
         "failed v2 runtime checkpoint frontier drift",
     )
     require(
-        latest_failure.get("failed_component") == "libxml2"
-        and latest_failure.get("libxml2_compilation_completed") is True
-        and latest_failure.get("libxml2_ctest_passed") == 8
-        and latest_failure.get("libxml2_ctest_total") == 22
-        and latest_failure.get("libxml2_ctest_exit_code") == 8,
-        "libxml2 release test-interface failure drift",
+        latest_failure.get("failed_stage") == "final-package-elf-verification"
+        and latest_failure.get("libxml2_test_disposition") == "passed"
+        and latest_failure.get("liburing_test_exit_code") == 2,
+        "latest runtime package-verification failure drift",
+    )
+    require(
+        set(latest_failure.get("liburing_failed_tests", []))
+        == {"conn-unreach.t", "io-wq-unused-exit.t", "mshot-shutdown-race.t", "send_recv.t", "wq-aff.t"}
+        and set(latest_failure.get("liburing_timed_out_tests", []))
+        == {"cancel-fd-userdata.t", "cancel-race.t", "recv-mshot-fair.t", "recvsend_bundle.t"},
+        "latest liburing host-coupled evidence drift",
     )
     contains_all(
         latest_failure,
+        (
+            "libicudata.so.78.3",
+            "/../lib",
+            "xmllint",
+            "xmlcatalog",
+            "/opt/laplace/current/lib",
+            "backslash-escaped doubled dollar",
+            "generated Autotools libtool",
+            "runpath-variable",
+            "quarantined",
+            "re-imported and verified",
+        ),
+        "package RUNPATH defect correction or source recovery was hidden",
+    )
+    require(
+        latest_failure.get("package_receipt_issued") is False
+        and latest_failure.get("product_activation_occurred") is False,
+        "failed package verification was promoted",
+    )
+    source_interface_failure = runtime.get("prior_v2_source_interface_failure", {})
+    require(
+        source_interface_failure.get("build_input_id")
+        == "a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a"
+        and source_interface_failure.get("successful_component_checkpoints")
+        == ["zlib", "lz4", "zstandard", "icu", "openssl", "liburing"],
+        "prior v2 source-interface failure identity drift",
+    )
+    require(
+        source_interface_failure.get("failed_component") == "libxml2"
+        and source_interface_failure.get("libxml2_compilation_completed") is True
+        and source_interface_failure.get("libxml2_ctest_passed") == 8
+        and source_interface_failure.get("libxml2_ctest_total") == 22
+        and source_interface_failure.get("libxml2_ctest_exit_code") == 8,
+        "libxml2 release test-interface failure drift",
+    )
+    contains_all(
+        source_interface_failure,
         (
             "run_and_diff.cmake",
             "test_xmlcatalog_add_del.cmake",
@@ -388,9 +430,9 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         "libxml2 source-interface defect or correction was hidden",
     )
     require(
-        latest_failure.get("package_receipt_issued") is False
-        and latest_failure.get("product_activation_occurred") is False,
-        "failed libxml2 execution was promoted",
+        source_interface_failure.get("package_receipt_issued") is False
+        and source_interface_failure.get("product_activation_occurred") is False,
+        "prior failed libxml2 execution was promoted",
     )
     failure = runtime.get("failed_execution", {})
     require(failure.get("component") == "liburing" and failure.get("component_version") == "2.15", "liburing acceptance boundary drift")
@@ -437,7 +479,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(staging_violation.get("activated") is False, "unactivated OpenSSL staging violation became activation")
     require(staging_violation.get("file_count") == 161 and staging_violation.get("physical_bytes") == 78739606, "OpenSSL staging violation evidence drift")
     contains_all(staging_violation, ("environment-only DESTDIR", "quarantine", "GNU Make DESTDIR", "mutation test"), "OpenSSL staging violation or correction was hidden")
-    contains_all(runtime.get("continuation_condition", ""), ("exact runtime plan", "record every component test", "inert runtime package", "compose the inert PostgreSQL", "separate accepted selected-runtime-provider qualification"), "runtime continuation was approximated")
+    contains_all(runtime.get("continuation_condition", ""), ("exact runtime plan", "corrected common Make and libtool runtime-search law", "record every component test", "canonical package-relative RUNPATH", "inert runtime package", "compose the inert PostgreSQL", "separate accepted selected-runtime-provider qualification"), "runtime continuation was approximated")
     contains_all(runtime.get("nonclaims", []), ("not been built to completion", "not been waived", "not been qualified", "not been installed qualified or accepted", "not been activated"), "runtime package or provider was promoted beyond evidence")
     postgresql = progress.get("postgresql_product_package", {})
     require(postgresql.get("contract_schema") == "laplace.postgresql-build-contract/v2", "PostgreSQL product composer contract drift")
@@ -448,8 +490,8 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(postgresql.get("known_unclosed_inputs", []), ("ambient Python", "POSIX", "platform ABI", "Perl modules", "selected kernel", "runtime-provider qualification"), "PostgreSQL input closure was overstated")
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "9a386a03916c0f93a33419d678d7cbafd2cdd9f8",
-        "runtime source-interface implementation checkpoint drift",
+        == "aea8a90d89c63c86081bca8c92ca4c80ce04f8bb",
+        "runtime RUNPATH implementation checkpoint drift",
     )
     require(
         postgresql.get("implementation_commit")

@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T03:30:26Z",
+  "observed_at_utc": "2026-08-27T04:27:20Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "9a386a03916c0f93a33419d678d7cbafd2cdd9f8",
-    "implementation_checkpoint_commit": "9a386a03916c0f93a33419d678d7cbafd2cdd9f8",
+    "observed_branch_head": "aea8a90d89c63c86081bca8c92ca4c80ce04f8bb",
+    "implementation_checkpoint_commit": "aea8a90d89c63c86081bca8c92ca4c80ce04f8bb",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-runtime-source-interface-corrected-reexecution-ready-provider-qualification-pending",
+    "state": "implementation-in-progress-runtime-runpath-corrected-reexecution-ready-provider-qualification-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -305,11 +305,56 @@
         "contract_schema": "laplace.postgresql-runtime-build/v2",
         "plan_schema": "laplace.postgresql-runtime-plan/v2",
         "receipt_schema": "laplace.postgresql-runtime-package/v2",
-        "latest_plan_id": "a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005",
+        "latest_plan_id": "791c2a54626e1951bf71f1261aa9f4953d339af82de1ae8f0744ced1dcbf914f",
         "logical_install_prefix": "/opt/laplace/current",
-        "staged_prefix": "/build/laplace/stage/a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005/root/opt/laplace/current",
-        "state": "first-v2-execution-preserved-failed-libxml2-source-interface-corrected-reexecution-ready-package-not-built-provider-qualification-unresolved",
+        "staged_prefix": "/build/laplace/stage/791c2a54626e1951bf71f1261aa9f4953d339af82de1ae8f0744ced1dcbf914f/root/opt/laplace/current",
+        "state": "second-v2-execution-preserved-failed-package-runpath-verification-corrected-reexecution-ready-package-not-built-provider-qualification-unresolved",
         "latest_failed_execution": {
+          "build_input_id": "a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005",
+          "contract_generation": "v2",
+          "successful_component_checkpoints": [
+            "zlib",
+            "lz4",
+            "zstandard",
+            "icu",
+            "openssl",
+            "liburing",
+            "libxml2"
+          ],
+          "liburing_checkpoint_sha256": "d9c67bd4472949433ed26998d1a2709a0809b908eeaa0679d41dde4c98eab69b",
+          "liburing_test_disposition": "failed-under-observed-runtime-provider",
+          "liburing_test_exit_code": 2,
+          "liburing_failed_tests": [
+            "conn-unreach.t",
+            "io-wq-unused-exit.t",
+            "mshot-shutdown-race.t",
+            "send_recv.t",
+            "wq-aff.t"
+          ],
+          "liburing_timed_out_tests": [
+            "cancel-fd-userdata.t",
+            "cancel-race.t",
+            "recv-mshot-fair.t",
+            "recvsend_bundle.t"
+          ],
+          "libxml2_checkpoint_sha256": "28c3627c3767f1fd4d39fd03d04dd5990481e31259bf64a028094e9984fda814",
+          "libxml2_test_disposition": "passed",
+          "failed_stage": "final-package-elf-verification",
+          "observed_defects": [
+            "ICU pkgdata embedded /../lib in libicudata.so.78.3 after a nested shell expanded the make-encoded ORIGIN token",
+            "GNU libtool appended /opt/laplace/current/lib beside the canonical package-relative RUNPATH in xmllint and xmlcatalog"
+          ],
+          "correction": "Make-backed providers use a backslash-escaped doubled dollar that survives direct recipes and nested shell generators; generated Autotools libtool disables its private hardcode and runpath-variable mechanisms so the common canonical package-relative RUNPATH remains the only runtime-search law",
+          "correction_negative_controls": [
+            "a direct and nested-shell Make fixture fails when the backslash protection is removed",
+            "generated libtool normalization rejects duplicate runpath_var assignments",
+            "the package verifier continues to reject any absolute malformed or noncanonical ELF runtime-search entry"
+          ],
+          "source_generation_recovery": "an experimental upstream make check triggered maintainer regeneration in the verified libxml2 release tree; the entire contaminated release generation and repository-root configure output were quarantined under /build/laplace/quarantine/runpath-experiment-20260827.BIyERv and the complete generation was re-imported and verified from the locked archives",
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
+        "prior_v2_source_interface_failure": {
           "build_input_id": "a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a",
           "contract_generation": "v2",
           "successful_component_checkpoints": [
@@ -387,7 +432,7 @@
           "corrected_by": "explicit GNU Make DESTDIR assignment plus a deliberate mutation test",
           "activated": false
         },
-        "continuation_condition": "execute exact runtime plan a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005 through the verified physical source entrypoints; record every component test and the liburing host-coupled suite outcome exactly; issue only an inert runtime package whose provider qualification remains incomplete; compose the inert PostgreSQL product package; require a separate accepted selected-runtime-provider qualification before any product activation",
+        "continuation_condition": "execute exact runtime plan 791c2a54626e1951bf71f1261aa9f4953d339af82de1ae8f0744ced1dcbf914f through the re-imported verified source generation and corrected common Make and libtool runtime-search law; record every component test and the liburing host-coupled suite outcome exactly; accept only a staged package whose every ELF has the canonical package-relative RUNPATH; issue only an inert runtime package whose provider qualification remains incomplete; compose the inert PostgreSQL product package; require a separate accepted selected-runtime-provider qualification before any product activation",
         "nonclaims": [
           "the v2 runtime package has not been built to completion",
           "the prior liburing failures have not been waived reclassified as passes or attributed solely to the kernel",
@@ -427,7 +472,7 @@
       },
       "local_validation": {
         "postgresql_build_contract_and_mutation": "25 of 25 passed",
-        "runtime_build_graph_contract_and_mutation": "36 of 36 passed including missing and invented physical source-entrypoint mutations",
+        "runtime_build_graph_contract_and_mutation": "38 of 38 passed including source-entrypoint, nested-shell RUNPATH, generated-libtool, and package-verification mutations",
         "program_authority": "21 of 21 passed including failed-runtime and unqualified-provider promotion mutations",
         "requirements_trace": "12 of 12 passed",
         "targeted_registered_tests": "4 of 4 passed for PostgreSQL build runtime graph requirements trace and program authority",
@@ -492,7 +537,7 @@
       "state": "open",
       "draft": true,
       "head_commit": "9a386a03916c0f93a33419d678d7cbafd2cdd9f8",
-      "proof_state": "partial implementation; the first v2 execution is preserved as failed at the libxml2 release test interface, the generic source-interface correction is published locally, and selected-provider qualification product package cluster activation Unicode activation seed and release remain false"
+      "proof_state": "partial implementation; the first v2 source-interface failure and second v2 package-RUNPATH failure are preserved, both generic corrections are local and tested, and selected-provider qualification product package cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
