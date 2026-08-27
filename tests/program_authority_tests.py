@@ -959,12 +959,70 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         == "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
         "product-package implementation checkpoint drift",
     )
+    successor = progress.get("successor_product_package", {})
+    require(
+        successor.get("build_plan_id")
+        == "e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052"
+        and successor.get("package_id")
+        == "60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445"
+        and successor.get("package_file_count") == 2747
+        and successor.get("package_symlink_count") == 47
+        and successor.get("package_total_file_bytes") == 532926282
+        and successor.get("build_input_closure_complete") is True
+        and successor.get("activation_eligible") is True
+        and successor.get("immutable_release_installed") is True
+        and successor.get("cluster_plan_issued") is False
+        and successor.get("product_activated") is False,
+        "successor product package checkpoint drift",
+    )
+    successor_closure = successor.get("recursive_elf_closure", {})
+    require(
+        successor_closure.get("root_artifacts") == 223
+        and successor_closure.get("objects") == 186
+        and successor_closure.get("edges") == 1355
+        and successor_closure.get("custom_objects") == 180
+        and successor_closure.get("host_objects") == 6
+        and successor_closure.get("external_objects") == 0
+        and successor_closure.get("unresolved_edges") == 0
+        and successor_closure.get("resolution_conflicts") == 0
+        and successor_closure.get("parse_errors") == 0
+        and successor_closure.get("discovery_errors") == 0,
+        "successor product recursive ELF closure drift",
+    )
+    successor_installation = successor.get("installation", {})
+    require(
+        successor_installation.get("installation_receipt_sha256")
+        == "586153c0a78d8ddfecdaf9c75ce681beec4cee3f26906aaa55a96710cd973239"
+        and successor_installation.get("installed_package_verified") is True
+        and successor_installation.get("overwrite_performed") is False
+        and successor_installation.get("root_ownership_complete") is False,
+        "successor product installation drift",
+    )
+    successor_resource = successor.get("resource_observation", {})
+    require(
+        successor_resource.get("observation_sha256")
+        == "03172d8228622bacaf2f22ecc5f0e17226ff4628040cd9ab3246e6f61ff64d54"
+        and successor_resource.get("processor_ids") == [0, 1, 2, 3, 4, 5]
+        and successor_resource.get("cpu_slots") == 6
+        and successor_resource.get("memory_bytes") == 12884901888
+        and successor_resource.get("io_slots") == 4,
+        "successor native resource observation drift",
+    )
+    successor_collision = successor.get("unprivileged_collision_observation", {})
+    require(
+        successor_collision.get("observation_sha256")
+        == "92dc1d08cc33b11508849de0498223650c30674ec752cc3880c7e209ad001125"
+        and successor_collision.get("collisions") == []
+        and successor_collision.get("accepted") is False
+        and len(successor_collision.get("inspection_errors", [])) == 4,
+        "incomplete successor collision observation was erased or promoted",
+    )
     unicode_access = progress.get("product_unicode_access_mechanism", {})
     require(
         unicode_access.get("implementation_commit")
         == "50f3a29044c96497ba60cdbbdc12921e6f67539c"
         and unicode_access.get("state")
-        == "implemented-and-controlled-integration-proven-successor-package-not-yet-built",
+        == "implemented-and-controlled-integration-proven-successor-package-built-installed-and-resource-observed-physical-activation-pending",
         "product Unicode public-access checkpoint drift",
     )
     contains_all(
@@ -1004,7 +1062,13 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     contains_all(
         unicode_activation.get("product_boundary", ""),
-        ("not executed", "successor package", "physical product cluster", "no Unicode product activation receipt"),
+        (
+            "installed successor package",
+            "not executed",
+            "accepted root collision inspection",
+            "physical cluster activation",
+            "no Unicode product activation receipt",
+        ),
         "Unicode activation controller was promoted beyond evidence",
     )
     require(postgresql.get("implementation_commit") == "16126c4a4a90a6710528f94aacb401cf45fdea66", "historical PostgreSQL composer checkpoint drift")
@@ -1017,7 +1081,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(github.get("unicode_product_activation_issue", {}).get("state") == "open", "Unicode product activation issue was prematurely closed")
     active_pr = github.get("active_product_runtime_pull_request", {})
     require(active_pr.get("number") == 74 and active_pr.get("state") == "open" and active_pr.get("draft") is True, "active runtime PR observation drift")
-    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "product cluster activation", "public Unicode Tier-0/reverse perfcache access", "Unicode product activation controller", "installed package predates", "successor package", "root ownership", "physical cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
+    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "product cluster activation", "public Unicode Tier-0/reverse perfcache access", "Unicode product activation controller", "successor package", "root ownership", "physical cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")

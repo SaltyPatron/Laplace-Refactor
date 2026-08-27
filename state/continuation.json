@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T13:04:05Z",
+  "observed_at_utc": "2026-08-27T13:49:03Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,7 +17,7 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
+    "observed_branch_head": "baba1887727014160c06ec5749b06a839f69edd1",
     "implementation_checkpoint_commit": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
     "pull_request": 74
   },
@@ -961,6 +961,84 @@
         },
         "product_activated": false
       },
+      "successor_product_package": {
+        "receipt_schema": "laplace.product-package-receipt/v1",
+        "build_plan_id": "e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052",
+        "package_id": "60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445",
+        "package_receipt": "/build/laplace/build/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/package-receipt.json",
+        "package_receipt_sha256": "deb28a1228bab776d2e049a59563f4f442f8c85b70371f4c762edd708f6ba29e",
+        "package_manifest": "/build/laplace/build/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/package-manifest.json",
+        "package_manifest_sha256": "699b15681e2e43af65d727e22b64895468d62424543023a2c4b31f95c2d835ee",
+        "plan_sha256": "e640bc1b45d23aa09df52801abfbaedf749b17ca99d97c61730b9aa01a0f413a",
+        "build_log_sha256": "053289f303fb6b830fb123a1beee0091abc99f40b0e114f6ee449f4e0ac71274",
+        "physical_root": "/build/laplace/stage/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/root/opt/laplace/releases/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445",
+        "package_file_count": 2747,
+        "package_symlink_count": 47,
+        "package_total_file_bytes": 532926282,
+        "required_new_product_files": [
+          "bin/laplace_resource_observe",
+          "bin/laplace_unicode_activation_identify",
+          "pgsql-18/lib/laplace_pg.so"
+        ],
+        "recursive_elf_closure": {
+          "receipt": "/build/laplace/build/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/recursive-elf-closure.json",
+          "receipt_sha256": "fab5ba36f09ccde7e4f1a485e360acec533e373b0eabca3e384619490d55b077",
+          "root_artifacts": 223,
+          "objects": 186,
+          "edges": 1355,
+          "custom_objects": 180,
+          "host_objects": 6,
+          "external_objects": 0,
+          "unresolved_edges": 0,
+          "resolution_conflicts": 0,
+          "parse_errors": 0,
+          "discovery_errors": 0
+        },
+        "build_input_closure_complete": true,
+        "activation_eligible": true,
+        "immutable_release_installed": true,
+        "installation": {
+          "receipt_schema": "laplace.product-package-installation-receipt/v1",
+          "receipt": "/opt/laplace/receipts/packages/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445.json",
+          "receipt_sha256": "621c03f13b52320ca72ef41eb42816e7442b5b2ababb89fa8e038917c52e2a17",
+          "installation_receipt_sha256": "586153c0a78d8ddfecdaf9c75ce681beec4cee3f26906aaa55a96710cd973239",
+          "installed_release": "/opt/laplace/releases/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445",
+          "installed_package_verified": true,
+          "overwrite_performed": false,
+          "root_ownership_complete": false
+        },
+        "resource_observation": {
+          "schema": "laplace.execution-resource-observation/v1",
+          "receipt": "/opt/laplace/receipts/plans/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445/resource-observation.json",
+          "receipt_sha256": "f3d714070104f8b21bc518717e74ddd52620bfc89b10505669938de13d2b65fe",
+          "observation_sha256": "03172d8228622bacaf2f22ecc5f0e17226ff4628040cd9ab3246e6f61ff64d54",
+          "topology_receipt": "5e187623cbed49eaac1feb577980afd2e1bb42ff33319988cd5e6eb3c5d28353",
+          "root_grant_receipt": "4c3be64e30d76907dd38e6cc7ec15617783996c7c3376379322ee4ba45ab35a8",
+          "partition_receipt": "5485a5dddda35842134cc6cc7e345db505a4cf7ebd6f4c330bd0c550f2535c3a",
+          "processor_allocation_receipt": "3021876994296d31dbc2355dac88767bb1fb216b1ba3863246f439640b499b65",
+          "storage_observation_receipt": "bf578860ea9262c52526422e18ff98d2d91769a18fa6111fefbc5586ec54bac5",
+          "processor_ids": [0, 1, 2, 3, 4, 5],
+          "cpu_slots": 6,
+          "memory_bytes": 12884901888,
+          "io_slots": 4
+        },
+        "unprivileged_collision_observation": {
+          "receipt": "/opt/laplace/receipts/plans/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445/collision-observation-unprivileged.json",
+          "receipt_sha256": "6a1884ddf330038ff133fb69e6e0ea14828411af51a1622a6cd43e553c0df10b",
+          "observation_sha256": "92dc1d08cc33b11508849de0498223650c30674ec752cc3880c7e209ad001125",
+          "collisions": [],
+          "accepted": false,
+          "inspection_errors": [
+            "lstat /opt/laplace/pgdata/refactor/data: EACCES",
+            "lstat /opt/laplace/pgdata/refactor/perfcache: EACCES",
+            "lstat /pgtemp/refactor: EACCES",
+            "lstat /var/lib/pgwal/refactor: EACCES"
+          ]
+        },
+        "cluster_plan_issued": false,
+        "product_activated": false,
+        "next_boundary": "one authorized root activation must qualify ownership repeat collision inspection create and restart the isolated PostgreSQL 18.6 cluster and commit the active pointer before Unicode product activation may execute"
+      },
       "current_product_package": {
         "receipt_schema": "laplace.product-package-receipt/v1",
         "build_plan_id": "1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c",
@@ -1074,7 +1152,7 @@
       },
       "product_unicode_access_mechanism": {
         "implementation_commit": "50f3a29044c96497ba60cdbbdc12921e6f67539c",
-        "state": "implemented-and-controlled-integration-proven-successor-package-not-yet-built",
+        "state": "implemented-and-controlled-integration-proven-successor-package-built-installed-and-resource-observed-physical-activation-pending",
         "implemented_boundaries": [
           "one production PostgreSQL batch operation resolves ordered Unicode Tier-0 positions through one exact active native perfcache generation",
           "one production PostgreSQL batch operation reverse-resolves ordered content identity and identity-preimage-fingerprint pairs through the same exact active generation",
@@ -1094,7 +1172,7 @@
           "program_authority_physical": "27 of 27 passed",
           "postgresql_cluster_contract": "38 of 38 passed"
         },
-        "product_boundary": "the installed package predates this implementation; a content-addressed successor package and activated product cluster are required before these public operations or Unicode can be claimed product-active"
+        "product_boundary": "the exact successor package containing these public operations is installed and resource-observed, but root ownership, accepted live collision evidence, the activated cluster, and Unicode product activation remain unproven"
       },
       "product_unicode_activation_controller": {
         "implementation_commit": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
@@ -1118,7 +1196,7 @@
           "program_authority_physical": "27 of 27 passed",
           "requirements_trace": "12 of 12 passed"
         },
-        "product_boundary": "the controller has not executed against an accepted successor package and active physical product cluster; no Unicode product activation receipt exists"
+        "product_boundary": "the controller has an exact installed successor package but has not executed because accepted root collision inspection and physical cluster activation require one authorized root invocation; no Unicode product activation receipt exists"
       },
       "local_validation": {
         "postgresql_build_contract_and_mutation": "37 of 37 passed including packaged TAP providers staged OpenSSL execution preflight bootstrap-provider installed-provider recursive-closure and independent-output mutations",
@@ -1147,7 +1225,7 @@
       "controlled integration acceptance only"
     ],
     "immediate_implementation_boundary": [
-      "build install and observe a content-addressed successor product package containing the public Unicode perfcache operations and activation controller",
+      "completed: build install and observe a content-addressed successor product package containing the public Unicode perfcache operations and activation controller",
       "rerun the live collision observation with authorized traversal of the runner-owned state roots and reject any actual occupied target before planning",
       "issue and verify the exact isolated cluster plan from the accepted package native resource observation and accepted collision observation",
       "initialize start and bootstrap the exact PostgreSQL 18.6 isolated cluster under issue 12",
@@ -1161,9 +1239,8 @@
     "whole_product_reason": "Unicode is the exact address and rendering floor required before the typed numerical highway can connect identifiers languages grammars recipes modalities and other machine dimensions; this is product activation of one substrate root not source-family ingestion.",
     "nonclaims": [
       "the activation-eligible PostgreSQL 18.6 and complete Laplace product packages exist but the selected product cluster is not yet established",
-      "the exact Laplace package is installed and verified at its content-addressed release path but root ownership and active product state are not established",
-      "the installed package is historical under the current contract because it predates the required packaged native execution-resource observer",
-      "the installed package and native resource observation were accepted under their original contract, but the package predates the current public Unicode access implementation and is no longer activation-eligible under the current contract",
+      "the exact successor Laplace package containing the public Unicode operations and activation identity provider is installed and verified at its content-addressed release path but root ownership and active product state are not established",
+      "the unprivileged collision observation cannot prove absence inside runner-owned mode-0700 state roots and is not accepted as a cluster plan input",
       "Unicode is not yet product activated",
       "knowledge is not seeded",
       "the typed numerical highway is not implemented",
@@ -1202,8 +1279,8 @@
       "number": 74,
       "state": "open",
       "draft": true,
-      "head_commit": "54d6f9d00d7a52556486a2758a4b55bb3cbe1e44",
-      "proof_state": "partial implementation; product cluster activation exact public Unicode Tier-0/reverse perfcache access and the complete Unicode product activation controller are implemented and controlled-integration proven, but the installed package predates those Unicode boundaries; a successor package privileged collision completion root ownership physical cluster activation Unicode activation seed and release remain false"
+      "head_commit": "baba1887727014160c06ec5749b06a839f69edd1",
+      "proof_state": "partial implementation; product cluster activation exact public Unicode Tier-0/reverse perfcache access and the complete Unicode product activation controller are implemented and controlled-integration proven; the exact successor package is built installed and resource-observed, while accepted privileged collision completion root ownership physical cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
