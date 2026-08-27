@@ -1,6 +1,6 @@
 \ir composition_contract.sql
 
-CREATE OR REPLACE FUNCTION laplace.composition_deposit_batch(
+CREATE FUNCTION pg_temp.composition_mutant_deposit(
     laplace.execution_context,
     bytea,
     bytea,
@@ -19,7 +19,16 @@ DECLARE
     result laplace.composition_deposit_result;
 BEGIN
     SELECT * INTO STRICT fixture FROM composition_fixture;
-    result := pg_temp.composition_fixture_pair_deposit();
+    SELECT pg_temp.composition_mutant_deposit(
+        inputs.execution_context,
+        inputs.source_fingerprint,
+        inputs.calculation_recipe_fingerprint,
+        inputs.known_entities,
+        inputs.operands,
+        inputs.requests,
+        inputs.preferred_batch_bytes)
+    INTO STRICT result
+    FROM pg_temp.composition_fixture_pair_inputs() AS inputs;
     IF fixture.expected_result_entity = ANY(result.result_entity_ids)
        AND fixture.expected_result_physicality = ANY(result.result_physicality_ids)
        AND result.unique_entity_count > 0
