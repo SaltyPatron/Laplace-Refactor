@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T02:43:31Z",
+  "observed_at_utc": "2026-08-27T03:30:26Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "fbfbacfef9290e790475c01ecd5e64c2c40c8cff",
-    "implementation_checkpoint_commit": "fbfbacfef9290e790475c01ecd5e64c2c40c8cff",
+    "observed_branch_head": "9a386a03916c0f93a33419d678d7cbafd2cdd9f8",
+    "implementation_checkpoint_commit": "9a386a03916c0f93a33419d678d7cbafd2cdd9f8",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-runtime-package-execution-ready-provider-qualification-pending",
+    "state": "implementation-in-progress-runtime-source-interface-corrected-reexecution-ready-provider-qualification-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -305,10 +305,33 @@
         "contract_schema": "laplace.postgresql-runtime-build/v2",
         "plan_schema": "laplace.postgresql-runtime-plan/v2",
         "receipt_schema": "laplace.postgresql-runtime-package/v2",
-        "latest_plan_id": "a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a",
+        "latest_plan_id": "a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005",
         "logical_install_prefix": "/opt/laplace/current",
-        "staged_prefix": "/build/laplace/stage/a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a/root/opt/laplace/current",
-        "state": "composer-implemented-execution-ready-package-not-built-provider-qualification-unresolved",
+        "staged_prefix": "/build/laplace/stage/a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005/root/opt/laplace/current",
+        "state": "first-v2-execution-preserved-failed-libxml2-source-interface-corrected-reexecution-ready-package-not-built-provider-qualification-unresolved",
+        "latest_failed_execution": {
+          "build_input_id": "a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a",
+          "contract_generation": "v2",
+          "successful_component_checkpoints": [
+            "zlib",
+            "lz4",
+            "zstandard",
+            "icu",
+            "openssl",
+            "liburing"
+          ],
+          "liburing_checkpoint_sha256": "c5720b64db509e04b8614ebaf2702bbd74a4a313fde0265431a6ae16a2248847",
+          "liburing_test_disposition": "failed-under-observed-runtime-provider",
+          "failed_component": "libxml2",
+          "libxml2_compilation_completed": true,
+          "libxml2_ctest_passed": 8,
+          "libxml2_ctest_total": 22,
+          "libxml2_ctest_exit_code": 8,
+          "observed_defect": "the selected libxml2 2.15.3 release archive CMake test registry referenced run_and_diff.cmake and test_xmlcatalog_add_del.cmake but those helpers were absent from the exact locked archive, so fourteen registered tests could not start",
+          "correction": "every runtime component now declares and verifies its physical build and test entrypoints; libxml2 uses the complete generated Autotools interface and make check supplied by the locked release archive",
+          "package_receipt_issued": false,
+          "product_activation_occurred": false
+        },
         "prior_v1_successful_component_checkpoints_before_failure": [
           "zlib",
           "lz4",
@@ -364,7 +387,7 @@
           "corrected_by": "explicit GNU Make DESTDIR assignment plus a deliberate mutation test",
           "activated": false
         },
-        "continuation_condition": "execute exact runtime plan a94ec0eec0fa10e5a2276986dbc4531de5160d6d15d7c571f25f388baa24422a; record every component test and the liburing host-coupled suite outcome exactly; issue only an inert runtime package whose provider qualification remains incomplete; compose the inert PostgreSQL product package; require a separate accepted selected-runtime-provider qualification before any product activation",
+        "continuation_condition": "execute exact runtime plan a5118bc9100b46f85da0ebd01e65323aa5ea9caf15052aeaa7b289b213813005 through the verified physical source entrypoints; record every component test and the liburing host-coupled suite outcome exactly; issue only an inert runtime package whose provider qualification remains incomplete; compose the inert PostgreSQL product package; require a separate accepted selected-runtime-provider qualification before any product activation",
         "nonclaims": [
           "the v2 runtime package has not been built to completion",
           "the prior liburing failures have not been waived reclassified as passes or attributed solely to the kernel",
@@ -404,7 +427,7 @@
       },
       "local_validation": {
         "postgresql_build_contract_and_mutation": "25 of 25 passed",
-        "runtime_build_graph_contract_and_mutation": "34 of 34 passed",
+        "runtime_build_graph_contract_and_mutation": "36 of 36 passed including missing and invented physical source-entrypoint mutations",
         "program_authority": "21 of 21 passed including failed-runtime and unqualified-provider promotion mutations",
         "requirements_trace": "12 of 12 passed",
         "targeted_registered_tests": "4 of 4 passed for PostgreSQL build runtime graph requirements trace and program authority",
@@ -468,8 +491,8 @@
       "number": 74,
       "state": "open",
       "draft": true,
-      "head_commit": "fbfbacfef9290e790475c01ecd5e64c2c40c8cff",
-      "proof_state": "partial implementation; runtime package execution is ready while selected-provider qualification product package cluster activation Unicode activation seed and release remain false"
+      "head_commit": "9a386a03916c0f93a33419d678d7cbafd2cdd9f8",
+      "proof_state": "partial implementation; the first v2 execution is preserved as failed at the libxml2 release test interface, the generic source-interface correction is published locally, and selected-provider qualification product package cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,
