@@ -451,10 +451,10 @@ class PostgreSQLBuildTests(unittest.TestCase):
             log.write_text(
                 "\n".join(
                     [
-                        f"checking for openssl... {selected}",
+                        f"checking for OPENSSL... {selected}",
                         f"configure: using openssl: {version}",
                         "checking for Perl modules required for TAP tests... yes",
-                        "checking for openssl... /usr/bin/openssl",
+                        "checking for OPENSSL... /usr/bin/openssl",
                     ]
                 )
                 + "\n",

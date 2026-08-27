@@ -811,7 +811,7 @@ def verify_configure_input_selection(
 ) -> dict[str, str]:
     text = log_path.read_text(encoding="utf-8", errors="replace")
     expected = {
-        "openssl_path": f"checking for openssl... {environment['OPENSSL']}",
+        "openssl_path": f"checking for OPENSSL... {environment['OPENSSL']}",
         "openssl_version": (
             "configure: using openssl: "
             f"{preflight['openssl']['version_line']}"
@@ -824,7 +824,7 @@ def verify_configure_input_selection(
             "PostgreSQL configure did not retain exact selected inputs: "
             + ", ".join(missing)
         )
-    if "checking for openssl... /usr/bin/openssl" in text:
+    if "checking for OPENSSL... /usr/bin/openssl" in text:
         raise BuildError("PostgreSQL configure selected ambient OpenSSL")
     return expected
 
