@@ -1,0 +1,34 @@
+name: product-activation
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/product-activation.yml
+      - contracts/product-activation-gateway.json
+      - tools/delivery/**
+      - tests/product_activation_gateway_tests.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-activation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runner-authority:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Inspect the established deployment authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          sudo -n -l
