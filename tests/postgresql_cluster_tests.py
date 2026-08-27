@@ -261,11 +261,23 @@ class PostgreSQLClusterContract(unittest.TestCase):
         self.assertNotIn("LD_LIBRARY_PATH", rendered)
         self.assertIn("local all all reject", rendered)
         self.assertIn("AllowedCPUs=20 21 28 29", rendered)
+        self.assertNotIn("ExecStartPost=", rendered)
+        self.assertEqual(
+            plan["commands"]["probe_readiness"][0],
+            f"{plan['package_root']}/pgsql-18/bin/pg_isready",
+        )
         bootstrap = next(
             item["content"] for item in plan["files"] if item["path"].endswith("bootstrap.sql")
         )
         for row_by_row in (" LOOP ", "CURSOR", "WITH RECURSIVE"):
             self.assertNotIn(row_by_row, bootstrap.upper())
+        for signature in (
+            "identity_codepoint_calculate_batch(laplace.execution_context, integer[])",
+            "identity_codepoint_execute_batch(laplace.execution_context, integer[])",
+            "trajectory_composition_decode_calculate_batch(laplace.execution_context, bytea[])",
+            "trajectory_composition_decode_execute_batch(laplace.execution_context, bytea[])",
+        ):
+            self.assertIn(signature, bootstrap)
 
     def test_native_resource_observation_finalization_binds_packaged_observer(self) -> None:
         native = self.valid_resource_observation()
@@ -648,6 +660,159 @@ class PostgreSQLClusterContract(unittest.TestCase):
         )
         with self.assertRaisesRegex(clusterctl.ClusterError, "positive system"):
             clusterctl.verify_loaded(plan, self.contract, observation)
+
+    def test_live_loaded_observation_is_derived_from_exact_process_and_files(self) -> None:
+        plan = self.plan()
+        package_source = clusterctl.prefixed(
+            self.package_physical_root, plan["package_root"]
+        )
+        package_target = clusterctl.prefixed(self.activation_root, plan["package_root"])
+        package_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(package_source, package_target, symlinks=True)
+        clusterctl.apply_plan(plan, self.contract, self.activation_root, False)
+        service_receipt = {
+            "label": "observe-candidate-service",
+            "argv": ["systemctl", "show"],
+            "exit_code": 0,
+            "stdout_sha256": "a" * 64,
+            "stderr_sha256": "b" * 64,
+        }
+        paths = {item["path"] for item in plan["required_loaded_objects"]}
+        observation = clusterctl.compose_loaded_observation(
+            plan,
+            self.contract,
+            self.activation_root,
+            "active",
+            1201,
+            1208,
+            "8672946663471807927",
+            paths,
+            "c" * 64,
+            service_receipt,
+        )
+        clusterctl.verify_loaded(plan, self.contract, observation)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "omits required"):
+            clusterctl.compose_loaded_observation(
+                plan,
+                self.contract,
+                self.activation_root,
+                "active",
+                1201,
+                1208,
+                "8672946663471807927",
+                paths - {plan["required_loaded_objects"][0]["path"]},
+                "c" * 64,
+                service_receipt,
+            )
+
+    def test_complete_activation_restarts_before_committing_active_package(self) -> None:
+        plan = self.plan()
+        staged = clusterctl.apply_plan(
+            plan, self.contract, self.activation_root, False
+        )
+        executed: list[str] = []
+        recorded: list[str] = []
+        observations = 0
+
+        def executor(label: str, command: Any, timeout: int) -> dict[str, Any]:
+            executed.append(label)
+            return {
+                "label": label,
+                "argv": list(command),
+                "exit_code": 0,
+                "stdout_sha256": "d" * 64,
+                "stderr_sha256": "e" * 64,
+            }
+
+        def readiness(label: str, command: Any, timeout: int) -> dict[str, Any]:
+            return executor(label, command, timeout)
+
+        def observer(*_arguments: Any) -> dict[str, Any]:
+            nonlocal observations
+            observation = self.loaded_observation(plan)
+            observations += 1
+            observation["postmaster_pid"] = 2000 + observations
+            observation["backend_pid"] = 3000 + observations
+            observation["observation_sha256"] = clusterctl.state_observation_identity(
+                observation
+            )
+            return observation
+
+        result = clusterctl.execute_cluster_activation(
+            plan,
+            self.contract,
+            staged,
+            self.activation_root,
+            False,
+            [],
+            observer=observer,
+            recorder=lambda stem, _document: recorded.append(stem),
+            executor=executor,
+            readiness=readiness,
+        )
+        self.assertEqual(result["phase"], "activated")
+        self.assertTrue(result["restart_proven"])
+        self.assertEqual(recorded, ["loaded-initial", "loaded-restart"])
+        self.assertEqual(
+            executed,
+            [
+                "initialize-cluster",
+                "reload-service-manager",
+                "start-candidate-service",
+                "candidate-readiness",
+                "bootstrap-product-database",
+                "stop-candidate-for-restart-proof",
+                "start-candidate-after-restart",
+                "restart-readiness",
+            ],
+        )
+        active = clusterctl.prefixed(self.activation_root, plan["active_link"])
+        self.assertEqual(os.readlink(active), f"releases/{plan['package_id']}")
+
+    def test_restart_without_a_new_postmaster_is_rejected_before_commit(self) -> None:
+        plan = self.plan()
+        staged = clusterctl.apply_plan(
+            plan, self.contract, self.activation_root, False
+        )
+        executed: list[str] = []
+
+        def executor(label: str, command: Any, timeout: int) -> dict[str, Any]:
+            executed.append(label)
+            return {
+                "label": label,
+                "argv": list(command),
+                "exit_code": 0,
+                "stdout_sha256": "d" * 64,
+                "stderr_sha256": "e" * 64,
+            }
+
+        def readiness(label: str, command: Any, timeout: int) -> dict[str, Any]:
+            return executor(label, command, timeout)
+
+        def observer(*_arguments: Any) -> dict[str, Any]:
+            observation = self.loaded_observation(plan)
+            observation["postmaster_pid"] = 2001
+            observation["backend_pid"] = 3001
+            observation["observation_sha256"] = clusterctl.state_observation_identity(
+                observation
+            )
+            return observation
+
+        with self.assertRaisesRegex(clusterctl.ClusterError, "original postmaster"):
+            clusterctl.execute_cluster_activation(
+                plan,
+                self.contract,
+                staged,
+                self.activation_root,
+                False,
+                [],
+                observer=observer,
+                executor=executor,
+                readiness=readiness,
+            )
+        active = clusterctl.prefixed(self.activation_root, plan["active_link"])
+        self.assertFalse(active.exists())
+        self.assertIn("stop-candidate-after-failure", executed)
 
     def test_fixture_stage_commit_and_remove_preserve_database_state(self) -> None:
         plan = self.plan()

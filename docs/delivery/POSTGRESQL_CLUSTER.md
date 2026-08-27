@@ -38,7 +38,7 @@ rejected. `trust` is forbidden.
 
 ## Package and activation state machine
 
-`tools/postgresql/clusterctl.py` implements a fail-closed five-state lifecycle:
+`tools/postgresql/clusterctl.py` implements a fail-closed product lifecycle:
 
 1. **Install package** verifies every source manifest entry, digest, mode,
    capability, activation gate, internal symlink, and loaded-object declaration,
@@ -53,15 +53,30 @@ rejected. `trust` is forbidden.
    Planning renders configuration, bootstrap SQL,
    service definition, resource settings, and exact commands. No package bytes
    means a useful dry-run plan whose activation remains blocked.
-3. **Apply** requires every manifest file, digest, mode, required capability, and
+3. **Apply/stage** requires every manifest file, digest, mode, required capability, and
    loaded-object declaration to verify. It stages only previously absent,
-   manifest-owned files and creates dedicated state directories. It never starts
-   PostgreSQL or invokes systemd.
-4. **Commit** requires a separately acquired loaded-state observation proving the
+   manifest-owned files and creates dedicated state directories. The low-level
+   command never starts PostgreSQL or invokes systemd.
+4. **Activate product** qualifies the content-addressed package as `root:root`,
+   repeats the live collision inspection with system authority, generates and stages
+   the exact plan, initializes the checksummed cluster, reloads systemd, starts the
+   immutable-package postmaster, and bootstraps the roles, database, extensions, and
+   application effect boundary. A dedicated administrator backend loads both product
+   extensions while the controller identifies its PID through `pg_stat_activity` and
+   inspects `/proc/<pid>/exe` plus `/proc/<pid>/maps`. The postmaster, extension,
+   statistics extension, and native engine paths and bytes must equal the package
+   manifest.
+5. **Restart proof and commit** stops and starts the candidate, requires a different
+   postmaster PID with the same positive PostgreSQL system identifier, and repeats the
+   complete loaded-object and generated-configuration observation. Only after both
+   observations pass is `/opt/laplace/current` switched atomically. Failure before
+   that commit stops the candidate when possible, leaves the prior pointer untouched,
+   preserves database state, and writes a typed failure receipt.
+6. **Commit (low-level)** requires a separately acquired loaded-state observation proving the
    service, system identifier, cluster paths, generated configuration hashes, and
    exact executable/shared-object hashes. Only then is `/opt/laplace/current`
    switched atomically.
-5. **Remove** first requires an independent observation that the candidate service
+7. **Remove** first requires an independent observation that the candidate service
    is inactive and no candidate postmaster remains. It then restores the prior
    active link and removes only unchanged generated files named in the receipt.
    Database, WAL, temporary, log, and receipt state is preserved. A changed file
@@ -116,12 +131,25 @@ runner-to-admin mapping, ambient loader state, grants outside declared policy,
 non-package `pg_config`, package tampering, loaded-object drift, invalid system
 identity, and removal after operator modification.
 
-Real activation is a later privileged delivery operation. It additionally
-requires the complete PostgreSQL 18.6 product package, a selected recursive ELF
-closure, independently captured loaded-state evidence, root ownership changes,
-`systemctl daemon-reload`, `initdb`, candidate service start, bootstrap, and
-verification. The lifecycle tool emits those commands but never executes them.
-No current service or cluster is a prerequisite or activation target.
+Real activation is one explicit privileged operation. It requires the complete
+PostgreSQL 18.6 product package, selected recursive ELF closure, native resource
+observation, root ownership, and an unoccupied declared cluster boundary:
+
+```sh
+sudo python3 tools/postgresql/clusterctl.py activate-product \
+  --authorize-system-root \
+  --contract contracts/postgresql-cluster.json \
+  --package-manifest /path/to/package-manifest.json \
+  --resource-observation /path/to/native-resource-observation.json \
+  --evidence-directory /opt/laplace/receipts/plans/<package-id> \
+  --output /opt/laplace/receipts/plans/<package-id>/activation-result.json
+```
+
+The evidence directory must be addressed by the selected package ID. Completed
+ownership, collision, plan, staging, command, initial-load, restart-load, failure, and
+activation evidence is retained there. The command will not treat an existing cluster,
+configuration, socket, service, or inaccessible collision target as fresh state. No
+current service or cluster is a prerequisite or activation target.
 
 ## Resource derivation
 
