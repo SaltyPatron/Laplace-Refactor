@@ -748,10 +748,10 @@
             "exact selected compiler support and platform ABI linker-map inputs"
           ],
           "installed_runtime_provider": {
-            "selection_sha256": "07a9a2d9698dc94660dec9aa0811f694f4dba3ac230b8819ba7090588e2168e1",
+            "selection_sha256": "07a9f21bcb81cb669a6be3248eb889ffbceb20bfd05fc957c16373f5ed595137",
             "provider": "intel-oneapi-runtime",
             "provider_version": "2026.1.1",
-            "provider_sha256": "f14ba1c5ac25f6e5368923fc65e85e72ca20ae94a7f6009d613372ad3507b158",
+            "provider_sha256": "f14ba1d659dcc7c618386955da3daf025da48ebe5589cad3875028db6aeb12e6",
             "packaged_runtime_roles": [
               "imf-runtime",
               "svml-runtime",

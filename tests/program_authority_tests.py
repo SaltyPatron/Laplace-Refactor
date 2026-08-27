@@ -669,11 +669,11 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     installed_provider = successful_postgresql.get("installed_runtime_provider", {})
     require(
         installed_provider.get("selection_sha256")
-        == "07a9a2d9698dc94660dec9aa0811f694f4dba3ac230b8819ba7090588e2168e1"
+        == "07a9f21bcb81cb669a6be3248eb889ffbceb20bfd05fc957c16373f5ed595137"
         and installed_provider.get("provider") == "intel-oneapi-runtime"
         and installed_provider.get("provider_version") == "2026.1.1"
         and installed_provider.get("provider_sha256")
-        == "f14ba1c5ac25f6e5368923fc65e85e72ca20ae94a7f6009d613372ad3507b158",
+        == "f14ba1d659dcc7c618386955da3daf025da48ebe5589cad3875028db6aeb12e6",
         "PostgreSQL installed runtime provider selection drift",
     )
     contains_all(
@@ -766,6 +766,59 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
+        package_receipt_path = Path(successful_postgresql.get("package_receipt", ""))
+        if package_receipt_path.is_file():
+            require(
+                physical_file_digest(package_receipt_path)
+                == successful_postgresql.get("package_receipt_sha256"),
+                "physical PostgreSQL package receipt digest differs from continuation state",
+            )
+            physical_package_receipt = load(package_receipt_path)
+            physical_provider = physical_package_receipt.get(
+                "installed_runtime_provider", {}
+            )
+            require(
+                physical_package_receipt.get("build_input_id")
+                == successful_postgresql.get("build_input_id")
+                and physical_package_receipt.get("tree_sha256")
+                == successful_postgresql.get("package_tree_sha256")
+                and physical_package_receipt.get("file_count")
+                == successful_postgresql.get("package_file_count")
+                and physical_package_receipt.get("total_file_bytes")
+                == successful_postgresql.get("package_total_file_bytes")
+                and physical_provider.get("provider_selection_sha256")
+                == installed_provider.get("selection_sha256")
+                and physical_provider.get("provider_sha256")
+                == installed_provider.get("provider_sha256"),
+                "physical PostgreSQL package receipt identity differs from continuation state",
+            )
+            physical_closure = physical_package_receipt.get(
+                "recursive_elf_closure", {}
+            )
+            require(
+                physical_closure.get("report_sha256")
+                == recursive_elf.get("receipt_sha256")
+                and physical_package_receipt.get("recursive_elf_closure_verified")
+                is True,
+                "physical PostgreSQL recursive closure differs from continuation state",
+            )
+        for closure_key in ("receipt", "independent_reverification"):
+            closure_value = recursive_elf.get(closure_key, {})
+            if closure_key == "receipt":
+                closure_path = Path(str(closure_value))
+                closure_sha256 = recursive_elf.get("receipt_sha256")
+            else:
+                closure_path = Path(closure_value.get("receipt", ""))
+                closure_sha256 = closure_value.get("receipt_sha256")
+            if closure_path.is_file():
+                require(
+                    physical_file_digest(closure_path) == closure_sha256,
+                    "physical PostgreSQL recursive closure receipt digest differs from continuation state",
+                )
+        require(
+            not Path("/opt/laplace/current").exists(),
+            "continuation claims an inert product but /opt/laplace/current exists",
+        )
         for input_name in ("data_root", "model_root"):
             root_observation = inputs.get(input_name, {})
             observed_root = Path(root_observation.get("observed_path", ""))
