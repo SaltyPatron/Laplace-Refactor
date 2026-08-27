@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-inert-postgresql-18.6-product-package-built-runtime-closure-and-provider-qualification-pending",
+        == "implementation-in-progress-inert-postgresql-18.6-product-package-recursive-runtime-closure-proven-build-input-and-provider-qualification-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -594,10 +594,10 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     postgresql = progress.get("postgresql_product_package", {})
     require(postgresql.get("contract_schema") == "laplace.postgresql-build-contract/v2", "PostgreSQL product composer contract drift")
-    require(postgresql.get("state") == "inert-composed-postgresql-package-built-and-tested-activation-ineligible-runtime-closure-incomplete", "PostgreSQL package proof state drift")
+    require(postgresql.get("state") == "inert-composed-postgresql-package-built-tested-and-recursively-closed-activation-ineligible", "PostgreSQL package proof state drift")
     require(
         postgresql.get("build_input_id")
-        == "272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e"
+        == "006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d"
         and postgresql.get("toolchain_package_receipt_sha256")
         == "9cd1c23b21ab8504620faa5cf198e0d79ec625ec3a875184f757a6c1a49b1ee6"
         and postgresql.get("runtime_package_receipt_sha256")
@@ -605,9 +605,9 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         "PostgreSQL deterministic plan identity drift",
     )
     require(postgresql.get("logical_install_prefix") == "/opt/laplace/current/pgsql-18", "PostgreSQL logical product prefix drift")
-    contains_all(postgresql.get("receipt_inputs", []), ("Perl TAP", "staged OpenSSL", "unresolved provider qualification retained", "PostgreSQL 18.6"), "PostgreSQL input receipts lost exact providers or the provider gate")
-    contains_all(postgresql.get("implemented_boundary", []), ("duplicate-key-safe", "runtime-subtree immutability", "packaged Make", "execution preflight", "configure selection receipt", "DESTDIR", "RUNPATH", "provider-qualification requirements", "activation remains false"), "PostgreSQL product composition boundary was narrowed")
-    contains_all(postgresql.get("known_unclosed_inputs", []), ("ambient Python", "POSIX", "platform ABI", "selected kernel", "runtime-provider qualification"), "PostgreSQL input closure was overstated")
+    contains_all(postgresql.get("receipt_inputs", []), ("Perl TAP", "staged OpenSSL", "unresolved provider qualification retained", "installed-provider lock selection", "linker-map", "PostgreSQL 18.6"), "PostgreSQL input receipts lost exact providers or the provider gate")
+    contains_all(postgresql.get("implemented_boundary", []), ("duplicate-key-safe", "runtime-subtree immutability", "packaged Make", "execution preflight", "configure selection receipt", "DESTDIR", "RUNPATH", "installed-provider selection", "recursively closed", "dynamic loader libc and libm", "independent recursive closure", "provider-qualification requirements", "activation remains false"), "PostgreSQL product composition boundary was narrowed")
+    contains_all(postgresql.get("known_unclosed_inputs", []), ("ambient Python", "POSIX", "build-time startup", "compiler-runtime license", "selected kernel", "runtime-provider qualification"), "PostgreSQL input closure was overstated")
     previous_postgresql = postgresql.get("previous_rejected_execution", {})
     require(
         previous_postgresql.get("build_input_id")
@@ -635,44 +635,78 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         ("IO::Pty", "IPC::Run", "OpenSSL 4.0.1", "TAP prerequisites", "uppercase Autoconf", "ambient-provider negative control"),
         "latest PostgreSQL configure proof or correction was hidden",
     )
+    prior_successful_postgresql = postgresql.get(
+        "prior_successful_package_before_recursive_closure", {}
+    )
+    require(
+        prior_successful_postgresql.get("build_input_id")
+        == "272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e"
+        and prior_successful_postgresql.get("package_receipt_sha256")
+        == "6fde367d6f19ed6fbe89d141f43d927d389b3ac2a5cb7383c33193d81240a96d"
+        and prior_successful_postgresql.get("recursive_elf_closure_verified") is False
+        and prior_successful_postgresql.get("activation_eligible") is False,
+        "prior successful PostgreSQL runtime-closure blocker was erased or promoted",
+    )
     successful_postgresql = postgresql.get("latest_successful_package_execution", {})
     require(
         successful_postgresql.get("receipt_schema")
         == "laplace.postgresql-package-receipt/v2"
         and successful_postgresql.get("build_input_id")
-        == "272d2394be339e985b62bfe7cb3427ab45ea7dbf34b318391ef42b8707d1331e"
+        == "006e7e31883563fa4c7633c88a9413fba53447940d2709d9f55d1689fb76e97d"
         and successful_postgresql.get("package_receipt_sha256")
-        == "6fde367d6f19ed6fbe89d141f43d927d389b3ac2a5cb7383c33193d81240a96d"
+        == "2240ad84fa52761b2795a4e9db1e77b68f27f4e39731097302883ac9cecd8b89"
         and successful_postgresql.get("package_tree_sha256")
-        == "4b61ba439e224e155bd1f8a1764e3b28ede62112f5069fa2b01527a64db9d118",
+        == "e6cca321cdde6ee7417fcc6bd6186361beac490b58712cbf828068b0576e69cb",
         "successful PostgreSQL package identity drift",
     )
     require(
-        successful_postgresql.get("package_file_count") == 2681
-        and successful_postgresql.get("package_total_file_bytes") == 297159336
+        successful_postgresql.get("package_file_count") == 2689
+        and successful_postgresql.get("package_total_file_bytes") == 334091769
         and successful_postgresql.get("completed_targets")
         == ["world-bin", "check-world", "install-world-bin"],
         "successful PostgreSQL package extent or test boundary drift",
     )
-    recursive_elf = successful_postgresql.get("recursive_elf_diagnostic", {})
+    installed_provider = successful_postgresql.get("installed_runtime_provider", {})
     require(
-        recursive_elf.get("root_artifacts") == 191
+        installed_provider.get("selection_sha256")
+        == "07a9a2d9698dc94660dec9aa0811f694f4dba3ac230b8819ba7090588e2168e1"
+        and installed_provider.get("provider") == "intel-oneapi-runtime"
+        and installed_provider.get("provider_version") == "2026.1.1"
+        and installed_provider.get("provider_sha256")
+        == "f14ba1c5ac25f6e5368923fc65e85e72ca20ae94a7f6009d613372ad3507b158",
+        "PostgreSQL installed runtime provider selection drift",
+    )
+    contains_all(
+        installed_provider,
+        ("imf-runtime", "svml-runtime", "intlc-runtime", "irng-runtime", "license", "compiler-third-party-programs"),
+        "PostgreSQL installed runtime provider roles or licenses were narrowed",
+    )
+    recursive_elf = successful_postgresql.get("recursive_elf_closure", {})
+    require(
+        recursive_elf.get("receipt_schema")
+        == "laplace.postgresql-recursive-elf-closure-receipt/v1"
+        and recursive_elf.get("receipt_sha256")
+        == "fe9d55b1516883f6cf182adc94680ccfd73586a4fae578239c451717209418cf"
+        and recursive_elf.get("root_artifacts") == 198
         and recursive_elf.get("objects") == 166
-        and recursive_elf.get("edges") == 764
+        and recursive_elf.get("edges") == 774
         and recursive_elf.get("unresolved_edges") == 0
         and recursive_elf.get("resolution_conflicts") == 0
-        and recursive_elf.get("external_objects") == 4
-        and recursive_elf.get("host_objects") == 5,
-        "PostgreSQL recursive ELF diagnostic drift",
+        and recursive_elf.get("parse_errors") == 0
+        and recursive_elf.get("discovery_errors") == 0
+        and recursive_elf.get("root_abi_family_collisions") == 0
+        and recursive_elf.get("external_objects") == 0
+        and recursive_elf.get("host_objects") == 3,
+        "PostgreSQL accepted recursive ELF closure drift",
     )
     contains_all(
         recursive_elf,
-        ("Intel oneAPI", "libimf.so", "libirng.so", "ld-linux-x86-64.so.2", "libstdc++.so.6", "final receipt must be generated"),
-        "PostgreSQL recursive ELF blocker or diagnostic boundary was hidden",
+        ("libimf.so", "libintlc.so.5", "libirng.so", "libsvml.so", "libgcc_s.so.1", "libstdc++.so.6", "ld-linux-x86-64.so.2", "libc.so.6", "libm.so.6", "independent-recursive-elf-closure.json"),
+        "PostgreSQL accepted recursive ELF providers or independent receipt were hidden",
     )
     require(
         successful_postgresql.get("build_input_closure_complete") is False
-        and successful_postgresql.get("recursive_elf_closure_verified") is False
+        and successful_postgresql.get("recursive_elf_closure_verified") is True
         and successful_postgresql.get("runtime_provider_qualification_complete") is False
         and successful_postgresql.get("activation_eligible") is False
         and successful_postgresql.get("product_activation_occurred") is False,
@@ -680,12 +714,12 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "f2afa2ddc59d70c41a870652f4418f0a857336d6",
+        == "d47575dafe6b49f61ede03e2541db488f5f3f313",
         "runtime correction implementation checkpoint drift",
     )
     require(
         postgresql.get("implementation_commit")
-        == "f2afa2ddc59d70c41a870652f4418f0a857336d6",
+        == "d47575dafe6b49f61ede03e2541db488f5f3f313",
         "PostgreSQL composer implementation checkpoint drift",
     )
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
@@ -1006,8 +1040,16 @@ class ProgramAuthorityTests(unittest.TestCase):
             "postgresql_product_package"
         ]["latest_successful_package_execution"]
         package["build_input_closure_complete"] = True
-        package["recursive_elf_closure_verified"] = True
         package["activation_eligible"] = True
+        with self.assertRaisesRegex(ValueError, "inert PostgreSQL package"):
+            validate_continuation(mutant, verify_physical=False)
+
+    def test_mutation_recursive_elf_closure_is_erased(self) -> None:
+        mutant = copy.deepcopy(self.continuation)
+        package = mutant["active_work"]["implementation_progress"][
+            "postgresql_product_package"
+        ]["latest_successful_package_execution"]
+        package["recursive_elf_closure_verified"] = False
         with self.assertRaisesRegex(ValueError, "inert PostgreSQL package"):
             validate_continuation(mutant, verify_physical=False)
 

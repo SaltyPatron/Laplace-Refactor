@@ -1257,7 +1257,11 @@ def verify_recursive_elf_closure(
         command.extend(("--search-dir", str(directory)))
     result = subprocess.run(command, text=True, capture_output=True)
     if not output_path.is_file():
-        raise BuildError("recursive ELF closure verifier produced no receipt")
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise BuildError(
+            "recursive ELF closure verifier produced no receipt"
+            + (f": {detail}" if detail else "")
+        )
     report = read_json(output_path)
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
@@ -1447,6 +1451,7 @@ def parse_arguments(argv: Sequence[str]) -> argparse.Namespace:
     package = subparsers.add_parser("verify-package")
     package.add_argument("--prefix", required=True)
     package.add_argument("--toolchain-receipt", required=True)
+    package.add_argument("--closure-output", required=True)
     return parser.parse_args(argv)
 
 
@@ -1487,10 +1492,7 @@ def main(argv: Sequence[str]) -> int:
             repository,
             Path(toolchain["tools"]["readelf"]["path"]),
         )
-        closure_output = (
-            Path(arguments.prefix).resolve().parent
-            / f".{Path(arguments.prefix).resolve().name}-recursive-elf-closure.json"
-        )
+        closure_output = Path(arguments.closure_output).resolve()
         print(
             json.dumps(
                 verify_package(
