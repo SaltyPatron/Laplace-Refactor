@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T12:10:09Z",
+  "observed_at_utc": "2026-08-27T12:16:27Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-native-resource-observer-implemented-successor-product-package-rebuild-and-cluster-activation-pending",
+    "state": "implementation-in-progress-successor-product-package-installed-native-resource-observation-issued-privileged-collision-inspection-and-cluster-activation-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -961,6 +961,84 @@
         },
         "product_activated": false
       },
+      "current_product_package": {
+        "receipt_schema": "laplace.product-package-receipt/v1",
+        "build_plan_id": "1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c",
+        "package_id": "4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b",
+        "package_receipt": "/build/laplace/build/product/1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c/package-receipt.json",
+        "package_receipt_sha256": "e4510b25d3912a30094129e822bf62179c3a9f8216c287889b246d91c8f531b8",
+        "package_manifest": "/build/laplace/build/product/1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c/package-manifest.json",
+        "package_manifest_sha256": "aad0a29e767d8f09cc32c531b9461c2d079835c3a1e434a3c1be27e792246112",
+        "plan_sha256": "2516092c71b77c7b246d4628b7916353177859bd311fcd215f0f4350970177a6",
+        "build_log_sha256": "2b6fa48f8b7a8289c60db73c0e7088f9d6bb05d2b21171b7647f6e3024fe35be",
+        "physical_root": "/build/laplace/stage/product/1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c/root/opt/laplace/releases/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b",
+        "package_file_count": 2746,
+        "package_symlink_count": 47,
+        "package_total_file_bytes": 532714907,
+        "native_resource_observer": {
+          "path": "bin/laplace_resource_observe",
+          "sha256": "08629f039b84677b2b32e6dff957d3afca81b0e82f586f4ba586f581aa4be2da"
+        },
+        "recursive_elf_closure": {
+          "receipt_schema": "laplace.product-recursive-elf-closure-receipt/v1",
+          "receipt": "/build/laplace/build/product/1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c/recursive-elf-closure.json",
+          "receipt_sha256": "d4371f196d5b0a602ef708e978dd94b58e318c79b9aa2b1fb360b225f5ee284f",
+          "root_artifacts": 222,
+          "objects": 185,
+          "edges": 1351,
+          "custom_objects": 179,
+          "host_objects": 6,
+          "external_objects": 0,
+          "unresolved_edges": 0,
+          "resolution_conflicts": 0,
+          "parse_errors": 0,
+          "discovery_errors": 0,
+          "root_abi_family_collisions": 0
+        },
+        "build_input_closure_complete": true,
+        "activation_eligible": true,
+        "current_contract_activation_eligible": true,
+        "installation": {
+          "receipt_schema": "laplace.product-package-installation-receipt/v1",
+          "receipt": "/opt/laplace/receipts/packages/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b.json",
+          "receipt_sha256": "96ec845d1379dc0205c466552b163b9eb9113baffe665bf1a2e78410839b9088",
+          "installation_receipt_sha256": "72776e65055ae862bf6ee8404cf7ca1bdf104f9251b5a843c874ca9bcf7c074e",
+          "installed_release": "/opt/laplace/releases/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b",
+          "installed_package_verified": true,
+          "overwrite_performed": false,
+          "root_ownership_complete": false
+        },
+        "resource_observation": {
+          "schema": "laplace.execution-resource-observation/v1",
+          "receipt": "/opt/laplace/receipts/plans/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b/resource-observation.json",
+          "receipt_sha256": "5d2b947fd879a097d61de0e45945849dc7af38284c364a858f784fd082754644",
+          "observation_sha256": "196982b21915dda742adde29aee68664be14ee146b971716b4bfb81f40d65554",
+          "topology_receipt": "874654294edcf9a3f061268b95286adbad6bfa4d7f9a6ce2eb7830e5611670c8",
+          "root_grant_receipt": "4c657b89e2b1fbd35d60c8e629ed94804079b2a7ed2d1dfd9786f8473bc3ec1b",
+          "partition_receipt": "957207f5cfcaf0175867361cd6ab52b58d6f9434e21bf6b68f16bd71b3230460",
+          "processor_allocation_receipt": "9ec87cac12ff47508ab9f05a7eac0f91318f4594507cbb53449d06c6410b8620",
+          "storage_observation_receipt": "84a18319270e50351eac52f7fd6bd8e90dcbf2cbf953a50deb2f2598d836195d",
+          "processor_ids": [0, 1, 2, 3, 4, 5],
+          "cpu_slots": 6,
+          "memory_bytes": 12884901888,
+          "io_slots": 4
+        },
+        "collision_observation": {
+          "schema": "laplace.postgresql-collision-observation/v2",
+          "receipt": "/opt/laplace/receipts/plans/4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b/collision-observation.json",
+          "receipt_sha256": "9d949440b2c137e76f6d4b8aad84f43cb447996da376bee04799e19af41801ed",
+          "observation_sha256": "50e90279ef7f1ca561da6393c48b7655b07a92bfe7d39264de65c804e4aa8f5a",
+          "collisions": [],
+          "accepted": false,
+          "inspection_errors": [
+            "lstat /opt/laplace/pgdata/refactor/data: EACCES",
+            "lstat /pgtemp/refactor: EACCES",
+            "lstat /var/lib/pgwal/refactor: EACCES"
+          ]
+        },
+        "cluster_plan_issued": false,
+        "product_activated": false
+      },
       "local_validation": {
         "postgresql_build_contract_and_mutation": "37 of 37 passed including packaged TAP providers staged OpenSSL execution preflight bootstrap-provider installed-provider recursive-closure and independent-output mutations",
         "installed_provider_lock_contract_and_mutation": "10 of 10 passed including exact role provider version path byte hash license runtime-SONAME and selection-hash controls",
@@ -971,7 +1049,8 @@
         "generic_recursive_elf_closure": "passed unresolved contained deterministic resolution ABI-generation collision competing-provider and host-boundary fixtures",
         "postgresql_18_6_package_build": "world-bin check-world and install-world-bin completed; exact activation-eligible package receipt issued after full build-input closure io_uring product-path qualification source-test overlay control and recursive whole-tree closure",
         "complete_product_package_contract_and_mutation": "24 of 24 passed including build-input omission provider narrowing C-linker driver library-path hwloc dependency platform-ABI and package-promotion mutations",
-        "complete_product_package_build": "activation-eligible package 8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928 built with 2745 files 47 symlinks 532480227 bytes and zero unresolved external or conflicting ELF edges",
+        "complete_product_package_build": "current activation-eligible package 4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b built with the packaged native resource observer 2746 files 47 symlinks 532714907 bytes and zero unresolved external or conflicting ELF edges",
+        "native_resource_observation": "installed packaged observer issued topology root-grant partition processor-allocation and storage receipts for a bounded six-CPU twelve-GiB four-I/O grant",
         "syntax_and_diff": "Python compilation and git diff whitespace checks passed",
         "portable_registered_suite": "268 of 269 passed; the sole failure was the known canonical oneAPI numeric-provider absence in the portable Unicode PostgreSQL test"
       }
@@ -983,9 +1062,8 @@
       "controlled integration acceptance only"
     ],
     "immediate_implementation_boundary": [
-      "rebuild the complete activation-eligible package with the packaged native execution-resource observer through the accepted clean product composer",
-      "atomically install and verify the successor package at its new content-addressed release identity without overwriting the historical installed package",
-      "generate and receipt the live native execution-resource observation and collision observation required by the isolated cluster plan",
+      "rerun the live collision observation with authorized traversal of the runner-owned state roots and reject any actual occupied target before planning",
+      "issue and verify the exact isolated cluster plan from the accepted package native resource observation and accepted collision observation",
       "initialize start and bootstrap the exact PostgreSQL 18.6 isolated cluster under issue 12",
       "verify the accepted Laplace package extension configuration roles loaded-object closure restart readiness and public SQL boundary in that cluster",
       "deposit the complete 1114112-position Unicode root through the accepted product boundary without a second semantic calculation",
@@ -999,6 +1077,7 @@
       "the activation-eligible PostgreSQL 18.6 and complete Laplace product packages exist but the selected product cluster is not yet established",
       "the exact Laplace package is installed and verified at its content-addressed release path but root ownership and active product state are not established",
       "the installed package is historical under the current contract because it predates the required packaged native execution-resource observer",
+      "the current successor package and native resource observation are accepted but no cluster plan was issued because live collision inspection could not traverse three runner-owned state roots",
       "Unicode is not yet product activated",
       "knowledge is not seeded",
       "the typed numerical highway is not implemented",
@@ -1038,7 +1117,7 @@
       "state": "open",
       "draft": true,
       "head_commit": "5d8cffb5941e348e0a3def8f97ac04f559cae87b",
-      "proof_state": "partial implementation; the native execution-resource observer and exact package-bound observation route are implemented and locally proven, while the prior installed package is retained as historical evidence; successor package build and installation root ownership cluster activation Unicode activation seed and release remain false"
+      "proof_state": "partial implementation; the successor package containing the native execution-resource observer is built installed and verified and its live bounded resource observation is accepted; collision inspection recorded three EACCES conditions rather than claiming absence, so privileged collision completion root ownership cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,

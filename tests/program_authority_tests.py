@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-native-resource-observer-implemented-successor-product-package-rebuild-and-cluster-activation-pending",
+        == "implementation-in-progress-successor-product-package-installed-native-resource-observation-issued-privileged-collision-inspection-and-cluster-activation-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -881,6 +881,79 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         },
         "complete product platform ABI boundary narrowed",
     )
+    current_product = progress.get("current_product_package", {})
+    require(
+        current_product.get("receipt_schema") == "laplace.product-package-receipt/v1"
+        and current_product.get("build_plan_id")
+        == "1e141ec9af7c27b002e3d8df72a45c4db64c1d280d2668f964c79b26548db40c"
+        and current_product.get("package_id")
+        == "4aa84caa56b02d4cfb05f98fb33e9c34714b1a40c31f6639c22c20573d2ea60b"
+        and current_product.get("package_receipt_sha256")
+        == "e4510b25d3912a30094129e822bf62179c3a9f8216c287889b246d91c8f531b8"
+        and current_product.get("package_manifest_sha256")
+        == "aad0a29e767d8f09cc32c531b9461c2d079835c3a1e434a3c1be27e792246112",
+        "current product package identity drift",
+    )
+    require(
+        current_product.get("package_file_count") == 2746
+        and current_product.get("package_symlink_count") == 47
+        and current_product.get("package_total_file_bytes") == 532714907
+        and current_product.get("build_input_closure_complete") is True
+        and current_product.get("activation_eligible") is True
+        and current_product.get("current_contract_activation_eligible") is True
+        and current_product.get("cluster_plan_issued") is False
+        and current_product.get("product_activated") is False,
+        "current product package extent or proof state drift",
+    )
+    require(
+        current_product.get("native_resource_observer", {}).get("sha256")
+        == "08629f039b84677b2b32e6dff957d3afca81b0e82f586f4ba586f581aa4be2da",
+        "current native resource observer identity drift",
+    )
+    current_closure = current_product.get("recursive_elf_closure", {})
+    require(
+        current_closure.get("receipt_sha256")
+        == "d4371f196d5b0a602ef708e978dd94b58e318c79b9aa2b1fb360b225f5ee284f"
+        and current_closure.get("root_artifacts") == 222
+        and current_closure.get("objects") == 185
+        and current_closure.get("edges") == 1351
+        and current_closure.get("custom_objects") == 179
+        and current_closure.get("host_objects") == 6
+        and current_closure.get("external_objects") == 0
+        and current_closure.get("unresolved_edges") == 0
+        and current_closure.get("resolution_conflicts") == 0,
+        "current product recursive ELF closure drift",
+    )
+    current_installation = current_product.get("installation", {})
+    require(
+        current_installation.get("receipt_sha256")
+        == "96ec845d1379dc0205c466552b163b9eb9113baffe665bf1a2e78410839b9088"
+        and current_installation.get("installation_receipt_sha256")
+        == "72776e65055ae862bf6ee8404cf7ca1bdf104f9251b5a843c874ca9bcf7c074e"
+        and current_installation.get("installed_package_verified") is True
+        and current_installation.get("overwrite_performed") is False
+        and current_installation.get("root_ownership_complete") is False,
+        "current product installation drift",
+    )
+    resource = current_product.get("resource_observation", {})
+    require(
+        resource.get("observation_sha256")
+        == "196982b21915dda742adde29aee68664be14ee146b971716b4bfb81f40d65554"
+        and resource.get("processor_ids") == [0, 1, 2, 3, 4, 5]
+        and resource.get("cpu_slots") == 6
+        and resource.get("memory_bytes") == 12884901888
+        and resource.get("io_slots") == 4,
+        "current native resource observation drift",
+    )
+    collision = current_product.get("collision_observation", {})
+    require(
+        collision.get("observation_sha256")
+        == "50e90279ef7f1ca561da6393c48b7655b07a92bfe7d39264de65c804e4aa8f5a"
+        and collision.get("collisions") == []
+        and collision.get("accepted") is False
+        and len(collision.get("inspection_errors", [])) == 3,
+        "incomplete live collision observation was erased or promoted",
+    )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
         == "5d8cffb5941e348e0a3def8f97ac04f559cae87b",
@@ -888,7 +961,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     require(postgresql.get("implementation_commit") == "16126c4a4a90a6710528f94aacb401cf45fdea66", "historical PostgreSQL composer checkpoint drift")
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
-    contains_all(work.get("immediate_implementation_boundary", []), ("native execution-resource observer", "successor package", "PostgreSQL 18.6", "accepted Laplace package", "1114112", "without a second semantic calculation", "direct and reverse", "restart", "product-root activation receipt"), "Unicode product-activation boundary was narrowed")
+    contains_all(work.get("immediate_implementation_boundary", []), ("authorized traversal", "cluster plan", "PostgreSQL 18.6", "accepted Laplace package", "1114112", "without a second semantic calculation", "direct and reverse", "restart", "product-root activation receipt"), "Unicode product-activation boundary was narrowed")
     contains_all(work.get("nonclaims", []), ("not yet established", "root ownership", "not established", "not yet product activated", "not seeded", "not implemented", "not released"), "Unicode activation work was promoted beyond evidence")
     github = document.get("github_observation", {})
     require(github.get("main_commit") == document.get("repository", {}).get("base_commit"), "GitHub main and continuation base diverged")
@@ -896,7 +969,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(github.get("unicode_product_activation_issue", {}).get("state") == "open", "Unicode product activation issue was prematurely closed")
     active_pr = github.get("active_product_runtime_pull_request", {})
     require(active_pr.get("number") == 74 and active_pr.get("state") == "open" and active_pr.get("draft") is True, "active runtime PR observation drift")
-    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "native execution-resource observer", "successor package", "root ownership", "cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
+    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "successor package", "native execution-resource observer", "EACCES", "root ownership", "cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
