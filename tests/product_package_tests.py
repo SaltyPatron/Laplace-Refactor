@@ -66,7 +66,7 @@ class ProductPackageTests(unittest.TestCase):
 
     def test_package_database_provider_cannot_be_omitted(self) -> None:
         mutant = copy.deepcopy(self.contract)
-        mutant["host_build_provider"]["additional_receipted_roots"] = []
+        mutant["host_build_provider"]["additional_receipted_files"] = []
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "additional host"):
             PACKAGE.validate_contract(mutant)
 
@@ -197,6 +197,7 @@ class ProductPackageTests(unittest.TestCase):
             "build_input_roots": {
                 "provider": {"path": str(provider)},
             },
+            "build_input_files": {},
         }
         command = [str(toolchain / "bin/cmake"), "--version"]
         sandbox = PACKAGE.sandboxed_build_command(

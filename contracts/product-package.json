@@ -34,8 +34,8 @@
     "receipt_schema": "laplace.postgresql-host-build-provider/v1",
     "verifier": "tools/postgresql/host-provider.py",
     "sandbox_executable": "/usr/bin/bwrap",
-    "additional_receipted_roots": [
-      "/var/lib/dpkg"
+    "additional_receipted_files": [
+      "/var/lib/dpkg/status"
     ]
   },
   "package": {

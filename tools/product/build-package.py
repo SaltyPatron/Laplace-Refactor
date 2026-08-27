@@ -142,8 +142,10 @@ def validate_contract(contract: dict[str, Any]) -> None:
     require_relative(host_provider.get("verifier"), "host_build_provider.verifier")
     if host_provider.get("sandbox_executable") != "/usr/bin/bwrap":
         raise ProductPackageError("product build sandbox executable is invalid")
-    if host_provider.get("additional_receipted_roots") != ["/var/lib/dpkg"]:
-        raise ProductPackageError("additional host build-provider roots are invalid")
+    if host_provider.get("additional_receipted_files") != [
+        "/var/lib/dpkg/status"
+    ]:
+        raise ProductPackageError("additional host build-provider files are invalid")
     if package.get("manifest_schema") != MANIFEST_SCHEMA:
         raise ProductPackageError("product package manifest schema is invalid")
     if package.get("release_root") != "/opt/laplace/releases":
@@ -374,6 +376,17 @@ def exact_tree_receipt(root: Path) -> dict[str, Any]:
     }
 
 
+def exact_file_receipt(path: Path) -> dict[str, Any]:
+    if not path.is_file() or path.is_symlink():
+        raise ProductPackageError(f"build provider file must be physical: {path}")
+    return {
+        "path": str(path),
+        "mode": stat.S_IMODE(path.stat().st_mode),
+        "size_bytes": path.stat().st_size,
+        "sha256": sha256_file(path),
+    }
+
+
 def verify_host_build_provider(
     contract: Mapping[str, Any], repository: Path, postgresql: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -524,9 +537,12 @@ def create_plan(
         "blake3": exact_tree_receipt(blake3_root),
         **provider_roots,
     }
-    for root_value in contract["host_build_provider"]["additional_receipted_roots"]:
-        root = require_absolute(root_value, "host_build_provider.additional_receipted_roots")
-        build_input_roots[f"host:{root}"] = exact_tree_receipt(root)
+    build_input_files: dict[str, dict[str, Any]] = {}
+    for file_value in contract["host_build_provider"]["additional_receipted_files"]:
+        path = require_absolute(
+            file_value, "host_build_provider.additional_receipted_files"
+        )
+        build_input_files[f"host:{path}"] = exact_file_receipt(path)
     source = repository_identity(repository, require_clean)
     driver = Path(__file__).resolve()
     recipe = {
@@ -537,6 +553,7 @@ def create_plan(
         "toolchain_receipt_sha256": toolchain["receipt_sha256"],
         "host_build_provider_receipt_sha256": host_build_provider["receipt_sha256"],
         "build_input_roots": build_input_roots,
+        "build_input_files": build_input_files,
         "repository": source,
     }
     identity_payload = {
@@ -576,6 +593,7 @@ def create_plan(
         "installed_provider_lock": str(installed_lock_path.resolve()),
         "installed_providers": providers,
         "build_input_roots": build_input_roots,
+        "build_input_files": build_input_files,
         "product_toolchain": toolchain,
         "host_build_provider": host_build_provider,
         "product_build_input_closure_complete": True,
@@ -624,11 +642,18 @@ def reverify_product_build_inputs(
     }
     if roots != plan["build_input_roots"]:
         raise ProductPackageError("product build provider roots changed during construction")
+    files = {
+        name: exact_file_receipt(Path(receipt["path"]))
+        for name, receipt in plan["build_input_files"].items()
+    }
+    if files != plan["build_input_files"]:
+        raise ProductPackageError("product build provider files changed during construction")
     return {
         "schema": "laplace.product-build-input-closure-receipt/v1",
         "toolchain": toolchain,
         "host_build_provider": host_provider,
         "build_input_roots": roots,
+        "build_input_files": files,
         "complete": True,
     }
 
@@ -678,6 +703,10 @@ def sandboxed_build_command(
         ensure_parents(path)
         arguments.extend(("--ro-bind", str(path), str(path)))
         created.add(str(path))
+    for receipt in plan["build_input_files"].values():
+        path = Path(receipt["path"])
+        ensure_parents(path)
+        arguments.extend(("--ro-bind", str(path), str(path)))
     repository = Path(plan["repository_root"])
     for path_value, writable in (
         (plan["product_toolchain"]["prefix"], False),
