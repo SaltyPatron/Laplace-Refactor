@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T08:55:12Z",
+  "observed_at_utc": "2026-08-27T11:52:53Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
     "published_composition_branch": true,
     "published_checkpoint_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
-    "observed_branch_head": "16126c4a4a90a6710528f94aacb401cf45fdea66",
-    "implementation_checkpoint_commit": "16126c4a4a90a6710528f94aacb401cf45fdea66",
+    "observed_branch_head": "4ca2f7184cd801536ea9c963080fdd7b73632054",
+    "implementation_checkpoint_commit": "4ca2f7184cd801536ea9c963080fdd7b73632054",
     "pull_request": 74
   },
   "development_inputs": {
@@ -291,7 +291,7 @@
   "active_work": {
     "capability": "bootstrap.unicode-root",
     "github_issue": 13,
-    "state": "implementation-in-progress-inert-postgresql-18.6-product-package-recursive-runtime-closure-proven-bootstrap-executables-selected-successor-rebuild-and-remaining-input-qualification-pending",
+    "state": "implementation-in-progress-activation-eligible-postgresql-and-complete-product-packages-built-isolated-cluster-and-unicode-product-activation-pending",
     "branch": "phase3/product-unicode-activation",
     "pull_request": 74,
     "base_commit": "cbb258ab57b807d001f8ccc4fa2cccfd62de6409",
@@ -834,6 +834,119 @@
           "selected kernel and io_uring runtime-provider qualification"
         ]
       },
+      "accepted_postgresql_product_package": {
+        "receipt_schema": "laplace.postgresql-package-receipt/v2",
+        "build_input_id": "94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7",
+        "package_receipt": "/build/laplace/build/postgresql/94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7/package-receipt.json",
+        "package_receipt_sha256": "f80ac4a4879fdee15d4eac36ad16a7db525c56c715c922933b4b57f9880dcdfd",
+        "package_tree_sha256": "115297c23286f765a7023ddf81934410ccdc53c704a66c93a5177a97a9729d25",
+        "package_file_count": 2689,
+        "package_total_file_bytes": 334042909,
+        "build_plan_sha256": "468b52b677f4712cf1f2a7772f1b514be0ef7a351ae41976de7dda0d95220e8e",
+        "build_input_preflight_sha256": "b94310f4d8e2de1e4402d2593928c04cf9cbac4bd1ffce415c2af0977cf74b1d",
+        "build_log_sha256": "4879f1dec07041d81a47c19d2e8dbc7eca919c0400c9ea53e13b3c54736bd0c3",
+        "version": "PostgreSQL 18.6",
+        "completed_targets": [
+          "world-bin",
+          "check-world",
+          "install-world-bin"
+        ],
+        "source_test_overlay": {
+          "receipt": "/build/laplace/build/postgresql/94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7/source-test-overlays-check-world.json",
+          "receipt_sha256": "e337642808a3b67d20c39ca5c29d71235250a83a743c0afbc8527d658356268a",
+          "mode": "copy-on-write-exact-source-shadow",
+          "source_tree_sha256_before": "1f8ae7adf74b12aa3eb5258c01ed2777919de9e97f498d04388f5d69b8881dc5",
+          "source_tree_sha256_after": "1f8ae7adf74b12aa3eb5258c01ed2777919de9e97f498d04388f5d69b8881dc5",
+          "permitted_transient_generated_files": [
+            "err_warn_msg.c",
+            "err_warn_msg_informix.c"
+          ],
+          "generated_files_remaining_after_test": []
+        },
+        "runtime_provider_qualification": {
+          "schema": "laplace.runtime-provider-qualification/v1",
+          "scope": "postgresql-18.6-selected-io_uring-product-path",
+          "receipt": "/build/laplace/build/postgresql/94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7/io-uring-qualification.json",
+          "receipt_sha256": "f57b734a753e9413cc74a65b8349aaaa4d7008414fe9d66bc8d12786df33dfc9",
+          "accepted": true,
+          "test_plan": 529,
+          "io_uring_assertion_count": 175,
+          "failed_assertion_count": 0
+        },
+        "recursive_elf_closure": {
+          "receipt_schema": "laplace.postgresql-recursive-elf-closure-receipt/v1",
+          "receipt": "/build/laplace/build/postgresql/94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7/recursive-elf-closure.json",
+          "receipt_sha256": "0be23b3c8a15871a633804e6935381e55e93fc45f7f7f7080324892c08448390",
+          "root_artifacts": 198,
+          "objects": 166,
+          "edges": 1220,
+          "custom_objects": 163,
+          "host_objects": 3,
+          "external_objects": 0,
+          "unresolved_edges": 0,
+          "resolution_conflicts": 0,
+          "parse_errors": 0,
+          "discovery_errors": 0,
+          "root_abi_family_collisions": 0
+        },
+        "build_input_closure_complete": true,
+        "recursive_elf_closure_verified": true,
+        "runtime_provider_qualification_complete": true,
+        "activation_eligible": true,
+        "activation_disposition": "eligible for complete product composition",
+        "product_activation_occurred": false
+      },
+      "complete_product_package": {
+        "receipt_schema": "laplace.product-package-receipt/v1",
+        "build_plan_id": "b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf",
+        "package_id": "8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928",
+        "package_receipt": "/build/laplace/build/product/b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf/package-receipt.json",
+        "package_receipt_sha256": "dd581ffafbfd5da6a6638a1990c26fe53ea09527e4b0b1537956e5c3792b665e",
+        "package_manifest": "/build/laplace/build/product/b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf/package-manifest.json",
+        "package_manifest_sha256": "72abb060976cbf58f580c456d6f1cd94c6eb50fe97d0bf2bdb178e29c7feefb9",
+        "plan_sha256": "3b601675cc770b2d0cce6a0bee147dbb207fb3f0e0954c1f16de76f96450f9e7",
+        "build_log_sha256": "6c013a1d0746b90631b67d375585618eaddd3a7bbcad72708c52467b1a03fabe",
+        "physical_root": "/build/laplace/stage/product/b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf/root/opt/laplace/releases/8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928",
+        "package_file_count": 2745,
+        "package_symlink_count": 47,
+        "package_total_file_bytes": 532480227,
+        "build_input_closure_complete": true,
+        "build_input_roots": {
+          "blake3": "f9fc64bf583d4859b005cb72102cc90b60d21299a67cc3b28efc4f5aff821170",
+          "intel_oneapi_compiler": "de7dc7cd35879ba28085f2203dc153b1affd973be505bfa93fae699bfc95e988",
+          "onemkl": "36a1e6b1834721a659ba04dd434ad3c5791c11187891feffb75777257a95a2cf",
+          "onetbb": "b5cd7a2c22803018381d06a5c217bc71880b1b1cad58f78f422db3d7f808fa87",
+          "onetbb_hwloc": "e40e40db1f6bab0a68bc83fbbb2cc89b849c6020dd144a4846fcbf7d6d91b256"
+        },
+        "recursive_elf_closure": {
+          "receipt_schema": "laplace.product-recursive-elf-closure-receipt/v1",
+          "receipt": "/build/laplace/build/product/b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf/recursive-elf-closure.json",
+          "receipt_sha256": "a6b14c6aab214c42c8a9b85adf2ea53791d92d2966f285da37a1bd96baf74e7d",
+          "root_artifacts": 221,
+          "objects": 184,
+          "edges": 1346,
+          "custom_objects": 178,
+          "host_objects": 6,
+          "external_objects": 0,
+          "unresolved_edges": 0,
+          "resolution_conflicts": 0,
+          "parse_errors": 0,
+          "discovery_errors": 0,
+          "root_abi_family_collisions": 0,
+          "platform_abi_sha256": {
+            "ld-linux-x86-64.so.2": "8d06f393f4a93bcf9b81145a259524d66a95522a646bf8d7e05b6ffdf2e63dcc",
+            "libc.so.6": "e01b1ce7be2987f3b8560e26d0df2623f9dd5cec17be923ae28a785bc0d32d50",
+            "libm.so.6": "df621c68dbfed7e843434ef2faedb9f4d4b0543ad161e9a55eaf4d4ce2443176",
+            "libdl.so.2": "d255ba9c9e3a7c35115e578c898147edaba1a2bcf742cc3a76995ceed9d5ac4f",
+            "libpthread.so.0": "fbed9505adacada2abb37c6b43be2df6de81e742712c6025694ba48de62c7e78",
+            "librt.so.1": "83eda8758c8697323bedf48bc0186c006cca2205441a988cb0f5072b96262100"
+          }
+        },
+        "activation_eligible": true,
+        "activation_disposition": "eligible for isolated cluster planning",
+        "immutable_release_installed": false,
+        "product_activated": false
+      },
       "local_validation": {
         "postgresql_build_contract_and_mutation": "37 of 37 passed including packaged TAP providers staged OpenSSL execution preflight bootstrap-provider installed-provider recursive-closure and independent-output mutations",
         "installed_provider_lock_contract_and_mutation": "10 of 10 passed including exact role provider version path byte hash license runtime-SONAME and selection-hash controls",
@@ -842,7 +955,9 @@
         "program_authority": "27 of 27 passed including failed-runtime unqualified-provider build-toolchain-promotion rejected-PostgreSQL-promotion inert-package-promotion recursive-closure-erasure and bootstrap-successor-promotion mutations",
         "requirements_trace": "12 of 12 passed",
         "generic_recursive_elf_closure": "passed unresolved contained deterministic resolution ABI-generation collision competing-provider and host-boundary fixtures",
-        "postgresql_18_6_package_build": "world-bin check-world and install-world-bin completed; exact inert package receipt and accepted recursive whole-tree closure receipt issued and independently reverified",
+        "postgresql_18_6_package_build": "world-bin check-world and install-world-bin completed; exact activation-eligible package receipt issued after full build-input closure io_uring product-path qualification source-test overlay control and recursive whole-tree closure",
+        "complete_product_package_contract_and_mutation": "24 of 24 passed including build-input omission provider narrowing C-linker driver library-path hwloc dependency platform-ABI and package-promotion mutations",
+        "complete_product_package_build": "activation-eligible package 8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928 built with 2745 files 47 symlinks 532480227 bytes and zero unresolved external or conflicting ELF edges",
         "syntax_and_diff": "Python compilation and git diff whitespace checks passed",
         "portable_registered_suite": "268 of 269 passed; the sole failure was the known canonical oneAPI numeric-provider absence in the portable Unicode PostgreSQL test"
       }
@@ -854,8 +969,10 @@
       "controlled integration acceptance only"
     ],
     "immediate_implementation_boundary": [
-      "establish the exact verified PostgreSQL 18.6 product package and isolated cluster under issue 12",
-      "install and verify the accepted Laplace package extension and loaded-object closure in that cluster",
+      "install the activation-eligible package bytes at their immutable /opt/laplace/releases package identity without replacing an existing release",
+      "generate and receipt the live native execution-resource observation and collision observation required by the isolated cluster plan",
+      "initialize start and bootstrap the exact PostgreSQL 18.6 isolated cluster under issue 12",
+      "verify the accepted Laplace package extension configuration roles loaded-object closure restart readiness and public SQL boundary in that cluster",
       "deposit the complete 1114112-position Unicode root through the accepted product boundary without a second semantic calculation",
       "publish direct and reverse Unicode artifacts from the same retained stream and verify exact database artifact and manifest parity",
       "activate one coherent Unicode product epoch transactionally",
@@ -864,8 +981,8 @@
     ],
     "whole_product_reason": "Unicode is the exact address and rendering floor required before the typed numerical highway can connect identifiers languages grammars recipes modalities and other machine dimensions; this is product activation of one substrate root not source-family ingestion.",
     "nonclaims": [
-      "the selected PostgreSQL 18.6 product cluster is not yet established",
-      "the accepted Laplace package is not yet installed as the product",
+      "the activation-eligible PostgreSQL 18.6 and complete Laplace product packages exist but the selected product cluster is not yet established",
+      "the activation-eligible Laplace package is staged but not yet installed at its immutable product release path",
       "Unicode is not yet product activated",
       "knowledge is not seeded",
       "the typed numerical highway is not implemented",
@@ -904,8 +1021,8 @@
       "number": 74,
       "state": "open",
       "draft": true,
-      "head_commit": "16126c4a4a90a6710528f94aacb401cf45fdea66",
-      "proof_state": "partial implementation; PostgreSQL 18.6 whole-tree recursive loaded-object closure is proven and exact Python and POSIX shell bootstrap executable selection is implemented and locally preflighted for the successor build; the successor package has not been built and Python standard-library configure-utility Intel build-time linker input selected-kernel runtime-provider qualification package installation cluster activation Unicode activation seed and release remain false"
+      "head_commit": "4ca2f7184cd801536ea9c963080fdd7b73632054",
+      "proof_state": "partial implementation; activation-eligible PostgreSQL 18.6 and complete Laplace product packages have been physically built with complete input closure runtime-provider qualification full upstream tests recursive loaded-object closure and exact platform ABI receipts; immutable installation cluster activation Unicode activation seed and release remain false"
     },
     "roadmap_project": {
       "number": 2,

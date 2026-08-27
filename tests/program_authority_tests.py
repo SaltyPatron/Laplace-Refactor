@@ -336,7 +336,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(work.get("capability") == "bootstrap.unicode-root", "active capability drift")
     require(
         work.get("state")
-        == "implementation-in-progress-inert-postgresql-18.6-product-package-recursive-runtime-closure-proven-bootstrap-executables-selected-successor-rebuild-and-remaining-input-qualification-pending",
+        == "implementation-in-progress-activation-eligible-postgresql-and-complete-product-packages-built-isolated-cluster-and-unicode-product-activation-pending",
         "Unicode activation implementation state drift",
     )
     require(work.get("github_issue") == 13 and work.get("pull_request") == 74, "Unicode activation ownership drift")
@@ -736,16 +736,137 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and successful_postgresql.get("product_activation_occurred") is False,
         "successful inert PostgreSQL package was promoted beyond its closure evidence",
     )
+    accepted_postgresql = progress.get("accepted_postgresql_product_package", {})
+    require(
+        accepted_postgresql.get("receipt_schema")
+        == "laplace.postgresql-package-receipt/v2"
+        and accepted_postgresql.get("build_input_id")
+        == "94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7"
+        and accepted_postgresql.get("package_receipt_sha256")
+        == "f80ac4a4879fdee15d4eac36ad16a7db525c56c715c922933b4b57f9880dcdfd"
+        and accepted_postgresql.get("package_tree_sha256")
+        == "115297c23286f765a7023ddf81934410ccdc53c704a66c93a5177a97a9729d25",
+        "accepted PostgreSQL package identity drift",
+    )
+    require(
+        accepted_postgresql.get("package_file_count") == 2689
+        and accepted_postgresql.get("package_total_file_bytes") == 334042909
+        and accepted_postgresql.get("completed_targets")
+        == ["world-bin", "check-world", "install-world-bin"],
+        "accepted PostgreSQL package extent or test boundary drift",
+    )
+    accepted_postgresql_overlay = accepted_postgresql.get("source_test_overlay", {})
+    require(
+        accepted_postgresql_overlay.get("receipt_sha256")
+        == "e337642808a3b67d20c39ca5c29d71235250a83a743c0afbc8527d658356268a"
+        and accepted_postgresql_overlay.get("source_tree_sha256_before")
+        == accepted_postgresql_overlay.get("source_tree_sha256_after")
+        == "1f8ae7adf74b12aa3eb5258c01ed2777919de9e97f498d04388f5d69b8881dc5"
+        and set(accepted_postgresql_overlay.get("permitted_transient_generated_files", []))
+        == {"err_warn_msg.c", "err_warn_msg_informix.c"}
+        and accepted_postgresql_overlay.get("generated_files_remaining_after_test") == [],
+        "accepted PostgreSQL source-test overlay boundary drift",
+    )
+    accepted_runtime_qualification = accepted_postgresql.get(
+        "runtime_provider_qualification", {}
+    )
+    require(
+        accepted_runtime_qualification.get("schema")
+        == "laplace.runtime-provider-qualification/v1"
+        and accepted_runtime_qualification.get("scope")
+        == "postgresql-18.6-selected-io_uring-product-path"
+        and accepted_runtime_qualification.get("receipt_sha256")
+        == "f57b734a753e9413cc74a65b8349aaaa4d7008414fe9d66bc8d12786df33dfc9"
+        and accepted_runtime_qualification.get("accepted") is True
+        and accepted_runtime_qualification.get("test_plan") == 529
+        and accepted_runtime_qualification.get("io_uring_assertion_count") == 175
+        and accepted_runtime_qualification.get("failed_assertion_count") == 0,
+        "accepted PostgreSQL runtime-provider qualification drift",
+    )
+    accepted_postgresql_closure = accepted_postgresql.get("recursive_elf_closure", {})
+    require(
+        accepted_postgresql_closure.get("receipt_sha256")
+        == "0be23b3c8a15871a633804e6935381e55e93fc45f7f7f7080324892c08448390"
+        and accepted_postgresql_closure.get("root_artifacts") == 198
+        and accepted_postgresql_closure.get("objects") == 166
+        and accepted_postgresql_closure.get("edges") == 1220
+        and accepted_postgresql_closure.get("custom_objects") == 163
+        and accepted_postgresql_closure.get("host_objects") == 3
+        and accepted_postgresql_closure.get("external_objects") == 0
+        and accepted_postgresql_closure.get("unresolved_edges") == 0
+        and accepted_postgresql_closure.get("resolution_conflicts") == 0
+        and accepted_postgresql_closure.get("parse_errors") == 0
+        and accepted_postgresql_closure.get("discovery_errors") == 0
+        and accepted_postgresql_closure.get("root_abi_family_collisions") == 0,
+        "accepted PostgreSQL recursive ELF closure drift",
+    )
+    require(
+        accepted_postgresql.get("build_input_closure_complete") is True
+        and accepted_postgresql.get("recursive_elf_closure_verified") is True
+        and accepted_postgresql.get("runtime_provider_qualification_complete") is True
+        and accepted_postgresql.get("activation_eligible") is True
+        and accepted_postgresql.get("product_activation_occurred") is False,
+        "accepted PostgreSQL package proof state drift",
+    )
+    complete_product = progress.get("complete_product_package", {})
+    require(
+        complete_product.get("receipt_schema")
+        == "laplace.product-package-receipt/v1"
+        and complete_product.get("build_plan_id")
+        == "b935f98e36c7f9654b804c3128f6cc3c6d43c5f73ee4f01f0ec36d4e56cfcddf"
+        and complete_product.get("package_id")
+        == "8fcf93c32f10ef342e1b18382a3f682e6d81e99c76b8f175ff6ecd3e07403928"
+        and complete_product.get("package_receipt_sha256")
+        == "dd581ffafbfd5da6a6638a1990c26fe53ea09527e4b0b1537956e5c3792b665e"
+        and complete_product.get("package_manifest_sha256")
+        == "72abb060976cbf58f580c456d6f1cd94c6eb50fe97d0bf2bdb178e29c7feefb9",
+        "complete product package identity drift",
+    )
+    require(
+        complete_product.get("package_file_count") == 2745
+        and complete_product.get("package_symlink_count") == 47
+        and complete_product.get("package_total_file_bytes") == 532480227
+        and complete_product.get("build_input_closure_complete") is True
+        and complete_product.get("activation_eligible") is True
+        and complete_product.get("immutable_release_installed") is False
+        and complete_product.get("product_activated") is False,
+        "complete product package extent or proof state drift",
+    )
+    complete_closure = complete_product.get("recursive_elf_closure", {})
+    require(
+        complete_closure.get("receipt_sha256")
+        == "a6b14c6aab214c42c8a9b85adf2ea53791d92d2966f285da37a1bd96baf74e7d"
+        and complete_closure.get("root_artifacts") == 221
+        and complete_closure.get("objects") == 184
+        and complete_closure.get("edges") == 1346
+        and complete_closure.get("custom_objects") == 178
+        and complete_closure.get("host_objects") == 6
+        and complete_closure.get("external_objects") == 0
+        and complete_closure.get("unresolved_edges") == 0
+        and complete_closure.get("resolution_conflicts") == 0
+        and complete_closure.get("parse_errors") == 0
+        and complete_closure.get("discovery_errors") == 0
+        and complete_closure.get("root_abi_family_collisions") == 0,
+        "complete product recursive ELF closure drift",
+    )
+    require(
+        set(complete_closure.get("platform_abi_sha256", {}))
+        == {
+            "ld-linux-x86-64.so.2",
+            "libc.so.6",
+            "libm.so.6",
+            "libdl.so.2",
+            "libpthread.so.0",
+            "librt.so.1",
+        },
+        "complete product platform ABI boundary narrowed",
+    )
     require(
         document.get("repository", {}).get("implementation_checkpoint_commit")
-        == "16126c4a4a90a6710528f94aacb401cf45fdea66",
-        "runtime correction implementation checkpoint drift",
+        == "4ca2f7184cd801536ea9c963080fdd7b73632054",
+        "product-package implementation checkpoint drift",
     )
-    require(
-        postgresql.get("implementation_commit")
-        == "16126c4a4a90a6710528f94aacb401cf45fdea66",
-        "PostgreSQL composer implementation checkpoint drift",
-    )
+    require(postgresql.get("implementation_commit") == "16126c4a4a90a6710528f94aacb401cf45fdea66", "historical PostgreSQL composer checkpoint drift")
     contains_all(work.get("whole_product_reason", ""), ("Unicode", "numerical highway", "not source-family ingestion"), "active work lost its product reason")
     contains_all(work.get("immediate_implementation_boundary", []), ("PostgreSQL 18.6", "accepted Laplace package", "1114112", "without a second semantic calculation", "direct and reverse", "restart", "product-root activation receipt"), "Unicode product-activation boundary was narrowed")
     contains_all(work.get("nonclaims", []), ("not yet established", "not yet installed", "not yet product activated", "not seeded", "not implemented", "not released"), "Unicode activation work was promoted beyond evidence")
@@ -755,7 +876,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(github.get("unicode_product_activation_issue", {}).get("state") == "open", "Unicode product activation issue was prematurely closed")
     active_pr = github.get("active_product_runtime_pull_request", {})
     require(active_pr.get("number") == 74 and active_pr.get("state") == "open" and active_pr.get("draft") is True, "active runtime PR observation drift")
-    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "provider qualification", "activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
+    contains_all(active_pr.get("proof_state", ""), ("partial implementation", "activation-eligible PostgreSQL 18.6", "complete Laplace product packages", "immutable installation", "cluster activation", "Unicode activation", "seed", "release remain false"), "active runtime PR was promoted beyond evidence")
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
@@ -826,6 +947,129 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
                 is True,
                 "physical PostgreSQL recursive closure differs from continuation state",
             )
+        accepted_postgresql_receipt_path = Path(
+            accepted_postgresql.get("package_receipt", "")
+        )
+        require(
+            accepted_postgresql_receipt_path.is_file(),
+            "accepted PostgreSQL package receipt is missing from the observed machine",
+        )
+        require(
+            physical_file_digest(accepted_postgresql_receipt_path)
+            == accepted_postgresql.get("package_receipt_sha256"),
+            "accepted PostgreSQL package receipt digest differs from continuation state",
+        )
+        physical_accepted_postgresql = load(accepted_postgresql_receipt_path)
+        physical_accepted_postgresql_closure = physical_accepted_postgresql.get(
+            "recursive_elf_closure", {}
+        )
+        require(
+            physical_accepted_postgresql.get("build_input_id")
+            == accepted_postgresql.get("build_input_id")
+            and physical_accepted_postgresql.get("tree_sha256")
+            == accepted_postgresql.get("package_tree_sha256")
+            and physical_accepted_postgresql.get("file_count")
+            == accepted_postgresql.get("package_file_count")
+            and physical_accepted_postgresql.get("total_file_bytes")
+            == accepted_postgresql.get("package_total_file_bytes")
+            and physical_accepted_postgresql.get("build_input_closure_complete") is True
+            and physical_accepted_postgresql.get(
+                "runtime_provider_qualification_complete"
+            )
+            is True
+            and physical_accepted_postgresql.get("activation_eligible") is True
+            and physical_accepted_postgresql_closure.get("report_sha256")
+            == accepted_postgresql_closure.get("receipt_sha256"),
+            "physical accepted PostgreSQL package identity or proof state differs from continuation state",
+        )
+        for accepted_postgresql_evidence_path, accepted_postgresql_evidence_sha256 in (
+            (
+                accepted_postgresql_overlay.get("receipt", ""),
+                accepted_postgresql_overlay.get("receipt_sha256"),
+            ),
+            (
+                accepted_runtime_qualification.get("receipt", ""),
+                accepted_runtime_qualification.get("receipt_sha256"),
+            ),
+            (
+                accepted_postgresql_closure.get("receipt", ""),
+                accepted_postgresql_closure.get("receipt_sha256"),
+            ),
+        ):
+            accepted_evidence_path = Path(accepted_postgresql_evidence_path)
+            require(
+                accepted_evidence_path.is_file(),
+                f"accepted PostgreSQL evidence receipt is missing: {accepted_evidence_path}",
+            )
+            require(
+                physical_file_digest(accepted_evidence_path)
+                == accepted_postgresql_evidence_sha256,
+                f"accepted PostgreSQL evidence receipt digest differs: {accepted_evidence_path}",
+            )
+        complete_product_receipt_path = Path(complete_product.get("package_receipt", ""))
+        require(
+            complete_product_receipt_path.is_file(),
+            "complete product package receipt is missing from the observed machine",
+        )
+        require(
+            physical_file_digest(complete_product_receipt_path)
+            == complete_product.get("package_receipt_sha256"),
+            "complete product package receipt digest differs from continuation state",
+        )
+        physical_complete_product = load(complete_product_receipt_path)
+        physical_complete_closure = physical_complete_product.get(
+            "recursive_elf_closure", {}
+        )
+        require(
+            physical_complete_product.get("package_id")
+            == complete_product.get("package_id")
+            and physical_complete_product.get("plan_sha256")
+            == complete_product.get("plan_sha256")
+            and physical_complete_product.get("file_count")
+            == complete_product.get("package_file_count")
+            and physical_complete_product.get("symlink_count")
+            == complete_product.get("package_symlink_count")
+            and physical_complete_product.get("total_file_bytes")
+            == complete_product.get("package_total_file_bytes")
+            and physical_complete_product.get("build_input_closure_complete") is True
+            and physical_complete_product.get("activation_eligible") is True
+            and physical_complete_product.get("product_activated") is False
+            and physical_complete_closure.get("report_sha256")
+            == complete_closure.get("receipt_sha256"),
+            "physical complete product package identity or proof state differs from continuation state",
+        )
+        for complete_product_evidence_path, complete_product_evidence_sha256 in (
+            (
+                complete_product.get("package_manifest", ""),
+                complete_product.get("package_manifest_sha256"),
+            ),
+            (
+                complete_closure.get("receipt", ""),
+                complete_closure.get("receipt_sha256"),
+            ),
+        ):
+            complete_evidence_path = Path(complete_product_evidence_path)
+            require(
+                complete_evidence_path.is_file(),
+                f"complete product package evidence is missing: {complete_evidence_path}",
+            )
+            require(
+                physical_file_digest(complete_evidence_path)
+                == complete_product_evidence_sha256,
+                f"complete product package evidence digest differs: {complete_evidence_path}",
+            )
+        complete_product_physical_root = Path(complete_product.get("physical_root", ""))
+        require(
+            complete_product_physical_root.is_dir(),
+            "complete staged product root is missing from the observed machine",
+        )
+        immutable_product_release = Path("/opt/laplace/releases") / complete_product.get(
+            "package_id", ""
+        )
+        require(
+            not immutable_product_release.exists(),
+            "continuation claims the immutable product release is uninstalled but it exists",
+        )
         for closure_key in ("receipt", "independent_reverification"):
             closure_value = recursive_elf.get(closure_key, {})
             if closure_key == "receipt":
