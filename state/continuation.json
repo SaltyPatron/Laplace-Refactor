@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-28T00:19:52Z",
+  "observed_at_utc": "2026-08-28T05:32:59Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,14 +12,14 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "feat/evidence-lineage",
-    "active_worktree": "/build/laplace/worktrees/source-admission-executor",
-    "base_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
-    "published_composition_branch": true,
-    "published_checkpoint_commit": "0b252f659c17319acf089792f37bb3070d77dda0",
-    "observed_branch_head": "2145a9a263df1630ce0c6b9f074fffb672df3a18",
-    "implementation_checkpoint_commit": "0b252f659c17319acf089792f37bb3070d77dda0",
-    "pull_request": 82
+    "active_branch": "feat/source-profile-testimony",
+    "active_worktree": "/build/laplace/worktrees/source-profile-testimony",
+    "base_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
+    "published_composition_branch": false,
+    "published_checkpoint_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
+    "observed_branch_head": "794be81ac83d1e50e390c994cd804e2b5213a68d",
+    "implementation_checkpoint_commit": "794be81ac83d1e50e390c994cd804e2b5213a68d",
+    "pull_request": null
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -1356,45 +1356,56 @@
     ]
   },
   "active_work": {
-    "capability": "evidence.record-lineage",
-    "github_issue": 16,
-    "state": "partial-implementation-and-controlled-integration-proven-source-admission-not-complete",
-    "branch": "feat/evidence-lineage",
-    "pull_request": 82,
-    "base_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
-    "implementation_commit": "0b252f659c17319acf089792f37bb3070d77dda0",
+    "capability": "source-profile.admit-tabular-testimony",
+    "github_issue": 53,
+    "related_issue": 16,
+    "state": "implementation-and-controlled-integration-proven-first-profile-product-world-admission-incomplete",
+    "branch": "feat/source-profile-testimony",
+    "pull_request": null,
+    "base_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
+    "implementation_commit": "794be81ac83d1e50e390c994cd804e2b5213a68d",
     "implemented_boundary": [
-      "one versioned native batch operation identifies evidence nodes from proposition occurrence source context ordinal epistemic kind and flags",
-      "direct dependence edges remain canonical and copied descendants collapse to unique terminal roots without multiplying independent support",
-      "cycles reject the whole batch with the exact closed offending path",
-      "observed testimony calculation derivation model behavior unknown and contradiction remain distinct epistemic kinds",
-      "ISA 1.5 generated native and managed contracts expose one evidence-record-lineage operation with bounded memory output and atomic publication",
-      "one PostgreSQL operation persists immutable evidence nodes direct dependence edges root projections semantic receipts and ISA receipts transactionally",
-      "direct-native and PostgreSQL roots semantic receipts and ISA receipts are exact",
-      "replay writes no replacement receipt and rejects conflicting durable root projections"
+      "versioned generic evidence-testimony source-profile tabular-source and world-admission contracts extend the shared native ISA and generated managed bindings",
+      "one generic tabular compiler lowers raw and delimited artifacts into ordered universal AST composition requests with exact artifact-parent topology field and record ordinals spans denominators and receipts",
+      "selected exact digital content recomposes from persisted AST state while an unselected curated distribution wrapper remains exact hash length authority release license and dependence provenance without a false bit-reconstruction claim",
+      "one public PostgreSQL source_admit_tabular operation composes Unicode-backed constituents performs set-wise presence and canonical deposition then persists source profile lineage testimony occurrence world-admission and ISA receipts in one transaction",
+      "the locked ISO 639 Set 3 2026-04-15 release profile covers one ZIP provenance wrapper and four exact selected tabular members with verified digest UTF-8 grammar membership widths rows fields claims and reconstruction",
+      "the ISO profile deposits 17110 record testimony claims over 128125 recursive AST requests and preserves exact jpn Japanese eng and English readback",
+      "all 18805 ISO identifier and join-key carriers remain explicitly unresolved rather than being promoted into typed Highway coordinates or cross-namespace mappings by parsing alone",
+      "replay returns identical semantic working-set source-profile lineage testimony world and ISA receipts while rollback publishes no durable effect",
+      "same selected content converges on canonical content identity while occurrence testimony source profile and dependence provenance remain separately addressable"
     ],
     "controlled_integration_validation": {
-      "custom_stack": "306 of 306 passed in 570.24 seconds against selected oneAPI 2026.1.1 and staged receipted PostgreSQL 18.6",
-      "registry_parity": "306 registered tests exactly matched CTest",
-      "requirements_trace": "12 of 12 passed",
-      "program_authority": "30 of 30 passed",
-      "unicode_postgresql_persistence_seconds": 153.24,
-      "lineage_defect_controls": [
-        "dependent descendants counted as independent roots",
-        "conflicting durable root projection accepted on replay"
+      "toolchain": "IntelLLVM and oneAPI 2026.1.1 selected; final source implementation configured and built in 211 steps with zero warnings and zero errors",
+      "focused_source_profile": "12 of 12 final tabular and ISO profile implementation contract reconstruction artifact-graph and compiled-mutation tests passed",
+      "registry_parity": "347 registered tests exactly matched CTest",
+      "requirements_trace": "70 product requirements 408 direct requirements 325 evidence targets 185 scenarios 347 registered tests and 18 operation stages verified",
+      "postgresql_synthetic_whole_route_seconds": 121.21,
+      "postgresql_iso_639_whole_route_seconds": 460.66,
+      "postgresql_iso_639_denominators": "5 artifacts 560435 bytes 17114 records 92153 fields 17110 testimony claims 18805 unresolved reference carriers 128125 recursive AST requests and closure denominator 146930",
+      "defect_controls": [
+        "omitted artifact parent edge",
+        "input-byte reconstruction bypass after corrupt parsed state",
+        "structural reference carrier promoted to resolved Highway endpoint",
+        "semantic-drift composition presence accepted despite durable receipt conflict",
+        "blind per-row reordered partial and semantically changed presence",
+        "replay receipt collision and partial publication"
       ]
     },
     "missing_boundary": [
-      "complete testimony records still require source type trust outcome uncertainty count source-profile and recipe receipt fields",
-      "heterogeneous source profiles and universal AST occurrences are not connected to the lineage operation",
-      "negative malformed unsupported and unknown admission dispositions are incomplete",
-      "immutable standing contradiction referential and consensus epochs remain unimplemented",
-      "no source profile is world admitted and the configured foundational heterogeneous seed does not exist"
+      "the typed ISO authority release namespace Highway topology operation has not resolved or rejected the 18805 retained reference carriers",
+      "the remaining heterogeneous source profiles grammars codecs and modalities have not traversed this public operation",
+      "immutable standing adjudication contradiction referential and as-of evidence epochs remain incomplete under issue 16",
+      "the exact PostgreSQL 18.6 installed product has not executed this source profile and no activated-product world-admission receipt exists",
+      "the configured foundational heterogeneous world seed and product release do not exist"
     ],
-    "next_boundary": "extend the generic testimony and source-profile contract then execute the first complete heterogeneous source-profile admission through universal AST composition occurrence lineage PostgreSQL deposition receipt and readback without creating a source-private engine",
+    "next_boundary": "publish and validate this first generic exact source-profile operation then implement the typed authority-release-namespace Highway topology that resolves the retained ISO reference carriers before extending the same operation across the heterogeneous seed universe",
     "nonclaims": [
-      "issue 16 is not complete",
-      "issue 53 source admission is not complete",
+      "a controlled-integration ISO route is not activated-product world admission",
+      "the ISO ZIP wrapper is not claimed bit-reconstructable because it is provenance rather than selected canonical world content",
+      "retaining a reference carrier is not resolving a language coordinate or proving a cross-namespace mapping",
+      "issue 16 adjudication and referential epochs are not complete",
+      "issue 53 heterogeneous world admission is not complete",
       "Unicode and the Highway are not product activated",
       "the foundational world is not admitted or seeded",
       "the product is not released"
@@ -1428,8 +1439,8 @@
     "current_disposition": "product composition succeeds through laplace-runner; root activation is blocked by the absent trusted deployment gateway"
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-28T00:19:52Z",
-    "main_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
+    "observed_at_utc": "2026-08-28T05:32:59Z",
+    "main_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
     "product_cluster_project_status": "In Progress",
@@ -1437,6 +1448,7 @@
     "composition_bulk_issue": 15,
     "highway_issue": 52,
     "world_admission_issue": 53,
+    "evidence_adjudication_issue": {"number": 16, "state": "open", "reason": "PR 82 merged dependence-aware lineage but testimony completion adjudication standing contradiction referential and as-of epochs remain incomplete"},
     "product_path_gate_issue": 54,
     "architecture_manual_issue": 50,
     "whole_route_cohesion_issue": 70,
@@ -1504,11 +1516,13 @@
     },
     "evidence_lineage_pull_request": {
       "number": 82,
-      "state": "open",
+      "state": "merged",
       "draft": false,
       "base_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
-      "published_head_commit": "2145a9a263df1630ce0c6b9f074fffb672df3a18",
-      "proof_state": "dependence-aware evidence lineage implementation and reconciled continuation authority are published; exact-head CI merge source-profile integration world admission and evidence adjudication remain pending"
+      "published_head_commit": "4ac4c3582901353ac460b1caef5002b9a66bfc31",
+      "merge_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
+      "merged_at_utc": "2026-08-28T00:36:29Z",
+      "proof_state": "dependence-aware evidence lineage merged with exact-head and post-merge clean-room and custom-stack CI; source-profile integration world admission and evidence adjudication remained pending at merge and issue 16 was reopened"
     },
     "roadmap_project": {
       "number": 2,
@@ -1531,8 +1545,8 @@
       {"number": 35, "state": "closed", "former_base": "phase1/runtime-build-graph", "head": "phase1/source-built-toolchain", "reconciliation": "all sixteen commits reconciled into draft PR 74; source branch retained as history"}
     ],
     "latest_main_workflow_runs": [
-      {"id": 33124341186, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47"},
-      {"id": 33124341150, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47"},
+      {"id": 33130264748, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a"},
+      {"id": 33130264722, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a"},
       {"id": 33125108689, "workflow": "product-activation", "conclusion": "failure", "head_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47", "runner_authority": "success", "compose_product": "success", "activate_product": "failed-before-authenticated-request", "failure": "the protected laplace-runner could not execute the absent root-owned /opt/laplace/deployment/current/bin/laplace-product-activate gateway"}
     ],
     "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": false, "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},
