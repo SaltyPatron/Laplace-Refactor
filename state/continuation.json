@@ -19,7 +19,7 @@
     "published_checkpoint_commit": "6f556047b5a7326b53a9a5f9db334abc7b934987",
     "observed_branch_head": "6f556047b5a7326b53a9a5f9db334abc7b934987",
     "implementation_checkpoint_commit": "6f556047b5a7326b53a9a5f9db334abc7b934987",
-    "pull_request": null
+    "pull_request": 85
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -1362,7 +1362,7 @@
     "related_issue": 53,
     "state": "implementation-and-controlled-integration-proven-canonical-unicode-persistence-tier-correct-source-testimony-product-activation-incomplete",
     "branch": "feat/cili-cross-profile-topology",
-    "pull_request": null,
+    "pull_request": 85,
     "base_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
     "implementation_commit": "6f556047b5a7326b53a9a5f9db334abc7b934987",
     "implemented_boundary": [

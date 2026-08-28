@@ -1270,7 +1270,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and active.get("state")
         == "implementation-and-controlled-integration-proven-canonical-unicode-persistence-tier-correct-source-testimony-product-activation-incomplete"
         and active.get("branch") == "feat/cili-cross-profile-topology"
-        and active.get("pull_request") is None
+        and active.get("pull_request") == 85
         and active.get("base_commit")
         == "935cbc6e99315c38f6fa0e704a92ee61d4e663bd"
         and active.get("implementation_commit")
