@@ -1269,6 +1269,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and active.get("state")
         == "partial-implementation-and-controlled-integration-proven-source-admission-not-complete"
         and active.get("branch") == "feat/evidence-lineage"
+        and active.get("pull_request") == 82
         and active.get("base_commit")
         == "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47"
         and active.get("implementation_commit")
@@ -1413,6 +1414,29 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "trusted root gateway is absent",
         ),
         "activation binding PR was promoted beyond evidence",
+    )
+    lineage_pr = github.get("evidence_lineage_pull_request", {})
+    require(
+        lineage_pr.get("number") == 82
+        and lineage_pr.get("state") == "open"
+        and lineage_pr.get("draft") is False
+        and lineage_pr.get("base_commit")
+        == "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47"
+        and lineage_pr.get("published_head_commit")
+        == "2145a9a263df1630ce0c6b9f074fffb672df3a18",
+        "evidence-lineage PR observation drift",
+    )
+    contains_all(
+        lineage_pr.get("proof_state", ""),
+        (
+            "dependence-aware evidence lineage",
+            "published",
+            "exact-head CI",
+            "source-profile integration",
+            "world admission",
+            "evidence adjudication remain pending",
+        ),
+        "evidence-lineage PR was promoted beyond evidence",
     )
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")

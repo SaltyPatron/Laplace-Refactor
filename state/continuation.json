@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-28T00:16:23Z",
+  "observed_at_utc": "2026-08-28T00:19:52Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,9 +17,9 @@
     "base_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
     "published_composition_branch": true,
     "published_checkpoint_commit": "0b252f659c17319acf089792f37bb3070d77dda0",
-    "observed_branch_head": "0b252f659c17319acf089792f37bb3070d77dda0",
+    "observed_branch_head": "2145a9a263df1630ce0c6b9f074fffb672df3a18",
     "implementation_checkpoint_commit": "0b252f659c17319acf089792f37bb3070d77dda0",
-    "pull_request": null
+    "pull_request": 82
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -1360,7 +1360,7 @@
     "github_issue": 16,
     "state": "partial-implementation-and-controlled-integration-proven-source-admission-not-complete",
     "branch": "feat/evidence-lineage",
-    "pull_request": null,
+    "pull_request": 82,
     "base_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
     "implementation_commit": "0b252f659c17319acf089792f37bb3070d77dda0",
     "implemented_boundary": [
@@ -1401,7 +1401,7 @@
     ]
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-28T00:16:23Z",
+    "observed_at_utc": "2026-08-28T00:19:52Z",
     "main_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
@@ -1474,6 +1474,14 @@
       "merge_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
       "merged_at_utc": "2026-08-27T22:54:51Z",
       "proof_state": "package-bound execution-resource observation and single-pass product composition merged with exact-head and post-merge clean-room custom-stack and runner-authority checks; protected run 33125108689 composed the exact product successfully and then failed before activation because the trusted root gateway is absent"
+    },
+    "evidence_lineage_pull_request": {
+      "number": 82,
+      "state": "open",
+      "draft": false,
+      "base_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
+      "published_head_commit": "2145a9a263df1630ce0c6b9f074fffb672df3a18",
+      "proof_state": "dependence-aware evidence lineage implementation and reconciled continuation authority are published; exact-head CI merge source-profile integration world admission and evidence adjudication remain pending"
     },
     "roadmap_project": {
       "number": 2,
