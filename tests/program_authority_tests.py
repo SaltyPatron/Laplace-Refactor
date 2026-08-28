@@ -1274,7 +1274,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and active.get("base_commit")
         == "50c41b362e32b9338c6930f69c6fff76560b24ac"
         and active.get("implementation_commit")
-        == "0ce1fa60666f68ed0c218ba5f09ecc14bceffa8a",
+        == "c8d28441b6da20cdb6b34a3f55c972d687491834",
         "active source-profile continuation identity drift",
     )
     contains_all(
@@ -1307,11 +1307,15 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "1065.04 seconds",
             "100 deliberate mutation tests",
             "355 CTest entries",
+            "355 of 355",
+            "1170.46-second",
             "12 of 12 requirement-trace tests",
-            "123.34",
-            "581.38",
-            "118.092",
-            "61.21",
+            "125.96",
+            "578.79",
+            "123.17",
+            "50.45",
+            "204 abandoned disposable PostgreSQL test clusters",
+            "RUNNER_TEMP=/build/laplace/test-temp/iso-highway-topology",
             "146930",
             "structural reference carrier promoted",
             "unresolved endpoint promoted",

@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-28T07:53:27Z",
+  "observed_at_utc": "2026-08-28T08:58:24Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -17,8 +17,8 @@
     "base_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac",
     "published_composition_branch": true,
     "published_checkpoint_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac",
-    "observed_branch_head": "0ce1fa60666f68ed0c218ba5f09ecc14bceffa8a",
-    "implementation_checkpoint_commit": "0ce1fa60666f68ed0c218ba5f09ecc14bceffa8a",
+    "observed_branch_head": "c8d28441b6da20cdb6b34a3f55c972d687491834",
+    "implementation_checkpoint_commit": "c8d28441b6da20cdb6b34a3f55c972d687491834",
     "pull_request": null
   },
   "development_inputs": {
@@ -1363,7 +1363,7 @@
     "branch": "feat/iso-highway-topology",
     "pull_request": null,
     "base_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac",
-    "implementation_commit": "0ce1fa60666f68ed0c218ba5f09ecc14bceffa8a",
+    "implementation_commit": "c8d28441b6da20cdb6b34a3f55c972d687491834",
     "implemented_boundary": [
       "the generic evidence-testimony source-profile tabular-source and world-admission route merged through PR 83 at main commit 50c41b362e32b9338c6930f69c6fff76560b24ac with exact-head and post-merge clean-room and custom-stack validation",
       "one versioned canonical native reference-topology batch operation owns strict authority release namespace exact local-identifier version and lifecycle resolution through generated ISA 1.9 and managed parity",
@@ -1382,12 +1382,13 @@
       "focused_reference_topology": "16 of 16 native tabular ISO-profile reference-topology ISA generated-contract managed-parity and three deliberate mutation tests passed",
       "pre_acquisition_complete_suite": "347 of 347 passed with zero failures in 1065.04 seconds including 100 deliberate mutation tests before the clean-room acquisition boundary was added",
       "source_acquisition": "official SIL HTTPS archive 153962 bytes SHA-256 106a3f3b073e94bcc767f663e05f386358b1285ba2b063f24a2eeb6bafcc982a acquired as profile a363833cf22a72e562f78fc3b9abe68fc98d43214938c88fcfc2b627f5de2c4b with receipt adde516f4a34b998d6fdc2f2968d78b78871f20885c75ecdc7139cf398750fac; separate-build native tests passed without /vault/Data",
-      "registered_test_graph": "355 CTest entries and 355 registry entries after adding the canonical topology operation and three deliberate defect controls; full exact parity rerun remains pending before publication",
+      "registered_test_graph": "355 of 355 CTest entries and 355 of 355 registry entries passed with zero failures in one uninterrupted 1170.46-second corrected-tree run after adding the canonical topology operation and three deliberate defect controls",
       "requirements_trace": "12 of 12 requirement-trace tests passed after adding the exact source-topology scenario",
-      "postgresql_synthetic_whole_route_seconds": 123.34,
-      "postgresql_iso_639_whole_route_seconds": 581.38,
-      "postgresql_unicode_persistence_seconds": 118.092,
-      "postgresql_composition_measurement_seconds": 61.21,
+      "test_storage_boundary": "204 abandoned disposable PostgreSQL test clusters from prior failed or interrupted runs were removed after verifying that no test PostgreSQL process used them and that the live product cluster remained under /opt/laplace/pgdata/data; the accepted complete registry used RUNNER_TEMP=/build/laplace/test-temp/iso-highway-topology so test WAL and retained failure evidence could not exhaust the product filesystem",
+      "postgresql_synthetic_whole_route_seconds": 125.96,
+      "postgresql_iso_639_whole_route_seconds": 578.79,
+      "postgresql_unicode_persistence_seconds": 123.17,
+      "postgresql_composition_measurement_seconds": 50.45,
       "postgresql_iso_639_stage_seconds": "initial admission 244.621 and deterministic replay 213.709 inside the 581.38-second complete route",
       "postgresql_iso_639_denominators": "5 artifacts 560435 bytes 17114 records 92153 fields 17110 testimony claims 128125 recursive AST requests 18805 typed reference occurrences 9339 coordinates 18404 present 401 retired 0 unresolved and closure denominator 146930",
       "defect_controls": [
@@ -1449,7 +1450,7 @@
     "current_disposition": "product composition succeeds through laplace-runner; root activation is blocked by the absent trusted deployment gateway"
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-28T07:53:27Z",
+    "observed_at_utc": "2026-08-28T08:58:24Z",
     "main_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
