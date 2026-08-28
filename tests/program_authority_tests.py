@@ -1297,10 +1297,15 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         (
             "211 steps",
             "12 of 12",
+            "347 of 347",
+            "1065.04 seconds",
+            "100 deliberate mutation tests",
             "347 registered tests",
             "185 scenarios",
-            "121.21",
-            "460.66",
+            "129.12",
+            "482.94",
+            "127.68",
+            "61.21",
             "146930",
             "structural reference carrier promoted",
             "semantic-drift composition presence",
@@ -1516,7 +1521,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and source_profile_pr.get("base_commit")
         == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a"
         and source_profile_pr.get("published_head_commit")
-        == "70e56defa95f81b312d518e93b56cd3a17f25d7e",
+        == "0d6ada7b613d396f6bc2db114fcccbdf90be5cf5",
         "source-profile PR observation drift",
     )
     contains_all(
