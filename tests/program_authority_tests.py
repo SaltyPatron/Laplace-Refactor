@@ -1327,6 +1327,59 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         ),
         "active evidence-lineage work was promoted beyond evidence",
     )
+    activation_projection = document.get("product_activation_projection", {})
+    require(
+        activation_projection.get("schema")
+        == "laplace.product-activation-continuation-projection/v1",
+        "stable product-activation projection schema drift",
+    )
+    publication_projection = activation_projection.get("postgresql_publication", {})
+    publication_authority = progress.get(
+        "accepted_postgresql_product_package", {}
+    ).get("publication", {})
+    require(
+        publication_projection.get("receipt") == publication_authority.get("receipt")
+        and publication_projection.get("receipt_sha256")
+        == publication_authority.get("receipt_sha256"),
+        "stable PostgreSQL publication projection differs from accepted package evidence",
+    )
+    projected_successor = activation_projection.get(
+        "successor_product_package", {}
+    )
+    successor_authority = progress.get("successor_product_package", {})
+    for field in (
+        "activation_eligible",
+        "immutable_release_installed",
+        "package_id",
+        "package_receipt",
+        "package_receipt_sha256",
+        "package_manifest",
+        "package_manifest_sha256",
+        "physical_root",
+    ):
+        require(
+            projected_successor.get(field) == successor_authority.get(field),
+            f"stable successor product projection field {field} drift",
+        )
+    require(
+        projected_successor.get("installation", {}).get(
+            "installed_package_verified"
+        )
+        == successor_authority.get("installation", {}).get(
+            "installed_package_verified"
+        )
+        and projected_successor.get("resource_observation", {})
+        == {
+            field: successor_authority.get("resource_observation", {}).get(field)
+            for field in ("receipt", "receipt_sha256", "observation_sha256")
+        },
+        "stable successor product installation or resource projection drift",
+    )
+    contains_all(
+        activation_projection.get("current_disposition", ""),
+        ("composition succeeds", "laplace-runner", "root activation", "absent trusted deployment gateway"),
+        "stable product-activation disposition drift",
+    )
     github = document.get("github_observation", {})
     require(github.get("main_commit") == document.get("repository", {}).get("base_commit"), "GitHub main and continuation base diverged")
     require(github.get("product_cluster_project_status") == "In Progress", "active product-cluster work returned to Todo")

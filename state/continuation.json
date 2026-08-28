@@ -1400,6 +1400,33 @@
       "the product is not released"
     ]
   },
+  "product_activation_projection": {
+    "schema": "laplace.product-activation-continuation-projection/v1",
+    "purpose": "stable deployment inputs independent of whichever machine capability is active",
+    "postgresql_publication": {
+      "receipt": "/opt/laplace/receipts/postgresql/4b72b3782f3a766b35b5cd8d061c72dc4ca223d0d3e823a4aa4a4b96d043993a.json",
+      "receipt_sha256": "8260fdc87e8911a4ccef6c9f284426910fc71835db5a1cb67576045e56016549"
+    },
+    "successor_product_package": {
+      "activation_eligible": true,
+      "immutable_release_installed": true,
+      "package_id": "60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445",
+      "package_receipt": "/build/laplace/build/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/package-receipt.json",
+      "package_receipt_sha256": "deb28a1228bab776d2e049a59563f4f442f8c85b70371f4c762edd708f6ba29e",
+      "package_manifest": "/build/laplace/build/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/package-manifest.json",
+      "package_manifest_sha256": "699b15681e2e43af65d727e22b64895468d62424543023a2c4b31f95c2d835ee",
+      "physical_root": "/build/laplace/stage/product/e62dc5ff9bb063546ac7d4e738d1b6d8c434f4cce5521570f51d747d0cd80052/root/opt/laplace/releases/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445",
+      "installation": {
+        "installed_package_verified": true
+      },
+      "resource_observation": {
+        "receipt": "/opt/laplace/receipts/plans/60684505c3249cd9f160e46b81dee396da18f25d74171cad7c565761dcf47445/resource-observation.json",
+        "receipt_sha256": "f3d714070104f8b21bc518717e74ddd52620bfc89b10505669938de13d2b65fe",
+        "observation_sha256": "03172d8228622bacaf2f22ecc5f0e17226ff4628040cd9ab3246e6f61ff64d54"
+      }
+    },
+    "current_disposition": "product composition succeeds through laplace-runner; root activation is blocked by the absent trusted deployment gateway"
+  },
   "github_observation": {
     "observed_at_utc": "2026-08-28T00:19:52Z",
     "main_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
