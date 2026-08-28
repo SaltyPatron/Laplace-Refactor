@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-28T05:32:59Z",
+  "observed_at_utc": "2026-08-28T05:36:57Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -15,11 +15,11 @@
     "active_branch": "feat/source-profile-testimony",
     "active_worktree": "/build/laplace/worktrees/source-profile-testimony",
     "base_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
-    "published_composition_branch": false,
-    "published_checkpoint_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
-    "observed_branch_head": "794be81ac83d1e50e390c994cd804e2b5213a68d",
+    "published_composition_branch": true,
+    "published_checkpoint_commit": "70e56defa95f81b312d518e93b56cd3a17f25d7e",
+    "observed_branch_head": "70e56defa95f81b312d518e93b56cd3a17f25d7e",
     "implementation_checkpoint_commit": "794be81ac83d1e50e390c994cd804e2b5213a68d",
-    "pull_request": null
+    "pull_request": 83
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -1361,7 +1361,7 @@
     "related_issue": 16,
     "state": "implementation-and-controlled-integration-proven-first-profile-product-world-admission-incomplete",
     "branch": "feat/source-profile-testimony",
-    "pull_request": null,
+    "pull_request": 83,
     "base_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
     "implementation_commit": "794be81ac83d1e50e390c994cd804e2b5213a68d",
     "implemented_boundary": [
@@ -1439,7 +1439,7 @@
     "current_disposition": "product composition succeeds through laplace-runner; root activation is blocked by the absent trusted deployment gateway"
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-28T05:32:59Z",
+    "observed_at_utc": "2026-08-28T05:36:57Z",
     "main_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
@@ -1523,6 +1523,15 @@
       "merge_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
       "merged_at_utc": "2026-08-28T00:36:29Z",
       "proof_state": "dependence-aware evidence lineage merged with exact-head and post-merge clean-room and custom-stack CI; source-profile integration world admission and evidence adjudication remained pending at merge and issue 16 was reopened"
+    },
+    "source_profile_pull_request": {
+      "number": 83,
+      "state": "open",
+      "draft": false,
+      "mergeable": true,
+      "base_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
+      "published_head_commit": "70e56defa95f81b312d518e93b56cd3a17f25d7e",
+      "proof_state": "generic exact tabular source profile and the locked ISO 639 whole route are published with local controlled-integration evidence; exact-head GitHub CI merge typed ISO Highway resolution activated-product world admission foundational seed and release remain pending"
     },
     "roadmap_project": {
       "number": 2,
