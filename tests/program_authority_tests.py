@@ -1289,6 +1289,9 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "18805 ISO identifier and join-key carriers remain explicitly unresolved",
             "replay returns identical",
             "same selected content converges",
+            "authority-declared HTTPS archive",
+            "public clean-room CI",
+            "local vault copy",
         ),
         "active source-profile implementation boundary was narrowed",
     )
@@ -1300,7 +1303,8 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "347 of 347",
             "1065.04 seconds",
             "100 deliberate mutation tests",
-            "347 registered tests",
+            "348 registered tests",
+            "88 implemented evidence targets",
             "185 scenarios",
             "129.12",
             "482.94",
@@ -1309,6 +1313,8 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "146930",
             "structural reference carrier promoted",
             "semantic-drift composition presence",
+            "official SIL HTTPS archive",
+            "separate-build native tests passed without /vault/Data",
         ),
         "active source-profile validation evidence drift",
     )

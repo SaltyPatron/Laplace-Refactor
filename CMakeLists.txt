@@ -29,6 +29,9 @@ set(LAPLACE_PG_PHYSICAL_ROOT "" CACHE PATH
 set(LAPLACE_UNICODE_SOURCE_ROOT
     "/vault/Data/UCD/Public/UCD/latest"
     CACHE PATH "Pinned Unicode source-data root used by the root producer and conformance tests")
+set(LAPLACE_ISO_639_SOURCE_ROOT
+    "/vault/Data/ISO639"
+    CACHE PATH "Locked ISO 639 Set 3 source-profile artifact root")
 option(LAPLACE_ENABLE_DOTNET_BINDINGS
     "Generate and build the .NET 10 typed ISA orchestration surface" OFF)
 set(LAPLACE_DEPENDENCY_LOCK

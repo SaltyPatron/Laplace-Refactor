@@ -46,6 +46,15 @@ jobs:
             dependencies/lock.json "$dependency_root" \
             blake3 eigen googletest spectra
           printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
+      - name: Acquire locked source-profile fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_root="$RUNNER_TEMP/laplace-sources/iso-639-3-20260415"
+          python3 tools/sources/acquire-tabular-source.py \
+            --profile contracts/sources/iso-639-3-20260415.json \
+            --destination "$source_root"
+          printf 'LAPLACE_ISO_639_SOURCE_ROOT=%s\n' "$source_root" >> "$GITHUB_ENV"
       - name: Configure
         shell: bash
         run: |
@@ -55,7 +64,8 @@ jobs:
             -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
             -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
             -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
-            -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra"
+            -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
+            -DLAPLACE_ISO_639_SOURCE_ROOT="$LAPLACE_ISO_639_SOURCE_ROOT"
           printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
       - name: Build
         run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 2

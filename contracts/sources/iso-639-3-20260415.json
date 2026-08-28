@@ -54,6 +54,11 @@
       "mode": "raw_octets",
       "roles": ["container", "exact-hashed-provenance"],
       "parent": null,
+      "acquisition": {
+        "transport": "https",
+        "url": "https://iso639-3.sil.org/sites/iso639-3/files/downloads/iso-639-3_Code_Tables_20260415.zip",
+        "retry_attempts": 3
+      },
       "exact_distribution": false,
       "reconstruction_disposition": "unavailable-after-selected-semantic-projection"
     },

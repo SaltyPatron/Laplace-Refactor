@@ -1944,6 +1944,11 @@
       "covered_dimensions": ["the source-profile instance deterministically generates typed native authority data", "physical ZIP membership hashes UTF-8 grammar row widths reference counts and complete denominators match the locked release", "authority artifact grammar reconstruction and denominator mutations are rejected"]
     },
     {
+      "ctest_name": "tabular-source.acquisition-contract-and-mutation",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-CLEANROOM-SEPARATION"],
+      "covered_dimensions": ["clean-room source acquisition uses the authority-declared HTTPS artifact rather than a private vault path", "downloaded archive and every selected member match exact byte and SHA-256 locks before atomic publication", "replay verifies the existing receipted tree without network access", "digest member path archive equivalence and insecure transport mutations fail closed"]
+    },
+    {
       "ctest_name": "postgres.source-admission-whole-route-contract",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE"],
