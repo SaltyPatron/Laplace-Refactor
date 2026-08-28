@@ -60,7 +60,8 @@ else
     postgres_options="$postgres_options -c shared_buffers=1GB -c max_wal_size=8GB -c checkpoint_timeout=30min -c track_io_timing=on -c track_wal_io_timing=on"
 fi
 if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
-      "$mode" == "source-admission" || "$mode" == "iso-639-admission" ]]; then
+      "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+      "$mode" == "cili-admission" ]]; then
     postgres_options="$postgres_options -c shared_buffers=512MB -c max_wal_size=8GB -c checkpoint_timeout=30min"
 fi
 
@@ -152,6 +153,19 @@ elif [[ "$mode" == "contract" || "$mode" == "persistence-mutation" ]]; then
         psql_arguments+=(-v "$shell_name=$(read_probe_value "$key")")
     done
     for key in \
+        REFERENCE_MAPPING_ID_0 REFERENCE_MAPPING_ID_1 \
+        REFERENCE_MAPPING_ID_2 \
+        REFERENCE_MAPPING_PROPOSITION_0 REFERENCE_MAPPING_PROPOSITION_1 \
+        REFERENCE_MAPPING_PROPOSITION_2 \
+        REFERENCE_MAPPING_OCCURRENCE_0 REFERENCE_MAPPING_OCCURRENCE_1 \
+        REFERENCE_MAPPING_OCCURRENCE_2 \
+        REFERENCE_MAPPING_RECEIPT REFERENCE_MAPPING_BOUNDARY \
+        REFERENCE_MAPPING_INPUT REFERENCE_MAPPING_OUTPUT \
+        REFERENCE_MAPPING_ISA_RECEIPT; do
+        shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+        psql_arguments+=(-v "$shell_name=$(read_probe_value "$key")")
+    done
+    for key in \
         EVIDENCE_ROOT_NODE EVIDENCE_COPY_NODE EVIDENCE_INDEPENDENT_NODE \
         EVIDENCE_ROOT_SOURCE EVIDENCE_ROOT_CONTEXT \
         EVIDENCE_COPY_SOURCE EVIDENCE_COPY_CONTEXT \
@@ -201,7 +215,8 @@ elif [[ "$mode" == "perfcache-mutation" ]]; then
     fi
     psql_arguments+=(-v "perfcache_mutant_module=$LAPLACE_MUTANT_MODULE")
 elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
-      "$mode" == "source-admission" || "$mode" == "iso-639-admission" ]]; then
+      "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+      "$mode" == "cili-admission" ]]; then
     unicode_source_root=${LAPLACE_UNICODE_SOURCE_ROOT:-}
     if [[ -z "$unicode_source_root" || ! -d "$unicode_source_root" ]]; then
         echo "verified Unicode source root is unavailable: $unicode_source_root" >&2
@@ -233,6 +248,24 @@ elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
             psql_arguments+=(-v "$shell_name=$value")
         done <<<"$probe_output"
         psql_arguments+=(-v "iso_source_root=$iso_source_root")
+    fi
+    if [[ "$mode" == "cili-admission" ]]; then
+        cili_source_root=${LAPLACE_CILI_SOURCE_ROOT:-}
+        if [[ -z "$cili_source_root" || ! -d "$cili_source_root" ]]; then
+            echo "verified CILI source root is unavailable: $cili_source_root" >&2
+            exit 77
+        fi
+        probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$native_probe" "$cili_source_root")
+        while IFS='=' read -r key value; do
+            if [[ "$key" != CILI_* || ! "$value" =~ ^[0-9a-f]+$ ]]; then
+                echo "native CILI profile probe emitted an invalid value: $key" >&2
+                exit 87
+            fi
+            shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+            psql_arguments+=(-v "$shell_name=$value")
+        done <<<"$probe_output"
+        psql_arguments+=(-v "cili_source_root=$cili_source_root")
     fi
     if [[ "$mode" == "source-admission" ]]; then
         probe_output=$("$native_probe")
@@ -291,7 +324,8 @@ else
 fi
 
 if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
-      "$mode" == "source-admission" || "$mode" == "iso-639-admission" ]]; then
+      "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+      "$mode" == "cili-admission" ]]; then
     if [[ ! -f "$unicode_tier0_path" ]]; then
         echo "Unicode Tier-0 artifact was not published" >&2
         exit 80

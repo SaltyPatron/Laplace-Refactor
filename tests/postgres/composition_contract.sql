@@ -223,8 +223,8 @@ DECLARE
     replay_collision_rejected boolean := false;
     before_entities bigint;
     before_physicalities bigint;
-    before_vertices bigint;
-    before_occurrences bigint;
+    before_trajectory_bytes bigint;
+    before_attestations bigint;
 BEGIN
     SELECT * INTO STRICT fixture FROM composition_fixture;
     IF pg_catalog.to_regprocedure(
@@ -287,13 +287,13 @@ BEGIN
             first_result;
     END IF;
     IF NOT EXISTS (
-        SELECT 1 FROM laplace.canonical_entity
+        SELECT 1 FROM laplace.entity
         WHERE entity_id = first_result.result_entity_ids[1])
        OR NOT EXISTS (
         SELECT 1 FROM laplace.physicality
-        WHERE physicality_id = first_result.result_physicality_ids[1])
-       OR (SELECT count(*) FROM laplace.composition_trajectory_vertex
-           WHERE physicality_id = first_result.result_physicality_ids[1]) <> 2 THEN
+        WHERE physicality_id = first_result.result_physicality_ids[1]
+          AND vertex_count = 2
+          AND octet_length(trajectory) = 2 * 32) THEN
         RAISE EXCEPTION 'composition result is not exactly readable from canonical state';
     END IF;
 
@@ -349,10 +349,12 @@ BEGIN
             'composition replay accepted a colliding durable deposit receipt';
     END IF;
 
-    SELECT count(*) INTO before_entities FROM laplace.canonical_entity;
+    SELECT count(*) INTO before_entities FROM laplace.entity;
     SELECT count(*) INTO before_physicalities FROM laplace.physicality;
-    SELECT count(*) INTO before_vertices FROM laplace.composition_trajectory_vertex;
-    SELECT count(*) INTO before_occurrences FROM laplace.observed_occurrence;
+    SELECT COALESCE(sum(octet_length(trajectory)), 0)
+    INTO before_trajectory_bytes
+    FROM laplace.physicality;
+    SELECT count(*) INTO before_attestations FROM laplace.attestation;
     BEGIN
         PERFORM pg_temp.composition_fixture_deposit(2::numeric);
         RAISE EXCEPTION 'force composition transaction rollback';
@@ -360,10 +362,11 @@ BEGIN
         WHEN raise_exception THEN
             NULL;
     END;
-    IF (SELECT count(*) FROM laplace.canonical_entity) <> before_entities
+    IF (SELECT count(*) FROM laplace.entity) <> before_entities
        OR (SELECT count(*) FROM laplace.physicality) <> before_physicalities
-       OR (SELECT count(*) FROM laplace.composition_trajectory_vertex) <> before_vertices
-       OR (SELECT count(*) FROM laplace.observed_occurrence) <> before_occurrences THEN
+       OR (SELECT COALESCE(sum(octet_length(trajectory)), 0)
+           FROM laplace.physicality) <> before_trajectory_bytes
+       OR (SELECT count(*) FROM laplace.attestation) <> before_attestations THEN
         RAISE EXCEPTION 'composition deposition escaped transaction rollback';
     END IF;
 END

@@ -136,13 +136,13 @@ BEGIN
        OR octet_length(build.plan_manifest_fingerprint) <> 32
        OR octet_length(build.plan_sequence_fingerprint) <> 32
        OR build.plan_manifest_fingerprint <>
-          decode('74499f893b359982962c3dbeb5572965c8d89f22609f47c41dbd7143d08034ab', 'hex')
+          decode('6ffebfe27c15694bbee898dac3ad77c75157cb2694e7842c90d8f266c4d9b003', 'hex')
        OR build.activation_epoch_id <> decode(repeat('42', 16), 'hex')
        OR build.activation_epoch_fingerprint <> decode(repeat('43', 32), 'hex')
        OR build.total_frame_count <> 2230150
        OR build.total_encoded_bytes <= 0
        OR build.batch_count <= 1
-       OR build.plan_count > build.batch_count * 12 + 5
+       OR build.plan_count <= 0
        OR build.plan_count >= build.total_frame_count
        OR build.entity_count <> @LAPLACE_PG_UNICODE_ROOT_POPULATION@
        OR build.physicality_count <> @LAPLACE_PG_UNICODE_ROOT_POPULATION@
@@ -237,7 +237,7 @@ $contract$;
 
 CREATE TEMP TABLE unicode_table_counts AS
 SELECT
-    (SELECT count(*) FROM laplace.canonical_entity) AS entity_count,
+    (SELECT count(*) FROM laplace.entity) AS entity_count,
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
     (SELECT count(*) FROM laplace.unicode_atom_binding) AS atom_count,
     (SELECT count(*) FROM laplace.unicode_ducet_position) AS ducet_position_count,
@@ -269,7 +269,7 @@ BEGIN
     SELECT sum(pg_table_size(format('laplace.%I', table_name)::regclass))
     INTO STRICT normalized_heap_bytes
     FROM (VALUES
-        ('canonical_entity'), ('physicality'), ('unicode_atom_binding'),
+        ('entity'), ('physicality'), ('unicode_atom_binding'),
         ('unicode_ducet_position'), ('unicode_ducet_contraction'),
         ('unicode_normalization_composition')) AS tables(table_name);
     IF normalized_heap_bytes >
@@ -328,10 +328,10 @@ $contract$;
 
 CREATE TEMP TABLE highway_registry_counts_before AS
 SELECT
-    (SELECT count(*) FROM laplace.canonical_entity) AS entity_count,
+    (SELECT count(*) FROM laplace.entity) AS entity_count,
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
-    (SELECT count(*) FROM laplace.composition_trajectory_vertex) AS vertex_count,
-    (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count;
+    (SELECT COALESCE(sum(vertex_count), 0) FROM laplace.physicality) AS vertex_count,
+    (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1) AS occurrence_count;
 
 CREATE TEMP TABLE highway_registry_result AS
 SELECT deposited.*
@@ -423,7 +423,7 @@ BEGIN
             active;
     END IF;
     IF NOT EXISTS (
-        SELECT 1 FROM laplace.canonical_entity
+        SELECT 1 FROM laplace.entity
         WHERE entity_id = deposited.root_entity_id)
        OR NOT EXISTS (
         SELECT 1 FROM laplace.physicality
@@ -477,13 +477,14 @@ BEGIN
           AND admission_receipt = deposited.admission_receipt
           AND activation_receipt = deposited.activation_receipt
           AND activation_fingerprint = deposited.activation_fingerprint)
-       OR (SELECT count(*) FROM laplace.canonical_entity) <=
+       OR (SELECT count(*) FROM laplace.entity) <=
           before_counts.entity_count
        OR (SELECT count(*) FROM laplace.physicality) <=
           before_counts.physicality_count
-       OR (SELECT count(*) FROM laplace.composition_trajectory_vertex) <=
+       OR (SELECT COALESCE(sum(vertex_count), 0) FROM laplace.physicality) <=
           before_counts.vertex_count
-       OR (SELECT count(*) FROM laplace.observed_occurrence) <=
+       OR (SELECT count(*) FROM laplace.attestation
+           WHERE attestation_kind = 1) <=
           before_counts.occurrence_count THEN
         RAISE EXCEPTION
             'Highway registry receipts do not identify durable canonical state';

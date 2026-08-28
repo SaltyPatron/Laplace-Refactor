@@ -768,7 +768,7 @@ static void execute_batch_arrays(
     const unicode_batch_arrays* arrays) {
     if (counts->family[0] != 0u) {
         execute_family(
-            state, "canonical_entity_record", arrays->entities,
+            state, "entity_record", arrays->entities,
             counts->family[0], &entity_insert_plan, &entity_verify_plan,
             laplace_pg_entity_insert_sql(), laplace_pg_entity_verify_sql(),
             LAPLACE_PG_UNICODE_ROOT_PLAN_ENTITY_INSERT,

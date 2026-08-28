@@ -66,7 +66,7 @@ static ArrayType* composition_occurrence_ids(
     identifiers = (laplace_digest256*)palloc0(
         sizeof(*identifiers) * execution->result_count);
     for (input_index = 0u; input_index < execution->result_count; ++input_index) {
-        laplace_persistence_occurrence_record occurrence;
+        laplace_persistence_attestation_record occurrence;
         memset(&occurrence, 0, sizeof(occurrence));
         occurrence.entity_id = execution->results[input_index].entity_id;
         occurrence.physicality_id = execution->results[input_index].physicality_id;
@@ -74,8 +74,10 @@ static ArrayType* composition_occurrence_ids(
         occurrence.context_fingerprint =
             input->requests[input_index].occurrence_context_fingerprint;
         occurrence.source_ordinal = input->requests[input_index].source_ordinal;
-        occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
-        if (laplace_persistence_occurrence_identify(
+        occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+        occurrence.attestation_kind =
+            LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+        if (laplace_persistence_attestation_identify(
                 &occurrence, &identifiers[input_index]) !=
                 LAPLACE_PERSISTENCE_OK) {
             ereport(ERROR,
@@ -191,9 +193,9 @@ static const char entity_presence_sql[] =
     "SELECT i.ordinality,CASE WHEN s.entity_id IS NULL THEN 0 "
     "WHEN s.identity_witness=i.identity_witness THEN 1 ELSE 2 END "
     "FROM unnest($1::" LAPLACE_PG_SCHEMA
-    ".canonical_entity_record[]) WITH ORDINALITY "
+    ".entity_record[]) WITH ORDINALITY "
     "AS i(entity_id,identity_witness,ordinality) LEFT JOIN "
-    LAPLACE_PG_SCHEMA ".canonical_entity s ON s.entity_id=i.entity_id "
+    LAPLACE_PG_SCHEMA ".entity s ON s.entity_id=i.entity_id "
 #if defined(LAPLACE_TEST_COMPOSITION_PRESENCE_PARTIAL)
     "ORDER BY i.ordinality LIMIT 1";
 #elif defined(LAPLACE_TEST_COMPOSITION_PRESENCE_REORDER)
@@ -393,7 +395,7 @@ static laplace_composition_status resolve_presence(
     if (SPI_connect() != SPI_OK_CONNECT) {
         return LAPLACE_COMPOSITION_PRESENCE_INVALID;
     }
-    entity_types[0] = laplace_pg_composite_array_oid("canonical_entity_record");
+    entity_types[0] = laplace_pg_composite_array_oid("entity_record");
     physicality_types[0] = laplace_pg_composite_array_oid("physicality_record");
     laplace_pg_keep_plan(
         &entity_presence_plan, entity_presence_sql, 1, entity_types);

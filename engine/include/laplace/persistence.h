@@ -37,23 +37,36 @@ typedef struct laplace_persistence_entity_record {
     laplace_digest256 identity_witness;
 } laplace_persistence_entity_record;
 
-typedef struct laplace_persistence_trajectory_record {
+typedef struct laplace_persistence_trajectory_segment_record {
     laplace_digest256 physicality_id;
     uint64_t vertex_index;
     laplace_trajectory_carrier carrier;
     laplace_composition_occurrence occurrence;
-} laplace_persistence_trajectory_record;
+} laplace_persistence_trajectory_segment_record;
 
-typedef struct laplace_persistence_occurrence_record {
-    laplace_digest256 occurrence_id;
+typedef struct laplace_persistence_attestation_record {
+    laplace_digest256 attestation_id;
     laplace_id128 entity_id;
     laplace_digest256 physicality_id;
     laplace_digest256 source_fingerprint;
     laplace_digest256 context_fingerprint;
     uint64_t source_ordinal;
     uint32_t flags;
-    uint32_t reserved;
-} laplace_persistence_occurrence_record;
+    uint32_t attestation_kind;
+} laplace_persistence_attestation_record;
+
+typedef struct laplace_persistence_consensus_record {
+    laplace_digest256 consensus_id;
+    laplace_id128 proposition_entity_id;
+    laplace_digest256 epoch_id;
+    laplace_digest256 evidence_boundary;
+    laplace_digest256 recipe_fingerprint;
+    uint64_t observation_count;
+    uint64_t independent_root_count;
+    uint32_t disposition;
+    uint32_t flags;
+    double standing;
+} laplace_persistence_consensus_record;
 
 typedef struct laplace_persistence_record {
     uint16_t kind;
@@ -62,16 +75,18 @@ typedef struct laplace_persistence_record {
     union {
         laplace_persistence_entity_record entity;
         laplace_persistence_physicality_record physicality;
-        laplace_persistence_trajectory_record trajectory;
-        laplace_persistence_occurrence_record occurrence;
+        laplace_persistence_trajectory_segment_record trajectory_segment;
+        laplace_persistence_attestation_record attestation;
+        laplace_persistence_consensus_record consensus;
     } value;
 } laplace_persistence_record;
 
 typedef struct laplace_persistence_summary {
     uint64_t entity_count;
     uint64_t physicality_count;
-    uint64_t trajectory_vertex_count;
-    uint64_t occurrence_count;
+    uint64_t trajectory_segment_count;
+    uint64_t attestation_count;
+    uint64_t consensus_count;
     uint64_t logical_occurrence_count;
     uint64_t frame_count;
     uint64_t byte_count;
@@ -115,9 +130,13 @@ laplace_persistence_atomic_point_physicality(
     const laplace_point4d* point,
     laplace_persistence_physicality_record* physicality);
 
-LAPLACE_API laplace_persistence_status laplace_persistence_occurrence_identify(
-    const laplace_persistence_occurrence_record* occurrence,
-    laplace_digest256* occurrence_id);
+LAPLACE_API laplace_persistence_status laplace_persistence_attestation_identify(
+    const laplace_persistence_attestation_record* attestation,
+    laplace_digest256* attestation_id);
+
+LAPLACE_API laplace_persistence_status laplace_persistence_consensus_identify(
+    const laplace_persistence_consensus_record* consensus,
+    laplace_digest256* consensus_id);
 
 LAPLACE_API laplace_persistence_status laplace_persistence_frame_encode_entity(
     const laplace_id128* entity,
@@ -132,7 +151,8 @@ LAPLACE_API laplace_persistence_status laplace_persistence_frame_encode_physical
     size_t output_capacity,
     size_t* output_bytes);
 
-LAPLACE_API laplace_persistence_status laplace_persistence_frame_encode_trajectory(
+LAPLACE_API laplace_persistence_status
+laplace_persistence_frame_encode_trajectory_segment(
     const laplace_digest256* physicality_id,
     uint64_t vertex_index,
     const laplace_trajectory_carrier* carrier,
@@ -140,8 +160,14 @@ LAPLACE_API laplace_persistence_status laplace_persistence_frame_encode_trajecto
     size_t output_capacity,
     size_t* output_bytes);
 
-LAPLACE_API laplace_persistence_status laplace_persistence_frame_encode_occurrence(
-    const laplace_persistence_occurrence_record* occurrence,
+LAPLACE_API laplace_persistence_status laplace_persistence_frame_encode_attestation(
+    const laplace_persistence_attestation_record* attestation,
+    uint8_t* output,
+    size_t output_capacity,
+    size_t* output_bytes);
+
+LAPLACE_API laplace_persistence_status laplace_persistence_frame_encode_consensus(
+    const laplace_persistence_consensus_record* consensus,
     uint8_t* output,
     size_t output_capacity,
     size_t* output_bytes);

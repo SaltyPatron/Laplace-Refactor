@@ -538,7 +538,7 @@ def render_inspection_sql() -> str:
   'activation_epoch_fingerprint', encode(active.epoch_fingerprint, 'hex'),
   'generation_count', (SELECT count(*) FROM laplace.unicode_root_generation),
   'deposit_count', (SELECT count(*) FROM laplace.unicode_root_deposit_receipt),
-  'entity_count', (SELECT count(*) FROM laplace.canonical_entity),
+  'entity_count', (SELECT count(*) FROM laplace.entity),
   'physicality_count', (SELECT count(*) FROM laplace.physicality),
   'atom_count', (SELECT count(*) FROM laplace.unicode_atom_binding),
   'ducet_position_count', (SELECT count(*) FROM laplace.unicode_ducet_position),
@@ -590,7 +590,7 @@ BEGIN
      OR active.epoch_fingerprint <> decode(repeat('00',32),'hex')
      OR EXISTS (SELECT 1 FROM laplace.unicode_root_generation)
      OR EXISTS (SELECT 1 FROM laplace.unicode_root_deposit_receipt)
-     OR EXISTS (SELECT 1 FROM laplace.canonical_entity)
+     OR EXISTS (SELECT 1 FROM laplace.entity)
      OR EXISTS (SELECT 1 FROM laplace.physicality)
      OR EXISTS (SELECT 1 FROM laplace.perfcache_generation)
      OR EXISTS (SELECT 1 FROM laplace.perfcache_activation_event) THEN
@@ -637,7 +637,7 @@ BEGIN
      OR active.sequence <> 1 OR NOT active.active_present
      OR active.activation_epoch_id <> build.activation_epoch_id
      OR active.epoch_fingerprint <> build.activation_epoch_fingerprint
-     OR (SELECT count(*) FROM laplace.canonical_entity) <> {expected['entity_count']}
+     OR (SELECT count(*) FROM laplace.entity) <> {expected['entity_count']}
      OR (SELECT count(*) FROM laplace.physicality) <> {expected['physicality_count']}
      OR (SELECT count(*) FROM laplace.unicode_atom_binding) <> {expected['atom_count']}
      OR (SELECT count(*) FROM laplace.unicode_ducet_position) <> {expected['ducet_position_count']}

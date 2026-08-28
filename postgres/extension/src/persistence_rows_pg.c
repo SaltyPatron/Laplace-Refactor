@@ -14,7 +14,7 @@ void laplace_pg_entity_binding_open(
     static const int32 attribute_typmods[2] = {
         LAPLACE_PG_TYPMOD_NONE, LAPLACE_PG_TYPMOD_NONE};
     laplace_pg_composite_binding_open(
-        "canonical_entity_record", attribute_types, attribute_typmods,
+        "entity_record", attribute_types, attribute_typmods,
         2, binding);
 }
 
@@ -38,16 +38,17 @@ Datum laplace_pg_entity_record(
 
 const char* laplace_pg_entity_insert_sql(void) {
     return "INSERT INTO " LAPLACE_PG_SCHEMA
-        ".canonical_entity(entity_id,identity_witness) "
-        "SELECT entity_id,identity_witness FROM unnest($1::"
-        LAPLACE_PG_SCHEMA ".canonical_entity_record[]) "
-        "ON CONFLICT DO NOTHING";
+        ".entity(entity_id,identity_witness) "
+        "SELECT i.entity_id,i.identity_witness FROM unnest($1::"
+        LAPLACE_PG_SCHEMA ".entity_record[]) i "
+        "WHERE NOT EXISTS (SELECT 1 FROM " LAPLACE_PG_SCHEMA
+        ".entity s WHERE s.entity_id=i.entity_id)";
 }
 
 const char* laplace_pg_entity_verify_sql(void) {
     return "SELECT count(*) FROM unnest($1::" LAPLACE_PG_SCHEMA
-        ".canonical_entity_record[]) i JOIN " LAPLACE_PG_SCHEMA
-        ".canonical_entity s ON s.entity_id=i.entity_id "
+        ".entity_record[]) i JOIN " LAPLACE_PG_SCHEMA
+        ".entity s ON s.entity_id=i.entity_id "
         "AND s.identity_witness=i.identity_witness";
 }
 
@@ -111,8 +112,18 @@ Datum laplace_pg_physicality_record(
 
 const char* laplace_pg_physicality_insert_sql(void) {
     return "INSERT INTO " LAPLACE_PG_SCHEMA
-        ".physicality SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA
-        ".physicality_record[]) ON CONFLICT DO NOTHING";
+        ".physicality(physicality_id,entity_id,physicality_type,vertex_class,"
+        "recipe_version,structural_form,dimension_count,flags,recipe_fingerprint,"
+        "geometry_epoch,trajectory_fingerprint,centroid_x,centroid_y,centroid_z,"
+        "centroid_m,radius,logical_count,vertex_count,trajectory) "
+        "SELECT i.physicality_id,i.entity_id,i.physicality_type,i.vertex_class,"
+        "i.recipe_version,i.structural_form,i.dimension_count,i.flags,"
+        "i.recipe_fingerprint,i.geometry_epoch,i.trajectory_fingerprint,"
+        "i.centroid_x,i.centroid_y,i.centroid_z,i.centroid_m,i.radius,"
+        "i.logical_count,i.vertex_count,'\\x'::bytea FROM unnest($1::"
+        LAPLACE_PG_SCHEMA ".physicality_record[]) i "
+        "WHERE NOT EXISTS (SELECT 1 FROM " LAPLACE_PG_SCHEMA
+        ".physicality s WHERE s.physicality_id=i.physicality_id)";
 }
 
 const char* laplace_pg_physicality_verify_sql(void) {
@@ -134,5 +145,6 @@ const char* laplace_pg_physicality_verify_sql(void) {
         "AND float8send(s.centroid_m)=float8send(i.centroid_m) "
         "AND float8send(s.radius)=float8send(i.radius) "
         "AND s.logical_count=i.logical_count "
-        "AND s.vertex_count=i.vertex_count";
+        "AND s.vertex_count=i.vertex_count "
+        "AND s.trajectory='\\x'::bytea";
 }

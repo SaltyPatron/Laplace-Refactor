@@ -32,6 +32,8 @@ set(LAPLACE_UNICODE_SOURCE_ROOT
 set(LAPLACE_ISO_639_SOURCE_ROOT
     "/vault/Data/ISO639"
     CACHE PATH "Locked ISO 639 Set 3 source-profile artifact root")
+set(LAPLACE_CILI_SOURCE_ROOT "" CACHE PATH
+    "Locked CILI PWN mapping source-profile artifact root")
 option(LAPLACE_ENABLE_DOTNET_BINDINGS
     "Generate and build the .NET 10 typed ISA orchestration surface" OFF)
 set(LAPLACE_DEPENDENCY_LOCK
@@ -112,6 +114,10 @@ include(cmake/LaplaceReferenceTopologyContract.cmake)
 laplace_configure_reference_topology_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-topology.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/reference_topology.h")
+include(cmake/LaplaceReferenceMappingContract.cmake)
+laplace_configure_reference_mapping_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-mapping.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/reference_mapping.h")
 include(cmake/LaplaceSourceProfileContract.cmake)
 laplace_configure_source_profile_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/source-profile-execution.json"
@@ -129,6 +135,10 @@ laplace_compile_tabular_source_profile(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/sources/iso-639-3-20260415.json"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-tabular-source-profile.py"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/source/iso_639_3_20260415_profile.h")
+laplace_compile_tabular_source_profile(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/sources/cili-pwn-mappings-20240611.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-tabular-source-profile.py"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/source/cili_pwn_mappings_20240611_profile.h")
 
 include(cmake/LaplaceCompositionContract.cmake)
 laplace_configure_composition_contract(

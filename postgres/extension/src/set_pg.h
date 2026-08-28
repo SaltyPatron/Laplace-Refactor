@@ -53,4 +53,14 @@ void laplace_pg_keep_plan(
 
 uint64_t laplace_pg_scalar_count(const char* operation_name);
 
+bool laplace_pg_scalar_boolean(const char* operation_name);
+
+void laplace_pg_execute_set_write_verify(
+    const char* write_sql,
+    const char* verify_sql,
+    int parameter_count,
+    Oid* parameter_types,
+    Datum* parameter_values,
+    const char* operation_name);
+
 #endif

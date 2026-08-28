@@ -4,6 +4,7 @@
 #include "laplace/isa.h"
 #include "laplace/highway.h"
 #include "laplace/persistence.h"
+#include "laplace/reference_mapping.h"
 #include "laplace/source_profile.h"
 #include "laplace/tabular_source.h"
 #include "laplace/trajectory.h"
@@ -174,6 +175,14 @@ bool AppendPersistenceFrame(
 int main() {
     const std::array<std::uint8_t, 5> source_archive{{0u, 1u, 255u, 'P', 'K'}};
     const std::string source_text{"Id\tName\neng\tEnglish\njpn\t日本語\n"};
+    static constexpr std::array<std::string_view, 2> source_column_names{{
+        "Id", "Name"}};
+    std::array<laplace_tabular_column, 2> source_columns{};
+    for (std::size_t index = 0u; index < source_columns.size(); ++index) {
+        source_columns[index].bytes = reinterpret_cast<const std::uint8_t*>(
+            source_column_names[index].data());
+        source_columns[index].byte_count = source_column_names[index].size();
+    }
     std::array<laplace_tabular_artifact, 2> source_artifacts{};
     source_artifacts[0].artifact_id = ParseDigest(
         "3caaab6abbbcc0bc44f88ef7b56033746fa2f37a94067e43df296518eba3cef5");
@@ -197,21 +206,54 @@ int main() {
     source_artifacts[1].bytes = reinterpret_cast<const std::uint8_t*>(
         source_text.data());
     source_artifacts[1].name = "tables/languages.tab";
+    source_artifacts[1].columns = source_columns.data();
     source_artifacts[1].byte_count = source_text.size();
     source_artifacts[1].name_byte_count = std::strlen(source_artifacts[1].name);
     source_artifacts[1].expected_record_count = 3u;
     source_artifacts[1].expected_field_count = 6u;
-    source_artifacts[1].reference_column_mask = 1u;
+    source_artifacts[1].reference_column_mask = 3u;
     source_artifacts[1].mode = LAPLACE_TABULAR_ARTIFACT_DELIMITED;
     source_artifacts[1].delimiter = '\t';
     source_artifacts[1].line_terminator = LAPLACE_TABULAR_TERMINATOR_LF;
     source_artifacts[1].expected_column_count = 2u;
+    source_artifacts[1].header_record_count = 1u;
     source_artifacts[1].outcome_type = LAPLACE_EVIDENCE_OUTCOME_MAPPING;
     source_artifacts[1].flags = LAPLACE_TABULAR_ARTIFACT_MEMBER |
         LAPLACE_TABULAR_ARTIFACT_EXACT_DISTRIBUTION;
+    std::array<laplace_tabular_reference_rule, 2> source_reference_rules{};
+    source_reference_rules[0].artifact_index = 1u;
+    source_reference_rules[0].column_index = 0u;
+    std::memset(
+        source_reference_rules[0].name_space.bytes, 0x50,
+        sizeof(source_reference_rules[0].name_space.bytes));
+    source_reference_rules[0].kind = LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE;
+    source_reference_rules[0].flags = LAPLACE_REFERENCE_RULE_ENDPOINT |
+        LAPLACE_REFERENCE_RULE_PRESENT_DECLARATION;
+    source_reference_rules[1].artifact_index = 1u;
+    source_reference_rules[1].column_index = 1u;
+    std::memset(
+        source_reference_rules[1].name_space.bytes, 0x51,
+        sizeof(source_reference_rules[1].name_space.bytes));
+    source_reference_rules[1].kind = LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE;
+    source_reference_rules[1].flags = LAPLACE_REFERENCE_RULE_ENDPOINT |
+        LAPLACE_REFERENCE_RULE_PRESENT_DECLARATION;
+    static constexpr std::string_view source_relation{"="};
+    std::array<laplace_tabular_mapping_rule, 1> source_mapping_rules{};
+    source_mapping_rules[0].relation_content =
+        reinterpret_cast<const std::uint8_t*>(source_relation.data());
+    source_mapping_rules[0].relation_content_byte_count =
+        source_relation.size();
+    source_mapping_rules[0].artifact_index = 1u;
+    source_mapping_rules[0].left_column_index = 0u;
+    source_mapping_rules[0].right_column_index = 1u;
+    source_mapping_rules[0].relation_version = 1u;
+    source_mapping_rules[0].relation_kind = LAPLACE_HIGHWAY_KIND_RELATION;
+    source_mapping_rules[0].flags = LAPLACE_REFERENCE_MAPPING_FLAG_DIRECTED;
     laplace_digest256 source_artifact_graph{};
-    if (laplace_tabular_artifact_graph_identify(
+    if (laplace_tabular_source_graph_identify(
             source_artifacts.data(), source_artifacts.size(),
+            source_reference_rules.data(), source_reference_rules.size(),
+            source_mapping_rules.data(), source_mapping_rules.size(),
             &source_artifact_graph) != LAPLACE_TABULAR_SOURCE_OK) {
         return 48;
     }
@@ -411,15 +453,17 @@ int main() {
             &physicality, &physicality.physicality_id) != LAPLACE_PERSISTENCE_OK) {
         return 7;
     }
-    laplace_persistence_occurrence_record observed{};
+    laplace_persistence_attestation_record observed{};
     observed.entity_id = entity_a;
     observed.physicality_id = physicality.physicality_id;
     Fill(&observed.source_fingerprint, 0x70u);
     Fill(&observed.context_fingerprint, 0xa0u);
     observed.source_ordinal = 1u;
-    observed.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
-    if (laplace_persistence_occurrence_identify(
-            &observed, &observed.occurrence_id) != LAPLACE_PERSISTENCE_OK) {
+    observed.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+    observed.attestation_kind =
+        LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+    if (laplace_persistence_attestation_identify(
+            &observed, &observed.attestation_id) != LAPLACE_PERSISTENCE_OK) {
         return 8;
     }
     std::vector<std::vector<std::uint8_t>> persistence_frames;
@@ -443,8 +487,8 @@ int main() {
     for (std::size_t index = 0; index < persistence_carriers.size(); ++index) {
         if (!AppendPersistenceFrame(
                 &persistence_frames,
-                LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX,
-                laplace_persistence_frame_encode_trajectory,
+                LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT,
+                laplace_persistence_frame_encode_trajectory_segment,
                 &physicality.physicality_id,
                 static_cast<std::uint64_t>(index),
                 &persistence_carriers[index])) {
@@ -453,8 +497,8 @@ int main() {
     }
     if (!AppendPersistenceFrame(
             &persistence_frames,
-            LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE,
-            laplace_persistence_frame_encode_occurrence, &observed)) {
+            LAPLACE_PERSISTENCE_RECORD_ATTESTATION,
+            laplace_persistence_frame_encode_attestation, &observed)) {
         return 11;
     }
     const std::array<std::uint32_t, 11> plans{{
@@ -463,10 +507,10 @@ int main() {
         LAPLACE_PERSISTENCE_PG_PLAN_ENTITY_VERIFY,
         LAPLACE_PERSISTENCE_PG_PLAN_PHYSICALITY_INSERT,
         LAPLACE_PERSISTENCE_PG_PLAN_PHYSICALITY_VERIFY,
-        LAPLACE_PERSISTENCE_PG_PLAN_TRAJECTORY_INSERT,
-        LAPLACE_PERSISTENCE_PG_PLAN_TRAJECTORY_VERIFY,
-        LAPLACE_PERSISTENCE_PG_PLAN_OCCURRENCE_INSERT,
-        LAPLACE_PERSISTENCE_PG_PLAN_OCCURRENCE_VERIFY,
+        LAPLACE_PERSISTENCE_PG_PLAN_ATTESTATION_INSERT,
+        LAPLACE_PERSISTENCE_PG_PLAN_ATTESTATION_VERIFY,
+        LAPLACE_PERSISTENCE_PG_PLAN_CONSENSUS_INSERT,
+        LAPLACE_PERSISTENCE_PG_PLAN_CONSENSUS_VERIFY,
         LAPLACE_PERSISTENCE_PG_PLAN_RECEIPT_INSERT,
         LAPLACE_PERSISTENCE_PG_PLAN_RECEIPT_VERIFY}};
     laplace_digest256 plan_fingerprint{};
@@ -487,7 +531,7 @@ int main() {
     PrintDigest("PERSISTENCE_ENTITY_B_WITNESS", witness_b);
     PrintDigest("PERSISTENCE_PHYSICALITY", physicality.physicality_id);
     PrintDigest("PERSISTENCE_TRAJECTORY", physicality.trajectory_fingerprint);
-    PrintDigest("PERSISTENCE_OCCURRENCE", observed.occurrence_id);
+    PrintDigest("PERSISTENCE_OCCURRENCE", observed.attestation_id);
     PrintDigest("PERSISTENCE_PLAN_SEQUENCE", plan_fingerprint);
     for (std::size_t index = 0; index < persistence_frames.size(); ++index) {
         const auto name = std::string("PERSISTENCE_FRAME_") +
@@ -497,7 +541,7 @@ int main() {
 
     laplace_evidence_lineage_record evidence_root{};
     evidence_root.proposition_id = entity_a;
-    evidence_root.occurrence_id = observed.occurrence_id;
+    evidence_root.occurrence_id = observed.attestation_id;
     Fill(&evidence_root.source_id, 0x11u);
     Fill(&evidence_root.context_id, 0x21u);
     evidence_root.source_ordinal = 1u;
@@ -829,6 +873,151 @@ int main() {
                 source_profile_native_receipt.output_fingerprint);
     PrintDigest("SOURCE_PROFILE_ISA_RECEIPT", source_profile_isa_receipt.receipt_id);
 
+    auto make_mapping_coordinate = [](std::uint8_t seed) {
+        laplace_highway_key key{};
+        key.kind = LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE;
+        key.authority = HighwayId(static_cast<std::uint8_t>(seed + 0x10u));
+        key.release = HighwayId(static_cast<std::uint8_t>(seed + 0x20u));
+        key.name_space = HighwayId(static_cast<std::uint8_t>(seed + 0x30u));
+        key.local_identifier = HighwayId(
+            static_cast<std::uint8_t>(seed + 0x40u));
+        key.version = 1u;
+        laplace_highway_coordinate coordinate{};
+        if (laplace_highway_coordinate_calculate(&key, &coordinate) !=
+            LAPLACE_HIGHWAY_OK) {
+            std::exit(44);
+        }
+        return coordinate;
+    };
+    const std::array<laplace_highway_coordinate, 3> mapping_coordinates{{
+        make_mapping_coordinate(0x01u),
+        make_mapping_coordinate(0x02u),
+        make_mapping_coordinate(0x03u)}};
+    auto make_mapping_candidate = [&](std::uint8_t witness,
+                                      const laplace_digest256& profile_id,
+                                      const laplace_digest256& left_reference_id,
+                                      const laplace_digest256& right_reference_id,
+                                      std::size_t right_coordinate,
+                                      std::uint64_t source_ordinal,
+                                      std::uint64_t row_ordinal) {
+        laplace_reference_mapping_candidate candidate{};
+        candidate.boundary_id = source_profile_boundary;
+        candidate.source_profile_id = profile_id;
+        candidate.left_reference_id = left_reference_id;
+        candidate.right_reference_id = right_reference_id;
+        candidate.left_coordinate = mapping_coordinates[0];
+        candidate.right_coordinate = mapping_coordinates[right_coordinate];
+        std::memset(candidate.relation_id.bytes, 0x50, 16u);
+        std::memset(candidate.row_entity_id.bytes, 0x60 + witness, 16u);
+        std::memset(candidate.left_field_entity_id.bytes, 0x70, 16u);
+        std::memset(candidate.left_value_entity_id.bytes, 0x80 + witness, 16u);
+        std::memset(candidate.right_field_entity_id.bytes, 0x90, 16u);
+        std::memset(candidate.right_value_entity_id.bytes, 0xa0 + witness, 16u);
+        candidate.source_ordinal = source_ordinal;
+        candidate.artifact_ordinal = 1u;
+        candidate.row_ordinal = row_ordinal;
+        candidate.relation_version = 1u;
+        candidate.relation_kind = LAPLACE_HIGHWAY_KIND_RELATION;
+        candidate.flags = LAPLACE_REFERENCE_MAPPING_FLAG_DIRECTED;
+        candidate.left_disposition = LAPLACE_REFERENCE_DISPOSITION_PRESENT;
+        candidate.right_disposition =
+            right_coordinate == 2u
+                ? LAPLACE_REFERENCE_DISPOSITION_UNRESOLVED
+                : LAPLACE_REFERENCE_DISPOSITION_PRESENT;
+        return candidate;
+    };
+    laplace_digest256 mapping_left_a{};
+    laplace_digest256 mapping_right_a{};
+    laplace_digest256 mapping_left_b{};
+    laplace_digest256 mapping_right_b{};
+    laplace_digest256 mapping_left_unresolved{};
+    laplace_digest256 mapping_right_unresolved{};
+    Repeat(&mapping_left_a, 0x31u);
+    Repeat(&mapping_right_a, 0x41u);
+    Repeat(&mapping_left_b, 0x32u);
+    Repeat(&mapping_right_b, 0x42u);
+    Repeat(&mapping_left_unresolved, 0x33u);
+    Repeat(&mapping_right_unresolved, 0x43u);
+    std::array<laplace_reference_mapping_candidate, 3> mapping_candidates{{
+        make_mapping_candidate(
+            0u, source_profile_a.profile_id,
+            mapping_left_a, mapping_right_a, 1u, 1u, 1u),
+        make_mapping_candidate(
+            1u, source_profile_b.profile_id,
+            mapping_left_b, mapping_right_b, 1u, 1u, 1u),
+        make_mapping_candidate(
+            2u, source_profile_a.profile_id,
+            mapping_left_unresolved, mapping_right_unresolved, 2u, 2u, 2u)}};
+    std::array<laplace_reference_mapping_record, 3> mapping_records{};
+    laplace_reference_mapping_receipt mapping_native_receipt{};
+    laplace_reference_mapping_error mapping_native_error{};
+    if (laplace_reference_mapping_resolve_batch(
+            mapping_candidates.data(), mapping_candidates.size(),
+            mapping_records.data(), &mapping_native_receipt,
+            &mapping_native_error) != LAPLACE_REFERENCE_MAPPING_OK) {
+        return 44;
+    }
+    std::array<laplace_isa_value_view, 2> mapping_values{{
+        {mapping_candidates.data(), mapping_candidates.size(),
+         mapping_candidates.size(),
+         static_cast<std::uint32_t>(sizeof(mapping_candidates[0])),
+         LAPLACE_ISA_VALUE_REFERENCE_MAPPING_CANDIDATE_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {mapping_records.data(), 0u, mapping_records.size(),
+         static_cast<std::uint32_t>(sizeof(mapping_records[0])),
+         LAPLACE_ISA_VALUE_REFERENCE_MAPPING_RECORD_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction mapping_instruction{
+        LAPLACE_ISA_OPCODE_REFERENCE_MAPPING_RESOLVE_BATCH,
+        0u, 1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_REFERENCE_MAPPING_RESOLVE_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto mapping_program = Program(
+        &mapping_instruction, mapping_values.data());
+    mapping_program.context = &evidence_context;
+    laplace_isa_receipt mapping_isa_receipt{};
+    laplace_isa_error mapping_isa_error{};
+    if (laplace_isa_execute(
+            &mapping_program, &mapping_isa_receipt, &mapping_isa_error) !=
+            LAPLACE_ISA_OK || mapping_values[1].count != 3u) {
+        return 45;
+    }
+    laplace_reference_mapping_receipt mapping_reconstructed_receipt{};
+    std::array<laplace_reference_mapping_record, 3>
+        mapping_reconstructed_records{};
+    if (laplace_reference_mapping_resolve_batch(
+            mapping_candidates.data(), mapping_candidates.size(),
+            mapping_reconstructed_records.data(),
+            &mapping_reconstructed_receipt, nullptr) !=
+            LAPLACE_REFERENCE_MAPPING_OK ||
+        std::memcmp(mapping_records.data(), mapping_reconstructed_records.data(),
+                    sizeof(mapping_records)) != 0 ||
+        std::memcmp(&mapping_native_receipt, &mapping_reconstructed_receipt,
+                    sizeof(mapping_native_receipt)) != 0) {
+        return 46;
+    }
+    for (std::size_t index = 0u; index < mapping_records.size(); ++index) {
+        const std::string suffix = std::to_string(index);
+        PrintDigest(
+            ("REFERENCE_MAPPING_ID_" + suffix).c_str(),
+            mapping_records[index].mapping_id);
+        PrintDigest(
+            ("REFERENCE_MAPPING_PROPOSITION_" + suffix).c_str(),
+            mapping_records[index].proposition_id);
+        PrintDigest(
+            ("REFERENCE_MAPPING_OCCURRENCE_" + suffix).c_str(),
+            mapping_records[index].occurrence_id);
+    }
+    PrintDigest(
+        "REFERENCE_MAPPING_RECEIPT", mapping_native_receipt.receipt_id);
+    PrintDigest(
+        "REFERENCE_MAPPING_BOUNDARY", mapping_native_receipt.boundary_id);
+    PrintDigest(
+        "REFERENCE_MAPPING_INPUT", mapping_native_receipt.input_fingerprint);
+    PrintDigest(
+        "REFERENCE_MAPPING_OUTPUT", mapping_native_receipt.output_fingerprint);
+    PrintDigest("REFERENCE_MAPPING_ISA_RECEIPT", mapping_isa_receipt.receipt_id);
+
     const laplace_id128 zero_entity{};
     const laplace_digest256 zero_witness{};
     std::array<laplace_trajectory_carrier, 1> zero_carriers{};
@@ -858,13 +1047,15 @@ int main() {
             LAPLACE_PERSISTENCE_OK) {
         return 19;
     }
-    laplace_persistence_occurrence_record zero_occurrence{};
+    laplace_persistence_attestation_record zero_occurrence{};
     zero_occurrence.entity_id = zero_entity;
     zero_occurrence.physicality_id = zero_physicality.physicality_id;
     zero_occurrence.source_ordinal = 1u;
-    zero_occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
-    if (laplace_persistence_occurrence_identify(
-            &zero_occurrence, &zero_occurrence.occurrence_id) !=
+    zero_occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+    zero_occurrence.attestation_kind =
+        LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+    if (laplace_persistence_attestation_identify(
+            &zero_occurrence, &zero_occurrence.attestation_id) !=
         LAPLACE_PERSISTENCE_OK) {
         return 20;
     }
@@ -877,17 +1068,17 @@ int main() {
             &zero_frames, LAPLACE_PERSISTENCE_RECORD_PHYSICALITY,
             laplace_persistence_frame_encode_physicality, &zero_physicality) ||
         !AppendPersistenceFrame(
-            &zero_frames, LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX,
-            laplace_persistence_frame_encode_trajectory,
+            &zero_frames, LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT,
+            laplace_persistence_frame_encode_trajectory_segment,
             &zero_physicality.physicality_id, 0u, &zero_carriers[0]) ||
         !AppendPersistenceFrame(
-            &zero_frames, LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE,
-            laplace_persistence_frame_encode_occurrence, &zero_occurrence)) {
+            &zero_frames, LAPLACE_PERSISTENCE_RECORD_ATTESTATION,
+            laplace_persistence_frame_encode_attestation, &zero_occurrence)) {
         return 21;
     }
     PrintHex("PERSISTENCE_ZERO_ENTITY", zero_entity.bytes);
     PrintDigest("PERSISTENCE_ZERO_PHYSICALITY", zero_physicality.physicality_id);
-    PrintDigest("PERSISTENCE_ZERO_OCCURRENCE", zero_occurrence.occurrence_id);
+    PrintDigest("PERSISTENCE_ZERO_OCCURRENCE", zero_occurrence.attestation_id);
     for (std::size_t index = 0; index < zero_frames.size(); ++index) {
         const auto name = std::string("PERSISTENCE_ZERO_FRAME_") +
                           std::to_string(index);
@@ -904,9 +1095,9 @@ int main() {
     auto concurrent_occurrence = observed;
     concurrent_occurrence.physicality_id = concurrent_physicality.physicality_id;
     concurrent_occurrence.source_ordinal = 2u;
-    if (laplace_persistence_occurrence_identify(
+    if (laplace_persistence_attestation_identify(
             &concurrent_occurrence,
-            &concurrent_occurrence.occurrence_id) != LAPLACE_PERSISTENCE_OK) {
+            &concurrent_occurrence.attestation_id) != LAPLACE_PERSISTENCE_OK) {
         return 14;
     }
     std::vector<std::vector<std::uint8_t>> concurrent_frames;
@@ -929,8 +1120,8 @@ int main() {
     for (std::size_t index = 0; index < persistence_carriers.size(); ++index) {
         if (!AppendPersistenceFrame(
                 &concurrent_frames,
-                LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX,
-                laplace_persistence_frame_encode_trajectory,
+                LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT,
+                laplace_persistence_frame_encode_trajectory_segment,
                 &concurrent_physicality.physicality_id,
                 static_cast<std::uint64_t>(index),
                 &persistence_carriers[index])) {
@@ -939,8 +1130,8 @@ int main() {
     }
     if (!AppendPersistenceFrame(
             &concurrent_frames,
-            LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE,
-            laplace_persistence_frame_encode_occurrence,
+            LAPLACE_PERSISTENCE_RECORD_ATTESTATION,
+            laplace_persistence_frame_encode_attestation,
             &concurrent_occurrence)) {
         return 17;
     }
@@ -949,7 +1140,7 @@ int main() {
         concurrent_physicality.physicality_id);
     PrintDigest(
         "PERSISTENCE_CONCURRENT_OCCURRENCE",
-        concurrent_occurrence.occurrence_id);
+        concurrent_occurrence.attestation_id);
     for (std::size_t index = 0; index < concurrent_frames.size(); ++index) {
         const auto name = std::string("PERSISTENCE_CONCURRENT_FRAME_") +
                           std::to_string(index);
@@ -987,8 +1178,8 @@ int main() {
     auto bulk_occurrence = observed;
     bulk_occurrence.physicality_id = bulk_physicality.physicality_id;
     bulk_occurrence.source_ordinal = 3u;
-    if (laplace_persistence_occurrence_identify(
-            &bulk_occurrence, &bulk_occurrence.occurrence_id) !=
+    if (laplace_persistence_attestation_identify(
+            &bulk_occurrence, &bulk_occurrence.attestation_id) !=
         LAPLACE_PERSISTENCE_OK) {
         return 21;
     }
@@ -1011,8 +1202,8 @@ int main() {
     for (std::size_t index = 0; index < bulk_carriers.size(); ++index) {
         if (!AppendPersistenceFrame(
                 &bulk_frames,
-                LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX,
-                laplace_persistence_frame_encode_trajectory,
+                LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT,
+                laplace_persistence_frame_encode_trajectory_segment,
                 &bulk_physicality.physicality_id,
                 static_cast<std::uint64_t>(index), &bulk_carriers[index])) {
             return 23;
@@ -1020,8 +1211,8 @@ int main() {
     }
     if (!AppendPersistenceFrame(
             &bulk_frames,
-            LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE,
-            laplace_persistence_frame_encode_occurrence, &bulk_occurrence)) {
+            LAPLACE_PERSISTENCE_RECORD_ATTESTATION,
+            laplace_persistence_frame_encode_attestation, &bulk_occurrence)) {
         return 24;
     }
     std::vector<std::uint8_t> bulk_stream;
@@ -1029,7 +1220,7 @@ int main() {
         bulk_stream.insert(bulk_stream.end(), frame.begin(), frame.end());
     }
     PrintDigest("PERSISTENCE_BULK_PHYSICALITY", bulk_physicality.physicality_id);
-    PrintDigest("PERSISTENCE_BULK_OCCURRENCE", bulk_occurrence.occurrence_id);
+    PrintDigest("PERSISTENCE_BULK_OCCURRENCE", bulk_occurrence.attestation_id);
     PrintHex("PERSISTENCE_BULK_STREAM", bulk_stream);
 
     auto composition_context = laplace_test_context(0U);
@@ -1156,23 +1347,25 @@ int main() {
         laplace_composition_working_set_destroy(&composition_working_set);
         return 44;
     }
-    laplace_persistence_occurrence_record world_occurrence{};
+    laplace_persistence_attestation_record world_occurrence{};
     world_occurrence.entity_id = composition_results[0].entity_id;
     world_occurrence.physicality_id = composition_results[0].physicality_id;
     world_occurrence.source_fingerprint = composition_source;
     world_occurrence.context_fingerprint =
         composition_request.occurrence_context_fingerprint;
     world_occurrence.source_ordinal = composition_request.source_ordinal;
-    world_occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
-    if (laplace_persistence_occurrence_identify(
-            &world_occurrence, &world_occurrence.occurrence_id) !=
+    world_occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+    world_occurrence.attestation_kind =
+        LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+    if (laplace_persistence_attestation_identify(
+            &world_occurrence, &world_occurrence.attestation_id) !=
         LAPLACE_PERSISTENCE_OK) {
         laplace_composition_working_set_destroy(&composition_working_set);
         return 45;
     }
     laplace_evidence_lineage_record world_evidence{};
     world_evidence.proposition_id = composition_results[0].entity_id;
-    world_evidence.occurrence_id = world_occurrence.occurrence_id;
+    world_evidence.occurrence_id = world_occurrence.attestation_id;
     Repeat(&world_evidence.source_id, 0x44u);
     Repeat(&world_evidence.context_id, 0x45u);
     world_evidence.source_ordinal = 1u;
@@ -1204,7 +1397,7 @@ int main() {
         return 47;
     }
     PrintDigest("WORLD_PROFILE_ID", world_profile.profile_id);
-    PrintDigest("WORLD_OCCURRENCE_ID", world_occurrence.occurrence_id);
+    PrintDigest("WORLD_OCCURRENCE_ID", world_occurrence.attestation_id);
     PrintDigest("WORLD_EVIDENCE_NODE", world_evidence.node_id);
     PrintDigest("WORLD_EVIDENCE_SOURCE", world_evidence.source_id);
     PrintDigest("WORLD_EVIDENCE_CONTEXT", world_evidence.context_id);

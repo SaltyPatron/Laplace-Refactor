@@ -415,7 +415,7 @@ int main(int argc, char** argv) {
                 "TRUNCATE laplace.canonical_deposit_receipt,"
                 "laplace.observed_occurrence,"
                 "laplace.composition_trajectory_vertex,"
-                "laplace.physicality,laplace.canonical_entity CASCADE");
+                "laplace.physicality,laplace.entity CASCADE");
             const auto wal_before = Lsn(Scalar(
                 connection, "SELECT pg_current_wal_insert_lsn()::text"));
             const auto usage_before = ReadProcessUsage(backend_pid, page_bytes);
@@ -450,7 +450,7 @@ int main(int argc, char** argv) {
             }
             const auto durable_outputs = Unsigned(Scalar(
                 connection,
-                "SELECT (SELECT count(*) FROM laplace.canonical_entity) + "
+                "SELECT (SELECT count(*) FROM laplace.entity) + "
                 "(SELECT count(*) FROM laplace.physicality) + "
                 "(SELECT count(*) FROM laplace.composition_trajectory_vertex) + "
                 "(SELECT count(*) FROM laplace.observed_occurrence) + "

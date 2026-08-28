@@ -15,12 +15,13 @@ DECLARE
 BEGIN
     SELECT * INTO STRICT expected FROM concurrency_expected;
     IF (SELECT count(*) FROM laplace.physicality
-        WHERE physicality_id = expected.physicality) <> 1
-       OR (SELECT count(*) FROM laplace.composition_trajectory_vertex
-           WHERE physicality_id = expected.physicality) <> 3
-       OR (SELECT count(*) FROM laplace.observed_occurrence
-           WHERE occurrence_id = expected.occurrence
-             AND physicality_id = expected.physicality) <> 1
+        WHERE physicality_id = expected.physicality
+          AND vertex_count = 3
+          AND octet_length(trajectory) = 3 * 32) <> 1
+       OR (SELECT count(*) FROM laplace.attestation
+           WHERE attestation_id = expected.occurrence
+             AND physicality_id = expected.physicality
+             AND attestation_kind = 1) <> 1
        OR (SELECT count(*) FROM laplace.canonical_deposit_receipt) <>
           expected.receipt_count THEN
         RAISE EXCEPTION 'concurrent exact-stream deposit did not converge to one immutable state';

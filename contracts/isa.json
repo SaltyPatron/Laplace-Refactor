@@ -2,7 +2,7 @@
   "schema": "laplace.isa-contract/v1",
   "version": {
     "major": 1,
-    "minor": 9
+    "minor": 10
   },
   "execution_context": {
     "required": true,
@@ -27,7 +27,9 @@
     "world_admission_record_vector": 14,
     "world_admission_receipt_vector": 15,
     "reference_candidate_vector": 16,
-    "reference_record_vector": 17
+    "reference_record_vector": 17,
+    "reference_mapping_candidate_vector": 18,
+    "reference_mapping_record_vector": 19
   },
   "opcodes": {
     "identity_codepoint_batch": 131073,
@@ -38,7 +40,8 @@
     "evidence_record_testimony_batch": 327682,
     "source_profile_validate_batch": 393217,
     "world_admission_close_batch": 393218,
-    "reference_topology_resolve_batch": 393219
+    "reference_topology_resolve_batch": 393219,
+    "reference_mapping_resolve_batch": 393220
   },
   "modules": {
     "identity": 2,
@@ -92,6 +95,11 @@
       "module": "admission",
       "input_type": "reference_candidate_vector",
       "output_type": "reference_record_vector"
+    },
+    "reference_mapping_resolve_batch": {
+      "module": "admission",
+      "input_type": "reference_mapping_candidate_vector",
+      "output_type": "reference_mapping_record_vector"
     }
   },
   "instruction_versions": {
@@ -103,7 +111,8 @@
     "evidence_record_testimony_batch": 1,
     "source_profile_validate_batch": 1,
     "world_admission_close_batch": 1,
-    "reference_topology_resolve_batch": 1
+    "reference_topology_resolve_batch": 1,
+    "reference_mapping_resolve_batch": 1
   },
   "introduced_minor": {
     "identity_codepoint_batch": 0,
@@ -114,7 +123,8 @@
     "evidence_record_testimony_batch": 6,
     "source_profile_validate_batch": 7,
     "world_admission_close_batch": 8,
-    "reference_topology_resolve_batch": 9
+    "reference_topology_resolve_batch": 9,
+    "reference_mapping_resolve_batch": 10
   },
   "receipt": {
     "digest_algorithm": "BLAKE3-256",
@@ -144,7 +154,9 @@
         "world_admission_record_vector": "global::Laplace.Managed.LaplaceWorldAdmissionRecord",
         "world_admission_receipt_vector": "global::Laplace.Managed.LaplaceWorldAdmissionReceipt",
         "reference_candidate_vector": "global::Laplace.Managed.LaplaceReferenceCandidate",
-        "reference_record_vector": "global::Laplace.Managed.LaplaceReferenceRecord"
+        "reference_record_vector": "global::Laplace.Managed.LaplaceReferenceRecord",
+        "reference_mapping_candidate_vector": "global::Laplace.Managed.LaplaceReferenceMappingCandidate",
+        "reference_mapping_record_vector": "global::Laplace.Managed.LaplaceReferenceMappingRecord"
       },
       "operation_declarations": {
         "identity_codepoint_batch": "IdentityCodepointBatch",
@@ -155,7 +167,8 @@
         "evidence_record_testimony_batch": "EvidenceRecordTestimonyBatch",
         "source_profile_validate_batch": "SourceProfileValidateBatch",
         "world_admission_close_batch": "WorldAdmissionCloseBatch",
-        "reference_topology_resolve_batch": "ReferenceTopologyResolveBatch"
+        "reference_topology_resolve_batch": "ReferenceTopologyResolveBatch",
+        "reference_mapping_resolve_batch": "ReferenceMappingResolveBatch"
       }
     },
     "postgresql": {
@@ -205,6 +218,10 @@
       "reference_topology_resolve_batch": {
         "resolve_sql_name": "reference_topology_resolve_batch",
         "resolve_c_symbol": "laplace_pg_reference_topology_resolve_batch"
+      },
+      "reference_mapping_resolve_batch": {
+        "resolve_sql_name": "reference_mapping_resolve_batch",
+        "resolve_c_symbol": "laplace_pg_reference_mapping_resolve_batch"
       },
       "source_admit_tabular": {
         "admit_sql_name": "source_admit_tabular",

@@ -1651,6 +1651,52 @@
       "covered_dimensions": ["one generated ISA operation owns reference-topology resolution", "strided candidate and record values preserve canonical native outputs", "ISA and semantic receipts remain independently exact"]
     },
     {
+      "ctest_name": "ReferenceMapping.PreservesDirectionAndCanonicalizesOnlySymmetricRelations",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["directed reference mappings preserve endpoint order", "symmetric mappings canonicalize endpoint order without collapsing relation identity"],
+      "defect_controls": ["reference-mapping.mutation-direction-collapse-detected"]
+    },
+    {
+      "ctest_name": "ReferenceMapping.KeepsUnresolvedAndRetiredEndpointsDistinct",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION"],
+      "covered_dimensions": ["resolved unresolved and retired endpoint states remain distinct mapping dispositions", "unsupported endpoint closure cannot become a positive mapping"],
+      "defect_controls": ["reference-mapping.mutation-unresolved-promotion-detected"]
+    },
+    {
+      "ctest_name": "ReferenceMapping.FoldsWitnessOccurrencesWithoutMultiplyingPropositions",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["multiple witnessed source rows retain separate occurrences while converging on one relation proposition", "witness identity cannot leak into canonical proposition identity"],
+      "defect_controls": ["reference-mapping.mutation-witness-identity-leak-detected"]
+    },
+    {
+      "ctest_name": "ReferenceMapping.RejectsDuplicateOccurrenceAndBoundaryMixing",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["duplicate mapping occurrences and mixed selected boundaries reject the complete batch before publication"]
+    },
+    {
+      "ctest_name": "reference-mapping.mutation-unresolved-promotion-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION"],
+      "covered_dimensions": ["an unresolved endpoint cannot be promoted into a resolved mapping"],
+      "controls": "ReferenceMapping.KeepsUnresolvedAndRetiredEndpointsDistinct"
+    },
+    {
+      "ctest_name": "reference-mapping.mutation-direction-collapse-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["directed endpoint order cannot be replaced by symmetric canonicalization"],
+      "controls": "ReferenceMapping.PreservesDirectionAndCanonicalizesOnlySymmetricRelations"
+    },
+    {
+      "ctest_name": "reference-mapping.mutation-witness-identity-leak-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["source witness identity cannot manufacture distinct canonical mapping propositions"],
+      "controls": "ReferenceMapping.FoldsWitnessOccurrencesWithoutMultiplyingPropositions"
+    },
+    {
+      "ctest_name": "IsaExecution.ReferenceMappingMatchesCanonicalNativeOperationAndReceipt",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["one generated ISA operation owns reference mapping", "strided candidate proposition occurrence and disposition outputs match the canonical native operation", "ISA and semantic receipts remain independently exact"]
+    },
+    {
       "ctest_name": "IsaExecution.HighwayBatchMatchesCanonicalNativeOperationAndReceipt",
       "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT"],
       "covered_dimensions": ["one generated ISA opcode owns highway batch execution", "ISA output and receipt match the canonical native calculation"]
@@ -1925,6 +1971,17 @@
       "defect_controls": ["tabular-source.mutation-input-reconstruction-bypass-detected", "tabular-source.mutation-structural-reference-promotion-detected"]
     },
     {
+      "ctest_name": "TabularSource.CompilesDeclaredReferencePairsIntoGenericMappingOccurrences",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["profile-declared reference-column pairs compile into generic typed mapping occurrences", "relation content is composed through the same universal AST plan", "mapping semantics are bound into the pinned source graph before execution"],
+      "defect_controls": ["changed relation content under the unchanged source graph is rejected"]
+    },
+    {
+      "ctest_name": "TabularSource.HeaderlessExactTablesUseDeclaredColumnsWithoutLosingFirstRow",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-READ-REACHABILITY"],
+      "covered_dimensions": ["zero-header tables retain their first physical row as data", "declared column identities remain exact AST roles without inventing serialized header bytes"]
+    },
+    {
       "ctest_name": "TabularSource.SeparatesExactContentFromNonInvertibleSourceDistribution",
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY"],
       "covered_dimensions": ["a non-selected archive wrapper remains hash-attributed but explicitly non-reconstructable", "selected exact member content remains independently bit-reconstructable within a semantically reconstructing profile"]
@@ -1961,6 +2018,11 @@
       "covered_dimensions": ["changed member-to-archive topology is rejected", "changed locked release bytes are rejected before source-plan publication"]
     },
     {
+      "ctest_name": "CiliSource.CompilesExactHeaderlessMappingsThroughTheGenericPlan",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["the locked CILI PWN mapping release compiles through the generic tabular source engine without a CILI-specific semantic implementation", "235242 headerless mapping rows retain their first rows and emit 470484 scoped endpoint occurrences plus 235242 typed mapping occurrences", "both selected mapping tables recompose byte-for-byte while the upstream ZIP wrapper remains exact provenance only"]
+    },
+    {
       "ctest_name": "tabular-source.mutation-parent-edge-omission-detected",
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
       "covered_dimensions": ["omitting parent containment from artifact-graph identity is detected"],
@@ -1984,6 +2046,11 @@
       "covered_dimensions": ["the source-profile instance deterministically generates typed native authority data", "physical ZIP membership hashes UTF-8 grammar row widths reference counts and complete denominators match the locked release", "authority artifact grammar reconstruction and denominator mutations are rejected"]
     },
     {
+      "ctest_name": "cili-source.profile-contract-and-mutation",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION"],
+      "covered_dimensions": ["the exact CILI source profile deterministically generates generic native artifacts reference rules and mapping rules", "archive membership byte locks headerless row widths namespace endpoints relation identity and complete denominators match the selected release", "wrapper provenance selected-content reconstruction mapping and denominator mutations fail closed"]
+    },
+    {
       "ctest_name": "tabular-source.acquisition-contract-and-mutation",
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-CLEANROOM-SEPARATION"],
       "covered_dimensions": ["clean-room source acquisition uses the authority-declared HTTPS artifact rather than a private vault path", "downloaded archive and every selected member match exact byte and SHA-256 locks before atomic publication", "replay verifies the existing receipted tree without network access", "digest member path archive equivalence and insecure transport mutations fail closed"]
@@ -1999,6 +2066,12 @@
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-BOUNDED-CROSSINGS"],
       "covered_dimensions": ["the real locked ISO 639-3 release traverses generated profile authority native composition canonical persistence typed reference topology evidence testimony and world admission through one public PostgreSQL operation", "17110 claims and 128125 recursive composition requests persist transactionally", "all 18805 typed reference occurrences close as 9339 scoped coordinates with 18404 present 401 retired and zero unresolved dispositions", "row field exact value coordinate and occurrence identities remain separately durable without asserting cross-namespace mappings", "English Japanese eng and jpn exact content are independently queryable while the unselected ZIP wrapper is not falsely deposited as exact content", "deterministic replay preserves semantic and topology identity and cardinality", "digest and parent-topology defects roll back with no published effect"]
+    },
+    {
+      "ctest_name": "postgres.cili-source-admission-whole-route-contract",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION"],
+      "covered_dimensions": ["the real locked CILI PWN mapping release traverses generated authority native composition canonical persistence typed reference topology typed reference mapping evidence testimony and world admission through one public PostgreSQL operation", "235242 exact headerless rows preserve 470484 unresolved endpoint occurrences across 352835 authority-scoped coordinates and 235242 unresolved mapping propositions", "the first mapping row and selected identifiers remain exact queryable Unicode compositions while the ZIP wrapper is not promoted to canonical content", "first replay preserves semantic receipts and canonical cardinality while recording the changed physical presence execution and steady-state replay then preserves every receipt and row cardinality", "source byte parent topology and mapping-rule authority mutations roll back with no durable effect"]
     }
   ]
 }

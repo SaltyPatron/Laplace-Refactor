@@ -184,17 +184,6 @@ static ArrayType* kind_array(
     return construct_array(values, (int)count, INT4OID, sizeof(int32), true, TYPALIGN_INT);
 }
 
-static bool query_boolean(void) {
-    bool is_null = false;
-    Datum value;
-    if (SPI_processed != 1u || SPI_tuptable == NULL) {
-        return false;
-    }
-    value = SPI_getbinval(
-        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &is_null);
-    return !is_null && DatumGetBool(value);
-}
-
 static void persist_lineage(
     Oid input_array_type,
     Datum input_array,
@@ -202,27 +191,28 @@ static void persist_lineage(
     size_t root_count,
     const laplace_evidence_lineage_receipt* lineage_receipt,
     const laplace_isa_receipt* isa_receipt) {
-    static const char nodes_sql[] =
-        "WITH input AS (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".evidence_lineage_record[]) r WHERE (r).record_kind=1),"
-        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_node(node_id,proposition_id,occurrence_id,source_id,context_id,source_ordinal,epistemic_kind,flags) "
-        "SELECT node_id,proposition_id,occurrence_id,source_id,context_id,source_ordinal,epistemic_kind,flags FROM input ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT NOT EXISTS (SELECT FROM input i WHERE NOT EXISTS (SELECT FROM written w WHERE w.node_id=i.node_id AND w.proposition_id=i.proposition_id AND w.occurrence_id=i.occurrence_id AND w.source_id=i.source_id AND w.context_id=i.context_id AND w.source_ordinal=i.source_ordinal AND w.epistemic_kind=i.epistemic_kind AND w.flags=i.flags) AND NOT EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".evidence_node n WHERE n.node_id=i.node_id AND n.proposition_id=i.proposition_id AND n.occurrence_id=i.occurrence_id AND n.source_id=i.source_id AND n.context_id=i.context_id AND n.source_ordinal=i.source_ordinal AND n.epistemic_kind=i.epistemic_kind AND n.flags=i.flags))";
-    static const char edges_sql[] =
-        "WITH input AS (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".evidence_lineage_record[]) r WHERE (r).record_kind=2),"
-        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_dependence(node_id,parent_node_id) SELECT node_id,parent_node_id FROM input ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT NOT EXISTS (SELECT FROM input i WHERE NOT EXISTS (SELECT FROM written w WHERE w.node_id=i.node_id AND w.parent_node_id=i.parent_node_id) AND NOT EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".evidence_dependence d WHERE d.node_id=i.node_id AND d.parent_node_id=i.parent_node_id))";
-    static const char roots_sql[] =
-        "WITH input(node_id,root_node_id,proposition_id,path_depth,root_kind) AS (SELECT * FROM unnest($1::bytea[],$2::bytea[],$3::bytea[],$4::bigint[],$5::integer[])),"
-        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_root_projection(node_id,root_node_id,proposition_id,path_depth,root_epistemic_kind,flags) SELECT node_id,root_node_id,proposition_id,path_depth,root_kind,0 FROM input ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT NOT EXISTS (SELECT FROM input i WHERE NOT EXISTS (SELECT FROM written w WHERE w.node_id=i.node_id AND w.root_node_id=i.root_node_id AND w.proposition_id=i.proposition_id AND w.path_depth=i.path_depth AND w.root_epistemic_kind=i.root_kind AND w.flags=0) AND NOT EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".evidence_root_projection p WHERE p.node_id=i.node_id AND p.root_node_id=i.root_node_id AND p.proposition_id=i.proposition_id AND p.path_depth=i.path_depth AND p.root_epistemic_kind=i.root_kind AND p.flags=0))";
-    static const char receipt_sql[] =
-        "WITH written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt(receipt_id,input_fingerprint,output_fingerprint,isa_receipt_id,input_record_count,node_count,edge_count,root_relation_count,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT EXISTS (SELECT FROM written WHERE receipt_id=$1 AND input_fingerprint=$2 AND output_fingerprint=$3 AND isa_receipt_id=$4 AND input_record_count=$5 AND node_count=$6 AND edge_count=$7 AND root_relation_count=$8 AND version=$9) OR EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt WHERE receipt_id=$1 AND input_fingerprint=$2 AND output_fingerprint=$3 AND isa_receipt_id=$4 AND input_record_count=$5 AND node_count=$6 AND edge_count=$7 AND root_relation_count=$8 AND version=$9)";
-    static const char members_sql[] =
-        "WITH raw AS (SELECT (r).node_id,ordinality FROM unnest($2::" LAPLACE_PG_SCHEMA ".evidence_lineage_record[]) WITH ORDINALITY r WHERE (r).record_kind=1),"
-        "input AS (SELECT $1::bytea AS receipt_id,node_id,row_number() OVER (ORDER BY ordinality)::numeric AS member_ordinal FROM raw),"
-        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member(receipt_id,node_id,member_ordinal) SELECT receipt_id,node_id,member_ordinal FROM input ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT (SELECT count(*) FROM written)+(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member m JOIN input i ON i.receipt_id=m.receipt_id AND i.node_id=m.node_id AND i.member_ordinal=m.member_ordinal WHERE m.receipt_id=$1)=(SELECT count(*) FROM input) AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member m WHERE m.receipt_id=$1)=(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member m JOIN input i ON i.receipt_id=m.receipt_id AND i.node_id=m.node_id AND i.member_ordinal=m.member_ordinal WHERE m.receipt_id=$1)";
+    static const char nodes_write_sql[] =
+        "WITH input AS (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".evidence_lineage_record[]) r WHERE (r).record_kind=1) INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_node(node_id,proposition_id,occurrence_id,source_id,context_id,source_ordinal,epistemic_kind,flags) SELECT node_id,proposition_id,occurrence_id,source_id,context_id,source_ordinal,epistemic_kind,flags FROM input ON CONFLICT DO NOTHING";
+    static const char nodes_verify_sql[] =
+        "WITH input AS MATERIALIZED (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".evidence_lineage_record[]) r WHERE (r).record_kind=1) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".evidence_node n ON n.node_id=i.node_id WHERE n.node_id IS NULL OR n.proposition_id<>i.proposition_id OR n.occurrence_id<>i.occurrence_id OR n.source_id<>i.source_id OR n.context_id<>i.context_id OR n.source_ordinal<>i.source_ordinal OR n.epistemic_kind<>i.epistemic_kind OR n.flags<>i.flags)";
+    static const char edges_write_sql[] =
+        "WITH input AS (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".evidence_lineage_record[]) r WHERE (r).record_kind=2) INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_dependence(node_id,parent_node_id) SELECT node_id,parent_node_id FROM input ON CONFLICT DO NOTHING";
+    static const char edges_verify_sql[] =
+        "WITH input AS MATERIALIZED (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".evidence_lineage_record[]) r WHERE (r).record_kind=2) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".evidence_dependence d ON d.node_id=i.node_id AND d.parent_node_id=i.parent_node_id WHERE d.node_id IS NULL)";
+    static const char roots_write_sql[] =
+        "WITH input(node_id,root_node_id,proposition_id,path_depth,root_kind) AS (SELECT * FROM unnest($1::bytea[],$2::bytea[],$3::bytea[],$4::bigint[],$5::integer[])) INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_root_projection(node_id,root_node_id,proposition_id,path_depth,root_epistemic_kind,flags) SELECT node_id,root_node_id,proposition_id,path_depth,root_kind,0 FROM input ON CONFLICT DO NOTHING";
+#if !defined(LAPLACE_TEST_EVIDENCE_ROOT_REPLAY_VERIFY_BYPASS)
+    static const char roots_verify_sql[] =
+        "WITH input(node_id,root_node_id,proposition_id,path_depth,root_kind) AS MATERIALIZED (SELECT * FROM unnest($1::bytea[],$2::bytea[],$3::bytea[],$4::bigint[],$5::integer[])) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".evidence_root_projection p ON p.node_id=i.node_id AND p.root_node_id=i.root_node_id WHERE p.node_id IS NULL OR p.proposition_id<>i.proposition_id OR p.path_depth<>i.path_depth OR p.root_epistemic_kind<>i.root_kind OR p.flags<>0)";
+#endif
+    static const char receipt_write_sql[] =
+        "INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt(receipt_id,input_fingerprint,output_fingerprint,isa_receipt_id,input_record_count,node_count,edge_count,root_relation_count,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING";
+    static const char receipt_verify_sql[] =
+        "SELECT EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt WHERE receipt_id=$1 AND input_fingerprint=$2 AND output_fingerprint=$3 AND isa_receipt_id=$4 AND input_record_count=$5 AND node_count=$6 AND edge_count=$7 AND root_relation_count=$8 AND version=$9)";
+    static const char members_write_sql[] =
+        "WITH raw AS (SELECT (r).node_id,ordinality FROM unnest($2::" LAPLACE_PG_SCHEMA ".evidence_lineage_record[]) WITH ORDINALITY r WHERE (r).record_kind=1),input AS (SELECT $1::bytea AS receipt_id,node_id,row_number() OVER (ORDER BY ordinality)::numeric AS member_ordinal FROM raw) INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member(receipt_id,node_id,member_ordinal) SELECT receipt_id,node_id,member_ordinal FROM input ON CONFLICT DO NOTHING";
+    static const char members_verify_sql[] =
+        "WITH raw AS (SELECT (r).node_id,ordinality FROM unnest($2::" LAPLACE_PG_SCHEMA ".evidence_lineage_record[]) WITH ORDINALITY r WHERE (r).record_kind=1),input AS MATERIALIZED (SELECT $1::bytea AS receipt_id,node_id,row_number() OVER (ORDER BY ordinality)::numeric AS member_ordinal FROM raw) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member m ON m.receipt_id=i.receipt_id AND m.node_id=i.node_id WHERE m.receipt_id IS NULL OR m.member_ordinal<>i.member_ordinal) AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member m WHERE m.receipt_id=$1)=(SELECT count(*) FROM input)";
     Oid one_type[1] = {input_array_type};
     Datum one_value[1] = {input_array};
     Oid root_types[5] = {BYTEAARRAYOID, BYTEAARRAYOID, BYTEAARRAYOID, INT8ARRAYOID, INT4ARRAYOID};
@@ -231,7 +221,6 @@ static void persist_lineage(
     Datum receipt_values[9];
     Oid member_types[2] = {BYTEAOID, input_array_type};
     Datum member_values[2];
-    int result;
     root_values[0] = PointerGetDatum(digest_array(roots, root_count, 0));
     root_values[1] = PointerGetDatum(digest_array(roots, root_count, 1));
     root_values[2] = PointerGetDatum(digest_array(roots, root_count, 2));
@@ -251,30 +240,29 @@ static void persist_lineage(
     if (SPI_connect() != SPI_OK_CONNECT) {
         ereport(ERROR, (errcode(ERRCODE_CONNECTION_FAILURE), errmsg("Laplace evidence persistence could not connect to SPI")));
     }
-    result = SPI_execute_with_args(nodes_sql, 1, one_type, one_value, NULL, false, 0);
-    if (result != SPI_OK_SELECT || !query_boolean()) {
-        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace evidence node replay conflicts with durable state")));
+    laplace_pg_execute_set_write_verify(
+        nodes_write_sql, nodes_verify_sql, 1, one_type, one_value,
+        "evidence node replay");
+    laplace_pg_execute_set_write_verify(
+        edges_write_sql, edges_verify_sql, 1, one_type, one_value,
+        "evidence dependence replay");
+#if defined(LAPLACE_TEST_EVIDENCE_ROOT_REPLAY_VERIFY_BYPASS)
+    const int result = SPI_execute_with_args(
+        roots_write_sql, 5, root_types, root_values, NULL, false, 0);
+    if (result != SPI_OK_INSERT) {
+        ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR), errmsg("Laplace evidence root projection write was not set-oriented")));
     }
-    result = SPI_execute_with_args(edges_sql, 1, one_type, one_value, NULL, false, 0);
-    if (result != SPI_OK_SELECT || !query_boolean()) {
-        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace evidence dependence replay conflicts with durable state")));
-    }
-    result = SPI_execute_with_args(roots_sql, 5, root_types, root_values, NULL, false, 0);
-    if (result != SPI_OK_SELECT
-#ifndef LAPLACE_TEST_EVIDENCE_ROOT_REPLAY_VERIFY_BYPASS
-        || !query_boolean()
+#else
+    laplace_pg_execute_set_write_verify(
+        roots_write_sql, roots_verify_sql, 5, root_types, root_values,
+        "evidence root projection replay");
 #endif
-    ) {
-        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace evidence root projection replay conflicts with durable state")));
-    }
-    result = SPI_execute_with_args(receipt_sql, 9, receipt_types, receipt_values, NULL, false, 0);
-    if (result != SPI_OK_SELECT || !query_boolean()) {
-        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace evidence lineage receipt identity collides with durable state")));
-    }
-    result = SPI_execute_with_args(members_sql, 2, member_types, member_values, NULL, false, 0);
-    if (result != SPI_OK_SELECT || !query_boolean()) {
-        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace evidence lineage receipt membership conflicts with durable state")));
-    }
+    laplace_pg_execute_set_write_verify(
+        receipt_write_sql, receipt_verify_sql,
+        9, receipt_types, receipt_values, "evidence lineage receipt");
+    laplace_pg_execute_set_write_verify(
+        members_write_sql, members_verify_sql,
+        2, member_types, member_values, "evidence lineage receipt membership");
     if (SPI_finish() != SPI_OK_FINISH) {
         ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR), errmsg("Laplace evidence persistence could not close SPI")));
     }

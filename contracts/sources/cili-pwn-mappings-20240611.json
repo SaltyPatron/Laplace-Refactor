@@ -1,0 +1,209 @@
+{
+  "schema": "laplace.tabular-source-profile/v1",
+  "profile": {
+    "name": "Collaborative Interlingual Index PWN mapping tables at dfc99e15e11e5b20e143f29386220d7b69805628",
+    "version": 1,
+    "reconstruction_class": "semantic",
+    "purpose": [
+      "witness exact CILI-to-Princeton-WordNet mapping rows from one immutable upstream commit",
+      "supply exact reusable Unicode identities for every selected endpoint",
+      "exercise cross-profile reference mappings without treating copied rows as independent evidence"
+    ],
+    "prohibited_authority": [
+      "definitions or existence declarations from the unselected CILI ontology",
+      "Princeton WordNet synset existence or semantic contents",
+      "truth beyond the exact source-scoped mapping testimony",
+      "the GitHub ZIP wrapper as selected canonical content"
+    ]
+  },
+  "coordinate": {
+    "kind": 17,
+    "authority": "Open Multilingual Wordnet",
+    "release": "globalwordnet/cili commit dfc99e15e11e5b20e143f29386220d7b69805628",
+    "namespace": "https://github.com/globalwordnet/cili",
+    "local_identifier": "pwn-mapping-tables",
+    "version": 1,
+    "scope_identity_algorithm": "first-128-bits-of-SHA-256 over laplace-source-profile-scope-v1, field name, and exact UTF-8 value"
+  },
+  "authority_and_release": {
+    "repository": "https://github.com/globalwordnet/cili",
+    "maintainer": "Open Multilingual Wordnet",
+    "commit": "dfc99e15e11e5b20e143f29386220d7b69805628",
+    "commit_date": "2024-06-11",
+    "upstream_archive_name": "cili-dfc99e15e11e5b20e143f29386220d7b69805628.zip",
+    "selected_members": ["ili-map-pwn30.tab", "ili-map-pwn31.tab"],
+    "supersession": "another commit or mapping table is a distinct append-only release/profile boundary"
+  },
+  "license": {
+    "identity": "Collaborative Interlingual Index CC BY 4.0 or later notice",
+    "authority_url": "http://creativecommons.org/licenses/by/4.0",
+    "exact_notice_utf8": "The Collaborative Interlingual Index licensed under CC BY 4.0 or any later version.\n\nCopyright 2015-2016: Francis Bond <bond@ieee.org>\n\nFor details see here:\nhttp://creativecommons.org/licenses/by/4.0\n",
+    "exact_notice_sha256": "5f30ad52fef805c967d3b14e7eaa3f5c6e9b8311963edb0799b86f1d7cf3bd76",
+    "applies_to": "the exact selected CILI mapping members at the pinned commit",
+    "excludes": "unselected repository members and independent Princeton WordNet content"
+  },
+  "artifacts": [
+    {
+      "name": "cili-dfc99e15e11e5b20e143f29386220d7b69805628.zip",
+      "local_discovery_path": "cili-dfc99e15e11e5b20e143f29386220d7b69805628.zip",
+      "media_type": "application/zip",
+      "byte_count": 14960316,
+      "sha256": "2926de849984e94961a922b1a69062a42234565083f9eb0232485e61b6445a73",
+      "mode": "raw_octets",
+      "roles": ["container", "exact-hashed-provenance"],
+      "parent": null,
+      "acquisition": {
+        "transport": "https",
+        "url": "https://github.com/globalwordnet/cili/archive/dfc99e15e11e5b20e143f29386220d7b69805628.zip",
+        "retry_attempts": 3
+      },
+      "exact_distribution": false,
+      "reconstruction_disposition": "unavailable-after-selected-semantic-projection"
+    },
+    {
+      "name": "cili-dfc99e15e11e5b20e143f29386220d7b69805628/ili-map-pwn30.tab",
+      "local_discovery_path": "ili-map-pwn30.tab",
+      "archive_member": "cili-dfc99e15e11e5b20e143f29386220d7b69805628/ili-map-pwn30.tab",
+      "media_type": "text/tab-separated-values; charset=utf-8",
+      "byte_count": 2124416,
+      "sha256": "13b6741395a8bdf20e5a19686ffa49167653696d4f523db17a79dce3211a6627",
+      "mode": "utf8_delimited",
+      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "parent": "cili-dfc99e15e11e5b20e143f29386220d7b69805628.zip",
+      "exact_distribution": true,
+      "delimiter": 9,
+      "line_terminator": "lf",
+      "columns": ["ILI identifier", "Princeton WordNet 3.0 synset identifier"],
+      "header_record_count": 0,
+      "reference_columns": [0, 1],
+      "reference_bindings": [
+        {"column": 0, "kind": 7, "namespace": "http://globalwordnet.org/ili/", "roles": ["endpoint"]},
+        {"column": 1, "kind": 7, "namespace": "http://wordnet-rdf.princeton.edu/wn30/", "roles": ["endpoint"]}
+      ],
+      "mapping_bindings": [
+        {"left_column": 0, "right_column": 1, "relation_content": "http://www.w3.org/2002/07/owl#sameAs", "relation_kind": 8, "relation_version": 1, "direction": "symmetric"}
+      ],
+      "record_count": 117659,
+      "field_count": 235318,
+      "claim_count": 117659,
+      "mapping_count": 117659,
+      "outcome_type": "mapping"
+    },
+    {
+      "name": "cili-dfc99e15e11e5b20e143f29386220d7b69805628/ili-map-pwn31.tab",
+      "local_discovery_path": "ili-map-pwn31.tab",
+      "archive_member": "cili-dfc99e15e11e5b20e143f29386220d7b69805628/ili-map-pwn31.tab",
+      "media_type": "text/tab-separated-values; charset=utf-8",
+      "byte_count": 2123064,
+      "sha256": "ee8715904b912e014d094d4551344a7eb2e8bb27b521c0272001ac9e2e00c610",
+      "mode": "utf8_delimited",
+      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "parent": "cili-dfc99e15e11e5b20e143f29386220d7b69805628.zip",
+      "exact_distribution": true,
+      "delimiter": 9,
+      "line_terminator": "lf",
+      "columns": ["ILI identifier", "Princeton WordNet 3.1 synset identifier"],
+      "header_record_count": 0,
+      "reference_columns": [0, 1],
+      "reference_bindings": [
+        {"column": 0, "kind": 7, "namespace": "http://globalwordnet.org/ili/", "roles": ["endpoint"]},
+        {"column": 1, "kind": 7, "namespace": "http://wordnet-rdf.princeton.edu/wn31/", "roles": ["endpoint"]}
+      ],
+      "mapping_bindings": [
+        {"left_column": 0, "right_column": 1, "relation_content": "http://www.w3.org/2002/07/owl#sameAs", "relation_kind": 8, "relation_version": 1, "direction": "symmetric"}
+      ],
+      "record_count": 117583,
+      "field_count": 235166,
+      "claim_count": 117583,
+      "mapping_count": 117583,
+      "outcome_type": "mapping"
+    }
+  ],
+  "syntax_authority": {
+    "provider": "laplace.tabular-source-contract/v1.4",
+    "encoding": "shortest-form Unicode scalar UTF-8",
+    "grammar": "headerless fixed-width two-column tab-separated records with exact LF after every record",
+    "declared_columns": "profile schema identities are not serialized as a source header",
+    "unknown_form": "reject-before-publication",
+    "error_recovery": "none"
+  },
+  "recipe_program": {
+    "coordinate": "laplace.recipe/tabular-source/1",
+    "stages": ["verify-artifact-graph", "parse", "lower-universal-ast", "compose", "presence", "deposit", "reference-topology", "reference-mapping", "lineage", "testimony", "world-close", "readback"],
+    "source_named_semantic_dispatch": false,
+    "raw_container_rule": "retain exact digest length name and parent topology without depositing unselected archive octets",
+    "selected_content_rule": "deposit every nonempty endpoint and every selected row/table as exact reusable Unicode composition independent of source role"
+  },
+  "universal_ast_mapping": {
+    "root": "source boundary",
+    "artifact": ["tag", "name", "digest", "parent artifact", "mode", "ordered selected content"],
+    "record": ["record tag", "ordered fields", "exact terminator"],
+    "field": ["field tag", "declared column identity", "exact value"],
+    "roles_are_occurrence_metadata": true,
+    "content_identity_excludes_source_language_role": true,
+    "exact_units": ["ILI identifier", "PWN synset identifier", "field", "row", "selected table"],
+    "intentional_loss": ["ZIP representation", "unselected repository members", "Git transport metadata"]
+  },
+  "highway_and_references": {
+    "namespaces": ["http://globalwordnet.org/ili/", "http://wordnet-rdf.princeton.edu/wn30/", "http://wordnet-rdf.princeton.edu/wn31/"],
+    "join_keys": ["ILI identifier", "Princeton WordNet 3.0 synset identifier", "Princeton WordNet 3.1 synset identifier"],
+    "reference_identity": "authority release namespace and exact local identifier",
+    "mapping_relation": "http://www.w3.org/2002/07/owl#sameAs",
+    "initial_disposition": {
+      "kind": "unresolved",
+      "count": 470484,
+      "until_operation": "typed cross-profile authority-release-namespace Highway topology"
+    },
+    "mapping_disposition": {
+      "operation": "laplace.reference-mapping.resolve-batch/v1",
+      "occurrences": 235242,
+      "propositions": 235242,
+      "expected_before_endpoint_profiles": "both endpoints unresolved",
+      "nonclaim": "parsing a URI-shaped namespace or identifier never promotes an endpoint to present"
+    },
+    "nonclaim": "this mapping profile witnesses cross-namespace propositions but does not supply the endpoint-authority profiles that establish referent presence"
+  },
+  "epistemic_witnessing": {
+    "witness": "Open Multilingual Wordnet Collaborative Interlingual Index repository",
+    "claim_unit": "one exact headerless source row lowered as one owl:sameAs mapping proposition",
+    "asserted_validity": "repository assertion scoped to the exact commit and member",
+    "dependence_root": "the locked commit archive",
+    "copied_members": "both extracted members share one archive dependence root and are not independent evidence",
+    "standing": "not adjudicated by this profile"
+  },
+  "denominators": {
+    "bytes": 19207796,
+    "containers": 1,
+    "members": 2,
+    "files": 3,
+    "records": 235242,
+    "fields": 470484,
+    "claims": 235242,
+    "mappings": 235242,
+    "errors": 0,
+    "unknowns": 0,
+    "references": 470484,
+    "reference_coordinates": 352835,
+    "equations": [
+      "bytes = archive bytes plus two selected member byte counts",
+      "records = all physical rows because both selected tables are headerless",
+      "fields = records times two",
+      "claims = records",
+      "mappings = one declared mapping rule per record",
+      "reference_coordinates = unique ILI identifiers across both members plus unique PWN30 identifiers plus unique PWN31 identifiers because namespace is part of coordinate identity"
+    ]
+  },
+  "conformance": {
+    "positive": ["all three SHA-256 and byte lengths", "both headerless first rows retained", "every row has two fields", "every final LF", "selected bytes equal the corresponding ZIP members", "exact recomposition of both selected tables", "mapping rules execute through shared topology and mapping ISA"],
+    "negative": ["changed byte with pinned digest", "invented header discards first mapping", "missing final LF", "wrong field count", "invalid UTF-8", "member without container parent", "source-specific CILI parser", "mapping bypasses reference topology", "claims copied into mapping denominator"]
+  },
+  "completion": {
+    "predicate": "the locked wrapper and two exact selected members close at 19207796 source bytes, 235242 headerless records, 470484 fields and reference occurrences, 352835 unique authority-scoped reference coordinates, and 235242 source-scoped owl:sameAs mapping propositions; both selected tables recompose byte-for-byte and native/PostgreSQL parity, replay, rollback, topology-before-mapping, dependence lineage, testimony, world closure, and readback close",
+    "does_not_prove": ["complete CILI ontology admission", "Princeton WordNet endpoint profiles admitted", "mapping truth adjudicated", "configured foundational seed", "product activation", "general cognition", "product release"]
+  },
+  "execution": {
+    "geometry_epoch_scope": "Unicode 17 product root active at execution",
+    "occurrence_context": "CILI PWN mapping tables at commit dfc99e15e11e5b20e143f29386220d7b69805628 source occurrence",
+    "preferred_batch_bytes": 8388608
+  }
+}

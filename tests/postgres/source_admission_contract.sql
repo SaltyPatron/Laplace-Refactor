@@ -94,7 +94,8 @@ AS $artifacts$
             convert_to('release.zip', 'UTF8'),
             0, 0, 0,
             1, 0, 0, 0, 0,
-            1
+            1,
+            ARRAY[]::bytea[], 0
         )::laplace.tabular_source_artifact,
         ROW(
             authority.text_id,
@@ -102,9 +103,10 @@ AS $artifacts$
             authority.text_id,
             convert_to(E'Id\tName\neng\tEnglish\njpn\t日本語\n', 'UTF8'),
             convert_to('tables/languages.tab', 'UTF8'),
-            3, 6, 1,
+            3, 6, 3,
             2, 9, 1, 2, 5,
-            6
+            6,
+            ARRAY[convert_to('Id', 'UTF8'), convert_to('Name', 'UTF8')], 1
         )::laplace.tabular_source_artifact
     ]
     FROM pg_temp.source_fixture_authority AS authority
@@ -121,7 +123,31 @@ AS $rules$
             decode(repeat('50', 16), 'hex'),
             7,
             3
+        )::laplace.tabular_reference_rule,
+        ROW(
+            1::numeric,
+            1::numeric,
+            decode(repeat('51', 16), 'hex'),
+            7,
+            3
         )::laplace.tabular_reference_rule
+    ]
+$rules$;
+
+CREATE FUNCTION pg_temp.source_mapping_rules()
+RETURNS laplace.tabular_mapping_rule[]
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $rules$
+    SELECT ARRAY[
+        ROW(
+            1::numeric,
+            0::numeric,
+            1::numeric,
+            convert_to('=', 'UTF8'),
+            1::numeric,
+            8,
+            1
+        )::laplace.tabular_mapping_rule
     ]
 $rules$;
 
@@ -139,25 +165,46 @@ AS $admit$
         decode(repeat('d0', 32), 'hex'),
         artifacts,
         pg_temp.source_reference_rules(),
+        pg_temp.source_mapping_rules(),
         4096)
 $admit$;
 
+CREATE FUNCTION pg_temp.physicality_occurrences(candidate_id bytea)
+RETURNS laplace.composition_occurrence[]
+LANGUAGE SQL STABLE PARALLEL RESTRICTED
+AS $decode$
+    SELECT (laplace.trajectory_composition_decode_calculate_batch(
+        pg_temp.source_admission_context(),
+        array_agg(substring(p.trajectory FROM segment_offset + 1 FOR 32)
+                  ORDER BY segment_offset))).occurrences
+    FROM laplace.physicality AS p
+    CROSS JOIN LATERAL generate_series(
+        0, octet_length(p.trajectory) - 32, 32) AS segment(segment_offset)
+    WHERE p.physicality_id = candidate_id
+$decode$;
+
 CREATE TEMP TABLE source_admission_before AS
 SELECT
-    (SELECT count(*) FROM laplace.canonical_entity) AS entity_count,
+    (SELECT count(*) FROM laplace.entity) AS entity_count,
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
-    (SELECT count(*) FROM laplace.composition_trajectory_vertex) AS vertex_count,
-    (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count,
+    (SELECT COALESCE(sum(vertex_count), 0) FROM laplace.physicality) AS vertex_count,
+    (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1) AS occurrence_count,
     (SELECT count(*) FROM laplace.source_profile) AS profile_count,
     (SELECT count(*) FROM laplace.reference_coordinate) AS reference_coordinate_count,
     (SELECT count(*) FROM laplace.reference_occurrence) AS reference_occurrence_count,
     (SELECT count(*) FROM laplace.reference_topology_receipt) AS reference_receipt_count,
+    (SELECT count(*) FROM laplace.reference_mapping_proposition) AS mapping_proposition_count,
+    (SELECT count(*) FROM laplace.reference_mapping_occurrence) AS mapping_occurrence_count,
+    (SELECT count(*) FROM laplace.reference_mapping_receipt) AS mapping_receipt_count,
     (SELECT count(*) FROM laplace.evidence_node) AS evidence_count,
     (SELECT count(*) FROM laplace.evidence_testimony) AS testimony_count,
     (SELECT count(*) FROM laplace.world_admission) AS world_count;
 
 CREATE TEMP TABLE source_admission_first AS
-SELECT (pg_temp.admit_source()).*;
+WITH admission AS MATERIALIZED (
+    SELECT pg_temp.admit_source() AS result
+)
+SELECT (result).* FROM admission;
 
 DO $contract$
 DECLARE
@@ -174,8 +221,9 @@ BEGIN
     FROM laplace.world_admission
     WHERE admission_id = admitted.world_admission_id;
     SELECT count(*) INTO STRICT source_occurrences
-    FROM laplace.observed_occurrence
-    WHERE source_fingerprint = admitted.source_fingerprint;
+    FROM laplace.attestation
+    WHERE source_fingerprint = admitted.source_fingerprint
+      AND attestation_kind = 1;
 
     IF admitted.status <> 0
        OR admitted.artifact_count <> 2
@@ -185,19 +233,29 @@ BEGIN
        OR admitted.request_count <= admitted.claim_count
        OR admitted.occurrence_count <= 0
        OR admitted.logical_occurrence_count <= 0
-       OR admitted.reference_occurrence_count <> 2
-       OR admitted.reference_coordinate_count <> 2
-       OR admitted.reference_present_count <> 2
+       OR admitted.reference_occurrence_count <> 4
+       OR admitted.reference_coordinate_count <> 4
+       OR admitted.reference_present_count <> 4
        OR admitted.reference_retired_count <> 0
        OR admitted.reference_unresolved_count <> 0
+       OR admitted.reference_mapping_receipt_id IS NULL
+       OR admitted.reference_mapping_isa_receipt_id IS NULL
+       OR admitted.reference_mapping_occurrence_count <> 2
+       OR admitted.reference_mapping_proposition_count <> 2
+       OR admitted.reference_mapping_resolved_count <> 2
+       OR admitted.reference_mapping_unresolved_count <> 0
+       OR admitted.reference_mapping_retired_count <> 0
        OR admitted.durable_stream_record_count <= 0
        OR source_occurrences <> admitted.occurrence_count
        OR profile.reconstruction_class <> 2
+       OR profile.mapping_count <> 2
        OR profile.transformation_count <> admitted.request_count
        OR profile.transformed_count <> admitted.request_count
-       OR profile.unresolved_count <> profile.reference_count
+       OR profile.unresolved_count <>
+          profile.reference_count + profile.mapping_count
        OR profile.closure_subject_count <>
-          admitted.request_count + profile.reference_count
+          admitted.request_count + profile.reference_count +
+              profile.mapping_count
        OR profile.persisted_count <> 0
        OR profile.artifact_graph_fingerprint <>
           (SELECT artifact_graph FROM pg_temp.source_fixture_authority)
@@ -206,14 +264,17 @@ BEGIN
        OR world.evidence_node_count <> 2
        OR world.testimony_count <> 2
        OR world.closure_subject_count <>
-          admitted.request_count + profile.reference_count
+          admitted.request_count + profile.reference_count +
+              profile.mapping_count
        OR world.closed_subject_count <> world.closure_subject_count
        OR NOT EXISTS (
             SELECT 1 FROM laplace.source_profile_receipt
             WHERE receipt_id = admitted.source_profile_receipt_id
-              AND negative_count = profile.reference_count
+              AND negative_count =
+                  profile.reference_count + profile.mapping_count
               AND closure_subject_count =
-                  admitted.request_count + profile.reference_count)
+                  admitted.request_count + profile.reference_count +
+                      profile.mapping_count)
        OR NOT EXISTS (
             SELECT 1 FROM laplace.composition_execution_receipt
             WHERE working_set_receipt = admitted.composition_working_set_receipt_id)
@@ -221,15 +282,27 @@ BEGIN
             SELECT 1 FROM laplace.reference_topology_receipt
             WHERE receipt_id = admitted.reference_topology_receipt_id
               AND isa_receipt_id = admitted.reference_topology_isa_receipt_id
-              AND occurrence_count = 2
-              AND coordinate_count = 2
-              AND present_count = 2
+              AND occurrence_count = 4
+              AND coordinate_count = 4
+              AND present_count = 4
               AND retired_count = 0
               AND unresolved_count = 0)
        OR (SELECT count(*) FROM laplace.reference_occurrence
            WHERE source_profile_id = admitted.profile_id
              AND disposition = 1
-             AND field_entity_id <> value_entity_id) <> 2
+             AND field_entity_id <> value_entity_id) <> 4
+       OR NOT EXISTS (
+            SELECT 1 FROM laplace.reference_mapping_receipt
+            WHERE receipt_id = admitted.reference_mapping_receipt_id
+              AND isa_receipt_id = admitted.reference_mapping_isa_receipt_id
+              AND occurrence_count = 2
+              AND proposition_count = 2
+              AND resolved_count = 2
+              AND unresolved_count = 0
+              AND retired_count = 0)
+       OR (SELECT count(*) FROM laplace.reference_mapping_occurrence
+           WHERE source_profile_id = admitted.profile_id
+             AND disposition = 1) <> 2
        OR NOT EXISTS (
             SELECT 1 FROM laplace.evidence_lineage_receipt
             WHERE receipt_id = admitted.evidence_lineage_receipt_id)
@@ -264,14 +337,17 @@ BEGIN
           ON binding.root_receipt = admitted.unicode_root_receipt_id
          AND binding.codepoint_position = positions.codepoint_position
     ), candidates AS (
-        SELECT v.physicality_id,
-               array_agg(v.constituent_entity_id::bytea
-                         ORDER BY v.logical_ordinal) AS ids
-        FROM laplace.composition_trajectory_vertex AS v
-        JOIN laplace.observed_occurrence AS o
-          ON o.physicality_id = v.physicality_id
-         AND o.source_fingerprint = admitted.source_fingerprint
-        GROUP BY v.physicality_id
+        SELECT p.physicality_id,
+               array_agg((occurrence).entity_id::bytea
+                         ORDER BY (occurrence).logical_ordinal) AS ids
+        FROM laplace.physicality AS p
+        JOIN laplace.attestation AS a
+          ON a.physicality_id = p.physicality_id
+         AND a.source_fingerprint = admitted.source_fingerprint
+         AND a.attestation_kind = 1
+        CROSS JOIN LATERAL unnest(
+            pg_temp.physicality_occurrences(p.physicality_id)) AS occurrence
+        GROUP BY p.physicality_id
         HAVING count(*) = 3
     )
     SELECT count(*) INTO STRICT japanese_count
@@ -288,14 +364,17 @@ BEGIN
           ON binding.root_receipt = admitted.unicode_root_receipt_id
          AND binding.codepoint_position = positions.codepoint_position
     ), candidates AS (
-        SELECT v.physicality_id,
-               array_agg(v.constituent_entity_id::bytea
-                         ORDER BY v.logical_ordinal) AS ids
-        FROM laplace.composition_trajectory_vertex AS v
-        JOIN laplace.observed_occurrence AS o
-          ON o.physicality_id = v.physicality_id
-         AND o.source_fingerprint = admitted.source_fingerprint
-        GROUP BY v.physicality_id
+        SELECT p.physicality_id,
+               array_agg((occurrence).entity_id::bytea
+                         ORDER BY (occurrence).logical_ordinal) AS ids
+        FROM laplace.physicality AS p
+        JOIN laplace.attestation AS a
+          ON a.physicality_id = p.physicality_id
+         AND a.source_fingerprint = admitted.source_fingerprint
+         AND a.attestation_kind = 1
+        CROSS JOIN LATERAL unnest(
+            pg_temp.physicality_occurrences(p.physicality_id)) AS occurrence
+        GROUP BY p.physicality_id
         HAVING count(*) = 5
     )
     SELECT count(*) INTO STRICT raw_archive_count
@@ -315,20 +394,26 @@ $contract$;
 
 CREATE TEMP TABLE source_admission_after_first AS
 SELECT
-    (SELECT count(*) FROM laplace.canonical_entity) AS entity_count,
+    (SELECT count(*) FROM laplace.entity) AS entity_count,
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
-    (SELECT count(*) FROM laplace.composition_trajectory_vertex) AS vertex_count,
-    (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count,
+    (SELECT COALESCE(sum(vertex_count), 0) FROM laplace.physicality) AS vertex_count,
+    (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1) AS occurrence_count,
     (SELECT count(*) FROM laplace.source_profile) AS profile_count,
     (SELECT count(*) FROM laplace.reference_coordinate) AS reference_coordinate_count,
     (SELECT count(*) FROM laplace.reference_occurrence) AS reference_occurrence_count,
     (SELECT count(*) FROM laplace.reference_topology_receipt) AS reference_receipt_count,
+    (SELECT count(*) FROM laplace.reference_mapping_proposition) AS mapping_proposition_count,
+    (SELECT count(*) FROM laplace.reference_mapping_occurrence) AS mapping_occurrence_count,
+    (SELECT count(*) FROM laplace.reference_mapping_receipt) AS mapping_receipt_count,
     (SELECT count(*) FROM laplace.evidence_node) AS evidence_count,
     (SELECT count(*) FROM laplace.evidence_testimony) AS testimony_count,
     (SELECT count(*) FROM laplace.world_admission) AS world_count;
 
 CREATE TEMP TABLE source_admission_replay AS
-SELECT (pg_temp.admit_source()).*;
+WITH admission AS MATERIALIZED (
+    SELECT pg_temp.admit_source() AS result
+)
+SELECT (result).* FROM admission;
 
 DO $contract$
 DECLARE
@@ -341,14 +426,17 @@ BEGIN
     SELECT * INTO STRICT replay FROM source_admission_replay;
     SELECT * INTO STRICT expected FROM source_admission_after_first;
     SELECT
-        (SELECT count(*) FROM laplace.canonical_entity),
+        (SELECT count(*) FROM laplace.entity),
         (SELECT count(*) FROM laplace.physicality),
-        (SELECT count(*) FROM laplace.composition_trajectory_vertex),
-        (SELECT count(*) FROM laplace.observed_occurrence),
+        (SELECT COALESCE(sum(vertex_count), 0) FROM laplace.physicality),
+        (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1),
         (SELECT count(*) FROM laplace.source_profile),
         (SELECT count(*) FROM laplace.reference_coordinate),
         (SELECT count(*) FROM laplace.reference_occurrence),
         (SELECT count(*) FROM laplace.reference_topology_receipt),
+        (SELECT count(*) FROM laplace.reference_mapping_proposition),
+        (SELECT count(*) FROM laplace.reference_mapping_occurrence),
+        (SELECT count(*) FROM laplace.reference_mapping_receipt),
         (SELECT count(*) FROM laplace.evidence_node),
         (SELECT count(*) FROM laplace.evidence_testimony),
         (SELECT count(*) FROM laplace.world_admission)
@@ -358,6 +446,8 @@ BEGIN
        OR first.source_profile_receipt_id <> replay.source_profile_receipt_id
        OR first.reference_topology_receipt_id <>
           replay.reference_topology_receipt_id
+       OR first.reference_mapping_receipt_id <>
+          replay.reference_mapping_receipt_id
        OR first.source_fingerprint <> replay.source_fingerprint
        OR first.reconstruction_fingerprint <> replay.reconstruction_fingerprint
        OR first.root_entity_id <> replay.root_entity_id
@@ -379,31 +469,115 @@ BEGIN
           actual.reference_occurrence_count
        OR expected.reference_receipt_count <>
           actual.reference_receipt_count
+       OR expected.mapping_proposition_count <>
+          actual.mapping_proposition_count
+       OR expected.mapping_occurrence_count <>
+          actual.mapping_occurrence_count
+       OR expected.mapping_receipt_count <>
+          actual.mapping_receipt_count
        OR expected.evidence_count <> actual.evidence_count
        OR expected.testimony_count <> actual.testimony_count
        OR expected.world_count + 1 <> actual.world_count THEN
         RAISE EXCEPTION
-            'tabular source replay did not preserve semantics while recording its distinct physical execution';
+            'tabular source replay did not preserve semantics while recording its distinct physical execution'
+            USING DETAIL = concat_ws(', ',
+                CASE WHEN first.profile_id <> replay.profile_id
+                    THEN 'profile_id' END,
+                CASE WHEN first.source_profile_receipt_id <>
+                               replay.source_profile_receipt_id
+                    THEN 'source_profile_receipt_id' END,
+                CASE WHEN first.reference_topology_receipt_id <>
+                               replay.reference_topology_receipt_id
+                    THEN 'reference_topology_receipt_id' END,
+                CASE WHEN first.reference_mapping_receipt_id <>
+                               replay.reference_mapping_receipt_id
+                    THEN 'reference_mapping_receipt_id' END,
+                CASE WHEN first.source_fingerprint <>
+                               replay.source_fingerprint
+                    THEN 'source_fingerprint' END,
+                CASE WHEN first.reconstruction_fingerprint <>
+                               replay.reconstruction_fingerprint
+                    THEN 'reconstruction_fingerprint' END,
+                CASE WHEN first.root_entity_id <> replay.root_entity_id
+                    THEN 'root_entity_id' END,
+                CASE WHEN first.root_physicality_id <>
+                               replay.root_physicality_id
+                    THEN 'root_physicality_id' END,
+                CASE WHEN first.evidence_lineage_receipt_id <>
+                               replay.evidence_lineage_receipt_id
+                    THEN 'evidence_lineage_receipt_id' END,
+                CASE WHEN first.evidence_testimony_receipt_id <>
+                               replay.evidence_testimony_receipt_id
+                    THEN 'evidence_testimony_receipt_id' END,
+                CASE WHEN first.composition_working_set_receipt_id =
+                               replay.composition_working_set_receipt_id
+                    THEN 'composition_working_set_receipt_id' END,
+                CASE WHEN first.world_admission_id = replay.world_admission_id
+                    THEN 'world_admission_id' END,
+                CASE WHEN first.world_admission_receipt_id =
+                               replay.world_admission_receipt_id
+                    THEN 'world_admission_receipt_id' END,
+                CASE WHEN expected.entity_count <> actual.entity_count
+                    THEN 'entity_count' END,
+                CASE WHEN expected.physicality_count <>
+                               actual.physicality_count
+                    THEN 'physicality_count' END,
+                CASE WHEN expected.vertex_count <> actual.vertex_count
+                    THEN 'vertex_count' END,
+                CASE WHEN expected.occurrence_count <> actual.occurrence_count
+                    THEN 'occurrence_count' END,
+                CASE WHEN expected.profile_count <> actual.profile_count
+                    THEN 'profile_count' END,
+                CASE WHEN expected.reference_coordinate_count <>
+                               actual.reference_coordinate_count
+                    THEN 'reference_coordinate_count' END,
+                CASE WHEN expected.reference_occurrence_count <>
+                               actual.reference_occurrence_count
+                    THEN 'reference_occurrence_count' END,
+                CASE WHEN expected.reference_receipt_count <>
+                               actual.reference_receipt_count
+                    THEN 'reference_receipt_count' END,
+                CASE WHEN expected.mapping_proposition_count <>
+                               actual.mapping_proposition_count
+                    THEN 'mapping_proposition_count' END,
+                CASE WHEN expected.mapping_occurrence_count <>
+                               actual.mapping_occurrence_count
+                    THEN 'mapping_occurrence_count' END,
+                CASE WHEN expected.mapping_receipt_count <>
+                               actual.mapping_receipt_count
+                    THEN 'mapping_receipt_count' END,
+                CASE WHEN expected.evidence_count <> actual.evidence_count
+                    THEN 'evidence_count' END,
+                CASE WHEN expected.testimony_count <> actual.testimony_count
+                    THEN 'testimony_count' END,
+                CASE WHEN expected.world_count + 1 <> actual.world_count
+                    THEN 'world_count' END);
     END IF;
 END
 $contract$;
 
 CREATE TEMP TABLE source_admission_after_replay AS
 SELECT
-    (SELECT count(*) FROM laplace.canonical_entity) AS entity_count,
+    (SELECT count(*) FROM laplace.entity) AS entity_count,
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
-    (SELECT count(*) FROM laplace.composition_trajectory_vertex) AS vertex_count,
-    (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count,
+    (SELECT COALESCE(sum(vertex_count), 0) FROM laplace.physicality) AS vertex_count,
+    (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1) AS occurrence_count,
     (SELECT count(*) FROM laplace.source_profile) AS profile_count,
     (SELECT count(*) FROM laplace.reference_coordinate) AS reference_coordinate_count,
     (SELECT count(*) FROM laplace.reference_occurrence) AS reference_occurrence_count,
     (SELECT count(*) FROM laplace.reference_topology_receipt) AS reference_receipt_count,
+    (SELECT count(*) FROM laplace.reference_mapping_proposition) AS mapping_proposition_count,
+    (SELECT count(*) FROM laplace.reference_mapping_occurrence) AS mapping_occurrence_count,
+    (SELECT count(*) FROM laplace.reference_mapping_receipt) AS mapping_receipt_count,
     (SELECT count(*) FROM laplace.evidence_node) AS evidence_count,
     (SELECT count(*) FROM laplace.evidence_testimony) AS testimony_count,
     (SELECT count(*) FROM laplace.world_admission) AS world_count;
 
 CREATE TEMP TABLE source_admission_steady_replay AS
-SELECT (pg_temp.admit_source()).*;
+WITH admission AS MATERIALIZED (
+    SELECT pg_temp.admit_source() AS result
+)
+SELECT (result).* FROM admission;
 
 DO $contract$
 DECLARE
@@ -416,14 +590,17 @@ BEGIN
     SELECT * INTO STRICT steady FROM source_admission_steady_replay;
     SELECT * INTO STRICT expected FROM source_admission_after_replay;
     SELECT
-        (SELECT count(*) FROM laplace.canonical_entity),
+        (SELECT count(*) FROM laplace.entity),
         (SELECT count(*) FROM laplace.physicality),
-        (SELECT count(*) FROM laplace.composition_trajectory_vertex),
-        (SELECT count(*) FROM laplace.observed_occurrence),
+        (SELECT COALESCE(sum(vertex_count), 0) FROM laplace.physicality),
+        (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1),
         (SELECT count(*) FROM laplace.source_profile),
         (SELECT count(*) FROM laplace.reference_coordinate),
         (SELECT count(*) FROM laplace.reference_occurrence),
         (SELECT count(*) FROM laplace.reference_topology_receipt),
+        (SELECT count(*) FROM laplace.reference_mapping_proposition),
+        (SELECT count(*) FROM laplace.reference_mapping_occurrence),
+        (SELECT count(*) FROM laplace.reference_mapping_receipt),
         (SELECT count(*) FROM laplace.evidence_node),
         (SELECT count(*) FROM laplace.evidence_testimony),
         (SELECT count(*) FROM laplace.world_admission)
@@ -452,14 +629,17 @@ BEGIN
         WHEN data_exception THEN NULL;
     END;
     SELECT
-        (SELECT count(*) FROM laplace.canonical_entity),
+        (SELECT count(*) FROM laplace.entity),
         (SELECT count(*) FROM laplace.physicality),
-        (SELECT count(*) FROM laplace.composition_trajectory_vertex),
-        (SELECT count(*) FROM laplace.observed_occurrence),
+        (SELECT COALESCE(sum(vertex_count), 0) FROM laplace.physicality),
+        (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1),
         (SELECT count(*) FROM laplace.source_profile),
         (SELECT count(*) FROM laplace.reference_coordinate),
         (SELECT count(*) FROM laplace.reference_occurrence),
         (SELECT count(*) FROM laplace.reference_topology_receipt),
+        (SELECT count(*) FROM laplace.reference_mapping_proposition),
+        (SELECT count(*) FROM laplace.reference_mapping_occurrence),
+        (SELECT count(*) FROM laplace.reference_mapping_receipt),
         (SELECT count(*) FROM laplace.evidence_node),
         (SELECT count(*) FROM laplace.evidence_testimony),
         (SELECT count(*) FROM laplace.world_admission)

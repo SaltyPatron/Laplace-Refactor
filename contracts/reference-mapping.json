@@ -1,0 +1,30 @@
+{
+  "schema": "laplace.reference-mapping/v1",
+  "version": 1,
+  "digest_algorithm": "BLAKE3-256",
+  "proposition_domain": "laplace-reference-mapping-proposition-v1",
+  "occurrence_domain": "laplace-reference-mapping-occurrence-v1",
+  "record_domain": "laplace-reference-mapping-record-v1",
+  "input_domain": "laplace-reference-mapping-input-v1",
+  "output_domain": "laplace-reference-mapping-output-v1",
+  "receipt_domain": "laplace-reference-mapping-receipt-v1",
+  "flags": {
+    "directed": 1,
+    "symmetric": 2
+  },
+  "dispositions": {
+    "resolved": 1,
+    "left_unresolved": 2,
+    "right_unresolved": 3,
+    "both_unresolved": 4,
+    "retired_endpoint": 5
+  },
+  "laws": {
+    "identity": "mapping proposition identity is derived from exact typed endpoint coordinates relation content relation kind relation version and direction law, never source path row role or witness",
+    "occurrence": "a source profile row and its exact left and right field and value identities form a separately addressable mapping witness occurrence",
+    "closure": "resolved requires both exact endpoints present; unresolved and retired endpoints remain explicit dispositions and cannot be promoted by a mapping witness",
+    "symmetry": "symmetric endpoint order canonicalizes only proposition identity; directed endpoint order remains semantic",
+    "evidence": "multiple source occurrences may witness one proposition without multiplying independent support; dependence lineage remains separately required",
+    "bulk": "the whole mapping boundary resolves in one canonical native batch with deterministic order-preserving records and a semantic receipt"
+  }
+}

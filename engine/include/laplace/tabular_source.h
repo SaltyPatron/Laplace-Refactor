@@ -7,6 +7,7 @@
 #include "laplace/composition.h"
 #include "laplace/contract/tabular_source.h"
 #include "laplace/export.h"
+#include "laplace/reference_mapping.h"
 #include "laplace/reference_topology.h"
 #include "laplace/source_profile.h"
 
@@ -20,6 +21,7 @@ typedef struct laplace_tabular_artifact {
     uint8_t expected_sha256[32];
     const uint8_t* bytes;
     const char* name;
+    const struct laplace_tabular_column* columns;
     uint64_t byte_count;
     uint64_t name_byte_count;
     uint64_t expected_record_count;
@@ -30,9 +32,15 @@ typedef struct laplace_tabular_artifact {
     uint32_t line_terminator;
     uint32_t expected_column_count;
     uint32_t outcome_type;
+    uint32_t header_record_count;
     uint32_t flags;
     uint32_t reserved;
 } laplace_tabular_artifact;
+
+typedef struct laplace_tabular_column {
+    const uint8_t* bytes;
+    uint64_t byte_count;
+} laplace_tabular_column;
 
 enum {
     LAPLACE_TABULAR_ARTIFACT_CONTAINER = 1u,
@@ -61,6 +69,30 @@ typedef struct laplace_tabular_reference_occurrence {
     uint32_t rule_flags;
 } laplace_tabular_reference_occurrence;
 
+typedef struct laplace_tabular_mapping_rule {
+    const uint8_t* relation_content;
+    uint64_t relation_content_byte_count;
+    uint64_t artifact_index;
+    uint64_t left_column_index;
+    uint64_t right_column_index;
+    uint64_t relation_version;
+    uint32_t relation_kind;
+    uint32_t flags;
+} laplace_tabular_mapping_rule;
+
+typedef struct laplace_tabular_mapping_occurrence {
+    uint64_t relation_result_index;
+    uint64_t left_reference_occurrence_index;
+    uint64_t right_reference_occurrence_index;
+    uint64_t row_result_index;
+    uint64_t source_ordinal;
+    uint64_t artifact_ordinal;
+    uint64_t row_ordinal;
+    uint64_t relation_version;
+    uint32_t relation_kind;
+    uint32_t flags;
+} laplace_tabular_mapping_occurrence;
+
 typedef struct laplace_tabular_source_input {
     laplace_source_profile_manifest profile_declaration;
     laplace_digest256 geometry_epoch;
@@ -69,6 +101,8 @@ typedef struct laplace_tabular_source_input {
     uint64_t artifact_count;
     const laplace_tabular_reference_rule* reference_rules;
     uint64_t reference_rule_count;
+    const laplace_tabular_mapping_rule* mapping_rules;
+    uint64_t mapping_rule_count;
     uint64_t preferred_batch_bytes;
     uint32_t flags;
     uint32_t reserved;
@@ -88,12 +122,14 @@ typedef struct laplace_tabular_source_plan_view {
     const uint32_t* claim_outcome_types;
     const uint64_t* artifact_root_result_indexes;
     const laplace_tabular_reference_occurrence* reference_occurrences;
+    const laplace_tabular_mapping_occurrence* mapping_occurrences;
     uint64_t atom_count;
     uint64_t operand_count;
     uint64_t request_count;
     uint64_t claim_count;
     uint64_t artifact_count;
     uint64_t reference_occurrence_count;
+    uint64_t mapping_occurrence_count;
     uint64_t root_result_index;
     uint32_t recipe_version;
     uint32_t flags;
@@ -118,6 +154,15 @@ LAPLACE_API laplace_tabular_source_status laplace_tabular_artifact_graph_identif
     const laplace_tabular_artifact* artifacts,
     size_t artifact_count,
     laplace_digest256* artifact_graph_fingerprint);
+
+LAPLACE_API laplace_tabular_source_status laplace_tabular_source_graph_identify(
+    const laplace_tabular_artifact* artifacts,
+    size_t artifact_count,
+    const laplace_tabular_reference_rule* reference_rules,
+    size_t reference_rule_count,
+    const laplace_tabular_mapping_rule* mapping_rules,
+    size_t mapping_rule_count,
+    laplace_digest256* source_graph_fingerprint);
 
 LAPLACE_API laplace_tabular_source_status laplace_tabular_source_plan_create(
     const laplace_tabular_source_input* input,

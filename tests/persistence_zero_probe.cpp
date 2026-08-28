@@ -40,7 +40,7 @@ int main() {
     }
 
     std::array<std::uint8_t, 80> trajectory_frame{};
-    if (laplace_persistence_frame_encode_trajectory(
+    if (laplace_persistence_frame_encode_trajectory_segment(
             &zero_digest, 0u, &carrier,
             trajectory_frame.data(), trajectory_frame.size(), &written) !=
         LAPLACE_PERSISTENCE_OK) {
@@ -48,11 +48,13 @@ int main() {
         return 2;
     }
 
-    laplace_persistence_occurrence_record occurrence{};
+    laplace_persistence_attestation_record occurrence{};
     occurrence.source_ordinal = 1u;
-    occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
-    if (laplace_persistence_occurrence_identify(
-            &occurrence, &occurrence.occurrence_id) !=
+    occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+    occurrence.attestation_kind =
+        LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+    if (laplace_persistence_attestation_identify(
+            &occurrence, &occurrence.attestation_id) !=
         LAPLACE_PERSISTENCE_OK) {
         std::puts("zero-bit-pattern-rejected");
         return 2;

@@ -9,7 +9,8 @@
 
 static const uint8_t PHYSICALITY_DOMAIN[] = LAPLACE_PERSISTENCE_PHYSICALITY_DOMAIN;
 static const uint8_t TRAJECTORY_DOMAIN[] = LAPLACE_PERSISTENCE_TRAJECTORY_DOMAIN;
-static const uint8_t OCCURRENCE_DOMAIN[] = LAPLACE_PERSISTENCE_OCCURRENCE_DOMAIN;
+static const uint8_t ATTESTATION_DOMAIN[] = LAPLACE_PERSISTENCE_ATTESTATION_DOMAIN;
+static const uint8_t CONSENSUS_DOMAIN[] = LAPLACE_PERSISTENCE_CONSENSUS_DOMAIN;
 static const uint8_t PLAN_SEQUENCE_DOMAIN[] =
     LAPLACE_PERSISTENCE_PG_PLAN_FINGERPRINT_DOMAIN;
 static const uint8_t PLAN_MANIFEST[] = LAPLACE_PERSISTENCE_PG_PLAN_MANIFEST;
@@ -17,7 +18,8 @@ static const uint8_t PLAN_MANIFEST[] = LAPLACE_PERSISTENCE_PG_PLAN_MANIFEST;
 enum {
     FRAME_HEADER_BYTES = 8,
     PHYSICALITY_IDENTITY_INPUT_OFFSET = 32,
-    OCCURRENCE_IDENTITY_INPUT_OFFSET = 32
+    ATTESTATION_IDENTITY_INPUT_OFFSET = 32,
+    CONSENSUS_IDENTITY_INPUT_OFFSET = 32
 };
 
 static int bytes_all_zero(const uint8_t* bytes, size_t length) {
@@ -117,10 +119,12 @@ size_t laplace_persistence_frame_bytes(uint16_t kind) {
             return FRAME_HEADER_BYTES + LAPLACE_PERSISTENCE_ENTITY_PAYLOAD_BYTES;
         case LAPLACE_PERSISTENCE_RECORD_PHYSICALITY:
             return FRAME_HEADER_BYTES + LAPLACE_PERSISTENCE_PHYSICALITY_PAYLOAD_BYTES;
-        case LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX:
-            return FRAME_HEADER_BYTES + LAPLACE_PERSISTENCE_TRAJECTORY_VERTEX_PAYLOAD_BYTES;
-        case LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE:
-            return FRAME_HEADER_BYTES + LAPLACE_PERSISTENCE_OBSERVED_OCCURRENCE_PAYLOAD_BYTES;
+        case LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT:
+            return FRAME_HEADER_BYTES + LAPLACE_PERSISTENCE_PHYSICALITY_TRAJECTORY_SEGMENT_PAYLOAD_BYTES;
+        case LAPLACE_PERSISTENCE_RECORD_ATTESTATION:
+            return FRAME_HEADER_BYTES + LAPLACE_PERSISTENCE_ATTESTATION_PAYLOAD_BYTES;
+        case LAPLACE_PERSISTENCE_RECORD_CONSENSUS:
+            return FRAME_HEADER_BYTES + LAPLACE_PERSISTENCE_CONSENSUS_PAYLOAD_BYTES;
         default:
             return 0;
     }
@@ -197,10 +201,10 @@ laplace_persistence_status laplace_persistence_plan_sequence_fingerprint(
         LAPLACE_PERSISTENCE_PG_PLAN_ENTITY_VERIFY,
         LAPLACE_PERSISTENCE_PG_PLAN_PHYSICALITY_INSERT,
         LAPLACE_PERSISTENCE_PG_PLAN_PHYSICALITY_VERIFY,
-        LAPLACE_PERSISTENCE_PG_PLAN_TRAJECTORY_INSERT,
-        LAPLACE_PERSISTENCE_PG_PLAN_TRAJECTORY_VERIFY,
-        LAPLACE_PERSISTENCE_PG_PLAN_OCCURRENCE_INSERT,
-        LAPLACE_PERSISTENCE_PG_PLAN_OCCURRENCE_VERIFY,
+        LAPLACE_PERSISTENCE_PG_PLAN_ATTESTATION_INSERT,
+        LAPLACE_PERSISTENCE_PG_PLAN_ATTESTATION_VERIFY,
+        LAPLACE_PERSISTENCE_PG_PLAN_CONSENSUS_INSERT,
+        LAPLACE_PERSISTENCE_PG_PLAN_CONSENSUS_VERIFY,
         LAPLACE_PERSISTENCE_PG_PLAN_RECEIPT_INSERT,
         LAPLACE_PERSISTENCE_PG_PLAN_RECEIPT_VERIFY};
     if (plan_ids == NULL || plan_count != LAPLACE_PERSISTENCE_PG_PLAN_COUNT ||
@@ -359,64 +363,125 @@ laplace_persistence_status laplace_persistence_atomic_point_physicality(
     return LAPLACE_PERSISTENCE_OK;
 }
 
-static int occurrence_scalars_valid(
-    const laplace_persistence_occurrence_record* occurrence) {
-    const uint32_t known_flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
+static int attestation_scalars_valid(
+    const laplace_persistence_attestation_record* attestation) {
+    const uint32_t known_flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
     const int has_physicality =
-        (occurrence->flags & LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY) != 0;
-    if ((occurrence->flags & ~known_flags) != 0 || occurrence->reserved != 0 ||
-        occurrence->source_ordinal == 0 ||
+        (attestation->flags & LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY) != 0;
+    if ((attestation->flags & ~known_flags) != 0 ||
+        attestation->attestation_kind <
+            LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE ||
+        attestation->attestation_kind >
+            LAPLACE_PERSISTENCE_ATTESTATION_DERIVED_CLAIM ||
+        attestation->source_ordinal == 0 ||
         reject_zero_digest_field(
-            occurrence->entity_id.bytes, sizeof(occurrence->entity_id.bytes)) ||
+            attestation->entity_id.bytes, sizeof(attestation->entity_id.bytes)) ||
         reject_zero_digest_field(
-            occurrence->source_fingerprint.bytes,
-            sizeof(occurrence->source_fingerprint.bytes)) ||
+            attestation->source_fingerprint.bytes,
+            sizeof(attestation->source_fingerprint.bytes)) ||
         reject_zero_digest_field(
-            occurrence->context_fingerprint.bytes,
-            sizeof(occurrence->context_fingerprint.bytes)) ||
+            attestation->context_fingerprint.bytes,
+            sizeof(attestation->context_fingerprint.bytes)) ||
         (has_physicality && reject_zero_digest_field(
-            occurrence->physicality_id.bytes,
-            sizeof(occurrence->physicality_id.bytes))) ||
+            attestation->physicality_id.bytes,
+            sizeof(attestation->physicality_id.bytes))) ||
         (!has_physicality && !bytes_all_zero(
-            occurrence->physicality_id.bytes,
-            sizeof(occurrence->physicality_id.bytes)))) {
+            attestation->physicality_id.bytes,
+            sizeof(attestation->physicality_id.bytes)))) {
         return 0;
     }
     return 1;
 }
 
-static void occurrence_payload(
-    const laplace_persistence_occurrence_record* occurrence,
-    uint8_t payload[LAPLACE_PERSISTENCE_OBSERVED_OCCURRENCE_PAYLOAD_BYTES]) {
+static void attestation_payload(
+    const laplace_persistence_attestation_record* attestation,
+    uint8_t payload[LAPLACE_PERSISTENCE_ATTESTATION_PAYLOAD_BYTES]) {
     size_t offset = 0;
-    memset(payload, 0, LAPLACE_PERSISTENCE_OBSERVED_OCCURRENCE_PAYLOAD_BYTES);
-    memcpy(payload + offset, occurrence->occurrence_id.bytes, 32); offset += 32;
-    memcpy(payload + offset, occurrence->entity_id.bytes, 16); offset += 16;
-    memcpy(payload + offset, occurrence->physicality_id.bytes, 32); offset += 32;
-    memcpy(payload + offset, occurrence->source_fingerprint.bytes, 32); offset += 32;
-    memcpy(payload + offset, occurrence->context_fingerprint.bytes, 32); offset += 32;
-    store_u64(occurrence->source_ordinal, payload + offset); offset += 8;
-    store_u32(occurrence->flags, payload + offset); offset += 4;
-    store_u32(occurrence->reserved, payload + offset); offset += 4;
+    memset(payload, 0, LAPLACE_PERSISTENCE_ATTESTATION_PAYLOAD_BYTES);
+    memcpy(payload + offset, attestation->attestation_id.bytes, 32); offset += 32;
+    memcpy(payload + offset, attestation->entity_id.bytes, 16); offset += 16;
+    memcpy(payload + offset, attestation->physicality_id.bytes, 32); offset += 32;
+    memcpy(payload + offset, attestation->source_fingerprint.bytes, 32); offset += 32;
+    memcpy(payload + offset, attestation->context_fingerprint.bytes, 32); offset += 32;
+    store_u64(attestation->source_ordinal, payload + offset); offset += 8;
+    store_u32(attestation->flags, payload + offset); offset += 4;
+    store_u32(attestation->attestation_kind, payload + offset); offset += 4;
     (void)offset;
 }
 
-laplace_persistence_status laplace_persistence_occurrence_identify(
-    const laplace_persistence_occurrence_record* occurrence,
-    laplace_digest256* occurrence_id) {
-    uint8_t payload[LAPLACE_PERSISTENCE_OBSERVED_OCCURRENCE_PAYLOAD_BYTES];
+laplace_persistence_status laplace_persistence_attestation_identify(
+    const laplace_persistence_attestation_record* attestation,
+    laplace_digest256* attestation_id) {
+    uint8_t payload[LAPLACE_PERSISTENCE_ATTESTATION_PAYLOAD_BYTES];
     blake3_hasher hasher;
-    if (occurrence == NULL || occurrence_id == NULL ||
-        !occurrence_scalars_valid(occurrence)) {
+    if (attestation == NULL || attestation_id == NULL ||
+        !attestation_scalars_valid(attestation)) {
         return LAPLACE_PERSISTENCE_RECORD_INVALID;
     }
-    occurrence_payload(occurrence, payload);
+    attestation_payload(attestation, payload);
     blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, OCCURRENCE_DOMAIN, sizeof(OCCURRENCE_DOMAIN) - 1u);
     blake3_hasher_update(
-        &hasher, payload + OCCURRENCE_IDENTITY_INPUT_OFFSET,
-        sizeof(payload) - OCCURRENCE_IDENTITY_INPUT_OFFSET);
-    finish_digest(&hasher, occurrence_id);
+        &hasher, ATTESTATION_DOMAIN, sizeof(ATTESTATION_DOMAIN) - 1u);
+    blake3_hasher_update(
+        &hasher, payload + ATTESTATION_IDENTITY_INPUT_OFFSET,
+        sizeof(payload) - ATTESTATION_IDENTITY_INPUT_OFFSET);
+    finish_digest(&hasher, attestation_id);
+    return LAPLACE_PERSISTENCE_OK;
+}
+
+static int consensus_scalars_valid(
+    const laplace_persistence_consensus_record* consensus) {
+    return consensus->observation_count != 0u &&
+        consensus->independent_root_count <= consensus->observation_count &&
+        consensus->disposition != 0u && consensus->flags == 0u &&
+        isfinite(consensus->standing) &&
+        !reject_zero_digest_field(
+            consensus->proposition_entity_id.bytes,
+            sizeof(consensus->proposition_entity_id.bytes)) &&
+        !reject_zero_digest_field(
+            consensus->epoch_id.bytes, sizeof(consensus->epoch_id.bytes)) &&
+        !reject_zero_digest_field(
+            consensus->evidence_boundary.bytes,
+            sizeof(consensus->evidence_boundary.bytes)) &&
+        !reject_zero_digest_field(
+            consensus->recipe_fingerprint.bytes,
+            sizeof(consensus->recipe_fingerprint.bytes));
+}
+
+static void consensus_payload(
+    const laplace_persistence_consensus_record* consensus,
+    uint8_t payload[LAPLACE_PERSISTENCE_CONSENSUS_PAYLOAD_BYTES]) {
+    size_t offset = 0;
+    memset(payload, 0, LAPLACE_PERSISTENCE_CONSENSUS_PAYLOAD_BYTES);
+    memcpy(payload + offset, consensus->consensus_id.bytes, 32); offset += 32;
+    memcpy(payload + offset, consensus->proposition_entity_id.bytes, 16); offset += 16;
+    memcpy(payload + offset, consensus->epoch_id.bytes, 32); offset += 32;
+    memcpy(payload + offset, consensus->evidence_boundary.bytes, 32); offset += 32;
+    memcpy(payload + offset, consensus->recipe_fingerprint.bytes, 32); offset += 32;
+    store_u64(consensus->observation_count, payload + offset); offset += 8;
+    store_u64(consensus->independent_root_count, payload + offset); offset += 8;
+    store_u32(consensus->disposition, payload + offset); offset += 4;
+    store_u32(consensus->flags, payload + offset); offset += 4;
+    store_double(consensus->standing, payload + offset); offset += 8;
+    (void)offset;
+}
+
+laplace_persistence_status laplace_persistence_consensus_identify(
+    const laplace_persistence_consensus_record* consensus,
+    laplace_digest256* consensus_id) {
+    uint8_t payload[LAPLACE_PERSISTENCE_CONSENSUS_PAYLOAD_BYTES];
+    blake3_hasher hasher;
+    if (consensus == NULL || consensus_id == NULL ||
+        !consensus_scalars_valid(consensus)) {
+        return LAPLACE_PERSISTENCE_RECORD_INVALID;
+    }
+    consensus_payload(consensus, payload);
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(&hasher, CONSENSUS_DOMAIN, sizeof(CONSENSUS_DOMAIN) - 1u);
+    blake3_hasher_update(
+        &hasher, payload + CONSENSUS_IDENTITY_INPUT_OFFSET,
+        sizeof(payload) - CONSENSUS_IDENTITY_INPUT_OFFSET);
+    finish_digest(&hasher, consensus_id);
     return LAPLACE_PERSISTENCE_OK;
 }
 
@@ -465,7 +530,7 @@ laplace_persistence_status laplace_persistence_frame_encode_physicality(
     return status;
 }
 
-laplace_persistence_status laplace_persistence_frame_encode_trajectory(
+laplace_persistence_status laplace_persistence_frame_encode_trajectory_segment(
     const laplace_digest256* physicality_id,
     uint64_t vertex_index,
     const laplace_trajectory_carrier* carrier,
@@ -482,7 +547,7 @@ laplace_persistence_status laplace_persistence_frame_encode_trajectory(
         return LAPLACE_PERSISTENCE_TRAJECTORY_INVALID;
     }
     status = frame_header(
-        LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX,
+        LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT,
         output, output_capacity, output_bytes);
     if (status != LAPLACE_PERSISTENCE_OK) {
         return status;
@@ -494,24 +559,46 @@ laplace_persistence_status laplace_persistence_frame_encode_trajectory(
     return LAPLACE_PERSISTENCE_OK;
 }
 
-laplace_persistence_status laplace_persistence_frame_encode_occurrence(
-    const laplace_persistence_occurrence_record* occurrence,
+laplace_persistence_status laplace_persistence_frame_encode_attestation(
+    const laplace_persistence_attestation_record* attestation,
     uint8_t* output,
     size_t output_capacity,
     size_t* output_bytes) {
     laplace_digest256 expected;
     laplace_persistence_status status;
-    if (occurrence == NULL ||
-        laplace_persistence_occurrence_identify(occurrence, &expected) !=
+    if (attestation == NULL ||
+        laplace_persistence_attestation_identify(attestation, &expected) !=
             LAPLACE_PERSISTENCE_OK ||
-        !digest_equal(&expected, &occurrence->occurrence_id)) {
+        !digest_equal(&expected, &attestation->attestation_id)) {
         return LAPLACE_PERSISTENCE_IDENTITY_MISMATCH;
     }
     status = frame_header(
-        LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE,
+        LAPLACE_PERSISTENCE_RECORD_ATTESTATION,
         output, output_capacity, output_bytes);
     if (status == LAPLACE_PERSISTENCE_OK) {
-        occurrence_payload(occurrence, output + FRAME_HEADER_BYTES);
+        attestation_payload(attestation, output + FRAME_HEADER_BYTES);
+    }
+    return status;
+}
+
+laplace_persistence_status laplace_persistence_frame_encode_consensus(
+    const laplace_persistence_consensus_record* consensus,
+    uint8_t* output,
+    size_t output_capacity,
+    size_t* output_bytes) {
+    laplace_digest256 expected;
+    laplace_persistence_status status;
+    if (consensus == NULL ||
+        laplace_persistence_consensus_identify(consensus, &expected) !=
+            LAPLACE_PERSISTENCE_OK ||
+        !digest_equal(&expected, &consensus->consensus_id)) {
+        return LAPLACE_PERSISTENCE_IDENTITY_MISMATCH;
+    }
+    status = frame_header(
+        LAPLACE_PERSISTENCE_RECORD_CONSENSUS,
+        output, output_capacity, output_bytes);
+    if (status == LAPLACE_PERSISTENCE_OK) {
+        consensus_payload(consensus, output + FRAME_HEADER_BYTES);
     }
     return status;
 }
@@ -552,28 +639,55 @@ static laplace_persistence_status decode_physicality(
     return LAPLACE_PERSISTENCE_OK;
 }
 
-static laplace_persistence_status decode_occurrence(
+static laplace_persistence_status decode_attestation(
     const uint8_t* payload,
-    laplace_persistence_occurrence_record* occurrence) {
-    laplace_persistence_occurrence_record decoded;
+    laplace_persistence_attestation_record* attestation) {
+    laplace_persistence_attestation_record decoded;
     laplace_digest256 expected;
     size_t offset = 0;
     memset(&decoded, 0, sizeof(decoded));
-    memcpy(decoded.occurrence_id.bytes, payload + offset, 32); offset += 32;
+    memcpy(decoded.attestation_id.bytes, payload + offset, 32); offset += 32;
     memcpy(decoded.entity_id.bytes, payload + offset, 16); offset += 16;
     memcpy(decoded.physicality_id.bytes, payload + offset, 32); offset += 32;
     memcpy(decoded.source_fingerprint.bytes, payload + offset, 32); offset += 32;
     memcpy(decoded.context_fingerprint.bytes, payload + offset, 32); offset += 32;
     decoded.source_ordinal = load_u64(payload + offset); offset += 8;
     decoded.flags = load_u32(payload + offset); offset += 4;
-    decoded.reserved = load_u32(payload + offset); offset += 4;
-    if (offset != LAPLACE_PERSISTENCE_OBSERVED_OCCURRENCE_PAYLOAD_BYTES ||
-        laplace_persistence_occurrence_identify(&decoded, &expected) !=
+    decoded.attestation_kind = load_u32(payload + offset); offset += 4;
+    if (offset != LAPLACE_PERSISTENCE_ATTESTATION_PAYLOAD_BYTES ||
+        laplace_persistence_attestation_identify(&decoded, &expected) !=
             LAPLACE_PERSISTENCE_OK ||
-        !digest_equal(&decoded.occurrence_id, &expected)) {
+        !digest_equal(&decoded.attestation_id, &expected)) {
         return LAPLACE_PERSISTENCE_IDENTITY_MISMATCH;
     }
-    *occurrence = decoded;
+    *attestation = decoded;
+    return LAPLACE_PERSISTENCE_OK;
+}
+
+static laplace_persistence_status decode_consensus(
+    const uint8_t* payload,
+    laplace_persistence_consensus_record* consensus) {
+    laplace_persistence_consensus_record decoded;
+    laplace_digest256 expected;
+    size_t offset = 0;
+    memset(&decoded, 0, sizeof(decoded));
+    memcpy(decoded.consensus_id.bytes, payload + offset, 32); offset += 32;
+    memcpy(decoded.proposition_entity_id.bytes, payload + offset, 16); offset += 16;
+    memcpy(decoded.epoch_id.bytes, payload + offset, 32); offset += 32;
+    memcpy(decoded.evidence_boundary.bytes, payload + offset, 32); offset += 32;
+    memcpy(decoded.recipe_fingerprint.bytes, payload + offset, 32); offset += 32;
+    decoded.observation_count = load_u64(payload + offset); offset += 8;
+    decoded.independent_root_count = load_u64(payload + offset); offset += 8;
+    decoded.disposition = load_u32(payload + offset); offset += 4;
+    decoded.flags = load_u32(payload + offset); offset += 4;
+    decoded.standing = load_double(payload + offset); offset += 8;
+    if (offset != LAPLACE_PERSISTENCE_CONSENSUS_PAYLOAD_BYTES ||
+        laplace_persistence_consensus_identify(&decoded, &expected) !=
+            LAPLACE_PERSISTENCE_OK ||
+        !digest_equal(&decoded.consensus_id, &expected)) {
+        return LAPLACE_PERSISTENCE_IDENTITY_MISMATCH;
+    }
+    *consensus = decoded;
     return LAPLACE_PERSISTENCE_OK;
 }
 
@@ -623,24 +737,28 @@ laplace_persistence_status laplace_persistence_frame_decode(
         case LAPLACE_PERSISTENCE_RECORD_PHYSICALITY:
             status = decode_physicality(payload, &decoded.value.physicality);
             break;
-        case LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX:
-            memcpy(decoded.value.trajectory.physicality_id.bytes, payload, 32);
-            decoded.value.trajectory.vertex_index = load_u64(payload + 32);
-            carrier_load(payload + 40, &decoded.value.trajectory.carrier);
+        case LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT:
+            memcpy(decoded.value.trajectory_segment.physicality_id.bytes, payload, 32);
+            decoded.value.trajectory_segment.vertex_index = load_u64(payload + 32);
+            carrier_load(payload + 40, &decoded.value.trajectory_segment.carrier);
             if (reject_zero_digest_field(
-                    decoded.value.trajectory.physicality_id.bytes, 32)) {
+                    decoded.value.trajectory_segment.physicality_id.bytes, 32)) {
                 status = LAPLACE_PERSISTENCE_REFERENCE_INVALID;
             } else {
                 laplace_trajectory_payload trajectory_payload;
                 if (laplace_trajectory_carrier_decode(
-                        &decoded.value.trajectory.carrier, &trajectory_payload) !=
+                        &decoded.value.trajectory_segment.carrier,
+                        &trajectory_payload) !=
                     LAPLACE_TRAJECTORY_OK) {
                     status = LAPLACE_PERSISTENCE_TRAJECTORY_INVALID;
                 }
             }
             break;
-        case LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE:
-            status = decode_occurrence(payload, &decoded.value.occurrence);
+        case LAPLACE_PERSISTENCE_RECORD_ATTESTATION:
+            status = decode_attestation(payload, &decoded.value.attestation);
+            break;
+        case LAPLACE_PERSISTENCE_RECORD_CONSENSUS:
+            status = decode_consensus(payload, &decoded.value.consensus);
             break;
         default:
             status = LAPLACE_PERSISTENCE_FRAME_INVALID;
@@ -659,10 +777,12 @@ typedef struct validation_state {
     uint16_t phase;
     int have_entity;
     int have_physicality;
-    int have_occurrence;
+    int have_attestation;
+    int have_consensus;
     laplace_id128 previous_entity;
     laplace_digest256 previous_physicality;
-    laplace_digest256 previous_occurrence;
+    laplace_digest256 previous_attestation;
+    laplace_digest256 previous_consensus;
     laplace_persistence_physicality_record current_physicality;
     uint64_t current_vertices;
     uint64_t current_logical_count;
@@ -717,7 +837,7 @@ static laplace_persistence_status validate_record(
             state->summary.entity_count += 1u;
             break;
         case LAPLACE_PERSISTENCE_RECORD_PHYSICALITY:
-            if (state->phase == LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE) {
+            if (state->phase >= LAPLACE_PERSISTENCE_RECORD_ATTESTATION) {
                 return LAPLACE_PERSISTENCE_ORDER_INVALID;
             }
             {
@@ -746,47 +866,66 @@ static laplace_persistence_status validate_record(
                 sizeof(TRAJECTORY_DOMAIN) - 1u);
             state->summary.physicality_count += 1u;
             break;
-        case LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX: {
+        case LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT: {
             laplace_composition_occurrence occurrence;
             const uint64_t logical_ordinal = state->current_logical_count + 1u;
             if (!state->current_open ||
                 state->current_physicality.physicality_type !=
                     LAPLACE_PERSISTENCE_PHYSICALITY_COMPOSITION ||
-                !digest_equal(&state->current_physicality.physicality_id,
-                              &record->value.trajectory.physicality_id) ||
-                record->value.trajectory.vertex_index != state->current_vertices ||
+                !digest_equal(
+                    &state->current_physicality.physicality_id,
+                    &record->value.trajectory_segment.physicality_id) ||
+                record->value.trajectory_segment.vertex_index !=
+                    state->current_vertices ||
                 laplace_trajectory_composition_decode_one(
-                    &record->value.trajectory.carrier, logical_ordinal, &occurrence) !=
+                    &record->value.trajectory_segment.carrier,
+                    logical_ordinal, &occurrence) !=
                     LAPLACE_TRAJECTORY_OK ||
                 UINT64_MAX - state->current_logical_count < occurrence.run_length) {
                 return LAPLACE_PERSISTENCE_TRAJECTORY_INVALID;
             }
-            record->value.trajectory.occurrence = occurrence;
+            record->value.trajectory_segment.occurrence = occurrence;
             blake3_hasher_update(
                 &state->trajectory_hasher,
                 frame + FRAME_HEADER_BYTES + 40,
                 32);
             state->current_vertices += 1u;
             state->current_logical_count += occurrence.run_length;
-            state->summary.trajectory_vertex_count += 1u;
+            state->summary.trajectory_segment_count += 1u;
             state->summary.logical_occurrence_count += occurrence.run_length;
             break;
         }
-        case LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE:
+        case LAPLACE_PERSISTENCE_RECORD_ATTESTATION:
             if (close_physicality(state) != LAPLACE_PERSISTENCE_OK) {
                 return LAPLACE_PERSISTENCE_TRAJECTORY_INVALID;
             }
-            comparison = state->have_occurrence
-                ? memcmp(state->previous_occurrence.bytes,
-                         record->value.occurrence.occurrence_id.bytes, 32)
+            comparison = state->have_attestation
+                ? memcmp(state->previous_attestation.bytes,
+                         record->value.attestation.attestation_id.bytes, 32)
                 : -1;
             if (comparison >= 0) {
                 return LAPLACE_PERSISTENCE_ORDER_INVALID;
             }
-            state->previous_occurrence = record->value.occurrence.occurrence_id;
-            state->have_occurrence = 1;
-            state->phase = LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE;
-            state->summary.occurrence_count += 1u;
+            state->previous_attestation = record->value.attestation.attestation_id;
+            state->have_attestation = 1;
+            state->phase = LAPLACE_PERSISTENCE_RECORD_ATTESTATION;
+            state->summary.attestation_count += 1u;
+            break;
+        case LAPLACE_PERSISTENCE_RECORD_CONSENSUS:
+            if (close_physicality(state) != LAPLACE_PERSISTENCE_OK) {
+                return LAPLACE_PERSISTENCE_TRAJECTORY_INVALID;
+            }
+            comparison = state->have_consensus
+                ? memcmp(state->previous_consensus.bytes,
+                         record->value.consensus.consensus_id.bytes, 32)
+                : -1;
+            if (comparison >= 0) {
+                return LAPLACE_PERSISTENCE_ORDER_INVALID;
+            }
+            state->previous_consensus = record->value.consensus.consensus_id;
+            state->have_consensus = 1;
+            state->phase = LAPLACE_PERSISTENCE_RECORD_CONSENSUS;
+            state->summary.consensus_count += 1u;
             break;
         default:
             return LAPLACE_PERSISTENCE_FRAME_INVALID;
@@ -848,7 +987,7 @@ laplace_persistence_status laplace_persistence_validate_stream(
     }
 #if defined(LAPLACE_TEST_PERSISTENCE_REQUIRE_ALL_FAMILIES)
     if (state.summary.entity_count == 0 || state.summary.physicality_count == 0 ||
-        state.summary.occurrence_count == 0) {
+        state.summary.attestation_count == 0) {
 #else
     if (state.summary.frame_count == 0) {
 #endif
