@@ -54,8 +54,8 @@
     {
       "ctest_name": "highway-product.activation-contract",
       "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-IDENTITY-CROSS-ROUTE"],
-      "covered_dimensions": ["canonical Highway registry ISA materialization", "active Unicode atom resolution", "universal AST composition", "set-wise presence and canonical deposition", "typed registry projection activation", "product restart", "cold application-role active-registry readback", "content-addressed activation receipt"],
-      "defect_controls": ["partial preexisting Highway state", "fresh activation with zero canonical writes", "stale Unicode epoch", "stale numerical epoch", "wrong application role route", "unchanged postmaster"]
+      "covered_dimensions": ["canonical Highway registry ISA materialization", "active Unicode atom resolution", "universal AST composition", "set-wise presence and canonical deposition", "typed registry projection activation", "exact immutable v1 predecessor authority", "fresh v2 activation", "v1-to-v2 numerical-epoch successor compare-and-swap", "v2 replay after fresh or successor sequence", "product restart", "cold application-role active-registry readback", "content-addressed activation receipt"],
+      "defect_controls": ["partial preexisting Highway state", "fresh or successor activation with zero canonical writes", "rewritten predecessor contract", "wrong predecessor registry population", "stale Unicode epoch", "stale numerical epoch", "duplicate writes on replay", "wrong application role route", "unchanged postmaster"]
     },
     {
       "ctest_name": "product-activation.gateway-contract",
@@ -1663,17 +1663,150 @@
       "covered_dimensions": ["one generated ISA operation owns evidence-lineage execution", "strided inputs and outputs preserve canonical native roots and semantic receipt", "temporary memory and output capacity are preflighted before publication"]
     },
     {
+      "ctest_name": "EvidenceTestimony.BindsCompleteProfileScopedTestimonyAndExactCounts",
+      "evidence_targets": ["LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["profile recipe trust source outcome disposition uncertainty and sample bindings", "deterministic testimony identity and batch receipt", "exact sample uncertain and negative-disposition denominators"]
+    },
+    {
+      "ctest_name": "EvidenceTestimony.RejectsProfileMixingWithinOneBatch",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION"],
+      "covered_dimensions": ["one testimony publication batch is bound to one exact source profile", "cross-profile mixing fails before receipt publication"],
+      "defect_controls": ["evidence-testimony.mutation-profile-mixing-detected"]
+    },
+    {
+      "ctest_name": "EvidenceTestimony.IdentityBindsRecipeTrustOutcomeUncertaintyAndCount",
+      "evidence_targets": ["LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["every testimony semantic field changes content identity", "derived and negative dispositions remain distinct", "source profile and recipe cannot be swapped without reidentification"]
+    },
+    {
+      "ctest_name": "EvidenceTestimony.RequiresReducedExactUncertainty",
+      "evidence_targets": ["LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-DEPENDENCE"],
+      "covered_dimensions": ["uncertainty is an exact reduced rational", "zero uncertainty has canonical denominator one", "floating confidence is not admitted as canonical evidence state"]
+    },
+    {
+      "ctest_name": "EvidenceTestimony.RejectsIdentityDriftAndUnsortedInput",
+      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION"],
+      "covered_dimensions": ["testimony identity is recomputed before execution", "canonical batch order is strict", "changed testimony cannot reuse a prior identity"]
+    },
+    {
+      "ctest_name": "EvidenceTestimony.RejectsMissingBindingsAndZeroSamples",
+      "evidence_targets": ["LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-SOURCE-TOPOLOGY"],
+      "covered_dimensions": ["profile recipe trust evidence and outcome bindings are mandatory", "zero-sample testimony is not evidence", "invalid later records fail the complete batch"]
+    },
+    {
+      "ctest_name": "IsaExecution.EvidenceTestimonyMatchesCanonicalNativeOperationAndReceipt",
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-ADMISSION-DEPENDENCE"],
+      "covered_dimensions": ["one generated ISA operation owns testimony recording", "strided testimony inputs preserve canonical native semantic receipt", "ISA and semantic receipt identities remain independently exact"]
+    },
+    {
+      "ctest_name": "evidence-testimony.mutation-profile-mixing-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION"],
+      "covered_dimensions": ["bypassing profile-homogeneous batch validation is detected"],
+      "controls": "EvidenceTestimony.RejectsProfileMixingWithinOneBatch"
+    },
+    {
+      "ctest_name": "SourceProfile.ClosesMultipleProfilesInOneSelectedBoundary",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["multiple strictly ordered source profiles close under one exact selected boundary", "profile closure and reconstruction denominators are aggregated exactly", "replay produces the same semantic receipt"]
+    },
+    {
+      "ctest_name": "SourceProfile.RejectsProfilesFromDifferentSelectedBoundaries",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION"],
+      "covered_dimensions": ["one execution cannot silently combine different selected source boundaries", "boundary mixing fails before receipt publication"],
+      "defect_controls": ["source-profile.mutation-selected-boundary-mixing-detected"]
+    },
+    {
+      "ctest_name": "SourceProfile.IdentityBindsEveryRequiredSectionAndClosure",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["authority release license artifact grammar recipe AST highway evidence denominator conformance completion and selected-boundary fingerprints are identity inputs", "denominator disposition reconstruction and flag state cannot drift under one profile identity"]
+    },
+    {
+      "ctest_name": "SourceProfile.RejectsIncompleteDenominatorsAndInvalidNotApplicableState",
+      "evidence_targets": ["LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-READ-REACHABILITY"],
+      "covered_dimensions": ["required source denominators cannot be zero", "not-applicable declarations cannot contradict observed nonzero populations"]
+    },
+    {
+      "ctest_name": "SourceProfile.RejectsIncompleteClosureAndLossInExactReconstruction",
+      "evidence_targets": ["LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-READ-REACHABILITY"],
+      "covered_dimensions": ["all eleven typed dispositions close exactly over declared subjects", "exact reconstruction cannot conceal lossy outcomes"]
+    },
+    {
+      "ctest_name": "SourceProfile.RejectsWrongCoordinateIdentityAndOrdering",
+      "evidence_targets": ["LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION", "LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["source-profile coordinates use the declared typed highway kind and exact scope", "profile identity is recomputed before execution", "batch ordering is strict"]
+    },
+    {
+      "ctest_name": "IsaExecution.SourceProfileMatchesCanonicalNativeOperationAndReceipt",
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-ADMISSION-SOURCE-TOPOLOGY"],
+      "covered_dimensions": ["one generated ISA operation owns source-profile validation", "strided source-profile inputs preserve the canonical semantic receipt", "the ISA receipt hashes logical profile fields rather than ABI padding"]
+    },
+    {
+      "ctest_name": "source-profile.mutation-selected-boundary-mixing-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION"],
+      "covered_dimensions": ["bypassing exact selected-boundary homogeneity is detected"],
+      "controls": "SourceProfile.RejectsProfilesFromDifferentSelectedBoundaries"
+    },
+    {
+      "ctest_name": "WorldAdmission.ClosesCompleteReceiptBoundAdmissionsDeterministically",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["source-profile composition presence producer stream lineage testimony and readback receipts close one world admission", "exact occurrence claim evidence testimony and closure denominators aggregate deterministically", "replay produces the same semantic receipt"]
+    },
+    {
+      "ctest_name": "WorldAdmission.IdentityBindsEveryComponentCountAndReadback",
+      "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-READ-REACHABILITY"],
+      "covered_dimensions": ["every component receipt count binding reconstruction class and readback fingerprint changes world-admission identity", "readback cannot be detached from the admitted component boundary"]
+    },
+    {
+      "ctest_name": "WorldAdmission.RejectsMissingComponentsAndIncompleteClosure",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY"],
+      "covered_dimensions": ["all component receipts and nonzero readback are mandatory", "zero occurrence or incomplete subject closure cannot publish an admission"]
+    },
+    {
+      "ctest_name": "WorldAdmission.RejectsCountAndBindingDrift",
+      "evidence_targets": ["LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION"],
+      "covered_dimensions": ["profile occurrence and claim denominators must equal composition and testimony state", "every testimony must bind the selected profile recipe and evidence boundary"]
+    },
+    {
+      "ctest_name": "WorldAdmission.RejectsTestimonyWithoutDurableLineageBinding",
+      "evidence_targets": ["LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-ADMISSION-READ-REACHABILITY"],
+      "covered_dimensions": ["testimony cannot close without a durably present lineage node and admitted composition occurrence"],
+      "defect_controls": ["world-admission.mutation-lineage-binding-detected"]
+    },
+    {
+      "ctest_name": "WorldAdmission.RejectsIdentityOrderAndBoundaryDrift",
+      "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-BULK-DETERMINISM", "LP-TEST-ADMISSION-SOURCE-TOPOLOGY"],
+      "covered_dimensions": ["world-admission identity is recomputed before execution", "batch ordering is strict", "one batch cannot mix selected source boundaries"]
+    },
+    {
+      "ctest_name": "IsaExecution.WorldAdmissionMatchesCanonicalNativeOperationAndReceipt",
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-ADMISSION-READ-REACHABILITY"],
+      "covered_dimensions": ["one generated ISA operation owns world-admission closure", "strided world records preserve the canonical semantic receipt", "the ISA receipt hashes logical world fields rather than ABI padding"]
+    },
+    {
+      "ctest_name": "world-admission.mutation-lineage-binding-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-DERIVATION-LINEAGE-CLOSURE"],
+      "covered_dimensions": ["bypassing durable lineage binding is detected"],
+      "controls": "WorldAdmission.RejectsTestimonyWithoutDurableLineageBinding"
+    },
+    {
       "ctest_name": "dotnet.generated-isa-contract",
       "profiles": ["dotnet", "custom-stack"],
       "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE", "LP-TEST-HIGHWAY-REGISTRY-PARITY"],
-      "covered_dimensions": ["byte-reproducible contract generation", "typed value operation and version descriptors", "complete generated identity trajectory highway-coordinate and highway-registry operation declarations"],
+      "covered_dimensions": ["byte-reproducible contract generation", "typed value operation and version descriptors", "complete generated identity trajectory highway-coordinate highway-registry evidence-lineage evidence-testimony source-profile and world-admission operation declarations"],
       "defect_controls": ["removed generated operation declaration is detected"]
     },
     {
       "ctest_name": "dotnet.native-isa-parity",
       "profiles": ["dotnet", "custom-stack"],
       "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-BULK-PARITY", "LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION"],
-      "covered_dimensions": ["exact native and managed ABI layout", "real P Invoke vector transport", "identity trajectory highway-coordinate and highway-registry direct-native output parity", "all receipt and error fields", "generated highway registry constants", "one-element scalar lowering", "version type and opcode preflight rejection", "call-scoped pin lifetime", "disposed transport rejection"]
+      "covered_dimensions": ["exact native and managed ABI layout", "real P Invoke vector transport", "identity trajectory highway-coordinate highway-registry evidence-testimony source-profile and world-admission direct-native output parity", "all receipt and error fields", "generated highway registry constants", "one-element scalar lowering", "version type and opcode preflight rejection", "call-scoped pin lifetime", "disposed transport rejection"]
+    },
+    {
+      "ctest_name": "postgres.world-admission-whole-route-contract",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-ISA-RECEIPT", "LP-TEST-DERIVATION-LINEAGE-CLOSURE"],
+      "covered_dimensions": ["one public PostgreSQL route derives world records from durable source-profile composition-deposit occurrence lineage and testimony receipts", "callers supply component receipt identities rather than manufacturing semantic counts or admission identities", "exact durable receipt-member sets prove profile recipe lineage testimony and occurrence binding", "native ISA 1.8 closes the derived world record", "world admission records semantic receipt ISA receipt and exact ordered receipt membership persist transactionally", "deterministic replay preserves tuple identity", "removed lineage membership rejects admission and rolls back without published effect"],
+      "defect_controls": ["world-admission.mutation-lineage-binding-detected", "deleted durable lineage receipt membership is rejected by the production PostgreSQL route"]
     },
     {
       "ctest_name": "postgres.unicode-root-persistence-contract",
@@ -1700,8 +1833,8 @@
       "ctest_name": "postgres.spi-isa-contract",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN", "LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY", "LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION", "LP-TEST-EPISTEMIC-KIND-SEPARATION", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-DERIVATION-NONAMPLIFICATION", "LP-TEST-CIRCULAR-EVIDENCE-REJECTION", "LP-TEST-EVIDENCE-DEPENDENCE"],
-      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL identity trajectory highway-coordinate and evidence-lineage output parity", "direct C and PostgreSQL identity trajectory highway-coordinate and evidence-lineage receipt parity", "set-wise immutable evidence nodes direct dependence edges root projections and lineage receipts", "cycle rejection before durable publication", "exact durable evidence replay conflict detection", "highway release scope separation and fail-closed zero scope", "parallel-safe pure calculation", "one set-oriented SPI persistence provider", "durable-or-in-batch reference preflight", "normalized entity physicality trajectory and occurrence storage", "full identity witness collision detection", "immutable exact plan-sequence receipt", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-vertex single native batch", "bounded storage", "candidate index plus exact native trajectory proof", "concurrent idempotent deposit", "database-scoped named DSM control plane without preload", "immutable generation manifests and activation-admission events", "durable active-epoch singleton CAS", "transaction and savepoint deferred activation", "native preflight before durable commit", "committed-XID visibility-gap recovery", "exact full-epoch shared and native pins", "resource-owner error cleanup", "cold-backend manifest reconstruction validation prefault and exact pin", "SQL-free repeated hot native batch lookup", "configured-root and missing-artifact rejection", "concurrent old-generation reader and new-generation activation", "competing activator exclusion", "retired generation drain", "same-postmaster extension drop and recreation", "unchanged postmaster start time"],
-      "defect_controls": ["postgres.mutation-receipt-collision-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-evidence-root-replay-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
+      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL identity trajectory highway-coordinate evidence-lineage evidence-testimony and source-profile output parity", "direct C and PostgreSQL identity trajectory highway-coordinate evidence-lineage evidence-testimony and source-profile receipt parity", "set-wise immutable evidence nodes direct dependence edges root projections testimony source profiles and semantic receipts", "cycle rejection before durable publication", "exact durable evidence testimony and source-profile replay conflict detection", "profile recipe trust outcome uncertainty sample and negative-disposition preservation", "source-profile authority license artifact grammar recipe AST highway witnessing denominator conformance completion reconstruction and selected-boundary preservation", "highway release scope separation and fail-closed zero scope", "parallel-safe pure calculation", "one set-oriented SPI persistence provider", "durable-or-in-batch reference preflight", "normalized entity physicality trajectory and occurrence storage", "full identity witness collision detection", "immutable exact plan-sequence receipt", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-vertex single native batch", "bounded storage", "candidate index plus exact native trajectory proof", "concurrent idempotent deposit", "database-scoped named DSM control plane without preload", "immutable generation manifests and activation-admission events", "durable active-epoch singleton CAS", "transaction and savepoint deferred activation", "native preflight before durable commit", "committed-XID visibility-gap recovery", "exact full-epoch shared and native pins", "resource-owner error cleanup", "cold-backend manifest reconstruction validation prefault and exact pin", "SQL-free repeated hot native batch lookup", "configured-root and missing-artifact rejection", "concurrent old-generation reader and new-generation activation", "competing activator exclusion", "retired generation drain", "same-postmaster extension drop and recreation", "unchanged postmaster start time"],
+      "defect_controls": ["postgres.mutation-receipt-collision-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-evidence-root-replay-conflict-detected", "postgres.mutation-evidence-testimony-replay-conflict-detected", "postgres.mutation-source-profile-replay-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
     },
     {
       "ctest_name": "postgres.mutation-receipt-collision-detected",
@@ -1725,11 +1858,102 @@
       "controls": "postgres.spi-isa-contract"
     },
     {
+      "ctest_name": "postgres.mutation-evidence-testimony-replay-conflict-detected",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["a durable testimony row that conflicts with the canonical profile-scoped testimony is rejected on exact replay"],
+      "controls": "postgres.spi-isa-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-source-profile-replay-conflict-detected",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["a durable source profile that conflicts with its exact selected-boundary manifest is rejected on deterministic replay"],
+      "controls": "postgres.spi-isa-contract"
+    },
+    {
       "ctest_name": "postgres.mutation-perfcache-expected-epoch-detected",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT"],
       "covered_dimensions": ["shared-memory and durable-control expected-epoch bypass is detected"],
       "controls": "postgres.spi-isa-contract"
+    },
+    {
+      "ctest_name": "TabularSource.CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
+      "covered_dimensions": ["one generic source compiler maps raw and delimited artifacts into ordered typed universal AST composition requests", "field header record artifact and source nodes preserve exact roles and source ordinals", "exact selected distributions recompose from retained parsed structure rather than original input bytes"],
+      "defect_controls": ["tabular-source.mutation-input-reconstruction-bypass-detected", "tabular-source.mutation-structural-reference-promotion-detected"]
+    },
+    {
+      "ctest_name": "TabularSource.SeparatesExactContentFromNonInvertibleSourceDistribution",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY"],
+      "covered_dimensions": ["a non-selected archive wrapper remains hash-attributed but explicitly non-reconstructable", "selected exact member content remains independently bit-reconstructable within a semantically reconstructing profile"]
+    },
+    {
+      "ctest_name": "TabularSource.GeneratedPlanExecutesThroughCanonicalComposition",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["the generated source plan executes through the canonical whole-working-set Merkle composition implementation", "closed source-profile denominators derive from actual composition output and occurrences"]
+    },
+    {
+      "ctest_name": "TabularSource.RejectsDigestGrammarUtf8AndDenominatorDefects",
+      "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-READ-REACHABILITY"],
+      "covered_dimensions": ["changed source bytes fail their pinned digest", "invalid UTF-8 terminator grammar and declared denominators fail before publication"]
+    },
+    {
+      "ctest_name": "TabularSource.RejectsMissingUnknownAndDuplicateArtifactGraphEdges",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["every member names one earlier declared container", "missing unknown and duplicate artifact identities cannot enter the source graph"]
+    },
+    {
+      "ctest_name": "TabularSource.ArtifactGraphIdentityIncludesParentContainment",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["the same exact member assigned to a different valid container produces a different source artifact-graph identity"],
+      "defect_controls": ["tabular-source.mutation-parent-edge-omission-detected"]
+    },
+    {
+      "ctest_name": "Iso639SourceProfile.CompilesLockedReleaseThroughGenericTabularEngine",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["the locked ISO 639-3 2026-04-15 release compiles through the generic source engine without an ISO-specific semantic implementation", "five artifacts 17114 records 92153 fields 18805 references and 17110 claims match the declared complete release denominators", "all four selected tables recompose byte-for-byte while the unselected ZIP wrapper remains provenance-only"]
+    },
+    {
+      "ctest_name": "Iso639SourceProfile.ParentTopologyAndReleaseBytesAreRequired",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["changed member-to-archive topology is rejected", "changed locked release bytes are rejected before source-plan publication"]
+    },
+    {
+      "ctest_name": "tabular-source.mutation-parent-edge-omission-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["omitting parent containment from artifact-graph identity is detected"],
+      "controls": "TabularSource.ArtifactGraphIdentityIncludesParentContainment"
+    },
+    {
+      "ctest_name": "tabular-source.mutation-input-reconstruction-bypass-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
+      "covered_dimensions": ["a corrupt parsed representation cannot fake exact reconstruction by copying the original source input"],
+      "controls": "TabularSource.CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan"
+    },
+    {
+      "ctest_name": "tabular-source.mutation-structural-reference-promotion-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION"],
+      "covered_dimensions": ["a structurally retained join-key carrier cannot be promoted to a resolved authority-scoped Highway endpoint without the typed topology operation"],
+      "controls": "TabularSource.CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan"
+    },
+    {
+      "ctest_name": "iso-639-source.profile-contract-and-mutation",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-READ-REACHABILITY"],
+      "covered_dimensions": ["the source-profile instance deterministically generates typed native authority data", "physical ZIP membership hashes UTF-8 grammar row widths reference counts and complete denominators match the locked release", "authority artifact grammar reconstruction and denominator mutations are rejected"]
+    },
+    {
+      "ctest_name": "postgres.source-admission-whole-route-contract",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE"],
+      "covered_dimensions": ["one public PostgreSQL source-admission operation composes source AST state deposits canonical content persists profile lineage testimony and closes world admission in one transaction", "exact Unicode content remains queryable and reconstructable through the shared substrate", "replay is idempotent and rejected source-byte mutation rolls back without partial durable state"]
+    },
+    {
+      "ctest_name": "postgres.iso-639-source-admission-whole-route-contract",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-BOUNDED-CROSSINGS"],
+      "covered_dimensions": ["the real locked ISO 639-3 release traverses generated profile authority native composition canonical persistence evidence testimony and world admission through one public PostgreSQL operation", "17110 claims and 128125 recursive composition requests persist transactionally", "all 18805 reference carriers close explicitly unresolved rather than being promoted by parsing alone", "English Japanese eng and jpn exact content are independently queryable while the unselected ZIP wrapper is not falsely deposited as exact content", "deterministic replay preserves semantic identity and cardinality", "digest and parent-topology defects roll back with no published effect"]
     }
   ]
 }

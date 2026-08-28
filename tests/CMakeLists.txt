@@ -71,6 +71,129 @@ target_compile_options(laplace_composition_tests PRIVATE
 gtest_discover_tests(laplace_composition_tests PROPERTIES
     LABELS "implementation;composition;working-set;producer")
 
+add_executable(laplace_tabular_source_tests
+    tabular_source_tests.cpp)
+target_link_libraries(laplace_tabular_source_tests PRIVATE
+    Laplace::TabularSource Laplace::Composition GTest::gtest_main)
+target_include_directories(laplace_tabular_source_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/src")
+target_compile_options(laplace_tabular_source_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_tabular_source_tests PROPERTIES
+    LABELS "implementation;source-profile;grammar;recipe;ast;composition")
+
+add_executable(laplace_iso_639_source_tests
+    iso_639_source_tests.cpp)
+target_link_libraries(laplace_iso_639_source_tests PRIVATE
+    Laplace::TabularSource GTest::gtest_main)
+target_include_directories(laplace_iso_639_source_tests PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_compile_options(laplace_iso_639_source_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_iso_639_source_tests PROPERTIES
+    LABELS "implementation;source-profile;iso-639;grammar;recipe;ast;reconstruction")
+
+add_library(laplace_tabular_parent_edge_mutant STATIC
+    ../engine/src/tabular_source.cpp)
+target_include_directories(laplace_tabular_parent_edge_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/src"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_tabular_parent_edge_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_tabular_parent_edge_mutant PRIVATE
+    LAPLACE_TEST_TABULAR_OMIT_PARENT_EDGE=1)
+target_compile_options(laplace_tabular_parent_edge_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_tabular_parent_edge_mutation_probe
+    tabular_source_tests.cpp)
+target_include_directories(laplace_tabular_parent_edge_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/src")
+target_link_libraries(laplace_tabular_parent_edge_mutation_probe PRIVATE
+    laplace_tabular_parent_edge_mutant Laplace::Engine GTest::gtest_main)
+target_compile_options(laplace_tabular_parent_edge_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME tabular-source.mutation-parent-edge-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_tabular_parent_edge_mutation_probe>"
+        "-DFILTER=TabularSource.ArtifactGraphIdentityIncludesParentContainment"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    tabular-source.mutation-parent-edge-omission-detected PROPERTIES
+    LABELS "implementation;source-profile;artifact-graph;mutation")
+
+add_library(laplace_tabular_reconstruction_bypass_mutant STATIC
+    ../engine/src/tabular_source.cpp)
+target_include_directories(laplace_tabular_reconstruction_bypass_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/src"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_tabular_reconstruction_bypass_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_tabular_reconstruction_bypass_mutant PRIVATE
+    LAPLACE_TEST_TABULAR_CORRUPT_PARSED_RECONSTRUCTION=1
+    LAPLACE_TEST_TABULAR_RECOMPOSE_FROM_INPUT=1)
+target_compile_options(laplace_tabular_reconstruction_bypass_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_tabular_reconstruction_bypass_mutation_probe
+    tabular_source_tests.cpp)
+target_include_directories(
+    laplace_tabular_reconstruction_bypass_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/src")
+target_link_libraries(
+    laplace_tabular_reconstruction_bypass_mutation_probe PRIVATE
+    laplace_tabular_reconstruction_bypass_mutant
+    Laplace::Engine
+    GTest::gtest_main)
+target_compile_options(
+    laplace_tabular_reconstruction_bypass_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME tabular-source.mutation-input-reconstruction-bypass-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_tabular_reconstruction_bypass_mutation_probe>"
+        "-DFILTER=TabularSource.CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    tabular-source.mutation-input-reconstruction-bypass-detected PROPERTIES
+    LABELS "implementation;source-profile;reconstruction;mutation")
+
+add_library(laplace_tabular_reference_promotion_mutant STATIC
+    ../engine/src/tabular_source.cpp)
+target_include_directories(laplace_tabular_reference_promotion_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/src"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_tabular_reference_promotion_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_tabular_reference_promotion_mutant PRIVATE
+    LAPLACE_TEST_TABULAR_PROMOTE_REFERENCES_RESOLVED=1)
+target_compile_options(laplace_tabular_reference_promotion_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_tabular_reference_promotion_mutation_probe
+    tabular_source_tests.cpp)
+target_include_directories(
+    laplace_tabular_reference_promotion_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/src")
+target_link_libraries(
+    laplace_tabular_reference_promotion_mutation_probe PRIVATE
+    laplace_tabular_reference_promotion_mutant
+    Laplace::Engine
+    GTest::gtest_main)
+target_compile_options(
+    laplace_tabular_reference_promotion_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME tabular-source.mutation-structural-reference-promotion-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_tabular_reference_promotion_mutation_probe>"
+        "-DFILTER=TabularSource.CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    tabular-source.mutation-structural-reference-promotion-detected PROPERTIES
+    LABELS "implementation;source-profile;reference;highway;mutation")
+
 add_library(laplace_composition_dedup_mutant STATIC
     ../engine/src/composition.cpp)
 target_include_directories(laplace_composition_dedup_mutant PRIVATE
@@ -181,6 +304,13 @@ set_tests_properties(unicode-source.generated-manifest-contract PROPERTIES
     LABELS "contracts;unicode;source;generation;mutation")
 
 add_test(
+    NAME iso-639-source.profile-contract-and-mutation
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/iso_639_source_profile_tests.py")
+set_tests_properties(iso-639-source.profile-contract-and-mutation PROPERTIES
+    LABELS "contracts;source-profile;iso-639;artifact-graph;reconstruction;mutation")
+
+add_test(
     NAME highway.generated-mirror-and-append-only-contract
     COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/highway_generation_tests.py")
@@ -229,6 +359,126 @@ target_compile_options(laplace_evidence_lineage_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_evidence_lineage_tests PROPERTIES
     LABELS "implementation;evidence;lineage;dependence;receipt")
+
+add_executable(laplace_evidence_testimony_tests evidence_testimony_tests.cpp)
+target_link_libraries(laplace_evidence_testimony_tests PRIVATE
+    Laplace::Engine GTest::gtest_main)
+target_compile_options(laplace_evidence_testimony_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_evidence_testimony_tests PROPERTIES
+    LABELS "implementation;evidence;testimony;receipt")
+
+add_library(laplace_evidence_testimony_profile_mutant STATIC
+    ../engine/src/evidence_testimony.c)
+target_include_directories(laplace_evidence_testimony_profile_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_evidence_testimony_profile_mutant PRIVATE
+    BLAKE3::blake3)
+target_compile_definitions(laplace_evidence_testimony_profile_mutant PRIVATE
+    LAPLACE_TEST_TESTIMONY_PROFILE_HOMOGENEITY_BYPASS=1)
+target_compile_options(laplace_evidence_testimony_profile_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_evidence_testimony_profile_mutation_probe
+    evidence_testimony_tests.cpp)
+target_include_directories(laplace_evidence_testimony_profile_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_evidence_testimony_profile_mutation_probe PRIVATE
+    laplace_evidence_testimony_profile_mutant GTest::gtest_main)
+target_compile_definitions(laplace_evidence_testimony_profile_mutation_probe PRIVATE
+    LAPLACE_TEST_TESTIMONY_PROFILE_HOMOGENEITY_BYPASS=1)
+target_compile_options(laplace_evidence_testimony_profile_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME evidence-testimony.mutation-profile-mixing-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_evidence_testimony_profile_mutation_probe>"
+        "-DFILTER=EvidenceTestimony.RejectsProfileMixingWithinOneBatch"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    evidence-testimony.mutation-profile-mixing-detected PROPERTIES
+    LABELS "implementation;evidence;testimony;mutation")
+
+add_executable(laplace_source_profile_tests source_profile_tests.cpp)
+target_link_libraries(laplace_source_profile_tests PRIVATE
+    Laplace::SourceProfile GTest::gtest_main)
+target_compile_options(laplace_source_profile_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_source_profile_tests PROPERTIES
+    LABELS "implementation;source-profile;admission;receipt")
+
+add_library(laplace_source_profile_boundary_mutant STATIC
+    ../engine/src/source_profile.c)
+target_include_directories(laplace_source_profile_boundary_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_source_profile_boundary_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_source_profile_boundary_mutant PRIVATE
+    LAPLACE_TEST_SOURCE_PROFILE_BOUNDARY_BYPASS=1)
+target_compile_options(laplace_source_profile_boundary_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_source_profile_boundary_mutation_probe
+    source_profile_tests.cpp)
+target_include_directories(laplace_source_profile_boundary_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_source_profile_boundary_mutation_probe PRIVATE
+    laplace_source_profile_boundary_mutant GTest::gtest_main)
+target_compile_definitions(laplace_source_profile_boundary_mutation_probe PRIVATE
+    LAPLACE_TEST_SOURCE_PROFILE_BOUNDARY_BYPASS=1)
+target_compile_options(laplace_source_profile_boundary_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME source-profile.mutation-selected-boundary-mixing-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_source_profile_boundary_mutation_probe>"
+        "-DFILTER=SourceProfile.RejectsProfilesFromDifferentSelectedBoundaries"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    source-profile.mutation-selected-boundary-mixing-detected PROPERTIES
+    LABELS "implementation;source-profile;admission;mutation")
+
+add_executable(laplace_world_admission_tests world_admission_tests.cpp)
+target_link_libraries(laplace_world_admission_tests PRIVATE
+    Laplace::WorldAdmission GTest::gtest_main)
+target_compile_options(laplace_world_admission_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_world_admission_tests PROPERTIES
+    LABELS "implementation;world-admission;closure;receipt")
+
+add_library(laplace_world_admission_lineage_mutant STATIC
+    ../engine/src/world_admission.c)
+target_include_directories(laplace_world_admission_lineage_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_world_admission_lineage_mutant PRIVATE
+    BLAKE3::blake3)
+target_compile_definitions(laplace_world_admission_lineage_mutant PRIVATE
+    LAPLACE_TEST_WORLD_ADMISSION_LINEAGE_BINDING_BYPASS=1)
+target_compile_options(laplace_world_admission_lineage_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_world_admission_lineage_mutation_probe
+    world_admission_tests.cpp)
+target_include_directories(laplace_world_admission_lineage_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_world_admission_lineage_mutation_probe PRIVATE
+    laplace_world_admission_lineage_mutant GTest::gtest_main)
+target_compile_definitions(laplace_world_admission_lineage_mutation_probe PRIVATE
+    LAPLACE_TEST_WORLD_ADMISSION_LINEAGE_BINDING_BYPASS=1)
+target_compile_options(laplace_world_admission_lineage_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME world-admission.mutation-lineage-binding-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_world_admission_lineage_mutation_probe>"
+        "-DFILTER=WorldAdmission.RejectsTestimonyWithoutDurableLineageBinding"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    world-admission.mutation-lineage-binding-detected PROPERTIES
+    LABELS "implementation;world-admission;lineage;mutation")
 
 add_library(laplace_evidence_lineage_independence_mutant STATIC
     ../engine/src/evidence_lineage.c)
@@ -1580,6 +1830,9 @@ set_tests_properties(isa.preflight-atomicity-contract PROPERTIES
 
 add_library(laplace_isa_preflight_mutant STATIC
     ../engine/src/evidence_lineage.c
+    ../engine/src/evidence_testimony.c
+    ../engine/src/source_profile.c
+    ../engine/src/world_admission.c
     ../engine/src/identity.c
     ../engine/src/framework.c
     ../engine/src/highway.c
@@ -1621,6 +1874,9 @@ set_tests_properties(isa.generated-registry-dispatch-contract PROPERTIES
 
 add_library(laplace_isa_registry_mutant STATIC
     ../engine/src/evidence_lineage.c
+    ../engine/src/evidence_testimony.c
+    ../engine/src/source_profile.c
+    ../engine/src/world_admission.c
     ../engine/src/identity.c
     ../engine/src/framework.c
     ../engine/src/highway.c
@@ -1662,6 +1918,9 @@ set_tests_properties(isa.execution-context-binding-contract PROPERTIES
 
 add_library(laplace_isa_context_mutant STATIC
     ../engine/src/evidence_lineage.c
+    ../engine/src/evidence_testimony.c
+    ../engine/src/source_profile.c
+    ../engine/src/world_admission.c
     ../engine/src/identity.c
     ../engine/src/framework.c
     ../engine/src/highway.c
@@ -2009,6 +2268,10 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/composition_contract.sql"
         @ONLY)
     configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/world_admission_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/world_admission_contract.sql"
+        @ONLY)
+    configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/unicode_root_contract.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
         @ONLY)
@@ -2027,6 +2290,14 @@ if(LAPLACE_POSTGRES_ENABLED)
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/evidence_root_replay_mutation.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/evidence_root_replay_mutation.sql"
+        COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/evidence_testimony_replay_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/evidence_testimony_replay_mutation.sql"
+        COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/source_profile_replay_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_profile_replay_mutation.sql"
         COPYONLY)
     foreach(composition_mutation_sql
         composition_presence_order_mutation.sql
@@ -2060,6 +2331,12 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/unicode_access_epoch_mutation.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_access_epoch_mutation.sql"
         COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/source_admission_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_contract.sql")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/iso_639_source_admission_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/iso_639_source_admission_contract.sql")
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
@@ -2067,6 +2344,15 @@ if(LAPLACE_POSTGRES_ENABLED)
         Laplace::Isa
         Laplace::Persistence)
     target_compile_options(laplace_postgres_native_receipt_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+    add_executable(laplace_postgres_iso_639_profile_probe
+        postgres/iso_639_profile_probe.cpp)
+    target_include_directories(laplace_postgres_iso_639_profile_probe PRIVATE
+        "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(laplace_postgres_iso_639_profile_probe PRIVATE
+        Laplace::TabularSource)
+    target_compile_options(laplace_postgres_iso_639_profile_probe PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 
     find_library(LAPLACE_POSTGRES_CLIENT_LIBRARY NAMES pq REQUIRED)
@@ -2126,6 +2412,23 @@ if(LAPLACE_POSTGRES_ENABLED)
         LABELS "implementation;postgresql;composition;presence;persistence;receipt"
         RUN_SERIAL TRUE)
 
+    add_test(
+        NAME postgres.world-admission-whole-route-contract
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            contract
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/world_admission_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(postgres.world-admission-whole-route-contract PROPERTIES
+        LABELS "implementation;postgresql;world-admission;composition;evidence;testimony;receipt;cohesion"
+        RUN_SERIAL TRUE)
+
     set(composition_measurement_receipt
         "${CMAKE_BINARY_DIR}/receipts/composition-whole-boundary.json")
     add_test(
@@ -2177,6 +2480,50 @@ if(LAPLACE_POSTGRES_ENABLED)
             "${laplace_sanitizer_preload}")
     set_tests_properties(postgres.unicode-root-persistence-contract PROPERTIES
         LABELS "implementation;postgresql;spi;unicode;root;persistence;perfcache;receipt"
+        RUN_SERIAL TRUE
+        SKIP_RETURN_CODE 77
+        TIMEOUT 1800)
+
+    add_test(
+        NAME postgres.source-admission-whole-route-contract
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
+            "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            source-admission
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(postgres.source-admission-whole-route-contract PROPERTIES
+        LABELS "implementation;postgresql;unicode;source-profile;grammar;composition;evidence;testimony;world-admission;replay;rollback;receipt;cohesion"
+        RUN_SERIAL TRUE
+        SKIP_RETURN_CODE 77
+        TIMEOUT 1800)
+
+    add_test(
+        NAME postgres.iso-639-source-admission-whole-route-contract
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
+            "LAPLACE_ISO_639_SOURCE_ROOT=/vault/Data/ISO639"
+            "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            iso-639-admission
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_iso_639_profile_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/iso_639_source_admission_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.iso-639-source-admission-whole-route-contract PROPERTIES
+        LABELS "implementation;postgresql;unicode;source-profile;iso-639;grammar;composition;evidence;testimony;world-admission;replay;rollback;receipt;cohesion"
         RUN_SERIAL TRUE
         SKIP_RETURN_CODE 77
         TIMEOUT 1800)
@@ -2239,6 +2586,50 @@ if(LAPLACE_POSTGRES_ENABLED)
         LABELS "postgresql;evidence;lineage;dependence;receipt;mutation"
         RUN_SERIAL TRUE)
 
+    add_test(
+        NAME postgres.mutation-evidence-testimony-replay-conflict-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_evidence_testimony_replay_mutant>"
+            "-DMUTANT_NAME=postgres.mutation-evidence-testimony-replay-conflict-detected"
+            "-DEXPECTED_PATTERN=evidence testimony replay mutant accepted conflicting durable testimony"
+            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/evidence_testimony_replay_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_mutation_failure.cmake")
+    set_tests_properties(
+        postgres.mutation-evidence-testimony-replay-conflict-detected PROPERTIES
+        LABELS "postgresql;evidence;testimony;receipt;mutation"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.mutation-source-profile-replay-conflict-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_source_profile_replay_mutant>"
+            "-DMUTANT_NAME=postgres.mutation-source-profile-replay-conflict-detected"
+            "-DEXPECTED_PATTERN=source-profile replay mutant accepted conflicting durable manifest"
+            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/source_profile_replay_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_mutation_failure.cmake")
+    set_tests_properties(
+        postgres.mutation-source-profile-replay-conflict-detected PROPERTIES
+        LABELS "postgresql;admission;source-profile;receipt;mutation"
+        RUN_SERIAL TRUE)
+
     function(laplace_add_postgresql_composition_mutation
         test_name mutant_target sql_file expected_pattern)
         add_test(
@@ -2287,7 +2678,7 @@ if(LAPLACE_POSTGRES_ENABLED)
         postgres.mutation-composition-presence-semantic-drift-detected
         laplace_pg_composition_presence_semantic_drift_mutant
         composition_presence_semantic_drift_mutation.sql
-        "semantic-drift composition-presence mutant accepted a changed radius")
+        "Laplace composition execution receipt conflicts with durable state")
     laplace_add_postgresql_composition_mutation(
         postgres.mutation-composition-replay-receipt-collision-detected
         laplace_pg_composition_replay_receipt_mutant

@@ -7,6 +7,7 @@ on:
       - contracts/product-activation-gateway.json
       - contracts/highway-product-activation.json
       - contracts/highway.json
+      - contracts/history/highway-v1.json
       - tools/delivery/**
       - tools/postgresql/highwayctl.py
       - postgres/extension/src/highway_registry_pg.c

@@ -1,0 +1,58 @@
+{
+  "schema": "laplace.highway-registry-contract/v1",
+  "version": 1,
+  "coordinate": {
+    "domain": "laplace-highway-coordinate-v1",
+    "fingerprint_domain": "laplace-highway-coordinate-fingerprint-v1",
+    "digest": "BLAKE3-256",
+    "coordinate_bytes": 16,
+    "fingerprint_bytes": 32,
+    "zero_reserved": true,
+    "encoding": "kind-u32le-four-id128-version-u64le",
+    "scope_id_bytes": 16,
+    "scope_fields": [
+      "kind",
+      "authority",
+      "release",
+      "namespace",
+      "local_identifier",
+      "version"
+    ]
+  },
+  "kinds": [
+    {"id": 1, "name": "grammar-symbol", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 2, "name": "ast-role", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 3, "name": "language", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 4, "name": "script", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 5, "name": "authority", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 6, "name": "release", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 7, "name": "external-reference", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 8, "name": "relation", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 9, "name": "modality", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 10, "name": "representation", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 11, "name": "recipe", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 12, "name": "model", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 13, "name": "trust-class", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 14, "name": "operation", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 15, "name": "firmware", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 16, "name": "effect", "introduced": 1, "retired": 0, "aliases": []}
+  ],
+  "dispositions": [
+    {"id": 1, "name": "present"},
+    {"id": 2, "name": "retired"},
+    {"id": 3, "name": "absent"},
+    {"id": 4, "name": "unknown"},
+    {"id": 5, "name": "unsupported"},
+    {"id": 6, "name": "unresolved"},
+    {"id": 7, "name": "malformed"},
+    {"id": 8, "name": "collision"}
+  ],
+  "mirrors": ["native", "postgresql", "sql", "csharp", "documentation", "diagnostics", "perfcache"],
+  "append_only": {
+    "ids_never_reused": true,
+    "entries_never_removed": true,
+    "names_never_reminted": true,
+    "retirement_preserves_history": true,
+    "aliases_are_versioned": true
+  }
+}

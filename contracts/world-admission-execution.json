@@ -1,0 +1,33 @@
+{
+  "schema": "laplace.world-admission-execution-contract/v1",
+  "version": 1,
+  "identity": {
+    "digest": "BLAKE3-256",
+    "admission_domain": "laplace-world-admission-v1",
+    "readback_domain": "laplace-postgresql-world-admission-readback-v1",
+    "input_domain": "laplace-world-admission-input-v1",
+    "output_domain": "laplace-world-admission-output-v1",
+    "receipt_domain": "laplace-world-admission-receipt-v1"
+  },
+  "required_component_receipts": [
+    "source-profile",
+    "recipe",
+    "composition-working-set",
+    "composition-presence",
+    "composition-producer",
+    "composition-stream",
+    "evidence-lineage",
+    "evidence-testimony"
+  ],
+  "closure": {
+    "occurrences": "profile occurrence count equals the composition logical-occurrence count",
+    "claims": "profile claim count equals the testimony count",
+    "profile_binding": "every testimony is bound to the admitted source profile",
+    "recipe_binding": "every testimony is bound to the admitted recipe receipt",
+    "lineage_binding": "every testimony names a durably present evidence-lineage node",
+    "subjects": "closed subject count equals the source-profile closure subject count",
+    "readback": "one nonzero fingerprint binds the declared reconstruction and reference-reachability readback"
+  },
+  "batch_rule": "strictly increasing admission identity under one exact selected boundary",
+  "flags": {"none": 0}
+}

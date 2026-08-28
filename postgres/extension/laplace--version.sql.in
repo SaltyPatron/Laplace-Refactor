@@ -118,6 +118,204 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.evidence_lineage_result AS (
     root_relation_count numeric(20, 0)
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.evidence_testimony_record AS (
+    testimony_id bytea,
+    evidence_node_id bytea,
+    source_profile_id bytea,
+    recipe_receipt_id bytea,
+    trust_input_id bytea,
+    outcome_detail_id bytea,
+    uncertainty_numerator numeric(20, 0),
+    uncertainty_denominator numeric(20, 0),
+    sample_count numeric(20, 0),
+    source_type integer,
+    outcome_type integer,
+    disposition integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.evidence_testimony_result AS (
+    testimony_ids bytea[],
+    testimony_receipt_id bytea,
+    source_profile_id bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    isa_receipt_id bytea,
+    testimony_count numeric(20, 0),
+    sample_count numeric(20, 0),
+    uncertain_count numeric(20, 0),
+    negative_disposition_count numeric(20, 0)
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.source_profile_manifest AS (
+    profile_id bytea,
+    coordinate_kind integer,
+    coordinate_authority bytea,
+    coordinate_release bytea,
+    coordinate_namespace bytea,
+    coordinate_local_identifier bytea,
+    coordinate_version numeric(20, 0),
+    authority_release_fingerprint bytea,
+    license_fingerprint bytea,
+    artifact_graph_fingerprint bytea,
+    syntax_authority_fingerprint bytea,
+    recipe_program_fingerprint bytea,
+    universal_ast_mapping_fingerprint bytea,
+    highway_references_fingerprint bytea,
+    epistemic_witnessing_fingerprint bytea,
+    denominator_declaration_fingerprint bytea,
+    conformance_fingerprint bytea,
+    completion_law_fingerprint bytea,
+    selected_boundary_fingerprint bytea,
+    byte_count numeric(20, 0),
+    container_count numeric(20, 0),
+    member_count numeric(20, 0),
+    file_count numeric(20, 0),
+    record_count numeric(20, 0),
+    field_count numeric(20, 0),
+    syntax_node_count numeric(20, 0),
+    span_count numeric(20, 0),
+    edge_count numeric(20, 0),
+    reference_count numeric(20, 0),
+    occurrence_count numeric(20, 0),
+    claim_count numeric(20, 0),
+    mapping_count numeric(20, 0),
+    error_count numeric(20, 0),
+    unknown_count numeric(20, 0),
+    transformation_count numeric(20, 0),
+    output_count numeric(20, 0),
+    closure_subject_count numeric(20, 0),
+    accepted_count numeric(20, 0),
+    rejected_count numeric(20, 0),
+    duplicate_count numeric(20, 0),
+    reused_count numeric(20, 0),
+    transformed_count numeric(20, 0),
+    lossy_count numeric(20, 0),
+    unsupported_count numeric(20, 0),
+    malformed_count numeric(20, 0),
+    unresolved_count numeric(20, 0),
+    persisted_count numeric(20, 0),
+    derived_count numeric(20, 0),
+    not_applicable_mask numeric(20, 0),
+    reconstruction_class integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.source_profile_result AS (
+    profile_ids bytea[],
+    source_profile_receipt_id bytea,
+    selected_boundary_fingerprint bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    isa_receipt_id bytea,
+    profile_count numeric(20, 0),
+    closure_subject_count numeric(20, 0),
+    persisted_count numeric(20, 0),
+    negative_count numeric(20, 0),
+    exact_reconstruction_count numeric(20, 0),
+    semantic_reconstruction_count numeric(20, 0),
+    no_reconstruction_count numeric(20, 0)
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_artifact AS (
+    artifact_id bytea,
+    parent_artifact_id bytea,
+    expected_sha256 bytea,
+    content bytea,
+    name bytea,
+    expected_record_count numeric(20, 0),
+    expected_field_count numeric(20, 0),
+    reference_column_mask numeric(20, 0),
+    mode integer,
+    delimiter integer,
+    line_terminator integer,
+    expected_column_count integer,
+    outcome_type integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_admission_result AS (
+    profile_id bytea,
+    source_profile_receipt_id bytea,
+    source_profile_isa_receipt_id bytea,
+    source_fingerprint bytea,
+    reconstruction_fingerprint bytea,
+    unicode_root_receipt_id bytea,
+    composition_working_set_receipt_id bytea,
+    composition_presence_receipt_id bytea,
+    composition_producer_receipt_id bytea,
+    composition_stream_receipt_id bytea,
+    evidence_lineage_receipt_id bytea,
+    evidence_lineage_isa_receipt_id bytea,
+    evidence_testimony_receipt_id bytea,
+    evidence_testimony_isa_receipt_id bytea,
+    world_admission_id bytea,
+    world_admission_receipt_id bytea,
+    world_admission_isa_receipt_id bytea,
+    root_entity_id bytea,
+    root_physicality_id bytea,
+    artifact_count numeric(20, 0),
+    claim_count numeric(20, 0),
+    request_count numeric(20, 0),
+    occurrence_count numeric(20, 0),
+    logical_occurrence_count numeric(20, 0),
+    evidence_node_count numeric(20, 0),
+    testimony_count numeric(20, 0),
+    durable_stream_record_count numeric(20, 0),
+    status integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.world_admission_request AS (
+    source_profile_id bytea,
+    source_profile_receipt_id bytea,
+    recipe_receipt_id bytea,
+    composition_working_set_receipt_id bytea,
+    evidence_lineage_receipt_id bytea,
+    evidence_testimony_receipt_id bytea
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.world_admission_record AS (
+    admission_id bytea,
+    source_profile_id bytea,
+    selected_boundary_fingerprint bytea,
+    source_profile_receipt_id bytea,
+    recipe_receipt_id bytea,
+    composition_working_set_receipt_id bytea,
+    composition_presence_receipt_id bytea,
+    composition_producer_receipt_id bytea,
+    composition_stream_receipt_id bytea,
+    evidence_lineage_receipt_id bytea,
+    evidence_testimony_receipt_id bytea,
+    readback_fingerprint bytea,
+    profile_occurrence_count numeric(20, 0),
+    composition_occurrence_count numeric(20, 0),
+    profile_claim_count numeric(20, 0),
+    evidence_node_count numeric(20, 0),
+    testimony_count numeric(20, 0),
+    profile_bound_testimony_count numeric(20, 0),
+    recipe_bound_testimony_count numeric(20, 0),
+    lineage_bound_testimony_count numeric(20, 0),
+    closure_subject_count numeric(20, 0),
+    closed_subject_count numeric(20, 0),
+    reconstruction_class integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.world_admission_result AS (
+    admission_ids bytea[],
+    world_admission_receipt_id bytea,
+    selected_boundary_fingerprint bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    isa_receipt_id bytea,
+    admission_count numeric(20, 0),
+    occurrence_count numeric(20, 0),
+    claim_count numeric(20, 0),
+    evidence_node_count numeric(20, 0),
+    testimony_count numeric(20, 0),
+    closure_subject_count numeric(20, 0)
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_known_entity_record AS (
     entity_id bytea,
     identity_witness bytea,
@@ -343,6 +541,171 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_lineage_receipt (
     recorded_by name NOT NULL DEFAULT current_user
 );
 
+CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_lineage_receipt_member (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_lineage_receipt(receipt_id),
+    node_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_node(node_id),
+    member_ordinal numeric(20, 0) NOT NULL CHECK (member_ordinal > 0),
+    PRIMARY KEY (receipt_id, node_id),
+    UNIQUE (receipt_id, member_ordinal)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony (
+    testimony_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    evidence_node_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_node(node_id),
+    source_profile_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    recipe_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    trust_input_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    outcome_detail_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    uncertainty_numerator numeric(20, 0) NOT NULL
+        CHECK (uncertainty_numerator >= 0),
+    uncertainty_denominator numeric(20, 0) NOT NULL
+        CHECK (uncertainty_denominator > 0),
+    sample_count numeric(20, 0) NOT NULL CHECK (sample_count > 0),
+    source_type integer NOT NULL CHECK (source_type BETWEEN 1 AND 8),
+    outcome_type integer NOT NULL CHECK (outcome_type BETWEEN 1 AND 9),
+    disposition integer NOT NULL CHECK (disposition BETWEEN 1 AND 10),
+    flags integer NOT NULL CHECK (flags = 0),
+    CHECK (uncertainty_numerator <= uncertainty_denominator)
+);
+
+CREATE INDEX evidence_testimony_profile_idx
+    ON @LAPLACE_PG_SCHEMA@.evidence_testimony
+    (source_profile_id, evidence_node_id, testimony_id);
+
+CREATE INDEX evidence_testimony_outcome_idx
+    ON @LAPLACE_PG_SCHEMA@.evidence_testimony
+    (outcome_type, disposition, evidence_node_id, testimony_id);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    source_profile_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    input_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    output_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    isa_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.execution_receipt(receipt_id),
+    testimony_count numeric(20, 0) NOT NULL CHECK (testimony_count > 0),
+    sample_count numeric(20, 0) NOT NULL CHECK (sample_count > 0),
+    uncertain_count numeric(20, 0) NOT NULL
+        CHECK (uncertain_count >= 0 AND uncertain_count <= testimony_count),
+    negative_disposition_count numeric(20, 0) NOT NULL
+        CHECK (negative_disposition_count >= 0 AND
+               negative_disposition_count <= testimony_count),
+    version integer NOT NULL CHECK (version = 1),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt_member (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt(receipt_id),
+    testimony_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_testimony(testimony_id),
+    member_ordinal numeric(20, 0) NOT NULL CHECK (member_ordinal > 0),
+    PRIMARY KEY (receipt_id, testimony_id),
+    UNIQUE (receipt_id, member_ordinal)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.source_profile (
+    profile_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    coordinate_kind integer NOT NULL CHECK (coordinate_kind = 17),
+    coordinate_authority @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    coordinate_release @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    coordinate_namespace @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    coordinate_local_identifier @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    coordinate_version numeric(20, 0) NOT NULL CHECK (coordinate_version > 0),
+    authority_release_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    license_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    artifact_graph_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    syntax_authority_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    recipe_program_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    universal_ast_mapping_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    highway_references_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    epistemic_witnessing_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    denominator_declaration_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    conformance_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    completion_law_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    selected_boundary_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    byte_count numeric(20, 0) NOT NULL CHECK (byte_count > 0),
+    container_count numeric(20, 0) NOT NULL CHECK (container_count >= 0),
+    member_count numeric(20, 0) NOT NULL CHECK (member_count >= 0),
+    file_count numeric(20, 0) NOT NULL CHECK (file_count > 0),
+    record_count numeric(20, 0) NOT NULL CHECK (record_count > 0),
+    field_count numeric(20, 0) NOT NULL CHECK (field_count > 0),
+    syntax_node_count numeric(20, 0) NOT NULL CHECK (syntax_node_count > 0),
+    span_count numeric(20, 0) NOT NULL CHECK (span_count > 0),
+    edge_count numeric(20, 0) NOT NULL CHECK (edge_count >= 0),
+    reference_count numeric(20, 0) NOT NULL CHECK (reference_count >= 0),
+    occurrence_count numeric(20, 0) NOT NULL CHECK (occurrence_count > 0),
+    claim_count numeric(20, 0) NOT NULL CHECK (claim_count >= 0),
+    mapping_count numeric(20, 0) NOT NULL CHECK (mapping_count >= 0),
+    error_count numeric(20, 0) NOT NULL CHECK (error_count >= 0),
+    unknown_count numeric(20, 0) NOT NULL CHECK (unknown_count >= 0),
+    transformation_count numeric(20, 0) NOT NULL CHECK (transformation_count >= 0),
+    output_count numeric(20, 0) NOT NULL CHECK (output_count > 0),
+    closure_subject_count numeric(20, 0) NOT NULL CHECK (closure_subject_count > 0),
+    accepted_count numeric(20, 0) NOT NULL CHECK (accepted_count >= 0),
+    rejected_count numeric(20, 0) NOT NULL CHECK (rejected_count >= 0),
+    duplicate_count numeric(20, 0) NOT NULL CHECK (duplicate_count >= 0),
+    reused_count numeric(20, 0) NOT NULL CHECK (reused_count >= 0),
+    transformed_count numeric(20, 0) NOT NULL CHECK (transformed_count >= 0),
+    lossy_count numeric(20, 0) NOT NULL CHECK (lossy_count >= 0),
+    unsupported_count numeric(20, 0) NOT NULL CHECK (unsupported_count >= 0),
+    malformed_count numeric(20, 0) NOT NULL CHECK (malformed_count >= 0),
+    unresolved_count numeric(20, 0) NOT NULL CHECK (unresolved_count >= 0),
+    persisted_count numeric(20, 0) NOT NULL CHECK (persisted_count >= 0),
+    derived_count numeric(20, 0) NOT NULL CHECK (derived_count >= 0),
+    not_applicable_mask numeric(20, 0) NOT NULL
+        CHECK (not_applicable_mask BETWEEN 0 AND 131071),
+    reconstruction_class integer NOT NULL CHECK (reconstruction_class BETWEEN 1 AND 3),
+    flags integer NOT NULL CHECK (flags = 0),
+    CHECK (closure_subject_count = accepted_count + rejected_count + duplicate_count +
+        reused_count + transformed_count + lossy_count + unsupported_count +
+        malformed_count + unresolved_count + persisted_count + derived_count),
+    CHECK (reconstruction_class <> 1 OR lossy_count = 0)
+);
+
+CREATE INDEX source_profile_boundary_idx
+    ON @LAPLACE_PG_SCHEMA@.source_profile
+    (selected_boundary_fingerprint, profile_id);
+CREATE INDEX source_profile_coordinate_idx
+    ON @LAPLACE_PG_SCHEMA@.source_profile
+    (coordinate_authority, coordinate_release, coordinate_namespace,
+     coordinate_local_identifier, coordinate_version, profile_id);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    selected_boundary_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    input_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    output_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    isa_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.execution_receipt(receipt_id),
+    profile_count numeric(20, 0) NOT NULL CHECK (profile_count > 0),
+    closure_subject_count numeric(20, 0) NOT NULL CHECK (closure_subject_count > 0),
+    persisted_count numeric(20, 0) NOT NULL CHECK (persisted_count >= 0),
+    negative_count numeric(20, 0) NOT NULL CHECK (negative_count >= 0),
+    exact_reconstruction_count numeric(20, 0) NOT NULL CHECK (exact_reconstruction_count >= 0),
+    semantic_reconstruction_count numeric(20, 0) NOT NULL CHECK (semantic_reconstruction_count >= 0),
+    no_reconstruction_count numeric(20, 0) NOT NULL CHECK (no_reconstruction_count >= 0),
+    version integer NOT NULL CHECK (version = 1),
+    CHECK (profile_count = exact_reconstruction_count +
+        semantic_reconstruction_count + no_reconstruction_count),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt_member (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.source_profile_receipt(receipt_id),
+    profile_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.source_profile(profile_id),
+    member_ordinal numeric(20, 0) NOT NULL CHECK (member_ordinal > 0),
+    PRIMARY KEY (receipt_id, profile_id),
+    UNIQUE (receipt_id, member_ordinal)
+);
+
 CREATE TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt (
     receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
     context_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
@@ -368,6 +731,107 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt (
         plan_count = @LAPLACE_PG_PERSISTENCE_PLAN_COUNT@),
     recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.composition_execution_receipt (
+    working_set_receipt @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    presence_semantic_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    presence_execution_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    presence_candidate_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    presence_disposition_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    presence_provider_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    presence_provider_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    producer_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    staged_stream_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt(receipt_id),
+    stream_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    sink_artifacts_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    occurrence_count numeric(20, 0) NOT NULL CHECK (occurrence_count > 0),
+    logical_occurrence_count numeric(20, 0) NOT NULL CHECK (logical_occurrence_count > 0),
+    stream_record_count numeric(20, 0) NOT NULL CHECK (stream_record_count > 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.composition_execution_occurrence_member (
+    working_set_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.composition_execution_receipt(working_set_receipt),
+    occurrence_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.observed_occurrence(occurrence_id),
+    member_ordinal numeric(20, 0) NOT NULL CHECK (member_ordinal > 0),
+    PRIMARY KEY (working_set_receipt, occurrence_id),
+    UNIQUE (working_set_receipt, member_ordinal)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.world_admission (
+    admission_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    source_profile_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.source_profile(profile_id),
+    selected_boundary_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    source_profile_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.source_profile_receipt(receipt_id),
+    recipe_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    composition_working_set_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.composition_execution_receipt(working_set_receipt),
+    composition_presence_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    composition_producer_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    composition_stream_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt(receipt_id),
+    evidence_lineage_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_lineage_receipt(receipt_id),
+    evidence_testimony_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt(receipt_id),
+    readback_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    profile_occurrence_count numeric(20, 0) NOT NULL CHECK (profile_occurrence_count > 0),
+    composition_occurrence_count numeric(20, 0) NOT NULL CHECK (composition_occurrence_count > 0),
+    profile_claim_count numeric(20, 0) NOT NULL CHECK (profile_claim_count >= 0),
+    evidence_node_count numeric(20, 0) NOT NULL CHECK (evidence_node_count >= 0),
+    testimony_count numeric(20, 0) NOT NULL CHECK (testimony_count >= 0),
+    profile_bound_testimony_count numeric(20, 0) NOT NULL CHECK (profile_bound_testimony_count >= 0),
+    recipe_bound_testimony_count numeric(20, 0) NOT NULL CHECK (recipe_bound_testimony_count >= 0),
+    lineage_bound_testimony_count numeric(20, 0) NOT NULL CHECK (lineage_bound_testimony_count >= 0),
+    closure_subject_count numeric(20, 0) NOT NULL CHECK (closure_subject_count > 0),
+    closed_subject_count numeric(20, 0) NOT NULL CHECK (closed_subject_count > 0),
+    reconstruction_class integer NOT NULL CHECK (reconstruction_class BETWEEN 1 AND 3),
+    flags integer NOT NULL CHECK (flags = 0),
+    CHECK (profile_occurrence_count = composition_occurrence_count),
+    CHECK (profile_claim_count = testimony_count),
+    CHECK (profile_bound_testimony_count = testimony_count),
+    CHECK (recipe_bound_testimony_count = testimony_count),
+    CHECK (lineage_bound_testimony_count = testimony_count),
+    CHECK (closure_subject_count = closed_subject_count)
+);
+
+CREATE INDEX world_admission_boundary_idx
+    ON @LAPLACE_PG_SCHEMA@.world_admission
+    (selected_boundary_fingerprint, source_profile_id, admission_id);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.world_admission_receipt (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    selected_boundary_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    input_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    output_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    isa_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.execution_receipt(receipt_id),
+    admission_count numeric(20, 0) NOT NULL CHECK (admission_count > 0),
+    occurrence_count numeric(20, 0) NOT NULL CHECK (occurrence_count > 0),
+    claim_count numeric(20, 0) NOT NULL CHECK (claim_count >= 0),
+    evidence_node_count numeric(20, 0) NOT NULL CHECK (evidence_node_count >= 0),
+    testimony_count numeric(20, 0) NOT NULL CHECK (testimony_count >= 0),
+    closure_subject_count numeric(20, 0) NOT NULL CHECK (closure_subject_count > 0),
+    version integer NOT NULL CHECK (version = 1),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.world_admission_receipt_member (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.world_admission_receipt(receipt_id),
+    admission_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.world_admission(admission_id),
+    member_ordinal numeric(20, 0) NOT NULL CHECK (member_ordinal > 0),
+    PRIMARY KEY (receipt_id, admission_id),
+    UNIQUE (receipt_id, member_ordinal)
 );
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_root_generation (
@@ -1008,6 +1472,38 @@ RETURNS @LAPLACE_PG_SCHEMA@.evidence_lineage_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_EVIDENCE_RECORD_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_EVIDENCE_TESTIMONY_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.evidence_testimony_record[])
+RETURNS @LAPLACE_PG_SCHEMA@.evidence_testimony_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_EVIDENCE_TESTIMONY_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.source_profile_manifest[])
+RETURNS @LAPLACE_PG_SCHEMA@.source_profile_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.world_admission_request[])
+RETURNS @LAPLACE_PG_SCHEMA@.world_admission_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_WORLD_ADMISSION_CLOSE_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.source_profile_manifest,
+    bytea,
+    bytea,
+    @LAPLACE_PG_SCHEMA@.tabular_source_artifact[],
+    numeric)
+RETURNS @LAPLACE_PG_SCHEMA@.tabular_source_admission_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_PERSISTENCE_DEPOSIT_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
     bytea,
@@ -1074,7 +1570,24 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_node FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_dependence FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_root_projection FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_lineage_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_lineage_receipt_member FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt_member FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt_member FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.composition_execution_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.composition_execution_occurrence_member FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.world_admission FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.world_admission_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.world_admission_receipt_member FROM PUBLIC;
+REVOKE ALL ON FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.source_profile_manifest,
+    bytea, bytea, @LAPLACE_PG_SCHEMA@.tabular_source_artifact[], numeric)
+    FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_root_generation FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_atom_binding FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_ducet_position FROM PUBLIC;
@@ -1139,6 +1652,21 @@ REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_EVIDENCE_RECORD_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
         @LAPLACE_PG_SCHEMA@.evidence_lineage_record[], numeric)
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_EVIDENCE_TESTIMONY_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.evidence_testimony_record[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.source_profile_manifest[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.world_admission_request[])
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SQL@(

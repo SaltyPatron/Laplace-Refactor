@@ -218,12 +218,19 @@ static void persist_lineage(
     static const char receipt_sql[] =
         "WITH written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt(receipt_id,input_fingerprint,output_fingerprint,isa_receipt_id,input_record_count,node_count,edge_count,root_relation_count,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING RETURNING *) "
         "SELECT EXISTS (SELECT FROM written WHERE receipt_id=$1 AND input_fingerprint=$2 AND output_fingerprint=$3 AND isa_receipt_id=$4 AND input_record_count=$5 AND node_count=$6 AND edge_count=$7 AND root_relation_count=$8 AND version=$9) OR EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt WHERE receipt_id=$1 AND input_fingerprint=$2 AND output_fingerprint=$3 AND isa_receipt_id=$4 AND input_record_count=$5 AND node_count=$6 AND edge_count=$7 AND root_relation_count=$8 AND version=$9)";
+    static const char members_sql[] =
+        "WITH raw AS (SELECT (r).node_id,ordinality FROM unnest($2::" LAPLACE_PG_SCHEMA ".evidence_lineage_record[]) WITH ORDINALITY r WHERE (r).record_kind=1),"
+        "input AS (SELECT $1::bytea AS receipt_id,node_id,row_number() OVER (ORDER BY ordinality)::numeric AS member_ordinal FROM raw),"
+        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member(receipt_id,node_id,member_ordinal) SELECT receipt_id,node_id,member_ordinal FROM input ON CONFLICT DO NOTHING RETURNING *) "
+        "SELECT (SELECT count(*) FROM written)+(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member m JOIN input i ON i.receipt_id=m.receipt_id AND i.node_id=m.node_id AND i.member_ordinal=m.member_ordinal WHERE m.receipt_id=$1)=(SELECT count(*) FROM input) AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member m WHERE m.receipt_id=$1)=(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member m JOIN input i ON i.receipt_id=m.receipt_id AND i.node_id=m.node_id AND i.member_ordinal=m.member_ordinal WHERE m.receipt_id=$1)";
     Oid one_type[1] = {input_array_type};
     Datum one_value[1] = {input_array};
     Oid root_types[5] = {BYTEAARRAYOID, BYTEAARRAYOID, BYTEAARRAYOID, INT8ARRAYOID, INT4ARRAYOID};
     Datum root_values[5];
     Oid receipt_types[9] = {BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, INT8OID, INT8OID, INT8OID, INT8OID, INT4OID};
     Datum receipt_values[9];
+    Oid member_types[2] = {BYTEAOID, input_array_type};
+    Datum member_values[2];
     int result;
     root_values[0] = PointerGetDatum(digest_array(roots, root_count, 0));
     root_values[1] = PointerGetDatum(digest_array(roots, root_count, 1));
@@ -239,6 +246,8 @@ static void persist_lineage(
     receipt_values[6] = Int64GetDatum(laplace_pg_checked_int64(lineage_receipt->edge_count, "edge count"));
     receipt_values[7] = Int64GetDatum(laplace_pg_checked_int64(lineage_receipt->root_relation_count, "root relation count"));
     receipt_values[8] = Int32GetDatum((int32)lineage_receipt->version);
+    member_values[0] = receipt_values[0];
+    member_values[1] = input_array;
     if (SPI_connect() != SPI_OK_CONNECT) {
         ereport(ERROR, (errcode(ERRCODE_CONNECTION_FAILURE), errmsg("Laplace evidence persistence could not connect to SPI")));
     }
@@ -261,6 +270,10 @@ static void persist_lineage(
     result = SPI_execute_with_args(receipt_sql, 9, receipt_types, receipt_values, NULL, false, 0);
     if (result != SPI_OK_SELECT || !query_boolean()) {
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace evidence lineage receipt identity collides with durable state")));
+    }
+    result = SPI_execute_with_args(members_sql, 2, member_types, member_values, NULL, false, 0);
+    if (result != SPI_OK_SELECT || !query_boolean()) {
+        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace evidence lineage receipt membership conflicts with durable state")));
     }
     if (SPI_finish() != SPI_OK_FINISH) {
         ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR), errmsg("Laplace evidence persistence could not close SPI")));

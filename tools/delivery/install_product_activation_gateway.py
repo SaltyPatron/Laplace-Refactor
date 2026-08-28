@@ -35,6 +35,7 @@ SOURCE_MAP = {
     "controllers/unicodectl.py": "tools/postgresql/unicodectl.py",
     "contracts/highway-product-activation.json": "contracts/highway-product-activation.json",
     "contracts/highway.json": "contracts/highway.json",
+    "contracts/history/highway-v1.json": "contracts/history/highway-v1.json",
     "contracts/postgresql-cluster.json": "contracts/postgresql-cluster.json",
     "contracts/product-activation-gateway.json": "contracts/product-activation-gateway.json",
     "contracts/unicode-postgresql.json": "contracts/unicode-postgresql.json",

@@ -1,12 +1,14 @@
 include_guard(GLOBAL)
 
-function(laplace_configure_highway_contract contract_path generator_path output_root)
+function(laplace_configure_highway_contract
+    contract_path previous_contract_path generator_path output_root)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        "${contract_path}" "${generator_path}")
+        "${contract_path}" "${previous_contract_path}" "${generator_path}")
     execute_process(
         COMMAND "${Python3_EXECUTABLE}" "${generator_path}"
             --contract "${contract_path}"
+            --previous-contract "${previous_contract_path}"
             --output-root "${output_root}"
         RESULT_VARIABLE generator_status
         OUTPUT_VARIABLE generator_stdout

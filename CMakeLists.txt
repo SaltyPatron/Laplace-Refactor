@@ -101,6 +101,27 @@ include(cmake/LaplaceEvidenceLineageContract.cmake)
 laplace_configure_evidence_lineage_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/evidence-lineage.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/evidence_lineage.h")
+include(cmake/LaplaceEvidenceTestimonyContract.cmake)
+laplace_configure_evidence_testimony_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/evidence-testimony.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/evidence_testimony.h")
+include(cmake/LaplaceSourceProfileContract.cmake)
+laplace_configure_source_profile_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/source-profile-execution.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/source_profile.h")
+include(cmake/LaplaceWorldAdmissionContract.cmake)
+laplace_configure_world_admission_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/world-admission-execution.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/world_admission.h")
+include(cmake/LaplaceTabularSourceContract.cmake)
+laplace_configure_tabular_source_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/tabular-source.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/tabular_source.h")
+include(cmake/LaplaceTabularSourceProfile.cmake)
+laplace_compile_tabular_source_profile(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/sources/iso-639-3-20260415.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-tabular-source-profile.py"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/source/iso_639_3_20260415_profile.h")
 
 include(cmake/LaplaceCompositionContract.cmake)
 laplace_configure_composition_contract(
@@ -110,6 +131,7 @@ laplace_configure_composition_contract(
 include(cmake/LaplaceHighwayContract.cmake)
 laplace_configure_highway_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/highway.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/history/highway-v1.json"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-highway.py"
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
 

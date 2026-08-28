@@ -1,15 +1,20 @@
 #include "laplace/composition.h"
 #include "laplace/evidence_lineage.h"
+#include "laplace/evidence_testimony.h"
 #include "laplace/isa.h"
 #include "laplace/highway.h"
 #include "laplace/persistence.h"
+#include "laplace/source_profile.h"
+#include "laplace/tabular_source.h"
 #include "laplace/trajectory.h"
+#include "laplace/world_admission.h"
 #include "../context_fixture.h"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -34,6 +39,15 @@ laplace_id128 ParseId(std::string_view hex) {
             (HexNibble(hex[index * 2]) << 4) | HexNibble(hex[index * 2 + 1]));
     }
     return id;
+}
+
+laplace_digest256 ParseDigest(std::string_view hex) {
+    laplace_digest256 digest{};
+    for (std::size_t index = 0; index < sizeof(digest.bytes); ++index) {
+        digest.bytes[index] = static_cast<std::uint8_t>(
+            (HexNibble(hex[index * 2]) << 4) | HexNibble(hex[index * 2 + 1]));
+    }
+    return digest;
 }
 
 template <typename Bytes>
@@ -158,6 +172,53 @@ bool AppendPersistenceFrame(
 }  // namespace
 
 int main() {
+    const std::array<std::uint8_t, 5> source_archive{{0u, 1u, 255u, 'P', 'K'}};
+    const std::string source_text{"Id\tName\neng\tEnglish\njpn\t日本語\n"};
+    std::array<laplace_tabular_artifact, 2> source_artifacts{};
+    source_artifacts[0].artifact_id = ParseDigest(
+        "3caaab6abbbcc0bc44f88ef7b56033746fa2f37a94067e43df296518eba3cef5");
+    std::memcpy(
+        source_artifacts[0].expected_sha256,
+        source_artifacts[0].artifact_id.bytes,
+        sizeof(source_artifacts[0].expected_sha256));
+    source_artifacts[0].bytes = source_archive.data();
+    source_artifacts[0].name = "release.zip";
+    source_artifacts[0].byte_count = source_archive.size();
+    source_artifacts[0].name_byte_count = std::strlen(source_artifacts[0].name);
+    source_artifacts[0].mode = LAPLACE_TABULAR_ARTIFACT_RAW;
+    source_artifacts[0].flags = LAPLACE_TABULAR_ARTIFACT_CONTAINER;
+    source_artifacts[1].artifact_id = ParseDigest(
+        "0f572261737480d63a5b9d2298e95c0ad5b6964062efc263f0a5707c21c7e01c");
+    source_artifacts[1].parent_artifact_id = source_artifacts[0].artifact_id;
+    std::memcpy(
+        source_artifacts[1].expected_sha256,
+        source_artifacts[1].artifact_id.bytes,
+        sizeof(source_artifacts[1].expected_sha256));
+    source_artifacts[1].bytes = reinterpret_cast<const std::uint8_t*>(
+        source_text.data());
+    source_artifacts[1].name = "tables/languages.tab";
+    source_artifacts[1].byte_count = source_text.size();
+    source_artifacts[1].name_byte_count = std::strlen(source_artifacts[1].name);
+    source_artifacts[1].expected_record_count = 3u;
+    source_artifacts[1].expected_field_count = 6u;
+    source_artifacts[1].reference_column_mask = 1u;
+    source_artifacts[1].mode = LAPLACE_TABULAR_ARTIFACT_DELIMITED;
+    source_artifacts[1].delimiter = '\t';
+    source_artifacts[1].line_terminator = LAPLACE_TABULAR_TERMINATOR_LF;
+    source_artifacts[1].expected_column_count = 2u;
+    source_artifacts[1].outcome_type = LAPLACE_EVIDENCE_OUTCOME_MAPPING;
+    source_artifacts[1].flags = LAPLACE_TABULAR_ARTIFACT_MEMBER |
+        LAPLACE_TABULAR_ARTIFACT_EXACT_DISTRIBUTION;
+    laplace_digest256 source_artifact_graph{};
+    if (laplace_tabular_artifact_graph_identify(
+            source_artifacts.data(), source_artifacts.size(),
+            &source_artifact_graph) != LAPLACE_TABULAR_SOURCE_OK) {
+        return 48;
+    }
+    PrintDigest("TABULAR_ARTIFACT_GRAPH", source_artifact_graph);
+    PrintDigest("TABULAR_ARCHIVE_ID", source_artifacts[0].artifact_id);
+    PrintDigest("TABULAR_TEXT_ID", source_artifacts[1].artifact_id);
+
     std::array<std::uint32_t, 3> positions{{50u, 53u, 53u}};
     std::array<laplace_id128, 3> identities{};
     std::array<laplace_isa_value_view, 2> identity_values{{
@@ -531,6 +592,243 @@ int main() {
     PrintDigest("EVIDENCE_LINEAGE_OUTPUT", evidence_lineage_receipt.output_fingerprint);
     PrintDigest("EVIDENCE_ISA_RECEIPT", evidence_isa_receipt.receipt_id);
 
+    laplace_digest256 testimony_profile{};
+    laplace_digest256 testimony_recipe{};
+    laplace_digest256 testimony_trust{};
+    Fill(&testimony_profile, 0x71u);
+    Fill(&testimony_recipe, 0x72u);
+    Fill(&testimony_trust, 0x73u);
+    auto make_testimony = [&](const laplace_digest256& node,
+                              std::uint8_t outcome_seed,
+                              std::uint32_t source_type,
+                              std::uint32_t outcome_type,
+                              std::uint32_t disposition,
+                              std::uint64_t numerator,
+                              std::uint64_t denominator,
+                              std::uint64_t samples) {
+        laplace_evidence_testimony_record record{};
+        record.evidence_node_id = node;
+        record.source_profile_id = testimony_profile;
+        record.recipe_receipt_id = testimony_recipe;
+        record.trust_input_id = testimony_trust;
+        Fill(&record.outcome_detail_id, outcome_seed);
+        record.uncertainty_numerator = numerator;
+        record.uncertainty_denominator = denominator;
+        record.sample_count = samples;
+        record.source_type = source_type;
+        record.outcome_type = outcome_type;
+        record.disposition = disposition;
+        record.flags = LAPLACE_EVIDENCE_TESTIMONY_FLAGS_NONE;
+        if (laplace_evidence_testimony_identify(
+                &record, &record.testimony_id) !=
+            LAPLACE_EVIDENCE_TESTIMONY_OK) {
+            std::exit(38);
+        }
+        return record;
+    };
+    std::array<laplace_evidence_testimony_record, 3> testimony_records{{
+        make_testimony(
+            evidence_root.node_id, 0x81u,
+            LAPLACE_EVIDENCE_SOURCE_STANDARD,
+            LAPLACE_EVIDENCE_OUTCOME_MAPPING,
+            LAPLACE_EVIDENCE_DISPOSITION_PERSISTED, 0u, 1u, 1u),
+        make_testimony(
+            evidence_copy.node_id, 0x91u,
+            LAPLACE_EVIDENCE_SOURCE_CORPUS,
+            LAPLACE_EVIDENCE_OUTCOME_ASSERTION,
+            LAPLACE_EVIDENCE_DISPOSITION_UNSUPPORTED, 1u, 4u, 10u),
+        make_testimony(
+            evidence_independent.node_id, 0xa1u,
+            LAPLACE_EVIDENCE_SOURCE_DIRECT_OBSERVATION,
+            LAPLACE_EVIDENCE_OUTCOME_MEASUREMENT,
+            LAPLACE_EVIDENCE_DISPOSITION_PERSISTED, 1u, 10u, 2u)}};
+    std::sort(
+        testimony_records.begin(), testimony_records.end(),
+        [](const auto& left, const auto& right) {
+            return std::memcmp(
+                left.testimony_id.bytes, right.testimony_id.bytes,
+                sizeof(left.testimony_id.bytes)) < 0;
+        });
+    laplace_evidence_testimony_receipt testimony_output{};
+    std::array<laplace_isa_value_view, 2> testimony_values{{
+        {testimony_records.data(), testimony_records.size(), testimony_records.size(),
+         static_cast<std::uint32_t>(sizeof(testimony_records[0])),
+         LAPLACE_ISA_VALUE_EVIDENCE_TESTIMONY_RECORD_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {&testimony_output, 0u, 1u,
+         static_cast<std::uint32_t>(sizeof(testimony_output)),
+         LAPLACE_ISA_VALUE_EVIDENCE_TESTIMONY_RECEIPT_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction testimony_instruction{
+        LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_TESTIMONY_BATCH,
+        0u, 1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_EVIDENCE_RECORD_TESTIMONY_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto testimony_program = Program(&testimony_instruction, testimony_values.data());
+    testimony_program.context = &evidence_context;
+    laplace_isa_receipt testimony_isa_receipt{};
+    laplace_isa_error testimony_isa_error{};
+    if (laplace_isa_execute(
+            &testimony_program, &testimony_isa_receipt, &testimony_isa_error) !=
+            LAPLACE_ISA_OK || testimony_values[1].count != 1u) {
+        return 39;
+    }
+    laplace_evidence_testimony_receipt testimony_native_receipt{};
+    laplace_evidence_testimony_error testimony_native_error{};
+    if (laplace_evidence_record_testimony_batch(
+            testimony_records.data(), testimony_records.size(),
+            &testimony_native_receipt, &testimony_native_error) !=
+            LAPLACE_EVIDENCE_TESTIMONY_OK ||
+        std::memcmp(
+            &testimony_output, &testimony_native_receipt,
+            sizeof(testimony_output)) != 0) {
+        return 40;
+    }
+    PrintDigest("TESTIMONY_PROFILE", testimony_profile);
+    PrintDigest("TESTIMONY_RECIPE", testimony_recipe);
+    PrintDigest("TESTIMONY_TRUST", testimony_trust);
+    for (std::size_t index = 0; index < testimony_records.size(); ++index) {
+        const auto prefix = std::string("TESTIMONY_") + std::to_string(index);
+        PrintDigest((prefix + "_ID").c_str(), testimony_records[index].testimony_id);
+        PrintDigest((prefix + "_NODE").c_str(), testimony_records[index].evidence_node_id);
+        PrintDigest((prefix + "_OUTCOME").c_str(), testimony_records[index].outcome_detail_id);
+        std::cout << prefix << "_SOURCE_TYPE=" << std::dec
+                  << testimony_records[index].source_type << '\n';
+        std::cout << prefix << "_OUTCOME_TYPE="
+                  << testimony_records[index].outcome_type << '\n';
+        std::cout << prefix << "_DISPOSITION="
+                  << testimony_records[index].disposition << '\n';
+        std::cout << prefix << "_UNCERTAINTY_NUMERATOR="
+                  << testimony_records[index].uncertainty_numerator << '\n';
+        std::cout << prefix << "_UNCERTAINTY_DENOMINATOR="
+                  << testimony_records[index].uncertainty_denominator << '\n';
+        std::cout << prefix << "_SAMPLE_COUNT="
+                  << testimony_records[index].sample_count << '\n';
+    }
+    PrintDigest("TESTIMONY_RECEIPT", testimony_native_receipt.receipt_id);
+    PrintDigest("TESTIMONY_INPUT", testimony_native_receipt.input_fingerprint);
+    PrintDigest("TESTIMONY_OUTPUT", testimony_native_receipt.output_fingerprint);
+    PrintDigest("TESTIMONY_ISA_RECEIPT", testimony_isa_receipt.receipt_id);
+
+    laplace_digest256 source_profile_boundary{};
+    Repeat(&source_profile_boundary, 0xd0u);
+    auto make_source_profile = [&](std::uint8_t scope_seed,
+                                   std::uint8_t fingerprint_seed) {
+        laplace_source_profile_manifest profile{};
+        profile.coordinate.kind = LAPLACE_HIGHWAY_KIND_SOURCE_PROFILE;
+        profile.coordinate.authority = HighwayId(scope_seed);
+        profile.coordinate.release = HighwayId(
+            static_cast<std::uint8_t>(scope_seed + 0x20u));
+        profile.coordinate.name_space = HighwayId(
+            static_cast<std::uint8_t>(scope_seed + 0x40u));
+        profile.coordinate.local_identifier = HighwayId(
+            static_cast<std::uint8_t>(scope_seed + 0x60u));
+        profile.coordinate.version = 1u;
+        Repeat(&profile.authority_release_fingerprint, fingerprint_seed);
+        Repeat(&profile.license_fingerprint,
+               static_cast<std::uint8_t>(fingerprint_seed + 1u));
+        Repeat(&profile.artifact_graph_fingerprint,
+               static_cast<std::uint8_t>(fingerprint_seed + 2u));
+        Repeat(&profile.syntax_authority_fingerprint,
+               static_cast<std::uint8_t>(fingerprint_seed + 3u));
+        Repeat(&profile.recipe_program_fingerprint,
+               static_cast<std::uint8_t>(fingerprint_seed + 4u));
+        Repeat(&profile.universal_ast_mapping_fingerprint,
+               static_cast<std::uint8_t>(fingerprint_seed + 5u));
+        Repeat(&profile.highway_references_fingerprint,
+               static_cast<std::uint8_t>(fingerprint_seed + 6u));
+        Repeat(&profile.epistemic_witnessing_fingerprint,
+               static_cast<std::uint8_t>(fingerprint_seed + 7u));
+        Repeat(&profile.denominator_declaration_fingerprint,
+               static_cast<std::uint8_t>(fingerprint_seed + 8u));
+        Repeat(&profile.conformance_fingerprint,
+               static_cast<std::uint8_t>(fingerprint_seed + 9u));
+        Repeat(&profile.completion_law_fingerprint,
+               static_cast<std::uint8_t>(fingerprint_seed + 10u));
+        profile.selected_boundary_fingerprint = source_profile_boundary;
+        profile.byte_count = 64u;
+        profile.container_count = 1u;
+        profile.member_count = 1u;
+        profile.file_count = 1u;
+        profile.record_count = 1u;
+        profile.field_count = 2u;
+        profile.syntax_node_count = 3u;
+        profile.span_count = 2u;
+        profile.occurrence_count = 2u;
+        profile.output_count = 1u;
+        profile.closure_subject_count = 1u;
+        profile.persisted_count = 1u;
+        profile.not_applicable_mask =
+            (UINT64_C(1) << 8u) | (UINT64_C(1) << 9u) |
+            (UINT64_C(1) << 11u) | (UINT64_C(1) << 12u) |
+            (UINT64_C(1) << 13u) | (UINT64_C(1) << 14u) |
+            (UINT64_C(1) << 15u);
+        profile.reconstruction_class = LAPLACE_SOURCE_PROFILE_RECONSTRUCTION_EXACT;
+        if (laplace_source_profile_identify(&profile, &profile.profile_id) !=
+            LAPLACE_SOURCE_PROFILE_OK) {
+            std::exit(41);
+        }
+        return profile;
+    };
+    const auto source_profile_a = make_source_profile(0x10u, 0xa0u);
+    const auto source_profile_b = make_source_profile(0x11u, 0xb0u);
+    std::array<laplace_source_profile_manifest, 2> source_profiles{{
+        source_profile_a, source_profile_b}};
+    std::sort(
+        source_profiles.begin(), source_profiles.end(),
+        [](const auto& left, const auto& right) {
+            return std::memcmp(
+                left.profile_id.bytes, right.profile_id.bytes,
+                sizeof(left.profile_id.bytes)) < 0;
+        });
+    laplace_source_profile_receipt source_profile_output{};
+    std::array<laplace_isa_value_view, 2> source_profile_values{{
+        {source_profiles.data(), source_profiles.size(), source_profiles.size(),
+         static_cast<std::uint32_t>(sizeof(source_profiles[0])),
+         LAPLACE_ISA_VALUE_SOURCE_PROFILE_MANIFEST_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {&source_profile_output, 0u, 1u,
+         static_cast<std::uint32_t>(sizeof(source_profile_output)),
+         LAPLACE_ISA_VALUE_SOURCE_PROFILE_RECEIPT_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction source_profile_instruction{
+        LAPLACE_ISA_OPCODE_SOURCE_PROFILE_VALIDATE_BATCH,
+        0u, 1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_SOURCE_PROFILE_VALIDATE_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto source_profile_program = Program(
+        &source_profile_instruction, source_profile_values.data());
+    source_profile_program.context = &evidence_context;
+    laplace_isa_receipt source_profile_isa_receipt{};
+    laplace_isa_error source_profile_isa_error{};
+    if (laplace_isa_execute(
+            &source_profile_program, &source_profile_isa_receipt,
+            &source_profile_isa_error) != LAPLACE_ISA_OK ||
+        source_profile_values[1].count != 1u) {
+        return 42;
+    }
+    laplace_source_profile_receipt source_profile_native_receipt{};
+    laplace_source_profile_error source_profile_native_error{};
+    if (laplace_source_profile_validate_batch(
+            source_profiles.data(), source_profiles.size(),
+            &source_profile_native_receipt, &source_profile_native_error) !=
+            LAPLACE_SOURCE_PROFILE_OK ||
+        std::memcmp(
+            &source_profile_output, &source_profile_native_receipt,
+            sizeof(source_profile_output)) != 0) {
+        return 43;
+    }
+    PrintDigest("SOURCE_PROFILE_A_ID", source_profile_a.profile_id);
+    PrintDigest("SOURCE_PROFILE_B_ID", source_profile_b.profile_id);
+    PrintDigest("SOURCE_PROFILE_RECEIPT", source_profile_native_receipt.receipt_id);
+    PrintDigest("SOURCE_PROFILE_BOUNDARY",
+                source_profile_native_receipt.selected_boundary_fingerprint);
+    PrintDigest("SOURCE_PROFILE_INPUT",
+                source_profile_native_receipt.input_fingerprint);
+    PrintDigest("SOURCE_PROFILE_OUTPUT",
+                source_profile_native_receipt.output_fingerprint);
+    PrintDigest("SOURCE_PROFILE_ISA_RECEIPT", source_profile_isa_receipt.receipt_id);
+
     const laplace_id128 zero_entity{};
     const laplace_digest256 zero_witness{};
     std::array<laplace_trajectory_carrier, 1> zero_carriers{};
@@ -846,6 +1144,73 @@ int main() {
     PrintDigest("COMPOSITION_STREAM_FINGERPRINT", composition_summary.stream_fingerprint);
     PrintHex("COMPOSITION_ENTITY_DISPOSITIONS", entity_disposition_bytes);
     PrintHex("COMPOSITION_PHYSICALITY_DISPOSITIONS", physicality_disposition_bytes);
+
+    auto world_profile = source_profile_a;
+    world_profile.recipe_program_fingerprint = composition_recipe;
+    world_profile.occurrence_count = composition_summary.logical_occurrence_count;
+    world_profile.claim_count = 1u;
+    world_profile.not_applicable_mask &= ~(UINT64_C(1) << 11u);
+    if (laplace_source_profile_identify(
+            &world_profile, &world_profile.profile_id) !=
+        LAPLACE_SOURCE_PROFILE_OK) {
+        laplace_composition_working_set_destroy(&composition_working_set);
+        return 44;
+    }
+    laplace_persistence_occurrence_record world_occurrence{};
+    world_occurrence.entity_id = composition_results[0].entity_id;
+    world_occurrence.physicality_id = composition_results[0].physicality_id;
+    world_occurrence.source_fingerprint = composition_source;
+    world_occurrence.context_fingerprint =
+        composition_request.occurrence_context_fingerprint;
+    world_occurrence.source_ordinal = composition_request.source_ordinal;
+    world_occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
+    if (laplace_persistence_occurrence_identify(
+            &world_occurrence, &world_occurrence.occurrence_id) !=
+        LAPLACE_PERSISTENCE_OK) {
+        laplace_composition_working_set_destroy(&composition_working_set);
+        return 45;
+    }
+    laplace_evidence_lineage_record world_evidence{};
+    world_evidence.proposition_id = composition_results[0].entity_id;
+    world_evidence.occurrence_id = world_occurrence.occurrence_id;
+    Repeat(&world_evidence.source_id, 0x44u);
+    Repeat(&world_evidence.context_id, 0x45u);
+    world_evidence.source_ordinal = 1u;
+    world_evidence.record_kind = LAPLACE_EVIDENCE_RECORD_NODE;
+    world_evidence.epistemic_kind = LAPLACE_EVIDENCE_KIND_OBSERVED;
+    if (laplace_evidence_node_identify(
+            &world_evidence, &world_evidence.node_id) !=
+        LAPLACE_EVIDENCE_LINEAGE_OK) {
+        laplace_composition_working_set_destroy(&composition_working_set);
+        return 46;
+    }
+    laplace_evidence_testimony_record world_testimony{};
+    world_testimony.evidence_node_id = world_evidence.node_id;
+    world_testimony.source_profile_id = world_profile.profile_id;
+    world_testimony.recipe_receipt_id = composition_recipe;
+    Repeat(&world_testimony.trust_input_id, 0x46u);
+    Repeat(&world_testimony.outcome_detail_id, 0x47u);
+    world_testimony.uncertainty_numerator = 0u;
+    world_testimony.uncertainty_denominator = 1u;
+    world_testimony.sample_count = 1u;
+    world_testimony.source_type = LAPLACE_EVIDENCE_SOURCE_STANDARD;
+    world_testimony.outcome_type = LAPLACE_EVIDENCE_OUTCOME_MAPPING;
+    world_testimony.disposition = LAPLACE_EVIDENCE_DISPOSITION_PERSISTED;
+    world_testimony.flags = LAPLACE_EVIDENCE_TESTIMONY_FLAGS_NONE;
+    if (laplace_evidence_testimony_identify(
+            &world_testimony, &world_testimony.testimony_id) !=
+        LAPLACE_EVIDENCE_TESTIMONY_OK) {
+        laplace_composition_working_set_destroy(&composition_working_set);
+        return 47;
+    }
+    PrintDigest("WORLD_PROFILE_ID", world_profile.profile_id);
+    PrintDigest("WORLD_OCCURRENCE_ID", world_occurrence.occurrence_id);
+    PrintDigest("WORLD_EVIDENCE_NODE", world_evidence.node_id);
+    PrintDigest("WORLD_EVIDENCE_SOURCE", world_evidence.source_id);
+    PrintDigest("WORLD_EVIDENCE_CONTEXT", world_evidence.context_id);
+    PrintDigest("WORLD_TESTIMONY_ID", world_testimony.testimony_id);
+    PrintDigest("WORLD_TESTIMONY_TRUST", world_testimony.trust_input_id);
+    PrintDigest("WORLD_TESTIMONY_OUTCOME", world_testimony.outcome_detail_id);
     laplace_composition_working_set_destroy(&composition_working_set);
     return 0;
 }

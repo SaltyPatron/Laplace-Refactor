@@ -1,0 +1,54 @@
+{
+  "schema": "laplace.evidence-testimony/v1",
+  "version": 1,
+  "digest_algorithm": "BLAKE3-256",
+  "identity_domain": "laplace-evidence-testimony-v1",
+  "input_domain": "laplace-evidence-testimony-input-v1",
+  "output_domain": "laplace-evidence-testimony-output-v1",
+  "receipt_domain": "laplace-evidence-testimony-receipt-v1",
+  "identity_preimage": "domain || evidence_node_id || source_profile_id || recipe_receipt_id || trust_input_id || outcome_detail_id || source_type || outcome_type || disposition || uncertainty_numerator || uncertainty_denominator || sample_count || flags",
+  "source_types": {
+    "standard": 1,
+    "curated_dataset": 2,
+    "corpus": 3,
+    "direct_observation": 4,
+    "calculation": 5,
+    "model": 6,
+    "self_assertion": 7,
+    "external_provider": 8
+  },
+  "outcome_types": {
+    "assertion": 1,
+    "measurement": 2,
+    "prediction": 3,
+    "observed_consequence": 4,
+    "mapping": 5,
+    "definition": 6,
+    "example": 7,
+    "counterexample": 8,
+    "unknown_boundary": 9
+  },
+  "dispositions": {
+    "persisted": 1,
+    "reused": 2,
+    "transformed": 3,
+    "lossy": 4,
+    "unsupported": 5,
+    "malformed": 6,
+    "unresolved": 7,
+    "rejected": 8,
+    "derived": 9,
+    "contradicted": 10
+  },
+  "uncertainty": {
+    "representation": "exact rational numerator over nonzero denominator",
+    "range": "zero through one inclusive",
+    "normal_form": "greatest-common-divisor reduced; zero is 0/1"
+  },
+  "ordering": "strictly increasing testimony identity",
+  "batch_rule": "one profile-homogeneous batch; every record binds the same nonzero source-profile identity",
+  "trust_rule": "trust_input_id identifies witnessed or governed trust input; it is not standing truth or permission",
+  "flags": {
+    "none": 0
+  }
+}

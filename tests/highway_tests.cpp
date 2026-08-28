@@ -110,7 +110,7 @@ TEST(HighwayCoordinate, ZeroAbsenceAndInvalidInputsNeverPublishPartialOutput) {
     key.reserved = 1u;
     EXPECT_EQ(laplace_highway_coordinate_calculate(&key, &output),
               LAPLACE_HIGHWAY_INVALID_ARGUMENT);
-    key = Key(LAPLACE_HIGHWAY_KIND_EFFECT + 1u);
+    key = Key(LAPLACE_HIGHWAY_KIND_SOURCE_PROFILE + 1u);
     EXPECT_EQ(laplace_highway_coordinate_calculate(&key, &output),
               LAPLACE_HIGHWAY_UNKNOWN_KIND);
 }
@@ -131,10 +131,13 @@ TEST(HighwayRegistry, GeneratedRowsAndMaterializationReceiptAreExact) {
     EXPECT_EQ(disposition_count, LAPLACE_HIGHWAY_DISPOSITION_COUNT);
     EXPECT_EQ(kinds[0].id, LAPLACE_HIGHWAY_KIND_GRAMMAR_SYMBOL);
     EXPECT_STREQ(kinds[0].name, "grammar-symbol");
-    EXPECT_EQ(kinds[0].introduced, LAPLACE_HIGHWAY_REGISTRY_VERSION);
+    EXPECT_EQ(kinds[0].introduced, 1u);
     EXPECT_EQ(kinds[0].retired, 0u);
-    EXPECT_EQ(kinds[kind_count - 1u].id, LAPLACE_HIGHWAY_KIND_EFFECT);
-    EXPECT_STREQ(kinds[kind_count - 1u].name, "effect");
+    EXPECT_EQ(kinds[kind_count - 1u].id,
+              LAPLACE_HIGHWAY_KIND_SOURCE_PROFILE);
+    EXPECT_STREQ(kinds[kind_count - 1u].name, "source-profile");
+    EXPECT_EQ(kinds[kind_count - 1u].introduced,
+              LAPLACE_HIGHWAY_REGISTRY_VERSION);
     EXPECT_EQ(dispositions[0].id, LAPLACE_HIGHWAY_DISPOSITION_PRESENT);
     EXPECT_STREQ(dispositions[0].name, "present");
     EXPECT_EQ(dispositions[disposition_count - 1u].id,

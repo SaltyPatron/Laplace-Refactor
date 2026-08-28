@@ -31,6 +31,7 @@
       "bin/laplace-product-activate",
       "contracts/highway-product-activation.json",
       "contracts/highway.json",
+      "contracts/history/highway-v1.json",
       "contracts/postgresql-cluster.json",
       "contracts/product-activation-gateway.json",
       "contracts/unicode-postgresql.json",

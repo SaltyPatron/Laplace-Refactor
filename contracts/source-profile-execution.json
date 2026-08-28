@@ -1,0 +1,71 @@
+{
+  "schema": "laplace.source-profile-execution-contract/v1",
+  "version": 1,
+  "identity": {
+    "digest": "BLAKE3-256",
+    "profile_domain": "laplace-source-profile-v1",
+    "input_domain": "laplace-source-profile-input-v1",
+    "output_domain": "laplace-source-profile-output-v1",
+    "receipt_domain": "laplace-source-profile-receipt-v1"
+  },
+  "coordinate_kind": "source-profile",
+  "denominators": [
+    "bytes",
+    "containers",
+    "members",
+    "files",
+    "records",
+    "fields",
+    "syntax-nodes",
+    "spans",
+    "edges",
+    "references",
+    "occurrences",
+    "claims",
+    "mappings",
+    "errors",
+    "unknowns",
+    "transformations",
+    "outputs"
+  ],
+  "dispositions": [
+    "accepted",
+    "rejected",
+    "duplicate",
+    "reused",
+    "transformed",
+    "lossy",
+    "unsupported",
+    "malformed",
+    "unresolved",
+    "persisted",
+    "derived"
+  ],
+  "reconstruction_classes": [
+    {"id": 1, "name": "exact"},
+    {"id": 2, "name": "semantic"},
+    {"id": 3, "name": "none"}
+  ],
+  "required_fingerprints": [
+    "authority-release",
+    "license",
+    "artifact-graph",
+    "syntax-authority",
+    "recipe-program",
+    "universal-ast-mapping",
+    "highway-references",
+    "epistemic-witnessing",
+    "denominator-declaration",
+    "conformance",
+    "completion-law",
+    "selected-boundary"
+  ],
+  "closure": {
+    "disposition_sum": "all eleven disposition counts sum exactly to closure_subject_count",
+    "required_nonzero_denominators": ["bytes", "files", "records", "fields", "syntax-nodes", "spans", "occurrences", "outputs"],
+    "not_applicable": "one bit per denominator; a nonzero denominator cannot be marked not-applicable",
+    "exact_reconstruction": "exact reconstruction rejects a nonzero lossy disposition",
+    "selected_boundary_homogeneity": "one batch may contain multiple strictly ordered profile identities, all belonging to one exact selected boundary"
+  },
+  "flags": {"none": 0}
+}

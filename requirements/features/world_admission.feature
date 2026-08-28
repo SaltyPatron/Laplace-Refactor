@@ -37,6 +37,14 @@ Feature: The known witness universe cannot collapse to an exemplar
 @LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION @LP-TEST-ADMISSION-READ-REACHABILITY
 Feature: Every source distinction closes through AST and readback receipts
 
+  Scenario: Curated distribution fidelity and selected content fidelity remain separate
+    Given a curated source package whose archive layout is not selected as canonical world content
+    And that package contains sentences words images audio video or other digital structures selected by its profile
+    When the source recipe lowers the selected structures into the universal AST
+    Then the package retains exact hash length authority release license and dependence provenance without claiming bit-reconstruction
+    And every selected exact structure recomposes bit-for-bit from its persisted AST rather than from the original package
+    And equal selected content from another source converges on the same content identity while its occurrence testimony and provenance remain distinct
+
   Scenario: Source closure includes syntax rather than only records
     Given a selected source artifact and exact expected byte record field node edge reference and occurrence denominators
     When admission completes

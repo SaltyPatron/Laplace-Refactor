@@ -32,6 +32,7 @@ class HighwayProductActivationTests(unittest.TestCase):
         self.cluster = load("contracts/postgresql-cluster.json")
         self.unicode_contract = load("contracts/unicode-product-activation.json")
         self.registry = load("contracts/highway.json")
+        self.previous_registry = load("contracts/history/highway-v1.json")
         self.identities = {
             "schema": highway.unicodectl.IDENTITY_SCHEMA,
             **{
@@ -56,8 +57,10 @@ class HighwayProductActivationTests(unittest.TestCase):
             self.unicode_receipt, "receipt_sha256"
         )
 
-    def activation_result(self, inserted: int = 1) -> dict:
+    def activation_result(self, inserted: int = 1, sequence: int | None = None) -> dict:
         expected = self.contract["expected_result"]
+        if sequence is None:
+            sequence = expected["fresh_activation_sequence"]
         result = {
             "registry_version": expected["registry_version"],
             "registry_fingerprint": expected["registry_fingerprint"],
@@ -78,7 +81,7 @@ class HighwayProductActivationTests(unittest.TestCase):
             "admission_receipt": "7d" * 32,
             "activation_receipt": "7e" * 32,
             "activation_fingerprint": "7f" * 32,
-            "activation_sequence": expected["activation_sequence"],
+            "activation_sequence": sequence,
             "effect_disposition": expected["effect_disposition"],
             "kind_count": expected["kind_count"],
             "alias_count": expected["alias_count"],
@@ -92,6 +95,71 @@ class HighwayProductActivationTests(unittest.TestCase):
             "status": expected["status"],
         }
         return result
+
+    def inspection(self, mode: str) -> dict:
+        authority = self.contract["authority"]
+        expected = self.contract["expected_result"]
+        base = {
+            "unicode_present": True,
+            "unicode_epoch_id": self.unicode_receipt["activation_epoch_id"],
+            "unicode_epoch_fingerprint": self.unicode_receipt["activation_epoch_fingerprint"],
+        }
+        if mode == "fresh":
+            return {
+                **base,
+                "highway_sequence": 0,
+                "highway_present": False,
+                "highway_epoch_id": "00" * 16,
+                "highway_epoch_fingerprint": "00" * 32,
+                "active_registry_version": None,
+                "active_registry_fingerprint": None,
+                "active_kind_count": None,
+                "active_alias_count": None,
+                "active_disposition_count": None,
+                "active_kind_projection_count": 0,
+                "active_alias_projection_count": 0,
+                "active_disposition_projection_count": 0,
+                "generation_count": 0,
+                "event_count": 0,
+            }
+        if mode == "predecessor":
+            version = authority["predecessor_registry_version"]
+            fingerprint = authority["predecessor_registry_fingerprint"]
+            kinds = authority["predecessor_kind_count"]
+            aliases = authority["predecessor_alias_count"]
+            dispositions = authority["predecessor_disposition_count"]
+            sequence = self.contract["operation"]["successor_expected_old_sequence"]
+            epoch = "51" * 32
+        elif mode in {"target-fresh", "target-successor"}:
+            version = expected["registry_version"]
+            fingerprint = expected["registry_fingerprint"]
+            kinds = expected["kind_count"]
+            aliases = expected["alias_count"]
+            dispositions = expected["disposition_count"]
+            sequence = expected[
+                "fresh_activation_sequence" if mode == "target-fresh"
+                else "successor_activation_sequence"
+            ]
+            epoch = "52" * 32
+        else:
+            raise AssertionError(f"unsupported inspection fixture {mode}")
+        return {
+            **base,
+            "highway_sequence": sequence,
+            "highway_present": True,
+            "highway_epoch_id": "50" * 16,
+            "highway_epoch_fingerprint": epoch,
+            "active_registry_version": version,
+            "active_registry_fingerprint": fingerprint,
+            "active_kind_count": kinds,
+            "active_alias_count": aliases,
+            "active_disposition_count": dispositions,
+            "active_kind_projection_count": kinds,
+            "active_alias_projection_count": aliases,
+            "active_disposition_projection_count": dispositions,
+            "generation_count": sequence,
+            "event_count": sequence,
+        }
 
     def readback(self, activation: dict) -> dict:
         expected = self.contract["expected_result"]
@@ -119,10 +187,14 @@ class HighwayProductActivationTests(unittest.TestCase):
 
     def test_contract_and_sql_bind_the_real_shared_lifecycle(self) -> None:
         highway.validate_contract(
-            self.contract, self.cluster, self.unicode_contract, self.registry
+            self.contract, self.cluster, self.unicode_contract, self.registry,
+            self.previous_registry,
+        )
+        state = highway.validate_inspection(
+            self.inspection("fresh"), self.unicode_receipt, self.contract
         )
         sql = highway.render_activation_sql(
-            self.contract, self.identities, self.unicode_receipt
+            self.contract, self.identities, self.unicode_receipt, state
         )
         for required in (
             "highway_registry_admit_and_activate",
@@ -157,7 +229,51 @@ class HighwayProductActivationTests(unittest.TestCase):
         with self.assertRaisesRegex(highway.HighwayActivationError, "did not write"):
             highway.validate_activation_result(
                 self.activation_result(inserted=0), self.contract,
-                self.unicode_receipt, "fresh",
+                self.unicode_receipt,
+                highway.validate_inspection(
+                    self.inspection("fresh"), self.unicode_receipt, self.contract
+                ),
+            )
+
+    def test_exact_v1_successor_and_v2_replay_are_distinct_machine_states(self) -> None:
+        successor = highway.validate_inspection(
+            self.inspection("predecessor"), self.unicode_receipt, self.contract
+        )
+        self.assertEqual(successor["mode"], "successor")
+        self.assertEqual(
+            successor["expected_activation_sequence"],
+            self.contract["expected_result"]["successor_activation_sequence"],
+        )
+        sql = highway.render_activation_sql(
+            self.contract, self.identities, self.unicode_receipt, successor
+        )
+        self.assertIn(successor["numeric_epoch"], sql)
+        highway.validate_activation_result(
+            self.activation_result(sequence=successor["expected_activation_sequence"]),
+            self.contract, self.unicode_receipt, successor,
+        )
+
+        replay = highway.validate_inspection(
+            self.inspection("target-successor"), self.unicode_receipt, self.contract
+        )
+        self.assertEqual(replay["mode"], "replay")
+        highway.validate_activation_result(
+            self.activation_result(inserted=0, sequence=replay["expected_activation_sequence"]),
+            self.contract, self.unicode_receipt, replay,
+        )
+        with self.assertRaisesRegex(highway.HighwayActivationError, "duplicate"):
+            highway.validate_activation_result(
+                self.activation_result(inserted=1, sequence=replay["expected_activation_sequence"]),
+                self.contract, self.unicode_receipt, replay,
+            )
+
+    def test_predecessor_history_rewrite_is_rejected(self) -> None:
+        rewritten = copy.deepcopy(self.previous_registry)
+        rewritten["kinds"][0]["name"] = "rewritten"
+        with self.assertRaisesRegex(highway.HighwayActivationError, "predecessor.*bytes"):
+            highway.validate_contract(
+                self.contract, self.cluster, self.unicode_contract, self.registry,
+                rewritten,
             )
 
     def test_complete_controller_restarts_and_reads_as_application_role(self) -> None:
@@ -181,17 +297,7 @@ class HighwayProductActivationTests(unittest.TestCase):
             def fake_sql(_plan, _contract, _sql, label, os_user, db_role, _timeout):
                 labels.append((label, os_user, db_role))
                 if label == "inspect-highway-product-state":
-                    return ({
-                        "unicode_present": True,
-                        "unicode_epoch_id": self.unicode_receipt["activation_epoch_id"],
-                        "unicode_epoch_fingerprint": self.unicode_receipt["activation_epoch_fingerprint"],
-                        "highway_sequence": 0,
-                        "highway_present": False,
-                        "highway_epoch_id": "00" * 16,
-                        "highway_epoch_fingerprint": "00" * 32,
-                        "generation_count": 0,
-                        "event_count": 0,
-                    }, {"label": label})
+                    return (self.inspection("fresh"), {"label": label})
                 if label == "admit-and-activate-highway-product-registry":
                     return activation, {"label": label}
                 return readback, {"label": label}
@@ -213,7 +319,8 @@ class HighwayProductActivationTests(unittest.TestCase):
             ), mock.patch.object(highway.clusterctl, "verify_loaded"):
                 receipt = highway.execute_highway_activation(
                     self.contract, cluster, self.unicode_contract, self.registry,
-                    package, plan, cluster_receipt, self.unicode_receipt, root, False,
+                    self.previous_registry, package, plan, cluster_receipt,
+                    self.unicode_receipt, root, False,
                     sql_runner=fake_sql,
                     loaded_observer=lambda *_args: next(observations),
                     command_runner=lambda label, _command, _timeout: {"label": label},

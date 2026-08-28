@@ -174,6 +174,95 @@ INSERT INTO evidence_expected VALUES (
     decode(:'evidence_isa_receipt', 'hex')
 );
 
+CREATE TEMP TABLE testimony_expected (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    source_profile_id bytea NOT NULL,
+    recipe_receipt_id bytea NOT NULL,
+    trust_input_id bytea NOT NULL,
+    testimony_ids bytea[] NOT NULL,
+    evidence_node_ids bytea[] NOT NULL,
+    outcome_detail_ids bytea[] NOT NULL,
+    source_types integer[] NOT NULL,
+    outcome_types integer[] NOT NULL,
+    dispositions integer[] NOT NULL,
+    uncertainty_numerators numeric[] NOT NULL,
+    uncertainty_denominators numeric[] NOT NULL,
+    sample_counts numeric[] NOT NULL,
+    testimony_receipt_id bytea NOT NULL,
+    input_fingerprint bytea NOT NULL,
+    output_fingerprint bytea NOT NULL,
+    isa_receipt_id bytea NOT NULL
+);
+
+INSERT INTO testimony_expected VALUES (
+    true,
+    decode(:'testimony_profile', 'hex'),
+    decode(:'testimony_recipe', 'hex'),
+    decode(:'testimony_trust', 'hex'),
+    ARRAY[
+        decode(:'testimony_0_id', 'hex'),
+        decode(:'testimony_1_id', 'hex'),
+        decode(:'testimony_2_id', 'hex')],
+    ARRAY[
+        decode(:'testimony_0_node', 'hex'),
+        decode(:'testimony_1_node', 'hex'),
+        decode(:'testimony_2_node', 'hex')],
+    ARRAY[
+        decode(:'testimony_0_outcome', 'hex'),
+        decode(:'testimony_1_outcome', 'hex'),
+        decode(:'testimony_2_outcome', 'hex')],
+    ARRAY[
+        :'testimony_0_source_type'::integer,
+        :'testimony_1_source_type'::integer,
+        :'testimony_2_source_type'::integer],
+    ARRAY[
+        :'testimony_0_outcome_type'::integer,
+        :'testimony_1_outcome_type'::integer,
+        :'testimony_2_outcome_type'::integer],
+    ARRAY[
+        :'testimony_0_disposition'::integer,
+        :'testimony_1_disposition'::integer,
+        :'testimony_2_disposition'::integer],
+    ARRAY[
+        :'testimony_0_uncertainty_numerator'::numeric,
+        :'testimony_1_uncertainty_numerator'::numeric,
+        :'testimony_2_uncertainty_numerator'::numeric],
+    ARRAY[
+        :'testimony_0_uncertainty_denominator'::numeric,
+        :'testimony_1_uncertainty_denominator'::numeric,
+        :'testimony_2_uncertainty_denominator'::numeric],
+    ARRAY[
+        :'testimony_0_sample_count'::numeric,
+        :'testimony_1_sample_count'::numeric,
+        :'testimony_2_sample_count'::numeric],
+    decode(:'testimony_receipt', 'hex'),
+    decode(:'testimony_input', 'hex'),
+    decode(:'testimony_output', 'hex'),
+    decode(:'testimony_isa_receipt', 'hex')
+);
+
+CREATE TEMP TABLE source_profile_expected (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    profile_a_id bytea NOT NULL,
+    profile_b_id bytea NOT NULL,
+    receipt_id bytea NOT NULL,
+    selected_boundary_fingerprint bytea NOT NULL,
+    input_fingerprint bytea NOT NULL,
+    output_fingerprint bytea NOT NULL,
+    isa_receipt_id bytea NOT NULL
+);
+
+INSERT INTO source_profile_expected VALUES (
+    true,
+    decode(:'source_profile_a_id', 'hex'),
+    decode(:'source_profile_b_id', 'hex'),
+    decode(:'source_profile_receipt', 'hex'),
+    decode(:'source_profile_boundary', 'hex'),
+    decode(:'source_profile_input', 'hex'),
+    decode(:'source_profile_output', 'hex'),
+    decode(:'source_profile_isa_receipt', 'hex')
+);
+
 INSERT INTO persistence_expected VALUES (
     true,
     decode(:'persistence_source', 'hex'),
@@ -215,6 +304,7 @@ BEGIN
                 ('laplace.highway_registry_admit_and_activate(laplace.execution_context,numeric)', 'v', 'u'),
                 ('laplace.highway_registry_resolve_active(laplace.execution_context)', 's', 'u'),
                 ('laplace.evidence_record_lineage_batch(laplace.execution_context,laplace.evidence_lineage_record[],numeric)', 'v', 'u'),
+                ('laplace.evidence_record_testimony_batch(laplace.execution_context,laplace.evidence_testimony_record[])', 'v', 'u'),
                 ('laplace.canonical_deposit_batch(laplace.execution_context,bytea,bytea,bytea[])', 'v', 'u'),
                 ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint,integer)', 'v', 'u'),
                 ('laplace.unicode_tier0_resolve_batch(bytea,bytea,integer[])', 's', 'u'),
@@ -247,6 +337,7 @@ BEGIN
               'highway_registry_admit_and_activate',
               'highway_registry_resolve_active',
               'evidence_record_lineage_batch',
+              'evidence_record_testimony_batch',
               'canonical_deposit_batch',
               'unicode_root_build_and_activate',
               'unicode_tier0_resolve_batch',
@@ -392,6 +483,313 @@ BEGIN
 END
 $evidence$;
 
+CREATE FUNCTION pg_temp.run_testimony_contract()
+RETURNS void
+LANGUAGE plpgsql
+AS $testimony$
+DECLARE
+    expected testimony_expected%ROWTYPE;
+    records laplace.evidence_testimony_record[];
+    invalid_records laplace.evidence_testimony_record[];
+    result laplace.evidence_testimony_result;
+    replay laplace.evidence_testimony_result;
+    receipt_xmin xid;
+    receipt_ctid tid;
+    testimony_before bigint;
+    receipt_before bigint;
+BEGIN
+    SELECT * INTO STRICT expected FROM testimony_expected;
+    SELECT array_agg(
+        ROW(
+            expected.testimony_ids[ordinal],
+            expected.evidence_node_ids[ordinal],
+            expected.source_profile_id,
+            expected.recipe_receipt_id,
+            expected.trust_input_id,
+            expected.outcome_detail_ids[ordinal],
+            expected.uncertainty_numerators[ordinal],
+            expected.uncertainty_denominators[ordinal],
+            expected.sample_counts[ordinal],
+            expected.source_types[ordinal],
+            expected.outcome_types[ordinal],
+            expected.dispositions[ordinal],
+            0)::laplace.evidence_testimony_record
+        ORDER BY expected.testimony_ids[ordinal])
+    INTO STRICT records
+    FROM generate_subscripts(expected.testimony_ids, 1) ordinal;
+
+    result := laplace.evidence_record_testimony_batch(
+        pg_temp.persistence_context(), records);
+    IF result.testimony_ids IS DISTINCT FROM expected.testimony_ids
+       OR result.testimony_receipt_id <> expected.testimony_receipt_id
+       OR result.source_profile_id <> expected.source_profile_id
+       OR result.input_fingerprint <> expected.input_fingerprint
+       OR result.output_fingerprint <> expected.output_fingerprint
+       OR result.isa_receipt_id <> expected.isa_receipt_id
+       OR result.testimony_count <> 3
+       OR result.sample_count <> 13
+       OR result.uncertain_count <> 2
+       OR result.negative_disposition_count <> 1 THEN
+        RAISE EXCEPTION 'PostgreSQL evidence testimony differs from native ISA result'
+            USING DETAIL = format(
+                'actual=%s expected_receipt=%s expected_input=%s expected_output=%s expected_isa=%s',
+                result::text,
+                encode(expected.testimony_receipt_id, 'hex'),
+                encode(expected.input_fingerprint, 'hex'),
+                encode(expected.output_fingerprint, 'hex'),
+                encode(expected.isa_receipt_id, 'hex'));
+    END IF;
+    IF (SELECT count(*) FROM laplace.evidence_testimony) <> 3
+       OR (SELECT count(*) FROM laplace.evidence_testimony_receipt) <> 1 THEN
+        RAISE EXCEPTION 'testimony did not persist its complete batch atomically';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM unnest(
+            expected.testimony_ids,
+            expected.evidence_node_ids,
+            expected.outcome_detail_ids,
+            expected.source_types,
+            expected.outcome_types,
+            expected.dispositions,
+            expected.uncertainty_numerators,
+            expected.uncertainty_denominators,
+            expected.sample_counts)
+            expected_row(
+                testimony_id, evidence_node_id, outcome_detail_id,
+                source_type, outcome_type, disposition,
+                uncertainty_numerator, uncertainty_denominator, sample_count)
+        LEFT JOIN laplace.evidence_testimony durable
+          ON durable.testimony_id = expected_row.testimony_id
+         AND durable.evidence_node_id = expected_row.evidence_node_id
+         AND durable.source_profile_id = expected.source_profile_id
+         AND durable.recipe_receipt_id = expected.recipe_receipt_id
+         AND durable.trust_input_id = expected.trust_input_id
+         AND durable.outcome_detail_id = expected_row.outcome_detail_id
+         AND durable.source_type = expected_row.source_type
+         AND durable.outcome_type = expected_row.outcome_type
+         AND durable.disposition = expected_row.disposition
+         AND durable.uncertainty_numerator = expected_row.uncertainty_numerator
+         AND durable.uncertainty_denominator = expected_row.uncertainty_denominator
+         AND durable.sample_count = expected_row.sample_count
+         AND durable.flags = 0
+        WHERE durable.testimony_id IS NULL
+    ) THEN
+        RAISE EXCEPTION 'durable testimony rows differ from exact native inputs';
+    END IF;
+
+    SELECT xmin, ctid INTO STRICT receipt_xmin, receipt_ctid
+    FROM laplace.evidence_testimony_receipt
+    WHERE receipt_id = result.testimony_receipt_id;
+    replay := laplace.evidence_record_testimony_batch(
+        pg_temp.persistence_context(), records);
+    IF replay IS DISTINCT FROM result OR NOT EXISTS (
+        SELECT FROM laplace.evidence_testimony_receipt
+        WHERE receipt_id = result.testimony_receipt_id
+          AND xmin = receipt_xmin AND ctid = receipt_ctid) THEN
+        RAISE EXCEPTION 'testimony replay changed its result or immutable receipt';
+    END IF;
+
+    BEGIN
+        UPDATE laplace.evidence_testimony
+        SET disposition = CASE disposition WHEN 1 THEN 2 ELSE 1 END
+        WHERE testimony_id = expected.testimony_ids[1];
+        PERFORM laplace.evidence_record_testimony_batch(
+            pg_temp.persistence_context(), records);
+        RAISE EXCEPTION 'conflicting durable testimony was accepted';
+    EXCEPTION
+        WHEN data_corrupted THEN NULL;
+    END;
+    IF NOT EXISTS (
+        SELECT FROM laplace.evidence_testimony
+        WHERE testimony_id = expected.testimony_ids[1]
+          AND disposition = expected.dispositions[1]) THEN
+        RAISE EXCEPTION 'conflict subtransaction did not restore exact testimony state';
+    END IF;
+
+    SELECT array_agg(
+        ROW(
+            (records[ordinal]).testimony_id,
+            (records[ordinal]).evidence_node_id,
+            (records[ordinal]).source_profile_id,
+            (records[ordinal]).recipe_receipt_id,
+            (records[ordinal]).trust_input_id,
+            (records[ordinal]).outcome_detail_id,
+            (records[ordinal]).uncertainty_numerator,
+            (records[ordinal]).uncertainty_denominator,
+            CASE ordinal WHEN 1 THEN 0 ELSE (records[ordinal]).sample_count END,
+            (records[ordinal]).source_type,
+            (records[ordinal]).outcome_type,
+            (records[ordinal]).disposition,
+            (records[ordinal]).flags)::laplace.evidence_testimony_record
+        ORDER BY ordinal)
+    INTO STRICT invalid_records
+    FROM generate_subscripts(records, 1) ordinal;
+    SELECT count(*) INTO testimony_before FROM laplace.evidence_testimony;
+    SELECT count(*) INTO receipt_before FROM laplace.evidence_testimony_receipt;
+    BEGIN
+        PERFORM laplace.evidence_record_testimony_batch(
+            pg_temp.persistence_context(), invalid_records);
+        RAISE EXCEPTION 'zero-sample testimony was accepted';
+    EXCEPTION
+        WHEN data_exception THEN NULL;
+    END;
+    IF (SELECT count(*) FROM laplace.evidence_testimony) <> testimony_before
+       OR (SELECT count(*) FROM laplace.evidence_testimony_receipt) <> receipt_before THEN
+        RAISE EXCEPTION 'rejected testimony published partial durable state';
+    END IF;
+END
+$testimony$;
+
+CREATE FUNCTION pg_temp.run_source_profile_contract()
+RETURNS void
+LANGUAGE plpgsql
+AS $source_profile$
+DECLARE
+    expected source_profile_expected%ROWTYPE;
+    profiles laplace.source_profile_manifest[];
+    reversed laplace.source_profile_manifest[];
+    result laplace.source_profile_result;
+    replay laplace.source_profile_result;
+    expected_ids bytea[];
+    receipt_xmin xid;
+    receipt_ctid tid;
+    profile_before bigint;
+    receipt_before bigint;
+BEGIN
+    SELECT * INTO STRICT expected FROM source_profile_expected;
+    SELECT array_agg(profile ORDER BY (profile).profile_id)
+    INTO STRICT profiles
+    FROM (VALUES
+        (ROW(
+            expected.profile_a_id, 17,
+            decode('101112131415161718191a1b1c1d1e1f','hex'),
+            decode('303132333435363738393a3b3c3d3e3f','hex'),
+            decode('505152535455565758595a5b5c5d5e5f','hex'),
+            decode('707172737475767778797a7b7c7d7e7f','hex'),
+            1::numeric,
+            decode(repeat('a0',32),'hex'), decode(repeat('a1',32),'hex'),
+            decode(repeat('a2',32),'hex'), decode(repeat('a3',32),'hex'),
+            decode(repeat('a4',32),'hex'), decode(repeat('a5',32),'hex'),
+            decode(repeat('a6',32),'hex'), decode(repeat('a7',32),'hex'),
+            decode(repeat('a8',32),'hex'), decode(repeat('a9',32),'hex'),
+            decode(repeat('aa',32),'hex'), expected.selected_boundary_fingerprint,
+            64::numeric, 1::numeric, 1::numeric, 1::numeric, 1::numeric,
+            2::numeric, 3::numeric, 2::numeric, 0::numeric, 0::numeric,
+            2::numeric, 0::numeric, 0::numeric, 0::numeric, 0::numeric,
+            0::numeric, 1::numeric,
+            1::numeric, 0::numeric, 0::numeric, 0::numeric, 0::numeric,
+            0::numeric, 0::numeric, 0::numeric, 0::numeric, 0::numeric,
+            1::numeric, 0::numeric, 64256::numeric, 1, 0
+        )::laplace.source_profile_manifest),
+        (ROW(
+            expected.profile_b_id, 17,
+            decode('1112131415161718191a1b1c1d1e1f20','hex'),
+            decode('3132333435363738393a3b3c3d3e3f40','hex'),
+            decode('5152535455565758595a5b5c5d5e5f60','hex'),
+            decode('7172737475767778797a7b7c7d7e7f80','hex'),
+            1::numeric,
+            decode(repeat('b0',32),'hex'), decode(repeat('b1',32),'hex'),
+            decode(repeat('b2',32),'hex'), decode(repeat('b3',32),'hex'),
+            decode(repeat('b4',32),'hex'), decode(repeat('b5',32),'hex'),
+            decode(repeat('b6',32),'hex'), decode(repeat('b7',32),'hex'),
+            decode(repeat('b8',32),'hex'), decode(repeat('b9',32),'hex'),
+            decode(repeat('ba',32),'hex'), expected.selected_boundary_fingerprint,
+            64::numeric, 1::numeric, 1::numeric, 1::numeric, 1::numeric,
+            2::numeric, 3::numeric, 2::numeric, 0::numeric, 0::numeric,
+            2::numeric, 0::numeric, 0::numeric, 0::numeric, 0::numeric,
+            0::numeric, 1::numeric,
+            1::numeric, 0::numeric, 0::numeric, 0::numeric, 0::numeric,
+            0::numeric, 0::numeric, 0::numeric, 0::numeric, 0::numeric,
+            1::numeric, 0::numeric, 64256::numeric, 1, 0
+        )::laplace.source_profile_manifest)
+    ) source_profiles(profile);
+    SELECT array_agg(value ORDER BY value)
+    INTO STRICT expected_ids
+    FROM unnest(ARRAY[expected.profile_a_id, expected.profile_b_id]) value;
+
+    result := laplace.source_profile_validate_batch(
+        pg_temp.persistence_context(), profiles);
+    IF result.profile_ids IS DISTINCT FROM expected_ids
+       OR result.source_profile_receipt_id <> expected.receipt_id
+       OR result.selected_boundary_fingerprint <>
+            expected.selected_boundary_fingerprint
+       OR result.input_fingerprint <> expected.input_fingerprint
+       OR result.output_fingerprint <> expected.output_fingerprint
+       OR result.isa_receipt_id <> expected.isa_receipt_id
+       OR result.profile_count <> 2
+       OR result.closure_subject_count <> 2
+       OR result.persisted_count <> 2
+       OR result.negative_count <> 0
+       OR result.exact_reconstruction_count <> 2
+       OR result.semantic_reconstruction_count <> 0
+       OR result.no_reconstruction_count <> 0 THEN
+        RAISE EXCEPTION 'PostgreSQL source-profile result differs from native ISA result'
+            USING DETAIL = format(
+                'actual=%s expected_receipt=%s expected_input=%s expected_output=%s expected_isa=%s',
+                result::text,
+                encode(expected.receipt_id, 'hex'),
+                encode(expected.input_fingerprint, 'hex'),
+                encode(expected.output_fingerprint, 'hex'),
+                encode(expected.isa_receipt_id, 'hex'));
+    END IF;
+    IF (SELECT count(*) FROM laplace.source_profile) <> 2
+       OR (SELECT count(*) FROM laplace.source_profile_receipt) <> 1
+       OR EXISTS (
+            SELECT FROM unnest(profiles) input
+            WHERE NOT EXISTS (
+                SELECT FROM laplace.source_profile durable
+                WHERE durable.profile_id = (input).profile_id
+                  AND ROW(durable.*) IS NOT DISTINCT FROM ROW((input).*))) THEN
+        RAISE EXCEPTION 'source-profile batch did not persist exact manifests atomically';
+    END IF;
+    SELECT xmin, ctid INTO STRICT receipt_xmin, receipt_ctid
+    FROM laplace.source_profile_receipt
+    WHERE receipt_id = result.source_profile_receipt_id;
+    replay := laplace.source_profile_validate_batch(
+        pg_temp.persistence_context(), profiles);
+    IF replay IS DISTINCT FROM result OR NOT EXISTS (
+        SELECT FROM laplace.source_profile_receipt
+        WHERE receipt_id = result.source_profile_receipt_id
+          AND xmin = receipt_xmin AND ctid = receipt_ctid) THEN
+        RAISE EXCEPTION 'source-profile replay changed its result or immutable receipt';
+    END IF;
+
+    BEGIN
+        UPDATE laplace.source_profile
+        SET license_fingerprint = decode(repeat('ff',32),'hex')
+        WHERE profile_id = expected.profile_a_id;
+        PERFORM laplace.source_profile_validate_batch(
+            pg_temp.persistence_context(), profiles);
+        RAISE EXCEPTION 'conflicting durable source profile was accepted';
+    EXCEPTION
+        WHEN data_corrupted THEN NULL;
+    END;
+    IF NOT EXISTS (
+        SELECT FROM laplace.source_profile
+        WHERE profile_id = expected.profile_a_id
+          AND license_fingerprint = decode(repeat('a1',32),'hex')) THEN
+        RAISE EXCEPTION 'source-profile conflict subtransaction did not restore state';
+    END IF;
+
+    SELECT array_agg(profile ORDER BY (profile).profile_id DESC)
+    INTO STRICT reversed FROM unnest(profiles) profile;
+    SELECT count(*) INTO profile_before FROM laplace.source_profile;
+    SELECT count(*) INTO receipt_before FROM laplace.source_profile_receipt;
+    BEGIN
+        PERFORM laplace.source_profile_validate_batch(
+            pg_temp.persistence_context(), reversed);
+        RAISE EXCEPTION 'unsorted source-profile batch was accepted';
+    EXCEPTION
+        WHEN data_exception THEN NULL;
+    END;
+    IF (SELECT count(*) FROM laplace.source_profile) <> profile_before
+       OR (SELECT count(*) FROM laplace.source_profile_receipt) <> receipt_before THEN
+        RAISE EXCEPTION 'rejected source-profile batch published partial state';
+    END IF;
+END
+$source_profile$;
+
 DO $contract$
 DECLARE
     batch_positions integer[];
@@ -430,10 +828,18 @@ BEGIN
        OR result.instruction_count <> 1
        OR result.executed_instruction_count <> 1
        OR result.isa_major <> 1
-       OR result.isa_minor <> 5
+       OR result.isa_minor <> 8
        OR result.status <> 0
        OR result.item_count <> 3 THEN
-        RAISE EXCEPTION 'SPI identity receipt differs from the native receipt';
+        RAISE EXCEPTION USING MESSAGE = format(
+            'SPI identity receipt differs from native: receipt=%s/%s context=%s/%s program=%s/%s input=%s/%s output=%s/%s instructions=%s/%s isa=%s.%s status=%s items=%s',
+            encode(result.receipt_id, 'hex'), encode(expected.identity_receipt, 'hex'),
+            encode(result.context_fingerprint, 'hex'), encode(expected.context_fingerprint, 'hex'),
+            encode(result.program_fingerprint, 'hex'), encode(expected.identity_program, 'hex'),
+            encode(result.input_fingerprint, 'hex'), encode(expected.identity_input, 'hex'),
+            encode(result.output_fingerprint, 'hex'), encode(expected.identity_output, 'hex'),
+            result.instruction_count, result.executed_instruction_count,
+            result.isa_major, result.isa_minor, result.status, result.item_count);
     END IF;
 
     SELECT xmin, ctid INTO before_xmin, before_ctid
@@ -563,7 +969,7 @@ BEGIN
        OR result.instruction_count <> 1
        OR result.executed_instruction_count <> 1
        OR result.isa_major <> 1
-       OR result.isa_minor <> 5
+       OR result.isa_minor <> 8
        OR result.status <> 0
        OR result.item_count <> 2 THEN
         RAISE EXCEPTION 'PostgreSQL highway result differs from direct native ISA';
@@ -909,6 +1315,8 @@ END
 $contract$;
 
 SELECT pg_temp.run_evidence_contract();
+SELECT pg_temp.run_testimony_contract();
+SELECT pg_temp.run_source_profile_contract();
 
 CREATE TEMP TABLE zero_pattern_expected (
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),

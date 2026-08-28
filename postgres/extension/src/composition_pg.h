@@ -36,4 +36,8 @@ void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
 void LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(
     laplace_pg_composition_execution* execution);
 
+void laplace_pg_persist_composition_execution_receipt(
+    const laplace_pg_composition_execution* execution,
+    const laplace_composition_working_set_input* input);
+
 #endif
