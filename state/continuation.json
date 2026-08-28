@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-28T05:36:57Z",
+  "observed_at_utc": "2026-08-28T05:55:57Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -16,8 +16,8 @@
     "active_worktree": "/build/laplace/worktrees/source-profile-testimony",
     "base_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "70e56defa95f81b312d518e93b56cd3a17f25d7e",
-    "observed_branch_head": "70e56defa95f81b312d518e93b56cd3a17f25d7e",
+    "published_checkpoint_commit": "0d6ada7b613d396f6bc2db114fcccbdf90be5cf5",
+    "observed_branch_head": "0d6ada7b613d396f6bc2db114fcccbdf90be5cf5",
     "implementation_checkpoint_commit": "794be81ac83d1e50e390c994cd804e2b5213a68d",
     "pull_request": 83
   },
@@ -1378,10 +1378,13 @@
     "controlled_integration_validation": {
       "toolchain": "IntelLLVM and oneAPI 2026.1.1 selected; final source implementation configured and built in 211 steps with zero warnings and zero errors",
       "focused_source_profile": "12 of 12 final tabular and ISO profile implementation contract reconstruction artifact-graph and compiled-mutation tests passed",
+      "complete_local_suite": "347 of 347 passed with zero failures in 1065.04 seconds including 100 deliberate mutation tests",
       "registry_parity": "347 registered tests exactly matched CTest",
       "requirements_trace": "70 product requirements 408 direct requirements 325 evidence targets 185 scenarios 347 registered tests and 18 operation stages verified",
-      "postgresql_synthetic_whole_route_seconds": 121.21,
-      "postgresql_iso_639_whole_route_seconds": 460.66,
+      "postgresql_synthetic_whole_route_seconds": 129.12,
+      "postgresql_iso_639_whole_route_seconds": 482.94,
+      "postgresql_unicode_persistence_seconds": 127.68,
+      "postgresql_composition_measurement_seconds": 61.21,
       "postgresql_iso_639_denominators": "5 artifacts 560435 bytes 17114 records 92153 fields 17110 testimony claims 18805 unresolved reference carriers 128125 recursive AST requests and closure denominator 146930",
       "defect_controls": [
         "omitted artifact parent edge",
@@ -1439,7 +1442,7 @@
     "current_disposition": "product composition succeeds through laplace-runner; root activation is blocked by the absent trusted deployment gateway"
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-28T05:36:57Z",
+    "observed_at_utc": "2026-08-28T05:55:57Z",
     "main_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
@@ -1530,7 +1533,7 @@
       "draft": false,
       "mergeable": true,
       "base_commit": "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
-      "published_head_commit": "70e56defa95f81b312d518e93b56cd3a17f25d7e",
+      "published_head_commit": "0d6ada7b613d396f6bc2db114fcccbdf90be5cf5",
       "proof_state": "generic exact tabular source profile and the locked ISO 639 whole route are published with local controlled-integration evidence; exact-head GitHub CI merge typed ISO Highway resolution activated-product world admission foundational seed and release remain pending"
     },
     "roadmap_project": {
