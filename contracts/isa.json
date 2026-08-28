@@ -2,7 +2,7 @@
   "schema": "laplace.isa-contract/v1",
   "version": {
     "major": 1,
-    "minor": 4
+    "minor": 5
   },
   "execution_context": {
     "required": true,
@@ -17,18 +17,22 @@
     "composition_occurrence_vector": 4,
     "highway_key_vector": 5,
     "highway_coordinate_vector": 6,
-    "highway_registry_receipt_vector": 7
+    "highway_registry_receipt_vector": 7,
+    "evidence_lineage_record_vector": 8,
+    "evidence_root_record_vector": 9
   },
   "opcodes": {
     "identity_codepoint_batch": 131073,
     "trajectory_composition_decode_batch": 196609,
     "highway_coordinate_calculate_batch": 262145,
-    "highway_registry_materialize_batch": 262146
+    "highway_registry_materialize_batch": 262146,
+    "evidence_record_lineage_batch": 327681
   },
   "modules": {
     "identity": 2,
     "trajectory": 3,
-    "highway": 4
+    "highway": 4,
+    "evidence": 5
   },
   "operation_contracts": {
     "identity_codepoint_batch": {
@@ -50,19 +54,26 @@
       "module": "highway",
       "input_type": "u32_vector",
       "output_type": "highway_registry_receipt_vector"
+    },
+    "evidence_record_lineage_batch": {
+      "module": "evidence",
+      "input_type": "evidence_lineage_record_vector",
+      "output_type": "evidence_root_record_vector"
     }
   },
   "instruction_versions": {
     "identity_codepoint_batch": 1,
     "trajectory_composition_decode_batch": 1,
     "highway_coordinate_calculate_batch": 1,
-    "highway_registry_materialize_batch": 1
+    "highway_registry_materialize_batch": 1,
+    "evidence_record_lineage_batch": 1
   },
   "introduced_minor": {
     "identity_codepoint_batch": 0,
     "trajectory_composition_decode_batch": 1,
     "highway_coordinate_calculate_batch": 3,
-    "highway_registry_materialize_batch": 4
+    "highway_registry_materialize_batch": 4,
+    "evidence_record_lineage_batch": 5
   },
   "receipt": {
     "digest_algorithm": "BLAKE3-256",
@@ -82,13 +93,16 @@
         "composition_occurrence_vector": "global::Laplace.Managed.LaplaceCompositionOccurrence",
         "highway_key_vector": "global::Laplace.Managed.LaplaceHighwayKey",
         "highway_coordinate_vector": "global::Laplace.Managed.LaplaceHighwayCoordinate",
-        "highway_registry_receipt_vector": "global::Laplace.Managed.LaplaceHighwayRegistryReceipt"
+        "highway_registry_receipt_vector": "global::Laplace.Managed.LaplaceHighwayRegistryReceipt",
+        "evidence_lineage_record_vector": "global::Laplace.Managed.LaplaceEvidenceLineageRecord",
+        "evidence_root_record_vector": "global::Laplace.Managed.LaplaceEvidenceRootRecord"
       },
       "operation_declarations": {
         "identity_codepoint_batch": "IdentityCodepointBatch",
         "trajectory_composition_decode_batch": "TrajectoryCompositionDecodeBatch",
         "highway_coordinate_calculate_batch": "HighwayCoordinateCalculateBatch",
-        "highway_registry_materialize_batch": "HighwayRegistryMaterializeBatch"
+        "highway_registry_materialize_batch": "HighwayRegistryMaterializeBatch",
+        "evidence_record_lineage_batch": "EvidenceRecordLineageBatch"
       }
     },
     "postgresql": {
@@ -118,6 +132,10 @@
         "activate_c_symbol": "laplace_pg_highway_registry_admit_and_activate",
         "resolve_sql_name": "highway_registry_resolve_active",
         "resolve_c_symbol": "laplace_pg_highway_registry_resolve_active"
+      },
+      "evidence_record_lineage_batch": {
+        "record_sql_name": "evidence_record_lineage_batch",
+        "record_c_symbol": "laplace_pg_evidence_record_lineage_batch"
       }
     }
   },

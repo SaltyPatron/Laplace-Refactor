@@ -188,7 +188,12 @@
       "acceleration": ["batch testimony deposition", "lineage closure candidates", "source and occurrence indexes"],
       "receipts": ["source and recipe boundary", "epistemic kind", "root observations", "dependence inputs", "negative uncertain malformed and unknown dispositions"],
       "product_requirements": ["LP-EVIDENCE-001", "LP-EVIDENCE-002", "LP-ADMISSION-001", "LP-STORAGE-001"],
-      "implementation": {"state": "unimplemented", "evidence": ["contracts/source-admission.json", "requirements/features/world_admission.feature", "requirements/features/epistemic_lineage.feature"]}
+      "implementation": {
+        "state": "partial",
+        "proven_boundary": "one versioned native batch operation identifies epistemically typed evidence nodes from proposition occurrence source context ordinal kind and flags; validates an ordered direct dependence DAG; rejects cycles with the exact closed path before publication; calculates unique terminal root closure and path depth without descendant amplification; executes through generated ISA 1.5; and persists immutable nodes direct edges root projections semantic receipts and ISA receipts through one transactional PostgreSQL operation with direct-native parity and exact replay-conflict rejection",
+        "missing_boundary": "the complete testimony record still lacks source-type trust outcome uncertainty count source-profile and recipe receipt fields; admission has not yet connected heterogeneous AST occurrences to this operation; negative malformed and unsupported dispositions are not complete; and immutable adjudication referential and consensus epochs remain owned by later evidence.adjudicate work",
+        "evidence": ["contracts/evidence-lineage.json", "contracts/isa.json", "cmake/LaplaceEvidenceLineageContract.cmake", "engine/include/laplace/evidence_lineage.h", "engine/src/evidence_lineage.c", "engine/src/isa.c", "managed/Laplace.Managed/Abi.cs", "postgres/extension/src/evidence_lineage_pg.c", "postgres/extension/laplace--version.sql.in", "tests/evidence_lineage_tests.cpp", "tests/isa_tests.cpp", "tests/postgres/spi_contract.sql", "tests/postgres/evidence_root_replay_mutation.sql", "tests/registry.json", "requirements/features/world_admission.feature", "requirements/features/epistemic_lineage.feature"]
+      }
     },
     {
       "id": "world.admit-witnesses",

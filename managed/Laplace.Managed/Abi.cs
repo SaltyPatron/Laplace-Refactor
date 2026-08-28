@@ -96,6 +96,33 @@ public struct LaplaceHighwayRegistryReceipt
     public uint Reserved;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceEvidenceLineageRecord
+{
+    public LaplaceDigest256 NodeId;
+    public LaplaceId128 PropositionId;
+    public LaplaceDigest256 OccurrenceId;
+    public LaplaceDigest256 SourceId;
+    public LaplaceDigest256 ContextId;
+    public LaplaceDigest256 ParentNodeId;
+    public ulong SourceOrdinal;
+    public uint RecordKind;
+    public uint EpistemicKind;
+    public uint Flags;
+    public uint Reserved;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceEvidenceRootRecord
+{
+    public LaplaceDigest256 NodeId;
+    public LaplaceDigest256 RootNodeId;
+    public LaplaceId128 PropositionId;
+    public ulong PathDepth;
+    public uint RootEpistemicKind;
+    public uint Flags;
+}
+
 public enum LaplaceIsaStatus : uint
 {
     Ok = 0,
@@ -113,6 +140,8 @@ public enum LaplaceIsaStatus : uint
     InputOutOfRange = 12,
     ExecutionFailed = 13,
     ContextInvalid = 14,
+    DependenceCycle = 15,
+    ResourceInsufficient = 16,
 }
 
 [StructLayout(LayoutKind.Sequential)]

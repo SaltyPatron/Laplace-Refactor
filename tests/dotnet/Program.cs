@@ -32,11 +32,11 @@ internal static class Program
         Require(LaplaceIsaContract.ReceiptDigestAlgorithm == "BLAKE3-256" &&
             LaplaceIsaContract.ReceiptDigestBytes == 32,
             "generated receipt descriptor differs");
-        Require(LaplaceIsaContract.Minor == 4,
+        Require(LaplaceIsaContract.Minor == 5,
             "generated ISA minor version differs");
-        Require(LaplaceIsaContract.ValueTypes.Length == 7,
+        Require(LaplaceIsaContract.ValueTypes.Length == 9,
             "generated value type inventory differs");
-        Require(LaplaceIsaContract.Operations.Length == 4,
+        Require(LaplaceIsaContract.Operations.Length == 5,
             "generated operation inventory differs");
         Require(IdentityCodepointBatch.Descriptor == LaplaceIsaContract.Operations[0],
             "generated identity declaration differs from descriptor inventory");
@@ -46,6 +46,8 @@ internal static class Program
             "generated highway declaration differs from descriptor inventory");
         Require(HighwayRegistryMaterializeBatch.Descriptor == LaplaceIsaContract.Operations[3],
             "generated highway registry declaration differs from descriptor inventory");
+        Require(EvidenceRecordLineageBatch.Descriptor == LaplaceIsaContract.Operations[4],
+            "generated evidence lineage declaration differs from descriptor inventory");
         Require(LaplaceHighwayContract.Version == 1U &&
             LaplaceHighwayContract.KindLanguage == 3U &&
             LaplaceHighwayContract.KindOperation == 14U,

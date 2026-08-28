@@ -3,10 +3,12 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "blake3.h"
 #include "laplace/framework.h"
+#include "laplace/evidence_lineage.h"
 #include "laplace/highway.h"
 #include "laplace/trajectory.h"
 
@@ -119,6 +121,10 @@ static uint32_t value_element_bytes(uint32_t type) {
             return (uint32_t)sizeof(laplace_highway_coordinate);
         case LAPLACE_ISA_VALUE_HIGHWAY_REGISTRY_RECEIPT_VECTOR:
             return (uint32_t)sizeof(laplace_highway_registry_receipt);
+        case LAPLACE_ISA_VALUE_EVIDENCE_LINEAGE_RECORD_VECTOR:
+            return (uint32_t)sizeof(laplace_evidence_lineage_record);
+        case LAPLACE_ISA_VALUE_EVIDENCE_ROOT_RECORD_VECTOR:
+            return (uint32_t)sizeof(laplace_evidence_root_record);
         default:
             return 0;
     }
@@ -184,6 +190,16 @@ static const uint8_t* const_value_element(
     const laplace_isa_value_view* value,
     uint64_t index) {
     return (const uint8_t*)value->data + (size_t)(index * value->stride_bytes);
+}
+
+static void copy_lineage_inputs(
+    const laplace_isa_value_view* input,
+    laplace_evidence_lineage_record* records) {
+    uint64_t index;
+    for (index = 0u; index < input->count; ++index) {
+        memcpy(&records[(size_t)index], const_value_element(input, index),
+               sizeof(records[index]));
+    }
 }
 
 static laplace_isa_status validate_value(
@@ -377,6 +393,91 @@ static laplace_isa_status validate_highway_registry_materialize_batch(
     return LAPLACE_ISA_OK;
 }
 
+static laplace_isa_status validate_evidence_record_lineage_batch(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input = &program->values[instruction->input_value];
+    const laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_evidence_root_record* temporary;
+    laplace_evidence_lineage_record* contiguous_input = NULL;
+    const laplace_evidence_lineage_record* lineage_input;
+    laplace_evidence_lineage_receipt receipt;
+    laplace_evidence_lineage_error lineage_error;
+    size_t count = 0u;
+    laplace_evidence_lineage_status status;
+    uint64_t temporary_bytes;
+    if (input->count > SIZE_MAX || output->capacity > SIZE_MAX ||
+        output->capacity == 0u) {
+        return fail(error, LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT,
+                    instruction_index, instruction->output_value);
+    }
+    if (output->capacity > UINT64_MAX / sizeof(*temporary) ||
+        input->count > UINT64_MAX / sizeof(*contiguous_input)) {
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->input_value);
+    }
+    temporary_bytes = output->capacity * sizeof(*temporary);
+    lineage_input = (const laplace_evidence_lineage_record*)input->data;
+    if (input->stride_bytes != sizeof(*contiguous_input) ||
+        (uintptr_t)input->data % _Alignof(laplace_evidence_lineage_record) != 0u) {
+        if (UINT64_MAX - temporary_bytes < input->count * sizeof(*contiguous_input)) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        temporary_bytes += input->count * sizeof(*contiguous_input);
+        if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        contiguous_input = (laplace_evidence_lineage_record*)calloc(
+            (size_t)input->count, sizeof(*contiguous_input));
+        if (contiguous_input == NULL) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        copy_lineage_inputs(input, contiguous_input);
+        lineage_input = contiguous_input;
+    } else if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->output_value);
+    }
+    temporary = (laplace_evidence_root_record*)calloc(
+        (size_t)output->capacity, sizeof(*temporary));
+    if (temporary == NULL) {
+        free(contiguous_input);
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->output_value);
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&lineage_error, 0, sizeof(lineage_error));
+    status = laplace_evidence_record_lineage_batch(
+        lineage_input,
+        (size_t)input->count,
+        program->context->resource_grant.memory_bytes - temporary_bytes,
+        temporary, (size_t)output->capacity, &count, &receipt, &lineage_error);
+    free(temporary);
+    free(contiguous_input);
+    if (status == LAPLACE_EVIDENCE_LINEAGE_CYCLE) {
+        return fail(error, LAPLACE_ISA_DEPENDENCE_CYCLE,
+                    instruction_index, instruction->input_value);
+    }
+    if (status == LAPLACE_EVIDENCE_LINEAGE_RESOURCE_INSUFFICIENT) {
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->input_value);
+    }
+    if (status == LAPLACE_EVIDENCE_LINEAGE_CAPACITY_INSUFFICIENT) {
+        return fail(error, LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT,
+                    instruction_index, instruction->output_value);
+    }
+    if (status != LAPLACE_EVIDENCE_LINEAGE_OK) {
+        return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                    instruction_index, instruction->input_value);
+    }
+    return LAPLACE_ISA_OK;
+}
+
 static laplace_isa_status validate_global_ranges(
     const laplace_isa_program* program,
     laplace_isa_error* error) {
@@ -395,7 +496,7 @@ static laplace_isa_status validate_global_ranges(
         uintptr_t left_input_end;
         uint64_t right_index;
 
-        if (!value_span(left_output, left_input->count,
+        if (!value_span(left_output, left_output->capacity,
                         &left_output_begin, &left_output_end) ||
             !value_span(left_input, left_input->count,
                         &left_input_begin, &left_input_end)) {
@@ -422,7 +523,7 @@ static laplace_isa_status validate_global_ranges(
             uintptr_t right_input_begin;
             uintptr_t right_input_end;
 
-            if (!value_span(right_output, right_input->count,
+            if (!value_span(right_output, right_output->capacity,
                             &right_output_begin, &right_output_end) ||
                 !value_span(right_input, right_input->count,
                             &right_input_begin, &right_input_end)) {
@@ -675,6 +776,33 @@ static void hash_value_vector(
                 hash_u32(hasher, receipt.reserved);
                 break;
             }
+            case LAPLACE_ISA_VALUE_EVIDENCE_LINEAGE_RECORD_VECTOR: {
+                laplace_evidence_lineage_record record;
+                memcpy(&record, item, sizeof(record));
+                blake3_hasher_update(hasher, record.node_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.proposition_id.bytes, 16u);
+                blake3_hasher_update(hasher, record.occurrence_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.source_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.context_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.parent_node_id.bytes, 32u);
+                hash_u64(hasher, record.source_ordinal);
+                hash_u32(hasher, record.record_kind);
+                hash_u32(hasher, record.epistemic_kind);
+                hash_u32(hasher, record.flags);
+                hash_u32(hasher, record.reserved);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_EVIDENCE_ROOT_RECORD_VECTOR: {
+                laplace_evidence_root_record record;
+                memcpy(&record, item, sizeof(record));
+                blake3_hasher_update(hasher, record.node_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.root_node_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.proposition_id.bytes, 16u);
+                hash_u64(hasher, record.path_depth);
+                hash_u32(hasher, record.root_epistemic_kind);
+                hash_u32(hasher, record.flags);
+                break;
+            }
             default:
                 break;
         }
@@ -860,6 +988,79 @@ static laplace_isa_status execute_highway_registry_materialize_batch(
         memcpy(value_element(output, index), &receipt, sizeof(receipt));
     }
     output->count = input->count;
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status execute_evidence_record_lineage_batch(
+    laplace_isa_program* program,
+    const laplace_isa_instruction* instruction) {
+    laplace_isa_value_view* input = &program->values[instruction->input_value];
+    laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_evidence_lineage_receipt receipt;
+    laplace_evidence_lineage_error error;
+    size_t count = 0u;
+    laplace_evidence_lineage_status status;
+    laplace_evidence_lineage_record* contiguous_input = NULL;
+    laplace_evidence_root_record* contiguous_output = NULL;
+    const laplace_evidence_lineage_record* lineage_input;
+    laplace_evidence_root_record* lineage_output;
+    uint64_t temporary_bytes = 0u;
+    uint64_t index;
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&error, 0, sizeof(error));
+    lineage_input = (const laplace_evidence_lineage_record*)input->data;
+    lineage_output = (laplace_evidence_root_record*)output->data;
+    if (input->stride_bytes != sizeof(*contiguous_input) ||
+        (uintptr_t)input->data % _Alignof(laplace_evidence_lineage_record) != 0u) {
+        temporary_bytes = input->count * sizeof(*contiguous_input);
+        contiguous_input = (laplace_evidence_lineage_record*)calloc(
+            (size_t)input->count, sizeof(*contiguous_input));
+        if (contiguous_input == NULL) {
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        copy_lineage_inputs(input, contiguous_input);
+        lineage_input = contiguous_input;
+    }
+    if (output->stride_bytes != sizeof(*contiguous_output) ||
+        (uintptr_t)output->data % _Alignof(laplace_evidence_root_record) != 0u) {
+        temporary_bytes += output->capacity * sizeof(*contiguous_output);
+        contiguous_output = (laplace_evidence_root_record*)calloc(
+            (size_t)output->capacity, sizeof(*contiguous_output));
+        if (contiguous_output == NULL) {
+            free(contiguous_input);
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        lineage_output = contiguous_output;
+    }
+    if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+        free(contiguous_output);
+        free(contiguous_input);
+        return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+    }
+    status = laplace_evidence_record_lineage_batch(
+        lineage_input,
+        (size_t)input->count,
+        program->context->resource_grant.memory_bytes - temporary_bytes,
+        lineage_output,
+        (size_t)output->capacity, &count, &receipt, &error);
+    if (status != LAPLACE_EVIDENCE_LINEAGE_OK) {
+        free(contiguous_output);
+        free(contiguous_input);
+        return status == LAPLACE_EVIDENCE_LINEAGE_CYCLE
+            ? LAPLACE_ISA_DEPENDENCE_CYCLE
+            : status == LAPLACE_EVIDENCE_LINEAGE_RESOURCE_INSUFFICIENT
+                ? LAPLACE_ISA_RESOURCE_INSUFFICIENT
+                : LAPLACE_ISA_EXECUTION_FAILED;
+    }
+    if (contiguous_output != NULL) {
+        for (index = 0u; index < (uint64_t)count; ++index) {
+            memcpy(value_element(output, index), &contiguous_output[(size_t)index],
+                   sizeof(contiguous_output[index]));
+        }
+    }
+    free(contiguous_output);
+    free(contiguous_input);
+    output->count = (uint64_t)count;
     return LAPLACE_ISA_OK;
 }
 

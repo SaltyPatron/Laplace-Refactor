@@ -41,6 +41,10 @@ function(laplace_configure_postgresql_bindings
         "${contract_json}" bindings postgresql highway_registry_materialize_batch resolve_sql_name)
     string(JSON highway_registry_resolve_symbol GET
         "${contract_json}" bindings postgresql highway_registry_materialize_batch resolve_c_symbol)
+    string(JSON evidence_record_sql GET
+        "${contract_json}" bindings postgresql evidence_record_lineage_batch record_sql_name)
+    string(JSON evidence_record_symbol GET
+        "${contract_json}" bindings postgresql evidence_record_lineage_batch record_c_symbol)
     file(READ "${persistence_contract_path}" persistence_json)
     string(JSON persistence_schema GET "${persistence_json}" schema)
     string(JSON persistence_deposit_sql GET
@@ -147,6 +151,7 @@ function(laplace_configure_postgresql_bindings
         highway_execute_sql highway_execute_symbol
         highway_registry_activate_sql highway_registry_activate_symbol
         highway_registry_resolve_sql highway_registry_resolve_symbol
+        evidence_record_sql evidence_record_symbol
         persistence_deposit_sql persistence_deposit_symbol
         composition_deposit_sql composition_deposit_symbol
         unicode_postgresql_sql unicode_postgresql_symbol
@@ -197,6 +202,8 @@ function(laplace_configure_postgresql_bindings
         "${highway_registry_resolve_sql}")
     set(LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SYMBOL
         "${highway_registry_resolve_symbol}")
+    set(LAPLACE_PG_EVIDENCE_RECORD_SQL "${evidence_record_sql}")
+    set(LAPLACE_PG_EVIDENCE_RECORD_SYMBOL "${evidence_record_symbol}")
     set(LAPLACE_PG_CARRIER_ENCODING "${carrier_encoding}")
     set(LAPLACE_PG_PERSISTENCE_DEPOSIT_SQL "${persistence_deposit_sql}")
     set(LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL "${persistence_deposit_symbol}")

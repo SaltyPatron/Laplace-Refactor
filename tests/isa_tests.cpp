@@ -1,11 +1,14 @@
 #include "laplace/isa.h"
+#include "laplace/evidence_lineage.h"
 #include "laplace/highway.h"
 #include "laplace/trajectory.h"
 #include "context_fixture.h"
 
 #include <array>
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -87,6 +90,25 @@ laplace_isa_value_view HighwayRegistryOutputView(
             LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
 }
 
+laplace_isa_value_view EvidenceInputView(
+    laplace_evidence_lineage_record* data,
+    std::size_t count) {
+    return {data, static_cast<std::uint64_t>(count),
+            static_cast<std::uint64_t>(count),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_EVIDENCE_LINEAGE_RECORD_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view EvidenceOutputView(
+    laplace_evidence_root_record* data,
+    std::size_t capacity) {
+    return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_EVIDENCE_ROOT_RECORD_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
 laplace_isa_instruction IdentityInstruction(
     std::uint32_t input,
     std::uint32_t output) {
@@ -127,6 +149,15 @@ laplace_isa_instruction HighwayRegistryInstruction(
             LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
 }
 
+laplace_isa_instruction EvidenceInstruction(
+    std::uint32_t input,
+    std::uint32_t output) {
+    return {LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_LINEAGE_BATCH,
+            input, output,
+            LAPLACE_ISA_INSTRUCTION_VERSION_EVIDENCE_RECORD_LINEAGE_BATCH,
+            LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
 laplace_id128 HighwayId(std::uint8_t seed) {
     laplace_id128 value{};
     for (std::size_t index = 0; index < sizeof(value.bytes); ++index) {
@@ -162,13 +193,60 @@ laplace_isa_program Program(
 
 TEST(IsaAbi, ContractAssignmentsAreStable) {
     static_assert(LAPLACE_ISA_MAJOR == 1u);
-    static_assert(LAPLACE_ISA_MINOR == 4u);
+    static_assert(LAPLACE_ISA_MINOR == 5u);
     static_assert(LAPLACE_ISA_VALUE_U32_VECTOR != LAPLACE_ISA_VALUE_ID128_VECTOR);
     static_assert(sizeof(laplace_isa_digest256) == 32u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH, 0x00020001u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_TRAJECTORY_COMPOSITION_DECODE_BATCH, 0x00030001u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_HIGHWAY_COORDINATE_CALCULATE_BATCH, 0x00040001u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH, 0x00040002u);
+    EXPECT_EQ(LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_LINEAGE_BATCH, 0x00050001u);
+}
+
+TEST(IsaExecution, EvidenceLineageMatchesCanonicalNativeOperationAndReceipt) {
+    laplace_evidence_lineage_record root{};
+    root.proposition_id = HighwayId(0x21u);
+    std::memset(root.occurrence_id.bytes, 0x31, sizeof(root.occurrence_id.bytes));
+    std::memset(root.source_id.bytes, 0x41, sizeof(root.source_id.bytes));
+    std::memset(root.context_id.bytes, 0x51, sizeof(root.context_id.bytes));
+    root.source_ordinal = 1u;
+    root.record_kind = LAPLACE_EVIDENCE_RECORD_NODE;
+    root.epistemic_kind = LAPLACE_EVIDENCE_KIND_OBSERVED;
+    ASSERT_EQ(laplace_evidence_node_identify(&root, &root.node_id),
+              LAPLACE_EVIDENCE_LINEAGE_OK);
+    auto child = root;
+    child.source_id.bytes[0] ^= 0x80u;
+    child.source_ordinal = 2u;
+    child.epistemic_kind = LAPLACE_EVIDENCE_KIND_TESTIMONY;
+    ASSERT_EQ(laplace_evidence_node_identify(&child, &child.node_id),
+              LAPLACE_EVIDENCE_LINEAGE_OK);
+    std::array<laplace_evidence_lineage_record, 2> nodes{{root, child}};
+    std::sort(nodes.begin(), nodes.end(), [](const auto& left, const auto& right) {
+        return std::memcmp(left.node_id.bytes, right.node_id.bytes,
+                           sizeof(left.node_id.bytes)) < 0;
+    });
+    laplace_evidence_lineage_record edge{};
+    edge.node_id = child.node_id;
+    edge.parent_node_id = root.node_id;
+    edge.record_kind = LAPLACE_EVIDENCE_RECORD_DEPENDENCE_EDGE;
+    std::array<laplace_evidence_lineage_record, 3> records{{
+        nodes[0], nodes[1], edge}};
+    std::array<laplace_evidence_root_record, 2> outputs{};
+    std::array<laplace_isa_value_view, 2> values{{
+        EvidenceInputView(records.data(), records.size()),
+        EvidenceOutputView(outputs.data(), outputs.size())}};
+    auto instruction = EvidenceInstruction(0u, 1u);
+    auto program = Program(&instruction, 1u, values.data(), values.size());
+    laplace_isa_receipt receipt{};
+    laplace_isa_error error{};
+
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(values[1].count, 2u);
+    for (const auto& output : outputs) {
+        EXPECT_EQ(std::memcmp(output.root_node_id.bytes, root.node_id.bytes,
+                              sizeof(root.node_id.bytes)), 0);
+    }
+    EXPECT_EQ(receipt.executed_instruction_count, 1u);
 }
 
 TEST(IsaExecution, HighwayBatchMatchesCanonicalNativeOperationAndReceipt) {

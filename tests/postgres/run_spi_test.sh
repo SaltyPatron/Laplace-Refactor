@@ -143,6 +143,16 @@ elif [[ "$mode" == "contract" || "$mode" == "persistence-mutation" ]]; then
         shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
         psql_arguments+=(-v "$shell_name=$(read_probe_value "$key")")
     done
+    for key in \
+        EVIDENCE_ROOT_NODE EVIDENCE_COPY_NODE EVIDENCE_INDEPENDENT_NODE \
+        EVIDENCE_ROOT_SOURCE EVIDENCE_ROOT_CONTEXT \
+        EVIDENCE_COPY_SOURCE EVIDENCE_COPY_CONTEXT \
+        EVIDENCE_INDEPENDENT_SOURCE EVIDENCE_INDEPENDENT_CONTEXT \
+        EVIDENCE_LINEAGE_RECEIPT EVIDENCE_LINEAGE_INPUT \
+        EVIDENCE_LINEAGE_OUTPUT EVIDENCE_ISA_RECEIPT; do
+        shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+        psql_arguments+=(-v "$shell_name=$(read_probe_value "$key")")
+    done
     if [[ "$mode" == "persistence-mutation" ]]; then
         if [[ -z "${LAPLACE_MUTANT_MODULE:-}" || ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
             echo "persistence mutant module is missing" >&2

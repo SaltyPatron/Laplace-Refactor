@@ -222,6 +222,44 @@ add_test(
 set_tests_properties(highway.mutation-release-scope-omission-detected PROPERTIES
     LABELS "implementation;highway;coordinate;mutation")
 
+add_executable(laplace_evidence_lineage_tests evidence_lineage_tests.cpp)
+target_link_libraries(laplace_evidence_lineage_tests PRIVATE
+    Laplace::EvidenceLineage GTest::gtest_main)
+target_compile_options(laplace_evidence_lineage_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_evidence_lineage_tests PROPERTIES
+    LABELS "implementation;evidence;lineage;dependence;receipt")
+
+add_library(laplace_evidence_lineage_independence_mutant STATIC
+    ../engine/src/evidence_lineage.c)
+target_include_directories(laplace_evidence_lineage_independence_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_evidence_lineage_independence_mutant PRIVATE
+    BLAKE3::blake3)
+target_compile_definitions(laplace_evidence_lineage_independence_mutant PRIVATE
+    LAPLACE_TEST_LINEAGE_COUNT_DESCENDANTS_AS_ROOTS=1)
+target_compile_options(laplace_evidence_lineage_independence_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_evidence_lineage_independence_mutation_probe
+    evidence_lineage_tests.cpp)
+target_include_directories(laplace_evidence_lineage_independence_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_evidence_lineage_independence_mutation_probe PRIVATE
+    laplace_evidence_lineage_independence_mutant GTest::gtest_main)
+target_compile_options(laplace_evidence_lineage_independence_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME evidence-lineage.mutation-dependent-descendants-counted-as-roots-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_evidence_lineage_independence_mutation_probe>"
+        "-DFILTER=EvidenceLineage.CopiesCollapseToOneRootWhileIndependentWitnessesRemain"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    evidence-lineage.mutation-dependent-descendants-counted-as-roots-detected PROPERTIES
+    LABELS "implementation;evidence;lineage;dependence;mutation")
+
 add_executable(laplace_unicode_root_tests
     unicode_root_tests.cpp)
 target_link_libraries(laplace_unicode_root_tests PRIVATE
@@ -1541,6 +1579,7 @@ set_tests_properties(isa.preflight-atomicity-contract PROPERTIES
     LABELS "implementation;isa;contract")
 
 add_library(laplace_isa_preflight_mutant STATIC
+    ../engine/src/evidence_lineage.c
     ../engine/src/identity.c
     ../engine/src/framework.c
     ../engine/src/highway.c
@@ -1581,6 +1620,7 @@ set_tests_properties(isa.generated-registry-dispatch-contract PROPERTIES
     LABELS "implementation;isa;framework;registry;contract")
 
 add_library(laplace_isa_registry_mutant STATIC
+    ../engine/src/evidence_lineage.c
     ../engine/src/identity.c
     ../engine/src/framework.c
     ../engine/src/highway.c
@@ -1621,6 +1661,7 @@ set_tests_properties(isa.execution-context-binding-contract PROPERTIES
     LABELS "implementation;isa;framework;context;receipt;contract")
 
 add_library(laplace_isa_context_mutant STATIC
+    ../engine/src/evidence_lineage.c
     ../engine/src/identity.c
     ../engine/src/framework.c
     ../engine/src/highway.c
@@ -1983,6 +2024,10 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/persistence_blind_conflict_mutation.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_blind_conflict_mutation.sql"
         COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/evidence_root_replay_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/evidence_root_replay_mutation.sql"
+        COPYONLY)
     foreach(composition_mutation_sql
         composition_presence_order_mutation.sql
         composition_presence_blind_mutation.sql
@@ -2170,6 +2215,28 @@ if(LAPLACE_POSTGRES_ENABLED)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_persistence_mutation_failure.cmake")
     set_tests_properties(postgres.mutation-blind-persistence-conflict-detected PROPERTIES
         LABELS "postgresql;spi;persistence;identity;mutation"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.mutation-evidence-root-replay-conflict-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_evidence_root_replay_mutant>"
+            "-DMUTANT_NAME=postgres.mutation-evidence-root-replay-conflict-detected"
+            "-DEXPECTED_PATTERN=evidence root-replay mutant accepted conflicting durable projection"
+            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/evidence_root_replay_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_mutation_failure.cmake")
+    set_tests_properties(
+        postgres.mutation-evidence-root-replay-conflict-detected PROPERTIES
+        LABELS "postgresql;evidence;lineage;dependence;receipt;mutation"
         RUN_SERIAL TRUE)
 
     function(laplace_add_postgresql_composition_mutation

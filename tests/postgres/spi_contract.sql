@@ -140,6 +140,40 @@ CREATE TEMP TABLE persistence_expected (
     bulk_stream bytea NOT NULL
 );
 
+CREATE TEMP TABLE evidence_expected (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    root_node bytea NOT NULL,
+    copy_node bytea NOT NULL,
+    independent_node bytea NOT NULL,
+    root_source bytea NOT NULL,
+    root_context bytea NOT NULL,
+    copy_source bytea NOT NULL,
+    copy_context bytea NOT NULL,
+    independent_source bytea NOT NULL,
+    independent_context bytea NOT NULL,
+    lineage_receipt bytea NOT NULL,
+    lineage_input bytea NOT NULL,
+    lineage_output bytea NOT NULL,
+    isa_receipt bytea NOT NULL
+);
+
+INSERT INTO evidence_expected VALUES (
+    true,
+    decode(:'evidence_root_node', 'hex'),
+    decode(:'evidence_copy_node', 'hex'),
+    decode(:'evidence_independent_node', 'hex'),
+    decode(:'evidence_root_source', 'hex'),
+    decode(:'evidence_root_context', 'hex'),
+    decode(:'evidence_copy_source', 'hex'),
+    decode(:'evidence_copy_context', 'hex'),
+    decode(:'evidence_independent_source', 'hex'),
+    decode(:'evidence_independent_context', 'hex'),
+    decode(:'evidence_lineage_receipt', 'hex'),
+    decode(:'evidence_lineage_input', 'hex'),
+    decode(:'evidence_lineage_output', 'hex'),
+    decode(:'evidence_isa_receipt', 'hex')
+);
+
 INSERT INTO persistence_expected VALUES (
     true,
     decode(:'persistence_source', 'hex'),
@@ -180,6 +214,7 @@ BEGIN
                 ('laplace.highway_coordinate_execute_batch(laplace.execution_context,laplace.highway_key[])', 'v', 'u'),
                 ('laplace.highway_registry_admit_and_activate(laplace.execution_context,numeric)', 'v', 'u'),
                 ('laplace.highway_registry_resolve_active(laplace.execution_context)', 's', 'u'),
+                ('laplace.evidence_record_lineage_batch(laplace.execution_context,laplace.evidence_lineage_record[],numeric)', 'v', 'u'),
                 ('laplace.canonical_deposit_batch(laplace.execution_context,bytea,bytea,bytea[])', 'v', 'u'),
                 ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint,integer)', 'v', 'u'),
                 ('laplace.unicode_tier0_resolve_batch(bytea,bytea,integer[])', 's', 'u'),
@@ -211,6 +246,7 @@ BEGIN
               'highway_coordinate_execute_batch',
               'highway_registry_admit_and_activate',
               'highway_registry_resolve_active',
+              'evidence_record_lineage_batch',
               'canonical_deposit_batch',
               'unicode_root_build_and_activate',
               'unicode_tier0_resolve_batch',
@@ -223,6 +259,138 @@ BEGIN
     END IF;
 END
 $contract$;
+
+CREATE FUNCTION pg_temp.run_evidence_contract()
+RETURNS void
+LANGUAGE plpgsql
+AS $evidence$
+DECLARE
+    expected evidence_expected%ROWTYPE;
+    persistence persistence_expected%ROWTYPE;
+    records laplace.evidence_lineage_record[];
+    cycle_records laplace.evidence_lineage_record[];
+    result laplace.evidence_lineage_result;
+    replay laplace.evidence_lineage_result;
+    receipt_xmin xid;
+    receipt_ctid tid;
+    nodes_before bigint;
+    edges_before bigint;
+    roots_before bigint;
+BEGIN
+    SELECT * INTO STRICT expected FROM evidence_expected;
+    SELECT * INTO STRICT persistence FROM persistence_expected;
+    SELECT array_agg(record ORDER BY (record).node_id)
+    INTO STRICT records
+    FROM (VALUES
+        (ROW(expected.root_node, persistence.entity_a, persistence.occurrence_id,
+             expected.root_source, expected.root_context, decode(repeat('00',32),'hex'),
+             1::numeric, 1, 1, 0, 0)::laplace.evidence_lineage_record),
+        (ROW(expected.copy_node, persistence.entity_a, persistence.occurrence_id,
+             expected.copy_source, expected.copy_context, decode(repeat('00',32),'hex'),
+             2::numeric, 1, 2, 0, 0)::laplace.evidence_lineage_record),
+        (ROW(expected.independent_node, persistence.entity_a, persistence.occurrence_id,
+             expected.independent_source, expected.independent_context,
+             decode(repeat('00',32),'hex'),
+             3::numeric, 1, 1, 0, 0)::laplace.evidence_lineage_record)
+    ) AS nodes(record);
+    records := records || ARRAY[
+        ROW(expected.copy_node, decode(repeat('00',16),'hex'),
+            decode(repeat('00',32),'hex'), decode(repeat('00',32),'hex'),
+            decode(repeat('00',32),'hex'), expected.root_node,
+            0::numeric, 2, 0, 0, 0)::laplace.evidence_lineage_record
+    ];
+    result := laplace.evidence_record_lineage_batch(
+        pg_temp.persistence_context(), records, 3::numeric);
+    IF result.lineage_receipt_id <> expected.lineage_receipt
+       OR result.input_fingerprint <> expected.lineage_input
+       OR result.output_fingerprint <> expected.lineage_output
+       OR result.isa_receipt_id <> expected.isa_receipt
+       OR result.input_record_count <> 4
+       OR result.node_count <> 3
+       OR result.edge_count <> 1
+       OR result.root_relation_count <> 3
+       OR cardinality(result.node_ids) <> 3
+       OR cardinality(result.root_node_ids) <> 3
+       OR (SELECT count(DISTINCT root_id) FROM unnest(result.root_node_ids) root_id) <> 2
+       OR NOT EXISTS (
+            SELECT FROM unnest(result.node_ids, result.root_node_ids) pair(node_id, root_id)
+            WHERE pair.node_id = expected.copy_node
+              AND pair.root_id = expected.root_node)
+       OR NOT EXISTS (
+            SELECT FROM unnest(result.node_ids, result.root_node_ids) pair(node_id, root_id)
+            WHERE pair.node_id = expected.independent_node
+              AND pair.root_id = expected.independent_node) THEN
+        RAISE EXCEPTION 'PostgreSQL evidence lineage differs from the native ISA result'
+            USING DETAIL = format(
+                'actual=%s expected_lineage_receipt=%s expected_input=%s expected_output=%s expected_isa_receipt=%s',
+                result::text,
+                encode(expected.lineage_receipt, 'hex'),
+                encode(expected.lineage_input, 'hex'),
+                encode(expected.lineage_output, 'hex'),
+                encode(expected.isa_receipt, 'hex'));
+    END IF;
+    IF (SELECT count(*) FROM laplace.evidence_node) <> 3
+       OR (SELECT count(*) FROM laplace.evidence_dependence) <> 1
+       OR (SELECT count(*) FROM laplace.evidence_root_projection) <> 3
+       OR (SELECT count(*) FROM laplace.evidence_lineage_receipt) <> 1 THEN
+        RAISE EXCEPTION 'evidence lineage did not persist its complete batch atomically';
+    END IF;
+    SELECT xmin, ctid INTO STRICT receipt_xmin, receipt_ctid
+    FROM laplace.evidence_lineage_receipt
+    WHERE receipt_id = result.lineage_receipt_id;
+    replay := laplace.evidence_record_lineage_batch(
+        pg_temp.persistence_context(), records, 3::numeric);
+    IF replay IS DISTINCT FROM result OR NOT EXISTS (
+        SELECT FROM laplace.evidence_lineage_receipt
+        WHERE receipt_id = result.lineage_receipt_id
+          AND xmin = receipt_xmin AND ctid = receipt_ctid) THEN
+        RAISE EXCEPTION 'evidence replay changed its result or immutable receipt';
+    END IF;
+    SELECT count(*) INTO nodes_before FROM laplace.evidence_node;
+    SELECT count(*) INTO edges_before FROM laplace.evidence_dependence;
+    SELECT count(*) INTO roots_before FROM laplace.evidence_root_projection;
+    SELECT array_agg(cycle ORDER BY cycle.record_kind,
+                                    cycle.node_id,
+                                    cycle.parent_node_id)
+    INTO STRICT cycle_records
+    FROM unnest(records || ARRAY[
+        ROW(expected.root_node, decode(repeat('00',16),'hex'),
+            decode(repeat('00',32),'hex'), decode(repeat('00',32),'hex'),
+            decode(repeat('00',32),'hex'), expected.copy_node,
+            0::numeric, 2, 0, 0, 0)::laplace.evidence_lineage_record
+    ]) AS cycle;
+    BEGIN
+        PERFORM laplace.evidence_record_lineage_batch(
+            pg_temp.persistence_context(), cycle_records, 4::numeric);
+        RAISE EXCEPTION 'evidence dependence cycle was accepted';
+    EXCEPTION
+        WHEN invalid_recursion THEN NULL;
+    END;
+    IF (SELECT count(*) FROM laplace.evidence_node) <> nodes_before
+       OR (SELECT count(*) FROM laplace.evidence_dependence) <> edges_before
+       OR (SELECT count(*) FROM laplace.evidence_root_projection) <> roots_before
+       OR (SELECT count(*) FROM laplace.evidence_lineage_receipt) <> 1 THEN
+        RAISE EXCEPTION 'rejected evidence cycle published partial state';
+    END IF;
+    BEGIN
+        UPDATE laplace.evidence_root_projection
+        SET path_depth = path_depth + 1
+        WHERE node_id = expected.copy_node AND root_node_id = expected.root_node;
+        PERFORM laplace.evidence_record_lineage_batch(
+            pg_temp.persistence_context(), records, 3::numeric);
+        RAISE EXCEPTION 'conflicting durable evidence projection was accepted';
+    EXCEPTION
+        WHEN data_corrupted THEN NULL;
+    END;
+    IF NOT EXISTS (
+        SELECT FROM laplace.evidence_root_projection
+        WHERE node_id = expected.copy_node
+          AND root_node_id = expected.root_node
+          AND path_depth = 1) THEN
+        RAISE EXCEPTION 'conflict subtransaction did not restore exact evidence state';
+    END IF;
+END
+$evidence$;
 
 DO $contract$
 DECLARE
@@ -262,7 +430,7 @@ BEGIN
        OR result.instruction_count <> 1
        OR result.executed_instruction_count <> 1
        OR result.isa_major <> 1
-       OR result.isa_minor <> 4
+       OR result.isa_minor <> 5
        OR result.status <> 0
        OR result.item_count <> 3 THEN
         RAISE EXCEPTION 'SPI identity receipt differs from the native receipt';
@@ -395,7 +563,7 @@ BEGIN
        OR result.instruction_count <> 1
        OR result.executed_instruction_count <> 1
        OR result.isa_major <> 1
-       OR result.isa_minor <> 4
+       OR result.isa_minor <> 5
        OR result.status <> 0
        OR result.item_count <> 2 THEN
         RAISE EXCEPTION 'PostgreSQL highway result differs from direct native ISA';
@@ -739,6 +907,8 @@ BEGIN
     END IF;
 END
 $contract$;
+
+SELECT pg_temp.run_evidence_contract();
 
 CREATE TEMP TABLE zero_pattern_expected (
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),

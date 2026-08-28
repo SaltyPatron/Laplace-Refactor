@@ -21,6 +21,7 @@ laplace_configure_postgresql_bindings(
 
 set(laplace_postgresql_module_sources
     src/composition_pg.c
+    src/evidence_lineage_pg.c
     src/highway_registry_pg.c
     src/laplace_pg.c
     src/persistence_pg.c
@@ -118,6 +119,12 @@ if(BUILD_TESTING)
         LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_replay_receipt_mutant
         LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_replay_receipt_mutant
         LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL=laplace_pg_persistence_run_producer_replay_receipt_mutant)
+    laplace_add_postgresql_mutant(
+        laplace_pg_evidence_root_replay_mutant
+        LAPLACE_TEST_EVIDENCE_ROOT_REPLAY_VERIFY_BYPASS)
+    target_compile_definitions(
+        laplace_pg_evidence_root_replay_mutant PRIVATE
+        LAPLACE_PG_EVIDENCE_ENTRYPOINT=laplace_pg_evidence_record_lineage_root_replay_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_perfcache_epoch_mutant
         LAPLACE_TEST_SKIP_PG_PERFCACHE_EXPECTED_EPOCH)

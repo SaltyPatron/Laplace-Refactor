@@ -8,6 +8,7 @@ add_library(laplace_engine SHARED
     src/spool.cpp
     src/isa.c
     src/persistence.c
+    src/evidence_lineage.c
     src/composition.cpp
     src/trajectory.c
     src/unicode_root.c
@@ -40,6 +41,7 @@ add_library(Laplace::Trajectory ALIAS laplace_engine)
 add_library(Laplace::Execution ALIAS laplace_engine)
 add_library(Laplace::Framework ALIAS laplace_engine)
 add_library(Laplace::Persistence ALIAS laplace_engine)
+add_library(Laplace::EvidenceLineage ALIAS laplace_engine)
 add_library(Laplace::Composition ALIAS laplace_engine)
 add_library(Laplace::Highway ALIAS laplace_engine)
 add_library(Laplace::UnicodeRoot ALIAS laplace_engine)
@@ -129,6 +131,7 @@ install(FILES
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/execution.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/framework.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/persistence.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/evidence_lineage.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/composition.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/highway.h"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")
