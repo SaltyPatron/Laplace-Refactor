@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-28T08:58:24Z",
+  "observed_at_utc": "2026-08-28T22:43:35Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,13 +12,13 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "feat/iso-highway-topology",
-    "active_worktree": "/build/laplace/worktrees/iso-highway-topology",
-    "base_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac",
+    "active_branch": "feat/cili-cross-profile-topology",
+    "active_worktree": "/build/laplace/worktrees/cili-cross-profile-topology",
+    "base_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac",
-    "observed_branch_head": "c8d28441b6da20cdb6b34a3f55c972d687491834",
-    "implementation_checkpoint_commit": "c8d28441b6da20cdb6b34a3f55c972d687491834",
+    "published_checkpoint_commit": "6f556047b5a7326b53a9a5f9db334abc7b934987",
+    "observed_branch_head": "6f556047b5a7326b53a9a5f9db334abc7b934987",
+    "implementation_checkpoint_commit": "6f556047b5a7326b53a9a5f9db334abc7b934987",
     "pull_request": null
   },
   "development_inputs": {
@@ -179,7 +179,8 @@
       "root_stream_frames": 2230150,
       "entity_rows": 1114112,
       "physicality_rows": 1114112,
-      "atom_binding_rows": 1114112,
+      "atom_binding_rows": 0,
+      "canonical_source_testimony_rows": 1114112,
       "direct_reverse_activation": "coherent in controlled integration",
       "full_root_seconds": 118.74
     },
@@ -1356,14 +1357,14 @@
     ]
   },
   "active_work": {
-    "capability": "source-profile.resolve-reference-topology",
-    "github_issue": 53,
-    "related_issue": 52,
-    "state": "implementation-and-controlled-integration-proven-iso-reference-topology-product-world-admission-incomplete",
-    "branch": "feat/iso-highway-topology",
+    "capability": "unicode.canonical-persistence-and-source-claim-scope",
+    "github_issue": 13,
+    "related_issue": 53,
+    "state": "implementation-and-controlled-integration-proven-canonical-unicode-persistence-tier-correct-source-testimony-product-activation-incomplete",
+    "branch": "feat/cili-cross-profile-topology",
     "pull_request": null,
-    "base_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac",
-    "implementation_commit": "c8d28441b6da20cdb6b34a3f55c972d687491834",
+    "base_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
+    "implementation_commit": "6f556047b5a7326b53a9a5f9db334abc7b934987",
     "implemented_boundary": [
       "the generic evidence-testimony source-profile tabular-source and world-admission route merged through PR 83 at main commit 50c41b362e32b9338c6930f69c6fff76560b24ac with exact-head and post-merge clean-room and custom-stack validation",
       "one versioned canonical native reference-topology batch operation owns strict authority release namespace exact local-identifier version and lifecycle resolution through generated ISA 1.9 and managed parity",
@@ -1375,7 +1376,13 @@
       "all 18805 ISO identifier and join-key occurrences resolve into 9339 exact scoped Highway coordinates with 18404 present 401 retired and zero unresolved dispositions without manufacturing cross-namespace mappings",
       "replay returns identical semantic working-set source-profile reference-topology lineage testimony world and ISA receipts while rollback publishes no durable effect",
       "same selected content converges on canonical content identity while occurrence testimony source profile and dependence provenance remain separately addressable",
-      "the same authority-declared HTTPS archive is acquired into an atomic receipted source tree for public clean-room CI while the custom runner verifies the local vault copy through identical hashes"
+      "the same authority-declared HTTPS archive is acquired into an atomic receipted source tree for public clean-room CI while the custom runner verifies the local vault copy through identical hashes",
+      "Unicode atom bindings are deposited as canonical Entity Physicality and root-scoped source-testimony Attestation rows rather than a private semantic table",
+      "Unicode lookup resolves through the canonical Attestation Entity and Physicality families while the direct and reverse mapped planes remain removable acceleration",
+      "one public maximum-batch-bytes boundary derives worst-case frame capacity from the encoded record law and execution memory grant instead of exposing an arbitrary 32768-row semantic limit",
+      "the generic tabular compiler retains every field and value as exact structural occurrence state but only profile-declared record propositions enter evidence and testimony",
+      "the inventor evidence manifest retains 200 exact human records including the supplied 128590-byte cognition perfcache chess autobiography and model-compilation reconciliation corpus",
+      "stable product law requires query retrieve evidence-fold project cognition layers and modality-wide typed perfcache modules rather than graph hops fixed fanout or a Unicode-only cache"
     ],
     "controlled_integration_validation": {
       "toolchain": "IntelLLVM and oneAPI 2026.1.1 selected through installed-provider receipt 07a9f21bcb81cb669a6be3248eb889ffbceb20bfd05fc957c16373f5ed595137; complete changed build closed with zero warnings and zero errors",
@@ -1390,6 +1397,10 @@
       "postgresql_unicode_persistence_seconds": 123.17,
       "postgresql_composition_measurement_seconds": 50.45,
       "postgresql_iso_639_stage_seconds": "initial admission 244.621 and deterministic replay 213.709 inside the 581.38-second complete route",
+      "canonical_unicode_persistence_seconds": 114.79,
+      "tier_correct_source_admission_seconds": 120.69,
+      "current_native_suite": "333 of 333 CTest entries passed with zero skips after selecting the exact CILI refcoords acquisition receipt; requirement trace and inventor authority passed",
+      "current_unicode_contract_suite": "35 of 35 passed and the contract validator makes no capability or activation claim",
       "postgresql_iso_639_denominators": "5 artifacts 560435 bytes 17114 records 92153 fields 17110 testimony claims 128125 recursive AST requests 18805 typed reference occurrences 9339 coordinates 18404 present 401 retired 0 unresolved and closure denominator 146930",
       "defect_controls": [
         "omitted artifact parent edge",
@@ -1408,9 +1419,12 @@
       "explicit cross-namespace mappings and cross-profile endpoint and dependence closure remain incomplete",
       "immutable standing adjudication contradiction referential and as-of evidence epochs remain incomplete under issue 16",
       "the exact PostgreSQL 18.6 installed product has not executed this source profile and no activated-product world-admission receipt exists",
-      "the configured foundational heterogeneous world seed and product release do not exist"
+      "the configured foundational heterogeneous world seed and product release do not exist",
+      "query-conditioned retrieve score evidence-fold and project cognition execution remains unimplemented",
+      "chess image audio video code model and language-structure perfcache modules remain unimplemented",
+      "Laplace autobiographical world state general conversation modality realization model compilation entity product surfaces federation and release remain incomplete"
     ],
-    "next_boundary": "publish this typed source-reference topology through exact clean-room and custom-stack CI then extend the same generic admission operation across unrelated profiles grammars codecs and modalities with explicit cross-profile mappings and dependence closure before foundational seeding",
+    "next_boundary": "publish the canonical Unicode persistence derived-byte batching tier-correct testimony and preserved whole-product authority through exact clean-room and custom-stack CI; execute protected installed PostgreSQL 18.6 Unicode and mapped-cache activation; then implement the shared query retrieve evidence-fold project cognition lifecycle and extend typed recipes and perfcaches across language chess image audio video code and model state",
     "nonclaims": [
       "a controlled-integration ISO route is not activated-product world admission",
       "the ISO ZIP wrapper is not claimed bit-reconstructable because it is provenance rather than selected canonical world content",
@@ -1450,8 +1464,8 @@
     "current_disposition": "product composition succeeds through laplace-runner; root activation is blocked by the absent trusted deployment gateway"
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-28T08:58:24Z",
-    "main_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac",
+    "observed_at_utc": "2026-08-28T22:43:35Z",
+    "main_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
     "product_cluster_project_status": "In Progress",
@@ -1546,6 +1560,16 @@
       "merged_at_utc": "2026-08-28T06:30:53Z",
       "proof_state": "generic exact tabular source profile and the locked ISO 639 whole route merged with exact-head and post-merge clean-room and custom-stack CI; typed ISO Highway topology activated-product world admission foundational seed and release remained pending at merge"
     },
+    "reference_topology_pull_request": {
+      "number": 84,
+      "state": "merged",
+      "draft": false,
+      "base_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac",
+      "published_head_commit": "51d8da0193a3c6d9c8b42573dbc5a6a1f64a6e3a",
+      "merge_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
+      "merged_at_utc": "2026-08-28T09:25:12Z",
+      "proof_state": "typed source reference topology merged with exact-head and post-merge clean-room and custom-stack validation; canonical Unicode product activation cognition heterogeneous seeding and release remained incomplete"
+    },
     "roadmap_project": {
       "number": 2,
       "title": "Laplace Refactor — Machine Roadmap",
@@ -1567,8 +1591,8 @@
       {"number": 35, "state": "closed", "former_base": "phase1/runtime-build-graph", "head": "phase1/source-built-toolchain", "reconciliation": "all sixteen commits reconciled into draft PR 74; source branch retained as history"}
     ],
     "latest_main_workflow_runs": [
-      {"id": 33148176535, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac"},
-      {"id": 33148176561, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "50c41b362e32b9338c6930f69c6fff76560b24ac"},
+      {"id": 33159287905, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd"},
+      {"id": 33159287880, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd"},
       {"id": 33125108689, "workflow": "product-activation", "conclusion": "failure", "head_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47", "runner_authority": "success", "compose_product": "success", "activate_product": "failed-before-authenticated-request", "failure": "the protected laplace-runner could not execute the absent root-owned /opt/laplace/deployment/current/bin/laplace-product-activate gateway"}
     ],
     "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": false, "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},

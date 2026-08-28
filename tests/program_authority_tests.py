@@ -1264,17 +1264,17 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     active = document.get("active_work", {})
     require(
-        active.get("capability") == "source-profile.resolve-reference-topology"
-        and active.get("github_issue") == 53
-        and active.get("related_issue") == 52
+        active.get("capability") == "unicode.canonical-persistence-and-source-claim-scope"
+        and active.get("github_issue") == 13
+        and active.get("related_issue") == 53
         and active.get("state")
-        == "implementation-and-controlled-integration-proven-iso-reference-topology-product-world-admission-incomplete"
-        and active.get("branch") == "feat/iso-highway-topology"
+        == "implementation-and-controlled-integration-proven-canonical-unicode-persistence-tier-correct-source-testimony-product-activation-incomplete"
+        and active.get("branch") == "feat/cili-cross-profile-topology"
         and active.get("pull_request") is None
         and active.get("base_commit")
-        == "50c41b362e32b9338c6930f69c6fff76560b24ac"
+        == "935cbc6e99315c38f6fa0e704a92ee61d4e663bd"
         and active.get("implementation_commit")
-        == "c8d28441b6da20cdb6b34a3f55c972d687491834",
+        == "6f556047b5a7326b53a9a5f9db334abc7b934987",
         "active source-profile continuation identity drift",
     )
     contains_all(
@@ -1295,6 +1295,16 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "authority-declared HTTPS archive",
             "public clean-room CI",
             "local vault copy",
+            "canonical Entity Physicality",
+            "source-testimony Attestation",
+            "direct and reverse mapped planes",
+            "maximum-batch-bytes",
+            "32768-row semantic limit",
+            "only profile-declared record propositions",
+            "200 exact human records",
+            "128590-byte cognition",
+            "query retrieve evidence-fold project",
+            "modality-wide typed perfcache modules",
         ),
         "active source-profile implementation boundary was narrowed",
     )
@@ -1324,6 +1334,12 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "semantic-drift composition presence",
             "official SIL HTTPS archive",
             "separate-build native tests passed without /vault/Data",
+            "114.79",
+            "120.69",
+            "333 of 333",
+            "zero skips",
+            "35 of 35",
+            "no capability or activation claim",
         ),
         "active source-profile validation evidence drift",
     )
@@ -1336,6 +1352,10 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "standing adjudication contradiction referential and as-of evidence epochs",
             "no activated-product world-admission receipt",
             "foundational heterogeneous world seed",
+            "retrieve score evidence-fold and project cognition",
+            "chess image audio video code model",
+            "autobiographical world state",
+            "entity product surfaces federation",
         ),
         "active source-profile incompleteness was hidden",
     )
@@ -1559,6 +1579,26 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         ),
         "source-profile PR was promoted beyond evidence",
     )
+    reference_topology_pr = github.get("reference_topology_pull_request", {})
+    require(
+        reference_topology_pr.get("number") == 84
+        and reference_topology_pr.get("state") == "merged"
+        and reference_topology_pr.get("draft") is False
+        and reference_topology_pr.get("base_commit")
+        == "50c41b362e32b9338c6930f69c6fff76560b24ac"
+        and reference_topology_pr.get("published_head_commit")
+        == "51d8da0193a3c6d9c8b42573dbc5a6a1f64a6e3a"
+        and reference_topology_pr.get("merge_commit")
+        == "935cbc6e99315c38f6fa0e704a92ee61d4e663bd"
+        and reference_topology_pr.get("merged_at_utc")
+        == "2026-08-28T09:25:12Z",
+        "reference-topology PR observation drift",
+    )
+    contains_all(
+        reference_topology_pr.get("proof_state", ""),
+        ("typed source reference topology", "post-merge", "canonical Unicode product activation", "cognition", "seeding", "release remained incomplete"),
+        "reference-topology PR was promoted beyond evidence",
+    )
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
@@ -1573,17 +1613,17 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     runs = {item.get("workflow"): item for item in github.get("latest_main_workflow_runs", [])}
     require(
-        runs.get("clean-room-ci", {}).get("id") == 33148176535
+        runs.get("clean-room-ci", {}).get("id") == 33159287905
         and runs.get("clean-room-ci", {}).get("conclusion") == "success"
         and runs.get("clean-room-ci", {}).get("head_commit")
-        == "50c41b362e32b9338c6930f69c6fff76560b24ac",
+        == "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
         "latest main clean-room observation drift",
     )
     require(
-        runs.get("custom-stack-ci", {}).get("id") == 33148176561
+        runs.get("custom-stack-ci", {}).get("id") == 33159287880
         and runs.get("custom-stack-ci", {}).get("conclusion") == "success"
         and runs.get("custom-stack-ci", {}).get("head_commit")
-        == "50c41b362e32b9338c6930f69c6fff76560b24ac",
+        == "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
         "latest main custom-stack observation drift",
     )
     product_activation_run = runs.get("product-activation", {})
