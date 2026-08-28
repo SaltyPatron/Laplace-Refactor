@@ -39,6 +39,10 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" value_types world_admission_record_vector)
     string(JSON value_world_admission_receipt GET
         "${contract_json}" value_types world_admission_receipt_vector)
+    string(JSON value_reference_candidate GET
+        "${contract_json}" value_types reference_candidate_vector)
+    string(JSON value_reference_record GET
+        "${contract_json}" value_types reference_record_vector)
     string(JSON opcode_identity_codepoint GET
         "${contract_json}" opcodes identity_codepoint_batch)
     string(JSON opcode_trajectory_decode GET
@@ -55,6 +59,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" opcodes source_profile_validate_batch)
     string(JSON opcode_world_admission_close GET
         "${contract_json}" opcodes world_admission_close_batch)
+    string(JSON opcode_reference_topology_resolve GET
+        "${contract_json}" opcodes reference_topology_resolve_batch)
     string(JSON instruction_version_identity_codepoint GET
         "${contract_json}" instruction_versions identity_codepoint_batch)
     string(JSON instruction_version_trajectory_decode GET
@@ -71,6 +77,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" instruction_versions source_profile_validate_batch)
     string(JSON instruction_version_world_admission_close GET
         "${contract_json}" instruction_versions world_admission_close_batch)
+    string(JSON instruction_version_reference_topology_resolve GET
+        "${contract_json}" instruction_versions reference_topology_resolve_batch)
     string(JSON introduced_minor_identity GET
         "${contract_json}" introduced_minor identity_codepoint_batch)
     string(JSON introduced_minor_trajectory_decode GET
@@ -87,6 +95,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" introduced_minor source_profile_validate_batch)
     string(JSON introduced_minor_world_admission_close GET
         "${contract_json}" introduced_minor world_admission_close_batch)
+    string(JSON introduced_minor_reference_topology_resolve GET
+        "${contract_json}" introduced_minor reference_topology_resolve_batch)
     string(JSON receipt_algorithm GET "${contract_json}" receipt digest_algorithm)
     string(JSON receipt_bytes GET "${contract_json}" receipt digest_bytes)
     string(JSON receipt_detail_full GET "${contract_json}" receipt detail_full)
@@ -98,8 +108,8 @@ function(laplace_configure_isa_contract contract_path output_path)
     if(NOT contract_schema STREQUAL "laplace.isa-contract/v1")
         message(FATAL_ERROR "Unsupported ISA contract schema: ${contract_schema}")
     endif()
-    if(NOT major EQUAL 1 OR NOT minor EQUAL 8)
-        message(FATAL_ERROR "Current ISA version must remain 1.8")
+    if(NOT major EQUAL 1 OR NOT minor EQUAL 9)
+        message(FATAL_ERROR "Current ISA version must remain 1.9")
     endif()
     if(NOT context_required OR NOT context_framework_major EQUAL 1
        OR NOT context_program_binding OR NOT context_receipt_binding)
@@ -116,7 +126,9 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT value_source_profile_manifest EQUAL 12
        OR NOT value_source_profile_receipt EQUAL 13
        OR NOT value_world_admission_record EQUAL 14
-       OR NOT value_world_admission_receipt EQUAL 15)
+       OR NOT value_world_admission_receipt EQUAL 15
+       OR NOT value_reference_candidate EQUAL 16
+       OR NOT value_reference_record EQUAL 17)
         message(FATAL_ERROR "ISA value type assignments changed")
     endif()
     if(NOT opcode_identity_codepoint EQUAL 131073
@@ -127,6 +139,7 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT opcode_evidence_record_testimony EQUAL 327682
        OR NOT opcode_source_profile_validate EQUAL 393217
        OR NOT opcode_world_admission_close EQUAL 393218
+       OR NOT opcode_reference_topology_resolve EQUAL 393219
        OR NOT instruction_version_identity_codepoint EQUAL 1
        OR NOT instruction_version_trajectory_decode EQUAL 1
        OR NOT instruction_version_highway_coordinate EQUAL 1
@@ -135,6 +148,7 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT instruction_version_evidence_record_testimony EQUAL 1
        OR NOT instruction_version_source_profile_validate EQUAL 1
        OR NOT instruction_version_world_admission_close EQUAL 1
+       OR NOT instruction_version_reference_topology_resolve EQUAL 1
        OR NOT introduced_minor_identity EQUAL 0
        OR NOT introduced_minor_trajectory_decode EQUAL 1
        OR NOT introduced_minor_highway_coordinate EQUAL 3
@@ -142,7 +156,8 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT introduced_minor_evidence_record_lineage EQUAL 5
        OR NOT introduced_minor_evidence_record_testimony EQUAL 6
        OR NOT introduced_minor_source_profile_validate EQUAL 7
-       OR NOT introduced_minor_world_admission_close EQUAL 8)
+       OR NOT introduced_minor_world_admission_close EQUAL 8
+       OR NOT introduced_minor_reference_topology_resolve EQUAL 9)
         message(FATAL_ERROR "ISA opcode assignment changed")
     endif()
     if(NOT receipt_algorithm STREQUAL "BLAKE3-256" OR NOT receipt_bytes EQUAL 32)
@@ -236,6 +251,10 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${value_world_admission_record}")
     set(LAPLACE_ISA_VALUE_WORLD_ADMISSION_RECEIPT_VECTOR
         "${value_world_admission_receipt}")
+    set(LAPLACE_ISA_VALUE_REFERENCE_CANDIDATE_VECTOR
+        "${value_reference_candidate}")
+    set(LAPLACE_ISA_VALUE_REFERENCE_RECORD_VECTOR
+        "${value_reference_record}")
     set(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH "${opcode_identity_codepoint}")
     set(LAPLACE_ISA_OPCODE_TRAJECTORY_COMPOSITION_DECODE_BATCH
         "${opcode_trajectory_decode}")
@@ -251,6 +270,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${opcode_source_profile_validate}")
     set(LAPLACE_ISA_OPCODE_WORLD_ADMISSION_CLOSE_BATCH
         "${opcode_world_admission_close}")
+    set(LAPLACE_ISA_OPCODE_REFERENCE_TOPOLOGY_RESOLVE_BATCH
+        "${opcode_reference_topology_resolve}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_IDENTITY_CODEPOINT_BATCH
         "${instruction_version_identity_codepoint}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_TRAJECTORY_COMPOSITION_DECODE_BATCH
@@ -267,6 +288,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${instruction_version_source_profile_validate}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_WORLD_ADMISSION_CLOSE_BATCH
         "${instruction_version_world_admission_close}")
+    set(LAPLACE_ISA_INSTRUCTION_VERSION_REFERENCE_TOPOLOGY_RESOLVE_BATCH
+        "${instruction_version_reference_topology_resolve}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_IDENTITY_CODEPOINT_BATCH
         "${introduced_minor_identity}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_TRAJECTORY_COMPOSITION_DECODE_BATCH
@@ -283,6 +306,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${introduced_minor_source_profile_validate}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_WORLD_ADMISSION_CLOSE_BATCH
         "${introduced_minor_world_admission_close}")
+    set(LAPLACE_ISA_INTRODUCED_MINOR_REFERENCE_TOPOLOGY_RESOLVE_BATCH
+        "${introduced_minor_reference_topology_resolve}")
     set(LAPLACE_ISA_RECEIPT_DIGEST_BYTES "${receipt_bytes}")
     set(LAPLACE_ISA_RECEIPT_DETAIL_FULL "${receipt_detail_full}")
     set(LAPLACE_ISA_KNOWN_PROGRAM_FLAGS "${program_flags}")

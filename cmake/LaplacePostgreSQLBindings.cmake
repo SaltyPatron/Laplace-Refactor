@@ -57,6 +57,10 @@ function(laplace_configure_postgresql_bindings
         "${contract_json}" bindings postgresql world_admission_close_batch close_sql_name)
     string(JSON world_admission_close_symbol GET
         "${contract_json}" bindings postgresql world_admission_close_batch close_c_symbol)
+    string(JSON reference_topology_resolve_sql GET
+        "${contract_json}" bindings postgresql reference_topology_resolve_batch resolve_sql_name)
+    string(JSON reference_topology_resolve_symbol GET
+        "${contract_json}" bindings postgresql reference_topology_resolve_batch resolve_c_symbol)
     string(JSON source_admit_tabular_sql GET
         "${contract_json}" bindings postgresql source_admit_tabular admit_sql_name)
     string(JSON source_admit_tabular_symbol GET
@@ -171,6 +175,7 @@ function(laplace_configure_postgresql_bindings
         evidence_testimony_sql evidence_testimony_symbol
         source_profile_validate_sql source_profile_validate_symbol
         world_admission_close_sql world_admission_close_symbol
+        reference_topology_resolve_sql reference_topology_resolve_symbol
         source_admit_tabular_sql source_admit_tabular_symbol
         persistence_deposit_sql persistence_deposit_symbol
         composition_deposit_sql composition_deposit_symbol
@@ -230,6 +235,10 @@ function(laplace_configure_postgresql_bindings
     set(LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SYMBOL "${source_profile_validate_symbol}")
     set(LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL "${world_admission_close_sql}")
     set(LAPLACE_PG_WORLD_ADMISSION_CLOSE_SYMBOL "${world_admission_close_symbol}")
+    set(LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SQL
+        "${reference_topology_resolve_sql}")
+    set(LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SYMBOL
+        "${reference_topology_resolve_symbol}")
     set(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL "${source_admit_tabular_sql}")
     set(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL "${source_admit_tabular_symbol}")
     set(LAPLACE_PG_CARRIER_ENCODING "${carrier_encoding}")

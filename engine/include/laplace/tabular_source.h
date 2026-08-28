@@ -7,6 +7,7 @@
 #include "laplace/composition.h"
 #include "laplace/contract/tabular_source.h"
 #include "laplace/export.h"
+#include "laplace/reference_topology.h"
 #include "laplace/source_profile.h"
 
 #ifdef __cplusplus
@@ -39,12 +40,35 @@ enum {
     LAPLACE_TABULAR_ARTIFACT_EXACT_DISTRIBUTION = 4u
 };
 
+typedef struct laplace_tabular_reference_rule {
+    laplace_id128 name_space;
+    uint64_t artifact_index;
+    uint64_t column_index;
+    uint32_t kind;
+    uint32_t flags;
+} laplace_tabular_reference_rule;
+
+typedef struct laplace_tabular_reference_occurrence {
+    laplace_id128 name_space;
+    uint64_t value_result_index;
+    uint64_t field_result_index;
+    uint64_t row_result_index;
+    uint64_t source_ordinal;
+    uint64_t artifact_ordinal;
+    uint64_t row_ordinal;
+    uint64_t column_ordinal;
+    uint32_t kind;
+    uint32_t rule_flags;
+} laplace_tabular_reference_occurrence;
+
 typedef struct laplace_tabular_source_input {
     laplace_source_profile_manifest profile_declaration;
     laplace_digest256 geometry_epoch;
     laplace_digest256 occurrence_context_fingerprint;
     const laplace_tabular_artifact* artifacts;
     uint64_t artifact_count;
+    const laplace_tabular_reference_rule* reference_rules;
+    uint64_t reference_rule_count;
     uint64_t preferred_batch_bytes;
     uint32_t flags;
     uint32_t reserved;
@@ -63,11 +87,13 @@ typedef struct laplace_tabular_source_plan_view {
     const uint64_t* claim_source_ordinals;
     const uint32_t* claim_outcome_types;
     const uint64_t* artifact_root_result_indexes;
+    const laplace_tabular_reference_occurrence* reference_occurrences;
     uint64_t atom_count;
     uint64_t operand_count;
     uint64_t request_count;
     uint64_t claim_count;
     uint64_t artifact_count;
+    uint64_t reference_occurrence_count;
     uint64_t root_result_index;
     uint32_t recipe_version;
     uint32_t flags;

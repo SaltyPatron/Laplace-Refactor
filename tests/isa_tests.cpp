@@ -2,6 +2,7 @@
 #include "laplace/evidence_lineage.h"
 #include "laplace/evidence_testimony.h"
 #include "laplace/highway.h"
+#include "laplace/reference_topology.h"
 #include "laplace/source_profile.h"
 #include "laplace/trajectory.h"
 #include "laplace/world_admission.h"
@@ -169,6 +170,25 @@ laplace_isa_value_view WorldAdmissionOutputView(
             LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
 }
 
+laplace_isa_value_view ReferenceCandidateInputView(
+    laplace_reference_candidate* data,
+    std::size_t count) {
+    return {data, static_cast<std::uint64_t>(count),
+            static_cast<std::uint64_t>(count),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_REFERENCE_CANDIDATE_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view ReferenceRecordOutputView(
+    laplace_reference_record* data,
+    std::size_t capacity) {
+    return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_REFERENCE_RECORD_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
 laplace_isa_instruction IdentityInstruction(
     std::uint32_t input,
     std::uint32_t output) {
@@ -242,6 +262,15 @@ laplace_isa_instruction WorldAdmissionInstruction(
     return {LAPLACE_ISA_OPCODE_WORLD_ADMISSION_CLOSE_BATCH,
             input, output,
             LAPLACE_ISA_INSTRUCTION_VERSION_WORLD_ADMISSION_CLOSE_BATCH,
+            LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
+laplace_isa_instruction ReferenceTopologyInstruction(
+    std::uint32_t input,
+    std::uint32_t output) {
+    return {LAPLACE_ISA_OPCODE_REFERENCE_TOPOLOGY_RESOLVE_BATCH,
+            input, output,
+            LAPLACE_ISA_INSTRUCTION_VERSION_REFERENCE_TOPOLOGY_RESOLVE_BATCH,
             LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
 }
 
@@ -355,6 +384,25 @@ laplace_highway_key HighwayKey(std::uint32_t kind, std::uint8_t seed) {
             HighwayId(static_cast<std::uint8_t>(seed + 0x30u)), 1u};
 }
 
+laplace_reference_candidate ReferenceCandidate(
+    std::uint8_t seed,
+    std::uint8_t local,
+    std::uint32_t flags) {
+    laplace_reference_candidate value{};
+    value.source_profile_id = TestimonyDigest(0xd0u);
+    value.key = HighwayKey(LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE, seed);
+    value.key.local_identifier = HighwayId(local);
+    value.row_entity_id = HighwayId(static_cast<std::uint8_t>(seed + 0x40u));
+    value.field_entity_id = HighwayId(static_cast<std::uint8_t>(seed + 0x50u));
+    value.value_entity_id = value.key.local_identifier;
+    value.source_ordinal = static_cast<std::uint64_t>(seed) + 1u;
+    value.artifact_ordinal = 1u;
+    value.row_ordinal = static_cast<std::uint64_t>(seed) + 1u;
+    value.column_ordinal = 1u;
+    value.rule_flags = flags;
+    return value;
+}
+
 laplace_isa_program Program(
     laplace_isa_instruction* instructions,
     std::size_t instruction_count,
@@ -376,7 +424,7 @@ laplace_isa_program Program(
 
 TEST(IsaAbi, ContractAssignmentsAreStable) {
     static_assert(LAPLACE_ISA_MAJOR == 1u);
-    static_assert(LAPLACE_ISA_MINOR == 8u);
+    static_assert(LAPLACE_ISA_MINOR == 9u);
     static_assert(LAPLACE_ISA_VALUE_U32_VECTOR != LAPLACE_ISA_VALUE_ID128_VECTOR);
     static_assert(sizeof(laplace_isa_digest256) == 32u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH, 0x00020001u);
@@ -387,6 +435,7 @@ TEST(IsaAbi, ContractAssignmentsAreStable) {
     EXPECT_EQ(LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_TESTIMONY_BATCH, 0x00050002u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_SOURCE_PROFILE_VALIDATE_BATCH, 0x00060001u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_WORLD_ADMISSION_CLOSE_BATCH, 0x00060002u);
+    EXPECT_EQ(LAPLACE_ISA_OPCODE_REFERENCE_TOPOLOGY_RESOLVE_BATCH, 0x00060003u);
 }
 
 TEST(IsaExecution, EvidenceLineageMatchesCanonicalNativeOperationAndReceipt) {
@@ -535,6 +584,46 @@ TEST(IsaExecution, WorldAdmissionMatchesCanonicalNativeOperationAndReceipt) {
     EXPECT_EQ(std::memcmp(&output, &native_receipt, sizeof(output)), 0);
     EXPECT_EQ(receipt.executed_instruction_count, 1u);
     program.minor = 7u;
+    values[1].count = 0u;
+    EXPECT_EQ(laplace_isa_validate(&program, &error),
+              LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);
+}
+
+TEST(IsaExecution, ReferenceTopologyMatchesCanonicalNativeOperationAndReceipt) {
+    constexpr std::uint32_t endpoint = LAPLACE_REFERENCE_RULE_ENDPOINT;
+    std::array<laplace_reference_candidate, 3> candidates{{
+        ReferenceCandidate(
+            0x10u, 0x91u,
+            endpoint | LAPLACE_REFERENCE_RULE_PRESENT_DECLARATION),
+        ReferenceCandidate(0x20u, 0x91u, endpoint),
+        ReferenceCandidate(0x30u, 0x92u, endpoint)}};
+    candidates[1].key.authority = candidates[0].key.authority;
+    candidates[1].key.release = candidates[0].key.release;
+    candidates[1].key.name_space = candidates[0].key.name_space;
+    candidates[2].key.authority = candidates[0].key.authority;
+    candidates[2].key.release = candidates[0].key.release;
+    candidates[2].key.name_space = candidates[0].key.name_space;
+    std::array<laplace_reference_record, 3> expected{};
+    std::array<laplace_reference_record, 3> outputs{};
+    laplace_reference_topology_receipt native_receipt{};
+    laplace_reference_topology_error native_error{};
+    ASSERT_EQ(laplace_reference_topology_resolve_batch(
+                  candidates.data(), candidates.size(), expected.data(),
+                  &native_receipt, &native_error),
+              LAPLACE_REFERENCE_TOPOLOGY_OK);
+    std::array<laplace_isa_value_view, 2> values{{
+        ReferenceCandidateInputView(candidates.data(), candidates.size()),
+        ReferenceRecordOutputView(outputs.data(), outputs.size())}};
+    auto instruction = ReferenceTopologyInstruction(0u, 1u);
+    auto program = Program(&instruction, 1u, values.data(), values.size());
+    laplace_isa_receipt receipt{};
+    laplace_isa_error error{};
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(values[1].count, candidates.size());
+    EXPECT_EQ(std::memcmp(outputs.data(), expected.data(), sizeof(outputs)), 0);
+    EXPECT_EQ(receipt.executed_instruction_count, 1u);
+
+    program.minor = 8u;
     values[1].count = 0u;
     EXPECT_EQ(laplace_isa_validate(&program, &error),
               LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);

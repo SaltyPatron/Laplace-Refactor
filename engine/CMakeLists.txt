@@ -10,6 +10,7 @@ add_library(laplace_engine SHARED
     src/persistence.c
     src/evidence_lineage.c
     src/evidence_testimony.c
+    src/reference_topology.c
     src/source_profile.c
     src/tabular_source.cpp
     src/world_admission.c
@@ -47,6 +48,7 @@ add_library(Laplace::Framework ALIAS laplace_engine)
 add_library(Laplace::Persistence ALIAS laplace_engine)
 add_library(Laplace::EvidenceLineage ALIAS laplace_engine)
 add_library(Laplace::EvidenceTestimony ALIAS laplace_engine)
+add_library(Laplace::ReferenceTopology ALIAS laplace_engine)
 add_library(Laplace::SourceProfile ALIAS laplace_engine)
 add_library(Laplace::TabularSource ALIAS laplace_engine)
 add_library(Laplace::WorldAdmission ALIAS laplace_engine)
@@ -141,6 +143,7 @@ install(FILES
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/persistence.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/evidence_lineage.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/evidence_testimony.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/reference_topology.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/source_profile.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/tabular_source.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/world_admission.h"

@@ -81,6 +81,33 @@ public struct LaplaceHighwayCoordinate
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct LaplaceReferenceCandidate
+{
+    public LaplaceDigest256 SourceProfileId;
+    public LaplaceHighwayKey Key;
+    public LaplaceId128 RowEntityId;
+    public LaplaceId128 FieldEntityId;
+    public LaplaceId128 ValueEntityId;
+    public ulong SourceOrdinal;
+    public ulong ArtifactOrdinal;
+    public ulong RowOrdinal;
+    public ulong ColumnOrdinal;
+    public uint RuleFlags;
+    public uint Reserved;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceReferenceRecord
+{
+    public LaplaceReferenceCandidate Candidate;
+    public LaplaceHighwayCoordinate Coordinate;
+    public LaplaceDigest256 OccurrenceId;
+    public LaplaceDigest256 ReferenceId;
+    public uint Disposition;
+    public uint Reserved;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct LaplaceHighwayRegistryReceipt
 {
     public LaplaceDigest256 ReceiptId;
@@ -620,6 +647,25 @@ public static class LaplaceNativeAbi
         OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.ClosureSubjectCount)),
         OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.Version)),
         OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.Status)),
+        checked((uint)Marshal.SizeOf<LaplaceReferenceCandidate>()),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.SourceProfileId)),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.Key)),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.RowEntityId)),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.FieldEntityId)),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.ValueEntityId)),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.SourceOrdinal)),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.ArtifactOrdinal)),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.RowOrdinal)),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.ColumnOrdinal)),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.RuleFlags)),
+        OffsetOf<LaplaceReferenceCandidate>(nameof(LaplaceReferenceCandidate.Reserved)),
+        checked((uint)Marshal.SizeOf<LaplaceReferenceRecord>()),
+        OffsetOf<LaplaceReferenceRecord>(nameof(LaplaceReferenceRecord.Candidate)),
+        OffsetOf<LaplaceReferenceRecord>(nameof(LaplaceReferenceRecord.Coordinate)),
+        OffsetOf<LaplaceReferenceRecord>(nameof(LaplaceReferenceRecord.OccurrenceId)),
+        OffsetOf<LaplaceReferenceRecord>(nameof(LaplaceReferenceRecord.ReferenceId)),
+        OffsetOf<LaplaceReferenceRecord>(nameof(LaplaceReferenceRecord.Disposition)),
+        OffsetOf<LaplaceReferenceRecord>(nameof(LaplaceReferenceRecord.Reserved)),
         LaplaceExecutionContext.NativeAbiSize,
     ];
 

@@ -2,6 +2,7 @@
 #include "laplace/framework.h"
 #include "laplace/highway.h"
 #include "laplace/isa.h"
+#include "laplace/reference_topology.h"
 #include "laplace/source_profile.h"
 #include "laplace/trajectory.h"
 #include "laplace/world_admission.h"
@@ -36,6 +37,8 @@ static_assert(std::is_standard_layout_v<laplace_source_profile_manifest>);
 static_assert(std::is_standard_layout_v<laplace_source_profile_receipt>);
 static_assert(std::is_standard_layout_v<laplace_world_admission_record>);
 static_assert(std::is_standard_layout_v<laplace_world_admission_receipt>);
+static_assert(std::is_standard_layout_v<laplace_reference_candidate>);
+static_assert(std::is_standard_layout_v<laplace_reference_record>);
 static_assert(std::is_standard_layout_v<laplace_isa_value_view>);
 static_assert(std::is_standard_layout_v<laplace_isa_instruction>);
 static_assert(std::is_standard_layout_v<laplace_isa_program>);
@@ -95,6 +98,10 @@ void Fill(laplace_digest256* digest, std::uint8_t value) {
     std::memset(digest->bytes, value, sizeof(digest->bytes));
 }
 
+void Fill(laplace_id128* identity, std::uint8_t value) {
+    std::memset(identity->bytes, value, sizeof(identity->bytes));
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -103,7 +110,7 @@ int main(int argc, char** argv) {
         return 64;
     }
 
-    const std::array<std::size_t, 207> native_layout{{
+    const std::array<std::size_t, 226> native_layout{{
         sizeof(laplace_digest256),
         sizeof(laplace_id128),
         sizeof(laplace_trajectory_carrier),
@@ -310,6 +317,25 @@ int main(int argc, char** argv) {
         offsetof(laplace_world_admission_receipt, closure_subject_count),
         offsetof(laplace_world_admission_receipt, version),
         offsetof(laplace_world_admission_receipt, status),
+        sizeof(laplace_reference_candidate),
+        offsetof(laplace_reference_candidate, source_profile_id),
+        offsetof(laplace_reference_candidate, key),
+        offsetof(laplace_reference_candidate, row_entity_id),
+        offsetof(laplace_reference_candidate, field_entity_id),
+        offsetof(laplace_reference_candidate, value_entity_id),
+        offsetof(laplace_reference_candidate, source_ordinal),
+        offsetof(laplace_reference_candidate, artifact_ordinal),
+        offsetof(laplace_reference_candidate, row_ordinal),
+        offsetof(laplace_reference_candidate, column_ordinal),
+        offsetof(laplace_reference_candidate, rule_flags),
+        offsetof(laplace_reference_candidate, reserved),
+        sizeof(laplace_reference_record),
+        offsetof(laplace_reference_record, candidate),
+        offsetof(laplace_reference_record, coordinate),
+        offsetof(laplace_reference_record, occurrence_id),
+        offsetof(laplace_reference_record, reference_id),
+        offsetof(laplace_reference_record, disposition),
+        offsetof(laplace_reference_record, reserved),
         sizeof(laplace_framework_context),
     }};
     std::array<std::uint32_t, native_layout.size()> layout{};
@@ -688,6 +714,58 @@ int main(int argc, char** argv) {
     const std::array<laplace_world_admission_receipt, 1> world_outputs{{
         world_output_capacity[0]}};
 
+    std::array<laplace_reference_candidate, 3> reference_candidates{};
+    for (std::size_t index = 0u; index < reference_candidates.size(); ++index) {
+        auto& candidate = reference_candidates[index];
+        candidate.source_profile_id = source_profiles[0].profile_id;
+        candidate.key.kind = LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE;
+        Fill(&candidate.key.authority, 0xd1u);
+        Fill(&candidate.key.release, 0xd2u);
+        Fill(&candidate.key.name_space, 0xd3u);
+        Fill(&candidate.key.local_identifier,
+             index < 2u ? 0xd4u : 0xd5u);
+        candidate.key.version = 1u;
+        Fill(&candidate.row_entity_id,
+             static_cast<std::uint8_t>(0xe1u + index));
+        candidate.field_entity_id = candidate.key.local_identifier;
+        Fill(&candidate.field_entity_id,
+             static_cast<std::uint8_t>(0xf1u + index));
+        candidate.value_entity_id = candidate.key.local_identifier;
+        candidate.source_ordinal = static_cast<std::uint64_t>(index + 1u);
+        candidate.artifact_ordinal = 1u;
+        candidate.row_ordinal = static_cast<std::uint64_t>(index + 1u);
+        candidate.column_ordinal = 1u;
+        candidate.rule_flags = LAPLACE_REFERENCE_RULE_ENDPOINT |
+            (index == 0u ? LAPLACE_REFERENCE_RULE_PRESENT_DECLARATION : 0u);
+    }
+    std::array<laplace_reference_record, 3> reference_outputs{};
+    std::array<laplace_isa_value_view, 2> reference_values{{
+        {reference_candidates.data(), reference_candidates.size(),
+         reference_candidates.size(),
+         static_cast<std::uint32_t>(sizeof(reference_candidates[0])),
+         LAPLACE_ISA_VALUE_REFERENCE_CANDIDATE_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {reference_outputs.data(), 0u, reference_outputs.size(),
+         static_cast<std::uint32_t>(sizeof(reference_outputs[0])),
+         LAPLACE_ISA_VALUE_REFERENCE_RECORD_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction reference_instruction{
+        LAPLACE_ISA_OPCODE_REFERENCE_TOPOLOGY_RESOLVE_BATCH,
+        0u,
+        1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_REFERENCE_TOPOLOGY_RESOLVE_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto reference_program = Program(
+        &reference_instruction, reference_values.data(), &context);
+    laplace_isa_receipt reference_receipt{};
+    laplace_isa_error reference_error{};
+    if (laplace_isa_execute(
+            &reference_program, &reference_receipt, &reference_error) !=
+        LAPLACE_ISA_OK) {
+        std::fputs("direct native reference-topology ISA execution failed\n", stderr);
+        return 14;
+    }
+
     const std::filesystem::path target(argv[1]);
     std::filesystem::create_directories(target.parent_path());
     std::ofstream output(target, std::ios::binary | std::ios::trunc);
@@ -696,7 +774,7 @@ int main(int argc, char** argv) {
         return 73;
     }
     Write(output, MAGIC);
-    const std::uint32_t fixture_version = 6u;
+    const std::uint32_t fixture_version = 7u;
     const std::uint32_t layout_count = static_cast<std::uint32_t>(layout.size());
     const std::uint32_t identity_count = static_cast<std::uint32_t>(positions.size());
     const std::uint32_t trajectory_count = static_cast<std::uint32_t>(carriers.size());
@@ -710,6 +788,8 @@ int main(int argc, char** argv) {
         static_cast<std::uint32_t>(source_profiles.size());
     const std::uint32_t world_admission_count =
         static_cast<std::uint32_t>(world_admissions.size());
+    const std::uint32_t reference_count =
+        static_cast<std::uint32_t>(reference_candidates.size());
     Write(output, fixture_version);
     Write(output, layout_count);
     Write(output, identity_count);
@@ -719,6 +799,7 @@ int main(int argc, char** argv) {
     Write(output, testimony_count);
     Write(output, source_profile_count);
     Write(output, world_admission_count);
+    Write(output, reference_count);
     Write(output, layout);
     Write(output, context);
     Write(output, positions);
@@ -749,6 +830,10 @@ int main(int argc, char** argv) {
     Write(output, world_outputs);
     Write(output, world_receipt);
     Write(output, world_error);
+    Write(output, reference_candidates);
+    Write(output, reference_outputs);
+    Write(output, reference_receipt);
+    Write(output, reference_error);
     output.close();
     return output ? 0 : 74;
 }
