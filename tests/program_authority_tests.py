@@ -130,7 +130,7 @@ def validate_authority(document: dict) -> None:
     storage_census = (ROOT / "docs" / "audits" / "OLD_ITERATION_STORAGE_CENSUS_2026-08-26.md").read_text(encoding="utf-8")
     contains_all(storage_census, ("295,775,270,591", "109,191,495,680", "186,482,507,776", "1.7078482771", "52,649,911", "141,390,181", "historical evidence", "does not prove"), "dated storage evidence became vague or promotional")
     roadmap_text = (ROOT / "docs" / "product" / "ROADMAP.md").read_text(encoding="utf-8")
-    contains_all(roadmap_text, ("substitute for implementation", "Integration proven", "not product activated", "foundational knowledge seed", "not begun", "machine.handle-exceptions", "critical path", "not a runtime waterfall", "GitHub Project #2", "#72", "paid addressability"), "roadmap promoted requirements or lost the machine critical path")
+    contains_all(roadmap_text, ("substitute for implementation", "Integration proven", "not product activated", "foundational knowledge seed", "no activated-product world admission", "configured foundational seed exists", "machine.handle-exceptions", "critical path", "not a runtime waterfall", "GitHub Project #2", "#72", "paid addressability"), "roadmap promoted requirements or lost the machine critical path")
     require(paths.index("contracts/recipe-model.json") < paths.index("contracts/source-profile-model.json") < paths.index("contracts/source-admission.json"), "source profile load order bypasses recipe or topology law")
     require(paths.index("contracts/recipe-model.json") < paths.index("contracts/source-admission.json"), "source admission precedes recipe law")
     for item in order:
@@ -1264,68 +1264,73 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     active = document.get("active_work", {})
     require(
-        active.get("capability") == "evidence.record-lineage"
-        and active.get("github_issue") == 16
+        active.get("capability") == "source-profile.admit-tabular-testimony"
+        and active.get("github_issue") == 53
+        and active.get("related_issue") == 16
         and active.get("state")
-        == "partial-implementation-and-controlled-integration-proven-source-admission-not-complete"
-        and active.get("branch") == "feat/evidence-lineage"
-        and active.get("pull_request") == 82
+        == "implementation-and-controlled-integration-proven-first-profile-product-world-admission-incomplete"
+        and active.get("branch") == "feat/source-profile-testimony"
+        and active.get("pull_request") is None
         and active.get("base_commit")
-        == "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47"
+        == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a"
         and active.get("implementation_commit")
-        == "0b252f659c17319acf089792f37bb3070d77dda0",
-        "active evidence-lineage continuation identity drift",
+        == "794be81ac83d1e50e390c994cd804e2b5213a68d",
+        "active source-profile continuation identity drift",
     )
     contains_all(
         active.get("implemented_boundary", []),
         (
-            "proposition occurrence source context ordinal",
-            "direct dependence edges",
-            "unique terminal roots",
-            "cycles reject",
-            "distinct epistemic kinds",
-            "ISA 1.5",
-            "PostgreSQL operation persists",
-            "direct-native and PostgreSQL",
-            "conflicting durable root projections",
+            "generic evidence-testimony source-profile tabular-source and world-admission",
+            "generic tabular compiler",
+            "selected exact digital content recomposes",
+            "source_admit_tabular",
+            "locked ISO 639 Set 3 2026-04-15",
+            "17110 record testimony claims",
+            "18805 ISO identifier and join-key carriers remain explicitly unresolved",
+            "replay returns identical",
+            "same selected content converges",
         ),
-        "active evidence-lineage implementation boundary was narrowed",
+        "active source-profile implementation boundary was narrowed",
     )
     contains_all(
         active.get("controlled_integration_validation", {}),
         (
-            "306 of 306",
-            "570.24 seconds",
-            "306 registered tests",
+            "211 steps",
             "12 of 12",
-            "30 of 30",
-            "153.24",
-            "dependent descendants",
-            "conflicting durable root projection",
+            "347 registered tests",
+            "185 scenarios",
+            "121.21",
+            "460.66",
+            "146930",
+            "structural reference carrier promoted",
+            "semantic-drift composition presence",
         ),
-        "active evidence-lineage validation evidence drift",
+        "active source-profile validation evidence drift",
     )
     contains_all(
         active.get("missing_boundary", []),
         (
-            "source type trust outcome uncertainty",
-            "heterogeneous source profiles",
-            "negative malformed unsupported",
-            "standing contradiction referential",
-            "no source profile is world admitted",
+            "typed ISO authority release namespace Highway topology",
+            "remaining heterogeneous source profiles grammars codecs and modalities",
+            "standing adjudication contradiction referential and as-of evidence epochs",
+            "no activated-product world-admission receipt",
+            "foundational heterogeneous world seed",
         ),
-        "active evidence-lineage incompleteness was hidden",
+        "active source-profile incompleteness was hidden",
     )
     contains_all(
         active.get("nonclaims", []),
         (
-            "issue 16 is not complete",
-            "issue 53 source admission is not complete",
+            "controlled-integration ISO route is not activated-product world admission",
+            "ZIP wrapper is not claimed bit-reconstructable",
+            "retaining a reference carrier is not resolving",
+            "issue 16 adjudication and referential epochs are not complete",
+            "issue 53 heterogeneous world admission is not complete",
             "not product activated",
             "not admitted or seeded",
             "not released",
         ),
-        "active evidence-lineage work was promoted beyond evidence",
+        "active source-profile work was promoted beyond evidence",
     )
     activation_projection = document.get("product_activation_projection", {})
     require(
@@ -1471,25 +1476,36 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     lineage_pr = github.get("evidence_lineage_pull_request", {})
     require(
         lineage_pr.get("number") == 82
-        and lineage_pr.get("state") == "open"
+        and lineage_pr.get("state") == "merged"
         and lineage_pr.get("draft") is False
         and lineage_pr.get("base_commit")
         == "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47"
         and lineage_pr.get("published_head_commit")
-        == "2145a9a263df1630ce0c6b9f074fffb672df3a18",
+        == "4ac4c3582901353ac460b1caef5002b9a66bfc31"
+        and lineage_pr.get("merge_commit")
+        == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a"
+        and lineage_pr.get("merged_at_utc") == "2026-08-28T00:36:29Z",
         "evidence-lineage PR observation drift",
     )
     contains_all(
         lineage_pr.get("proof_state", ""),
         (
             "dependence-aware evidence lineage",
-            "published",
-            "exact-head CI",
+            "merged",
+            "post-merge",
             "source-profile integration",
             "world admission",
-            "evidence adjudication remain pending",
+            "evidence adjudication",
+            "issue 16 was reopened",
         ),
         "evidence-lineage PR was promoted beyond evidence",
+    )
+    evidence_issue = github.get("evidence_adjudication_issue", {})
+    require(
+        evidence_issue.get("number") == 16
+        and evidence_issue.get("state") == "open"
+        and "remain incomplete" in evidence_issue.get("reason", ""),
+        "evidence adjudication issue was incorrectly promoted to complete",
     )
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
@@ -1505,17 +1521,17 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     runs = {item.get("workflow"): item for item in github.get("latest_main_workflow_runs", [])}
     require(
-        runs.get("clean-room-ci", {}).get("id") == 33124341186
+        runs.get("clean-room-ci", {}).get("id") == 33130264748
         and runs.get("clean-room-ci", {}).get("conclusion") == "success"
         and runs.get("clean-room-ci", {}).get("head_commit")
-        == "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
+        == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
         "latest main clean-room observation drift",
     )
     require(
-        runs.get("custom-stack-ci", {}).get("id") == 33124341150
+        runs.get("custom-stack-ci", {}).get("id") == 33130264722
         and runs.get("custom-stack-ci", {}).get("conclusion") == "success"
         and runs.get("custom-stack-ci", {}).get("head_commit")
-        == "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
+        == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
         "latest main custom-stack observation drift",
     )
     product_activation_run = runs.get("product-activation", {})
