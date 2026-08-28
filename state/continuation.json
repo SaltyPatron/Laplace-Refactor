@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-27T22:41:06Z",
+  "observed_at_utc": "2026-08-28T00:16:23Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,14 +12,14 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "fix/product-activation-binding",
-    "active_worktree": "/build/laplace/worktrees/product-activation-binding",
-    "base_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
+    "active_branch": "feat/evidence-lineage",
+    "active_worktree": "/build/laplace/worktrees/source-admission-executor",
+    "base_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
-    "observed_branch_head": "2e7eb7990e14418bac1ca271eba662794ec2d17e",
-    "implementation_checkpoint_commit": "e09c05c419e45cc4a1278d8ada54f5403156b2d2",
-    "pull_request": 81
+    "published_checkpoint_commit": "0b252f659c17319acf089792f37bb3070d77dda0",
+    "observed_branch_head": "0b252f659c17319acf089792f37bb3070d77dda0",
+    "implementation_checkpoint_commit": "0b252f659c17319acf089792f37bb3070d77dda0",
+    "pull_request": null
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
@@ -288,7 +288,7 @@
       "the product is not released"
     ]
   },
-  "active_work": {
+  "prior_highway_work": {
     "capability": "substrate.highway",
     "github_issue": 52,
     "state": "canonical-highway-coordinate-registry-isa-unicode-backed-ast-shared-deposition-controlled-activation-active-readback-and-protected-product-gateway-implemented-product-activation-pending",
@@ -1355,9 +1355,54 @@
       "the product is not released"
     ]
   },
+  "active_work": {
+    "capability": "evidence.record-lineage",
+    "github_issue": 16,
+    "state": "partial-implementation-and-controlled-integration-proven-source-admission-not-complete",
+    "branch": "feat/evidence-lineage",
+    "pull_request": null,
+    "base_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
+    "implementation_commit": "0b252f659c17319acf089792f37bb3070d77dda0",
+    "implemented_boundary": [
+      "one versioned native batch operation identifies evidence nodes from proposition occurrence source context ordinal epistemic kind and flags",
+      "direct dependence edges remain canonical and copied descendants collapse to unique terminal roots without multiplying independent support",
+      "cycles reject the whole batch with the exact closed offending path",
+      "observed testimony calculation derivation model behavior unknown and contradiction remain distinct epistemic kinds",
+      "ISA 1.5 generated native and managed contracts expose one evidence-record-lineage operation with bounded memory output and atomic publication",
+      "one PostgreSQL operation persists immutable evidence nodes direct dependence edges root projections semantic receipts and ISA receipts transactionally",
+      "direct-native and PostgreSQL roots semantic receipts and ISA receipts are exact",
+      "replay writes no replacement receipt and rejects conflicting durable root projections"
+    ],
+    "controlled_integration_validation": {
+      "custom_stack": "306 of 306 passed in 570.24 seconds against selected oneAPI 2026.1.1 and staged receipted PostgreSQL 18.6",
+      "registry_parity": "306 registered tests exactly matched CTest",
+      "requirements_trace": "12 of 12 passed",
+      "program_authority": "30 of 30 passed",
+      "unicode_postgresql_persistence_seconds": 153.24,
+      "lineage_defect_controls": [
+        "dependent descendants counted as independent roots",
+        "conflicting durable root projection accepted on replay"
+      ]
+    },
+    "missing_boundary": [
+      "complete testimony records still require source type trust outcome uncertainty count source-profile and recipe receipt fields",
+      "heterogeneous source profiles and universal AST occurrences are not connected to the lineage operation",
+      "negative malformed unsupported and unknown admission dispositions are incomplete",
+      "immutable standing contradiction referential and consensus epochs remain unimplemented",
+      "no source profile is world admitted and the configured foundational heterogeneous seed does not exist"
+    ],
+    "next_boundary": "extend the generic testimony and source-profile contract then execute the first complete heterogeneous source-profile admission through universal AST composition occurrence lineage PostgreSQL deposition receipt and readback without creating a source-private engine",
+    "nonclaims": [
+      "issue 16 is not complete",
+      "issue 53 source admission is not complete",
+      "Unicode and the Highway are not product activated",
+      "the foundational world is not admitted or seeded",
+      "the product is not released"
+    ]
+  },
   "github_observation": {
-    "observed_at_utc": "2026-08-27T22:41:06Z",
-    "main_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
+    "observed_at_utc": "2026-08-28T00:16:23Z",
+    "main_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
     "product_cluster_project_status": "In Progress",
@@ -1420,13 +1465,15 @@
       "merged_at_utc": "2026-08-27T22:07:27Z",
       "proof_state": "runner-readable PostgreSQL publication and current-main product-package composition are merged; protected run 33121232332 composed an exact package but no product activation occurred"
     },
-    "active_activation_binding_pull_request": {
+    "activation_binding_pull_request": {
       "number": 81,
-      "state": "open",
+      "state": "merged",
       "draft": false,
       "base_commit": "d4fc99374fb8d686e212568e4be540913f886b74",
-      "head_commit": "2e7eb7990e14418bac1ca271eba662794ec2d17e",
-      "proof_state": "package-bound execution-resource observation and single-pass product composition implementation are published; exact-head CI merge protected runner execution and product activation remain pending"
+      "head_commit": "143938c7169cfd886a0a5042c7d74939b4564414",
+      "merge_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
+      "merged_at_utc": "2026-08-27T22:54:51Z",
+      "proof_state": "package-bound execution-resource observation and single-pass product composition merged with exact-head and post-merge clean-room custom-stack and runner-authority checks; protected run 33125108689 composed the exact product successfully and then failed before activation because the trusted root gateway is absent"
     },
     "roadmap_project": {
       "number": 2,
@@ -1449,9 +1496,9 @@
       {"number": 35, "state": "closed", "former_base": "phase1/runtime-build-graph", "head": "phase1/source-built-toolchain", "reconciliation": "all sixteen commits reconciled into draft PR 74; source branch retained as history"}
     ],
     "latest_main_workflow_runs": [
-      {"id": 33121196882, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "d4fc99374fb8d686e212568e4be540913f886b74"},
-      {"id": 33121196866, "workflow": "custom-stack-ci", "conclusion": "cancelled", "head_commit": "d4fc99374fb8d686e212568e4be540913f886b74"},
-      {"id": 33121232332, "workflow": "product-activation", "conclusion": "failure", "head_commit": "d4fc99374fb8d686e212568e4be540913f886b74", "runner_authority": "success", "compose_product": "failed-after-current-main-package-and-resource-observation-before-activation-request", "activate_product": "skipped", "package_id": "e07dfc117dd736a8931b9517b985e5b2c3615be13124f00e57940eb42904ef4f", "package_manifest_sha256": "9228e0ea446eaa4142f1de640dcaee8fe236d73cfcc4b9ef11b11858215444a2", "resource_observation_sha256": "e30bbf56d7ed5c00f02f5a94e5ee41efeb31fe7f8d78aa8dad05b6d3a1e5ac27", "failure": "resource observation v1 had no exact package or package-manifest binding"}
+      {"id": 33124341186, "workflow": "clean-room-ci", "conclusion": "success", "head_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47"},
+      {"id": 33124341150, "workflow": "custom-stack-ci", "conclusion": "success", "head_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47"},
+      {"id": 33125108689, "workflow": "product-activation", "conclusion": "failure", "head_commit": "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47", "runner_authority": "success", "compose_product": "success", "activate_product": "failed-before-authenticated-request", "failure": "the protected laplace-runner could not execute the absent root-owned /opt/laplace/deployment/current/bin/laplace-product-activate gateway"}
     ],
     "repository_runner": {"name": "hart-server-refactor", "version": "2.336.0", "status": "online", "busy": false, "labels_include": ["laplace-refactor", "oneapi", "postgres-18", "dotnet-10", "avx2"]},
     "observed_required_checks": ["requirements", "native (linux-dev)", "native (linux-sanitize)"],

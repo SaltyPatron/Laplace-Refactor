@@ -332,7 +332,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(completed.get("pull_request") == 73 and completed.get("github_issue") == 15, "composition delivery observation drift")
     contains_all(completed.get("implemented_and_locally_proven_boundary", []), ("direct-native", "provider-independent", "cancellation", "blind-presence", "five-sample", "329062"), "issue 15 implementation acceptance was narrowed")
     contains_all(completed.get("remaining_whole_product_boundary", []), ("500000", "30-seconds-per-GB", "issue 72"), "whole-product performance boundary was hidden")
-    work = document.get("active_work", {})
+    work = document.get("prior_highway_work", {})
     require(work.get("capability") == "substrate.highway", "active capability drift")
     require(
         work.get("state")
@@ -1106,7 +1106,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         "incomplete live collision observation was erased or promoted",
     )
     require(
-        document.get("repository", {}).get("implementation_checkpoint_commit")
+        highway.get("active_correction", {}).get("implementation_commit")
         == "e09c05c419e45cc4a1278d8ada54f5403156b2d2",
         "Highway implementation checkpoint drift",
     )
@@ -1262,6 +1262,70 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         ),
         "Highway work was promoted beyond evidence",
     )
+    active = document.get("active_work", {})
+    require(
+        active.get("capability") == "evidence.record-lineage"
+        and active.get("github_issue") == 16
+        and active.get("state")
+        == "partial-implementation-and-controlled-integration-proven-source-admission-not-complete"
+        and active.get("branch") == "feat/evidence-lineage"
+        and active.get("base_commit")
+        == "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47"
+        and active.get("implementation_commit")
+        == "0b252f659c17319acf089792f37bb3070d77dda0",
+        "active evidence-lineage continuation identity drift",
+    )
+    contains_all(
+        active.get("implemented_boundary", []),
+        (
+            "proposition occurrence source context ordinal",
+            "direct dependence edges",
+            "unique terminal roots",
+            "cycles reject",
+            "distinct epistemic kinds",
+            "ISA 1.5",
+            "PostgreSQL operation persists",
+            "direct-native and PostgreSQL",
+            "conflicting durable root projections",
+        ),
+        "active evidence-lineage implementation boundary was narrowed",
+    )
+    contains_all(
+        active.get("controlled_integration_validation", {}),
+        (
+            "306 of 306",
+            "570.24 seconds",
+            "306 registered tests",
+            "12 of 12",
+            "30 of 30",
+            "153.24",
+            "dependent descendants",
+            "conflicting durable root projection",
+        ),
+        "active evidence-lineage validation evidence drift",
+    )
+    contains_all(
+        active.get("missing_boundary", []),
+        (
+            "source type trust outcome uncertainty",
+            "heterogeneous source profiles",
+            "negative malformed unsupported",
+            "standing contradiction referential",
+            "no source profile is world admitted",
+        ),
+        "active evidence-lineage incompleteness was hidden",
+    )
+    contains_all(
+        active.get("nonclaims", []),
+        (
+            "issue 16 is not complete",
+            "issue 53 source admission is not complete",
+            "not product activated",
+            "not admitted or seeded",
+            "not released",
+        ),
+        "active evidence-lineage work was promoted beyond evidence",
+    )
     github = document.get("github_observation", {})
     require(github.get("main_commit") == document.get("repository", {}).get("base_commit"), "GitHub main and continuation base diverged")
     require(github.get("product_cluster_project_status") == "In Progress", "active product-cluster work returned to Todo")
@@ -1324,20 +1388,30 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         ("runner-readable", "current-main", "no product activation"),
         "product publication PR was promoted beyond evidence",
     )
-    binding_pr = github.get("active_activation_binding_pull_request", {})
+    binding_pr = github.get("activation_binding_pull_request", {})
     require(
         binding_pr.get("number") == 81
-        and binding_pr.get("state") == "open"
+        and binding_pr.get("state") == "merged"
         and binding_pr.get("draft") is False
         and binding_pr.get("base_commit")
         == "d4fc99374fb8d686e212568e4be540913f886b74"
         and binding_pr.get("head_commit")
-        == "2e7eb7990e14418bac1ca271eba662794ec2d17e",
+        == "143938c7169cfd886a0a5042c7d74939b4564414"
+        and binding_pr.get("merge_commit")
+        == "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47"
+        and binding_pr.get("merged_at_utc") == "2026-08-27T22:54:51Z",
         "activation binding PR observation drift",
     )
     contains_all(
         binding_pr.get("proof_state", ""),
-        ("published", "exact-head CI", "runner execution", "remain pending"),
+        (
+            "merged",
+            "exact-head",
+            "post-merge",
+            "protected run 33125108689",
+            "composed the exact product successfully",
+            "trusted root gateway is absent",
+        ),
         "activation binding PR was promoted beyond evidence",
     )
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
@@ -1354,33 +1428,29 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     runs = {item.get("workflow"): item for item in github.get("latest_main_workflow_runs", [])}
     require(
-        runs.get("clean-room-ci", {}).get("id") == 33121196882
+        runs.get("clean-room-ci", {}).get("id") == 33124341186
         and runs.get("clean-room-ci", {}).get("conclusion") == "success"
         and runs.get("clean-room-ci", {}).get("head_commit")
-        == "d4fc99374fb8d686e212568e4be540913f886b74",
+        == "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
         "latest main clean-room observation drift",
     )
     require(
-        runs.get("custom-stack-ci", {}).get("id") == 33121196866
-        and runs.get("custom-stack-ci", {}).get("conclusion") == "cancelled"
+        runs.get("custom-stack-ci", {}).get("id") == 33124341150
+        and runs.get("custom-stack-ci", {}).get("conclusion") == "success"
         and runs.get("custom-stack-ci", {}).get("head_commit")
-        == "d4fc99374fb8d686e212568e4be540913f886b74",
+        == "2e40f0ac6d9b7f8f9604e818da340f1ba0b7bb47",
         "latest main custom-stack observation drift",
     )
     product_activation_run = runs.get("product-activation", {})
     require(
-        product_activation_run.get("id") == 33121232332
+        product_activation_run.get("id") == 33125108689
         and product_activation_run.get("conclusion") == "failure"
         and product_activation_run.get("runner_authority") == "success"
-        and product_activation_run.get("compose_product")
-        == "failed-after-current-main-package-and-resource-observation-before-activation-request"
-        and product_activation_run.get("activate_product") == "skipped"
-        and product_activation_run.get("package_id")
-        == "e07dfc117dd736a8931b9517b985e5b2c3615be13124f00e57940eb42904ef4f"
-        and product_activation_run.get("package_manifest_sha256")
-        == "9228e0ea446eaa4142f1de640dcaee8fe236d73cfcc4b9ef11b11858215444a2"
-        and product_activation_run.get("resource_observation_sha256")
-        == "e30bbf56d7ed5c00f02f5a94e5ee41efeb31fe7f8d78aa8dad05b6d3a1e5ac27",
+        and product_activation_run.get("compose_product") == "success"
+        and product_activation_run.get("activate_product")
+        == "failed-before-authenticated-request"
+        and "/opt/laplace/deployment/current/bin/laplace-product-activate"
+        in product_activation_run.get("failure", ""),
         "failed protected product-activation observation was hidden or promoted",
     )
     if verify_physical:
@@ -1857,7 +1927,7 @@ class ProgramAuthorityTests(unittest.TestCase):
 
     def test_mutation_highway_registry_identity_drift_is_detected(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        highway = mutant["active_work"]["implementation_progress"][
+        highway = mutant["prior_highway_work"]["implementation_progress"][
             "typed_numerical_highway"
         ]
         highway["registry_fingerprint"] = "00" * 32
@@ -1866,7 +1936,7 @@ class ProgramAuthorityTests(unittest.TestCase):
 
     def test_mutation_highway_integration_is_promoted_to_product_is_detected(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        highway = mutant["active_work"]["implementation_progress"][
+        highway = mutant["prior_highway_work"]["implementation_progress"][
             "typed_numerical_highway"
         ]
         highway["state"] = "product-activated"
@@ -1875,13 +1945,13 @@ class ProgramAuthorityTests(unittest.TestCase):
 
     def test_mutation_failed_runtime_promoted_to_accepted_package_is_detected(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        mutant["active_work"]["implementation_progress"]["runtime_package"]["state"] = "accepted-package-receipt-issued"
+        mutant["prior_highway_work"]["implementation_progress"]["runtime_package"]["state"] = "accepted-package-receipt-issued"
         with self.assertRaisesRegex(ValueError, "runtime package proof state"):
             validate_continuation(mutant, verify_physical=False)
 
     def test_mutation_runtime_provider_promoted_without_qualification_is_detected(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        qualification = mutant["active_work"]["implementation_progress"][
+        qualification = mutant["prior_highway_work"]["implementation_progress"][
             "runtime_package"
         ]["runtime_provider_qualification"]
         qualification["state"] = "accepted"
@@ -1891,7 +1961,7 @@ class ProgramAuthorityTests(unittest.TestCase):
 
     def test_mutation_build_toolchain_promoted_to_product_runtime_is_detected(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        toolchain = mutant["active_work"]["implementation_progress"][
+        toolchain = mutant["prior_highway_work"]["implementation_progress"][
             "build_toolchain_package"
         ]
         toolchain["product_runtime_activation_eligible"] = True
@@ -1901,7 +1971,7 @@ class ProgramAuthorityTests(unittest.TestCase):
 
     def test_mutation_rejected_postgresql_execution_is_promoted(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        rejected = mutant["active_work"]["implementation_progress"][
+        rejected = mutant["prior_highway_work"]["implementation_progress"][
             "postgresql_product_package"
         ]["previous_rejected_execution"]
         rejected["package_receipt_issued"] = True
@@ -1911,7 +1981,7 @@ class ProgramAuthorityTests(unittest.TestCase):
 
     def test_mutation_latest_rejected_postgresql_execution_is_promoted(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        rejected = mutant["active_work"]["implementation_progress"][
+        rejected = mutant["prior_highway_work"]["implementation_progress"][
             "postgresql_product_package"
         ]["latest_rejected_execution"]
         rejected["compilation_started"] = True
@@ -1921,7 +1991,7 @@ class ProgramAuthorityTests(unittest.TestCase):
 
     def test_mutation_runner_readable_postgresql_publication_is_erased(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        accepted = mutant["active_work"]["implementation_progress"][
+        accepted = mutant["prior_highway_work"]["implementation_progress"][
             "accepted_postgresql_product_package"
         ]
         accepted.pop("publication")
@@ -1930,7 +2000,7 @@ class ProgramAuthorityTests(unittest.TestCase):
 
     def test_mutation_inert_postgresql_package_is_promoted(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        package = mutant["active_work"]["implementation_progress"][
+        package = mutant["prior_highway_work"]["implementation_progress"][
             "postgresql_product_package"
         ]["latest_successful_package_execution"]
         package["build_input_closure_complete"] = True
@@ -1940,7 +2010,7 @@ class ProgramAuthorityTests(unittest.TestCase):
 
     def test_mutation_recursive_elf_closure_is_erased(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        package = mutant["active_work"]["implementation_progress"][
+        package = mutant["prior_highway_work"]["implementation_progress"][
             "postgresql_product_package"
         ]["latest_successful_package_execution"]
         package["recursive_elf_closure_verified"] = False
@@ -1949,7 +2019,7 @@ class ProgramAuthorityTests(unittest.TestCase):
 
     def test_mutation_bootstrap_successor_is_promoted_without_package(self) -> None:
         mutant = copy.deepcopy(self.continuation)
-        successor = mutant["active_work"]["implementation_progress"][
+        successor = mutant["prior_highway_work"]["implementation_progress"][
             "postgresql_product_package"
         ]["next_successor_build_boundary"]
         successor["package_receipt_issued"] = True
