@@ -59,7 +59,8 @@ if [[ "$mode" != "composition-measurement" ]]; then
 else
     postgres_options="$postgres_options -c shared_buffers=1GB -c max_wal_size=8GB -c checkpoint_timeout=30min -c track_io_timing=on -c track_wal_io_timing=on"
 fi
-if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ]]; then
+if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
+      "$mode" == "source-admission" || "$mode" == "iso-639-admission" ]]; then
     postgres_options="$postgres_options -c shared_buffers=512MB -c max_wal_size=8GB -c checkpoint_timeout=30min"
 fi
 
@@ -144,12 +145,41 @@ elif [[ "$mode" == "contract" || "$mode" == "persistence-mutation" ]]; then
         psql_arguments+=(-v "$shell_name=$(read_probe_value "$key")")
     done
     for key in \
+        SOURCE_PROFILE_A_ID SOURCE_PROFILE_B_ID SOURCE_PROFILE_RECEIPT \
+        SOURCE_PROFILE_BOUNDARY SOURCE_PROFILE_INPUT SOURCE_PROFILE_OUTPUT \
+        SOURCE_PROFILE_ISA_RECEIPT; do
+        shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+        psql_arguments+=(-v "$shell_name=$(read_probe_value "$key")")
+    done
+    for key in \
         EVIDENCE_ROOT_NODE EVIDENCE_COPY_NODE EVIDENCE_INDEPENDENT_NODE \
         EVIDENCE_ROOT_SOURCE EVIDENCE_ROOT_CONTEXT \
         EVIDENCE_COPY_SOURCE EVIDENCE_COPY_CONTEXT \
         EVIDENCE_INDEPENDENT_SOURCE EVIDENCE_INDEPENDENT_CONTEXT \
         EVIDENCE_LINEAGE_RECEIPT EVIDENCE_LINEAGE_INPUT \
         EVIDENCE_LINEAGE_OUTPUT EVIDENCE_ISA_RECEIPT; do
+        shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+        psql_arguments+=(-v "$shell_name=$(read_probe_value "$key")")
+    done
+    for key in \
+        TESTIMONY_PROFILE TESTIMONY_RECIPE TESTIMONY_TRUST \
+        TESTIMONY_0_ID TESTIMONY_0_NODE TESTIMONY_0_OUTCOME \
+        TESTIMONY_0_SOURCE_TYPE TESTIMONY_0_OUTCOME_TYPE \
+        TESTIMONY_0_DISPOSITION TESTIMONY_0_UNCERTAINTY_NUMERATOR \
+        TESTIMONY_0_UNCERTAINTY_DENOMINATOR TESTIMONY_0_SAMPLE_COUNT \
+        TESTIMONY_1_ID TESTIMONY_1_NODE TESTIMONY_1_OUTCOME \
+        TESTIMONY_1_SOURCE_TYPE TESTIMONY_1_OUTCOME_TYPE \
+        TESTIMONY_1_DISPOSITION TESTIMONY_1_UNCERTAINTY_NUMERATOR \
+        TESTIMONY_1_UNCERTAINTY_DENOMINATOR TESTIMONY_1_SAMPLE_COUNT \
+        TESTIMONY_2_ID TESTIMONY_2_NODE TESTIMONY_2_OUTCOME \
+        TESTIMONY_2_SOURCE_TYPE TESTIMONY_2_OUTCOME_TYPE \
+        TESTIMONY_2_DISPOSITION TESTIMONY_2_UNCERTAINTY_NUMERATOR \
+        TESTIMONY_2_UNCERTAINTY_DENOMINATOR TESTIMONY_2_SAMPLE_COUNT \
+        TESTIMONY_RECEIPT TESTIMONY_INPUT TESTIMONY_OUTPUT \
+        TESTIMONY_ISA_RECEIPT \
+        WORLD_PROFILE_ID WORLD_OCCURRENCE_ID WORLD_EVIDENCE_NODE \
+        WORLD_EVIDENCE_SOURCE WORLD_EVIDENCE_CONTEXT \
+        WORLD_TESTIMONY_ID WORLD_TESTIMONY_TRUST WORLD_TESTIMONY_OUTCOME; do
         shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
         psql_arguments+=(-v "$shell_name=$(read_probe_value "$key")")
     done
@@ -170,7 +200,8 @@ elif [[ "$mode" == "perfcache-mutation" ]]; then
         exit 66
     fi
     psql_arguments+=(-v "perfcache_mutant_module=$LAPLACE_MUTANT_MODULE")
-elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ]]; then
+elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
+      "$mode" == "source-admission" || "$mode" == "iso-639-admission" ]]; then
     unicode_source_root=${LAPLACE_UNICODE_SOURCE_ROOT:-}
     if [[ -z "$unicode_source_root" || ! -d "$unicode_source_root" ]]; then
         echo "verified Unicode source root is unavailable: $unicode_source_root" >&2
@@ -185,6 +216,36 @@ elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ]]; th
         -v "unicode_spool_directory=$unicode_spool_directory"
         -v "unicode_tier0_path=$unicode_tier0_path"
         -v "unicode_reverse_path=$unicode_reverse_path")
+    if [[ "$mode" == "iso-639-admission" ]]; then
+        iso_source_root=${LAPLACE_ISO_639_SOURCE_ROOT:-/vault/Data/ISO639}
+        if [[ ! -d "$iso_source_root" ]]; then
+            echo "verified ISO 639 source root is unavailable: $iso_source_root" >&2
+            exit 77
+        fi
+        probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$native_probe" "$iso_source_root")
+        while IFS='=' read -r key value; do
+            if [[ "$key" != ISO_* || ! "$value" =~ ^[0-9a-f]+$ ]]; then
+                echo "native ISO 639 profile probe emitted an invalid value: $key" >&2
+                exit 86
+            fi
+            shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+            psql_arguments+=(-v "$shell_name=$value")
+        done <<<"$probe_output"
+        psql_arguments+=(-v "iso_source_root=$iso_source_root")
+    fi
+    if [[ "$mode" == "source-admission" ]]; then
+        probe_output=$("$native_probe")
+        for key in TABULAR_ARTIFACT_GRAPH TABULAR_ARCHIVE_ID TABULAR_TEXT_ID; do
+            value=$(awk -F= -v key="$key" '$1 == key {print $2}' <<<"$probe_output")
+            if [[ ! "$value" =~ ^[0-9a-f]+$ ]]; then
+                echo "native source probe did not emit $key" >&2
+                exit 85
+            fi
+            shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+            psql_arguments+=(-v "$shell_name=$value")
+        done
+    fi
     if [[ "$mode" == "unicode-access-mutation" ]]; then
         if [[ -z "${LAPLACE_MUTANT_MODULE:-}" || ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
             echo "Unicode access mutant module is missing" >&2
@@ -229,7 +290,8 @@ else
     "$pg_bindir/psql" "${psql_arguments[@]}" -f "$sql_file"
 fi
 
-if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ]]; then
+if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
+      "$mode" == "source-admission" || "$mode" == "iso-639-admission" ]]; then
     if [[ ! -f "$unicode_tier0_path" ]]; then
         echo "Unicode Tier-0 artifact was not published" >&2
         exit 80

@@ -1,7 +1,10 @@
 #include "laplace/isa.h"
 #include "laplace/evidence_lineage.h"
+#include "laplace/evidence_testimony.h"
 #include "laplace/highway.h"
+#include "laplace/source_profile.h"
 #include "laplace/trajectory.h"
+#include "laplace/world_admission.h"
 #include "context_fixture.h"
 
 #include <array>
@@ -109,6 +112,63 @@ laplace_isa_value_view EvidenceOutputView(
             LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
 }
 
+laplace_isa_value_view TestimonyInputView(
+    laplace_evidence_testimony_record* data,
+    std::size_t count) {
+    return {data, static_cast<std::uint64_t>(count),
+            static_cast<std::uint64_t>(count),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_EVIDENCE_TESTIMONY_RECORD_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view TestimonyOutputView(
+    laplace_evidence_testimony_receipt* data,
+    std::size_t capacity) {
+    return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_EVIDENCE_TESTIMONY_RECEIPT_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view SourceProfileInputView(
+    laplace_source_profile_manifest* data,
+    std::size_t count) {
+    return {data, static_cast<std::uint64_t>(count),
+            static_cast<std::uint64_t>(count),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_SOURCE_PROFILE_MANIFEST_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view SourceProfileOutputView(
+    laplace_source_profile_receipt* data,
+    std::size_t capacity) {
+    return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_SOURCE_PROFILE_RECEIPT_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view WorldAdmissionInputView(
+    laplace_world_admission_record* data,
+    std::size_t count) {
+    return {data, static_cast<std::uint64_t>(count),
+            static_cast<std::uint64_t>(count),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_WORLD_ADMISSION_RECORD_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view WorldAdmissionOutputView(
+    laplace_world_admission_receipt* data,
+    std::size_t capacity) {
+    return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_WORLD_ADMISSION_RECEIPT_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
 laplace_isa_instruction IdentityInstruction(
     std::uint32_t input,
     std::uint32_t output) {
@@ -158,11 +218,134 @@ laplace_isa_instruction EvidenceInstruction(
             LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
 }
 
+laplace_isa_instruction TestimonyInstruction(
+    std::uint32_t input,
+    std::uint32_t output) {
+    return {LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_TESTIMONY_BATCH,
+            input, output,
+            LAPLACE_ISA_INSTRUCTION_VERSION_EVIDENCE_RECORD_TESTIMONY_BATCH,
+            LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
+laplace_isa_instruction SourceProfileInstruction(
+    std::uint32_t input,
+    std::uint32_t output) {
+    return {LAPLACE_ISA_OPCODE_SOURCE_PROFILE_VALIDATE_BATCH,
+            input, output,
+            LAPLACE_ISA_INSTRUCTION_VERSION_SOURCE_PROFILE_VALIDATE_BATCH,
+            LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
+laplace_isa_instruction WorldAdmissionInstruction(
+    std::uint32_t input,
+    std::uint32_t output) {
+    return {LAPLACE_ISA_OPCODE_WORLD_ADMISSION_CLOSE_BATCH,
+            input, output,
+            LAPLACE_ISA_INSTRUCTION_VERSION_WORLD_ADMISSION_CLOSE_BATCH,
+            LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
 laplace_id128 HighwayId(std::uint8_t seed) {
     laplace_id128 value{};
     for (std::size_t index = 0; index < sizeof(value.bytes); ++index) {
         value.bytes[index] = static_cast<std::uint8_t>(seed + index);
     }
+    return value;
+}
+
+laplace_digest256 TestimonyDigest(std::uint8_t seed) {
+    laplace_digest256 value{};
+    for (std::size_t index = 0; index < sizeof(value.bytes); ++index) {
+        value.bytes[index] = static_cast<std::uint8_t>(seed + index);
+    }
+    return value;
+}
+
+laplace_evidence_testimony_record TestimonyRecord(std::uint8_t seed) {
+    laplace_evidence_testimony_record value{};
+    value.evidence_node_id = TestimonyDigest(seed);
+    value.source_profile_id = TestimonyDigest(0x70u);
+    value.recipe_receipt_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 1u));
+    value.trust_input_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 2u));
+    value.outcome_detail_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 3u));
+    value.uncertainty_numerator = 1u;
+    value.uncertainty_denominator = 5u;
+    value.sample_count = 2u;
+    value.source_type = LAPLACE_EVIDENCE_SOURCE_STANDARD;
+    value.outcome_type = LAPLACE_EVIDENCE_OUTCOME_MAPPING;
+    value.disposition = LAPLACE_EVIDENCE_DISPOSITION_PERSISTED;
+    value.flags = LAPLACE_EVIDENCE_TESTIMONY_FLAGS_NONE;
+    EXPECT_EQ(laplace_evidence_testimony_identify(&value, &value.testimony_id),
+              LAPLACE_EVIDENCE_TESTIMONY_OK);
+    return value;
+}
+
+laplace_highway_key HighwayKey(std::uint32_t kind, std::uint8_t seed);
+
+laplace_source_profile_manifest SourceProfile(std::uint8_t seed) {
+    laplace_source_profile_manifest value{};
+    value.coordinate = HighwayKey(LAPLACE_HIGHWAY_KIND_SOURCE_PROFILE, seed);
+    value.authority_release_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 1u));
+    value.license_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 2u));
+    value.artifact_graph_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 3u));
+    value.syntax_authority_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 4u));
+    value.recipe_program_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 5u));
+    value.universal_ast_mapping_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 6u));
+    value.highway_references_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 7u));
+    value.epistemic_witnessing_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 8u));
+    value.denominator_declaration_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 9u));
+    value.conformance_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 10u));
+    value.completion_law_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 11u));
+    value.selected_boundary_fingerprint = TestimonyDigest(0xe0u);
+    value.byte_count = 32u;
+    value.container_count = 1u;
+    value.member_count = 1u;
+    value.file_count = 1u;
+    value.record_count = 1u;
+    value.field_count = 2u;
+    value.syntax_node_count = 3u;
+    value.span_count = 2u;
+    value.occurrence_count = 2u;
+    value.output_count = 1u;
+    value.closure_subject_count = 1u;
+    value.persisted_count = 1u;
+    value.not_applicable_mask =
+        (UINT64_C(1) << 8u) | (UINT64_C(1) << 9u) |
+        (UINT64_C(1) << 11u) | (UINT64_C(1) << 12u) |
+        (UINT64_C(1) << 13u) | (UINT64_C(1) << 14u) |
+        (UINT64_C(1) << 15u);
+    value.reconstruction_class = LAPLACE_SOURCE_PROFILE_RECONSTRUCTION_EXACT;
+    EXPECT_EQ(laplace_source_profile_identify(&value, &value.profile_id),
+              LAPLACE_SOURCE_PROFILE_OK);
+    return value;
+}
+
+laplace_world_admission_record WorldAdmission(std::uint8_t seed) {
+    laplace_world_admission_record value{};
+    value.source_profile_id = TestimonyDigest(seed);
+    value.selected_boundary_fingerprint = TestimonyDigest(0xe0u);
+    value.source_profile_receipt_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 1u));
+    value.recipe_receipt_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 2u));
+    value.composition_working_set_receipt_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 3u));
+    value.composition_presence_receipt_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 4u));
+    value.composition_producer_receipt_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 5u));
+    value.composition_stream_receipt_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 6u));
+    value.evidence_lineage_receipt_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 7u));
+    value.evidence_testimony_receipt_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 8u));
+    value.readback_fingerprint = TestimonyDigest(static_cast<std::uint8_t>(seed + 9u));
+    value.profile_occurrence_count = 2u;
+    value.composition_occurrence_count = 2u;
+    value.profile_claim_count = 1u;
+    value.evidence_node_count = 1u;
+    value.testimony_count = 1u;
+    value.profile_bound_testimony_count = 1u;
+    value.recipe_bound_testimony_count = 1u;
+    value.lineage_bound_testimony_count = 1u;
+    value.closure_subject_count = 3u;
+    value.closed_subject_count = 3u;
+    value.reconstruction_class = 1u;
+    EXPECT_EQ(laplace_world_admission_identify(&value, &value.admission_id),
+              LAPLACE_WORLD_ADMISSION_OK);
     return value;
 }
 
@@ -193,7 +376,7 @@ laplace_isa_program Program(
 
 TEST(IsaAbi, ContractAssignmentsAreStable) {
     static_assert(LAPLACE_ISA_MAJOR == 1u);
-    static_assert(LAPLACE_ISA_MINOR == 5u);
+    static_assert(LAPLACE_ISA_MINOR == 8u);
     static_assert(LAPLACE_ISA_VALUE_U32_VECTOR != LAPLACE_ISA_VALUE_ID128_VECTOR);
     static_assert(sizeof(laplace_isa_digest256) == 32u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH, 0x00020001u);
@@ -201,6 +384,9 @@ TEST(IsaAbi, ContractAssignmentsAreStable) {
     EXPECT_EQ(LAPLACE_ISA_OPCODE_HIGHWAY_COORDINATE_CALCULATE_BATCH, 0x00040001u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH, 0x00040002u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_LINEAGE_BATCH, 0x00050001u);
+    EXPECT_EQ(LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_TESTIMONY_BATCH, 0x00050002u);
+    EXPECT_EQ(LAPLACE_ISA_OPCODE_SOURCE_PROFILE_VALIDATE_BATCH, 0x00060001u);
+    EXPECT_EQ(LAPLACE_ISA_OPCODE_WORLD_ADMISSION_CLOSE_BATCH, 0x00060002u);
 }
 
 TEST(IsaExecution, EvidenceLineageMatchesCanonicalNativeOperationAndReceipt) {
@@ -247,6 +433,111 @@ TEST(IsaExecution, EvidenceLineageMatchesCanonicalNativeOperationAndReceipt) {
                               sizeof(root.node_id.bytes)), 0);
     }
     EXPECT_EQ(receipt.executed_instruction_count, 1u);
+}
+
+TEST(IsaExecution, EvidenceTestimonyMatchesCanonicalNativeOperationAndReceipt) {
+    std::array<laplace_evidence_testimony_record, 2> records{{
+        TestimonyRecord(0x10u), TestimonyRecord(0x30u)}};
+    std::sort(records.begin(), records.end(), [](const auto& left, const auto& right) {
+        return std::memcmp(left.testimony_id.bytes, right.testimony_id.bytes, 32u) < 0;
+    });
+    laplace_evidence_testimony_receipt native_receipt{};
+    laplace_evidence_testimony_error native_error{};
+    ASSERT_EQ(laplace_evidence_record_testimony_batch(
+                  records.data(), records.size(), &native_receipt, &native_error),
+              LAPLACE_EVIDENCE_TESTIMONY_OK);
+    laplace_evidence_testimony_receipt output{};
+    std::array<laplace_isa_value_view, 2> values{{
+        TestimonyInputView(records.data(), records.size()),
+        TestimonyOutputView(&output, 1u)}};
+    auto instruction = TestimonyInstruction(0u, 1u);
+    auto program = Program(&instruction, 1u, values.data(), values.size());
+    laplace_isa_receipt receipt{};
+    laplace_isa_error error{};
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(values[1].count, 1u);
+    EXPECT_EQ(std::memcmp(&output, &native_receipt, sizeof(output)), 0);
+    EXPECT_EQ(receipt.executed_instruction_count, 1u);
+
+    const auto original_isa_receipt = receipt;
+    records[0].sample_count += 1u;
+    ASSERT_EQ(laplace_evidence_testimony_identify(
+                  &records[0], &records[0].testimony_id),
+              LAPLACE_EVIDENCE_TESTIMONY_OK);
+    std::sort(records.begin(), records.end(), [](const auto& left, const auto& right) {
+        return std::memcmp(left.testimony_id.bytes, right.testimony_id.bytes, 32u) < 0;
+    });
+    values[1].count = 0u;
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    EXPECT_NE(std::memcmp(
+        original_isa_receipt.input_fingerprint.bytes,
+        receipt.input_fingerprint.bytes, 32u), 0);
+    EXPECT_NE(std::memcmp(
+        original_isa_receipt.receipt_id.bytes,
+        receipt.receipt_id.bytes, 32u), 0);
+
+    program.minor = 5u;
+    values[1].count = 0u;
+    EXPECT_EQ(laplace_isa_validate(&program, &error),
+              LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);
+}
+
+TEST(IsaExecution, SourceProfileMatchesCanonicalNativeOperationAndReceipt) {
+    std::array<laplace_source_profile_manifest, 2> profiles{{
+        SourceProfile(0x10u), SourceProfile(0x50u)}};
+    std::sort(profiles.begin(), profiles.end(), [](const auto& left, const auto& right) {
+        return std::memcmp(left.profile_id.bytes, right.profile_id.bytes, 32u) < 0;
+    });
+    laplace_source_profile_receipt native_receipt{};
+    laplace_source_profile_error native_error{};
+    ASSERT_EQ(laplace_source_profile_validate_batch(
+                  profiles.data(), profiles.size(), &native_receipt, &native_error),
+              LAPLACE_SOURCE_PROFILE_OK);
+    laplace_source_profile_receipt output{};
+    std::array<laplace_isa_value_view, 2> values{{
+        SourceProfileInputView(profiles.data(), profiles.size()),
+        SourceProfileOutputView(&output, 1u)}};
+    auto instruction = SourceProfileInstruction(0u, 1u);
+    auto program = Program(&instruction, 1u, values.data(), values.size());
+    laplace_isa_receipt receipt{};
+    laplace_isa_error error{};
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(values[1].count, 1u);
+    EXPECT_EQ(std::memcmp(&output, &native_receipt, sizeof(output)), 0);
+    EXPECT_EQ(receipt.executed_instruction_count, 1u);
+    program.minor = 6u;
+    values[1].count = 0u;
+    EXPECT_EQ(laplace_isa_validate(&program, &error),
+              LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);
+}
+
+TEST(IsaExecution, WorldAdmissionMatchesCanonicalNativeOperationAndReceipt) {
+    std::array<laplace_world_admission_record, 2> admissions{{
+        WorldAdmission(0x10u), WorldAdmission(0x50u)}};
+    std::sort(admissions.begin(), admissions.end(), [](const auto& left, const auto& right) {
+        return std::memcmp(left.admission_id.bytes, right.admission_id.bytes, 32u) < 0;
+    });
+    laplace_world_admission_receipt native_receipt{};
+    laplace_world_admission_error native_error{};
+    ASSERT_EQ(laplace_world_admission_close_batch(
+                  admissions.data(), admissions.size(), &native_receipt, &native_error),
+              LAPLACE_WORLD_ADMISSION_OK);
+    laplace_world_admission_receipt output{};
+    std::array<laplace_isa_value_view, 2> values{{
+        WorldAdmissionInputView(admissions.data(), admissions.size()),
+        WorldAdmissionOutputView(&output, 1u)}};
+    auto instruction = WorldAdmissionInstruction(0u, 1u);
+    auto program = Program(&instruction, 1u, values.data(), values.size());
+    laplace_isa_receipt receipt{};
+    laplace_isa_error error{};
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(values[1].count, 1u);
+    EXPECT_EQ(std::memcmp(&output, &native_receipt, sizeof(output)), 0);
+    EXPECT_EQ(receipt.executed_instruction_count, 1u);
+    program.minor = 7u;
+    values[1].count = 0u;
+    EXPECT_EQ(laplace_isa_validate(&program, &error),
+              LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);
 }
 
 TEST(IsaExecution, HighwayBatchMatchesCanonicalNativeOperationAndReceipt) {

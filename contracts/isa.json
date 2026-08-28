@@ -2,7 +2,7 @@
   "schema": "laplace.isa-contract/v1",
   "version": {
     "major": 1,
-    "minor": 5
+    "minor": 8
   },
   "execution_context": {
     "required": true,
@@ -19,20 +19,30 @@
     "highway_coordinate_vector": 6,
     "highway_registry_receipt_vector": 7,
     "evidence_lineage_record_vector": 8,
-    "evidence_root_record_vector": 9
+    "evidence_root_record_vector": 9,
+    "evidence_testimony_record_vector": 10,
+    "evidence_testimony_receipt_vector": 11,
+    "source_profile_manifest_vector": 12,
+    "source_profile_receipt_vector": 13,
+    "world_admission_record_vector": 14,
+    "world_admission_receipt_vector": 15
   },
   "opcodes": {
     "identity_codepoint_batch": 131073,
     "trajectory_composition_decode_batch": 196609,
     "highway_coordinate_calculate_batch": 262145,
     "highway_registry_materialize_batch": 262146,
-    "evidence_record_lineage_batch": 327681
+    "evidence_record_lineage_batch": 327681,
+    "evidence_record_testimony_batch": 327682,
+    "source_profile_validate_batch": 393217,
+    "world_admission_close_batch": 393218
   },
   "modules": {
     "identity": 2,
     "trajectory": 3,
     "highway": 4,
-    "evidence": 5
+    "evidence": 5,
+    "admission": 6
   },
   "operation_contracts": {
     "identity_codepoint_batch": {
@@ -59,6 +69,21 @@
       "module": "evidence",
       "input_type": "evidence_lineage_record_vector",
       "output_type": "evidence_root_record_vector"
+    },
+    "evidence_record_testimony_batch": {
+      "module": "evidence",
+      "input_type": "evidence_testimony_record_vector",
+      "output_type": "evidence_testimony_receipt_vector"
+    },
+    "source_profile_validate_batch": {
+      "module": "admission",
+      "input_type": "source_profile_manifest_vector",
+      "output_type": "source_profile_receipt_vector"
+    },
+    "world_admission_close_batch": {
+      "module": "admission",
+      "input_type": "world_admission_record_vector",
+      "output_type": "world_admission_receipt_vector"
     }
   },
   "instruction_versions": {
@@ -66,14 +91,20 @@
     "trajectory_composition_decode_batch": 1,
     "highway_coordinate_calculate_batch": 1,
     "highway_registry_materialize_batch": 1,
-    "evidence_record_lineage_batch": 1
+    "evidence_record_lineage_batch": 1,
+    "evidence_record_testimony_batch": 1,
+    "source_profile_validate_batch": 1,
+    "world_admission_close_batch": 1
   },
   "introduced_minor": {
     "identity_codepoint_batch": 0,
     "trajectory_composition_decode_batch": 1,
     "highway_coordinate_calculate_batch": 3,
     "highway_registry_materialize_batch": 4,
-    "evidence_record_lineage_batch": 5
+    "evidence_record_lineage_batch": 5,
+    "evidence_record_testimony_batch": 6,
+    "source_profile_validate_batch": 7,
+    "world_admission_close_batch": 8
   },
   "receipt": {
     "digest_algorithm": "BLAKE3-256",
@@ -95,14 +126,23 @@
         "highway_coordinate_vector": "global::Laplace.Managed.LaplaceHighwayCoordinate",
         "highway_registry_receipt_vector": "global::Laplace.Managed.LaplaceHighwayRegistryReceipt",
         "evidence_lineage_record_vector": "global::Laplace.Managed.LaplaceEvidenceLineageRecord",
-        "evidence_root_record_vector": "global::Laplace.Managed.LaplaceEvidenceRootRecord"
+        "evidence_root_record_vector": "global::Laplace.Managed.LaplaceEvidenceRootRecord",
+        "evidence_testimony_record_vector": "global::Laplace.Managed.LaplaceEvidenceTestimonyRecord",
+        "evidence_testimony_receipt_vector": "global::Laplace.Managed.LaplaceEvidenceTestimonyReceipt",
+        "source_profile_manifest_vector": "global::Laplace.Managed.LaplaceSourceProfileManifest",
+        "source_profile_receipt_vector": "global::Laplace.Managed.LaplaceSourceProfileReceipt",
+        "world_admission_record_vector": "global::Laplace.Managed.LaplaceWorldAdmissionRecord",
+        "world_admission_receipt_vector": "global::Laplace.Managed.LaplaceWorldAdmissionReceipt"
       },
       "operation_declarations": {
         "identity_codepoint_batch": "IdentityCodepointBatch",
         "trajectory_composition_decode_batch": "TrajectoryCompositionDecodeBatch",
         "highway_coordinate_calculate_batch": "HighwayCoordinateCalculateBatch",
         "highway_registry_materialize_batch": "HighwayRegistryMaterializeBatch",
-        "evidence_record_lineage_batch": "EvidenceRecordLineageBatch"
+        "evidence_record_lineage_batch": "EvidenceRecordLineageBatch",
+        "evidence_record_testimony_batch": "EvidenceRecordTestimonyBatch",
+        "source_profile_validate_batch": "SourceProfileValidateBatch",
+        "world_admission_close_batch": "WorldAdmissionCloseBatch"
       }
     },
     "postgresql": {
@@ -136,6 +176,22 @@
       "evidence_record_lineage_batch": {
         "record_sql_name": "evidence_record_lineage_batch",
         "record_c_symbol": "laplace_pg_evidence_record_lineage_batch"
+      },
+      "evidence_record_testimony_batch": {
+        "record_sql_name": "evidence_record_testimony_batch",
+        "record_c_symbol": "laplace_pg_evidence_record_testimony_batch"
+      },
+      "source_profile_validate_batch": {
+        "validate_sql_name": "source_profile_validate_batch",
+        "validate_c_symbol": "laplace_pg_source_profile_validate_batch"
+      },
+      "world_admission_close_batch": {
+        "close_sql_name": "world_admission_close_batch",
+        "close_c_symbol": "laplace_pg_world_admission_close_batch"
+      },
+      "source_admit_tabular": {
+        "admit_sql_name": "source_admit_tabular",
+        "admit_c_symbol": "laplace_pg_source_admit_tabular"
       }
     }
   },

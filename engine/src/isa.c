@@ -9,8 +9,11 @@
 #include "blake3.h"
 #include "laplace/framework.h"
 #include "laplace/evidence_lineage.h"
+#include "laplace/evidence_testimony.h"
 #include "laplace/highway.h"
+#include "laplace/source_profile.h"
 #include "laplace/trajectory.h"
+#include "laplace/world_admission.h"
 
 static const uint8_t PROGRAM_DOMAIN[] = "laplace-isa-program-v1";
 static const uint8_t INPUT_DOMAIN[] = "laplace-isa-input-v1";
@@ -125,6 +128,18 @@ static uint32_t value_element_bytes(uint32_t type) {
             return (uint32_t)sizeof(laplace_evidence_lineage_record);
         case LAPLACE_ISA_VALUE_EVIDENCE_ROOT_RECORD_VECTOR:
             return (uint32_t)sizeof(laplace_evidence_root_record);
+        case LAPLACE_ISA_VALUE_EVIDENCE_TESTIMONY_RECORD_VECTOR:
+            return (uint32_t)sizeof(laplace_evidence_testimony_record);
+        case LAPLACE_ISA_VALUE_EVIDENCE_TESTIMONY_RECEIPT_VECTOR:
+            return (uint32_t)sizeof(laplace_evidence_testimony_receipt);
+        case LAPLACE_ISA_VALUE_SOURCE_PROFILE_MANIFEST_VECTOR:
+            return (uint32_t)sizeof(laplace_source_profile_manifest);
+        case LAPLACE_ISA_VALUE_SOURCE_PROFILE_RECEIPT_VECTOR:
+            return (uint32_t)sizeof(laplace_source_profile_receipt);
+        case LAPLACE_ISA_VALUE_WORLD_ADMISSION_RECORD_VECTOR:
+            return (uint32_t)sizeof(laplace_world_admission_record);
+        case LAPLACE_ISA_VALUE_WORLD_ADMISSION_RECEIPT_VECTOR:
+            return (uint32_t)sizeof(laplace_world_admission_receipt);
         default:
             return 0;
     }
@@ -199,6 +214,36 @@ static void copy_lineage_inputs(
     for (index = 0u; index < input->count; ++index) {
         memcpy(&records[(size_t)index], const_value_element(input, index),
                sizeof(records[index]));
+    }
+}
+
+static void copy_testimony_inputs(
+    const laplace_isa_value_view* input,
+    laplace_evidence_testimony_record* records) {
+    uint64_t index;
+    for (index = 0u; index < input->count; ++index) {
+        memcpy(&records[(size_t)index], const_value_element(input, index),
+               sizeof(records[index]));
+    }
+}
+
+static void copy_source_profile_inputs(
+    const laplace_isa_value_view* input,
+    laplace_source_profile_manifest* profiles) {
+    uint64_t index;
+    for (index = 0u; index < input->count; ++index) {
+        memcpy(&profiles[(size_t)index], const_value_element(input, index),
+               sizeof(profiles[index]));
+    }
+}
+
+static void copy_world_admission_inputs(
+    const laplace_isa_value_view* input,
+    laplace_world_admission_record* admissions) {
+    uint64_t index;
+    for (index = 0u; index < input->count; ++index) {
+        memcpy(&admissions[(size_t)index], const_value_element(input, index),
+               sizeof(admissions[index]));
     }
 }
 
@@ -472,6 +517,156 @@ static laplace_isa_status validate_evidence_record_lineage_batch(
                     instruction_index, instruction->output_value);
     }
     if (status != LAPLACE_EVIDENCE_LINEAGE_OK) {
+        return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                    instruction_index, instruction->input_value);
+    }
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status validate_evidence_record_testimony_batch(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input = &program->values[instruction->input_value];
+    const laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_evidence_testimony_record* contiguous = NULL;
+    const laplace_evidence_testimony_record* testimony_input;
+    laplace_evidence_testimony_receipt receipt;
+    laplace_evidence_testimony_error testimony_error;
+    laplace_evidence_testimony_status status;
+    uint64_t temporary_bytes = 0u;
+    if (input->count == 0u || input->count > SIZE_MAX || output->capacity < 1u) {
+        return fail(error, LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT,
+                    instruction_index, instruction->output_value);
+    }
+    testimony_input = (const laplace_evidence_testimony_record*)input->data;
+    if (input->stride_bytes != sizeof(*contiguous) ||
+        (uintptr_t)input->data % _Alignof(laplace_evidence_testimony_record) != 0u) {
+        if (input->count > UINT64_MAX / sizeof(*contiguous)) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        temporary_bytes = input->count * sizeof(*contiguous);
+        if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        contiguous = (laplace_evidence_testimony_record*)calloc(
+            (size_t)input->count, sizeof(*contiguous));
+        if (contiguous == NULL) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        copy_testimony_inputs(input, contiguous);
+        testimony_input = contiguous;
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&testimony_error, 0, sizeof(testimony_error));
+    status = laplace_evidence_record_testimony_batch(
+        testimony_input, (size_t)input->count, &receipt, &testimony_error);
+    free(contiguous);
+    if (status != LAPLACE_EVIDENCE_TESTIMONY_OK) {
+        return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                    instruction_index, instruction->input_value);
+    }
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status validate_source_profile_validate_batch(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input = &program->values[instruction->input_value];
+    const laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_source_profile_manifest* contiguous = NULL;
+    const laplace_source_profile_manifest* profile_input;
+    laplace_source_profile_receipt receipt;
+    laplace_source_profile_error profile_error;
+    laplace_source_profile_status status;
+    uint64_t temporary_bytes = 0u;
+    if (input->count == 0u || input->count > SIZE_MAX || output->capacity < 1u) {
+        return fail(error, LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT,
+                    instruction_index, instruction->output_value);
+    }
+    profile_input = (const laplace_source_profile_manifest*)input->data;
+    if (input->stride_bytes != sizeof(*contiguous) ||
+        (uintptr_t)input->data % _Alignof(laplace_source_profile_manifest) != 0u) {
+        if (input->count > UINT64_MAX / sizeof(*contiguous)) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        temporary_bytes = input->count * sizeof(*contiguous);
+        if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        contiguous = (laplace_source_profile_manifest*)calloc(
+            (size_t)input->count, sizeof(*contiguous));
+        if (contiguous == NULL) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        copy_source_profile_inputs(input, contiguous);
+        profile_input = contiguous;
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&profile_error, 0, sizeof(profile_error));
+    status = laplace_source_profile_validate_batch(
+        profile_input, (size_t)input->count, &receipt, &profile_error);
+    free(contiguous);
+    if (status != LAPLACE_SOURCE_PROFILE_OK) {
+        return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                    instruction_index, instruction->input_value);
+    }
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status validate_world_admission_close_batch(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input = &program->values[instruction->input_value];
+    const laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_world_admission_record* contiguous = NULL;
+    const laplace_world_admission_record* admission_input;
+    laplace_world_admission_receipt receipt;
+    laplace_world_admission_error admission_error;
+    laplace_world_admission_status status;
+    uint64_t temporary_bytes = 0u;
+    if (input->count == 0u || input->count > SIZE_MAX || output->capacity < 1u) {
+        return fail(error, LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT,
+                    instruction_index, instruction->output_value);
+    }
+    admission_input = (const laplace_world_admission_record*)input->data;
+    if (input->stride_bytes != sizeof(*contiguous) ||
+        (uintptr_t)input->data % _Alignof(laplace_world_admission_record) != 0u) {
+        if (input->count > UINT64_MAX / sizeof(*contiguous)) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        temporary_bytes = input->count * sizeof(*contiguous);
+        if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        contiguous = (laplace_world_admission_record*)calloc(
+            (size_t)input->count, sizeof(*contiguous));
+        if (contiguous == NULL) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        copy_world_admission_inputs(input, contiguous);
+        admission_input = contiguous;
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&admission_error, 0, sizeof(admission_error));
+    status = laplace_world_admission_close_batch(
+        admission_input, (size_t)input->count, &receipt, &admission_error);
+    free(contiguous);
+    if (status != LAPLACE_WORLD_ADMISSION_OK) {
         return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
                     instruction_index, instruction->input_value);
     }
@@ -803,6 +998,171 @@ static void hash_value_vector(
                 hash_u32(hasher, record.flags);
                 break;
             }
+            case LAPLACE_ISA_VALUE_EVIDENCE_TESTIMONY_RECORD_VECTOR: {
+                laplace_evidence_testimony_record record;
+                memcpy(&record, item, sizeof(record));
+                blake3_hasher_update(hasher, record.testimony_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.evidence_node_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.source_profile_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.recipe_receipt_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.trust_input_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.outcome_detail_id.bytes, 32u);
+                hash_u64(hasher, record.uncertainty_numerator);
+                hash_u64(hasher, record.uncertainty_denominator);
+                hash_u64(hasher, record.sample_count);
+                hash_u32(hasher, record.source_type);
+                hash_u32(hasher, record.outcome_type);
+                hash_u32(hasher, record.disposition);
+                hash_u32(hasher, record.flags);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_EVIDENCE_TESTIMONY_RECEIPT_VECTOR: {
+                laplace_evidence_testimony_receipt receipt;
+                memcpy(&receipt, item, sizeof(receipt));
+                blake3_hasher_update(hasher, receipt.receipt_id.bytes, 32u);
+                blake3_hasher_update(hasher, receipt.source_profile_id.bytes, 32u);
+                blake3_hasher_update(hasher, receipt.input_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, receipt.output_fingerprint.bytes, 32u);
+                hash_u64(hasher, receipt.testimony_count);
+                hash_u64(hasher, receipt.sample_count);
+                hash_u64(hasher, receipt.uncertain_count);
+                hash_u64(hasher, receipt.negative_disposition_count);
+                hash_u32(hasher, receipt.version);
+                hash_u32(hasher, receipt.status);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_SOURCE_PROFILE_MANIFEST_VECTOR: {
+                laplace_source_profile_manifest profile;
+                memcpy(&profile, item, sizeof(profile));
+                blake3_hasher_update(hasher, profile.profile_id.bytes, 32u);
+                hash_u32(hasher, profile.coordinate.kind);
+                hash_u32(hasher, profile.coordinate.reserved);
+                blake3_hasher_update(hasher, profile.coordinate.authority.bytes, 16u);
+                blake3_hasher_update(hasher, profile.coordinate.release.bytes, 16u);
+                blake3_hasher_update(hasher, profile.coordinate.name_space.bytes, 16u);
+                blake3_hasher_update(
+                    hasher, profile.coordinate.local_identifier.bytes, 16u);
+                hash_u64(hasher, profile.coordinate.version);
+                blake3_hasher_update(hasher, profile.authority_release_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.license_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.artifact_graph_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.syntax_authority_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.recipe_program_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.universal_ast_mapping_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.highway_references_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.epistemic_witnessing_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.denominator_declaration_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.conformance_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.completion_law_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, profile.selected_boundary_fingerprint.bytes, 32u);
+                hash_u64(hasher, profile.byte_count);
+                hash_u64(hasher, profile.container_count);
+                hash_u64(hasher, profile.member_count);
+                hash_u64(hasher, profile.file_count);
+                hash_u64(hasher, profile.record_count);
+                hash_u64(hasher, profile.field_count);
+                hash_u64(hasher, profile.syntax_node_count);
+                hash_u64(hasher, profile.span_count);
+                hash_u64(hasher, profile.edge_count);
+                hash_u64(hasher, profile.reference_count);
+                hash_u64(hasher, profile.occurrence_count);
+                hash_u64(hasher, profile.claim_count);
+                hash_u64(hasher, profile.mapping_count);
+                hash_u64(hasher, profile.error_count);
+                hash_u64(hasher, profile.unknown_count);
+                hash_u64(hasher, profile.transformation_count);
+                hash_u64(hasher, profile.output_count);
+                hash_u64(hasher, profile.closure_subject_count);
+                hash_u64(hasher, profile.accepted_count);
+                hash_u64(hasher, profile.rejected_count);
+                hash_u64(hasher, profile.duplicate_count);
+                hash_u64(hasher, profile.reused_count);
+                hash_u64(hasher, profile.transformed_count);
+                hash_u64(hasher, profile.lossy_count);
+                hash_u64(hasher, profile.unsupported_count);
+                hash_u64(hasher, profile.malformed_count);
+                hash_u64(hasher, profile.unresolved_count);
+                hash_u64(hasher, profile.persisted_count);
+                hash_u64(hasher, profile.derived_count);
+                hash_u64(hasher, profile.not_applicable_mask);
+                hash_u32(hasher, profile.reconstruction_class);
+                hash_u32(hasher, profile.flags);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_SOURCE_PROFILE_RECEIPT_VECTOR: {
+                laplace_source_profile_receipt receipt;
+                memcpy(&receipt, item, sizeof(receipt));
+                blake3_hasher_update(hasher, receipt.receipt_id.bytes, 32u);
+                blake3_hasher_update(
+                    hasher, receipt.selected_boundary_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, receipt.input_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, receipt.output_fingerprint.bytes, 32u);
+                hash_u64(hasher, receipt.profile_count);
+                hash_u64(hasher, receipt.closure_subject_count);
+                hash_u64(hasher, receipt.persisted_count);
+                hash_u64(hasher, receipt.negative_count);
+                hash_u64(hasher, receipt.exact_reconstruction_count);
+                hash_u64(hasher, receipt.semantic_reconstruction_count);
+                hash_u64(hasher, receipt.no_reconstruction_count);
+                hash_u32(hasher, receipt.version);
+                hash_u32(hasher, receipt.status);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_WORLD_ADMISSION_RECORD_VECTOR: {
+                laplace_world_admission_record admission;
+                memcpy(&admission, item, sizeof(admission));
+                blake3_hasher_update(hasher, admission.admission_id.bytes, 32u);
+                blake3_hasher_update(hasher, admission.source_profile_id.bytes, 32u);
+                blake3_hasher_update(
+                    hasher, admission.selected_boundary_fingerprint.bytes, 32u);
+                blake3_hasher_update(
+                    hasher, admission.source_profile_receipt_id.bytes, 32u);
+                blake3_hasher_update(hasher, admission.recipe_receipt_id.bytes, 32u);
+                blake3_hasher_update(
+                    hasher, admission.composition_working_set_receipt_id.bytes, 32u);
+                blake3_hasher_update(
+                    hasher, admission.composition_presence_receipt_id.bytes, 32u);
+                blake3_hasher_update(
+                    hasher, admission.composition_producer_receipt_id.bytes, 32u);
+                blake3_hasher_update(
+                    hasher, admission.composition_stream_receipt_id.bytes, 32u);
+                blake3_hasher_update(
+                    hasher, admission.evidence_lineage_receipt_id.bytes, 32u);
+                blake3_hasher_update(
+                    hasher, admission.evidence_testimony_receipt_id.bytes, 32u);
+                blake3_hasher_update(hasher, admission.readback_fingerprint.bytes, 32u);
+                hash_u64(hasher, admission.profile_occurrence_count);
+                hash_u64(hasher, admission.composition_occurrence_count);
+                hash_u64(hasher, admission.profile_claim_count);
+                hash_u64(hasher, admission.evidence_node_count);
+                hash_u64(hasher, admission.testimony_count);
+                hash_u64(hasher, admission.profile_bound_testimony_count);
+                hash_u64(hasher, admission.recipe_bound_testimony_count);
+                hash_u64(hasher, admission.lineage_bound_testimony_count);
+                hash_u64(hasher, admission.closure_subject_count);
+                hash_u64(hasher, admission.closed_subject_count);
+                hash_u32(hasher, admission.reconstruction_class);
+                hash_u32(hasher, admission.flags);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_WORLD_ADMISSION_RECEIPT_VECTOR: {
+                laplace_world_admission_receipt receipt;
+                memcpy(&receipt, item, sizeof(receipt));
+                blake3_hasher_update(hasher, receipt.receipt_id.bytes, 32u);
+                blake3_hasher_update(
+                    hasher, receipt.selected_boundary_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, receipt.input_fingerprint.bytes, 32u);
+                blake3_hasher_update(hasher, receipt.output_fingerprint.bytes, 32u);
+                hash_u64(hasher, receipt.admission_count);
+                hash_u64(hasher, receipt.occurrence_count);
+                hash_u64(hasher, receipt.claim_count);
+                hash_u64(hasher, receipt.evidence_node_count);
+                hash_u64(hasher, receipt.testimony_count);
+                hash_u64(hasher, receipt.closure_subject_count);
+                hash_u32(hasher, receipt.version);
+                hash_u32(hasher, receipt.status);
+                break;
+            }
             default:
                 break;
         }
@@ -1061,6 +1421,123 @@ static laplace_isa_status execute_evidence_record_lineage_batch(
     free(contiguous_output);
     free(contiguous_input);
     output->count = (uint64_t)count;
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status execute_evidence_record_testimony_batch(
+    laplace_isa_program* program,
+    const laplace_isa_instruction* instruction) {
+    laplace_isa_value_view* input = &program->values[instruction->input_value];
+    laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_evidence_testimony_record* contiguous = NULL;
+    const laplace_evidence_testimony_record* testimony_input;
+    laplace_evidence_testimony_receipt receipt;
+    laplace_evidence_testimony_error error;
+    laplace_evidence_testimony_status status;
+    uint64_t temporary_bytes = 0u;
+    testimony_input = (const laplace_evidence_testimony_record*)input->data;
+    if (input->stride_bytes != sizeof(*contiguous) ||
+        (uintptr_t)input->data % _Alignof(laplace_evidence_testimony_record) != 0u) {
+        temporary_bytes = input->count * sizeof(*contiguous);
+        if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        contiguous = (laplace_evidence_testimony_record*)calloc(
+            (size_t)input->count, sizeof(*contiguous));
+        if (contiguous == NULL) {
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        copy_testimony_inputs(input, contiguous);
+        testimony_input = contiguous;
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&error, 0, sizeof(error));
+    status = laplace_evidence_record_testimony_batch(
+        testimony_input, (size_t)input->count, &receipt, &error);
+    free(contiguous);
+    if (status != LAPLACE_EVIDENCE_TESTIMONY_OK) {
+        return LAPLACE_ISA_EXECUTION_FAILED;
+    }
+    memcpy(value_element(output, 0u), &receipt, sizeof(receipt));
+    output->count = 1u;
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status execute_source_profile_validate_batch(
+    laplace_isa_program* program,
+    const laplace_isa_instruction* instruction) {
+    laplace_isa_value_view* input = &program->values[instruction->input_value];
+    laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_source_profile_manifest* contiguous = NULL;
+    const laplace_source_profile_manifest* profile_input;
+    laplace_source_profile_receipt receipt;
+    laplace_source_profile_error error;
+    laplace_source_profile_status status;
+    uint64_t temporary_bytes = 0u;
+    profile_input = (const laplace_source_profile_manifest*)input->data;
+    if (input->stride_bytes != sizeof(*contiguous) ||
+        (uintptr_t)input->data % _Alignof(laplace_source_profile_manifest) != 0u) {
+        temporary_bytes = input->count * sizeof(*contiguous);
+        if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        contiguous = (laplace_source_profile_manifest*)calloc(
+            (size_t)input->count, sizeof(*contiguous));
+        if (contiguous == NULL) {
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        copy_source_profile_inputs(input, contiguous);
+        profile_input = contiguous;
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&error, 0, sizeof(error));
+    status = laplace_source_profile_validate_batch(
+        profile_input, (size_t)input->count, &receipt, &error);
+    free(contiguous);
+    if (status != LAPLACE_SOURCE_PROFILE_OK) {
+        return LAPLACE_ISA_EXECUTION_FAILED;
+    }
+    memcpy(value_element(output, 0u), &receipt, sizeof(receipt));
+    output->count = 1u;
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status execute_world_admission_close_batch(
+    laplace_isa_program* program,
+    const laplace_isa_instruction* instruction) {
+    laplace_isa_value_view* input = &program->values[instruction->input_value];
+    laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_world_admission_record* contiguous = NULL;
+    const laplace_world_admission_record* admission_input;
+    laplace_world_admission_receipt receipt;
+    laplace_world_admission_error error;
+    laplace_world_admission_status status;
+    uint64_t temporary_bytes = 0u;
+    admission_input = (const laplace_world_admission_record*)input->data;
+    if (input->stride_bytes != sizeof(*contiguous) ||
+        (uintptr_t)input->data % _Alignof(laplace_world_admission_record) != 0u) {
+        temporary_bytes = input->count * sizeof(*contiguous);
+        if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        contiguous = (laplace_world_admission_record*)calloc(
+            (size_t)input->count, sizeof(*contiguous));
+        if (contiguous == NULL) {
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        copy_world_admission_inputs(input, contiguous);
+        admission_input = contiguous;
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&error, 0, sizeof(error));
+    status = laplace_world_admission_close_batch(
+        admission_input, (size_t)input->count, &receipt, &error);
+    free(contiguous);
+    if (status != LAPLACE_WORLD_ADMISSION_OK) {
+        return LAPLACE_ISA_EXECUTION_FAILED;
+    }
+    memcpy(value_element(output, 0u), &receipt, sizeof(receipt));
+    output->count = 1u;
     return LAPLACE_ISA_OK;
 }
 

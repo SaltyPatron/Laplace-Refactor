@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 GENERATOR = ROOT / "tools/contracts/generate-highway.py"
 CONTRACT = ROOT / "contracts/highway.json"
+PREVIOUS = ROOT / "contracts/history/highway-v1.json"
 
 
 def run(contract: Path, output: Path, previous: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -37,8 +38,8 @@ class HighwayGenerationTests(unittest.TestCase):
             root = Path(raw)
             first = root / "first"
             replay = root / "replay"
-            self.assertEqual(run(CONTRACT, first).returncode, 0)
-            self.assertEqual(run(CONTRACT, replay).returncode, 0)
+            self.assertEqual(run(CONTRACT, first, PREVIOUS).returncode, 0)
+            self.assertEqual(run(CONTRACT, replay, PREVIOUS).returncode, 0)
             first_files = {
                 path.relative_to(first): path.read_bytes()
                 for path in first.rglob("*") if path.is_file()
@@ -75,6 +76,7 @@ class HighwayGenerationTests(unittest.TestCase):
                 self.assertIn(fingerprint.encode(), first_files[Path(relative)])
             verify = subprocess.run(
                 [sys.executable, str(GENERATOR), "--contract", str(CONTRACT),
+                 "--previous-contract", str(PREVIOUS),
                  "--verify-root", str(first)],
                 text=True, capture_output=True, check=False,
             )
@@ -82,6 +84,7 @@ class HighwayGenerationTests(unittest.TestCase):
             (first / "sql/highway.sql").write_bytes(b"drift")
             drift = subprocess.run(
                 [sys.executable, str(GENERATOR), "--contract", str(CONTRACT),
+                 "--previous-contract", str(PREVIOUS),
                  "--verify-root", str(first)],
                 text=True, capture_output=True, check=False,
             )
@@ -109,7 +112,7 @@ class HighwayGenerationTests(unittest.TestCase):
             rejected("duplicate-mirror", mutant, "mirrors are incomplete or repeated")
 
             duplicate = CONTRACT.read_text(encoding="utf-8").replace(
-                '"version": 1,', '"version": 1, "version": 1,', 1
+                '"version": 2,', '"version": 2, "version": 2,', 1
             )
             duplicate_path = root / "duplicate.json"
             duplicate_path.write_text(duplicate, encoding="utf-8")
@@ -118,7 +121,7 @@ class HighwayGenerationTests(unittest.TestCase):
             self.assertIn("duplicate JSON key", result.stderr)
 
             previous = root / "previous.json"
-            shutil.copy2(CONTRACT, previous)
+            shutil.copy2(PREVIOUS, previous)
             mutant = json.loads(json.dumps(original))
             mutant["version"] = 2
             for row in mutant["kinds"]:
@@ -127,7 +130,7 @@ class HighwayGenerationTests(unittest.TestCase):
 
             mutant = json.loads(json.dumps(original))
             mutant["version"] = 2
-            mutant["kinds"] = mutant["kinds"][:-1]
+            mutant["kinds"] = mutant["kinds"][:15]
             rejected("removed", mutant, "history was removed", previous)
 
             mutant = json.loads(json.dumps(original))

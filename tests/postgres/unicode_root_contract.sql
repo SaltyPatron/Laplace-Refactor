@@ -360,8 +360,10 @@ BEGIN
     SELECT * INTO STRICT active FROM highway_registry_active;
     SELECT * INTO STRICT before_counts FROM highway_registry_counts_before;
     IF deposited.status <> 0
-       OR deposited.registry_version <> 1
+       OR deposited.registry_version <> 2
        OR deposited.registry_fingerprint <> deposited.source_fingerprint
+       OR deposited.registry_fingerprint <>
+          decode('1b5a1f5a2177c18256ec55bdc403da557ab3dc0003fcdee21784c21ea85f56b5', 'hex')
        OR octet_length(deposited.root_entity_id) <> 16
        OR octet_length(deposited.root_physicality_id) <> 32
        OR octet_length(deposited.registry_epoch_id) <> 16
@@ -379,7 +381,7 @@ BEGIN
           decode(repeat('42', 16), 'hex')
        OR deposited.unicode_activation_epoch_fingerprint <>
           decode(repeat('43', 32), 'hex')
-       OR cardinality(deposited.kind_name_entity_ids) <> 16
+       OR cardinality(deposited.kind_name_entity_ids) <> 17
        OR cardinality(deposited.alias_name_entity_ids) <> 0
        OR cardinality(deposited.disposition_name_entity_ids) <> 8
        OR deposited.atom_count <= 0
@@ -407,8 +409,8 @@ BEGIN
        OR active.activation_sequence <> deposited.activation_sequence
        OR active.activation_receipt <> deposited.activation_receipt
        OR active.activation_fingerprint <> deposited.activation_fingerprint
-       OR cardinality(active.kind_ids) <> 16
-       OR cardinality(active.kind_name_entity_ids) <> 16
+       OR cardinality(active.kind_ids) <> 17
+       OR cardinality(active.kind_name_entity_ids) <> 17
        OR cardinality(active.alias_kind_ids) <> 0
        OR cardinality(active.alias_name_entity_ids) <> 0
        OR cardinality(active.disposition_ids) <> 8
@@ -448,7 +450,7 @@ BEGIN
        OR (SELECT count(*) FROM laplace.highway_registry_kind_projection
            WHERE activation_epoch_id = deposited.registry_epoch_id
              AND activation_epoch_fingerprint =
-                 deposited.registry_epoch_fingerprint) <> 16
+                 deposited.registry_epoch_fingerprint) <> 17
        OR (SELECT count(*) FROM laplace.highway_registry_alias_projection
            WHERE activation_epoch_id = deposited.registry_epoch_id
              AND activation_epoch_fingerprint =

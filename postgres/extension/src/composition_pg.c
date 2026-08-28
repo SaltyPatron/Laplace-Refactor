@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "executor/spi.h"
@@ -30,6 +31,161 @@ PG_FUNCTION_INFO_V1(LAPLACE_PG_COMPOSITION_ENTRYPOINT);
 
 static SPIPlanPtr entity_presence_plan = NULL;
 static SPIPlanPtr physicality_presence_plan = NULL;
+
+static bool composition_query_boolean(void) {
+    bool is_null = false;
+    Datum value;
+    if (SPI_processed != 1u || SPI_tuptable == NULL) {
+        return false;
+    }
+    value = SPI_getbinval(
+        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &is_null);
+    return !is_null && DatumGetBool(value);
+}
+
+static int digest_compare(const void* left, const void* right) {
+    return memcmp(
+        ((const laplace_digest256*)left)->bytes,
+        ((const laplace_digest256*)right)->bytes, 32u);
+}
+
+static ArrayType* composition_occurrence_ids(
+    const laplace_pg_composition_execution* execution,
+    const laplace_composition_working_set_input* input,
+    size_t* unique_count) {
+    laplace_digest256* identifiers;
+    Datum* values;
+    size_t input_index;
+    size_t output_count = 0u;
+    if (execution == NULL || input == NULL || unique_count == NULL ||
+        execution->result_count != (size_t)input->request_count) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace composition occurrence membership input is incomplete")));
+    }
+    identifiers = (laplace_digest256*)palloc0(
+        sizeof(*identifiers) * execution->result_count);
+    for (input_index = 0u; input_index < execution->result_count; ++input_index) {
+        laplace_persistence_occurrence_record occurrence;
+        memset(&occurrence, 0, sizeof(occurrence));
+        occurrence.entity_id = execution->results[input_index].entity_id;
+        occurrence.physicality_id = execution->results[input_index].physicality_id;
+        occurrence.source_fingerprint = *input->source_fingerprint;
+        occurrence.context_fingerprint =
+            input->requests[input_index].occurrence_context_fingerprint;
+        occurrence.source_ordinal = input->requests[input_index].source_ordinal;
+        occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
+        if (laplace_persistence_occurrence_identify(
+                &occurrence, &identifiers[input_index]) !=
+                LAPLACE_PERSISTENCE_OK) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace composition occurrence membership identity failed")));
+        }
+    }
+    qsort(
+        identifiers, execution->result_count, sizeof(*identifiers),
+        digest_compare);
+    for (input_index = 0u; input_index < execution->result_count; ++input_index) {
+        if (output_count == 0u ||
+            memcmp(identifiers[input_index].bytes,
+                   identifiers[output_count - 1u].bytes, 32u) != 0) {
+            identifiers[output_count++] = identifiers[input_index];
+        }
+    }
+    if (output_count != execution->summary.occurrence_count) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace composition occurrence membership count differs from the canonical working set")));
+    }
+    values = (Datum*)palloc(sizeof(*values) * output_count);
+    for (input_index = 0u; input_index < output_count; ++input_index) {
+        values[input_index] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            identifiers[input_index].bytes, 32u));
+    }
+    *unique_count = output_count;
+    return construct_array(
+        values, (int)output_count, BYTEAOID, -1, false, TYPALIGN_INT);
+}
+
+void laplace_pg_persist_composition_execution_receipt(
+    const laplace_pg_composition_execution* execution,
+    const laplace_composition_working_set_input* input) {
+    static const char receipt_sql[] =
+        "WITH written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".composition_execution_receipt(working_set_receipt,presence_semantic_receipt,presence_execution_receipt,presence_candidate_fingerprint,presence_disposition_fingerprint,presence_provider_fingerprint,presence_provider_receipt,producer_receipt,staged_stream_receipt,stream_fingerprint,sink_artifacts_fingerprint,occurrence_count,logical_occurrence_count,stream_record_count) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT DO NOTHING RETURNING *) "
+        "SELECT EXISTS (SELECT FROM written WHERE working_set_receipt=$1 AND presence_semantic_receipt=$2 AND presence_execution_receipt=$3 AND presence_candidate_fingerprint=$4 AND presence_disposition_fingerprint=$5 AND presence_provider_fingerprint=$6 AND presence_provider_receipt=$7 AND producer_receipt=$8 AND staged_stream_receipt=$9 AND stream_fingerprint=$10 AND sink_artifacts_fingerprint=$11 AND occurrence_count=$12 AND logical_occurrence_count=$13 AND stream_record_count=$14) OR EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".composition_execution_receipt WHERE working_set_receipt=$1 AND presence_semantic_receipt=$2 AND presence_execution_receipt=$3 AND presence_candidate_fingerprint=$4 AND presence_disposition_fingerprint=$5 AND presence_provider_fingerprint=$6 AND presence_provider_receipt=$7 AND producer_receipt=$8 AND staged_stream_receipt=$9 AND stream_fingerprint=$10 AND sink_artifacts_fingerprint=$11 AND occurrence_count=$12 AND logical_occurrence_count=$13 AND stream_record_count=$14)";
+    static const char members_sql[] =
+        "WITH input AS (SELECT $1::bytea AS working_set_receipt,occurrence_id,ordinality::numeric AS member_ordinal FROM unnest($2::bytea[]) WITH ORDINALITY occurrence(occurrence_id,ordinality)),"
+        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".composition_execution_occurrence_member(working_set_receipt,occurrence_id,member_ordinal) SELECT working_set_receipt,occurrence_id,member_ordinal FROM input ON CONFLICT DO NOTHING RETURNING *) "
+        "SELECT (SELECT count(*) FROM written)+(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".composition_execution_occurrence_member m JOIN input i ON i.working_set_receipt=m.working_set_receipt AND i.occurrence_id=m.occurrence_id AND i.member_ordinal=m.member_ordinal WHERE m.working_set_receipt=$1)=(SELECT count(*) FROM input) AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".composition_execution_occurrence_member m WHERE m.working_set_receipt=$1)=(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".composition_execution_occurrence_member m JOIN input i ON i.working_set_receipt=m.working_set_receipt AND i.occurrence_id=m.occurrence_id AND i.member_ordinal=m.member_ordinal WHERE m.working_set_receipt=$1)";
+    Oid types[14] = {
+        BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID,
+        BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID,
+        INT8OID, INT8OID, INT8OID};
+    Datum values[14];
+    Oid member_types[2] = {BYTEAOID, BYTEAARRAYOID};
+    Datum member_values[2];
+    size_t occurrence_count = 0u;
+    ArrayType* occurrence_ids = composition_occurrence_ids(
+        execution, input, &occurrence_count);
+    int result;
+    values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->summary.receipt_id.bytes, 32u));
+    values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->presence.semantic_receipt_id.bytes, 32u));
+    values[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->presence.execution_receipt_id.bytes, 32u));
+    values[3] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->presence.candidate_fingerprint.bytes, 32u));
+    values[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->presence.disposition_fingerprint.bytes, 32u));
+    values[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->presence.provider_fingerprint.bytes, 32u));
+    values[6] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->presence.provider_receipt_id.bytes, 32u));
+    values[7] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->persistence.producer.receipt_id.bytes, 32u));
+    values[8] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->persistence.producer.stream.receipt_id.bytes, 32u));
+    values[9] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->persistence.producer.stream.stream_fingerprint.bytes, 32u));
+    values[10] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        execution->persistence.producer.stream.sink_artifacts_fingerprint.bytes, 32u));
+    values[11] = Int64GetDatum(laplace_pg_checked_int64(
+        occurrence_count, "composition occurrence count"));
+    values[12] = Int64GetDatum(laplace_pg_checked_int64(
+        execution->summary.logical_occurrence_count,
+        "composition logical occurrence count"));
+    values[13] = Int64GetDatum(laplace_pg_checked_int64(
+        execution->summary.stream_record_count,
+        "composition stream record count"));
+    member_values[0] = values[0];
+    member_values[1] = PointerGetDatum(occurrence_ids);
+    if (SPI_connect() != SPI_OK_CONNECT) {
+        ereport(ERROR,
+                (errcode(ERRCODE_CONNECTION_FAILURE),
+                 errmsg("Laplace composition receipt persistence could not connect to SPI")));
+    }
+    result = SPI_execute_with_args(
+        receipt_sql, 14, types, values, NULL, false, 0);
+    if (result != SPI_OK_SELECT || !composition_query_boolean()) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace composition execution receipt conflicts with durable state")));
+    }
+    result = SPI_execute_with_args(
+        members_sql, 2, member_types, member_values, NULL, false, 0);
+    if (result != SPI_OK_SELECT || !composition_query_boolean()) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace composition occurrence membership conflicts with durable state")));
+    }
+    if (SPI_finish() != SPI_OK_FINISH) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("Laplace composition receipt persistence could not close SPI")));
+    }
+}
 
 static const char entity_presence_sql[] =
     "SELECT i.ordinality,CASE WHEN s.entity_id IS NULL THEN 0 "
@@ -738,6 +894,7 @@ Datum LAPLACE_PG_COMPOSITION_ENTRYPOINT(PG_FUNCTION_ARGS) {
     PG_TRY();
     {
         LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(&input, &execution);
+        laplace_pg_persist_composition_execution_receipt(&execution, &input);
         results = execution.results;
         result_count = execution.result_count;
         entity_dispositions = execution.entity_dispositions;

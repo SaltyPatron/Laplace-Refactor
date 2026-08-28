@@ -55,6 +55,7 @@ def validate_contract(
     cluster_contract: dict[str, Any],
     unicode_contract: dict[str, Any],
     registry_contract: dict[str, Any],
+    previous_registry_contract: dict[str, Any],
 ) -> None:
     if contract.get("schema") != CONTRACT_SCHEMA or contract.get("version") != "1.0.0":
         raise HighwayActivationError("Highway product activation contract is invalid")
@@ -67,9 +68,16 @@ def validate_contract(
         "unicode_activation_receipt_schema": unicodectl.RECEIPT_SCHEMA,
         "unicode_activation_contract_schema": unicodectl.CONTRACT_SCHEMA,
         "highway_registry_contract_schema": REGISTRY_SCHEMA,
-        "highway_registry_contract_sha256": "da4930ad76eca61fabfbd880f129a2223f5478744c056a9c4d312ea93ddf4bf7",
-        "highway_registry_fingerprint": "14c9b853a6beade10617cf702a7cf080a23d5e059090e5e95d682738c1fb6843",
-        "highway_registry_version": 1,
+        "highway_registry_contract_sha256": "c71eecdb1982f3ce5b3a85cef13ad143523f20d14f8b30bfc97a92fd99ba49ed",
+        "highway_registry_fingerprint": "1b5a1f5a2177c18256ec55bdc403da557ab3dc0003fcdee21784c21ea85f56b5",
+        "highway_registry_version": 2,
+        "predecessor_contract_path": "contracts/history/highway-v1.json",
+        "predecessor_contract_sha256": "da4930ad76eca61fabfbd880f129a2223f5478744c056a9c4d312ea93ddf4bf7",
+        "predecessor_registry_fingerprint": "14c9b853a6beade10617cf702a7cf080a23d5e059090e5e95d682738c1fb6843",
+        "predecessor_registry_version": 1,
+        "predecessor_kind_count": 16,
+        "predecessor_alias_count": 0,
+        "predecessor_disposition_count": 8,
     }
     if authority != expected_authority:
         raise HighwayActivationError("Highway activation authority boundary drifted")
@@ -90,10 +98,32 @@ def validate_contract(
         raise HighwayActivationError("Highway registry contract bytes differ")
     if registry_contract.get("version") != authority["highway_registry_version"]:
         raise HighwayActivationError("Highway registry version differs")
+    if previous_registry_contract.get("schema") != REGISTRY_SCHEMA:
+        raise HighwayActivationError("Highway predecessor registry contract schema differs")
+    if unicodectl.sha256_bytes(
+        unicodectl.canonical_bytes(previous_registry_contract)
+    ) != authority["predecessor_contract_sha256"]:
+        raise HighwayActivationError("Highway predecessor registry contract bytes differ")
+    if previous_registry_contract.get("version") != authority["predecessor_registry_version"]:
+        raise HighwayActivationError("Highway predecessor registry version differs")
+    predecessor_kinds = previous_registry_contract.get("kinds")
+    predecessor_dispositions = previous_registry_contract.get("dispositions")
+    if (
+        not isinstance(predecessor_kinds, list)
+        or len(predecessor_kinds) != authority["predecessor_kind_count"]
+        or sum(len(kind.get("aliases", [])) for kind in predecessor_kinds)
+        != authority["predecessor_alias_count"]
+        or not isinstance(predecessor_dispositions, list)
+        or len(predecessor_dispositions) != authority["predecessor_disposition_count"]
+    ):
+        raise HighwayActivationError("Highway predecessor registry cardinality differs")
     operation = contract.get("operation")
     if operation != {
-        "initial_activation_only": True,
-        "expected_old_sequence": 0,
+        "initial_activation_only": False,
+        "fresh_expected_old_sequence": 0,
+        "fresh_activation_sequence": 1,
+        "successor_expected_old_sequence": 1,
+        "successor_activation_sequence": 2,
         "preferred_batch_bytes": 1048576,
         "statement_timeout_seconds": 900,
         "restart_timeout_seconds": 240,
@@ -112,12 +142,13 @@ def validate_contract(
         raise HighwayActivationError("Highway activation execution context differs")
     expected = contract.get("expected_result")
     if expected != {
-        "registry_version": 1,
+        "registry_version": 2,
         "registry_fingerprint": authority["highway_registry_fingerprint"],
-        "kind_count": 16,
+        "kind_count": 17,
         "alias_count": 0,
         "disposition_count": 8,
-        "activation_sequence": 1,
+        "fresh_activation_sequence": 1,
+        "successor_activation_sequence": 2,
         "effect_disposition": 3,
         "status": 0,
     }:
@@ -202,18 +233,30 @@ def render_inspection_sql() -> str:
   'highway_present', h.active_present,
   'highway_epoch_id', encode(h.activation_epoch_id,'hex'),
   'highway_epoch_fingerprint', encode(h.activation_epoch_fingerprint,'hex'),
+  'active_registry_version', g.registry_version,
+  'active_registry_fingerprint', encode(g.registry_fingerprint,'hex'),
+  'active_kind_count', g.kind_count,
+  'active_alias_count', g.alias_count,
+  'active_disposition_count', g.disposition_count,
+  'active_kind_projection_count', (SELECT count(*) FROM laplace.highway_registry_kind_projection p WHERE p.activation_epoch_id=h.activation_epoch_id AND p.activation_epoch_fingerprint=h.activation_epoch_fingerprint),
+  'active_alias_projection_count', (SELECT count(*) FROM laplace.highway_registry_alias_projection p WHERE p.activation_epoch_id=h.activation_epoch_id AND p.activation_epoch_fingerprint=h.activation_epoch_fingerprint),
+  'active_disposition_projection_count', (SELECT count(*) FROM laplace.highway_registry_disposition_projection p WHERE p.activation_epoch_id=h.activation_epoch_id AND p.activation_epoch_fingerprint=h.activation_epoch_fingerprint),
   'generation_count', (SELECT count(*) FROM laplace.highway_registry_generation),
   'event_count', (SELECT count(*) FROM laplace.highway_registry_activation_event)
 )::text
 FROM laplace.perfcache_active_control u
 CROSS JOIN laplace.highway_registry_active_control h
+LEFT JOIN laplace.highway_registry_generation g
+  ON h.active_present
+ AND g.activation_epoch_id=h.activation_epoch_id
+ AND g.activation_epoch_fingerprint=h.activation_epoch_fingerprint
 WHERE u.singleton AND h.singleton;
 """
 
 
 def validate_inspection(
     value: dict[str, Any], unicode_receipt: dict[str, Any], contract: dict[str, Any]
-) -> str:
+) -> dict[str, Any]:
     if (
         value.get("unicode_present") is not True
         or value.get("unicode_epoch_id") != unicode_receipt["activation_epoch_id"]
@@ -221,35 +264,101 @@ def validate_inspection(
         != unicode_receipt["activation_epoch_fingerprint"]
     ):
         raise HighwayActivationError("active Unicode state differs from its product receipt")
+    zero_epoch = "00" * 16
     if (
         value.get("highway_sequence") == 0
         and value.get("highway_present") is False
+        and value.get("highway_epoch_id") == zero_epoch
+        and value.get("highway_epoch_fingerprint") == ZERO_256
+        and value.get("active_registry_version") is None
+        and value.get("active_registry_fingerprint") is None
+        and value.get("active_kind_count") is None
+        and value.get("active_alias_count") is None
+        and value.get("active_disposition_count") is None
+        and value.get("active_kind_projection_count") == 0
+        and value.get("active_alias_projection_count") == 0
+        and value.get("active_disposition_projection_count") == 0
         and value.get("generation_count") == 0
         and value.get("event_count") == 0
     ):
-        return "fresh"
-    expected = contract["expected_result"]
+        return {
+            "mode": "fresh",
+            "numeric_epoch": ZERO_256,
+            "expected_activation_sequence": contract["operation"]["fresh_activation_sequence"],
+            "expected_generation_count": 1,
+            "expected_event_count": 1,
+        }
     if (
-        value.get("highway_sequence") == expected["activation_sequence"]
-        and value.get("highway_present") is True
+        value.get("highway_present") is not True
+        or unicodectl.HEX_128.fullmatch(str(value.get("highway_epoch_id", ""))) is None
+        or unicodectl.HEX_256.fullmatch(
+            str(value.get("highway_epoch_fingerprint", ""))
+        ) is None
+    ):
+        raise HighwayActivationError("Highway product state is partial, conflicting, or not replayable")
+    authority = contract["authority"]
+    operation = contract["operation"]
+    expected = contract["expected_result"]
+    predecessor_exact = (
+        value.get("highway_sequence") == operation["successor_expected_old_sequence"]
         and value.get("generation_count") == 1
         and value.get("event_count") == 1
-        and unicodectl.HEX_128.fullmatch(str(value.get("highway_epoch_id", "")))
-        and unicodectl.HEX_256.fullmatch(str(value.get("highway_epoch_fingerprint", "")))
-    ):
-        return "replay"
+        and value.get("active_registry_version") == authority["predecessor_registry_version"]
+        and value.get("active_registry_fingerprint") == authority["predecessor_registry_fingerprint"]
+        and value.get("active_kind_count") == authority["predecessor_kind_count"]
+        and value.get("active_alias_count") == authority["predecessor_alias_count"]
+        and value.get("active_disposition_count") == authority["predecessor_disposition_count"]
+        and value.get("active_kind_projection_count") == authority["predecessor_kind_count"]
+        and value.get("active_alias_projection_count") == authority["predecessor_alias_count"]
+        and value.get("active_disposition_projection_count") == authority["predecessor_disposition_count"]
+    )
+    if predecessor_exact:
+        return {
+            "mode": "successor",
+            "numeric_epoch": value["highway_epoch_fingerprint"],
+            "expected_activation_sequence": operation["successor_activation_sequence"],
+            "expected_generation_count": 2,
+            "expected_event_count": 2,
+        }
+    active_sequence = value.get("highway_sequence")
+    target_exact = (
+        active_sequence in {
+            expected["fresh_activation_sequence"],
+            expected["successor_activation_sequence"],
+        }
+        and value.get("generation_count") == active_sequence
+        and value.get("event_count") == active_sequence
+        and value.get("active_registry_version") == expected["registry_version"]
+        and value.get("active_registry_fingerprint") == expected["registry_fingerprint"]
+        and value.get("active_kind_count") == expected["kind_count"]
+        and value.get("active_alias_count") == expected["alias_count"]
+        and value.get("active_disposition_count") == expected["disposition_count"]
+        and value.get("active_kind_projection_count") == expected["kind_count"]
+        and value.get("active_alias_projection_count") == expected["alias_count"]
+        and value.get("active_disposition_projection_count") == expected["disposition_count"]
+    )
+    if target_exact:
+        return {
+            "mode": "replay",
+            "numeric_epoch": value["highway_epoch_fingerprint"],
+            "expected_activation_sequence": active_sequence,
+            "expected_generation_count": active_sequence,
+            "expected_event_count": active_sequence,
+        }
     raise HighwayActivationError("Highway product state is partial, conflicting, or not replayable")
 
 
 def render_activation_sql(
-    contract: dict[str, Any], identities: dict[str, Any], unicode_receipt: dict[str, Any]
+    contract: dict[str, Any], identities: dict[str, Any],
+    unicode_receipt: dict[str, Any], state: dict[str, Any],
 ) -> str:
     operation = contract["operation"]
     expected = contract["expected_result"]
     context = context_sql(
         identities, contract, unicode_receipt["activation_epoch_fingerprint"],
-        ZERO_256, False,
+        state["numeric_epoch"], False,
     )
+    activation_sequence = state["expected_activation_sequence"]
     return f"""BEGIN;
 SET LOCAL statement_timeout = '{operation['statement_timeout_seconds']}s';
 SET LOCAL lock_timeout = '30s';
@@ -263,7 +372,7 @@ BEGIN
   IF activated.status <> {expected['status']}
      OR activated.registry_version <> {expected['registry_version']}
      OR activated.registry_fingerprint <> decode('{expected['registry_fingerprint']}','hex')
-     OR activated.activation_sequence <> {expected['activation_sequence']}
+     OR activated.activation_sequence <> {activation_sequence}
      OR activated.effect_disposition <> {expected['effect_disposition']}
      OR activated.unicode_activation_epoch_id <> decode('{unicode_receipt['activation_epoch_id']}','hex')
      OR activated.unicode_activation_epoch_fingerprint <> decode('{unicode_receipt['activation_epoch_fingerprint']}','hex')
@@ -319,7 +428,7 @@ COMMIT;
 
 def validate_activation_result(
     result: dict[str, Any], contract: dict[str, Any],
-    unicode_receipt: dict[str, Any], mode: str,
+    unicode_receipt: dict[str, Any], state: dict[str, Any],
 ) -> None:
     expected = contract["expected_result"]
     if any(
@@ -327,7 +436,7 @@ def validate_activation_result(
         for name, value in {
             "registry_version": expected["registry_version"],
             "registry_fingerprint": expected["registry_fingerprint"],
-            "activation_sequence": expected["activation_sequence"],
+            "activation_sequence": state["expected_activation_sequence"],
             "effect_disposition": expected["effect_disposition"],
             "kind_count": expected["kind_count"],
             "alias_count": expected["alias_count"],
@@ -364,9 +473,11 @@ def validate_activation_result(
     ]
     if any(not isinstance(value, int) or value < 0 for value in inserted):
         raise HighwayActivationError("Highway activation write counts are invalid")
-    if mode == "fresh" and any(value <= 0 for value in inserted):
-        raise HighwayActivationError("fresh Highway activation did not write its canonical state")
-    if mode == "replay" and any(value != 0 for value in inserted):
+    if state["mode"] in {"fresh", "successor"} and any(value <= 0 for value in inserted):
+        raise HighwayActivationError(
+            f"{state['mode']} Highway activation did not write its canonical state"
+        )
+    if state["mode"] == "replay" and any(value != 0 for value in inserted):
         raise HighwayActivationError("Highway activation replay wrote duplicate canonical state")
 
 
@@ -439,6 +550,7 @@ def validate_readback(
 def execute_highway_activation(
     contract: dict[str, Any], cluster_contract: dict[str, Any],
     unicode_contract: dict[str, Any], registry_contract: dict[str, Any],
+    previous_registry_contract: dict[str, Any],
     package: dict[str, Any], plan: dict[str, Any], cluster_receipt: dict[str, Any],
     unicode_receipt: dict[str, Any], root: Path, authorize_system_root: bool,
     *, sql_runner: Callable[..., tuple[dict[str, Any], dict[str, Any]]] = unicodectl.run_psql,
@@ -447,7 +559,10 @@ def execute_highway_activation(
     readiness_runner: Callable[..., dict[str, Any]] = clusterctl.await_postgresql_ready,
 ) -> dict[str, Any]:
     clusterctl.require_fixture_or_root(root, authorize_system_root)
-    validate_contract(contract, cluster_contract, unicode_contract, registry_contract)
+    validate_contract(
+        contract, cluster_contract, unicode_contract, registry_contract,
+        previous_registry_contract,
+    )
     try:
         unicodectl.validate_product_boundary(
             cluster_contract, package, plan, cluster_receipt, root
@@ -469,16 +584,16 @@ def execute_highway_activation(
         cluster_contract["security"]["admin_os_user"], instance["admin_role"], 120,
     )
     command_receipts.append(inspection_receipt)
-    mode = validate_inspection(inspection, unicode_receipt, contract)
+    state = validate_inspection(inspection, unicode_receipt, contract)
     activation, activation_command = sql_runner(
         plan, cluster_contract,
-        render_activation_sql(contract, identities, unicode_receipt),
+        render_activation_sql(contract, identities, unicode_receipt, state),
         "admit-and-activate-highway-product-registry",
         cluster_contract["security"]["admin_os_user"], instance["admin_role"],
         contract["operation"]["statement_timeout_seconds"] + 120,
     )
     command_receipts.append(activation_command)
-    validate_activation_result(activation, contract, unicode_receipt, mode)
+    validate_activation_result(activation, contract, unicode_receipt, state)
     restart = command_runner(
         "restart-after-highway-activation",
         ["/usr/bin/systemctl", "restart", instance["service"]],
@@ -511,6 +626,9 @@ def execute_highway_activation(
         "orchestrator_sha256": unicodectl.sha256_file(Path(__file__).resolve()),
         "activation_contract_sha256": unicodectl.sha256_bytes(unicodectl.canonical_bytes(contract)),
         "registry_contract_sha256": unicodectl.sha256_bytes(unicodectl.canonical_bytes(registry_contract)),
+        "predecessor_registry_contract_sha256": unicodectl.sha256_bytes(
+            unicodectl.canonical_bytes(previous_registry_contract)
+        ),
         "package_id": package["package_id"],
         "cluster_plan_sha256": plan["plan_sha256"],
         "cluster_activation_receipt_sha256": cluster_receipt["activation_receipt_sha256"],
@@ -519,6 +637,7 @@ def execute_highway_activation(
         "operation": contract["operation"],
         "execution_context": contract["execution_context"],
         "expected_result": contract["expected_result"],
+        "inspected_state": state,
     }
     request_sha = unicodectl.sha256_bytes(unicodectl.canonical_bytes(request))
     receipt = {
@@ -530,7 +649,7 @@ def execute_highway_activation(
         "cluster_activation_receipt_sha256": cluster_receipt["activation_receipt_sha256"],
         "unicode_activation_receipt_sha256": unicode_receipt["receipt_sha256"],
         "system_identifier": loaded_after["system_identifier"],
-        "mode": mode,
+        "mode": state["mode"],
         "activation": activation,
         "readback": readback,
         "restart_proven": True,
@@ -555,10 +674,10 @@ def execute_highway_activation_receipted(*args: Any, **kwargs: Any) -> dict[str,
     except Exception as error:
         contract = args[0]
         cluster_contract = args[1]
-        package = args[4]
-        plan = args[5]
-        cluster_receipt = args[6]
-        root = args[8]
+        package = args[5]
+        plan = args[6]
+        cluster_receipt = args[7]
+        root = args[9]
         receipt_directory = cluster_contract.get("instance", {}).get("receipt_directory")
         if isinstance(receipt_directory, str) and receipt_directory.startswith("/"):
             failure = {
@@ -589,6 +708,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--cluster-contract", default="contracts/postgresql-cluster.json")
     parser.add_argument("--unicode-contract", default="contracts/unicode-product-activation.json")
     parser.add_argument("--registry-contract", default="contracts/highway.json")
+    parser.add_argument(
+        "--previous-registry-contract", default="contracts/history/highway-v1.json"
+    )
     parser.add_argument("--package-manifest", required=True)
     parser.add_argument("--cluster-plan", required=True)
     parser.add_argument("--cluster-activation-receipt", required=True)
@@ -611,6 +733,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         load_json(resolve(arguments.cluster_contract)),
         load_json(resolve(arguments.unicode_contract)),
         load_json(resolve(arguments.registry_contract)),
+        load_json(resolve(arguments.previous_registry_contract)),
         load_json(Path(arguments.package_manifest)),
         load_json(Path(arguments.cluster_plan)),
         load_json(Path(arguments.cluster_activation_receipt)),

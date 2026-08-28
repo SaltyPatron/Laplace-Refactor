@@ -1,0 +1,219 @@
+{
+  "schema": "laplace.tabular-source-profile/v1",
+  "profile": {
+    "name": "ISO 639 Set 3 code tables 2026-04-15",
+    "version": 1,
+    "reconstruction_class": "semantic",
+    "purpose": [
+      "witness authority-scoped language identifiers and reference names",
+      "supply exact reusable Unicode content for every selected field",
+      "supply typed mapping claims without making the publisher the truth authority"
+    ],
+    "prohibited_authority": [
+      "referential identity outside the ISO 639 Set 3 release scope",
+      "truth of language usage or linguistic analysis",
+      "English as a semantic pivot"
+    ]
+  },
+  "coordinate": {
+    "kind": 17,
+    "authority": "International Organization for Standardization",
+    "release": "ISO 639 Set 3 code tables 2026-04-15",
+    "namespace": "https://iso639-3.sil.org/code_tables/download_tables",
+    "local_identifier": "iso-639-3-code-tables",
+    "version": 1,
+    "scope_identity_algorithm": "first-128-bits-of-SHA-256 over laplace-source-profile-scope-v1, field name, and exact UTF-8 value"
+  },
+  "authority_and_release": {
+    "standard": "ISO 639:2023",
+    "maintenance_authority": "ISO 639 Maintenance Agency",
+    "set_3_language_coding_agency": "SIL International",
+    "publisher": "SIL International",
+    "release_marker": "20260415",
+    "publication_date": "2026-04-15",
+    "official_authority_url": "https://www.iso.org/iso-639-language-code",
+    "official_publisher_url": "https://iso639-3.sil.org/code_tables/download_tables",
+    "upstream_archive_name": "iso-639-3_Code_Tables_20260415.zip",
+    "supersession": "a later dated Set 3 table release is a distinct append-only release coordinate"
+  },
+  "license": {
+    "identity": "ISO language-code free-use statement",
+    "authority_url": "https://www.iso.org/iso-639-language-code",
+    "exact_notice_utf8": "ISO allows free-of-charge use of its country, currency and language codes.",
+    "exact_notice_sha256": "748031260e7b8bcac2684dd764c59ed2bb4a28da454b4647c4f82182145109d6",
+    "applies_to": "the ISO 639 code data selected by this profile",
+    "excludes": "the ISO 639:2023 standard text and every artifact not listed in this profile"
+  },
+  "artifacts": [
+    {
+      "name": "iso-639-3_Code_Tables_20260415.zip",
+      "local_discovery_path": "iso-639-3_Code_Tables_20260415.zip",
+      "media_type": "application/zip",
+      "byte_count": 153962,
+      "sha256": "106a3f3b073e94bcc767f663e05f386358b1285ba2b063f24a2eeb6bafcc982a",
+      "mode": "raw_octets",
+      "roles": ["container", "exact-hashed-provenance"],
+      "parent": null,
+      "exact_distribution": false,
+      "reconstruction_disposition": "unavailable-after-selected-semantic-projection"
+    },
+    {
+      "name": "iso-639-3_Code_Tables_20260415/iso-639-3-macrolanguages.tab",
+      "local_discovery_path": "iso-639-3-macrolanguages.tab",
+      "archive_member": "iso-639-3_Code_Tables_20260415/iso-639-3-macrolanguages.tab",
+      "media_type": "text/tab-separated-values; charset=utf-8",
+      "byte_count": 4609,
+      "sha256": "fb01a86376d9c1abfc96d16be1b6dcffb4776a1f52fa22338d4979e9ffe1822f",
+      "mode": "utf8_delimited",
+      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "parent": "iso-639-3_Code_Tables_20260415.zip",
+      "exact_distribution": true,
+      "delimiter": 9,
+      "line_terminator": "lf",
+      "columns": ["M_Id", "I_Id", "I_Status"],
+      "reference_columns": [0, 1],
+      "record_count": 460,
+      "field_count": 1380,
+      "claim_count": 459,
+      "outcome_type": "mapping"
+    },
+    {
+      "name": "iso-639-3_Code_Tables_20260415/iso-639-3.tab",
+      "local_discovery_path": "iso-639-3.tab",
+      "archive_member": "iso-639-3_Code_Tables_20260415/iso-639-3.tab",
+      "media_type": "text/tab-separated-values; charset=utf-8",
+      "byte_count": 178336,
+      "sha256": "9697ac84b95b9b4d8624693fb51a496cc95677ff0abb28a7b860aa2f2c80ff13",
+      "mode": "utf8_delimited",
+      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "parent": "iso-639-3_Code_Tables_20260415.zip",
+      "exact_distribution": true,
+      "delimiter": 9,
+      "line_terminator": "lf",
+      "columns": ["Id", "Part2b", "Part2t", "Part1", "Scope", "Language_Type", "Ref_Name", "Comment"],
+      "reference_columns": [0, 1, 2, 3],
+      "record_count": 7930,
+      "field_count": 63440,
+      "claim_count": 7929,
+      "outcome_type": "mapping"
+    },
+    {
+      "name": "iso-639-3_Code_Tables_20260415/iso-639-3_Name_Index.tab",
+      "local_discovery_path": "iso-639-3_Name_Index.tab",
+      "archive_member": "iso-639-3_Code_Tables_20260415/iso-639-3_Name_Index.tab",
+      "media_type": "text/tab-separated-values; charset=utf-8",
+      "byte_count": 204547,
+      "sha256": "052d31d3f67d495305a27572b3f3c2ec582cc06ed6e3cc517d603141f4e78fb1",
+      "mode": "utf8_delimited",
+      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "parent": "iso-639-3_Code_Tables_20260415.zip",
+      "exact_distribution": true,
+      "delimiter": 9,
+      "line_terminator": "lf",
+      "columns": ["Id", "Print_Name", "Inverted_Name"],
+      "reference_columns": [0],
+      "record_count": 8337,
+      "field_count": 25011,
+      "claim_count": 8336,
+      "outcome_type": "mapping"
+    },
+    {
+      "name": "iso-639-3_Code_Tables_20260415/iso-639-3_Retirements.tab",
+      "local_discovery_path": "iso-639-3_Retirements.tab",
+      "archive_member": "iso-639-3_Code_Tables_20260415/iso-639-3_Retirements.tab",
+      "media_type": "text/tab-separated-values; charset=utf-8",
+      "byte_count": 18981,
+      "sha256": "a0aa81f6bb16d25df1239c5e4d62984d3b537acaed1b86ea81279f71870b2eaf",
+      "mode": "utf8_delimited",
+      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "parent": "iso-639-3_Code_Tables_20260415.zip",
+      "exact_distribution": true,
+      "delimiter": 9,
+      "line_terminator": "lf",
+      "columns": ["Id", "Ref_Name", "Ret_Reason", "Change_To", "Ret_Remedy", "Effective"],
+      "reference_columns": [0, 3],
+      "record_count": 387,
+      "field_count": 2322,
+      "claim_count": 386,
+      "outcome_type": "mapping"
+    }
+  ],
+  "syntax_authority": {
+    "provider": "laplace.tabular-source-contract/v1.1",
+    "encoding": "shortest-form Unicode scalar UTF-8",
+    "grammar": "one header plus fixed-width tab-separated records, no quoting, exact LF after every record",
+    "unknown_form": "reject-before-publication",
+    "error_recovery": "none"
+  },
+  "recipe_program": {
+    "coordinate": "laplace.recipe/tabular-source/1",
+    "stages": ["verify-artifact-graph", "parse", "lower-universal-ast", "compose", "presence", "deposit", "lineage", "testimony", "world-close", "readback"],
+    "source_named_semantic_dispatch": false,
+    "raw_container_rule": "retain exact digest length name and parent topology without depositing unselected archive octets",
+    "selected_content_rule": "deposit every nonempty field as an exact reusable Unicode composition independent of source role"
+  },
+  "universal_ast_mapping": {
+    "root": "source boundary",
+    "artifact": ["tag", "name", "digest", "parent artifact", "mode", "ordered selected content"],
+    "record": ["header-or-record tag", "ordered fields", "exact terminator"],
+    "field": ["field tag", "column identity", "optional exact value"],
+    "roles_are_occurrence_metadata": true,
+    "content_identity_excludes_source_language_role": true,
+    "exact_units": ["identifier", "reference name", "comment", "status", "reason", "remedy", "date", "header", "record", "table"],
+    "intentional_loss": ["ZIP compression method and archive wrapper are not selected canonical content"]
+  },
+  "highway_and_references": {
+    "namespace": "ISO 639 Set 3",
+    "join_keys": ["Id", "M_Id", "I_Id", "Part2b", "Part2t", "Part1", "Change_To"],
+    "reference_identity": "authority release namespace and exact local identifier",
+    "initial_disposition": {
+      "kind": "unresolved",
+      "count": 18805,
+      "until_operation": "typed ISO 639 authority-release-namespace Highway topology"
+    },
+    "nonclaim": "row parsing and exact content persistence do not by themselves activate a language coordinate or prove a cross-namespace mapping",
+    "empty_endpoint": "explicitly absent field, never an empty identifier",
+    "unknown_endpoint": "unresolved with receipt",
+    "retired_endpoint": "retirement testimony with effective date and optional Change_To reference"
+  },
+  "epistemic_witnessing": {
+    "witness": "SIL International as ISO 639 Set 3 Language Coding Agency",
+    "claim_unit": "one non-header source record lowered as one mapping proposition",
+    "asserted_validity": "publisher assertion scoped to this exact release",
+    "dependence_root": "the locked 2026-04-15 release archive",
+    "copied_members": "the four extracted member files share the archive dependence root and are not independent evidence",
+    "standing": "not adjudicated by this profile"
+  },
+  "denominators": {
+    "bytes": 560435,
+    "containers": 1,
+    "members": 4,
+    "files": 5,
+    "records": 17114,
+    "fields": 92153,
+    "claims": 17110,
+    "mappings": 17110,
+    "errors": 0,
+    "unknowns": 0,
+    "references": 18805,
+    "equations": [
+      "bytes = archive bytes + selected member bytes",
+      "records = sum member records including four headers",
+      "fields = sum record_count times declared column_count",
+      "claims = records minus four headers"
+    ]
+  },
+  "conformance": {
+    "positive": ["all five SHA-256 and byte lengths", "all four headers", "every row width", "every final LF", "all member bytes equal the corresponding ZIP member", "exact recomposition of all four selected tables"],
+    "negative": ["changed byte with pinned digest", "missing final LF", "wrong field count", "invalid UTF-8", "member without container parent", "parent edge omitted from artifact graph", "raw ZIP promoted to exact selected content", "source-specific semantic callback"]
+  },
+  "completion": {
+    "predicate": "all five artifacts, four parent edges, 560435 bytes, 17114 records, 92153 fields, 17110 claims, all 18805 reference carriers explicitly unresolved pending typed Highway topology, exact selected-table readback, semantic profile readback, replay, rollback, and PostgreSQL parity close",
+    "does_not_prove": ["all ISO 639 data admitted", "ISO 639 language coordinates or cross-namespace mappings activated", "configured foundational seed", "general cognition", "product release"]
+  },
+  "execution": {
+    "geometry_epoch_scope": "Unicode 17 product root active at execution",
+    "occurrence_context": "ISO 639 Set 3 code tables 2026-04-15 source occurrence",
+    "preferred_batch_bytes": 1048576
+  }
+}

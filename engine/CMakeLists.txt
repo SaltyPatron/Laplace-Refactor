@@ -9,6 +9,10 @@ add_library(laplace_engine SHARED
     src/isa.c
     src/persistence.c
     src/evidence_lineage.c
+    src/evidence_testimony.c
+    src/source_profile.c
+    src/tabular_source.cpp
+    src/world_admission.c
     src/composition.cpp
     src/trajectory.c
     src/unicode_root.c
@@ -42,6 +46,10 @@ add_library(Laplace::Execution ALIAS laplace_engine)
 add_library(Laplace::Framework ALIAS laplace_engine)
 add_library(Laplace::Persistence ALIAS laplace_engine)
 add_library(Laplace::EvidenceLineage ALIAS laplace_engine)
+add_library(Laplace::EvidenceTestimony ALIAS laplace_engine)
+add_library(Laplace::SourceProfile ALIAS laplace_engine)
+add_library(Laplace::TabularSource ALIAS laplace_engine)
+add_library(Laplace::WorldAdmission ALIAS laplace_engine)
 add_library(Laplace::Composition ALIAS laplace_engine)
 add_library(Laplace::Highway ALIAS laplace_engine)
 add_library(Laplace::UnicodeRoot ALIAS laplace_engine)
@@ -132,6 +140,10 @@ install(FILES
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/framework.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/persistence.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/evidence_lineage.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/evidence_testimony.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/source_profile.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/tabular_source.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/world_admission.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/composition.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/highway.h"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")

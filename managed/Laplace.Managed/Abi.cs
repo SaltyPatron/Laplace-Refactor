@@ -123,6 +123,154 @@ public struct LaplaceEvidenceRootRecord
     public uint Flags;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceEvidenceTestimonyRecord
+{
+    public LaplaceDigest256 TestimonyId;
+    public LaplaceDigest256 EvidenceNodeId;
+    public LaplaceDigest256 SourceProfileId;
+    public LaplaceDigest256 RecipeReceiptId;
+    public LaplaceDigest256 TrustInputId;
+    public LaplaceDigest256 OutcomeDetailId;
+    public ulong UncertaintyNumerator;
+    public ulong UncertaintyDenominator;
+    public ulong SampleCount;
+    public uint SourceType;
+    public uint OutcomeType;
+    public uint Disposition;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceEvidenceTestimonyReceipt
+{
+    public LaplaceDigest256 ReceiptId;
+    public LaplaceDigest256 SourceProfileId;
+    public LaplaceDigest256 InputFingerprint;
+    public LaplaceDigest256 OutputFingerprint;
+    public ulong TestimonyCount;
+    public ulong SampleCount;
+    public ulong UncertainCount;
+    public ulong NegativeDispositionCount;
+    public uint Version;
+    public uint Status;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceSourceProfileManifest
+{
+    public LaplaceDigest256 ProfileId;
+    public LaplaceHighwayKey Coordinate;
+    public LaplaceDigest256 AuthorityReleaseFingerprint;
+    public LaplaceDigest256 LicenseFingerprint;
+    public LaplaceDigest256 ArtifactGraphFingerprint;
+    public LaplaceDigest256 SyntaxAuthorityFingerprint;
+    public LaplaceDigest256 RecipeProgramFingerprint;
+    public LaplaceDigest256 UniversalAstMappingFingerprint;
+    public LaplaceDigest256 HighwayReferencesFingerprint;
+    public LaplaceDigest256 EpistemicWitnessingFingerprint;
+    public LaplaceDigest256 DenominatorDeclarationFingerprint;
+    public LaplaceDigest256 ConformanceFingerprint;
+    public LaplaceDigest256 CompletionLawFingerprint;
+    public LaplaceDigest256 SelectedBoundaryFingerprint;
+    public ulong ByteCount;
+    public ulong ContainerCount;
+    public ulong MemberCount;
+    public ulong FileCount;
+    public ulong RecordCount;
+    public ulong FieldCount;
+    public ulong SyntaxNodeCount;
+    public ulong SpanCount;
+    public ulong EdgeCount;
+    public ulong ReferenceCount;
+    public ulong OccurrenceCount;
+    public ulong ClaimCount;
+    public ulong MappingCount;
+    public ulong ErrorCount;
+    public ulong UnknownCount;
+    public ulong TransformationCount;
+    public ulong OutputCount;
+    public ulong ClosureSubjectCount;
+    public ulong AcceptedCount;
+    public ulong RejectedCount;
+    public ulong DuplicateCount;
+    public ulong ReusedCount;
+    public ulong TransformedCount;
+    public ulong LossyCount;
+    public ulong UnsupportedCount;
+    public ulong MalformedCount;
+    public ulong UnresolvedCount;
+    public ulong PersistedCount;
+    public ulong DerivedCount;
+    public ulong NotApplicableMask;
+    public uint ReconstructionClass;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceSourceProfileReceipt
+{
+    public LaplaceDigest256 ReceiptId;
+    public LaplaceDigest256 SelectedBoundaryFingerprint;
+    public LaplaceDigest256 InputFingerprint;
+    public LaplaceDigest256 OutputFingerprint;
+    public ulong ProfileCount;
+    public ulong ClosureSubjectCount;
+    public ulong PersistedCount;
+    public ulong NegativeCount;
+    public ulong ExactReconstructionCount;
+    public ulong SemanticReconstructionCount;
+    public ulong NoReconstructionCount;
+    public uint Version;
+    public uint Status;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceWorldAdmissionRecord
+{
+    public LaplaceDigest256 AdmissionId;
+    public LaplaceDigest256 SourceProfileId;
+    public LaplaceDigest256 SelectedBoundaryFingerprint;
+    public LaplaceDigest256 SourceProfileReceiptId;
+    public LaplaceDigest256 RecipeReceiptId;
+    public LaplaceDigest256 CompositionWorkingSetReceiptId;
+    public LaplaceDigest256 CompositionPresenceReceiptId;
+    public LaplaceDigest256 CompositionProducerReceiptId;
+    public LaplaceDigest256 CompositionStreamReceiptId;
+    public LaplaceDigest256 EvidenceLineageReceiptId;
+    public LaplaceDigest256 EvidenceTestimonyReceiptId;
+    public LaplaceDigest256 ReadbackFingerprint;
+    public ulong ProfileOccurrenceCount;
+    public ulong CompositionOccurrenceCount;
+    public ulong ProfileClaimCount;
+    public ulong EvidenceNodeCount;
+    public ulong TestimonyCount;
+    public ulong ProfileBoundTestimonyCount;
+    public ulong RecipeBoundTestimonyCount;
+    public ulong LineageBoundTestimonyCount;
+    public ulong ClosureSubjectCount;
+    public ulong ClosedSubjectCount;
+    public uint ReconstructionClass;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceWorldAdmissionReceipt
+{
+    public LaplaceDigest256 ReceiptId;
+    public LaplaceDigest256 SelectedBoundaryFingerprint;
+    public LaplaceDigest256 InputFingerprint;
+    public LaplaceDigest256 OutputFingerprint;
+    public ulong AdmissionCount;
+    public ulong OccurrenceCount;
+    public ulong ClaimCount;
+    public ulong EvidenceNodeCount;
+    public ulong TestimonyCount;
+    public ulong ClosureSubjectCount;
+    public uint Version;
+    public uint Status;
+}
+
 public enum LaplaceIsaStatus : uint
 {
     Ok = 0,
@@ -348,6 +496,130 @@ public static class LaplaceNativeAbi
         OffsetOf<LaplaceIsaReceipt>(nameof(LaplaceIsaReceipt.ReceiptDetail)),
         OffsetOf<LaplaceIsaReceipt>(nameof(LaplaceIsaReceipt.Status)),
         OffsetOf<LaplaceIsaReceipt>(nameof(LaplaceIsaReceipt.Reserved)),
+        checked((uint)Marshal.SizeOf<LaplaceEvidenceTestimonyRecord>()),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.TestimonyId)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.EvidenceNodeId)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.SourceProfileId)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.RecipeReceiptId)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.TrustInputId)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.OutcomeDetailId)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.UncertaintyNumerator)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.UncertaintyDenominator)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.SampleCount)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.SourceType)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.OutcomeType)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.Disposition)),
+        OffsetOf<LaplaceEvidenceTestimonyRecord>(nameof(LaplaceEvidenceTestimonyRecord.Flags)),
+        checked((uint)Marshal.SizeOf<LaplaceEvidenceTestimonyReceipt>()),
+        OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.ReceiptId)),
+        OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.SourceProfileId)),
+        OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.InputFingerprint)),
+        OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.OutputFingerprint)),
+        OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.TestimonyCount)),
+        OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.SampleCount)),
+        OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.UncertainCount)),
+        OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.NegativeDispositionCount)),
+        OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.Version)),
+        OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.Status)),
+        checked((uint)Marshal.SizeOf<LaplaceSourceProfileManifest>()),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ProfileId)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.Coordinate)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.AuthorityReleaseFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.LicenseFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ArtifactGraphFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.SyntaxAuthorityFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.RecipeProgramFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.UniversalAstMappingFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.HighwayReferencesFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.EpistemicWitnessingFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.DenominatorDeclarationFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ConformanceFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.CompletionLawFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.SelectedBoundaryFingerprint)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ByteCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ContainerCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.MemberCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.FileCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.RecordCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.FieldCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.SyntaxNodeCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.SpanCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.EdgeCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ReferenceCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.OccurrenceCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ClaimCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.MappingCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ErrorCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.UnknownCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.TransformationCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.OutputCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ClosureSubjectCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.AcceptedCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.RejectedCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.DuplicateCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ReusedCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.TransformedCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.LossyCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.UnsupportedCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.MalformedCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.UnresolvedCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.PersistedCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.DerivedCount)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.NotApplicableMask)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ReconstructionClass)),
+        OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.Flags)),
+        checked((uint)Marshal.SizeOf<LaplaceSourceProfileReceipt>()),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.ReceiptId)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.SelectedBoundaryFingerprint)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.InputFingerprint)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.OutputFingerprint)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.ProfileCount)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.ClosureSubjectCount)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.PersistedCount)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.NegativeCount)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.ExactReconstructionCount)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.SemanticReconstructionCount)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.NoReconstructionCount)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.Version)),
+        OffsetOf<LaplaceSourceProfileReceipt>(nameof(LaplaceSourceProfileReceipt.Status)),
+        checked((uint)Marshal.SizeOf<LaplaceWorldAdmissionRecord>()),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.AdmissionId)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.SourceProfileId)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.SelectedBoundaryFingerprint)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.SourceProfileReceiptId)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.RecipeReceiptId)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.CompositionWorkingSetReceiptId)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.CompositionPresenceReceiptId)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.CompositionProducerReceiptId)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.CompositionStreamReceiptId)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.EvidenceLineageReceiptId)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.EvidenceTestimonyReceiptId)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.ReadbackFingerprint)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.ProfileOccurrenceCount)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.CompositionOccurrenceCount)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.ProfileClaimCount)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.EvidenceNodeCount)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.TestimonyCount)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.ProfileBoundTestimonyCount)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.RecipeBoundTestimonyCount)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.LineageBoundTestimonyCount)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.ClosureSubjectCount)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.ClosedSubjectCount)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.ReconstructionClass)),
+        OffsetOf<LaplaceWorldAdmissionRecord>(nameof(LaplaceWorldAdmissionRecord.Flags)),
+        checked((uint)Marshal.SizeOf<LaplaceWorldAdmissionReceipt>()),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.ReceiptId)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.SelectedBoundaryFingerprint)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.InputFingerprint)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.OutputFingerprint)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.AdmissionCount)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.OccurrenceCount)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.ClaimCount)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.EvidenceNodeCount)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.TestimonyCount)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.ClosureSubjectCount)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.Version)),
+        OffsetOf<LaplaceWorldAdmissionReceipt>(nameof(LaplaceWorldAdmissionReceipt.Status)),
         LaplaceExecutionContext.NativeAbiSize,
     ];
 

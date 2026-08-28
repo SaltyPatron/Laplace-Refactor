@@ -45,6 +45,22 @@ function(laplace_configure_postgresql_bindings
         "${contract_json}" bindings postgresql evidence_record_lineage_batch record_sql_name)
     string(JSON evidence_record_symbol GET
         "${contract_json}" bindings postgresql evidence_record_lineage_batch record_c_symbol)
+    string(JSON evidence_testimony_sql GET
+        "${contract_json}" bindings postgresql evidence_record_testimony_batch record_sql_name)
+    string(JSON evidence_testimony_symbol GET
+        "${contract_json}" bindings postgresql evidence_record_testimony_batch record_c_symbol)
+    string(JSON source_profile_validate_sql GET
+        "${contract_json}" bindings postgresql source_profile_validate_batch validate_sql_name)
+    string(JSON source_profile_validate_symbol GET
+        "${contract_json}" bindings postgresql source_profile_validate_batch validate_c_symbol)
+    string(JSON world_admission_close_sql GET
+        "${contract_json}" bindings postgresql world_admission_close_batch close_sql_name)
+    string(JSON world_admission_close_symbol GET
+        "${contract_json}" bindings postgresql world_admission_close_batch close_c_symbol)
+    string(JSON source_admit_tabular_sql GET
+        "${contract_json}" bindings postgresql source_admit_tabular admit_sql_name)
+    string(JSON source_admit_tabular_symbol GET
+        "${contract_json}" bindings postgresql source_admit_tabular admit_c_symbol)
     file(READ "${persistence_contract_path}" persistence_json)
     string(JSON persistence_schema GET "${persistence_json}" schema)
     string(JSON persistence_deposit_sql GET
@@ -152,6 +168,10 @@ function(laplace_configure_postgresql_bindings
         highway_registry_activate_sql highway_registry_activate_symbol
         highway_registry_resolve_sql highway_registry_resolve_symbol
         evidence_record_sql evidence_record_symbol
+        evidence_testimony_sql evidence_testimony_symbol
+        source_profile_validate_sql source_profile_validate_symbol
+        world_admission_close_sql world_admission_close_symbol
+        source_admit_tabular_sql source_admit_tabular_symbol
         persistence_deposit_sql persistence_deposit_symbol
         composition_deposit_sql composition_deposit_symbol
         unicode_postgresql_sql unicode_postgresql_symbol
@@ -204,6 +224,14 @@ function(laplace_configure_postgresql_bindings
         "${highway_registry_resolve_symbol}")
     set(LAPLACE_PG_EVIDENCE_RECORD_SQL "${evidence_record_sql}")
     set(LAPLACE_PG_EVIDENCE_RECORD_SYMBOL "${evidence_record_symbol}")
+    set(LAPLACE_PG_EVIDENCE_TESTIMONY_SQL "${evidence_testimony_sql}")
+    set(LAPLACE_PG_EVIDENCE_TESTIMONY_SYMBOL "${evidence_testimony_symbol}")
+    set(LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SQL "${source_profile_validate_sql}")
+    set(LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SYMBOL "${source_profile_validate_symbol}")
+    set(LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL "${world_admission_close_sql}")
+    set(LAPLACE_PG_WORLD_ADMISSION_CLOSE_SYMBOL "${world_admission_close_symbol}")
+    set(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL "${source_admit_tabular_sql}")
+    set(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL "${source_admit_tabular_symbol}")
     set(LAPLACE_PG_CARRIER_ENCODING "${carrier_encoding}")
     set(LAPLACE_PG_PERSISTENCE_DEPOSIT_SQL "${persistence_deposit_sql}")
     set(LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL "${persistence_deposit_symbol}")

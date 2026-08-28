@@ -691,6 +691,7 @@ def execute_request(
         "--cluster-contract", str(contracts / "postgresql-cluster.json"),
         "--unicode-contract", str(contracts / "unicode-product-activation.json"),
         "--registry-contract", str(contracts / "highway.json"),
+        "--previous-registry-contract", str(contracts / "history/highway-v1.json"),
         "--package-manifest", payload["package"]["manifest"],
         "--cluster-plan", str(plan_path),
         "--cluster-activation-receipt", str(cluster_result_path),

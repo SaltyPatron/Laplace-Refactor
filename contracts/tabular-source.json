@@ -1,0 +1,76 @@
+{
+  "schema": "laplace.tabular-source-contract/v1",
+  "abi": {"major": 1, "minor": 1},
+  "identity": {
+    "artifact_graph_domain": "laplace-tabular-artifact-graph-v1",
+    "source_domain": "laplace-tabular-source-v1",
+    "reconstruction_domain": "laplace-tabular-reconstruction-v1"
+  },
+  "artifact_modes": {
+    "raw_octets": 1,
+    "utf8_delimited": 2
+  },
+  "artifact_reconstruction_flag": {
+    "exact_distribution": 4,
+    "rule": "the upstream distribution is bit-recomposable only when explicitly declared; an unflagged artifact remains exact hashed provenance while selected content values may still become exact reusable identities"
+  },
+  "line_terminators": {
+    "none": 0,
+    "lf": 1,
+    "crlf": 2
+  },
+  "roles": {
+    "tag": 1,
+    "artifact_name": 2,
+    "artifact_digest": 3,
+    "raw_octet": 4,
+    "header": 5,
+    "record": 6,
+    "field": 7,
+    "column": 8,
+    "value": 9,
+    "terminator": 10,
+    "artifact": 11,
+    "parent_artifact": 12
+  },
+  "grammar": {
+    "encoding": "raw artifacts retain exact digest provenance and retain octet AST content only when exact-distribution is declared; delimited selected content requires shortest-form Unicode scalar UTF-8",
+    "delimiter": "one declared nonzero single-byte delimiter outside UTF-8 continuation bytes",
+    "quoting": "none in v1; a delimiter or line terminator always closes a field",
+    "header": "exactly one required header record for a delimited artifact",
+    "field_count": "every record has the declared field count including empty fields",
+    "terminator": "every record including the last has the one declared exact line terminator",
+    "reconstruction": "recomposition from parsed fields delimiter and record terminators is byte-identical only for artifacts declaring exact-distribution; other distributions return typed reconstruction-unavailable"
+  },
+  "ast": {
+    "terminal_floor": "active Unicode atoms provide exact selected UTF-8 content; positions 0 through 255 provide typed raw-octet operands only for exact-distribution artifacts",
+    "field": "field tag plus column identity and optional nonempty value",
+    "record": "header or record tag plus ordered field nodes and exact terminator",
+    "artifact": "artifact tag name declared digest parent-artifact identity and mode plus ordered content only at the declared reconstruction boundary",
+    "root": "source-boundary tag plus ordered artifact nodes",
+    "roles_are_occurrence_metadata": true,
+    "content_identity_excludes_source_role": true
+  },
+  "closure": {
+    "claims": "every non-header delimited record is one source-scoped witnessed mapping claim",
+    "opaque_raw_claims": false,
+    "profile_counts": "bytes records fields syntax nodes spans edges references occurrences mappings outputs and dispositions are derived from the compiled whole working set",
+    "artifact_reconstruction": "only artifacts explicitly marked exact-distribution are required to recompose byte-for-byte; every artifact still retains exact digest length name and source-graph provenance",
+    "selected_content_reconstruction": "every admitted Unicode value is an exact reusable content composition independent of whether the enclosing upstream distribution is reconstructable",
+    "reference_disposition": "reference-marked field occurrences remain explicitly unresolved after generic structural admission until a typed authority-release-namespace Highway topology operation resolves or rejects each endpoint; parsing a join-key-shaped string is not reference resolution",
+    "curated_projection_reconstruction": "the source profile separately declares exact semantic or no reconstruction for the curated witnessed projection; semantic extraction cannot borrow the artifact codec's exactness claim"
+  },
+  "negative_controls": [
+    "changed-artifact-byte-with-unchanged-digest",
+    "missing-final-record-terminator",
+    "wrong-field-count",
+    "invalid-utf8",
+    "source-specific-header-dispatch",
+    "role-entering-content-identity",
+    "reconstruction-uses-original-input-buffer",
+    "profile-denominator-not-derived-from-plan",
+    "structural-reference-carrier-promoted-to-resolved-endpoint",
+    "member-without-declared-container-parent",
+    "parent-edge-omitted-from-artifact-graph"
+  ]
+}

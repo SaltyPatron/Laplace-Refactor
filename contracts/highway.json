@@ -1,6 +1,6 @@
 {
   "schema": "laplace.highway-registry-contract/v1",
-  "version": 1,
+  "version": 2,
   "coordinate": {
     "domain": "laplace-highway-coordinate-v1",
     "fingerprint_domain": "laplace-highway-coordinate-fingerprint-v1",
@@ -35,7 +35,8 @@
     {"id": 13, "name": "trust-class", "introduced": 1, "retired": 0, "aliases": []},
     {"id": 14, "name": "operation", "introduced": 1, "retired": 0, "aliases": []},
     {"id": 15, "name": "firmware", "introduced": 1, "retired": 0, "aliases": []},
-    {"id": 16, "name": "effect", "introduced": 1, "retired": 0, "aliases": []}
+    {"id": 16, "name": "effect", "introduced": 1, "retired": 0, "aliases": []},
+    {"id": 17, "name": "source-profile", "introduced": 2, "retired": 0, "aliases": []}
   ],
   "dispositions": [
     {"id": 1, "name": "present"},

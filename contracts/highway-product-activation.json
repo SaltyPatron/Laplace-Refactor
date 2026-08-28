@@ -9,9 +9,16 @@
     "unicode_activation_receipt_schema": "laplace.unicode-product-activation-receipt/v1",
     "unicode_activation_contract_schema": "laplace.unicode-product-activation-contract/v1",
     "highway_registry_contract_schema": "laplace.highway-registry-contract/v1",
-    "highway_registry_contract_sha256": "da4930ad76eca61fabfbd880f129a2223f5478744c056a9c4d312ea93ddf4bf7",
-    "highway_registry_fingerprint": "14c9b853a6beade10617cf702a7cf080a23d5e059090e5e95d682738c1fb6843",
-    "highway_registry_version": 1
+    "highway_registry_contract_sha256": "c71eecdb1982f3ce5b3a85cef13ad143523f20d14f8b30bfc97a92fd99ba49ed",
+    "highway_registry_fingerprint": "1b5a1f5a2177c18256ec55bdc403da557ab3dc0003fcdee21784c21ea85f56b5",
+    "highway_registry_version": 2,
+    "predecessor_contract_path": "contracts/history/highway-v1.json",
+    "predecessor_contract_sha256": "da4930ad76eca61fabfbd880f129a2223f5478744c056a9c4d312ea93ddf4bf7",
+    "predecessor_registry_fingerprint": "14c9b853a6beade10617cf702a7cf080a23d5e059090e5e95d682738c1fb6843",
+    "predecessor_registry_version": 1,
+    "predecessor_kind_count": 16,
+    "predecessor_alias_count": 0,
+    "predecessor_disposition_count": 8
   },
   "orchestrator": {
     "repository_path": "tools/postgresql/highwayctl.py",
@@ -19,8 +26,11 @@
     "bind_exact_bytes_into_request": true
   },
   "operation": {
-    "initial_activation_only": true,
-    "expected_old_sequence": 0,
+    "initial_activation_only": false,
+    "fresh_expected_old_sequence": 0,
+    "fresh_activation_sequence": 1,
+    "successor_expected_old_sequence": 1,
+    "successor_activation_sequence": 2,
     "preferred_batch_bytes": 1048576,
     "statement_timeout_seconds": 900,
     "restart_timeout_seconds": 240
@@ -36,12 +46,13 @@
     "read_flags": 2
   },
   "expected_result": {
-    "registry_version": 1,
-    "registry_fingerprint": "14c9b853a6beade10617cf702a7cf080a23d5e059090e5e95d682738c1fb6843",
-    "kind_count": 16,
+    "registry_version": 2,
+    "registry_fingerprint": "1b5a1f5a2177c18256ec55bdc403da557ab3dc0003fcdee21784c21ea85f56b5",
+    "kind_count": 17,
     "alias_count": 0,
     "disposition_count": 8,
-    "activation_sequence": 1,
+    "fresh_activation_sequence": 1,
+    "successor_activation_sequence": 2,
     "effect_disposition": 3,
     "status": 0
   },

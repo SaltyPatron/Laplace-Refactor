@@ -1,0 +1,31 @@
+include_guard(GLOBAL)
+
+function(laplace_configure_source_profile_contract contract_path output)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${contract_path}")
+    file(READ "${contract_path}" contract)
+    string(JSON schema GET "${contract}" schema)
+    string(JSON version GET "${contract}" version)
+    string(JSON digest GET "${contract}" identity digest)
+    string(JSON profile_domain GET "${contract}" identity profile_domain)
+    string(JSON input_domain GET "${contract}" identity input_domain)
+    string(JSON output_domain GET "${contract}" identity output_domain)
+    string(JSON receipt_domain GET "${contract}" identity receipt_domain)
+    string(JSON coordinate_kind GET "${contract}" coordinate_kind)
+    string(JSON denominator_count LENGTH "${contract}" denominators)
+    string(JSON disposition_count LENGTH "${contract}" dispositions)
+    string(JSON reconstruction_count LENGTH "${contract}" reconstruction_classes)
+    string(JSON flags_none GET "${contract}" flags none)
+    if(NOT schema STREQUAL "laplace.source-profile-execution-contract/v1" OR
+       NOT version EQUAL 1 OR NOT digest STREQUAL "BLAKE3-256" OR
+       NOT coordinate_kind STREQUAL "source-profile" OR
+       NOT denominator_count EQUAL 17 OR NOT disposition_count EQUAL 11 OR
+       NOT reconstruction_count EQUAL 3 OR NOT flags_none EQUAL 0)
+        message(FATAL_ERROR "Source-profile execution contract changed incompatibly")
+    endif()
+    set(LAPLACE_SOURCE_PROFILE_VERSION "${version}")
+    set(LAPLACE_SOURCE_PROFILE_PROFILE_DOMAIN "${profile_domain}")
+    set(LAPLACE_SOURCE_PROFILE_INPUT_DOMAIN "${input_domain}")
+    set(LAPLACE_SOURCE_PROFILE_OUTPUT_DOMAIN "${output_domain}")
+    set(LAPLACE_SOURCE_PROFILE_RECEIPT_DOMAIN "${receipt_domain}")
+    configure_file("${CMAKE_SOURCE_DIR}/cmake/source_profile.h.in" "${output}" @ONLY)
+endfunction()

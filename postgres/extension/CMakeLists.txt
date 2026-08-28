@@ -22,14 +22,19 @@ laplace_configure_postgresql_bindings(
 set(laplace_postgresql_module_sources
     src/composition_pg.c
     src/evidence_lineage_pg.c
+    src/evidence_testimony_pg.c
     src/highway_registry_pg.c
     src/laplace_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c
     src/perfcache_pg.c
     src/set_pg.c
+    src/source_admission_pg.c
+    src/source_profile_pg.c
     src/unicode_perfcache_pg.c
-    src/unicode_root_pg.c)
+    src/unicode_atoms_pg.c
+    src/unicode_root_pg.c
+    src/world_admission_pg.c)
 
 function(laplace_configure_postgresql_module target)
     target_include_directories(${target} SYSTEM PRIVATE
@@ -125,6 +130,18 @@ if(BUILD_TESTING)
     target_compile_definitions(
         laplace_pg_evidence_root_replay_mutant PRIVATE
         LAPLACE_PG_EVIDENCE_ENTRYPOINT=laplace_pg_evidence_record_lineage_root_replay_mutant)
+    laplace_add_postgresql_mutant(
+        laplace_pg_evidence_testimony_replay_mutant
+        LAPLACE_TEST_EVIDENCE_TESTIMONY_REPLAY_VERIFY_BYPASS)
+    target_compile_definitions(
+        laplace_pg_evidence_testimony_replay_mutant PRIVATE
+        LAPLACE_PG_EVIDENCE_TESTIMONY_ENTRYPOINT=laplace_pg_evidence_record_testimony_replay_mutant)
+    laplace_add_postgresql_mutant(
+        laplace_pg_source_profile_replay_mutant
+        LAPLACE_TEST_SOURCE_PROFILE_REPLAY_VERIFY_BYPASS)
+    target_compile_definitions(
+        laplace_pg_source_profile_replay_mutant PRIVATE
+        LAPLACE_PG_SOURCE_PROFILE_ENTRYPOINT=laplace_pg_source_profile_validate_replay_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_perfcache_epoch_mutant
         LAPLACE_TEST_SKIP_PG_PERFCACHE_EXPECTED_EPOCH)

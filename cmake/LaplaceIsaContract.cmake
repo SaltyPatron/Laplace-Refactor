@@ -27,6 +27,18 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" value_types evidence_lineage_record_vector)
     string(JSON value_evidence_root_record GET
         "${contract_json}" value_types evidence_root_record_vector)
+    string(JSON value_evidence_testimony_record GET
+        "${contract_json}" value_types evidence_testimony_record_vector)
+    string(JSON value_evidence_testimony_receipt GET
+        "${contract_json}" value_types evidence_testimony_receipt_vector)
+    string(JSON value_source_profile_manifest GET
+        "${contract_json}" value_types source_profile_manifest_vector)
+    string(JSON value_source_profile_receipt GET
+        "${contract_json}" value_types source_profile_receipt_vector)
+    string(JSON value_world_admission_record GET
+        "${contract_json}" value_types world_admission_record_vector)
+    string(JSON value_world_admission_receipt GET
+        "${contract_json}" value_types world_admission_receipt_vector)
     string(JSON opcode_identity_codepoint GET
         "${contract_json}" opcodes identity_codepoint_batch)
     string(JSON opcode_trajectory_decode GET
@@ -37,6 +49,12 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" opcodes highway_registry_materialize_batch)
     string(JSON opcode_evidence_record_lineage GET
         "${contract_json}" opcodes evidence_record_lineage_batch)
+    string(JSON opcode_evidence_record_testimony GET
+        "${contract_json}" opcodes evidence_record_testimony_batch)
+    string(JSON opcode_source_profile_validate GET
+        "${contract_json}" opcodes source_profile_validate_batch)
+    string(JSON opcode_world_admission_close GET
+        "${contract_json}" opcodes world_admission_close_batch)
     string(JSON instruction_version_identity_codepoint GET
         "${contract_json}" instruction_versions identity_codepoint_batch)
     string(JSON instruction_version_trajectory_decode GET
@@ -47,6 +65,12 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" instruction_versions highway_registry_materialize_batch)
     string(JSON instruction_version_evidence_record_lineage GET
         "${contract_json}" instruction_versions evidence_record_lineage_batch)
+    string(JSON instruction_version_evidence_record_testimony GET
+        "${contract_json}" instruction_versions evidence_record_testimony_batch)
+    string(JSON instruction_version_source_profile_validate GET
+        "${contract_json}" instruction_versions source_profile_validate_batch)
+    string(JSON instruction_version_world_admission_close GET
+        "${contract_json}" instruction_versions world_admission_close_batch)
     string(JSON introduced_minor_identity GET
         "${contract_json}" introduced_minor identity_codepoint_batch)
     string(JSON introduced_minor_trajectory_decode GET
@@ -57,6 +81,12 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" introduced_minor highway_registry_materialize_batch)
     string(JSON introduced_minor_evidence_record_lineage GET
         "${contract_json}" introduced_minor evidence_record_lineage_batch)
+    string(JSON introduced_minor_evidence_record_testimony GET
+        "${contract_json}" introduced_minor evidence_record_testimony_batch)
+    string(JSON introduced_minor_source_profile_validate GET
+        "${contract_json}" introduced_minor source_profile_validate_batch)
+    string(JSON introduced_minor_world_admission_close GET
+        "${contract_json}" introduced_minor world_admission_close_batch)
     string(JSON receipt_algorithm GET "${contract_json}" receipt digest_algorithm)
     string(JSON receipt_bytes GET "${contract_json}" receipt digest_bytes)
     string(JSON receipt_detail_full GET "${contract_json}" receipt detail_full)
@@ -68,8 +98,8 @@ function(laplace_configure_isa_contract contract_path output_path)
     if(NOT contract_schema STREQUAL "laplace.isa-contract/v1")
         message(FATAL_ERROR "Unsupported ISA contract schema: ${contract_schema}")
     endif()
-    if(NOT major EQUAL 1 OR NOT minor EQUAL 5)
-        message(FATAL_ERROR "Current ISA version must remain 1.5")
+    if(NOT major EQUAL 1 OR NOT minor EQUAL 8)
+        message(FATAL_ERROR "Current ISA version must remain 1.8")
     endif()
     if(NOT context_required OR NOT context_framework_major EQUAL 1
        OR NOT context_program_binding OR NOT context_receipt_binding)
@@ -80,7 +110,13 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT value_highway_key EQUAL 5 OR NOT value_highway_coordinate EQUAL 6
        OR NOT value_highway_registry_receipt EQUAL 7
        OR NOT value_evidence_lineage_record EQUAL 8
-       OR NOT value_evidence_root_record EQUAL 9)
+       OR NOT value_evidence_root_record EQUAL 9
+       OR NOT value_evidence_testimony_record EQUAL 10
+       OR NOT value_evidence_testimony_receipt EQUAL 11
+       OR NOT value_source_profile_manifest EQUAL 12
+       OR NOT value_source_profile_receipt EQUAL 13
+       OR NOT value_world_admission_record EQUAL 14
+       OR NOT value_world_admission_receipt EQUAL 15)
         message(FATAL_ERROR "ISA value type assignments changed")
     endif()
     if(NOT opcode_identity_codepoint EQUAL 131073
@@ -88,16 +124,25 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT opcode_highway_coordinate EQUAL 262145
        OR NOT opcode_highway_registry_materialize EQUAL 262146
        OR NOT opcode_evidence_record_lineage EQUAL 327681
+       OR NOT opcode_evidence_record_testimony EQUAL 327682
+       OR NOT opcode_source_profile_validate EQUAL 393217
+       OR NOT opcode_world_admission_close EQUAL 393218
        OR NOT instruction_version_identity_codepoint EQUAL 1
        OR NOT instruction_version_trajectory_decode EQUAL 1
        OR NOT instruction_version_highway_coordinate EQUAL 1
        OR NOT instruction_version_highway_registry_materialize EQUAL 1
        OR NOT instruction_version_evidence_record_lineage EQUAL 1
+       OR NOT instruction_version_evidence_record_testimony EQUAL 1
+       OR NOT instruction_version_source_profile_validate EQUAL 1
+       OR NOT instruction_version_world_admission_close EQUAL 1
        OR NOT introduced_minor_identity EQUAL 0
        OR NOT introduced_minor_trajectory_decode EQUAL 1
        OR NOT introduced_minor_highway_coordinate EQUAL 3
        OR NOT introduced_minor_highway_registry_materialize EQUAL 4
-       OR NOT introduced_minor_evidence_record_lineage EQUAL 5)
+       OR NOT introduced_minor_evidence_record_lineage EQUAL 5
+       OR NOT introduced_minor_evidence_record_testimony EQUAL 6
+       OR NOT introduced_minor_source_profile_validate EQUAL 7
+       OR NOT introduced_minor_world_admission_close EQUAL 8)
         message(FATAL_ERROR "ISA opcode assignment changed")
     endif()
     if(NOT receipt_algorithm STREQUAL "BLAKE3-256" OR NOT receipt_bytes EQUAL 32)
@@ -179,6 +224,18 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${value_evidence_lineage_record}")
     set(LAPLACE_ISA_VALUE_EVIDENCE_ROOT_RECORD_VECTOR
         "${value_evidence_root_record}")
+    set(LAPLACE_ISA_VALUE_EVIDENCE_TESTIMONY_RECORD_VECTOR
+        "${value_evidence_testimony_record}")
+    set(LAPLACE_ISA_VALUE_EVIDENCE_TESTIMONY_RECEIPT_VECTOR
+        "${value_evidence_testimony_receipt}")
+    set(LAPLACE_ISA_VALUE_SOURCE_PROFILE_MANIFEST_VECTOR
+        "${value_source_profile_manifest}")
+    set(LAPLACE_ISA_VALUE_SOURCE_PROFILE_RECEIPT_VECTOR
+        "${value_source_profile_receipt}")
+    set(LAPLACE_ISA_VALUE_WORLD_ADMISSION_RECORD_VECTOR
+        "${value_world_admission_record}")
+    set(LAPLACE_ISA_VALUE_WORLD_ADMISSION_RECEIPT_VECTOR
+        "${value_world_admission_receipt}")
     set(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH "${opcode_identity_codepoint}")
     set(LAPLACE_ISA_OPCODE_TRAJECTORY_COMPOSITION_DECODE_BATCH
         "${opcode_trajectory_decode}")
@@ -188,6 +245,12 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${opcode_highway_registry_materialize}")
     set(LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_LINEAGE_BATCH
         "${opcode_evidence_record_lineage}")
+    set(LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_TESTIMONY_BATCH
+        "${opcode_evidence_record_testimony}")
+    set(LAPLACE_ISA_OPCODE_SOURCE_PROFILE_VALIDATE_BATCH
+        "${opcode_source_profile_validate}")
+    set(LAPLACE_ISA_OPCODE_WORLD_ADMISSION_CLOSE_BATCH
+        "${opcode_world_admission_close}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_IDENTITY_CODEPOINT_BATCH
         "${instruction_version_identity_codepoint}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_TRAJECTORY_COMPOSITION_DECODE_BATCH
@@ -198,6 +261,12 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${instruction_version_highway_registry_materialize}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_EVIDENCE_RECORD_LINEAGE_BATCH
         "${instruction_version_evidence_record_lineage}")
+    set(LAPLACE_ISA_INSTRUCTION_VERSION_EVIDENCE_RECORD_TESTIMONY_BATCH
+        "${instruction_version_evidence_record_testimony}")
+    set(LAPLACE_ISA_INSTRUCTION_VERSION_SOURCE_PROFILE_VALIDATE_BATCH
+        "${instruction_version_source_profile_validate}")
+    set(LAPLACE_ISA_INSTRUCTION_VERSION_WORLD_ADMISSION_CLOSE_BATCH
+        "${instruction_version_world_admission_close}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_IDENTITY_CODEPOINT_BATCH
         "${introduced_minor_identity}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_TRAJECTORY_COMPOSITION_DECODE_BATCH
@@ -208,6 +277,12 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${introduced_minor_highway_registry_materialize}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_EVIDENCE_RECORD_LINEAGE_BATCH
         "${introduced_minor_evidence_record_lineage}")
+    set(LAPLACE_ISA_INTRODUCED_MINOR_EVIDENCE_RECORD_TESTIMONY_BATCH
+        "${introduced_minor_evidence_record_testimony}")
+    set(LAPLACE_ISA_INTRODUCED_MINOR_SOURCE_PROFILE_VALIDATE_BATCH
+        "${introduced_minor_source_profile_validate}")
+    set(LAPLACE_ISA_INTRODUCED_MINOR_WORLD_ADMISSION_CLOSE_BATCH
+        "${introduced_minor_world_admission_close}")
     set(LAPLACE_ISA_RECEIPT_DIGEST_BYTES "${receipt_bytes}")
     set(LAPLACE_ISA_RECEIPT_DETAIL_FULL "${receipt_detail_full}")
     set(LAPLACE_ISA_KNOWN_PROGRAM_FLAGS "${program_flags}")
