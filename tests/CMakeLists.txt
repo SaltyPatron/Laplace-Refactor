@@ -369,6 +369,110 @@ target_compile_options(laplace_evidence_lineage_tests PRIVATE
 gtest_discover_tests(laplace_evidence_lineage_tests PROPERTIES
     LABELS "implementation;evidence;lineage;dependence;receipt")
 
+add_executable(laplace_reference_topology_tests reference_topology_tests.cpp)
+target_link_libraries(laplace_reference_topology_tests PRIVATE
+    Laplace::ReferenceTopology GTest::gtest_main)
+target_compile_options(laplace_reference_topology_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_reference_topology_tests PROPERTIES
+    LABELS "implementation;reference-topology;highway;receipt")
+
+add_library(laplace_reference_topology_unresolved_mutant STATIC
+    ../engine/src/reference_topology.c)
+target_include_directories(laplace_reference_topology_unresolved_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_reference_topology_unresolved_mutant PRIVATE
+    Laplace::Highway BLAKE3::blake3)
+target_compile_definitions(laplace_reference_topology_unresolved_mutant PRIVATE
+    LAPLACE_TEST_REFERENCE_PROMOTE_UNRESOLVED=1)
+target_compile_options(laplace_reference_topology_unresolved_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_reference_topology_unresolved_mutation_probe
+    reference_topology_tests.cpp)
+target_include_directories(laplace_reference_topology_unresolved_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_reference_topology_unresolved_mutation_probe PRIVATE
+    laplace_reference_topology_unresolved_mutant GTest::gtest_main)
+target_compile_definitions(laplace_reference_topology_unresolved_mutation_probe PRIVATE
+    LAPLACE_TEST_REFERENCE_PROMOTE_UNRESOLVED=1)
+target_compile_options(laplace_reference_topology_unresolved_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME reference-topology.mutation-unresolved-promotion-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_reference_topology_unresolved_mutation_probe>"
+        "-DFILTER=ReferenceTopology.NamespaceRemainsInCoordinateScope"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    reference-topology.mutation-unresolved-promotion-detected PROPERTIES
+    LABELS "implementation;reference-topology;mutation")
+
+add_library(laplace_reference_topology_conflict_mutant STATIC
+    ../engine/src/reference_topology.c)
+target_include_directories(laplace_reference_topology_conflict_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_reference_topology_conflict_mutant PRIVATE
+    Laplace::Highway BLAKE3::blake3)
+target_compile_definitions(laplace_reference_topology_conflict_mutant PRIVATE
+    LAPLACE_TEST_REFERENCE_IGNORE_DECLARATION_CONFLICT=1)
+target_compile_options(laplace_reference_topology_conflict_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_reference_topology_conflict_mutation_probe
+    reference_topology_tests.cpp)
+target_include_directories(laplace_reference_topology_conflict_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_reference_topology_conflict_mutation_probe PRIVATE
+    laplace_reference_topology_conflict_mutant GTest::gtest_main)
+target_compile_definitions(laplace_reference_topology_conflict_mutation_probe PRIVATE
+    LAPLACE_TEST_REFERENCE_IGNORE_DECLARATION_CONFLICT=1)
+target_compile_options(laplace_reference_topology_conflict_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME reference-topology.mutation-declaration-conflict-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_reference_topology_conflict_mutation_probe>"
+        "-DFILTER=ReferenceTopology.RejectsConflictAndDuplicateOccurrence"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    reference-topology.mutation-declaration-conflict-detected PROPERTIES
+    LABELS "implementation;reference-topology;mutation")
+
+add_library(laplace_reference_topology_field_identity_mutant STATIC
+    ../engine/src/reference_topology.c)
+target_include_directories(laplace_reference_topology_field_identity_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_reference_topology_field_identity_mutant PRIVATE
+    Laplace::Highway BLAKE3::blake3)
+target_compile_definitions(laplace_reference_topology_field_identity_mutant PRIVATE
+    LAPLACE_TEST_REFERENCE_USE_FIELD_AS_LOCAL_IDENTIFIER=1)
+target_compile_options(laplace_reference_topology_field_identity_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_reference_topology_field_identity_mutation_probe
+    reference_topology_tests.cpp)
+target_include_directories(laplace_reference_topology_field_identity_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_reference_topology_field_identity_mutation_probe PRIVATE
+    laplace_reference_topology_field_identity_mutant GTest::gtest_main)
+target_compile_definitions(laplace_reference_topology_field_identity_mutation_probe PRIVATE
+    LAPLACE_TEST_REFERENCE_USE_FIELD_AS_LOCAL_IDENTIFIER=1)
+target_compile_options(laplace_reference_topology_field_identity_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME reference-topology.mutation-field-identity-substitution-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_reference_topology_field_identity_mutation_probe>"
+        "-DFILTER=ReferenceTopology.NamespaceRemainsInCoordinateScope"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    reference-topology.mutation-field-identity-substitution-detected PROPERTIES
+    LABELS "implementation;reference-topology;identity;mutation")
+
 add_executable(laplace_evidence_testimony_tests evidence_testimony_tests.cpp)
 target_link_libraries(laplace_evidence_testimony_tests PRIVATE
     Laplace::Engine GTest::gtest_main)
@@ -1840,6 +1944,7 @@ set_tests_properties(isa.preflight-atomicity-contract PROPERTIES
 add_library(laplace_isa_preflight_mutant STATIC
     ../engine/src/evidence_lineage.c
     ../engine/src/evidence_testimony.c
+    ../engine/src/reference_topology.c
     ../engine/src/source_profile.c
     ../engine/src/world_admission.c
     ../engine/src/identity.c
@@ -1884,6 +1989,7 @@ set_tests_properties(isa.generated-registry-dispatch-contract PROPERTIES
 add_library(laplace_isa_registry_mutant STATIC
     ../engine/src/evidence_lineage.c
     ../engine/src/evidence_testimony.c
+    ../engine/src/reference_topology.c
     ../engine/src/source_profile.c
     ../engine/src/world_admission.c
     ../engine/src/identity.c
@@ -1928,6 +2034,7 @@ set_tests_properties(isa.execution-context-binding-contract PROPERTIES
 add_library(laplace_isa_context_mutant STATIC
     ../engine/src/evidence_lineage.c
     ../engine/src/evidence_testimony.c
+    ../engine/src/reference_topology.c
     ../engine/src/source_profile.c
     ../engine/src/world_admission.c
     ../engine/src/identity.c

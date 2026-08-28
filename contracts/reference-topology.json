@@ -1,0 +1,38 @@
+{
+  "schema": "laplace.reference-topology/v1",
+  "version": 1,
+  "digest_algorithm": "BLAKE3-256",
+  "identity_domain": "laplace-reference-topology-record-v1",
+  "occurrence_domain": "laplace-reference-topology-occurrence-v1",
+  "input_domain": "laplace-reference-topology-input-v1",
+  "output_domain": "laplace-reference-topology-output-v1",
+  "receipt_domain": "laplace-reference-topology-receipt-v1",
+  "rule_flags": {
+    "endpoint": 1,
+    "present_declaration": 2,
+    "retired_declaration": 4
+  },
+  "dispositions": {
+    "present": 1,
+    "retired": 2,
+    "unresolved": 6
+  },
+  "resolution_law": {
+    "scope": "kind authority release namespace exact local content identity and version",
+    "present": "an endpoint has an exact matching present declaration in the selected batch",
+    "retired": "an endpoint has an exact matching retired declaration and no present declaration in the selected batch",
+    "unresolved": "an endpoint has no matching declaration in the selected batch",
+    "conflict": "one scoped coordinate cannot be both present and retired in the same selected batch",
+    "content_boundary": "the local identifier is the canonical content identity of the exact field value; the scoped Highway coordinate is not content identity",
+    "ordering": "output preserves exact input occurrence order while receipt identity binds the whole ordered batch"
+  },
+  "negative_controls": [
+    "surface-bytes-reminted-as-local-identifier",
+    "authority-release-or-namespace-omitted",
+    "reference-promoted-without-matching-declaration",
+    "retired-reference-promoted-to-present",
+    "present-and-retired-declaration-conflict-hidden",
+    "duplicate-occurrence-collapsed",
+    "coordinate-collision-fingerprint-ignored"
+  ]
+}

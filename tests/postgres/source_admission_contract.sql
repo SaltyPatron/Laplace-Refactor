@@ -110,6 +110,21 @@ AS $artifacts$
     FROM pg_temp.source_fixture_authority AS authority
 $artifacts$;
 
+CREATE FUNCTION pg_temp.source_reference_rules()
+RETURNS laplace.tabular_reference_rule[]
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $rules$
+    SELECT ARRAY[
+        ROW(
+            1::numeric,
+            0::numeric,
+            decode(repeat('50', 16), 'hex'),
+            7,
+            3
+        )::laplace.tabular_reference_rule
+    ]
+$rules$;
+
 CREATE FUNCTION pg_temp.admit_source(
     artifacts laplace.tabular_source_artifact[] DEFAULT pg_temp.source_artifacts(),
     admission_context laplace.execution_context
@@ -123,6 +138,7 @@ AS $admit$
         decode(repeat('c0', 32), 'hex'),
         decode(repeat('d0', 32), 'hex'),
         artifacts,
+        pg_temp.source_reference_rules(),
         4096)
 $admit$;
 
@@ -133,6 +149,9 @@ SELECT
     (SELECT count(*) FROM laplace.composition_trajectory_vertex) AS vertex_count,
     (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count,
     (SELECT count(*) FROM laplace.source_profile) AS profile_count,
+    (SELECT count(*) FROM laplace.reference_coordinate) AS reference_coordinate_count,
+    (SELECT count(*) FROM laplace.reference_occurrence) AS reference_occurrence_count,
+    (SELECT count(*) FROM laplace.reference_topology_receipt) AS reference_receipt_count,
     (SELECT count(*) FROM laplace.evidence_node) AS evidence_count,
     (SELECT count(*) FROM laplace.evidence_testimony) AS testimony_count,
     (SELECT count(*) FROM laplace.world_admission) AS world_count;
@@ -166,6 +185,11 @@ BEGIN
        OR admitted.request_count <= admitted.claim_count
        OR admitted.occurrence_count <= 0
        OR admitted.logical_occurrence_count <= 0
+       OR admitted.reference_occurrence_count <> 2
+       OR admitted.reference_coordinate_count <> 2
+       OR admitted.reference_present_count <> 2
+       OR admitted.reference_retired_count <> 0
+       OR admitted.reference_unresolved_count <> 0
        OR admitted.durable_stream_record_count <= 0
        OR source_occurrences <> admitted.occurrence_count
        OR profile.reconstruction_class <> 2
@@ -193,6 +217,19 @@ BEGIN
        OR NOT EXISTS (
             SELECT 1 FROM laplace.composition_execution_receipt
             WHERE working_set_receipt = admitted.composition_working_set_receipt_id)
+       OR NOT EXISTS (
+            SELECT 1 FROM laplace.reference_topology_receipt
+            WHERE receipt_id = admitted.reference_topology_receipt_id
+              AND isa_receipt_id = admitted.reference_topology_isa_receipt_id
+              AND occurrence_count = 2
+              AND coordinate_count = 2
+              AND present_count = 2
+              AND retired_count = 0
+              AND unresolved_count = 0)
+       OR (SELECT count(*) FROM laplace.reference_occurrence
+           WHERE source_profile_id = admitted.profile_id
+             AND disposition = 1
+             AND field_entity_id <> value_entity_id) <> 2
        OR NOT EXISTS (
             SELECT 1 FROM laplace.evidence_lineage_receipt
             WHERE receipt_id = admitted.evidence_lineage_receipt_id)
@@ -283,6 +320,9 @@ SELECT
     (SELECT count(*) FROM laplace.composition_trajectory_vertex) AS vertex_count,
     (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count,
     (SELECT count(*) FROM laplace.source_profile) AS profile_count,
+    (SELECT count(*) FROM laplace.reference_coordinate) AS reference_coordinate_count,
+    (SELECT count(*) FROM laplace.reference_occurrence) AS reference_occurrence_count,
+    (SELECT count(*) FROM laplace.reference_topology_receipt) AS reference_receipt_count,
     (SELECT count(*) FROM laplace.evidence_node) AS evidence_count,
     (SELECT count(*) FROM laplace.evidence_testimony) AS testimony_count,
     (SELECT count(*) FROM laplace.world_admission) AS world_count;
@@ -306,6 +346,9 @@ BEGIN
         (SELECT count(*) FROM laplace.composition_trajectory_vertex),
         (SELECT count(*) FROM laplace.observed_occurrence),
         (SELECT count(*) FROM laplace.source_profile),
+        (SELECT count(*) FROM laplace.reference_coordinate),
+        (SELECT count(*) FROM laplace.reference_occurrence),
+        (SELECT count(*) FROM laplace.reference_topology_receipt),
         (SELECT count(*) FROM laplace.evidence_node),
         (SELECT count(*) FROM laplace.evidence_testimony),
         (SELECT count(*) FROM laplace.world_admission)
@@ -313,6 +356,8 @@ BEGIN
 
     IF first.profile_id <> replay.profile_id
        OR first.source_profile_receipt_id <> replay.source_profile_receipt_id
+       OR first.reference_topology_receipt_id <>
+          replay.reference_topology_receipt_id
        OR first.source_fingerprint <> replay.source_fingerprint
        OR first.reconstruction_fingerprint <> replay.reconstruction_fingerprint
        OR first.root_entity_id <> replay.root_entity_id
@@ -328,6 +373,12 @@ BEGIN
        OR expected.vertex_count <> actual.vertex_count
        OR expected.occurrence_count <> actual.occurrence_count
        OR expected.profile_count <> actual.profile_count
+       OR expected.reference_coordinate_count <>
+          actual.reference_coordinate_count
+       OR expected.reference_occurrence_count <>
+          actual.reference_occurrence_count
+       OR expected.reference_receipt_count <>
+          actual.reference_receipt_count
        OR expected.evidence_count <> actual.evidence_count
        OR expected.testimony_count <> actual.testimony_count
        OR expected.world_count + 1 <> actual.world_count THEN
@@ -344,6 +395,9 @@ SELECT
     (SELECT count(*) FROM laplace.composition_trajectory_vertex) AS vertex_count,
     (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count,
     (SELECT count(*) FROM laplace.source_profile) AS profile_count,
+    (SELECT count(*) FROM laplace.reference_coordinate) AS reference_coordinate_count,
+    (SELECT count(*) FROM laplace.reference_occurrence) AS reference_occurrence_count,
+    (SELECT count(*) FROM laplace.reference_topology_receipt) AS reference_receipt_count,
     (SELECT count(*) FROM laplace.evidence_node) AS evidence_count,
     (SELECT count(*) FROM laplace.evidence_testimony) AS testimony_count,
     (SELECT count(*) FROM laplace.world_admission) AS world_count;
@@ -367,6 +421,9 @@ BEGIN
         (SELECT count(*) FROM laplace.composition_trajectory_vertex),
         (SELECT count(*) FROM laplace.observed_occurrence),
         (SELECT count(*) FROM laplace.source_profile),
+        (SELECT count(*) FROM laplace.reference_coordinate),
+        (SELECT count(*) FROM laplace.reference_occurrence),
+        (SELECT count(*) FROM laplace.reference_topology_receipt),
         (SELECT count(*) FROM laplace.evidence_node),
         (SELECT count(*) FROM laplace.evidence_testimony),
         (SELECT count(*) FROM laplace.world_admission)
@@ -400,6 +457,9 @@ BEGIN
         (SELECT count(*) FROM laplace.composition_trajectory_vertex),
         (SELECT count(*) FROM laplace.observed_occurrence),
         (SELECT count(*) FROM laplace.source_profile),
+        (SELECT count(*) FROM laplace.reference_coordinate),
+        (SELECT count(*) FROM laplace.reference_occurrence),
+        (SELECT count(*) FROM laplace.reference_topology_receipt),
         (SELECT count(*) FROM laplace.evidence_node),
         (SELECT count(*) FROM laplace.evidence_testimony),
         (SELECT count(*) FROM laplace.world_admission)

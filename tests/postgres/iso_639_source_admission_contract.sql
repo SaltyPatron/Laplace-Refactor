@@ -90,6 +90,42 @@ INSERT INTO iso_expected VALUES (
     :'iso_expected_requests'::numeric
 );
 
+CREATE TEMP TABLE iso_reference_rule_authority (
+    ordinal integer PRIMARY KEY,
+    artifact_index numeric NOT NULL,
+    column_index numeric NOT NULL,
+    namespace bytea NOT NULL CHECK (octet_length(namespace) = 16),
+    kind integer NOT NULL,
+    flags integer NOT NULL
+);
+
+INSERT INTO iso_reference_rule_authority VALUES
+    (0, :'iso_reference_rule_0_artifact'::numeric, :'iso_reference_rule_0_column'::numeric, decode(:'iso_reference_rule_0_namespace', 'hex'), :'iso_reference_rule_0_kind'::integer, :'iso_reference_rule_0_flags'::integer),
+    (1, :'iso_reference_rule_1_artifact'::numeric, :'iso_reference_rule_1_column'::numeric, decode(:'iso_reference_rule_1_namespace', 'hex'), :'iso_reference_rule_1_kind'::integer, :'iso_reference_rule_1_flags'::integer),
+    (2, :'iso_reference_rule_2_artifact'::numeric, :'iso_reference_rule_2_column'::numeric, decode(:'iso_reference_rule_2_namespace', 'hex'), :'iso_reference_rule_2_kind'::integer, :'iso_reference_rule_2_flags'::integer),
+    (3, :'iso_reference_rule_3_artifact'::numeric, :'iso_reference_rule_3_column'::numeric, decode(:'iso_reference_rule_3_namespace', 'hex'), :'iso_reference_rule_3_kind'::integer, :'iso_reference_rule_3_flags'::integer),
+    (4, :'iso_reference_rule_4_artifact'::numeric, :'iso_reference_rule_4_column'::numeric, decode(:'iso_reference_rule_4_namespace', 'hex'), :'iso_reference_rule_4_kind'::integer, :'iso_reference_rule_4_flags'::integer),
+    (5, :'iso_reference_rule_5_artifact'::numeric, :'iso_reference_rule_5_column'::numeric, decode(:'iso_reference_rule_5_namespace', 'hex'), :'iso_reference_rule_5_kind'::integer, :'iso_reference_rule_5_flags'::integer),
+    (6, :'iso_reference_rule_6_artifact'::numeric, :'iso_reference_rule_6_column'::numeric, decode(:'iso_reference_rule_6_namespace', 'hex'), :'iso_reference_rule_6_kind'::integer, :'iso_reference_rule_6_flags'::integer),
+    (7, :'iso_reference_rule_7_artifact'::numeric, :'iso_reference_rule_7_column'::numeric, decode(:'iso_reference_rule_7_namespace', 'hex'), :'iso_reference_rule_7_kind'::integer, :'iso_reference_rule_7_flags'::integer),
+    (8, :'iso_reference_rule_8_artifact'::numeric, :'iso_reference_rule_8_column'::numeric, decode(:'iso_reference_rule_8_namespace', 'hex'), :'iso_reference_rule_8_kind'::integer, :'iso_reference_rule_8_flags'::integer);
+
+CREATE FUNCTION pg_temp.iso_reference_rules()
+RETURNS laplace.tabular_reference_rule[]
+LANGUAGE SQL STABLE PARALLEL UNSAFE
+AS $rules$
+    SELECT array_agg(
+        ROW(
+            artifact_index,
+            column_index,
+            namespace,
+            kind,
+            flags
+        )::laplace.tabular_reference_rule
+        ORDER BY ordinal)
+    FROM iso_reference_rule_authority
+$rules$;
+
 CREATE TEMP TABLE iso_artifact_authority (
     ordinal integer PRIMARY KEY,
     artifact_id bytea NOT NULL,
@@ -225,6 +261,7 @@ AS $admit$
          LIMIT 1),
         (SELECT occurrence_context_fingerprint FROM iso_profile_authority),
         artifacts,
+        pg_temp.iso_reference_rules(),
         (SELECT preferred_batch_bytes FROM iso_profile_authority))
 $admit$;
 
@@ -263,6 +300,9 @@ SELECT
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
     (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count,
     (SELECT count(*) FROM laplace.source_profile) AS profile_count,
+    (SELECT count(*) FROM laplace.reference_coordinate) AS reference_coordinate_count,
+    (SELECT count(*) FROM laplace.reference_occurrence) AS reference_occurrence_count,
+    (SELECT count(*) FROM laplace.reference_topology_receipt) AS reference_receipt_count,
     (SELECT count(*) FROM laplace.evidence_node) AS evidence_count,
     (SELECT count(*) FROM laplace.evidence_testimony) AS testimony_count,
     (SELECT count(*) FROM laplace.world_admission) AS world_count;
@@ -289,6 +329,11 @@ BEGIN
        OR admitted.request_count <> expected.request_count
        OR admitted.evidence_node_count <> expected.claim_count
        OR admitted.testimony_count <> expected.claim_count
+       OR admitted.reference_occurrence_count <> expected.reference_count
+       OR admitted.reference_coordinate_count <> 9339
+       OR admitted.reference_present_count <> 18404
+       OR admitted.reference_retired_count <> 401
+       OR admitted.reference_unresolved_count <> 0
        OR profile.byte_count <> expected.byte_count
        OR profile.container_count <> 1
        OR profile.member_count <> 4
@@ -317,6 +362,19 @@ BEGIN
               AND negative_count = expected.reference_count
               AND closure_subject_count =
                   admitted.request_count + expected.reference_count)
+       OR NOT EXISTS (
+            SELECT 1 FROM laplace.reference_topology_receipt
+            WHERE receipt_id = admitted.reference_topology_receipt_id
+              AND isa_receipt_id = admitted.reference_topology_isa_receipt_id
+              AND occurrence_count = expected.reference_count
+              AND coordinate_count = 9339
+              AND present_count = 18404
+              AND retired_count = 401
+              AND unresolved_count = 0)
+       OR (SELECT count(*) FROM laplace.reference_occurrence
+           WHERE source_profile_id = admitted.profile_id
+             AND field_entity_id <> value_entity_id) <>
+          expected.reference_count
        OR NOT EXISTS (
             SELECT 1 FROM laplace.evidence_lineage_receipt
             WHERE receipt_id = admitted.evidence_lineage_receipt_id)
@@ -356,6 +414,9 @@ SELECT
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
     (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count,
     (SELECT count(*) FROM laplace.source_profile) AS profile_count,
+    (SELECT count(*) FROM laplace.reference_coordinate) AS reference_coordinate_count,
+    (SELECT count(*) FROM laplace.reference_occurrence) AS reference_occurrence_count,
+    (SELECT count(*) FROM laplace.reference_topology_receipt) AS reference_receipt_count,
     (SELECT count(*) FROM laplace.evidence_node) AS evidence_count,
     (SELECT count(*) FROM laplace.evidence_testimony) AS testimony_count;
 
@@ -377,6 +438,9 @@ BEGIN
         (SELECT count(*) FROM laplace.physicality),
         (SELECT count(*) FROM laplace.observed_occurrence),
         (SELECT count(*) FROM laplace.source_profile),
+        (SELECT count(*) FROM laplace.reference_coordinate),
+        (SELECT count(*) FROM laplace.reference_occurrence),
+        (SELECT count(*) FROM laplace.reference_topology_receipt),
         (SELECT count(*) FROM laplace.evidence_node),
         (SELECT count(*) FROM laplace.evidence_testimony)
     INTO STRICT actual;
@@ -386,6 +450,8 @@ BEGIN
        OR first.root_entity_id <> replay.root_entity_id
        OR first.root_physicality_id <> replay.root_physicality_id
        OR first.source_profile_receipt_id <> replay.source_profile_receipt_id
+       OR first.reference_topology_receipt_id <>
+          replay.reference_topology_receipt_id
        OR first.evidence_lineage_receipt_id <> replay.evidence_lineage_receipt_id
        OR first.evidence_testimony_receipt_id <> replay.evidence_testimony_receipt_id
        OR expected IS DISTINCT FROM actual THEN
@@ -417,6 +483,9 @@ BEGIN
         (SELECT count(*) FROM laplace.physicality),
         (SELECT count(*) FROM laplace.observed_occurrence),
         (SELECT count(*) FROM laplace.source_profile),
+        (SELECT count(*) FROM laplace.reference_coordinate),
+        (SELECT count(*) FROM laplace.reference_occurrence),
+        (SELECT count(*) FROM laplace.reference_topology_receipt),
         (SELECT count(*) FROM laplace.evidence_node),
         (SELECT count(*) FROM laplace.evidence_testimony)
     INTO STRICT after_counts;

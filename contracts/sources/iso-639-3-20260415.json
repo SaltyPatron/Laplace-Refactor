@@ -77,6 +77,10 @@
       "line_terminator": "lf",
       "columns": ["M_Id", "I_Id", "I_Status"],
       "reference_columns": [0, 1],
+      "reference_bindings": [
+        {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint"]},
+        {"column": 1, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint"]}
+      ],
       "record_count": 460,
       "field_count": 1380,
       "claim_count": 459,
@@ -97,6 +101,12 @@
       "line_terminator": "lf",
       "columns": ["Id", "Part2b", "Part2t", "Part1", "Scope", "Language_Type", "Ref_Name", "Comment"],
       "reference_columns": [0, 1, 2, 3],
+      "reference_bindings": [
+        {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint", "present-declaration"]},
+        {"column": 1, "kind": 7, "namespace": "ISO 639-2/B", "roles": ["endpoint", "present-declaration"]},
+        {"column": 2, "kind": 7, "namespace": "ISO 639-2/T", "roles": ["endpoint", "present-declaration"]},
+        {"column": 3, "kind": 7, "namespace": "ISO 639-1", "roles": ["endpoint", "present-declaration"]}
+      ],
       "record_count": 7930,
       "field_count": 63440,
       "claim_count": 7929,
@@ -117,6 +127,9 @@
       "line_terminator": "lf",
       "columns": ["Id", "Print_Name", "Inverted_Name"],
       "reference_columns": [0],
+      "reference_bindings": [
+        {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint"]}
+      ],
       "record_count": 8337,
       "field_count": 25011,
       "claim_count": 8336,
@@ -137,6 +150,10 @@
       "line_terminator": "lf",
       "columns": ["Id", "Ref_Name", "Ret_Reason", "Change_To", "Ret_Remedy", "Effective"],
       "reference_columns": [0, 3],
+      "reference_bindings": [
+        {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint", "retired-declaration"]},
+        {"column": 3, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint"]}
+      ],
       "record_count": 387,
       "field_count": 2322,
       "claim_count": 386,
@@ -176,6 +193,17 @@
       "count": 18805,
       "until_operation": "typed ISO 639 authority-release-namespace Highway topology"
     },
+    "resolved_disposition": {
+      "operation": "laplace.reference-topology.resolve-batch/v1",
+      "occurrences": 18805,
+      "coordinates": 9339,
+      "present": 18404,
+      "retired": 401,
+      "unresolved": 0,
+      "scope": "each coordinate retains exact reference kind ISO authority 2026-04-15 release declared namespace exact value-content identity and version",
+      "identity_separation": "row field occurrence exact value content coordinate and topology occurrence remain separately addressable",
+      "nonclaim": "a present endpoint does not by itself assert a cross-namespace mapping"
+    },
     "nonclaim": "row parsing and exact content persistence do not by themselves activate a language coordinate or prove a cross-namespace mapping",
     "empty_endpoint": "explicitly absent field, never an empty identifier",
     "unknown_endpoint": "unresolved with receipt",
@@ -213,8 +241,8 @@
     "negative": ["changed byte with pinned digest", "missing final LF", "wrong field count", "invalid UTF-8", "member without container parent", "parent edge omitted from artifact graph", "raw ZIP promoted to exact selected content", "source-specific semantic callback"]
   },
   "completion": {
-    "predicate": "all five artifacts, four parent edges, 560435 bytes, 17114 records, 92153 fields, 17110 claims, all 18805 reference carriers explicitly unresolved pending typed Highway topology, exact selected-table readback, semantic profile readback, replay, rollback, and PostgreSQL parity close",
-    "does_not_prove": ["all ISO 639 data admitted", "ISO 639 language coordinates or cross-namespace mappings activated", "configured foundational seed", "general cognition", "product release"]
+    "predicate": "all five artifacts, four parent edges, 560435 bytes, 17114 records, 92153 fields, 17110 claims, and all 18805 typed reference occurrences close as 9339 exact coordinates with 18404 present 401 retired and zero unresolved dispositions; exact selected-table readback, semantic profile readback, deterministic topology replay, rollback, and PostgreSQL parity close",
+    "does_not_prove": ["all ISO 639 data admitted", "cross-namespace ISO 639 mappings adjudicated or product-activated", "configured foundational seed", "general cognition", "product release"]
   },
   "execution": {
     "geometry_epoch_scope": "Unicode 17 product root active at execution",

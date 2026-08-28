@@ -20,6 +20,11 @@ OUTCOME_TYPES = {"mapping": 5}
 MODES = {"raw_octets": 1, "utf8_delimited": 2}
 TERMINATORS = {None: 0, "lf": 1, "crlf": 2}
 RECONSTRUCTION = {"exact": 1, "semantic": 2, "none": 3}
+REFERENCE_ROLE_FLAGS = {
+    "endpoint": 1,
+    "present-declaration": 2,
+    "retired-declaration": 4,
+}
 
 
 def canonical(value: Any) -> bytes:
@@ -112,6 +117,30 @@ def validate(document: dict[str, Any]) -> None:
             require(all(0 <= value < len(artifact["columns"])
                         for value in artifact["reference_columns"]),
                     f"reference column outside row: {name}")
+            bindings = artifact.get("reference_bindings", [])
+            require(
+                [binding["column"] for binding in bindings]
+                == artifact["reference_columns"],
+                f"reference bindings do not exactly cover marked columns: {name}",
+            )
+            for binding in bindings:
+                require(binding["kind"] == 7,
+                        f"ISO references must use external-reference kind: {name}")
+                require(isinstance(binding["namespace"], str)
+                        and binding["namespace"],
+                        f"reference namespace missing: {name}")
+                require(binding["roles"] and
+                        all(role in REFERENCE_ROLE_FLAGS
+                            for role in binding["roles"]),
+                        f"unknown reference role: {name}")
+                flags = sum(REFERENCE_ROLE_FLAGS[role]
+                            for role in binding["roles"])
+                require(flags & REFERENCE_ROLE_FLAGS["endpoint"],
+                        f"reference binding is not an endpoint: {name}")
+                require(not (
+                    flags & REFERENCE_ROLE_FLAGS["present-declaration"] and
+                    flags & REFERENCE_ROLE_FLAGS["retired-declaration"]),
+                    f"reference cannot be present and retired: {name}")
             require(artifact["outcome_type"] in OUTCOME_TYPES,
                     f"unknown outcome type: {name}")
         names.append(name)
@@ -206,6 +235,13 @@ def generate(document: dict[str, Any], source: Path) -> str:
         "  std::uint32_t outcome_type;",
         "  std::uint32_t flags;",
         "};",
+        "struct ReferenceRule {",
+        "  std::array<std::uint8_t, 16> namespace_id;",
+        "  std::uint64_t artifact_index;",
+        "  std::uint64_t column_index;",
+        "  std::uint32_t kind;",
+        "  std::uint32_t flags;",
+        "};",
     ]
     for field in ("authority", "release", "namespace", "local_identifier"):
         value = scope_id(field, coordinate[field])
@@ -289,6 +325,22 @@ def generate(document: dict[str, Any], source: Path) -> str:
         "};",
         "inline constexpr std::size_t artifact_count =",
         "    sizeof(artifacts) / sizeof(artifacts[0]);",
+        "inline constexpr ReferenceRule reference_rules[] = {",
+    ])
+    for artifact_index, artifact in enumerate(artifacts):
+        for binding in artifact.get("reference_bindings", []):
+            namespace_id = scope_id("namespace", binding["namespace"])
+            flags = sum(REFERENCE_ROLE_FLAGS[role]
+                        for role in binding["roles"])
+            lines.append(
+                "  {{{" + byte_list(namespace_id) + "}}, "
+                + f"{artifact_index}u, {binding['column']}u, "
+                + str(binding["kind"]) + "u, " + str(flags) + "u},"
+            )
+    lines.extend([
+        "};",
+        "inline constexpr std::size_t reference_rule_count =",
+        "    sizeof(reference_rules) / sizeof(reference_rules[0]);",
         "}  // namespace laplace::generated::iso_639_3_20260415",
         "#endif",
         "",

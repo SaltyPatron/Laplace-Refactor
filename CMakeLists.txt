@@ -108,6 +108,10 @@ include(cmake/LaplaceEvidenceTestimonyContract.cmake)
 laplace_configure_evidence_testimony_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/evidence-testimony.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/evidence_testimony.h")
+include(cmake/LaplaceReferenceTopologyContract.cmake)
+laplace_configure_reference_topology_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-topology.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/reference_topology.h")
 include(cmake/LaplaceSourceProfileContract.cmake)
 laplace_configure_source_profile_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/source-profile-execution.json"

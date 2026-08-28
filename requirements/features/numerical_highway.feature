@@ -17,6 +17,15 @@ Feature: A numerical highway is not one global integer namespace
     And only an explicit witnessed mapping may relate them
     But neither coordinate becomes content identity
 
+  @LP-TEST-ADMISSION-SOURCE-TOPOLOGY @LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION
+  Scenario: Source reference topology preserves content and occurrence distinctions
+    Given typed reference occurrences retain their source row field and exact value-content identities
+    When one authority-release-namespace topology batch resolves their Highway coordinates and lifecycle dispositions
+    Then equal scoped values converge on one coordinate while their source occurrences remain independently addressable
+    And present retired unresolved and absent remain distinct exact outcomes
+    And a field node cannot replace the referenced value identity
+    But coordinate convergence does not assert a cross-namespace mapping
+
 @LP-TEST-HIGHWAY-CROSS-LANGUAGE @LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION
 Feature: Highway routes rise to shared structure and lower to witnessed realization
 

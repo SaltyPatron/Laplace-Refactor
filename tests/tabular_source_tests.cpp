@@ -71,6 +71,7 @@ struct Fixture {
     std::array<std::uint8_t, 5> archive{{0u, 1u, 255u, 'P', 'K'}};
     std::string text{"Id\tName\neng\tEnglish\njpn\t日本語\n"};
     std::array<laplace_tabular_artifact, 2> artifacts{};
+    std::array<laplace_tabular_reference_rule, 1> reference_rules{};
     laplace_source_profile_manifest declaration{Declaration()};
     laplace_tabular_source_input input{};
 
@@ -107,6 +108,13 @@ struct Fixture {
         artifacts[1].flags = LAPLACE_TABULAR_ARTIFACT_MEMBER |
             LAPLACE_TABULAR_ARTIFACT_EXACT_DISTRIBUTION;
 
+        Fill(reference_rules[0].name_space, 0x55u);
+        reference_rules[0].artifact_index = 1u;
+        reference_rules[0].column_index = 0u;
+        reference_rules[0].kind = LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE;
+        reference_rules[0].flags = LAPLACE_REFERENCE_RULE_ENDPOINT |
+            LAPLACE_REFERENCE_RULE_PRESENT_DECLARATION;
+
         EXPECT_EQ(laplace_tabular_artifact_graph_identify(
                       artifacts.data(), artifacts.size(),
                       &declaration.artifact_graph_fingerprint),
@@ -116,6 +124,8 @@ struct Fixture {
         Fill(input.occurrence_context_fingerprint, 0xd0u);
         input.artifacts = artifacts.data();
         input.artifact_count = artifacts.size();
+        input.reference_rules = reference_rules.data();
+        input.reference_rule_count = reference_rules.size();
         input.preferred_batch_bytes = 4096u;
     }
 };
@@ -169,6 +179,13 @@ TEST(TabularSource, CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan) {
     EXPECT_EQ(view.profile.record_count, 3u);
     EXPECT_EQ(view.profile.field_count, 6u);
     EXPECT_EQ(view.profile.reference_count, 2u);
+    ASSERT_EQ(view.reference_occurrence_count, 2u);
+    EXPECT_EQ(view.reference_occurrences[0].artifact_ordinal, 2u);
+    EXPECT_EQ(view.reference_occurrences[0].row_ordinal, 1u);
+    EXPECT_EQ(view.reference_occurrences[0].column_ordinal, 1u);
+    EXPECT_EQ(view.reference_occurrences[1].row_ordinal, 2u);
+    EXPECT_EQ(view.reference_occurrences[0].kind,
+              LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE);
     EXPECT_EQ(view.profile.claim_count, 2u);
     EXPECT_EQ(view.profile.mapping_count, 2u);
     EXPECT_EQ(view.profile.occurrence_count, 0u);

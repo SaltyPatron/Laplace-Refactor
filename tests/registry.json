@@ -1611,6 +1611,46 @@
       "controls": "HighwayCoordinate.ExactScopeAndVersionDetermineDistinctCoordinates"
     },
     {
+      "ctest_name": "ReferenceTopology.ResolvesScopedDeclarationsAndPreservesOccurrences",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["one strict batch resolves exact authority release namespace local-identifier and version coordinates", "equal scoped values converge while source row field value and occurrence identities remain distinct", "present retired and unresolved dispositions close exactly"],
+      "defect_controls": ["reference-topology.mutation-unresolved-promotion-detected", "reference-topology.mutation-field-identity-substitution-detected"]
+    },
+    {
+      "ctest_name": "ReferenceTopology.NamespaceRemainsInCoordinateScope",
+      "evidence_targets": ["LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION", "LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION", "LP-TEST-ADMISSION-SOURCE-TOPOLOGY"],
+      "covered_dimensions": ["equal exact value content in different namespaces produces distinct coordinates", "a declaration cannot leak across namespace scope"]
+    },
+    {
+      "ctest_name": "ReferenceTopology.RejectsConflictAndDuplicateOccurrence",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["present and retired declarations for one exact coordinate conflict", "duplicate source occurrences reject the entire batch before publication"],
+      "defect_controls": ["reference-topology.mutation-declaration-conflict-detected"]
+    },
+    {
+      "ctest_name": "reference-topology.mutation-unresolved-promotion-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION"],
+      "covered_dimensions": ["an endpoint without an exact in-scope lifecycle declaration remains unresolved"],
+      "controls": "ReferenceTopology.NamespaceRemainsInCoordinateScope"
+    },
+    {
+      "ctest_name": "reference-topology.mutation-declaration-conflict-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["conflicting present and retired declarations cannot be folded into a plausible topology"],
+      "controls": "ReferenceTopology.RejectsConflictAndDuplicateOccurrence"
+    },
+    {
+      "ctest_name": "reference-topology.mutation-field-identity-substitution-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["the exact value-content identity rather than its containing field node owns the local identifier"],
+      "controls": "ReferenceTopology.NamespaceRemainsInCoordinateScope"
+    },
+    {
+      "ctest_name": "IsaExecution.ReferenceTopologyMatchesCanonicalNativeOperationAndReceipt",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["one generated ISA operation owns reference-topology resolution", "strided candidate and record values preserve canonical native outputs", "ISA and semantic receipts remain independently exact"]
+    },
+    {
       "ctest_name": "IsaExecution.HighwayBatchMatchesCanonicalNativeOperationAndReceipt",
       "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT"],
       "covered_dimensions": ["one generated ISA opcode owns highway batch execution", "ISA output and receipt match the canonical native calculation"]
@@ -1792,14 +1832,14 @@
       "ctest_name": "dotnet.generated-isa-contract",
       "profiles": ["dotnet", "custom-stack"],
       "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE", "LP-TEST-HIGHWAY-REGISTRY-PARITY"],
-      "covered_dimensions": ["byte-reproducible contract generation", "typed value operation and version descriptors", "complete generated identity trajectory highway-coordinate highway-registry evidence-lineage evidence-testimony source-profile and world-admission operation declarations"],
+      "covered_dimensions": ["byte-reproducible contract generation", "typed value operation and version descriptors", "complete generated identity trajectory highway-coordinate highway-registry reference-topology evidence-lineage evidence-testimony source-profile and world-admission operation declarations"],
       "defect_controls": ["removed generated operation declaration is detected"]
     },
     {
       "ctest_name": "dotnet.native-isa-parity",
       "profiles": ["dotnet", "custom-stack"],
       "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-BULK-PARITY", "LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION"],
-      "covered_dimensions": ["exact native and managed ABI layout", "real P Invoke vector transport", "identity trajectory highway-coordinate highway-registry evidence-testimony source-profile and world-admission direct-native output parity", "all receipt and error fields", "generated highway registry constants", "one-element scalar lowering", "version type and opcode preflight rejection", "call-scoped pin lifetime", "disposed transport rejection"]
+      "covered_dimensions": ["exact native and managed ABI layout", "real P Invoke vector transport", "identity trajectory highway-coordinate highway-registry reference-topology evidence-testimony source-profile and world-admission direct-native output parity", "all receipt and error fields", "generated highway registry constants", "one-element scalar lowering", "version type and opcode preflight rejection", "call-scoped pin lifetime", "disposed transport rejection"]
     },
     {
       "ctest_name": "postgres.world-admission-whole-route-contract",
@@ -1952,13 +1992,13 @@
       "ctest_name": "postgres.source-admission-whole-route-contract",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE"],
-      "covered_dimensions": ["one public PostgreSQL source-admission operation composes source AST state deposits canonical content persists profile lineage testimony and closes world admission in one transaction", "exact Unicode content remains queryable and reconstructable through the shared substrate", "replay is idempotent and rejected source-byte mutation rolls back without partial durable state"]
+      "covered_dimensions": ["one public PostgreSQL source-admission operation composes source AST state deposits canonical content resolves typed reference topology persists profile lineage testimony and closes world admission in one transaction", "row field exact value coordinate and occurrence identities remain separately durable", "exact Unicode content remains queryable and reconstructable through the shared substrate", "topology and world receipts replay idempotently while rejected source-byte mutation rolls back without partial durable state"]
     },
     {
       "ctest_name": "postgres.iso-639-source-admission-whole-route-contract",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-BOUNDED-CROSSINGS"],
-      "covered_dimensions": ["the real locked ISO 639-3 release traverses generated profile authority native composition canonical persistence evidence testimony and world admission through one public PostgreSQL operation", "17110 claims and 128125 recursive composition requests persist transactionally", "all 18805 reference carriers close explicitly unresolved rather than being promoted by parsing alone", "English Japanese eng and jpn exact content are independently queryable while the unselected ZIP wrapper is not falsely deposited as exact content", "deterministic replay preserves semantic identity and cardinality", "digest and parent-topology defects roll back with no published effect"]
+      "covered_dimensions": ["the real locked ISO 639-3 release traverses generated profile authority native composition canonical persistence typed reference topology evidence testimony and world admission through one public PostgreSQL operation", "17110 claims and 128125 recursive composition requests persist transactionally", "all 18805 typed reference occurrences close as 9339 scoped coordinates with 18404 present 401 retired and zero unresolved dispositions", "row field exact value coordinate and occurrence identities remain separately durable without asserting cross-namespace mappings", "English Japanese eng and jpn exact content are independently queryable while the unselected ZIP wrapper is not falsely deposited as exact content", "deterministic replay preserves semantic and topology identity and cardinality", "digest and parent-topology defects roll back with no published effect"]
     }
   ]
 }

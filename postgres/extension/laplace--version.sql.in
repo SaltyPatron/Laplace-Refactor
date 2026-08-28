@@ -217,6 +217,64 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.source_profile_result AS (
     no_reconstruction_count numeric(20, 0)
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_candidate AS (
+    source_profile_id bytea,
+    kind integer,
+    authority bytea,
+    release bytea,
+    namespace bytea,
+    local_identifier bytea,
+    version numeric(20, 0),
+    row_entity_id bytea,
+    field_entity_id bytea,
+    value_entity_id bytea,
+    source_ordinal numeric(20, 0),
+    artifact_ordinal numeric(20, 0),
+    row_ordinal numeric(20, 0),
+    column_ordinal numeric(20, 0),
+    rule_flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_topology_record AS (
+    reference_id bytea,
+    occurrence_id bytea,
+    source_profile_id bytea,
+    kind integer,
+    authority bytea,
+    release bytea,
+    namespace bytea,
+    local_identifier bytea,
+    version numeric(20, 0),
+    coordinate bytea,
+    collision_fingerprint bytea,
+    row_entity_id bytea,
+    field_entity_id bytea,
+    value_entity_id bytea,
+    source_ordinal numeric(20, 0),
+    artifact_ordinal numeric(20, 0),
+    row_ordinal numeric(20, 0),
+    column_ordinal numeric(20, 0),
+    rule_flags integer,
+    disposition integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_topology_result AS (
+    reference_ids bytea[],
+    coordinates bytea[],
+    collision_fingerprints bytea[],
+    dispositions integer[],
+    reference_topology_receipt_id bytea,
+    source_profile_id bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    isa_receipt_id bytea,
+    occurrence_count numeric(20, 0),
+    coordinate_count numeric(20, 0),
+    present_count numeric(20, 0),
+    retired_count numeric(20, 0),
+    unresolved_count numeric(20, 0)
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_artifact AS (
     artifact_id bytea,
     parent_artifact_id bytea,
@@ -234,10 +292,20 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_artifact AS (
     flags integer
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_reference_rule AS (
+    artifact_index numeric(20, 0),
+    column_index numeric(20, 0),
+    namespace bytea,
+    kind integer,
+    flags integer
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_admission_result AS (
     profile_id bytea,
     source_profile_receipt_id bytea,
     source_profile_isa_receipt_id bytea,
+    reference_topology_receipt_id bytea,
+    reference_topology_isa_receipt_id bytea,
     source_fingerprint bytea,
     reconstruction_fingerprint bytea,
     unicode_root_receipt_id bytea,
@@ -259,6 +327,11 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_admission_result AS (
     request_count numeric(20, 0),
     occurrence_count numeric(20, 0),
     logical_occurrence_count numeric(20, 0),
+    reference_occurrence_count numeric(20, 0),
+    reference_coordinate_count numeric(20, 0),
+    reference_present_count numeric(20, 0),
+    reference_retired_count numeric(20, 0),
+    reference_unresolved_count numeric(20, 0),
     evidence_node_count numeric(20, 0),
     testimony_count numeric(20, 0),
     durable_stream_record_count numeric(20, 0),
@@ -703,6 +776,75 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt_member (
         REFERENCES @LAPLACE_PG_SCHEMA@.source_profile(profile_id),
     member_ordinal numeric(20, 0) NOT NULL CHECK (member_ordinal > 0),
     PRIMARY KEY (receipt_id, profile_id),
+    UNIQUE (receipt_id, member_ordinal)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.reference_coordinate (
+    kind integer NOT NULL CHECK (kind = 7),
+    authority @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    release @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    namespace @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    local_identifier @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL,
+    version numeric(20, 0) NOT NULL CHECK (version > 0),
+    coordinate @LAPLACE_PG_SCHEMA@.content_id_128 PRIMARY KEY,
+    collision_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    UNIQUE (kind, authority, release, namespace, local_identifier, version)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.reference_occurrence (
+    reference_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    occurrence_id @LAPLACE_PG_SCHEMA@.record_id_256 UNIQUE NOT NULL,
+    source_profile_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.source_profile(profile_id),
+    coordinate @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.reference_coordinate(coordinate),
+    row_entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    field_entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    value_entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    source_ordinal numeric(20, 0) NOT NULL CHECK (source_ordinal > 0),
+    artifact_ordinal numeric(20, 0) NOT NULL CHECK (artifact_ordinal > 0),
+    row_ordinal numeric(20, 0) NOT NULL CHECK (row_ordinal > 0),
+    column_ordinal numeric(20, 0) NOT NULL CHECK (column_ordinal > 0),
+    rule_flags integer NOT NULL CHECK (
+        rule_flags > 0 AND (rule_flags & ~7) = 0),
+    disposition integer NOT NULL CHECK (disposition IN (1, 2, 6)),
+    UNIQUE (
+        source_profile_id, artifact_ordinal, row_ordinal, column_ordinal)
+);
+
+CREATE INDEX reference_occurrence_coordinate_idx
+    ON @LAPLACE_PG_SCHEMA@.reference_occurrence
+    (coordinate, disposition, source_profile_id, source_ordinal);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.reference_topology_receipt (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    source_profile_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.source_profile(profile_id),
+    input_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    output_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    isa_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.execution_receipt(receipt_id),
+    occurrence_count numeric(20, 0) NOT NULL CHECK (occurrence_count > 0),
+    coordinate_count numeric(20, 0) NOT NULL CHECK (coordinate_count > 0),
+    present_count numeric(20, 0) NOT NULL CHECK (present_count >= 0),
+    retired_count numeric(20, 0) NOT NULL CHECK (retired_count >= 0),
+    unresolved_count numeric(20, 0) NOT NULL CHECK (unresolved_count >= 0),
+    version integer NOT NULL CHECK (version = 1),
+    CHECK (occurrence_count = present_count + retired_count + unresolved_count),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.reference_topology_receipt_member (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.reference_topology_receipt(receipt_id),
+    occurrence_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.reference_occurrence(occurrence_id),
+    member_ordinal numeric(20, 0) NOT NULL CHECK (member_ordinal > 0),
+    PRIMARY KEY (receipt_id, occurrence_id),
     UNIQUE (receipt_id, member_ordinal)
 );
 
@@ -1493,12 +1635,20 @@ RETURNS @LAPLACE_PG_SCHEMA@.world_admission_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_WORLD_ADMISSION_CLOSE_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.reference_candidate[])
+RETURNS @LAPLACE_PG_SCHEMA@.reference_topology_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
     @LAPLACE_PG_SCHEMA@.source_profile_manifest,
     bytea,
     bytea,
     @LAPLACE_PG_SCHEMA@.tabular_source_artifact[],
+    @LAPLACE_PG_SCHEMA@.tabular_reference_rule[],
     numeric)
 RETURNS @LAPLACE_PG_SCHEMA@.tabular_source_admission_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL@'
@@ -1577,6 +1727,10 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt_member FROM P
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt_member FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.reference_coordinate FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.reference_occurrence FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.reference_topology_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.reference_topology_receipt_member FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.composition_execution_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.composition_execution_occurrence_member FROM PUBLIC;
@@ -1586,7 +1740,8 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.world_admission_receipt_member FROM PUBL
 REVOKE ALL ON FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
     @LAPLACE_PG_SCHEMA@.source_profile_manifest,
-    bytea, bytea, @LAPLACE_PG_SCHEMA@.tabular_source_artifact[], numeric)
+    bytea, bytea, @LAPLACE_PG_SCHEMA@.tabular_source_artifact[],
+    @LAPLACE_PG_SCHEMA@.tabular_reference_rule[], numeric)
     FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_root_generation FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_atom_binding FROM PUBLIC;
@@ -1667,6 +1822,19 @@ REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
         @LAPLACE_PG_SCHEMA@.world_admission_request[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.reference_candidate[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.source_profile_manifest,
+        bytea, bytea,
+        @LAPLACE_PG_SCHEMA@.tabular_source_artifact[],
+        @LAPLACE_PG_SCHEMA@.tabular_reference_rule[], numeric)
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SQL@(

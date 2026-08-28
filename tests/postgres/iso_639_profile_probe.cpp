@@ -110,6 +110,7 @@ int main(int argc, char** argv) {
     PrintNumber(
         "ISO_PREFERRED_BATCH_BYTES",
         laplace::test::iso_profile::preferred_batch_bytes);
+    PrintNumber("ISO_REFERENCE_RULE_COUNT", fixture.reference_rules.size());
     for (std::size_t index = 0u; index < fixture.artifacts.size(); ++index) {
         const auto& generated = laplace::test::iso_profile::artifacts[index];
         const auto& artifact = fixture.artifacts[index];
@@ -142,6 +143,19 @@ int main(int argc, char** argv) {
         PrintNumber(
             (prefix + "OUTCOME").c_str(), artifact.outcome_type);
         PrintNumber((prefix + "FLAGS").c_str(), artifact.flags);
+    }
+    for (std::size_t index = 0u;
+         index < fixture.reference_rules.size(); ++index) {
+        const auto& rule = fixture.reference_rules[index];
+        const std::string prefix =
+            "ISO_REFERENCE_RULE_" + std::to_string(index) + "_";
+        PrintHex(
+            (prefix + "NAMESPACE").c_str(),
+            rule.name_space.bytes, sizeof(rule.name_space.bytes));
+        PrintNumber((prefix + "ARTIFACT").c_str(), rule.artifact_index);
+        PrintNumber((prefix + "COLUMN").c_str(), rule.column_index);
+        PrintNumber((prefix + "KIND").c_str(), rule.kind);
+        PrintNumber((prefix + "FLAGS").c_str(), rule.flags);
     }
     laplace_tabular_source_plan_destroy(&plan);
     return 0;

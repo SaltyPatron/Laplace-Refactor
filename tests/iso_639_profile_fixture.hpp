@@ -24,6 +24,8 @@ void CopyBytes(void* output, const std::array<std::uint8_t, Size>& input) {
 struct Iso639ProfileFixture {
     std::array<std::vector<std::uint8_t>, iso_profile::artifact_count> storage;
     std::array<laplace_tabular_artifact, iso_profile::artifact_count> artifacts{};
+    std::array<laplace_tabular_reference_rule,
+               iso_profile::reference_rule_count> reference_rules{};
     laplace_source_profile_manifest declaration{};
     laplace_tabular_source_input input{};
     std::string error;
@@ -108,6 +110,16 @@ struct Iso639ProfileFixture {
             artifact.outcome_type = generated.outcome_type;
             artifact.flags = generated.flags;
         }
+        for (std::size_t index = 0u;
+             index < iso_profile::reference_rule_count; ++index) {
+            const auto& generated = iso_profile::reference_rules[index];
+            auto& rule = reference_rules[index];
+            CopyBytes(rule.name_space.bytes, generated.namespace_id);
+            rule.artifact_index = generated.artifact_index;
+            rule.column_index = generated.column_index;
+            rule.kind = generated.kind;
+            rule.flags = generated.flags;
+        }
         if (laplace_tabular_artifact_graph_identify(
                 artifacts.data(), artifacts.size(),
                 &declaration.artifact_graph_fingerprint) !=
@@ -124,6 +136,8 @@ struct Iso639ProfileFixture {
             iso_profile::occurrence_context_fingerprint);
         input.artifacts = artifacts.data();
         input.artifact_count = artifacts.size();
+        input.reference_rules = reference_rules.data();
+        input.reference_rule_count = reference_rules.size();
         input.preferred_batch_bytes = iso_profile::preferred_batch_bytes;
         return true;
     }

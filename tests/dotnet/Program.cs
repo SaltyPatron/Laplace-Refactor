@@ -32,11 +32,11 @@ internal static class Program
         Require(LaplaceIsaContract.ReceiptDigestAlgorithm == "BLAKE3-256" &&
             LaplaceIsaContract.ReceiptDigestBytes == 32,
             "generated receipt descriptor differs");
-        Require(LaplaceIsaContract.Minor == 8,
+        Require(LaplaceIsaContract.Minor == 9,
             "generated ISA minor version differs");
-        Require(LaplaceIsaContract.ValueTypes.Length == 15,
+        Require(LaplaceIsaContract.ValueTypes.Length == 17,
             "generated value type inventory differs");
-        Require(LaplaceIsaContract.Operations.Length == 8,
+        Require(LaplaceIsaContract.Operations.Length == 9,
             "generated operation inventory differs");
         Require(IdentityCodepointBatch.Descriptor == LaplaceIsaContract.Operations[0],
             "generated identity declaration differs from descriptor inventory");
@@ -54,6 +54,8 @@ internal static class Program
             "generated source-profile declaration differs from descriptor inventory");
         Require(WorldAdmissionCloseBatch.Descriptor == LaplaceIsaContract.Operations[7],
             "generated world-admission declaration differs from descriptor inventory");
+        Require(ReferenceTopologyResolveBatch.Descriptor == LaplaceIsaContract.Operations[8],
+            "generated reference-topology declaration differs from descriptor inventory");
         Require(LaplaceHighwayContract.Version == 2U &&
             LaplaceHighwayContract.KindLanguage == 3U &&
             LaplaceHighwayContract.KindOperation == 14U &&
@@ -185,6 +187,24 @@ internal static class Program
             "managed world-admission ISA receipt differs from direct native receipt");
         Require(RawEqual(worldAdmission.Error, fixture.WorldAdmissionError),
             "managed world-admission error fields differ from direct native result");
+
+        var referenceTopology = client.ExecuteBatch<
+            ReferenceTopologyResolveBatch,
+            LaplaceReferenceCandidate,
+            LaplaceReferenceRecord>(fixture.ReferenceCandidates, context);
+        Require(referenceTopology.Status == LaplaceIsaStatus.Ok,
+            "managed reference-topology execution failed");
+        Require(referenceTopology.OutputCount == (ulong)fixture.ReferenceRecords.Length,
+            "managed reference-topology output count differs");
+        LaplaceReferenceRecord[] publishedReferences =
+            referenceTopology.Output.AsSpan(
+                0, checked((int)referenceTopology.OutputCount)).ToArray();
+        Require(RawEqual(publishedReferences, fixture.ReferenceRecords),
+            "managed reference-topology output differs from direct native output");
+        Require(RawEqual(referenceTopology.Receipt, fixture.ReferenceReceipt),
+            "managed reference-topology ISA receipt differs from direct native receipt");
+        Require(RawEqual(referenceTopology.Error, fixture.ReferenceError),
+            "managed reference-topology error fields differ from direct native result");
     }
 
     private static void VerifyScalarLowering(Fixture fixture)
@@ -346,7 +366,11 @@ internal sealed record Fixture(
     LaplaceWorldAdmissionRecord[] WorldAdmissions,
     LaplaceWorldAdmissionReceipt[] WorldAdmissionOutputs,
     LaplaceIsaReceipt WorldAdmissionReceipt,
-    LaplaceIsaError WorldAdmissionError)
+    LaplaceIsaError WorldAdmissionError,
+    LaplaceReferenceCandidate[] ReferenceCandidates,
+    LaplaceReferenceRecord[] ReferenceRecords,
+    LaplaceIsaReceipt ReferenceReceipt,
+    LaplaceIsaError ReferenceError)
 {
     private static readonly byte[] Magic = [
         0x4c, 0x50, 0x44, 0x4e, 0x45, 0x54, 0x31, 0x00,
@@ -369,10 +393,12 @@ internal sealed record Fixture(
         uint testimonyCount = input.ReadUInt32();
         uint sourceProfileCount = input.ReadUInt32();
         uint worldAdmissionCount = input.ReadUInt32();
-        if (version != 6 || layoutCount > 1024 || identityCount > 1024 ||
+        uint referenceCount = input.ReadUInt32();
+        if (version != 7 || layoutCount > 1024 || identityCount > 1024 ||
             trajectoryCount > 1024 || highwayCount > 1024 ||
             highwayRegistryCount > 1024 || testimonyCount > 1024 ||
-            sourceProfileCount > 1024 || worldAdmissionCount > 1024)
+            sourceProfileCount > 1024 || worldAdmissionCount > 1024 ||
+            referenceCount > 1024)
         {
             throw new InvalidDataException("direct-native fixture header is invalid");
         }
@@ -422,6 +448,12 @@ internal sealed record Fixture(
             ReadArray<LaplaceWorldAdmissionReceipt>(input, 1);
         LaplaceIsaReceipt worldAdmissionReceipt = ReadOne<LaplaceIsaReceipt>(input);
         LaplaceIsaError worldAdmissionError = ReadOne<LaplaceIsaError>(input);
+        LaplaceReferenceCandidate[] referenceCandidates =
+            ReadArray<LaplaceReferenceCandidate>(input, referenceCount);
+        LaplaceReferenceRecord[] referenceRecords =
+            ReadArray<LaplaceReferenceRecord>(input, referenceCount);
+        LaplaceIsaReceipt referenceReceipt = ReadOne<LaplaceIsaReceipt>(input);
+        LaplaceIsaError referenceError = ReadOne<LaplaceIsaError>(input);
         if (stream.Position != stream.Length)
         {
             throw new InvalidDataException("direct-native fixture has trailing bytes");
@@ -456,7 +488,11 @@ internal sealed record Fixture(
             worldAdmissions,
             worldAdmissionOutputs,
             worldAdmissionReceipt,
-            worldAdmissionError);
+            worldAdmissionError,
+            referenceCandidates,
+            referenceRecords,
+            referenceReceipt,
+            referenceError);
     }
 
     private static T ReadOne<T>(BinaryReader input) where T : unmanaged =>
