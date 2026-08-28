@@ -361,10 +361,8 @@ def build_request(
             contract, package_receipt_path, resource_observation_path
         )
     else:
-        successor = (
-            continuation.get("active_work", {})
-            .get("implementation_progress", {})
-            .get("successor_product_package")
+        successor = continuation.get("product_activation_projection", {}).get(
+            "successor_product_package"
         )
         if not isinstance(successor, dict) or successor.get("activation_eligible") is not True:
             raise ActivationGatewayError("continuation does not select an activation-eligible successor package")

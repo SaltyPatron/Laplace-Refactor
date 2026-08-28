@@ -42,8 +42,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          publication=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.publication.receipt' state/continuation.json)
-          expected_sha=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.publication.receipt_sha256' state/continuation.json)
+          publication=$(jq -er '.product_activation_projection.postgresql_publication.receipt' state/continuation.json)
+          expected_sha=$(jq -er '.product_activation_projection.postgresql_publication.receipt_sha256' state/continuation.json)
           test -r "$publication"
           test ! -L "$publication"
           test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
@@ -88,8 +88,8 @@ jobs:
           test "$GITHUB_EVENT_NAME" = workflow_dispatch
           git diff --quiet
           git diff --cached --quiet
-          postgresql_publication=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.publication.receipt' state/continuation.json)
-          expected_sha=$(jq -er '.active_work.implementation_progress.accepted_postgresql_product_package.publication.receipt_sha256' state/continuation.json)
+          postgresql_publication=$(jq -er '.product_activation_projection.postgresql_publication.receipt' state/continuation.json)
+          expected_sha=$(jq -er '.product_activation_projection.postgresql_publication.receipt_sha256' state/continuation.json)
           test -f "$postgresql_publication"
           test ! -L "$postgresql_publication"
           test "$(sha256sum "$postgresql_publication" | awk '{print $1}')" = "$expected_sha"

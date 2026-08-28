@@ -108,9 +108,8 @@ class ProductActivationGatewayTests(unittest.TestCase):
         resource.write_bytes(activation.canonical_bytes(resource_document) + b"\n")
         (root / "unicode-source").mkdir()
         continuation = {
-            "active_work": {
-                "implementation_progress": {
-                    "successor_product_package": {
+            "product_activation_projection": {
+                "successor_product_package": {
                         "activation_eligible": True,
                         "immutable_release_installed": True,
                         "package_id": PACKAGE_ID,
@@ -129,7 +128,6 @@ class ProductActivationGatewayTests(unittest.TestCase):
                                 "observation_sha256"
                             ],
                         },
-                    }
                 }
             }
         }
@@ -229,7 +227,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
             resource.write_text("changed\n", encoding="utf-8")
             with self.assertRaisesRegex(activation.ActivationGatewayError, "resource observation bytes"):
                 activation.validate_request(contract, request, KEY, NOW)
-            continuation["active_work"]["implementation_progress"]["successor_product_package"]["package_manifest"] = str(
+            continuation["product_activation_projection"]["successor_product_package"]["package_manifest"] = str(
                 root / "outside" / BUILD_ID / "package-manifest.json"
             )
             with self.assertRaisesRegex(activation.ActivationGatewayError, "escapes"):
