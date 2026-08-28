@@ -1078,6 +1078,18 @@ parsed_reconstruction_corrupted:
                     return false;
                 }
                 row_children.emplace_back(*field_node, Role::Field);
+#if defined(LAPLACE_TEST_TABULAR_PROMOTE_FIELDS_TO_CLAIMS)
+                /* Deliberate defect: structural field nodes are promoted into
+                 * semantic testimony even though only the profile-declared
+                 * record proposition owns that epistemic role. */
+                if (!header) {
+                    plan_.claim_result_indexes.push_back(*field_node);
+                    plan_.claim_source_ordinals.push_back(
+                        plan_.requests[static_cast<std::size_t>(*field_node)]
+                            .source_ordinal);
+                    plan_.claim_outcome_types.push_back(artifact.outcome_type);
+                }
+#endif
                 if (!header && value) {
                     const auto* rule = ReferenceRule(artifact_index, field_index);
                     if (rule != nullptr) {

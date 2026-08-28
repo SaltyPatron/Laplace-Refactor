@@ -479,7 +479,7 @@ def validate_contracts(
     _require(documents["source"]["population"]["count"] == documents["atom"]["population"] == documents["physicality"]["population"] == documents["ducet"]["population"] == documents["geometry"]["population"], "Unicode population differs across contracts")
     _require(documents["ducet"]["ducet_source_sha256"] == EXPECTED_SOURCE_FILES["uca/allkeys.txt"][1], "DUCET contract and source manifest differ")
     return {
-        "status": "contracts-verified-canonical-root-stream-implemented-no-persistence-or-activation",
+        "status": "contracts-self-consistent-no-capability-or-activation-claim",
         "contract_count": len(CONTRACT_FILES),
         "source_file_count": len(EXPECTED_SOURCE_FILES),
         "population": 1114112,

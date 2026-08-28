@@ -21,6 +21,9 @@ namespace {
 
 constexpr std::string_view BuildReceiptDomain{
     "laplace-unicode-root-build-v2"};
+constexpr std::size_t MinimumEncodedFrameBytes =
+    LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES +
+    LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES;
 
 bool DigestEqual(
     const laplace_digest256& left,
@@ -369,9 +372,7 @@ laplace_unicode_root_build_canonical_spool(
         request->spool_directory == nullptr ||
         request->spool_directory[0] == '\0' ||
         request->numeric_provider == nullptr ||
-        request->maximum_batch_frames == 0U ||
-        request->maximum_batch_bytes <
-            LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES ||
+        request->maximum_batch_bytes < MinimumEncodedFrameBytes ||
         request->maximum_batch_bytes >
             static_cast<std::uint64_t>(
                 std::numeric_limits<std::size_t>::max()) ||
@@ -387,7 +388,10 @@ laplace_unicode_root_build_canonical_spool(
         return LAPLACE_UNICODE_ROOT_BUILD_INVALID_ARGUMENT;
     }
     summary->maximum_batch_bytes = request->maximum_batch_bytes;
-    summary->maximum_batch_frames = request->maximum_batch_frames;
+    summary->maximum_batch_frames = static_cast<std::uint32_t>(std::min(
+        request->maximum_batch_bytes / MinimumEncodedFrameBytes,
+        static_cast<std::uint64_t>(
+            std::numeric_limits<std::uint32_t>::max())));
     summary->abi_major = request->abi_major;
     summary->abi_minor = request->abi_minor;
     const auto* const provider = request->numeric_provider;
@@ -595,7 +599,7 @@ laplace_unicode_root_build_canonical_spool(
             return LAPLACE_UNICODE_ROOT_BUILD_UNICODE_FAILURE;
         }
         CanonicalStreamWriter writer(
-            spool.get(), validator.get(), request->maximum_batch_frames,
+            spool.get(), validator.get(), summary->maximum_batch_frames,
             static_cast<std::size_t>(request->maximum_batch_bytes));
         std::vector<std::uint8_t> payload;
 

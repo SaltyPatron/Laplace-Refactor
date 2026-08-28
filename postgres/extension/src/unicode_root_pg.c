@@ -37,7 +37,7 @@ typedef struct unicode_batch_counts {
 typedef struct unicode_batch_arrays {
     ArrayType* entities;
     ArrayType* physicalities;
-    ArrayType* atoms;
+    ArrayType* attestations;
     ArrayType* ducet_positions;
     ArrayType* ducet_contractions;
     ArrayType* normalizations;
@@ -83,11 +83,11 @@ static SPIPlanPtr effect_verify_plan = NULL;
 static const char unicode_effect_verify_statement[] =
     "SELECT "
     "(SELECT count(DISTINCT entity_id) FROM " LAPLACE_PG_SCHEMA
-    ".unicode_atom_binding WHERE root_receipt=$1),"
+    ".attestation WHERE source_fingerprint=$1 AND attestation_kind=$2),"
     "(SELECT count(DISTINCT physicality_id) FROM " LAPLACE_PG_SCHEMA
-    ".unicode_atom_binding WHERE root_receipt=$1),"
+    ".attestation WHERE source_fingerprint=$1 AND attestation_kind=$2),"
     "(SELECT count(*) FROM " LAPLACE_PG_SCHEMA
-    ".unicode_atom_binding WHERE root_receipt=$1),"
+    ".attestation WHERE source_fingerprint=$1 AND attestation_kind=$2),"
     "(SELECT count(*) FROM " LAPLACE_PG_SCHEMA
     ".unicode_ducet_position WHERE root_receipt=$1),"
     "(SELECT count(*) FROM " LAPLACE_PG_SCHEMA
@@ -322,13 +322,6 @@ static void build_batch_arrays(
     const laplace_framework_canonical_batch* batch,
     const unicode_batch_counts* counts,
     unicode_batch_arrays* arrays) {
-    static const Oid atom_types[14] = {
-        BYTEAOID, INT4OID, INT4OID, INT2OID, INT2OID,
-        BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID,
-        FLOAT8OID, FLOAT8OID, FLOAT8OID, FLOAT8OID, BYTEAOID};
-    static const int32 atom_typmods[14] = {
-        -1, -1, -1, -1, -1, -1, -1, -1,
-        -1, -1, -1, -1, -1, -1};
     static const Oid ducet_position_types[6] = {
         BYTEAOID, INT4OID, INT2OID, INT4OID,
         BYTEAOID, BYTEAOID};
@@ -345,14 +338,14 @@ static void build_batch_arrays(
         -1, -1, -1, -1};
     Datum* entity_rows = datum_array(counts->family[0]);
     Datum* physicality_rows = datum_array(counts->family[0]);
-    Datum* atom_rows = datum_array(counts->family[0]);
+    Datum* attestation_rows = datum_array(counts->family[0]);
     Datum* ducet_position_rows = datum_array(counts->family[1]);
     Datum* ducet_contraction_rows = datum_array(counts->family[2]);
     Datum* normalization_rows = datum_array(counts->family[3]);
     uint64 row[4] = {0u, 0u, 0u, 0u};
     laplace_pg_composite_binding entity_binding;
     laplace_pg_composite_binding physicality_binding;
-    laplace_pg_composite_binding atom_binding;
+    laplace_pg_composite_binding attestation_binding;
     laplace_pg_composite_binding ducet_position_binding;
     laplace_pg_composite_binding ducet_contraction_binding;
     laplace_pg_composite_binding normalization_binding;
@@ -363,16 +356,14 @@ static void build_batch_arrays(
     memset(arrays, 0, sizeof(*arrays));
     memset(&entity_binding, 0, sizeof(entity_binding));
     memset(&physicality_binding, 0, sizeof(physicality_binding));
-    memset(&atom_binding, 0, sizeof(atom_binding));
+    memset(&attestation_binding, 0, sizeof(attestation_binding));
     memset(&ducet_position_binding, 0, sizeof(ducet_position_binding));
     memset(&ducet_contraction_binding, 0, sizeof(ducet_contraction_binding));
     memset(&normalization_binding, 0, sizeof(normalization_binding));
     if (counts->family[0] != 0u) {
         laplace_pg_entity_binding_open(&entity_binding);
         laplace_pg_physicality_binding_open(&physicality_binding);
-        laplace_pg_composite_binding_open(
-            "unicode_atom_deposit_record", atom_types, atom_typmods,
-            14, &atom_binding);
+        laplace_pg_attestation_binding_open(&attestation_binding);
     }
     if (counts->family[1] != 0u) {
         laplace_pg_composite_binding_open(
@@ -406,12 +397,12 @@ static void build_batch_arrays(
             laplace_unicode_atom_record_view atom;
             laplace_persistence_entity_record entity;
             laplace_persistence_physicality_record physicality;
-            Datum fields[14];
-            bool nulls[14] = {false};
+            laplace_persistence_attestation_record attestation;
             size_t atom_bytes = 0u;
             memset(&atom, 0, sizeof(atom));
             memset(&entity, 0, sizeof(entity));
             memset(&physicality, 0, sizeof(physicality));
+            memset(&attestation, 0, sizeof(attestation));
             if (laplace_unicode_atom_record_open(
                     frame.value.payload, frame.value.payload_bytes,
                     &atom, &atom_bytes) != LAPLACE_UNICODE_OK ||
@@ -425,26 +416,26 @@ static void build_batch_arrays(
                 &entity_binding, &entity);
             physicality_rows[row[0]] = laplace_pg_physicality_record(
                 &physicality_binding, &physicality);
-            fields[0] = PointerGetDatum(root_receipt);
-            fields[1] = Int32GetDatum((int32)atom.value.codepoint_position);
-            fields[2] = Int32GetDatum((int32)atom.value.placement_rank);
-            fields[3] = Int16GetDatum((int16)atom.value.position_class);
-            fields[4] = Int16GetDatum((int16)atom.value.lup_v1_length);
-            fields[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                atom.value.lup_v1_bytes, atom.value.lup_v1_length));
-            fields[6] = PointerGetDatum(id_bytea(&atom.value.content_id));
-            fields[7] = PointerGetDatum(digest_bytea(
-                &atom.value.identity_preimage_fingerprint));
-            fields[8] = PointerGetDatum(digest_bytea(
-                &atom.value.physicality_id));
-            fields[9] = Float8GetDatum(atom.value.coordinate.component[0]);
-            fields[10] = Float8GetDatum(atom.value.coordinate.component[1]);
-            fields[11] = Float8GetDatum(atom.value.coordinate.component[2]);
-            fields[12] = Float8GetDatum(atom.value.coordinate.component[3]);
-            fields[13] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                atom.value.hilbert_key, sizeof(atom.value.hilbert_key)));
-            atom_rows[row[0]] = laplace_pg_composite_record(
-                &atom_binding, fields, nulls);
+            attestation.entity_id = atom.value.content_id;
+            attestation.physicality_id = atom.value.physicality_id;
+            attestation.source_fingerprint =
+                state->configuration.expected_summary.receipt_id;
+            attestation.context_fingerprint = state->configuration.expectation
+                .atom_record_contract_fingerprint;
+            attestation.source_ordinal =
+                (uint64)atom.value.codepoint_position + 1u;
+            attestation.flags =
+                LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+            attestation.attestation_kind =
+                LAPLACE_PERSISTENCE_ATTESTATION_SOURCE_TESTIMONY;
+            if (laplace_persistence_attestation_identify(
+                    &attestation, &attestation.attestation_id) !=
+                LAPLACE_PERSISTENCE_OK) {
+                fail_sink(state,
+                    "Unicode PostgreSQL sink rejected an atom attestation");
+            }
+            attestation_rows[row[0]] = laplace_pg_attestation_record(
+                &attestation_binding, &attestation);
             ++row[0];
         } else if (frame.value.kind ==
                    LAPLACE_UNICODE_ROOT_FRAME_DUCET_POSITION) {
@@ -537,8 +528,8 @@ static void build_batch_arrays(
             &entity_binding, entity_rows, row[0]);
         arrays->physicalities = laplace_pg_composite_array(
             &physicality_binding, physicality_rows, row[0]);
-        arrays->atoms = laplace_pg_composite_array(
-            &atom_binding, atom_rows, row[0]);
+        arrays->attestations = laplace_pg_composite_array(
+            &attestation_binding, attestation_rows, row[0]);
     }
     if (counts->family[1] != 0u) {
         arrays->ducet_positions = laplace_pg_composite_array(
@@ -554,34 +545,18 @@ static void build_batch_arrays(
     }
     laplace_pg_composite_binding_close(&entity_binding);
     laplace_pg_composite_binding_close(&physicality_binding);
-    laplace_pg_composite_binding_close(&atom_binding);
+    laplace_pg_composite_binding_close(&attestation_binding);
     laplace_pg_composite_binding_close(&ducet_position_binding);
     laplace_pg_composite_binding_close(&ducet_contraction_binding);
     laplace_pg_composite_binding_close(&normalization_binding);
 }
 
 static const char* atom_insert_sql(void) {
-    return "INSERT INTO " LAPLACE_PG_SCHEMA ".unicode_atom_binding "
-        "SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA
-        ".unicode_atom_deposit_record[]) ON CONFLICT DO NOTHING";
+    return laplace_pg_attestation_insert_sql();
 }
 
 static const char* atom_verify_sql(void) {
-    return "SELECT count(*) FROM unnest($1::" LAPLACE_PG_SCHEMA
-        ".unicode_atom_deposit_record[]) i JOIN " LAPLACE_PG_SCHEMA
-        ".unicode_atom_binding s ON s.root_receipt=i.root_receipt "
-        "AND s.codepoint_position=i.codepoint_position "
-        "AND s.placement_rank=i.placement_rank "
-        "AND s.position_class=i.position_class "
-        "AND s.lup_v1_length=i.lup_v1_length "
-        "AND s.lup_v1_bytes=i.lup_v1_bytes AND s.entity_id=i.entity_id "
-        "AND s.identity_preimage_fingerprint=i.identity_preimage_fingerprint "
-        "AND s.physicality_id=i.physicality_id "
-        "AND float8send(s.coordinate_x)=float8send(i.coordinate_x) "
-        "AND float8send(s.coordinate_y)=float8send(i.coordinate_y) "
-        "AND float8send(s.coordinate_z)=float8send(i.coordinate_z) "
-        "AND float8send(s.coordinate_m)=float8send(i.coordinate_m) "
-        "AND s.hilbert_key=i.hilbert_key";
+    return laplace_pg_attestation_verify_sql();
 }
 
 static const char* ducet_position_insert_sql(void) {
@@ -781,7 +756,7 @@ static void execute_batch_arrays(
             LAPLACE_PG_UNICODE_ROOT_PLAN_PHYSICALITY_INSERT,
             LAPLACE_PG_UNICODE_ROOT_PLAN_PHYSICALITY_VERIFY);
         execute_family(
-            state, "unicode_atom_deposit_record", arrays->atoms,
+            state, "attestation_record", arrays->attestations,
             counts->family[0], &atom_insert_plan, &atom_verify_plan,
             atom_insert_sql(), atom_verify_sql(),
             LAPLACE_PG_UNICODE_ROOT_PLAN_ATOM_INSERT,
@@ -823,9 +798,10 @@ static void execute_batch_arrays(
 static void verify_persisted_effects(
     laplace_pg_unicode_sink* state,
     const laplace_unicode_root_stream_summary* summary) {
-    Oid types[1] = {BYTEAOID};
-    Datum values[1] = {
-        PointerGetDatum(digest_bytea(&summary->receipt_id))};
+    Oid types[2] = {BYTEAOID, INT4OID};
+    Datum values[2] = {
+        PointerGetDatum(digest_bytea(&summary->receipt_id)),
+        Int32GetDatum((int32)LAPLACE_PERSISTENCE_ATTESTATION_SOURCE_TESTIMONY)};
     uint64 expected[6] = {
         summary->section_counts[0], summary->section_counts[0],
         summary->section_counts[0], summary->section_counts[1],
@@ -833,7 +809,7 @@ static void verify_persisted_effects(
     int result;
     size_t index;
     laplace_pg_keep_plan(
-        &effect_verify_plan, unicode_effect_verify_statement, 1, types);
+        &effect_verify_plan, unicode_effect_verify_statement, 2, types);
     result = SPI_execute_plan(effect_verify_plan, values, NULL, false, 1);
     if (result != SPI_OK_SELECT || SPI_processed != 1u) {
         fail_sink(state, "Unicode PostgreSQL durable effect verification failed");
@@ -1517,7 +1493,7 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
     bool expected_present = PG_GETARG_BOOL(8);
     laplace_pg_perfcache_epoch expected_epoch;
     int64 maximum_batch_bytes_input = PG_GETARG_INT64(11);
-    int32 maximum_batch_frames_input = PG_GETARG_INT32(12);
+    uint64 maximum_batch_frames;
     laplace_unicode_numeric_provider_v1 numeric_provider;
     laplace_unicode_root_build_request build_request;
     laplace_unicode_root_build_summary build;
@@ -1579,11 +1555,11 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
     if (source_root[0] == '\0' || spool_directory[0] == '\0' ||
         tier0_path[0] == '\0' || reverse_path[0] == '\0' ||
         expected_sequence_input < 0 ||
-        maximum_batch_bytes_input <= 0 || maximum_batch_frames_input <= 0 ||
+        maximum_batch_bytes_input <
+            LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES +
+                LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES ||
         (uint64)maximum_batch_bytes_input > UINT64_MAX /
-            LAPLACE_PG_UNICODE_ROOT_STREAM_BYTE_MULTIPLIER ||
-        (uint64)maximum_batch_frames_input > UINT64_MAX /
-            LAPLACE_PG_UNICODE_ROOT_PER_FRAME_OVERHEAD_BYTES) {
+            LAPLACE_PG_UNICODE_ROOT_STREAM_BYTE_MULTIPLIER) {
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("Unicode root build arguments are invalid")));
@@ -1602,8 +1578,13 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
         (uint64)LAPLACE_PERFCACHE_UNICODE_REVERSE_CAPACITY *
         (LAPLACE_PERFCACHE_UNICODE_REVERSE_KEY_BYTES +
          LAPLACE_PERFCACHE_UNICODE_REVERSE_VALUE_BYTES);
+    maximum_batch_frames = (uint64)maximum_batch_bytes_input /
+        (LAPLACE_UNICODE_ROOT_FRAME_HEADER_BYTES +
+         LAPLACE_UNICODE_NORMALIZATION_COMPOSITION_BYTES);
     if (memory_estimate > context.resource_grant.memory_bytes ||
-        (uint64)maximum_batch_frames_input *
+        maximum_batch_frames > UINT64_MAX /
+            LAPLACE_PG_UNICODE_ROOT_PER_FRAME_OVERHEAD_BYTES ||
+        maximum_batch_frames *
             LAPLACE_PG_UNICODE_ROOT_PER_FRAME_OVERHEAD_BYTES >
             context.resource_grant.memory_bytes - memory_estimate) {
         ereport(ERROR,
@@ -1622,7 +1603,6 @@ Datum LAPLACE_PG_UNICODE_ROOT_SYMBOL(PG_FUNCTION_ARGS) {
     build_request.spool_directory = spool_directory;
     build_request.numeric_provider = &numeric_provider;
     build_request.maximum_batch_bytes = (uint64)maximum_batch_bytes_input;
-    build_request.maximum_batch_frames = (uint32)maximum_batch_frames_input;
     build_request.abi_major = LAPLACE_UNICODE_ROOT_BUILDER_ABI_MAJOR;
     build_request.abi_minor = LAPLACE_UNICODE_ROOT_BUILDER_ABI_MINOR;
     memset(&build, 0, sizeof(build));

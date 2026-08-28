@@ -169,10 +169,6 @@ static int candidate_valid(const laplace_reference_mapping_candidate* value) {
 
 static uint32_t resolve_disposition(
     const laplace_reference_mapping_candidate* value) {
-    const int left_unresolved =
-        value->left_disposition == LAPLACE_REFERENCE_DISPOSITION_UNRESOLVED;
-    const int right_unresolved =
-        value->right_disposition == LAPLACE_REFERENCE_DISPOSITION_UNRESOLVED;
     if (value->left_disposition == LAPLACE_REFERENCE_DISPOSITION_RETIRED ||
         value->right_disposition == LAPLACE_REFERENCE_DISPOSITION_RETIRED) {
         return LAPLACE_REFERENCE_MAPPING_DISPOSITION_RETIRED_ENDPOINT;
@@ -180,6 +176,10 @@ static uint32_t resolve_disposition(
 #if defined(LAPLACE_TEST_REFERENCE_MAPPING_PROMOTE_UNRESOLVED)
     return LAPLACE_REFERENCE_MAPPING_DISPOSITION_RESOLVED;
 #else
+    const int left_unresolved =
+        value->left_disposition == LAPLACE_REFERENCE_DISPOSITION_UNRESOLVED;
+    const int right_unresolved =
+        value->right_disposition == LAPLACE_REFERENCE_DISPOSITION_UNRESOLVED;
     if (left_unresolved && right_unresolved) {
         return LAPLACE_REFERENCE_MAPPING_DISPOSITION_BOTH_UNRESOLVED;
     }

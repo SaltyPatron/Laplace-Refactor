@@ -217,6 +217,24 @@ TEST(TabularSource, CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan) {
     EXPECT_LT(view.claim_source_ordinals[0], view.claim_source_ordinals[1]);
     EXPECT_EQ(view.claim_outcome_types[0], 5u);
     EXPECT_EQ(view.claim_outcome_types[1], 5u);
+    for (std::size_t claim_index = 0u;
+         claim_index < static_cast<std::size_t>(view.claim_count);
+         ++claim_index) {
+        const std::uint64_t result_index =
+            view.claim_result_indexes[claim_index];
+        ASSERT_LT(result_index, view.request_count);
+        const auto& request = view.requests[result_index];
+        ASSERT_EQ(request.operand_count, fixture.columns.size() + 2u);
+        ASSERT_LE(request.first_operand + request.operand_count,
+                  view.operand_count);
+        const auto* row = view.operands + request.first_operand;
+        EXPECT_EQ(row[0].relationship_metadata, 1u << 6u);
+        EXPECT_EQ(row[1].relationship_metadata, 7u << 6u);
+        EXPECT_EQ(row[2].relationship_metadata, 7u << 6u);
+        EXPECT_EQ(row[3].relationship_metadata, 10u << 6u);
+        EXPECT_EQ(request.source_ordinal,
+                  view.claim_source_ordinals[claim_index]);
+    }
 
     std::vector<std::uint8_t> archive(fixture.archive.size());
     std::vector<std::uint8_t> text(fixture.text.size());

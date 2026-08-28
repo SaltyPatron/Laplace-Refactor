@@ -209,6 +209,41 @@ set_tests_properties(
     tabular-source.mutation-structural-reference-promotion-detected PROPERTIES
     LABELS "implementation;source-profile;reference;highway;mutation")
 
+add_library(laplace_tabular_field_claim_promotion_mutant STATIC
+    ../engine/src/tabular_source.cpp)
+target_include_directories(laplace_tabular_field_claim_promotion_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/src"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_tabular_field_claim_promotion_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_tabular_field_claim_promotion_mutant PRIVATE
+    LAPLACE_TEST_TABULAR_PROMOTE_FIELDS_TO_CLAIMS=1)
+target_compile_options(laplace_tabular_field_claim_promotion_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_tabular_field_claim_promotion_mutation_probe
+    tabular_source_tests.cpp)
+target_include_directories(
+    laplace_tabular_field_claim_promotion_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/src")
+target_link_libraries(
+    laplace_tabular_field_claim_promotion_mutation_probe PRIVATE
+    laplace_tabular_field_claim_promotion_mutant
+    Laplace::Engine
+    GTest::gtest_main)
+target_compile_options(
+    laplace_tabular_field_claim_promotion_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME tabular-source.mutation-field-claim-promotion-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_tabular_field_claim_promotion_mutation_probe>"
+        "-DFILTER=TabularSource.CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    tabular-source.mutation-field-claim-promotion-detected PROPERTIES
+    LABELS "implementation;source-profile;ast;evidence;mutation")
+
 add_library(laplace_composition_dedup_mutant STATIC
     ../engine/src/composition.cpp)
 target_include_directories(laplace_composition_dedup_mutant PRIVATE

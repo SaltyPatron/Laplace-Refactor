@@ -55,6 +55,7 @@
   },
   "closure": {
     "claims": "every non-header delimited record is one source-scoped witnessed mapping claim",
+    "claim_scope": "the profile-declared record proposition alone enters evidence and testimony; its tag field column value terminator artifact and source-boundary AST constituents remain exact structural occurrences and cannot inherit the record's epistemic role unless another explicit recipe independently declares them as propositions",
     "opaque_raw_claims": false,
     "profile_counts": "bytes records fields syntax nodes spans edges references occurrences mappings outputs and dispositions are derived from the compiled whole working set",
     "artifact_reconstruction": "only artifacts explicitly marked exact-distribution are required to recompose byte-for-byte; every artifact still retains exact digest length name and source-graph provenance",
@@ -79,6 +80,7 @@
     "mapping-rule-with-unregistered-endpoint-column",
     "mapping-row-bypasses-reference-topology",
     "mapping-rule-changes-under-pinned-source-graph",
-    "mapping-count-copied-from-claim-count"
+    "mapping-count-copied-from-claim-count",
+    "structural-field-or-value-promoted-to-record-testimony"
   ]
 }

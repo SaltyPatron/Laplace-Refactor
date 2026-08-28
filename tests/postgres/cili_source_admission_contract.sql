@@ -360,8 +360,15 @@ AS $exact$
     WITH expected AS (
         SELECT array_agg(binding.entity_id::bytea ORDER BY value.ordinality) AS ids
         FROM unnest(positions) WITH ORDINALITY AS value(codepoint, ordinality)
-        JOIN laplace.unicode_atom_binding AS binding
-          ON binding.codepoint_position = value.codepoint
+        CROSS JOIN LATERAL (
+            SELECT root_receipt
+            FROM laplace.unicode_root_generation
+            ORDER BY recorded_at DESC
+            LIMIT 1) AS root
+        JOIN laplace.attestation AS binding
+          ON binding.source_fingerprint = root.root_receipt
+         AND binding.attestation_kind = 3
+         AND binding.source_ordinal = value.codepoint + 1
     ), candidate_physicalities AS (
         SELECT DISTINCT attestation.physicality_id
         FROM laplace.attestation AS attestation

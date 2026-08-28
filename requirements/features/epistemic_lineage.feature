@@ -55,3 +55,19 @@ Feature: Evidence kind lineage dependence and belief remain distinct
     And independent cross-domain convergence and successful prediction increase effective support under the declared recipe
     And contradiction and failed prediction reduce standing without deleting either proposition
     And the receipt explains the topology and evidence kinds responsible for the difference
+
+  Scenario: One observed outcome cannot certify every output in the event
+    Given one Laplace execution selects a successful game action and emits an incorrect contextual explanation
+    When the complete event is reobserved
+    Then action selection and explanation are separate typed outputs with separate evidence and acceptance contracts
+    And the successful consequence supports only the claims it actually tests
+    And the incorrect explanation remains negative autobiographical evidence without erasing the successful action
+    But folding the whole event into one success or one failure fails epistemic separation
+
+  Scenario: Conclusions are query-relative views over immutable observations
+    Given the same exact set of player game rating clock event and outcome observations is admitted in two different processing orders
+    When Laplace calculates current strength career accomplishment matchup behavior and time-conditioned behavior
+    Then each view names its question context time and evidence boundary
+    And both processing orders produce identical results and receipts for identical boundaries
+    And official rating at an event remains an attributed observation even when Laplace calculates a different standing
+    But no derived rating may overwrite the games or become the meaning of a later game

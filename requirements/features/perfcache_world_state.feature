@@ -50,6 +50,25 @@ Feature: Perfcaches calculate and accelerate complete coherent substrate epochs
     And one common mapper validates integrity dependencies lifecycle and loaded identity
     But forcing every plane through a sorted fixed-record binary search fails activation
 
+  Scenario Outline: Every modality can earn its own mapped acceleration module
+    Given canonical <modality> state and a representative hot decomposition reconstruction and query workload
+    When a typed <modality> perfcache is generated verified prefaulted and activated
+    Then its key value source recipe lookup complexity and result shape are explicit
+    And covered leaves substructures transitions or spans resolve without PostgreSQL crossings
+    And leaf-to-trunk composition and trunk-to-leaf reconstruction preserve Merkle identity order roles multiplicity runs and exact bytes
+    And removing the module changes measured performance but not canonical logical results evidence or receipt semantics
+    But the Unicode atom plane cannot impersonate the <modality> module
+
+    Examples:
+      | modality |
+      | language structure |
+      | chess state and transition |
+      | image tile and channel |
+      | audio sample frame and channel |
+      | video frame track and timing |
+      | code syntax and symbol |
+      | model tensor and operator |
+
   Scenario: Source-derived planes publish after a closed world-admission boundary
     Given a prior coherent perfcache epoch and a new canonical admission in progress
     When readers reconstruct render or route CRUD operations

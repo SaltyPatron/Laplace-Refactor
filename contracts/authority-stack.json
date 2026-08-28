@@ -37,8 +37,8 @@
   "direct_evidence": {
     "index": "docs/audits/DIRECT_REQUIREMENT_EVIDENCE.md",
     "continuation_manifest": "evidence/continuation-session-human-messages.jsonl",
-    "continuation_records": 75,
-    "continuation_manifest_sha256": "c07bbc578884a2276cb4d3b09d0ee3ca52024fad7d2760f281b8b2841ec6a69c",
+    "continuation_records": 200,
+    "continuation_manifest_sha256": "d4182517843b0bbd4484b89bed1ac4b15835274acb655eb5d64b0d694b6d1b73",
     "generator": "tools/audit/index-human-messages.sh",
     "raw_source": "/home/ahart/.codex/sessions/2026/08/26/rollout-2026-08-26T17-45-46-01a03f2d-932d-7de2-9177-9fdc4adca5cc.jsonl",
     "quotation_rule": "a human-supplied message may contain quoted agent prose; the record proves message provenance but quoted content remains a reconciliation lead until corroborated",

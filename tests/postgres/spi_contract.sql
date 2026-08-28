@@ -339,7 +339,7 @@ BEGIN
                 ('laplace.evidence_record_lineage_batch(laplace.execution_context,laplace.evidence_lineage_record[],numeric)', 'v', 'u'),
                 ('laplace.evidence_record_testimony_batch(laplace.execution_context,laplace.evidence_testimony_record[])', 'v', 'u'),
                 ('laplace.canonical_deposit_batch(laplace.execution_context,bytea,bytea,bytea[])', 'v', 'u'),
-                ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint,integer)', 'v', 'u'),
+                ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint)', 'v', 'u'),
                 ('laplace.unicode_tier0_resolve_batch(bytea,bytea,integer[])', 's', 'u'),
                 ('laplace.unicode_identity_reverse_resolve_batch(bytea,bytea,bytea[],bytea[])', 's', 'u')
         ) AS expected(signature, volatility, parallel_safety)

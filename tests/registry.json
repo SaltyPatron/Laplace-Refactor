@@ -2041,6 +2041,12 @@
       "controls": "TabularSource.CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan"
     },
     {
+      "ctest_name": "tabular-source.mutation-field-claim-promotion-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["structural field and value occurrences cannot be promoted into record-level evidence or testimony without a separately declared proposition recipe"],
+      "controls": "TabularSource.CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan"
+    },
+    {
       "ctest_name": "iso-639-source.profile-contract-and-mutation",
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-ADMISSION-READ-REACHABILITY"],
       "covered_dimensions": ["the source-profile instance deterministically generates typed native authority data", "physical ZIP membership hashes UTF-8 grammar row widths reference counts and complete denominators match the locked release", "authority artifact grammar reconstruction and denominator mutations are rejected"]

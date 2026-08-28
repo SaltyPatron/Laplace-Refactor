@@ -26,4 +26,14 @@ Datum laplace_pg_physicality_record(
 const char* laplace_pg_physicality_insert_sql(void);
 const char* laplace_pg_physicality_verify_sql(void);
 
+void laplace_pg_attestation_binding_open(
+    laplace_pg_composite_binding* binding);
+
+Datum laplace_pg_attestation_record(
+    const laplace_pg_composite_binding* binding,
+    const laplace_persistence_attestation_record* attestation);
+
+const char* laplace_pg_attestation_insert_sql(void);
+const char* laplace_pg_attestation_verify_sql(void);
+
 #endif

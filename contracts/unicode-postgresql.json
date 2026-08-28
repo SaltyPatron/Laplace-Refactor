@@ -2,8 +2,8 @@
   "schema": "laplace.unicode-postgresql-contract/v1",
   "contract_fingerprint": {
     "algorithm": "BLAKE3-256",
-    "preimage": "laplace-unicode-postgresql-sink-v4",
-    "value": "f4086d6334dc87f627177dce69b3701743b8ffa22c97e77854754dca0f04b077"
+    "preimage": "laplace-unicode-postgresql-sink-v5",
+    "value": "a820581b0e1c36e16a7394ae4fd3bdce1d1910faccc97cbb69838e0876106dc4"
   },
   "binding": {
     "sql_name": "unicode_root_build_and_activate",
@@ -57,7 +57,9 @@
   },
   "tables": {
     "generation": "unicode_root_generation",
-    "atom": "unicode_atom_binding",
+    "atom_entity": "entity",
+    "atom_physicality": "physicality",
+    "atom_root_membership": "attestation:source-testimony",
     "ducet_position": "unicode_ducet_position",
     "ducet_contraction": "unicode_ducet_contraction",
     "normalization_composition": "unicode_normalization_composition",
@@ -90,6 +92,7 @@
   "identity": {
     "atom_entity": "copy-emitted-content-id-and-full-identity-witness",
     "atom_physicality": "validate-and-copy-emitted-physicality-id",
+    "atom_membership": "one-source-testimony-attestation-per-codepoint-position-bound-to-root-receipt-and-physicality",
     "canonical_transport": "receipt-input-only-never-duplicated-in-normalized-tables",
     "float": "compare-binary64-through-float8send"
   },

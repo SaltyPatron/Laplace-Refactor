@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 enum {
-    LAPLACE_UNICODE_ROOT_BUILDER_ABI_MAJOR = 2,
+    LAPLACE_UNICODE_ROOT_BUILDER_ABI_MAJOR = 3,
     LAPLACE_UNICODE_ROOT_BUILDER_ABI_MINOR = 0
 };
 
@@ -47,7 +47,6 @@ typedef struct laplace_unicode_root_build_request {
     const char* spool_directory;
     const laplace_unicode_numeric_provider_v1* numeric_provider;
     uint64_t maximum_batch_bytes;
-    uint32_t maximum_batch_frames;
     uint16_t abi_major;
     uint16_t abi_minor;
     uint32_t flags;

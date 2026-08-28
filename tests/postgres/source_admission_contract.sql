@@ -333,9 +333,10 @@ BEGIN
         SELECT array_agg(binding.entity_id::bytea ORDER BY positions.ordinality)
                    AS ids
         FROM expected_positions AS positions
-        JOIN laplace.unicode_atom_binding AS binding
-          ON binding.root_receipt = admitted.unicode_root_receipt_id
-         AND binding.codepoint_position = positions.codepoint_position
+        JOIN laplace.attestation AS binding
+          ON binding.source_fingerprint = admitted.unicode_root_receipt_id
+         AND binding.attestation_kind = 3
+         AND binding.source_ordinal = positions.codepoint_position + 1
     ), candidates AS (
         SELECT p.physicality_id,
                array_agg((occurrence).entity_id::bytea
@@ -360,9 +361,10 @@ BEGIN
         SELECT array_agg(binding.entity_id::bytea ORDER BY positions.ordinality)
                    AS ids
         FROM expected_positions AS positions
-        JOIN laplace.unicode_atom_binding AS binding
-          ON binding.root_receipt = admitted.unicode_root_receipt_id
-         AND binding.codepoint_position = positions.codepoint_position
+        JOIN laplace.attestation AS binding
+          ON binding.source_fingerprint = admitted.unicode_root_receipt_id
+         AND binding.attestation_kind = 3
+         AND binding.source_ordinal = positions.codepoint_position + 1
     ), candidates AS (
         SELECT p.physicality_id,
                array_agg((occurrence).entity_id::bytea
@@ -388,6 +390,46 @@ BEGIN
     IF raw_archive_count <> 0 THEN
         RAISE EXCEPTION
             'non-invertible source distribution was falsely deposited as exact raw content';
+    END IF;
+END
+$contract$;
+
+DO $contract$
+DECLARE
+    admitted source_admission_first%ROWTYPE;
+    witnessed_record_count bigint;
+    witnessed_nonrecord_count bigint;
+    structurally_retained_nonclaim_count bigint;
+BEGIN
+    SELECT * INTO STRICT admitted FROM source_admission_first;
+    WITH witnessed AS (
+        SELECT e.node_id,
+               array_agg((item).metadata >> 6 ORDER BY (item).logical_ordinal)
+                   AS roles
+        FROM laplace.evidence_node AS e
+        JOIN laplace.attestation AS occurrence
+          ON occurrence.attestation_id = e.occurrence_id
+        JOIN laplace.physicality AS p
+          ON p.physicality_id = occurrence.physicality_id
+        CROSS JOIN LATERAL unnest(
+            pg_temp.physicality_occurrences(p.physicality_id)) AS item
+        WHERE e.source_id = admitted.source_fingerprint
+        GROUP BY e.node_id
+    )
+    SELECT count(*) FILTER (
+               WHERE roles = ARRAY[1, 7, 7, 10]::bigint[]),
+           count(*) FILTER (
+               WHERE roles <> ARRAY[1, 7, 7, 10]::bigint[]),
+           admitted.occurrence_count - count(*)
+    INTO STRICT witnessed_record_count, witnessed_nonrecord_count,
+        structurally_retained_nonclaim_count
+    FROM witnessed;
+
+    IF witnessed_record_count <> admitted.claim_count
+       OR witnessed_nonrecord_count <> 0
+       OR structurally_retained_nonclaim_count <= 0 THEN
+        RAISE EXCEPTION
+            'structural AST tiers were promoted into record testimony';
     END IF;
 END
 $contract$;

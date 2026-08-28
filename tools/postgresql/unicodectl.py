@@ -137,7 +137,7 @@ def validate_activation_contract(
         "package_manifest_schema": clusterctl.PACKAGE_SCHEMA,
         "unicode_source_contract_schema": "laplace.unicode-source-contract/v1",
         "unicode_postgresql_contract_schema": "laplace.unicode-postgresql-contract/v1",
-        "unicode_postgresql_contract_fingerprint": "f4086d6334dc87f627177dce69b3701743b8ffa22c97e77854754dca0f04b077",
+        "unicode_postgresql_contract_fingerprint": "a820581b0e1c36e16a7394ae4fd3bdce1d1910faccc97cbb69838e0876106dc4",
         "unicode_version": "17.0.0",
         "source_file_count": 33,
     }
@@ -222,7 +222,7 @@ def validate_activation_contract(
         or operation.get("readback_positions") != [0, 65, 1114111]
     ):
         raise UnicodeActivationError("initial Unicode activation law differs")
-    for key in ("maximum_batch_bytes", "maximum_batch_frames"):
+    for key in ("maximum_batch_bytes",):
         if not isinstance(operation.get(key), int) or operation[key] <= 0:
             raise UnicodeActivationError(f"operation.{key} is invalid")
     context = contract.get("execution_context", {})
@@ -249,7 +249,7 @@ def validate_activation_contract(
         "reverse_artifact_bytes": 117440896,
         "tier0_artifact_digest": "8950d9867428fd660f8a49377b0c4a693b57ef0a9807ea189e425d0bb847c291",
         "reverse_artifact_digest": "6f33df84440a8f4bb19afa608befac11f17ad68123d06e043c2be7451f6ab7b1",
-        "plan_manifest_fingerprint": "74499f893b359982962c3dbeb5572965c8d89f22609f47c41dbd7143d08034ab",
+        "plan_manifest_fingerprint": "3a546d581afc1c4caf78c1c235aafd41b283984325d5717b188211d1091cb9e5",
         "perfcache_artifact_count": 2,
         "perfcache_dependency_count": 1,
         "reverse_dependency_module_id": "cb4d73fe1c7ad3784bdd69f9e22f5b3f",
@@ -540,7 +540,10 @@ def render_inspection_sql() -> str:
   'deposit_count', (SELECT count(*) FROM laplace.unicode_root_deposit_receipt),
   'entity_count', (SELECT count(*) FROM laplace.entity),
   'physicality_count', (SELECT count(*) FROM laplace.physicality),
-  'atom_count', (SELECT count(*) FROM laplace.unicode_atom_binding),
+  'atom_count', (SELECT count(*) FROM laplace.attestation
+                 WHERE source_fingerprint =
+                       (SELECT root_receipt FROM laplace.unicode_root_generation)
+                   AND attestation_kind = 3),
   'ducet_position_count', (SELECT count(*) FROM laplace.unicode_ducet_position),
   'ducet_contraction_count', (SELECT count(*) FROM laplace.unicode_ducet_contraction),
   'normalization_composition_count', (SELECT count(*) FROM laplace.unicode_normalization_composition),
@@ -592,6 +595,8 @@ BEGIN
      OR EXISTS (SELECT 1 FROM laplace.unicode_root_deposit_receipt)
      OR EXISTS (SELECT 1 FROM laplace.entity)
      OR EXISTS (SELECT 1 FROM laplace.physicality)
+     OR EXISTS (SELECT 1 FROM laplace.attestation)
+     OR EXISTS (SELECT 1 FROM laplace.consensus)
      OR EXISTS (SELECT 1 FROM laplace.perfcache_generation)
      OR EXISTS (SELECT 1 FROM laplace.perfcache_activation_event) THEN
     RAISE EXCEPTION 'initial Unicode product activation requires an empty exact product state';
@@ -608,7 +613,7 @@ SELECT result.* FROM laplace.unicode_root_build_and_activate(
   decode('{identities['activation_epoch_id']}','hex'),
   decode('{identities['activation_epoch_fingerprint']}','hex'),
   0,false,decode(repeat('00',16),'hex'),decode(repeat('00',32),'hex'),
-  {operation['maximum_batch_bytes']}::bigint,{operation['maximum_batch_frames']}
+  {operation['maximum_batch_bytes']}::bigint
 ) AS result;
 DO $verify$
 DECLARE build unicode_product_build%ROWTYPE;
@@ -639,7 +644,9 @@ BEGIN
      OR active.epoch_fingerprint <> build.activation_epoch_fingerprint
      OR (SELECT count(*) FROM laplace.entity) <> {expected['entity_count']}
      OR (SELECT count(*) FROM laplace.physicality) <> {expected['physicality_count']}
-     OR (SELECT count(*) FROM laplace.unicode_atom_binding) <> {expected['atom_count']}
+     OR (SELECT count(*) FROM laplace.attestation
+         WHERE source_fingerprint = build.root_receipt
+           AND attestation_kind = 3) <> {expected['atom_count']}
      OR (SELECT count(*) FROM laplace.unicode_ducet_position) <> {expected['ducet_position_count']}
      OR (SELECT count(*) FROM laplace.unicode_ducet_contraction) <> {expected['ducet_contraction_count']}
      OR (SELECT count(*) FROM laplace.unicode_normalization_composition) <> {expected['normalization_composition_count']}

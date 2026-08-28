@@ -530,23 +530,6 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_request_record AS (
     occurrence_context_fingerprint bytea
 );
 
-CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_atom_deposit_record AS (
-    root_receipt bytea,
-    codepoint_position integer,
-    placement_rank integer,
-    position_class smallint,
-    lup_v1_length smallint,
-    lup_v1_bytes bytea,
-    entity_id bytea,
-    identity_preimage_fingerprint bytea,
-    physicality_id bytea,
-    coordinate_x double precision,
-    coordinate_y double precision,
-    coordinate_z double precision,
-    coordinate_m double precision,
-    hilbert_key bytea
-);
-
 CREATE TYPE @LAPLACE_PG_SCHEMA@.unicode_ducet_position_deposit_record AS (
     root_receipt bytea,
     codepoint_position integer,
@@ -1213,42 +1196,6 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_root_generation (
     recorded_by name NOT NULL DEFAULT current_user
 );
 
-CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_atom_binding (
-    root_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    codepoint_position integer NOT NULL CHECK (
-        codepoint_position BETWEEN 0 AND @LAPLACE_PG_UNICODE_ROOT_MAX_POSITION@),
-    placement_rank integer NOT NULL CHECK (
-        placement_rank BETWEEN 0 AND @LAPLACE_PG_UNICODE_ROOT_MAX_POSITION@),
-    position_class smallint NOT NULL CHECK (position_class BETWEEN 0 AND 4),
-    lup_v1_length smallint NOT NULL CHECK (lup_v1_length BETWEEN 1 AND 4),
-    lup_v1_bytes bytea NOT NULL CHECK (octet_length(lup_v1_bytes) = lup_v1_length),
-    entity_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
-        REFERENCES @LAPLACE_PG_SCHEMA@.entity(entity_id),
-    identity_preimage_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    physicality_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
-        REFERENCES @LAPLACE_PG_SCHEMA@.physicality(physicality_id),
-    coordinate_x double precision NOT NULL,
-    coordinate_y double precision NOT NULL,
-    coordinate_z double precision NOT NULL,
-    coordinate_m double precision NOT NULL,
-    hilbert_key bytea NOT NULL CHECK (octet_length(hilbert_key) = 16),
-    PRIMARY KEY (root_receipt, codepoint_position),
-    UNIQUE (root_receipt, placement_rank),
-    FOREIGN KEY (root_receipt)
-        REFERENCES @LAPLACE_PG_SCHEMA@.unicode_root_generation(root_receipt)
-        DEFERRABLE INITIALLY DEFERRED
-);
-
-CREATE INDEX unicode_atom_binding_entity_idx
-    ON @LAPLACE_PG_SCHEMA@.unicode_atom_binding
-    (entity_id, root_receipt, codepoint_position);
-CREATE INDEX unicode_atom_binding_physicality_idx
-    ON @LAPLACE_PG_SCHEMA@.unicode_atom_binding
-    (physicality_id, root_receipt, codepoint_position);
-CREATE INDEX unicode_atom_binding_hilbert_idx
-    ON @LAPLACE_PG_SCHEMA@.unicode_atom_binding
-    (root_receipt, hilbert_key, codepoint_position);
-
 CREATE TABLE @LAPLACE_PG_SCHEMA@.unicode_ducet_position (
     root_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     codepoint_position integer NOT NULL CHECK (
@@ -1895,8 +1842,7 @@ CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_ROOT_SQL@(
     boolean,
     bytea,
     bytea,
-    bigint,
-    integer)
+    bigint)
 RETURNS @LAPLACE_PG_SCHEMA@.unicode_root_build_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_UNICODE_ROOT_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
@@ -1957,7 +1903,6 @@ REVOKE ALL ON FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL@
     @LAPLACE_PG_SCHEMA@.tabular_mapping_rule[], numeric)
     FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_root_generation FROM PUBLIC;
-REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_atom_binding FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_ducet_position FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_ducet_contraction FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_normalization_composition FROM PUBLIC;
@@ -2067,5 +2012,5 @@ REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_ROOT_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
         text, text, text, text, bytea, bytea, bigint, boolean, bytea, bytea,
-        bigint, integer)
+        bigint)
     FROM PUBLIC;

@@ -102,6 +102,22 @@ Feature: Generated native cognition mathematics
     And each obligation retains its bindings, world, time, context, evidence, authority, and result contract
     And replacing the guidance state with one elected topic fails canonical state reconstruction
 
+  Scenario: A cognition layer transforms state rather than walking another edge
+    Given a comparison goal over two entities has structural semantic temporal epistemic and contrast obligations
+    When one native cognition layer executes
+    Then the current state projects typed queries for the unresolved obligations
+    And indexes and perfcaches produce candidate batches without deciding relevance or truth
+    And eligible values are scored and folded into a new derived state with complete evidence roots
+    And the new state projects the next typed operations under the remaining obligations
+    But advancing a raw hop counter retaining a fixed fanout or returning a found path without the fold and projection fails the guidance-state contract
+
+  Scenario: Evidence volume is folded before the next layer
+    Given fifty thousand dependent observations and three independent observations bear on one typed proposition
+    When a cognition layer incorporates that evidence
+    Then the fold retains raw count dependence roots contradiction uncertainty context and standing
+    And the next layer consumes the typed folded result plus drill-through provenance
+    But carrying fifty thousand rows as fifty thousand independent forward-state slots fails non-amplification and resource conservation
+
   Scenario: Curiosity schedules an actionable knowledge deficit
     Given one unresolved referent is required to complete the active goal
     And one unrelated motif vacancy has greater raw novelty
