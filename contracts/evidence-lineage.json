@@ -1,0 +1,27 @@
+{
+  "schema": "laplace.evidence-lineage/v1",
+  "version": 1,
+  "digest_algorithm": "BLAKE3-256",
+  "identity_domain": "laplace-evidence-node-v1",
+  "receipt_domain": "laplace-evidence-lineage-receipt-v1",
+  "record_kinds": {
+    "node": 1,
+    "dependence_edge": 2
+  },
+  "epistemic_kinds": {
+    "observed": 1,
+    "testimony": 2,
+    "calculation": 3,
+    "derivation": 4,
+    "model_behavior": 5,
+    "unknown": 6,
+    "contradiction": 7
+  },
+  "node_identity_preimage": "domain || proposition_id || occurrence_id || source_id || context_id || source_ordinal || epistemic_kind || flags",
+  "ordering": "node records by node-id followed by dependence edges by child-id then parent-id",
+  "root_rule": "a node with no parents is its own root; dependent paths retain direct edges and collapse to unique terminal roots",
+  "cycle_rule": "reject the complete batch and return the exact closed offending node path",
+  "flags": {
+    "none": 0
+  }
+}

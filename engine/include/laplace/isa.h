@@ -62,7 +62,9 @@ typedef enum laplace_isa_status {
     LAPLACE_ISA_VALUE_OVERLAP = 11,
     LAPLACE_ISA_INPUT_OUT_OF_RANGE = 12,
     LAPLACE_ISA_EXECUTION_FAILED = 13,
-    LAPLACE_ISA_CONTEXT_INVALID = 14
+    LAPLACE_ISA_CONTEXT_INVALID = 14,
+    LAPLACE_ISA_DEPENDENCE_CYCLE = 15,
+    LAPLACE_ISA_RESOURCE_INSUFFICIENT = 16
 } laplace_isa_status;
 
 typedef struct laplace_isa_error {

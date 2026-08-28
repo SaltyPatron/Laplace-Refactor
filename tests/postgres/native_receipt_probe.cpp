@@ -1,4 +1,5 @@
 #include "laplace/composition.h"
+#include "laplace/evidence_lineage.h"
 #include "laplace/isa.h"
 #include "laplace/highway.h"
 #include "laplace/persistence.h"
@@ -432,6 +433,103 @@ int main() {
                           std::to_string(index);
         PrintHex(name.c_str(), persistence_frames[index]);
     }
+
+    laplace_evidence_lineage_record evidence_root{};
+    evidence_root.proposition_id = entity_a;
+    evidence_root.occurrence_id = observed.occurrence_id;
+    Fill(&evidence_root.source_id, 0x11u);
+    Fill(&evidence_root.context_id, 0x21u);
+    evidence_root.source_ordinal = 1u;
+    evidence_root.record_kind = LAPLACE_EVIDENCE_RECORD_NODE;
+    evidence_root.epistemic_kind = LAPLACE_EVIDENCE_KIND_OBSERVED;
+    if (laplace_evidence_node_identify(
+            &evidence_root, &evidence_root.node_id) !=
+        LAPLACE_EVIDENCE_LINEAGE_OK) {
+        return 33;
+    }
+    auto evidence_copy = evidence_root;
+    Fill(&evidence_copy.source_id, 0x31u);
+    Fill(&evidence_copy.context_id, 0x41u);
+    evidence_copy.source_ordinal = 2u;
+    evidence_copy.epistemic_kind = LAPLACE_EVIDENCE_KIND_TESTIMONY;
+    if (laplace_evidence_node_identify(
+            &evidence_copy, &evidence_copy.node_id) !=
+        LAPLACE_EVIDENCE_LINEAGE_OK) {
+        return 34;
+    }
+    auto evidence_independent = evidence_root;
+    Fill(&evidence_independent.source_id, 0x51u);
+    Fill(&evidence_independent.context_id, 0x61u);
+    evidence_independent.source_ordinal = 3u;
+    if (laplace_evidence_node_identify(
+            &evidence_independent, &evidence_independent.node_id) !=
+        LAPLACE_EVIDENCE_LINEAGE_OK) {
+        return 35;
+    }
+    std::array<laplace_evidence_lineage_record, 3> evidence_nodes{{
+        evidence_root, evidence_copy, evidence_independent}};
+    std::sort(evidence_nodes.begin(), evidence_nodes.end(), [](const auto& left, const auto& right) {
+        return std::memcmp(left.node_id.bytes, right.node_id.bytes,
+                           sizeof(left.node_id.bytes)) < 0;
+    });
+    laplace_evidence_lineage_record evidence_edge{};
+    evidence_edge.node_id = evidence_copy.node_id;
+    evidence_edge.parent_node_id = evidence_root.node_id;
+    evidence_edge.record_kind = LAPLACE_EVIDENCE_RECORD_DEPENDENCE_EDGE;
+    std::array<laplace_evidence_lineage_record, 4> evidence_records{{
+        evidence_nodes[0], evidence_nodes[1], evidence_nodes[2], evidence_edge}};
+    std::array<laplace_evidence_root_record, 3> evidence_outputs{};
+    std::array<laplace_isa_value_view, 2> evidence_values{{
+        {evidence_records.data(), evidence_records.size(), evidence_records.size(),
+         static_cast<std::uint32_t>(sizeof(evidence_records[0])),
+         LAPLACE_ISA_VALUE_EVIDENCE_LINEAGE_RECORD_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {evidence_outputs.data(), 0u, evidence_outputs.size(),
+         static_cast<std::uint32_t>(sizeof(evidence_outputs[0])),
+         LAPLACE_ISA_VALUE_EVIDENCE_ROOT_RECORD_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction evidence_instruction{
+        LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_LINEAGE_BATCH,
+        0u, 1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_EVIDENCE_RECORD_LINEAGE_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto evidence_context = laplace_test_context(0u);
+    evidence_context.resource_grant.memory_bytes = UINT64_C(16777216);
+    evidence_context.major = 1u;
+    evidence_context.minor = 2u;
+    evidence_context.flags = 0u;
+    auto evidence_program = Program(&evidence_instruction, evidence_values.data());
+    evidence_program.context = &evidence_context;
+    laplace_isa_receipt evidence_isa_receipt{};
+    laplace_isa_error evidence_isa_error{};
+    if (laplace_isa_execute(
+            &evidence_program, &evidence_isa_receipt, &evidence_isa_error) !=
+        LAPLACE_ISA_OK) {
+        return 36;
+    }
+    laplace_evidence_lineage_receipt evidence_lineage_receipt{};
+    laplace_evidence_lineage_error evidence_lineage_error{};
+    std::size_t evidence_output_count = 0u;
+    if (laplace_evidence_record_lineage_batch(
+            evidence_records.data(), evidence_records.size(), UINT64_C(1048576),
+            evidence_outputs.data(), evidence_outputs.size(), &evidence_output_count,
+            &evidence_lineage_receipt, &evidence_lineage_error) !=
+            LAPLACE_EVIDENCE_LINEAGE_OK || evidence_output_count != 3u) {
+        return 37;
+    }
+    PrintDigest("EVIDENCE_ROOT_NODE", evidence_root.node_id);
+    PrintDigest("EVIDENCE_COPY_NODE", evidence_copy.node_id);
+    PrintDigest("EVIDENCE_INDEPENDENT_NODE", evidence_independent.node_id);
+    PrintDigest("EVIDENCE_ROOT_SOURCE", evidence_root.source_id);
+    PrintDigest("EVIDENCE_ROOT_CONTEXT", evidence_root.context_id);
+    PrintDigest("EVIDENCE_COPY_SOURCE", evidence_copy.source_id);
+    PrintDigest("EVIDENCE_COPY_CONTEXT", evidence_copy.context_id);
+    PrintDigest("EVIDENCE_INDEPENDENT_SOURCE", evidence_independent.source_id);
+    PrintDigest("EVIDENCE_INDEPENDENT_CONTEXT", evidence_independent.context_id);
+    PrintDigest("EVIDENCE_LINEAGE_RECEIPT", evidence_lineage_receipt.receipt_id);
+    PrintDigest("EVIDENCE_LINEAGE_INPUT", evidence_lineage_receipt.input_fingerprint);
+    PrintDigest("EVIDENCE_LINEAGE_OUTPUT", evidence_lineage_receipt.output_fingerprint);
+    PrintDigest("EVIDENCE_ISA_RECEIPT", evidence_isa_receipt.receipt_id);
 
     const laplace_id128 zero_entity{};
     const laplace_digest256 zero_witness{};

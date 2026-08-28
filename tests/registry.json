@@ -1621,6 +1621,48 @@
       "covered_dimensions": ["one generated ISA opcode owns highway registry materialization", "batch preflight rejects unsupported registry versions before any output", "materialization output matches the canonical native lifecycle receipt"]
     },
     {
+      "ctest_name": "EvidenceLineage.CopiesCollapseToOneRootWhileIndependentWitnessesRemain",
+      "evidence_targets": ["LP-TEST-DERIVATION-NONAMPLIFICATION", "LP-TEST-EVIDENCE-DEPENDENCE"],
+      "covered_dimensions": ["dependent copies retain their direct ancestry", "unique terminal roots collapse copied evidence without merging independent observations"],
+      "defect_controls": ["evidence-lineage.mutation-dependent-descendants-counted-as-roots-detected"]
+    },
+    {
+      "ctest_name": "EvidenceLineage.OneThousandDerivedDescendantsDoNotManufactureRoots",
+      "evidence_targets": ["LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-DERIVATION-NONAMPLIFICATION"],
+      "covered_dimensions": ["one thousand direct dependence edges remain reconstructable", "root closure retains one independent root and exact path depth"]
+    },
+    {
+      "ctest_name": "EvidenceLineage.ModelDescendantsRetainFamilyRootAndUnrelatedModelStaysIndependent",
+      "evidence_targets": ["LP-TEST-MODEL-LINEAGE-INDEPENDENCE", "LP-TEST-EVIDENCE-DEPENDENCE"],
+      "covered_dimensions": ["fine-tuned and distilled model descendants retain their family root", "an unrelated model remains a distinct root"]
+    },
+    {
+      "ctest_name": "EvidenceLineage.CycleRejectsTheBatchWithExactClosedOffendingPath",
+      "evidence_targets": ["LP-TEST-CIRCULAR-EVIDENCE-REJECTION"],
+      "covered_dimensions": ["dependence cycles reject the whole batch", "the returned offending path is exact and closed"]
+    },
+    {
+      "ctest_name": "EvidenceLineage.EpistemicKindAndSourceRemainIdentityInputs",
+      "evidence_targets": ["LP-TEST-EPISTEMIC-KIND-SEPARATION"],
+      "covered_dimensions": ["observed testimony calculation derivation model behavior unknown and contradiction are typed", "source context and epistemic kind remain node-identity inputs"]
+    },
+    {
+      "ctest_name": "EvidenceLineage.DeclaredMemoryAndOutputBoundsFailBeforePublishing",
+      "evidence_targets": ["LP-TEST-FINITE-RESOURCE-BOUNDARY", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-DERIVATION-LINEAGE-CLOSURE"],
+      "covered_dimensions": ["declared temporary-memory exhaustion is distinguished from output-capacity exhaustion", "both finite-bound failures publish no root projection"]
+    },
+    {
+      "ctest_name": "evidence-lineage.mutation-dependent-descendants-counted-as-roots-detected",
+      "evidence_targets": ["LP-TEST-DERIVATION-NONAMPLIFICATION", "LP-TEST-EVIDENCE-DEPENDENCE"],
+      "covered_dimensions": ["a descendant-counting implementation cannot impersonate independent root closure"],
+      "controls": "EvidenceLineage.CopiesCollapseToOneRootWhileIndependentWitnessesRemain"
+    },
+    {
+      "ctest_name": "IsaExecution.EvidenceLineageMatchesCanonicalNativeOperationAndReceipt",
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-DERIVATION-LINEAGE-CLOSURE"],
+      "covered_dimensions": ["one generated ISA operation owns evidence-lineage execution", "strided inputs and outputs preserve canonical native roots and semantic receipt", "temporary memory and output capacity are preflighted before publication"]
+    },
+    {
       "ctest_name": "dotnet.generated-isa-contract",
       "profiles": ["dotnet", "custom-stack"],
       "evidence_targets": ["LP-TEST-FRAMEWORK-GENERATED-BINDINGS", "LP-TEST-ISA-COVERAGE", "LP-TEST-HIGHWAY-REGISTRY-PARITY"],
@@ -1657,9 +1699,9 @@
     {
       "ctest_name": "postgres.spi-isa-contract",
       "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN", "LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY", "LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION"],
-      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL identity trajectory and highway-coordinate output parity", "direct C and PostgreSQL identity trajectory and highway-coordinate receipt parity", "highway release scope separation and fail-closed zero scope", "parallel-safe pure calculation", "one set-oriented SPI persistence provider", "durable-or-in-batch reference preflight", "normalized entity physicality trajectory and occurrence storage", "full identity witness collision detection", "immutable exact plan-sequence receipt", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-vertex single native batch", "bounded storage", "candidate index plus exact native trajectory proof", "concurrent idempotent deposit", "database-scoped named DSM control plane without preload", "immutable generation manifests and activation-admission events", "durable active-epoch singleton CAS", "transaction and savepoint deferred activation", "native preflight before durable commit", "committed-XID visibility-gap recovery", "exact full-epoch shared and native pins", "resource-owner error cleanup", "cold-backend manifest reconstruction validation prefault and exact pin", "SQL-free repeated hot native batch lookup", "configured-root and missing-artifact rejection", "concurrent old-generation reader and new-generation activation", "competing activator exclusion", "retired generation drain", "same-postmaster extension drop and recreation", "unchanged postmaster start time"],
-      "defect_controls": ["postgres.mutation-receipt-collision-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN", "LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY", "LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION", "LP-TEST-EPISTEMIC-KIND-SEPARATION", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-DERIVATION-NONAMPLIFICATION", "LP-TEST-CIRCULAR-EVIDENCE-REJECTION", "LP-TEST-EVIDENCE-DEPENDENCE"],
+      "covered_dimensions": ["exact typed PostgreSQL signatures", "explicit immutable execution context", "context-sensitive program and receipt identity", "direct C and PostgreSQL identity trajectory highway-coordinate and evidence-lineage output parity", "direct C and PostgreSQL identity trajectory highway-coordinate and evidence-lineage receipt parity", "set-wise immutable evidence nodes direct dependence edges root projections and lineage receipts", "cycle rejection before durable publication", "exact durable evidence replay conflict detection", "highway release scope separation and fail-closed zero scope", "parallel-safe pure calculation", "one set-oriented SPI persistence provider", "durable-or-in-batch reference preflight", "normalized entity physicality trajectory and occurrence storage", "full identity witness collision detection", "immutable exact plan-sequence receipt", "deterministic replay without row rewrite", "invalid context and later-element atomicity", "4096-vertex single native batch", "bounded storage", "candidate index plus exact native trajectory proof", "concurrent idempotent deposit", "database-scoped named DSM control plane without preload", "immutable generation manifests and activation-admission events", "durable active-epoch singleton CAS", "transaction and savepoint deferred activation", "native preflight before durable commit", "committed-XID visibility-gap recovery", "exact full-epoch shared and native pins", "resource-owner error cleanup", "cold-backend manifest reconstruction validation prefault and exact pin", "SQL-free repeated hot native batch lookup", "configured-root and missing-artifact rejection", "concurrent old-generation reader and new-generation activation", "competing activator exclusion", "retired generation drain", "same-postmaster extension drop and recreation", "unchanged postmaster start time"],
+      "defect_controls": ["postgres.mutation-receipt-collision-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-evidence-root-replay-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
     },
     {
       "ctest_name": "postgres.mutation-receipt-collision-detected",
@@ -1673,6 +1715,13 @@
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
       "covered_dimensions": ["same BLAKE3-128 ID with different full identity witness is rejected", "set-wise exact conflict verification"],
+      "controls": "postgres.spi-isa-contract"
+    },
+    {
+      "ctest_name": "postgres.mutation-evidence-root-replay-conflict-detected",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-EVIDENCE-DEPENDENCE", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["a durable root projection that conflicts with the canonical dependence DAG is rejected on exact replay"],
       "controls": "postgres.spi-isa-contract"
     },
     {

@@ -88,6 +88,36 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.observed_occurrence_record AS (
     flags integer
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.evidence_lineage_record AS (
+    node_id bytea,
+    proposition_id bytea,
+    occurrence_id bytea,
+    source_id bytea,
+    context_id bytea,
+    parent_node_id bytea,
+    source_ordinal numeric(20, 0),
+    record_kind integer,
+    epistemic_kind integer,
+    flags integer,
+    reserved integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.evidence_lineage_result AS (
+    node_ids bytea[],
+    root_node_ids bytea[],
+    proposition_ids bytea[],
+    path_depths bigint[],
+    root_epistemic_kinds integer[],
+    lineage_receipt_id bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    isa_receipt_id bytea,
+    input_record_count numeric(20, 0),
+    node_count numeric(20, 0),
+    edge_count numeric(20, 0),
+    root_relation_count numeric(20, 0)
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_known_entity_record AS (
     entity_id bytea,
     identity_witness bytea,
@@ -255,6 +285,63 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.observed_occurrence (
 CREATE INDEX observed_occurrence_source_idx
     ON @LAPLACE_PG_SCHEMA@.observed_occurrence
     (source_fingerprint, source_ordinal, occurrence_id);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_node (
+    node_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    proposition_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    occurrence_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.observed_occurrence(occurrence_id),
+    source_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    context_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    source_ordinal numeric(20, 0) NOT NULL CHECK (source_ordinal > 0),
+    epistemic_kind integer NOT NULL CHECK (epistemic_kind BETWEEN 1 AND 7),
+    flags integer NOT NULL CHECK (flags = 0)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_dependence (
+    node_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_node(node_id),
+    parent_node_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_node(node_id),
+    CHECK (node_id <> parent_node_id),
+    PRIMARY KEY (node_id, parent_node_id)
+);
+
+CREATE INDEX evidence_dependence_parent_idx
+    ON @LAPLACE_PG_SCHEMA@.evidence_dependence(parent_node_id, node_id);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_root_projection (
+    node_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_node(node_id),
+    root_node_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.evidence_node(node_id),
+    proposition_id @LAPLACE_PG_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.canonical_entity(entity_id),
+    path_depth numeric(20, 0) NOT NULL CHECK (path_depth >= 0),
+    root_epistemic_kind integer NOT NULL CHECK (root_epistemic_kind BETWEEN 1 AND 7),
+    flags integer NOT NULL CHECK (flags = 0),
+    PRIMARY KEY (node_id, root_node_id)
+);
+
+CREATE INDEX evidence_root_projection_claim_idx
+    ON @LAPLACE_PG_SCHEMA@.evidence_root_projection
+    (proposition_id, root_node_id, node_id);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_lineage_receipt (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    input_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    output_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    isa_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.execution_receipt(receipt_id),
+    input_record_count numeric(20, 0) NOT NULL CHECK (input_record_count > 0),
+    node_count numeric(20, 0) NOT NULL CHECK (node_count > 0),
+    edge_count numeric(20, 0) NOT NULL CHECK (edge_count >= 0),
+    root_relation_count numeric(20, 0) NOT NULL CHECK (root_relation_count > 0),
+    version integer NOT NULL CHECK (version = 1),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt (
     receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
@@ -913,6 +1000,14 @@ RETURNS @LAPLACE_PG_SCHEMA@.highway_registry_active_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SYMBOL@'
 LANGUAGE C STABLE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_EVIDENCE_RECORD_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.evidence_lineage_record[],
+    numeric)
+RETURNS @LAPLACE_PG_SCHEMA@.evidence_lineage_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_EVIDENCE_RECORD_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_PERSISTENCE_DEPOSIT_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
     bytea,
@@ -975,6 +1070,10 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.canonical_entity FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.physicality FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.composition_trajectory_vertex FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.observed_occurrence FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_node FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_dependence FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_root_projection FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_lineage_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_root_generation FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.unicode_atom_binding FROM PUBLIC;
@@ -1035,6 +1134,11 @@ REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_EXECUTE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
         @LAPLACE_PG_SCHEMA@.highway_key[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_EVIDENCE_RECORD_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.evidence_lineage_record[], numeric)
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SQL@(
