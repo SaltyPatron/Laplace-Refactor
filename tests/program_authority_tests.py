@@ -1264,29 +1264,32 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     active = document.get("active_work", {})
     require(
-        active.get("capability") == "source-profile.admit-tabular-testimony"
+        active.get("capability") == "source-profile.resolve-reference-topology"
         and active.get("github_issue") == 53
-        and active.get("related_issue") == 16
+        and active.get("related_issue") == 52
         and active.get("state")
-        == "implementation-and-controlled-integration-proven-first-profile-product-world-admission-incomplete"
-        and active.get("branch") == "feat/source-profile-testimony"
-        and active.get("pull_request") == 83
+        == "implementation-and-controlled-integration-proven-iso-reference-topology-product-world-admission-incomplete"
+        and active.get("branch") == "feat/iso-highway-topology"
+        and active.get("pull_request") is None
         and active.get("base_commit")
-        == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a"
+        == "50c41b362e32b9338c6930f69c6fff76560b24ac"
         and active.get("implementation_commit")
-        == "794be81ac83d1e50e390c994cd804e2b5213a68d",
+        == "0ce1fa60666f68ed0c218ba5f09ecc14bceffa8a",
         "active source-profile continuation identity drift",
     )
     contains_all(
         active.get("implemented_boundary", []),
         (
-            "generic evidence-testimony source-profile tabular-source and world-admission",
-            "generic tabular compiler",
+            "PR 83",
+            "canonical native reference-topology batch operation",
+            "generic tabular compiler emits typed reference occurrences",
             "selected exact digital content recomposes",
             "source_admit_tabular",
             "locked ISO 639 Set 3 2026-04-15",
             "17110 record testimony claims",
-            "18805 ISO identifier and join-key carriers remain explicitly unresolved",
+            "18805 ISO identifier and join-key occurrences resolve",
+            "9339 exact scoped Highway coordinates",
+            "18404 present 401 retired and zero unresolved",
             "replay returns identical",
             "same selected content converges",
             "authority-declared HTTPS archive",
@@ -1298,20 +1301,22 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(
         active.get("controlled_integration_validation", {}),
         (
-            "211 steps",
-            "12 of 12",
+            "installed-provider receipt",
+            "16 of 16",
             "347 of 347",
             "1065.04 seconds",
             "100 deliberate mutation tests",
-            "348 registered tests",
-            "88 implemented evidence targets",
-            "185 scenarios",
-            "129.12",
-            "482.94",
-            "127.68",
+            "355 CTest entries",
+            "12 of 12 requirement-trace tests",
+            "123.34",
+            "581.38",
+            "118.092",
             "61.21",
             "146930",
             "structural reference carrier promoted",
+            "unresolved endpoint promoted",
+            "conflicting present and retired declarations",
+            "field identity substituted",
             "semantic-drift composition presence",
             "official SIL HTTPS archive",
             "separate-build native tests passed without /vault/Data",
@@ -1321,8 +1326,9 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     contains_all(
         active.get("missing_boundary", []),
         (
-            "typed ISO authority release namespace Highway topology",
             "remaining heterogeneous source profiles grammars codecs and modalities",
+            "cross-namespace mappings",
+            "cross-profile endpoint and dependence closure",
             "standing adjudication contradiction referential and as-of evidence epochs",
             "no activated-product world-admission receipt",
             "foundational heterogeneous world seed",
@@ -1334,7 +1340,8 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         (
             "controlled-integration ISO route is not activated-product world admission",
             "ZIP wrapper is not claimed bit-reconstructable",
-            "retaining a reference carrier is not resolving",
+            "resolving an exact authority-scoped coordinate",
+            "does not prove a cross-namespace mapping",
             "issue 16 adjudication and referential epochs are not complete",
             "issue 53 heterogeneous world admission is not complete",
             "not product activated",
@@ -1521,13 +1528,17 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     source_profile_pr = github.get("source_profile_pull_request", {})
     require(
         source_profile_pr.get("number") == 83
-        and source_profile_pr.get("state") == "open"
+        and source_profile_pr.get("state") == "merged"
         and source_profile_pr.get("draft") is False
         and source_profile_pr.get("mergeable") is True
         and source_profile_pr.get("base_commit")
         == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a"
         and source_profile_pr.get("published_head_commit")
-        == "0d6ada7b613d396f6bc2db114fcccbdf90be5cf5",
+        == "8eab3291e13ed487cae469298609716972ec7e35"
+        and source_profile_pr.get("merge_commit")
+        == "50c41b362e32b9338c6930f69c6fff76560b24ac"
+        and source_profile_pr.get("merged_at_utc")
+        == "2026-08-28T06:30:53Z",
         "source-profile PR observation drift",
     )
     contains_all(
@@ -1535,12 +1546,12 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         (
             "generic exact tabular source profile",
             "ISO 639 whole route",
-            "local controlled-integration evidence",
-            "exact-head GitHub CI",
-            "typed ISO Highway resolution",
+            "merged",
+            "exact-head and post-merge clean-room and custom-stack CI",
+            "typed ISO Highway topology",
             "activated-product world admission",
             "foundational seed",
-            "release remain pending",
+            "release remained pending at merge",
         ),
         "source-profile PR was promoted beyond evidence",
     )
@@ -1558,17 +1569,17 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     runs = {item.get("workflow"): item for item in github.get("latest_main_workflow_runs", [])}
     require(
-        runs.get("clean-room-ci", {}).get("id") == 33130264748
+        runs.get("clean-room-ci", {}).get("id") == 33148176535
         and runs.get("clean-room-ci", {}).get("conclusion") == "success"
         and runs.get("clean-room-ci", {}).get("head_commit")
-        == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
+        == "50c41b362e32b9338c6930f69c6fff76560b24ac",
         "latest main clean-room observation drift",
     )
     require(
-        runs.get("custom-stack-ci", {}).get("id") == 33130264722
+        runs.get("custom-stack-ci", {}).get("id") == 33148176561
         and runs.get("custom-stack-ci", {}).get("conclusion") == "success"
         and runs.get("custom-stack-ci", {}).get("head_commit")
-        == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a",
+        == "50c41b362e32b9338c6930f69c6fff76560b24ac",
         "latest main custom-stack observation drift",
     )
     product_activation_run = runs.get("product-activation", {})
