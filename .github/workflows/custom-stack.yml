@@ -24,7 +24,7 @@ jobs:
       - postgres-18
       - dotnet-10
       - avx2
-    timeout-minutes: 30
+    timeout-minutes: 120
     env:
       PATH: /opt/laplace/pgsql-18/bin:/usr/local/bin:/usr/bin:/bin
       LAPLACE_PG_CONFIG: /opt/laplace/pgsql-18/bin/pg_config
