@@ -1270,7 +1270,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and active.get("state")
         == "implementation-and-controlled-integration-proven-first-profile-product-world-admission-incomplete"
         and active.get("branch") == "feat/source-profile-testimony"
-        and active.get("pull_request") is None
+        and active.get("pull_request") == 83
         and active.get("base_commit")
         == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a"
         and active.get("implementation_commit")
@@ -1506,6 +1506,32 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         and evidence_issue.get("state") == "open"
         and "remain incomplete" in evidence_issue.get("reason", ""),
         "evidence adjudication issue was incorrectly promoted to complete",
+    )
+    source_profile_pr = github.get("source_profile_pull_request", {})
+    require(
+        source_profile_pr.get("number") == 83
+        and source_profile_pr.get("state") == "open"
+        and source_profile_pr.get("draft") is False
+        and source_profile_pr.get("mergeable") is True
+        and source_profile_pr.get("base_commit")
+        == "296c3689fd4f263b15bad06e5eec56b2ff7fc21a"
+        and source_profile_pr.get("published_head_commit")
+        == "70e56defa95f81b312d518e93b56cd3a17f25d7e",
+        "source-profile PR observation drift",
+    )
+    contains_all(
+        source_profile_pr.get("proof_state", ""),
+        (
+            "generic exact tabular source profile",
+            "ISO 639 whole route",
+            "local controlled-integration evidence",
+            "exact-head GitHub CI",
+            "typed ISO Highway resolution",
+            "activated-product world admission",
+            "foundational seed",
+            "release remain pending",
+        ),
+        "source-profile PR was promoted beyond evidence",
     )
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
