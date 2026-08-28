@@ -91,7 +91,8 @@ target_include_directories(laplace_iso_639_source_tests PRIVATE
 target_compile_options(laplace_iso_639_source_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_iso_639_source_tests PROPERTIES
-    LABELS "implementation;source-profile;iso-639;grammar;recipe;ast;reconstruction")
+    LABELS "implementation;source-profile;iso-639;grammar;recipe;ast;reconstruction"
+    ENVIRONMENT "LAPLACE_ISO_639_SOURCE_ROOT=${LAPLACE_ISO_639_SOURCE_ROOT}")
 
 add_library(laplace_tabular_parent_edge_mutant STATIC
     ../engine/src/tabular_source.cpp)
@@ -308,7 +309,15 @@ add_test(
     COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/iso_639_source_profile_tests.py")
 set_tests_properties(iso-639-source.profile-contract-and-mutation PROPERTIES
-    LABELS "contracts;source-profile;iso-639;artifact-graph;reconstruction;mutation")
+    LABELS "contracts;source-profile;iso-639;artifact-graph;reconstruction;mutation"
+    ENVIRONMENT "LAPLACE_ISO_639_SOURCE_ROOT=${LAPLACE_ISO_639_SOURCE_ROOT}")
+
+add_test(
+    NAME tabular-source.acquisition-contract-and-mutation
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tabular_source_acquisition_tests.py")
+set_tests_properties(tabular-source.acquisition-contract-and-mutation PROPERTIES
+    LABELS "acquisition;contracts;source-profile;artifact-graph;reconstruction;mutation")
 
 add_test(
     NAME highway.generated-mirror-and-append-only-contract
@@ -2509,7 +2518,7 @@ if(LAPLACE_POSTGRES_ENABLED)
         NAME postgres.iso-639-source-admission-whole-route-contract
         COMMAND "${CMAKE_COMMAND}" -E env
             "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
-            "LAPLACE_ISO_639_SOURCE_ROOT=/vault/Data/ISO639"
+            "LAPLACE_ISO_639_SOURCE_ROOT=${LAPLACE_ISO_639_SOURCE_ROOT}"
             "${LAPLACE_BASH_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
             iso-639-admission

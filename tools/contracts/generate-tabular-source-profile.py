@@ -81,6 +81,13 @@ def validate(document: dict[str, Any]) -> None:
         if parent is None:
             require("container" in artifact["roles"],
                     f"root artifact is not a container: {name}")
+            acquisition = artifact.get("acquisition", {})
+            require(
+                acquisition.get("transport") == "https"
+                and acquisition.get("url", "").startswith("https://")
+                and acquisition.get("retry_attempts") in range(1, 6),
+                f"root artifact lacks bounded locked HTTPS acquisition: {name}",
+            )
         else:
             require(parent in by_name, f"parent must precede member: {name}")
             require("container" in by_name[parent]["roles"],

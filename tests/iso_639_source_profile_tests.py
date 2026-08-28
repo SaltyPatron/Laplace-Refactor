@@ -72,6 +72,12 @@ class Iso639SourceProfileContract(unittest.TestCase):
         ]["kind"] = "resolved"
         self.compile(false_reference_resolution, False)
 
+        ambient_acquisition = copy.deepcopy(document)
+        ambient_acquisition["artifacts"][0]["acquisition"]["transport"] = "http"
+        ambient_acquisition["artifacts"][0]["acquisition"]["url"] = \
+            "http://example.invalid/ambient.zip"
+        self.compile(ambient_acquisition, False)
+
     @unittest.skipUnless(SOURCE.is_dir(), "locked ISO 639 source root unavailable")
     def test_locked_archive_members_and_tabular_denominators_are_exact(self) -> None:
         document = json.loads(CONTRACT.read_text(encoding="utf-8"))
