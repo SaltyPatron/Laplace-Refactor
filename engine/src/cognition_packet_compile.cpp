@@ -55,9 +55,7 @@ bool RequestBytes(
         request.field_count == 0U || request.constraint_count == 0U ||
         request.initial_state_count != request.field_count ||
         !FitsSize(request.field_count) || !FitsSize(request.constraint_count) ||
-        !FitsSize(request.initial_state_count) ||
-        request.operator_program.eligible_relation_family_count >
-            std::numeric_limits<std::size_t>::max()) {
+        !FitsSize(request.initial_state_count)) {
         return false;
     }
     std::size_t total = RequestFixedBytes;
