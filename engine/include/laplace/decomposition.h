@@ -27,7 +27,8 @@ enum {
     LAPLACE_DECOMPOSITION_PROVIDER_ABI_MAJOR = 1,
     LAPLACE_DECOMPOSITION_PROVIDER_ABI_MINOR = 1,
     LAPLACE_DECOMPOSITION_SPAN_REDISPATCH = 1u,
-    LAPLACE_DECOMPOSITION_SPAN_TEXT = 2u
+    LAPLACE_DECOMPOSITION_SPAN_TEXT = 2u,
+    LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT = 4u
 };
 
 typedef struct laplace_decomposition_content {
@@ -102,8 +103,9 @@ typedef struct laplace_decomposition_summary {
  * Applies every applicable provider to an exact content span. Newly exposed
  * spans can be redispatched to the OTHER providers, allowing container,
  * grammar, Unicode, language, chess, media, and future authorities to compose
- * recursively without a source-named dispatcher. LAPLACE_DECOMPOSITION_SPAN_TEXT
- * marks a newly exposed range as textual without changing its exact bytes.
+ * recursively without a source-named dispatcher. TEXT marks textual bytes;
+ * GRAMMAR_INPUT means a grammar is authorized to parse that exact range. The
+ * flags describe applicability only and never rewrite or alias the bytes.
  * Provider+span execution is deduplicated, so redispatch converges instead of
  * becoming an infinite loop.
  */
