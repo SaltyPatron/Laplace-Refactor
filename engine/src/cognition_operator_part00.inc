@@ -140,7 +140,6 @@ bool TransportValid(const std::uint32_t value) {
 }
 
 bool ConstraintValid(
-    const laplace_cognition_operator_program& program,
     const laplace_cognition_operator_constraint& constraint,
     const std::size_t field_count) {
     if (Zero(constraint.constraint_id) || Zero(constraint.plane_id) ||
@@ -180,6 +179,12 @@ bool ConstraintValid(
         !(constraint.transport_scale == 1.0 || constraint.transport_scale == -1.0)) {
         return false;
     }
+    return true;
+}
+
+bool ConstraintEligible(
+    const laplace_cognition_operator_program& program,
+    const laplace_cognition_operator_constraint& constraint) {
     const std::uint32_t source_bit = UINT32_C(1) << (constraint.source_class - 1U);
     if ((program.eligible_source_mask & source_bit) == 0U) return false;
     return std::find(
