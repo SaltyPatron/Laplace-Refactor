@@ -1,0 +1,29 @@
+name: source-axis-transport
+on:
+  push:
+    branches: [feat/decomposition-orchestration]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: contains(github.event.head_commit.message, 'Run coherent source-axis transport')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - run: python3 .github/scripts/apply_media_source_axes.py
+      - name: Commit batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/.media-transport-trigger
+          rm -f .github/workflows/media-type-transport.yml .github/workflows/media-type-transport-v2.yml .github/workflows/media-type-transport-v3.yml .github/workflows/media-type-transport-v4.yml
+          rm -f .github/workflows/source-axis-transport.yml .github/scripts/apply_media_source_axes.py
+          git config user.name laplace-runner
+          git config user.email laplace-runner@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m 'Preserve source authority and representation independently'
+          git push origin HEAD:feat/decomposition-orchestration
