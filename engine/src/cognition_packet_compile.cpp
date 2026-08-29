@@ -1,11 +1,13 @@
 #include "laplace/cognition_packet_compile.h"
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <new>
 #include <vector>
 
 namespace {
@@ -20,6 +22,15 @@ constexpr std::size_t RequestFixedBytes = 344U;
 constexpr std::size_t FieldBytes = 160U;
 constexpr std::size_t ConstraintBytes = 264U;
 constexpr std::size_t ResultFixedBytes = 580U;
+
+bool FitsSize(const std::uint64_t value) {
+#if SIZE_MAX < UINT64_MAX
+    return value <= static_cast<std::uint64_t>(SIZE_MAX);
+#else
+    (void)value;
+    return true;
+#endif
+}
 
 bool AddMul(
     std::size_t* const value,
@@ -43,9 +54,8 @@ bool RequestBytes(
         request.operator_program.eligible_relation_family_count == 0U ||
         request.field_count == 0U || request.constraint_count == 0U ||
         request.initial_state_count != request.field_count ||
-        request.field_count > std::numeric_limits<std::size_t>::max() ||
-        request.constraint_count > std::numeric_limits<std::size_t>::max() ||
-        request.initial_state_count > std::numeric_limits<std::size_t>::max() ||
+        !FitsSize(request.field_count) || !FitsSize(request.constraint_count) ||
+        !FitsSize(request.initial_state_count) ||
         request.operator_program.eligible_relation_family_count >
             std::numeric_limits<std::size_t>::max()) {
         return false;
@@ -413,7 +423,7 @@ laplace_cognition_packet_decode_result_words(
             !reader.U32(&flags) || flags != PacketFlags ||
             !reader.U64(&solution_count) ||
             solution_count > result->solution_capacity ||
-            solution_count > std::numeric_limits<std::size_t>::max() ||
+            !FitsSize(solution_count) ||
             !ReadOperatorReceipt(&reader, &operator_receipt) ||
             !ReadSolverReceipt(&reader, &solver_receipt)) {
             return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
