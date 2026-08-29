@@ -50,13 +50,16 @@ extern "C" laplace_cognition_operator_status laplace_cognition_operator_create(
         std::set<DigestKey> planes;
         for (std::size_t index = 0U; index < constraint_count; ++index) {
             const auto& constraint = constraints[index];
-            if (!ConstraintValid(*program, constraint, field_count)) {
+            if (!ConstraintValid(constraint, field_count)) {
                 receipt->status = LAPLACE_COGNITION_OPERATOR_CONSTRAINT_INVALID;
                 return LAPLACE_COGNITION_OPERATOR_CONSTRAINT_INVALID;
             }
             if (!constraint_ids.insert(Key(constraint.constraint_id)).second) {
                 receipt->status = LAPLACE_COGNITION_OPERATOR_CONSTRAINT_INVALID;
                 return LAPLACE_COGNITION_OPERATOR_CONSTRAINT_INVALID;
+            }
+            if (!ConstraintEligible(*program, constraint)) {
+                continue;
             }
             bool keep = true;
             if (constraint.source_class !=
