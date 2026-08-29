@@ -17,6 +17,15 @@
 
 PG_FUNCTION_INFO_V1(laplace_pg_cognition_execute_packet);
 
+static int u64_fits_size(uint64_t value) {
+#if SIZE_MAX < UINT64_MAX
+    return value <= (uint64_t)SIZE_MAX;
+#else
+    (void)value;
+    return 1;
+#endif
+}
+
 static uint32_t read_u32_le(const uint8_t* bytes) {
     return (uint32_t)bytes[0] |
         ((uint32_t)bytes[1] << 8u) |
@@ -91,7 +100,7 @@ void laplace_pg_cognition_execute_words(
     memset(&error, 0, sizeof(error));
     status = laplace_isa_execute(&program, receipt, &error);
     if (status != LAPLACE_ISA_OK || views[1].count == 0u ||
-        views[1].count > views[1].capacity || views[1].count > SIZE_MAX) {
+        views[1].count > views[1].capacity || !u64_fits_size(views[1].count)) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
                  errmsg("Laplace cognition ISA execution failed"),
