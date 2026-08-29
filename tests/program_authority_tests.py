@@ -20,6 +20,9 @@ PROFILE_PATH = ROOT / "contracts" / "source-profile-model.json"
 ADMISSION_PATH = ROOT / "contracts" / "source-admission.json"
 OPERATION_PATH = ROOT / "contracts" / "operation-model.json"
 CONTINUATION_PATH = ROOT / "state" / "continuation.json"
+VAULT_INVENTORY_PATH = ROOT / "state" / "vault-inventory.json"
+VAULT_AUDIT_PATH = ROOT / "docs" / "audits" / "VAULT_SOURCE_MODEL_AUDIT_2026-08-29.md"
+VAULT_VALIDATOR_PATH = ROOT / "tools" / "audit" / "validate-vault-inventory.py"
 VERIFY_PHYSICAL_CONTINUATION = os.environ.get("LAPLACE_VERIFY_CONTINUATION_PHYSICAL") == "1"
 
 
@@ -311,6 +314,44 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(inputs.get("model_root", {}).get("observed_path") == "/vault/models", "model root observation lost")
     contains_all(inputs.get("data_root", {}).get("observed_top_level_entries", []), ("UCD", "TreeSitter", "Wordnet", "FrameNet", "Tatoeba", "Games", "code-authority"), "known data-root inventory was narrowed")
     contains_all(inputs.get("model_root", {}).get("observed_top_level_entries", []), ("code-corpus", "stack-v2", "gguf", "Florence", "audio", "embedding", "reranker"), "known model-root inventory was narrowed")
+    vault_inventory = inputs.get("vault_inventory", {})
+    require(
+        vault_inventory.get("classification")
+        == "observed-development-state-not-source-authority",
+        "vault path presence became source authority",
+    )
+    require(
+        vault_inventory.get("machine_inventory")
+        == "state/vault-inventory.json"
+        and vault_inventory.get("human_audit")
+        == "docs/audits/VAULT_SOURCE_MODEL_AUDIT_2026-08-29.md"
+        and VAULT_INVENTORY_PATH.is_file()
+        and VAULT_AUDIT_PATH.is_file()
+        and VAULT_VALIDATOR_PATH.is_file(),
+        "vault inventory, audit, or validator is missing",
+    )
+    require(
+        vault_inventory.get("observed_denominators")
+        == {
+            "data_directories": 25,
+            "data_allocated_bytes": 139759517696,
+            "model_root_directories": 38,
+            "model_root_allocated_bytes": 600252350464,
+        },
+        "vault physical denominator drift",
+    )
+    contains_all(
+        vault_inventory,
+        (
+            "CILI and OMW are not the whole source estate",
+            "UAX 29 is not a parser",
+            "full-precision safetensors packages are primary",
+            "subordinate derived children",
+            "do not replace",
+            "configured-heterogeneous-foundational-boundary-not-selected",
+        ),
+        "vault source/model standing was narrowed or promoted",
+    )
     require(inputs.get("old_iteration", {}).get("observed_path") == "/home/ahart/Projects/Laplace-Legacy", "old iteration identity lost")
     require(inputs.get("old_iteration", {}).get("authority") is False, "old implementation became authority")
     grammar_evidence = inputs.get("known_laplace_custom_grammar_location", {})
@@ -1955,6 +1996,33 @@ class ProgramAuthorityTests(unittest.TestCase):
         validate_admission(self.admission)
         validate_operation(self.operation)
         validate_continuation(self.continuation, verify_physical=VERIFY_PHYSICAL_CONTINUATION)
+
+    def test_vault_inventory_preserves_the_complete_observed_estate(self) -> None:
+        result = subprocess.run(
+            ["python3", str(VAULT_VALIDATOR_PATH)],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        validation = json.loads(result.stdout)
+        self.assertEqual(validation["structural_status"], "valid")
+        self.assertEqual(validation["data_entries"], 25)
+        self.assertEqual(validation["model_entries"], 38)
+        audit = VAULT_AUDIT_PATH.read_text(encoding="utf-8")
+        contains_all(
+            audit,
+            (
+                "CILI and OMW are not the only sources",
+                "UAX 29 belongs at the Unicode text edge",
+                "full-precision safetensors package",
+                "subordinate child",
+                "25 `/vault/Data` directories",
+                "38 `/vault/models` directories",
+            ),
+            "human vault audit lost its complete-estate or model precedence conclusion",
+        )
 
     def test_codex_generated_context_cannot_impersonate_inventor_evidence(self) -> None:
         records = [
