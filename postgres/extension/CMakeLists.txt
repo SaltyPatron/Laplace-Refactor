@@ -21,6 +21,7 @@ laplace_configure_postgresql_bindings(
 
 set(laplace_postgresql_module_sources
     src/cognition_isa_pg.c
+    src/cognition_typed_isa_pg.c
     src/composition_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
