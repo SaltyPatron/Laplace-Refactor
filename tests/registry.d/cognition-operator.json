@@ -1,0 +1,54 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionOperator.RelationPlaneTypeErasureChangesIdentity",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-RELATION-LAW-NONFLATTENING", "LP-TEST-RELATION-PLANE-TYPE-ERASURE"],
+      "covered_dimensions": ["typed relation family plane law direction units transport and source identity", "nonflattened operator identity"],
+      "defect_controls": ["cognition-operator.mutation-relation-plane-flatten-detected"]
+    },
+    {
+      "ctest_name": "CognitionOperator.PreservesNaryContainerRoleMetadata",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
+      "covered_dimensions": ["n-ary container identity", "role identity", "ordinal retention", "constituent distinction"]
+    },
+    {
+      "ctest_name": "CognitionOperator.CollapsesDependentEvidenceRootCopies",
+      "evidence_targets": ["LP-TEST-EVIDENCE-METRIC-NONAMPLIFICATION", "LP-TEST-CONNECTION-DEPENDENCE-NONAMPLIFICATION"],
+      "covered_dimensions": ["dependence-root evidence collapse", "copied testimony nonamplification", "raw candidate versus selected constraint count"],
+      "defect_controls": ["cognition-operator.mutation-dependent-evidence-amplification-detected"]
+    },
+    {
+      "ctest_name": "CognitionOperator.KeepsContradictionAsPositivePrecisionConstraints",
+      "evidence_targets": ["LP-TEST-EVIDENCE-METRIC-PSD", "LP-TEST-SOLVER-RESIDUAL-SEPARATION"],
+      "covered_dimensions": ["positive semidefinite precision", "contradictory targets retained as independent positive constraints", "finite nonnegative energy"]
+    },
+    {
+      "ctest_name": "CognitionOperator.MatrixFreeAndMaterializedDenseAgree",
+      "evidence_targets": ["LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["matrix-free apply", "dense derived materialization", "right-hand-side parity", "numeric tolerance"]
+    },
+    {
+      "ctest_name": "CognitionOperator.ProgramScopeFiltersUnselectedRelationsAndSources",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-RELATION-LAW-NONFLATTENING"],
+      "covered_dimensions": ["program-scoped relation selection", "epistemic source selection", "universal adjacency rejection"]
+    },
+    {
+      "ctest_name": "CognitionOperator.RejectsNegativePrecisionRatherThanEncodingContradiction",
+      "evidence_targets": ["LP-TEST-EVIDENCE-METRIC-PSD", "LP-TEST-MISSING-RELATION-WITHHELD-EVIDENCE"],
+      "covered_dimensions": ["negative precision rejection", "contradiction nonencoding as negative evidence mass"]
+    },
+    {
+      "ctest_name": "cognition-operator.mutation-relation-plane-flatten-detected",
+      "evidence_targets": ["LP-TEST-RELATION-PLANE-TYPE-ERASURE"],
+      "covered_dimensions": ["relation plane type erasure is detected"],
+      "controls": "CognitionOperator.RelationPlaneTypeErasureChangesIdentity"
+    },
+    {
+      "ctest_name": "cognition-operator.mutation-dependent-evidence-amplification-detected",
+      "evidence_targets": ["LP-TEST-EVIDENCE-METRIC-NONAMPLIFICATION"],
+      "covered_dimensions": ["copied dependence-root amplification is detected"],
+      "controls": "CognitionOperator.CollapsesDependentEvidenceRootCopies"
+    }
+  ]
+}
