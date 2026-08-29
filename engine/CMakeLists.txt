@@ -25,6 +25,8 @@ add_library(laplace_engine SHARED
     src/unicode_ducet.cpp
     src/uax29.cpp
     src/text_decomposition.cpp
+    src/decomposition.cpp
+    src/decomposition_uax29.cpp
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)
@@ -61,6 +63,7 @@ add_library(Laplace::Highway ALIAS laplace_engine)
 add_library(Laplace::UnicodeRoot ALIAS laplace_engine)
 add_library(Laplace::Uax29 ALIAS laplace_engine)
 add_library(Laplace::TextDecomposition ALIAS laplace_engine)
+add_library(Laplace::Decomposition ALIAS laplace_engine)
 
 if(TARGET LaplaceOneApi::MKLRuntime)
     if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
