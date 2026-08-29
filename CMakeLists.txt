@@ -179,7 +179,8 @@ target_sources(laplace_engine PRIVATE
     engine/src/query_search.cpp
     engine/src/cognition_guidance.cpp
     engine/src/cognition_operator.cpp
-    engine/src/cognition_solver.cpp)
+    engine/src/cognition_solver.cpp
+    engine/src/cognition_runtime.cpp)
 add_library(Laplace::QuerySearch ALIAS laplace_engine)
 add_library(Laplace::CognitionGuidance ALIAS laplace_engine)
 add_library(Laplace::CognitionOperator ALIAS laplace_engine)
