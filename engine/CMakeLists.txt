@@ -43,6 +43,7 @@ add_library(laplace_engine SHARED
     src/text_decomposition.cpp
     src/decomposition.cpp
     src/decomposition_uax29.cpp
+    src/decomposition_delimited.cpp
     src/decomposition_tree_sitter.cpp
     src/tree_sitter_grammar.cpp
     src/perfcache.c
