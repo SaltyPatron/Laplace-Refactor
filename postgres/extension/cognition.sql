@@ -1,6 +1,5 @@
 -- Public PostgreSQL runtime surface for native cognition operator construction and solve.
--- This is an execution surface, not a test fixture.  The caller supplies the exact
--- typed operator/solver state and receives the native solution and receipts.
+-- Both the typed and canonical-packet entrypoints execute through the generated ISA.
 
 CREATE TYPE laplace.cognition_operator_program AS (
     program_id bytea,
@@ -75,7 +74,8 @@ CREATE TYPE laplace.cognition_solve_result AS (
     final_residual_l2 double precision,
     final_energy double precision,
     disposition integer,
-    status integer
+    status integer,
+    isa_receipt_id bytea
 );
 
 CREATE TYPE laplace.cognition_packet_result AS (
@@ -103,7 +103,7 @@ CREATE FUNCTION laplace.cognition_solve(
     double precision[])
 RETURNS laplace.cognition_solve_result
 AS 'MODULE_PATHNAME', 'laplace_pg_cognition_solve'
-LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 CREATE FUNCTION laplace.cognition_execute_packet(
     laplace.execution_context,
