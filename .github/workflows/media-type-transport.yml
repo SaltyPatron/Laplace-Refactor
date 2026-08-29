@@ -1,0 +1,329 @@
+name: media-type-transport
+
+on:
+  push:
+    branches:
+      - feat/decomposition-orchestration
+
+permissions:
+  contents: write
+
+concurrency:
+  group: media-type-transport
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: contains(github.event.head_commit.message, 'Apply exact media-type transport batch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Preserve artifact media type end to end
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          def once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if text.count(old) != 1:
+                  raise SystemExit(f'{path}: expected one match: {old!r}; got {text.count(old)}')
+              p.write_text(text.replace(old, new), encoding='utf-8', newline='\n')
+
+          # Native artifact transport keeps representation identity separate from
+          # source authority while preserving both for later decomposition.
+          once(
+              'engine/include/laplace/tabular_source.h',
+              '    const uint8_t* bytes;\n    const char* name;\n    const struct laplace_tabular_column* columns;\n',
+              '    const uint8_t* bytes;\n    const char* name;\n    const char* media_type;\n    const struct laplace_tabular_column* columns;\n')
+          once(
+              'engine/include/laplace/tabular_source.h',
+              '    uint64_t byte_count;\n    uint64_t name_byte_count;\n    uint64_t expected_record_count;\n',
+              '    uint64_t byte_count;\n    uint64_t name_byte_count;\n    uint64_t media_type_byte_count;\n    uint64_t expected_record_count;\n')
+
+          source = Path('engine/src/tabular_source.cpp')
+          text = source.read_text(encoding='utf-8')
+          old = '''    if (artifact.bytes == nullptr || artifact.name == nullptr ||
+                  artifact.byte_count == 0u || artifact.name_byte_count == 0u ||
+                  artifact.name_byte_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+                  artifact.byte_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+          '''
+          new = '''    if (artifact.bytes == nullptr || artifact.name == nullptr ||
+                  artifact.byte_count == 0u || artifact.name_byte_count == 0u ||
+                  artifact.name_byte_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+                  artifact.byte_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+                  (artifact.media_type == nullptr) != (artifact.media_type_byte_count == 0u) ||
+                  artifact.media_type_byte_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+                  (artifact.media_type_byte_count != 0u &&
+                   std::memchr(artifact.media_type, 0, static_cast<std::size_t>(
+                       artifact.media_type_byte_count)) != nullptr) ||
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('tabular_source.cpp: ArtifactValid anchor changed')
+          text = text.replace(old, new)
+          old = '        HashBytes(hasher, name.data(), name.size());\n        HashU64(hasher, artifact.byte_count);\n'
+          new = '''        HashBytes(hasher, name.data(), name.size());
+                  HashBytes(
+                      hasher, artifact.media_type,
+                      static_cast<std::size_t>(artifact.media_type_byte_count));
+                  HashU64(hasher, artifact.byte_count);
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('tabular_source.cpp: artifact hash anchor changed')
+          text = text.replace(old, new)
+          old = '''        if (!DynamicProfileFieldsZero(input_.profile_declaration) ||
+                  input_.artifacts == nullptr || input_.artifact_count == 0u ||
+                  input_.artifact_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+          '''
+          new = '''        if (!DynamicProfileFieldsZero(input_.profile_declaration) ||
+                  input_.artifacts == nullptr || input_.artifact_count == 0u ||
+                  input_.artifact_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('tabular_source.cpp: builder anchor changed')
+          # Keep the existing predicate intact, then enforce representation
+          # metadata for every nonlegacy source profile before graph identity.
+          marker = '''            return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+                  }
+                  if (!ValidateReferenceRules() || !ValidateMappingRules()) {
+          '''
+          replacement = '''            return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+                  }
+                  if (LAPLACE_SOURCE_PROFILE_GET_EPISTEMIC_CLASS(
+                          input_.profile_declaration.flags) !=
+                          LAPLACE_SOURCE_PROFILE_EPISTEMIC_UNSPECIFIED ||
+                      LAPLACE_SOURCE_PROFILE_GET_EVIDENCE_SOURCE_TYPE(
+                          input_.profile_declaration.flags) !=
+                          LAPLACE_SOURCE_PROFILE_EVIDENCE_UNSPECIFIED) {
+                      for (std::size_t artifact_index = 0u;
+                           artifact_index < static_cast<std::size_t>(input_.artifact_count);
+                           ++artifact_index) {
+                          if (input_.artifacts[artifact_index].media_type == nullptr ||
+                              input_.artifacts[artifact_index].media_type_byte_count == 0u) {
+                              return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+                          }
+                      }
+                  }
+                  if (!ValidateReferenceRules() || !ValidateMappingRules()) {
+          '''
+          if text.count(marker) != 1:
+              raise SystemExit('tabular_source.cpp: builder validation marker changed')
+          text = text.replace(marker, replacement)
+          source.write_text(text, encoding='utf-8', newline='\n')
+
+          once(
+              'tests/tabular_profile_fixture.hpp',
+              '            artifact.bytes = storage[index].data();\n            artifact.name = generated.name;\n',
+              '            artifact.bytes = storage[index].data();\n            artifact.name = generated.name;\n            artifact.media_type = generated.media_type;\n')
+          once(
+              'tests/tabular_profile_fixture.hpp',
+              '            artifact.name_byte_count = std::strlen(generated.name);\n            artifact.expected_record_count = generated.record_count;\n',
+              '            artifact.name_byte_count = std::strlen(generated.name);\n            artifact.media_type_byte_count = std::strlen(generated.media_type);\n            artifact.expected_record_count = generated.record_count;\n')
+
+          once(
+              'tests/postgres/tabular_profile_probe.hpp',
+              '''        PrintProfileHex(
+                          item + "NAME",
+                          reinterpret_cast<const std::uint8_t*>(generated.name),
+                          std::char_traits<char>::length(generated.name));
+          ''',
+              '''        PrintProfileHex(
+                          item + "NAME",
+                          reinterpret_cast<const std::uint8_t*>(generated.name),
+                          std::char_traits<char>::length(generated.name));
+                      PrintProfileHex(
+                          item + "MEDIA_TYPE",
+                          reinterpret_cast<const std::uint8_t*>(generated.media_type),
+                          std::char_traits<char>::length(generated.media_type));
+          ''')
+          once(
+              'tests/postgres/tabular_profile_probe.hpp',
+              '''    PrintProfileNumber(
+                      prefix + "_RECONSTRUCTION_CLASS", Profile::reconstruction);
+          ''',
+              '''    PrintProfileNumber(
+                      prefix + "_RECONSTRUCTION_CLASS", Profile::reconstruction);
+                  PrintProfileNumber(
+                      prefix + "_SOURCE_FLAGS",
+                      LAPLACE_SOURCE_PROFILE_MAKE_FLAGS(
+                          Profile::epistemic_class, Profile::evidence_type));
+          ''')
+
+          # PostgreSQL composite transport adds the exact media type between name
+          # and source-shape denominators.
+          once(
+              'postgres/extension/laplace--version.sql.in',
+              '''CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_artifact AS (
+                  artifact_id bytea,
+                  parent_artifact_id bytea,
+                  expected_sha256 bytea,
+                  content bytea,
+                  name bytea,
+                  expected_record_count numeric(20, 0),
+          ''',
+              '''CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_artifact AS (
+                  artifact_id bytea,
+                  parent_artifact_id bytea,
+                  expected_sha256 bytea,
+                  content bytea,
+                  name bytea,
+                  media_type bytea,
+                  expected_record_count numeric(20, 0),
+          ''')
+
+          pg = Path('postgres/extension/src/source_admission_pg.c')
+          text = pg.read_text(encoding='utf-8')
+          once_decl = '''        bytea* content;
+                  bytea* name;
+                  ArrayType* column_names;
+          '''
+          if text.count(once_decl) != 1:
+              raise SystemExit('source_admission_pg.c: artifact declarations changed')
+          text = text.replace(once_decl, '''        bytea* content;
+                  bytea* name;
+                  bytea* media_type;
+                  ArrayType* column_names;
+          ''')
+          if text.count('        char* exact_name;\n        int column_index;\n') != 1:
+              raise SystemExit('source_admission_pg.c: exact_name declaration changed')
+          text = text.replace(
+              '        char* exact_name;\n        int column_index;\n',
+              '        char* exact_name;\n        char* exact_media_type;\n        int column_index;\n')
+          old = '''        name = DatumGetByteaPP(laplace_pg_required_composite_attribute(
+                  tuple, 5, "artifact name"));
+              artifacts[index].bytes = (const uint8_t*)VARDATA_ANY(content);
+              artifacts[index].byte_count = (uint64_t)VARSIZE_ANY_EXHDR(content);
+              artifacts[index].name_byte_count = (uint64_t)VARSIZE_ANY_EXHDR(name);
+          '''
+          new = '''        name = DatumGetByteaPP(laplace_pg_required_composite_attribute(
+                  tuple, 5, "artifact name"));
+              media_type = DatumGetByteaPP(laplace_pg_required_composite_attribute(
+                  tuple, 6, "artifact media_type"));
+              artifacts[index].bytes = (const uint8_t*)VARDATA_ANY(content);
+              artifacts[index].byte_count = (uint64_t)VARSIZE_ANY_EXHDR(content);
+              artifacts[index].name_byte_count = (uint64_t)VARSIZE_ANY_EXHDR(name);
+              artifacts[index].media_type_byte_count =
+                  (uint64_t)VARSIZE_ANY_EXHDR(media_type);
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('source_admission_pg.c: artifact read anchor changed')
+          text = text.replace(old, new)
+          old = '''        exact_name[artifacts[index].name_byte_count] = '\\0';
+              artifacts[index].name = exact_name;
+              artifacts[index].expected_record_count = laplace_pg_uint64_from_numeric(
+                  laplace_pg_required_composite_attribute(
+                      tuple, 6, "expected_record_count"),
+          '''
+          new = '''        exact_name[artifacts[index].name_byte_count] = '\\0';
+              artifacts[index].name = exact_name;
+              if (artifacts[index].media_type_byte_count == 0u ||
+                  artifacts[index].media_type_byte_count > SIZE_MAX - 1u) {
+                  ereport(ERROR,
+                          (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                           errmsg("Laplace tabular artifact media type is invalid")));
+              }
+              exact_media_type = (char*)palloc(
+                  (size_t)artifacts[index].media_type_byte_count + 1u);
+              memcpy(exact_media_type, VARDATA_ANY(media_type),
+                     (size_t)artifacts[index].media_type_byte_count);
+              exact_media_type[artifacts[index].media_type_byte_count] = '\\0';
+              artifacts[index].media_type = exact_media_type;
+              artifacts[index].expected_record_count = laplace_pg_uint64_from_numeric(
+                  laplace_pg_required_composite_attribute(
+                      tuple, 7, "expected_record_count"),
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('source_admission_pg.c: name completion anchor changed')
+          text = text.replace(old, new)
+          shifts = [
+              ('tuple, 7, "expected_field_count"', 'tuple, 8, "expected_field_count"'),
+              ('tuple, 8, "reference_column_mask"', 'tuple, 9, "reference_column_mask"'),
+              ('read_u32(tuple, 9, "tabular mode")', 'read_u32(tuple, 10, "tabular mode")'),
+              ('read_u32(tuple, 10, "tabular delimiter")', 'read_u32(tuple, 11, "tabular delimiter")'),
+              ('tuple, 11, "tabular line_terminator"', 'tuple, 12, "tabular line_terminator"'),
+              ('tuple, 12, "tabular expected_column_count"', 'tuple, 13, "tabular expected_column_count"'),
+              ('tuple, 13, "tabular outcome_type"', 'tuple, 14, "tabular outcome_type"'),
+              ('read_u32(tuple, 14, "tabular flags")', 'read_u32(tuple, 15, "tabular flags")'),
+              ('tuple, 15, "tabular column_names"', 'tuple, 16, "tabular column_names"'),
+              ('tuple, 16, "tabular header_record_count"', 'tuple, 17, "tabular header_record_count"'),
+          ]
+          for old, new in shifts:
+              if text.count(old) != 1:
+                  raise SystemExit(f'source_admission_pg.c: field anchor changed: {old}')
+              text = text.replace(old, new)
+          pg.write_text(text, encoding='utf-8', newline='\n')
+
+          # Generic PostgreSQL source fixture declares exact representation type.
+          path = Path('tests/postgres/source_admission_contract.sql')
+          text = path.read_text(encoding='utf-8')
+          if text.count("            convert_to('release.zip', 'UTF8'),\n            0, 0, 0,") != 1:
+              raise SystemExit('source_admission_contract.sql: archive row changed')
+          text = text.replace(
+              "            convert_to('release.zip', 'UTF8'),\n            0, 0, 0,",
+              "            convert_to('release.zip', 'UTF8'),\n            convert_to('application/zip', 'UTF8'),\n            0, 0, 0,")
+          if text.count("            convert_to('tables/languages.tab', 'UTF8'),\n            3, 6, 3,") != 1:
+              raise SystemExit('source_admission_contract.sql: table row changed')
+          text = text.replace(
+              "            convert_to('tables/languages.tab', 'UTF8'),\n            3, 6, 3,",
+              "            convert_to('tables/languages.tab', 'UTF8'),\n            convert_to('text/tab-separated-values; charset=utf-8', 'UTF8'),\n            3, 6, 3,")
+          path.write_text(text, encoding='utf-8', newline='\n')
+
+          # ISO/CILI profile probes carry both source flags and media type into
+          # PostgreSQL rather than recreating or dropping those dimensions.
+          for prefix, sql_file in (
+              ('iso', 'tests/postgres/iso_639_source_admission_contract.sql'),
+              ('cili', 'tests/postgres/cili_source_admission_contract.sql'),
+          ):
+              path = Path(sql_file)
+              text = path.read_text(encoding='utf-8')
+              old = '    reconstruction_class integer NOT NULL\n);'
+              new = '    reconstruction_class integer NOT NULL,\n    source_flags integer NOT NULL\n);'
+              if text.count(old) != 1:
+                  raise SystemExit(f'{sql_file}: profile authority tail changed')
+              text = text.replace(old, new)
+              old = f"    :'{prefix}_reconstruction_class'::integer\n);"
+              new = (f"    :'{prefix}_reconstruction_class'::integer,\n"
+                     f"    :'{prefix}_source_flags'::integer\n);")
+              if text.count(old) != 1:
+                  raise SystemExit(f'{sql_file}: profile insert tail changed')
+              text = text.replace(old, new)
+              if text.count('    name bytea NOT NULL,\n') != 1:
+                  raise SystemExit(f'{sql_file}: artifact authority name changed')
+              text = text.replace(
+                  '    name bytea NOT NULL,\n',
+                  '    name bytea NOT NULL,\n    media_type bytea NOT NULL,\n')
+              pattern = re.compile(
+                  rf"decode\(:'{prefix}_artifact_(\d+)_name', 'hex'\),")
+              text, count = pattern.subn(
+                  lambda m: m.group(0) +
+                      f" decode(:'{prefix}_artifact_{m.group(1)}_media_type', 'hex'),",
+                  text)
+              expected = 5 if prefix == 'iso' else 3
+              if count != expected:
+                  raise SystemExit(f'{sql_file}: expected {expected} media insert anchors, got {count}')
+              if text.count('            authority.name,\n            authority.expected_record_count,\n') != 1:
+                  raise SystemExit(f'{sql_file}: artifact projection changed')
+              text = text.replace(
+                  '            authority.name,\n            authority.expected_record_count,\n',
+                  '            authority.name,\n            authority.media_type,\n            authority.expected_record_count,\n')
+              if text.count('        authority.reconstruction_class,\n        0\n') != 1:
+                  raise SystemExit(f'{sql_file}: source profile flags projection changed')
+              text = text.replace(
+                  '        authority.reconstruction_class,\n        0\n',
+                  '        authority.reconstruction_class,\n        authority.source_flags\n')
+              path.write_text(text, encoding='utf-8', newline='\n')
+
+          PY
+          rm .github/workflows/media-type-transport.yml
+          git config user.name "laplace-runner"
+          git config user.email "laplace-runner@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Preserve artifact media type through source admission"
+          git push origin HEAD:feat/decomposition-orchestration
