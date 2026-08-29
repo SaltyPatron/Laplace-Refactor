@@ -122,6 +122,10 @@ include(cmake/LaplaceQuerySearchContract.cmake)
 laplace_configure_query_search_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/query-search.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/query_search.h")
+include(cmake/LaplaceCognitionGuidanceContract.cmake)
+laplace_configure_cognition_guidance_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/cognition-guidance.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_guidance.h")
 include(cmake/LaplaceSourceProfileContract.cmake)
 laplace_configure_source_profile_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/source-profile-execution.json"
@@ -163,10 +167,14 @@ laplace_configure_unicode_source(
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/unicode-source-manifest.h")
 
 add_subdirectory(engine)
-target_sources(laplace_engine PRIVATE engine/src/query_search.cpp)
+target_sources(laplace_engine PRIVATE
+    engine/src/query_search.cpp
+    engine/src/cognition_guidance.cpp)
 add_library(Laplace::QuerySearch ALIAS laplace_engine)
+add_library(Laplace::CognitionGuidance ALIAS laplace_engine)
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/query_search.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_guidance.h"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")
 
 if(LAPLACE_ENABLE_DOTNET_BINDINGS)
@@ -226,6 +234,7 @@ if(BUILD_TESTING)
     endif()
     add_subdirectory(tests)
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/query_search.cmake")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_guidance.cmake")
 endif()
 
 configure_package_config_file(
