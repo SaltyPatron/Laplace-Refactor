@@ -116,18 +116,20 @@ struct QueueLater {
     }
 };
 
-struct Path {
+}  // namespace
+
+struct laplace_query_search_path_storage {
     laplace_query_search_path_summary summary{};
     std::vector<laplace_query_search_transition> transitions;
 };
 
-}  // namespace
-
 struct laplace_query_search_result {
-    std::vector<Path> paths;
+    std::vector<laplace_query_search_path_storage> paths;
 };
 
 namespace {
+
+using Path = laplace_query_search_path_storage;
 
 class Search {
 public:
