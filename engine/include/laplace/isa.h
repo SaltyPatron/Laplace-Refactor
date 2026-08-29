@@ -107,6 +107,15 @@ static inline laplace_isa_status laplace_isa_cognition_fail(
     return status;
 }
 
+static inline int laplace_isa_cognition_size_fits(uint64_t value) {
+#if SIZE_MAX < UINT64_MAX
+    return value <= (uint64_t)SIZE_MAX;
+#else
+    (void)value;
+    return 1;
+#endif
+}
+
 static inline laplace_isa_status validate_cognition_solve_packet(
     const laplace_isa_program* program,
     const laplace_isa_instruction* instruction,
@@ -129,8 +138,9 @@ static inline laplace_isa_status validate_cognition_solve_packet(
     output = &program->values[instruction->output_value];
     if (input->count == 0u || input->stride_bytes != sizeof(uint32_t) ||
         output->stride_bytes != sizeof(uint32_t) || input->data == NULL ||
-        output->data == NULL || input->count > SIZE_MAX ||
-        output->capacity > SIZE_MAX) {
+        output->data == NULL ||
+        !laplace_isa_cognition_size_fits(input->count) ||
+        !laplace_isa_cognition_size_fits(output->capacity)) {
         return laplace_isa_cognition_fail(
             error, LAPLACE_ISA_VALUE_INVALID,
             instruction_index, instruction->input_value);
@@ -190,8 +200,7 @@ static inline laplace_isa_status execute_cognition_solve_packet(
     if (packet_status == LAPLACE_COGNITION_PACKET_RESULT_CAPACITY) {
         return LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT;
     }
-    if (packet_status != LAPLACE_COGNITION_PACKET_OK ||
-        result_words > UINT64_MAX) {
+    if (packet_status != LAPLACE_COGNITION_PACKET_OK) {
         return LAPLACE_ISA_EXECUTION_FAILED;
     }
     output->count = (uint64_t)result_words;
