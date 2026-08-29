@@ -37,7 +37,6 @@ endif()
 if(UNIX)
     target_sources(laplace_engine PRIVATE src/perfcache_file_posix.c)
 endif()
-target_sources(laplace_engine PRIVATE src/cognition_packet_words.cpp)
 
 add_library(Laplace::Engine ALIAS laplace_engine)
 add_library(Laplace::Identity ALIAS laplace_engine)
