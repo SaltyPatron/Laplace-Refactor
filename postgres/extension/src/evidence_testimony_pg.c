@@ -117,17 +117,6 @@ static laplace_evidence_testimony_record* read_records(
     return records;
 }
 
-static bool query_boolean(void) {
-    bool is_null = false;
-    Datum value;
-    if (SPI_processed != 1u || SPI_tuptable == NULL) {
-        return false;
-    }
-    value = SPI_getbinval(
-        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &is_null);
-    return !is_null && DatumGetBool(value);
-}
-
 static ArrayType* testimony_ids(
     const laplace_evidence_testimony_record* records,
     size_t record_count) {
@@ -146,18 +135,20 @@ static void persist_testimony(
     Datum input_array,
     const laplace_evidence_testimony_receipt* testimony_receipt,
     const laplace_isa_receipt* isa_receipt) {
-    static const char records_sql[] =
-        "WITH input AS (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".evidence_testimony_record[]) r),"
-        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_testimony(testimony_id,evidence_node_id,source_profile_id,recipe_receipt_id,trust_input_id,outcome_detail_id,uncertainty_numerator,uncertainty_denominator,sample_count,source_type,outcome_type,disposition,flags) "
-        "SELECT testimony_id,evidence_node_id,source_profile_id,recipe_receipt_id,trust_input_id,outcome_detail_id,uncertainty_numerator,uncertainty_denominator,sample_count,source_type,outcome_type,disposition,flags FROM input ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT NOT EXISTS (SELECT FROM input i WHERE NOT EXISTS (SELECT FROM written w WHERE w.testimony_id=i.testimony_id AND w.evidence_node_id=i.evidence_node_id AND w.source_profile_id=i.source_profile_id AND w.recipe_receipt_id=i.recipe_receipt_id AND w.trust_input_id=i.trust_input_id AND w.outcome_detail_id=i.outcome_detail_id AND w.uncertainty_numerator=i.uncertainty_numerator AND w.uncertainty_denominator=i.uncertainty_denominator AND w.sample_count=i.sample_count AND w.source_type=i.source_type AND w.outcome_type=i.outcome_type AND w.disposition=i.disposition AND w.flags=i.flags) AND NOT EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".evidence_testimony t WHERE t.testimony_id=i.testimony_id AND t.evidence_node_id=i.evidence_node_id AND t.source_profile_id=i.source_profile_id AND t.recipe_receipt_id=i.recipe_receipt_id AND t.trust_input_id=i.trust_input_id AND t.outcome_detail_id=i.outcome_detail_id AND t.uncertainty_numerator=i.uncertainty_numerator AND t.uncertainty_denominator=i.uncertainty_denominator AND t.sample_count=i.sample_count AND t.source_type=i.source_type AND t.outcome_type=i.outcome_type AND t.disposition=i.disposition AND t.flags=i.flags))";
-    static const char receipt_sql[] =
-        "WITH written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt(receipt_id,source_profile_id,input_fingerprint,output_fingerprint,isa_receipt_id,testimony_count,sample_count,uncertain_count,negative_disposition_count,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT EXISTS (SELECT FROM written WHERE receipt_id=$1 AND source_profile_id=$2 AND input_fingerprint=$3 AND output_fingerprint=$4 AND isa_receipt_id=$5 AND testimony_count=$6 AND sample_count=$7 AND uncertain_count=$8 AND negative_disposition_count=$9 AND version=$10) OR EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt WHERE receipt_id=$1 AND source_profile_id=$2 AND input_fingerprint=$3 AND output_fingerprint=$4 AND isa_receipt_id=$5 AND testimony_count=$6 AND sample_count=$7 AND uncertain_count=$8 AND negative_disposition_count=$9 AND version=$10)";
-    static const char members_sql[] =
-        "WITH input AS (SELECT $1::bytea AS receipt_id,(r).testimony_id,ordinality::numeric AS member_ordinal FROM unnest($2::" LAPLACE_PG_SCHEMA ".evidence_testimony_record[]) WITH ORDINALITY r),"
-        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member(receipt_id,testimony_id,member_ordinal) SELECT receipt_id,testimony_id,member_ordinal FROM input ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT (SELECT count(*) FROM written)+(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member m JOIN input i ON i.receipt_id=m.receipt_id AND i.testimony_id=m.testimony_id AND i.member_ordinal=m.member_ordinal WHERE m.receipt_id=$1)=(SELECT count(*) FROM input) AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member m WHERE m.receipt_id=$1)=(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member m JOIN input i ON i.receipt_id=m.receipt_id AND i.testimony_id=m.testimony_id AND i.member_ordinal=m.member_ordinal WHERE m.receipt_id=$1)";
+    static const char records_write_sql[] =
+        "INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_testimony(testimony_id,evidence_node_id,source_profile_id,recipe_receipt_id,trust_input_id,outcome_detail_id,uncertainty_numerator,uncertainty_denominator,sample_count,source_type,outcome_type,disposition,flags) SELECT testimony_id,evidence_node_id,source_profile_id,recipe_receipt_id,trust_input_id,outcome_detail_id,uncertainty_numerator,uncertainty_denominator,sample_count,source_type,outcome_type,disposition,flags FROM unnest($1::" LAPLACE_PG_SCHEMA ".evidence_testimony_record[]) ON CONFLICT DO NOTHING";
+#if !defined(LAPLACE_TEST_EVIDENCE_TESTIMONY_REPLAY_VERIFY_BYPASS)
+    static const char records_verify_sql[] =
+        "WITH input AS MATERIALIZED (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".evidence_testimony_record[]) r) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".evidence_testimony t ON t.testimony_id=i.testimony_id WHERE t.testimony_id IS NULL OR t.evidence_node_id<>i.evidence_node_id OR t.source_profile_id<>i.source_profile_id OR t.recipe_receipt_id<>i.recipe_receipt_id OR t.trust_input_id<>i.trust_input_id OR t.outcome_detail_id<>i.outcome_detail_id OR t.uncertainty_numerator<>i.uncertainty_numerator OR t.uncertainty_denominator<>i.uncertainty_denominator OR t.sample_count<>i.sample_count OR t.source_type<>i.source_type OR t.outcome_type<>i.outcome_type OR t.disposition<>i.disposition OR t.flags<>i.flags)";
+#endif
+    static const char receipt_write_sql[] =
+        "INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt(receipt_id,source_profile_id,input_fingerprint,output_fingerprint,isa_receipt_id,testimony_count,sample_count,uncertain_count,negative_disposition_count,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING";
+    static const char receipt_verify_sql[] =
+        "SELECT EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt WHERE receipt_id=$1 AND source_profile_id=$2 AND input_fingerprint=$3 AND output_fingerprint=$4 AND isa_receipt_id=$5 AND testimony_count=$6 AND sample_count=$7 AND uncertain_count=$8 AND negative_disposition_count=$9 AND version=$10)";
+    static const char members_write_sql[] =
+        "WITH input AS (SELECT $1::bytea AS receipt_id,(r).testimony_id,ordinality::numeric AS member_ordinal FROM unnest($2::" LAPLACE_PG_SCHEMA ".evidence_testimony_record[]) WITH ORDINALITY r) INSERT INTO " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member(receipt_id,testimony_id,member_ordinal) SELECT receipt_id,testimony_id,member_ordinal FROM input ON CONFLICT DO NOTHING";
+    static const char members_verify_sql[] =
+        "WITH input AS MATERIALIZED (SELECT $1::bytea AS receipt_id,(r).testimony_id,ordinality::numeric AS member_ordinal FROM unnest($2::" LAPLACE_PG_SCHEMA ".evidence_testimony_record[]) WITH ORDINALITY r) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member m ON m.receipt_id=i.receipt_id AND m.testimony_id=i.testimony_id WHERE m.receipt_id IS NULL OR m.member_ordinal<>i.member_ordinal) AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member m WHERE m.receipt_id=$1)=(SELECT count(*) FROM input)";
     Oid record_types[1] = {input_array_type};
     Datum record_values[1] = {input_array};
     Oid receipt_types[10] = {
@@ -166,7 +157,6 @@ static void persist_testimony(
     Datum receipt_values[10];
     Oid member_types[2] = {BYTEAOID, input_array_type};
     Datum member_values[2];
-    int result;
     receipt_values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         testimony_receipt->receipt_id.bytes, 32u));
     receipt_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
@@ -194,31 +184,25 @@ static void persist_testimony(
                 (errcode(ERRCODE_CONNECTION_FAILURE),
                  errmsg("Laplace testimony persistence could not connect to SPI")));
     }
-    result = SPI_execute_with_args(
-        records_sql, 1, record_types, record_values, NULL, false, 0);
 #ifdef LAPLACE_TEST_EVIDENCE_TESTIMONY_REPLAY_VERIFY_BYPASS
-    if (result != SPI_OK_SELECT) {
+    const int result = SPI_execute_with_args(
+        records_write_sql, 1, record_types, record_values, NULL, false, 0);
+    if (result != SPI_OK_INSERT) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("Laplace testimony write was not set-oriented")));
+    }
 #else
-    if (result != SPI_OK_SELECT || !query_boolean()) {
+    laplace_pg_execute_set_write_verify(
+        records_write_sql, records_verify_sql,
+        1, record_types, record_values, "testimony replay");
 #endif
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace testimony replay conflicts with durable state")));
-    }
-    result = SPI_execute_with_args(
-        receipt_sql, 10, receipt_types, receipt_values, NULL, false, 0);
-    if (result != SPI_OK_SELECT || !query_boolean()) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace testimony receipt identity collides with durable state")));
-    }
-    result = SPI_execute_with_args(
-        members_sql, 2, member_types, member_values, NULL, false, 0);
-    if (result != SPI_OK_SELECT || !query_boolean()) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace testimony receipt membership conflicts with durable state")));
-    }
+    laplace_pg_execute_set_write_verify(
+        receipt_write_sql, receipt_verify_sql,
+        10, receipt_types, receipt_values, "testimony receipt");
+    laplace_pg_execute_set_write_verify(
+        members_write_sql, members_verify_sql,
+        2, member_types, member_values, "testimony receipt membership");
     if (SPI_finish() != SPI_OK_FINISH) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),

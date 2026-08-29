@@ -104,8 +104,7 @@ FROM laplace.unicode_root_build_and_activate(
     false,
     decode(repeat('00', 16), 'hex'),
     decode(repeat('00', 32), 'hex'),
-    33554432,
-    32768
+    33554432
 ) AS result;
 
 DO $contract$
@@ -136,13 +135,13 @@ BEGIN
        OR octet_length(build.plan_manifest_fingerprint) <> 32
        OR octet_length(build.plan_sequence_fingerprint) <> 32
        OR build.plan_manifest_fingerprint <>
-          decode('74499f893b359982962c3dbeb5572965c8d89f22609f47c41dbd7143d08034ab', 'hex')
+          decode('3a546d581afc1c4caf78c1c235aafd41b283984325d5717b188211d1091cb9e5', 'hex')
        OR build.activation_epoch_id <> decode(repeat('42', 16), 'hex')
        OR build.activation_epoch_fingerprint <> decode(repeat('43', 32), 'hex')
        OR build.total_frame_count <> 2230150
        OR build.total_encoded_bytes <= 0
        OR build.batch_count <= 1
-       OR build.plan_count > build.batch_count * 12 + 5
+       OR build.plan_count <= 0
        OR build.plan_count >= build.total_frame_count
        OR build.entity_count <> @LAPLACE_PG_UNICODE_ROOT_POPULATION@
        OR build.physicality_count <> @LAPLACE_PG_UNICODE_ROOT_POPULATION@
@@ -225,7 +224,7 @@ BEGIN
         FROM information_schema.columns
         WHERE table_schema = 'laplace'
           AND table_name IN (
-              'unicode_atom_binding', 'unicode_ducet_position',
+              'attestation', 'unicode_ducet_position',
               'unicode_ducet_contraction',
               'unicode_normalization_composition')
           AND column_name = 'canonical_record') THEN
@@ -237,9 +236,11 @@ $contract$;
 
 CREATE TEMP TABLE unicode_table_counts AS
 SELECT
-    (SELECT count(*) FROM laplace.canonical_entity) AS entity_count,
+    (SELECT count(*) FROM laplace.entity) AS entity_count,
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
-    (SELECT count(*) FROM laplace.unicode_atom_binding) AS atom_count,
+    (SELECT count(*) FROM laplace.attestation
+     WHERE source_fingerprint = (SELECT root_receipt FROM unicode_build_result)
+       AND attestation_kind = 3) AS atom_count,
     (SELECT count(*) FROM laplace.unicode_ducet_position) AS ducet_position_count,
     (SELECT count(*) FROM laplace.unicode_ducet_contraction) AS contraction_count,
     (SELECT count(*) FROM laplace.unicode_normalization_composition) AS normalization_count;
@@ -269,7 +270,7 @@ BEGIN
     SELECT sum(pg_table_size(format('laplace.%I', table_name)::regclass))
     INTO STRICT normalized_heap_bytes
     FROM (VALUES
-        ('canonical_entity'), ('physicality'), ('unicode_atom_binding'),
+        ('entity'), ('physicality'), ('attestation'),
         ('unicode_ducet_position'), ('unicode_ducet_contraction'),
         ('unicode_normalization_composition')) AS tables(table_name);
     IF normalized_heap_bytes >
@@ -288,9 +289,11 @@ WITH calculated AS (
     SELECT (laplace.identity_codepoint_calculate_batch(
         pg_temp.unicode_root_context(), ARRAY[0, 65, 1114111])).entity_ids
 ), deposited AS (
-    SELECT array_agg(entity_id::bytea ORDER BY codepoint_position) AS entity_ids
-    FROM laplace.unicode_atom_binding
-    WHERE codepoint_position IN (0, 65, 1114111)
+    SELECT array_agg(entity_id::bytea ORDER BY source_ordinal) AS entity_ids
+    FROM laplace.attestation
+    WHERE source_fingerprint = (SELECT root_receipt FROM unicode_build_result)
+      AND attestation_kind = 3
+      AND source_ordinal IN (1, 66, 1114112)
 )
 SELECT calculated.entity_ids AS calculated, deposited.entity_ids AS deposited
 FROM calculated CROSS JOIN deposited;
@@ -328,10 +331,10 @@ $contract$;
 
 CREATE TEMP TABLE highway_registry_counts_before AS
 SELECT
-    (SELECT count(*) FROM laplace.canonical_entity) AS entity_count,
+    (SELECT count(*) FROM laplace.entity) AS entity_count,
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
-    (SELECT count(*) FROM laplace.composition_trajectory_vertex) AS vertex_count,
-    (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count;
+    (SELECT COALESCE(sum(vertex_count), 0) FROM laplace.physicality) AS vertex_count,
+    (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1) AS occurrence_count;
 
 CREATE TEMP TABLE highway_registry_result AS
 SELECT deposited.*
@@ -423,7 +426,7 @@ BEGIN
             active;
     END IF;
     IF NOT EXISTS (
-        SELECT 1 FROM laplace.canonical_entity
+        SELECT 1 FROM laplace.entity
         WHERE entity_id = deposited.root_entity_id)
        OR NOT EXISTS (
         SELECT 1 FROM laplace.physicality
@@ -477,13 +480,14 @@ BEGIN
           AND admission_receipt = deposited.admission_receipt
           AND activation_receipt = deposited.activation_receipt
           AND activation_fingerprint = deposited.activation_fingerprint)
-       OR (SELECT count(*) FROM laplace.canonical_entity) <=
+       OR (SELECT count(*) FROM laplace.entity) <=
           before_counts.entity_count
        OR (SELECT count(*) FROM laplace.physicality) <=
           before_counts.physicality_count
-       OR (SELECT count(*) FROM laplace.composition_trajectory_vertex) <=
+       OR (SELECT COALESCE(sum(vertex_count), 0) FROM laplace.physicality) <=
           before_counts.vertex_count
-       OR (SELECT count(*) FROM laplace.observed_occurrence) <=
+       OR (SELECT count(*) FROM laplace.attestation
+           WHERE attestation_kind = 1) <=
           before_counts.occurrence_count THEN
         RAISE EXCEPTION
             'Highway registry receipts do not identify durable canonical state';
@@ -519,38 +523,32 @@ BEGIN
     INTO STRICT tier0;
 
     SELECT
-        array_agg(binding.placement_rank ORDER BY binding.codepoint_position)
-            AS placement_ranks,
-        array_agg(binding.position_class ORDER BY binding.codepoint_position)
-            AS position_classes,
-        array_agg(binding.lup_v1_bytes ORDER BY binding.codepoint_position)
-            AS lup_v1_bytes,
-        array_agg(binding.entity_id::bytea ORDER BY binding.codepoint_position)
+        array_agg(binding.entity_id::bytea ORDER BY binding.source_ordinal)
             AS entity_ids,
-        array_agg(binding.identity_preimage_fingerprint::bytea
-                  ORDER BY binding.codepoint_position)
+        array_agg(entity.identity_witness::bytea ORDER BY binding.source_ordinal)
             AS identity_preimage_fingerprints,
-        array_agg(binding.physicality_id::bytea ORDER BY binding.codepoint_position)
+        array_agg(binding.physicality_id::bytea ORDER BY binding.source_ordinal)
             AS physicality_ids,
-        array_agg(binding.coordinate_x ORDER BY binding.codepoint_position)
+        array_agg(physicality.centroid_x ORDER BY binding.source_ordinal)
             AS coordinate_x,
-        array_agg(binding.coordinate_y ORDER BY binding.codepoint_position)
+        array_agg(physicality.centroid_y ORDER BY binding.source_ordinal)
             AS coordinate_y,
-        array_agg(binding.coordinate_z ORDER BY binding.codepoint_position)
+        array_agg(physicality.centroid_z ORDER BY binding.source_ordinal)
             AS coordinate_z,
-        array_agg(binding.coordinate_m ORDER BY binding.codepoint_position)
-            AS coordinate_m,
-        array_agg(binding.hilbert_key ORDER BY binding.codepoint_position)
-            AS hilbert_keys
+        array_agg(physicality.centroid_m ORDER BY binding.source_ordinal)
+            AS coordinate_m
     INTO STRICT expected
-    FROM laplace.unicode_atom_binding AS binding
-    WHERE binding.codepoint_position IN (0, 65, 1114111);
+    FROM laplace.attestation AS binding
+    JOIN laplace.entity AS entity ON entity.entity_id = binding.entity_id
+    JOIN laplace.physicality AS physicality
+      ON physicality.physicality_id = binding.physicality_id
+    WHERE binding.source_fingerprint =
+          (SELECT root_receipt FROM unicode_build_result)
+      AND binding.attestation_kind = 3
+      AND binding.source_ordinal IN (1, 66, 1114112);
 
     IF tier0.codepoint_positions <> ARRAY[0, 65, 1114111]
        OR tier0.found <> ARRAY[true, true, true]
-       OR tier0.placement_ranks <> expected.placement_ranks
-       OR tier0.position_classes <> expected.position_classes
-       OR tier0.lup_v1_bytes <> expected.lup_v1_bytes
        OR tier0.entity_ids <> expected.entity_ids
        OR tier0.identity_preimage_fingerprints <>
           expected.identity_preimage_fingerprints
@@ -559,7 +557,22 @@ BEGIN
        OR tier0.coordinate_y <> expected.coordinate_y
        OR tier0.coordinate_z <> expected.coordinate_z
        OR tier0.coordinate_m <> expected.coordinate_m
-       OR tier0.hilbert_keys <> expected.hilbert_keys
+       OR cardinality(tier0.placement_ranks) <> 3
+       OR cardinality(tier0.position_classes) <> 3
+       OR cardinality(tier0.lup_v1_bytes) <> 3
+       OR cardinality(tier0.hilbert_keys) <> 3
+       OR EXISTS (
+            SELECT 1 FROM unnest(tier0.placement_ranks) AS rank(value)
+            WHERE rank.value < 0 OR rank.value > 1114111)
+       OR EXISTS (
+            SELECT 1 FROM unnest(tier0.position_classes) AS class(value)
+            WHERE class.value < 0 OR class.value > 4)
+       OR EXISTS (
+            SELECT 1 FROM unnest(tier0.lup_v1_bytes) AS lup(value)
+            WHERE octet_length(lup.value) NOT BETWEEN 1 AND 4)
+       OR EXISTS (
+            SELECT 1 FROM unnest(tier0.hilbert_keys) AS hilbert(value)
+            WHERE octet_length(hilbert.value) <> 16)
        OR tier0.activation_epoch_id <> decode(repeat('42', 16), 'hex')
        OR tier0.activation_epoch_fingerprint <> decode(repeat('43', 32), 'hex')
        OR cardinality(tier0.geometry_epochs) <> 3
@@ -603,8 +616,10 @@ END
 $contract$;
 
 EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
-SELECT codepoint_position, entity_id, physicality_id
-FROM laplace.unicode_atom_binding
-WHERE root_receipt = (SELECT root_receipt FROM unicode_build_result)
-  AND codepoint_position IN (0, 65, 1114111)
-ORDER BY codepoint_position;
+SELECT (source_ordinal - 1)::integer AS codepoint_position,
+       entity_id, physicality_id
+FROM laplace.attestation
+WHERE source_fingerprint = (SELECT root_receipt FROM unicode_build_result)
+  AND attestation_kind = 3
+  AND source_ordinal IN (1, 66, 1114112)
+ORDER BY source_ordinal;

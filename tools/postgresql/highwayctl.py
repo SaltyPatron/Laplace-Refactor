@@ -379,7 +379,7 @@ BEGIN
      OR cardinality(activated.kind_name_entity_ids) <> {expected['kind_count']}
      OR cardinality(activated.alias_name_entity_ids) <> {expected['alias_count']}
      OR cardinality(activated.disposition_name_entity_ids) <> {expected['disposition_count']}
-     OR NOT EXISTS (SELECT 1 FROM laplace.canonical_entity WHERE entity_id=activated.root_entity_id)
+     OR NOT EXISTS (SELECT 1 FROM laplace.entity WHERE entity_id=activated.root_entity_id)
      OR NOT EXISTS (SELECT 1 FROM laplace.physicality WHERE physicality_id=activated.root_physicality_id AND entity_id=activated.root_entity_id)
      OR NOT EXISTS (SELECT 1 FROM laplace.highway_registry_active_control WHERE singleton AND active_present AND sequence=activated.activation_sequence AND activation_receipt=activated.activation_receipt)
      OR (SELECT count(*) FROM laplace.highway_registry_kind_projection) <> {expected['kind_count']}

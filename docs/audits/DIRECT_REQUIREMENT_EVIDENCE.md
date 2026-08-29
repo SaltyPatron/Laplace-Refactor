@@ -17,7 +17,7 @@ index entries, not replacements for the source messages.
 | Source | Human text records | Manifest | Manifest SHA-256 |
 | --- | ---: | --- | --- |
 | Current Codex session through 2026-08-25 05:24:39 UTC | 190 | `evidence/current-session-human-messages.jsonl` | `864c50823cb8c7d236fc2d9ec7d4651f40b0ef2df6cfd9cf49f11138fbd271a2` |
-| Resumed Codex continuation through 2026-08-26 21:58:30 UTC | 75 | `evidence/continuation-session-human-messages.jsonl` | `c07bbc578884a2276cb4d3b09d0ee3ca52024fad7d2760f281b8b2841ec6a69c` |
+| Resumed Codex continuation through 2026-08-28 22:36:33 UTC | 200 | `evidence/continuation-session-human-messages.jsonl` | `d4182517843b0bbd4484b89bed1ac4b15835274acb655eb5d64b0d694b6d1b73` |
 | Preserved top-level Claude project sessions | 596 | `evidence/claude-parent-human-messages.jsonl` | `6b084bdc2e6e38b1821fc2879e7add28c52b8e649de4e6b3f77e0da27131d02b` |
 
 The indexer excludes tool-result blocks, worker notifications, local-command notices,
@@ -228,6 +228,26 @@ they were supplied for review.
 | 21:55:44 | `msg_01a04012-6ee1-7911-901c-c48321c67e09` | Treat the supplied old-database population, sub-300-GB footprint, approximate index ratio, sparse all-pairs arithmetic, and paid-addressability interpretation as checkable historical claims rather than accepted assertions; verified facts may motivate clean storage-economics requirements but cannot make the old layout authoritative. |
 | 21:58:30 | `msg_01a04014-f4ef-7692-84fd-f1addd19e4be` | Supersede the broad old-runtime inspection stop only for a narrow read-only PostgreSQL census of the current values; the separate repair, source, schema, API, and diagnosis remain isolated. |
 | 21:58:30 | `msg_01a04014-f4f2-7b23-a293-92a295d51640` | Do not trust inventor recollection when direct live evidence can verify the factual claim. |
+
+## 2026-08-28 continuation corrections
+
+| Time UTC | Message locator | Technical requirement established |
+| --- | --- | --- |
+| 03:43:48 | `msg_01a04677-7173-7b20-a1b8-62fa3eb09be7` | Source and model work must retain the known `/vault/Data` and `/vault/models` roots rather than silently substituting an invented discovery boundary. |
+| 03:56:37 | `msg_01a04683-2d55-75c3-b7cc-a4212eed86a0` | Ordinary exact digital content and curated seeded source distributions have different reproducibility boundaries; non-reproducible source acquisition does not make selected exact content non-reproducible. |
+| 03:58:11 | `msg_01a04684-9c4d-7332-b7ef-80a2148a6b43` | Exact sentences selected from Wiktionary, Tatoeba, OpenSubtitles, and similar sources remain bit-perfect reusable content even when reproducing the entire upstream source distribution is unnecessary. |
+| 16:29:43 | `msg_01a04934-ab9b-7382-ac2c-c0443785cab8` | Canonical Unicode deposition must use real bulk and set execution over the intended tiered Merkle structure and mapped acceleration path; a single sequential array insert with conflict suppression cannot establish the required engine. |
+| 16:30:48 | `msg_01a04935-a73e-7860-a026-5316c86fd63b` | Entity, Physicality, Attestation, and Consensus are the canonical semantic persistence families; implementation convenience tables cannot become additional semantic authorities. |
+| 16:31:26 | `msg_01a04936-3bc1-7251-ab5c-3d1138632dc0` | A batch cardinality such as 32,768 must be derived from measured topology, byte, memory, provider, and operation constraints rather than chosen as an unexplained public semantic limit. |
+| 17:09:37 | `msg_01a04959-33e5-7753-bf3f-dc0ec267fcec` | Temporary PostgreSQL state and simulation do not establish usable durable product capability. |
+| 17:30:04 | `msg_01a0496b-ebf5-7893-905b-c45cef9e6753` | Prior audits, documentation, Gherkins, DevOps, CI/CD, tracking, and deployment evidence remain governing continuation context; current implementation shape cannot replace them. |
+| 17:32:16 | `msg_01a0496d-ee4c-7fa2-8b75-e1f876b5a0f9` | The required floor includes durably deposited Unicode, loaded memory-mapped acceleration, client-side bulk decomposition/recomposition with reduced database crossings, and generic tier-correct testimony extraction that does not blanket structural fields across tiers. |
+| 17:33:39 | `msg_01a0496f-31b3-7e91-b7f1-61afbe6d4857` | Work selection must catch up to the complete intended Laplace product; no omitted subsystem becomes out of scope because the current implementation is behind. |
+| 17:34:32 | `msg_01a04970-02ce-7e92-ac4b-b6278e64334d` | Laplace is the complete required combination; no isolated mechanism is the invention or a valid completeness boundary. |
+| 17:58:16 | `msg_01a04985-bc4c-7560-a6bb-d57df0751467` | Unicode is only the first modular perfcache family. Chess, images, audio, video, code, models, and later modalities require typed mapped planes that eliminate repeated database access and calculation while preserving root-to-leaf and leaf-to-root Merkle-DAG operations, deduplication, runs, and exact reconstruction. |
+| 20:31:18 | `msg_01a04a11-d94a-7800-8cf5-669d07a86ee9` | The supplied 128,590-byte review context is retained as a reconciliation corpus for cognition, exact AST/Merkle structure, modality-wide acceleration, grounded multilingual semantics, chess observations, autobiographical state, model compilation, and query-conditioned forward-state execution. Because it quotes prior agent prose, each statement requires direct corroboration or independent evidence before promotion. |
+| 22:32:59 | `msg_01a04a81-3f17-7952-9219-a704bf02c9fb` | Current progress remains materially behind the complete product goals and cannot be described as near completion. |
+| 22:36:33 | `msg_01a04a84-8516-7a32-ac88-bce6cb635d7a` | Important product intent supplied in the long context must be durably preserved and reconciled into the governing Laplace requirements rather than discarded with conversational context. |
 
 The review syntheses at `msg_01a03f90-4c25-7ce2-9390-a8725ecb8550` and
 `msg_01a03f93-3f62-7572-93cc-17155924018c`, plus the long contextual quote blocks at

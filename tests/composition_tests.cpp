@@ -389,8 +389,9 @@ TEST(CompositionWorkingSet, BuildsDeduplicatedTopologicalDagAndProducer) {
               LAPLACE_PERSISTENCE_OK);
     EXPECT_EQ(persisted.entity_count, summary.unique_entity_count);
     EXPECT_EQ(persisted.physicality_count, summary.unique_physicality_count);
-    EXPECT_EQ(persisted.trajectory_vertex_count, summary.trajectory_vertex_count);
-    EXPECT_EQ(persisted.occurrence_count, summary.occurrence_count);
+    EXPECT_EQ(persisted.trajectory_segment_count,
+              summary.trajectory_vertex_count);
+    EXPECT_EQ(persisted.attestation_count, summary.occurrence_count);
     EXPECT_EQ(laplace_composition_working_set_resolve_presence(
                   working_set, &provider, &presence_receipt),
               LAPLACE_COMPOSITION_PRESENCE_ALREADY_APPLIED);
@@ -524,8 +525,8 @@ TEST(CompositionWorkingSet, PresenceFiltersExactStateBeforePublication) {
               LAPLACE_PERSISTENCE_OK);
     EXPECT_EQ(persisted.entity_count, 0U);
     EXPECT_EQ(persisted.physicality_count, 0U);
-    EXPECT_EQ(persisted.trajectory_vertex_count, 0U);
-    EXPECT_EQ(persisted.occurrence_count, 1U);
+    EXPECT_EQ(persisted.trajectory_segment_count, 0U);
+    EXPECT_EQ(persisted.attestation_count, 1U);
     laplace_composition_working_set_destroy(&working_set);
 }
 

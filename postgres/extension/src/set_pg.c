@@ -183,3 +183,59 @@ uint64_t laplace_pg_scalar_count(const char* operation_name) {
     }
     return (uint64_t)DatumGetInt64(value);
 }
+
+bool laplace_pg_scalar_boolean(const char* operation_name) {
+    bool is_null = false;
+    Datum value;
+    if (SPI_processed != 1 || SPI_tuptable == NULL ||
+        SPI_tuptable->tupdesc->natts != 1 ||
+        SPI_gettypeid(SPI_tuptable->tupdesc, 1) != BOOLOID) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("Laplace %s did not return one boolean", operation_name)));
+    }
+    value = SPI_getbinval(
+        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &is_null);
+    if (is_null) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace %s returned a null disposition", operation_name)));
+    }
+    return DatumGetBool(value);
+}
+
+void laplace_pg_execute_set_write_verify(
+    const char* write_sql,
+    const char* verify_sql,
+    int parameter_count,
+    Oid* parameter_types,
+    Datum* parameter_values,
+    const char* operation_name) {
+    int result;
+    if (write_sql == NULL || verify_sql == NULL || operation_name == NULL ||
+        parameter_count < 0 ||
+        (parameter_count != 0 &&
+         (parameter_types == NULL || parameter_values == NULL))) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace set write/verify contract is invalid")));
+    }
+    result = SPI_execute_with_args(
+        write_sql, parameter_count, parameter_types, parameter_values,
+        NULL, false, 0);
+    if (result != SPI_OK_INSERT) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("Laplace %s write was not set-oriented", operation_name),
+                 errdetail("spi_result=%d", result)));
+    }
+    result = SPI_execute_with_args(
+        verify_sql, parameter_count, parameter_types, parameter_values,
+        NULL, false, 1);
+    if (result != SPI_OK_SELECT ||
+        !laplace_pg_scalar_boolean(operation_name)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace %s conflicts with durable state", operation_name)));
+    }
+}

@@ -147,17 +147,6 @@ static laplace_reference_candidate* read_candidates(
     return candidates;
 }
 
-static bool query_boolean(void) {
-    bool is_null = false;
-    Datum value;
-    if (SPI_processed != 1u || SPI_tuptable == NULL) {
-        return false;
-    }
-    value = SPI_getbinval(
-        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &is_null);
-    return !is_null && DatumGetBool(value);
-}
-
 static ArrayType* record_array(
     const laplace_reference_record* records,
     size_t record_count,
@@ -237,21 +226,22 @@ static void persist_topology(
     Oid records_array_oid,
     const laplace_reference_topology_receipt* topology_receipt,
     const laplace_isa_receipt* isa_receipt) {
-    static const char coordinates_sql[] =
-        "WITH input AS (SELECT DISTINCT kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[])),"
-        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".reference_coordinate(kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint) SELECT kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint FROM input ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT NOT EXISTS (SELECT FROM input i WHERE NOT EXISTS (SELECT FROM written w WHERE ROW(w.*) IS NOT DISTINCT FROM ROW(i.*)) AND NOT EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".reference_coordinate c WHERE c.coordinate=i.coordinate AND c.kind=i.kind AND c.authority=i.authority AND c.release=i.release AND c.namespace=i.namespace AND c.local_identifier=i.local_identifier AND c.version=i.version AND c.collision_fingerprint=i.collision_fingerprint))";
-    static const char occurrences_sql[] =
-        "WITH input AS (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) r),"
-        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".reference_occurrence(reference_id,occurrence_id,source_profile_id,coordinate,row_entity_id,field_entity_id,value_entity_id,source_ordinal,artifact_ordinal,row_ordinal,column_ordinal,rule_flags,disposition) SELECT reference_id,occurrence_id,source_profile_id,coordinate,row_entity_id,field_entity_id,value_entity_id,source_ordinal,artifact_ordinal,row_ordinal,column_ordinal,rule_flags,disposition FROM input ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT NOT EXISTS (SELECT FROM input i WHERE NOT EXISTS (SELECT FROM written w WHERE w.reference_id=i.reference_id AND w.occurrence_id=i.occurrence_id AND w.source_profile_id=i.source_profile_id AND w.coordinate=i.coordinate AND w.row_entity_id=i.row_entity_id AND w.field_entity_id=i.field_entity_id AND w.value_entity_id=i.value_entity_id AND w.source_ordinal=i.source_ordinal AND w.artifact_ordinal=i.artifact_ordinal AND w.row_ordinal=i.row_ordinal AND w.column_ordinal=i.column_ordinal AND w.rule_flags=i.rule_flags AND w.disposition=i.disposition) AND NOT EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".reference_occurrence o WHERE o.reference_id=i.reference_id AND o.occurrence_id=i.occurrence_id AND o.source_profile_id=i.source_profile_id AND o.coordinate=i.coordinate AND o.row_entity_id=i.row_entity_id AND o.field_entity_id=i.field_entity_id AND o.value_entity_id=i.value_entity_id AND o.source_ordinal=i.source_ordinal AND o.artifact_ordinal=i.artifact_ordinal AND o.row_ordinal=i.row_ordinal AND o.column_ordinal=i.column_ordinal AND o.rule_flags=i.rule_flags AND o.disposition=i.disposition))";
-    static const char receipt_sql[] =
-        "WITH written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".reference_topology_receipt(receipt_id,source_profile_id,input_fingerprint,output_fingerprint,isa_receipt_id,occurrence_count,coordinate_count,present_count,retired_count,unresolved_count,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT EXISTS (SELECT FROM written WHERE receipt_id=$1 AND source_profile_id=$2 AND input_fingerprint=$3 AND output_fingerprint=$4 AND isa_receipt_id=$5 AND occurrence_count=$6 AND coordinate_count=$7 AND present_count=$8 AND retired_count=$9 AND unresolved_count=$10 AND version=$11) OR EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".reference_topology_receipt WHERE receipt_id=$1 AND source_profile_id=$2 AND input_fingerprint=$3 AND output_fingerprint=$4 AND isa_receipt_id=$5 AND occurrence_count=$6 AND coordinate_count=$7 AND present_count=$8 AND retired_count=$9 AND unresolved_count=$10 AND version=$11)";
-    static const char members_sql[] =
-        "WITH input AS (SELECT $1::bytea AS receipt_id,(r).occurrence_id,ordinality::numeric AS member_ordinal FROM unnest($2::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) WITH ORDINALITY r),"
-        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member(receipt_id,occurrence_id,member_ordinal) SELECT receipt_id,occurrence_id,member_ordinal FROM input ON CONFLICT DO NOTHING RETURNING *) "
-        "SELECT (SELECT count(*) FROM written)+(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member m JOIN input i ON i.receipt_id=m.receipt_id AND i.occurrence_id=m.occurrence_id AND i.member_ordinal=m.member_ordinal WHERE m.receipt_id=$1)=(SELECT count(*) FROM input) AND (SELECT count(*) FROM written)+(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member m WHERE m.receipt_id=$1)=(SELECT count(*) FROM input)";
+    static const char coordinates_write_sql[] =
+        "INSERT INTO " LAPLACE_PG_SCHEMA ".reference_coordinate(kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint) SELECT DISTINCT kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) ON CONFLICT DO NOTHING";
+    static const char coordinates_verify_sql[] =
+        "WITH input AS MATERIALIZED (SELECT DISTINCT kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[])) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".reference_coordinate c ON c.coordinate=i.coordinate WHERE c.coordinate IS NULL OR c.kind<>i.kind OR c.authority<>i.authority OR c.release<>i.release OR c.namespace<>i.namespace OR c.local_identifier<>i.local_identifier OR c.version<>i.version OR c.collision_fingerprint<>i.collision_fingerprint)";
+    static const char occurrences_write_sql[] =
+        "INSERT INTO " LAPLACE_PG_SCHEMA ".reference_occurrence(reference_id,occurrence_id,source_profile_id,coordinate,row_entity_id,field_entity_id,value_entity_id,source_ordinal,artifact_ordinal,row_ordinal,column_ordinal,rule_flags,disposition) SELECT reference_id,occurrence_id,source_profile_id,coordinate,row_entity_id,field_entity_id,value_entity_id,source_ordinal,artifact_ordinal,row_ordinal,column_ordinal,rule_flags,disposition FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) ON CONFLICT DO NOTHING";
+    static const char occurrences_verify_sql[] =
+        "WITH input AS MATERIALIZED (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) r) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".reference_occurrence o ON o.reference_id=i.reference_id WHERE o.reference_id IS NULL OR o.occurrence_id<>i.occurrence_id OR o.source_profile_id<>i.source_profile_id OR o.coordinate<>i.coordinate OR o.row_entity_id<>i.row_entity_id OR o.field_entity_id<>i.field_entity_id OR o.value_entity_id<>i.value_entity_id OR o.source_ordinal<>i.source_ordinal OR o.artifact_ordinal<>i.artifact_ordinal OR o.row_ordinal<>i.row_ordinal OR o.column_ordinal<>i.column_ordinal OR o.rule_flags<>i.rule_flags OR o.disposition<>i.disposition)";
+    static const char receipt_write_sql[] =
+        "INSERT INTO " LAPLACE_PG_SCHEMA ".reference_topology_receipt(receipt_id,source_profile_id,input_fingerprint,output_fingerprint,isa_receipt_id,occurrence_count,coordinate_count,present_count,retired_count,unresolved_count,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING";
+    static const char receipt_verify_sql[] =
+        "SELECT EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".reference_topology_receipt WHERE receipt_id=$1 AND source_profile_id=$2 AND input_fingerprint=$3 AND output_fingerprint=$4 AND isa_receipt_id=$5 AND occurrence_count=$6 AND coordinate_count=$7 AND present_count=$8 AND retired_count=$9 AND unresolved_count=$10 AND version=$11)";
+    static const char members_write_sql[] =
+        "WITH input AS (SELECT $1::bytea AS receipt_id,(r).occurrence_id,ordinality::numeric AS member_ordinal FROM unnest($2::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) WITH ORDINALITY r) INSERT INTO " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member(receipt_id,occurrence_id,member_ordinal) SELECT receipt_id,occurrence_id,member_ordinal FROM input ON CONFLICT DO NOTHING";
+    static const char members_verify_sql[] =
+        "WITH input AS MATERIALIZED (SELECT $1::bytea AS receipt_id,(r).occurrence_id,ordinality::numeric AS member_ordinal FROM unnest($2::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) WITH ORDINALITY r) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member m ON m.receipt_id=i.receipt_id AND m.occurrence_id=i.occurrence_id WHERE m.receipt_id IS NULL OR m.member_ordinal<>i.member_ordinal) AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member m WHERE m.receipt_id=$1)=(SELECT count(*) FROM input)";
     Oid record_types[1] = {records_array_oid};
     Datum record_values[1] = {PointerGetDatum(records)};
     Oid receipt_types[11] = {
@@ -260,7 +250,6 @@ static void persist_topology(
     Datum receipt_values[11];
     Oid member_types[2] = {BYTEAOID, records_array_oid};
     Datum member_values[2];
-    int result;
     receipt_values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         topology_receipt->receipt_id.bytes, 32u));
     receipt_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
@@ -289,34 +278,18 @@ static void persist_topology(
                 (errcode(ERRCODE_CONNECTION_FAILURE),
                  errmsg("Laplace reference topology persistence could not connect to SPI")));
     }
-    result = SPI_execute_with_args(
-        coordinates_sql, 1, record_types, record_values, NULL, false, 0);
-    if (result != SPI_OK_SELECT || !query_boolean()) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace reference coordinate conflicts with durable state")));
-    }
-    result = SPI_execute_with_args(
-        occurrences_sql, 1, record_types, record_values, NULL, false, 0);
-    if (result != SPI_OK_SELECT || !query_boolean()) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace reference occurrence conflicts with durable state")));
-    }
-    result = SPI_execute_with_args(
-        receipt_sql, 11, receipt_types, receipt_values, NULL, false, 0);
-    if (result != SPI_OK_SELECT || !query_boolean()) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace reference topology receipt conflicts with durable state")));
-    }
-    result = SPI_execute_with_args(
-        members_sql, 2, member_types, member_values, NULL, false, 0);
-    if (result != SPI_OK_SELECT || !query_boolean()) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace reference topology membership conflicts with durable state")));
-    }
+    laplace_pg_execute_set_write_verify(
+        coordinates_write_sql, coordinates_verify_sql,
+        1, record_types, record_values, "reference coordinate");
+    laplace_pg_execute_set_write_verify(
+        occurrences_write_sql, occurrences_verify_sql,
+        1, record_types, record_values, "reference occurrence");
+    laplace_pg_execute_set_write_verify(
+        receipt_write_sql, receipt_verify_sql,
+        11, receipt_types, receipt_values, "reference topology receipt");
+    laplace_pg_execute_set_write_verify(
+        members_write_sql, members_verify_sql,
+        2, member_types, member_values, "reference topology membership");
     if (SPI_finish() != SPI_OK_FINISH) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),

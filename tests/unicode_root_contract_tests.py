@@ -46,7 +46,7 @@ class UnicodeRootContractTests(unittest.TestCase):
         self.assertEqual(report["population"], 1114112)
         self.assertEqual(
             report["status"],
-            "contracts-verified-canonical-root-stream-implemented-no-persistence-or-activation",
+            "contracts-self-consistent-no-capability-or-activation-claim",
         )
 
     def test_root_stream_cannot_split_database_and_perfcache_calculation(self) -> None:

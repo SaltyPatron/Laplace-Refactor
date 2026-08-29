@@ -71,11 +71,15 @@ struct Fixture {
     std::array<std::uint8_t, 5> archive{{0u, 1u, 255u, 'P', 'K'}};
     std::string text{"Id\tName\neng\tEnglish\njpn\t日本語\n"};
     std::array<laplace_tabular_artifact, 2> artifacts{};
-    std::array<laplace_tabular_reference_rule, 1> reference_rules{};
+    std::array<laplace_tabular_column, 2> columns{};
+    std::array<laplace_tabular_reference_rule, 2> reference_rules{};
+    std::array<laplace_tabular_mapping_rule, 1> mapping_rules{};
     laplace_source_profile_manifest declaration{Declaration()};
     laplace_tabular_source_input input{};
 
     Fixture() {
+        static constexpr std::array<std::string_view, 2> ColumnNames{{
+            "Id", "Name"}};
         const auto archive_sha = DecodeSha(
             "3caaab6abbbcc0bc44f88ef7b56033746fa2f37a94067e43df296518eba3cef5");
         const auto text_sha = DecodeSha(
@@ -105,6 +109,13 @@ struct Fixture {
         artifacts[1].line_terminator = LAPLACE_TABULAR_TERMINATOR_LF;
         artifacts[1].expected_column_count = 2u;
         artifacts[1].outcome_type = 5u;
+        for (std::size_t index = 0u; index < columns.size(); ++index) {
+            columns[index].bytes = reinterpret_cast<const std::uint8_t*>(
+                ColumnNames[index].data());
+            columns[index].byte_count = ColumnNames[index].size();
+        }
+        artifacts[1].columns = columns.data();
+        artifacts[1].header_record_count = 1u;
         artifacts[1].flags = LAPLACE_TABULAR_ARTIFACT_MEMBER |
             LAPLACE_TABULAR_ARTIFACT_EXACT_DISTRIBUTION;
 
@@ -115,8 +126,9 @@ struct Fixture {
         reference_rules[0].flags = LAPLACE_REFERENCE_RULE_ENDPOINT |
             LAPLACE_REFERENCE_RULE_PRESENT_DECLARATION;
 
-        EXPECT_EQ(laplace_tabular_artifact_graph_identify(
+        EXPECT_EQ(laplace_tabular_source_graph_identify(
                       artifacts.data(), artifacts.size(),
+                      reference_rules.data(), 1u, nullptr, 0u,
                       &declaration.artifact_graph_fingerprint),
                   LAPLACE_TABULAR_SOURCE_OK);
         input.profile_declaration = declaration;
@@ -125,7 +137,7 @@ struct Fixture {
         input.artifacts = artifacts.data();
         input.artifact_count = artifacts.size();
         input.reference_rules = reference_rules.data();
-        input.reference_rule_count = reference_rules.size();
+        input.reference_rule_count = 1u;
         input.preferred_batch_bytes = 4096u;
     }
 };
@@ -138,8 +150,12 @@ void RefreshArtifact(laplace_tabular_artifact& artifact) {
 }
 
 void RefreshGraph(Fixture& fixture) {
-    ASSERT_EQ(laplace_tabular_artifact_graph_identify(
+    ASSERT_EQ(laplace_tabular_source_graph_identify(
                   fixture.artifacts.data(), fixture.artifacts.size(),
+                  fixture.input.reference_rules,
+                  static_cast<std::size_t>(fixture.input.reference_rule_count),
+                  fixture.input.mapping_rules,
+                  static_cast<std::size_t>(fixture.input.mapping_rule_count),
                   &fixture.input.profile_declaration.artifact_graph_fingerprint),
               LAPLACE_TABULAR_SOURCE_OK);
 }
@@ -187,7 +203,8 @@ TEST(TabularSource, CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan) {
     EXPECT_EQ(view.reference_occurrences[0].kind,
               LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE);
     EXPECT_EQ(view.profile.claim_count, 2u);
-    EXPECT_EQ(view.profile.mapping_count, 2u);
+    EXPECT_EQ(view.profile.mapping_count, 0u);
+    EXPECT_EQ(view.mapping_occurrence_count, 0u);
     EXPECT_EQ(view.profile.occurrence_count, 0u);
     EXPECT_EQ(view.profile.output_count, view.request_count);
     EXPECT_EQ(
@@ -200,6 +217,24 @@ TEST(TabularSource, CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan) {
     EXPECT_LT(view.claim_source_ordinals[0], view.claim_source_ordinals[1]);
     EXPECT_EQ(view.claim_outcome_types[0], 5u);
     EXPECT_EQ(view.claim_outcome_types[1], 5u);
+    for (std::size_t claim_index = 0u;
+         claim_index < static_cast<std::size_t>(view.claim_count);
+         ++claim_index) {
+        const std::uint64_t result_index =
+            view.claim_result_indexes[claim_index];
+        ASSERT_LT(result_index, view.request_count);
+        const auto& request = view.requests[result_index];
+        ASSERT_EQ(request.operand_count, fixture.columns.size() + 2u);
+        ASSERT_LE(request.first_operand + request.operand_count,
+                  view.operand_count);
+        const auto* row = view.operands + request.first_operand;
+        EXPECT_EQ(row[0].relationship_metadata, 1u << 6u);
+        EXPECT_EQ(row[1].relationship_metadata, 7u << 6u);
+        EXPECT_EQ(row[2].relationship_metadata, 7u << 6u);
+        EXPECT_EQ(row[3].relationship_metadata, 10u << 6u);
+        EXPECT_EQ(request.source_ordinal,
+                  view.claim_source_ordinals[claim_index]);
+    }
 
     std::vector<std::uint8_t> archive(fixture.archive.size());
     std::vector<std::uint8_t> text(fixture.text.size());
@@ -218,6 +253,107 @@ TEST(TabularSource, CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan) {
     EXPECT_EQ(std::memcmp(text.data(), fixture.text.data(), text.size()), 0);
     laplace_tabular_source_plan_destroy(&plan);
     EXPECT_EQ(plan, nullptr);
+}
+
+TEST(TabularSource, CompilesDeclaredReferencePairsIntoGenericMappingOccurrences) {
+    Fixture fixture;
+    fixture.artifacts[1].reference_column_mask = 3u;
+    Fill(fixture.reference_rules[1].name_space, 0x65u);
+    fixture.reference_rules[1].artifact_index = 1u;
+    fixture.reference_rules[1].column_index = 1u;
+    fixture.reference_rules[1].kind = LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE;
+    fixture.reference_rules[1].flags = LAPLACE_REFERENCE_RULE_ENDPOINT |
+        LAPLACE_REFERENCE_RULE_PRESENT_DECLARATION;
+    fixture.input.reference_rule_count = fixture.reference_rules.size();
+    static constexpr std::string_view Relation{"="};
+    fixture.mapping_rules[0].relation_content =
+        reinterpret_cast<const std::uint8_t*>(Relation.data());
+    fixture.mapping_rules[0].relation_content_byte_count = Relation.size();
+    fixture.mapping_rules[0].artifact_index = 1u;
+    fixture.mapping_rules[0].left_column_index = 0u;
+    fixture.mapping_rules[0].right_column_index = 1u;
+    fixture.mapping_rules[0].relation_version = 1u;
+    fixture.mapping_rules[0].relation_kind =
+        LAPLACE_HIGHWAY_KIND_RELATION;
+    fixture.mapping_rules[0].flags = LAPLACE_REFERENCE_MAPPING_FLAG_DIRECTED;
+    fixture.input.mapping_rules = fixture.mapping_rules.data();
+    fixture.input.mapping_rule_count = fixture.mapping_rules.size();
+    RefreshGraph(fixture);
+
+    laplace_tabular_source_plan* plan = nullptr;
+    ASSERT_EQ(laplace_tabular_source_plan_create(&fixture.input, &plan),
+              LAPLACE_TABULAR_SOURCE_OK);
+    laplace_tabular_source_plan_view view{};
+    ASSERT_EQ(laplace_tabular_source_plan_view_get(plan, &view),
+              LAPLACE_TABULAR_SOURCE_OK);
+    ASSERT_EQ(view.reference_occurrence_count, 4u);
+    ASSERT_EQ(view.mapping_occurrence_count, 2u);
+    EXPECT_EQ(view.profile.mapping_count, 2u);
+    EXPECT_EQ(view.profile.closure_subject_count,
+              view.request_count + view.profile.reference_count +
+                  view.profile.mapping_count);
+    EXPECT_EQ(view.profile.unresolved_count,
+              view.profile.reference_count + view.profile.mapping_count);
+    EXPECT_EQ(view.mapping_occurrences[0].left_reference_occurrence_index, 0u);
+    EXPECT_EQ(view.mapping_occurrences[0].right_reference_occurrence_index, 1u);
+    EXPECT_EQ(view.mapping_occurrences[1].left_reference_occurrence_index, 2u);
+    EXPECT_EQ(view.mapping_occurrences[1].right_reference_occurrence_index, 3u);
+    EXPECT_LT(view.mapping_occurrences[0].row_result_index,
+              view.mapping_occurrences[1].row_result_index);
+    EXPECT_LT(view.mapping_occurrences[0].relation_result_index,
+              view.request_count);
+    EXPECT_EQ(view.mapping_occurrences[0].relation_kind,
+              LAPLACE_HIGHWAY_KIND_RELATION);
+    EXPECT_EQ(view.mapping_occurrences[0].flags,
+              LAPLACE_REFERENCE_MAPPING_FLAG_DIRECTED);
+    laplace_tabular_source_plan_destroy(&plan);
+
+    static constexpr std::string_view MutatedRelation{"same-as"};
+    fixture.mapping_rules[0].relation_content =
+        reinterpret_cast<const std::uint8_t*>(MutatedRelation.data());
+    fixture.mapping_rules[0].relation_content_byte_count =
+        MutatedRelation.size();
+    EXPECT_EQ(laplace_tabular_source_plan_create(&fixture.input, &plan),
+              LAPLACE_TABULAR_SOURCE_PROFILE_INVALID);
+    EXPECT_EQ(plan, nullptr);
+
+    fixture.input.reference_rule_count = 1u;
+    EXPECT_EQ(laplace_tabular_source_plan_create(&fixture.input, &plan),
+              LAPLACE_TABULAR_SOURCE_PROFILE_INVALID);
+    EXPECT_EQ(plan, nullptr);
+}
+
+TEST(TabularSource, HeaderlessExactTablesUseDeclaredColumnsWithoutLosingFirstRow) {
+    Fixture fixture;
+    fixture.text = "eng\tEnglish\njpn\t日本語\n";
+    fixture.artifacts[1].bytes = reinterpret_cast<const std::uint8_t*>(
+        fixture.text.data());
+    fixture.artifacts[1].byte_count = fixture.text.size();
+    fixture.artifacts[1].expected_record_count = 2u;
+    fixture.artifacts[1].expected_field_count = 4u;
+    fixture.artifacts[1].header_record_count = 0u;
+    RefreshArtifact(fixture.artifacts[1]);
+    RefreshGraph(fixture);
+
+    laplace_tabular_source_plan* plan = nullptr;
+    ASSERT_EQ(laplace_tabular_source_plan_create(&fixture.input, &plan),
+              LAPLACE_TABULAR_SOURCE_OK);
+    laplace_tabular_source_plan_view view{};
+    ASSERT_EQ(laplace_tabular_source_plan_view_get(plan, &view),
+              LAPLACE_TABULAR_SOURCE_OK);
+    EXPECT_EQ(view.claim_count, 2u);
+    EXPECT_EQ(view.reference_occurrence_count, 2u);
+    EXPECT_EQ(view.reference_occurrences[0].row_ordinal, 1u);
+    EXPECT_EQ(view.reference_occurrences[1].row_ordinal, 2u);
+    std::vector<std::uint8_t> output(fixture.text.size());
+    std::size_t written{};
+    ASSERT_EQ(laplace_tabular_source_recompose_artifact(
+                  plan, 1u, output.data(), output.size(), &written),
+              LAPLACE_TABULAR_SOURCE_OK);
+    EXPECT_EQ(written, fixture.text.size());
+    EXPECT_EQ(std::memcmp(
+                  output.data(), fixture.text.data(), fixture.text.size()), 0);
+    laplace_tabular_source_plan_destroy(&plan);
 }
 
 TEST(TabularSource, SeparatesExactContentFromNonInvertibleSourceDistribution) {
@@ -335,8 +471,14 @@ TEST(TabularSource, RejectsDigestGrammarUtf8AndDenominatorDefects) {
     Fixture denominator;
     denominator.artifacts[1].expected_field_count = 5u;
     laplace_digest256 graph{};
-    ASSERT_EQ(laplace_tabular_artifact_graph_identify(
+    ASSERT_EQ(laplace_tabular_source_graph_identify(
                   denominator.artifacts.data(), denominator.artifacts.size(),
+                  denominator.input.reference_rules,
+                  static_cast<std::size_t>(
+                      denominator.input.reference_rule_count),
+                  denominator.input.mapping_rules,
+                  static_cast<std::size_t>(
+                      denominator.input.mapping_rule_count),
                   &graph),
               LAPLACE_TABULAR_SOURCE_OK);
     denominator.input.profile_declaration.artifact_graph_fingerprint = graph;

@@ -4,6 +4,7 @@ function(laplace_configure_tabular_source_contract contract_path output)
     string(JSON abi_major GET "${contract}" abi major)
     string(JSON abi_minor GET "${contract}" abi minor)
     string(JSON artifact_graph_domain GET "${contract}" identity artifact_graph_domain)
+    string(JSON source_graph_domain GET "${contract}" identity source_graph_domain)
     string(JSON source_domain GET "${contract}" identity source_domain)
     string(JSON reconstruction_domain GET "${contract}" identity reconstruction_domain)
     string(JSON mode_raw GET "${contract}" artifact_modes raw_octets)
@@ -12,7 +13,7 @@ function(laplace_configure_tabular_source_contract contract_path output)
     string(JSON terminator_lf GET "${contract}" line_terminators lf)
     string(JSON terminator_crlf GET "${contract}" line_terminators crlf)
     if(NOT schema STREQUAL "laplace.tabular-source-contract/v1" OR
-       NOT abi_major EQUAL 1 OR NOT abi_minor EQUAL 1 OR
+       NOT abi_major EQUAL 1 OR NOT abi_minor EQUAL 4 OR
        NOT mode_raw EQUAL 1 OR NOT mode_delimited EQUAL 2 OR
        NOT terminator_none EQUAL 0 OR NOT terminator_lf EQUAL 1 OR
        NOT terminator_crlf EQUAL 2)
@@ -21,6 +22,7 @@ function(laplace_configure_tabular_source_contract contract_path output)
     set(LAPLACE_TABULAR_SOURCE_ABI_MAJOR "${abi_major}")
     set(LAPLACE_TABULAR_SOURCE_ABI_MINOR "${abi_minor}")
     set(LAPLACE_TABULAR_ARTIFACT_GRAPH_DOMAIN "${artifact_graph_domain}")
+    set(LAPLACE_TABULAR_SOURCE_GRAPH_DOMAIN "${source_graph_domain}")
     set(LAPLACE_TABULAR_SOURCE_DOMAIN "${source_domain}")
     set(LAPLACE_TABULAR_RECONSTRUCTION_DOMAIN "${reconstruction_domain}")
     set(LAPLACE_TABULAR_ARTIFACT_RAW "${mode_raw}")

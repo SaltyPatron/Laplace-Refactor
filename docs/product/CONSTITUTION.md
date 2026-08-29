@@ -278,6 +278,15 @@ Recorded observations and calculated results remain distinguishable. A calculati
 records its instruction program, inputs, engine version, parameters, and result
 receipt.
 
+An observed event is retained before any summary is calculated from it. Processing
+order cannot change the meaning of an immutable game, sentence occurrence, execution,
+rating-at-event, clock observation, model probe, or other witnessed state. Current
+standing, lifetime standing, matchup behavior, historical state, and every other
+summary are query-relative calculations over selected observation boundaries. A
+successful output or later consequence supports only the proposition and operation it
+actually tests; it cannot certify unrelated explanations or outputs emitted during the
+same event.
+
 Witnessed, copied, derived, independently corroborated, and currently believed are
 different epistemic kinds. Every derived claim retains a provenance DAG to its root
 observations. Descendants, cycles, mirrors, quotations, shared datasets, common model
@@ -299,6 +308,11 @@ past a token count.
 
 Conversation is persistent substrate execution. Turns, corrections, references,
 artifacts, tool activity, and prior results remain attributable and addressable.
+Laplace's own versioned programs, actions, explanations, measurements, failures,
+corrections, and observed consequences enter through the same evidence laws. A claim
+that Laplace can perform an operation, source-code presence, an integration test, and
+an installed product observation are different evidence and cannot substitute for one
+another.
 
 ### 7.1 Calculation and generation rather than flattening
 
@@ -337,6 +351,15 @@ define relevance. A metric nearest-neighbor instruction may supply candidates to
 search, but no KNN, ANN, vector, graph, or lookup result becomes the cognition policy.
 A result described as A-star optimal must prove the required heuristic and state-space
 conditions in its receipt.
+
+A cognition layer is a state transformation, not another raw graph hop. The current
+typed guidance state projects queries for unresolved obligations; indexes and
+perfcaches produce candidate batches; eligibility, evidence, relation laws, and
+context score and fold those values into a new derived state; that state projects the
+next operations. Large observation populations are folded with dependence and
+drill-through provenance before the next layer rather than occupying one forward slot
+per row. Fixed hop count, fixed fanout, endpoint arrival, or a visually connected
+subgraph cannot impersonate this query, retrieve, fold, project cycle.
 
 Native cognition separates the layer-metrized compatibility operator, typed defect
 and innovation calculation, deterministic counterfactual act selection, and
@@ -445,6 +468,16 @@ and activation epoch. A dense Unicode plane can address a codepoint directly; a
 sparse composition plane can use ordered lookup plus a bounded result span; a reverse
 or domain plane can use its own typed index. No common format may force all of these
 operations through one generic search algorithm.
+
+Unicode is the first acceleration module, not the set of acceleration modules.
+Language structure, chess states and transitions, image tiles and channels, audio
+frames and channels, video frames tracks and timing, code syntax and symbols, model
+tensors and operators, and future modalities may each publish typed planes when a
+representative workload proves their value. Mapped leaves and reusable substructures
+support leaf-to-trunk composition and trunk-to-leaf reconstruction while retaining
+Merkle identity, roles, ordinals, multiplicity, runs, and exact bytes. Covered work
+avoids database crossings and repeated calculation; a removed plane changes
+performance, never logical results, evidence, or receipt meaning.
 
 One native registry manages mapping, validation, batch lookup, publication,
 activation, replacement, diagnostics, and receipts. Modules have independent

@@ -76,6 +76,7 @@
       "delimiter": 9,
       "line_terminator": "lf",
       "columns": ["M_Id", "I_Id", "I_Status"],
+      "header_record_count": 1,
       "reference_columns": [0, 1],
       "reference_bindings": [
         {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint"]},
@@ -84,6 +85,7 @@
       "record_count": 460,
       "field_count": 1380,
       "claim_count": 459,
+      "mapping_count": 0,
       "outcome_type": "mapping"
     },
     {
@@ -100,6 +102,7 @@
       "delimiter": 9,
       "line_terminator": "lf",
       "columns": ["Id", "Part2b", "Part2t", "Part1", "Scope", "Language_Type", "Ref_Name", "Comment"],
+      "header_record_count": 1,
       "reference_columns": [0, 1, 2, 3],
       "reference_bindings": [
         {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint", "present-declaration"]},
@@ -110,6 +113,7 @@
       "record_count": 7930,
       "field_count": 63440,
       "claim_count": 7929,
+      "mapping_count": 0,
       "outcome_type": "mapping"
     },
     {
@@ -126,6 +130,7 @@
       "delimiter": 9,
       "line_terminator": "lf",
       "columns": ["Id", "Print_Name", "Inverted_Name"],
+      "header_record_count": 1,
       "reference_columns": [0],
       "reference_bindings": [
         {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint"]}
@@ -133,6 +138,7 @@
       "record_count": 8337,
       "field_count": 25011,
       "claim_count": 8336,
+      "mapping_count": 0,
       "outcome_type": "mapping"
     },
     {
@@ -149,6 +155,7 @@
       "delimiter": 9,
       "line_terminator": "lf",
       "columns": ["Id", "Ref_Name", "Ret_Reason", "Change_To", "Ret_Remedy", "Effective"],
+      "header_record_count": 1,
       "reference_columns": [0, 3],
       "reference_bindings": [
         {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint", "retired-declaration"]},
@@ -157,11 +164,12 @@
       "record_count": 387,
       "field_count": 2322,
       "claim_count": 386,
+      "mapping_count": 0,
       "outcome_type": "mapping"
     }
   ],
   "syntax_authority": {
-    "provider": "laplace.tabular-source-contract/v1.1",
+    "provider": "laplace.tabular-source-contract/v1.4",
     "encoding": "shortest-form Unicode scalar UTF-8",
     "grammar": "one header plus fixed-width tab-separated records, no quoting, exact LF after every record",
     "unknown_form": "reject-before-publication",
@@ -225,15 +233,17 @@
     "records": 17114,
     "fields": 92153,
     "claims": 17110,
-    "mappings": 17110,
+    "mappings": 0,
     "errors": 0,
     "unknowns": 0,
     "references": 18805,
+    "reference_coordinates": 9339,
     "equations": [
       "bytes = archive bytes + selected member bytes",
       "records = sum member records including four headers",
       "fields = sum record_count times declared column_count",
-      "claims = records minus four headers"
+      "claims = records minus four headers",
+      "reference_coordinates = unique authority-release-namespace-local-identifier coordinates across all declared reference columns"
     ]
   },
   "conformance": {
@@ -241,7 +251,7 @@
     "negative": ["changed byte with pinned digest", "missing final LF", "wrong field count", "invalid UTF-8", "member without container parent", "parent edge omitted from artifact graph", "raw ZIP promoted to exact selected content", "source-specific semantic callback"]
   },
   "completion": {
-    "predicate": "all five artifacts, four parent edges, 560435 bytes, 17114 records, 92153 fields, 17110 claims, and all 18805 typed reference occurrences close as 9339 exact coordinates with 18404 present 401 retired and zero unresolved dispositions; exact selected-table readback, semantic profile readback, deterministic topology replay, rollback, and PostgreSQL parity close",
+    "predicate": "all five artifacts, four parent edges, 560435 bytes, 17114 records, 92153 fields, 17110 source-record claims, zero cross-reference mapping propositions, and all 18805 typed reference occurrences close as 9339 exact coordinates with 18404 present 401 retired and zero unresolved dispositions; exact selected-table readback, semantic profile readback, deterministic topology replay, rollback, and PostgreSQL parity close",
     "does_not_prove": ["all ISO 639 data admitted", "cross-namespace ISO 639 mappings adjudicated or product-activated", "configured foundational seed", "general cognition", "product release"]
   },
   "execution": {

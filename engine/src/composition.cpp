@@ -245,7 +245,7 @@ struct laplace_composition_working_set {
     std::vector<laplace_composition_result> results;
     std::vector<laplace_composition_entity_candidate> entities;
     std::vector<PhysicalityBundle> physicalities;
-    std::vector<laplace_persistence_occurrence_record> occurrences;
+    std::vector<laplace_persistence_attestation_record> occurrences;
     std::vector<std::uint8_t> entity_dispositions;
     std::vector<std::uint8_t> physicality_dispositions;
     std::vector<std::uint8_t> stream;
@@ -292,7 +292,7 @@ laplace_composition_status EstimateMemory(
         !AddMemory(input.request_count,
                    sizeof(PhysicalityBundle) * 4U, estimated) ||
         !AddMemory(input.request_count,
-                   sizeof(laplace_persistence_occurrence_record) * 2U, estimated) ||
+                   sizeof(laplace_persistence_attestation_record) * 2U, estimated) ||
         !AddMemory(maximum_carriers,
                    sizeof(laplace_trajectory_carrier) * 3U, estimated) ||
         !AddMemory(maximum_entities,
@@ -303,10 +303,10 @@ laplace_composition_status EstimateMemory(
                        LAPLACE_PERSISTENCE_RECORD_PHYSICALITY), estimated) ||
         !AddMemory(maximum_carriers,
                    laplace_persistence_frame_bytes(
-                       LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX), estimated) ||
+                       LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT), estimated) ||
         !AddMemory(input.request_count,
                    laplace_persistence_frame_bytes(
-                       LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE), estimated)) {
+                       LAPLACE_PERSISTENCE_RECORD_ATTESTATION), estimated)) {
         return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
     }
     return LAPLACE_COMPOSITION_OK;
@@ -532,14 +532,14 @@ laplace_composition_status AppendFrame(
         status = laplace_persistence_frame_encode_physicality(
             static_cast<const laplace_persistence_physicality_record*>(value),
             bytes.data() + offset, frame_bytes, &written);
-    } else if (kind == LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX) {
-        status = laplace_persistence_frame_encode_trajectory(
+    } else if (kind == LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT) {
+        status = laplace_persistence_frame_encode_trajectory_segment(
             physicality_id, vertex_index,
             static_cast<const laplace_trajectory_carrier*>(value),
             bytes.data() + offset, frame_bytes, &written);
-    } else if (kind == LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE) {
-        status = laplace_persistence_frame_encode_occurrence(
-            static_cast<const laplace_persistence_occurrence_record*>(value),
+    } else if (kind == LAPLACE_PERSISTENCE_RECORD_ATTESTATION) {
+        status = laplace_persistence_frame_encode_attestation(
+            static_cast<const laplace_persistence_attestation_record*>(value),
             bytes.data() + offset, frame_bytes, &written);
     }
     if (status != LAPLACE_PERSISTENCE_OK || written != frame_bytes) {
@@ -590,7 +590,7 @@ laplace_composition_status BuildStream(
         for (std::size_t index = 0U; index < bundle.carriers.size(); ++index) {
             status = AppendFrame(
                 state.stream, offsets,
-                LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX,
+                LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT,
                 &bundle.carriers[index], &bundle.physicality.physicality_id,
                 static_cast<std::uint64_t>(index));
             if (status != LAPLACE_COMPOSITION_OK) {
@@ -601,7 +601,7 @@ laplace_composition_status BuildStream(
     for (const auto& occurrence : state.occurrences) {
         const auto status = AppendFrame(
             state.stream, offsets,
-            LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE, &occurrence);
+            LAPLACE_PERSISTENCE_RECORD_ATTESTATION, &occurrence);
         if (status != LAPLACE_COMPOSITION_OK) {
             return status;
         }
@@ -643,9 +643,10 @@ laplace_composition_status BuildStream(
             LAPLACE_PERSISTENCE_OK ||
         persisted.entity_count != state.summary.novel_entity_count ||
         persisted.physicality_count != state.summary.novel_physicality_count ||
-        persisted.trajectory_vertex_count !=
+        persisted.trajectory_segment_count !=
             state.summary.novel_trajectory_vertex_count ||
-        persisted.occurrence_count != state.occurrences.size()) {
+        persisted.attestation_count != state.occurrences.size() ||
+        persisted.consensus_count != 0u) {
         return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
     }
     std::uint32_t record_type{};
@@ -992,21 +993,24 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
                 delete state;
                 return entity_status;
             }
-            laplace_persistence_occurrence_record occurrence{};
+            laplace_persistence_attestation_record occurrence{};
             occurrence.entity_id = result.entity_id;
             occurrence.physicality_id = result.physicality_id;
             occurrence.source_fingerprint = *input->source_fingerprint;
             occurrence.context_fingerprint = request.occurrence_context_fingerprint;
             occurrence.source_ordinal = request.source_ordinal;
-            occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
-            if (laplace_persistence_occurrence_identify(
-                    &occurrence, &occurrence.occurrence_id) !=
+            occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+            occurrence.attestation_kind =
+                LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+            if (laplace_persistence_attestation_identify(
+                    &occurrence, &occurrence.attestation_id) !=
                     LAPLACE_PERSISTENCE_OK) {
                 delete state;
                 return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
             }
             if (occurrence_index.emplace(
-                    Key(occurrence.occurrence_id), state->occurrences.size()).second) {
+                    Key(occurrence.attestation_id),
+                    state->occurrences.size()).second) {
                 state->occurrences.push_back(occurrence);
             }
             calculated.push_back(result);
@@ -1042,8 +1046,8 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
         std::sort(state->occurrences.begin(), state->occurrences.end(),
             [](const auto& left, const auto& right) {
                 return std::memcmp(
-                    left.occurrence_id.bytes, right.occurrence_id.bytes,
-                    sizeof(left.occurrence_id.bytes)) < 0;
+                    left.attestation_id.bytes, right.attestation_id.bytes,
+                    sizeof(left.attestation_id.bytes)) < 0;
             });
         state->summary.unique_entity_count =
             static_cast<std::uint64_t>(state->entities.size());

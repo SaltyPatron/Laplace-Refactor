@@ -8,7 +8,7 @@
     "package_manifest_schema": "laplace.package-manifest/v1",
     "unicode_source_contract_schema": "laplace.unicode-source-contract/v1",
     "unicode_postgresql_contract_schema": "laplace.unicode-postgresql-contract/v1",
-    "unicode_postgresql_contract_fingerprint": "f4086d6334dc87f627177dce69b3701743b8ffa22c97e77854754dca0f04b077",
+    "unicode_postgresql_contract_fingerprint": "a820581b0e1c36e16a7394ae4fd3bdce1d1910faccc97cbb69838e0876106dc4",
     "unicode_version": "17.0.0",
     "source_file_count": 33
   },
@@ -47,7 +47,6 @@
     "expected_old_epoch_id": "00000000000000000000000000000000",
     "expected_old_epoch_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
     "maximum_batch_bytes": 33554432,
-    "maximum_batch_frames": 32768,
     "statement_timeout_seconds": 3600,
     "restart_timeout_seconds": 240,
     "readback_positions": [0, 65, 1114111],
@@ -77,7 +76,7 @@
     "reverse_artifact_bytes": 117440896,
     "tier0_artifact_digest": "8950d9867428fd660f8a49377b0c4a693b57ef0a9807ea189e425d0bb847c291",
     "reverse_artifact_digest": "6f33df84440a8f4bb19afa608befac11f17ad68123d06e043c2be7451f6ab7b1",
-    "plan_manifest_fingerprint": "74499f893b359982962c3dbeb5572965c8d89f22609f47c41dbd7143d08034ab",
+    "plan_manifest_fingerprint": "3a546d581afc1c4caf78c1c235aafd41b283984325d5717b188211d1091cb9e5",
     "perfcache_artifact_count": 2,
     "perfcache_dependency_count": 1,
     "reverse_dependency_module_id": "cb4d73fe1c7ad3784bdd69f9e22f5b3f"

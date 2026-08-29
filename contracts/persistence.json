@@ -1,5 +1,5 @@
 {
-  "schema": "laplace.persistence-contract/v1",
+  "schema": "laplace.persistence-contract/v2",
   "stream_record_type": 262145,
   "frame": {
     "version": 1,
@@ -11,14 +11,16 @@
   "record_kinds": {
     "entity": 1,
     "physicality": 2,
-    "trajectory_vertex": 3,
-    "observed_occurrence": 4
+    "physicality_trajectory_segment": 3,
+    "attestation": 4,
+    "consensus": 5
   },
   "payload_bytes": {
     "entity": 48,
     "physicality": 224,
-    "trajectory_vertex": 72,
-    "observed_occurrence": 160
+    "physicality_trajectory_segment": 72,
+    "attestation": 160,
+    "consensus": 176
   },
   "identities": {
     "content_bytes": 16,
@@ -27,7 +29,8 @@
     "digest_algorithm": "BLAKE3-256",
     "physicality_domain": "laplace-physicality-record-v1",
     "trajectory_domain": "laplace-composition-trajectory-v1",
-    "occurrence_domain": "laplace-observed-occurrence-v1",
+    "attestation_domain": "laplace-attestation-record-v1",
+    "consensus_domain": "laplace-consensus-record-v1",
     "physicality_preimage": "domain || entity_id || physicality_type || vertex_class || recipe_version || structural_form || dimension_count || flags || recipe_fingerprint || geometry_epoch || trajectory_fingerprint || point-or-centroid-binary64-bits || radius-binary64-bits || logical_count || vertex_count",
     "physicality_provenance_excluded": [
       "execution_receipt",
@@ -35,7 +38,7 @@
       "resource_receipt"
     ],
     "trajectory_preimage": "domain || ordered_exact_carrier_binary64_bits",
-    "occurrence_preimage": "domain || entity_id || optional_physicality_id || source_fingerprint || context_fingerprint || source_ordinal || flags || reserved"
+    "attestation_preimage": "domain || entity_id || optional_physicality_id || source_fingerprint || context_fingerprint || source_ordinal || flags || attestation_kind"
   },
   "semantic_enums": {
     "physicality_type": {
@@ -54,7 +57,7 @@
       "none": 0
     }
   },
-  "ordering": "entities-by-content-id-then-physicality-groups-by-record-id-then-occurrences-by-record-id",
+  "ordering": "entities-by-content-id-then-physicality-groups-by-record-id-then-attestations-by-record-id-then-consensus-by-record-id",
   "required_record_families": ["at-least-one-complete-valid-frame"],
   "conditional_record_families": {
     "composition": "one-or-more-contiguous-trajectory-vertices-matching-count-and-fingerprint",
@@ -81,12 +84,18 @@
       "identity_rule": "numeric-execution-package-and-resource-receipts-are-excluded;recipe-and-geometry-epoch-remain-semantic-inputs"
     }
   },
-  "occurrence_flags": {
+  "attestation_kinds": {
+    "observed_occurrence": 1,
+    "execution_receipt": 2,
+    "source_testimony": 3,
+    "derived_claim": 4
+  },
+  "attestation_flags": {
     "has_physicality": 1
   },
   "bit_pattern_semantics": {
     "identity_and_digest_zero": "valid-value-not-absence",
-    "optional_physicality_presence": "occurrence-flags.has-physicality",
+    "optional_physicality_presence": "attestation-flags.has-physicality",
     "optional_physicality_absent_payload": "all-zero-canonical-inactive-bytes",
     "optional_physicality_present_payload": "all-256-bit-patterns-valid"
   },
@@ -95,7 +104,7 @@
       "deposit_sql_name": "canonical_deposit_batch",
       "deposit_c_symbol": "laplace_pg_canonical_deposit_batch",
       "plan_fingerprint_domain": "laplace-postgresql-persistence-plan-sequence-v1",
-      "plan_manifest": "01:reference-preflight/set-v1;02:entity-insert/set-v1;03:entity-exact-verify/set-v1;04:physicality-insert/set-v1;05:physicality-exact-verify/set-v1;06:trajectory-insert/set-v1;07:trajectory-exact-verify/set-v1;08:occurrence-insert/set-v1;09:occurrence-exact-verify/set-v1;10:receipt-insert/single-v1;11:receipt-exact-verify/single-v1",
+      "plan_manifest": "01:reference-preflight/set-v2;02:entity-insert/set-v2;03:entity-exact-verify/set-v2;04:physicality-with-trajectory-insert/set-v2;05:physicality-with-trajectory-exact-verify/set-v2;06:attestation-insert/set-v2;07:attestation-exact-verify/set-v2;08:consensus-insert/set-v2;09:consensus-exact-verify/set-v2;10:receipt-attestation-insert/set-v2;11:receipt-attestation-exact-verify/set-v2",
       "working_memory_estimate": {
         "stream_byte_multiplier": 4,
         "per_record_overhead_bytes": 128
@@ -106,10 +115,10 @@
         "entity_verify": 3,
         "physicality_insert": 4,
         "physicality_verify": 5,
-        "trajectory_insert": 6,
-        "trajectory_verify": 7,
-        "occurrence_insert": 8,
-        "occurrence_verify": 9,
+        "attestation_insert": 6,
+        "attestation_verify": 7,
+        "consensus_insert": 8,
+        "consensus_verify": 9,
         "receipt_insert": 10,
         "receipt_verify": 11
       }

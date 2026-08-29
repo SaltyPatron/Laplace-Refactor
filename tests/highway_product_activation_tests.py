@@ -198,7 +198,7 @@ class HighwayProductActivationTests(unittest.TestCase):
         )
         for required in (
             "highway_registry_admit_and_activate",
-            "canonical_entity",
+            "entity",
             "physicality",
             "highway_registry_active_control",
             "highway_registry_kind_projection",

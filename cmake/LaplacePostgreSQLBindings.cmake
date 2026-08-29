@@ -61,6 +61,10 @@ function(laplace_configure_postgresql_bindings
         "${contract_json}" bindings postgresql reference_topology_resolve_batch resolve_sql_name)
     string(JSON reference_topology_resolve_symbol GET
         "${contract_json}" bindings postgresql reference_topology_resolve_batch resolve_c_symbol)
+    string(JSON reference_mapping_resolve_sql GET
+        "${contract_json}" bindings postgresql reference_mapping_resolve_batch resolve_sql_name)
+    string(JSON reference_mapping_resolve_symbol GET
+        "${contract_json}" bindings postgresql reference_mapping_resolve_batch resolve_c_symbol)
     string(JSON source_admit_tabular_sql GET
         "${contract_json}" bindings postgresql source_admit_tabular admit_sql_name)
     string(JSON source_admit_tabular_symbol GET
@@ -87,8 +91,8 @@ function(laplace_configure_postgresql_bindings
         "${persistence_json}" semantic_enums structural_form atomic_point)
     string(JSON persistence_physicality_flags_none GET
         "${persistence_json}" semantic_enums physicality_flags none)
-    string(JSON persistence_occurrence_has_physicality GET
-        "${persistence_json}" occurrence_flags has_physicality)
+    string(JSON persistence_attestation_has_physicality GET
+        "${persistence_json}" attestation_flags has_physicality)
     string(JSON persistence_plan_count LENGTH
         "${persistence_json}" bindings postgresql plan_sequence)
     file(READ "${composition_contract_path}" composition_json)
@@ -153,7 +157,7 @@ function(laplace_configure_postgresql_bindings
     endforeach()
 
     if(NOT contract_schema STREQUAL "laplace.isa-contract/v1"
-       OR NOT persistence_schema STREQUAL "laplace.persistence-contract/v1"
+       OR NOT persistence_schema STREQUAL "laplace.persistence-contract/v2"
        OR NOT composition_schema STREQUAL "laplace.composition-contract/v1"
        OR NOT unicode_postgresql_schema STREQUAL
             "laplace.unicode-postgresql-contract/v1"
@@ -176,6 +180,7 @@ function(laplace_configure_postgresql_bindings
         source_profile_validate_sql source_profile_validate_symbol
         world_admission_close_sql world_admission_close_symbol
         reference_topology_resolve_sql reference_topology_resolve_symbol
+        reference_mapping_resolve_sql reference_mapping_resolve_symbol
         source_admit_tabular_sql source_admit_tabular_symbol
         persistence_deposit_sql persistence_deposit_symbol
         composition_deposit_sql composition_deposit_symbol
@@ -239,6 +244,10 @@ function(laplace_configure_postgresql_bindings
         "${reference_topology_resolve_sql}")
     set(LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SYMBOL
         "${reference_topology_resolve_symbol}")
+    set(LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SQL
+        "${reference_mapping_resolve_sql}")
+    set(LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SYMBOL
+        "${reference_mapping_resolve_symbol}")
     set(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL "${source_admit_tabular_sql}")
     set(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL "${source_admit_tabular_symbol}")
     set(LAPLACE_PG_CARRIER_ENCODING "${carrier_encoding}")
@@ -252,7 +261,7 @@ function(laplace_configure_postgresql_bindings
     set(LAPLACE_PG_PERSISTENCE_STRUCTURAL_ORDERED_COMPOSITION "${persistence_structural_ordered_composition}")
     set(LAPLACE_PG_PERSISTENCE_STRUCTURAL_ATOMIC_POINT "${persistence_structural_atomic_point}")
     set(LAPLACE_PG_PERSISTENCE_PHYSICALITY_FLAGS_NONE "${persistence_physicality_flags_none}")
-    set(LAPLACE_PG_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY "${persistence_occurrence_has_physicality}")
+    set(LAPLACE_PG_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY "${persistence_attestation_has_physicality}")
     set(LAPLACE_PG_PERSISTENCE_PLAN_COUNT "${persistence_plan_count}")
     set(LAPLACE_PG_COMPOSITION_DEPOSIT_SQL "${composition_deposit_sql}")
     set(LAPLACE_PG_COMPOSITION_DEPOSIT_SYMBOL "${composition_deposit_symbol}")

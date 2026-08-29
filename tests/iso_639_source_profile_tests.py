@@ -62,6 +62,21 @@ class Iso639SourceProfileContract(unittest.TestCase):
         bad_denominator["denominators"]["claims"] -= 1
         self.compile(bad_denominator, False)
 
+        forced_mapping_denominator = copy.deepcopy(document)
+        forced_mapping_denominator["denominators"]["mappings"] = \
+            forced_mapping_denominator["denominators"]["claims"]
+        self.compile(forced_mapping_denominator, False)
+
+        impossible_coordinate_denominator = copy.deepcopy(document)
+        impossible_coordinate_denominator["denominators"][
+            "reference_coordinates"
+        ] = impossible_coordinate_denominator["denominators"]["references"] + 1
+        self.compile(impossible_coordinate_denominator, False)
+
+        hidden_first_record = copy.deepcopy(document)
+        hidden_first_record["artifacts"][1]["header_record_count"] = 0
+        self.compile(hidden_first_record, False)
+
         changed_license = copy.deepcopy(document)
         changed_license["license"]["exact_notice_utf8"] += " "
         self.compile(changed_license, False)
@@ -92,6 +107,7 @@ class Iso639SourceProfileContract(unittest.TestCase):
         total_fields = 0
         total_claims = 0
         total_references = 0
+        coordinates: set[tuple[str, str]] = set()
         with zipfile.ZipFile(archive_path) as archive:
             for artifact in artifacts[1:]:
                 selected = (SOURCE / artifact["local_discovery_path"]).read_bytes()
@@ -103,24 +119,41 @@ class Iso639SourceProfileContract(unittest.TestCase):
                 self.assertNotIn(b"\r\n", selected)
                 rows = selected[:-1].split(b"\n")
                 columns = artifact["columns"]
-                self.assertEqual(rows[0].decode("utf-8").split("\t"), columns)
+                header_count = artifact["header_record_count"]
+                if header_count:
+                    self.assertEqual(rows[0].decode("utf-8").split("\t"), columns)
                 decoded_rows = [row.decode("utf-8").split("\t") for row in rows]
                 self.assertTrue(all(len(row) == len(columns) for row in decoded_rows))
                 self.assertEqual(len(rows), artifact["record_count"])
                 self.assertEqual(len(rows) * len(columns), artifact["field_count"])
-                self.assertEqual(len(rows) - 1, artifact["claim_count"])
+                self.assertEqual(
+                    len(rows) - header_count, artifact["claim_count"])
+                self.assertEqual(
+                    (len(rows) - header_count) *
+                    len(artifact.get("mapping_bindings", [])),
+                    artifact["mapping_count"],
+                )
                 total_records += len(rows)
                 total_fields += len(rows) * len(columns)
-                total_claims += len(rows) - 1
-                for row in decoded_rows[1:]:
-                    total_references += sum(
-                        bool(row[index]) for index in artifact["reference_columns"]
-                    )
+                total_claims += len(rows) - header_count
+                for row in decoded_rows[header_count:]:
+                    for binding in artifact["reference_bindings"]:
+                        value = row[binding["column"]]
+                        if value:
+                            total_references += 1
+                            coordinates.add((binding["namespace"], value))
         denominators = document["denominators"]
         self.assertEqual(total_records, denominators["records"])
         self.assertEqual(total_fields, denominators["fields"])
         self.assertEqual(total_claims, denominators["claims"])
+        self.assertEqual(denominators["mappings"], 0)
         self.assertEqual(total_references, denominators["references"])
+        self.assertEqual(
+            len(coordinates), denominators["reference_coordinates"])
+        self.assertNotEqual(
+            len(coordinates) + 1, denominators["reference_coordinates"],
+            "coordinate-denominator mutant escaped exact source evidence",
+        )
         self.assertEqual(
             document["highway_and_references"]["initial_disposition"],
             {

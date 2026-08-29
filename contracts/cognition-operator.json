@@ -1,0 +1,56 @@
+{
+  "schema": "laplace.cognition-operator/v1",
+  "version": 1,
+  "digest_algorithm": "BLAKE3-256",
+  "domains": {
+    "program": "laplace-cognition-operator-program-v1",
+    "field": "laplace-cognition-operator-field-v1",
+    "constraint": "laplace-cognition-operator-constraint-v1",
+    "operator": "laplace-cognition-operator-v1",
+    "application": "laplace-cognition-operator-application-v1",
+    "materialization": "laplace-cognition-operator-materialization-v1"
+  },
+  "constraint_sources": {
+    "physicality": 1,
+    "testimony": 2,
+    "derived": 3
+  },
+  "directions": {
+    "source_to_target": 1,
+    "target_to_source": 2,
+    "symmetric": 3
+  },
+  "transport_kinds": {
+    "identity": 1,
+    "signed": 2,
+    "affine": 3,
+    "ordinal": 4,
+    "containment": 5,
+    "semantic": 6,
+    "temporal": 7,
+    "custom": 8
+  },
+  "field_flags": {
+    "container": 1,
+    "role": 2,
+    "observed": 4,
+    "derived": 8
+  },
+  "constraint_flags": {
+    "has_target": 1,
+    "independent_root": 2
+  },
+  "program_flags": {
+    "require_positive_semidefinite_precision": 1,
+    "require_relation_plane_separation": 2,
+    "require_matrix_free_materialized_parity": 4
+  },
+  "laws": {
+    "typed_planes": "relation family plane law direction units transport and source class remain explicit and participate in operator identity; scalar pairwise affinity cannot reconstruct the operator",
+    "nary": "container role ordinal and constituent identities remain field metadata and cannot be replaced by anonymous pairwise endpoints",
+    "evidence": "precision is nonnegative and keyed to eligible dependence roots; copied descendants cannot increase precision without a separately admitted independent root",
+    "contradiction": "competing targets remain separate typed constraints with positive precision; contradiction never becomes negative precision",
+    "matrix_free": "direct application and a materialized dense operator generated from the same pinned contract must agree within the declared numeric tolerance",
+    "scope": "only relation families and source classes selected by the program enter the generated operator; no universal adjacency graph is persisted as semantic authority"
+  }
+}

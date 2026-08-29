@@ -11,6 +11,7 @@
 #include "laplace/evidence_lineage.h"
 #include "laplace/evidence_testimony.h"
 #include "laplace/highway.h"
+#include "laplace/reference_mapping.h"
 #include "laplace/reference_topology.h"
 #include "laplace/source_profile.h"
 #include "laplace/trajectory.h"
@@ -145,6 +146,10 @@ static uint32_t value_element_bytes(uint32_t type) {
             return (uint32_t)sizeof(laplace_reference_candidate);
         case LAPLACE_ISA_VALUE_REFERENCE_RECORD_VECTOR:
             return (uint32_t)sizeof(laplace_reference_record);
+        case LAPLACE_ISA_VALUE_REFERENCE_MAPPING_CANDIDATE_VECTOR:
+            return (uint32_t)sizeof(laplace_reference_mapping_candidate);
+        case LAPLACE_ISA_VALUE_REFERENCE_MAPPING_RECORD_VECTOR:
+            return (uint32_t)sizeof(laplace_reference_mapping_record);
         default:
             return 0;
     }
@@ -255,6 +260,16 @@ static void copy_world_admission_inputs(
 static void copy_reference_candidates(
     const laplace_isa_value_view* input,
     laplace_reference_candidate* candidates) {
+    uint64_t index;
+    for (index = 0u; index < input->count; ++index) {
+        memcpy(&candidates[(size_t)index], const_value_element(input, index),
+               sizeof(candidates[index]));
+    }
+}
+
+static void copy_reference_mapping_candidates(
+    const laplace_isa_value_view* input,
+    laplace_reference_mapping_candidate* candidates) {
     uint64_t index;
     for (index = 0u; index < input->count; ++index) {
         memcpy(&candidates[(size_t)index], const_value_element(input, index),
@@ -759,6 +774,78 @@ static laplace_isa_status validate_reference_topology_resolve_batch(
     return LAPLACE_ISA_OK;
 }
 
+static laplace_isa_status validate_reference_mapping_resolve_batch(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input = &program->values[instruction->input_value];
+    laplace_reference_mapping_candidate* contiguous = NULL;
+    const laplace_reference_mapping_candidate* candidates;
+    laplace_reference_mapping_record* records;
+    laplace_reference_mapping_receipt receipt;
+    laplace_reference_mapping_error mapping_error;
+    laplace_reference_mapping_status mapping_status;
+    uint64_t temporary_bytes;
+    laplace_isa_status status = validate_equal_cardinality_capacity(
+        program, instruction, instruction_index, error);
+    if (status != LAPLACE_ISA_OK) {
+        return status;
+    }
+    if (input->count == 0u || input->count > SIZE_MAX ||
+        input->count > UINT64_MAX / sizeof(*records)) {
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->input_value);
+    }
+    temporary_bytes = input->count * sizeof(*records);
+    candidates = (const laplace_reference_mapping_candidate*)input->data;
+    if (input->stride_bytes != sizeof(*contiguous) ||
+        (uintptr_t)input->data %
+            _Alignof(laplace_reference_mapping_candidate) != 0u) {
+        if (input->count > UINT64_MAX / sizeof(*contiguous) ||
+            UINT64_MAX - temporary_bytes < input->count * sizeof(*contiguous)) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        temporary_bytes += input->count * sizeof(*contiguous);
+        contiguous = (laplace_reference_mapping_candidate*)calloc(
+            (size_t)input->count, sizeof(*contiguous));
+        if (contiguous == NULL) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        copy_reference_mapping_candidates(input, contiguous);
+        candidates = contiguous;
+    }
+    if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+        free(contiguous);
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->input_value);
+    }
+    records = (laplace_reference_mapping_record*)calloc(
+        (size_t)input->count, sizeof(*records));
+    if (records == NULL) {
+        free(contiguous);
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->output_value);
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&mapping_error, 0, sizeof(mapping_error));
+    mapping_status = laplace_reference_mapping_resolve_batch(
+        candidates, (size_t)input->count, records, &receipt, &mapping_error);
+    free(records);
+    free(contiguous);
+    if (mapping_status == LAPLACE_REFERENCE_MAPPING_MEMORY_FAILURE) {
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->input_value);
+    }
+    if (mapping_status != LAPLACE_REFERENCE_MAPPING_OK) {
+        return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                    instruction_index, instruction->input_value);
+    }
+    return LAPLACE_ISA_OK;
+}
+
 static laplace_isa_status validate_global_ranges(
     const laplace_isa_program* program,
     laplace_isa_error* error) {
@@ -907,6 +994,42 @@ static void hash_u64(blake3_hasher* hasher, uint64_t value) {
         bytes[index] = (uint8_t)(value >> (index * 8u));
     }
     blake3_hasher_update(hasher, bytes, sizeof(bytes));
+}
+
+static void hash_reference_mapping_candidate(
+    blake3_hasher* hasher,
+    const laplace_reference_mapping_candidate* candidate) {
+    const laplace_highway_coordinate* coordinates[2] = {
+        &candidate->left_coordinate, &candidate->right_coordinate};
+    size_t coordinate_index;
+    blake3_hasher_update(hasher, candidate->boundary_id.bytes, 32u);
+    blake3_hasher_update(hasher, candidate->source_profile_id.bytes, 32u);
+    blake3_hasher_update(hasher, candidate->left_reference_id.bytes, 32u);
+    blake3_hasher_update(hasher, candidate->right_reference_id.bytes, 32u);
+    for (coordinate_index = 0u; coordinate_index < 2u; ++coordinate_index) {
+        const laplace_highway_coordinate* coordinate =
+            coordinates[coordinate_index];
+        blake3_hasher_update(hasher, coordinate->coordinate.bytes, 16u);
+        blake3_hasher_update(
+            hasher, coordinate->collision_fingerprint.bytes, 32u);
+        hash_u32(hasher, coordinate->kind);
+        hash_u32(hasher, coordinate->reserved);
+        hash_u64(hasher, coordinate->version);
+    }
+    blake3_hasher_update(hasher, candidate->relation_id.bytes, 16u);
+    blake3_hasher_update(hasher, candidate->row_entity_id.bytes, 16u);
+    blake3_hasher_update(hasher, candidate->left_field_entity_id.bytes, 16u);
+    blake3_hasher_update(hasher, candidate->left_value_entity_id.bytes, 16u);
+    blake3_hasher_update(hasher, candidate->right_field_entity_id.bytes, 16u);
+    blake3_hasher_update(hasher, candidate->right_value_entity_id.bytes, 16u);
+    hash_u64(hasher, candidate->source_ordinal);
+    hash_u64(hasher, candidate->artifact_ordinal);
+    hash_u64(hasher, candidate->row_ordinal);
+    hash_u64(hasher, candidate->relation_version);
+    hash_u32(hasher, candidate->relation_kind);
+    hash_u32(hasher, candidate->flags);
+    hash_u32(hasher, candidate->left_disposition);
+    hash_u32(hasher, candidate->right_disposition);
 }
 
 static void finish_digest(blake3_hasher* hasher, laplace_isa_digest256* digest) {
@@ -1310,6 +1433,23 @@ static void hash_value_vector(
                 hash_u64(hasher, record.coordinate.version);
                 blake3_hasher_update(hasher, record.occurrence_id.bytes, 32u);
                 blake3_hasher_update(hasher, record.reference_id.bytes, 32u);
+                hash_u32(hasher, record.disposition);
+                hash_u32(hasher, record.reserved);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_REFERENCE_MAPPING_CANDIDATE_VECTOR: {
+                laplace_reference_mapping_candidate candidate;
+                memcpy(&candidate, item, sizeof(candidate));
+                hash_reference_mapping_candidate(hasher, &candidate);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_REFERENCE_MAPPING_RECORD_VECTOR: {
+                laplace_reference_mapping_record record;
+                memcpy(&record, item, sizeof(record));
+                hash_reference_mapping_candidate(hasher, &record.candidate);
+                blake3_hasher_update(hasher, record.proposition_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.occurrence_id.bytes, 32u);
+                blake3_hasher_update(hasher, record.mapping_id.bytes, 32u);
                 hash_u32(hasher, record.disposition);
                 hash_u32(hasher, record.reserved);
                 break;
@@ -1748,6 +1888,80 @@ static laplace_isa_status execute_reference_topology_resolve_batch(
         free(contiguous_output);
         free(contiguous_input);
         return status == LAPLACE_REFERENCE_TOPOLOGY_MEMORY_FAILURE
+            ? LAPLACE_ISA_RESOURCE_INSUFFICIENT
+            : LAPLACE_ISA_EXECUTION_FAILED;
+    }
+    if (contiguous_output != NULL) {
+        for (index = 0u; index < input->count; ++index) {
+            memcpy(value_element(output, index),
+                   &contiguous_output[(size_t)index],
+                   sizeof(contiguous_output[index]));
+        }
+    }
+    free(contiguous_output);
+    free(contiguous_input);
+    output->count = input->count;
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status execute_reference_mapping_resolve_batch(
+    laplace_isa_program* program,
+    const laplace_isa_instruction* instruction) {
+    laplace_isa_value_view* input = &program->values[instruction->input_value];
+    laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_reference_mapping_candidate* contiguous_input = NULL;
+    laplace_reference_mapping_record* contiguous_output = NULL;
+    const laplace_reference_mapping_candidate* candidates;
+    laplace_reference_mapping_record* records;
+    laplace_reference_mapping_receipt receipt;
+    laplace_reference_mapping_error error;
+    laplace_reference_mapping_status status;
+    uint64_t temporary_bytes = 0u;
+    uint64_t index;
+    candidates = (const laplace_reference_mapping_candidate*)input->data;
+    records = (laplace_reference_mapping_record*)output->data;
+    if (input->stride_bytes != sizeof(*contiguous_input) ||
+        (uintptr_t)input->data %
+            _Alignof(laplace_reference_mapping_candidate) != 0u) {
+        temporary_bytes = input->count * sizeof(*contiguous_input);
+        contiguous_input = (laplace_reference_mapping_candidate*)calloc(
+            (size_t)input->count, sizeof(*contiguous_input));
+        if (contiguous_input == NULL) {
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        copy_reference_mapping_candidates(input, contiguous_input);
+        candidates = contiguous_input;
+    }
+    if (output->stride_bytes != sizeof(*contiguous_output) ||
+        (uintptr_t)output->data %
+            _Alignof(laplace_reference_mapping_record) != 0u) {
+        if (UINT64_MAX - temporary_bytes <
+            input->count * sizeof(*contiguous_output)) {
+            free(contiguous_input);
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        temporary_bytes += input->count * sizeof(*contiguous_output);
+        contiguous_output = (laplace_reference_mapping_record*)calloc(
+            (size_t)input->count, sizeof(*contiguous_output));
+        if (contiguous_output == NULL) {
+            free(contiguous_input);
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        records = contiguous_output;
+    }
+    if (temporary_bytes > program->context->resource_grant.memory_bytes) {
+        free(contiguous_output);
+        free(contiguous_input);
+        return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&error, 0, sizeof(error));
+    status = laplace_reference_mapping_resolve_batch(
+        candidates, (size_t)input->count, records, &receipt, &error);
+    if (status != LAPLACE_REFERENCE_MAPPING_OK) {
+        free(contiguous_output);
+        free(contiguous_input);
+        return status == LAPLACE_REFERENCE_MAPPING_MEMORY_FAILURE
             ? LAPLACE_ISA_RESOURCE_INSUFFICIENT
             : LAPLACE_ISA_EXECUTION_FAILED;
     }

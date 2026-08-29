@@ -100,7 +100,7 @@ requirements:
       - LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE
       - LP-TEST-STRUCTURAL-RELATION-NONMATERIALIZATION
   - id: LP-STATE-001
-    statement: Any addressable substrate state can be execution input without a fixed token context window defining memory.
+    statement: Any addressable substrate state can be execution input without a fixed token context window defining memory, including exact world events and Laplace's own versioned observations actions explanations outcomes defects and corrections; asserted capability inferred capability and observed execution remain distinct evidence.
     evidence:
       - LP-TEST-PERSISTENT-STATE-ADDRESSING
       - LP-TEST-LONG-HISTORY
@@ -189,7 +189,7 @@ requirements:
       - LP-TEST-CONSENSUS-EPOCH-ASOF
       - LP-TEST-CONSENSUS-RECOMPUTATION-HISTORY
   - id: LP-EVIDENCE-004
-    statement: Competing true false uncertain and contradicted propositions remain exact addressable content with complete testimony while standing is calculated from typed relational density independent roots compatibility prediction contradiction time context and trust rather than raw link count.
+    statement: Competing true false uncertain and contradicted propositions remain exact addressable content with complete testimony while standing is calculated from typed relational density independent roots compatibility prediction contradiction time context and trust rather than raw link count; immutable observations are retained independently of query-relative conclusions so ingest order cannot rewrite what occurred and one outcome cannot validate unrelated outputs from the same event.
     evidence:
       - LP-TEST-COMPETING-PROPOSITION-PRESERVATION
       - LP-TEST-EVIDENCE-TOPOLOGY-STANDING
@@ -289,7 +289,7 @@ requirements:
       - LP-TEST-ACT-COUNTERFACTUAL-SELECTION
       - LP-TEST-COGNITION-DECISION-REPLAY
   - id: LP-COGNITION-004
-    statement: Native cognition maintains a canonical guidance state containing typed operations operands bindings scopes completion obligations authority resources and knowledge deficits and schedules information seeking by expected relevant deficit reduction information value cost and evidence constraints without replacing that state by a topic or scalar priority.
+    statement: Native cognition maintains a canonical guidance state containing typed operations operands bindings scopes completion obligations authority resources and knowledge deficits; each layer projects typed queries from that state, retrieves indexed candidates, scores and folds eligible evidence into new derived state, and projects the next operations until semantic completion or a typed limit, rather than treating raw graph hops fixed fanout a selected topic or scalar priority as a forward pass.
     evidence:
       - LP-TEST-GUIDANCE-STATE-CANONICAL
       - LP-TEST-TYPED-KNOWLEDGE-DEFICIT
@@ -430,14 +430,14 @@ requirements:
       - LP-TEST-SPARSE-ABSENCE-NOISE-REJECTION
       - LP-TEST-STORAGE-ADDRESSABILITY-ECONOMICS
   - id: LP-PERFCACHE-001
-    statement: Perfcaches are modular typed immutable calculation and acceleration planes generated either as the bootstrap sibling output of the canonical Unicode root calculation or from a complete canonical calculation or world-admission boundary with complete recipe source integrity and coherent atomic activation epochs.
+    statement: Perfcaches are modular typed immutable calculation and acceleration planes across text language chess images audio video code models and every admitted modality, generated either as the bootstrap sibling output of the canonical Unicode root calculation or from a complete canonical calculation or world-admission boundary with complete recipe source integrity and coherent atomic activation epochs; Unicode is the first module and never the architectural limit.
     evidence:
       - LP-TEST-PERFCACHE-TYPED-REGISTRY
       - LP-TEST-PERFCACHE-SOURCE-RECIPE
       - LP-TEST-PERFCACHE-ACTIVATION-EPOCH
       - LP-TEST-PERFCACHE-ARTIFACT-IDENTITY
   - id: LP-PERFCACHE-002
-    statement: Every perfcache has an access law appropriate to its key space including dense direct sparse ordered reverse or module defined lookup plus exact canonical semantic parity overflow safe validation atomic publication independent lifecycle and batch execution.
+    statement: Every perfcache has an access law appropriate to its key space including dense direct sparse ordered reverse adjacency span state-transition spatial temporal tensor or module defined lookup plus exact canonical semantic parity overflow safe validation atomic publication independent lifecycle and batch execution; mapped leaves and reusable substructures support leaf-to-trunk composition and trunk-to-leaf reconstruction while eliminating covered database crossings and repeated calculation without becoming semantic authority.
     evidence:
       - LP-TEST-PERFCACHE-SEMANTIC-PARITY
       - LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION

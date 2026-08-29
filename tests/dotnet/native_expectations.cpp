@@ -2,6 +2,7 @@
 #include "laplace/framework.h"
 #include "laplace/highway.h"
 #include "laplace/isa.h"
+#include "laplace/reference_mapping.h"
 #include "laplace/reference_topology.h"
 #include "laplace/source_profile.h"
 #include "laplace/trajectory.h"
@@ -39,6 +40,8 @@ static_assert(std::is_standard_layout_v<laplace_world_admission_record>);
 static_assert(std::is_standard_layout_v<laplace_world_admission_receipt>);
 static_assert(std::is_standard_layout_v<laplace_reference_candidate>);
 static_assert(std::is_standard_layout_v<laplace_reference_record>);
+static_assert(std::is_standard_layout_v<laplace_reference_mapping_candidate>);
+static_assert(std::is_standard_layout_v<laplace_reference_mapping_record>);
 static_assert(std::is_standard_layout_v<laplace_isa_value_view>);
 static_assert(std::is_standard_layout_v<laplace_isa_instruction>);
 static_assert(std::is_standard_layout_v<laplace_isa_program>);
@@ -110,7 +113,7 @@ int main(int argc, char** argv) {
         return 64;
     }
 
-    const std::array<std::size_t, 226> native_layout{{
+    const std::array<std::size_t, 254> native_layout{{
         sizeof(laplace_digest256),
         sizeof(laplace_id128),
         sizeof(laplace_trajectory_carrier),
@@ -336,6 +339,34 @@ int main(int argc, char** argv) {
         offsetof(laplace_reference_record, reference_id),
         offsetof(laplace_reference_record, disposition),
         offsetof(laplace_reference_record, reserved),
+        sizeof(laplace_reference_mapping_candidate),
+        offsetof(laplace_reference_mapping_candidate, boundary_id),
+        offsetof(laplace_reference_mapping_candidate, source_profile_id),
+        offsetof(laplace_reference_mapping_candidate, left_reference_id),
+        offsetof(laplace_reference_mapping_candidate, right_reference_id),
+        offsetof(laplace_reference_mapping_candidate, left_coordinate),
+        offsetof(laplace_reference_mapping_candidate, right_coordinate),
+        offsetof(laplace_reference_mapping_candidate, relation_id),
+        offsetof(laplace_reference_mapping_candidate, row_entity_id),
+        offsetof(laplace_reference_mapping_candidate, left_field_entity_id),
+        offsetof(laplace_reference_mapping_candidate, left_value_entity_id),
+        offsetof(laplace_reference_mapping_candidate, right_field_entity_id),
+        offsetof(laplace_reference_mapping_candidate, right_value_entity_id),
+        offsetof(laplace_reference_mapping_candidate, source_ordinal),
+        offsetof(laplace_reference_mapping_candidate, artifact_ordinal),
+        offsetof(laplace_reference_mapping_candidate, row_ordinal),
+        offsetof(laplace_reference_mapping_candidate, relation_version),
+        offsetof(laplace_reference_mapping_candidate, relation_kind),
+        offsetof(laplace_reference_mapping_candidate, flags),
+        offsetof(laplace_reference_mapping_candidate, left_disposition),
+        offsetof(laplace_reference_mapping_candidate, right_disposition),
+        sizeof(laplace_reference_mapping_record),
+        offsetof(laplace_reference_mapping_record, candidate),
+        offsetof(laplace_reference_mapping_record, proposition_id),
+        offsetof(laplace_reference_mapping_record, occurrence_id),
+        offsetof(laplace_reference_mapping_record, mapping_id),
+        offsetof(laplace_reference_mapping_record, disposition),
+        offsetof(laplace_reference_mapping_record, reserved),
         sizeof(laplace_framework_context),
     }};
     std::array<std::uint32_t, native_layout.size()> layout{};
@@ -766,6 +797,61 @@ int main(int argc, char** argv) {
         return 14;
     }
 
+    std::array<laplace_reference_mapping_candidate, 3> mapping_candidates{};
+    for (std::size_t index = 0u; index < mapping_candidates.size(); ++index) {
+        auto& candidate = mapping_candidates[index];
+        Fill(&candidate.boundary_id, 0x61u);
+        candidate.source_profile_id = source_profiles[index % 2u].profile_id;
+        candidate.left_reference_id = reference_outputs[0].reference_id;
+        candidate.right_reference_id = reference_outputs[2].reference_id;
+        candidate.left_coordinate = reference_outputs[0].coordinate;
+        candidate.right_coordinate = reference_outputs[2].coordinate;
+        Fill(&candidate.relation_id, 0x62u);
+        Fill(&candidate.row_entity_id,
+             static_cast<std::uint8_t>(0x63u + index));
+        Fill(&candidate.left_field_entity_id, 0x71u);
+        Fill(&candidate.left_value_entity_id,
+             static_cast<std::uint8_t>(0x72u + index));
+        Fill(&candidate.right_field_entity_id, 0x81u);
+        Fill(&candidate.right_value_entity_id,
+             static_cast<std::uint8_t>(0x82u + index));
+        candidate.source_ordinal = static_cast<std::uint64_t>(index + 1u);
+        candidate.artifact_ordinal = 1u;
+        candidate.row_ordinal = static_cast<std::uint64_t>(index + 1u);
+        candidate.relation_version = 1u;
+        candidate.relation_kind = LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE;
+        candidate.flags = LAPLACE_REFERENCE_MAPPING_FLAG_DIRECTED;
+        candidate.left_disposition = reference_outputs[0].disposition;
+        candidate.right_disposition = reference_outputs[2].disposition;
+    }
+    std::array<laplace_reference_mapping_record, 3> mapping_outputs{};
+    std::array<laplace_isa_value_view, 2> mapping_values{{
+        {mapping_candidates.data(), mapping_candidates.size(),
+         mapping_candidates.size(),
+         static_cast<std::uint32_t>(sizeof(mapping_candidates[0])),
+         LAPLACE_ISA_VALUE_REFERENCE_MAPPING_CANDIDATE_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {mapping_outputs.data(), 0u, mapping_outputs.size(),
+         static_cast<std::uint32_t>(sizeof(mapping_outputs[0])),
+         LAPLACE_ISA_VALUE_REFERENCE_MAPPING_RECORD_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction mapping_instruction{
+        LAPLACE_ISA_OPCODE_REFERENCE_MAPPING_RESOLVE_BATCH,
+        0u,
+        1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_REFERENCE_MAPPING_RESOLVE_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto mapping_program = Program(
+        &mapping_instruction, mapping_values.data(), &context);
+    laplace_isa_receipt mapping_receipt{};
+    laplace_isa_error mapping_error{};
+    if (laplace_isa_execute(
+            &mapping_program, &mapping_receipt, &mapping_error) !=
+        LAPLACE_ISA_OK) {
+        std::fputs("direct native reference-mapping ISA execution failed\n", stderr);
+        return 15;
+    }
+
     const std::filesystem::path target(argv[1]);
     std::filesystem::create_directories(target.parent_path());
     std::ofstream output(target, std::ios::binary | std::ios::trunc);
@@ -774,7 +860,7 @@ int main(int argc, char** argv) {
         return 73;
     }
     Write(output, MAGIC);
-    const std::uint32_t fixture_version = 7u;
+    const std::uint32_t fixture_version = 8u;
     const std::uint32_t layout_count = static_cast<std::uint32_t>(layout.size());
     const std::uint32_t identity_count = static_cast<std::uint32_t>(positions.size());
     const std::uint32_t trajectory_count = static_cast<std::uint32_t>(carriers.size());
@@ -790,6 +876,8 @@ int main(int argc, char** argv) {
         static_cast<std::uint32_t>(world_admissions.size());
     const std::uint32_t reference_count =
         static_cast<std::uint32_t>(reference_candidates.size());
+    const std::uint32_t mapping_count =
+        static_cast<std::uint32_t>(mapping_candidates.size());
     Write(output, fixture_version);
     Write(output, layout_count);
     Write(output, identity_count);
@@ -800,6 +888,7 @@ int main(int argc, char** argv) {
     Write(output, source_profile_count);
     Write(output, world_admission_count);
     Write(output, reference_count);
+    Write(output, mapping_count);
     Write(output, layout);
     Write(output, context);
     Write(output, positions);
@@ -834,6 +923,10 @@ int main(int argc, char** argv) {
     Write(output, reference_outputs);
     Write(output, reference_receipt);
     Write(output, reference_error);
+    Write(output, mapping_candidates);
+    Write(output, mapping_outputs);
+    Write(output, mapping_receipt);
+    Write(output, mapping_error);
     output.close();
     return output ? 0 : 74;
 }

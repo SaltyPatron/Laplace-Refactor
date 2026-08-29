@@ -36,6 +36,8 @@ typedef struct laplace_pg_source_stage_receipts {
     laplace_digest256 source_profile_isa;
     laplace_digest256 reference_topology;
     laplace_digest256 reference_topology_isa;
+    laplace_digest256 reference_mapping;
+    laplace_digest256 reference_mapping_isa;
     laplace_digest256 evidence_lineage;
     laplace_digest256 evidence_lineage_isa;
     laplace_digest256 evidence_testimony;
@@ -48,6 +50,11 @@ typedef struct laplace_pg_source_stage_receipts {
     uint64_t reference_present_count;
     uint64_t reference_retired_count;
     uint64_t reference_unresolved_count;
+    uint64_t reference_mapping_occurrence_count;
+    uint64_t reference_mapping_proposition_count;
+    uint64_t reference_mapping_resolved_count;
+    uint64_t reference_mapping_unresolved_count;
+    uint64_t reference_mapping_retired_count;
     uint64_t evidence_node_count;
     uint64_t testimony_count;
 } laplace_pg_source_stage_receipts;
@@ -193,7 +200,13 @@ static laplace_tabular_artifact* read_artifacts(
         HeapTupleHeader tuple;
         bytea* content;
         bytea* name;
+        ArrayType* column_names;
+        Datum* column_values = NULL;
+        bool* column_nulls = NULL;
+        int column_count = 0;
+        laplace_tabular_column* columns = NULL;
         char* exact_name;
+        int column_index;
         if (nulls[index]) {
             ereport(ERROR,
                     (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
@@ -251,6 +264,43 @@ static laplace_tabular_artifact* read_artifacts(
         artifacts[index].outcome_type = read_u32(
             tuple, 13, "tabular outcome_type");
         artifacts[index].flags = read_u32(tuple, 14, "tabular flags");
+        column_names = DatumGetArrayTypeP(
+            laplace_pg_required_composite_attribute(
+                tuple, 15, "tabular column_names"));
+        if ((ARR_NDIM(column_names) != 1 && ARR_NDIM(column_names) != 0) ||
+            ARR_ELEMTYPE(column_names) != BYTEAOID) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATATYPE_MISMATCH),
+                     errmsg("Laplace tabular column names must be an exact one-dimensional bytea array")));
+        }
+        deconstruct_array(
+            column_names, BYTEAOID, -1, false, 'i', &column_values,
+            &column_nulls, &column_count);
+        if (column_count != (int)artifacts[index].expected_column_count) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                     errmsg("Laplace tabular column declaration does not match its artifact width")));
+        }
+        if (column_count != 0) {
+            columns = (laplace_tabular_column*)palloc0(
+                sizeof(*columns) * (size_t)column_count);
+        }
+        for (column_index = 0; column_index < column_count; ++column_index) {
+            bytea* column;
+            if (column_nulls[column_index]) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                         errmsg("Laplace tabular column names cannot contain nulls")));
+            }
+            column = DatumGetByteaPP(column_values[column_index]);
+            columns[column_index].bytes =
+                (const uint8_t*)VARDATA_ANY(column);
+            columns[column_index].byte_count =
+                (uint64_t)VARSIZE_ANY_EXHDR(column);
+        }
+        artifacts[index].columns = columns;
+        artifacts[index].header_record_count = read_u32(
+            tuple, 16, "tabular header_record_count");
     }
     *artifact_count = (size_t)count;
     return artifacts;
@@ -309,6 +359,76 @@ static laplace_tabular_reference_rule* read_reference_rules(
             "reference-rule namespace");
         rules[index].kind = read_u32(tuple, 4, "reference-rule kind");
         rules[index].flags = read_u32(tuple, 5, "reference-rule flags");
+    }
+    *rule_count = (size_t)count;
+    return rules;
+}
+
+static laplace_tabular_mapping_rule* read_mapping_rules(
+    ArrayType* array,
+    size_t* rule_count) {
+    const Oid type_oid = laplace_pg_composite_type_oid(
+        "tabular_mapping_rule");
+    Datum* values = NULL;
+    bool* nulls = NULL;
+    int count = 0;
+    int16 type_length;
+    bool type_by_value;
+    char type_alignment;
+    laplace_tabular_mapping_rule* rules;
+    int index;
+    if ((ARR_NDIM(array) != 1 && ARR_NDIM(array) != 0) ||
+        ARR_ELEMTYPE(array) != type_oid) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATATYPE_MISMATCH),
+                 errmsg("Laplace tabular mapping rules must be an exact one-dimensional rule array")));
+    }
+    get_typlenbyvalalign(
+        type_oid, &type_length, &type_by_value, &type_alignment);
+    deconstruct_array(
+        array, type_oid, type_length, type_by_value, type_alignment,
+        &values, &nulls, &count);
+    if (count == 0) {
+        *rule_count = 0u;
+        return NULL;
+    }
+    rules = (laplace_tabular_mapping_rule*)palloc0(
+        sizeof(*rules) * (size_t)count);
+    for (index = 0; index < count; ++index) {
+        HeapTupleHeader tuple;
+        bytea* relation_content;
+        if (nulls[index]) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                     errmsg("Laplace tabular mapping rule array cannot contain nulls")));
+        }
+        tuple = DatumGetHeapTupleHeader(values[index]);
+        rules[index].artifact_index = laplace_pg_uint64_from_numeric(
+            laplace_pg_required_composite_attribute(
+                tuple, 1, "mapping-rule artifact_index"),
+            "mapping-rule artifact_index");
+        rules[index].left_column_index = laplace_pg_uint64_from_numeric(
+            laplace_pg_required_composite_attribute(
+                tuple, 2, "mapping-rule left_column_index"),
+            "mapping-rule left_column_index");
+        rules[index].right_column_index = laplace_pg_uint64_from_numeric(
+            laplace_pg_required_composite_attribute(
+                tuple, 3, "mapping-rule right_column_index"),
+            "mapping-rule right_column_index");
+        relation_content = DatumGetByteaPP(
+            laplace_pg_required_composite_attribute(
+                tuple, 4, "mapping-rule relation_content"));
+        rules[index].relation_content =
+            (const uint8_t*)VARDATA_ANY(relation_content);
+        rules[index].relation_content_byte_count =
+            (uint64_t)VARSIZE_ANY_EXHDR(relation_content);
+        rules[index].relation_version = laplace_pg_uint64_from_numeric(
+            laplace_pg_required_composite_attribute(
+                tuple, 5, "mapping-rule relation_version"),
+            "mapping-rule relation_version");
+        rules[index].relation_kind = read_u32(
+            tuple, 6, "mapping-rule relation_kind");
+        rules[index].flags = read_u32(tuple, 7, "mapping-rule flags");
     }
     *rule_count = (size_t)count;
     return rules;
@@ -507,6 +627,176 @@ static ArrayType* reference_candidate_array(
         fields[12] = laplace_pg_numeric_from_uint64(candidate->row_ordinal);
         fields[13] = laplace_pg_numeric_from_uint64(candidate->column_ordinal);
         fields[14] = Int32GetDatum((int32)candidate->rule_flags);
+        rows[index] = laplace_pg_composite_record(&binding, fields, nulls);
+    }
+    result = laplace_pg_composite_array(
+        &binding, rows, (uint64_t)candidate_count);
+    *array_oid = binding.array_oid;
+    laplace_pg_composite_binding_close(&binding);
+    return result;
+}
+
+static laplace_reference_mapping_candidate* build_mapping_candidates(
+    const laplace_tabular_source_plan_view* plan,
+    const laplace_pg_composition_execution* execution,
+    const laplace_source_profile_manifest* profile,
+    const laplace_reference_candidate* reference_candidates,
+    const laplace_reference_record* reference_records) {
+    laplace_reference_mapping_candidate* candidates;
+    size_t index;
+    if (plan->mapping_occurrence_count == 0u ||
+        plan->mapping_occurrence_count > SIZE_MAX ||
+        reference_candidates == NULL || reference_records == NULL) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace source profile has no complete mapping occurrences")));
+    }
+    candidates = (laplace_reference_mapping_candidate*)palloc0(
+        sizeof(*candidates) * (size_t)plan->mapping_occurrence_count);
+    for (index = 0u; index < (size_t)plan->mapping_occurrence_count; ++index) {
+        const laplace_tabular_mapping_occurrence* occurrence =
+            &plan->mapping_occurrences[index];
+        laplace_reference_mapping_candidate* candidate = &candidates[index];
+        const laplace_reference_candidate* left;
+        const laplace_reference_candidate* right;
+        const laplace_reference_record* left_record;
+        const laplace_reference_record* right_record;
+        if (occurrence->left_reference_occurrence_index >=
+                plan->reference_occurrence_count ||
+            occurrence->right_reference_occurrence_index >=
+                plan->reference_occurrence_count ||
+            occurrence->row_result_index >= execution->result_count ||
+            occurrence->relation_result_index >= execution->result_count ||
+            occurrence->source_ordinal == 0u ||
+            occurrence->artifact_ordinal == 0u ||
+            occurrence->row_ordinal == 0u) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace source mapping does not bind exact reference occurrences")));
+        }
+        left = &reference_candidates[
+            occurrence->left_reference_occurrence_index];
+        right = &reference_candidates[
+            occurrence->right_reference_occurrence_index];
+        left_record = &reference_records[
+            occurrence->left_reference_occurrence_index];
+        right_record = &reference_records[
+            occurrence->right_reference_occurrence_index];
+        if (memcmp(left->source_profile_id.bytes, profile->profile_id.bytes,
+                   32u) != 0 ||
+            memcmp(right->source_profile_id.bytes, profile->profile_id.bytes,
+                   32u) != 0 ||
+            memcmp(left->row_entity_id.bytes, right->row_entity_id.bytes,
+                   16u) != 0 ||
+            left->source_ordinal != occurrence->source_ordinal ||
+            right->source_ordinal != occurrence->source_ordinal ||
+            left->artifact_ordinal != occurrence->artifact_ordinal ||
+            right->artifact_ordinal != occurrence->artifact_ordinal ||
+            left->row_ordinal != occurrence->row_ordinal ||
+            right->row_ordinal != occurrence->row_ordinal) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace source mapping crosses its declared row or profile boundary")));
+        }
+        candidate->boundary_id = profile->selected_boundary_fingerprint;
+        candidate->source_profile_id = profile->profile_id;
+        candidate->left_reference_id = left_record->reference_id;
+        candidate->right_reference_id = right_record->reference_id;
+        candidate->left_coordinate = left_record->coordinate;
+        candidate->right_coordinate = right_record->coordinate;
+        candidate->relation_id = execution->results[
+            occurrence->relation_result_index].entity_id;
+        candidate->row_entity_id = left->row_entity_id;
+        candidate->left_field_entity_id = left->field_entity_id;
+        candidate->left_value_entity_id = left->value_entity_id;
+        candidate->right_field_entity_id = right->field_entity_id;
+        candidate->right_value_entity_id = right->value_entity_id;
+        candidate->source_ordinal = occurrence->source_ordinal;
+        candidate->artifact_ordinal = occurrence->artifact_ordinal;
+        candidate->row_ordinal = occurrence->row_ordinal;
+        candidate->relation_version = occurrence->relation_version;
+        candidate->relation_kind = occurrence->relation_kind;
+        candidate->flags = occurrence->flags;
+        candidate->left_disposition = left_record->disposition;
+        candidate->right_disposition = right_record->disposition;
+    }
+    return candidates;
+}
+
+static ArrayType* mapping_candidate_array(
+    const laplace_reference_mapping_candidate* candidates,
+    size_t candidate_count,
+    Oid* array_oid) {
+    static const Oid types[26] = {
+        BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID,
+        BYTEAOID, BYTEAOID, INT4OID, NUMERICOID,
+        BYTEAOID, BYTEAOID, INT4OID, NUMERICOID,
+        BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID,
+        NUMERICOID, NUMERICOID, NUMERICOID, NUMERICOID,
+        INT4OID, INT4OID, INT4OID, INT4OID};
+    static const int32 typmods[26] = {
+        -1, -1, -1, -1, -1, -1, -1,
+        LAPLACE_PG_NUMERIC_TYPMOD(20, 0),
+        -1, -1, -1, LAPLACE_PG_NUMERIC_TYPMOD(20, 0),
+        -1, -1, -1, -1, -1, -1,
+        LAPLACE_PG_NUMERIC_TYPMOD(20, 0),
+        LAPLACE_PG_NUMERIC_TYPMOD(20, 0),
+        LAPLACE_PG_NUMERIC_TYPMOD(20, 0),
+        LAPLACE_PG_NUMERIC_TYPMOD(20, 0),
+        -1, -1, -1, -1};
+    laplace_pg_composite_binding binding;
+    Datum* rows = (Datum*)palloc(sizeof(*rows) * candidate_count);
+    size_t index;
+    ArrayType* result;
+    laplace_pg_composite_binding_open(
+        "reference_mapping_candidate", types, typmods, 26, &binding);
+    for (index = 0u; index < candidate_count; ++index) {
+        const laplace_reference_mapping_candidate* candidate =
+            &candidates[index];
+        Datum fields[26];
+        bool nulls[26] = {false};
+        fields[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->boundary_id.bytes, 32u));
+        fields[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->source_profile_id.bytes, 32u));
+        fields[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->left_reference_id.bytes, 32u));
+        fields[3] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->right_reference_id.bytes, 32u));
+        fields[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->left_coordinate.coordinate.bytes, 16u));
+        fields[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->left_coordinate.collision_fingerprint.bytes, 32u));
+        fields[6] = Int32GetDatum((int32)candidate->left_coordinate.kind);
+        fields[7] = laplace_pg_numeric_from_uint64(
+            candidate->left_coordinate.version);
+        fields[8] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->right_coordinate.coordinate.bytes, 16u));
+        fields[9] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->right_coordinate.collision_fingerprint.bytes, 32u));
+        fields[10] = Int32GetDatum((int32)candidate->right_coordinate.kind);
+        fields[11] = laplace_pg_numeric_from_uint64(
+            candidate->right_coordinate.version);
+        fields[12] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->relation_id.bytes, 16u));
+        fields[13] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->row_entity_id.bytes, 16u));
+        fields[14] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->left_field_entity_id.bytes, 16u));
+        fields[15] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->left_value_entity_id.bytes, 16u));
+        fields[16] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->right_field_entity_id.bytes, 16u));
+        fields[17] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            candidate->right_value_entity_id.bytes, 16u));
+        fields[18] = laplace_pg_numeric_from_uint64(candidate->source_ordinal);
+        fields[19] = laplace_pg_numeric_from_uint64(candidate->artifact_ordinal);
+        fields[20] = laplace_pg_numeric_from_uint64(candidate->row_ordinal);
+        fields[21] = laplace_pg_numeric_from_uint64(candidate->relation_version);
+        fields[22] = Int32GetDatum((int32)candidate->relation_kind);
+        fields[23] = Int32GetDatum((int32)candidate->flags);
+        fields[24] = Int32GetDatum((int32)candidate->left_disposition);
+        fields[25] = Int32GetDatum((int32)candidate->right_disposition);
         rows[index] = laplace_pg_composite_record(&binding, fields, nulls);
     }
     result = laplace_pg_composite_array(
@@ -728,6 +1018,69 @@ static void call_reference_topology(
     }
 }
 
+static void call_reference_mapping(
+    Datum context,
+    ArrayType* candidates,
+    Oid candidate_array_oid,
+    laplace_pg_source_stage_receipts* receipts) {
+    static const char sql[] =
+        "SELECT (r).reference_mapping_receipt_id,(r).isa_receipt_id,"
+        "(r).occurrence_count,(r).proposition_count,(r).resolved_count,"
+        "(r).unresolved_count,(r).retired_count FROM (SELECT "
+        LAPLACE_PG_SCHEMA "." LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SQL
+        "($1,$2) AS r) q";
+    Oid types[2] = {
+        laplace_pg_composite_type_oid("execution_context"),
+        candidate_array_oid};
+    Datum values[2] = {context, PointerGetDatum(candidates)};
+    int result;
+    if (SPI_connect() != SPI_OK_CONNECT) {
+        ereport(ERROR,
+                (errcode(ERRCODE_CONNECTION_FAILURE),
+                 errmsg("Laplace reference-mapping stage could not connect")));
+    }
+    result = SPI_execute_with_args(sql, 2, types, values, NULL, false, 0);
+    require_spi_result(result, 7, "reference-mapping stage");
+    laplace_pg_read_digest(
+        required_tuple_value(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1,
+                             "reference-mapping receipt"),
+        &receipts->reference_mapping, "reference-mapping receipt");
+    laplace_pg_read_digest(
+        required_tuple_value(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 2,
+                             "reference-mapping ISA receipt"),
+        &receipts->reference_mapping_isa, "reference-mapping ISA receipt");
+    receipts->reference_mapping_occurrence_count =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 3,
+            "reference-mapping occurrence count"),
+            "reference-mapping occurrence count");
+    receipts->reference_mapping_proposition_count =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 4,
+            "reference-mapping proposition count"),
+            "reference-mapping proposition count");
+    receipts->reference_mapping_resolved_count =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 5,
+            "reference-mapping resolved count"),
+            "reference-mapping resolved count");
+    receipts->reference_mapping_unresolved_count =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 6,
+            "reference-mapping unresolved count"),
+            "reference-mapping unresolved count");
+    receipts->reference_mapping_retired_count =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 7,
+            "reference-mapping retired count"),
+            "reference-mapping retired count");
+    if (SPI_finish() != SPI_OK_FINISH) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("Laplace reference-mapping stage could not close")));
+    }
+}
+
 static void call_lineage(
     Datum context,
     ArrayType* lineage,
@@ -858,7 +1211,7 @@ static laplace_pg_source_claim* build_claims(
         sizeof(*claims) * (size_t)plan->claim_count);
     for (index = 0u; index < (size_t)plan->claim_count; ++index) {
         const uint64_t result_index = plan->claim_result_indexes[index];
-        laplace_persistence_occurrence_record occurrence;
+        laplace_persistence_attestation_record occurrence;
         if (result_index >= execution->result_count ||
             result_index >= plan->request_count ||
             plan->claim_source_ordinals[index] == 0u) {
@@ -873,8 +1226,10 @@ static laplace_pg_source_claim* build_claims(
         occurrence.context_fingerprint =
             plan->requests[result_index].occurrence_context_fingerprint;
         occurrence.source_ordinal = plan->claim_source_ordinals[index];
-        occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
-        if (laplace_persistence_occurrence_identify(
+        occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+        occurrence.attestation_kind =
+            LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+        if (laplace_persistence_attestation_identify(
                 &occurrence, &claims[index].lineage.occurrence_id) !=
             LAPLACE_PERSISTENCE_OK) {
             ereport(ERROR,
@@ -950,6 +1305,8 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
     size_t artifact_count = 0u;
     laplace_tabular_reference_rule* reference_rules;
     size_t reference_rule_count = 0u;
+    laplace_tabular_mapping_rule* mapping_rules;
+    size_t mapping_rule_count = 0u;
     laplace_tabular_source_input source_input;
     laplace_tabular_source_plan* source_plan = NULL;
     laplace_tabular_source_plan_view plan;
@@ -960,24 +1317,33 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
     laplace_pg_source_claim* claims = NULL;
     laplace_evidence_testimony_record* testimonies = NULL;
     laplace_reference_candidate* reference_candidates = NULL;
+    laplace_reference_record* reference_records = NULL;
+    laplace_reference_mapping_candidate* mapping_candidates = NULL;
+    laplace_reference_mapping_record* mapping_records = NULL;
+    laplace_reference_topology_receipt reference_native_receipt;
+    laplace_reference_topology_error reference_native_error;
+    laplace_reference_mapping_receipt mapping_native_receipt;
+    laplace_reference_mapping_error mapping_native_error;
     laplace_pg_source_stage_receipts receipts;
     ArrayType* profiles;
     ArrayType* reference_candidate_values;
+    ArrayType* mapping_candidate_values;
     ArrayType* lineage;
     ArrayType* testimony;
     ArrayType* world_request;
     Oid profile_array_oid;
     Oid reference_candidate_array_oid;
+    Oid mapping_candidate_array_oid;
     Oid lineage_array_oid;
     Oid testimony_array_oid;
     Oid world_request_array_oid;
     const laplace_composition_result* root;
-    Datum result_values[35];
-    bool result_nulls[35] = {false};
+    Datum result_values[42];
+    bool result_nulls[42] = {false};
     HeapTuple result_tuple;
     const Datum context_datum = PG_GETARG_DATUM(0);
     const uint64_t preferred_batch_bytes = laplace_pg_uint64_from_numeric(
-        PG_GETARG_DATUM(6), "source preferred_batch_bytes");
+        PG_GETARG_DATUM(7), "source preferred_batch_bytes");
     laplace_tabular_source_status source_status;
 
     memset(&profile_declaration, 0, sizeof(profile_declaration));
@@ -988,6 +1354,10 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
     memset(&composition_input, 0, sizeof(composition_input));
     memset(&execution, 0, sizeof(execution));
     memset(&receipts, 0, sizeof(receipts));
+    memset(&reference_native_receipt, 0, sizeof(reference_native_receipt));
+    memset(&reference_native_error, 0, sizeof(reference_native_error));
+    memset(&mapping_native_receipt, 0, sizeof(mapping_native_receipt));
+    memset(&mapping_native_error, 0, sizeof(mapping_native_error));
     laplace_pg_read_execution_context(context_datum, &context);
     if ((context.flags & LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY) != 0u) {
         ereport(ERROR,
@@ -1004,6 +1374,8 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
     artifacts = read_artifacts(PG_GETARG_ARRAYTYPE_P(4), &artifact_count);
     reference_rules = read_reference_rules(
         PG_GETARG_ARRAYTYPE_P(5), &reference_rule_count);
+    mapping_rules = read_mapping_rules(
+        PG_GETARG_ARRAYTYPE_P(6), &mapping_rule_count);
     source_input.profile_declaration = profile_declaration;
     source_input.geometry_epoch = geometry_epoch;
     source_input.occurrence_context_fingerprint = occurrence_context;
@@ -1011,6 +1383,8 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
     source_input.artifact_count = (uint64_t)artifact_count;
     source_input.reference_rules = reference_rules;
     source_input.reference_rule_count = (uint64_t)reference_rule_count;
+    source_input.mapping_rules = mapping_rules;
+    source_input.mapping_rule_count = (uint64_t)mapping_rule_count;
     source_input.preferred_batch_bytes = preferred_batch_bytes;
     source_status = laplace_tabular_source_plan_create(
         &source_input, &source_plan);
@@ -1065,6 +1439,19 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
         if (plan.reference_occurrence_count != 0u) {
             reference_candidates = build_reference_candidates(
                 &plan, &execution, &profile);
+            reference_records = (laplace_reference_record*)palloc0(
+                sizeof(*reference_records) *
+                (size_t)plan.reference_occurrence_count);
+            if (laplace_reference_topology_resolve_batch(
+                    reference_candidates,
+                    (size_t)plan.reference_occurrence_count,
+                    reference_records, &reference_native_receipt,
+                    &reference_native_error) !=
+                LAPLACE_REFERENCE_TOPOLOGY_OK) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_DATA_CORRUPTED),
+                         errmsg("Laplace source reference topology could not be reconstructed natively")));
+            }
             reference_candidate_values = reference_candidate_array(
                 reference_candidates,
                 (size_t)plan.reference_occurrence_count,
@@ -1074,6 +1461,10 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
                 reference_candidate_array_oid, &receipts);
             if (receipts.reference_occurrence_count !=
                     plan.reference_occurrence_count ||
+                memcmp(receipts.reference_topology.bytes,
+                       reference_native_receipt.receipt_id.bytes, 32u) != 0 ||
+                receipts.reference_coordinate_count !=
+                    reference_native_receipt.coordinate_count ||
                 receipts.reference_present_count +
                     receipts.reference_retired_count +
                     receipts.reference_unresolved_count !=
@@ -1082,6 +1473,50 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
                         (errcode(ERRCODE_DATA_CORRUPTED),
                          errmsg("Laplace reference topology changed source cardinality")));
             }
+            if (plan.mapping_occurrence_count != 0u) {
+                mapping_candidates = build_mapping_candidates(
+                    &plan, &execution, &profile,
+                    reference_candidates, reference_records);
+                mapping_records = (laplace_reference_mapping_record*)palloc0(
+                    sizeof(*mapping_records) *
+                    (size_t)plan.mapping_occurrence_count);
+                if (laplace_reference_mapping_resolve_batch(
+                        mapping_candidates,
+                        (size_t)plan.mapping_occurrence_count,
+                        mapping_records, &mapping_native_receipt,
+                        &mapping_native_error) !=
+                    LAPLACE_REFERENCE_MAPPING_OK) {
+                    ereport(ERROR,
+                            (errcode(ERRCODE_DATA_CORRUPTED),
+                             errmsg("Laplace source reference mapping could not be reconstructed natively")));
+                }
+                mapping_candidate_values = mapping_candidate_array(
+                    mapping_candidates,
+                    (size_t)plan.mapping_occurrence_count,
+                    &mapping_candidate_array_oid);
+                call_reference_mapping(
+                    context_datum, mapping_candidate_values,
+                    mapping_candidate_array_oid, &receipts);
+                if (receipts.reference_mapping_occurrence_count !=
+                        plan.mapping_occurrence_count ||
+                    memcmp(receipts.reference_mapping.bytes,
+                           mapping_native_receipt.receipt_id.bytes, 32u) != 0 ||
+                    receipts.reference_mapping_proposition_count !=
+                        mapping_native_receipt.proposition_count ||
+                    receipts.reference_mapping_resolved_count +
+                        receipts.reference_mapping_unresolved_count +
+                        receipts.reference_mapping_retired_count !=
+                        plan.mapping_occurrence_count ||
+                    profile.mapping_count != plan.mapping_occurrence_count) {
+                    ereport(ERROR,
+                            (errcode(ERRCODE_DATA_CORRUPTED),
+                             errmsg("Laplace reference mapping changed source cardinality")));
+                }
+            }
+        } else if (plan.mapping_occurrence_count != 0u) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace source mapping bypassed reference topology")));
         }
         claims = build_claims(&plan, &execution);
         lineage = lineage_array(
@@ -1148,9 +1583,28 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
         result_values[31] = laplace_pg_numeric_from_uint64(receipts.evidence_node_count);
         result_values[32] = laplace_pg_numeric_from_uint64(receipts.testimony_count);
         result_values[33] = laplace_pg_numeric_from_uint64(execution.summary.stream_record_count);
-        result_values[34] = Int32GetDatum((int32)LAPLACE_TABULAR_SOURCE_OK);
+        if (plan.mapping_occurrence_count == 0u) {
+            result_nulls[34] = true;
+            result_nulls[35] = true;
+        } else {
+            result_values[34] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+                receipts.reference_mapping.bytes, 32u));
+            result_values[35] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+                receipts.reference_mapping_isa.bytes, 32u));
+        }
+        result_values[36] = laplace_pg_numeric_from_uint64(
+            receipts.reference_mapping_occurrence_count);
+        result_values[37] = laplace_pg_numeric_from_uint64(
+            receipts.reference_mapping_proposition_count);
+        result_values[38] = laplace_pg_numeric_from_uint64(
+            receipts.reference_mapping_resolved_count);
+        result_values[39] = laplace_pg_numeric_from_uint64(
+            receipts.reference_mapping_unresolved_count);
+        result_values[40] = laplace_pg_numeric_from_uint64(
+            receipts.reference_mapping_retired_count);
+        result_values[41] = Int32GetDatum((int32)LAPLACE_TABULAR_SOURCE_OK);
         result_tuple = laplace_pg_form_result_tuple(
-            fcinfo, result_values, result_nulls, 35);
+            fcinfo, result_values, result_nulls, 42);
     }
     PG_CATCH();
     {

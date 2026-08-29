@@ -128,8 +128,11 @@ def validate(receipt: dict[str, object]) -> None:
         require(sample["database_calls"] == 17,
                 f"sample {ordinal} did not use five tier presence calls, one "
                 "physicality call, and eleven persistence plans")
-        require(sample["durable_outputs"] == EXPECTED["stream_records"] + 1,
-                f"sample {ordinal} durable readback denominator changed")
+        require(sample["durable_outputs"] == (
+                EXPECTED["entities"] + EXPECTED["physicalities"]
+                + EXPECTED["occurrences"] + 1
+            ),
+                f"sample {ordinal} canonical durable readback denominator changed")
         for field in (
             "working_set_receipt", "presence_semantic_receipt",
             "presence_execution_receipt", "stream_fingerprint",

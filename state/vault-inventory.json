@@ -1,0 +1,406 @@
+{
+  "schema": "laplace.vault-source-model-inventory/v1",
+  "classification": "observed-development-state-not-source-authority",
+  "observed_at_utc": "2026-08-29T21:48:53Z",
+  "roots": {
+    "data": "/vault/Data",
+    "models": "/vault/models"
+  },
+  "interpretation_law": {
+    "path_presence": "A directory or file proves only observed local presence. It does not prove release identity, completeness, source-profile conformance, world admission, seed completion, model behavior, or product activation.",
+    "source_profile": "A conforming source profile must bind authority, release, license, artifact graph, syntax provider, recipe, AST mapping, references, testimony, denominators, conformance, completion, and readback.",
+    "seed": "A foundational seed is a configured heterogeneous selected boundary whose profiles, cross-profile references, dependence, evidence epochs, and required derived publications all close in the activated product.",
+    "observation": "Corpora, examples, games, annotations, measurements, and model behavior remain attributable observations or testimony; they are not automatically foundational authority.",
+    "model": "Model files are witnessed artifacts. File shape and local loadability do not prove behavior, effective support, a preserved export invariant, or semantic authority.",
+    "model_precision_precedence": "When a complete full-precision safetensors package exists, it is the primary model-artifact witness. AWQ, GGUF, TorchScript, PyTorch duplicates, and other quantized, compiled, converted, or runtime-specific forms are subordinate derived artifacts and require an explicit source binding, conversion recipe, named preservation invariant, loss boundary, and behavioral receipt. They are never substitutes for the full-precision source package.",
+    "edge": "UAX 29 is Unicode text-edge segmentation law. A source grammar, archive codec, media codec, or model-container reader exposes concrete structure; none may become a semantic engine.",
+    "orchestration": "C# and SQL may orchestrate typed batches and providers but may not parse source semantics or implement a parallel cognition engine."
+  },
+  "status_legend": {
+    "locked-profile-conformant": "The exact currently declared profile artifacts passed byte and digest verification; this does not claim activated-product admission.",
+    "present-versioned-unprofiled": "A version or commit is observable and substantive content is present, but no complete Laplace source/model profile closes it.",
+    "present-unversioned-unprofiled": "Content is present without a sufficient immutable release identity or profile.",
+    "nonconforming-to-declared-contract": "The local content differs from an existing exact profile or lock contract, or omits a required artifact.",
+    "incomplete-download": "Required model weight artifacts are absent and partial download files remain.",
+    "duplicate": "The entry duplicates another observed estate and is not an independent evidence root.",
+    "quarantined": "The path is explicitly excluded from source selection.",
+    "fixture-only": "The content is test material and cannot establish source or modality completeness.",
+    "operational-residue": "The path is downloader/cache state, not a source or model artifact."
+  },
+  "source_family_coverage": [
+    {
+      "family": "terminal standards and registries",
+      "entries": ["UCD", "ISO639", "CILI", "Wordnet", "OMW", "omw"],
+      "boundary": "These define or relate code points, language identifiers, lexical concepts, and scoped identifiers. OMW/omw are one duplicated estate, not two independent sources."
+    },
+    {
+      "family": "predicate, frame, role, and bridge testimony",
+      "entries": ["FrameNet", "PropBank", "VerbNet", "SemLink", "PredicateMatrix.v1.3", "MapNet-0.1", "WordFrameNet"],
+      "boundary": "The endpoint sources and their mapping assertions require separate authority, release, dependence, and adjudication identities."
+    },
+    {
+      "family": "commonsense proposition testimony",
+      "entries": ["Atomic2020", "ConceptNet"],
+      "boundary": "These are attributable proposition/relation corpora, not truth or foundational authority merely because they are large."
+    },
+    {
+      "family": "syntax, lexical use, translation, and document observations",
+      "entries": ["UD-Treebanks", "Wiktionary", "Tatoeba", "OpenSubtitles", "ProjectGutenberg"],
+      "boundary": "Annotations, aligned sentences, dictionary entries, examples, and documents contribute exact occurrences and testimony under selected snapshot boundaries."
+    },
+    {
+      "family": "concrete-syntax providers",
+      "entries": ["TreeSitter"],
+      "boundary": "Grammar repositories expose concrete structure. They are dependencies of source recipes, not a knowledge seed and not semantic engines."
+    },
+    {
+      "family": "program and repository authority observations",
+      "entries": ["code-authority"],
+      "boundary": "Selected source trees and histories may witness program structure, definitions, uses, and changes after exact repository and recipe closure."
+    },
+    {
+      "family": "state-transition observations",
+      "entries": ["Games"],
+      "boundary": "Games are timestamped or bounded observations and outcomes, not a finite closed authority merely because local archives exist."
+    },
+    {
+      "family": "multimodal conformance fixtures",
+      "entries": ["test-data"],
+      "boundary": "Fixtures can prove codecs and recipes against declared expectations but cannot establish modality or world completeness."
+    },
+    {
+      "family": "quarantined forensic material",
+      "entries": ["Unicode.BAD-DONOTUSE"],
+      "boundary": "Explicitly excluded until a bounded, safe, exact artifact graph is selected."
+    },
+    {
+      "family": "model artifacts and model-behavior witnesses",
+      "entries": ["/vault/models/*"],
+      "boundary": "Complete full-precision safetensors packages are the primary local artifact candidates. Model behavior remains experimental testimony; derived exports remain subordinate children of an exact source package and conversion receipt."
+    },
+    {
+      "family": "code observation corpora stored under the model root",
+      "entries": ["code-corpus", "stack-v2", "tiny-codes"],
+      "boundary": "Path placement does not make datasets into models. These require dataset, repository, license, privacy, duplicate, and selection manifests."
+    }
+  ],
+  "data_root": {
+    "observed_top_level_directories": 25,
+    "observed_allocated_bytes": 139759517696,
+    "entries": [
+      {
+        "name": "Atomic2020",
+        "allocated_bytes": 69177344,
+        "content": "ATOMIC 2020 commonsense head-relation-tail tuples: 1,076,880 train, 102,024 development, and 152,209 test rows",
+        "version": "ATOMIC 2020 / AAAI 2021",
+        "roles": ["commonsense-proposition-testimony", "split-observation-corpus"],
+        "modalities": ["language", "tabular"],
+        "status": "present-versioned-unprofiled",
+        "missing": ["immutable upstream release identity", "artifact digests", "typed relation and split semantics", "Laplace source profile and readback closure"]
+      },
+      {
+        "name": "CILI",
+        "allocated_bytes": 102273024,
+        "content": "Collaborative Interlingual Index ontology and mappings, including Turtle RDF and PWN 3.0/3.1 tabular mappings",
+        "version": "git dfc99e15e11e5b20e143f29386220d7b69805628 (2024-06-11; v1.0-13)",
+        "roles": ["reference-registry", "cross-namespace-mapping-testimony"],
+        "modalities": ["RDF-Turtle", "tabular", "language-reference"],
+        "status": "nonconforming-to-declared-contract",
+        "observations": ["all tracked content changes reduce to line-ending changes when EOL is ignored", "ili-map-pwn30.tab is 2,242,075 bytes instead of 2,124,416", "ili-map-pwn31.tab is 2,240,647 bytes instead of 2,123,064", "the required pinned commit ZIP is absent"],
+        "missing": ["exact LF selected members", "pinned upstream ZIP", "complete CILI ontology profile", "PWN endpoint profiles", "adjudicated mapping standing"]
+      },
+      {
+        "name": "ConceptNet",
+        "allocated_bytes": 10157162496,
+        "content": "one 10,157,160,611-byte assertions.csv commonsense relation graph",
+        "version": "unknown from local metadata",
+        "roles": ["commonsense-proposition-testimony", "relation-observation-corpus"],
+        "modalities": ["language", "tabular-graph"],
+        "status": "present-unversioned-unprofiled",
+        "missing": ["release and publisher manifest", "license binding", "artifact digest", "row/schema denominators", "source profile"]
+      },
+      {
+        "name": "FrameNet",
+        "allocated_bytes": 986865664,
+        "content": "FrameNet frames, frame elements, relations, 13,572 lexical-unit annotation XMLs, and 107 full-text annotated documents",
+        "version": "FrameNet 1.7",
+        "roles": ["predicate-frame-authority-testimony", "annotated-occurrence-observations"],
+        "modalities": ["language", "XML"],
+        "status": "present-versioned-unprofiled",
+        "missing": ["Laplace XML grammar/recipe profile", "artifact graph digests", "cross-source reference closure", "activated-product admission"]
+      },
+      {
+        "name": "Games",
+        "allocated_bytes": 20258283520,
+        "content": "76 PGN files plus 52 compressed chess archives, including player histories, online/OTB collections, and an explicitly partial 2026 archive",
+        "version": "rolling observations through 2026; no single release",
+        "roles": ["state-transition-observations", "outcome-testimony", "downstream-domain-proof"],
+        "modalities": ["chess", "PGN", "compressed-archives"],
+        "status": "present-unversioned-unprofiled",
+        "missing": ["selected observation boundary", "per-artifact provenance/license/digests", "PGN grammar and recipe profile", "duplicate/dependence reconciliation", "open-ended completion law"]
+      },
+      {
+        "name": "ISO639",
+        "allocated_bytes": 7888896,
+        "content": "SIL ISO 639-3 code tables plus CLDR, Glottolog, IANA, Library of Congress, and related language registries",
+        "version": "locked profile: ISO 639-3 2026-04-15; supporting registries have separate local versions",
+        "roles": ["language-reference-registry", "authority-scoped-coordinate-testimony"],
+        "modalities": ["tabular", "XML", "text-registry"],
+        "status": "locked-profile-conformant",
+        "observations": ["the ZIP and four selected SIL members match all declared sizes and SHA-256 digests"],
+        "missing": ["profiles for non-SIL supporting registries", "cross-registry mapping/adjudication", "activated-product admission", "foundational-seed closure"]
+      },
+      {
+        "name": "MapNet-0.1",
+        "allocated_bytes": 385024,
+        "content": "5,162 FrameNet-to-WordNet frame/synset and lexical-unit/synset mappings",
+        "version": "MapNet 0.1 (2009), FrameNet 1.3 to WordNet 1.6",
+        "roles": ["cross-source-mapping-testimony"],
+        "modalities": ["language", "tabular"],
+        "status": "present-versioned-unprofiled",
+        "missing": ["artifact digest", "typed mapping profile", "endpoint profiles", "precision/uncertainty treatment", "license obligations in a run manifest"]
+      },
+      {
+        "name": "OMW",
+        "allocated_bytes": 256024576,
+        "content": "Open Multilingual Wordnet source estate and multilingual WordNet mappings",
+        "version": "git 406bf83b3c507a3d1f26e88252d5d66893fd36bf (v2.0-1)",
+        "roles": ["multilingual-lexical-testimony", "reference-mapping-testimony"],
+        "modalities": ["language", "tabular", "Lexicographer-XML"],
+        "status": "present-versioned-unprofiled",
+        "observations": ["1,417 tracked files are EOL-mutated", "one tracked Wiktionary mapping path is deleted", "checkpoint.bin is untracked", "content duplicates lowercase omw outside .git"],
+        "missing": ["clean immutable release tree", "artifact/profile manifest", "mirror/dependence declaration", "cross-profile reference closure"]
+      },
+      {
+        "name": "OpenSubtitles",
+        "allocated_bytes": 16286384128,
+        "content": "11 OPUS OpenSubtitles English-aligned bilingual Moses-format ZIPs covering Arabic, German, Spanish, French, Italian, Japanese, Korean, Portuguese, Russian, Simplified Chinese, and Traditional Chinese",
+        "version": "OPUS OpenSubtitles v2024",
+        "roles": ["dialogue-and-pragmatics-observations", "translation-pair-testimony"],
+        "modalities": ["language", "parallel-text", "compressed-archive"],
+        "status": "present-versioned-unprofiled",
+        "observations": ["local provenance records archive integrity verification on 2026-06-05"],
+        "missing": ["exact selected sentence boundary", "per-pair source profiles and digests in repository authority", "dialogue-turn reconstruction law", "dependence and duplicate reconciliation"]
+      },
+      {
+        "name": "PredicateMatrix.v1.3",
+        "allocated_bytes": 140824576,
+        "content": "27-column multilingual predicate/role mappings across VerbNet, WordNet, FrameNet, PropBank, MCR and related ontologies",
+        "version": "Predicate Matrix 1.3",
+        "roles": ["cross-source-predicate-mapping-testimony"],
+        "modalities": ["language", "tabular"],
+        "status": "present-versioned-unprofiled",
+        "missing": ["artifact digest", "typed 27-column grammar", "endpoint release bindings", "dependence and mapping-standing reconciliation"]
+      },
+      {
+        "name": "ProjectGutenberg",
+        "allocated_bytes": 4182016,
+        "content": "a small Pierre-Simon Laplace document subset including one observed 617,691-byte HTML work",
+        "version": "unknown local snapshot",
+        "roles": ["exact-document-occurrence"],
+        "modalities": ["document", "HTML", "language"],
+        "status": "present-unversioned-unprofiled",
+        "missing": ["snapshot manifest", "source/license provenance", "document inventory and digests", "HTML grammar/recipe profile"]
+      },
+      {
+        "name": "PropBank",
+        "allocated_bytes": 54480896,
+        "content": "7,566 PropBank frameset XMLs, AMR/UMR rolesets, schemas, and maintenance tooling; no licensed sentence annotations",
+        "version": "propbank-frames main ZIP fetched 2026-06-05; immutable upstream commit not recorded",
+        "roles": ["predicate-sense-and-role-testimony"],
+        "modalities": ["language", "XML"],
+        "status": "present-unversioned-unprofiled",
+        "missing": ["immutable commit/release", "artifact digest in product authority", "XML profile", "sentence-level annotations intentionally unavailable"]
+      },
+      {
+        "name": "SemLink",
+        "allocated_bytes": 30011392,
+        "content": "VerbNet, PropBank, FrameNet, and WordNet sense/role alignments and instance mappings",
+        "version": "SemLink 2.0, master archive fetched 2026-06-05",
+        "roles": ["cross-source-mapping-testimony"],
+        "modalities": ["language", "JSON", "tabular"],
+        "status": "present-versioned-unprofiled",
+        "missing": ["immutable commit", "artifact digest/profile", "endpoint release bindings", "dependence/adjudication closure"]
+      },
+      {
+        "name": "Tatoeba",
+        "allocated_bytes": 5738766336,
+        "content": "sentence, translation-link, and sentence-audio metadata CSVs plus compressed archives and English audio",
+        "version": "undated local export observed 2026-05-31",
+        "roles": ["translation-and-usage-observations", "audio-linked-occurrence-testimony"],
+        "modalities": ["language", "audio", "tabular", "compressed-archive"],
+        "status": "present-unversioned-unprofiled",
+        "observations": ["sentences_with_audio.tar.bz2 is duplicated byte-for-byte at root and under audio"],
+        "missing": ["upstream snapshot date/version", "license/provenance manifest", "audio object denominator", "cross-file key closure", "duplicate dependence declaration"]
+      },
+      {
+        "name": "TreeSitter",
+        "allocated_bytes": 1935912960,
+        "content": "303 independent syntax-provider Git repositories",
+        "version": "299 repositories declared by dependencies/tree-sitter-grammars.lock.json plus four undeclared extras",
+        "roles": ["concrete-syntax-provider", "grammar-conformance-input"],
+        "modalities": ["code", "documents", "configuration", "query-languages"],
+        "status": "nonconforming-to-declared-contract",
+        "observations": ["all 299 declared directories exist", "four locked HEAD mismatches: tree-sitter-fsharp, tree-sitter-m68k, tree-sitter-r, tree-sitter-yaml", "four directories are outside the lock: ebnf, superhtml, v-analyzer, ziggy"],
+        "missing": ["lock reconciliation for four revisions", "disposition for four extra providers", "Laplace-native grammar inventory", "per-source lowering recipes and conformance"]
+      },
+      {
+        "name": "UCD",
+        "allocated_bytes": 769441792,
+        "content": "Unicode 17.0.0 UCD, Unihan, UCA, IDNA, security, emoji, XML, charts, and conformance data",
+        "version": "Unicode 17.0.0 final (2025-08-15)",
+        "roles": ["terminal-codepoint-floor", "normalization-collation-segmentation-law", "script-and-realization-evidence"],
+        "modalities": ["Unicode-standard"],
+        "status": "locked-profile-conformant",
+        "observations": ["all 33 files selected by contracts/unicode-source.json pass exact size and SHA-256 verification"],
+        "missing": ["activated-product Unicode root", "profiles for locally mirrored material outside the selected 33-file contract where needed"]
+      },
+      {
+        "name": "UD-Treebanks",
+        "allocated_bytes": 4539076608,
+        "content": "Universal Dependencies release with 339 treebank directories and 686 CoNLL-U files",
+        "version": "UD 2.17",
+        "roles": ["multilingual-syntax-annotation-observations", "grammar-and-relation-testimony"],
+        "modalities": ["language", "CoNLL-U"],
+        "status": "present-versioned-unprofiled",
+        "missing": ["release archive digest/profile", "CoNLL-U grammar and recipe", "per-treebank license/dependence graph", "language/reference closure"]
+      },
+      {
+        "name": "Unicode.BAD-DONOTUSE",
+        "allocated_bytes": 39463870464,
+        "content": "broad Unicode website/history mirror explicitly named as unsafe for source selection",
+        "version": "mixed historical/current mirror",
+        "roles": ["forensic-reference-only"],
+        "modalities": ["documents", "standards-history"],
+        "status": "quarantined",
+        "missing": ["bounded release identity", "safe selected artifact graph", "authority to enter any seed boundary"]
+      },
+      {
+        "name": "VerbNet",
+        "allocated_bytes": 13991936,
+        "content": "329 VerbNet 3.4 verb-class XMLs with members, roles, restrictions, syntax, and semantics plus variants/tooling",
+        "version": "VerbNet 3.4, master ZIP fetched 2026-06-05",
+        "roles": ["predicate-class-and-role-testimony"],
+        "modalities": ["language", "XML"],
+        "status": "present-versioned-unprofiled",
+        "missing": ["immutable upstream commit", "artifact digests/profile", "XML recipe and endpoint closure"]
+      },
+      {
+        "name": "Wiktionary",
+        "allocated_bytes": 36304039936,
+        "content": "English Wiktionary XML plus two large wiktextract/Kaikki JSONL representations",
+        "version": "latest alias with no recorded dump date",
+        "roles": ["lexical-definition-and-example-testimony", "exact-sentence-source"],
+        "modalities": ["language", "XML", "JSONL"],
+        "status": "present-unversioned-unprofiled",
+        "missing": ["immutable dump date and URLs", "digests", "derivation relationship among XML and JSONL", "complete artifact graph", "grammar/recipe and selected exact-content boundary"]
+      },
+      {
+        "name": "WordFrameNet",
+        "allocated_bytes": 1441792,
+        "content": "WordNet-to-FrameNet and extended WordFrameNet mapping distributions",
+        "version": "not identified by local filenames or manifest",
+        "roles": ["cross-source-mapping-testimony"],
+        "modalities": ["language", "tabular", "compressed-archive"],
+        "status": "present-unversioned-unprofiled",
+        "missing": ["version/authority/license manifest", "digests", "mapping schema", "endpoint bindings and standing"]
+      },
+      {
+        "name": "Wordnet",
+        "allocated_bytes": 51355648,
+        "content": "Princeton WordNet database, indexes, exception lists, sense index, documentation, and source archive",
+        "version": "Princeton WordNet 3.0",
+        "roles": ["lexical-synset-and-relation-testimony", "reference-endpoint-authority"],
+        "modalities": ["language", "WordNet-database"],
+        "status": "present-versioned-unprofiled",
+        "missing": ["artifact digest/profile", "exact parser/recipe", "CILI endpoint and mapping closure", "WordNet 3.1 endpoint source"]
+      },
+      {
+        "name": "code-authority",
+        "allocated_bytes": 2107703296,
+        "content": "source histories for CPython, .NET documentation, PostgreSQL, and .NET runtime",
+        "version": "cpython ff64d8de; dotnet/docs 2707b543; postgres e18b0cb7; dotnet/runtime 25bd04c7",
+        "roles": ["program-AST-authority-testimony", "definition-use-and-change-history"],
+        "modalities": ["code", "documentation", "Git-history"],
+        "status": "present-versioned-unprofiled",
+        "observations": ["dotnet/docs is clean", "CPython and PostgreSQL show thousands of local tracked modifications consistent with vault-wide line-ending mutation; runtime cleanliness was not established"],
+        "missing": ["aggregate immutable manifest", "clean-tree proof for every repository", "license/dependence graph", "code grammar/recipe and build-observation boundaries"]
+      },
+      {
+        "name": "omw",
+        "allocated_bytes": 255991808,
+        "content": "byte-identical duplicate of OMW outside .git with the same commit and checkpoint",
+        "version": "git 406bf83b3c507a3d1f26e88252d5d66893fd36bf (v2.0-1)",
+        "roles": ["duplicate-mirror"],
+        "modalities": ["language", "tabular", "Lexicographer-XML"],
+        "status": "duplicate",
+        "missing": ["canonical-copy selection", "mirror/dependence declaration", "same clean-tree/profile work as OMW"]
+      },
+      {
+        "name": "test-data",
+        "allocated_bytes": 223981568,
+        "content": "synthetic and curated audio, image, text, PDF, electronics, neural-model, and mixed test fixtures",
+        "version": "unversioned fixture collection",
+        "roles": ["conformance-fixture", "negative-and-small-scale-modality-test"],
+        "modalities": ["audio", "image", "text", "document", "model"],
+        "status": "fixture-only",
+        "missing": ["fixture manifest and expected semantics", "license/provenance for curated files", "authority to claim any source or modality complete"]
+      }
+    ]
+  },
+  "model_root": {
+    "observed_top_level_directories": 38,
+    "observed_allocated_bytes": 600252350464,
+    "global_laplace_state": "No model has a complete Laplace model-artifact profile, behavior-experiment boundary, measured effective-support law, named export invariant, target-runtime receipt, or world-admission receipt.",
+    "entries": [
+      {"name":".locks","allocated_bytes":8192,"content":"Hugging Face downloader lock files and empty lock directories","version":"operational cache state","roles":["none"],"modalities":[],"status":"operational-residue","missing":["not applicable; exclude from source/model selection"]},
+      {"name":"Conditional-DETR-R50","allocated_bytes":348516352,"content":"Conditional DETR ResNet-50 object detector in safetensors and PyTorch formats","version":"HF commit 8f8795fb7c319c7862d4f4cd699e76bb09cf2593","roles":["vision-model-artifact-witness"],"modalities":["image"],"status":"present-versioned-unprofiled","missing":["model profile","behavior/intervention receipts","duplicate-format relation"]},
+      {"name":"DETR-ResNet-101","allocated_bytes":485863424,"content":"DETR ResNet-101 object detector in safetensors and PyTorch formats","version":"HF commit 7d14702e444d98d0b1764824567fc2b45e1eb218","roles":["vision-model-artifact-witness"],"modalities":["image"],"status":"present-versioned-unprofiled","missing":["model profile","behavior/intervention receipts","duplicate-format relation"]},
+      {"name":"Florence-2-base","allocated_bytes":930435072,"content":"Florence-2 base vision-language conditional-generation model and custom Python implementation","version":"HF commit 5ca5edf5bd017b9919c05d08aebef5e4c7ac3bac","roles":["multimodal-model-artifact-witness"],"modalities":["image","language"],"status":"present-versioned-unprofiled","missing":["model and executable-code profile","behavior receipts","target invariant"]},
+      {"name":"Florence-2-large","allocated_bytes":3117768704,"content":"Florence-2 large vision-language conditional-generation model and custom Python implementation","version":"HF commit 21a599d414c4d928c9032694c424fb94458e3594","roles":["multimodal-model-artifact-witness"],"modalities":["image","language"],"status":"present-versioned-unprofiled","missing":["model and executable-code profile","behavior receipts","target invariant"]},
+      {"name":"Grounding-DINO-Base","allocated_bytes":1870426112,"content":"Grounding DINO base text-conditioned object detector in safetensors and PyTorch formats","version":"HF commit 12bdfa3120f3e7ec7b434d90674b3396eccf88eb","roles":["multimodal-model-artifact-witness"],"modalities":["image","language"],"status":"present-versioned-unprofiled","missing":["model profile","behavior/grounding receipts","duplicate-format relation"]},
+      {"name":"RT-DETR-v1-R101","allocated_bytes":307384320,"content":"RT-DETR v1 ResNet-101 object detector","version":"HF commit ff44b69152a72cc752677665fb4539507d56a99d","roles":["vision-model-artifact-witness"],"modalities":["image"],"status":"present-versioned-unprofiled","missing":["model profile","behavior/intervention receipts"]},
+      {"name":"code-corpus","allocated_bytes":41227812864,"content":"mixed personal, deleted-solution, GitHub, backup, and repository trees with nested Git histories and duplicated embedded models","version":"no aggregate version","roles":["code-observation-corpus","repository-history-testimony"],"modalities":["code","Git-history","documents"],"status":"present-unversioned-unprofiled","missing":["deduplicated manifest","authority/license/privacy boundaries","repository/version graph","nested-model separation","code source profiles"]},
+      {"name":"gguf","allocated_bytes":6019866624,"content":"TinyLlama 1.1B F16 GGUF plus a substrate-named derived GGUF; subordinate exports, not primary model sources","version":"filenames only; source relation not receipted","roles":["derived-model-export-witness"],"modalities":["language-model"],"status":"present-unversioned-unprofiled","missing":["binding to the full safetensors source package","artifact digests and provenance","named preserved invariant","conversion recipe","source/target behavior comparison"]},
+      {"name":"models--Qwen--Qwen2.5-Coder-14B-Instruct","allocated_bytes":29551722496,"content":"Qwen2.5 Coder 14B instruction model, six safetensors shards","version":"HF snapshot aedcc2d42b622764e023cf882b6652e646b95671","roles":["code-language-model-artifact-witness"],"modalities":["code","language"],"status":"present-versioned-unprofiled","missing":["model profile","behavior/effective-support receipts"]},
+      {"name":"models--Qwen--Qwen2.5-Coder-3B-Instruct","allocated_bytes":6183493632,"content":"Qwen2.5 Coder 3B instruction model, two safetensors shards","version":"HF snapshot 488639f1ff808d1d3d0ba301aef8c11461451ec5","roles":["code-language-model-artifact-witness"],"modalities":["code","language"],"status":"present-versioned-unprofiled","missing":["model profile","behavior/effective-support receipts"]},
+      {"name":"models--Qwen--Qwen2.5-Coder-7B-Instruct","allocated_bytes":15242842112,"content":"Qwen2.5 Coder 7B instruction model, four safetensors shards","version":"HF snapshot c03e6d358207e414f1eca0bb1891e29f1db0e242","roles":["code-language-model-artifact-witness"],"modalities":["code","language"],"status":"present-versioned-unprofiled","missing":["model profile","behavior/effective-support receipts"]},
+      {"name":"models--Qwen--Qwen2.5-Coder-7B-Instruct-AWQ","allocated_bytes":3235512320,"content":"incomplete AWQ quantized derivative of Qwen2.5 Coder 7B; subordinate to the complete full-precision safetensors snapshot and excluded from seed/model-source selection","version":"intended HF commit 8e8ed243bbe6f9a5aff549a0924562fc719b2b8a","roles":["incomplete-derived-model-export"],"modalities":["code","language"],"status":"incomplete-download","missing":["both AWQ weight shards","explicit binding to the full-precision source snapshot","quantization recipe and loss boundary","named preserved invariant","behavior comparison receipt"]},
+      {"name":"models--Qwen--Qwen3-Coder-30B-A3B-Instruct","allocated_bytes":61079891968,"content":"Qwen3 MoE Coder 30B-A3B instruction model, sixteen safetensors shards","version":"HF snapshot b2cff646eb4bb1d68355c01b18ae02e7cf42d120","roles":["code-language-model-artifact-witness"],"modalities":["code","language"],"status":"present-versioned-unprofiled","missing":["model profile","routing/behavior/effective-support receipts"]},
+      {"name":"models--Qwen--Qwen3-Embedding-0.6B","allocated_bytes":1207529472,"content":"Qwen3 0.6B text embedding model","version":"HF snapshot c54f2e6e80b2d7b7de06f51cec4959f6b3e03418","roles":["embedding-model-artifact-witness"],"modalities":["language"],"status":"present-versioned-unprofiled","missing":["behavior experiment","retrieval/effective-support law","model profile"]},
+      {"name":"models--Qwen--Qwen3-Embedding-4B","allocated_bytes":8059568128,"content":"Qwen3 4B text embedding model, two safetensors shards","version":"HF snapshot 5cf2132abc99cad020ac570b19d031efec650f2b","roles":["embedding-model-artifact-witness"],"modalities":["language"],"status":"present-versioned-unprofiled","missing":["behavior experiment","retrieval/effective-support law","model profile"]},
+      {"name":"models--Qwen--Qwen3-Reranker-0.6B","allocated_bytes":1207517184,"content":"Qwen3 0.6B text reranker","version":"HF snapshot 6e9e69830b95c52b5fd889b7690dda3329508de3","roles":["reranker-model-artifact-witness"],"modalities":["language"],"status":"present-versioned-unprofiled","missing":["behavior experiment","ranking/effective-support law","model profile"]},
+      {"name":"models--Qwen--Qwen3-Reranker-4B","allocated_bytes":8059584512,"content":"Qwen3 4B text reranker, two safetensors shards","version":"HF snapshot f16fc5d5d2b9b1d0db8280929242745d79794ef5","roles":["reranker-model-artifact-witness"],"modalities":["language"],"status":"present-versioned-unprofiled","missing":["behavior experiment","ranking/effective-support law","model profile"]},
+      {"name":"models--Qwen--Qwen3-VL-Embedding-2B","allocated_bytes":4271108096,"content":"Qwen3-VL 2B multimodal embedding model","version":"HF snapshot 929a0c31d84149ec61d4594889136e0c663af1a6","roles":["multimodal-embedding-model-artifact-witness"],"modalities":["image","language"],"status":"present-versioned-unprofiled","missing":["multimodal behavior experiment","effective-support law","model profile"]},
+      {"name":"models--Qwen--Qwen3-VL-Embedding-8B","allocated_bytes":16305725440,"content":"Qwen3-VL 8B multimodal embedding model, four safetensors shards","version":"HF snapshot a12d6118f720ceb6d95f7d1cad4e8aeccddd9340","roles":["multimodal-embedding-model-artifact-witness"],"modalities":["image","language"],"status":"present-versioned-unprofiled","missing":["multimodal behavior experiment","effective-support law","model profile"]},
+      {"name":"models--Qwen--Qwen3-VL-Reranker-2B","allocated_bytes":4271095808,"content":"Qwen3-VL 2B multimodal reranker","version":"HF snapshot 76219daff7a696073e0ab28b74fa32aa81183052","roles":["multimodal-reranker-model-artifact-witness"],"modalities":["image","language"],"status":"present-versioned-unprofiled","missing":["multimodal behavior experiment","ranking/effective-support law","model profile"]},
+      {"name":"models--Qwen--Qwen3-VL-Reranker-8B","allocated_bytes":17550372864,"content":"Qwen3-VL 8B multimodal reranker, four safetensors shards","version":"HF snapshot 8e52ab8fdc69d698b3e1c17f9977afb6fea4f656","roles":["multimodal-reranker-model-artifact-witness"],"modalities":["image","language"],"status":"present-versioned-unprofiled","missing":["multimodal behavior experiment","ranking/effective-support law","model profile"]},
+      {"name":"models--Qwen--Qwen3.8-27B","allocated_bytes":55586271232,"content":"Qwen3.8-named 27B conditional-generation snapshot with qwen3_5 config and eighteen safetensors shards","version":"HF snapshot 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0","roles":["multimodal-language-model-artifact-witness"],"modalities":["language","image"],"status":"present-versioned-unprofiled","missing":["name/config-version reconciliation","model profile","behavior/effective-support receipts"]},
+      {"name":"models--TinyLlama--TinyLlama-1.1B-Chat-v1.0","allocated_bytes":4405002240,"content":"TinyLlama 1.1B Chat v1.0 safetensors snapshot","version":"HF snapshot fe8a4ea1ffedaf415f4da2f062534de366a451e6","roles":["language-model-artifact-witness","GGUF-source-candidate"],"modalities":["language"],"status":"present-versioned-unprofiled","missing":["binding to local GGUF exports","named export invariant","behavior receipts","model profile"]},
+      {"name":"models--deepseek-ai--DeepSeek-Coder-V2-Lite-Instruct","allocated_bytes":31418867712,"content":"DeepSeek Coder V2 Lite instruction MoE model, four safetensors shards","version":"HF snapshot e434a23f91ba5b4923cf6c9d9a238eb4a08e3a11","roles":["code-language-model-artifact-witness"],"modalities":["code","language"],"status":"present-versioned-unprofiled","missing":["model profile","routing/behavior/effective-support receipts"]},
+      {"name":"models--deepseek-ai--deepseek-coder-33b-instruct","allocated_bytes":133373771776,"content":"DeepSeek Coder 33B instruction model duplicated across seven safetensors and seven PyTorch shards","version":"HF snapshot 61dc97b922b13995e7f83b7c8397701dbf9cfd4c","roles":["code-language-model-artifact-witness"],"modalities":["code","language"],"status":"present-versioned-unprofiled","missing":["duplicate-format relation","model profile","behavior/effective-support receipts"]},
+      {"name":"models--facebook--sam-audio-large","allocated_bytes":14861381632,"content":"SAM-Audio large audio model with checkpoint.pt","version":"HF snapshot 5f2cd3a9471a08c7282c06036be6893e18de8b70","roles":["audio-model-artifact-witness"],"modalities":["audio"],"status":"present-versioned-unprofiled","missing":["typed container/profile", "audio behavior and intervention receipts"]},
+      {"name":"models--fishaudio--fish-speech-1.5","allocated_bytes":1466175488,"content":"Fish Speech 1.5 text-to-speech/codec model with generator and model checkpoints","version":"HF snapshot 275a984d33c33659e39eed41ff5bcd6e67517f4c","roles":["speech-model-artifact-witness"],"modalities":["audio","language"],"status":"present-versioned-unprofiled","missing":["multi-checkpoint dependency graph","speech behavior receipts","model profile"]},
+      {"name":"models--ibm-granite--granite-speech-3.3-8b","allocated_bytes":17439289344,"content":"Granite Speech 3.3 8B model with nine base shards and adapter weights","version":"HF snapshot 315afb31116c9b79dc15864d091e59ca6bf10cf9","roles":["speech-language-model-artifact-witness"],"modalities":["audio","language"],"status":"present-versioned-unprofiled","missing":["base/adapter dependency profile","speech behavior receipts","effective-support law"]},
+      {"name":"models--jinaai--jina-code-embeddings-1.5b","allocated_bytes":3091959808,"content":"Jina 1.5B code embedding model","version":"HF snapshot 39aeb4fb9b60f930934c78ae5d749a46287c248a","roles":["code-embedding-model-artifact-witness"],"modalities":["code","language"],"status":"present-versioned-unprofiled","missing":["retrieval behavior experiment","effective-support law","model profile"]},
+      {"name":"models--jinaai--jina-reranker-v3","allocated_bytes":1205194752,"content":"Jina reranker v3","version":"HF snapshot 050e171c4f75dfec5b648ed8470a2475e5a30f30","roles":["reranker-model-artifact-witness"],"modalities":["language"],"status":"present-versioned-unprofiled","missing":["ranking behavior experiment","effective-support law","model profile"]},
+      {"name":"models--microsoft--phi-2","allocated_bytes":11125796864,"content":"Microsoft Phi-2 causal language model, two safetensors shards","version":"HF snapshot 810d367871c1d460086d9f82db8696f2e0a0fcd0","roles":["language-model-artifact-witness"],"modalities":["language","code"],"status":"present-versioned-unprofiled","missing":["model profile","behavior/effective-support receipts"]},
+      {"name":"models--nvidia--canary-qwen-2.5b","allocated_bytes":5119168512,"content":"NVIDIA Canary-Qwen 2.5B speech model","version":"HF snapshot 6cfc37ec7edc35a0545c403f551ecdfa28133d72","roles":["speech-language-model-artifact-witness"],"modalities":["audio","language"],"status":"present-versioned-unprofiled","missing":["typed architecture/container profile","speech behavior receipts"]},
+      {"name":"models--nvidia--music-flamingo-hf","allocated_bytes":16551710720,"content":"NVIDIA Music Flamingo audio-language model, four safetensors shards","version":"HF snapshot e29cfe92e682616f8f8014c60b2c5d17a37d4e33","roles":["audio-language-model-artifact-witness"],"modalities":["audio","language"],"status":"present-versioned-unprofiled","missing":["model profile","audio-language behavior receipts","effective-support law"]},
+      {"name":"models--sentence-transformers--all-MiniLM-L6-v2","allocated_bytes":91615232,"content":"all-MiniLM-L6-v2 sentence embedding model","version":"HF snapshot c9745ed1d9f207416be6d2e6f8de32d1f16199bf","roles":["embedding-model-artifact-witness"],"modalities":["language"],"status":"present-versioned-unprofiled","missing":["retrieval behavior experiment","effective-support law","model profile"]},
+      {"name":"stack-v2","allocated_bytes":72657350656,"content":"The Stack v2-derived Parquet shards for C, C++, JavaScript, Python, Rust, SQL, Shell, and TypeScript; several declared shard sequences are only partially present","version":"no local dataset manifest or snapshot commit","roles":["code-observation-corpus"],"modalities":["code","Parquet"],"status":"present-unversioned-unprofiled","missing":["dataset card/license/provenance", "complete shard manifests for C++, JavaScript, Python, and possibly other languages", "artifact digests", "code source profiles"]},
+      {"name":"tiny-codes","allocated_bytes":981463040,"content":"nine Parquet parts labelled through 1,632,520 records","version":"HF download metadata present but no repository-level dataset manifest","roles":["code-observation-corpus"],"modalities":["code","Parquet"],"status":"present-unversioned-unprofiled","missing":["dataset identity/config/split manifest","license/provenance binding","schema and row denominators","source profile"]},
+      {"name":"yolo11x","allocated_bytes":343285760,"content":"YOLO11x PyTorch artifact plus a subordinate TorchScript export","version":"filename-level yolo11x only","roles":["vision-model-artifact-witness","derived-model-export-witness"],"modalities":["image"],"status":"present-unversioned-unprofiled","missing":["upstream full-precision source identity and license manifest","artifact digests","export recipe","named TorchScript preservation invariant","behavior receipts","model profile"]}
+    ]
+  },
+  "critical_findings": [
+    "Only the selected Unicode 17 source contract and ISO 639-3 2026-04-15 profile are byte-conformant local profile inputs; neither is an activated-product foundational seed.",
+    "The vault CILI checkout cannot satisfy the declared CILI profile because CRLF conversion changed both selected members and the pinned archive is absent.",
+    "The two OMW directories duplicate one another and both carry mass EOL mutation, one tracked deletion, and an untracked checkpoint.",
+    "The Tree-sitter estate contains all 299 declared repositories but four are at the wrong revisions and four additional repositories lack lock disposition.",
+    "Complete full-precision safetensors snapshots are the primary local model-artifact candidates. AWQ, GGUF, TorchScript, duplicate PyTorch weights, and other converted forms are subordinate derived artifacts requiring source binding and measured loss/preservation receipts; the incomplete AWQ directory is excluded from selection.",
+    "The models root mixes model artifacts, downloader state, and three code corpora; path location cannot define semantic class.",
+    "No model artifact has a Laplace behavior experiment, effective-support law, named export invariant, or admission receipt.",
+    "The selected data universe spans every observed source family, not CILI/OMW alone, and still lacks complete profiles for XML, RDF/Turtle, CoNLL-U, JSONL, archive-paired corpora, media, PGN, code repositories, Parquet corpora, and full-precision model containers."
+  ]
+}

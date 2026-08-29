@@ -90,14 +90,19 @@ void laplace_pg_resolve_active_unicode_atoms(
     static const char atoms_sql[] =
         "WITH requested(codepoint_position,ordinality) AS ("
         "SELECT * FROM unnest($1::integer[]) WITH ORDINALITY) "
-        "SELECT r.ordinality,b.codepoint_position,b.entity_id,"
-        "b.identity_preimage_fingerprint,b.physicality_id,"
-        "b.coordinate_x,b.coordinate_y,b.coordinate_z,b.coordinate_m "
-        "FROM requested r JOIN " LAPLACE_PG_SCHEMA ".unicode_atom_binding b "
-        "ON b.root_receipt=$2::" LAPLACE_PG_SCHEMA ".record_id_256 "
-        "AND b.codepoint_position=r.codepoint_position ORDER BY r.ordinality";
-    Oid atom_types[2] = {INT4ARRAYOID, BYTEAOID};
-    Datum atom_values[2];
+        "SELECT r.ordinality,r.codepoint_position,a.entity_id,"
+        "e.identity_witness,a.physicality_id,"
+        "p.centroid_x,p.centroid_y,p.centroid_z,p.centroid_m "
+        "FROM requested r JOIN " LAPLACE_PG_SCHEMA ".attestation a "
+        "ON a.source_fingerprint=$2::" LAPLACE_PG_SCHEMA ".record_id_256 "
+        "AND a.source_ordinal=(r.codepoint_position::bigint + 1) "
+        "AND a.attestation_kind=$3::integer AND (a.flags & 1)=1 "
+        "JOIN " LAPLACE_PG_SCHEMA ".entity e ON e.entity_id=a.entity_id "
+        "JOIN " LAPLACE_PG_SCHEMA ".physicality p "
+        "ON p.physicality_id=a.physicality_id "
+        "ORDER BY r.ordinality";
+    Oid atom_types[3] = {INT4ARRAYOID, BYTEAOID, INT4OID};
+    Datum atom_values[3];
     int result;
     size_t index;
     HeapTuple tuple;
@@ -156,8 +161,10 @@ void laplace_pg_resolve_active_unicode_atoms(
     atom_values[0] = PointerGetDatum(position_array(positions, count));
     atom_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         active->root_receipt.bytes, sizeof(active->root_receipt.bytes)));
+    atom_values[2] = Int32GetDatum(
+        (int32)LAPLACE_PERSISTENCE_ATTESTATION_SOURCE_TESTIMONY);
     result = SPI_execute_with_args(
-        atoms_sql, 2, atom_types, atom_values, NULL, true, 0);
+        atoms_sql, 3, atom_types, atom_values, NULL, true, 0);
     if (result != SPI_OK_SELECT || SPI_processed != (uint64)count ||
         SPI_tuptable == NULL) {
         ereport(ERROR,

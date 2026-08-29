@@ -1,8 +1,9 @@
 {
   "schema": "laplace.tabular-source-contract/v1",
-  "abi": {"major": 1, "minor": 1},
+  "abi": {"major": 1, "minor": 4},
   "identity": {
     "artifact_graph_domain": "laplace-tabular-artifact-graph-v1",
+    "source_graph_domain": "laplace-tabular-source-graph-v1",
     "source_domain": "laplace-tabular-source-v1",
     "reconstruction_domain": "laplace-tabular-reconstruction-v1"
   },
@@ -37,7 +38,8 @@
     "encoding": "raw artifacts retain exact digest provenance and retain octet AST content only when exact-distribution is declared; delimited selected content requires shortest-form Unicode scalar UTF-8",
     "delimiter": "one declared nonzero single-byte delimiter outside UTF-8 continuation bytes",
     "quoting": "none in v1; a delimiter or line terminator always closes a field",
-    "header": "exactly one required header record for a delimited artifact",
+    "columns": "every delimited artifact declares exact UTF-8 column identities independently of whether those identities are serialized as a header",
+    "header": "a delimited artifact declares zero or one exact header record; when present its fields must byte-match the declared column identities, and when absent the first physical record is data",
     "field_count": "every record has the declared field count including empty fields",
     "terminator": "every record including the last has the one declared exact line terminator",
     "reconstruction": "recomposition from parsed fields delimiter and record terminators is byte-identical only for artifacts declaring exact-distribution; other distributions return typed reconstruction-unavailable"
@@ -53,12 +55,15 @@
   },
   "closure": {
     "claims": "every non-header delimited record is one source-scoped witnessed mapping claim",
+    "claim_scope": "the profile-declared record proposition alone enters evidence and testimony; its tag field column value terminator artifact and source-boundary AST constituents remain exact structural occurrences and cannot inherit the record's epistemic role unless another explicit recipe independently declares them as propositions",
     "opaque_raw_claims": false,
     "profile_counts": "bytes records fields syntax nodes spans edges references occurrences mappings outputs and dispositions are derived from the compiled whole working set",
     "artifact_reconstruction": "only artifacts explicitly marked exact-distribution are required to recompose byte-for-byte; every artifact still retains exact digest length name and source-graph provenance",
+    "source_graph_identity": "the profile artifact-graph fingerprint binds the exact artifact topology and codec declarations plus every authority-scoped reference and mapping rule; changing rule semantics under the pinned profile fails before plan construction",
     "selected_content_reconstruction": "every admitted Unicode value is an exact reusable content composition independent of whether the enclosing upstream distribution is reconstructable",
     "reference_disposition": "reference-marked field occurrences remain explicitly unresolved after generic structural admission until a typed authority-release-namespace Highway topology operation resolves or rejects each endpoint; parsing a join-key-shaped string is not reference resolution",
-    "curated_projection_reconstruction": "the source profile separately declares exact semantic or no reconstruction for the curated witnessed projection; semantic extraction cannot borrow the artifact codec's exactness claim"
+    "curated_projection_reconstruction": "the source profile separately declares exact semantic or no reconstruction for the curated witnessed projection; semantic extraction cannot borrow the artifact codec's exactness claim",
+    "reference_mapping": "profile-declared mapping rules pair two reference-marked columns in the same record with one typed directed or symmetric relation; the generic plan emits witnessed mapping occurrences and the product route resolves them through the shared reference-mapping ISA and transactional PostgreSQL lifecycle"
   },
   "negative_controls": [
     "changed-artifact-byte-with-unchanged-digest",
@@ -71,6 +76,11 @@
     "profile-denominator-not-derived-from-plan",
     "structural-reference-carrier-promoted-to-resolved-endpoint",
     "member-without-declared-container-parent",
-    "parent-edge-omitted-from-artifact-graph"
+    "parent-edge-omitted-from-artifact-graph",
+    "mapping-rule-with-unregistered-endpoint-column",
+    "mapping-row-bypasses-reference-topology",
+    "mapping-rule-changes-under-pinned-source-graph",
+    "mapping-count-copied-from-claim-count",
+    "structural-field-or-value-promoted-to-record-testimony"
   ]
 }

@@ -2,6 +2,7 @@
 #include "laplace/evidence_lineage.h"
 #include "laplace/evidence_testimony.h"
 #include "laplace/highway.h"
+#include "laplace/reference_mapping.h"
 #include "laplace/reference_topology.h"
 #include "laplace/source_profile.h"
 #include "laplace/trajectory.h"
@@ -189,6 +190,25 @@ laplace_isa_value_view ReferenceRecordOutputView(
             LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
 }
 
+laplace_isa_value_view ReferenceMappingCandidateInputView(
+    laplace_reference_mapping_candidate* data,
+    std::size_t count) {
+    return {data, static_cast<std::uint64_t>(count),
+            static_cast<std::uint64_t>(count),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_REFERENCE_MAPPING_CANDIDATE_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view ReferenceMappingRecordOutputView(
+    laplace_reference_mapping_record* data,
+    std::size_t capacity) {
+    return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_REFERENCE_MAPPING_RECORD_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
 laplace_isa_instruction IdentityInstruction(
     std::uint32_t input,
     std::uint32_t output) {
@@ -271,6 +291,15 @@ laplace_isa_instruction ReferenceTopologyInstruction(
     return {LAPLACE_ISA_OPCODE_REFERENCE_TOPOLOGY_RESOLVE_BATCH,
             input, output,
             LAPLACE_ISA_INSTRUCTION_VERSION_REFERENCE_TOPOLOGY_RESOLVE_BATCH,
+            LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
+laplace_isa_instruction ReferenceMappingInstruction(
+    std::uint32_t input,
+    std::uint32_t output) {
+    return {LAPLACE_ISA_OPCODE_REFERENCE_MAPPING_RESOLVE_BATCH,
+            input, output,
+            LAPLACE_ISA_INSTRUCTION_VERSION_REFERENCE_MAPPING_RESOLVE_BATCH,
             LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
 }
 
@@ -403,6 +432,46 @@ laplace_reference_candidate ReferenceCandidate(
     return value;
 }
 
+laplace_reference_mapping_candidate ReferenceMappingCandidate(
+    std::uint8_t witness,
+    std::uint8_t left,
+    std::uint8_t right) {
+    laplace_reference_mapping_candidate value{};
+    value.boundary_id = TestimonyDigest(0xe0u);
+    value.source_profile_id = TestimonyDigest(
+        static_cast<std::uint8_t>(0xa0u + witness));
+    value.left_reference_id = TestimonyDigest(
+        static_cast<std::uint8_t>(0x20u + left));
+    value.right_reference_id = TestimonyDigest(
+        static_cast<std::uint8_t>(0x40u + right));
+    auto left_key = HighwayKey(LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE, left);
+    auto right_key = HighwayKey(LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE, right);
+    EXPECT_EQ(laplace_highway_coordinate_calculate(
+                  &left_key, &value.left_coordinate),
+              LAPLACE_HIGHWAY_OK);
+    EXPECT_EQ(laplace_highway_coordinate_calculate(
+                  &right_key, &value.right_coordinate),
+              LAPLACE_HIGHWAY_OK);
+    value.relation_id = HighwayId(0x70u);
+    value.row_entity_id = HighwayId(
+        static_cast<std::uint8_t>(0x80u + witness));
+    value.left_field_entity_id = HighwayId(0x90u);
+    value.left_value_entity_id = HighwayId(
+        static_cast<std::uint8_t>(0xa0u + left));
+    value.right_field_entity_id = HighwayId(0xb0u);
+    value.right_value_entity_id = HighwayId(
+        static_cast<std::uint8_t>(0xc0u + right));
+    value.source_ordinal = static_cast<std::uint64_t>(witness) + 1u;
+    value.artifact_ordinal = 1u;
+    value.row_ordinal = static_cast<std::uint64_t>(witness) + 1u;
+    value.relation_version = 1u;
+    value.relation_kind = LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE;
+    value.flags = LAPLACE_REFERENCE_MAPPING_FLAG_DIRECTED;
+    value.left_disposition = LAPLACE_REFERENCE_DISPOSITION_PRESENT;
+    value.right_disposition = LAPLACE_REFERENCE_DISPOSITION_PRESENT;
+    return value;
+}
+
 laplace_isa_program Program(
     laplace_isa_instruction* instructions,
     std::size_t instruction_count,
@@ -424,7 +493,7 @@ laplace_isa_program Program(
 
 TEST(IsaAbi, ContractAssignmentsAreStable) {
     static_assert(LAPLACE_ISA_MAJOR == 1u);
-    static_assert(LAPLACE_ISA_MINOR == 9u);
+    static_assert(LAPLACE_ISA_MINOR == 11u);
     static_assert(LAPLACE_ISA_VALUE_U32_VECTOR != LAPLACE_ISA_VALUE_ID128_VECTOR);
     static_assert(sizeof(laplace_isa_digest256) == 32u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH, 0x00020001u);
@@ -436,6 +505,7 @@ TEST(IsaAbi, ContractAssignmentsAreStable) {
     EXPECT_EQ(LAPLACE_ISA_OPCODE_SOURCE_PROFILE_VALIDATE_BATCH, 0x00060001u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_WORLD_ADMISSION_CLOSE_BATCH, 0x00060002u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_REFERENCE_TOPOLOGY_RESOLVE_BATCH, 0x00060003u);
+    EXPECT_EQ(LAPLACE_ISA_OPCODE_REFERENCE_MAPPING_RESOLVE_BATCH, 0x00060004u);
 }
 
 TEST(IsaExecution, EvidenceLineageMatchesCanonicalNativeOperationAndReceipt) {
@@ -624,6 +694,46 @@ TEST(IsaExecution, ReferenceTopologyMatchesCanonicalNativeOperationAndReceipt) {
     EXPECT_EQ(receipt.executed_instruction_count, 1u);
 
     program.minor = 8u;
+    values[1].count = 0u;
+    EXPECT_EQ(laplace_isa_validate(&program, &error),
+              LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);
+}
+
+TEST(IsaExecution, ReferenceMappingMatchesCanonicalNativeOperationAndReceipt) {
+    std::array<laplace_reference_mapping_candidate, 3> candidates{{
+        ReferenceMappingCandidate(0u, 0x01u, 0x02u),
+        ReferenceMappingCandidate(1u, 0x01u, 0x02u),
+        ReferenceMappingCandidate(2u, 0x03u, 0x04u)}};
+    std::array<laplace_reference_mapping_record, 3> expected{};
+    std::array<laplace_reference_mapping_record, 3> outputs{};
+    laplace_reference_mapping_receipt native_receipt{};
+    laplace_reference_mapping_error native_error{};
+    ASSERT_EQ(laplace_reference_mapping_resolve_batch(
+                  candidates.data(), candidates.size(), expected.data(),
+                  &native_receipt, &native_error),
+              LAPLACE_REFERENCE_MAPPING_OK);
+    std::array<laplace_isa_value_view, 2> values{{
+        ReferenceMappingCandidateInputView(candidates.data(), candidates.size()),
+        ReferenceMappingRecordOutputView(outputs.data(), outputs.size())}};
+    auto instruction = ReferenceMappingInstruction(0u, 1u);
+    auto program = Program(&instruction, 1u, values.data(), values.size());
+    laplace_isa_receipt receipt{};
+    laplace_isa_error error{};
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(values[1].count, candidates.size());
+    EXPECT_EQ(std::memcmp(outputs.data(), expected.data(), sizeof(outputs)), 0);
+    EXPECT_EQ(receipt.executed_instruction_count, 1u);
+
+    const auto original_receipt = receipt;
+    candidates[2].right_value_entity_id.bytes[0] ^= 0x80u;
+    values[1].count = 0u;
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    EXPECT_NE(std::memcmp(original_receipt.input_fingerprint.bytes,
+                          receipt.input_fingerprint.bytes, 32u), 0);
+    EXPECT_NE(std::memcmp(original_receipt.receipt_id.bytes,
+                          receipt.receipt_id.bytes, 32u), 0);
+
+    program.minor = 9u;
     values[1].count = 0u;
     EXPECT_EQ(laplace_isa_validate(&program, &error),
               LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);

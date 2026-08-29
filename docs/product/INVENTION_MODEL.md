@@ -852,6 +852,14 @@ retains that ancestry and cannot serve as independent corroboration of itself.
 Acceptance of an engine-changing extension requires separately derived checks and
 observed outcomes under the extension's declared experiment contract.
 
+This is also the autobiographical boundary. One execution can contain a successful
+action, an incorrect explanation, a measured resource allocation, and a later
+consequence. Those are separate typed observations. The consequence updates only the
+claims it actually bears on; it cannot collapse the whole event into one success bit.
+Laplace's model of itself, an inventor's testimony about Laplace, and an independently
+observed installed runtime remain distinct attributed state even when adjudication
+eventually makes them agree.
+
 ## 12. Firmware
 
 Firmware is a deterministic cognitive policy over a shared world model. It controls

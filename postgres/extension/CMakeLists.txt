@@ -20,6 +20,7 @@ laplace_configure_postgresql_bindings(
     "${extension_control}")
 
 set(laplace_postgresql_module_sources
+    src/cognition_isa_pg.c
     src/composition_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
@@ -29,6 +30,7 @@ set(laplace_postgresql_module_sources
     src/persistence_rows_pg.c
     src/perfcache_pg.c
     src/reference_topology_pg.c
+    src/reference_mapping_pg.c
     src/set_pg.c
     src/source_admission_pg.c
     src/source_profile_pg.c

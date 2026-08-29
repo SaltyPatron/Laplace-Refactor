@@ -76,6 +76,7 @@ CREATE TEMP TABLE iso_expected (
     record_count numeric NOT NULL,
     field_count numeric NOT NULL,
     reference_count numeric NOT NULL,
+    reference_coordinate_count numeric NOT NULL,
     claim_count numeric NOT NULL,
     request_count numeric NOT NULL
 );
@@ -86,6 +87,7 @@ INSERT INTO iso_expected VALUES (
     :'iso_expected_records'::numeric,
     :'iso_expected_fields'::numeric,
     :'iso_expected_references'::numeric,
+    :'iso_expected_reference_coordinates'::numeric,
     :'iso_expected_claims'::numeric,
     :'iso_expected_requests'::numeric
 );
@@ -139,15 +141,17 @@ CREATE TEMP TABLE iso_artifact_authority (
     line_terminator integer NOT NULL,
     expected_column_count integer NOT NULL,
     outcome_type integer NOT NULL,
-    flags integer NOT NULL
+    flags integer NOT NULL,
+    column_names bytea[] NOT NULL,
+    header_record_count integer NOT NULL
 );
 
 INSERT INTO iso_artifact_authority VALUES
-    (0, decode(:'iso_artifact_0_id', 'hex'), decode(:'iso_artifact_0_parent_id', 'hex'), decode(:'iso_artifact_0_name', 'hex'), :'iso_artifact_0_records'::numeric, :'iso_artifact_0_fields'::numeric, :'iso_artifact_0_reference_mask'::numeric, :'iso_artifact_0_mode'::integer, :'iso_artifact_0_delimiter'::integer, :'iso_artifact_0_terminator'::integer, :'iso_artifact_0_columns'::integer, :'iso_artifact_0_outcome'::integer, :'iso_artifact_0_flags'::integer),
-    (1, decode(:'iso_artifact_1_id', 'hex'), decode(:'iso_artifact_1_parent_id', 'hex'), decode(:'iso_artifact_1_name', 'hex'), :'iso_artifact_1_records'::numeric, :'iso_artifact_1_fields'::numeric, :'iso_artifact_1_reference_mask'::numeric, :'iso_artifact_1_mode'::integer, :'iso_artifact_1_delimiter'::integer, :'iso_artifact_1_terminator'::integer, :'iso_artifact_1_columns'::integer, :'iso_artifact_1_outcome'::integer, :'iso_artifact_1_flags'::integer),
-    (2, decode(:'iso_artifact_2_id', 'hex'), decode(:'iso_artifact_2_parent_id', 'hex'), decode(:'iso_artifact_2_name', 'hex'), :'iso_artifact_2_records'::numeric, :'iso_artifact_2_fields'::numeric, :'iso_artifact_2_reference_mask'::numeric, :'iso_artifact_2_mode'::integer, :'iso_artifact_2_delimiter'::integer, :'iso_artifact_2_terminator'::integer, :'iso_artifact_2_columns'::integer, :'iso_artifact_2_outcome'::integer, :'iso_artifact_2_flags'::integer),
-    (3, decode(:'iso_artifact_3_id', 'hex'), decode(:'iso_artifact_3_parent_id', 'hex'), decode(:'iso_artifact_3_name', 'hex'), :'iso_artifact_3_records'::numeric, :'iso_artifact_3_fields'::numeric, :'iso_artifact_3_reference_mask'::numeric, :'iso_artifact_3_mode'::integer, :'iso_artifact_3_delimiter'::integer, :'iso_artifact_3_terminator'::integer, :'iso_artifact_3_columns'::integer, :'iso_artifact_3_outcome'::integer, :'iso_artifact_3_flags'::integer),
-    (4, decode(:'iso_artifact_4_id', 'hex'), decode(:'iso_artifact_4_parent_id', 'hex'), decode(:'iso_artifact_4_name', 'hex'), :'iso_artifact_4_records'::numeric, :'iso_artifact_4_fields'::numeric, :'iso_artifact_4_reference_mask'::numeric, :'iso_artifact_4_mode'::integer, :'iso_artifact_4_delimiter'::integer, :'iso_artifact_4_terminator'::integer, :'iso_artifact_4_columns'::integer, :'iso_artifact_4_outcome'::integer, :'iso_artifact_4_flags'::integer);
+    (0, decode(:'iso_artifact_0_id', 'hex'), decode(:'iso_artifact_0_parent_id', 'hex'), decode(:'iso_artifact_0_name', 'hex'), :'iso_artifact_0_records'::numeric, :'iso_artifact_0_fields'::numeric, :'iso_artifact_0_reference_mask'::numeric, :'iso_artifact_0_mode'::integer, :'iso_artifact_0_delimiter'::integer, :'iso_artifact_0_terminator'::integer, :'iso_artifact_0_columns'::integer, :'iso_artifact_0_outcome'::integer, :'iso_artifact_0_flags'::integer, ARRAY[]::bytea[], :'iso_artifact_0_header_records'::integer),
+    (1, decode(:'iso_artifact_1_id', 'hex'), decode(:'iso_artifact_1_parent_id', 'hex'), decode(:'iso_artifact_1_name', 'hex'), :'iso_artifact_1_records'::numeric, :'iso_artifact_1_fields'::numeric, :'iso_artifact_1_reference_mask'::numeric, :'iso_artifact_1_mode'::integer, :'iso_artifact_1_delimiter'::integer, :'iso_artifact_1_terminator'::integer, :'iso_artifact_1_columns'::integer, :'iso_artifact_1_outcome'::integer, :'iso_artifact_1_flags'::integer, ARRAY[decode(:'iso_artifact_1_column_0', 'hex'), decode(:'iso_artifact_1_column_1', 'hex'), decode(:'iso_artifact_1_column_2', 'hex')], :'iso_artifact_1_header_records'::integer),
+    (2, decode(:'iso_artifact_2_id', 'hex'), decode(:'iso_artifact_2_parent_id', 'hex'), decode(:'iso_artifact_2_name', 'hex'), :'iso_artifact_2_records'::numeric, :'iso_artifact_2_fields'::numeric, :'iso_artifact_2_reference_mask'::numeric, :'iso_artifact_2_mode'::integer, :'iso_artifact_2_delimiter'::integer, :'iso_artifact_2_terminator'::integer, :'iso_artifact_2_columns'::integer, :'iso_artifact_2_outcome'::integer, :'iso_artifact_2_flags'::integer, ARRAY[decode(:'iso_artifact_2_column_0', 'hex'), decode(:'iso_artifact_2_column_1', 'hex'), decode(:'iso_artifact_2_column_2', 'hex'), decode(:'iso_artifact_2_column_3', 'hex'), decode(:'iso_artifact_2_column_4', 'hex'), decode(:'iso_artifact_2_column_5', 'hex'), decode(:'iso_artifact_2_column_6', 'hex'), decode(:'iso_artifact_2_column_7', 'hex')], :'iso_artifact_2_header_records'::integer),
+    (3, decode(:'iso_artifact_3_id', 'hex'), decode(:'iso_artifact_3_parent_id', 'hex'), decode(:'iso_artifact_3_name', 'hex'), :'iso_artifact_3_records'::numeric, :'iso_artifact_3_fields'::numeric, :'iso_artifact_3_reference_mask'::numeric, :'iso_artifact_3_mode'::integer, :'iso_artifact_3_delimiter'::integer, :'iso_artifact_3_terminator'::integer, :'iso_artifact_3_columns'::integer, :'iso_artifact_3_outcome'::integer, :'iso_artifact_3_flags'::integer, ARRAY[decode(:'iso_artifact_3_column_0', 'hex'), decode(:'iso_artifact_3_column_1', 'hex'), decode(:'iso_artifact_3_column_2', 'hex')], :'iso_artifact_3_header_records'::integer),
+    (4, decode(:'iso_artifact_4_id', 'hex'), decode(:'iso_artifact_4_parent_id', 'hex'), decode(:'iso_artifact_4_name', 'hex'), :'iso_artifact_4_records'::numeric, :'iso_artifact_4_fields'::numeric, :'iso_artifact_4_reference_mask'::numeric, :'iso_artifact_4_mode'::integer, :'iso_artifact_4_delimiter'::integer, :'iso_artifact_4_terminator'::integer, :'iso_artifact_4_columns'::integer, :'iso_artifact_4_outcome'::integer, :'iso_artifact_4_flags'::integer, ARRAY[decode(:'iso_artifact_4_column_0', 'hex'), decode(:'iso_artifact_4_column_1', 'hex'), decode(:'iso_artifact_4_column_2', 'hex'), decode(:'iso_artifact_4_column_3', 'hex'), decode(:'iso_artifact_4_column_4', 'hex'), decode(:'iso_artifact_4_column_5', 'hex')], :'iso_artifact_4_header_records'::integer);
 
 CREATE FUNCTION pg_temp.iso_source_context()
 RETURNS laplace.execution_context
@@ -239,7 +243,9 @@ AS $artifacts$
             authority.line_terminator,
             authority.expected_column_count,
             authority.outcome_type,
-            authority.flags
+            authority.flags,
+            authority.column_names,
+            authority.header_record_count
         )::laplace.tabular_source_artifact
         ORDER BY authority.ordinal)
     FROM iso_artifact_authority AS authority
@@ -262,6 +268,7 @@ AS $admit$
         (SELECT occurrence_context_fingerprint FROM iso_profile_authority),
         artifacts,
         pg_temp.iso_reference_rules(),
+        ARRAY[]::laplace.tabular_mapping_rule[],
         (SELECT preferred_batch_bytes FROM iso_profile_authority))
 $admit$;
 
@@ -274,31 +281,53 @@ AS $exact$
     WITH expected AS (
         SELECT array_agg(binding.entity_id::bytea ORDER BY value.ordinality) AS ids
         FROM unnest(positions) WITH ORDINALITY AS value(codepoint, ordinality)
-        JOIN laplace.unicode_atom_binding AS binding
-          ON binding.codepoint_position = value.codepoint
+        CROSS JOIN LATERAL (
+            SELECT root_receipt
+            FROM laplace.unicode_root_generation
+            ORDER BY recorded_at DESC
+            LIMIT 1) AS root
+        JOIN laplace.attestation AS binding
+          ON binding.source_fingerprint = root.root_receipt
+         AND binding.attestation_kind = 3
+         AND binding.source_ordinal = value.codepoint + 1
+    ), candidate_physicalities AS (
+        SELECT DISTINCT attestation.physicality_id
+        FROM laplace.attestation AS attestation
+        JOIN laplace.physicality AS physicality
+          ON physicality.physicality_id = attestation.physicality_id
+        WHERE attestation.source_fingerprint = source
+          AND attestation.attestation_kind = 1
+          AND physicality.logical_count = cardinality(positions)
     ), candidates AS (
-        SELECT vertex.physicality_id,
-               array_agg(vertex.constituent_entity_id::bytea
-                         ORDER BY vertex.logical_ordinal) AS ids,
-               sum(vertex.run_length) AS logical_count
-        FROM laplace.composition_trajectory_vertex AS vertex
-        JOIN laplace.observed_occurrence AS occurrence
-          ON occurrence.physicality_id = vertex.physicality_id
-         AND occurrence.source_fingerprint = source
-        GROUP BY vertex.physicality_id
+        SELECT candidate.physicality_id,
+               array_agg((occurrence).entity_id::bytea
+                         ORDER BY (occurrence).logical_ordinal) AS ids
+        FROM candidate_physicalities AS candidate
+        JOIN laplace.physicality AS physicality
+          ON physicality.physicality_id = candidate.physicality_id
+        CROSS JOIN LATERAL unnest((
+            laplace.trajectory_composition_decode_calculate_batch(
+                pg_temp.iso_source_context(),
+                ARRAY(
+                    SELECT substring(
+                        physicality.trajectory FROM segment_offset + 1 FOR 32)
+                    FROM generate_series(
+                        0, octet_length(physicality.trajectory) - 32, 32)
+                        AS segment(segment_offset)
+                    ORDER BY segment_offset))).occurrences) AS occurrence
+        GROUP BY candidate.physicality_id
     )
     SELECT EXISTS (
         SELECT 1
         FROM candidates, expected
-        WHERE candidates.logical_count = cardinality(positions)
-          AND candidates.ids = expected.ids)
+        WHERE candidates.ids = expected.ids)
 $exact$;
 
 CREATE TEMP TABLE iso_before AS
 SELECT
-    (SELECT count(*) FROM laplace.canonical_entity) AS entity_count,
+    (SELECT count(*) FROM laplace.entity) AS entity_count,
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
-    (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count,
+    (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1) AS occurrence_count,
     (SELECT count(*) FROM laplace.source_profile) AS profile_count,
     (SELECT count(*) FROM laplace.reference_coordinate) AS reference_coordinate_count,
     (SELECT count(*) FROM laplace.reference_occurrence) AS reference_occurrence_count,
@@ -308,7 +337,10 @@ SELECT
     (SELECT count(*) FROM laplace.world_admission) AS world_count;
 
 CREATE TEMP TABLE iso_first AS
-SELECT (pg_temp.admit_iso_source()).*;
+WITH admission AS MATERIALIZED (
+    SELECT pg_temp.admit_iso_source() AS result
+)
+SELECT (result).* FROM admission;
 
 DO $contract$
 DECLARE
@@ -330,7 +362,8 @@ BEGIN
        OR admitted.evidence_node_count <> expected.claim_count
        OR admitted.testimony_count <> expected.claim_count
        OR admitted.reference_occurrence_count <> expected.reference_count
-       OR admitted.reference_coordinate_count <> 9339
+       OR admitted.reference_coordinate_count <>
+          expected.reference_coordinate_count
        OR admitted.reference_present_count <> 18404
        OR admitted.reference_retired_count <> 401
        OR admitted.reference_unresolved_count <> 0
@@ -342,7 +375,7 @@ BEGIN
        OR profile.field_count <> expected.field_count
        OR profile.reference_count <> expected.reference_count
        OR profile.claim_count <> expected.claim_count
-       OR profile.mapping_count <> expected.claim_count
+       OR profile.mapping_count <> 0
        OR profile.reconstruction_class <> 2
        OR profile.transformation_count <> admitted.request_count
        OR profile.transformed_count <> admitted.request_count
@@ -367,7 +400,7 @@ BEGIN
             WHERE receipt_id = admitted.reference_topology_receipt_id
               AND isa_receipt_id = admitted.reference_topology_isa_receipt_id
               AND occurrence_count = expected.reference_count
-              AND coordinate_count = 9339
+              AND coordinate_count = expected.reference_coordinate_count
               AND present_count = 18404
               AND retired_count = 401
               AND unresolved_count = 0)
@@ -398,10 +431,11 @@ BEGIN
     END IF;
     IF EXISTS (
         SELECT 1
-        FROM laplace.observed_occurrence AS occurrence
+        FROM laplace.attestation AS occurrence
         JOIN laplace.physicality AS physicality
           ON physicality.physicality_id = occurrence.physicality_id
         WHERE occurrence.source_fingerprint = admitted.source_fingerprint
+          AND occurrence.attestation_kind = 1
           AND physicality.logical_count = 153962) THEN
         RAISE EXCEPTION 'ZIP wrapper was falsely promoted to exact selected content';
     END IF;
@@ -410,9 +444,9 @@ $contract$;
 
 CREATE TEMP TABLE iso_after_first AS
 SELECT
-    (SELECT count(*) FROM laplace.canonical_entity) AS entity_count,
+    (SELECT count(*) FROM laplace.entity) AS entity_count,
     (SELECT count(*) FROM laplace.physicality) AS physicality_count,
-    (SELECT count(*) FROM laplace.observed_occurrence) AS occurrence_count,
+    (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1) AS occurrence_count,
     (SELECT count(*) FROM laplace.source_profile) AS profile_count,
     (SELECT count(*) FROM laplace.reference_coordinate) AS reference_coordinate_count,
     (SELECT count(*) FROM laplace.reference_occurrence) AS reference_occurrence_count,
@@ -421,7 +455,10 @@ SELECT
     (SELECT count(*) FROM laplace.evidence_testimony) AS testimony_count;
 
 CREATE TEMP TABLE iso_replay AS
-SELECT (pg_temp.admit_iso_source()).*;
+WITH admission AS MATERIALIZED (
+    SELECT pg_temp.admit_iso_source() AS result
+)
+SELECT (result).* FROM admission;
 
 DO $contract$
 DECLARE
@@ -434,9 +471,9 @@ BEGIN
     SELECT * INTO STRICT replay FROM iso_replay;
     SELECT * INTO STRICT expected FROM iso_after_first;
     SELECT
-        (SELECT count(*) FROM laplace.canonical_entity),
+        (SELECT count(*) FROM laplace.entity),
         (SELECT count(*) FROM laplace.physicality),
-        (SELECT count(*) FROM laplace.observed_occurrence),
+        (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1),
         (SELECT count(*) FROM laplace.source_profile),
         (SELECT count(*) FROM laplace.reference_coordinate),
         (SELECT count(*) FROM laplace.reference_occurrence),
@@ -479,9 +516,9 @@ BEGIN
     EXCEPTION WHEN data_exception THEN NULL;
     END;
     SELECT
-        (SELECT count(*) FROM laplace.canonical_entity),
+        (SELECT count(*) FROM laplace.entity),
         (SELECT count(*) FROM laplace.physicality),
-        (SELECT count(*) FROM laplace.observed_occurrence),
+        (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1),
         (SELECT count(*) FROM laplace.source_profile),
         (SELECT count(*) FROM laplace.reference_coordinate),
         (SELECT count(*) FROM laplace.reference_occurrence),

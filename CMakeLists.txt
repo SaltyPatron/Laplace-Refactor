@@ -32,6 +32,8 @@ set(LAPLACE_UNICODE_SOURCE_ROOT
 set(LAPLACE_ISO_639_SOURCE_ROOT
     "/vault/Data/ISO639"
     CACHE PATH "Locked ISO 639 Set 3 source-profile artifact root")
+set(LAPLACE_CILI_SOURCE_ROOT "" CACHE PATH
+    "Locked CILI PWN mapping source-profile artifact root")
 option(LAPLACE_ENABLE_DOTNET_BINDINGS
     "Generate and build the .NET 10 typed ISA orchestration surface" OFF)
 set(LAPLACE_DEPENDENCY_LOCK
@@ -112,6 +114,26 @@ include(cmake/LaplaceReferenceTopologyContract.cmake)
 laplace_configure_reference_topology_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-topology.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/reference_topology.h")
+include(cmake/LaplaceReferenceMappingContract.cmake)
+laplace_configure_reference_mapping_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-mapping.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/reference_mapping.h")
+include(cmake/LaplaceQuerySearchContract.cmake)
+laplace_configure_query_search_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/query-search.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/query_search.h")
+include(cmake/LaplaceCognitionGuidanceContract.cmake)
+laplace_configure_cognition_guidance_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/cognition-guidance.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_guidance.h")
+include(cmake/LaplaceCognitionOperatorContract.cmake)
+laplace_configure_cognition_operator_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/cognition-operator.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_operator.h")
+include(cmake/LaplaceCognitionSolverContract.cmake)
+laplace_configure_cognition_solver_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/cognition-solver.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_solver.h")
 include(cmake/LaplaceSourceProfileContract.cmake)
 laplace_configure_source_profile_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/source-profile-execution.json"
@@ -129,6 +151,10 @@ laplace_compile_tabular_source_profile(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/sources/iso-639-3-20260415.json"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-tabular-source-profile.py"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/source/iso_639_3_20260415_profile.h")
+laplace_compile_tabular_source_profile(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/sources/cili-pwn-mappings-20240611.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-tabular-source-profile.py"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/source/cili_pwn_mappings_20240611_profile.h")
 
 include(cmake/LaplaceCompositionContract.cmake)
 laplace_configure_composition_contract(
@@ -149,6 +175,25 @@ laplace_configure_unicode_source(
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/unicode-source-manifest.h")
 
 add_subdirectory(engine)
+target_sources(laplace_engine PRIVATE
+    engine/src/query_search.cpp
+    engine/src/cognition_guidance.cpp
+    engine/src/cognition_operator.cpp
+    engine/src/cognition_solver.cpp
+    engine/src/cognition_runtime.cpp
+    engine/src/cognition_packet.cpp
+    engine/src/cognition_packet_words.cpp
+    engine/src/cognition_packet_compile.cpp)
+add_library(Laplace::QuerySearch ALIAS laplace_engine)
+add_library(Laplace::CognitionGuidance ALIAS laplace_engine)
+add_library(Laplace::CognitionOperator ALIAS laplace_engine)
+add_library(Laplace::CognitionSolver ALIAS laplace_engine)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/query_search.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_guidance.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_operator.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_solver.h"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")
 
 if(LAPLACE_ENABLE_DOTNET_BINDINGS)
     include(cmake/LaplaceDotnetBindings.cmake)
@@ -163,6 +208,13 @@ if(LAPLACE_PG_CONFIG)
     include(cmake/LaplacePostgreSQL.cmake)
     laplace_discover_postgresql("${LAPLACE_PG_CONFIG}")
     add_subdirectory(postgres/extension)
+    target_sources(laplace_pg PRIVATE
+        postgres/extension/src/cognition_pg.c)
+    file(READ
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/extension/cognition.sql"
+        LAPLACE_COGNITION_POSTGRES_SQL)
+    file(APPEND "${LAPLACE_POSTGRES_EXTENSION_SQL}"
+        "\n${LAPLACE_COGNITION_POSTGRES_SQL}\n")
 endif()
 
 add_subdirectory(tools)
@@ -206,6 +258,10 @@ if(BUILD_TESTING)
             "IntelLLVM reports a libstdc++ stable_sort implementation detail used while compiling GoogleTest 1.18.0")
     endif()
     add_subdirectory(tests)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/query_search.cmake")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_guidance.cmake")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_operator.cmake")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_solver.cmake")
 endif()
 
 configure_package_config_file(

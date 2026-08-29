@@ -1,0 +1,31 @@
+{
+  "schema": "laplace.cognition-solver/v1",
+  "version": 1,
+  "digest_algorithm": "BLAKE3-256",
+  "domains": {
+    "program": "laplace-cognition-solver-program-v1",
+    "input": "laplace-cognition-solver-input-v1",
+    "iteration": "laplace-cognition-solver-iteration-v1",
+    "output": "laplace-cognition-solver-output-v1",
+    "receipt": "laplace-cognition-solver-receipt-v1"
+  },
+  "methods": {"conjugate_gradient": 1},
+  "dispositions": {
+    "converged": 1,
+    "initially_satisfied": 2,
+    "iteration_limit": 3,
+    "singular_direction": 4,
+    "numeric_failure": 5
+  },
+  "flags": {
+    "require_psd_operator": 1,
+    "record_iteration_receipts": 2
+  },
+  "laws": {
+    "separation": "solver residual and numerical convergence are execution evidence and never rewrite testimony uncertainty standing or operator precision",
+    "operator": "the solver consumes the exact typed operator identity and its embedded right hand side while linear products use only the operator Hessian",
+    "regularization": "nonnegative numerical regularization is explicit solver state and never becomes evidence precision",
+    "termination": "absolute and relative residual tolerances iteration bounds singular directions and numerical failures produce typed deterministic dispositions",
+    "replay": "program operator initial state per-iteration scalar trace output and final disposition are BLAKE3 receipted"
+  }
+}

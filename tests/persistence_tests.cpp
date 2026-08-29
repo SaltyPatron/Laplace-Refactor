@@ -32,7 +32,7 @@ struct Fixture final {
     laplace_digest256 b_witness{};
     std::array<laplace_trajectory_carrier, 3> carriers{};
     laplace_persistence_physicality_record physicality{};
-    laplace_persistence_occurrence_record occurrence{};
+    laplace_persistence_attestation_record occurrence{};
     std::vector<std::uint8_t> bytes;
     std::uint64_t records{};
 };
@@ -102,9 +102,11 @@ Fixture BuildFixture() {
     Fill(&fixture.occurrence.source_fingerprint, 0x70u);
     Fill(&fixture.occurrence.context_fingerprint, 0xa0u);
     fixture.occurrence.source_ordinal = 1u;
-    fixture.occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
-    EXPECT_EQ(laplace_persistence_occurrence_identify(
-                  &fixture.occurrence, &fixture.occurrence.occurrence_id),
+    fixture.occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+    fixture.occurrence.attestation_kind =
+        LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+    EXPECT_EQ(laplace_persistence_attestation_identify(
+                  &fixture.occurrence, &fixture.occurrence.attestation_id),
               LAPLACE_PERSISTENCE_OK);
 
     std::array<std::pair<laplace_id128, laplace_digest256>, 2> entities{{
@@ -122,14 +124,14 @@ Fixture BuildFixture() {
         laplace_persistence_frame_encode_physicality, &fixture.physicality);
     for (std::size_t index = 0; index < fixture.carriers.size(); ++index) {
         AppendFrame(
-            &fixture, LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX,
-            laplace_persistence_frame_encode_trajectory,
+            &fixture, LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT,
+            laplace_persistence_frame_encode_trajectory_segment,
             &fixture.physicality.physicality_id, static_cast<std::uint64_t>(index),
             &fixture.carriers[index]);
     }
     AppendFrame(
-        &fixture, LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE,
-        laplace_persistence_frame_encode_occurrence, &fixture.occurrence);
+        &fixture, LAPLACE_PERSISTENCE_RECORD_ATTESTATION,
+        laplace_persistence_frame_encode_attestation, &fixture.occurrence);
     return fixture;
 }
 
@@ -162,9 +164,9 @@ TEST(PersistenceContract, WholeTypedStreamValidatesAcrossBatchBoundaries) {
               LAPLACE_PERSISTENCE_OK);
     EXPECT_EQ(summary.entity_count, 2u);
     EXPECT_EQ(summary.physicality_count, 1u);
-    EXPECT_EQ(summary.trajectory_vertex_count, 3u);
+    EXPECT_EQ(summary.trajectory_segment_count, 3u);
     EXPECT_EQ(summary.logical_occurrence_count, 5u);
-    EXPECT_EQ(summary.occurrence_count, 1u);
+    EXPECT_EQ(summary.attestation_count, 1u);
     EXPECT_EQ(summary.frame_count, fixture.records);
     EXPECT_EQ(summary.byte_count, fixture.bytes.size());
 }
@@ -172,7 +174,7 @@ TEST(PersistenceContract, WholeTypedStreamValidatesAcrossBatchBoundaries) {
 TEST(PersistenceContract, LegalRecordFamiliesDepositIndependently) {
     const auto fixture = BuildFixture();
     const auto occurrence_bytes = laplace_persistence_frame_bytes(
-        LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE);
+        LAPLACE_PERSISTENCE_RECORD_ATTESTATION);
     const auto* occurrence = fixture.bytes.data() +
         (fixture.bytes.size() - occurrence_bytes);
     const auto batch = Batch(occurrence, occurrence_bytes, 1U, 0U);
@@ -181,8 +183,8 @@ TEST(PersistenceContract, LegalRecordFamiliesDepositIndependently) {
               LAPLACE_PERSISTENCE_OK);
     EXPECT_EQ(summary.entity_count, 0U);
     EXPECT_EQ(summary.physicality_count, 0U);
-    EXPECT_EQ(summary.trajectory_vertex_count, 0U);
-    EXPECT_EQ(summary.occurrence_count, 1U);
+    EXPECT_EQ(summary.trajectory_segment_count, 0U);
+    EXPECT_EQ(summary.attestation_count, 1U);
     EXPECT_EQ(summary.frame_count, 1U);
 }
 
@@ -197,14 +199,14 @@ TEST(PersistenceContract, CarrierIsExactTypedPayloadAndNotGeometry) {
                   fixture.bytes.data() + offset, fixture.bytes.size() - offset,
                   &record, &consumed),
               LAPLACE_PERSISTENCE_OK);
-    EXPECT_EQ(record.kind, LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX);
+    EXPECT_EQ(record.kind, LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT);
     EXPECT_EQ(std::memcmp(
-                  &record.value.trajectory.carrier, &fixture.carriers[0],
+                  &record.value.trajectory_segment.carrier, &fixture.carriers[0],
                   sizeof(fixture.carriers[0])),
               0);
     EXPECT_EQ(consumed,
               laplace_persistence_frame_bytes(
-                  LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX));
+                  LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT));
 }
 
 TEST(PersistenceContract, ProvenanceReceiptIsNotARealizationIdentityInput) {
@@ -317,9 +319,11 @@ TEST(PersistenceContract, AtomicPointStreamRequiresNoTrajectoryRows) {
     Fill(&fixture.occurrence.source_fingerprint, 0x70u);
     Fill(&fixture.occurrence.context_fingerprint, 0xa0u);
     fixture.occurrence.source_ordinal = 1u;
-    fixture.occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
-    ASSERT_EQ(laplace_persistence_occurrence_identify(
-                  &fixture.occurrence, &fixture.occurrence.occurrence_id),
+    fixture.occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+    fixture.occurrence.attestation_kind =
+        LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+    ASSERT_EQ(laplace_persistence_attestation_identify(
+                  &fixture.occurrence, &fixture.occurrence.attestation_id),
               LAPLACE_PERSISTENCE_OK);
     AppendFrame(
         &fixture, LAPLACE_PERSISTENCE_RECORD_ENTITY,
@@ -329,8 +333,8 @@ TEST(PersistenceContract, AtomicPointStreamRequiresNoTrajectoryRows) {
         &fixture, LAPLACE_PERSISTENCE_RECORD_PHYSICALITY,
         laplace_persistence_frame_encode_physicality, &fixture.physicality);
     AppendFrame(
-        &fixture, LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE,
-        laplace_persistence_frame_encode_occurrence, &fixture.occurrence);
+        &fixture, LAPLACE_PERSISTENCE_RECORD_ATTESTATION,
+        laplace_persistence_frame_encode_attestation, &fixture.occurrence);
     const auto batch = Batch(
         fixture.bytes.data(), fixture.bytes.size(), fixture.records, 0u);
     laplace_persistence_summary summary{};
@@ -338,15 +342,15 @@ TEST(PersistenceContract, AtomicPointStreamRequiresNoTrajectoryRows) {
               LAPLACE_PERSISTENCE_OK);
     EXPECT_EQ(summary.entity_count, 1u);
     EXPECT_EQ(summary.physicality_count, 1u);
-    EXPECT_EQ(summary.trajectory_vertex_count, 0u);
+    EXPECT_EQ(summary.trajectory_segment_count, 0u);
     EXPECT_EQ(summary.logical_occurrence_count, 0u);
-    EXPECT_EQ(summary.occurrence_count, 1u);
+    EXPECT_EQ(summary.attestation_count, 1u);
 }
 
 TEST(PersistenceContract, LaterTrajectoryDefectCannotPublishPartialSummary) {
     auto fixture = BuildFixture();
     const auto trajectory_frame =
-        laplace_persistence_frame_bytes(LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX);
+        laplace_persistence_frame_bytes(LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT);
     const auto physicality_frame =
         laplace_persistence_frame_bytes(LAPLACE_PERSISTENCE_RECORD_PHYSICALITY);
     const auto entity_frame =
@@ -374,11 +378,11 @@ TEST(PersistenceContract, InvalidSemanticTagAndIncompleteTrajectoryAreTypedFailu
 
     fixture = BuildFixture();
     const auto final_frame = laplace_persistence_frame_bytes(
-        LAPLACE_PERSISTENCE_RECORD_OBSERVED_OCCURRENCE);
+        LAPLACE_PERSISTENCE_RECORD_ATTESTATION);
     const auto batch = Batch(
         fixture.bytes.data(), fixture.bytes.size() - final_frame -
             laplace_persistence_frame_bytes(
-                LAPLACE_PERSISTENCE_RECORD_TRAJECTORY_VERTEX),
+                LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT),
         fixture.records - 2u, 0u);
     laplace_persistence_summary summary{};
     EXPECT_EQ(laplace_persistence_validate_stream(&batch, 1u, &summary),
@@ -392,10 +396,10 @@ TEST(PersistenceContract, PlanReceiptBindsTheExactVersionedPlanSequence) {
         LAPLACE_PERSISTENCE_PG_PLAN_ENTITY_VERIFY,
         LAPLACE_PERSISTENCE_PG_PLAN_PHYSICALITY_INSERT,
         LAPLACE_PERSISTENCE_PG_PLAN_PHYSICALITY_VERIFY,
-        LAPLACE_PERSISTENCE_PG_PLAN_TRAJECTORY_INSERT,
-        LAPLACE_PERSISTENCE_PG_PLAN_TRAJECTORY_VERIFY,
-        LAPLACE_PERSISTENCE_PG_PLAN_OCCURRENCE_INSERT,
-        LAPLACE_PERSISTENCE_PG_PLAN_OCCURRENCE_VERIFY,
+        LAPLACE_PERSISTENCE_PG_PLAN_ATTESTATION_INSERT,
+        LAPLACE_PERSISTENCE_PG_PLAN_ATTESTATION_VERIFY,
+        LAPLACE_PERSISTENCE_PG_PLAN_CONSENSUS_INSERT,
+        LAPLACE_PERSISTENCE_PG_PLAN_CONSENSUS_VERIFY,
         LAPLACE_PERSISTENCE_PG_PLAN_RECEIPT_INSERT,
         LAPLACE_PERSISTENCE_PG_PLAN_RECEIPT_VERIFY}};
     laplace_digest256 accepted{};
@@ -477,7 +481,7 @@ TEST(PersistenceContract, ZeroDigestPatternsUseExplicitTypedPresence) {
               LAPLACE_PERSISTENCE_OK);
 
     std::array<std::uint8_t, 80> trajectory_frame{};
-    ASSERT_EQ(laplace_persistence_frame_encode_trajectory(
+    ASSERT_EQ(laplace_persistence_frame_encode_trajectory_segment(
                   &zero_digest, 0u, &carrier,
                   trajectory_frame.data(), trajectory_frame.size(), &written),
               LAPLACE_PERSISTENCE_OK);
@@ -488,28 +492,30 @@ TEST(PersistenceContract, ZeroDigestPatternsUseExplicitTypedPresence) {
                   &decoded, &consumed),
               LAPLACE_PERSISTENCE_OK);
 
-    laplace_persistence_occurrence_record occurrence{};
+    laplace_persistence_attestation_record occurrence{};
     occurrence.entity_id = zero_entity;
     occurrence.physicality_id = zero_digest;
     occurrence.source_ordinal = 1u;
-    occurrence.flags = LAPLACE_PERSISTENCE_OCCURRENCE_HAS_PHYSICALITY;
-    ASSERT_EQ(laplace_persistence_occurrence_identify(
-                  &occurrence, &occurrence.occurrence_id),
+    occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+    occurrence.attestation_kind =
+        LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+    ASSERT_EQ(laplace_persistence_attestation_identify(
+                  &occurrence, &occurrence.attestation_id),
               LAPLACE_PERSISTENCE_OK);
     std::array<std::uint8_t, 168> occurrence_frame{};
-    EXPECT_EQ(laplace_persistence_frame_encode_occurrence(
+    EXPECT_EQ(laplace_persistence_frame_encode_attestation(
                   &occurrence, occurrence_frame.data(),
                   occurrence_frame.size(), &written),
               LAPLACE_PERSISTENCE_OK);
 
     occurrence.flags = 0u;
     occurrence.physicality_id = zero_digest;
-    EXPECT_EQ(laplace_persistence_occurrence_identify(
-                  &occurrence, &occurrence.occurrence_id),
+    EXPECT_EQ(laplace_persistence_attestation_identify(
+                  &occurrence, &occurrence.attestation_id),
               LAPLACE_PERSISTENCE_OK);
     occurrence.physicality_id.bytes[0] = 1u;
-    EXPECT_EQ(laplace_persistence_occurrence_identify(
-                  &occurrence, &occurrence.occurrence_id),
+    EXPECT_EQ(laplace_persistence_attestation_identify(
+                  &occurrence, &occurrence.attestation_id),
               LAPLACE_PERSISTENCE_RECORD_INVALID);
 }
 

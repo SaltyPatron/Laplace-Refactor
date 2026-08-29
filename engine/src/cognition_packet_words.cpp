@@ -1,0 +1,171 @@
+#include "laplace/cognition_packet.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <new>
+#include <vector>
+
+namespace {
+
+constexpr std::size_t RequestContextOffset =
+    8U + 4U + 4U + (4U * 8U) + 32U + 32U;
+
+bool ByteCount(const std::size_t word_count, std::size_t* const byte_count) {
+    if (byte_count == nullptr ||
+        word_count > std::numeric_limits<std::size_t>::max() / sizeof(std::uint32_t)) {
+        return false;
+    }
+    *byte_count = word_count * sizeof(std::uint32_t);
+    return true;
+}
+
+void WordsToCanonicalBytes(
+    const std::uint32_t* const words,
+    const std::size_t word_count,
+    std::uint8_t* const bytes) {
+    for (std::size_t index = 0U; index < word_count; ++index) {
+        const std::uint32_t word = words[index];
+        const std::size_t offset = index * 4U;
+        bytes[offset] = static_cast<std::uint8_t>(word);
+        bytes[offset + 1U] = static_cast<std::uint8_t>(word >> 8U);
+        bytes[offset + 2U] = static_cast<std::uint8_t>(word >> 16U);
+        bytes[offset + 3U] = static_cast<std::uint8_t>(word >> 24U);
+    }
+}
+
+void CanonicalBytesToWords(
+    const std::uint8_t* const bytes,
+    const std::size_t word_count,
+    std::uint32_t* const words) {
+    for (std::size_t index = 0U; index < word_count; ++index) {
+        const std::size_t offset = index * 4U;
+        words[index] = static_cast<std::uint32_t>(bytes[offset]) |
+            (static_cast<std::uint32_t>(bytes[offset + 1U]) << 8U) |
+            (static_cast<std::uint32_t>(bytes[offset + 2U]) << 16U) |
+            (static_cast<std::uint32_t>(bytes[offset + 3U]) << 24U);
+    }
+}
+
+laplace_cognition_packet_status CanonicalRequest(
+    const std::uint32_t* const request_words,
+    const std::size_t request_word_count,
+    std::vector<std::uint8_t>* const canonical_request,
+    std::size_t* const required_result_bytes) {
+    if (request_words == nullptr || request_word_count == 0U ||
+        canonical_request == nullptr || required_result_bytes == nullptr) {
+        return LAPLACE_COGNITION_PACKET_INVALID_ARGUMENT;
+    }
+    std::size_t request_bytes = 0U;
+    if (!ByteCount(request_word_count, &request_bytes)) {
+        return LAPLACE_COGNITION_PACKET_RANGE;
+    }
+    try {
+        canonical_request->resize(request_bytes);
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_COGNITION_PACKET_MEMORY_FAILURE;
+    }
+    WordsToCanonicalBytes(
+        request_words, request_word_count, canonical_request->data());
+    *required_result_bytes = 0U;
+    return laplace_cognition_packet_required_result_bytes(
+        canonical_request->data(), canonical_request->size(), required_result_bytes);
+}
+
+}  // namespace
+
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_required_result_words(
+    const std::uint32_t* const request_words,
+    const std::size_t request_word_count,
+    std::size_t* const required_result_words) {
+    if (required_result_words == nullptr) {
+        return LAPLACE_COGNITION_PACKET_INVALID_ARGUMENT;
+    }
+    *required_result_words = 0U;
+    try {
+        std::vector<std::uint8_t> canonical_request;
+        std::size_t result_bytes = 0U;
+        const auto status = CanonicalRequest(
+            request_words, request_word_count,
+            &canonical_request, &result_bytes);
+        if (status != LAPLACE_COGNITION_PACKET_OK) return status;
+        if ((result_bytes & 3U) != 0U) return LAPLACE_COGNITION_PACKET_RANGE;
+        *required_result_words = result_bytes / 4U;
+        return LAPLACE_COGNITION_PACKET_OK;
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_COGNITION_PACKET_MEMORY_FAILURE;
+    }
+}
+
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_request_context_fingerprint_words(
+    const std::uint32_t* const request_words,
+    const std::size_t request_word_count,
+    laplace_digest256* const context_fingerprint) {
+    if (context_fingerprint == nullptr) {
+        return LAPLACE_COGNITION_PACKET_INVALID_ARGUMENT;
+    }
+    *context_fingerprint = laplace_digest256{};
+    try {
+        std::vector<std::uint8_t> canonical_request;
+        std::size_t result_bytes = 0U;
+        const auto status = CanonicalRequest(
+            request_words, request_word_count,
+            &canonical_request, &result_bytes);
+        if (status != LAPLACE_COGNITION_PACKET_OK) return status;
+        (void)result_bytes;
+        if (canonical_request.size() <
+            RequestContextOffset + sizeof(context_fingerprint->bytes)) {
+            return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+        }
+        std::memcpy(
+            context_fingerprint->bytes,
+            canonical_request.data() + RequestContextOffset,
+            sizeof(context_fingerprint->bytes));
+        return LAPLACE_COGNITION_PACKET_OK;
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_COGNITION_PACKET_MEMORY_FAILURE;
+    }
+}
+
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_execute_words(
+    const std::uint32_t* const request_words,
+    const std::size_t request_word_count,
+    std::uint32_t* const result_words,
+    const std::size_t result_word_capacity,
+    std::size_t* const result_word_count) {
+    if (request_words == nullptr || request_word_count == 0U ||
+        result_words == nullptr || result_word_count == nullptr) {
+        return LAPLACE_COGNITION_PACKET_INVALID_ARGUMENT;
+    }
+    *result_word_count = 0U;
+    std::size_t request_bytes = 0U;
+    std::size_t result_capacity_bytes = 0U;
+    if (!ByteCount(request_word_count, &request_bytes) ||
+        !ByteCount(result_word_capacity, &result_capacity_bytes)) {
+        return LAPLACE_COGNITION_PACKET_RANGE;
+    }
+    try {
+        std::vector<std::uint8_t> canonical_request(request_bytes);
+        std::vector<std::uint8_t> canonical_result(result_capacity_bytes);
+        WordsToCanonicalBytes(
+            request_words, request_word_count, canonical_request.data());
+        std::size_t result_bytes = 0U;
+        const auto status = laplace_cognition_packet_execute(
+            canonical_request.data(), canonical_request.size(),
+            canonical_result.data(), canonical_result.size(), &result_bytes);
+        if (status != LAPLACE_COGNITION_PACKET_OK) return status;
+        if ((result_bytes & 3U) != 0U || result_bytes > canonical_result.size()) {
+            return LAPLACE_COGNITION_PACKET_RANGE;
+        }
+        const std::size_t words = result_bytes / 4U;
+        CanonicalBytesToWords(canonical_result.data(), words, result_words);
+        *result_word_count = words;
+        return LAPLACE_COGNITION_PACKET_OK;
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_COGNITION_PACKET_MEMORY_FAILURE;
+    }
+}

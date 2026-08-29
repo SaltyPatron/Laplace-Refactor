@@ -20,6 +20,9 @@ PROFILE_PATH = ROOT / "contracts" / "source-profile-model.json"
 ADMISSION_PATH = ROOT / "contracts" / "source-admission.json"
 OPERATION_PATH = ROOT / "contracts" / "operation-model.json"
 CONTINUATION_PATH = ROOT / "state" / "continuation.json"
+VAULT_INVENTORY_PATH = ROOT / "state" / "vault-inventory.json"
+VAULT_AUDIT_PATH = ROOT / "docs" / "audits" / "VAULT_SOURCE_MODEL_AUDIT_2026-08-29.md"
+VAULT_VALIDATOR_PATH = ROOT / "tools" / "audit" / "validate-vault-inventory.py"
 VERIFY_PHYSICAL_CONTINUATION = os.environ.get("LAPLACE_VERIFY_CONTINUATION_PHYSICAL") == "1"
 
 
@@ -311,7 +314,45 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(inputs.get("model_root", {}).get("observed_path") == "/vault/models", "model root observation lost")
     contains_all(inputs.get("data_root", {}).get("observed_top_level_entries", []), ("UCD", "TreeSitter", "Wordnet", "FrameNet", "Tatoeba", "Games", "code-authority"), "known data-root inventory was narrowed")
     contains_all(inputs.get("model_root", {}).get("observed_top_level_entries", []), ("code-corpus", "stack-v2", "gguf", "Florence", "audio", "embedding", "reranker"), "known model-root inventory was narrowed")
-    require(inputs.get("old_iteration", {}).get("observed_path") == "/home/ahart/Projects/Laplace", "old iteration identity lost")
+    vault_inventory = inputs.get("vault_inventory", {})
+    require(
+        vault_inventory.get("classification")
+        == "observed-development-state-not-source-authority",
+        "vault path presence became source authority",
+    )
+    require(
+        vault_inventory.get("machine_inventory")
+        == "state/vault-inventory.json"
+        and vault_inventory.get("human_audit")
+        == "docs/audits/VAULT_SOURCE_MODEL_AUDIT_2026-08-29.md"
+        and VAULT_INVENTORY_PATH.is_file()
+        and VAULT_AUDIT_PATH.is_file()
+        and VAULT_VALIDATOR_PATH.is_file(),
+        "vault inventory, audit, or validator is missing",
+    )
+    require(
+        vault_inventory.get("observed_denominators")
+        == {
+            "data_directories": 25,
+            "data_allocated_bytes": 139759517696,
+            "model_root_directories": 38,
+            "model_root_allocated_bytes": 600252350464,
+        },
+        "vault physical denominator drift",
+    )
+    contains_all(
+        vault_inventory,
+        (
+            "CILI and OMW are not the whole source estate",
+            "UAX 29 is not a parser",
+            "full-precision safetensors packages are primary",
+            "subordinate derived children",
+            "do not replace",
+            "configured-heterogeneous-foundational-boundary-not-selected",
+        ),
+        "vault source/model standing was narrowed or promoted",
+    )
+    require(inputs.get("old_iteration", {}).get("observed_path") == "/home/ahart/Projects/Laplace-Legacy", "old iteration identity lost")
     require(inputs.get("old_iteration", {}).get("authority") is False, "old implementation became authority")
     grammar_evidence = inputs.get("known_laplace_custom_grammar_location", {})
     require(grammar_evidence.get("state") == "historical-evidence-recovered-current-clean-room-authority-unresolved", "custom grammar recovery state was flattened")
@@ -1264,17 +1305,17 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     active = document.get("active_work", {})
     require(
-        active.get("capability") == "source-profile.resolve-reference-topology"
-        and active.get("github_issue") == 53
-        and active.get("related_issue") == 52
+        active.get("capability") == "unicode.canonical-persistence-and-source-claim-scope"
+        and active.get("github_issue") == 13
+        and active.get("related_issue") == 53
         and active.get("state")
-        == "implementation-and-controlled-integration-proven-iso-reference-topology-product-world-admission-incomplete"
-        and active.get("branch") == "feat/iso-highway-topology"
-        and active.get("pull_request") is None
+        == "implementation-and-controlled-integration-proven-canonical-unicode-persistence-tier-correct-source-testimony-product-activation-incomplete"
+        and active.get("branch") == "feat/cili-cross-profile-topology"
+        and active.get("pull_request") == 85
         and active.get("base_commit")
-        == "50c41b362e32b9338c6930f69c6fff76560b24ac"
+        == "935cbc6e99315c38f6fa0e704a92ee61d4e663bd"
         and active.get("implementation_commit")
-        == "c8d28441b6da20cdb6b34a3f55c972d687491834",
+        == "6f556047b5a7326b53a9a5f9db334abc7b934987",
         "active source-profile continuation identity drift",
     )
     contains_all(
@@ -1295,6 +1336,16 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "authority-declared HTTPS archive",
             "public clean-room CI",
             "local vault copy",
+            "canonical Entity Physicality",
+            "source-testimony Attestation",
+            "direct and reverse mapped planes",
+            "maximum-batch-bytes",
+            "32768-row semantic limit",
+            "only profile-declared record propositions",
+            "200 exact human records",
+            "128590-byte cognition",
+            "query retrieve evidence-fold project",
+            "modality-wide typed perfcache modules",
         ),
         "active source-profile implementation boundary was narrowed",
     )
@@ -1324,6 +1375,12 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "semantic-drift composition presence",
             "official SIL HTTPS archive",
             "separate-build native tests passed without /vault/Data",
+            "114.79",
+            "120.69",
+            "333 of 333",
+            "zero skips",
+            "35 of 35",
+            "no capability or activation claim",
         ),
         "active source-profile validation evidence drift",
     )
@@ -1336,6 +1393,10 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
             "standing adjudication contradiction referential and as-of evidence epochs",
             "no activated-product world-admission receipt",
             "foundational heterogeneous world seed",
+            "retrieve score evidence-fold and project cognition",
+            "chess image audio video code model",
+            "autobiographical world state",
+            "entity product surfaces federation",
         ),
         "active source-profile incompleteness was hidden",
     )
@@ -1559,6 +1620,26 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         ),
         "source-profile PR was promoted beyond evidence",
     )
+    reference_topology_pr = github.get("reference_topology_pull_request", {})
+    require(
+        reference_topology_pr.get("number") == 84
+        and reference_topology_pr.get("state") == "merged"
+        and reference_topology_pr.get("draft") is False
+        and reference_topology_pr.get("base_commit")
+        == "50c41b362e32b9338c6930f69c6fff76560b24ac"
+        and reference_topology_pr.get("published_head_commit")
+        == "51d8da0193a3c6d9c8b42573dbc5a6a1f64a6e3a"
+        and reference_topology_pr.get("merge_commit")
+        == "935cbc6e99315c38f6fa0e704a92ee61d4e663bd"
+        and reference_topology_pr.get("merged_at_utc")
+        == "2026-08-28T09:25:12Z",
+        "reference-topology PR observation drift",
+    )
+    contains_all(
+        reference_topology_pr.get("proof_state", ""),
+        ("typed source reference topology", "post-merge", "canonical Unicode product activation", "cognition", "seeding", "release remained incomplete"),
+        "reference-topology PR was promoted beyond evidence",
+    )
     retired = {item.get("number"): item for item in github.get("retired_dependency_pull_requests", [])}
     require(set(retired) == {31, 35} and all(item.get("state") == "closed" for item in retired.values()), "superseded dependency PR retirement drift")
     contains_all(list(retired.values()), ("reconciled into draft PR 74", "source branch retained as history"), "dependency reconciliation evidence was lost")
@@ -1573,17 +1654,17 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     )
     runs = {item.get("workflow"): item for item in github.get("latest_main_workflow_runs", [])}
     require(
-        runs.get("clean-room-ci", {}).get("id") == 33148176535
+        runs.get("clean-room-ci", {}).get("id") == 33159287905
         and runs.get("clean-room-ci", {}).get("conclusion") == "success"
         and runs.get("clean-room-ci", {}).get("head_commit")
-        == "50c41b362e32b9338c6930f69c6fff76560b24ac",
+        == "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
         "latest main clean-room observation drift",
     )
     require(
-        runs.get("custom-stack-ci", {}).get("id") == 33148176561
+        runs.get("custom-stack-ci", {}).get("id") == 33159287880
         and runs.get("custom-stack-ci", {}).get("conclusion") == "success"
         and runs.get("custom-stack-ci", {}).get("head_commit")
-        == "50c41b362e32b9338c6930f69c6fff76560b24ac",
+        == "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
         "latest main custom-stack observation drift",
     )
     product_activation_run = runs.get("product-activation", {})
@@ -1915,6 +1996,33 @@ class ProgramAuthorityTests(unittest.TestCase):
         validate_admission(self.admission)
         validate_operation(self.operation)
         validate_continuation(self.continuation, verify_physical=VERIFY_PHYSICAL_CONTINUATION)
+
+    def test_vault_inventory_preserves_the_complete_observed_estate(self) -> None:
+        result = subprocess.run(
+            ["python3", str(VAULT_VALIDATOR_PATH)],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        validation = json.loads(result.stdout)
+        self.assertEqual(validation["structural_status"], "valid")
+        self.assertEqual(validation["data_entries"], 25)
+        self.assertEqual(validation["model_entries"], 38)
+        audit = VAULT_AUDIT_PATH.read_text(encoding="utf-8")
+        contains_all(
+            audit,
+            (
+                "CILI and OMW are not the only sources",
+                "UAX 29 belongs at the Unicode text edge",
+                "full-precision safetensors package",
+                "subordinate child",
+                "25 `/vault/Data` directories",
+                "38 `/vault/models` directories",
+            ),
+            "human vault audit lost its complete-estate or model precedence conclusion",
+        )
 
     def test_codex_generated_context_cannot_impersonate_inventor_evidence(self) -> None:
         records = [

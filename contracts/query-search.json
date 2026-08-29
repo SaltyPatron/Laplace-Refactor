@@ -1,0 +1,54 @@
+{
+  "schema": "laplace.query-search/v1",
+  "version": 1,
+  "digest_algorithm": "BLAKE3-256",
+  "cost_component_count": 8,
+  "domains": {
+    "program": "laplace-query-search-program-v1",
+    "state": "laplace-query-search-state-v1",
+    "transition": "laplace-query-search-transition-v1",
+    "path": "laplace-query-search-path-v1",
+    "input": "laplace-query-search-input-v1",
+    "output": "laplace-query-search-output-v1",
+    "receipt": "laplace-query-search-receipt-v1"
+  },
+  "flags": {
+    "astar": 1,
+    "heuristic_admissible": 2,
+    "heuristic_consistent": 4,
+    "allow_reopen": 8,
+    "boundary_complete": 16,
+    "request_optimal": 32,
+    "require_set_oriented": 64
+  },
+  "state_flags": {"terminal": 1},
+  "dispositions": {
+    "complete": 1,
+    "upper_bound": 2,
+    "unsupported": 3,
+    "denied": 4,
+    "exhausted": 5,
+    "contradicted": 6,
+    "no_admissible_path": 7,
+    "incomplete_boundary": 8,
+    "partial": 9,
+    "unknown": 10
+  },
+  "receipt_flags": {
+    "frontier_exhausted": 1,
+    "optimal_certified": 2,
+    "resource_exhausted": 4,
+    "boundary_complete": 8
+  },
+  "laws": {
+    "typed_state": "search state identity retains anchor bindings obligations context evidence epoch boundary heuristic and depth; endpoint identity alone cannot define state equivalence",
+    "typed_transition": "each transition retains relation family source layer direction law evidence root receipt and independently weighted cost components",
+    "astar": "an A-star claim orders by checked accumulated plus remaining cost and requires a nonzero admissibility proof; inconsistent heuristics require reopen semantics",
+    "dominance": "frontier dominance is program-scoped and preserves every Pareto-feasible accumulated-cost and remaining-depth label rather than collapsing by endpoint",
+    "frontier": "providers expand bounded frontier batches and cannot decide semantic completion by returning a nonempty row or nearest candidate",
+    "evidence": "path evidence counts unique eligible dependence roots; repeated descendants cannot multiply independent support",
+    "answerability": "a found path is reachability and an upper bound unless the selected boundary and requested proof obligations permit completion or optimal certification",
+    "resources": "every execution is bounded by explicit state transition frontier memory IO database provider and depth budgets and returns a typed limiting disposition",
+    "replay": "program inputs provider receipts accepted transitions path selection and final disposition are deterministically receipted"
+  }
+}

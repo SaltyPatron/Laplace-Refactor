@@ -263,6 +263,39 @@ INSERT INTO source_profile_expected VALUES (
     decode(:'source_profile_isa_receipt', 'hex')
 );
 
+CREATE TEMP TABLE reference_mapping_expected (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    mapping_ids bytea[] NOT NULL,
+    proposition_ids bytea[] NOT NULL,
+    occurrence_ids bytea[] NOT NULL,
+    receipt_id bytea NOT NULL,
+    boundary_id bytea NOT NULL,
+    input_fingerprint bytea NOT NULL,
+    output_fingerprint bytea NOT NULL,
+    isa_receipt_id bytea NOT NULL
+);
+
+INSERT INTO reference_mapping_expected VALUES (
+    true,
+    ARRAY[
+        decode(:'reference_mapping_id_0', 'hex'),
+        decode(:'reference_mapping_id_1', 'hex'),
+        decode(:'reference_mapping_id_2', 'hex')],
+    ARRAY[
+        decode(:'reference_mapping_proposition_0', 'hex'),
+        decode(:'reference_mapping_proposition_1', 'hex'),
+        decode(:'reference_mapping_proposition_2', 'hex')],
+    ARRAY[
+        decode(:'reference_mapping_occurrence_0', 'hex'),
+        decode(:'reference_mapping_occurrence_1', 'hex'),
+        decode(:'reference_mapping_occurrence_2', 'hex')],
+    decode(:'reference_mapping_receipt', 'hex'),
+    decode(:'reference_mapping_boundary', 'hex'),
+    decode(:'reference_mapping_input', 'hex'),
+    decode(:'reference_mapping_output', 'hex'),
+    decode(:'reference_mapping_isa_receipt', 'hex')
+);
+
 INSERT INTO persistence_expected VALUES (
     true,
     decode(:'persistence_source', 'hex'),
@@ -306,7 +339,7 @@ BEGIN
                 ('laplace.evidence_record_lineage_batch(laplace.execution_context,laplace.evidence_lineage_record[],numeric)', 'v', 'u'),
                 ('laplace.evidence_record_testimony_batch(laplace.execution_context,laplace.evidence_testimony_record[])', 'v', 'u'),
                 ('laplace.canonical_deposit_batch(laplace.execution_context,bytea,bytea,bytea[])', 'v', 'u'),
-                ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint,integer)', 'v', 'u'),
+                ('laplace.unicode_root_build_and_activate(laplace.execution_context,text,text,text,text,bytea,bytea,bigint,boolean,bytea,bytea,bigint)', 'v', 'u'),
                 ('laplace.unicode_tier0_resolve_batch(bytea,bytea,integer[])', 's', 'u'),
                 ('laplace.unicode_identity_reverse_resolve_batch(bytea,bytea,bytea[],bytea[])', 's', 'u')
         ) AS expected(signature, volatility, parallel_safety)
@@ -790,6 +823,257 @@ BEGIN
 END
 $source_profile$;
 
+CREATE FUNCTION pg_temp.run_reference_mapping_contract()
+RETURNS void
+LANGUAGE plpgsql
+AS $reference_mapping$
+DECLARE
+    expected reference_mapping_expected%ROWTYPE;
+    profiles source_profile_expected%ROWTYPE;
+    keys laplace.highway_key[] := ARRAY[
+        ROW(
+            7,
+            decode('1112131415161718191a1b1c1d1e1f20', 'hex'),
+            decode('2122232425262728292a2b2c2d2e2f30', 'hex'),
+            decode('3132333435363738393a3b3c3d3e3f40', 'hex'),
+            decode('4142434445464748494a4b4c4d4e4f50', 'hex'),
+            1)::laplace.highway_key,
+        ROW(
+            7,
+            decode('12131415161718191a1b1c1d1e1f2021', 'hex'),
+            decode('22232425262728292a2b2c2d2e2f3031', 'hex'),
+            decode('32333435363738393a3b3c3d3e3f4041', 'hex'),
+            decode('42434445464748494a4b4c4d4e4f5051', 'hex'),
+            1)::laplace.highway_key,
+        ROW(
+            7,
+            decode('131415161718191a1b1c1d1e1f202122', 'hex'),
+            decode('232425262728292a2b2c2d2e2f303132', 'hex'),
+            decode('333435363738393a3b3c3d3e3f404142', 'hex'),
+            decode('434445464748494a4b4c4d4e4f505152', 'hex'),
+            1)::laplace.highway_key];
+    coordinates laplace.highway_batch_result;
+    candidates laplace.reference_mapping_candidate[];
+    invalid_candidates laplace.reference_mapping_candidate[];
+    invalid_candidate laplace.reference_mapping_candidate;
+    rollback_candidates laplace.reference_mapping_candidate[];
+    result laplace.reference_mapping_result;
+    replay laplace.reference_mapping_result;
+    receipt_xmin xid;
+    receipt_ctid tid;
+    mapping_before bigint;
+    proposition_before bigint;
+    receipt_before bigint;
+    execution_before bigint;
+BEGIN
+    SELECT * INTO STRICT expected FROM reference_mapping_expected;
+    SELECT * INTO STRICT profiles FROM source_profile_expected;
+    coordinates := laplace.highway_coordinate_calculate_batch(
+        pg_temp.persistence_context(), keys);
+
+    INSERT INTO laplace.entity(entity_id, identity_witness)
+    SELECT DISTINCT entity_id,
+           entity_id || decode(repeat('00', 16), 'hex')
+    FROM unnest(ARRAY[
+        decode(repeat('50',16),'hex'), decode(repeat('51',16),'hex'),
+        decode(repeat('60',16),'hex'), decode(repeat('61',16),'hex'),
+        decode(repeat('62',16),'hex'), decode(repeat('63',16),'hex'),
+        decode(repeat('70',16),'hex'), decode(repeat('90',16),'hex'),
+        decode(repeat('80',16),'hex'), decode(repeat('81',16),'hex'),
+        decode(repeat('82',16),'hex'), decode(repeat('83',16),'hex'),
+        decode(repeat('a0',16),'hex'), decode(repeat('a1',16),'hex'),
+        decode(repeat('a2',16),'hex'), decode(repeat('a3',16),'hex')
+    ]) entity(entity_id)
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO laplace.reference_coordinate(
+        kind, authority, release, namespace, local_identifier,
+        version, coordinate, collision_fingerprint)
+    SELECT
+        (keys[ordinal]).kind,
+        (keys[ordinal]).authority,
+        (keys[ordinal]).release,
+        (keys[ordinal]).namespace,
+        (keys[ordinal]).local_identifier,
+        (keys[ordinal]).version,
+        coordinates.coordinates[ordinal],
+        coordinates.collision_fingerprints[ordinal]
+    FROM generate_subscripts(keys, 1) ordinal;
+
+    INSERT INTO laplace.reference_occurrence(
+        reference_id, occurrence_id, source_profile_id, coordinate,
+        row_entity_id, field_entity_id, value_entity_id,
+        source_ordinal, artifact_ordinal, row_ordinal, column_ordinal,
+        rule_flags, disposition)
+    VALUES
+        (decode(repeat('31',32),'hex'), decode(repeat('21',32),'hex'),
+         profiles.profile_a_id, coordinates.coordinates[1],
+         decode(repeat('60',16),'hex'), decode(repeat('70',16),'hex'),
+         decode(repeat('80',16),'hex'), 1, 1, 1, 1, 1, 1),
+        (decode(repeat('41',32),'hex'), decode(repeat('22',32),'hex'),
+         profiles.profile_a_id, coordinates.coordinates[2],
+         decode(repeat('60',16),'hex'), decode(repeat('90',16),'hex'),
+         decode(repeat('a0',16),'hex'), 1, 1, 1, 2, 1, 1),
+        (decode(repeat('32',32),'hex'), decode(repeat('23',32),'hex'),
+         profiles.profile_b_id, coordinates.coordinates[1],
+         decode(repeat('61',16),'hex'), decode(repeat('70',16),'hex'),
+         decode(repeat('81',16),'hex'), 1, 1, 1, 1, 1, 1),
+        (decode(repeat('42',32),'hex'), decode(repeat('24',32),'hex'),
+         profiles.profile_b_id, coordinates.coordinates[2],
+         decode(repeat('61',16),'hex'), decode(repeat('90',16),'hex'),
+         decode(repeat('a1',16),'hex'), 1, 1, 1, 2, 1, 1),
+        (decode(repeat('33',32),'hex'), decode(repeat('25',32),'hex'),
+         profiles.profile_a_id, coordinates.coordinates[1],
+         decode(repeat('62',16),'hex'), decode(repeat('70',16),'hex'),
+         decode(repeat('82',16),'hex'), 2, 1, 2, 1, 1, 1),
+        (decode(repeat('43',32),'hex'), decode(repeat('26',32),'hex'),
+         profiles.profile_a_id, coordinates.coordinates[3],
+         decode(repeat('62',16),'hex'), decode(repeat('90',16),'hex'),
+         decode(repeat('a2',16),'hex'), 2, 1, 2, 2, 1, 6),
+        (decode(repeat('34',32),'hex'), decode(repeat('27',32),'hex'),
+         profiles.profile_a_id, coordinates.coordinates[1],
+         decode(repeat('63',16),'hex'), decode(repeat('70',16),'hex'),
+         decode(repeat('83',16),'hex'), 3, 1, 3, 1, 1, 1),
+        (decode(repeat('44',32),'hex'), decode(repeat('28',32),'hex'),
+         profiles.profile_a_id, coordinates.coordinates[2],
+         decode(repeat('63',16),'hex'), decode(repeat('90',16),'hex'),
+         decode(repeat('a3',16),'hex'), 3, 1, 3, 2, 1, 1);
+
+    candidates := ARRAY[
+        ROW(
+            expected.boundary_id, profiles.profile_a_id,
+            decode(repeat('31',32),'hex'), decode(repeat('41',32),'hex'),
+            coordinates.coordinates[1], coordinates.collision_fingerprints[1], 7, 1,
+            coordinates.coordinates[2], coordinates.collision_fingerprints[2], 7, 1,
+            decode(repeat('50',16),'hex'), decode(repeat('60',16),'hex'),
+            decode(repeat('70',16),'hex'), decode(repeat('80',16),'hex'),
+            decode(repeat('90',16),'hex'), decode(repeat('a0',16),'hex'),
+            1, 1, 1, 1, 8, 1, 1, 1)::laplace.reference_mapping_candidate,
+        ROW(
+            expected.boundary_id, profiles.profile_b_id,
+            decode(repeat('32',32),'hex'), decode(repeat('42',32),'hex'),
+            coordinates.coordinates[1], coordinates.collision_fingerprints[1], 7, 1,
+            coordinates.coordinates[2], coordinates.collision_fingerprints[2], 7, 1,
+            decode(repeat('50',16),'hex'), decode(repeat('61',16),'hex'),
+            decode(repeat('70',16),'hex'), decode(repeat('81',16),'hex'),
+            decode(repeat('90',16),'hex'), decode(repeat('a1',16),'hex'),
+            1, 1, 1, 1, 8, 1, 1, 1)::laplace.reference_mapping_candidate,
+        ROW(
+            expected.boundary_id, profiles.profile_a_id,
+            decode(repeat('33',32),'hex'), decode(repeat('43',32),'hex'),
+            coordinates.coordinates[1], coordinates.collision_fingerprints[1], 7, 1,
+            coordinates.coordinates[3], coordinates.collision_fingerprints[3], 7, 1,
+            decode(repeat('50',16),'hex'), decode(repeat('62',16),'hex'),
+            decode(repeat('70',16),'hex'), decode(repeat('82',16),'hex'),
+            decode(repeat('90',16),'hex'), decode(repeat('a2',16),'hex'),
+            2, 1, 2, 1, 8, 1, 1, 6)::laplace.reference_mapping_candidate];
+
+    result := laplace.reference_mapping_resolve_batch(
+        pg_temp.persistence_context(), candidates);
+    IF result.mapping_ids IS DISTINCT FROM expected.mapping_ids
+       OR result.proposition_ids IS DISTINCT FROM expected.proposition_ids
+       OR result.occurrence_ids IS DISTINCT FROM expected.occurrence_ids
+       OR result.dispositions IS DISTINCT FROM ARRAY[1, 1, 3]
+       OR result.reference_mapping_receipt_id <> expected.receipt_id
+       OR result.boundary_id <> expected.boundary_id
+       OR result.input_fingerprint <> expected.input_fingerprint
+       OR result.output_fingerprint <> expected.output_fingerprint
+       OR result.isa_receipt_id <> expected.isa_receipt_id
+       OR result.occurrence_count <> 3
+       OR result.proposition_count <> 2
+       OR result.resolved_count <> 2
+       OR result.unresolved_count <> 1
+       OR result.retired_count <> 0 THEN
+        RAISE EXCEPTION 'PostgreSQL reference mapping differs from direct native ISA'
+            USING DETAIL = result::text;
+    END IF;
+    IF expected.proposition_ids[1] <> expected.proposition_ids[2]
+       OR expected.proposition_ids[1] = expected.proposition_ids[3]
+       OR (SELECT count(*) FROM laplace.reference_mapping_proposition) <> 2
+       OR (SELECT count(*) FROM laplace.reference_mapping_occurrence) <> 3
+       OR (SELECT count(*) FROM laplace.reference_mapping_receipt) <> 1
+       OR (SELECT count(*) FROM laplace.reference_mapping_receipt_member) <> 3
+       OR NOT EXISTS (
+            SELECT FROM laplace.execution_receipt
+            WHERE receipt_id = expected.isa_receipt_id) THEN
+        RAISE EXCEPTION 'reference mapping did not persist exact folded propositions and witnessed occurrences';
+    END IF;
+
+    SELECT xmin, ctid INTO STRICT receipt_xmin, receipt_ctid
+    FROM laplace.reference_mapping_receipt
+    WHERE receipt_id = result.reference_mapping_receipt_id;
+    replay := laplace.reference_mapping_resolve_batch(
+        pg_temp.persistence_context(), candidates);
+    IF replay IS DISTINCT FROM result OR NOT EXISTS (
+        SELECT FROM laplace.reference_mapping_receipt
+        WHERE receipt_id = result.reference_mapping_receipt_id
+          AND xmin = receipt_xmin AND ctid = receipt_ctid) THEN
+        RAISE EXCEPTION 'reference mapping replay changed its result or immutable receipt';
+    END IF;
+
+    BEGIN
+        UPDATE laplace.reference_mapping_occurrence
+        SET left_disposition = 2
+        WHERE occurrence_id = expected.occurrence_ids[1];
+        PERFORM laplace.reference_mapping_resolve_batch(
+            pg_temp.persistence_context(), candidates);
+        RAISE EXCEPTION 'conflicting durable reference mapping was accepted';
+    EXCEPTION
+        WHEN data_corrupted THEN NULL;
+    END;
+    IF NOT EXISTS (
+        SELECT FROM laplace.reference_mapping_occurrence
+        WHERE occurrence_id = expected.occurrence_ids[1]
+          AND left_disposition = 1) THEN
+        RAISE EXCEPTION 'reference mapping conflict subtransaction did not restore state';
+    END IF;
+
+    invalid_candidates := candidates;
+    invalid_candidate := invalid_candidates[1];
+    invalid_candidate.left_coordinate := coordinates.coordinates[2];
+    invalid_candidates[1] := invalid_candidate;
+    SELECT count(*) INTO execution_before FROM laplace.execution_receipt;
+    BEGIN
+        PERFORM laplace.reference_mapping_resolve_batch(
+            pg_temp.persistence_context(), invalid_candidates);
+        RAISE EXCEPTION 'reference mapping accepted a coordinate that conflicts with its durable reference';
+    EXCEPTION
+        WHEN data_corrupted THEN NULL;
+    END;
+    IF (SELECT count(*) FROM laplace.execution_receipt) <> execution_before THEN
+        RAISE EXCEPTION 'rejected reference mapping published an ISA receipt';
+    END IF;
+
+    rollback_candidates := ARRAY[
+        ROW(
+            expected.boundary_id, profiles.profile_a_id,
+            decode(repeat('34',32),'hex'), decode(repeat('44',32),'hex'),
+            coordinates.coordinates[1], coordinates.collision_fingerprints[1], 7, 1,
+            coordinates.coordinates[2], coordinates.collision_fingerprints[2], 7, 1,
+            decode(repeat('51',16),'hex'), decode(repeat('63',16),'hex'),
+            decode(repeat('70',16),'hex'), decode(repeat('83',16),'hex'),
+            decode(repeat('90',16),'hex'), decode(repeat('a3',16),'hex'),
+            3, 1, 3, 1, 8, 1, 1, 1)::laplace.reference_mapping_candidate];
+    SELECT count(*) INTO mapping_before FROM laplace.reference_mapping_occurrence;
+    SELECT count(*) INTO proposition_before FROM laplace.reference_mapping_proposition;
+    SELECT count(*) INTO receipt_before FROM laplace.reference_mapping_receipt;
+    SELECT count(*) INTO execution_before FROM laplace.execution_receipt;
+    BEGIN
+        PERFORM laplace.reference_mapping_resolve_batch(
+            pg_temp.persistence_context(), rollback_candidates);
+        RAISE EXCEPTION 'force reference mapping transaction rollback';
+    EXCEPTION
+        WHEN raise_exception THEN NULL;
+    END;
+    IF (SELECT count(*) FROM laplace.reference_mapping_occurrence) <> mapping_before
+       OR (SELECT count(*) FROM laplace.reference_mapping_proposition) <> proposition_before
+       OR (SELECT count(*) FROM laplace.reference_mapping_receipt) <> receipt_before
+       OR (SELECT count(*) FROM laplace.execution_receipt) <> execution_before THEN
+        RAISE EXCEPTION 'reference mapping rollback published partial durable state';
+    END IF;
+END
+$reference_mapping$;
+
 DO $contract$
 DECLARE
     batch_positions integer[];
@@ -828,7 +1112,7 @@ BEGIN
        OR result.instruction_count <> 1
        OR result.executed_instruction_count <> 1
        OR result.isa_major <> 1
-       OR result.isa_minor <> 9
+       OR result.isa_minor <> 10
        OR result.status <> 0
        OR result.item_count <> 3 THEN
         RAISE EXCEPTION USING MESSAGE = format(
@@ -969,7 +1253,7 @@ BEGIN
        OR result.instruction_count <> 1
        OR result.executed_instruction_count <> 1
        OR result.isa_major <> 1
-       OR result.isa_minor <> 9
+       OR result.isa_minor <> 10
        OR result.status <> 0
        OR result.item_count <> 2 THEN
         RAISE EXCEPTION 'PostgreSQL highway result differs from direct native ISA';
@@ -1097,10 +1381,10 @@ BEGIN
     EXCEPTION
         WHEN foreign_key_violation THEN NULL;
     END;
-    IF EXISTS (SELECT FROM laplace.canonical_entity)
+    IF EXISTS (SELECT FROM laplace.entity)
        OR EXISTS (SELECT FROM laplace.physicality)
-       OR EXISTS (SELECT FROM laplace.composition_trajectory_vertex)
-       OR EXISTS (SELECT FROM laplace.observed_occurrence)
+       OR EXISTS (SELECT FROM laplace.attestation)
+       OR EXISTS (SELECT FROM laplace.consensus)
        OR EXISTS (SELECT FROM laplace.canonical_deposit_receipt) THEN
         RAISE EXCEPTION 'failed reference preflight published partial canonical state';
     END IF;
@@ -1115,10 +1399,10 @@ BEGIN
     EXCEPTION
         WHEN data_exception THEN NULL;
     END;
-    IF EXISTS (SELECT FROM laplace.canonical_entity)
+    IF EXISTS (SELECT FROM laplace.entity)
        OR EXISTS (SELECT FROM laplace.physicality)
-       OR EXISTS (SELECT FROM laplace.composition_trajectory_vertex)
-       OR EXISTS (SELECT FROM laplace.observed_occurrence)
+       OR EXISTS (SELECT FROM laplace.attestation)
+       OR EXISTS (SELECT FROM laplace.consensus)
        OR EXISTS (SELECT FROM laplace.canonical_deposit_receipt) THEN
         RAISE EXCEPTION 'resource rejection published partial canonical state';
     END IF;
@@ -1141,15 +1425,15 @@ BEGIN
        OR result.status <> 0 THEN
         RAISE EXCEPTION 'canonical persistence result differs from native stream contract';
     END IF;
-    IF (SELECT count(*) FROM laplace.canonical_entity) <> 2
+    IF (SELECT count(*) FROM laplace.entity) <> 2
        OR (SELECT count(*) FROM laplace.physicality) <> 1
-       OR (SELECT count(*) FROM laplace.composition_trajectory_vertex) <> 3
-       OR (SELECT count(*) FROM laplace.observed_occurrence) <> 1
+       OR (SELECT count(*) FROM laplace.attestation) <> 1
+       OR (SELECT count(*) FROM laplace.consensus) <> 0
        OR (SELECT count(*) FROM laplace.canonical_deposit_receipt) <> 1 THEN
         RAISE EXCEPTION 'one canonical stream did not deposit all four record families atomically';
     END IF;
     IF NOT EXISTS (
-        SELECT FROM laplace.canonical_entity
+        SELECT FROM laplace.entity
         WHERE entity_id = expected.entity_a
           AND identity_witness = expected.entity_a_witness
     ) OR NOT EXISTS (
@@ -1157,11 +1441,13 @@ BEGIN
         WHERE physicality_id = expected.physicality_id
           AND entity_id = expected.entity_a
           AND trajectory_fingerprint = expected.trajectory_fingerprint
+          AND octet_length(trajectory) = 96
     ) OR NOT EXISTS (
-        SELECT FROM laplace.observed_occurrence
-        WHERE occurrence_id = expected.occurrence_id
+        SELECT FROM laplace.attestation
+        WHERE attestation_id = expected.occurrence_id
           AND entity_id = expected.entity_a
           AND physicality_id = expected.physicality_id
+          AND attestation_kind = 1
     ) THEN
         RAISE EXCEPTION 'normalized persistence rows lost native identity or reference fields';
     END IF;
@@ -1170,8 +1456,7 @@ BEGIN
         FROM information_schema.columns
         WHERE table_schema = 'laplace'
           AND table_name IN (
-              'canonical_entity', 'physicality',
-              'composition_trajectory_vertex', 'observed_occurrence')
+              'entity', 'physicality', 'attestation', 'consensus')
           AND column_name = 'canonical_frame'
     ) THEN
         RAISE EXCEPTION 'transport frames were duplicated into normalized durable state';
@@ -1179,20 +1464,21 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = 'laplace'
-          AND table_name = 'canonical_entity'
+          AND table_name = 'entity'
           AND column_name IN ('tier', 'source', 'role', 'language', 'modality')
     ) THEN
         RAISE EXCEPTION 'canonical identity was coupled to source, use or structural altitude';
     END IF;
 
     SELECT physicality_id INTO STRICT candidate_physicality
-    FROM laplace.composition_trajectory_vertex
-    WHERE constituent_entity_id = expected.entity_a
-    ORDER BY physicality_id, vertex_index
-    LIMIT 1;
-    SELECT array_agg(carrier ORDER BY vertex_index)
+    FROM laplace.physicality
+    WHERE physicality_id = expected.physicality_id;
+    SELECT array_agg(substring(trajectory FROM segment_offset + 1 FOR 32)
+                     ORDER BY segment_offset)
     INTO STRICT carriers
-    FROM laplace.composition_trajectory_vertex
+    FROM laplace.physicality
+    CROSS JOIN LATERAL generate_series(
+        0, octet_length(trajectory) - 32, 32) AS segment(segment_offset)
     WHERE physicality_id = candidate_physicality;
     decoded := laplace.trajectory_composition_decode_calculate_batch(
         pg_temp.execution_context(), carriers);
@@ -1242,7 +1528,7 @@ BEGIN
     EXCEPTION
         WHEN data_corrupted THEN NULL;
     END;
-    SELECT count(*) INTO table_count FROM laplace.canonical_entity;
+    SELECT count(*) INTO table_count FROM laplace.entity;
     IF table_count <> 2 THEN
         RAISE EXCEPTION 'identity collision changed canonical entity cardinality';
     END IF;
@@ -1279,37 +1565,19 @@ BEGIN
           AND vertex_count = 4096
           AND logical_count = 4096
     ) OR NOT EXISTS (
-        SELECT FROM laplace.observed_occurrence
-        WHERE occurrence_id = expected.bulk_occurrence_id
+        SELECT FROM laplace.attestation
+        WHERE attestation_id = expected.bulk_occurrence_id
           AND physicality_id = expected.bulk_physicality_id
     ) THEN
         RAISE EXCEPTION 'bulk physicality or occurrence did not close atomically';
     END IF;
 
-    ANALYZE laplace.composition_trajectory_vertex;
-    FOR plan_line IN EXECUTE
-        'EXPLAIN (ANALYZE, BUFFERS, WAL, FORMAT TEXT) '
-        'SELECT physicality_id, vertex_index '
-        'FROM laplace.composition_trajectory_vertex '
-        'WHERE constituent_entity_id = $1 '
-        'ORDER BY physicality_id, vertex_index'
-        USING expected.entity_a
-    LOOP
-        plan_text := plan_text || plan_line || E'\n';
-    END LOOP;
-    IF position('composition_trajectory_vertex_constituent_idx' IN plan_text) = 0
-       OR position('actual time=' IN plan_text) = 0
-       OR position('Buffers:' IN plan_text) = 0 THEN
-        RAISE EXCEPTION 'indexed candidate plan lacks analyzed index/buffer evidence: %', plan_text;
-    END IF;
-
-    SELECT max(pg_column_size(vertex)), sum(octet_length(carrier))
+    SELECT max(pg_column_size(physicality)), sum(octet_length(trajectory))
     INTO STRICT maximum_vertex_bytes, carrier_storage_bytes
-    FROM laplace.composition_trajectory_vertex AS vertex;
-    IF maximum_vertex_bytes > 192
-       OR carrier_storage_bytes <>
-          32 * (SELECT count(*) FROM laplace.composition_trajectory_vertex) THEN
-        RAISE EXCEPTION 'normalized trajectory storage duplicated its transport frame';
+    FROM laplace.physicality;
+    IF carrier_storage_bytes <> 32 * (
+        SELECT sum(vertex_count) FROM laplace.physicality) THEN
+        RAISE EXCEPTION 'physicality did not retain exactly one packed trajectory carrier stream';
     END IF;
 END
 $contract$;
@@ -1317,6 +1585,7 @@ $contract$;
 SELECT pg_temp.run_evidence_contract();
 SELECT pg_temp.run_testimony_contract();
 SELECT pg_temp.run_source_profile_contract();
+SELECT pg_temp.run_reference_mapping_contract();
 
 CREATE TEMP TABLE zero_pattern_expected (
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
@@ -1370,7 +1639,7 @@ BEGIN
         RAISE EXCEPTION 'zero-pattern native stream did not use the canonical set sink';
     END IF;
     IF NOT EXISTS (
-        SELECT FROM laplace.canonical_entity
+        SELECT FROM laplace.entity
         WHERE entity_id = expected.entity_id
           AND identity_witness = expected.zero_digest
     ) OR NOT EXISTS (
@@ -1380,12 +1649,12 @@ BEGIN
           AND recipe_fingerprint = expected.zero_digest
           AND geometry_epoch = expected.zero_digest
     ) OR NOT EXISTS (
-        SELECT FROM laplace.composition_trajectory_vertex
+        SELECT FROM laplace.physicality
         WHERE physicality_id = expected.physicality_id
-          AND constituent_entity_id = expected.entity_id
+          AND trajectory = substring(expected.frames[3] FROM 49 FOR 32)
     ) OR NOT EXISTS (
-        SELECT FROM laplace.observed_occurrence
-        WHERE occurrence_id = expected.occurrence_id
+        SELECT FROM laplace.attestation
+        WHERE attestation_id = expected.occurrence_id
           AND entity_id = expected.entity_id
           AND physicality_id = expected.physicality_id
           AND source_fingerprint = expected.zero_digest

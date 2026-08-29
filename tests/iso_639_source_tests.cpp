@@ -39,8 +39,7 @@ TEST(Iso639SourceProfile, CompilesLockedReleaseThroughGenericTabularEngine) {
               laplace::test::iso_profile::expected_fields);
     EXPECT_EQ(view.profile.claim_count,
               laplace::test::iso_profile::expected_claims);
-    EXPECT_EQ(view.profile.mapping_count,
-              laplace::test::iso_profile::expected_claims);
+    EXPECT_EQ(view.profile.mapping_count, 0u);
     EXPECT_EQ(view.profile.reference_count,
               laplace::test::iso_profile::expected_references);
     EXPECT_EQ(view.profile.unresolved_count,

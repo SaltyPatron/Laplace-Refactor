@@ -108,6 +108,42 @@ public struct LaplaceReferenceRecord
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct LaplaceReferenceMappingCandidate
+{
+    public LaplaceDigest256 BoundaryId;
+    public LaplaceDigest256 SourceProfileId;
+    public LaplaceDigest256 LeftReferenceId;
+    public LaplaceDigest256 RightReferenceId;
+    public LaplaceHighwayCoordinate LeftCoordinate;
+    public LaplaceHighwayCoordinate RightCoordinate;
+    public LaplaceId128 RelationId;
+    public LaplaceId128 RowEntityId;
+    public LaplaceId128 LeftFieldEntityId;
+    public LaplaceId128 LeftValueEntityId;
+    public LaplaceId128 RightFieldEntityId;
+    public LaplaceId128 RightValueEntityId;
+    public ulong SourceOrdinal;
+    public ulong ArtifactOrdinal;
+    public ulong RowOrdinal;
+    public ulong RelationVersion;
+    public uint RelationKind;
+    public uint Flags;
+    public uint LeftDisposition;
+    public uint RightDisposition;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceReferenceMappingRecord
+{
+    public LaplaceReferenceMappingCandidate Candidate;
+    public LaplaceDigest256 PropositionId;
+    public LaplaceDigest256 OccurrenceId;
+    public LaplaceDigest256 MappingId;
+    public uint Disposition;
+    public uint Reserved;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct LaplaceHighwayRegistryReceipt
 {
     public LaplaceDigest256 ReceiptId;
@@ -666,6 +702,34 @@ public static class LaplaceNativeAbi
         OffsetOf<LaplaceReferenceRecord>(nameof(LaplaceReferenceRecord.ReferenceId)),
         OffsetOf<LaplaceReferenceRecord>(nameof(LaplaceReferenceRecord.Disposition)),
         OffsetOf<LaplaceReferenceRecord>(nameof(LaplaceReferenceRecord.Reserved)),
+        checked((uint)Marshal.SizeOf<LaplaceReferenceMappingCandidate>()),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.BoundaryId)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.SourceProfileId)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.LeftReferenceId)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.RightReferenceId)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.LeftCoordinate)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.RightCoordinate)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.RelationId)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.RowEntityId)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.LeftFieldEntityId)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.LeftValueEntityId)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.RightFieldEntityId)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.RightValueEntityId)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.SourceOrdinal)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.ArtifactOrdinal)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.RowOrdinal)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.RelationVersion)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.RelationKind)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.Flags)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.LeftDisposition)),
+        OffsetOf<LaplaceReferenceMappingCandidate>(nameof(LaplaceReferenceMappingCandidate.RightDisposition)),
+        checked((uint)Marshal.SizeOf<LaplaceReferenceMappingRecord>()),
+        OffsetOf<LaplaceReferenceMappingRecord>(nameof(LaplaceReferenceMappingRecord.Candidate)),
+        OffsetOf<LaplaceReferenceMappingRecord>(nameof(LaplaceReferenceMappingRecord.PropositionId)),
+        OffsetOf<LaplaceReferenceMappingRecord>(nameof(LaplaceReferenceMappingRecord.OccurrenceId)),
+        OffsetOf<LaplaceReferenceMappingRecord>(nameof(LaplaceReferenceMappingRecord.MappingId)),
+        OffsetOf<LaplaceReferenceMappingRecord>(nameof(LaplaceReferenceMappingRecord.Disposition)),
+        OffsetOf<LaplaceReferenceMappingRecord>(nameof(LaplaceReferenceMappingRecord.Reserved)),
         LaplaceExecutionContext.NativeAbiSize,
     ];
 
