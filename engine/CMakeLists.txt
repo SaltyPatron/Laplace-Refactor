@@ -46,6 +46,7 @@ add_library(laplace_engine SHARED
     src/decomposition_delimited.cpp
     src/decomposition_tree_sitter.cpp
     src/tree_sitter_grammar.cpp
+    src/decomposition_composition.cpp
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)
@@ -83,6 +84,7 @@ add_library(Laplace::UnicodeRoot ALIAS laplace_engine)
 add_library(Laplace::Uax29 ALIAS laplace_engine)
 add_library(Laplace::TextDecomposition ALIAS laplace_engine)
 add_library(Laplace::Decomposition ALIAS laplace_engine)
+add_library(Laplace::DecompositionComposition ALIAS laplace_engine)
 
 if(TARGET LaplaceOneApi::MKLRuntime)
     if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
