@@ -1,0 +1,63 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "QuerySearch.UsesDeclaredAStarPriority",
+      "evidence_targets": ["LP-TEST-CONNECTION-TYPED-METRIC"],
+      "covered_dimensions": ["declared A-star g+h priority", "admissible heuristic proof", "typed deterministic path receipt"],
+      "defect_controls": ["query-search.mutation-g-only-priority-detected"]
+    },
+    {
+      "ctest_name": "QuerySearch.PreservesDepthFeasibleDominance",
+      "evidence_targets": ["LP-TEST-CONNECTION-SEARCH-COVERAGE"],
+      "covered_dimensions": ["program-scoped Pareto dominance", "remaining-depth feasibility", "endpoint non-collapse"],
+      "defect_controls": ["query-search.mutation-anchor-only-dominance-detected"]
+    },
+    {
+      "ctest_name": "QuerySearch.DoesNotPromoteKnownPathToOptimalAcrossIncompleteBoundary",
+      "evidence_targets": ["LP-TEST-CONNECTION-KNOWN-PATH-UPPER-BOUND", "LP-TEST-PARTIAL-NONCOMPLETION"],
+      "covered_dimensions": ["known-path upper-bound disposition", "boundary completeness", "optimality nonpromotion"],
+      "defect_controls": ["query-search.mutation-known-path-optimum-detected"]
+    },
+    {
+      "ctest_name": "QuerySearch.ExecutesRequestedPathMultiplicity",
+      "evidence_targets": ["LP-TEST-CONNECTION-SEARCH-COVERAGE"],
+      "covered_dimensions": ["requested path multiplicity", "deterministic ranked path receipts"],
+      "defect_controls": ["query-search.mutation-path-count-omission-detected"]
+    },
+    {
+      "ctest_name": "QuerySearch.CollapsesEvidenceRootsAndBatchesFrontier",
+      "evidence_targets": ["LP-TEST-CONNECTION-DEPENDENCE-NONAMPLIFICATION"],
+      "covered_dimensions": ["dependence-root nonamplification", "set-oriented frontier expansion", "typed evidence provenance"]
+    },
+    {
+      "ctest_name": "QuerySearch.PropagatesTypedWhyNotDisposition",
+      "evidence_targets": ["LP-TEST-WHY-NOT-TYPED-DISPOSITION", "LP-TEST-BOUND-CHANGE-EXPLANATION"],
+      "covered_dimensions": ["typed denied disposition", "provider limiting-state propagation", "non-fluent noncompletion"]
+    },
+    {
+      "ctest_name": "query-search.mutation-g-only-priority-detected",
+      "evidence_targets": ["LP-TEST-CONNECTION-TYPED-METRIC"],
+      "covered_dimensions": ["g-only priority cannot impersonate A-star"],
+      "controls": "QuerySearch.UsesDeclaredAStarPriority"
+    },
+    {
+      "ctest_name": "query-search.mutation-anchor-only-dominance-detected",
+      "evidence_targets": ["LP-TEST-CONNECTION-SEARCH-COVERAGE"],
+      "covered_dimensions": ["endpoint-only state dominance cannot erase feasible shallower state"],
+      "controls": "QuerySearch.PreservesDepthFeasibleDominance"
+    },
+    {
+      "ctest_name": "query-search.mutation-known-path-optimum-detected",
+      "evidence_targets": ["LP-TEST-CONNECTION-KNOWN-PATH-UPPER-BOUND"],
+      "covered_dimensions": ["incomplete-boundary path cannot be promoted to optimum"],
+      "controls": "QuerySearch.DoesNotPromoteKnownPathToOptimalAcrossIncompleteBoundary"
+    },
+    {
+      "ctest_name": "query-search.mutation-path-count-omission-detected",
+      "evidence_targets": ["LP-TEST-CONNECTION-SEARCH-COVERAGE"],
+      "covered_dimensions": ["requested path count cannot be ignored"],
+      "controls": "QuerySearch.ExecutesRequestedPathMultiplicity"
+    }
+  ]
+}
