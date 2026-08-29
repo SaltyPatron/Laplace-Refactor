@@ -1,10 +1,36 @@
 #include "laplace/isa.h"
+#include "laplace/cognition_packet.h"
 #include "context_fixture.h"
 
 #include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+
+/*
+ * The context mutation probe links a private mutated copy of isa.c.  Its
+ * contract is framework-context binding for identity dispatch, not cognition.
+ * Keep the mutant self-contained instead of linking the product cognition
+ * runtime (which would also bring the production ISA back into the probe).
+ */
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_required_result_words(
+    const std::uint32_t*, const std::size_t, std::size_t*) {
+    return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+}
+
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_request_context_fingerprint_words(
+    const std::uint32_t*, const std::size_t, laplace_digest256*) {
+    return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+}
+
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_execute_words(
+    const std::uint32_t*, const std::size_t,
+    std::uint32_t*, const std::size_t, std::size_t*) {
+    return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+}
 
 namespace {
 
