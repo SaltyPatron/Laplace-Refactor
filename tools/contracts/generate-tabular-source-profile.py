@@ -17,7 +17,17 @@ from typing import Any
 
 SCHEMA = "laplace.tabular-source-profile/v1"
 SCOPE_DOMAIN = b"laplace-source-profile-scope-v1\0"
-OUTCOME_TYPES = {"mapping": 5}
+OUTCOME_TYPES = {
+    "assertion": 1,
+    "measurement": 2,
+    "prediction": 3,
+    "observed_consequence": 4,
+    "mapping": 5,
+    "definition": 6,
+    "example": 7,
+    "counterexample": 8,
+    "unknown_boundary": 9,
+}
 MODES = {"raw_octets": 1, "utf8_delimited": 2}
 TERMINATORS = {None: 0, "lf": 1, "crlf": 2}
 RECONSTRUCTION = {"exact": 1, "semantic": 2, "none": 3}
