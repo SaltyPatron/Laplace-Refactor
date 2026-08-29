@@ -88,6 +88,13 @@ using EmittedKey = std::tuple<
     std::uint64_t,
     std::uint64_t>;
 
+using ExecutionKey = std::tuple<
+    std::uint64_t,
+    std::uint64_t,
+    std::uint64_t,
+    std::uint64_t,
+    std::uint32_t>;
+
 struct ApplyContext {
     laplace_decomposition_result* result;
     const laplace_decomposition_input* input;
@@ -204,11 +211,7 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
 
         std::deque<Task> queue;
         queue.push_back(Task{0u, std::numeric_limits<std::uint64_t>::max()});
-        std::set<std::tuple<
-            std::uint64_t,
-            std::uint64_t,
-            std::uint64_t,
-            std::uint32_t>> executions;
+        std::set<ExecutionKey> executions;
         std::set<EmittedKey> emitted;
 
         while (!queue.empty()) {
@@ -224,8 +227,11 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
             for (std::uint64_t provider_index = 0u;
                  provider_index < input->provider_count; ++provider_index) {
                 if (provider_index == task.skip_provider) continue;
-                const auto execution_key = std::tuple{
-                    provider_index, span.byte_start, span.byte_end,
+                const ExecutionKey execution_key{
+                    provider_index,
+                    span.byte_start,
+                    span.byte_end,
+                    span.kind,
                     applicability_class};
                 if (!executions.insert(execution_key).second) continue;
                 ++result->summary.provider_execution_count;
