@@ -1,5 +1,6 @@
 #include "laplace/decomposition.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -54,10 +55,28 @@ bool ProviderValid(const laplace_decomposition_provider_v1& provider) {
         provider.flags == 0u && provider.reserved == 0u;
 }
 
+bool RootIsText(const laplace_decomposition_content& content) {
+    if (content.media_type == nullptr || content.media_type_byte_count == 0u) return false;
+    const std::string_view media_type(
+        content.media_type, static_cast<std::size_t>(content.media_type_byte_count));
+    return media_type.starts_with("text/") ||
+        media_type == "application/json" ||
+        media_type == "application/xml" ||
+        media_type == "application/javascript" ||
+        media_type == "application/sql";
+}
+
 struct Task {
     std::uint64_t span_index;
     std::uint64_t skip_provider;
 };
+
+using EmittedKey = std::tuple<
+    std::uint64_t,
+    std::uint64_t,
+    std::uint64_t,
+    std::uint64_t,
+    std::uint64_t>;
 
 struct ApplyContext {
     laplace_decomposition_result* result;
@@ -65,7 +84,7 @@ struct ApplyContext {
     std::uint64_t parent_span_index;
     std::uint64_t provider_index;
     std::deque<Task>* queue;
-    std::set<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::uint64_t, std::uint32_t>>* emitted;
+    std::set<EmittedKey>* emitted;
     laplace_decomposition_status status;
 };
 
@@ -78,7 +97,10 @@ int Emit(
     if (opaque == nullptr) return 1;
     auto& context = *static_cast<ApplyContext*>(opaque);
     if (context.status != LAPLACE_DECOMPOSITION_OK) return 1;
-    if ((flags & ~LAPLACE_DECOMPOSITION_SPAN_REDISPATCH) != 0u || kind == 0u) {
+    constexpr std::uint32_t KnownSpanFlags =
+        LAPLACE_DECOMPOSITION_SPAN_REDISPATCH |
+        LAPLACE_DECOMPOSITION_SPAN_TEXT;
+    if ((flags & ~KnownSpanFlags) != 0u || kind == 0u) {
         context.status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
         return 1;
     }
@@ -93,12 +115,12 @@ int Emit(
         context.status = LAPLACE_DECOMPOSITION_LIMIT_EXCEEDED;
         return 1;
     }
-    const auto duplicate_key = std::tuple{
+    const EmittedKey duplicate_key{
         context.parent_span_index,
         context.provider_index,
         byte_start,
         byte_end,
-        static_cast<std::uint32_t>(kind ^ (kind >> 32u))};
+        kind};
     if (!context.emitted->insert(duplicate_key).second) return 0;
     if (context.result->spans.size() >=
         static_cast<std::size_t>(context.input->maximum_spans)) {
@@ -168,13 +190,14 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
         root.parent_span_index = std::numeric_limits<std::uint64_t>::max();
         root.kind = 0u;
         root.depth = 0u;
-        root.flags = LAPLACE_DECOMPOSITION_SPAN_REDISPATCH;
+        root.flags = LAPLACE_DECOMPOSITION_SPAN_REDISPATCH |
+            (RootIsText(input->content) ? LAPLACE_DECOMPOSITION_SPAN_TEXT : 0u);
         result->spans.push_back(root);
 
         std::deque<Task> queue;
         queue.push_back(Task{0u, std::numeric_limits<std::uint64_t>::max()});
         std::set<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t>> executions;
-        std::set<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::uint64_t, std::uint32_t>> emitted;
+        std::set<EmittedKey> emitted;
 
         while (!queue.empty()) {
             const Task task = queue.front();
