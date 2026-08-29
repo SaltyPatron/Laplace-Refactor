@@ -286,9 +286,11 @@ static const char* reference_sql(void) {
         "physicality_reference AS (SELECT physicality_id FROM incoming_segment UNION SELECT physicality_id FROM incoming_attestation WHERE physicality_id IS NOT NULL) "
         "SELECT "
         "(SELECT count(*) FROM entity_reference r LEFT JOIN " LAPLACE_PG_SCHEMA ".entity e ON e.entity_id=r.entity_id "
-        " WHERE e.entity_id IS NULL AND NOT EXISTS (SELECT 1 FROM incoming_entity i WHERE i.entity_id=r.entity_id)), "
+        " LEFT JOIN incoming_entity i ON i.entity_id=r.entity_id "
+        " WHERE e.entity_id IS NULL AND i.entity_id IS NULL), "
         "(SELECT count(*) FROM physicality_reference r LEFT JOIN " LAPLACE_PG_SCHEMA ".physicality p ON p.physicality_id=r.physicality_id "
-        " WHERE p.physicality_id IS NULL AND NOT EXISTS (SELECT 1 FROM incoming_physicality i WHERE i.physicality_id=r.physicality_id))";
+        " LEFT JOIN incoming_physicality i ON i.physicality_id=r.physicality_id "
+        " WHERE p.physicality_id IS NULL AND i.physicality_id IS NULL)";
     return sql;
 }
 
@@ -479,6 +481,18 @@ static void initialize_staging_tables(void) {
         "CREATE TEMP TABLE IF NOT EXISTS laplace_persistence_stage_consensus "
         "AS SELECT * FROM " LAPLACE_PG_SCHEMA ".consensus WITH NO DATA"
     };
+    static const char* const index_statements[5] = {
+        "CREATE INDEX IF NOT EXISTS laplace_persistence_stage_entity_id_idx "
+        "ON pg_temp.laplace_persistence_stage_entity(entity_id)",
+        "CREATE INDEX IF NOT EXISTS laplace_persistence_stage_physicality_id_idx "
+        "ON pg_temp.laplace_persistence_stage_physicality(physicality_id)",
+        "CREATE INDEX IF NOT EXISTS laplace_persistence_stage_trajectory_order_idx "
+        "ON pg_temp.laplace_persistence_stage_trajectory_segment(physicality_id,vertex_index)",
+        "CREATE INDEX IF NOT EXISTS laplace_persistence_stage_attestation_id_idx "
+        "ON pg_temp.laplace_persistence_stage_attestation(attestation_id)",
+        "CREATE INDEX IF NOT EXISTS laplace_persistence_stage_consensus_id_idx "
+        "ON pg_temp.laplace_persistence_stage_consensus(consensus_id)"
+    };
     static const char truncate_statement[] =
         "TRUNCATE TABLE "
         "pg_temp.laplace_persistence_stage_entity, "
@@ -497,11 +511,36 @@ static void initialize_staging_tables(void) {
                      errdetail("record_family=%zu spi_result=%d", kind, result)));
         }
     }
+    for (kind = 0; kind < 5; ++kind) {
+        result = SPI_execute(index_statements[kind], false, 0);
+        if (result != SPI_OK_UTILITY) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_INTERNAL_ERROR),
+                     errmsg("Laplace persistence staging index initialization failed"),
+                     errdetail("record_family=%zu spi_result=%d", kind, result)));
+        }
+    }
     result = SPI_execute(truncate_statement, false, 0);
     if (result != SPI_OK_UTILITY) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
                  errmsg("Laplace persistence staging reset failed"),
+                 errdetail("spi_result=%d", result)));
+    }
+}
+
+static void analyze_staging_tables(void) {
+    static const char statement[] =
+        "ANALYZE pg_temp.laplace_persistence_stage_entity, "
+        "pg_temp.laplace_persistence_stage_physicality, "
+        "pg_temp.laplace_persistence_stage_trajectory_segment, "
+        "pg_temp.laplace_persistence_stage_attestation, "
+        "pg_temp.laplace_persistence_stage_consensus";
+    const int result = SPI_execute(statement, false, 0);
+    if (result != SPI_OK_UTILITY) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("Laplace persistence staging statistics failed"),
                  errdetail("spi_result=%d", result)));
     }
 }
@@ -822,6 +861,7 @@ static laplace_framework_status sink_seal(
         state->staged_summary.byte_count != state->expected_bytes) {
         return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
     }
+    analyze_staging_tables();
     acquire_write_partitions(state);
     execute_reference_check(state);
     for (kind = 0; kind < 5; ++kind) {
