@@ -57,6 +57,27 @@ typedef int (*laplace_decomposition_emit_fn)(
     uint64_t kind,
     uint32_t flags);
 
+/*
+ * Resolves the media type of an exact child span without rewriting the child
+ * bytes. Returning a null pointer and zero byte count inherits the parent's
+ * media type. Returning non-empty bytes retypes only the recursive dispatch
+ * context, allowing e.g. HTML script content to be revisited as JavaScript or
+ * a container member to be revisited under its own codec/grammar authority.
+ * The engine copies the returned bytes before the callback returns control to
+ * another provider, so resolver-owned storage need only survive the callback.
+ */
+typedef laplace_decomposition_status (*laplace_decomposition_media_type_resolver_fn)(
+    void* resolver_state,
+    const laplace_decomposition_content* content,
+    const laplace_decomposition_span* parent_span,
+    const laplace_digest256* provider_fingerprint,
+    uint64_t child_byte_start,
+    uint64_t child_byte_end,
+    uint64_t child_kind,
+    uint32_t child_flags,
+    const char** media_type,
+    uint64_t* media_type_byte_count);
+
 typedef laplace_decomposition_status (*laplace_decomposition_applicable_fn)(
     void* provider_state,
     const laplace_decomposition_content* content,
@@ -113,9 +134,31 @@ LAPLACE_API laplace_decomposition_status laplace_decomposition_run(
     const laplace_decomposition_input* input,
     laplace_decomposition_result** result);
 
+/*
+ * Same recursive machine as laplace_decomposition_run, with an optional
+ * recipe-owned media resolver. Media type participates in the execution key,
+ * so an identical exact span may legitimately be revisited under distinct
+ * grammar/codec authorities without collapsing those interpretations.
+ */
+LAPLACE_API laplace_decomposition_status laplace_decomposition_run_with_media_resolver(
+    const laplace_decomposition_input* input,
+    laplace_decomposition_media_type_resolver_fn resolver,
+    void* resolver_state,
+    laplace_decomposition_result** result);
+
 LAPLACE_API const laplace_decomposition_span* laplace_decomposition_spans(
     const laplace_decomposition_result* result,
     size_t* span_count);
+
+/*
+ * Returns the exact media-type bytes used when dispatching one result span.
+ * The returned storage belongs to result and remains valid until result is
+ * destroyed. A null return with byte_count=0 means no media type was asserted.
+ */
+LAPLACE_API const char* laplace_decomposition_span_media_type(
+    const laplace_decomposition_result* result,
+    size_t span_index,
+    size_t* byte_count);
 
 LAPLACE_API laplace_decomposition_status laplace_decomposition_summary_get(
     const laplace_decomposition_result* result,

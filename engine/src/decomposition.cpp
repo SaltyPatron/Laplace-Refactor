@@ -9,6 +9,7 @@
 #include <limits>
 #include <new>
 #include <set>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
@@ -16,6 +17,7 @@
 
 struct laplace_decomposition_result {
     std::vector<laplace_decomposition_span> spans;
+    std::vector<std::string> media_types;
     laplace_decomposition_summary summary{};
 };
 
@@ -76,9 +78,19 @@ bool RootIsText(const laplace_decomposition_content& content) {
         media_type == "application/sql";
 }
 
+std::string MediaType(const laplace_decomposition_content& content) {
+    if (content.media_type == nullptr || content.media_type_byte_count == 0u) {
+        return {};
+    }
+    return std::string(
+        content.media_type,
+        static_cast<std::size_t>(content.media_type_byte_count));
+}
+
 struct Task {
     std::uint64_t span_index;
     std::uint64_t skip_provider;
+    std::string media_type;
 };
 
 using EmittedKey = std::tuple<
@@ -93,11 +105,15 @@ using ExecutionKey = std::tuple<
     std::uint64_t,
     std::uint64_t,
     std::uint64_t,
-    std::uint32_t>;
+    std::uint32_t,
+    std::string>;
 
 struct ApplyContext {
     laplace_decomposition_result* result;
     const laplace_decomposition_input* input;
+    const laplace_decomposition_content* content;
+    laplace_decomposition_media_type_resolver_fn media_resolver;
+    void* media_resolver_state;
     std::uint64_t parent_span_index;
     std::uint64_t provider_index;
     std::deque<Task>* queue;
@@ -149,12 +165,61 @@ int Emit(
     span.kind = kind;
     span.depth = parent.depth + 1u;
     span.flags = flags;
+
+    std::string child_media_type;
+    try {
+        child_media_type = MediaType(*context.content);
+    } catch (...) {
+        context.status = LAPLACE_DECOMPOSITION_MEMORY_FAILURE;
+        return 1;
+    }
+    if (context.media_resolver != nullptr) {
+        const char* resolved_media_type = nullptr;
+        std::uint64_t resolved_media_type_byte_count = 0u;
+        const auto resolver_status = context.media_resolver(
+            context.media_resolver_state,
+            context.content,
+            &parent,
+            &span.provider_fingerprint,
+            byte_start,
+            byte_end,
+            kind,
+            flags,
+            &resolved_media_type,
+            &resolved_media_type_byte_count);
+        if (resolver_status != LAPLACE_DECOMPOSITION_OK) {
+            context.status = resolver_status;
+            return 1;
+        }
+        if ((resolved_media_type == nullptr) !=
+                (resolved_media_type_byte_count == 0u) ||
+            resolved_media_type_byte_count >
+                static_cast<std::uint64_t>(SIZE_MAX)) {
+            context.status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
+            return 1;
+        }
+        if (resolved_media_type != nullptr) {
+            try {
+                child_media_type.assign(
+                    resolved_media_type,
+                    static_cast<std::size_t>(resolved_media_type_byte_count));
+            } catch (...) {
+                context.status = LAPLACE_DECOMPOSITION_MEMORY_FAILURE;
+                return 1;
+            }
+        }
+    }
+
     const std::uint64_t span_index =
         static_cast<std::uint64_t>(context.result->spans.size());
     try {
         context.result->spans.push_back(span);
+        context.result->media_types.push_back(child_media_type);
         if ((flags & RedispatchFlag) != 0u) {
-            context.queue->push_back(Task{span_index, context.provider_index});
+            context.queue->push_back(Task{
+                span_index,
+                context.provider_index,
+                std::move(child_media_type)});
             ++context.result->summary.redispatch_count;
         }
     } catch (...) {
@@ -167,10 +232,10 @@ int Emit(
     return 0;
 }
 
-}  // namespace
-
-extern "C" laplace_decomposition_status laplace_decomposition_run(
+laplace_decomposition_status Run(
     const laplace_decomposition_input* input,
+    laplace_decomposition_media_type_resolver_fn media_resolver,
+    void* media_resolver_state,
     laplace_decomposition_result** output) {
     if (input == nullptr || output == nullptr) {
         return LAPLACE_DECOMPOSITION_INVALID_ARGUMENT;
@@ -196,8 +261,10 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
     auto* result = new (std::nothrow) laplace_decomposition_result{};
     if (result == nullptr) return LAPLACE_DECOMPOSITION_MEMORY_FAILURE;
     try {
-        result->spans.reserve(std::min<std::size_t>(
-            static_cast<std::size_t>(input->maximum_spans), 4096u));
+        const std::size_t reserve_count = std::min<std::size_t>(
+            static_cast<std::size_t>(input->maximum_spans), 4096u);
+        result->spans.reserve(reserve_count);
+        result->media_types.reserve(reserve_count);
         laplace_decomposition_span root{};
         root.byte_start = 0u;
         root.byte_end = input->content.byte_count;
@@ -208,14 +275,18 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
             (RootIsText(input->content) ? TextFlag : 0u) |
             (input->content.media_type_byte_count != 0u ? GrammarInputFlag : 0u);
         result->spans.push_back(root);
+        result->media_types.push_back(MediaType(input->content));
 
         std::deque<Task> queue;
-        queue.push_back(Task{0u, std::numeric_limits<std::uint64_t>::max()});
+        queue.push_back(Task{
+            0u,
+            std::numeric_limits<std::uint64_t>::max(),
+            result->media_types.front()});
         std::set<ExecutionKey> executions;
         std::set<EmittedKey> emitted;
 
         while (!queue.empty()) {
-            const Task task = queue.front();
+            Task task = std::move(queue.front());
             queue.pop_front();
             if (task.span_index >= result->spans.size()) {
                 delete result;
@@ -223,6 +294,11 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
             }
             const laplace_decomposition_span span =
                 result->spans[static_cast<std::size_t>(task.span_index)];
+            laplace_decomposition_content task_content = input->content;
+            task_content.media_type =
+                task.media_type.empty() ? nullptr : task.media_type.data();
+            task_content.media_type_byte_count =
+                static_cast<std::uint64_t>(task.media_type.size());
             const std::uint32_t applicability_class = span.flags & ApplicabilityFlags;
             for (std::uint64_t provider_index = 0u;
                  provider_index < input->provider_count; ++provider_index) {
@@ -232,13 +308,14 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
                     span.byte_start,
                     span.byte_end,
                     span.kind,
-                    applicability_class};
+                    applicability_class,
+                    task.media_type};
                 if (!executions.insert(execution_key).second) continue;
                 ++result->summary.provider_execution_count;
                 int applicable = 0;
                 const auto applicable_status = input->providers[provider_index].applicable(
                     input->providers[provider_index].state,
-                    &input->content,
+                    &task_content,
                     &span,
                     &applicable);
                 if (applicable_status != LAPLACE_DECOMPOSITION_OK ||
@@ -251,6 +328,9 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
                 ApplyContext context{
                     result,
                     input,
+                    &task_content,
+                    media_resolver,
+                    media_resolver_state,
                     task.span_index,
                     provider_index,
                     &queue,
@@ -258,7 +338,7 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
                     LAPLACE_DECOMPOSITION_OK};
                 const auto apply_status = input->providers[provider_index].apply(
                     input->providers[provider_index].state,
-                    &input->content,
+                    &task_content,
                     &span,
                     Emit,
                     &context);
@@ -275,10 +355,30 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
         delete result;
         return LAPLACE_DECOMPOSITION_MEMORY_FAILURE;
     }
+    if (result->spans.size() != result->media_types.size()) {
+        delete result;
+        return LAPLACE_DECOMPOSITION_MEMORY_FAILURE;
+    }
     result->summary.span_count = static_cast<std::uint64_t>(result->spans.size());
     result->summary.status = static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_OK);
     *output = result;
     return LAPLACE_DECOMPOSITION_OK;
+}
+
+}  // namespace
+
+extern "C" laplace_decomposition_status laplace_decomposition_run(
+    const laplace_decomposition_input* input,
+    laplace_decomposition_result** output) {
+    return Run(input, nullptr, nullptr, output);
+}
+
+extern "C" laplace_decomposition_status laplace_decomposition_run_with_media_resolver(
+    const laplace_decomposition_input* input,
+    laplace_decomposition_media_type_resolver_fn resolver,
+    void* resolver_state,
+    laplace_decomposition_result** output) {
+    return Run(input, resolver, resolver_state, output);
 }
 
 extern "C" const laplace_decomposition_span* laplace_decomposition_spans(
@@ -288,6 +388,18 @@ extern "C" const laplace_decomposition_span* laplace_decomposition_spans(
     *span_count = result == nullptr ? 0u : result->spans.size();
     if (result == nullptr || result->spans.empty()) return nullptr;
     return result->spans.data();
+}
+
+extern "C" const char* laplace_decomposition_span_media_type(
+    const laplace_decomposition_result* result,
+    const std::size_t span_index,
+    std::size_t* byte_count) {
+    if (byte_count == nullptr) return nullptr;
+    *byte_count = 0u;
+    if (result == nullptr || span_index >= result->media_types.size()) return nullptr;
+    const std::string& media_type = result->media_types[span_index];
+    *byte_count = media_type.size();
+    return media_type.empty() ? nullptr : media_type.data();
 }
 
 extern "C" laplace_decomposition_status laplace_decomposition_summary_get(
