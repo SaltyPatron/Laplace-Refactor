@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "laplace/export.h"
+#include "laplace/types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +43,12 @@ laplace_cognition_packet_required_result_words(
     const uint32_t* request_words,
     size_t request_word_count,
     size_t* required_result_words);
+
+LAPLACE_API laplace_cognition_packet_status
+laplace_cognition_packet_request_context_fingerprint_words(
+    const uint32_t* request_words,
+    size_t request_word_count,
+    laplace_digest256* context_fingerprint);
 
 LAPLACE_API laplace_cognition_packet_status
 laplace_cognition_packet_execute_words(
