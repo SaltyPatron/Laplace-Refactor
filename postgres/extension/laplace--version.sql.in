@@ -371,6 +371,7 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_artifact AS (
     expected_sha256 bytea,
     content bytea,
     name bytea,
+    media_type bytea,
     expected_record_count numeric(20, 0),
     expected_field_count numeric(20, 0),
     reference_column_mask numeric(20, 0),

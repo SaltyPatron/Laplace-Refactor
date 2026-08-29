@@ -91,6 +91,7 @@ struct TabularProfileFixture {
             CopyProfileBytes(artifact.expected_sha256, generated.sha256);
             artifact.bytes = storage[index].data();
             artifact.name = generated.name;
+            artifact.media_type = generated.media_type;
             columns[index].reserve(generated.column_count);
             for (std::size_t column_index = 0u;
                  column_index < generated.column_count; ++column_index) {
@@ -103,6 +104,7 @@ struct TabularProfileFixture {
                 ? nullptr : columns[index].data();
             artifact.byte_count = generated.byte_count;
             artifact.name_byte_count = std::strlen(generated.name);
+            artifact.media_type_byte_count = std::strlen(generated.media_type);
             artifact.expected_record_count = generated.record_count;
             artifact.expected_field_count = generated.field_count;
             artifact.reference_column_mask = generated.reference_column_mask;

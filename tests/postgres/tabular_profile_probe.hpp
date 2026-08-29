@@ -61,6 +61,10 @@ int RunTabularProfileProbe(
     PrintProfileNumber(prefix + "_VERSION", Profile::coordinate_version);
     PrintProfileNumber(
         prefix + "_RECONSTRUCTION_CLASS", Profile::reconstruction);
+    PrintProfileNumber(
+        prefix + "_SOURCE_FLAGS",
+        LAPLACE_SOURCE_PROFILE_MAKE_FLAGS(
+            Profile::epistemic_class, Profile::evidence_type));
     PrintProfileArray(prefix + "_AUTHORITY_ID", Profile::authority);
     PrintProfileArray(prefix + "_RELEASE_ID", Profile::release);
     PrintProfileArray(prefix + "_NAMESPACE_ID", Profile::name_space);
@@ -134,6 +138,10 @@ int RunTabularProfileProbe(
             item + "NAME",
             reinterpret_cast<const std::uint8_t*>(generated.name),
             std::char_traits<char>::length(generated.name));
+        PrintProfileHex(
+            item + "MEDIA_TYPE",
+            reinterpret_cast<const std::uint8_t*>(generated.media_type),
+            std::char_traits<char>::length(generated.media_type));
         PrintProfileHex(
             item + "LOCAL_PATH",
             reinterpret_cast<const std::uint8_t*>(generated.local_discovery_path),

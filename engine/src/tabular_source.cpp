@@ -192,14 +192,17 @@ bool DynamicProfileFieldsZero(const laplace_source_profile_manifest& value) {
         }
     }
     const std::uint32_t epistemic_class =
-        value.flags & LAPLACE_SOURCE_PROFILE_EPISTEMIC_CLASS_MASK;
+        LAPLACE_SOURCE_PROFILE_GET_EPISTEMIC_CLASS(value.flags);
+    const std::uint32_t evidence_source_type =
+        LAPLACE_SOURCE_PROFILE_GET_EVIDENCE_SOURCE_TYPE(value.flags);
     return DigestZero(value.profile_id) &&
         value.reconstruction_class >=
             LAPLACE_SOURCE_PROFILE_RECONSTRUCTION_EXACT &&
         value.reconstruction_class <=
             LAPLACE_SOURCE_PROFILE_RECONSTRUCTION_NONE &&
-        (value.flags & ~LAPLACE_SOURCE_PROFILE_EPISTEMIC_CLASS_MASK) == 0u &&
-        epistemic_class <= LAPLACE_SOURCE_PROFILE_EPISTEMIC_MAX;
+        (value.flags & ~LAPLACE_SOURCE_PROFILE_FLAGS_KNOWN_MASK) == 0u &&
+        epistemic_class <= LAPLACE_SOURCE_PROFILE_EPISTEMIC_MAX &&
+        evidence_source_type <= LAPLACE_SOURCE_PROFILE_EVIDENCE_MAX;
 }
 
 bool ArtifactValid(const laplace_tabular_artifact& artifact) {
@@ -207,6 +210,11 @@ bool ArtifactValid(const laplace_tabular_artifact& artifact) {
         artifact.byte_count == 0u || artifact.name_byte_count == 0u ||
         artifact.name_byte_count > static_cast<std::uint64_t>(SIZE_MAX) ||
         artifact.byte_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+        (artifact.media_type == nullptr) != (artifact.media_type_byte_count == 0u) ||
+        artifact.media_type_byte_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+        (artifact.media_type_byte_count != 0u &&
+         std::memchr(artifact.media_type, 0,
+                     static_cast<std::size_t>(artifact.media_type_byte_count)) != nullptr) ||
         artifact.flags == 0u ||
         (artifact.flags & ~(LAPLACE_TABULAR_ARTIFACT_CONTAINER |
                             LAPLACE_TABULAR_ARTIFACT_MEMBER |
@@ -339,6 +347,8 @@ laplace_tabular_source_status ArtifactGraph(
         }
 #endif
         HashBytes(hasher, name.data(), name.size());
+        HashBytes(hasher, artifact.media_type,
+                  static_cast<std::size_t>(artifact.media_type_byte_count));
         HashU64(hasher, artifact.byte_count);
         HashBytes(
             hasher, artifact.expected_sha256,
@@ -468,6 +478,21 @@ public:
             DigestZero(input_.occurrence_context_fingerprint) ||
             DigestZero(input_.profile_declaration.recipe_program_fingerprint)) {
             return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+        }
+        if (LAPLACE_SOURCE_PROFILE_GET_EPISTEMIC_CLASS(
+                input_.profile_declaration.flags) !=
+                LAPLACE_SOURCE_PROFILE_EPISTEMIC_UNSPECIFIED ||
+            LAPLACE_SOURCE_PROFILE_GET_EVIDENCE_SOURCE_TYPE(
+                input_.profile_declaration.flags) !=
+                LAPLACE_SOURCE_PROFILE_EVIDENCE_UNSPECIFIED) {
+            for (std::size_t artifact_index = 0u;
+                 artifact_index < static_cast<std::size_t>(input_.artifact_count);
+                 ++artifact_index) {
+                if (input_.artifacts[artifact_index].media_type == nullptr ||
+                    input_.artifacts[artifact_index].media_type_byte_count == 0u) {
+                    return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+                }
+            }
         }
         if (!ValidateReferenceRules() || !ValidateMappingRules()) {
             return status_;

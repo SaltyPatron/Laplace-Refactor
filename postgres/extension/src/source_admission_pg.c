@@ -217,12 +217,14 @@ static laplace_tabular_artifact* read_artifacts(
         HeapTupleHeader tuple;
         bytea* content;
         bytea* name;
+        bytea* media_type;
         ArrayType* column_names;
         Datum* column_values = NULL;
         bool* column_nulls = NULL;
         int column_count = 0;
         laplace_tabular_column* columns = NULL;
         char* exact_name;
+        char* exact_media_type;
         int column_index;
         if (nulls[index]) {
             ereport(ERROR,
@@ -246,9 +248,13 @@ static laplace_tabular_artifact* read_artifacts(
             tuple, 4, "artifact content"));
         name = DatumGetByteaPP(laplace_pg_required_composite_attribute(
             tuple, 5, "artifact name"));
+        media_type = DatumGetByteaPP(laplace_pg_required_composite_attribute(
+            tuple, 6, "artifact media_type"));
         artifacts[index].bytes = (const uint8_t*)VARDATA_ANY(content);
         artifacts[index].byte_count = (uint64_t)VARSIZE_ANY_EXHDR(content);
         artifacts[index].name_byte_count = (uint64_t)VARSIZE_ANY_EXHDR(name);
+        artifacts[index].media_type_byte_count =
+            (uint64_t)VARSIZE_ANY_EXHDR(media_type);
         if (artifacts[index].name_byte_count == 0u ||
             artifacts[index].name_byte_count > SIZE_MAX - 1u) {
             ereport(ERROR,
@@ -260,30 +266,42 @@ static laplace_tabular_artifact* read_artifacts(
                (size_t)artifacts[index].name_byte_count);
         exact_name[artifacts[index].name_byte_count] = '\0';
         artifacts[index].name = exact_name;
+        if (artifacts[index].media_type_byte_count == 0u ||
+            artifacts[index].media_type_byte_count > SIZE_MAX - 1u) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                     errmsg("Laplace tabular artifact media type is invalid")));
+        }
+        exact_media_type = (char*)palloc(
+            (size_t)artifacts[index].media_type_byte_count + 1u);
+        memcpy(exact_media_type, VARDATA_ANY(media_type),
+               (size_t)artifacts[index].media_type_byte_count);
+        exact_media_type[artifacts[index].media_type_byte_count] = '\0';
+        artifacts[index].media_type = exact_media_type;
         artifacts[index].expected_record_count = laplace_pg_uint64_from_numeric(
             laplace_pg_required_composite_attribute(
-                tuple, 6, "expected_record_count"),
+                tuple, 7, "expected_record_count"),
             "tabular expected_record_count");
         artifacts[index].expected_field_count = laplace_pg_uint64_from_numeric(
             laplace_pg_required_composite_attribute(
-                tuple, 7, "expected_field_count"),
+                tuple, 8, "expected_field_count"),
             "tabular expected_field_count");
         artifacts[index].reference_column_mask = laplace_pg_uint64_from_numeric(
             laplace_pg_required_composite_attribute(
-                tuple, 8, "reference_column_mask"),
+                tuple, 9, "reference_column_mask"),
             "tabular reference_column_mask");
-        artifacts[index].mode = read_u32(tuple, 9, "tabular mode");
-        artifacts[index].delimiter = read_u32(tuple, 10, "tabular delimiter");
+        artifacts[index].mode = read_u32(tuple, 10, "tabular mode");
+        artifacts[index].delimiter = read_u32(tuple, 11, "tabular delimiter");
         artifacts[index].line_terminator = read_u32(
-            tuple, 11, "tabular line_terminator");
+            tuple, 12, "tabular line_terminator");
         artifacts[index].expected_column_count = read_u32(
-            tuple, 12, "tabular expected_column_count");
+            tuple, 13, "tabular expected_column_count");
         artifacts[index].outcome_type = read_u32(
-            tuple, 13, "tabular outcome_type");
-        artifacts[index].flags = read_u32(tuple, 14, "tabular flags");
+            tuple, 14, "tabular outcome_type");
+        artifacts[index].flags = read_u32(tuple, 15, "tabular flags");
         column_names = DatumGetArrayTypeP(
             laplace_pg_required_composite_attribute(
-                tuple, 15, "tabular column_names"));
+                tuple, 16, "tabular column_names"));
         if ((ARR_NDIM(column_names) != 1 && ARR_NDIM(column_names) != 0) ||
             ARR_ELEMTYPE(column_names) != BYTEAOID) {
             ereport(ERROR,
@@ -317,7 +335,7 @@ static laplace_tabular_artifact* read_artifacts(
         }
         artifacts[index].columns = columns;
         artifacts[index].header_record_count = read_u32(
-            tuple, 16, "tabular header_record_count");
+            tuple, 17, "tabular header_record_count");
     }
     *artifact_count = (size_t)count;
     return artifacts;
