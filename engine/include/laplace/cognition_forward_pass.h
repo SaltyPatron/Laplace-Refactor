@@ -31,6 +31,16 @@ typedef struct laplace_cognition_forward_program {
     uint32_t reserved;
 } laplace_cognition_forward_program;
 
+typedef struct laplace_cognition_forward_grant {
+    uint64_t remaining_resource_cost;
+    uint64_t remaining_io_operations;
+    uint64_t remaining_database_operations;
+    uint64_t remaining_candidate_operations;
+    uint64_t remaining_resolutions;
+    uint64_t remaining_provider_calls;
+    uint64_t remaining_layers;
+} laplace_cognition_forward_grant;
+
 typedef struct laplace_cognition_forward_enumeration_receipt {
     laplace_digest256 receipt_id;
     laplace_digest256 state_id;
@@ -62,6 +72,7 @@ typedef int (*laplace_cognition_forward_enumerate_fn)(
     const laplace_cognition_guidance_state* state,
     const laplace_cognition_query_projection* projections,
     size_t projection_count,
+    const laplace_cognition_forward_grant* grant,
     laplace_cognition_guidance_operation* operations,
     size_t operation_capacity,
     size_t* operation_count,
@@ -73,6 +84,7 @@ typedef int (*laplace_cognition_forward_execute_fn)(
     const laplace_cognition_guidance_operation* operation,
     const laplace_cognition_query_projection* projections,
     size_t projection_count,
+    const laplace_cognition_forward_grant* grant,
     laplace_cognition_resolution* resolutions,
     size_t resolution_capacity,
     size_t* resolution_count,
