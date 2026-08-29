@@ -118,6 +118,10 @@ include(cmake/LaplaceReferenceMappingContract.cmake)
 laplace_configure_reference_mapping_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-mapping.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/reference_mapping.h")
+include(cmake/LaplaceQuerySearchContract.cmake)
+laplace_configure_query_search_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/query-search.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/query_search.h")
 include(cmake/LaplaceSourceProfileContract.cmake)
 laplace_configure_source_profile_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/source-profile-execution.json"
@@ -159,6 +163,11 @@ laplace_configure_unicode_source(
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/unicode-source-manifest.h")
 
 add_subdirectory(engine)
+target_sources(laplace_engine PRIVATE engine/src/query_search.cpp)
+add_library(Laplace::QuerySearch ALIAS laplace_engine)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/query_search.h"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")
 
 if(LAPLACE_ENABLE_DOTNET_BINDINGS)
     include(cmake/LaplaceDotnetBindings.cmake)
@@ -216,6 +225,7 @@ if(BUILD_TESTING)
             "IntelLLVM reports a libstdc++ stable_sort implementation detail used while compiling GoogleTest 1.18.0")
     endif()
     add_subdirectory(tests)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/query_search.cmake")
 endif()
 
 configure_package_config_file(
