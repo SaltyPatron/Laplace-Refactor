@@ -69,9 +69,8 @@
     "c_compiler": "/opt/intel/oneapi/compiler/2026.1/bin/icx",
     "cxx_compiler": "/opt/intel/oneapi/compiler/2026.1/bin/icpx",
     "install_libdir": "lib",
-    "blake3_root": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/blake3",
+    "blake3_root": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7",
     "blake3_source": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/blake3/c",
-    "tree_sitter_root": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/tree-sitter",
     "parallel_jobs": 6
   },
   "host_build_provider": {
