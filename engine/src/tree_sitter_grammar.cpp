@@ -65,11 +65,14 @@ LanguageFn AsLanguageFn(void* symbol) {
 extern "C" laplace_tree_sitter_grammar_status laplace_tree_sitter_grammar_open(
     const char* library_path,
     const char* language_symbol,
+    const char* media_type,
+    const std::uint64_t media_type_byte_count,
     const std::uint64_t kind_base,
     const laplace_digest256* provider_fingerprint,
     laplace_tree_sitter_grammar** output) {
     if (library_path == nullptr || *library_path == '\0' ||
-        !SymbolValid(language_symbol) || provider_fingerprint == nullptr ||
+        !SymbolValid(language_symbol) || media_type == nullptr ||
+        media_type_byte_count == 0u || provider_fingerprint == nullptr ||
         output == nullptr) {
         return LAPLACE_TREE_SITTER_GRAMMAR_INVALID_ARGUMENT;
     }
@@ -106,6 +109,8 @@ extern "C" laplace_tree_sitter_grammar_status laplace_tree_sitter_grammar_open(
         laplace_decomposition_tree_sitter_provider_init(
             &grammar->provider,
             language,
+            media_type,
+            media_type_byte_count,
             kind_base,
             provider_fingerprint) != LAPLACE_DECOMPOSITION_OK) {
         CloseLibrary(grammar->library);
