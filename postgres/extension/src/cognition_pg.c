@@ -1,5 +1,6 @@
 #include "postgres.h"
 
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -12,9 +13,13 @@
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 
-#include "laplace/cognition_operator.h"
-#include "laplace/cognition_solver.h"
+#include "laplace/cognition_packet.h"
+#include "laplace/cognition_packet_compile.h"
+#include "laplace/cognition_runtime.h"
+#include "laplace/contract/isa.h"
 #include "laplace/framework.h"
+#include "laplace/isa.h"
+#include "cognition_isa_pg.h"
 #include "laplace_pg_internal.h"
 #include "set_pg.h"
 
@@ -344,7 +349,7 @@ static void enforce_memory_grant(
     uint64_t required;
     if (field_count > UINT64_MAX / sizeof(laplace_cognition_operator_field) ||
         constraint_count > UINT64_MAX / sizeof(laplace_cognition_operator_constraint) ||
-        field_count > UINT64_MAX / (2u * sizeof(double))) {
+        field_count > UINT64_MAX / (4u * sizeof(double))) {
         ereport(ERROR,
                 (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                  errmsg("Laplace cognition working set size overflowed")));
@@ -352,7 +357,14 @@ static void enforce_memory_grant(
     field_bytes = (uint64_t)field_count * sizeof(laplace_cognition_operator_field);
     constraint_bytes =
         (uint64_t)constraint_count * sizeof(laplace_cognition_operator_constraint);
-    state_bytes = (uint64_t)field_count * 2u * sizeof(double);
+    state_bytes = (uint64_t)field_count * 4u * sizeof(double);
+    if (field_bytes > UINT64_MAX / 2u || constraint_bytes > UINT64_MAX / 2u) {
+        ereport(ERROR,
+                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                 errmsg("Laplace cognition working set size overflowed")));
+    }
+    field_bytes *= 2u;
+    constraint_bytes *= 2u;
     if (UINT64_MAX - field_bytes < constraint_bytes ||
         UINT64_MAX - (field_bytes + constraint_bytes) < state_bytes) {
         ereport(ERROR,
@@ -371,16 +383,18 @@ static void enforce_memory_grant(
 }
 
 static ArrayType* solution_array(const double* solution, size_t count) {
-    Datum* values = (Datum*)palloc(sizeof(*values) * count);
+    Datum* values;
     int16 type_length;
     bool type_by_value;
     char type_alignment;
     size_t index;
-    if (count > INT_MAX) {
+    if (count > (size_t)INT_MAX ||
+        count > SIZE_MAX / sizeof(*values)) {
         ereport(ERROR,
                 (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                  errmsg("Laplace cognition solution exceeds PostgreSQL array cardinality")));
     }
+    values = (Datum*)palloc(sizeof(*values) * count);
     for (index = 0u; index < count; ++index) {
         values[index] = Float8GetDatum(solution[index]);
     }
@@ -398,17 +412,22 @@ Datum laplace_pg_cognition_solve(PG_FUNCTION_ARGS) {
     laplace_cognition_operator_field* fields;
     laplace_cognition_operator_constraint* constraints;
     laplace_cognition_solver_program solver_program;
-    laplace_cognition_operator* operator_value = NULL;
-    laplace_cognition_operator_receipt operator_receipt;
-    laplace_cognition_solver_receipt solver_receipt;
-    laplace_cognition_operator_status operator_status;
-    laplace_cognition_solver_status solver_status;
+    laplace_cognition_runtime_request request;
+    laplace_cognition_runtime_result decoded;
+    laplace_isa_receipt isa_receipt;
+    laplace_cognition_packet_status packet_status;
     size_t field_count = 0u;
     size_t constraint_count = 0u;
+    size_t request_word_capacity = 0u;
+    size_t request_word_count = 0u;
+    size_t result_word_capacity = 0u;
+    size_t result_word_count = 0u;
+    uint32_t* request_words;
+    uint32_t* result_words;
     double* initial_state;
     double* solution;
-    Datum result_values[17];
-    bool result_nulls[17] = {false};
+    Datum result_values[18];
+    bool result_nulls[18] = {false};
     HeapTuple result_tuple;
 
     laplace_pg_read_execution_context(PG_GETARG_DATUM(0), &context);
@@ -436,71 +455,114 @@ Datum laplace_pg_cognition_solve(PG_FUNCTION_ARGS) {
         DatumGetHeapTupleHeader(PG_GETARG_DATUM(4)), &solver_program);
     initial_state = read_initial_state(PG_GETARG_ARRAYTYPE_P(5), field_count);
     enforce_memory_grant(&context, field_count, constraint_count);
-    solution = (double*)palloc0(sizeof(*solution) * field_count);
 
-    memset(&operator_receipt, 0, sizeof(operator_receipt));
-    operator_status = laplace_cognition_operator_create(
-        &operator_program, fields, field_count, constraints, constraint_count,
-        &operator_value, &operator_receipt);
-    if (operator_status != LAPLACE_COGNITION_OPERATOR_OK) {
-        if (operator_value != NULL) {
-            laplace_cognition_operator_destroy(&operator_value);
-        }
+    memset(&request, 0, sizeof(request));
+    request.operator_program = operator_program;
+    request.fields = fields;
+    request.constraints = constraints;
+    request.initial_state = initial_state;
+    request.field_count = (uint64_t)field_count;
+    request.constraint_count = (uint64_t)constraint_count;
+    request.initial_state_count = (uint64_t)field_count;
+    request.solver_program = solver_program;
+    packet_status = laplace_cognition_packet_request_required_words(
+        &request, &request_word_capacity);
+    if (packet_status != LAPLACE_COGNITION_PACKET_OK ||
+        request_word_capacity == 0u ||
+        request_word_capacity > SIZE_MAX / sizeof(*request_words)) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace cognition operator construction failed"),
-                 errdetail("operator_status=%d", (int)operator_status)));
+                 errmsg("Laplace typed cognition request could not be lowered to the canonical packet"),
+                 errdetail("packet_status=%d", (int)packet_status)));
     }
-
-    solver_program.operator_id = operator_receipt.operator_id;
-    memset(&solver_receipt, 0, sizeof(solver_receipt));
-    solver_status = laplace_cognition_solver_execute(
-        operator_value, &solver_program,
-        initial_state, field_count, solution, field_count, &solver_receipt);
-    laplace_cognition_operator_destroy(&operator_value);
-    if (solver_status != LAPLACE_COGNITION_SOLVER_OK) {
+    request_words = (uint32_t*)palloc0(
+        sizeof(*request_words) * request_word_capacity);
+    packet_status = laplace_cognition_packet_encode_request_words(
+        &request, request_words, request_word_capacity, &request_word_count);
+    if (packet_status != LAPLACE_COGNITION_PACKET_OK ||
+        request_word_count != request_word_capacity) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace cognition solver execution failed"),
-                 errdetail("solver_status=%d disposition=%u",
-                           (int)solver_status, solver_receipt.disposition)));
+                 errmsg("Laplace typed cognition request packet encoding failed"),
+                 errdetail("packet_status=%d words=%zu expected=%zu",
+                           (int)packet_status, request_word_count,
+                           request_word_capacity)));
+    }
+    packet_status = laplace_cognition_packet_required_result_words(
+        request_words, request_word_count, &result_word_capacity);
+    if (packet_status != LAPLACE_COGNITION_PACKET_OK ||
+        result_word_capacity == 0u ||
+        result_word_capacity > SIZE_MAX / sizeof(*result_words)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace typed cognition result packet preflight failed"),
+                 errdetail("packet_status=%d", (int)packet_status)));
+    }
+    result_words = (uint32_t*)palloc0(
+        sizeof(*result_words) * result_word_capacity);
+    laplace_pg_cognition_execute_words(
+        &context, request_words, request_word_count,
+        result_words, result_word_capacity, &result_word_count, &isa_receipt);
+
+    solution = (double*)palloc0(sizeof(*solution) * field_count);
+    memset(&decoded, 0, sizeof(decoded));
+    decoded.solution = solution;
+    decoded.solution_capacity = (uint64_t)field_count;
+    packet_status = laplace_cognition_packet_decode_result_words(
+        result_words, result_word_count, &decoded);
+    if (packet_status != LAPLACE_COGNITION_PACKET_OK ||
+        decoded.status != LAPLACE_COGNITION_RUNTIME_OK ||
+        decoded.solution_count != (uint64_t)field_count) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace cognition ISA result did not decode to the typed result contract"),
+                 errdetail("packet_status=%d runtime_status=%u solution_count=%llu expected=%zu",
+                           (int)packet_status, decoded.status,
+                           (unsigned long long)decoded.solution_count,
+                           field_count)));
     }
 
     result_values[0] = PointerGetDatum(solution_array(solution, field_count));
     result_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        operator_receipt.receipt_id.bytes, sizeof(operator_receipt.receipt_id.bytes)));
+        decoded.operator_receipt.receipt_id.bytes,
+        sizeof(decoded.operator_receipt.receipt_id.bytes)));
     result_values[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        operator_receipt.operator_id.bytes, sizeof(operator_receipt.operator_id.bytes)));
+        decoded.operator_receipt.operator_id.bytes,
+        sizeof(decoded.operator_receipt.operator_id.bytes)));
     result_values[3] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        operator_receipt.program_fingerprint.bytes,
-        sizeof(operator_receipt.program_fingerprint.bytes)));
+        decoded.operator_receipt.program_fingerprint.bytes,
+        sizeof(decoded.operator_receipt.program_fingerprint.bytes)));
     result_values[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        operator_receipt.field_set_fingerprint.bytes,
-        sizeof(operator_receipt.field_set_fingerprint.bytes)));
+        decoded.operator_receipt.field_set_fingerprint.bytes,
+        sizeof(decoded.operator_receipt.field_set_fingerprint.bytes)));
     result_values[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        operator_receipt.constraint_set_fingerprint.bytes,
-        sizeof(operator_receipt.constraint_set_fingerprint.bytes)));
+        decoded.operator_receipt.constraint_set_fingerprint.bytes,
+        sizeof(decoded.operator_receipt.constraint_set_fingerprint.bytes)));
     result_values[6] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        solver_receipt.receipt_id.bytes, sizeof(solver_receipt.receipt_id.bytes)));
+        decoded.solver_receipt.receipt_id.bytes,
+        sizeof(decoded.solver_receipt.receipt_id.bytes)));
     result_values[7] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        solver_receipt.program_fingerprint.bytes,
-        sizeof(solver_receipt.program_fingerprint.bytes)));
+        decoded.solver_receipt.program_fingerprint.bytes,
+        sizeof(decoded.solver_receipt.program_fingerprint.bytes)));
     result_values[8] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        solver_receipt.input_fingerprint.bytes,
-        sizeof(solver_receipt.input_fingerprint.bytes)));
+        decoded.solver_receipt.input_fingerprint.bytes,
+        sizeof(decoded.solver_receipt.input_fingerprint.bytes)));
     result_values[9] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        solver_receipt.iteration_trace_fingerprint.bytes,
-        sizeof(solver_receipt.iteration_trace_fingerprint.bytes)));
+        decoded.solver_receipt.iteration_trace_fingerprint.bytes,
+        sizeof(decoded.solver_receipt.iteration_trace_fingerprint.bytes)));
     result_values[10] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        solver_receipt.output_fingerprint.bytes,
-        sizeof(solver_receipt.output_fingerprint.bytes)));
-    result_values[11] = laplace_pg_numeric_from_uint64(solver_receipt.iteration_count);
-    result_values[12] = Float8GetDatum(solver_receipt.initial_residual_l2);
-    result_values[13] = Float8GetDatum(solver_receipt.final_residual_l2);
-    result_values[14] = Float8GetDatum(solver_receipt.final_energy);
-    result_values[15] = Int32GetDatum((int32)solver_receipt.disposition);
-    result_values[16] = Int32GetDatum((int32)solver_receipt.status);
+        decoded.solver_receipt.output_fingerprint.bytes,
+        sizeof(decoded.solver_receipt.output_fingerprint.bytes)));
+    result_values[11] = laplace_pg_numeric_from_uint64(
+        decoded.solver_receipt.iteration_count);
+    result_values[12] = Float8GetDatum(decoded.solver_receipt.initial_residual_l2);
+    result_values[13] = Float8GetDatum(decoded.solver_receipt.final_residual_l2);
+    result_values[14] = Float8GetDatum(decoded.solver_receipt.final_energy);
+    result_values[15] = Int32GetDatum((int32)decoded.solver_receipt.disposition);
+    result_values[16] = Int32GetDatum((int32)decoded.solver_receipt.status);
+    result_values[17] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        isa_receipt.receipt_id.bytes, sizeof(isa_receipt.receipt_id.bytes)));
     result_tuple = laplace_pg_form_result_tuple(
-        fcinfo, result_values, result_nulls, 17);
+        fcinfo, result_values, result_nulls, 18);
     PG_RETURN_DATUM(HeapTupleGetDatum(result_tuple));
 }
