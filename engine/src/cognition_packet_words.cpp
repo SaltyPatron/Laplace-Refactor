@@ -2,11 +2,15 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <new>
 #include <vector>
 
 namespace {
+
+constexpr std::size_t RequestContextOffset =
+    8U + 4U + 4U + (4U * 8U) + 32U + 32U;
 
 bool ByteCount(const std::size_t word_count, std::size_t* const byte_count) {
     if (byte_count == nullptr ||
@@ -44,6 +48,31 @@ void CanonicalBytesToWords(
     }
 }
 
+laplace_cognition_packet_status CanonicalRequest(
+    const std::uint32_t* const request_words,
+    const std::size_t request_word_count,
+    std::vector<std::uint8_t>* const canonical_request,
+    std::size_t* const required_result_bytes) {
+    if (request_words == nullptr || request_word_count == 0U ||
+        canonical_request == nullptr || required_result_bytes == nullptr) {
+        return LAPLACE_COGNITION_PACKET_INVALID_ARGUMENT;
+    }
+    std::size_t request_bytes = 0U;
+    if (!ByteCount(request_word_count, &request_bytes)) {
+        return LAPLACE_COGNITION_PACKET_RANGE;
+    }
+    try {
+        canonical_request->resize(request_bytes);
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_COGNITION_PACKET_MEMORY_FAILURE;
+    }
+    WordsToCanonicalBytes(
+        request_words, request_word_count, canonical_request->data());
+    *required_result_bytes = 0U;
+    return laplace_cognition_packet_required_result_bytes(
+        canonical_request->data(), canonical_request->size(), required_result_bytes);
+}
+
 }  // namespace
 
 extern "C" laplace_cognition_packet_status
@@ -51,25 +80,50 @@ laplace_cognition_packet_required_result_words(
     const std::uint32_t* const request_words,
     const std::size_t request_word_count,
     std::size_t* const required_result_words) {
-    if (request_words == nullptr || request_word_count == 0U ||
-        required_result_words == nullptr) {
+    if (required_result_words == nullptr) {
         return LAPLACE_COGNITION_PACKET_INVALID_ARGUMENT;
     }
     *required_result_words = 0U;
-    std::size_t request_bytes = 0U;
-    if (!ByteCount(request_word_count, &request_bytes)) {
-        return LAPLACE_COGNITION_PACKET_RANGE;
-    }
     try {
-        std::vector<std::uint8_t> canonical_request(request_bytes);
-        WordsToCanonicalBytes(
-            request_words, request_word_count, canonical_request.data());
+        std::vector<std::uint8_t> canonical_request;
         std::size_t result_bytes = 0U;
-        const auto status = laplace_cognition_packet_required_result_bytes(
-            canonical_request.data(), canonical_request.size(), &result_bytes);
+        const auto status = CanonicalRequest(
+            request_words, request_word_count,
+            &canonical_request, &result_bytes);
         if (status != LAPLACE_COGNITION_PACKET_OK) return status;
         if ((result_bytes & 3U) != 0U) return LAPLACE_COGNITION_PACKET_RANGE;
         *required_result_words = result_bytes / 4U;
+        return LAPLACE_COGNITION_PACKET_OK;
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_COGNITION_PACKET_MEMORY_FAILURE;
+    }
+}
+
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_request_context_fingerprint_words(
+    const std::uint32_t* const request_words,
+    const std::size_t request_word_count,
+    laplace_digest256* const context_fingerprint) {
+    if (context_fingerprint == nullptr) {
+        return LAPLACE_COGNITION_PACKET_INVALID_ARGUMENT;
+    }
+    *context_fingerprint = laplace_digest256{};
+    try {
+        std::vector<std::uint8_t> canonical_request;
+        std::size_t result_bytes = 0U;
+        const auto status = CanonicalRequest(
+            request_words, request_word_count,
+            &canonical_request, &result_bytes);
+        if (status != LAPLACE_COGNITION_PACKET_OK) return status;
+        (void)result_bytes;
+        if (canonical_request.size() <
+            RequestContextOffset + sizeof(context_fingerprint->bytes)) {
+            return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+        }
+        std::memcpy(
+            context_fingerprint->bytes,
+            canonical_request.data() + RequestContextOffset,
+            sizeof(context_fingerprint->bytes));
         return LAPLACE_COGNITION_PACKET_OK;
     } catch (const std::bad_alloc&) {
         return LAPLACE_COGNITION_PACKET_MEMORY_FAILURE;
