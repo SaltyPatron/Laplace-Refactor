@@ -1,4 +1,15 @@
 set(LAPLACE_TREE_SITTER_SOURCE "" CACHE PATH "Verified upstream Tree-sitter source directory")
+if(LAPLACE_TREE_SITTER_SOURCE STREQUAL "")
+    if(NOT IS_ABSOLUTE "${LAPLACE_BLAKE3_SOURCE}")
+        message(FATAL_ERROR
+            "Tree-sitter inference requires an absolute LAPLACE_BLAKE3_SOURCE")
+    endif()
+    get_filename_component(_laplace_blake3_root "${LAPLACE_BLAKE3_SOURCE}" DIRECTORY)
+    get_filename_component(_laplace_source_generation "${_laplace_blake3_root}" DIRECTORY)
+    set(LAPLACE_TREE_SITTER_SOURCE
+        "${_laplace_source_generation}/tree-sitter"
+        CACHE PATH "Verified upstream Tree-sitter source directory" FORCE)
+endif()
 if(NOT IS_ABSOLUTE "${LAPLACE_TREE_SITTER_SOURCE}")
     message(FATAL_ERROR "LAPLACE_TREE_SITTER_SOURCE must be an absolute verified source path")
 endif()
