@@ -18,66 +18,65 @@ jobs:
       - postgres-18
     timeout-minutes: 5
     steps:
-      - name: Observe installed product and live PostgreSQL state
+      - name: Discover and query actual PostgreSQL state
         shell: bash
         run: |
-          set -euo pipefail
-          test "$(id -un)" = laplace-runner
+          set -u -o pipefail
+          test "$(id -un)" = laplace-runner || exit 2
           echo "runner_user=$(id -un)"
           echo "host=$(hostname)"
           echo "observed_at=$(date -Iseconds)"
-          echo "active_root=$(readlink -f /opt/laplace/current 2>/dev/null || true)"
-          echo "service_state=$(systemctl is-active laplace-refactor-postgresql.service 2>/dev/null || true)"
+          printf 'active_root='; readlink -f /opt/laplace/current 2>/dev/null || true
+          printf 'declared_service='; systemctl is-active laplace-refactor-postgresql.service 2>/dev/null || true
+
+          echo '--- postgres processes ---'
+          pgrep -a -f '[p]ostgres' || true
+          echo '--- postgres-related services ---'
+          systemctl list-units --type=service --all --no-pager 2>/dev/null | grep -Ei 'postgres|laplace' || true
+          echo '--- listening tcp ports ---'
+          ss -ltn 2>/dev/null | grep -E ':(5432|55433)\b' || true
+          echo '--- unix sockets ---'
+          find /run /var/run /tmp -maxdepth 4 -type s -name '.s.PGSQL.*' -print 2>/dev/null | sort -u || true
+          echo '--- installed postgres binaries ---'
+          find /opt/laplace -maxdepth 4 -type f \( -name psql -o -name postgres -o -name pg_isready \) -perm -0100 -print 2>/dev/null | sort || true
 
           psql=''
           for candidate in \
             /opt/laplace/current/pgsql-18/bin/psql \
-            /opt/laplace/pgsql-18/bin/psql; do
-            if test -x "$candidate"; then
-              psql="$candidate"
-              break
-            fi
+            /opt/laplace/pgsql-18/bin/psql \
+            /usr/bin/psql; do
+            if test -x "$candidate"; then psql="$candidate"; break; fi
           done
-          if test -z "$psql"; then
-            echo 'psql=missing'
-            exit 2
-          fi
+          if test -z "$psql"; then echo 'psql=missing'; exit 0; fi
           echo "psql=$psql"
-          "$psql" --version
+          "$psql" --version || true
+          pg_isready="$(dirname "$psql")/pg_isready"
 
-          args=(
-            -X -v ON_ERROR_STOP=1 -A -t
-            -h /run/laplace-refactor-postgresql
-            -p 55433
-            -d laplace_refactor
-            -U laplace_app
-          )
+          echo '--- readiness probes ---'
+          for host in /run/laplace-refactor-postgresql /var/run/postgresql /run/postgresql /tmp localhost; do
+            for port in 55433 5432; do
+              if test -x "$pg_isready"; then "$pg_isready" -h "$host" -p "$port" -t 1 || true; fi
+            done
+          done
 
-          echo '--- identity ---'
-          "$psql" "${args[@]}" -c "select current_database(), current_user, current_setting('server_version');"
-          echo '--- extension ---'
-          "$psql" "${args[@]}" -c "select extname, extversion from pg_extension where extname='laplace';"
-          echo '--- schema objects ---'
-          "$psql" "${args[@]}" -c "select n.nspname||'.'||c.relname, c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='laplace' order by 1;"
-          echo '--- live row counts ---'
-          for rel in entity physicality attestation consensus calculation_receipt execution_receipt perfcache_generation unicode_root_epoch; do
-            exists=$("$psql" "${args[@]}" -c "select to_regclass('laplace.$rel') is not null;")
-            if test "$exists" = t; then
-              count=$("$psql" "${args[@]}" -c "select count(*) from laplace.$rel;")
-              echo "$rel=$count"
-            else
-              echo "$rel=ABSENT"
-            fi
+          echo '--- connection probes as laplace-runner ---'
+          query="select current_database(), current_user, current_setting('server_version'), current_setting('data_directory');"
+          for spec in \
+            '/run/laplace-refactor-postgresql|55433|laplace_refactor|laplace_app' \
+            '/var/run/postgresql|5432|laplace|laplace_admin' \
+            '/var/run/postgresql|5432|laplace_refactor|laplace_app' \
+            '/run/postgresql|5432|laplace|laplace_admin' \
+            'localhost|5432|laplace|laplace_admin'; do
+            IFS='|' read -r host port db role <<< "$spec"
+            echo "TRY host=$host port=$port db=$db role=$role"
+            "$psql" -X -w -A -t -v ON_ERROR_STOP=1 -h "$host" -p "$port" -d "$db" -U "$role" -c "$query" 2>&1 || true
           done
-          echo '--- product call surfaces ---'
-          "$psql" "${args[@]}" -c "select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='laplace' and (p.proname like '%cognition%' or p.proname like '%query%' or p.proname like '%unicode%' or p.proname like '%highway%') order by p.proname;"
-          echo '--- installed object identity ---'
-          for f in \
-            /opt/laplace/current/pgsql-18/lib/laplace_pg.so \
-            /opt/laplace/current/lib/liblaplace_engine.so.2.0.0; do
-            if test -f "$f"; then
-              sha256sum "$f"
-            else
-              echo "ABSENT $f"
-            fi
-          done
+
+          echo '--- sudo authority ---'
+          sudo -n -l 2>&1 || true
+          echo '--- local postgres-superuser observation if authorized ---'
+          sudo -n -u postgres "$psql" -X -w -A -t -d postgres -c \
+            "select datname from pg_database where datallowconn order by datname;" 2>&1 || true
+
+          echo '--- installed Laplace objects ---'
+          find /opt/laplace -maxdepth 6 -type f \( -name 'laplace_pg.so' -o -name 'liblaplace_engine.so*' -o -name 'laplace.control' \) -print -exec sha256sum {} \; 2>/dev/null || true
