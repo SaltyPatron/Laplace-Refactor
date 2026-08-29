@@ -125,6 +125,19 @@ LAPLACE_API size_t
 laplace_cognition_operator_constraint_count(const laplace_cognition_operator* operator_value);
 
 LAPLACE_API laplace_cognition_operator_status
+laplace_cognition_operator_receipt_get(
+    const laplace_cognition_operator* operator_value,
+    laplace_cognition_operator_receipt* receipt);
+
+LAPLACE_API laplace_cognition_operator_status
+laplace_cognition_operator_apply_linear(
+    const laplace_cognition_operator* operator_value,
+    const double* input,
+    size_t input_count,
+    double* output,
+    size_t output_count);
+
+LAPLACE_API laplace_cognition_operator_status
 laplace_cognition_operator_apply(
     const laplace_cognition_operator* operator_value,
     const double* input,
