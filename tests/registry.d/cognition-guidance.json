@@ -1,0 +1,56 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "GuidanceState.RetainsTypedObligationsInCanonicalIdentity",
+      "evidence_targets": ["LP-TEST-GUIDANCE-STATE-CANONICAL", "LP-TEST-TYPED-KNOWLEDGE-DEFICIT"],
+      "covered_dimensions": ["typed obligation identity", "bindings world time context evidence authority result-contract retention", "topic-scalar nonreconstruction"],
+      "defect_controls": ["cognition-guidance.mutation-kind-collapse-detected"]
+    },
+    {
+      "ctest_name": "GuidanceState.RequiresSemanticCompletion",
+      "evidence_targets": ["LP-TEST-GUIDANCE-COMPLETION", "LP-TEST-PARTIAL-NONCOMPLETION"],
+      "covered_dimensions": ["semantic completion obligations", "open required deficit noncompletion"],
+      "defect_controls": ["cognition-guidance.mutation-nonempty-completion-detected"]
+    },
+    {
+      "ctest_name": "GuidanceState.ProjectsFoldsAndTransformsOneLayer",
+      "evidence_targets": ["LP-TEST-GUIDANCE-STATE-CANONICAL", "LP-TEST-GUIDANCE-OPERATION-CONTRACT", "LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["typed query projection", "derived-state transition", "remaining-obligation reprojection", "prior-state immutability"]
+    },
+    {
+      "ctest_name": "GuidanceEvidence.CollapsesDependenceRootsBeforeNextLayer",
+      "evidence_targets": ["LP-TEST-EVIDENCE-METRIC-NONAMPLIFICATION", "LP-TEST-CONNECTION-DEPENDENCE-NONAMPLIFICATION"],
+      "covered_dimensions": ["raw evidence retention", "dependence-root collapse", "contradiction retention", "uncertainty and standing fingerprints"]
+    },
+    {
+      "ctest_name": "GuidanceScheduler.RanksRelevantReductionBeforeRawNovelty",
+      "evidence_targets": ["LP-TEST-DEFICIT-ACTION-SCHEDULER", "LP-TEST-GUIDANCE-OPERATION-CONTRACT"],
+      "covered_dimensions": ["expected obligation reduction", "information value", "resource cost", "novelty nonauthority"],
+      "defect_controls": ["cognition-guidance.mutation-raw-novelty-diversion-detected"]
+    },
+    {
+      "ctest_name": "GuidanceScheduler.TerminalActRequiresCompletedObligations",
+      "evidence_targets": ["LP-TEST-GUIDANCE-COMPLETION", "LP-TEST-GUIDANCE-OPERATION-CONTRACT"],
+      "covered_dimensions": ["terminal-act hard validity", "typed unresolved permitted completion", "completion before answer"]
+    },
+    {
+      "ctest_name": "cognition-guidance.mutation-kind-collapse-detected",
+      "evidence_targets": ["LP-TEST-GUIDANCE-STATE-CANONICAL"],
+      "covered_dimensions": ["type-erased obligation identity is rejected"],
+      "controls": "GuidanceState.RetainsTypedObligationsInCanonicalIdentity"
+    },
+    {
+      "ctest_name": "cognition-guidance.mutation-nonempty-completion-detected",
+      "evidence_targets": ["LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["nonempty state cannot impersonate semantic completion"],
+      "controls": "GuidanceState.RequiresSemanticCompletion"
+    },
+    {
+      "ctest_name": "cognition-guidance.mutation-raw-novelty-diversion-detected",
+      "evidence_targets": ["LP-TEST-DEFICIT-ACTION-SCHEDULER"],
+      "covered_dimensions": ["raw novelty cannot replace relevant deficit reduction"],
+      "controls": "GuidanceScheduler.RanksRelevantReductionBeforeRawNovelty"
+    }
+  ]
+}
