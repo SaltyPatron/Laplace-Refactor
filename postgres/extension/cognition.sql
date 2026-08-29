@@ -102,7 +102,7 @@ CREATE FUNCTION laplace.cognition_solve(
     laplace.cognition_solver_program,
     double precision[])
 RETURNS laplace.cognition_solve_result
-AS 'MODULE_PATHNAME', 'laplace_pg_cognition_solve'
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_solve_isa'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 CREATE FUNCTION laplace.cognition_execute_packet(
