@@ -2,7 +2,19 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
+
+namespace {
+
+bool FitsSize(const std::uint64_t value) {
+#if SIZE_MAX < UINT64_MAX
+    return value <= static_cast<std::uint64_t>(SIZE_MAX);
+#else
+    (void)value;
+    return true;
+#endif
+}
+
+}  // namespace
 
 extern "C" laplace_cognition_runtime_status
 laplace_cognition_runtime_execute(
@@ -20,8 +32,10 @@ laplace_cognition_runtime_execute(
         request->initial_state == nullptr || request->field_count == 0U ||
         request->constraint_count == 0U ||
         request->initial_state_count != request->field_count ||
-        request->field_count > static_cast<std::uint64_t>(SIZE_MAX) ||
-        request->constraint_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+        !FitsSize(request->field_count) ||
+        !FitsSize(request->constraint_count) ||
+        !FitsSize(request->initial_state_count) ||
+        !FitsSize(result->solution_capacity) ||
         result->solution == nullptr ||
         result->solution_capacity < request->field_count) {
         return LAPLACE_COGNITION_RUNTIME_INVALID_ARGUMENT;
