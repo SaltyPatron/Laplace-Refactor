@@ -4,6 +4,7 @@
     "name": "Collaborative Interlingual Index PWN mapping tables at dfc99e15e11e5b20e143f29386220d7b69805628",
     "version": 1,
     "reconstruction_class": "semantic",
+    "source_class": "foundational_seed",
     "purpose": [
       "witness exact CILI-to-Princeton-WordNet mapping rows from one immutable upstream commit",
       "supply exact reusable Unicode identities for every selected endpoint",

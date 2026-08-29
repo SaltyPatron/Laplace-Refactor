@@ -4,6 +4,7 @@
     "name": "ISO 639 Set 3 code tables 2026-04-15",
     "version": 1,
     "reconstruction_class": "semantic",
+    "source_class": "foundational_seed",
     "purpose": [
       "witness authority-scoped language identifiers and reference names",
       "supply exact reusable Unicode content for every selected field",

@@ -67,5 +67,14 @@
     "exact_reconstruction": "exact reconstruction rejects a nonzero lossy disposition",
     "selected_boundary_homogeneity": "one batch may contain multiple strictly ordered profile identities, all belonging to one exact selected boundary"
   },
-  "flags": {"none": 0}
+  "flags": {
+    "none": 0,
+    "epistemic_class_mask": 15,
+    "foundational_seed": 1,
+    "observation": 2,
+    "derived": 3,
+    "model": 4,
+    "maximum_class": 4,
+    "law": "the low nibble classifies why the source enters world state, independently of the artifact media type or grammar; zero is retained only for legacy or deliberately unclassified profiles"
+  }
 }

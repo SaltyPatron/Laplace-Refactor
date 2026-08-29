@@ -119,6 +119,31 @@ TEST(SourceProfile, ClosesMultipleProfilesInOneSelectedBoundary) {
         profiles[0].selected_boundary_fingerprint.bytes, 32u), 0);
 }
 
+TEST(SourceProfile, EpistemicClassIsOrthogonalAndIdentityBound) {
+    auto seed = MakeProfile(0x21u);
+    seed.flags = LAPLACE_SOURCE_PROFILE_EPISTEMIC_FOUNDATIONAL_SEED;
+    ASSERT_EQ(laplace_source_profile_identify(&seed, &seed.profile_id),
+              LAPLACE_SOURCE_PROFILE_OK);
+
+    auto observation = seed;
+    observation.flags = LAPLACE_SOURCE_PROFILE_EPISTEMIC_OBSERVATION;
+    ASSERT_EQ(laplace_source_profile_identify(
+                  &observation, &observation.profile_id),
+              LAPLACE_SOURCE_PROFILE_OK);
+    EXPECT_NE(std::memcmp(seed.profile_id.bytes, observation.profile_id.bytes, 32u), 0);
+
+    auto derived = seed;
+    derived.flags = LAPLACE_SOURCE_PROFILE_EPISTEMIC_DERIVED;
+    ASSERT_EQ(laplace_source_profile_identify(&derived, &derived.profile_id),
+              LAPLACE_SOURCE_PROFILE_OK);
+    EXPECT_NE(std::memcmp(seed.profile_id.bytes, derived.profile_id.bytes, 32u), 0);
+
+    auto invalid = MakeProfile(0x22u);
+    invalid.flags = UINT32_C(0x10);
+    EXPECT_EQ(laplace_source_profile_identify(&invalid, &invalid.profile_id),
+              LAPLACE_SOURCE_PROFILE_INVALID_ARGUMENT);
+}
+
 TEST(SourceProfile, RejectsProfilesFromDifferentSelectedBoundaries) {
     std::vector<laplace_source_profile_manifest> profiles{
         MakeProfile(0x10u), MakeProfile(0x50u, Digest(0xe0u))};

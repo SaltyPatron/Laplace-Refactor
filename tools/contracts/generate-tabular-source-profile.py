@@ -21,6 +21,13 @@ OUTCOME_TYPES = {"mapping": 5}
 MODES = {"raw_octets": 1, "utf8_delimited": 2}
 TERMINATORS = {None: 0, "lf": 1, "crlf": 2}
 RECONSTRUCTION = {"exact": 1, "semantic": 2, "none": 3}
+EPISTEMIC_SOURCE_CLASSES = {
+    "unspecified": 0,
+    "foundational_seed": 1,
+    "observation": 2,
+    "derived": 3,
+    "model": 4,
+}
 REFERENCE_ROLE_FLAGS = {
     "endpoint": 1,
     "present-declaration": 2,
@@ -79,6 +86,10 @@ def validate(document: dict[str, Any]) -> None:
     require(profile["version"] > 0, "profile version must be positive")
     require(profile["reconstruction_class"] in RECONSTRUCTION,
             "unknown reconstruction class")
+    require(profile.get("source_class") in EPISTEMIC_SOURCE_CLASSES,
+            "source profile must declare an epistemic source class")
+    require(profile["source_class"] != "unspecified",
+            "published source profiles cannot leave epistemic class unspecified")
     require(coordinate["kind"] == 17, "source profile must use Highway kind 17")
     require(coordinate["version"] == profile["version"],
             "coordinate and profile versions differ")
@@ -332,6 +343,8 @@ def generate(document: dict[str, Any], source: Path) -> str:
         f"inline constexpr std::uint64_t version = {coordinate['version']}u;",
         "inline constexpr std::uint32_t reconstruction_class = "
         f"{RECONSTRUCTION[profile['reconstruction_class']]}u;",
+        "inline constexpr std::uint32_t epistemic_source_class = "
+        f"{EPISTEMIC_SOURCE_CLASSES[profile['source_class']]}u;",
         f"inline constexpr std::uint64_t expected_bytes = {document['denominators']['bytes']}u;",
         f"inline constexpr std::uint64_t expected_records = {document['denominators']['records']}u;",
         f"inline constexpr std::uint64_t expected_fields = {document['denominators']['fields']}u;",
@@ -422,6 +435,7 @@ def generate(document: dict[str, Any], source: Path) -> str:
         "  static inline constexpr std::uint32_t coordinate_kind = kind;",
         "  static inline constexpr std::uint64_t coordinate_version = version;",
         "  static inline constexpr std::uint32_t reconstruction = reconstruction_class;",
+        "  static inline constexpr std::uint32_t epistemic_class = epistemic_source_class;",
         "  static inline constexpr std::uint64_t batch_bytes = preferred_batch_bytes;",
         "  static inline constexpr std::uint64_t reference_coordinate_count = expected_reference_coordinates;",
         "};",

@@ -191,12 +191,15 @@ bool DynamicProfileFieldsZero(const laplace_source_profile_manifest& value) {
             return false;
         }
     }
+    const std::uint32_t epistemic_class =
+        value.flags & LAPLACE_SOURCE_PROFILE_EPISTEMIC_CLASS_MASK;
     return DigestZero(value.profile_id) &&
         value.reconstruction_class >=
             LAPLACE_SOURCE_PROFILE_RECONSTRUCTION_EXACT &&
         value.reconstruction_class <=
             LAPLACE_SOURCE_PROFILE_RECONSTRUCTION_NONE &&
-        value.flags == 0u;
+        (value.flags & ~LAPLACE_SOURCE_PROFILE_EPISTEMIC_CLASS_MASK) == 0u &&
+        epistemic_class <= LAPLACE_SOURCE_PROFILE_EPISTEMIC_MAX;
 }
 
 bool ArtifactValid(const laplace_tabular_artifact& artifact) {

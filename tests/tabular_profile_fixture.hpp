@@ -65,6 +65,7 @@ struct TabularProfileFixture {
         CopyProfileBytes(declaration.selected_boundary_fingerprint.bytes,
                          Profile::selected_boundary);
         declaration.reconstruction_class = Profile::reconstruction;
+        declaration.flags = Profile::epistemic_class;
 
         for (std::size_t index = 0u; index < Profile::artifact_size; ++index) {
             const auto& generated = Profile::artifact_declarations[index];
