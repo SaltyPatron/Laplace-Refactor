@@ -18,65 +18,46 @@ jobs:
       - postgres-18
     timeout-minutes: 5
     steps:
-      - name: Discover and query actual PostgreSQL state
+      - name: Query actual running Laplace database and service surfaces
         shell: bash
         run: |
-          set -u -o pipefail
-          test "$(id -un)" = laplace-runner || exit 2
-          echo "runner_user=$(id -un)"
-          echo "host=$(hostname)"
-          echo "observed_at=$(date -Iseconds)"
-          printf 'active_root='; readlink -f /opt/laplace/current 2>/dev/null || true
-          printf 'declared_service='; systemctl is-active laplace-refactor-postgresql.service 2>/dev/null || true
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          psql=/opt/laplace/pgsql-18/bin/psql
+          args=(-X -w -A -t -v ON_ERROR_STOP=1 -h /run/postgresql -p 5432 -d laplace -U laplace_admin)
 
-          echo '--- postgres processes ---'
-          pgrep -a -f '[p]ostgres' || true
-          echo '--- postgres-related services ---'
-          systemctl list-units --type=service --all --no-pager 2>/dev/null | grep -Ei 'postgres|laplace' || true
-          echo '--- listening tcp ports ---'
-          ss -ltn 2>/dev/null | grep -E ':(5432|55433)\b' || true
-          echo '--- unix sockets ---'
-          find /run /var/run /tmp -maxdepth 4 -type s -name '.s.PGSQL.*' -print 2>/dev/null | sort -u || true
-          echo '--- installed postgres binaries ---'
-          find /opt/laplace -maxdepth 4 -type f \( -name psql -o -name postgres -o -name pg_isready \) -perm -0100 -print 2>/dev/null | sort || true
+          echo '--- database identity ---'
+          "$psql" "${args[@]}" -c "select current_database(),current_user,current_setting('server_version'),current_setting('data_directory'),pg_size_pretty(pg_database_size(current_database()));"
 
-          psql=''
-          for candidate in \
-            /opt/laplace/current/pgsql-18/bin/psql \
-            /opt/laplace/pgsql-18/bin/psql \
-            /usr/bin/psql; do
-            if test -x "$candidate"; then psql="$candidate"; break; fi
-          done
-          if test -z "$psql"; then echo 'psql=missing'; exit 0; fi
-          echo "psql=$psql"
-          "$psql" --version || true
-          pg_isready="$(dirname "$psql")/pg_isready"
+          echo '--- schemas ---'
+          "$psql" "${args[@]}" -c "select nspname from pg_namespace where nspname not like 'pg_%' and nspname <> 'information_schema' order by 1;"
 
-          echo '--- readiness probes ---'
-          for host in /run/laplace-refactor-postgresql /var/run/postgresql /run/postgresql /tmp localhost; do
-            for port in 55433 5432; do
-              if test -x "$pg_isready"; then "$pg_isready" -h "$host" -p "$port" -t 1 || true; fi
-            done
+          echo '--- extensions ---'
+          "$psql" "${args[@]}" -c "select extname,extversion from pg_extension order by 1;"
+
+          echo '--- laplace tables: estimates and bytes ---'
+          "$psql" "${args[@]}" -c "select schemaname,relname,n_live_tup,pg_total_relation_size(format('%I.%I',schemaname,relname)::regclass) from pg_stat_user_tables where schemaname='laplace' order by pg_total_relation_size(format('%I.%I',schemaname,relname)::regclass) desc,relname;"
+
+          echo '--- laplace materialized/views ---'
+          "$psql" "${args[@]}" -c "select n.nspname,c.relname,c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='laplace' and c.relkind in ('v','m') order by c.relkind,c.relname;"
+
+          echo '--- laplace callable surfaces ---'
+          "$psql" "${args[@]}" -c "select p.proname,pg_get_function_identity_arguments(p.oid),pg_get_function_result(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='laplace' order by p.proname,2;"
+
+          echo '--- exact counts for core tables that actually exist ---'
+          for rel in entities entity physicalities physicality attestations attestation relations relation compositions composition_occurrences calculation_receipts execution_receipts perfcache_generations; do
+            fq="laplace.$rel"
+            present=$("$psql" "${args[@]}" -c "select to_regclass('$fq') is not null;")
+            if test "$present" = t; then
+              count=$("$psql" "${args[@]}" -c "select count(*) from $fq;")
+              echo "$fq=$count"
+            fi
           done
 
-          echo '--- connection probes as laplace-runner ---'
-          query="select current_database(), current_user, current_setting('server_version'), current_setting('data_directory');"
-          for spec in \
-            '/run/laplace-refactor-postgresql|55433|laplace_refactor|laplace_app' \
-            '/var/run/postgresql|5432|laplace|laplace_admin' \
-            '/var/run/postgresql|5432|laplace_refactor|laplace_app' \
-            '/run/postgresql|5432|laplace|laplace_admin' \
-            'localhost|5432|laplace|laplace_admin'; do
-            IFS='|' read -r host port db role <<< "$spec"
-            echo "TRY host=$host port=$port db=$db role=$role"
-            "$psql" -X -w -A -t -v ON_ERROR_STOP=1 -h "$host" -p "$port" -d "$db" -U "$role" -c "$query" 2>&1 || true
-          done
+          echo '--- active SQL activity involving laplace roles ---'
+          "$psql" "${args[@]}" -c "select usename,datname,state,wait_event_type,wait_event,left(query,120) from pg_stat_activity where datname='laplace' order by pid;"
 
-          echo '--- sudo authority ---'
-          sudo -n -l 2>&1 || true
-          echo '--- local postgres-superuser observation if authorized ---'
-          sudo -n -u postgres "$psql" -X -w -A -t -d postgres -c \
-            "select datname from pg_database where datallowconn order by datname;" 2>&1 || true
-
-          echo '--- installed Laplace objects ---'
-          find /opt/laplace -maxdepth 6 -type f \( -name 'laplace_pg.so' -o -name 'liblaplace_engine.so*' -o -name 'laplace.control' \) -print -exec sha256sum {} \; 2>/dev/null || true
+          echo '--- API service identity ---'
+          systemctl show laplace-api.service -p ActiveState -p SubState -p FragmentPath -p ExecStart --no-pager || true
+          echo '--- listening application ports ---'
+          ss -ltnp 2>/dev/null | grep -E 'LISTEN|laplace' || true
