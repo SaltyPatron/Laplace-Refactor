@@ -2,7 +2,7 @@
   "schema": "laplace.isa-contract/v1",
   "version": {
     "major": 1,
-    "minor": 10
+    "minor": 11
   },
   "execution_context": {
     "required": true,
@@ -29,7 +29,8 @@
     "reference_candidate_vector": 16,
     "reference_record_vector": 17,
     "reference_mapping_candidate_vector": 18,
-    "reference_mapping_record_vector": 19
+    "reference_mapping_record_vector": 19,
+    "byte_vector": 20
   },
   "opcodes": {
     "identity_codepoint_batch": 131073,
@@ -41,14 +42,16 @@
     "source_profile_validate_batch": 393217,
     "world_admission_close_batch": 393218,
     "reference_topology_resolve_batch": 393219,
-    "reference_mapping_resolve_batch": 393220
+    "reference_mapping_resolve_batch": 393220,
+    "cognition_solve_packet": 458753
   },
   "modules": {
     "identity": 2,
     "trajectory": 3,
     "highway": 4,
     "evidence": 5,
-    "admission": 6
+    "admission": 6,
+    "cognition": 7
   },
   "operation_contracts": {
     "identity_codepoint_batch": {
@@ -100,6 +103,11 @@
       "module": "admission",
       "input_type": "reference_mapping_candidate_vector",
       "output_type": "reference_mapping_record_vector"
+    },
+    "cognition_solve_packet": {
+      "module": "cognition",
+      "input_type": "byte_vector",
+      "output_type": "byte_vector"
     }
   },
   "instruction_versions": {
@@ -112,7 +120,8 @@
     "source_profile_validate_batch": 1,
     "world_admission_close_batch": 1,
     "reference_topology_resolve_batch": 1,
-    "reference_mapping_resolve_batch": 1
+    "reference_mapping_resolve_batch": 1,
+    "cognition_solve_packet": 1
   },
   "introduced_minor": {
     "identity_codepoint_batch": 0,
@@ -124,7 +133,8 @@
     "source_profile_validate_batch": 7,
     "world_admission_close_batch": 8,
     "reference_topology_resolve_batch": 9,
-    "reference_mapping_resolve_batch": 10
+    "reference_mapping_resolve_batch": 10,
+    "cognition_solve_packet": 11
   },
   "receipt": {
     "digest_algorithm": "BLAKE3-256",
@@ -156,7 +166,8 @@
         "reference_candidate_vector": "global::Laplace.Managed.LaplaceReferenceCandidate",
         "reference_record_vector": "global::Laplace.Managed.LaplaceReferenceRecord",
         "reference_mapping_candidate_vector": "global::Laplace.Managed.LaplaceReferenceMappingCandidate",
-        "reference_mapping_record_vector": "global::Laplace.Managed.LaplaceReferenceMappingRecord"
+        "reference_mapping_record_vector": "global::Laplace.Managed.LaplaceReferenceMappingRecord",
+        "byte_vector": "global::System.Byte"
       },
       "operation_declarations": {
         "identity_codepoint_batch": "IdentityCodepointBatch",
@@ -168,7 +179,8 @@
         "source_profile_validate_batch": "SourceProfileValidateBatch",
         "world_admission_close_batch": "WorldAdmissionCloseBatch",
         "reference_topology_resolve_batch": "ReferenceTopologyResolveBatch",
-        "reference_mapping_resolve_batch": "ReferenceMappingResolveBatch"
+        "reference_mapping_resolve_batch": "ReferenceMappingResolveBatch",
+        "cognition_solve_packet": "CognitionSolvePacket"
       }
     },
     "postgresql": {
