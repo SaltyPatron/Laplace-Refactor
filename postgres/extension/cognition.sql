@@ -78,6 +78,22 @@ CREATE TYPE laplace.cognition_solve_result AS (
     status integer
 );
 
+CREATE TYPE laplace.cognition_packet_result AS (
+    packet bytea,
+    receipt_id bytea,
+    context_fingerprint bytea,
+    program_fingerprint bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    instruction_count bigint,
+    executed_instruction_count bigint,
+    isa_major smallint,
+    isa_minor smallint,
+    receipt_detail integer,
+    status integer,
+    request_word_count bigint
+);
+
 CREATE FUNCTION laplace.cognition_solve(
     laplace.execution_context,
     laplace.cognition_operator_program,
@@ -89,6 +105,13 @@ RETURNS laplace.cognition_solve_result
 AS 'MODULE_PATHNAME', 'laplace_pg_cognition_solve'
 LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+CREATE FUNCTION laplace.cognition_execute_packet(
+    laplace.execution_context,
+    bytea)
+RETURNS laplace.cognition_packet_result
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_execute_packet'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 REVOKE EXECUTE ON FUNCTION laplace.cognition_solve(
     laplace.execution_context,
     laplace.cognition_operator_program,
@@ -96,4 +119,9 @@ REVOKE EXECUTE ON FUNCTION laplace.cognition_solve(
     laplace.cognition_operator_constraint[],
     laplace.cognition_solver_program,
     double precision[])
+FROM PUBLIC;
+
+REVOKE EXECUTE ON FUNCTION laplace.cognition_execute_packet(
+    laplace.execution_context,
+    bytea)
 FROM PUBLIC;
