@@ -35,9 +35,8 @@ set(LAPLACE_UNICODE_SOURCE_ROOT
 set(LAPLACE_ISO_639_SOURCE_ROOT
     "${LAPLACE_SOURCE_ESTATE_ROOT}/ISO639"
     CACHE PATH "Locked ISO 639 Set 3 source-profile artifact root")
-set(LAPLACE_CILI_SOURCE_ROOT
-    "${LAPLACE_SOURCE_ESTATE_ROOT}/CILI"
-    CACHE PATH "Locked CILI PWN mapping source-profile artifact root")
+set(LAPLACE_CILI_SOURCE_ROOT "" CACHE PATH
+    "Locked CILI PWN mapping source-profile artifact root")
 option(LAPLACE_ENABLE_DOTNET_BINDINGS
     "Generate and build the .NET 10 typed ISA orchestration surface" OFF)
 set(LAPLACE_DEPENDENCY_LOCK

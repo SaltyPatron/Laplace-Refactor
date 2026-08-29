@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-28T22:43:35Z",
+  "observed_at_utc": "2026-08-29T22:56:11Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,17 +12,17 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "feat/cili-cross-profile-topology",
-    "active_worktree": "/build/laplace/worktrees/cili-cross-profile-topology",
-    "base_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
+    "active_branch": "feat/decomposition-orchestration",
+    "active_worktree": "/home/ahart/Projects/Laplace-Refactor-pr93",
+    "base_commit": "63fbee8fc7d2e7878687f01c894a93b49e58f909",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "6f556047b5a7326b53a9a5f9db334abc7b934987",
-    "observed_branch_head": "6f556047b5a7326b53a9a5f9db334abc7b934987",
-    "implementation_checkpoint_commit": "6f556047b5a7326b53a9a5f9db334abc7b934987",
-    "pull_request": 85
+    "published_checkpoint_commit": "a4cc19b376604d87fce091268ea4ee21ae073cff",
+    "observed_branch_head": "a4cc19b376604d87fce091268ea4ee21ae073cff",
+    "implementation_checkpoint_commit": "a4cc19b376604d87fce091268ea4ee21ae073cff",
+    "pull_request": 93
   },
   "development_inputs": {
-    "inventory_observed_at_utc": "2026-08-26T19:28:27Z",
+    "inventory_observed_at_utc": "2026-08-29T21:48:53Z",
     "data_root": {
       "environment": "LAPLACE_DATA_ROOT",
       "observed_path": "/vault/Data",
@@ -100,14 +100,40 @@
         "yolo11x"
       ]
     },
+    "vault_inventory": {
+      "classification": "observed-development-state-not-source-authority",
+      "observed_at_utc": "2026-08-29T21:48:53Z",
+      "machine_inventory": "state/vault-inventory.json",
+      "human_audit": "docs/audits/VAULT_SOURCE_MODEL_AUDIT_2026-08-29.md",
+      "structural_validation": "PYTHONDONTWRITEBYTECODE=1 python3 tools/audit/validate-vault-inventory.py",
+      "physical_validation": "PYTHONDONTWRITEBYTECODE=1 python3 tools/audit/validate-vault-inventory.py --verify-physical",
+      "observed_denominators": {
+        "data_directories": 25,
+        "data_allocated_bytes": 139759517696,
+        "model_root_directories": 38,
+        "model_root_allocated_bytes": 600252350464
+      },
+      "selection_state": "inventory-complete-for-observed-top-level-paths-configured-heterogeneous-foundational-boundary-not-selected",
+      "model_artifact_rule": "complete full-precision safetensors packages are primary artifact witnesses; quantized converted compiled runtime-specific and duplicate formats are subordinate derived children and cannot substitute for their source packages",
+      "known_nonconformance": "CILI selected mappings fail exact byte identity, OMW has duplicate mutated trees, four locked Tree-sitter revisions disagree, four extra grammar repositories lack lock disposition, and the AWQ model derivative is incomplete",
+      "nonclaims": [
+        "path presence is not source authority",
+        "CILI and OMW are not the whole source estate",
+        "one profile does not establish a configured foundational seed",
+        "a grammar provider is not a semantic engine",
+        "UAX 29 is not a parser for heterogeneous source formats",
+        "model weights do not prove behavior effective support or admission",
+        "derived model exports do not replace complete full-precision source packages"
+      ]
+    },
     "old_iteration": {
-      "observed_path": "/home/ahart/Projects/Laplace",
-      "use": "historical behavioral counterexamples only",
+      "observed_path": "/home/ahart/Projects/Laplace-Legacy",
+      "use": "active demos proofs and behavioral failure counterexamples only; never clean-refactor implementation authority",
       "authority": false,
-      "coordination_state": "another agent is actively repairing the old iteration",
-      "coordination_observed_at_utc": "2026-08-26T21:21:17Z",
-      "isolation_rule": "do not inspect query mutate restart diagnose or otherwise enter the old worktree deployment database API or installed runtime until the user explicitly releases this boundary",
-      "prior_runtime_observations": "dated evidence only and potentially stale while repair is active"
+      "coordination_state": "restored as the single active legacy demo proof and failure-analysis checkout",
+      "coordination_observed_at_utc": "2026-08-29T19:19:51Z",
+      "isolation_rule": "legacy inspection demos and proofs are allowed; keep deployment actions explicit and do not import legacy implementation as clean-refactor authority",
+      "prior_runtime_observations": "dated evidence only; the live legacy runtime is observed and operated separately from this continuation checkpoint"
     },
     "known_laplace_custom_grammar_location": {
       "state": "historical-evidence-recovered-current-clean-room-authority-unresolved",
@@ -116,7 +142,7 @@
         {
           "kind": "Laplace-authored Tree-sitter grammar",
           "domain": "PGN chess game notation",
-          "observed_path": "/home/ahart/Projects/Laplace-archive-2026-08-24/historical-worktree/engine/core/grammars/generated/pgn/grammar.js",
+          "observed_path": "/build/laplace/archive/recovery-history/Laplace-archive-2026-08-24/historical-worktree/engine/core/grammars/generated/pgn/grammar.js",
           "bytes": 2144,
           "sha256": "cd3eaff9197cfca8076a59de1dc09ece0574c33fcf2a6855b89e1c8ed89e5cff",
           "git_blob": "51ce9642fb62a766bc8e7d463238f189d7ac0d09",
@@ -126,7 +152,7 @@
         {
           "kind": "Laplace-owned Tree-sitter structural query",
           "domain": "SQL tags",
-          "observed_path": "/home/ahart/Projects/Laplace-archive-2026-08-24/historical-worktree/engine/core/grammars/sql/queries/tags.scm",
+          "observed_path": "/build/laplace/archive/recovery-history/Laplace-archive-2026-08-24/historical-worktree/engine/core/grammars/sql/queries/tags.scm",
           "bytes": 603,
           "sha256": "1cf679e9f79c4de892dc71a52be856aa23025bf16c791785a478ed11243dc8ce",
           "git_blob": "76554c9a3b61a028d78fa6d2549559aabb08b736",
@@ -135,7 +161,7 @@
         },
         {
           "kind": "historical grammar estate description",
-          "observed_path": "/home/ahart/Projects/Laplace-archive-2026-08-24/historical-worktree/engine/core/grammars/README.md",
+          "observed_path": "/build/laplace/archive/recovery-history/Laplace-archive-2026-08-24/historical-worktree/engine/core/grammars/README.md",
           "bytes": 3512,
           "sha256": "bcd0f44924abac0ea3f81c49d7d2808c9e54f8196c211574448cc3c495245803",
           "git_blob": "34cf5ab1d8fbb45edec5b07315e32cb94eac3fea",
@@ -1464,8 +1490,8 @@
     "current_disposition": "product composition succeeds through laplace-runner; root activation is blocked by the absent trusted deployment gateway"
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-28T22:43:35Z",
-    "main_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
+    "observed_at_utc": "2026-08-29T22:56:11Z",
+    "main_commit": "63fbee8fc7d2e7878687f01c894a93b49e58f909",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
     "product_cluster_project_status": "In Progress",

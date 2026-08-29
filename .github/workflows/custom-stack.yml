@@ -2,9 +2,6 @@ name: custom-stack-ci
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -56,7 +53,7 @@ jobs:
           "$LAPLACE_PG_CONFIG" --version
           "$LAPLACE_ICX" --version
           dotnet --version
-      - name: Select exact locally verified dependencies and source estate
+      - name: Select exact dependencies and source artifacts
         shell: bash
         run: |
           set -euo pipefail
@@ -69,10 +66,12 @@ jobs:
           test -d "$LAPLACE_SOURCE_ESTATE_ROOT"
           unicode_root="$LAPLACE_SOURCE_ESTATE_ROOT/UCD/Public/UCD/latest"
           iso_root="$LAPLACE_SOURCE_ESTATE_ROOT/ISO639"
-          cili_root="$LAPLACE_SOURCE_ESTATE_ROOT/CILI"
+          cili_root="$RUNNER_TEMP/laplace-sources/cili-pwn-mappings-20240611"
           test -d "$unicode_root"
           test -d "$iso_root"
-          test -d "$cili_root"
+          python3 tools/sources/acquire-tabular-source.py \
+            --profile contracts/sources/cili-pwn-mappings-20240611.json \
+            --destination "$cili_root"
 
           printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
           printf 'LAPLACE_UNICODE_SOURCE_ROOT=%s\n' "$unicode_root" >> "$GITHUB_ENV"
