@@ -2,3 +2,4 @@
 #include "cognition_operator_part01.inc"
 #include "cognition_operator_part02.inc"
 #include "cognition_operator_part03.inc"
+#include "cognition_operator_part04.inc"
