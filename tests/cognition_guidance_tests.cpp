@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -18,8 +19,7 @@ laplace_digest256 Digest(std::uint8_t seed) {
 }
 
 bool Same(const laplace_digest256& left, const laplace_digest256& right) {
-    return std::equal(
-        std::begin(left.bytes), std::end(left.bytes), std::begin(right.bytes));
+    return std::memcmp(left.bytes, right.bytes, sizeof(left.bytes)) == 0;
 }
 
 laplace_cognition_guidance_header Header() {
@@ -67,6 +67,13 @@ laplace_cognition_obligation Obligation(
 
 class StateHandle {
 public:
+    StateHandle() = default;
+    StateHandle(const StateHandle&) = delete;
+    StateHandle& operator=(const StateHandle&) = delete;
+    StateHandle(StateHandle&& other) noexcept : value(other.value) {
+        other.value = nullptr;
+    }
+    StateHandle& operator=(StateHandle&&) = delete;
     ~StateHandle() { laplace_cognition_guidance_state_destroy(&value); }
     laplace_cognition_guidance_state* value{};
 };
