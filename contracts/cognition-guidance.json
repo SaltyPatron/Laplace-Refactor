@@ -1,0 +1,57 @@
+{
+  "schema": "laplace.cognition-guidance/v1",
+  "version": 1,
+  "digest_algorithm": "BLAKE3-256",
+  "domains": {
+    "state": "laplace-cognition-guidance-state-v1",
+    "obligation": "laplace-cognition-guidance-obligation-v1",
+    "projection": "laplace-cognition-guidance-projection-v1",
+    "fold": "laplace-cognition-evidence-fold-v1",
+    "operation": "laplace-cognition-guidance-operation-v1",
+    "decision": "laplace-cognition-guidance-decision-v1",
+    "transition": "laplace-cognition-guidance-transition-v1"
+  },
+  "obligation_dispositions": {
+    "open": 1,
+    "satisfied": 2,
+    "unsupported": 3,
+    "denied": 4,
+    "exhausted": 5,
+    "contradicted": 6,
+    "unknown": 7
+  },
+  "obligation_flags": {
+    "required": 1,
+    "allow_typed_unresolved": 2
+  },
+  "operation_kinds": {
+    "structural_calculation": 1,
+    "indexed_search": 2,
+    "research": 3,
+    "experiment": 4,
+    "clarification": 5,
+    "explicit_unresolved": 6,
+    "answer": 7,
+    "correct": 8,
+    "execute": 9
+  },
+  "operation_flags": {
+    "requires_effect_authority": 1,
+    "information_seeking": 2,
+    "terminal_act": 4
+  },
+  "completion": {
+    "incomplete": 1,
+    "complete": 2,
+    "blocked": 3
+  },
+  "laws": {
+    "canonical_state": "goal program bindings scopes context world time evidence authority result contract and every typed obligation are content-bound; a topic scalar cannot reconstruct guidance state",
+    "projection": "only unresolved obligations project typed queries and every projection retains obligation bindings and boundaries",
+    "fold": "raw evidence count and unique dependence roots are both retained; duplicate descendants sharing one root cannot multiply independent support",
+    "transition": "resolutions produce a new derived guidance state without rewriting the prior state or its evidence",
+    "scheduler": "hard target relevance preconditions authority and resource validity are checked before deterministic expected-obligation-reduction information-value and cost comparison; raw novelty cannot redirect an active goal",
+    "operation": "kind operands preconditions predicted obligation effects resource costs effect authority and receipt contract remain explicit and cannot be replaced by a scalar priority",
+    "completion": "every required obligation must be satisfied or hold a permitted typed unresolved disposition; endpoint arrival nonempty rows and minimum scalar cost cannot certify semantic completion"
+  }
+}
