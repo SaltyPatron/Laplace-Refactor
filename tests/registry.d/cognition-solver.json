@@ -1,0 +1,34 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionSolver.ConvergesMatrixFreeWithoutRewritingEvidencePrecision",
+      "evidence_targets": ["LP-TEST-SOLVER-RESIDUAL-SEPARATION", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY", "LP-TEST-EVIDENCE-METRIC-PSD"],
+      "covered_dimensions": ["matrix-free conjugate-gradient convergence", "solver residual separated from evidence precision", "operator receipt binding"],
+      "defect_controls": ["cognition-solver.mutation-residual-as-precision-detected"]
+    },
+    {
+      "ctest_name": "CognitionSolver.NumericalRegularizationIsSolverStateNotEvidenceWeight",
+      "evidence_targets": ["LP-TEST-SOLVER-RESIDUAL-SEPARATION", "LP-TEST-EVIDENCE-METRIC-PSD"],
+      "covered_dimensions": ["explicit numerical regularization", "regularization not testimony precision", "singular-mode stabilization"],
+      "defect_controls": ["cognition-solver.mutation-regularization-omission-detected"]
+    },
+    {
+      "ctest_name": "CognitionSolver.IterationBoundProducesTypedDisposition",
+      "evidence_targets": ["LP-TEST-RESOURCE-FINITE-BOUND", "LP-TEST-SOLVER-RESIDUAL-SEPARATION"],
+      "covered_dimensions": ["finite iteration bound", "typed iteration-limit disposition", "remaining numerical residual"]
+    },
+    {
+      "ctest_name": "cognition-solver.mutation-residual-as-precision-detected",
+      "evidence_targets": ["LP-TEST-SOLVER-RESIDUAL-SEPARATION"],
+      "covered_dimensions": ["numerical residual cannot impersonate epistemic precision"],
+      "controls": "CognitionSolver.ConvergesMatrixFreeWithoutRewritingEvidencePrecision"
+    },
+    {
+      "ctest_name": "cognition-solver.mutation-regularization-omission-detected",
+      "evidence_targets": ["LP-TEST-SOLVER-RESIDUAL-SEPARATION"],
+      "covered_dimensions": ["declared solver regularization cannot be silently omitted"],
+      "controls": "CognitionSolver.NumericalRegularizationIsSolverStateNotEvidenceWeight"
+    }
+  ]
+}
