@@ -14,7 +14,8 @@
       "referential identity outside the ISO 639 Set 3 release scope",
       "truth of language usage or linguistic analysis",
       "English as a semantic pivot"
-    ]
+    ],
+    "evidence_source_type": "standard"
   },
   "coordinate": {
     "kind": 17,
@@ -53,7 +54,10 @@
       "byte_count": 153962,
       "sha256": "106a3f3b073e94bcc767f663e05f386358b1285ba2b063f24a2eeb6bafcc982a",
       "mode": "raw_octets",
-      "roles": ["container", "exact-hashed-provenance"],
+      "roles": [
+        "container",
+        "exact-hashed-provenance"
+      ],
       "parent": null,
       "acquisition": {
         "transport": "https",
@@ -71,17 +75,42 @@
       "byte_count": 4609,
       "sha256": "fb01a86376d9c1abfc96d16be1b6dcffb4776a1f52fa22338d4979e9ffe1822f",
       "mode": "utf8_delimited",
-      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "roles": [
+        "member",
+        "exact-selected-content",
+        "mapping-witness"
+      ],
       "parent": "iso-639-3_Code_Tables_20260415.zip",
       "exact_distribution": true,
       "delimiter": 9,
       "line_terminator": "lf",
-      "columns": ["M_Id", "I_Id", "I_Status"],
+      "columns": [
+        "M_Id",
+        "I_Id",
+        "I_Status"
+      ],
       "header_record_count": 1,
-      "reference_columns": [0, 1],
+      "reference_columns": [
+        0,
+        1
+      ],
       "reference_bindings": [
-        {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint"]},
-        {"column": 1, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint"]}
+        {
+          "column": 0,
+          "kind": 7,
+          "namespace": "ISO 639-3",
+          "roles": [
+            "endpoint"
+          ]
+        },
+        {
+          "column": 1,
+          "kind": 7,
+          "namespace": "ISO 639-3",
+          "roles": [
+            "endpoint"
+          ]
+        }
       ],
       "record_count": 460,
       "field_count": 1380,
@@ -97,19 +126,69 @@
       "byte_count": 178336,
       "sha256": "9697ac84b95b9b4d8624693fb51a496cc95677ff0abb28a7b860aa2f2c80ff13",
       "mode": "utf8_delimited",
-      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "roles": [
+        "member",
+        "exact-selected-content",
+        "mapping-witness"
+      ],
       "parent": "iso-639-3_Code_Tables_20260415.zip",
       "exact_distribution": true,
       "delimiter": 9,
       "line_terminator": "lf",
-      "columns": ["Id", "Part2b", "Part2t", "Part1", "Scope", "Language_Type", "Ref_Name", "Comment"],
+      "columns": [
+        "Id",
+        "Part2b",
+        "Part2t",
+        "Part1",
+        "Scope",
+        "Language_Type",
+        "Ref_Name",
+        "Comment"
+      ],
       "header_record_count": 1,
-      "reference_columns": [0, 1, 2, 3],
+      "reference_columns": [
+        0,
+        1,
+        2,
+        3
+      ],
       "reference_bindings": [
-        {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint", "present-declaration"]},
-        {"column": 1, "kind": 7, "namespace": "ISO 639-2/B", "roles": ["endpoint", "present-declaration"]},
-        {"column": 2, "kind": 7, "namespace": "ISO 639-2/T", "roles": ["endpoint", "present-declaration"]},
-        {"column": 3, "kind": 7, "namespace": "ISO 639-1", "roles": ["endpoint", "present-declaration"]}
+        {
+          "column": 0,
+          "kind": 7,
+          "namespace": "ISO 639-3",
+          "roles": [
+            "endpoint",
+            "present-declaration"
+          ]
+        },
+        {
+          "column": 1,
+          "kind": 7,
+          "namespace": "ISO 639-2/B",
+          "roles": [
+            "endpoint",
+            "present-declaration"
+          ]
+        },
+        {
+          "column": 2,
+          "kind": 7,
+          "namespace": "ISO 639-2/T",
+          "roles": [
+            "endpoint",
+            "present-declaration"
+          ]
+        },
+        {
+          "column": 3,
+          "kind": 7,
+          "namespace": "ISO 639-1",
+          "roles": [
+            "endpoint",
+            "present-declaration"
+          ]
+        }
       ],
       "record_count": 7930,
       "field_count": 63440,
@@ -125,16 +204,33 @@
       "byte_count": 204547,
       "sha256": "052d31d3f67d495305a27572b3f3c2ec582cc06ed6e3cc517d603141f4e78fb1",
       "mode": "utf8_delimited",
-      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "roles": [
+        "member",
+        "exact-selected-content",
+        "mapping-witness"
+      ],
       "parent": "iso-639-3_Code_Tables_20260415.zip",
       "exact_distribution": true,
       "delimiter": 9,
       "line_terminator": "lf",
-      "columns": ["Id", "Print_Name", "Inverted_Name"],
+      "columns": [
+        "Id",
+        "Print_Name",
+        "Inverted_Name"
+      ],
       "header_record_count": 1,
-      "reference_columns": [0],
+      "reference_columns": [
+        0
+      ],
       "reference_bindings": [
-        {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint"]}
+        {
+          "column": 0,
+          "kind": 7,
+          "namespace": "ISO 639-3",
+          "roles": [
+            "endpoint"
+          ]
+        }
       ],
       "record_count": 8337,
       "field_count": 25011,
@@ -150,17 +246,46 @@
       "byte_count": 18981,
       "sha256": "a0aa81f6bb16d25df1239c5e4d62984d3b537acaed1b86ea81279f71870b2eaf",
       "mode": "utf8_delimited",
-      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "roles": [
+        "member",
+        "exact-selected-content",
+        "mapping-witness"
+      ],
       "parent": "iso-639-3_Code_Tables_20260415.zip",
       "exact_distribution": true,
       "delimiter": 9,
       "line_terminator": "lf",
-      "columns": ["Id", "Ref_Name", "Ret_Reason", "Change_To", "Ret_Remedy", "Effective"],
+      "columns": [
+        "Id",
+        "Ref_Name",
+        "Ret_Reason",
+        "Change_To",
+        "Ret_Remedy",
+        "Effective"
+      ],
       "header_record_count": 1,
-      "reference_columns": [0, 3],
+      "reference_columns": [
+        0,
+        3
+      ],
       "reference_bindings": [
-        {"column": 0, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint", "retired-declaration"]},
-        {"column": 3, "kind": 7, "namespace": "ISO 639-3", "roles": ["endpoint"]}
+        {
+          "column": 0,
+          "kind": 7,
+          "namespace": "ISO 639-3",
+          "roles": [
+            "endpoint",
+            "retired-declaration"
+          ]
+        },
+        {
+          "column": 3,
+          "kind": 7,
+          "namespace": "ISO 639-3",
+          "roles": [
+            "endpoint"
+          ]
+        }
       ],
       "record_count": 387,
       "field_count": 2322,
@@ -178,24 +303,71 @@
   },
   "recipe_program": {
     "coordinate": "laplace.recipe/tabular-source/1",
-    "stages": ["verify-artifact-graph", "parse", "lower-universal-ast", "compose", "presence", "deposit", "lineage", "testimony", "world-close", "readback"],
+    "stages": [
+      "verify-artifact-graph",
+      "parse",
+      "lower-universal-ast",
+      "compose",
+      "presence",
+      "deposit",
+      "lineage",
+      "testimony",
+      "world-close",
+      "readback"
+    ],
     "source_named_semantic_dispatch": false,
     "raw_container_rule": "retain exact digest length name and parent topology without depositing unselected archive octets",
     "selected_content_rule": "deposit every nonempty field as an exact reusable Unicode composition independent of source role"
   },
   "universal_ast_mapping": {
     "root": "source boundary",
-    "artifact": ["tag", "name", "digest", "parent artifact", "mode", "ordered selected content"],
-    "record": ["header-or-record tag", "ordered fields", "exact terminator"],
-    "field": ["field tag", "column identity", "optional exact value"],
+    "artifact": [
+      "tag",
+      "name",
+      "digest",
+      "parent artifact",
+      "mode",
+      "ordered selected content"
+    ],
+    "record": [
+      "header-or-record tag",
+      "ordered fields",
+      "exact terminator"
+    ],
+    "field": [
+      "field tag",
+      "column identity",
+      "optional exact value"
+    ],
     "roles_are_occurrence_metadata": true,
     "content_identity_excludes_source_language_role": true,
-    "exact_units": ["identifier", "reference name", "comment", "status", "reason", "remedy", "date", "header", "record", "table"],
-    "intentional_loss": ["ZIP compression method and archive wrapper are not selected canonical content"]
+    "exact_units": [
+      "identifier",
+      "reference name",
+      "comment",
+      "status",
+      "reason",
+      "remedy",
+      "date",
+      "header",
+      "record",
+      "table"
+    ],
+    "intentional_loss": [
+      "ZIP compression method and archive wrapper are not selected canonical content"
+    ]
   },
   "highway_and_references": {
     "namespace": "ISO 639 Set 3",
-    "join_keys": ["Id", "M_Id", "I_Id", "Part2b", "Part2t", "Part1", "Change_To"],
+    "join_keys": [
+      "Id",
+      "M_Id",
+      "I_Id",
+      "Part2b",
+      "Part2t",
+      "Part1",
+      "Change_To"
+    ],
     "reference_identity": "authority release namespace and exact local identifier",
     "initial_disposition": {
       "kind": "unresolved",
@@ -248,12 +420,34 @@
     ]
   },
   "conformance": {
-    "positive": ["all five SHA-256 and byte lengths", "all four headers", "every row width", "every final LF", "all member bytes equal the corresponding ZIP member", "exact recomposition of all four selected tables"],
-    "negative": ["changed byte with pinned digest", "missing final LF", "wrong field count", "invalid UTF-8", "member without container parent", "parent edge omitted from artifact graph", "raw ZIP promoted to exact selected content", "source-specific semantic callback"]
+    "positive": [
+      "all five SHA-256 and byte lengths",
+      "all four headers",
+      "every row width",
+      "every final LF",
+      "all member bytes equal the corresponding ZIP member",
+      "exact recomposition of all four selected tables"
+    ],
+    "negative": [
+      "changed byte with pinned digest",
+      "missing final LF",
+      "wrong field count",
+      "invalid UTF-8",
+      "member without container parent",
+      "parent edge omitted from artifact graph",
+      "raw ZIP promoted to exact selected content",
+      "source-specific semantic callback"
+    ]
   },
   "completion": {
     "predicate": "all five artifacts, four parent edges, 560435 bytes, 17114 records, 92153 fields, 17110 source-record claims, zero cross-reference mapping propositions, and all 18805 typed reference occurrences close as 9339 exact coordinates with 18404 present 401 retired and zero unresolved dispositions; exact selected-table readback, semantic profile readback, deterministic topology replay, rollback, and PostgreSQL parity close",
-    "does_not_prove": ["all ISO 639 data admitted", "cross-namespace ISO 639 mappings adjudicated or product-activated", "configured foundational seed", "general cognition", "product release"]
+    "does_not_prove": [
+      "all ISO 639 data admitted",
+      "cross-namespace ISO 639 mappings adjudicated or product-activated",
+      "configured foundational seed",
+      "general cognition",
+      "product release"
+    ]
   },
   "execution": {
     "geometry_epoch_scope": "Unicode 17 product root active at execution",

@@ -31,6 +31,23 @@
 
 PG_FUNCTION_INFO_V1(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL);
 
+_Static_assert(LAPLACE_SOURCE_PROFILE_EVIDENCE_STANDARD == LAPLACE_EVIDENCE_SOURCE_STANDARD,
+               "standard provenance constants diverged");
+_Static_assert(LAPLACE_SOURCE_PROFILE_EVIDENCE_CURATED_DATASET == LAPLACE_EVIDENCE_SOURCE_CURATED_DATASET,
+               "curated provenance constants diverged");
+_Static_assert(LAPLACE_SOURCE_PROFILE_EVIDENCE_CORPUS == LAPLACE_EVIDENCE_SOURCE_CORPUS,
+               "corpus provenance constants diverged");
+_Static_assert(LAPLACE_SOURCE_PROFILE_EVIDENCE_DIRECT_OBSERVATION == LAPLACE_EVIDENCE_SOURCE_DIRECT_OBSERVATION,
+               "observation provenance constants diverged");
+_Static_assert(LAPLACE_SOURCE_PROFILE_EVIDENCE_CALCULATION == LAPLACE_EVIDENCE_SOURCE_CALCULATION,
+               "calculation provenance constants diverged");
+_Static_assert(LAPLACE_SOURCE_PROFILE_EVIDENCE_MODEL == LAPLACE_EVIDENCE_SOURCE_MODEL,
+               "model provenance constants diverged");
+_Static_assert(LAPLACE_SOURCE_PROFILE_EVIDENCE_SELF_ASSERTION == LAPLACE_EVIDENCE_SOURCE_SELF_ASSERTION,
+               "self-assertion provenance constants diverged");
+_Static_assert(LAPLACE_SOURCE_PROFILE_EVIDENCE_EXTERNAL_PROVIDER == LAPLACE_EVIDENCE_SOURCE_EXTERNAL_PROVIDER,
+               "external-provider provenance constants diverged");
+
 typedef struct laplace_pg_source_stage_receipts {
     laplace_digest256 source_profile;
     laplace_digest256 source_profile_isa;
@@ -1269,7 +1286,14 @@ static laplace_evidence_testimony_record* build_testimony(
         (laplace_evidence_testimony_record*)palloc0(
             sizeof(*records) * claim_count);
     const laplace_digest256 trust = trust_input_id(profile);
+    const uint32_t source_type =
+        laplace_source_profile_evidence_source_type(profile);
     size_t index;
+    if (source_type == LAPLACE_SOURCE_PROFILE_EVIDENCE_UNSPECIFIED) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace admitted testimony has no declared evidence source type")));
+    }
     for (index = 0u; index < claim_count; ++index) {
         records[index].evidence_node_id = claims[index].lineage.node_id;
         records[index].source_profile_id = profile->profile_id;
@@ -1280,7 +1304,7 @@ static laplace_evidence_testimony_record* build_testimony(
             claims[index].outcome_type);
         records[index].uncertainty_denominator = 1u;
         records[index].sample_count = 1u;
-        records[index].source_type = LAPLACE_EVIDENCE_SOURCE_STANDARD;
+        records[index].source_type = source_type;
         records[index].outcome_type = claims[index].outcome_type;
         records[index].disposition = LAPLACE_EVIDENCE_DISPOSITION_PERSISTED;
         if (laplace_evidence_testimony_identify(

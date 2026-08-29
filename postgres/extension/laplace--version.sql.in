@@ -837,7 +837,10 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.source_profile (
     not_applicable_mask numeric(20, 0) NOT NULL
         CHECK (not_applicable_mask BETWEEN 0 AND 131071),
     reconstruction_class integer NOT NULL CHECK (reconstruction_class BETWEEN 1 AND 3),
-    flags integer NOT NULL CHECK (flags = 0),
+    flags integer NOT NULL CHECK (
+        flags >= 0 AND (flags & ~255) = 0 AND
+        (flags & 15) BETWEEN 0 AND 4 AND
+        ((flags >> 4) & 15) BETWEEN 0 AND 8),
     CHECK (closure_subject_count = accepted_count + rejected_count + duplicate_count +
         reused_count + transformed_count + lossy_count + unsupported_count +
         malformed_count + unresolved_count + persisted_count + derived_count),
@@ -1118,7 +1121,10 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.world_admission (
     closure_subject_count numeric(20, 0) NOT NULL CHECK (closure_subject_count > 0),
     closed_subject_count numeric(20, 0) NOT NULL CHECK (closed_subject_count > 0),
     reconstruction_class integer NOT NULL CHECK (reconstruction_class BETWEEN 1 AND 3),
-    flags integer NOT NULL CHECK (flags = 0),
+    flags integer NOT NULL CHECK (
+        flags >= 0 AND (flags & ~255) = 0 AND
+        (flags & 15) BETWEEN 0 AND 4 AND
+        ((flags >> 4) & 15) BETWEEN 0 AND 8),
     CHECK (profile_occurrence_count = composition_occurrence_count),
     CHECK (profile_claim_count = testimony_count),
     CHECK (profile_bound_testimony_count = testimony_count),

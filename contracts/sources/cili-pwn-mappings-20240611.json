@@ -15,7 +15,8 @@
       "Princeton WordNet synset existence or semantic contents",
       "truth beyond the exact source-scoped mapping testimony",
       "the GitHub ZIP wrapper as selected canonical content"
-    ]
+    ],
+    "evidence_source_type": "curated_dataset"
   },
   "coordinate": {
     "kind": 17,
@@ -32,7 +33,10 @@
     "commit": "dfc99e15e11e5b20e143f29386220d7b69805628",
     "commit_date": "2024-06-11",
     "upstream_archive_name": "cili-dfc99e15e11e5b20e143f29386220d7b69805628.zip",
-    "selected_members": ["ili-map-pwn30.tab", "ili-map-pwn31.tab"],
+    "selected_members": [
+      "ili-map-pwn30.tab",
+      "ili-map-pwn31.tab"
+    ],
     "supersession": "another commit or mapping table is a distinct append-only release/profile boundary"
   },
   "license": {
@@ -51,7 +55,10 @@
       "byte_count": 14960316,
       "sha256": "2926de849984e94961a922b1a69062a42234565083f9eb0232485e61b6445a73",
       "mode": "raw_octets",
-      "roles": ["container", "exact-hashed-provenance"],
+      "roles": [
+        "container",
+        "exact-hashed-provenance"
+      ],
       "parent": null,
       "acquisition": {
         "transport": "https",
@@ -69,20 +76,51 @@
       "byte_count": 2124416,
       "sha256": "13b6741395a8bdf20e5a19686ffa49167653696d4f523db17a79dce3211a6627",
       "mode": "utf8_delimited",
-      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "roles": [
+        "member",
+        "exact-selected-content",
+        "mapping-witness"
+      ],
       "parent": "cili-dfc99e15e11e5b20e143f29386220d7b69805628.zip",
       "exact_distribution": true,
       "delimiter": 9,
       "line_terminator": "lf",
-      "columns": ["ILI identifier", "Princeton WordNet 3.0 synset identifier"],
+      "columns": [
+        "ILI identifier",
+        "Princeton WordNet 3.0 synset identifier"
+      ],
       "header_record_count": 0,
-      "reference_columns": [0, 1],
+      "reference_columns": [
+        0,
+        1
+      ],
       "reference_bindings": [
-        {"column": 0, "kind": 7, "namespace": "http://globalwordnet.org/ili/", "roles": ["endpoint"]},
-        {"column": 1, "kind": 7, "namespace": "http://wordnet-rdf.princeton.edu/wn30/", "roles": ["endpoint"]}
+        {
+          "column": 0,
+          "kind": 7,
+          "namespace": "http://globalwordnet.org/ili/",
+          "roles": [
+            "endpoint"
+          ]
+        },
+        {
+          "column": 1,
+          "kind": 7,
+          "namespace": "http://wordnet-rdf.princeton.edu/wn30/",
+          "roles": [
+            "endpoint"
+          ]
+        }
       ],
       "mapping_bindings": [
-        {"left_column": 0, "right_column": 1, "relation_content": "http://www.w3.org/2002/07/owl#sameAs", "relation_kind": 8, "relation_version": 1, "direction": "symmetric"}
+        {
+          "left_column": 0,
+          "right_column": 1,
+          "relation_content": "http://www.w3.org/2002/07/owl#sameAs",
+          "relation_kind": 8,
+          "relation_version": 1,
+          "direction": "symmetric"
+        }
       ],
       "record_count": 117659,
       "field_count": 235318,
@@ -98,20 +136,51 @@
       "byte_count": 2123064,
       "sha256": "ee8715904b912e014d094d4551344a7eb2e8bb27b521c0272001ac9e2e00c610",
       "mode": "utf8_delimited",
-      "roles": ["member", "exact-selected-content", "mapping-witness"],
+      "roles": [
+        "member",
+        "exact-selected-content",
+        "mapping-witness"
+      ],
       "parent": "cili-dfc99e15e11e5b20e143f29386220d7b69805628.zip",
       "exact_distribution": true,
       "delimiter": 9,
       "line_terminator": "lf",
-      "columns": ["ILI identifier", "Princeton WordNet 3.1 synset identifier"],
+      "columns": [
+        "ILI identifier",
+        "Princeton WordNet 3.1 synset identifier"
+      ],
       "header_record_count": 0,
-      "reference_columns": [0, 1],
+      "reference_columns": [
+        0,
+        1
+      ],
       "reference_bindings": [
-        {"column": 0, "kind": 7, "namespace": "http://globalwordnet.org/ili/", "roles": ["endpoint"]},
-        {"column": 1, "kind": 7, "namespace": "http://wordnet-rdf.princeton.edu/wn31/", "roles": ["endpoint"]}
+        {
+          "column": 0,
+          "kind": 7,
+          "namespace": "http://globalwordnet.org/ili/",
+          "roles": [
+            "endpoint"
+          ]
+        },
+        {
+          "column": 1,
+          "kind": 7,
+          "namespace": "http://wordnet-rdf.princeton.edu/wn31/",
+          "roles": [
+            "endpoint"
+          ]
+        }
       ],
       "mapping_bindings": [
-        {"left_column": 0, "right_column": 1, "relation_content": "http://www.w3.org/2002/07/owl#sameAs", "relation_kind": 8, "relation_version": 1, "direction": "symmetric"}
+        {
+          "left_column": 0,
+          "right_column": 1,
+          "relation_content": "http://www.w3.org/2002/07/owl#sameAs",
+          "relation_kind": 8,
+          "relation_version": 1,
+          "direction": "symmetric"
+        }
       ],
       "record_count": 117583,
       "field_count": 235166,
@@ -130,24 +199,70 @@
   },
   "recipe_program": {
     "coordinate": "laplace.recipe/tabular-source/1",
-    "stages": ["verify-artifact-graph", "parse", "lower-universal-ast", "compose", "presence", "deposit", "reference-topology", "reference-mapping", "lineage", "testimony", "world-close", "readback"],
+    "stages": [
+      "verify-artifact-graph",
+      "parse",
+      "lower-universal-ast",
+      "compose",
+      "presence",
+      "deposit",
+      "reference-topology",
+      "reference-mapping",
+      "lineage",
+      "testimony",
+      "world-close",
+      "readback"
+    ],
     "source_named_semantic_dispatch": false,
     "raw_container_rule": "retain exact digest length name and parent topology without depositing unselected archive octets",
     "selected_content_rule": "deposit every nonempty endpoint and every selected row/table as exact reusable Unicode composition independent of source role"
   },
   "universal_ast_mapping": {
     "root": "source boundary",
-    "artifact": ["tag", "name", "digest", "parent artifact", "mode", "ordered selected content"],
-    "record": ["record tag", "ordered fields", "exact terminator"],
-    "field": ["field tag", "declared column identity", "exact value"],
+    "artifact": [
+      "tag",
+      "name",
+      "digest",
+      "parent artifact",
+      "mode",
+      "ordered selected content"
+    ],
+    "record": [
+      "record tag",
+      "ordered fields",
+      "exact terminator"
+    ],
+    "field": [
+      "field tag",
+      "declared column identity",
+      "exact value"
+    ],
     "roles_are_occurrence_metadata": true,
     "content_identity_excludes_source_language_role": true,
-    "exact_units": ["ILI identifier", "PWN synset identifier", "field", "row", "selected table"],
-    "intentional_loss": ["ZIP representation", "unselected repository members", "Git transport metadata"]
+    "exact_units": [
+      "ILI identifier",
+      "PWN synset identifier",
+      "field",
+      "row",
+      "selected table"
+    ],
+    "intentional_loss": [
+      "ZIP representation",
+      "unselected repository members",
+      "Git transport metadata"
+    ]
   },
   "highway_and_references": {
-    "namespaces": ["http://globalwordnet.org/ili/", "http://wordnet-rdf.princeton.edu/wn30/", "http://wordnet-rdf.princeton.edu/wn31/"],
-    "join_keys": ["ILI identifier", "Princeton WordNet 3.0 synset identifier", "Princeton WordNet 3.1 synset identifier"],
+    "namespaces": [
+      "http://globalwordnet.org/ili/",
+      "http://wordnet-rdf.princeton.edu/wn30/",
+      "http://wordnet-rdf.princeton.edu/wn31/"
+    ],
+    "join_keys": [
+      "ILI identifier",
+      "Princeton WordNet 3.0 synset identifier",
+      "Princeton WordNet 3.1 synset identifier"
+    ],
     "reference_identity": "authority release namespace and exact local identifier",
     "mapping_relation": "http://www.w3.org/2002/07/owl#sameAs",
     "initial_disposition": {
@@ -195,12 +310,38 @@
     ]
   },
   "conformance": {
-    "positive": ["all three SHA-256 and byte lengths", "both headerless first rows retained", "every row has two fields", "every final LF", "selected bytes equal the corresponding ZIP members", "exact recomposition of both selected tables", "mapping rules execute through shared topology and mapping ISA"],
-    "negative": ["changed byte with pinned digest", "invented header discards first mapping", "missing final LF", "wrong field count", "invalid UTF-8", "member without container parent", "source-specific CILI parser", "mapping bypasses reference topology", "claims copied into mapping denominator"]
+    "positive": [
+      "all three SHA-256 and byte lengths",
+      "both headerless first rows retained",
+      "every row has two fields",
+      "every final LF",
+      "selected bytes equal the corresponding ZIP members",
+      "exact recomposition of both selected tables",
+      "mapping rules execute through shared topology and mapping ISA"
+    ],
+    "negative": [
+      "changed byte with pinned digest",
+      "invented header discards first mapping",
+      "missing final LF",
+      "wrong field count",
+      "invalid UTF-8",
+      "member without container parent",
+      "source-specific CILI parser",
+      "mapping bypasses reference topology",
+      "claims copied into mapping denominator"
+    ]
   },
   "completion": {
     "predicate": "the locked wrapper and two exact selected members close at 19207796 source bytes, 235242 headerless records, 470484 fields and reference occurrences, 352835 unique authority-scoped reference coordinates, and 235242 source-scoped owl:sameAs mapping propositions; both selected tables recompose byte-for-byte and native/PostgreSQL parity, replay, rollback, topology-before-mapping, dependence lineage, testimony, world closure, and readback close",
-    "does_not_prove": ["complete CILI ontology admission", "Princeton WordNet endpoint profiles admitted", "mapping truth adjudicated", "configured foundational seed", "product activation", "general cognition", "product release"]
+    "does_not_prove": [
+      "complete CILI ontology admission",
+      "Princeton WordNet endpoint profiles admitted",
+      "mapping truth adjudicated",
+      "configured foundational seed",
+      "product activation",
+      "general cognition",
+      "product release"
+    ]
   },
   "execution": {
     "geometry_epoch_scope": "Unicode 17 product root active at execution",
