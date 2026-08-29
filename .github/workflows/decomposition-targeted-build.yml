@@ -2,6 +2,9 @@ name: decomposition-targeted-build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/decomposition-orchestration
 
 permissions:
   contents: read
