@@ -1,6 +1,6 @@
 {
   "schema": "laplace.product-package-contract/v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "postgresql": {
     "publication_receipt_schema": "laplace.postgresql-package-publication-receipt/v1",
     "receipt_schema": "laplace.postgresql-package-receipt/v2",
@@ -20,7 +20,10 @@
     "required_capabilities": {
       "app_effect_boundary": 1,
       "exact_loaded_object_identity": 1,
-      "topology_bound_processor_allocation": 1
+      "topology_bound_processor_allocation": 1,
+      "recursive_multi_authority_decomposition": 1,
+      "unicode_uax29_segmentation": 1,
+      "tree_sitter_grammar_runtime": 1
     }
   },
   "runtime_dependencies": {
@@ -68,6 +71,7 @@
     "install_libdir": "lib",
     "blake3_root": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/blake3",
     "blake3_source": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/blake3/c",
+    "tree_sitter_root": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/tree-sitter",
     "parallel_jobs": 6
   },
   "host_build_provider": {
@@ -88,8 +92,10 @@
       "lib/liblaplace_engine.so.2.0.0"
     ],
     "required_files": [
+      "bin/laplace_decompose",
       "bin/laplace_resource_observe",
       "bin/laplace_unicode_activation_identify",
+      "bin/laplace_unicode_decompose",
       "pgsql-18/bin/initdb",
       "pgsql-18/bin/pg_config",
       "pgsql-18/bin/pg_ctl",
