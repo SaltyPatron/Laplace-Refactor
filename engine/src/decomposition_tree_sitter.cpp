@@ -5,6 +5,7 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <string_view>
 #include <vector>
 
 #include <tree_sitter/api.h>
@@ -19,15 +20,26 @@ bool DigestZero(const laplace_digest256& value) {
 }
 
 laplace_decomposition_status Applicable(
-    void*,
-    const laplace_decomposition_content*,
+    void* provider_state,
+    const laplace_decomposition_content* content,
     const laplace_decomposition_span* span,
     int* applicable) {
-    if (span == nullptr || applicable == nullptr) {
+    if (provider_state == nullptr || content == nullptr || span == nullptr ||
+        applicable == nullptr) {
         return LAPLACE_DECOMPOSITION_INVALID_ARGUMENT;
     }
-    *applicable =
-        (span->flags & LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT) != 0u ? 1 : 0;
+    const auto& storage =
+        *static_cast<const laplace_decomposition_tree_sitter_provider*>(provider_state);
+    const bool grammar_input =
+        (span->flags & static_cast<std::uint32_t>(
+            LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT)) != 0u;
+    const bool media_match = content->media_type != nullptr &&
+        content->media_type_byte_count == storage.media_type_byte_count &&
+        std::memcmp(
+            content->media_type,
+            storage.media_type,
+            static_cast<std::size_t>(storage.media_type_byte_count)) == 0;
+    *applicable = grammar_input && media_match ? 1 : 0;
     return LAPLACE_DECOMPOSITION_OK;
 }
 
@@ -91,8 +103,8 @@ laplace_decomposition_status Apply(
                         absolute_start,
                         absolute_end,
                         kind,
-                        LAPLACE_DECOMPOSITION_SPAN_REDISPATCH |
-                            LAPLACE_DECOMPOSITION_SPAN_TEXT) != 0) {
+                        static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_REDISPATCH) |
+                            static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_TEXT)) != 0) {
                     status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
                     break;
                 }
@@ -116,16 +128,23 @@ laplace_decomposition_status Apply(
 extern "C" laplace_decomposition_status laplace_decomposition_tree_sitter_provider_init(
     laplace_decomposition_tree_sitter_provider* storage,
     const TSLanguage* language,
+    const char* media_type,
+    const std::uint64_t media_type_byte_count,
     const std::uint64_t kind_base,
     const laplace_digest256* provider_fingerprint) {
-    if (storage == nullptr || language == nullptr || provider_fingerprint == nullptr ||
-        DigestZero(*provider_fingerprint) || (kind_base & UINT64_C(0xFFFF)) != 0u ||
-        kind_base == 0u) {
+    if (storage == nullptr || language == nullptr || media_type == nullptr ||
+        media_type_byte_count == 0u ||
+        media_type_byte_count >= LAPLACE_TREE_SITTER_MEDIA_TYPE_CAPACITY ||
+        provider_fingerprint == nullptr || DigestZero(*provider_fingerprint) ||
+        (kind_base & UINT64_C(0xFFFF)) != 0u || kind_base == 0u) {
         return LAPLACE_DECOMPOSITION_INVALID_ARGUMENT;
     }
     std::memset(storage, 0, sizeof(*storage));
     storage->language = language;
     storage->kind_base = kind_base;
+    storage->media_type_byte_count = static_cast<std::uint32_t>(media_type_byte_count);
+    std::memcpy(storage->media_type, media_type,
+                static_cast<std::size_t>(media_type_byte_count));
     storage->provider.state = storage;
     storage->provider.provider_fingerprint = *provider_fingerprint;
     storage->provider.applicable = Applicable;
