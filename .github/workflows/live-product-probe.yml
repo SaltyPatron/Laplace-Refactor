@@ -1,0 +1,83 @@
+name: live-product-probe
+
+on:
+  push:
+    branches:
+      - ops/live-product-probe
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - postgres-18
+    timeout-minutes: 5
+    steps:
+      - name: Observe installed product and live PostgreSQL state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          echo "runner_user=$(id -un)"
+          echo "host=$(hostname)"
+          echo "observed_at=$(date -Iseconds)"
+          echo "active_root=$(readlink -f /opt/laplace/current 2>/dev/null || true)"
+          echo "service_state=$(systemctl is-active laplace-refactor-postgresql.service 2>/dev/null || true)"
+
+          psql=''
+          for candidate in \
+            /opt/laplace/current/pgsql-18/bin/psql \
+            /opt/laplace/pgsql-18/bin/psql; do
+            if test -x "$candidate"; then
+              psql="$candidate"
+              break
+            fi
+          done
+          if test -z "$psql"; then
+            echo 'psql=missing'
+            exit 2
+          fi
+          echo "psql=$psql"
+          "$psql" --version
+
+          args=(
+            -X -v ON_ERROR_STOP=1 -A -t
+            -h /run/laplace-refactor-postgresql
+            -p 55433
+            -d laplace_refactor
+            -U laplace_app
+          )
+
+          echo '--- identity ---'
+          "$psql" "${args[@]}" -c "select current_database(), current_user, current_setting('server_version');"
+          echo '--- extension ---'
+          "$psql" "${args[@]}" -c "select extname, extversion from pg_extension where extname='laplace';"
+          echo '--- schema objects ---'
+          "$psql" "${args[@]}" -c "select n.nspname||'.'||c.relname, c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='laplace' order by 1;"
+          echo '--- live row counts ---'
+          for rel in entity physicality attestation consensus calculation_receipt execution_receipt perfcache_generation unicode_root_epoch; do
+            exists=$("$psql" "${args[@]}" -c "select to_regclass('laplace.$rel') is not null;")
+            if test "$exists" = t; then
+              count=$("$psql" "${args[@]}" -c "select count(*) from laplace.$rel;")
+              echo "$rel=$count"
+            else
+              echo "$rel=ABSENT"
+            fi
+          done
+          echo '--- product call surfaces ---'
+          "$psql" "${args[@]}" -c "select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='laplace' and (p.proname like '%cognition%' or p.proname like '%query%' or p.proname like '%unicode%' or p.proname like '%highway%') order by p.proname;"
+          echo '--- installed object identity ---'
+          for f in \
+            /opt/laplace/current/pgsql-18/lib/laplace_pg.so \
+            /opt/laplace/current/lib/liblaplace_engine.so.2.0.0; do
+            if test -f "$f"; then
+              sha256sum "$f"
+            else
+              echo "ABSENT $f"
+            fi
+          done
