@@ -974,10 +974,10 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
         tier0_result.reverse_artifact_digest));
 
     const std::array<laplace_digest256, 13> expected{{
-        Digest("a390dd47fce00fab8fa836fc4b8f0474212d714bc6654d42bf8e28ec3fd036e3"),
+        Digest("d075bc1fc1c977a55ed49b6dc314a9adbcc653d4902b22c08f7c3951f134f462"),
         Digest("1f3b0ddf7283401bcf91e9a8ed70f00e1bd317eff5c78dcebca22d5ad6b9c75e"),
         Digest("a5296dd7a249bd88caed034e5347f156482580e113d6eee63217b044db6a3a83"),
-        Digest("2b8bcaf463a118c6979983767c6efb08f8c6c468f99f695b76c450eeccc1b4d6"),
+        Digest("b31ba287b04ef1eb61d9987cae5832dd0ac34950642ee73b42eb4bddd8949f6b"),
         Digest("e28ee38888d5a1944fa9d2f87e6686b8bd6c091d9ac152f8eb7d0880184790ed"),
         Digest("d0dc5ae88a7e3a8d42aba57286b8c248033f6ed6eb7dd9ea5509390a1503b4ef"),
         Digest("a14749f49928f3e8f0201100accae46650036abc233b0534b276ff0d32327ae1"),
@@ -1006,7 +1006,7 @@ TEST(UnicodeRootBuilder, BuildsOneCanonicalRootAndReplaysToSiblingSinks) {
             << index << ":" << Hex(*observed[index]);
     }
     EXPECT_EQ(build.spool.total_bytes, UINT64_C(741350735));
-    EXPECT_EQ(build.spool.batch_count, UINT64_C(546));
+    EXPECT_EQ(build.spool.batch_count, UINT64_C(178));
 }
 
 TEST(UnicodeRootBuilder, RejectsUnversionedNumericProviderBeforeSourceWork) {

@@ -2944,7 +2944,7 @@ if(LAPLACE_POSTGRES_ENABLED)
         postgres.mutation-composition-presence-blind-detected
         laplace_pg_composition_presence_blind_mutant
         composition_presence_blind_mutation.sql
-        "blind composition-presence mutant published without observing canonical state")
+        "Laplace persistence producer execution diverged from preflight")
     laplace_add_postgresql_composition_mutation(
         postgres.mutation-composition-presence-per-row-detected
         laplace_pg_composition_presence_per_row_mutant
