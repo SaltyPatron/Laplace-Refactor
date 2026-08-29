@@ -44,6 +44,7 @@ add_library(laplace_engine SHARED
     src/decomposition.cpp
     src/decomposition_uax29.cpp
     src/decomposition_tree_sitter.cpp
+    src/tree_sitter_grammar.cpp
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)
@@ -143,6 +144,7 @@ target_link_libraries(laplace_engine
     PRIVATE
         BLAKE3::blake3
         tree-sitter
+        ${CMAKE_DL_LIBS}
         m)
 target_compile_definitions(laplace_engine
     PRIVATE LAPLACE_ENGINE_BUILD=1)
