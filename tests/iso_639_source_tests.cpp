@@ -7,6 +7,8 @@
 
 #include <gtest/gtest.h>
 
+#include "laplace/contract/evidence_testimony.h"
+
 namespace {
 
 const char* SourceRoot() {
@@ -39,6 +41,13 @@ TEST(Iso639SourceProfile, CompilesLockedReleaseThroughGenericTabularEngine) {
               laplace::test::iso_profile::expected_fields);
     EXPECT_EQ(view.profile.claim_count,
               laplace::test::iso_profile::expected_claims);
+    ASSERT_EQ(view.claim_count,
+              laplace::test::iso_profile::expected_claims);
+    for (std::size_t index = 0u;
+         index < static_cast<std::size_t>(view.claim_count); ++index) {
+        EXPECT_EQ(view.claim_outcome_types[index],
+                  LAPLACE_EVIDENCE_OUTCOME_ASSERTION);
+    }
     EXPECT_EQ(view.profile.mapping_count, 0u);
     EXPECT_EQ(view.profile.reference_count,
               laplace::test::iso_profile::expected_references);
