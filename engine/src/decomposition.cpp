@@ -9,6 +9,7 @@
 #include <limits>
 #include <new>
 #include <set>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -99,7 +100,8 @@ int Emit(
     if (context.status != LAPLACE_DECOMPOSITION_OK) return 1;
     constexpr std::uint32_t KnownSpanFlags =
         LAPLACE_DECOMPOSITION_SPAN_REDISPATCH |
-        LAPLACE_DECOMPOSITION_SPAN_TEXT;
+        LAPLACE_DECOMPOSITION_SPAN_TEXT |
+        LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT;
     if ((flags & ~KnownSpanFlags) != 0u || kind == 0u) {
         context.status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
         return 1;
@@ -191,12 +193,18 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
         root.kind = 0u;
         root.depth = 0u;
         root.flags = LAPLACE_DECOMPOSITION_SPAN_REDISPATCH |
-            (RootIsText(input->content) ? LAPLACE_DECOMPOSITION_SPAN_TEXT : 0u);
+            (RootIsText(input->content) ? LAPLACE_DECOMPOSITION_SPAN_TEXT : 0u) |
+            (input->content.media_type_byte_count != 0u
+                 ? LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT : 0u);
         result->spans.push_back(root);
 
         std::deque<Task> queue;
         queue.push_back(Task{0u, std::numeric_limits<std::uint64_t>::max()});
-        std::set<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t>> executions;
+        std::set<std::tuple<
+            std::uint64_t,
+            std::uint64_t,
+            std::uint64_t,
+            std::uint32_t>> executions;
         std::set<EmittedKey> emitted;
 
         while (!queue.empty()) {
@@ -208,11 +216,15 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
             }
             const laplace_decomposition_span span =
                 result->spans[static_cast<std::size_t>(task.span_index)];
+            const std::uint32_t applicability_class = span.flags &
+                (LAPLACE_DECOMPOSITION_SPAN_TEXT |
+                 LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT);
             for (std::uint64_t provider_index = 0u;
                  provider_index < input->provider_count; ++provider_index) {
                 if (provider_index == task.skip_provider) continue;
                 const auto execution_key = std::tuple{
-                    provider_index, span.byte_start, span.byte_end};
+                    provider_index, span.byte_start, span.byte_end,
+                    applicability_class};
                 if (!executions.insert(execution_key).second) continue;
                 ++result->summary.provider_execution_count;
                 int applicable = 0;
