@@ -23,6 +23,15 @@ namespace {
 
 using Fingerprint = std::array<std::uint8_t, 32>;
 
+constexpr std::uint32_t RedispatchFlag =
+    static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_REDISPATCH);
+constexpr std::uint32_t TextFlag =
+    static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_TEXT);
+constexpr std::uint32_t GrammarInputFlag =
+    static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT);
+constexpr std::uint32_t KnownSpanFlags = RedispatchFlag | TextFlag | GrammarInputFlag;
+constexpr std::uint32_t ApplicabilityFlags = TextFlag | GrammarInputFlag;
+
 Fingerprint Key(const laplace_digest256& digest) {
     Fingerprint result{};
     std::memcpy(result.data(), digest.bytes, result.size());
@@ -98,10 +107,6 @@ int Emit(
     if (opaque == nullptr) return 1;
     auto& context = *static_cast<ApplyContext*>(opaque);
     if (context.status != LAPLACE_DECOMPOSITION_OK) return 1;
-    constexpr std::uint32_t KnownSpanFlags =
-        LAPLACE_DECOMPOSITION_SPAN_REDISPATCH |
-        LAPLACE_DECOMPOSITION_SPAN_TEXT |
-        LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT;
     if ((flags & ~KnownSpanFlags) != 0u || kind == 0u) {
         context.status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
         return 1;
@@ -141,7 +146,7 @@ int Emit(
         static_cast<std::uint64_t>(context.result->spans.size());
     try {
         context.result->spans.push_back(span);
-        if ((flags & LAPLACE_DECOMPOSITION_SPAN_REDISPATCH) != 0u) {
+        if ((flags & RedispatchFlag) != 0u) {
             context.queue->push_back(Task{span_index, context.provider_index});
             ++context.result->summary.redispatch_count;
         }
@@ -192,10 +197,9 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
         root.parent_span_index = std::numeric_limits<std::uint64_t>::max();
         root.kind = 0u;
         root.depth = 0u;
-        root.flags = LAPLACE_DECOMPOSITION_SPAN_REDISPATCH |
-            (RootIsText(input->content) ? LAPLACE_DECOMPOSITION_SPAN_TEXT : 0u) |
-            (input->content.media_type_byte_count != 0u
-                 ? LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT : 0u);
+        root.flags = RedispatchFlag |
+            (RootIsText(input->content) ? TextFlag : 0u) |
+            (input->content.media_type_byte_count != 0u ? GrammarInputFlag : 0u);
         result->spans.push_back(root);
 
         std::deque<Task> queue;
@@ -216,9 +220,7 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
             }
             const laplace_decomposition_span span =
                 result->spans[static_cast<std::size_t>(task.span_index)];
-            const std::uint32_t applicability_class = span.flags &
-                (LAPLACE_DECOMPOSITION_SPAN_TEXT |
-                 LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT);
+            const std::uint32_t applicability_class = span.flags & ApplicabilityFlags;
             for (std::uint64_t provider_index = 0u;
                  provider_index < input->provider_count; ++provider_index) {
                 if (provider_index == task.skip_provider) continue;
@@ -268,7 +270,7 @@ extern "C" laplace_decomposition_status laplace_decomposition_run(
         return LAPLACE_DECOMPOSITION_MEMORY_FAILURE;
     }
     result->summary.span_count = static_cast<std::uint64_t>(result->spans.size());
-    result->summary.status = LAPLACE_DECOMPOSITION_OK;
+    result->summary.status = static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_OK);
     *output = result;
     return LAPLACE_DECOMPOSITION_OK;
 }
