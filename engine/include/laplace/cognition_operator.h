@@ -6,6 +6,7 @@
 
 #include "laplace/contract/cognition_operator.h"
 #include "laplace/export.h"
+#include "laplace/identity.h"
 #include "laplace/types.h"
 
 #ifdef __cplusplus
