@@ -311,7 +311,7 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(inputs.get("model_root", {}).get("observed_path") == "/vault/models", "model root observation lost")
     contains_all(inputs.get("data_root", {}).get("observed_top_level_entries", []), ("UCD", "TreeSitter", "Wordnet", "FrameNet", "Tatoeba", "Games", "code-authority"), "known data-root inventory was narrowed")
     contains_all(inputs.get("model_root", {}).get("observed_top_level_entries", []), ("code-corpus", "stack-v2", "gguf", "Florence", "audio", "embedding", "reranker"), "known model-root inventory was narrowed")
-    require(inputs.get("old_iteration", {}).get("observed_path") == "/home/ahart/Projects/Laplace", "old iteration identity lost")
+    require(inputs.get("old_iteration", {}).get("observed_path") == "/home/ahart/Projects/Laplace-Legacy", "old iteration identity lost")
     require(inputs.get("old_iteration", {}).get("authority") is False, "old implementation became authority")
     grammar_evidence = inputs.get("known_laplace_custom_grammar_location", {})
     require(grammar_evidence.get("state") == "historical-evidence-recovered-current-clean-room-authority-unresolved", "custom grammar recovery state was flattened")
