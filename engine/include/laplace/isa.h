@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "laplace/cognition_packet.h"
 #include "laplace/contract/isa.h"
@@ -123,6 +124,8 @@ static inline laplace_isa_status validate_cognition_solve_packet(
     laplace_isa_error* error) {
     const laplace_isa_value_view* input;
     const laplace_isa_value_view* output;
+    laplace_digest256 packet_context;
+    laplace_digest256 execution_context;
     size_t required_words = 0u;
     uint64_t request_bytes;
     uint64_t result_bytes;
@@ -150,6 +153,21 @@ static inline laplace_isa_status validate_cognition_solve_packet(
     if (packet_status != LAPLACE_COGNITION_PACKET_OK) {
         return laplace_isa_cognition_fail(
             error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+            instruction_index, instruction->input_value);
+    }
+    packet_status = laplace_cognition_packet_request_context_fingerprint_words(
+        (const uint32_t*)input->data, (size_t)input->count, &packet_context);
+    if (packet_status != LAPLACE_COGNITION_PACKET_OK) {
+        return laplace_isa_cognition_fail(
+            error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+            instruction_index, instruction->input_value);
+    }
+    if (laplace_framework_context_fingerprint(
+            program->context, &execution_context) != LAPLACE_FRAMEWORK_OK ||
+        memcmp(packet_context.bytes, execution_context.bytes,
+               sizeof(packet_context.bytes)) != 0) {
+        return laplace_isa_cognition_fail(
+            error, LAPLACE_ISA_CONTEXT_INVALID,
             instruction_index, instruction->input_value);
     }
     if ((uint64_t)required_words > output->capacity) {
