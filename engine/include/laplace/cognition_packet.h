@@ -34,6 +34,23 @@ laplace_cognition_packet_execute(
     size_t result_capacity,
     size_t* result_byte_count);
 
+/* ISA transport is an array of canonical little-endian 32-bit words.  These
+ * helpers deliberately serialize the numeric words rather than aliasing host
+ * memory bytes, so the packet is identical on every host endianness. */
+LAPLACE_API laplace_cognition_packet_status
+laplace_cognition_packet_required_result_words(
+    const uint32_t* request_words,
+    size_t request_word_count,
+    size_t* required_result_words);
+
+LAPLACE_API laplace_cognition_packet_status
+laplace_cognition_packet_execute_words(
+    const uint32_t* request_words,
+    size_t request_word_count,
+    uint32_t* result_words,
+    size_t result_word_capacity,
+    size_t* result_word_count);
+
 #ifdef __cplusplus
 }
 #endif
