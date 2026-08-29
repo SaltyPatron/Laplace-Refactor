@@ -1,5 +1,6 @@
 #include "laplace/tree_sitter_grammar.h"
 
+#include <cstdint>
 #include <cstring>
 #include <new>
 #include <string_view>
