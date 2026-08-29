@@ -12,6 +12,7 @@
 #include "laplace/cognition_packet.h"
 #include "laplace/contract/isa.h"
 #include "laplace/isa.h"
+#include "cognition_isa_pg.h"
 #include "laplace_pg_internal.h"
 
 PG_FUNCTION_INFO_V1(laplace_pg_cognition_execute_packet);
@@ -47,6 +48,63 @@ static laplace_isa_program make_cognition_program(
     return program;
 }
 
+void laplace_pg_cognition_execute_words(
+    const laplace_framework_context* context,
+    const uint32_t* request_words,
+    size_t request_word_count,
+    uint32_t* result_words,
+    size_t result_word_capacity,
+    size_t* result_word_count,
+    laplace_isa_receipt* receipt) {
+    laplace_isa_value_view views[2];
+    laplace_isa_instruction instruction;
+    laplace_isa_program program;
+    laplace_isa_error error;
+    laplace_isa_status status;
+    if (context == NULL || request_words == NULL || request_word_count == 0u ||
+        result_words == NULL || result_word_capacity == 0u ||
+        result_word_count == NULL || receipt == NULL) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace cognition ISA execution arguments are invalid")));
+    }
+    *result_word_count = 0u;
+    memset(views, 0, sizeof(views));
+    views[0].data = (void*)request_words;
+    views[0].count = (uint64_t)request_word_count;
+    views[0].capacity = (uint64_t)request_word_count;
+    views[0].stride_bytes = (uint32_t)sizeof(*request_words);
+    views[0].type = LAPLACE_ISA_VALUE_U32_VECTOR;
+    views[1].data = result_words;
+    views[1].count = 0u;
+    views[1].capacity = (uint64_t)result_word_capacity;
+    views[1].stride_bytes = (uint32_t)sizeof(*result_words);
+    views[1].type = LAPLACE_ISA_VALUE_U32_VECTOR;
+
+    memset(&instruction, 0, sizeof(instruction));
+    instruction.opcode = LAPLACE_ISA_OPCODE_COGNITION_SOLVE_PACKET;
+    instruction.input_value = 0u;
+    instruction.output_value = 1u;
+    instruction.version = LAPLACE_ISA_INSTRUCTION_VERSION_COGNITION_SOLVE_PACKET;
+    program = make_cognition_program(context, &instruction, views);
+    memset(receipt, 0, sizeof(*receipt));
+    memset(&error, 0, sizeof(error));
+    status = laplace_isa_execute(&program, receipt, &error);
+    if (status != LAPLACE_ISA_OK || views[1].count == 0u ||
+        views[1].count > views[1].capacity || views[1].count > SIZE_MAX) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace cognition ISA execution failed"),
+                 errdetail("isa_status=%d instruction=%llu value=%u",
+                           (int)status,
+                           (unsigned long long)error.instruction_index,
+                           error.value_index)));
+    }
+    *result_word_count = (size_t)views[1].count;
+    laplace_pg_persist_execution_receipt(
+        receipt, (uint64_t)request_word_count, instruction.opcode);
+}
+
 static bytea* canonical_result_packet(
     const uint32_t* words,
     size_t word_count) {
@@ -76,14 +134,10 @@ Datum laplace_pg_cognition_execute_packet(PG_FUNCTION_ARGS) {
     const size_t request_byte_count = (size_t)VARSIZE_ANY_EXHDR(request);
     size_t request_word_count;
     size_t result_word_capacity = 0u;
+    size_t result_word_count = 0u;
     uint32_t* request_words;
     uint32_t* result_words;
-    laplace_isa_value_view views[2];
-    laplace_isa_instruction instruction;
-    laplace_isa_program program;
     laplace_isa_receipt receipt;
-    laplace_isa_error error;
-    laplace_isa_status status;
     laplace_cognition_packet_status packet_status;
     Datum result_values[13];
     bool result_nulls[13] = {false};
@@ -111,43 +165,12 @@ Datum laplace_pg_cognition_execute_packet(PG_FUNCTION_ARGS) {
                  errdetail("packet_status=%d", (int)packet_status)));
     }
     result_words = (uint32_t*)palloc0(sizeof(*result_words) * result_word_capacity);
-
-    memset(views, 0, sizeof(views));
-    views[0].data = request_words;
-    views[0].count = (uint64_t)request_word_count;
-    views[0].capacity = (uint64_t)request_word_count;
-    views[0].stride_bytes = (uint32_t)sizeof(*request_words);
-    views[0].type = LAPLACE_ISA_VALUE_U32_VECTOR;
-    views[1].data = result_words;
-    views[1].count = 0u;
-    views[1].capacity = (uint64_t)result_word_capacity;
-    views[1].stride_bytes = (uint32_t)sizeof(*result_words);
-    views[1].type = LAPLACE_ISA_VALUE_U32_VECTOR;
-
-    memset(&instruction, 0, sizeof(instruction));
-    instruction.opcode = LAPLACE_ISA_OPCODE_COGNITION_SOLVE_PACKET;
-    instruction.input_value = 0u;
-    instruction.output_value = 1u;
-    instruction.version = LAPLACE_ISA_INSTRUCTION_VERSION_COGNITION_SOLVE_PACKET;
-    program = make_cognition_program(&context, &instruction, views);
-    memset(&receipt, 0, sizeof(receipt));
-    memset(&error, 0, sizeof(error));
-    status = laplace_isa_execute(&program, &receipt, &error);
-    if (status != LAPLACE_ISA_OK || views[1].count == 0u ||
-        views[1].count > views[1].capacity) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace cognition ISA execution failed"),
-                 errdetail("isa_status=%d instruction=%llu value=%u",
-                           (int)status,
-                           (unsigned long long)error.instruction_index,
-                           error.value_index)));
-    }
-    laplace_pg_persist_execution_receipt(
-        &receipt, (uint64_t)request_word_count, instruction.opcode);
+    laplace_pg_cognition_execute_words(
+        &context, request_words, request_word_count,
+        result_words, result_word_capacity, &result_word_count, &receipt);
 
     result_values[0] = PointerGetDatum(canonical_result_packet(
-        result_words, (size_t)views[1].count));
+        result_words, result_word_count));
     result_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         receipt.receipt_id.bytes, sizeof(receipt.receipt_id.bytes)));
     result_values[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
