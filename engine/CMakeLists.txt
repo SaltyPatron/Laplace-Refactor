@@ -1,3 +1,19 @@
+set(LAPLACE_TREE_SITTER_SOURCE "" CACHE PATH "Verified upstream Tree-sitter source directory")
+if(NOT IS_ABSOLUTE "${LAPLACE_TREE_SITTER_SOURCE}")
+    message(FATAL_ERROR "LAPLACE_TREE_SITTER_SOURCE must be an absolute verified source path")
+endif()
+if(NOT EXISTS "${LAPLACE_TREE_SITTER_SOURCE}/lib/include/tree_sitter/api.h"
+   OR NOT EXISTS "${LAPLACE_TREE_SITTER_SOURCE}/CMakeLists.txt")
+    message(FATAL_ERROR "LAPLACE_TREE_SITTER_SOURCE does not contain the locked Tree-sitter runtime")
+endif()
+laplace_verify_git_dependency(
+    tree-sitter "${LAPLACE_TREE_SITTER_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK}")
+set(TREE_SITTER_FEATURE_WASM OFF CACHE BOOL "Disable Tree-sitter WASM provider" FORCE)
+add_subdirectory(
+    "${LAPLACE_TREE_SITTER_SOURCE}"
+    "${CMAKE_BINARY_DIR}/dependencies/tree-sitter"
+    EXCLUDE_FROM_ALL)
+
 add_library(laplace_engine SHARED
     src/identity.c
     src/geometry.c
@@ -27,6 +43,7 @@ add_library(laplace_engine SHARED
     src/text_decomposition.cpp
     src/decomposition.cpp
     src/decomposition_uax29.cpp
+    src/decomposition_tree_sitter.cpp
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)
@@ -125,6 +142,7 @@ target_include_directories(laplace_engine
 target_link_libraries(laplace_engine
     PRIVATE
         BLAKE3::blake3
+        tree-sitter
         m)
 target_compile_definitions(laplace_engine
     PRIVATE LAPLACE_ENGINE_BUILD=1)
