@@ -130,6 +130,10 @@ include(cmake/LaplaceCognitionOperatorContract.cmake)
 laplace_configure_cognition_operator_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/cognition-operator.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_operator.h")
+include(cmake/LaplaceCognitionSolverContract.cmake)
+laplace_configure_cognition_solver_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/cognition-solver.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_solver.h")
 include(cmake/LaplaceSourceProfileContract.cmake)
 laplace_configure_source_profile_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/source-profile-execution.json"
@@ -174,14 +178,17 @@ add_subdirectory(engine)
 target_sources(laplace_engine PRIVATE
     engine/src/query_search.cpp
     engine/src/cognition_guidance.cpp
-    engine/src/cognition_operator.cpp)
+    engine/src/cognition_operator.cpp
+    engine/src/cognition_solver.cpp)
 add_library(Laplace::QuerySearch ALIAS laplace_engine)
 add_library(Laplace::CognitionGuidance ALIAS laplace_engine)
 add_library(Laplace::CognitionOperator ALIAS laplace_engine)
+add_library(Laplace::CognitionSolver ALIAS laplace_engine)
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/query_search.h"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_guidance.h"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_operator.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_solver.h"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")
 
 if(LAPLACE_ENABLE_DOTNET_BINDINGS)
@@ -243,6 +250,7 @@ if(BUILD_TESTING)
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/query_search.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_guidance.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_operator.cmake")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_solver.cmake")
 endif()
 
 configure_package_config_file(
