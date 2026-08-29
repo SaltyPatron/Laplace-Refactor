@@ -42,12 +42,31 @@ static int digest_equal(const laplace_digest256* left, const laplace_digest256* 
     return memcmp(left->bytes, right->bytes, sizeof(left->bytes)) == 0;
 }
 
+uint32_t laplace_source_profile_epistemic_class(
+    const laplace_source_profile_manifest* profile) {
+    if (profile == NULL) {
+        return LAPLACE_SOURCE_PROFILE_EPISTEMIC_UNSPECIFIED;
+    }
+    return LAPLACE_SOURCE_PROFILE_GET_EPISTEMIC_CLASS(profile->flags);
+}
+
+uint32_t laplace_source_profile_evidence_source_type(
+    const laplace_source_profile_manifest* profile) {
+    if (profile == NULL) {
+        return LAPLACE_SOURCE_PROFILE_EVIDENCE_UNSPECIFIED;
+    }
+    return LAPLACE_SOURCE_PROFILE_GET_EVIDENCE_SOURCE_TYPE(profile->flags);
+}
+
 static int flags_valid(uint32_t flags) {
     const uint32_t epistemic_class =
-        flags & LAPLACE_SOURCE_PROFILE_EPISTEMIC_CLASS_MASK;
+        LAPLACE_SOURCE_PROFILE_GET_EPISTEMIC_CLASS(flags);
+    const uint32_t evidence_source_type =
+        LAPLACE_SOURCE_PROFILE_GET_EVIDENCE_SOURCE_TYPE(flags);
     return
-        (flags & ~LAPLACE_SOURCE_PROFILE_EPISTEMIC_CLASS_MASK) == 0u &&
-        epistemic_class <= LAPLACE_SOURCE_PROFILE_EPISTEMIC_MAX;
+        (flags & ~LAPLACE_SOURCE_PROFILE_FLAGS_KNOWN_MASK) == 0u &&
+        epistemic_class <= LAPLACE_SOURCE_PROFILE_EPISTEMIC_MAX &&
+        evidence_source_type <= LAPLACE_SOURCE_PROFILE_EVIDENCE_MAX;
 }
 
 static void hash_u32(blake3_hasher* hasher, uint32_t value) {

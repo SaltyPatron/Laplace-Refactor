@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - feat/decomposition-orchestration
 
 permissions:
   contents: read
