@@ -8,7 +8,7 @@
     "purpose": [
       "witness authority-scoped language identifiers and reference names",
       "supply exact reusable Unicode content for every selected field",
-      "supply typed mapping claims without making the publisher the truth authority"
+      "supply authority-scoped record assertions without making the publisher the truth authority"
     ],
     "prohibited_authority": [
       "referential identity outside the ISO 639 Set 3 release scope",
@@ -78,7 +78,7 @@
       "roles": [
         "member",
         "exact-selected-content",
-        "mapping-witness"
+        "authority-witness"
       ],
       "parent": "iso-639-3_Code_Tables_20260415.zip",
       "exact_distribution": true,
@@ -116,7 +116,7 @@
       "field_count": 1380,
       "claim_count": 459,
       "mapping_count": 0,
-      "outcome_type": "mapping"
+      "outcome_type": "assertion"
     },
     {
       "name": "iso-639-3_Code_Tables_20260415/iso-639-3.tab",
@@ -129,7 +129,7 @@
       "roles": [
         "member",
         "exact-selected-content",
-        "mapping-witness"
+        "authority-witness"
       ],
       "parent": "iso-639-3_Code_Tables_20260415.zip",
       "exact_distribution": true,
@@ -194,7 +194,7 @@
       "field_count": 63440,
       "claim_count": 7929,
       "mapping_count": 0,
-      "outcome_type": "mapping"
+      "outcome_type": "assertion"
     },
     {
       "name": "iso-639-3_Code_Tables_20260415/iso-639-3_Name_Index.tab",
@@ -207,7 +207,7 @@
       "roles": [
         "member",
         "exact-selected-content",
-        "mapping-witness"
+        "authority-witness"
       ],
       "parent": "iso-639-3_Code_Tables_20260415.zip",
       "exact_distribution": true,
@@ -236,7 +236,7 @@
       "field_count": 25011,
       "claim_count": 8336,
       "mapping_count": 0,
-      "outcome_type": "mapping"
+      "outcome_type": "assertion"
     },
     {
       "name": "iso-639-3_Code_Tables_20260415/iso-639-3_Retirements.tab",
@@ -249,7 +249,7 @@
       "roles": [
         "member",
         "exact-selected-content",
-        "mapping-witness"
+        "authority-witness"
       ],
       "parent": "iso-639-3_Code_Tables_20260415.zip",
       "exact_distribution": true,
@@ -291,7 +291,7 @@
       "field_count": 2322,
       "claim_count": 386,
       "mapping_count": 0,
-      "outcome_type": "mapping"
+      "outcome_type": "assertion"
     }
   ],
   "syntax_authority": {
@@ -392,7 +392,7 @@
   },
   "epistemic_witnessing": {
     "witness": "SIL International as ISO 639 Set 3 Language Coding Agency",
-    "claim_unit": "one non-header source record lowered as one mapping proposition",
+    "claim_unit": "one non-header source record lowered as one authority-scoped assertion",
     "asserted_validity": "publisher assertion scoped to this exact release",
     "dependence_root": "the locked 2026-04-15 release archive",
     "copied_members": "the four extracted member files share the archive dependence root and are not independent evidence",
@@ -436,11 +436,12 @@
       "member without container parent",
       "parent edge omitted from artifact graph",
       "raw ZIP promoted to exact selected content",
-      "source-specific semantic callback"
+      "source-specific semantic callback",
+      "tabular carrier forces mapping semantics onto ISO authority assertions"
     ]
   },
   "completion": {
-    "predicate": "all five artifacts, four parent edges, 560435 bytes, 17114 records, 92153 fields, 17110 source-record claims, zero cross-reference mapping propositions, and all 18805 typed reference occurrences close as 9339 exact coordinates with 18404 present 401 retired and zero unresolved dispositions; exact selected-table readback, semantic profile readback, deterministic topology replay, rollback, and PostgreSQL parity close",
+    "predicate": "all five artifacts, four parent edges, 560435 bytes, 17114 records, 92153 fields, 17110 source-record assertions, zero cross-reference mapping propositions, and all 18805 typed reference occurrences close as 9339 exact coordinates with 18404 present 401 retired and zero unresolved dispositions; exact selected-table readback, semantic profile readback, deterministic topology replay, rollback, and PostgreSQL parity close",
     "does_not_prove": [
       "all ISO 639 data admitted",
       "cross-namespace ISO 639 mappings adjudicated or product-activated",
