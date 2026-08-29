@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -14,6 +15,7 @@
 
 #include "blake3.h"
 #include "laplace/decomposition.h"
+#include "laplace/decomposition_delimited.h"
 #include "laplace/decomposition_tree_sitter.h"
 #include "laplace/decomposition_uax29.h"
 #include "laplace/tree_sitter_grammar.h"
@@ -62,7 +64,8 @@ bool ReadFile(const char* path, std::vector<std::uint8_t>& output) {
     input.seekg(0, std::ios::end);
     const std::streamoff size = input.tellg();
     if (size <= 0 || static_cast<std::uint64_t>(size) >
-                         static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
+                         static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max()) ||
+        size > static_cast<std::streamoff>(std::numeric_limits<std::streamsize>::max())) {
         return false;
     }
     input.seekg(0, std::ios::beg);
@@ -71,7 +74,7 @@ bool ReadFile(const char* path, std::vector<std::uint8_t>& output) {
     } catch (...) {
         return false;
     }
-    input.read(reinterpret_cast<char*>(output.data()), size);
+    input.read(reinterpret_cast<char*>(output.data()), static_cast<std::streamsize>(size));
     return input.good() || input.eof();
 }
 
@@ -93,12 +96,21 @@ bool ParseDigest(const char* text, laplace_digest256& output) {
     return true;
 }
 
-bool ParseU64Hex(const char* text, std::uint64_t& output) {
+bool ParseU64(const char* text, std::uint64_t& output) {
     if (text == nullptr || *text == '\0') return false;
     char* end = nullptr;
     const unsigned long long parsed = std::strtoull(text, &end, 0);
     if (end == text || *end != '\0') return false;
     output = static_cast<std::uint64_t>(parsed);
+    return true;
+}
+
+bool ParseU32(const char* text, std::uint32_t& output) {
+    std::uint64_t parsed = 0u;
+    if (!ParseU64(text, parsed) || parsed > std::numeric_limits<std::uint32_t>::max()) {
+        return false;
+    }
+    output = static_cast<std::uint32_t>(parsed);
     return true;
 }
 
@@ -138,7 +150,8 @@ void Usage(const char* executable) {
     std::fprintf(
         stderr,
         "usage: %s <verified-unicode-source-root> <media-type> <input-file> "
-        "[--grammar <shared-object> <tree_sitter_symbol> <kind-base> <provider-sha256>]...\n",
+        "[--grammar <shared-object> <tree_sitter_symbol> <kind-base> <provider-fingerprint>] "
+        "[--delimited <delimiter-byte> <lf|crlf> <columns> <header-rows> <kind-base> <provider-fingerprint>]...\n",
         executable);
 }
 
@@ -150,6 +163,8 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    const std::string_view media_type(argv[2]);
+    const std::string_view file_name(argv[3]);
     std::vector<std::uint8_t> bytes;
     if (!ReadFile(argv[3], bytes)) {
         std::fprintf(stderr, "cannot read non-empty input file: %s\n", argv[3]);
@@ -186,51 +201,91 @@ int main(int argc, char** argv) {
     }
 
     std::vector<GrammarHandle> grammars;
+    std::vector<std::unique_ptr<laplace_decomposition_delimited_provider>> delimited;
     std::vector<laplace_decomposition_provider_v1> providers;
     providers.push_back(uax_provider.provider);
+
     for (int index = 4; index < argc;) {
-        if (std::string_view(argv[index]) != "--grammar" || index + 4 >= argc) {
-            Usage(argv[0]);
-            laplace_uax29_tables_destroy(&uax29);
-            laplace_unicode_source_bundle_close(&bundle);
-            return 2;
+        const std::string_view option(argv[index]);
+        if (option == "--grammar") {
+            if (index + 4 >= argc) {
+                Usage(argv[0]);
+                return 2;
+            }
+            std::uint64_t kind_base = 0u;
+            laplace_digest256 fingerprint{};
+            if (!ParseU64(argv[index + 3], kind_base) ||
+                !ParseDigest(argv[index + 4], fingerprint)) {
+                std::fputs("invalid grammar kind-base or provider fingerprint\n", stderr);
+                return 2;
+            }
+            laplace_tree_sitter_grammar* raw = nullptr;
+            const laplace_tree_sitter_grammar_status grammar_status =
+                laplace_tree_sitter_grammar_open(
+                    argv[index + 1],
+                    argv[index + 2],
+                    media_type.data(),
+                    static_cast<std::uint64_t>(media_type.size()),
+                    kind_base,
+                    &fingerprint,
+                    &raw);
+            if (grammar_status != LAPLACE_TREE_SITTER_GRAMMAR_OK) {
+                std::fprintf(stderr, "grammar provider load failed for %s: %u\n",
+                             argv[index + 1], static_cast<unsigned int>(grammar_status));
+                return 1;
+            }
+            GrammarHandle handle(raw);
+            const laplace_decomposition_provider_v1* provider =
+                laplace_tree_sitter_grammar_provider(handle.get());
+            if (provider == nullptr) {
+                std::fputs("grammar provider unexpectedly absent\n", stderr);
+                return 1;
+            }
+            providers.push_back(*provider);
+            grammars.push_back(std::move(handle));
+            index += 5;
+            continue;
         }
-        std::uint64_t kind_base = 0u;
-        laplace_digest256 fingerprint{};
-        if (!ParseU64Hex(argv[index + 3], kind_base) ||
-            !ParseDigest(argv[index + 4], fingerprint)) {
-            std::fprintf(stderr, "invalid grammar kind-base or provider fingerprint\n");
-            laplace_uax29_tables_destroy(&uax29);
-            laplace_unicode_source_bundle_close(&bundle);
-            return 2;
+        if (option == "--delimited") {
+            if (index + 6 >= argc) {
+                Usage(argv[0]);
+                return 2;
+            }
+            std::uint32_t delimiter = 0u;
+            std::uint32_t columns = 0u;
+            std::uint32_t headers = 0u;
+            std::uint64_t kind_base = 0u;
+            laplace_digest256 fingerprint{};
+            const std::string_view terminator_name(argv[index + 2]);
+            const std::uint32_t terminator = terminator_name == "lf"
+                ? static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_DELIMITED_LF)
+                : terminator_name == "crlf"
+                    ? static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_DELIMITED_CRLF)
+                    : 0u;
+            if (!ParseU32(argv[index + 1], delimiter) || terminator == 0u ||
+                !ParseU32(argv[index + 3], columns) ||
+                !ParseU32(argv[index + 4], headers) ||
+                !ParseU64(argv[index + 5], kind_base) ||
+                !ParseDigest(argv[index + 6], fingerprint)) {
+                std::fputs("invalid delimited provider declaration\n", stderr);
+                return 2;
+            }
+            auto storage = std::make_unique<laplace_decomposition_delimited_provider>();
+            if (laplace_decomposition_delimited_provider_init(
+                    storage.get(), delimiter, terminator, columns, headers,
+                    kind_base, &fingerprint) != LAPLACE_DECOMPOSITION_OK) {
+                std::fputs("cannot initialize delimited provider\n", stderr);
+                return 2;
+            }
+            providers.push_back(storage->provider);
+            delimited.push_back(std::move(storage));
+            index += 7;
+            continue;
         }
-        laplace_tree_sitter_grammar* raw = nullptr;
-        const laplace_tree_sitter_grammar_status grammar_status =
-            laplace_tree_sitter_grammar_open(
-                argv[index + 1], argv[index + 2], kind_base, &fingerprint, &raw);
-        if (grammar_status != LAPLACE_TREE_SITTER_GRAMMAR_OK) {
-            std::fprintf(stderr, "grammar provider load failed for %s: %u\n",
-                         argv[index + 1], static_cast<unsigned int>(grammar_status));
-            laplace_uax29_tables_destroy(&uax29);
-            laplace_unicode_source_bundle_close(&bundle);
-            return 1;
-        }
-        GrammarHandle handle(raw);
-        const laplace_decomposition_provider_v1* provider =
-            laplace_tree_sitter_grammar_provider(handle.get());
-        if (provider == nullptr) {
-            std::fputs("grammar provider unexpectedly absent\n", stderr);
-            laplace_uax29_tables_destroy(&uax29);
-            laplace_unicode_source_bundle_close(&bundle);
-            return 1;
-        }
-        providers.push_back(*provider);
-        grammars.push_back(std::move(handle));
-        index += 5;
+        Usage(argv[0]);
+        return 2;
     }
 
-    const std::string_view media_type(argv[2]);
-    const std::string_view file_name(argv[3]);
     laplace_decomposition_input input{};
     input.content.bytes = bytes.data();
     input.content.byte_count = static_cast<std::uint64_t>(bytes.size());
@@ -240,6 +295,11 @@ int main(int argc, char** argv) {
     input.content.name_byte_count = static_cast<std::uint64_t>(file_name.size());
     input.providers = providers.data();
     input.provider_count = static_cast<std::uint64_t>(providers.size());
+    if (bytes.size() > static_cast<std::size_t>(
+            std::numeric_limits<std::uint64_t>::max() / UINT64_C(16))) {
+        std::fputs("input too large for decomposition span budget\n", stderr);
+        return 1;
+    }
     input.maximum_spans = std::max<std::uint64_t>(
         UINT64_C(4096), static_cast<std::uint64_t>(bytes.size()) * UINT64_C(16));
     input.maximum_depth = 32u;
