@@ -47,7 +47,6 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" value_types reference_mapping_candidate_vector)
     string(JSON value_reference_mapping_record GET
         "${contract_json}" value_types reference_mapping_record_vector)
-    string(JSON value_byte GET "${contract_json}" value_types byte_vector)
     string(JSON opcode_identity_codepoint GET
         "${contract_json}" opcodes identity_codepoint_batch)
     string(JSON opcode_trajectory_decode GET
@@ -147,8 +146,7 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT value_reference_candidate EQUAL 16
        OR NOT value_reference_record EQUAL 17
        OR NOT value_reference_mapping_candidate EQUAL 18
-       OR NOT value_reference_mapping_record EQUAL 19
-       OR NOT value_byte EQUAL 20)
+       OR NOT value_reference_mapping_record EQUAL 19)
         message(FATAL_ERROR "ISA value type assignments changed")
     endif()
     if(NOT opcode_identity_codepoint EQUAL 131073
@@ -285,7 +283,6 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${value_reference_mapping_candidate}")
     set(LAPLACE_ISA_VALUE_REFERENCE_MAPPING_RECORD_VECTOR
         "${value_reference_mapping_record}")
-    set(LAPLACE_ISA_VALUE_BYTE_VECTOR "${value_byte}")
     set(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH "${opcode_identity_codepoint}")
     set(LAPLACE_ISA_OPCODE_TRAJECTORY_COMPOSITION_DECODE_BATCH
         "${opcode_trajectory_decode}")
