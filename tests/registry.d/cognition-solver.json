@@ -15,7 +15,7 @@
     },
     {
       "ctest_name": "CognitionSolver.IterationBoundProducesTypedDisposition",
-      "evidence_targets": ["LP-TEST-RESOURCE-FINITE-BOUND", "LP-TEST-SOLVER-RESIDUAL-SEPARATION"],
+      "evidence_targets": ["LP-TEST-FINITE-RESOURCE-BOUNDARY", "LP-TEST-SOLVER-RESIDUAL-SEPARATION"],
       "covered_dimensions": ["finite iteration bound", "typed iteration-limit disposition", "remaining numerical residual"]
     },
     {
