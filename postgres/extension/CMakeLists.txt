@@ -20,6 +20,7 @@ laplace_configure_postgresql_bindings(
     "${extension_control}")
 
 set(laplace_postgresql_module_sources
+    src/cognition_isa_pg.c
     src/composition_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
@@ -137,6 +138,7 @@ if(BUILD_TESTING)
         LAPLACE_TEST_EVIDENCE_TESTIMONY_REPLAY_VERIFY_BYPASS)
     target_compile_definitions(
         laplace_pg_evidence_testimony_replay_mutant PRIVATE
+        LAPLACE_TEST_EVIDENCE_TESTIMONY_REPLAY_VERIFY_BYPASS=1
         LAPLACE_PG_EVIDENCE_TESTIMONY_ENTRYPOINT=laplace_pg_evidence_record_testimony_replay_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_source_profile_replay_mutant
