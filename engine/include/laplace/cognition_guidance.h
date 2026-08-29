@@ -160,6 +160,16 @@ LAPLACE_API void
 laplace_cognition_guidance_state_destroy(laplace_cognition_guidance_state** state);
 
 LAPLACE_API laplace_cognition_guidance_status
+laplace_cognition_guidance_state_clone(
+    const laplace_cognition_guidance_state* state,
+    laplace_cognition_guidance_state** clone);
+
+LAPLACE_API laplace_cognition_guidance_status
+laplace_cognition_guidance_state_header(
+    const laplace_cognition_guidance_state* state,
+    laplace_cognition_guidance_header* header);
+
+LAPLACE_API laplace_cognition_guidance_status
 laplace_cognition_guidance_state_identify(
     const laplace_cognition_guidance_state* state,
     laplace_digest256* state_id);
