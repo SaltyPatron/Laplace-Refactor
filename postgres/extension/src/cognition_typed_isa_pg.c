@@ -433,8 +433,8 @@ Datum laplace_pg_cognition_solve_isa(PG_FUNCTION_ARGS) {
     uint32_t* request_words;
     uint32_t* result_words;
     double* solution;
-    Datum result_values[17];
-    bool result_nulls[17] = {false};
+    Datum result_values[18];
+    bool result_nulls[18] = {false};
     HeapTuple result_tuple;
 
     memset(&request, 0, sizeof(request));
@@ -557,7 +557,9 @@ Datum laplace_pg_cognition_solve_isa(PG_FUNCTION_ARGS) {
     result_values[14] = Float8GetDatum(decoded.solver_receipt.final_energy);
     result_values[15] = Int32GetDatum((int32)decoded.solver_receipt.disposition);
     result_values[16] = Int32GetDatum((int32)decoded.solver_receipt.status);
+    result_values[17] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        isa_receipt.receipt_id.bytes, sizeof(isa_receipt.receipt_id.bytes)));
     result_tuple = laplace_pg_form_result_tuple(
-        fcinfo, result_values, result_nulls, 17);
+        fcinfo, result_values, result_nulls, 18);
     PG_RETURN_DATUM(HeapTupleGetDatum(result_tuple));
 }
