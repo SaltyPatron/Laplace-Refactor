@@ -29,8 +29,7 @@
     "reference_candidate_vector": 16,
     "reference_record_vector": 17,
     "reference_mapping_candidate_vector": 18,
-    "reference_mapping_record_vector": 19,
-    "byte_vector": 20
+    "reference_mapping_record_vector": 19
   },
   "opcodes": {
     "identity_codepoint_batch": 131073,
@@ -106,8 +105,8 @@
     },
     "cognition_solve_packet": {
       "module": "cognition",
-      "input_type": "byte_vector",
-      "output_type": "byte_vector"
+      "input_type": "u32_vector",
+      "output_type": "u32_vector"
     }
   },
   "instruction_versions": {
@@ -166,8 +165,7 @@
         "reference_candidate_vector": "global::Laplace.Managed.LaplaceReferenceCandidate",
         "reference_record_vector": "global::Laplace.Managed.LaplaceReferenceRecord",
         "reference_mapping_candidate_vector": "global::Laplace.Managed.LaplaceReferenceMappingCandidate",
-        "reference_mapping_record_vector": "global::Laplace.Managed.LaplaceReferenceMappingRecord",
-        "byte_vector": "global::System.Byte"
+        "reference_mapping_record_vector": "global::Laplace.Managed.LaplaceReferenceMappingRecord"
       },
       "operation_declarations": {
         "identity_codepoint_batch": "IdentityCodepointBatch",
