@@ -17,6 +17,19 @@
       ]
     },
     {
+      "ctest_name": "TabularRecursiveMerge.RetainsWitnessMetadataBoundToCanonicalContent",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "provider identity span ranges parentage kind depth flags and exact media-type bytes survive source admission as structural witness state rather than content identity",
+        "each structural witness is bound to a canonical known-entity or prior-result reference relocated into the enclosing source working set",
+        "witness metadata cannot alter canonical relationship metadata multiplicity or flags"
+      ]
+    },
+    {
       "ctest_name": "TabularRecursiveMerge.RejectsForwardCanonicalResultReferences",
       "evidence_targets": [
         "LP-TEST-AST-MERKLE-REUSE",
@@ -52,6 +65,7 @@
         "the locked ISO source reuses the already-admitted Tier-0 atom set while adding canonical composite structure",
         "the authoritative source root remains the final result with the same child references after recursive structure is inserted",
         "inserted recursive requests carry no implicit occurrence flag or parser relationship metadata",
+        "structural decomposition span witnesses remain queryable with exact provider range parent kind depth flags media bytes and canonical content binding",
         "raw container artifacts with no structural child decomposition remain admissible without interpreting arbitrary binary bytes as UTF-8 canonical text"
       ]
     },
@@ -63,6 +77,17 @@
       ],
       "covered_dimensions": [
         "a deliberate mutant that discards the canonical decomposition plan at the source-admission merge boundary is rejected"
+      ]
+    },
+    {
+      "ctest_name": "decomposition.mutation-recursive-witness-binding-drop-detected",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "a deliberate mutant that keeps canonical decomposition but discards the structural witness-to-content binding is rejected"
       ]
     }
   ]

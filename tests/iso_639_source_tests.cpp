@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -75,6 +76,10 @@ TEST(Iso639SourceProfile, CompilesLockedReleaseThroughGenericTabularEngine) {
               LAPLACE_SOURCE_PROFILE_RECONSTRUCTION_SEMANTIC);
     EXPECT_EQ(view.profile.transformed_count, view.request_count);
     EXPECT_EQ(view.profile.persisted_count, 0u);
+    EXPECT_EQ(view.decomposition_witness_count, 0u);
+    EXPECT_EQ(view.decomposition_witness_media_type_byte_count, 0u);
+    EXPECT_EQ(view.decomposition_witnesses, nullptr);
+    EXPECT_EQ(view.decomposition_witness_media_types, nullptr);
 
     std::size_t written{};
     EXPECT_EQ(laplace_tabular_source_recompose_artifact(
@@ -141,6 +146,55 @@ TEST(Iso639SourceProfile,
     EXPECT_GT(recursive.profile.span_count, legacy.profile.span_count);
     EXPECT_EQ(recursive.profile.output_count, recursive.request_count);
     EXPECT_EQ(recursive.profile.transformed_count, recursive.request_count);
+
+    ASSERT_GT(recursive.decomposition_witness_count, 0u);
+    ASSERT_NE(recursive.decomposition_witnesses, nullptr);
+    ASSERT_GT(recursive.decomposition_witness_media_type_byte_count, 0u);
+    ASSERT_NE(recursive.decomposition_witness_media_types, nullptr);
+    EXPECT_EQ(
+        recursive.profile.span_count,
+        legacy.profile.span_count + recursive.decomposition_witness_count);
+
+    for (std::uint64_t witness_index = 0u;
+         witness_index < recursive.decomposition_witness_count;
+         ++witness_index) {
+        const laplace_tabular_decomposition_witness& witness =
+            recursive.decomposition_witnesses[witness_index];
+        EXPECT_LT(witness.artifact_index, recursive.artifact_count);
+        EXPECT_LT(witness.byte_start, witness.byte_end);
+        ASSERT_LT(witness.artifact_index, fixture.artifacts.size());
+        EXPECT_LE(
+            witness.byte_end,
+            fixture.artifacts[static_cast<std::size_t>(witness.artifact_index)]
+                .byte_count);
+        EXPECT_EQ(witness.canonical_content.multiplicity, 1u);
+        EXPECT_EQ(witness.canonical_content.relationship_metadata, 0u);
+        EXPECT_EQ(witness.canonical_content.flags, 0u);
+        if (witness.span_index == 0u) {
+            EXPECT_EQ(
+                witness.parent_span_index,
+                std::numeric_limits<std::uint64_t>::max());
+        } else {
+            EXPECT_LT(witness.parent_span_index, witness.span_index);
+        }
+        if (witness.canonical_content.reference_kind ==
+            LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
+            EXPECT_LT(witness.canonical_content.reference_index,
+                      recursive.atom_count);
+        } else {
+            ASSERT_EQ(witness.canonical_content.reference_kind,
+                      LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT);
+            EXPECT_LT(witness.canonical_content.reference_index,
+                      recursive.root_result_index);
+        }
+        ASSERT_LE(
+            witness.media_type_byte_offset,
+            recursive.decomposition_witness_media_type_byte_count);
+        ASSERT_LE(
+            witness.media_type_byte_count,
+            recursive.decomposition_witness_media_type_byte_count -
+                witness.media_type_byte_offset);
+    }
 
     const laplace_composition_request& recursive_root =
         recursive.requests[recursive.root_result_index];

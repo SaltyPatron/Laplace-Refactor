@@ -157,3 +157,25 @@ add_test(
 set_tests_properties(
     decomposition.mutation-recursive-canonical-merge-drop-detected PROPERTIES
     LABELS "implementation;source-profile;decomposition;identity;ast;recursive;mutation")
+
+add_executable(laplace_tabular_recursive_witness_mutation_probe
+    "${CMAKE_CURRENT_LIST_DIR}/tabular_recursive_merge_tests.cpp")
+target_include_directories(laplace_tabular_recursive_witness_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../engine/include"
+    "${CMAKE_CURRENT_LIST_DIR}/../engine/src"
+    "${CMAKE_BINARY_DIR}/generated")
+target_compile_definitions(laplace_tabular_recursive_witness_mutation_probe PRIVATE
+    LAPLACE_TEST_TABULAR_RECURSIVE_DROP_WITNESS_BINDINGS=1)
+target_link_libraries(laplace_tabular_recursive_witness_mutation_probe PRIVATE
+    GTest::gtest_main)
+target_compile_options(laplace_tabular_recursive_witness_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME decomposition.mutation-recursive-witness-binding-drop-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_tabular_recursive_witness_mutation_probe>"
+        "-DFILTER=TabularRecursiveMerge.RetainsWitnessMetadataBoundToCanonicalContent"
+        -P "${CMAKE_CURRENT_LIST_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    decomposition.mutation-recursive-witness-binding-drop-detected PROPERTIES
+    LABELS "implementation;source-profile;decomposition;identity;witness;ast;recursive;mutation")
