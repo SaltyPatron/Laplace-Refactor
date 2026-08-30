@@ -93,7 +93,7 @@ class ProductActivationGatewayBootstrapTests(unittest.TestCase):
             repository, commit = self.repository_fixture(Path(temporary))
             trusted = repository / next(iter(installer.SOURCE_MAP.values()))
             trusted.write_text("mutated after review\n", encoding="utf-8")
-            with self.assertRaisesRegex(installer.InstallError, "trusted gateway source checkout is not clean"):
+            with self.assertRaisesRegex(installer.InstallError, "source bytes differ from reviewed commit"):
                 installer.verify_repository_binding(repository, commit)
 
     def test_dirty_bootstrap_installer_is_a_deliberate_bootstrap_defect(self) -> None:
@@ -101,7 +101,28 @@ class ProductActivationGatewayBootstrapTests(unittest.TestCase):
             repository, commit = self.repository_fixture(Path(temporary))
             bootstrap = repository / installer.BOOTSTRAP_SOURCE
             bootstrap.write_text("mutated root bootstrap\n", encoding="utf-8")
-            with self.assertRaisesRegex(installer.InstallError, "trusted gateway source checkout is not clean"):
+            with self.assertRaisesRegex(installer.InstallError, "source bytes differ from reviewed commit"):
+                installer.verify_repository_binding(repository, commit)
+
+    def test_status_suppressed_trusted_source_mutation_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-gateway-bootstrap-assume-") as temporary:
+            repository, commit = self.repository_fixture(Path(temporary))
+            trusted_relative = next(iter(installer.SOURCE_MAP.values()))
+            self.git(repository, "update-index", "--assume-unchanged", trusted_relative)
+            trusted = repository / trusted_relative
+            trusted.write_text("mutation hidden from ordinary status\n", encoding="utf-8")
+            self.assertEqual(
+                self.git(
+                    repository,
+                    "status",
+                    "--porcelain=v1",
+                    "--untracked-files=all",
+                    "--",
+                    trusted_relative,
+                ),
+                "",
+            )
+            with self.assertRaisesRegex(installer.InstallError, "source bytes differ from reviewed commit"):
                 installer.verify_repository_binding(repository, commit)
 
     def test_untracked_replacement_of_trusted_source_is_rejected(self) -> None:
@@ -112,7 +133,7 @@ class ProductActivationGatewayBootstrapTests(unittest.TestCase):
             trusted = repository / trusted_relative
             trusted.parent.mkdir(parents=True, exist_ok=True)
             trusted.write_text("untracked replacement\n", encoding="utf-8")
-            with self.assertRaisesRegex(installer.InstallError, "trusted gateway source checkout is not clean"):
+            with self.assertRaisesRegex(installer.InstallError, "source bytes differ from reviewed commit"):
                 installer.verify_repository_binding(repository, commit)
 
 
