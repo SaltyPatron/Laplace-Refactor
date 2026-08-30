@@ -92,6 +92,48 @@ class PackageProductProofTests(unittest.TestCase):
                     installation, manifest, manifest_sha, source, root
                 )
 
+    def test_manifest_source_accepts_exact_checked_out_identity(self) -> None:
+        commit = "a" * 40
+        tree = "b" * 40
+        manifest = {
+            "laplace": {
+                "repository_commit": commit,
+                "repository_tree": tree,
+            }
+        }
+        proof.validate_manifest_source(manifest, commit, tree)
+
+    def test_manifest_source_rejects_stale_or_wrong_identity(self) -> None:
+        commit = "a" * 40
+        tree = "b" * 40
+        manifest = {
+            "laplace": {
+                "repository_commit": commit,
+                "repository_tree": tree,
+            }
+        }
+        mutations = (
+            {"repository_commit": "c" * 40, "repository_tree": tree},
+            {"repository_commit": commit, "repository_tree": "d" * 40},
+            {"repository_commit": commit},
+            {},
+        )
+        for laplace in mutations:
+            with self.subTest(laplace=laplace), self.assertRaisesRegex(
+                proof.PackageProductProofError, "checked-out source identity"
+            ):
+                proof.validate_manifest_source({"laplace": laplace}, commit, tree)
+
+    def test_manifest_source_rejects_non_git_object_expectation(self) -> None:
+        manifest = {
+            "laplace": {
+                "repository_commit": "a" * 40,
+                "repository_tree": "b" * 40,
+            }
+        }
+        with self.assertRaisesRegex(proof.PackageProductProofError, "Git object"):
+            proof.validate_manifest_source(manifest, "a" * 39, "b" * 40)
+
     def test_binding_canonicalization_is_stable(self) -> None:
         value = {"b": 2, "a": 1}
         expected = b'{"a":1,"b":2}\n'
