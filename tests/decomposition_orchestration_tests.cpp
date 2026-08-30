@@ -1,4 +1,5 @@
 #include "laplace/decomposition.h"
+#include "laplace/decomposition_delimited.h"
 
 #include <gtest/gtest.h>
 
@@ -254,6 +255,61 @@ TEST(DecompositionOrchestration, TextOnlyRedispatchCannotMasqueradeAsGrammarInpu
         JavascriptMedia);
 
     laplace_decomposition_result_destroy(&result);
+}
+
+TEST(DecompositionOrchestration, DelimitedRowsAndFieldsAreTerminalWitnesses) {
+    constexpr std::array<std::uint8_t, 4> bytes{{'a', '\t', 'b', '\n'}};
+    constexpr std::string_view media{"text/tab-separated-values"};
+    laplace_decomposition_delimited_provider delimited{};
+    const laplace_digest256 fingerprint = Fingerprint(0x33u);
+    ASSERT_EQ(
+        laplace_decomposition_delimited_provider_init(
+            &delimited,
+            '\t',
+            LAPLACE_DECOMPOSITION_DELIMITED_LF,
+            2u,
+            0u,
+            UINT64_C(0x5441424c00000000),
+            &fingerprint),
+        LAPLACE_DECOMPOSITION_OK);
+
+    laplace_decomposition_input input{};
+    input.content.bytes = bytes.data();
+    input.content.byte_count = bytes.size();
+    input.content.media_type = media.data();
+    input.content.media_type_byte_count = media.size();
+    input.providers = &delimited.provider;
+    input.provider_count = 1u;
+    input.maximum_spans = 16u;
+    input.maximum_depth = 8u;
+
+    laplace_decomposition_result* result = nullptr;
+    ASSERT_EQ(laplace_decomposition_run(&input, &result),
+              LAPLACE_DECOMPOSITION_OK);
+    ASSERT_NE(result, nullptr);
+
+    laplace_decomposition_summary summary{};
+    ASSERT_EQ(laplace_decomposition_summary_get(result, &summary),
+              LAPLACE_DECOMPOSITION_OK);
+    EXPECT_EQ(summary.provider_execution_count, 1u);
+    EXPECT_EQ(summary.applicable_execution_count, 1u);
+    EXPECT_EQ(summary.redispatch_count, 0u);
+    EXPECT_EQ(summary.maximum_depth_reached, 1u);
+    EXPECT_EQ(summary.span_count, 6u);
+
+    std::size_t span_count = 0u;
+    const laplace_decomposition_span* spans =
+        laplace_decomposition_spans(result, &span_count);
+    ASSERT_NE(spans, nullptr);
+    ASSERT_EQ(span_count, 6u);
+    EXPECT_EQ(spans[1].flags, LAPLACE_DECOMPOSITION_SPAN_TEXT);
+    EXPECT_EQ(spans[2].flags, LAPLACE_DECOMPOSITION_SPAN_TEXT);
+    EXPECT_EQ(spans[3].flags, 0u);
+    EXPECT_EQ(spans[4].flags, LAPLACE_DECOMPOSITION_SPAN_TEXT);
+    EXPECT_EQ(spans[5].flags, 0u);
+
+    laplace_decomposition_result_destroy(&result);
+    EXPECT_EQ(result, nullptr);
 }
 
 }  // namespace
