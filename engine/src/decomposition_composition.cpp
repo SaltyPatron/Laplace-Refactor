@@ -10,7 +10,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "blake3.h"
@@ -24,26 +23,7 @@ struct laplace_decomposition_composition_plan {
 
 namespace {
 
-constexpr std::uint64_t RoleShift = 6u;
 constexpr std::uint32_t RecipeVersion = 1u;
-
-enum class Role : std::uint64_t {
-    Tag = 1u,
-    Provider = 2u,
-    Kind = 3u,
-    MediaType = 4u,
-    Realization = 5u,
-    ByteStart = 6u,
-    ByteEnd = 7u,
-    Flags = 8u,
-    Depth = 9u,
-    ParentOccurrence = 10u,
-    SpanOccurrence = 11u
-};
-
-std::uint64_t Metadata(const Role role) {
-    return static_cast<std::uint64_t>(role) << RoleShift;
-}
 
 bool DigestZero(const laplace_digest256& value) {
     for (const std::uint8_t byte : value.bytes) {
@@ -83,16 +63,6 @@ void HashBytes(blake3_hasher& hasher, const void* bytes, const std::size_t count
 laplace_digest256 Finish(blake3_hasher& hasher) {
     laplace_digest256 result{};
     blake3_hasher_finalize(&hasher, result.bytes, sizeof(result.bytes));
-    return result;
-}
-
-std::string Hex(const std::uint8_t* bytes, const std::size_t count) {
-    static constexpr char Digits[] = "0123456789abcdef";
-    std::string result(count * 2u, '0');
-    for (std::size_t index = 0u; index < count; ++index) {
-        result[index * 2u] = Digits[bytes[index] >> 4u];
-        result[index * 2u + 1u] = Digits[bytes[index] & 0x0fu];
-    }
     return result;
 }
 
@@ -165,16 +135,6 @@ public:
             return LAPLACE_DECOMPOSITION_COMPOSITION_DECOMPOSITION_INVALID;
         }
 
-        const auto span_tag = Text("decomposition-span");
-        const auto trace_tag = Text("decomposition-trace");
-        const auto root_provider = Text("root");
-        if (!span_tag.has_value() || !trace_tag.has_value() ||
-            !root_provider.has_value()) {
-            return status_;
-        }
-
-        std::vector<std::uint64_t> occurrence_results;
-        occurrence_results.reserve(span_count);
         blake3_hasher trace_hasher;
         blake3_hasher_init(&trace_hasher);
         static constexpr std::string_view TraceDomain{
@@ -216,68 +176,22 @@ public:
             HashU32(trace_hasher, span.depth);
             HashU32(trace_hasher, span.flags);
             HashBytes(trace_hasher, media_type, media_type_bytes);
-
-            const auto provider = span_index == 0u
-                ? root_provider
-                : Text(Hex(
-                    span.provider_fingerprint.bytes,
-                    sizeof(span.provider_fingerprint.bytes)));
-            const auto kind = Text(std::to_string(span.kind));
-            const auto byte_start = Text(std::to_string(span.byte_start));
-            const auto byte_end = Text(std::to_string(span.byte_end));
-            const auto flags = Text(std::to_string(span.flags));
-            const auto depth = Text(std::to_string(span.depth));
-            if (!provider.has_value() || !kind.has_value() ||
-                !byte_start.has_value() || !byte_end.has_value() ||
-                !flags.has_value() || !depth.has_value()) {
-                return status_;
-            }
-
-            std::vector<std::pair<std::uint64_t, Role>> children{
-                {*span_tag, Role::Tag},
-                {*provider, Role::Provider},
-                {*kind, Role::Kind},
-                {*byte_start, Role::ByteStart},
-                {*byte_end, Role::ByteEnd},
-                {*flags, Role::Flags},
-                {*depth, Role::Depth}};
-            if (media_type != nullptr) {
-                const auto media = Text(std::string(media_type, media_type_bytes));
-                if (!media.has_value()) return status_;
-                children.emplace_back(*media, Role::MediaType);
-            }
-            if ((span.flags &
-                 static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_TEXT)) !=
-                0u) {
-                const auto realization = Text(
-                    input_.content->bytes +
-                        static_cast<std::size_t>(span.byte_start),
-                    static_cast<std::size_t>(span.byte_end - span.byte_start));
-                if (!realization.has_value()) return status_;
-                children.emplace_back(*realization, Role::Realization);
-            }
-            if (span_index != 0u) {
-                const auto parent_index =
-                    static_cast<std::size_t>(span.parent_span_index);
-                children.emplace_back(
-                    occurrence_results[parent_index], Role::ParentOccurrence);
-            }
-            const auto occurrence = Node(children);
-            if (!occurrence.has_value()) return status_;
-            occurrence_results.push_back(*occurrence);
         }
 
-        std::vector<std::pair<std::uint64_t, Role>> trace_children{
-            {*trace_tag, Role::Tag}};
-        trace_children.reserve(occurrence_results.size() + 1u);
-        for (const std::uint64_t occurrence : occurrence_results) {
-            trace_children.emplace_back(occurrence, Role::SpanOccurrence);
-        }
-        const auto trace = Node(trace_children);
-        if (!trace.has_value()) return status_;
+        auto root = Text(
+            input_.content->bytes,
+            static_cast<std::size_t>(input_.content->byte_count));
+        if (!root.has_value()) return status_;
+
+#if defined(LAPLACE_TEST_DECOMPOSITION_COMPOSITION_COUPLE_WITNESS)
+        const auto witness = Text(std::to_string(spans[span_count - 1u].kind));
+        if (!witness.has_value()) return status_;
+        root = Couple(*root, *witness);
+        if (!root.has_value()) return status_;
+#endif
 
         plan_.view.trace_fingerprint = Finish(trace_hasher);
-        plan_.view.root_result_index = *trace;
+        plan_.view.root_result_index = *root;
         plan_.view.span_count = static_cast<std::uint64_t>(span_count);
         Bind();
         return LAPLACE_DECOMPOSITION_COMPOSITION_OK;
@@ -292,11 +206,6 @@ private:
         plan_.atom_positions.push_back(position);
         atom_indexes_.emplace(position, index);
         return index;
-    }
-
-    std::optional<std::uint64_t> Text(const std::string_view value) {
-        return Text(
-            reinterpret_cast<const std::uint8_t*>(value.data()), value.size());
     }
 
     std::optional<std::uint64_t> Text(
@@ -331,29 +240,27 @@ private:
         return result;
     }
 
-    std::optional<std::uint64_t> Node(
-        const std::vector<std::pair<std::uint64_t, Role>>& children) {
-        if (children.size() < 2u) {
-            status_ = LAPLACE_DECOMPOSITION_COMPOSITION_DECOMPOSITION_INVALID;
-            return std::nullopt;
-        }
+#if defined(LAPLACE_TEST_DECOMPOSITION_COMPOSITION_COUPLE_WITNESS)
+    std::optional<std::uint64_t> Couple(
+        const std::uint64_t content,
+        const std::uint64_t witness) {
         const std::uint64_t first =
             static_cast<std::uint64_t>(plan_.operands.size());
-        for (const auto& [result_index, role] : children) {
-            if (result_index >= plan_.requests.size()) {
-                status_ =
-                    LAPLACE_DECOMPOSITION_COMPOSITION_DECOMPOSITION_INVALID;
-                return std::nullopt;
-            }
-            plan_.operands.push_back(laplace_composition_operand{
-                result_index,
-                1u,
-                Metadata(role),
-                LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT,
-                0u});
-        }
-        return AddRequest(first, children.size());
+        plan_.operands.push_back(laplace_composition_operand{
+            content,
+            1u,
+            0u,
+            LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT,
+            0u});
+        plan_.operands.push_back(laplace_composition_operand{
+            witness,
+            1u,
+            0u,
+            LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT,
+            0u});
+        return AddRequest(first, 2u);
     }
+#endif
 
     std::optional<std::uint64_t> AddRequest(
         const std::uint64_t first,
