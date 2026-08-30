@@ -48,6 +48,20 @@ class ProductPathGitStatusTests(unittest.TestCase):
                 f"{name} may cancel an in-flight physical proof",
             )
 
+    def assert_legacy_branch_protection_bridge(self, workflow: str) -> None:
+        aliases = {
+            "legacy-requirements": "requirements",
+            "legacy-native-dev": "native (linux-dev)",
+            "legacy-native-sanitize": "native (linux-sanitize)",
+        }
+        for job_id, check_name in aliases.items():
+            self.assertIn(
+                f"  {job_id}:\n    name: {check_name}\n    needs: product-path\n",
+                workflow,
+                f"legacy protected context {check_name} can bypass product-path",
+            )
+        self.assertGreaterEqual(workflow.count("needs.product-path.result"), len(aliases))
+
     def test_type_change_remains_semantic_and_requires_custom_stack(self) -> None:
         paths = self.read_status(b"T\0engine/src/composition.cpp\0")
         self.assertEqual(paths, ["engine/src/composition.cpp"])
@@ -118,6 +132,10 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertIn("      - custom-stack-proof", package_block)
         self.assertIn("      - postgresql-product-proof", package_block)
 
+    def test_legacy_required_contexts_are_subordinate_to_product_path(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assert_legacy_branch_protection_bridge(workflow)
+
     def test_deliberate_defect_dropping_type_changes_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         mutant = workflow.replace("--diff-filter=ACMRTD", "--diff-filter=ACMRD")
@@ -148,6 +166,17 @@ class ProductPathGitStatusTests(unittest.TestCase):
         )
         self.assertIn("  pull_request:\n", mutant)
         self.assertNotIn("  pull_request:\n", clean_room)
+
+    def test_deliberate_legacy_context_bypass_is_detected(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        mutant = workflow.replace(
+            "  legacy-requirements:\n    name: requirements\n    needs: product-path\n",
+            "  legacy-requirements:\n    name: requirements\n    needs: hosted-proof\n",
+            1,
+        )
+        self.assertNotEqual(workflow, mutant)
+        with self.assertRaises(AssertionError):
+            self.assert_legacy_branch_protection_bridge(mutant)
 
 
 if __name__ == "__main__":
