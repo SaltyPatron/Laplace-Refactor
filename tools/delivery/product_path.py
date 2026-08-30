@@ -30,7 +30,9 @@ def load_json(path: Path) -> dict[str, Any]:
 
 def _strings(value: Any, field: str, *, allow_empty: bool = False) -> list[str]:
     if not isinstance(value, list) or (not value and not allow_empty):
-        raise ProductPathError(f"{field} must be a{' possibly empty' if allow_empty else ' non-empty'} string array")
+        raise ProductPathError(
+            f"{field} must be a{' possibly empty' if allow_empty else ' non-empty'} string array"
+        )
     result: list[str] = []
     for item in value:
         if not isinstance(item, str) or not item:
@@ -79,6 +81,11 @@ def validate_contract(contract: dict[str, Any]) -> None:
         if not isinstance(identifier, str) or not identifier or identifier in class_ids:
             raise ProductPathError("class rule id is absent or duplicated")
         patterns = _strings(row.get("patterns"), f"class_rules[{identifier}].patterns")
+        excludes = _strings(
+            row.get("exclude_patterns"),
+            f"class_rules[{identifier}].exclude_patterns",
+            allow_empty=True,
+        )
         required = _strings(
             row.get("evidence"), f"class_rules[{identifier}].evidence", allow_empty=True
         )
@@ -89,6 +96,11 @@ def validate_contract(contract: dict[str, Any]) -> None:
             raise ProductPathError(
                 f"class {identifier} exactly duplicates a hosted-only pattern"
             )
+        for excluded in excludes:
+            if not any(pattern_covers(excluded, pattern) for pattern in patterns):
+                raise ProductPathError(
+                    f"class {identifier} exclusion is not covered by its patterns: {excluded}"
+                )
         class_ids.add(identifier)
 
 
@@ -113,6 +125,22 @@ def matches(path: str, patterns: Iterable[str]) -> bool:
     return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
 
 
+def pattern_covers(path_pattern: str, broader_pattern: str) -> bool:
+    """Conservatively prove that an explicit exclusion sits under a positive pattern."""
+    if not any(token in path_pattern for token in "*?["):
+        return fnmatch.fnmatchcase(path_pattern, broader_pattern)
+    if path_pattern == broader_pattern:
+        return True
+    fixed_prefix = path_pattern.split("*", 1)[0].split("?", 1)[0].split("[", 1)[0]
+    return bool(fixed_prefix) and fnmatch.fnmatchcase(fixed_prefix, broader_pattern)
+
+
+def rule_matches(path: str, rule: dict[str, Any]) -> bool:
+    return matches(path, rule["patterns"]) and not matches(
+        path, rule["exclude_patterns"]
+    )
+
+
 def classify(contract: dict[str, Any], paths: Sequence[str]) -> dict[str, Any]:
     validate_contract(contract)
     normalized = sorted({normalize_path(path) for path in paths})
@@ -132,7 +160,7 @@ def classify(contract: dict[str, Any], paths: Sequence[str]) -> dict[str, Any]:
                 continue
             matched_class = False
             for rule in contract["class_rules"]:
-                if matches(path, rule["patterns"]):
+                if rule_matches(path, rule):
                     matched_class = True
                     classes.add(rule["id"])
                     required_evidence.update(rule["evidence"])
@@ -147,7 +175,7 @@ def classify(contract: dict[str, Any], paths: Sequence[str]) -> dict[str, Any]:
         for identifier in required_evidence
         if not evidence_by_id[identifier]["implemented"]
     )
-    result = {
+    return {
         "schema": "laplace.product-path-classification/v1",
         "paths": normalized,
         "hosted_only": hosted_only,
@@ -160,7 +188,6 @@ def classify(contract: dict[str, Any], paths: Sequence[str]) -> dict[str, Any]:
         "requires_package_product": "package-product" in required_evidence,
         "blocked": bool(unimplemented),
     }
-    return result
 
 
 def read_paths(path: Path) -> list[str]:
@@ -168,7 +195,11 @@ def read_paths(path: Path) -> list[str]:
         content = path.read_text(encoding="utf-8")
     except OSError as error:
         raise ProductPathError(f"cannot read changed paths: {error}") from error
-    return [line[:-1] if line.endswith("\r") else line for line in content.splitlines() if line]
+    return [
+        line[:-1] if line.endswith("\r") else line
+        for line in content.splitlines()
+        if line
+    ]
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
