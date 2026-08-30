@@ -152,7 +152,7 @@ add_test(
     NAME decomposition.mutation-recursive-canonical-merge-drop-detected
     COMMAND "${CMAKE_COMMAND}"
         "-DPROBE=$<TARGET_FILE:laplace_tabular_recursive_merge_mutation_probe>"
-        "-DFILTER=TabularRecursiveMerge.AppendsCanonicalPlanWithGlobalAtomAndPriorResultReferences"
+        "-DFILTER=TabularRecursiveMerge.InsertsCanonicalPlanBeforeFinalSourceRootWithGlobalReferences"
         -P "${CMAKE_CURRENT_LIST_DIR}/expect_gtest_failure.cmake")
 set_tests_properties(
     decomposition.mutation-recursive-canonical-merge-drop-detected PROPERTIES
