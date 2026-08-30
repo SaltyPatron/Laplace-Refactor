@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: laplace-physical-product-proof
+  cancel-in-progress: false
+
 jobs:
   postgresql-product:
     runs-on:
