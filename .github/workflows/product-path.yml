@@ -27,7 +27,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Prove product-path classifier and mutations
-        run: python3 tests/product_path_tests.py
+        run: |
+          python3 tests/product_path_tests.py
+          python3 tests/product_path_status_tests.py
       - name: Classify exact changed paths
         id: classify
         shell: bash
