@@ -1,0 +1,18 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "SourceProfile.EpistemicAndEvidenceAxesAreOrthogonalAndIdentityBound",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-SOURCE-TOPOLOGY",
+        "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "epistemic admission class and evidence provenance type remain independent typed axes",
+        "source-profile identity binds both axes without conflating them with artifact media type grammar language or modality",
+        "changing either declared axis changes the profile identity"
+      ]
+    }
+  ]
+}

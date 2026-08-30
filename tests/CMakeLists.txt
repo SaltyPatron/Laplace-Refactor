@@ -2083,8 +2083,7 @@ target_include_directories(laplace_isa_preflight_mutant
     PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
         "${CMAKE_BINARY_DIR}/generated")
-target_link_libraries(laplace_isa_preflight_mutant
-    PRIVATE BLAKE3::blake3 Laplace::CognitionSolver)
+target_link_libraries(laplace_isa_preflight_mutant PRIVATE BLAKE3::blake3)
 target_compile_definitions(laplace_isa_preflight_mutant
     PRIVATE LAPLACE_TEST_VALIDATE_FIRST_INSTRUCTION_ONLY=1)
 target_compile_options(laplace_isa_preflight_mutant PRIVATE
@@ -2130,8 +2129,7 @@ target_include_directories(laplace_isa_registry_mutant
     PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
         "${CMAKE_BINARY_DIR}/generated")
-target_link_libraries(laplace_isa_registry_mutant
-    PRIVATE BLAKE3::blake3 Laplace::CognitionSolver)
+target_link_libraries(laplace_isa_registry_mutant PRIVATE BLAKE3::blake3)
 target_compile_definitions(laplace_isa_registry_mutant
     PRIVATE LAPLACE_TEST_DISPATCH_FIRST_OPERATION_ONLY=1)
 target_compile_options(laplace_isa_registry_mutant PRIVATE
@@ -2177,8 +2175,7 @@ target_include_directories(laplace_isa_context_mutant
     PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
         "${CMAKE_BINARY_DIR}/generated")
-target_link_libraries(laplace_isa_context_mutant
-    PRIVATE BLAKE3::blake3 Laplace::CognitionSolver)
+target_link_libraries(laplace_isa_context_mutant PRIVATE BLAKE3::blake3)
 target_compile_definitions(laplace_isa_context_mutant
     PRIVATE LAPLACE_TEST_OMIT_CONTEXT_FROM_ISA_RECEIPT=1)
 target_compile_options(laplace_isa_context_mutant PRIVATE

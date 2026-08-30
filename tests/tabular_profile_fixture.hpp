@@ -65,6 +65,8 @@ struct TabularProfileFixture {
         CopyProfileBytes(declaration.selected_boundary_fingerprint.bytes,
                          Profile::selected_boundary);
         declaration.reconstruction_class = Profile::reconstruction;
+        declaration.flags = LAPLACE_SOURCE_PROFILE_MAKE_FLAGS(
+            Profile::epistemic_class, Profile::evidence_type);
 
         for (std::size_t index = 0u; index < Profile::artifact_size; ++index) {
             const auto& generated = Profile::artifact_declarations[index];
@@ -89,6 +91,7 @@ struct TabularProfileFixture {
             CopyProfileBytes(artifact.expected_sha256, generated.sha256);
             artifact.bytes = storage[index].data();
             artifact.name = generated.name;
+            artifact.media_type = generated.media_type;
             columns[index].reserve(generated.column_count);
             for (std::size_t column_index = 0u;
                  column_index < generated.column_count; ++column_index) {
@@ -101,6 +104,7 @@ struct TabularProfileFixture {
                 ? nullptr : columns[index].data();
             artifact.byte_count = generated.byte_count;
             artifact.name_byte_count = std::strlen(generated.name);
+            artifact.media_type_byte_count = std::strlen(generated.media_type);
             artifact.expected_record_count = generated.record_count;
             artifact.expected_field_count = generated.field_count;
             artifact.reference_column_mask = generated.reference_column_mask;

@@ -93,6 +93,30 @@ class Iso639SourceProfileContract(unittest.TestCase):
             "http://example.invalid/ambient.zip"
         self.compile(ambient_acquisition, False)
 
+    def test_carrier_accepts_profile_declared_evidence_outcomes(self) -> None:
+        document = json.loads(CONTRACT.read_text(encoding="utf-8"))
+        expected = {
+            "assertion": b"    1u,",
+            "measurement": b"    2u,",
+            "prediction": b"    3u,",
+            "observed_consequence": b"    4u,",
+            "mapping": b"    5u,",
+            "definition": b"    6u,",
+            "example": b"    7u,",
+            "counterexample": b"    8u,",
+            "unknown_boundary": b"    9u,",
+        }
+        for outcome, generated_value in expected.items():
+            with self.subTest(outcome=outcome):
+                variant = copy.deepcopy(document)
+                variant["artifacts"][1]["outcome_type"] = outcome
+                compiled = self.compile(variant, True)
+                self.assertIn(generated_value, compiled)
+
+        invalid = copy.deepcopy(document)
+        invalid["artifacts"][1]["outcome_type"] = "tabular-means-mapping"
+        self.compile(invalid, False)
+
     @unittest.skipUnless(SOURCE.is_dir(), "locked ISO 639 source root unavailable")
     def test_locked_archive_members_and_tabular_denominators_are_exact(self) -> None:
         document = json.loads(CONTRACT.read_text(encoding="utf-8"))

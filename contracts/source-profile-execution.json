@@ -67,5 +67,29 @@
     "exact_reconstruction": "exact reconstruction rejects a nonzero lossy disposition",
     "selected_boundary_homogeneity": "one batch may contain multiple strictly ordered profile identities, all belonging to one exact selected boundary"
   },
-  "flags": {"none": 0}
+  "flags": {
+    "none": 0,
+    "epistemic_class_shift": 0,
+    "epistemic_class_mask": 15,
+    "foundational_seed": 1,
+    "observation": 2,
+    "derived": 3,
+    "model": 4,
+    "maximum_class": 4,
+    "evidence_source_type_shift": 4,
+    "evidence_source_type_mask": 240,
+    "evidence_source_types": {
+      "standard": 1,
+      "curated_dataset": 2,
+      "corpus": 3,
+      "direct_observation": 4,
+      "calculation": 5,
+      "model": 6,
+      "self_assertion": 7,
+      "external_provider": 8
+    },
+    "maximum_evidence_source_type": 8,
+    "known_mask": 255,
+    "law": "epistemic class records why a source enters world state and evidence source type records the testimony provenance category; both are identity-bound and orthogonal to artifact media type grammar language and modality. zero values remain only for legacy or deliberately unclassified profiles"
+  }
 }

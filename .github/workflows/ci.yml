@@ -44,7 +44,7 @@ jobs:
           dependency_root="$RUNNER_TEMP/laplace-dependencies"
           ./tools/dependencies/acquire-locked-git.sh \
             dependencies/lock.json "$dependency_root" \
-            blake3 eigen googletest spectra
+            blake3 eigen googletest spectra tree-sitter
           printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
       - name: Acquire locked source-profile fixtures
         shell: bash
@@ -70,6 +70,7 @@ jobs:
             -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
             -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
             -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
+            -DLAPLACE_TREE_SITTER_SOURCE="$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
             -DLAPLACE_ISO_639_SOURCE_ROOT="$LAPLACE_ISO_639_SOURCE_ROOT" \
             -DLAPLACE_CILI_SOURCE_ROOT="$LAPLACE_CILI_SOURCE_ROOT"
           printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"

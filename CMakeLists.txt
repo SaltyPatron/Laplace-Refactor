@@ -26,14 +26,18 @@ set(LAPLACE_SPECTRA_SOURCE "" CACHE PATH "Verified upstream Spectra source direc
 set(LAPLACE_PG_CONFIG "" CACHE FILEPATH "PostgreSQL pg_config for the server extension profile")
 set(LAPLACE_PG_PHYSICAL_ROOT "" CACHE PATH
     "Optional staging root used to resolve absolute logical paths reported by pg_config")
+set(LAPLACE_SOURCE_ESTATE_ROOT
+    "/vault/Data"
+    CACHE PATH "Existing local Laplace source estate root; this is not an acquisition or download location")
 set(LAPLACE_UNICODE_SOURCE_ROOT
-    "/vault/Data/UCD/Public/UCD/latest"
+    "${LAPLACE_SOURCE_ESTATE_ROOT}/UCD/Public/UCD/latest"
     CACHE PATH "Pinned Unicode source-data root used by the root producer and conformance tests")
 set(LAPLACE_ISO_639_SOURCE_ROOT
-    "/vault/Data/ISO639"
+    "${LAPLACE_SOURCE_ESTATE_ROOT}/ISO639"
     CACHE PATH "Locked ISO 639 Set 3 source-profile artifact root")
-set(LAPLACE_CILI_SOURCE_ROOT "" CACHE PATH
-    "Locked CILI PWN mapping source-profile artifact root")
+set(LAPLACE_CILI_SOURCE_ROOT
+    "${LAPLACE_SOURCE_ESTATE_ROOT}/CILI"
+    CACHE PATH "Locked CILI PWN mapping source-profile artifact root")
 option(LAPLACE_ENABLE_DOTNET_BINDINGS
     "Generate and build the .NET 10 typed ISA orchestration surface" OFF)
 set(LAPLACE_DEPENDENCY_LOCK

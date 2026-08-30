@@ -37,7 +37,8 @@ CREATE TEMP TABLE cili_profile_authority (
     selected_boundary_fingerprint bytea NOT NULL,
     occurrence_context_fingerprint bytea NOT NULL,
     preferred_batch_bytes numeric NOT NULL,
-    reconstruction_class integer NOT NULL
+    reconstruction_class integer NOT NULL,
+    source_flags integer NOT NULL
 );
 
 INSERT INTO cili_profile_authority VALUES (
@@ -61,7 +62,8 @@ INSERT INTO cili_profile_authority VALUES (
     decode(:'cili_selected_boundary_fingerprint', 'hex'),
     decode(:'cili_occurrence_context_fingerprint', 'hex'),
     :'cili_preferred_batch_bytes'::numeric,
-    :'cili_reconstruction_class'::integer
+    :'cili_reconstruction_class'::integer,
+    :'cili_source_flags'::integer
 );
 
 CREATE TEMP TABLE cili_expected (
@@ -174,6 +176,7 @@ CREATE TEMP TABLE cili_artifact_authority (
     artifact_id bytea NOT NULL,
     parent_artifact_id bytea NOT NULL,
     name bytea NOT NULL,
+    media_type bytea NOT NULL,
     expected_record_count numeric NOT NULL,
     expected_field_count numeric NOT NULL,
     reference_column_mask numeric NOT NULL,
@@ -190,7 +193,7 @@ CREATE TEMP TABLE cili_artifact_authority (
 INSERT INTO cili_artifact_authority VALUES
     (0, decode(:'cili_artifact_0_id', 'hex'),
         decode(:'cili_artifact_0_parent_id', 'hex'),
-        decode(:'cili_artifact_0_name', 'hex'),
+        decode(:'cili_artifact_0_name', 'hex'), decode(:'cili_artifact_0_media_type', 'hex'),
         :'cili_artifact_0_records'::numeric,
         :'cili_artifact_0_fields'::numeric,
         :'cili_artifact_0_reference_mask'::numeric,
@@ -203,7 +206,7 @@ INSERT INTO cili_artifact_authority VALUES
         ARRAY[]::bytea[], :'cili_artifact_0_header_records'::integer),
     (1, decode(:'cili_artifact_1_id', 'hex'),
         decode(:'cili_artifact_1_parent_id', 'hex'),
-        decode(:'cili_artifact_1_name', 'hex'),
+        decode(:'cili_artifact_1_name', 'hex'), decode(:'cili_artifact_1_media_type', 'hex'),
         :'cili_artifact_1_records'::numeric,
         :'cili_artifact_1_fields'::numeric,
         :'cili_artifact_1_reference_mask'::numeric,
@@ -218,7 +221,7 @@ INSERT INTO cili_artifact_authority VALUES
         :'cili_artifact_1_header_records'::integer),
     (2, decode(:'cili_artifact_2_id', 'hex'),
         decode(:'cili_artifact_2_parent_id', 'hex'),
-        decode(:'cili_artifact_2_name', 'hex'),
+        decode(:'cili_artifact_2_name', 'hex'), decode(:'cili_artifact_2_media_type', 'hex'),
         :'cili_artifact_2_records'::numeric,
         :'cili_artifact_2_fields'::numeric,
         :'cili_artifact_2_reference_mask'::numeric,
@@ -292,7 +295,7 @@ AS $profile$
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         authority.reconstruction_class,
-        0
+        authority.source_flags
     )::laplace.source_profile_manifest
     FROM cili_profile_authority AS authority
 $profile$;
@@ -314,6 +317,7 @@ AS $artifacts$
                  THEN set_byte(bytes.content, 0, get_byte(bytes.content, 0) # 1)
                  ELSE bytes.content END,
             authority.name,
+            authority.media_type,
             authority.expected_record_count,
             authority.expected_field_count,
             authority.reference_column_mask,

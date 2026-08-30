@@ -48,6 +48,8 @@ function(laplace_configure_postgresql_module target)
     target_link_libraries(${target} PRIVATE
         BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence
         Laplace::Perfcache Laplace::UnicodeNumeric)
+    target_compile_definitions(${target} PRIVATE
+        LAPLACE_UNICODE_SOURCE_ROOT="${LAPLACE_UNICODE_SOURCE_ROOT}")
     target_compile_options(${target} PRIVATE
         $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-Wno-gnu-statement-expression-from-macro-expansion;-ffp-contract=off>)
     set_target_properties(${target} PROPERTIES

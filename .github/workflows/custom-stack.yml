@@ -2,6 +2,9 @@ name: custom-stack-ci
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -11,7 +14,125 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  retired:
-    runs-on: ubuntu-latest
+  postgresql-native:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - postgres-18
+      - dotnet-10
+      - avx2
+    timeout-minutes: 120
+    env:
+      PATH: /opt/laplace/pgsql-18/bin:/usr/local/bin:/usr/bin:/bin
+      LAPLACE_PG_CONFIG: /opt/laplace/pgsql-18/bin/pg_config
+      LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data
     steps:
-      - run: echo 'Cognition integration is continuing off-PR; release laplace-runner.'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify execution identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test -w "$RUNNER_TEMP"
+          test -x "$LAPLACE_PG_CONFIG"
+          test "$($LAPLACE_PG_CONFIG --version | awk '{print $2}' | cut -d. -f1)" = 18
+          LAPLACE_ICX=$(jq -r '.toolchain.c_compiler' contracts/postgresql-build.json)
+          LAPLACE_ICPX=$(jq -r '.toolchain.cxx_compiler' contracts/postgresql-build.json)
+          expected_icx_sha=$(jq -r '.toolchain.c_compiler_sha256' contracts/postgresql-build.json)
+          expected_icpx_sha=$(jq -r '.toolchain.cxx_compiler_sha256' contracts/postgresql-build.json)
+          test -x "$LAPLACE_ICX"
+          test -x "$LAPLACE_ICPX"
+          test "$(sha256sum "$LAPLACE_ICX" | awk '{print $1}')" = "$expected_icx_sha"
+          test "$(sha256sum "$LAPLACE_ICPX" | awk '{print $1}')" = "$expected_icpx_sha"
+          test "$(dotnet --version | cut -d. -f1)" = 10
+          grep -qm1 -w avx2 /proc/cpuinfo
+          printf 'LAPLACE_ICX=%s\n' "$LAPLACE_ICX" >> "$GITHUB_ENV"
+          printf 'LAPLACE_ICPX=%s\n' "$LAPLACE_ICPX" >> "$GITHUB_ENV"
+          cmake --version
+          ninja --version
+          "$LAPLACE_PG_CONFIG" --version
+          "$LAPLACE_ICX" --version
+          dotnet --version
+      - name: Select exact locally verified dependencies and source estate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/dependencies/verify-installed-lock.py --verify-files
+          lock_sha=$(sha256sum dependencies/lock.json | awk '{print $1}')
+          dependency_root="/opt/laplace/external/source-generations/$lock_sha"
+          test -d "$dependency_root"
+          ./tools/dependencies/verify-lock.sh "$dependency_root"
+
+          test -d "$LAPLACE_SOURCE_ESTATE_ROOT"
+          unicode_root="$LAPLACE_SOURCE_ESTATE_ROOT/UCD/Public/UCD/latest"
+          iso_root="$LAPLACE_SOURCE_ESTATE_ROOT/ISO639"
+          cili_root="$LAPLACE_SOURCE_ESTATE_ROOT/CILI"
+          test -d "$unicode_root"
+          test -d "$iso_root"
+          test -d "$cili_root"
+
+          printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
+          printf 'LAPLACE_UNICODE_SOURCE_ROOT=%s\n' "$unicode_root" >> "$GITHUB_ENV"
+          printf 'LAPLACE_ISO_639_SOURCE_ROOT=%s\n' "$iso_root" >> "$GITHUB_ENV"
+          printf 'LAPLACE_CILI_SOURCE_ROOT=%s\n' "$cili_root" >> "$GITHUB_ENV"
+      - name: Configure outside the repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_directory="$RUNNER_TEMP/laplace-output/postgresql-native"
+          c_flags=$(jq -r '.build.c_flags | join(" ")' contracts/postgresql-build.json)
+          cxx_flags=$(jq -r '.build.cxx_flags | join(" ")' contracts/postgresql-build.json)
+          linker_flags=$(jq -r '.build.linker_flags | join(" ")' contracts/postgresql-build.json)
+          cmake -S . -B "$build_directory" -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER="$LAPLACE_ICX" \
+            -DCMAKE_CXX_COMPILER="$LAPLACE_ICPX" \
+            -DCMAKE_C_FLAGS_RELWITHDEBINFO="$c_flags" \
+            -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="$cxx_flags" \
+            -DCMAKE_EXE_LINKER_FLAGS="$linker_flags" \
+            -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
+            -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
+            -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
+            -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
+            -DLAPLACE_TREE_SITTER_SOURCE="$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            -DLAPLACE_SOURCE_ESTATE_ROOT="$LAPLACE_SOURCE_ESTATE_ROOT" \
+            -DLAPLACE_UNICODE_SOURCE_ROOT="$LAPLACE_UNICODE_SOURCE_ROOT" \
+            -DLAPLACE_ISO_639_SOURCE_ROOT="$LAPLACE_ISO_639_SOURCE_ROOT" \
+            -DLAPLACE_CILI_SOURCE_ROOT="$LAPLACE_CILI_SOURCE_ROOT" \
+            -DLAPLACE_ENABLE_DOTNET_BINDINGS=ON \
+            -DLAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER=ON \
+            -DLAPLACE_PG_CONFIG="$LAPLACE_PG_CONFIG"
+          printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
+      - name: Build native engine PostgreSQL extension and managed bindings
+        run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 6
+      - name: Execute complete custom-stack profile
+        run: ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" --output-on-failure
+      - name: Verify custom-stack registry
+        run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY" custom-stack
+      - name: Publish measured perfcache receipt
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$LAPLACE_CI_BUILD_DIRECTORY/receipts/unicode-perfcache-hot.json"
+          if [[ -f "$receipt" ]]; then
+            {
+              echo '## Unicode perfcache hot-lookup receipt'
+              echo '```json'
+              cat "$receipt"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Unicode perfcache hot-lookup receipt was not produced.' \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Print retained PostgreSQL evidence
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find "$RUNNER_TEMP" -type f -path '*/laplace-postgres-test.*/postgres.log' \
+            -print -exec sed -n '1,240p' {} \;
