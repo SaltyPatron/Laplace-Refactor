@@ -47,8 +47,7 @@ int EmitUax(void* opaque, const laplace_uax29_span* span) {
         bridge.byte_base + span->byte_start,
         bridge.byte_base + span->byte_end,
         bridge.kind,
-        LAPLACE_DECOMPOSITION_SPAN_REDISPATCH |
-            LAPLACE_DECOMPOSITION_SPAN_TEXT);
+        LAPLACE_DECOMPOSITION_SPAN_TEXT);
     if (result != 0) bridge.failed = 1;
     return result;
 }
