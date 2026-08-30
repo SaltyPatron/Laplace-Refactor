@@ -1,0 +1,737 @@
+name: postgresql-product-provider-repair
+
+on:
+  push:
+    branches:
+      - feat/postgresql-product-proof
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      REPAIR_BASE_SHA: 2e9e90ad0448bd17dd914514582d7d655f353e67
+      REPAIR_BRANCH: feat/postgresql-product-proof
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Apply exact PostgreSQL product proof provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$REPAIR_BASE_SHA")" = "$REPAIR_BASE_SHA"
+          test "$(git rev-list --count "$REPAIR_BASE_SHA"..HEAD)" = 1
+          python3 <<'PY'
+          from __future__ import annotations
+          import json
+          from pathlib import Path
+
+          root = Path('.')
+
+          def read(path: str) -> str:
+              return (root / path).read_text(encoding='utf-8')
+
+          def write(path: str, value: str) -> None:
+              target = root / path
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text(value, encoding='utf-8')
+
+          def replace_once(value: str, old: str, new: str, path: str) -> str:
+              count = value.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one occurrence of {old!r}, found {count}')
+              return value.replace(old, new)
+
+          # Gateway contract: the already-authorized probe becomes a live product proof.
+          contract_path = 'contracts/product-activation-gateway.json'
+          contract = json.loads(read(contract_path))
+          if contract.get('version') != '1.0.0':
+              raise SystemExit('unexpected product activation gateway version')
+          contract['version'] = '1.1.0'
+          operation = contract.get('operation')
+          if not isinstance(operation, dict) or 'product_probe_schema' in operation:
+              raise SystemExit('product probe contract already exists or operation is invalid')
+          operation['product_probe_schema'] = 'laplace.product-activation-gateway-probe/v2'
+          write(contract_path, json.dumps(contract, indent=2) + '\n')
+
+          # Extend the root-owned gateway's existing read-only probe. No new sudo verb.
+          activation_path = 'tools/delivery/product_activation.py'
+          value = read(activation_path)
+          value = replace_once(
+              value,
+              'contract.get("version") != "1.0.0"',
+              'contract.get("version") != "1.1.0"',
+              activation_path,
+          )
+          old_operation = '''    if operation.get("name") != "activate-product-unicode-and-highway" or operation.get("system_root_authorization") is not True:\n        raise ActivationGatewayError("whole-product activation operation differs")\n'''
+          new_operation = '''    if (\n        operation.get("name") != "activate-product-unicode-and-highway"\n        or operation.get("system_root_authorization") is not True\n        or operation.get("product_probe_schema")\n        != "laplace.product-activation-gateway-probe/v2"\n    ):\n        raise ActivationGatewayError("whole-product activation operation differs")\n'''
+          value = replace_once(value, old_operation, new_operation, activation_path)
+          marker = '\ndef parse_args(argv: Sequence[str]) -> argparse.Namespace:\n'
+          if value.count(marker) != 1:
+              raise SystemExit('product activation parse-args marker differs')
+          helper = r'''
+
+def probe_product_state(
+    contract: dict[str, Any],
+    bundle: Path,
+    *,
+    runner: Any = subprocess.run,
+    effective_uid: Any = os.geteuid,
+) -> dict[str, Any]:
+    """Verify the exact currently active PostgreSQL product without mutation."""
+    validate_contract(contract)
+    if effective_uid() != 0:
+        raise ActivationGatewayError("product probe requires the installed root gateway")
+    controllers = bundle / "controllers"
+    contracts = bundle / "contracts"
+    cluster_contract_path = contracts / "postgresql-cluster.json"
+    cluster_contract = load_json(cluster_contract_path)
+    package_contract = cluster_contract.get("package")
+    instance = cluster_contract.get("instance")
+    if not isinstance(package_contract, dict) or not isinstance(instance, dict):
+        raise ActivationGatewayError("bundled PostgreSQL cluster contract is incomplete")
+    if package_contract.get("postgresql_version") != "18.6":
+        raise ActivationGatewayError("product probe requires exact PostgreSQL 18.6")
+    active_link = require_absolute(package_contract.get("active_link"), "active package link")
+    if not active_link.is_symlink():
+        raise ActivationGatewayError("active product package link is absent")
+    active_target = os.readlink(active_link)
+    target = PurePosixPath(active_target)
+    if len(target.parts) != 2 or target.parts[0] != "releases":
+        raise ActivationGatewayError("active product target is not a package-addressed release")
+    package_id = require_hex(target.parts[1], HEX_64, "active package id")
+    evidence_root = Path(contract["product"]["cluster_activation_root"]) / package_id
+    activation_result_path = evidence_root / "activation-result.json"
+    activation_result = load_json(activation_result_path)
+    plan_path = validate_cluster_success(contract, activation_result, package_id)
+
+    command = [
+        contract["gateway"]["python"],
+        str(controllers / "clusterctl.py"),
+        "observe-loaded",
+        "--plan",
+        str(plan_path),
+        "--contract",
+        str(cluster_contract_path),
+        "--output",
+        "-",
+    ]
+    completed = runner(
+        command,
+        check=False,
+        cwd="/",
+        env={
+            "HOME": "/root",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "PATH": "/usr/sbin:/usr/bin:/sbin:/bin",
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=180,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}"
+        raise ActivationGatewayError(f"live PostgreSQL product probe failed: {detail}")
+    live = parse_json(completed.stdout.encode("utf-8"))
+    if (
+        live.get("schema") != "laplace.postgresql-loaded-observation/v1"
+        or live.get("source") != "laplace_postgresql_loaded_probe"
+        or live.get("package_id") != package_id
+        or live.get("service") != instance.get("service")
+        or live.get("service_state") != "active"
+        or not isinstance(live.get("postmaster_pid"), int)
+        or live["postmaster_pid"] <= 0
+        or not isinstance(live.get("backend_pid"), int)
+        or live["backend_pid"] <= 0
+        or live["postmaster_pid"] == live["backend_pid"]
+        or not str(live.get("system_identifier", "")).isdecimal()
+        or HEX_64.fullmatch(str(live.get("observation_sha256", ""))) is None
+        or HEX_64.fullmatch(str(live.get("probe_sql_sha256", ""))) is None
+        or not isinstance(live.get("loaded_objects"), list)
+        or not live["loaded_objects"]
+        or not isinstance(live.get("config_files"), list)
+        or not live["config_files"]
+    ):
+        raise ActivationGatewayError("live PostgreSQL product observation is incomplete")
+    result = {
+        "schema": contract["operation"]["product_probe_schema"],
+        "bundle_id": bundle.name,
+        "package_id": package_id,
+        "active_target": active_target,
+        "postgresql_version": package_contract["postgresql_version"],
+        "cluster_activation_receipt_sha256": activation_result[
+            "activation_receipt_sha256"
+        ],
+        "cluster_plan_sha256": activation_result["plan_sha256"],
+        "live_loaded_observation_sha256": live["observation_sha256"],
+        "probe_sql_sha256": live["probe_sql_sha256"],
+        "system_identifier": live["system_identifier"],
+        "service": live["service"],
+        "service_state": live["service_state"],
+        "loaded_objects": live["loaded_objects"],
+        "config_files": live["config_files"],
+    }
+    result["probe_sha256"] = document_identity(result, "probe_sha256")
+    return result
+'''
+          value = value.replace(marker, helper + marker)
+          old_probe = '''    if arguments.command == "probe":\n        print(json.dumps({"schema": "laplace.product-activation-gateway-probe/v1", "bundle_id": bundle.name}, sort_keys=True))\n        return 0\n'''
+          new_probe = '''    if arguments.command == "probe":\n        print(json.dumps(probe_product_state(contract, bundle), sort_keys=True))\n        return 0\n'''
+          value = replace_once(value, old_probe, new_probe, activation_path)
+          write(activation_path, value)
+
+          prover = r'''#!/usr/bin/env python3
+"""Bind current source/package identity to the root-authoritative live PostgreSQL product."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+from typing import Any, Mapping, Sequence
+
+PROOF_SCHEMA = "laplace.postgresql-product-proof/v1"
+BINDING_SCHEMA = "laplace.postgresql-product-proof-binding/v1"
+PACKAGE_PROOF_SCHEMA = "laplace.package-product-proof/v1"
+HEX_64 = re.compile(r"^[0-9a-f]{64}$")
+GIT_OBJECT = re.compile(r"^[0-9a-f]{40}$")
+
+class PostgreSQLProductProofError(RuntimeError):
+    pass
+
+def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise PostgreSQLProductProofError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+def load_json(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys)
+    except (OSError, json.JSONDecodeError) as error:
+        raise PostgreSQLProductProofError(f"cannot read JSON {path}: {error}") from error
+    if not isinstance(value, dict):
+        raise PostgreSQLProductProofError(f"JSON root must be an object: {path}")
+    return value
+
+def parse_json(text: str) -> dict[str, Any]:
+    try:
+        value = json.loads(text, object_pairs_hook=reject_duplicate_keys)
+    except json.JSONDecodeError as error:
+        raise PostgreSQLProductProofError(f"invalid gateway probe JSON: {error}") from error
+    if not isinstance(value, dict):
+        raise PostgreSQLProductProofError("gateway probe root must be an object")
+    return value
+
+def canonical_bytes(value: Any) -> bytes:
+    return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+
+def probe_identity(value: Mapping[str, Any]) -> str:
+    payload = {key: item for key, item in value.items() if key != "probe_sha256"}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+def require_hex(value: Any, label: str) -> str:
+    if not isinstance(value, str) or HEX_64.fullmatch(value) is None:
+        raise PostgreSQLProductProofError(f"{label} is not a lowercase 256-bit identity")
+    return value
+
+def require_git(value: Any, label: str) -> str:
+    if not isinstance(value, str) or GIT_OBJECT.fullmatch(value) is None:
+        raise PostgreSQLProductProofError(f"{label} is not an exact Git object identity")
+    return value
+
+def require_file(path: Path, label: str) -> None:
+    if not path.is_file() or path.is_symlink():
+        raise PostgreSQLProductProofError(f"{label} is absent or not physical: {path}")
+
+def run(command: Sequence[str], label: str) -> subprocess.CompletedProcess[str]:
+    completed = subprocess.run(list(command), check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}"
+        raise PostgreSQLProductProofError(f"{label} failed: {detail}")
+    return completed
+
+def repository_identity(repository: Path) -> tuple[str, str]:
+    commit = run(["git", "-C", str(repository), "rev-parse", "HEAD"], "repository commit").stdout.strip()
+    tree = run(["git", "-C", str(repository), "rev-parse", "HEAD^{tree}"], "repository tree").stdout.strip()
+    return require_git(commit, "repository commit"), require_git(tree, "repository tree")
+
+def validate_probe(probe: Mapping[str, Any], package: Mapping[str, Any], commit: str, tree: str, schema: str) -> None:
+    expected_keys = {
+        "schema", "bundle_id", "package_id", "active_target", "postgresql_version",
+        "cluster_activation_receipt_sha256", "cluster_plan_sha256",
+        "live_loaded_observation_sha256", "probe_sql_sha256", "system_identifier",
+        "service", "service_state", "loaded_objects", "config_files", "probe_sha256",
+    }
+    if set(probe) != expected_keys:
+        raise PostgreSQLProductProofError("gateway product probe fields differ")
+    if package.get("schema") != PACKAGE_PROOF_SCHEMA or package.get("phase") != "composed-installed-retained":
+        raise PostgreSQLProductProofError("package proof is incomplete")
+    if package.get("repository_commit") != require_git(commit, "expected source commit") or package.get("repository_tree") != require_git(tree, "expected source tree"):
+        raise PostgreSQLProductProofError("package proof belongs to different source")
+    package_id = require_hex(package.get("package_id"), "package proof package id")
+    for label, field in (
+        ("gateway bundle id", "bundle_id"),
+        ("cluster activation receipt", "cluster_activation_receipt_sha256"),
+        ("cluster plan", "cluster_plan_sha256"),
+        ("live loaded observation", "live_loaded_observation_sha256"),
+        ("live probe program", "probe_sql_sha256"),
+        ("gateway probe", "probe_sha256"),
+    ):
+        require_hex(probe.get(field), label)
+    if (
+        probe.get("schema") != schema
+        or probe.get("package_id") != package_id
+        or probe.get("active_target") != f"releases/{package_id}"
+        or probe.get("postgresql_version") != "18.6"
+        or probe.get("service_state") != "active"
+        or not str(probe.get("system_identifier", "")).isdecimal()
+        or probe.get("probe_sha256") != probe_identity(probe)
+        or not isinstance(probe.get("loaded_objects"), list)
+        or not probe["loaded_objects"]
+        or not isinstance(probe.get("config_files"), list)
+        or not probe["config_files"]
+    ):
+        raise PostgreSQLProductProofError("gateway product probe does not match current package/product state")
+
+def store_receipt(executable: Path, receipt: Path, root: Path) -> str:
+    require_file(executable, "receipt-store executable")
+    require_file(receipt, "PostgreSQL product receipt")
+    root.mkdir(parents=True, exist_ok=True, mode=0o2750)
+    completed = run([str(executable), "put", "--receipt", str(receipt), "--root", str(root)], "durable product receipt publication")
+    digest = require_hex(completed.stdout.strip(), "durable product receipt BLAKE3")
+    run([str(executable), "verify", "--digest", digest, "--root", str(root)], "durable product receipt replay")
+    return digest
+
+def prove(repository: Path, package_proof_path: Path, output: Path) -> dict[str, Any]:
+    repository = repository.resolve()
+    package = load_json(package_proof_path)
+    commit, tree = repository_identity(repository)
+    gateway_contract = load_json(repository / "contracts/product-activation-gateway.json")
+    schema = gateway_contract.get("operation", {}).get("product_probe_schema")
+    if schema != "laplace.product-activation-gateway-probe/v2":
+        raise PostgreSQLProductProofError("gateway product probe contract differs")
+    gateway = Path(str(gateway_contract.get("gateway", {}).get("executable", "")))
+    if not gateway.is_absolute():
+        raise PostgreSQLProductProofError("installed gateway path is not absolute")
+    completed = run(["/usr/bin/sudo", "-n", str(gateway), "probe"], "root-authoritative PostgreSQL product probe")
+    probe = parse_json(completed.stdout)
+    validate_probe(probe, package, commit, tree, schema)
+
+    installed_release = Path(str(package.get("installed_release", "")))
+    store = installed_release / "bin/laplace_receipt_store"
+    durable_package_root = Path(str(package.get("durable_receipt_root", "")))
+    if not durable_package_root.is_absolute() or durable_package_root.name != "package-product":
+        raise PostgreSQLProductProofError("package proof durable receipt authority differs")
+    durable_root = durable_package_root.parent / "postgresql-product"
+    binding = {
+        "schema": BINDING_SCHEMA,
+        "repository_commit": commit,
+        "repository_tree": tree,
+        "package_id": package["package_id"],
+        "package_binding_receipt_blake3": require_hex(package.get("binding_receipt_blake3"), "package binding BLAKE3"),
+        "gateway_bundle_id": probe["bundle_id"],
+        "gateway_probe_sha256": probe["probe_sha256"],
+        "cluster_activation_receipt_sha256": probe["cluster_activation_receipt_sha256"],
+        "cluster_plan_sha256": probe["cluster_plan_sha256"],
+        "live_loaded_observation_sha256": probe["live_loaded_observation_sha256"],
+        "system_identifier": probe["system_identifier"],
+    }
+    binding_path = output.parent / "postgresql-product-binding.json"
+    if binding_path.exists() or output.exists():
+        raise PostgreSQLProductProofError("PostgreSQL product proof output already exists")
+    binding_path.write_bytes(canonical_bytes(binding))
+    binding_blake3 = store_receipt(store, binding_path, durable_root)
+    result = {
+        "schema": PROOF_SCHEMA,
+        "phase": "current-source-package-live-product-retained",
+        "repository_commit": commit,
+        "repository_tree": tree,
+        "package_id": package["package_id"],
+        "postgresql_version": probe["postgresql_version"],
+        "gateway_bundle_id": probe["bundle_id"],
+        "gateway_probe_sha256": probe["probe_sha256"],
+        "cluster_activation_receipt_sha256": probe["cluster_activation_receipt_sha256"],
+        "cluster_plan_sha256": probe["cluster_plan_sha256"],
+        "live_loaded_observation_sha256": probe["live_loaded_observation_sha256"],
+        "system_identifier": probe["system_identifier"],
+        "binding_receipt_blake3": binding_blake3,
+        "durable_receipt_root": str(durable_root),
+    }
+    output.write_bytes(canonical_bytes(result))
+    return result
+
+def parse_args(argv: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repository", default=".")
+    parser.add_argument("--package-proof", required=True)
+    parser.add_argument("--output", required=True)
+    return parser.parse_args(argv)
+
+def main(argv: Sequence[str]) -> int:
+    args = parse_args(argv)
+    prove(Path(args.repository), Path(args.package_proof), Path(args.output))
+    return 0
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except PostgreSQLProductProofError as error:
+        print(f"postgresql-product-proof: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+'''
+          write('tools/product/prove-postgresql-product.py', prover)
+
+          tests = r'''#!/usr/bin/env python3
+from __future__ import annotations
+import importlib.util
+from pathlib import Path
+import sys
+import unittest
+
+REPOSITORY = Path(__file__).resolve().parents[1]
+MODULE_PATH = REPOSITORY / "tools/product/prove-postgresql-product.py"
+SPEC = importlib.util.spec_from_file_location("laplace_postgresql_product_proof_tests", MODULE_PATH)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError("cannot load PostgreSQL product proof module")
+proof = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = proof
+SPEC.loader.exec_module(proof)
+
+COMMIT = "1a" * 20
+TREE = "2b" * 20
+PACKAGE = "3c" * 32
+
+def package_proof() -> dict:
+    return {
+        "schema": proof.PACKAGE_PROOF_SCHEMA,
+        "phase": "composed-installed-retained",
+        "repository_commit": COMMIT,
+        "repository_tree": TREE,
+        "package_id": PACKAGE,
+        "binding_receipt_blake3": "4d" * 32,
+    }
+
+def live_probe() -> dict:
+    value = {
+        "schema": "laplace.product-activation-gateway-probe/v2",
+        "bundle_id": "5e" * 32,
+        "package_id": PACKAGE,
+        "active_target": f"releases/{PACKAGE}",
+        "postgresql_version": "18.6",
+        "cluster_activation_receipt_sha256": "6f" * 32,
+        "cluster_plan_sha256": "70" * 32,
+        "live_loaded_observation_sha256": "81" * 32,
+        "probe_sql_sha256": "92" * 32,
+        "system_identifier": "1234567890123456789",
+        "service": "laplace-refactor-postgresql.service",
+        "service_state": "active",
+        "loaded_objects": [{"path": "/opt/laplace/current/lib/laplace_pg.so", "sha256": "a3" * 32}],
+        "config_files": [{"path": "/etc/laplace/refactor/postgresql.conf", "sha256": "b4" * 32}],
+    }
+    value["probe_sha256"] = proof.probe_identity(value)
+    return value
+
+class PostgreSQLProductProofTests(unittest.TestCase):
+    def test_exact_source_package_and_live_probe_match(self) -> None:
+        proof.validate_probe(live_probe(), package_proof(), COMMIT, TREE, "laplace.product-activation-gateway-probe/v2")
+
+    def test_stale_active_package_is_rejected(self) -> None:
+        probe = live_probe()
+        probe["package_id"] = "cc" * 32
+        probe["active_target"] = f"releases/{probe['package_id']}"
+        probe["probe_sha256"] = proof.probe_identity(probe)
+        with self.assertRaisesRegex(proof.PostgreSQLProductProofError, "current package/product state"):
+            proof.validate_probe(probe, package_proof(), COMMIT, TREE, "laplace.product-activation-gateway-probe/v2")
+
+    def test_stale_source_package_proof_is_rejected(self) -> None:
+        package = package_proof()
+        package["repository_commit"] = "dd" * 20
+        with self.assertRaisesRegex(proof.PostgreSQLProductProofError, "different source"):
+            proof.validate_probe(live_probe(), package, COMMIT, TREE, "laplace.product-activation-gateway-probe/v2")
+
+    def test_mutated_probe_self_identity_is_rejected(self) -> None:
+        probe = live_probe()
+        probe["service_state"] = "inactive"
+        with self.assertRaisesRegex(proof.PostgreSQLProductProofError, "current package/product state"):
+            proof.validate_probe(probe, package_proof(), COMMIT, TREE, "laplace.product-activation-gateway-probe/v2")
+
+if __name__ == "__main__":
+    unittest.main()
+'''
+          write('tests/postgresql_product_proof_tests.py', tests)
+
+          workflow = r'''name: postgresql-product
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  postgresql-product:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - postgres-18
+      - avx2
+    timeout-minutes: 180
+    env:
+      LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Verify PostgreSQL-product authority and exact publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test -w "$RUNNER_TEMP"
+          test -w /build/laplace
+          git diff --quiet
+          git diff --cached --quiet
+          publication=$(jq -er '.product_activation_projection.postgresql_publication.receipt' state/continuation.json)
+          expected_sha=$(jq -er '.product_activation_projection.postgresql_publication.receipt_sha256' state/continuation.json)
+          test -f "$publication"
+          test ! -L "$publication"
+          test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
+          python3 tools/delivery/postgresql_package_publication.py verify --receipt "$publication" >/dev/null
+          printf 'LAPLACE_POSTGRESQL_PUBLICATION=%s\n' "$publication" >> "$GITHUB_ENV"
+      - name: Prove PostgreSQL-product verifier mutation controls
+        run: python3 tests/postgresql_product_proof_tests.py
+      - name: Compose exact current package and retain package binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          work_root="$RUNNER_TEMP/laplace-postgresql-product-package"
+          package_result="$RUNNER_TEMP/laplace-postgresql-product-package.json"
+          python3 tools/product/prove-package.py \
+            --repository . \
+            --postgresql-publication "$LAPLACE_POSTGRESQL_PUBLICATION" \
+            --work-root "$work_root" \
+            --output "$package_result"
+          printf 'LAPLACE_POSTGRESQL_PACKAGE_PROOF=%s\n' "$package_result" >> "$GITHUB_ENV"
+      - name: Prove exact package is the live PostgreSQL 18.6 product
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/laplace-postgresql-product-proof.json"
+          python3 tools/product/prove-postgresql-product.py \
+            --repository . \
+            --package-proof "$LAPLACE_POSTGRESQL_PACKAGE_PROOF" \
+            --output "$result"
+          expected_tree=$(git rev-parse 'HEAD^{tree}')
+          jq -e \
+            --arg source_commit "$GITHUB_SHA" \
+            --arg source_tree "$expected_tree" '
+            .schema == "laplace.postgresql-product-proof/v1" and
+            .phase == "current-source-package-live-product-retained" and
+            .repository_commit == $source_commit and
+            .repository_tree == $source_tree and
+            .postgresql_version == "18.6" and
+            (.package_id | test("^[0-9a-f]{64}$")) and
+            (.gateway_bundle_id | test("^[0-9a-f]{64}$")) and
+            (.gateway_probe_sha256 | test("^[0-9a-f]{64}$")) and
+            (.cluster_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
+            (.cluster_plan_sha256 | test("^[0-9a-f]{64}$")) and
+            (.live_loaded_observation_sha256 | test("^[0-9a-f]{64}$")) and
+            (.binding_receipt_blake3 | test("^[0-9a-f]{64}$"))
+          ' "$result" >/dev/null
+          {
+            echo '## Exact PostgreSQL product proof'
+            echo '```json'
+            cat "$result"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+'''
+          write('.github/workflows/postgresql-product.yml', workflow)
+
+          # Product-path contract: provider exists; physical mismatch now fails in the provider itself.
+          path = 'contracts/product-path.json'
+          product_path = json.loads(read(path))
+          provider = next(row for row in product_path['evidence'] if row['id'] == 'postgresql-product')
+          if provider.get('implemented') is not False:
+              raise SystemExit('PostgreSQL product provider implementation state unexpectedly changed')
+          provider['implemented'] = True
+          provider['meaning'] = (
+              'exact current-source package identity matched to the root-authoritative live PostgreSQL 18.6 '
+              'cluster, loaded native objects, generated configuration, system identity and retained activation receipts'
+          )
+          postgres_rule = next(row for row in product_path['class_rules'] if row['id'] == 'postgresql')
+          for item in (
+              '.github/workflows/postgresql-product.yml',
+              'tools/product/prove-postgresql-product.py',
+              'tests/postgresql_product_proof_tests.py',
+              'tools/delivery/product_activation.py',
+              'contracts/product-activation-gateway.json',
+          ):
+              if item not in postgres_rule['patterns']:
+                  postgres_rule['patterns'].append(item)
+          write(path, json.dumps(product_path, indent=2) + '\n')
+
+          # Wire the reusable provider into the single product-path gate.
+          path = '.github/workflows/product-path.yml'
+          value = read(path)
+          package_job = '''  package-product-proof:\n    needs: classify\n    if: needs.classify.outputs.requires_package_product == 'true'\n    uses: ./.github/workflows/package-product.yml\n\n'''
+          postgresql_job = package_job + '''  postgresql-product-proof:\n    needs: classify\n    if: needs.classify.outputs.requires_postgresql_product == 'true'\n    uses: ./.github/workflows/postgresql-product.yml\n\n'''
+          value = replace_once(value, package_job, postgresql_job, path)
+          value = replace_once(value,
+              '      - package-product-proof\n',
+              '      - package-product-proof\n      - postgresql-product-proof\n', path)
+          value = replace_once(value,
+              '          PACKAGE_RESULT: ${{ needs.package-product-proof.result }}\n',
+              '          PACKAGE_RESULT: ${{ needs.package-product-proof.result }}\n          POSTGRESQL_RESULT: ${{ needs.postgresql-product-proof.result }}\n', path)
+          value = replace_once(value,
+              '          REQUIRES_PACKAGE: ${{ needs.classify.outputs.requires_package_product }}\n',
+              '          REQUIRES_PACKAGE: ${{ needs.classify.outputs.requires_package_product }}\n          REQUIRES_POSTGRESQL: ${{ needs.classify.outputs.requires_postgresql_product }}\n', path)
+          package_check = '''          if [[ "$REQUIRES_PACKAGE" == true ]]; then\n            test "$PACKAGE_RESULT" = success\n          else\n            test "$PACKAGE_RESULT" = skipped\n          fi\n'''
+          provider_check = package_check + '''          if [[ "$REQUIRES_POSTGRESQL" == true ]]; then\n            test "$POSTGRESQL_RESULT" = success\n          else\n            test "$POSTGRESQL_RESULT" = skipped\n          fi\n'''
+          value = replace_once(value, package_check, provider_check, path)
+          value = replace_once(value,
+              '            echo "Package-product proof: $PACKAGE_RESULT"\n',
+              '            echo "Package-product proof: $PACKAGE_RESULT"\n            echo "PostgreSQL-product proof: $POSTGRESQL_RESULT"\n', path) if '            echo "Package-product proof: $PACKAGE_RESULT"\n' in value else value
+          write(path, value)
+
+          # Classifier mutations now prove selection, while provider runtime proves physical availability.
+          path = 'tests/product_path_tests.py'
+          value = read(path)
+          old = '''    def test_postgresql_change_cannot_green_without_exact_product_provider(self) -> None:\n        result = self.classify("postgres/extension/src/composition_pg.c")\n        self.assertIn("postgresql", result["classes"])\n        self.assertTrue(result["requires_custom_stack"])\n        self.assertTrue(result["requires_postgresql_product"])\n        self.assertIn("postgresql-product", result["unimplemented_evidence"])\n        self.assertTrue(result["blocked"])\n'''
+          new = '''    def test_postgresql_change_selects_exact_product_provider(self) -> None:\n        result = self.classify("postgres/extension/src/composition_pg.c")\n        self.assertIn("postgresql", result["classes"])\n        self.assertTrue(result["requires_custom_stack"])\n        self.assertTrue(result["requires_postgresql_product"])\n        self.assertIn("postgresql-product", result["required_evidence"])\n        self.assertNotIn("postgresql-product", result["unimplemented_evidence"])\n        self.assertFalse(result["blocked"])\n'''
+          value = replace_once(value, old, new, path)
+          value = replace_once(value,
+              '        self.assertTrue(result["blocked"])\n\n    def test_mixed_docs_and_semantic_change_is_semantic',
+              '        self.assertFalse(result["blocked"])\n\n    def test_mixed_docs_and_semantic_change_is_semantic', path)
+          marker = '''    def test_package_provider_is_declared_implemented(self) -> None:\n'''
+          addition = '''    def test_postgresql_provider_is_declared_implemented(self) -> None:\n        provider = next(\n            row for row in self.contract["evidence"] if row["id"] == "postgresql-product"\n        )\n        self.assertTrue(provider["implemented"])\n        self.assertEqual(provider["check"], "postgresql-product-proof")\n        for path in (\n            ".github/workflows/postgresql-product.yml",\n            "tools/product/prove-postgresql-product.py",\n            "tests/postgresql_product_proof_tests.py",\n            "tools/delivery/product_activation.py",\n        ):\n            with self.subTest(path=path):\n                result = self.classify(path)\n                self.assertTrue(result["requires_postgresql_product"])\n\n'''
+          if value.count(marker) != 1:
+              raise SystemExit('product path provider test insertion marker differs')
+          value = value.replace(marker, addition + marker)
+          write(path, value)
+
+          # Add a deterministic fixture test for the root probe without requiring root in hosted CI.
+          path = 'tests/product_activation_gateway_tests.py'
+          value = read(path)
+          marker = '''    def test_workflow_keeps_pull_requests_out_of_the_activation_job(self) -> None:\n'''
+          addition = r'''    def test_product_probe_binds_active_package_to_fresh_loaded_observation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-product-probe-") as temporary:
+            root = Path(temporary)
+            contract = copy.deepcopy(self.base_contract)
+            contract["product"]["cluster_activation_root"] = str(root / "cluster-activation")
+            bundle = root / ("aa" * 32)
+            (bundle / "controllers").mkdir(parents=True)
+            (bundle / "controllers/clusterctl.py").write_text("# fixture\n", encoding="utf-8")
+            (bundle / "contracts").mkdir()
+            active = root / "current"
+            active.symlink_to(f"releases/{PACKAGE_ID}")
+            cluster_contract = {
+                "package": {"active_link": str(active), "postgresql_version": "18.6"},
+                "instance": {"service": "laplace-refactor-postgresql.service"},
+            }
+            (bundle / "contracts/postgresql-cluster.json").write_text(
+                json.dumps(cluster_contract), encoding="utf-8"
+            )
+            evidence = Path(contract["product"]["cluster_activation_root"]) / PACKAGE_ID
+            evidence.mkdir(parents=True)
+            plan = evidence / "cluster-plan.json"
+            plan.write_text("{}\n", encoding="utf-8")
+            result = {
+                "schema": contract["operation"]["cluster_success_schema"],
+                "phase": contract["operation"]["cluster_success_phase"],
+                "package_id": PACKAGE_ID,
+                "restart_proven": True,
+                "active_target": f"releases/{PACKAGE_ID}",
+                "plan_sha256": "bb" * 32,
+                "cluster_plan_path": str(plan),
+            }
+            result["activation_receipt_sha256"] = activation.document_identity(
+                result, "activation_receipt_sha256"
+            )
+            (evidence / "activation-result.json").write_bytes(
+                activation.canonical_bytes(result)
+            )
+            live = {
+                "schema": "laplace.postgresql-loaded-observation/v1",
+                "source": "laplace_postgresql_loaded_probe",
+                "package_id": PACKAGE_ID,
+                "service": "laplace-refactor-postgresql.service",
+                "service_state": "active",
+                "postmaster_pid": 101,
+                "backend_pid": 202,
+                "system_identifier": "123456789",
+                "observation_sha256": "cc" * 32,
+                "probe_sql_sha256": "dd" * 32,
+                "loaded_objects": [{"path": "/opt/laplace/current/lib/laplace_pg.so", "sha256": "ee" * 32}],
+                "config_files": [{"path": "/etc/laplace/refactor/postgresql.conf", "sha256": "ff" * 32}],
+            }
+            def runner(command, **_kwargs):
+                return subprocess.CompletedProcess(command, 0, json.dumps(live), "")
+            observed = activation.probe_product_state(
+                contract, bundle, runner=runner, effective_uid=lambda: 0
+            )
+            self.assertEqual(observed["package_id"], PACKAGE_ID)
+            self.assertEqual(observed["postgresql_version"], "18.6")
+            self.assertEqual(
+                observed["probe_sha256"], activation.document_identity(observed, "probe_sha256")
+            )
+
+'''
+          if value.count(marker) != 1:
+              raise SystemExit('activation gateway test insertion marker differs')
+          value = value.replace(marker, addition + marker)
+          if 'import subprocess\n' not in value:
+              value = value.replace('import sys\n', 'import sys\nimport subprocess\n')
+          write(path, value)
+          PY
+          chmod +x tools/product/prove-postgresql-product.py tests/postgresql_product_proof_tests.py
+          git diff --check
+          python3 -m py_compile tools/delivery/product_activation.py tools/product/prove-postgresql-product.py
+
+      - name: Run product-path gateway and provider mutation suites
+        run: |
+          set -euo pipefail
+          python3 tests/product_path_tests.py
+          python3 tests/product_activation_gateway_tests.py
+          python3 tests/postgresql_product_proof_tests.py
+
+      - name: Validate workflow YAML and exact provider references
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -e 'require "yaml"; [".github/workflows/product-path.yml", ".github/workflows/postgresql-product.yml"].each { |p| YAML.load_file(p) }'
+          grep -Fq 'uses: ./.github/workflows/postgresql-product.yml' .github/workflows/product-path.yml
+          grep -Fq 'implemented": true' contracts/product-path.json
+          grep -Fq 'product_probe_schema' contracts/product-activation-gateway.json
+
+      - name: Publish one clean provider commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/postgresql-product-provider-repair.yml
+          git add -A
+          git diff --cached --check
+          git reset --soft "$REPAIR_BASE_SHA"
+          test -z "$(git diff --cached --name-only | grep '^.github/workflows/postgresql-product-provider-repair.yml$' || true)"
+          git config user.name SaltyPatron
+          git config user.email thesaltypatron@gmail.com
+          git commit -m "Implement exact PostgreSQL product proof" \
+            -m "Extend the existing root-owned gateway probe into a read-only live PostgreSQL 18.6 verifier, bind its live loaded-object observation to the exact current-source package proof, retain the binding in the BLAKE3 receipt store, and wire the provider into the single fail-closed product-path gate."
+          git push --force-with-lease origin "HEAD:$REPAIR_BRANCH"
