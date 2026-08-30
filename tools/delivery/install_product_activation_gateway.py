@@ -88,7 +88,15 @@ def verify_repository_binding(repository: Path, expected_commit: str) -> dict[st
     tree = git_command(repository, ["rev-parse", "HEAD^{tree}"]).lower()
     trusted_paths = sorted(set(SOURCE_MAP.values()) | {BOOTSTRAP_SOURCE})
     for relative in trusted_paths:
-        git_command(repository, ["cat-file", "-e", f"HEAD:{relative}"])
+        committed_blob = git_command(repository, ["rev-parse", f"HEAD:{relative}"]).lower()
+        source = repository / relative
+        if not source.is_file() or source.is_symlink():
+            raise InstallError(f"trusted gateway source is absent or not physical: {relative}")
+        working_blob = git_command(repository, ["hash-object", "--no-filters", relative]).lower()
+        if working_blob != committed_blob:
+            raise InstallError(
+                f"trusted gateway source bytes differ from reviewed commit: {relative}"
+            )
     status = git_command(
         repository,
         ["status", "--porcelain=v1", "--untracked-files=all", "--", *trusted_paths],
