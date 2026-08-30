@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -57,6 +58,29 @@ class ProductActivationGatewayBootstrapTests(unittest.TestCase):
             self.assertEqual(binding["commit"], commit)
             self.assertEqual(binding["tree"], self.git(repository, "rev-parse", "HEAD^{tree}"))
             self.assertEqual(binding["trusted_paths"], self.trusted_paths())
+
+    def test_system_root_requires_explicit_expected_commit(self) -> None:
+        with mock.patch.object(installer, "require_authority", return_value=None):
+            with self.assertRaisesRegex(installer.InstallError, "requires --expected-commit"):
+                installer.install_gateway(
+                    REPOSITORY,
+                    REPOSITORY / "contracts/product-activation-gateway.json",
+                    Path("/not-read-before-source-binding"),
+                    Path("/"),
+                    True,
+                )
+
+    def test_noncanonical_contract_is_a_deliberate_bootstrap_defect(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-gateway-bootstrap-contract-") as temporary:
+            root = Path(temporary)
+            with self.assertRaisesRegex(installer.InstallError, "canonical repository contract"):
+                installer.install_gateway(
+                    REPOSITORY,
+                    root / "substitute-contract.json",
+                    root / "unused-key",
+                    root,
+                    False,
+                )
 
     def test_wrong_commit_is_a_deliberate_bootstrap_defect(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-gateway-bootstrap-wrong-") as temporary:
