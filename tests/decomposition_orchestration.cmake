@@ -1,7 +1,7 @@
 include(GoogleTest)
 
 add_executable(laplace_decomposition_orchestration_tests
-    decomposition_orchestration_tests.cpp)
+    "${CMAKE_CURRENT_LIST_DIR}/decomposition_orchestration_tests.cpp")
 target_link_libraries(laplace_decomposition_orchestration_tests PRIVATE
     Laplace::Decomposition
     GTest::gtest_main)
