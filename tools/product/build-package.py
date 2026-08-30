@@ -208,6 +208,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
         "cxx_compiler",
         "blake3_root",
         "blake3_source",
+        "tree_sitter_root",
     ):
         require_absolute(build.get(field), f"build.{field}")
     if (
@@ -219,8 +220,17 @@ def validate_contract(contract: dict[str, Any]) -> None:
         )
     blake3_root = Path(build["blake3_root"])
     blake3_source = Path(build["blake3_source"])
+    tree_sitter_root = Path(build["tree_sitter_root"])
     if not blake3_source.is_relative_to(blake3_root) or blake3_source == blake3_root:
         raise ProductPackageError("BLAKE3 source must be contained by its repository root")
+    if (
+        blake3_root.name != "blake3"
+        or tree_sitter_root.name != "tree-sitter"
+        or tree_sitter_root.parent != blake3_root.parent
+    ):
+        raise ProductPackageError(
+            "Tree-sitter source root must share the locked dependency generation with BLAKE3"
+        )
     if build.get("configuration") != "Release":
         raise ProductPackageError("product package must use the Release configuration")
     if build.get("install_libdir") != "lib":
@@ -889,8 +899,12 @@ def create_plan(
         contract
     )
     blake3_root = require_absolute(contract["build"]["blake3_root"], "build.blake3_root")
+    tree_sitter_root = require_absolute(
+        contract["build"]["tree_sitter_root"], "build.tree_sitter_root"
+    )
     build_input_roots = {
         "blake3": exact_tree_receipt(blake3_root),
+        "tree-sitter": exact_tree_receipt(tree_sitter_root),
         **provider_roots,
         **runtime_dependency_roots,
     }
@@ -1472,6 +1486,7 @@ def execute_plan(
         f"-DBUILD_TESTING={'ON' if build['testing'] else 'OFF'}",
         f"-DLAPLACE_ENABLE_DOTNET_BINDINGS={'ON' if build['dotnet_bindings'] else 'OFF'}",
         f"-DLAPLACE_BLAKE3_SOURCE={build['blake3_source']}",
+        f"-DLAPLACE_TREE_SITTER_SOURCE={plan['build_input_roots']['tree-sitter']['path']}",
         f"-DLAPLACE_DEPENDENCY_LOCK={repository / 'dependencies/lock.json'}",
         f"-DLAPLACE_INSTALLED_PROVIDER_LOCK={plan['installed_provider_lock']}",
         "-DLAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER=ON",

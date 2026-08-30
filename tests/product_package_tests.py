@@ -111,6 +111,18 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "additional host"):
             PACKAGE.validate_contract(mutant)
 
+    def test_tree_sitter_source_root_cannot_be_omitted(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["build"].pop("tree_sitter_root")
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "build.tree_sitter_root"):
+            PACKAGE.validate_contract(mutant)
+
+    def test_tree_sitter_source_must_share_locked_dependency_generation(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["build"]["tree_sitter_root"] = "/opt/laplace/external/other/tree-sitter"
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "locked dependency generation"):
+            PACKAGE.validate_contract(mutant)
+
     def test_blake3_revision_root_cannot_be_collapsed_to_source_subtree(self) -> None:
         mutant = copy.deepcopy(self.contract)
         mutant["build"]["blake3_root"] = mutant["build"]["blake3_source"]
@@ -390,7 +402,8 @@ class ProductPackageTests(unittest.TestCase):
         stage = self.root / "stage"
         toolchain = self.root / "toolchain"
         provider = self.root / "provider"
-        for path in (repository, build, stage, toolchain, provider):
+        tree_sitter = self.root / "tree-sitter"
+        for path in (repository, build, stage, toolchain, provider, tree_sitter):
             path.mkdir()
         plan = {
             "repository_root": str(repository),
@@ -403,6 +416,7 @@ class ProductPackageTests(unittest.TestCase):
             },
             "build_input_roots": {
                 "provider": {"path": str(provider)},
+                "tree-sitter": {"path": str(tree_sitter)},
             },
             "build_input_files": {},
         }
@@ -412,7 +426,7 @@ class ProductPackageTests(unittest.TestCase):
         )
         self.assertIn("--unshare-all", sandbox)
         triples = [sandbox[index : index + 3] for index in range(len(sandbox) - 2)]
-        for path in (repository, toolchain, provider):
+        for path in (repository, toolchain, provider, tree_sitter):
             self.assertIn(["--ro-bind", str(path), str(path)], triples)
         for path in (build, stage):
             self.assertIn(["--bind", str(path), str(path)], triples)
