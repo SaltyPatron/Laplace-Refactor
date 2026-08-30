@@ -1,0 +1,111 @@
+name: product-path
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-path-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      hosted_only: ${{ steps.classify.outputs.hosted_only }}
+      requires_custom_stack: ${{ steps.classify.outputs.requires_custom_stack }}
+      requires_postgresql_product: ${{ steps.classify.outputs.requires_postgresql_product }}
+      requires_package_product: ${{ steps.classify.outputs.requires_package_product }}
+      blocked: ${{ steps.classify.outputs.blocked }}
+      required_evidence: ${{ steps.classify.outputs.required_evidence }}
+      unimplemented_evidence: ${{ steps.classify.outputs.unimplemented_evidence }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Prove product-path classifier and mutations
+        run: python3 tests/product_path_tests.py
+      - name: Classify exact changed paths
+        id: classify
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          changed="$RUNNER_TEMP/laplace-product-path-changed.txt"
+          result="$RUNNER_TEMP/laplace-product-path.json"
+          git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" > "$changed"
+          test -s "$changed"
+          python3 tools/delivery/product_path.py classify \
+            --contract contracts/product-path.json \
+            --paths-file "$changed" \
+            --output "$result"
+          cat "$result"
+          for key in \
+            hosted_only \
+            requires_custom_stack \
+            requires_postgresql_product \
+            requires_package_product \
+            blocked; do
+            printf '%s=%s\n' "$key" "$(jq -r ".$key" "$result")" >> "$GITHUB_OUTPUT"
+          done
+          printf 'required_evidence=%s\n' "$(jq -c '.required_evidence' "$result")" >> "$GITHUB_OUTPUT"
+          printf 'unimplemented_evidence=%s\n' "$(jq -c '.unimplemented_evidence' "$result")" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Product-path classification'
+            echo '```json'
+            cat "$result"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  hosted-proof:
+    needs: classify
+    uses: ./.github/workflows/ci.yml
+
+  custom-stack-proof:
+    needs: classify
+    if: needs.classify.outputs.requires_custom_stack == 'true'
+    uses: ./.github/workflows/custom-stack.yml
+
+  product-path:
+    if: always()
+    needs:
+      - classify
+      - hosted-proof
+      - custom-stack-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every selected proof surface
+        shell: bash
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          HOSTED_RESULT: ${{ needs.hosted-proof.result }}
+          CUSTOM_RESULT: ${{ needs.custom-stack-proof.result }}
+          REQUIRES_CUSTOM: ${{ needs.classify.outputs.requires_custom_stack }}
+          BLOCKED: ${{ needs.classify.outputs.blocked }}
+          REQUIRED_EVIDENCE: ${{ needs.classify.outputs.required_evidence }}
+          UNIMPLEMENTED_EVIDENCE: ${{ needs.classify.outputs.unimplemented_evidence }}
+        run: |
+          set -euo pipefail
+          test "$CLASSIFY_RESULT" = success
+          test "$HOSTED_RESULT" = success
+          if [[ "$REQUIRES_CUSTOM" == true ]]; then
+            test "$CUSTOM_RESULT" = success
+          else
+            test "$CUSTOM_RESULT" = skipped
+          fi
+          if [[ "$BLOCKED" == true ]]; then
+            echo "product-path refuses to green without providers for: $UNIMPLEMENTED_EVIDENCE" >&2
+            exit 1
+          fi
+          {
+            echo '## Product-path gate'
+            echo "Required evidence: $REQUIRED_EVIDENCE"
+            echo "Hosted proof: $HOSTED_RESULT"
+            echo "Custom-stack proof: $CUSTOM_RESULT"
+          } >> "$GITHUB_STEP_SUMMARY"
