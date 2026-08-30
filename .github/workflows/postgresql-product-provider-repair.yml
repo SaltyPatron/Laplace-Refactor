@@ -25,15 +25,19 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse "$REPAIR_BASE_SHA")" = "$REPAIR_BASE_SHA"
-          test "$(git rev-list --count "$REPAIR_BASE_SHA"..HEAD)" = 2
+          test "$(git rev-list --count "$REPAIR_BASE_SHA"..HEAD)" = 3
           python3 - <<'PY'
           from pathlib import Path
-          import textwrap
           authority = Path('.github/repair/postgresql-product-provider-authority.yml').read_text(encoding='utf-8')
           marker = "          python3 <<'PY'\n"
           start = authority.index(marker) + len(marker)
           end = authority.index("\n          PY", start)
-          script = textwrap.dedent(authority[start:end])
+          lines = authority[start:end].splitlines()
+          margin = '          '
+          script = '\n'.join(
+              line[len(margin):] if line.startswith(margin) else line
+              for line in lines
+          )
           if 'Gateway contract: the already-authorized probe becomes a live product proof.' not in script:
               raise SystemExit('provider transformation authority marker missing')
           Path('/tmp/laplace-postgresql-product-repair.py').write_text(script + '\n', encoding='utf-8')
