@@ -74,7 +74,9 @@ class ProductActivationGatewayBootstrapTests(unittest.TestCase):
             repository, commit = self.repository_fixture(Path(temporary))
             trusted_relative = next(iter(installer.SOURCE_MAP.values()))
             self.git(repository, "rm", "-q", trusted_relative)
-            (repository / trusted_relative).write_text("untracked replacement\n", encoding="utf-8")
+            trusted = repository / trusted_relative
+            trusted.parent.mkdir(parents=True, exist_ok=True)
+            trusted.write_text("untracked replacement\n", encoding="utf-8")
             with self.assertRaisesRegex(installer.InstallError, "trusted gateway source checkout is not clean"):
                 installer.verify_repository_binding(repository, commit)
 
