@@ -14,6 +14,7 @@ on:
       - postgres/extension/laplace--version.sql.in
       - tests/highway_product_activation_tests.py
       - tests/product_activation_gateway_tests.py
+      - tests/product_activation_gateway_bootstrap_tests.py
   workflow_dispatch:
 
 permissions:
@@ -59,6 +60,7 @@ jobs:
         run: |
           python3 tests/highway_product_activation_tests.py
           python3 tests/product_activation_gateway_tests.py
+          python3 tests/product_activation_gateway_bootstrap_tests.py
 
   compose-product:
     if: github.event_name == 'workflow_dispatch'
