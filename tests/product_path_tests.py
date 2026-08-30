@@ -58,6 +58,20 @@ class ProductPathTests(unittest.TestCase):
         self.assertNotIn("package-product", result["unimplemented_evidence"])
         self.assertFalse(result["blocked"])
 
+    def test_package_proof_control_plane_requires_its_own_physical_proof(self) -> None:
+        for path in (
+            ".github/workflows/package-product.yml",
+            "tests/package_product_proof_tests.py",
+            "tools/receipt_store.cpp",
+            "tests/receipt_store_test.cmake",
+            "tests/registry.d/receipt_store.json",
+        ):
+            with self.subTest(path=path):
+                result = self.classify(path)
+                self.assertIn("package", result["classes"])
+                self.assertTrue(result["requires_package_product"])
+                self.assertFalse(result["blocked"])
+
     def test_delivery_change_requires_package_but_control_plane_does_not(self) -> None:
         delivery = self.classify("tools/delivery/product_activation.py")
         self.assertIn("package", delivery["classes"])
