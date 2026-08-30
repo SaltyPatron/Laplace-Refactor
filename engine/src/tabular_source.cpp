@@ -15,7 +15,6 @@
 #endif
 
 #include "laplace/tabular_source_recursive.h"
-#include "laplace/decomposition_composition.h"
 #include "laplace/decomposition_delimited.h"
 #include "laplace/decomposition_uax29.h"
 
@@ -118,130 +117,62 @@ laplace_tabular_source_status DecompositionStatus(
     }
 }
 
-laplace_tabular_source_status CompositionStatus(
-    const laplace_decomposition_composition_status status) {
-    switch (status) {
-        case LAPLACE_DECOMPOSITION_COMPOSITION_OK:
-            return LAPLACE_TABULAR_SOURCE_OK;
-        case LAPLACE_DECOMPOSITION_COMPOSITION_UTF8_INVALID:
-            return LAPLACE_TABULAR_SOURCE_UTF8_INVALID;
-        case LAPLACE_DECOMPOSITION_COMPOSITION_MEMORY_FAILURE:
-            return LAPLACE_TABULAR_SOURCE_MEMORY_FAILURE;
-        case LAPLACE_DECOMPOSITION_COMPOSITION_OVERFLOW:
-            return LAPLACE_TABULAR_SOURCE_OVERFLOW;
-        case LAPLACE_DECOMPOSITION_COMPOSITION_DECOMPOSITION_INVALID:
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-        default:
-            return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
-    }
-}
-
-std::uint64_t MergeAtom(
-    laplace_tabular_source_plan& destination,
-    std::map<std::uint32_t, std::uint64_t>& destination_atoms,
-    const std::uint32_t position) {
-    const auto found = destination_atoms.find(position);
-    if (found != destination_atoms.end()) return found->second;
-    const std::uint64_t index =
-        static_cast<std::uint64_t>(destination.atom_positions.size());
-    destination.atom_positions.push_back(position);
-    destination_atoms.emplace(position, index);
-    return index;
-}
-
-laplace_tabular_source_status MergeDecompositionPlan(
-    laplace_tabular_source_plan& destination,
-    const laplace_decomposition_composition_plan_view& source,
-    std::map<std::uint32_t, std::uint64_t>& destination_atoms,
-    std::uint64_t& merged_root) {
-    if (source.atom_positions == nullptr || source.operands == nullptr ||
-        source.requests == nullptr || source.atom_count == 0u ||
-        source.operand_count == 0u || source.request_count == 0u ||
-        source.root_result_index >= source.request_count) {
+laplace_tabular_source_status DecompositionTrace(
+    const laplace_decomposition_content& content,
+    const laplace_decomposition_result* decomposition,
+    laplace_digest256& fingerprint,
+    std::uint64_t& span_count) {
+    std::size_t count = 0u;
+    const laplace_decomposition_span* spans =
+        laplace_decomposition_spans(decomposition, &count);
+    laplace_decomposition_summary summary{};
+    if (spans == nullptr || count == 0u ||
+        laplace_decomposition_summary_get(decomposition, &summary) !=
+            LAPLACE_DECOMPOSITION_OK ||
+        summary.span_count != static_cast<std::uint64_t>(count)) {
         return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
     }
-    const std::uint64_t request_base =
-        static_cast<std::uint64_t>(destination.requests.size());
-    const std::uint64_t operand_base =
-        static_cast<std::uint64_t>(destination.operands.size());
 
-    for (std::uint64_t operand_index = 0u;
-         operand_index < source.operand_count; ++operand_index) {
-        laplace_composition_operand operand =
-            source.operands[static_cast<std::size_t>(operand_index)];
-        if (operand.reference_kind == LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
-            if (operand.reference_index >= source.atom_count) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
-            const std::uint32_t position =
-                source.atom_positions[
-                    static_cast<std::size_t>(operand.reference_index)];
-            operand.reference_index =
-                MergeAtom(destination, destination_atoms, position);
-        } else if (
-            operand.reference_kind == LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
-            if (operand.reference_index >= source.request_count ||
-                operand.reference_index >
-                    std::numeric_limits<std::uint64_t>::max() - request_base) {
-                return LAPLACE_TABULAR_SOURCE_OVERFLOW;
-            }
-            operand.reference_index += request_base;
-        } else {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    static constexpr std::string_view Domain{
+        "laplace.decomposition.witness-trace/v1"};
+    RecursiveHashBytes(hasher, Domain.data(), Domain.size());
+    RecursiveHashBytes(
+        hasher, content.bytes, static_cast<std::size_t>(content.byte_count));
+    RecursiveHashU64(hasher, static_cast<std::uint64_t>(count));
+
+    for (std::size_t index = 0u; index < count; ++index) {
+        const laplace_decomposition_span& span = spans[index];
+        if (span.byte_start >= span.byte_end ||
+            span.byte_end > content.byte_count ||
+            (index == 0u &&
+             span.parent_span_index !=
+                 std::numeric_limits<std::uint64_t>::max()) ||
+            (index != 0u &&
+             span.parent_span_index >= static_cast<std::uint64_t>(index))) {
             return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
         }
-        destination.operands.push_back(operand);
-    }
-
-    for (std::uint64_t request_index = 0u;
-         request_index < source.request_count; ++request_index) {
-        laplace_composition_request request =
-            source.requests[static_cast<std::size_t>(request_index)];
-        if (request.first_operand > source.operand_count ||
-            request.operand_count >
-                source.operand_count - request.first_operand ||
-            request.first_operand >
-                std::numeric_limits<std::uint64_t>::max() - operand_base) {
-            return LAPLACE_TABULAR_SOURCE_OVERFLOW;
-        }
-        request.first_operand += operand_base;
-        const std::uint64_t destination_index =
-            static_cast<std::uint64_t>(destination.requests.size());
-        if (destination_index == std::numeric_limits<std::uint64_t>::max()) {
-            return LAPLACE_TABULAR_SOURCE_OVERFLOW;
-        }
-        request.source_ordinal = destination_index + 1u;
-        destination.requests.push_back(request);
-    }
-
-    if (source.root_result_index >
-        std::numeric_limits<std::uint64_t>::max() - request_base) {
-        return LAPLACE_TABULAR_SOURCE_OVERFLOW;
-    }
-    merged_root = request_base + source.root_result_index;
-    return LAPLACE_TABULAR_SOURCE_OK;
-}
-
-laplace_tabular_source_status AppendRecursiveRoot(
-    laplace_tabular_source_plan& plan,
-    const laplace_tabular_source_input& input,
-    const std::uint64_t legacy_root,
-    const std::vector<std::uint64_t>& trace_roots) {
-    (void)input;
-    if (legacy_root >= plan.requests.size()) {
-        return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-    }
-    for (const std::uint64_t trace_root : trace_roots) {
-        if (trace_root >= plan.requests.size()) {
+        std::size_t media_type_bytes = 0u;
+        const char* media_type = laplace_decomposition_span_media_type(
+            decomposition, index, &media_type_bytes);
+        if ((media_type == nullptr) != (media_type_bytes == 0u)) {
             return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
         }
+        RecursiveHashU64(hasher, static_cast<std::uint64_t>(index));
+        RecursiveHashU64(hasher, span.byte_start);
+        RecursiveHashU64(hasher, span.byte_end);
+        RecursiveHashU64(hasher, span.parent_span_index);
+        RecursiveHashBytes(
+            hasher, span.provider_fingerprint.bytes,
+            sizeof(span.provider_fingerprint.bytes));
+        RecursiveHashU64(hasher, span.kind);
+        RecursiveHashU32(hasher, span.depth);
+        RecursiveHashU32(hasher, span.flags);
+        RecursiveHashBytes(hasher, media_type, media_type_bytes);
     }
-    /*
-     * Decomposition traces witness how the exact source bytes were interpreted.
-     * They are not constituents of those bytes and therefore cannot remint the
-     * source content identity.  Keep the canonical legacy content root and bind
-     * the decomposition evidence through its trace fingerprint instead.
-     */
-    plan.view.root_result_index = legacy_root;
+    fingerprint = RecursiveFinish(hasher);
+    span_count = static_cast<std::uint64_t>(count);
     return LAPLACE_TABULAR_SOURCE_OK;
 }
 
@@ -347,18 +278,8 @@ laplace_tabular_source_status BuildRecursive(
     const std::uint64_t legacy_output_count =
         created->view.profile.output_count;
     std::uint64_t recursive_span_count = 0u;
-    std::vector<std::uint64_t> trace_roots;
     std::vector<laplace_digest256> trace_fingerprints;
-    trace_roots.reserve(static_cast<std::size_t>(input->artifact_count));
     trace_fingerprints.reserve(static_cast<std::size_t>(input->artifact_count));
-
-    std::map<std::uint32_t, std::uint64_t> destination_atoms;
-    for (std::size_t atom_index = 0u;
-         atom_index < created->atom_positions.size(); ++atom_index) {
-        destination_atoms.emplace(
-            created->atom_positions[atom_index],
-            static_cast<std::uint64_t>(atom_index));
-    }
 
     for (std::size_t artifact_index = 0u;
          artifact_index < static_cast<std::size_t>(input->artifact_count);
@@ -433,65 +354,23 @@ laplace_tabular_source_status BuildRecursive(
             goto recursive_failure;
         }
 
-        laplace_decomposition_composition_input composition_input{};
-        composition_input.content = &content;
-        composition_input.decomposition = decomposition;
-        composition_input.recipe_fingerprint =
-            input->profile_declaration.recipe_program_fingerprint;
-        composition_input.geometry_epoch = input->geometry_epoch;
-        composition_input.occurrence_context_fingerprint =
-            input->occurrence_context_fingerprint;
-        composition_input.source_ordinal_base =
-            static_cast<std::uint64_t>(created->requests.size());
-
-        laplace_decomposition_composition_plan* composition_plan = nullptr;
-        const auto composition_status =
-            laplace_decomposition_composition_plan_create(
-                &composition_input, &composition_plan);
-        if (composition_status != LAPLACE_DECOMPOSITION_COMPOSITION_OK ||
-            composition_plan == nullptr) {
-            status = CompositionStatus(composition_status);
-            laplace_decomposition_result_destroy(&decomposition);
-            laplace_decomposition_composition_plan_destroy(&composition_plan);
-            goto recursive_failure;
-        }
-
-        laplace_decomposition_composition_plan_view composition_view{};
-        if (laplace_decomposition_composition_plan_view_get(
-                composition_plan, &composition_view) !=
-            LAPLACE_DECOMPOSITION_COMPOSITION_OK) {
-            status = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            laplace_decomposition_result_destroy(&decomposition);
-            laplace_decomposition_composition_plan_destroy(&composition_plan);
-            goto recursive_failure;
-        }
-
-        std::uint64_t merged_root = 0u;
-        status = MergeDecompositionPlan(
-            *created, composition_view, destination_atoms, merged_root);
+        laplace_digest256 trace_fingerprint{};
+        std::uint64_t artifact_span_count = 0u;
+        status = DecompositionTrace(
+            content, decomposition, trace_fingerprint, artifact_span_count);
+        laplace_decomposition_result_destroy(&decomposition);
         if (status != LAPLACE_TABULAR_SOURCE_OK) {
-            laplace_decomposition_result_destroy(&decomposition);
-            laplace_decomposition_composition_plan_destroy(&composition_plan);
             goto recursive_failure;
         }
         if (!RecursiveAdd(
                 recursive_span_count,
-                composition_view.span_count,
+                artifact_span_count,
                 recursive_span_count)) {
             status = LAPLACE_TABULAR_SOURCE_OVERFLOW;
-            laplace_decomposition_result_destroy(&decomposition);
-            laplace_decomposition_composition_plan_destroy(&composition_plan);
             goto recursive_failure;
         }
-        trace_roots.push_back(merged_root);
-        trace_fingerprints.push_back(composition_view.trace_fingerprint);
-        laplace_decomposition_result_destroy(&decomposition);
-        laplace_decomposition_composition_plan_destroy(&composition_plan);
+        trace_fingerprints.push_back(trace_fingerprint);
     }
-
-    status = AppendRecursiveRoot(
-        *created, *input, created->view.root_result_index, trace_roots);
-    if (status != LAPLACE_TABULAR_SOURCE_OK) goto recursive_failure;
 
     status = UpdateProfileCounts(
         *created, legacy_output_count, recursive_span_count);
@@ -501,7 +380,7 @@ laplace_tabular_source_status BuildRecursive(
         blake3_hasher hasher;
         blake3_hasher_init(&hasher);
         static constexpr std::string_view Domain{
-            "laplace.tabular-source.recursive-decomposition/v1"};
+            "laplace.tabular-source.recursive-decomposition/v2"};
         RecursiveHashBytes(hasher, Domain.data(), Domain.size());
         RecursiveHashBytes(
             hasher,
