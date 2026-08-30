@@ -90,7 +90,7 @@ class HostProviderTests(unittest.TestCase):
                 HOST.canonical_bytes(identity)
             ).hexdigest()
 
-            with self.assertRaisesRegex(HOST.ProviderError, "scope differs"):
+            with self.assertRaisesRegex(PUBLISHED.HOST.ProviderError, "scope differs"):
                 PUBLISHED.verify_published_receipt(mutated)
 
     def test_tree_mutation_is_detected(self) -> None:
