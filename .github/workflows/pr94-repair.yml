@@ -1,0 +1,99 @@
+name: pr94-repair
+
+on:
+  push:
+    branches:
+      - integration/whole-product-current-main
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/whole-product-current-main
+          fetch-depth: 0
+
+      - name: Repair inherited contract defects
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          spi_path = Path("tests/postgres/spi_contract.sql")
+          spi = spi_path.read_text()
+          stale = "result.isa_minor <> 10"
+          count = spi.count(stale)
+          if count != 2:
+              raise SystemExit(f"expected exactly two stale ISA minor assertions, found {count}")
+          spi = spi.replace(stale, "result.isa_minor <> @LAPLACE_ISA_MINOR@")
+          if "result.isa_minor <> 10" in spi:
+              raise SystemExit("stale ISA 1.10 assertion remains")
+          spi_path.write_text(spi)
+
+          native_path = Path("tests/postgres/native_receipt_probe.cpp")
+          native = native_path.read_text()
+          if '.media_type = "application/zip"' in native or \
+             '.media_type = "text/tab-separated-values; charset=utf-8"' in native:
+              raise SystemExit("native source fixture already carries media type; refusing duplicate patch")
+
+          archive_name = '    source_artifacts[0].name = "release.zip";\n'
+          archive_name_patch = (
+              archive_name +
+              '    source_artifacts[0].media_type = "application/zip";\n'
+          )
+          archive_count = (
+              '    source_artifacts[0].name_byte_count = std::strlen(source_artifacts[0].name);\n'
+          )
+          archive_count_patch = (
+              archive_count +
+              '    source_artifacts[0].media_type_byte_count =\n'
+              '        std::strlen(source_artifacts[0].media_type);\n'
+          )
+          text_name = '    source_artifacts[1].name = "tables/languages.tab";\n'
+          text_name_patch = (
+              text_name +
+              '    source_artifacts[1].media_type =\n'
+              '        "text/tab-separated-values; charset=utf-8";\n'
+          )
+          text_count = (
+              '    source_artifacts[1].name_byte_count = std::strlen(source_artifacts[1].name);\n'
+          )
+          text_count_patch = (
+              text_count +
+              '    source_artifacts[1].media_type_byte_count =\n'
+              '        std::strlen(source_artifacts[1].media_type);\n'
+          )
+
+          replacements = (
+              (archive_name, archive_name_patch),
+              (archive_count, archive_count_patch),
+              (text_name, text_name_patch),
+              (text_count, text_count_patch),
+          )
+          for old, new in replacements:
+              found = native.count(old)
+              if found != 1:
+                  raise SystemExit(f"expected fixture anchor exactly once, found {found}: {old.strip()}")
+              native = native.replace(old, new, 1)
+
+          native_path.write_text(native)
+
+          repair_workflow = Path(".github/workflows/pr94-repair.yml")
+          repair_workflow.unlink()
+          PY
+
+          git diff --check
+          grep -q 'result.isa_minor <> @LAPLACE_ISA_MINOR@' tests/postgres/spi_contract.sql
+          grep -q 'media_type = "application/zip"' tests/postgres/native_receipt_probe.cpp
+          grep -q 'text/tab-separated-values; charset=utf-8' tests/postgres/native_receipt_probe.cpp
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/postgres/spi_contract.sql tests/postgres/native_receipt_probe.cpp .github/workflows/pr94-repair.yml
+          git commit -m "Fix PR #94 inherited contract mismatches"
+          git push origin HEAD:integration/whole-product-current-main
