@@ -104,7 +104,8 @@ laplace_decomposition_status Apply(
                         absolute_end,
                         kind,
                         static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_REDISPATCH) |
-                            static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_TEXT)) != 0) {
+                            static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_TEXT) |
+                            static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT)) != 0) {
                     status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
                     break;
                 }
