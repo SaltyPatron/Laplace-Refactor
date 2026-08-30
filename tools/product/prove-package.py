@@ -20,6 +20,7 @@ PACKAGE_RECEIPT_SCHEMA = "laplace.product-package-receipt/v1"
 INSTALLATION_SCHEMA = "laplace.product-package-installation-receipt/v1"
 BINDING_SCHEMA = "laplace.package-product-proof-binding/v1"
 HEX_64 = re.compile(r"^[0-9a-f]{64}$")
+GIT_OBJECT = re.compile(r"^[0-9a-f]{40}$")
 
 
 class PackageProductProofError(RuntimeError):
@@ -72,6 +73,12 @@ def require_hex(value: Any, label: str) -> str:
     return value
 
 
+def require_git_object(value: Any, label: str) -> str:
+    if not isinstance(value, str) or GIT_OBJECT.fullmatch(value) is None:
+        raise PackageProductProofError(f"{label} is not an exact Git object identity")
+    return value
+
+
 def require_physical_file(path: Path, label: str) -> None:
     if not path.is_file() or path.is_symlink():
         raise PackageProductProofError(f"{label} is absent or not a physical file: {path}")
@@ -87,6 +94,22 @@ def prefixed(root: Path, logical: str) -> Path:
     if not pure.is_absolute() or ".." in pure.parts:
         raise PackageProductProofError("package logical root is not canonical absolute")
     return root.joinpath(*pure.parts[1:])
+
+
+def validate_manifest_source(
+    manifest: Mapping[str, Any], expected_commit: str, expected_tree: str
+) -> None:
+    expected_commit = require_git_object(expected_commit, "checked-out repository commit")
+    expected_tree = require_git_object(expected_tree, "checked-out repository tree")
+    laplace = manifest.get("laplace")
+    if (
+        not isinstance(laplace, Mapping)
+        or laplace.get("repository_commit") != expected_commit
+        or laplace.get("repository_tree") != expected_tree
+    ):
+        raise PackageProductProofError(
+            "product package manifest is not bound to the checked-out source identity"
+        )
 
 
 def validate_package_receipt(
@@ -165,6 +188,21 @@ def run(command: Sequence[str], label: str) -> subprocess.CompletedProcess[str]:
     return completed
 
 
+def repository_identity(repository: Path) -> tuple[str, str]:
+    commit = run(
+        ["git", "-C", str(repository), "rev-parse", "HEAD"],
+        "repository commit identity",
+    ).stdout.strip()
+    tree = run(
+        ["git", "-C", str(repository), "rev-parse", "HEAD^{tree}"],
+        "repository tree identity",
+    ).stdout.strip()
+    return (
+        require_git_object(commit, "repository commit"),
+        require_git_object(tree, "repository tree"),
+    )
+
+
 def store_receipt(store: Path, receipt: Path, durable_root: Path) -> str:
     require_physical_file(store, "native receipt-store executable")
     if not os.access(store, os.X_OK):
@@ -191,6 +229,7 @@ def prove(
 ) -> dict[str, Any]:
     repository = repository.resolve()
     require_absolute_directory(repository, "repository")
+    source_commit, source_tree = repository_identity(repository)
     require_physical_file(postgresql_publication, "PostgreSQL publication receipt")
     if not work_root.is_absolute() or work_root.exists():
         raise PackageProductProofError("proof work root must be a fresh absolute path")
@@ -223,6 +262,7 @@ def prove(
     require_physical_file(manifest_path, "product package manifest")
     manifest = load_json(manifest_path)
     validate_package_receipt(selection, receipt_with_path, manifest)
+    validate_manifest_source(manifest, source_commit, source_tree)
 
     stage_directory = Path(str(selection.get("stage_directory", "")))
     source_root = stage_directory / "root"
@@ -281,6 +321,8 @@ def prove(
     installation_blake3 = store_receipt(store, installation_receipt, durable_root)
     binding = {
         "schema": BINDING_SCHEMA,
+        "repository_commit": source_commit,
+        "repository_tree": source_tree,
         "package_id": package_id,
         "plan_sha256": require_hex(selection.get("plan_sha256"), "product plan id"),
         "package_manifest_sha256": manifest_sha,
@@ -300,6 +342,8 @@ def prove(
     result = {
         "schema": PROOF_SCHEMA,
         "phase": "composed-installed-retained",
+        "repository_commit": source_commit,
+        "repository_tree": source_tree,
         "package_id": package_id,
         "plan_sha256": selection["plan_sha256"],
         "built_new": selection.get("built_new") is True,
