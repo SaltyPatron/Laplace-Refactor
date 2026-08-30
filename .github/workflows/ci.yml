@@ -2,16 +2,9 @@ name: clean-room-ci
 
 on:
   workflow_call:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
-
-concurrency:
-  group: clean-room-ci-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   requirements:
