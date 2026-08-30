@@ -31,6 +31,7 @@ typedef struct laplace_decomposition_composition_plan_view {
     const uint32_t* atom_positions;
     const laplace_composition_operand* operands;
     const laplace_composition_request* requests;
+    const laplace_composition_operand* span_references;
     uint64_t atom_count;
     uint64_t operand_count;
     uint64_t request_count;
@@ -62,11 +63,19 @@ typedef enum laplace_decomposition_composition_status {
  * content entity and must not be wrapped around content merely to mint another
  * Merkle identity.
  *
- * root_reference is the canonical root carrier. A single Unicode position is a
- * KNOWN_ENTITY reference into atom_positions and therefore requires no composition
- * request. Composite content is a PRIOR_RESULT reference into requests/results.
- * root_result_index remains the composite-result alias and is UINT64_MAX when the
- * canonical root is already a known Tier-0 entity.
+ * span_references is parallel to the decomposition span array. Every reference
+ * names only the exact canonical content covered by that span. Equal span bytes
+ * therefore reuse one canonical reference even when their provider, kind, range,
+ * depth, media type, parentage, or other witness metadata differs. Structural
+ * witnesses retain those distinctions through the decomposition result and bind
+ * them to canonical content through this parallel reference array.
+ *
+ * root_reference is the canonical root carrier and is identical to
+ * span_references[0]. A single Unicode position is a KNOWN_ENTITY reference into
+ * atom_positions and therefore requires no composition request. Composite
+ * content is a PRIOR_RESULT reference into requests/results. root_result_index
+ * remains the composite-result alias and is UINT64_MAX when the canonical root
+ * is already a known Tier-0 entity.
  */
 LAPLACE_API laplace_decomposition_composition_status
 laplace_decomposition_composition_plan_create(
