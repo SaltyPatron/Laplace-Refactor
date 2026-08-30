@@ -450,6 +450,16 @@ laplace_tabular_source_status BuildRecursive(
             goto recursive_failure;
         }
 
+        laplace_decomposition_summary decomposition_summary{};
+        if (laplace_decomposition_summary_get(
+                decomposition, &decomposition_summary) !=
+                LAPLACE_DECOMPOSITION_OK ||
+            decomposition_summary.span_count == 0u) {
+            status = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            laplace_decomposition_result_destroy(&decomposition);
+            goto recursive_failure;
+        }
+
         if (!witness_cached) {
             status = DecompositionTrace(
                 content, decomposition, trace_fingerprint, artifact_span_count);
@@ -459,51 +469,65 @@ laplace_tabular_source_status BuildRecursive(
             }
             WitnessCacheStore(
                 cache_key, trace_fingerprint, artifact_span_count);
-        }
-
-        laplace_decomposition_composition_input composition_input{};
-        composition_input.content = &content;
-        composition_input.decomposition = decomposition;
-        composition_input.recipe_fingerprint =
-            input->profile_declaration.recipe_program_fingerprint;
-        composition_input.geometry_epoch = input->geometry_epoch;
-        composition_input.occurrence_context_fingerprint =
-            input->occurrence_context_fingerprint;
-        composition_input.source_ordinal_base =
-            static_cast<std::uint64_t>(created->requests.size());
-
-        laplace_decomposition_composition_plan* composition_plan = nullptr;
-        const auto composition_status =
-            laplace_decomposition_composition_plan_create(
-                &composition_input, &composition_plan);
-        if (composition_status != LAPLACE_DECOMPOSITION_COMPOSITION_OK ||
-            composition_plan == nullptr) {
-            status = DecompositionCompositionStatus(composition_status);
-            laplace_decomposition_composition_plan_destroy(&composition_plan);
+        } else if (artifact_span_count != decomposition_summary.span_count) {
+            status = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
             laplace_decomposition_result_destroy(&decomposition);
             goto recursive_failure;
         }
 
-        laplace_decomposition_composition_plan_view composition_view{};
-        const auto view_status = laplace_decomposition_composition_plan_view_get(
-            composition_plan, &composition_view);
-        if (view_status != LAPLACE_DECOMPOSITION_COMPOSITION_OK) {
-            status = DecompositionCompositionStatus(view_status);
-            laplace_decomposition_composition_plan_destroy(&composition_plan);
-            laplace_decomposition_result_destroy(&decomposition);
-            goto recursive_failure;
-        }
+        if (decomposition_summary.span_count > 1u) {
+            const std::uint64_t insertion_index =
+                created->view.root_result_index;
+            laplace_decomposition_composition_input composition_input{};
+            composition_input.content = &content;
+            composition_input.decomposition = decomposition;
+            composition_input.recipe_fingerprint =
+                input->profile_declaration.recipe_program_fingerprint;
+            composition_input.geometry_epoch = input->geometry_epoch;
+            composition_input.occurrence_context_fingerprint =
+                input->occurrence_context_fingerprint;
+            composition_input.source_ordinal_base = insertion_index;
 
-        status = laplace::internal::MergeRecursiveCanonicalComposition(
-            created->atom_positions,
-            created->operands,
-            created->requests,
-            composition_view);
-        laplace_decomposition_composition_plan_destroy(&composition_plan);
+            laplace_decomposition_composition_plan* composition_plan = nullptr;
+            const auto composition_status =
+                laplace_decomposition_composition_plan_create(
+                    &composition_input, &composition_plan);
+            if (composition_status != LAPLACE_DECOMPOSITION_COMPOSITION_OK ||
+                composition_plan == nullptr) {
+                status = DecompositionCompositionStatus(composition_status);
+                laplace_decomposition_composition_plan_destroy(&composition_plan);
+                laplace_decomposition_result_destroy(&decomposition);
+                goto recursive_failure;
+            }
+
+            laplace_decomposition_composition_plan_view composition_view{};
+            const auto view_status =
+                laplace_decomposition_composition_plan_view_get(
+                    composition_plan, &composition_view);
+            if (view_status != LAPLACE_DECOMPOSITION_COMPOSITION_OK) {
+                status = DecompositionCompositionStatus(view_status);
+                laplace_decomposition_composition_plan_destroy(&composition_plan);
+                laplace_decomposition_result_destroy(&decomposition);
+                goto recursive_failure;
+            }
+
+            status = laplace::internal::MergeRecursiveCanonicalComposition(
+                created->atom_positions,
+                created->operands,
+                created->requests,
+                insertion_index,
+                composition_view);
+            if (status == LAPLACE_TABULAR_SOURCE_OK) {
+                created->view.root_result_index =
+                    insertion_index + composition_view.request_count;
+            }
+            laplace_decomposition_composition_plan_destroy(&composition_plan);
+            if (status != LAPLACE_TABULAR_SOURCE_OK) {
+                laplace_decomposition_result_destroy(&decomposition);
+                goto recursive_failure;
+            }
+        }
         laplace_decomposition_result_destroy(&decomposition);
-        if (status != LAPLACE_TABULAR_SOURCE_OK) {
-            goto recursive_failure;
-        }
 
         if (!RecursiveAdd(
                 recursive_span_count,
