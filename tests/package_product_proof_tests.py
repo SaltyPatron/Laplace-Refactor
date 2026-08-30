@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -53,6 +54,17 @@ class PackageProductProofTests(unittest.TestCase):
             installation, "installation_receipt_sha256"
         )
         return installation, manifest, manifest_sha, source_root, installation_root
+
+    def receipt_store_fixture(self, root: Path) -> tuple[Path, Path, Path, bytes]:
+        store = root / "laplace_receipt_store"
+        store.write_bytes(b"native-store-placeholder")
+        store.chmod(0o700)
+        receipt = root / "receipt.json"
+        receipt_bytes = b'{"schema":"laplace.test-receipt/v1"}\n'
+        receipt.write_bytes(receipt_bytes)
+        durable_root = root / "durable"
+        durable_root.mkdir()
+        return store, receipt, durable_root, receipt_bytes
 
     def test_installation_receipt_accepts_exact_verified_state(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -133,6 +145,76 @@ class PackageProductProofTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(proof.PackageProductProofError, "Git object"):
             proof.validate_manifest_source(manifest, "a" * 39, "b" * 40)
+
+    def test_store_receipt_fetches_exact_published_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store, receipt, durable_root, receipt_bytes = self.receipt_store_fixture(
+                Path(temporary)
+            )
+            digest = "e" * 64
+            with mock.patch.object(proof, "run") as run, mock.patch.object(
+                proof, "run_bytes"
+            ) as run_bytes:
+                run.side_effect = [
+                    mock.Mock(stdout=f"{digest}\n"),
+                    mock.Mock(stdout=""),
+                ]
+                run_bytes.return_value = mock.Mock(stdout=receipt_bytes)
+                self.assertEqual(
+                    proof.store_receipt(store, receipt, durable_root), digest
+                )
+
+            self.assertEqual(run.call_count, 2)
+            self.assertEqual(
+                run.call_args_list[0].args[0],
+                [
+                    str(store),
+                    "put",
+                    "--receipt",
+                    str(receipt),
+                    "--root",
+                    str(durable_root),
+                ],
+            )
+            self.assertEqual(
+                run.call_args_list[1].args[0],
+                [
+                    str(store),
+                    "verify",
+                    "--digest",
+                    digest,
+                    "--root",
+                    str(durable_root),
+                ],
+            )
+            self.assertEqual(
+                run_bytes.call_args.args[0],
+                [
+                    str(store),
+                    "get",
+                    "--digest",
+                    digest,
+                    "--root",
+                    str(durable_root),
+                ],
+            )
+
+    def test_store_receipt_rejects_successful_wrong_byte_retrieval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store, receipt, durable_root, _ = self.receipt_store_fixture(Path(temporary))
+            digest = "f" * 64
+            with mock.patch.object(proof, "run") as run, mock.patch.object(
+                proof, "run_bytes"
+            ) as run_bytes:
+                run.side_effect = [
+                    mock.Mock(stdout=f"{digest}\n"),
+                    mock.Mock(stdout=""),
+                ]
+                run_bytes.return_value = mock.Mock(stdout=b"wrong retained bytes\n")
+                with self.assertRaisesRegex(
+                    proof.PackageProductProofError, "retrieval differs"
+                ):
+                    proof.store_receipt(store, receipt, durable_root)
 
     def test_binding_canonicalization_is_stable(self) -> None:
         value = {"b": 2, "a": 1}
