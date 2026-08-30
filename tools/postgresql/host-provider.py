@@ -132,7 +132,7 @@ def observe(roots: Sequence[Path], files: Sequence[Path]) -> dict[str, Any]:
     return payload
 
 
-def verify(receipt: dict[str, Any]) -> dict[str, Any]:
+def verify_identity(receipt: dict[str, Any]) -> None:
     if receipt.get("schema") != SCHEMA:
         raise ProviderError("host provider receipt schema differs")
     expected_id = receipt.get("provider_id")
@@ -140,6 +140,25 @@ def verify(receipt: dict[str, Any]) -> dict[str, Any]:
     identity.pop("provider_id", None)
     if expected_id != hashlib.sha256(canonical_bytes(identity)).hexdigest():
         raise ProviderError("host provider receipt identity differs")
+
+
+def verify_inputs(receipt: dict[str, Any]) -> dict[str, Any]:
+    """Replay the exact receipted provider bytes without requalifying the historical host."""
+    verify_identity(receipt)
+    current = observe(
+        [Path(item["path"]) for item in receipt.get("roots", [])],
+        [Path(item["path"]) for item in receipt.get("files", [])],
+    )
+    if (
+        current.get("roots") != receipt.get("roots")
+        or current.get("files") != receipt.get("files")
+    ):
+        raise ProviderError("host build provider bytes differ")
+    return receipt
+
+
+def verify(receipt: dict[str, Any]) -> dict[str, Any]:
+    verify_identity(receipt)
     current = observe(
         [Path(item["path"]) for item in receipt.get("roots", [])],
         [Path(item["path"]) for item in receipt.get("files", [])],
@@ -158,14 +177,17 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     observe_parser.add_argument("--output-root", required=True)
     verify_parser = subparsers.add_parser("verify")
     verify_parser.add_argument("--receipt", required=True)
+    verify_inputs_parser = subparsers.add_parser("verify-inputs")
+    verify_inputs_parser.add_argument("--receipt", required=True)
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
-    if args.command == "verify":
+    if args.command in {"verify", "verify-inputs"}:
         receipt_path = Path(args.receipt).resolve()
-        verified = verify(read_receipt(receipt_path))
+        receipt = read_receipt(receipt_path)
+        verified = verify(receipt) if args.command == "verify" else verify_inputs(receipt)
         print(json.dumps(verified, sort_keys=True))
         return 0
     roots = [Path(item).resolve() for item in args.root]

@@ -72,7 +72,8 @@
   },
   "host_build_provider": {
     "receipt_schema": "laplace.postgresql-host-build-provider/v1",
-    "verifier": "tools/postgresql/host-provider.py",
+    "verifier": "tools/product/published-host-provider.py",
+    "published_receipt_replay": "provider-bytes-only-historical-host-retained",
     "sandbox_executable": "/usr/bin/bwrap",
     "additional_receipted_files": [
       "/var/lib/dpkg/status"
