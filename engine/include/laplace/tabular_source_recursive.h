@@ -13,6 +13,14 @@ extern "C" {
  * while recursively dispatching every admitted artifact through the common
  * decomposition provider set before composition deposition.
  *
+ * Structural decomposition spans are lowered to canonical content references
+ * and inserted into the same working set before the existing final source
+ * root. Provider, parser, span, media-type, and occurrence witness metadata do
+ * not become canonical composition children, and the final source root is not
+ * replaced or wrapped by decomposition testimony. Artifacts for which no
+ * provider exposes structural child spans retain only their existing canonical
+ * source representation.
+ *
  * The verified Unicode bundle supplies UAX #29 authority for this transitional
  * path. It does not weaken or replace the exact artifact/reconstruction checks
  * performed by the underlying tabular recipe.
