@@ -1,0 +1,51 @@
+CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness (
+    source_profile_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_profile(profile_id)
+        DEFERRABLE INITIALLY DEFERRED,
+    artifact_index numeric(20, 0) NOT NULL
+        CHECK (artifact_index BETWEEN 0 AND 18446744073709551615),
+    span_index numeric(20, 0) NOT NULL
+        CHECK (span_index BETWEEN 0 AND 18446744073709551615),
+    parent_span_index numeric(20, 0) NOT NULL
+        CHECK (parent_span_index BETWEEN 0 AND 18446744073709551615),
+    trace_fingerprint @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+    provider_fingerprint @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+    canonical_entity_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.entity(entity_id),
+    byte_start numeric(20, 0) NOT NULL
+        CHECK (byte_start BETWEEN 0 AND 18446744073709551615),
+    byte_end numeric(20, 0) NOT NULL
+        CHECK (byte_end BETWEEN 1 AND 18446744073709551615),
+    kind numeric(20, 0) NOT NULL
+        CHECK (kind BETWEEN 0 AND 18446744073709551615),
+    media_type bytea NOT NULL,
+    depth integer NOT NULL CHECK (depth >= 0),
+    flags integer NOT NULL CHECK (flags >= 0),
+    CHECK (byte_start < byte_end),
+    CHECK (
+        parent_span_index = 18446744073709551615 OR
+        parent_span_index < span_index),
+    PRIMARY KEY (source_profile_id, artifact_index, span_index)
+);
+
+CREATE INDEX source_structural_witness_entity_idx
+    ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness
+    (canonical_entity_id, source_profile_id, artifact_index, span_index);
+
+CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt (
+    receipt_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 PRIMARY KEY,
+    source_profile_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_profile(profile_id)
+        DEFERRABLE INITIALLY DEFERRED,
+    composition_working_set_receipt @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_execution_receipt(working_set_receipt),
+    witness_fingerprint @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+    witness_count numeric(20, 0) NOT NULL CHECK (witness_count > 0),
+    version integer NOT NULL CHECK (version = 1),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    UNIQUE (source_profile_id, composition_working_set_receipt)
+);
+
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness FROM PUBLIC;
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt FROM PUBLIC;
