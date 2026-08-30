@@ -81,3 +81,5 @@ add_test(
 set_tests_properties(
     composition.mutation-request-count-memory-law-detected PROPERTIES
     LABELS "implementation;composition;identity;physicality;occurrence;resource;evidence;mutation")
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/tests/source_structural_witness.cmake")
