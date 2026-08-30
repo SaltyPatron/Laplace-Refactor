@@ -1,0 +1,204 @@
+name: occurrence-attestation-semantic-repair
+
+on:
+  push:
+    branches:
+      - feat/occurrence-attestation-separation
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - postgres-18
+      - dotnet-10
+      - avx2
+    timeout-minutes: 120
+    env:
+      PATH: /opt/laplace/pgsql-18/bin:/usr/local/bin:/usr/bin:/bin
+      LAPLACE_PG_CONFIG: /opt/laplace/pgsql-18/bin/pg_config
+      LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data
+      REPAIR_BASE_SHA: 2e9e90ad0448bd17dd914514582d7d655f353e67
+      REPAIR_BRANCH: feat/occurrence-attestation-separation
+      PRODUCT_BRANCH: feat/product-path-gate
+      PATCH_AUTHORITY_SHA: fb1b8fd89047eb8df041e2ef87fee079f10eab91
+      OLD_UNICODE_PG_FINGERPRINT: a820581b0e1c36e16a7394ae4fd3bdce1d1910faccc97cbb69838e0876106dc4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Prove current product ancestry before editing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$REPAIR_BASE_SHA")" = "$REPAIR_BASE_SHA"
+          test "$(git rev-list --count "$REPAIR_BASE_SHA"..HEAD)" = 1
+          current_product_head=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/$GH_REPO/branches/$PRODUCT_BRANCH" | jq -r '.commit.sha')
+          test "$current_product_head" = "$REPAIR_BASE_SHA"
+
+      - name: Verify exact runner dependencies and BLAKE3 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test -x "$LAPLACE_PG_CONFIG"
+          test "$($LAPLACE_PG_CONFIG --version | awk '{print $2}' | cut -d. -f1)" = 18
+          python3 tools/dependencies/verify-installed-lock.py --verify-files
+          lock_sha=$(sha256sum dependencies/lock.json | awk '{print $1}')
+          dependency_root="/opt/laplace/external/source-generations/$lock_sha"
+          test -d "$dependency_root"
+          ./tools/dependencies/verify-lock.sh "$dependency_root"
+          icx=$(jq -r '.toolchain.c_compiler' contracts/postgresql-build.json)
+          icpx=$(jq -r '.toolchain.cxx_compiler' contracts/postgresql-build.json)
+          test -x "$icx"
+          test -x "$icpx"
+          printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
+          printf 'LAPLACE_ICX=%s\n' "$icx" >> "$GITHUB_ENV"
+          printf 'LAPLACE_ICPX=%s\n' "$icpx" >> "$GITHUB_ENV"
+
+          cat > "$RUNNER_TEMP/laplace-b3.c" <<'EOF'
+          #include <stdint.h>
+          #include <stdio.h>
+          #include <string.h>
+          #include "blake3.h"
+          int main(int argc, char** argv) {
+              blake3_hasher hasher;
+              uint8_t out[32];
+              size_t index;
+              if (argc != 2) return 2;
+              blake3_hasher_init(&hasher);
+              blake3_hasher_update(&hasher, argv[1], strlen(argv[1]));
+              blake3_hasher_finalize(&hasher, out, sizeof(out));
+              for (index = 0; index < sizeof(out); ++index) printf("%02x", out[index]);
+              putchar('\n');
+              return 0;
+          }
+          EOF
+          "$icx" -std=c11 -O2 \
+            -DBLAKE3_NO_SSE2 -DBLAKE3_NO_SSE41 -DBLAKE3_NO_AVX2 -DBLAKE3_NO_AVX512 \
+            -I"$dependency_root/blake3/c" \
+            "$RUNNER_TEMP/laplace-b3.c" \
+            "$dependency_root/blake3/c/blake3.c" \
+            "$dependency_root/blake3/c/blake3_dispatch.c" \
+            "$dependency_root/blake3/c/blake3_portable.c" \
+            -o "$RUNNER_TEMP/laplace-b3"
+          observed_old=$("$RUNNER_TEMP/laplace-b3" laplace-unicode-postgresql-sink-v5)
+          test "$observed_old" = "$OLD_UNICODE_PG_FINGERPRINT"
+          new_fingerprint=$("$RUNNER_TEMP/laplace-b3" laplace-unicode-postgresql-sink-v6)
+          test "${#new_fingerprint}" = 64
+          printf 'NEW_UNICODE_PG_FINGERPRINT=%s\n' "$new_fingerprint" >> "$GITHUB_ENV"
+
+      - name: Recover immutable asserted transformation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch -q origin "$PATCH_AUTHORITY_SHA" || true
+          git show "$PATCH_AUTHORITY_SHA:.github/workflows/occurrence-attestation-semantic-repair.yml" \
+            > "$RUNNER_TEMP/semantic-authority.yml"
+          python3 - "$RUNNER_TEMP/semantic-authority.yml" "$RUNNER_TEMP/semantic-repair.py" <<'PY'
+          from pathlib import Path
+          import sys
+          import textwrap
+
+          source = Path(sys.argv[1]).read_text(encoding='utf-8')
+          marker = "          python3 <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY", start)
+          script = textwrap.dedent(source[start:end])
+          if "Persistence v3: occurrence is observed use" not in script:
+              raise SystemExit("semantic repair authority marker missing")
+          Path(sys.argv[2]).write_text(script + "\n", encoding='utf-8')
+          PY
+          python3 "$RUNNER_TEMP/semantic-repair.py"
+          git diff --check
+          git diff --stat
+
+      - name: Acquire exact source fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "$LAPLACE_SOURCE_ESTATE_ROOT"
+          unicode_root="$LAPLACE_SOURCE_ESTATE_ROOT/UCD/Public/UCD/latest"
+          test -d "$unicode_root"
+          controlled_source_root="$RUNNER_TEMP/laplace-sources"
+          iso_fixture="$controlled_source_root/iso-639-3-20260415"
+          cili_fixture="$controlled_source_root/cili-pwn-mappings-20240611"
+          python3 tools/sources/acquire-tabular-source.py \
+            --profile contracts/sources/iso-639-3-20260415.json \
+            --destination "$iso_fixture"
+          python3 tools/sources/acquire-tabular-source.py \
+            --profile contracts/sources/cili-pwn-mappings-20240611.json \
+            --destination "$cili_fixture"
+          printf 'LAPLACE_UNICODE_SOURCE_ROOT=%s\n' "$unicode_root" >> "$GITHUB_ENV"
+          printf 'LAPLACE_ISO_639_SOURCE_ROOT=%s\n' "$iso_fixture" >> "$GITHUB_ENV"
+          printf 'LAPLACE_CILI_SOURCE_ROOT=%s\n' "$cili_fixture" >> "$GITHUB_ENV"
+
+      - name: Configure exact custom stack outside repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_directory="$RUNNER_TEMP/laplace-output/occurrence-semantic-repair"
+          c_flags=$(jq -r '.build.c_flags | join(" ")' contracts/postgresql-build.json)
+          cxx_flags=$(jq -r '.build.cxx_flags | join(" ")' contracts/postgresql-build.json)
+          linker_flags=$(jq -r '.build.linker_flags | join(" ")' contracts/postgresql-build.json)
+          cmake -S . -B "$build_directory" -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER="$LAPLACE_ICX" \
+            -DCMAKE_CXX_COMPILER="$LAPLACE_ICPX" \
+            -DCMAKE_C_FLAGS_RELWITHDEBINFO="$c_flags" \
+            -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="$cxx_flags" \
+            -DCMAKE_EXE_LINKER_FLAGS="$linker_flags" \
+            -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
+            -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
+            -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
+            -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
+            -DLAPLACE_TREE_SITTER_SOURCE="$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            -DLAPLACE_SOURCE_ESTATE_ROOT="$LAPLACE_SOURCE_ESTATE_ROOT" \
+            -DLAPLACE_UNICODE_SOURCE_ROOT="$LAPLACE_UNICODE_SOURCE_ROOT" \
+            -DLAPLACE_ISO_639_SOURCE_ROOT="$LAPLACE_ISO_639_SOURCE_ROOT" \
+            -DLAPLACE_CILI_SOURCE_ROOT="$LAPLACE_CILI_SOURCE_ROOT" \
+            -DLAPLACE_ENABLE_DOTNET_BINDINGS=ON \
+            -DLAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER=ON \
+            -DLAPLACE_PG_CONFIG="$LAPLACE_PG_CONFIG"
+          printf 'LAPLACE_REPAIR_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
+
+      - name: Build complete native PostgreSQL and managed product surfaces
+        run: cmake --build "$LAPLACE_REPAIR_BUILD_DIRECTORY" --parallel 6
+
+      - name: Execute complete implementation test suite
+        run: ctest --test-dir "$LAPLACE_REPAIR_BUILD_DIRECTORY" --output-on-failure
+
+      - name: Verify registry after semantic repair
+        run: ./tools/tests/verify-registry.sh "$LAPLACE_REPAIR_BUILD_DIRECTORY" custom-stack
+
+      - name: Publish one clean semantic repair commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$REPAIR_BASE_SHA")" = "$REPAIR_BASE_SHA"
+          git merge-base --is-ancestor "$REPAIR_BASE_SHA" HEAD
+          test "$(git rev-list --count "$REPAIR_BASE_SHA"..HEAD)" = 1
+          rm .github/workflows/occurrence-attestation-semantic-repair.yml
+          git add -A
+          git diff --cached --check
+          git reset --soft "$REPAIR_BASE_SHA"
+          test -z "$(git diff --cached --name-only | grep '^.github/workflows/occurrence-attestation-semantic-repair.yml$' || true)"
+          git config user.name SaltyPatron
+          git config user.email thesaltypatron@gmail.com
+          git commit -m "Separate occurrence from testimony persistence" \
+            -m "Replace the conflated persistence attestation family with an explicit occurrence record and durable occurrence table. Keep attributable claims in evidence_testimony, point evidence lineage at occurrence, migrate composition and Unicode root membership to occurrence identity, and fail closed on the old v2 attestation-kind tail. Promote the persistence contract to v3 and rebind the Unicode PostgreSQL authority fingerprint to the corrected semantic law."
+          git push --force-with-lease origin "HEAD:$REPAIR_BRANCH"
