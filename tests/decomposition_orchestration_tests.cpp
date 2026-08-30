@@ -1,4 +1,5 @@
 #include "laplace/decomposition.h"
+#include "laplace/decomposition_composition.h"
 #include "laplace/decomposition_delimited.h"
 
 #include <gtest/gtest.h>
@@ -6,11 +7,14 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string_view>
+#include <vector>
 
 namespace {
 
 constexpr std::uint64_t EmbeddedKind = UINT64_C(0x454d424544444544);
+constexpr std::uint64_t AlternateEmbeddedKind = UINT64_C(0x454d424544444545);
 constexpr std::uint64_t NestedKind = UINT64_C(0x4e45535445440001);
 constexpr std::string_view HtmlMedia{"text/html"};
 constexpr std::string_view JavascriptMedia{"application/javascript"};
@@ -22,6 +26,12 @@ laplace_digest256 Fingerprint(const std::uint8_t marker) {
     return digest;
 }
 
+bool DigestEquals(
+    const laplace_digest256& left,
+    const laplace_digest256& right) {
+    return std::memcmp(left.bytes, right.bytes, sizeof(left.bytes)) == 0;
+}
+
 bool MediaEquals(
     const laplace_decomposition_content* content,
     const std::string_view expected) {
@@ -31,6 +41,7 @@ bool MediaEquals(
 }
 
 struct RootProviderState {
+    std::uint64_t emitted_kind{EmbeddedKind};
     std::uint32_t emitted_flags{};
     std::uint32_t apply_count{};
 };
@@ -65,7 +76,7 @@ laplace_decomposition_status RootApply(
         emit_state,
         span->byte_start,
         span->byte_end,
-        EmbeddedKind,
+        state.emitted_kind,
         state.emitted_flags) == 0
         ? LAPLACE_DECOMPOSITION_OK
         : LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
@@ -126,7 +137,7 @@ laplace_decomposition_status ResolveEmbeddedMedia(
     if (media_type == nullptr || media_type_byte_count == nullptr) {
         return LAPLACE_DECOMPOSITION_INVALID_ARGUMENT;
     }
-    if (child_kind == EmbeddedKind) {
+    if (child_kind == EmbeddedKind || child_kind == AlternateEmbeddedKind) {
         *media_type = JavascriptMedia.data();
         *media_type_byte_count = JavascriptMedia.size();
     } else {
@@ -172,6 +183,73 @@ struct Fixture {
         return input;
     }
 };
+
+struct PlanSnapshot {
+    laplace_digest256 trace_fingerprint{};
+    std::vector<std::uint32_t> atom_positions;
+    std::vector<laplace_composition_operand> operands;
+    std::vector<laplace_composition_request> requests;
+    std::uint64_t span_count{};
+    std::uint64_t root_result_index{};
+};
+
+std::optional<PlanSnapshot> SnapshotPlan(Fixture& fixture) {
+    const auto decomposition_input = fixture.Input();
+    laplace_decomposition_result* decomposition = nullptr;
+    if (laplace_decomposition_run_with_media_resolver(
+            &decomposition_input,
+            ResolveEmbeddedMedia,
+            nullptr,
+            &decomposition) != LAPLACE_DECOMPOSITION_OK ||
+        decomposition == nullptr) {
+        ADD_FAILURE() << "decomposition did not produce a result";
+        return std::nullopt;
+    }
+
+    laplace_decomposition_composition_input composition_input{};
+    composition_input.content = &decomposition_input.content;
+    composition_input.decomposition = decomposition;
+    composition_input.recipe_fingerprint = Fingerprint(0x44u);
+    composition_input.geometry_epoch = Fingerprint(0x55u);
+    composition_input.occurrence_context_fingerprint = Fingerprint(0x66u);
+    composition_input.source_ordinal_base = 100u;
+
+    laplace_decomposition_composition_plan* plan = nullptr;
+    if (laplace_decomposition_composition_plan_create(
+            &composition_input, &plan) != LAPLACE_DECOMPOSITION_COMPOSITION_OK ||
+        plan == nullptr) {
+        ADD_FAILURE() << "decomposition composition plan was not created";
+        laplace_decomposition_result_destroy(&decomposition);
+        return std::nullopt;
+    }
+
+    laplace_decomposition_composition_plan_view view{};
+    if (laplace_decomposition_composition_plan_view_get(plan, &view) !=
+        LAPLACE_DECOMPOSITION_COMPOSITION_OK) {
+        ADD_FAILURE() << "decomposition composition plan view was not available";
+        laplace_decomposition_composition_plan_destroy(&plan);
+        laplace_decomposition_result_destroy(&decomposition);
+        return std::nullopt;
+    }
+
+    PlanSnapshot snapshot{};
+    snapshot.trace_fingerprint = view.trace_fingerprint;
+    snapshot.atom_positions.assign(
+        view.atom_positions,
+        view.atom_positions + static_cast<std::size_t>(view.atom_count));
+    snapshot.operands.assign(
+        view.operands,
+        view.operands + static_cast<std::size_t>(view.operand_count));
+    snapshot.requests.assign(
+        view.requests,
+        view.requests + static_cast<std::size_t>(view.request_count));
+    snapshot.span_count = view.span_count;
+    snapshot.root_result_index = view.root_result_index;
+
+    laplace_decomposition_composition_plan_destroy(&plan);
+    laplace_decomposition_result_destroy(&decomposition);
+    return snapshot;
+}
 
 TEST(DecompositionOrchestration, RetypedRedispatchPreservesGrammarEligibility) {
     Fixture fixture(
@@ -310,6 +388,60 @@ TEST(DecompositionOrchestration, DelimitedRowsAndFieldsAreTerminalWitnesses) {
 
     laplace_decomposition_result_destroy(&result);
     EXPECT_EQ(result, nullptr);
+}
+
+TEST(DecompositionComposition, CanonicalRootExcludesTraceWitnessMetadata) {
+    constexpr std::uint32_t child_flags =
+        LAPLACE_DECOMPOSITION_SPAN_REDISPATCH |
+        LAPLACE_DECOMPOSITION_SPAN_TEXT |
+        LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT;
+    Fixture first(child_flags);
+    Fixture second(child_flags);
+    second.providers[0].provider_fingerprint = Fingerprint(0x77u);
+    second.root_state.emitted_kind = AlternateEmbeddedKind;
+
+    const auto first_plan = SnapshotPlan(first);
+    const auto second_plan = SnapshotPlan(second);
+    ASSERT_TRUE(first_plan.has_value());
+    ASSERT_TRUE(second_plan.has_value());
+
+    EXPECT_FALSE(DigestEquals(
+        first_plan->trace_fingerprint,
+        second_plan->trace_fingerprint));
+    EXPECT_EQ(first_plan->span_count, second_plan->span_count);
+    EXPECT_EQ(first_plan->atom_positions, second_plan->atom_positions);
+    ASSERT_EQ(first_plan->atom_positions.size(), 3u);
+    EXPECT_EQ(first_plan->atom_positions[0], static_cast<std::uint32_t>('x'));
+    EXPECT_EQ(first_plan->atom_positions[1], static_cast<std::uint32_t>('y'));
+    EXPECT_EQ(first_plan->atom_positions[2], static_cast<std::uint32_t>('z'));
+
+    ASSERT_EQ(first_plan->requests.size(), 1u);
+    ASSERT_EQ(second_plan->requests.size(), 1u);
+    EXPECT_EQ(first_plan->root_result_index, 0u);
+    EXPECT_EQ(second_plan->root_result_index, 0u);
+    EXPECT_EQ(first_plan->requests[0].first_operand, 0u);
+    EXPECT_EQ(first_plan->requests[0].operand_count, 3u);
+    EXPECT_EQ(second_plan->requests[0].first_operand, 0u);
+    EXPECT_EQ(second_plan->requests[0].operand_count, 3u);
+
+    ASSERT_EQ(first_plan->operands.size(), 3u);
+    ASSERT_EQ(second_plan->operands.size(), 3u);
+    for (std::size_t index = 0u; index < first_plan->operands.size(); ++index) {
+        const auto& left = first_plan->operands[index];
+        const auto& right = second_plan->operands[index];
+        EXPECT_EQ(left.reference_index, index);
+        EXPECT_EQ(left.reference_index, right.reference_index);
+        EXPECT_EQ(left.multiplicity, 1u);
+        EXPECT_EQ(left.multiplicity, right.multiplicity);
+        EXPECT_EQ(left.relationship_metadata, 0u);
+        EXPECT_EQ(left.relationship_metadata, right.relationship_metadata);
+        EXPECT_EQ(
+            left.reference_kind,
+            static_cast<std::uint32_t>(LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY));
+        EXPECT_EQ(left.reference_kind, right.reference_kind);
+        EXPECT_EQ(left.flags, 0u);
+        EXPECT_EQ(left.flags, right.flags);
+    }
 }
 
 }  // namespace
