@@ -117,7 +117,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          receipt="$LAPLACE_CI_BUILD_DIRECTORY/receipts/unicode-perfcache-hot.json"
+          receipt="${LAPLACE_CI_BUILD_DIRECTORY:-$RUNNER_TEMP/laplace-output/postgresql-native}/receipts/unicode-perfcache-hot.json"
           if [[ -f "$receipt" ]]; then
             {
               echo '## Unicode perfcache hot-lookup receipt'
