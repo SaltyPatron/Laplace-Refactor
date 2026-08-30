@@ -188,6 +188,23 @@ def run(command: Sequence[str], label: str) -> subprocess.CompletedProcess[str]:
     return completed
 
 
+def run_bytes(command: Sequence[str], label: str) -> subprocess.CompletedProcess[bytes]:
+    completed = subprocess.run(
+        list(command),
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if completed.returncode != 0:
+        detail = (
+            completed.stderr.decode("utf-8", errors="replace").strip()
+            or completed.stdout.decode("utf-8", errors="replace").strip()
+            or f"exit {completed.returncode}"
+        )
+        raise PackageProductProofError(f"{label} failed: {detail}")
+    return completed
+
+
 def repository_identity(repository: Path) -> tuple[str, str]:
     commit = run(
         ["git", "-C", str(repository), "rev-parse", "HEAD"],
@@ -216,8 +233,16 @@ def store_receipt(store: Path, receipt: Path, durable_root: Path) -> str:
     require_hex(digest, "durable receipt BLAKE3")
     run(
         [str(store), "verify", "--digest", digest, "--root", str(durable_root)],
-        "durable BLAKE3 receipt replay",
+        "durable BLAKE3 receipt verification",
     )
+    replay = run_bytes(
+        [str(store), "get", "--digest", digest, "--root", str(durable_root)],
+        "durable BLAKE3 receipt retrieval",
+    )
+    if replay.stdout != receipt.read_bytes():
+        raise PackageProductProofError(
+            "durable BLAKE3 receipt retrieval differs from published receipt bytes"
+        )
     return digest
 
 
