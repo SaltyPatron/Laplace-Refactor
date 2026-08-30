@@ -1,0 +1,26 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "DecompositionOrchestration.RetypedRedispatchPreservesGrammarEligibility",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "recursive decomposition preserves grammar-input authority on exact child spans",
+        "recipe-owned media retyping redispatches the exact bytes under the nested grammar authority",
+        "nested provider execution remains typed and explicit rather than inferred from filenames or source identity"
+      ]
+    },
+    {
+      "ctest_name": "DecompositionOrchestration.TextOnlyRedispatchCannotMasqueradeAsGrammarInput",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "text segmentation alone cannot silently promote a child span into grammar input",
+        "media-type retyping does not override the explicit grammar-input applicability flag"
+      ]
+    }
+  ]
+}
