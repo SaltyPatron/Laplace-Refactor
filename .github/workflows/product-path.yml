@@ -166,3 +166,31 @@ jobs:
             echo "PostgreSQL-product proof: $POSTGRESQL_RESULT"
             echo "Package-product proof: $PACKAGE_RESULT"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Migration aliases for the three currently protected legacy contexts. They do not
+  # independently prove anything: each can green only after the authoritative
+  # product-path gate has accepted every evidence surface selected for this change.
+  # Once main protection requires `product-path`, these aliases can be removed.
+  legacy-requirements:
+    name: requirements
+    needs: product-path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: test "${{ needs.product-path.result }}" = success
+
+  legacy-native-dev:
+    name: native (linux-dev)
+    needs: product-path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: test "${{ needs.product-path.result }}" = success
+
+  legacy-native-sanitize:
+    name: native (linux-sanitize)
+    needs: product-path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: test "${{ needs.product-path.result }}" = success
