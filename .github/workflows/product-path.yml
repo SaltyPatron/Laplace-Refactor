@@ -2,6 +2,9 @@ name: product-path
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -34,10 +37,14 @@ jobs:
         id: classify
         shell: bash
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          test -n "$BASE_SHA"
+          test -n "$HEAD_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA^{commit}"
           changed="$RUNNER_TEMP/laplace-product-path-changed.status"
           result="$RUNNER_TEMP/laplace-product-path.json"
           git diff --name-status -z -M --diff-filter=ACMRTD "$BASE_SHA" "$HEAD_SHA" > "$changed"
@@ -69,18 +76,38 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   custom-stack-proof:
-    needs: classify
-    if: needs.classify.outputs.requires_custom_stack == 'true'
+    needs:
+      - classify
+      - hosted-proof
+    if: >-
+      needs.classify.outputs.requires_custom_stack == 'true' &&
+      needs.hosted-proof.result == 'success'
     uses: ./.github/workflows/custom-stack.yml
 
   postgresql-product-proof:
-    needs: classify
-    if: needs.classify.outputs.requires_postgresql_product == 'true'
+    needs:
+      - classify
+      - hosted-proof
+      - custom-stack-proof
+    if: >-
+      always() &&
+      needs.classify.outputs.requires_postgresql_product == 'true' &&
+      needs.hosted-proof.result == 'success' &&
+      (needs.custom-stack-proof.result == 'success' || needs.custom-stack-proof.result == 'skipped')
     uses: ./.github/workflows/postgresql-product.yml
 
   package-product-proof:
-    needs: classify
-    if: needs.classify.outputs.requires_package_product == 'true'
+    needs:
+      - classify
+      - hosted-proof
+      - custom-stack-proof
+      - postgresql-product-proof
+    if: >-
+      always() &&
+      needs.classify.outputs.requires_package_product == 'true' &&
+      needs.hosted-proof.result == 'success' &&
+      (needs.custom-stack-proof.result == 'success' || needs.custom-stack-proof.result == 'skipped') &&
+      (needs.postgresql-product-proof.result == 'success' || needs.postgresql-product-proof.result == 'skipped')
     uses: ./.github/workflows/package-product.yml
 
   product-path:
