@@ -202,12 +202,51 @@ def read_paths(path: Path) -> list[str]:
     ]
 
 
+def read_git_name_status_z(path: Path) -> list[str]:
+    """Read a NUL-delimited git --name-status stream without losing rename sources."""
+    try:
+        payload = path.read_bytes()
+    except OSError as error:
+        raise ProductPathError(f"cannot read changed path status: {error}") from error
+    if not payload or not payload.endswith(b"\0"):
+        raise ProductPathError("changed path status is empty or not NUL terminated")
+
+    fields = payload[:-1].split(b"\0")
+    paths: list[str] = []
+    index = 0
+    while index < len(fields):
+        try:
+            status = fields[index].decode("ascii")
+        except UnicodeDecodeError as error:
+            raise ProductPathError("changed path status code is not ASCII") from error
+        index += 1
+        if not status:
+            raise ProductPathError("changed path status code is empty")
+        kind = status[0]
+        if kind not in {"A", "M", "D", "R"}:
+            raise ProductPathError(f"unsupported changed path status: {status!r}")
+
+        field_count = 2 if kind == "R" else 1
+        if index + field_count > len(fields):
+            raise ProductPathError(f"changed path status {status!r} is truncated")
+        raw_paths = fields[index : index + field_count]
+        index += field_count
+        for raw_path in raw_paths:
+            try:
+                paths.append(raw_path.decode("utf-8"))
+            except UnicodeDecodeError as error:
+                raise ProductPathError("changed repository path is not UTF-8") from error
+    return paths
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     classify_parser = subparsers.add_parser("classify")
     classify_parser.add_argument("--contract", default="contracts/product-path.json")
-    classify_parser.add_argument("--paths-file", type=Path)
+    path_input = classify_parser.add_mutually_exclusive_group()
+    path_input.add_argument("--paths-file", type=Path)
+    path_input.add_argument("--git-name-status-z", type=Path)
     classify_parser.add_argument("--path", action="append", default=[])
     classify_parser.add_argument("--output", default="-")
     return parser.parse_args(argv)
@@ -220,6 +259,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     paths = list(arguments.path)
     if arguments.paths_file is not None:
         paths.extend(read_paths(arguments.paths_file))
+    if arguments.git_name_status_z is not None:
+        paths.extend(read_git_name_status_z(arguments.git_name_status_z))
     result = classify(load_json(Path(arguments.contract)), paths)
     payload = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if arguments.output == "-":
@@ -234,4 +275,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except ProductPathError as error:
         print(f"product-path: {error}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from error
