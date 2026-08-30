@@ -115,7 +115,47 @@ jobs:
       - name: Build native engine PostgreSQL extension and managed bindings
         run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 6
       - name: Execute complete custom-stack profile
-        run: ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" --output-on-failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/laplace-custom-stack-junit.xml"
+          printf 'LAPLACE_CUSTOM_STACK_JUNIT=%s\n' "$report" >> "$GITHUB_ENV"
+          ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" \
+            --output-on-failure \
+            --output-junit "$report"
+      - name: Retain exact custom-stack failure identity
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="${LAPLACE_CUSTOM_STACK_JUNIT:-$RUNNER_TEMP/laplace-custom-stack-junit.xml}"
+          if [[ ! -s "$report" ]]; then
+            echo 'custom-stack JUnit report was not produced' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python3 - "$report" "$GITHUB_STEP_SUMMARY" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          report, summary = sys.argv[1:]
+          root = ET.parse(report).getroot()
+          failed = []
+          for case in root.iter("testcase"):
+              failures = list(case.findall("failure")) + list(case.findall("error"))
+              if failures:
+                  failed.append((case.get("name", "<unnamed>"), case.get("time", ""), failures))
+          with open(summary, "a", encoding="utf-8") as output:
+              output.write("## Exact custom-stack failures\n")
+              if not failed:
+                  output.write("CTest failed without a testcase failure record.\n")
+              for name, elapsed, failures in failed:
+                  output.write(f"- `{name}` ({elapsed}s)\n")
+                  for failure in failures:
+                      message = (failure.get("message") or "").strip().replace("\n", " ")
+                      if message:
+                          output.write(f"  - {message[:1000]}\n")
+                  print(f"::error title=custom-stack failure::{name} ({elapsed}s)")
+          PY
       - name: Verify custom-stack registry
         run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY" custom-stack
       - name: Publish measured perfcache receipt
