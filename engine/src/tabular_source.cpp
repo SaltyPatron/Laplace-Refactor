@@ -21,12 +21,7 @@
 
 namespace recursive_admission {
 
-constexpr std::uint64_t SupplementalRoleShift = 6u;
-constexpr std::uint64_t LegacyRootRole = UINT64_C(32) << SupplementalRoleShift;
-constexpr std::uint64_t DecompositionTraceRole =
-    UINT64_C(33) << SupplementalRoleShift;
 constexpr std::uint64_t DelimitedKindBase = UINT64_C(0x5441424c00000000);
-constexpr std::uint32_t RecursiveRecipeVersion = 1u;
 
 bool RecursiveAdd(
     const std::uint64_t left,
@@ -231,43 +226,22 @@ laplace_tabular_source_status AppendRecursiveRoot(
     const laplace_tabular_source_input& input,
     const std::uint64_t legacy_root,
     const std::vector<std::uint64_t>& trace_roots) {
-    if (trace_roots.empty() || legacy_root >= plan.requests.size()) {
+    (void)input;
+    if (legacy_root >= plan.requests.size()) {
         return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
     }
-    const std::uint64_t first =
-        static_cast<std::uint64_t>(plan.operands.size());
-    plan.operands.push_back(laplace_composition_operand{
-        legacy_root,
-        1u,
-        LegacyRootRole,
-        LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT,
-        0u});
     for (const std::uint64_t trace_root : trace_roots) {
         if (trace_root >= plan.requests.size()) {
             return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
         }
-        plan.operands.push_back(laplace_composition_operand{
-            trace_root,
-            1u,
-            DecompositionTraceRole,
-            LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT,
-            0u});
     }
-    const std::uint64_t index =
-        static_cast<std::uint64_t>(plan.requests.size());
-    if (index == std::numeric_limits<std::uint64_t>::max()) {
-        return LAPLACE_TABULAR_SOURCE_OVERFLOW;
-    }
-    plan.requests.push_back(laplace_composition_request{
-        first,
-        static_cast<std::uint64_t>(trace_roots.size() + 1u),
-        index + 1u,
-        RecursiveRecipeVersion,
-        0u,
-        input.profile_declaration.recipe_program_fingerprint,
-        input.geometry_epoch,
-        input.occurrence_context_fingerprint});
-    plan.view.root_result_index = index;
+    /*
+     * Decomposition traces witness how the exact source bytes were interpreted.
+     * They are not constituents of those bytes and therefore cannot remint the
+     * source content identity.  Keep the canonical legacy content root and bind
+     * the decomposition evidence through its trace fingerprint instead.
+     */
+    plan.view.root_result_index = legacy_root;
     return LAPLACE_TABULAR_SOURCE_OK;
 }
 
