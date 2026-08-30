@@ -1,6 +1,6 @@
 {
   "schema": "laplace.product-activation-gateway-contract/v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "repository": {
     "slug": "SaltyPatron/Laplace-Refactor",
     "deployment_ref": "refs/heads/main",
@@ -64,6 +64,7 @@
     "cluster_success_phase": "activated",
     "require_active_pointer_commit": true,
     "require_restart_proof": true,
-    "allow_exact_success_replay": true
+    "allow_exact_success_replay": true,
+    "product_probe_schema": "laplace.product-activation-gateway-probe/v2"
   }
 }

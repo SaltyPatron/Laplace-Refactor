@@ -9,6 +9,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -332,6 +333,68 @@ class ProductActivationGatewayTests(unittest.TestCase):
                     root,
                     False,
                 )
+
+    def test_product_probe_binds_active_package_to_fresh_loaded_observation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-product-probe-") as temporary:
+            root = Path(temporary)
+            contract = copy.deepcopy(self.base_contract)
+            contract["product"]["cluster_activation_root"] = str(root / "cluster-activation")
+            bundle = root / ("aa" * 32)
+            (bundle / "controllers").mkdir(parents=True)
+            (bundle / "controllers/clusterctl.py").write_text("# fixture\n", encoding="utf-8")
+            (bundle / "contracts").mkdir()
+            active = root / "current"
+            active.symlink_to(f"releases/{PACKAGE_ID}")
+            cluster_contract = {
+                "package": {"active_link": str(active), "postgresql_version": "18.6"},
+                "instance": {"service": "laplace-refactor-postgresql.service"},
+            }
+            (bundle / "contracts/postgresql-cluster.json").write_text(
+                json.dumps(cluster_contract), encoding="utf-8"
+            )
+            evidence = Path(contract["product"]["cluster_activation_root"]) / PACKAGE_ID
+            evidence.mkdir(parents=True)
+            plan = evidence / "cluster-plan.json"
+            plan.write_text("{}\n", encoding="utf-8")
+            result = {
+                "schema": contract["operation"]["cluster_success_schema"],
+                "phase": contract["operation"]["cluster_success_phase"],
+                "package_id": PACKAGE_ID,
+                "restart_proven": True,
+                "active_target": f"releases/{PACKAGE_ID}",
+                "plan_sha256": "bb" * 32,
+                "cluster_plan_path": str(plan),
+            }
+            result["activation_receipt_sha256"] = activation.document_identity(
+                result, "activation_receipt_sha256"
+            )
+            (evidence / "activation-result.json").write_bytes(
+                activation.canonical_bytes(result)
+            )
+            live = {
+                "schema": "laplace.postgresql-loaded-observation/v1",
+                "source": "laplace_postgresql_loaded_probe",
+                "package_id": PACKAGE_ID,
+                "service": "laplace-refactor-postgresql.service",
+                "service_state": "active",
+                "postmaster_pid": 101,
+                "backend_pid": 202,
+                "system_identifier": "123456789",
+                "observation_sha256": "cc" * 32,
+                "probe_sql_sha256": "dd" * 32,
+                "loaded_objects": [{"path": "/opt/laplace/current/lib/laplace_pg.so", "sha256": "ee" * 32}],
+                "config_files": [{"path": "/etc/laplace/refactor/postgresql.conf", "sha256": "ff" * 32}],
+            }
+            def runner(command, **_kwargs):
+                return subprocess.CompletedProcess(command, 0, json.dumps(live), "")
+            observed = activation.probe_product_state(
+                contract, bundle, runner=runner, effective_uid=lambda: 0
+            )
+            self.assertEqual(observed["package_id"], PACKAGE_ID)
+            self.assertEqual(observed["postgresql_version"], "18.6")
+            self.assertEqual(
+                observed["probe_sha256"], activation.document_identity(observed, "probe_sha256")
+            )
 
     def test_workflow_keeps_pull_requests_out_of_the_activation_job(self) -> None:
         workflow = (REPOSITORY / ".github/workflows/product-activation.yml").read_text(

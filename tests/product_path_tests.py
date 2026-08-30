@@ -42,13 +42,14 @@ class ProductPathTests(unittest.TestCase):
         self.assertTrue(result["requires_custom_stack"])
         self.assertFalse(result["blocked"])
 
-    def test_postgresql_change_cannot_green_without_exact_product_provider(self) -> None:
+    def test_postgresql_change_selects_exact_product_provider(self) -> None:
         result = self.classify("postgres/extension/src/composition_pg.c")
         self.assertIn("postgresql", result["classes"])
         self.assertTrue(result["requires_custom_stack"])
         self.assertTrue(result["requires_postgresql_product"])
-        self.assertIn("postgresql-product", result["unimplemented_evidence"])
-        self.assertTrue(result["blocked"])
+        self.assertIn("postgresql-product", result["required_evidence"])
+        self.assertNotIn("postgresql-product", result["unimplemented_evidence"])
+        self.assertFalse(result["blocked"])
 
     def test_package_change_requires_exact_package_provider(self) -> None:
         result = self.classify("tools/product/build-package.py")
@@ -86,7 +87,7 @@ class ProductPathTests(unittest.TestCase):
     def test_deleted_semantic_path_has_same_classification_as_modified_path(self) -> None:
         result = self.classify("postgres/extension/src/composition_pg.c")
         self.assertTrue(result["requires_postgresql_product"])
-        self.assertTrue(result["blocked"])
+        self.assertFalse(result["blocked"])
 
     def test_mixed_docs_and_semantic_change_is_semantic(self) -> None:
         result = self.classify("docs/product/ROADMAP.md", "managed/Laplace.Managed/Isa.cs")
@@ -135,6 +136,22 @@ class ProductPathTests(unittest.TestCase):
         provider.pop("implemented")
         with self.assertRaisesRegex(product_path.ProductPathError, "implementation state"):
             product_path.validate_contract(mutated)
+
+    def test_postgresql_provider_is_declared_implemented(self) -> None:
+        provider = next(
+            row for row in self.contract["evidence"] if row["id"] == "postgresql-product"
+        )
+        self.assertTrue(provider["implemented"])
+        self.assertEqual(provider["check"], "postgresql-product-proof")
+        for path in (
+            ".github/workflows/postgresql-product.yml",
+            "tools/product/prove-postgresql-product.py",
+            "tests/postgresql_product_proof_tests.py",
+            "tools/delivery/product_activation.py",
+        ):
+            with self.subTest(path=path):
+                result = self.classify(path)
+                self.assertTrue(result["requires_postgresql_product"])
 
     def test_package_provider_is_declared_implemented(self) -> None:
         provider = next(

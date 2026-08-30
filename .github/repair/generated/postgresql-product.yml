@@ -1,0 +1,87 @@
+name: postgresql-product
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  postgresql-product:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - postgres-18
+      - avx2
+    timeout-minutes: 180
+    env:
+      LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Verify PostgreSQL-product authority and exact publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test -w "$RUNNER_TEMP"
+          test -w /build/laplace
+          git diff --quiet
+          git diff --cached --quiet
+          publication=$(jq -er '.product_activation_projection.postgresql_publication.receipt' state/continuation.json)
+          expected_sha=$(jq -er '.product_activation_projection.postgresql_publication.receipt_sha256' state/continuation.json)
+          test -f "$publication"
+          test ! -L "$publication"
+          test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
+          python3 tools/delivery/postgresql_package_publication.py verify --receipt "$publication" >/dev/null
+          printf 'LAPLACE_POSTGRESQL_PUBLICATION=%s\n' "$publication" >> "$GITHUB_ENV"
+      - name: Prove PostgreSQL-product verifier mutation controls
+        run: python3 tests/postgresql_product_proof_tests.py
+      - name: Compose exact current package and retain package binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          work_root="$RUNNER_TEMP/laplace-postgresql-product-package"
+          package_result="$RUNNER_TEMP/laplace-postgresql-product-package.json"
+          python3 tools/product/prove-package.py \
+            --repository . \
+            --postgresql-publication "$LAPLACE_POSTGRESQL_PUBLICATION" \
+            --work-root "$work_root" \
+            --output "$package_result"
+          printf 'LAPLACE_POSTGRESQL_PACKAGE_PROOF=%s\n' "$package_result" >> "$GITHUB_ENV"
+      - name: Prove exact package is the live PostgreSQL 18.6 product
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/laplace-postgresql-product-proof.json"
+          python3 tools/product/prove-postgresql-product.py \
+            --repository . \
+            --package-proof "$LAPLACE_POSTGRESQL_PACKAGE_PROOF" \
+            --output "$result"
+          expected_tree=$(git rev-parse 'HEAD^{tree}')
+          jq -e \
+            --arg source_commit "$GITHUB_SHA" \
+            --arg source_tree "$expected_tree" '
+            .schema == "laplace.postgresql-product-proof/v1" and
+            .phase == "current-source-package-live-product-retained" and
+            .repository_commit == $source_commit and
+            .repository_tree == $source_tree and
+            .postgresql_version == "18.6" and
+            (.package_id | test("^[0-9a-f]{64}$")) and
+            (.gateway_bundle_id | test("^[0-9a-f]{64}$")) and
+            (.gateway_probe_sha256 | test("^[0-9a-f]{64}$")) and
+            (.cluster_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
+            (.cluster_plan_sha256 | test("^[0-9a-f]{64}$")) and
+            (.live_loaded_observation_sha256 | test("^[0-9a-f]{64}$")) and
+            (.binding_receipt_blake3 | test("^[0-9a-f]{64}$"))
+          ' "$result" >/dev/null
+          {
+            echo '## Exact PostgreSQL product proof'
+            echo '```json'
+            cat "$result"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

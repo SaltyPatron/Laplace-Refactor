@@ -132,7 +132,7 @@ def require_below(path: Path, root: Path, label: str) -> None:
 
 
 def validate_contract(contract: dict[str, Any]) -> None:
-    if contract.get("schema") != CONTRACT_SCHEMA or contract.get("version") != "1.0.0":
+    if contract.get("schema") != CONTRACT_SCHEMA or contract.get("version") != "1.1.0":
         raise ActivationGatewayError("activation gateway contract schema or version differs")
     repository = contract.get("repository")
     request = contract.get("request")
@@ -173,7 +173,12 @@ def validate_contract(contract: dict[str, Any]) -> None:
     for relative in files:
         if not isinstance(relative, str) or PurePosixPath(relative).is_absolute() or ".." in PurePosixPath(relative).parts:
             raise ActivationGatewayError("trusted bundle contains an unsafe path")
-    if operation.get("name") != "activate-product-unicode-and-highway" or operation.get("system_root_authorization") is not True:
+    if (
+        operation.get("name") != "activate-product-unicode-and-highway"
+        or operation.get("system_root_authorization") is not True
+        or operation.get("product_probe_schema")
+        != "laplace.product-activation-gateway-probe/v2"
+    ):
         raise ActivationGatewayError("whole-product activation operation differs")
 
 
@@ -763,6 +768,112 @@ def read_stdin_bounded(maximum: int) -> bytes:
     return content
 
 
+
+def probe_product_state(
+    contract: dict[str, Any],
+    bundle: Path,
+    *,
+    runner: Any = subprocess.run,
+    effective_uid: Any = os.geteuid,
+) -> dict[str, Any]:
+    """Verify the exact currently active PostgreSQL product without mutation."""
+    validate_contract(contract)
+    if effective_uid() != 0:
+        raise ActivationGatewayError("product probe requires the installed root gateway")
+    controllers = bundle / "controllers"
+    contracts = bundle / "contracts"
+    cluster_contract_path = contracts / "postgresql-cluster.json"
+    cluster_contract = load_json(cluster_contract_path)
+    package_contract = cluster_contract.get("package")
+    instance = cluster_contract.get("instance")
+    if not isinstance(package_contract, dict) or not isinstance(instance, dict):
+        raise ActivationGatewayError("bundled PostgreSQL cluster contract is incomplete")
+    if package_contract.get("postgresql_version") != "18.6":
+        raise ActivationGatewayError("product probe requires exact PostgreSQL 18.6")
+    active_link = require_absolute(package_contract.get("active_link"), "active package link")
+    if not active_link.is_symlink():
+        raise ActivationGatewayError("active product package link is absent")
+    active_target = os.readlink(active_link)
+    target = PurePosixPath(active_target)
+    if len(target.parts) != 2 or target.parts[0] != "releases":
+        raise ActivationGatewayError("active product target is not a package-addressed release")
+    package_id = require_hex(target.parts[1], HEX_64, "active package id")
+    evidence_root = Path(contract["product"]["cluster_activation_root"]) / package_id
+    activation_result_path = evidence_root / "activation-result.json"
+    activation_result = load_json(activation_result_path)
+    plan_path = validate_cluster_success(contract, activation_result, package_id)
+
+    command = [
+        contract["gateway"]["python"],
+        str(controllers / "clusterctl.py"),
+        "observe-loaded",
+        "--plan",
+        str(plan_path),
+        "--contract",
+        str(cluster_contract_path),
+        "--output",
+        "-",
+    ]
+    completed = runner(
+        command,
+        check=False,
+        cwd="/",
+        env={
+            "HOME": "/root",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "PATH": "/usr/sbin:/usr/bin:/sbin:/bin",
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=180,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}"
+        raise ActivationGatewayError(f"live PostgreSQL product probe failed: {detail}")
+    live = parse_json(completed.stdout.encode("utf-8"))
+    if (
+        live.get("schema") != "laplace.postgresql-loaded-observation/v1"
+        or live.get("source") != "laplace_postgresql_loaded_probe"
+        or live.get("package_id") != package_id
+        or live.get("service") != instance.get("service")
+        or live.get("service_state") != "active"
+        or not isinstance(live.get("postmaster_pid"), int)
+        or live["postmaster_pid"] <= 0
+        or not isinstance(live.get("backend_pid"), int)
+        or live["backend_pid"] <= 0
+        or live["postmaster_pid"] == live["backend_pid"]
+        or not str(live.get("system_identifier", "")).isdecimal()
+        or HEX_64.fullmatch(str(live.get("observation_sha256", ""))) is None
+        or HEX_64.fullmatch(str(live.get("probe_sql_sha256", ""))) is None
+        or not isinstance(live.get("loaded_objects"), list)
+        or not live["loaded_objects"]
+        or not isinstance(live.get("config_files"), list)
+        or not live["config_files"]
+    ):
+        raise ActivationGatewayError("live PostgreSQL product observation is incomplete")
+    result = {
+        "schema": contract["operation"]["product_probe_schema"],
+        "bundle_id": bundle.name,
+        "package_id": package_id,
+        "active_target": active_target,
+        "postgresql_version": package_contract["postgresql_version"],
+        "cluster_activation_receipt_sha256": activation_result[
+            "activation_receipt_sha256"
+        ],
+        "cluster_plan_sha256": activation_result["plan_sha256"],
+        "live_loaded_observation_sha256": live["observation_sha256"],
+        "probe_sql_sha256": live["probe_sql_sha256"],
+        "system_identifier": live["system_identifier"],
+        "service": live["service"],
+        "service_state": live["service_state"],
+        "loaded_objects": live["loaded_objects"],
+        "config_files": live["config_files"],
+    }
+    result["probe_sha256"] = document_identity(result, "probe_sha256")
+    return result
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -804,7 +915,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise ActivationGatewayError("installed gateway accepts only its bundled contract")
     contract = load_json(contract_path)
     if arguments.command == "probe":
-        print(json.dumps({"schema": "laplace.product-activation-gateway-probe/v1", "bundle_id": bundle.name}, sort_keys=True))
+        print(json.dumps(probe_product_state(contract, bundle), sort_keys=True))
         return 0
     if os.geteuid() != 0:
         raise ActivationGatewayError("installed activation gateway requires root")
