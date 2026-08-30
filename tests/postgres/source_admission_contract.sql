@@ -76,7 +76,7 @@ AS $profile$
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         2,
-        0
+        34
     )::laplace.source_profile_manifest
 $profile$;
 
@@ -250,6 +250,7 @@ BEGIN
        OR admitted.durable_stream_record_count <= 0
        OR source_occurrences <> admitted.occurrence_count
        OR profile.reconstruction_class <> 2
+       OR profile.flags <> 34
        OR profile.mapping_count <> 2
        OR profile.transformation_count <> admitted.request_count
        OR profile.transformed_count <> admitted.request_count
