@@ -1,19 +1,6 @@
 name: product-activation
 
 on:
-  pull_request:
-    paths:
-      - .github/workflows/product-activation.yml
-      - contracts/product-activation-gateway.json
-      - contracts/highway-product-activation.json
-      - contracts/highway.json
-      - contracts/history/highway-v1.json
-      - tools/delivery/**
-      - tools/postgresql/highwayctl.py
-      - postgres/extension/src/highway_registry_pg.c
-      - postgres/extension/laplace--version.sql.in
-      - tests/highway_product_activation_tests.py
-      - tests/product_activation_gateway_tests.py
   workflow_dispatch:
 
 permissions:

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -207,6 +208,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
         "cxx_compiler",
         "blake3_root",
         "blake3_source",
+        "tree_sitter_root",
     ):
         require_absolute(build.get(field), f"build.{field}")
     if (
@@ -218,8 +220,17 @@ def validate_contract(contract: dict[str, Any]) -> None:
         )
     blake3_root = Path(build["blake3_root"])
     blake3_source = Path(build["blake3_source"])
+    tree_sitter_root = Path(build["tree_sitter_root"])
     if not blake3_source.is_relative_to(blake3_root) or blake3_source == blake3_root:
         raise ProductPackageError("BLAKE3 source must be contained by its repository root")
+    if (
+        blake3_root.name != "blake3"
+        or tree_sitter_root.name != "tree-sitter"
+        or tree_sitter_root.parent != blake3_root.parent
+    ):
+        raise ProductPackageError(
+            "Tree-sitter source root must share the locked dependency generation with BLAKE3"
+        )
     if build.get("configuration") != "Release":
         raise ProductPackageError("product package must use the Release configuration")
     if build.get("install_libdir") != "lib":
@@ -888,8 +899,12 @@ def create_plan(
         contract
     )
     blake3_root = require_absolute(contract["build"]["blake3_root"], "build.blake3_root")
+    tree_sitter_root = require_absolute(
+        contract["build"]["tree_sitter_root"], "build.tree_sitter_root"
+    )
     build_input_roots = {
         "blake3": exact_tree_receipt(blake3_root),
+        "tree-sitter": exact_tree_receipt(tree_sitter_root),
         **provider_roots,
         **runtime_dependency_roots,
     }
@@ -1471,6 +1486,7 @@ def execute_plan(
         f"-DBUILD_TESTING={'ON' if build['testing'] else 'OFF'}",
         f"-DLAPLACE_ENABLE_DOTNET_BINDINGS={'ON' if build['dotnet_bindings'] else 'OFF'}",
         f"-DLAPLACE_BLAKE3_SOURCE={build['blake3_source']}",
+        f"-DLAPLACE_TREE_SITTER_SOURCE={plan['build_input_roots']['tree-sitter']['path']}",
         f"-DLAPLACE_DEPENDENCY_LOCK={repository / 'dependencies/lock.json'}",
         f"-DLAPLACE_INSTALLED_PROVIDER_LOCK={plan['installed_provider_lock']}",
         "-DLAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER=ON",
@@ -1594,41 +1610,111 @@ def execute_plan(
     return receipt
 
 
+def product_plan_lock_path(plan: Mapping[str, Any]) -> Path:
+    plan_id = require_string(plan.get("plan_id"), "product plan id")
+    if HEX_256.fullmatch(plan_id) is None:
+        raise ProductPackageError("product plan id is not a lowercase SHA-256 identity")
+    build_directory = Path(
+        require_string(plan.get("build_directory"), "product build directory")
+    )
+    stage_directory = Path(
+        require_string(plan.get("stage_directory"), "product stage directory")
+    )
+    if build_directory.name != plan_id or stage_directory.name != plan_id:
+        raise ProductPackageError("product build and stage destinations are not plan-addressed")
+    if build_directory.parent.name != "build" or stage_directory.parent.name != "stage":
+        raise ProductPackageError("product build and stage destinations escaped their named roots")
+    if build_directory.parent.parent != stage_directory.parent.parent:
+        raise ProductPackageError("product build and stage destinations do not share a product root")
+    lock_root = build_directory.parent.parent / "locks"
+    lock_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not lock_root.is_dir() or lock_root.is_symlink():
+        raise ProductPackageError("product plan lock root is not a physical directory")
+    os.chmod(lock_root, 0o700)
+    return lock_root / f"{plan_id}.lock"
+
+
+def remove_incomplete_plan_workspace(plan: Mapping[str, Any]) -> None:
+    product_plan_lock_path(plan)
+    for field in ("build_directory", "stage_directory"):
+        path = Path(require_string(plan.get(field), field))
+        if not path.exists() and not path.is_symlink():
+            continue
+        if path.is_symlink() or not path.is_dir():
+            raise ProductPackageError(
+                f"incomplete product plan workspace is not a physical directory: {path}"
+            )
+        shutil.rmtree(path)
+
+
 def select_or_build_product(
     contract: dict[str, Any], repository: Path, plan: dict[str, Any]
 ) -> dict[str, Any]:
     build_directory = Path(plan["build_directory"])
+    stage_directory = Path(plan["stage_directory"])
     receipt_path = build_directory / "package-receipt.json"
+    lock_path = product_plan_lock_path(plan)
+    descriptor = os.open(
+        lock_path,
+        os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
+        0o600,
+    )
     built_new = False
-    if not receipt_path.exists():
-        execute_plan(contract, repository, plan)
-        built_new = True
-    if not receipt_path.is_file() or receipt_path.is_symlink():
-        raise ProductPackageError("product package receipt is absent or not physical")
-    receipt = load_json(receipt_path)
-    if (
-        receipt.get("schema") != RECEIPT_SCHEMA
-        or receipt.get("plan_sha256") != plan["plan_sha256"]
-        or receipt.get("activation_eligible") is not True
-        or receipt.get("build_input_closure_complete") is not True
-        or receipt.get("product_activated") is not False
-    ):
-        raise ProductPackageError("selected product package receipt differs from its exact plan")
-    manifest_path = Path(require_string(receipt.get("manifest"), "product receipt manifest"))
-    expected_manifest_path = build_directory / "package-manifest.json"
-    if manifest_path != expected_manifest_path or not manifest_path.is_file() or manifest_path.is_symlink():
-        raise ProductPackageError("selected product manifest is absent or not paired with its receipt")
-    if sha256_file(manifest_path) != receipt.get("manifest_sha256"):
-        raise ProductPackageError("selected product manifest bytes differ from its receipt")
-    manifest = load_json(manifest_path)
-    package_id = require_string(receipt.get("package_id"), "product receipt package id")
-    if HEX_256.fullmatch(package_id) is None or manifest.get("package_id") != package_id:
-        raise ProductPackageError("selected product package identity differs")
-    expected_physical_root = Path(plan["stage_directory"]) / "root" / str(
-        manifest.get("root", "")
-    ).lstrip("/")
-    if receipt.get("physical_root") != str(expected_physical_root) or not expected_physical_root.is_dir():
-        raise ProductPackageError("selected product physical root differs from its plan")
+    with os.fdopen(descriptor, "a+b") as lock_stream:
+        fcntl.flock(lock_stream.fileno(), fcntl.LOCK_EX)
+        if not receipt_path.exists():
+            if (
+                build_directory.exists()
+                or build_directory.is_symlink()
+                or stage_directory.exists()
+                or stage_directory.is_symlink()
+            ):
+                remove_incomplete_plan_workspace(plan)
+            execute_plan(contract, repository, plan)
+            built_new = True
+        if not receipt_path.is_file() or receipt_path.is_symlink():
+            raise ProductPackageError("product package receipt is absent or not physical")
+        receipt = load_json(receipt_path)
+        if (
+            receipt.get("schema") != RECEIPT_SCHEMA
+            or receipt.get("plan_sha256") != plan["plan_sha256"]
+            or receipt.get("activation_eligible") is not True
+            or receipt.get("build_input_closure_complete") is not True
+            or receipt.get("product_activated") is not False
+        ):
+            raise ProductPackageError(
+                "selected product package receipt differs from its exact plan"
+            )
+        manifest_path = Path(
+            require_string(receipt.get("manifest"), "product receipt manifest")
+        )
+        expected_manifest_path = build_directory / "package-manifest.json"
+        if (
+            manifest_path != expected_manifest_path
+            or not manifest_path.is_file()
+            or manifest_path.is_symlink()
+        ):
+            raise ProductPackageError(
+                "selected product manifest is absent or not paired with its receipt"
+            )
+        if sha256_file(manifest_path) != receipt.get("manifest_sha256"):
+            raise ProductPackageError(
+                "selected product manifest bytes differ from its receipt"
+            )
+        manifest = load_json(manifest_path)
+        package_id = require_string(
+            receipt.get("package_id"), "product receipt package id"
+        )
+        if HEX_256.fullmatch(package_id) is None or manifest.get("package_id") != package_id:
+            raise ProductPackageError("selected product package identity differs")
+        expected_physical_root = stage_directory / "root" / str(
+            manifest.get("root", "")
+        ).lstrip("/")
+        if (
+            receipt.get("physical_root") != str(expected_physical_root)
+            or not expected_physical_root.is_dir()
+        ):
+            raise ProductPackageError("selected product physical root differs from its plan")
     return {
         "schema": SELECTION_SCHEMA,
         "plan_id": plan["plan_id"],
@@ -1639,7 +1725,6 @@ def select_or_build_product(
         "package_id": package_id,
         "built_new": built_new,
     }
-
 
 def write_result(path: str, value: dict[str, Any]) -> None:
     content = canonical_bytes(value)

@@ -1,0 +1,196 @@
+name: product-path
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-path-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      hosted_only: ${{ steps.classify.outputs.hosted_only }}
+      requires_custom_stack: ${{ steps.classify.outputs.requires_custom_stack }}
+      requires_postgresql_product: ${{ steps.classify.outputs.requires_postgresql_product }}
+      requires_package_product: ${{ steps.classify.outputs.requires_package_product }}
+      blocked: ${{ steps.classify.outputs.blocked }}
+      required_evidence: ${{ steps.classify.outputs.required_evidence }}
+      unimplemented_evidence: ${{ steps.classify.outputs.unimplemented_evidence }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Prove product-path classifier and mutations
+        run: |
+          python3 tests/product_path_tests.py
+          python3 tests/product_path_status_tests.py
+      - name: Classify exact changed paths
+        id: classify
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$BASE_SHA"
+          test -n "$HEAD_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA^{commit}"
+          changed="$RUNNER_TEMP/laplace-product-path-changed.status"
+          result="$RUNNER_TEMP/laplace-product-path.json"
+          git diff --name-status -z -M --diff-filter=ACMRTD "$BASE_SHA" "$HEAD_SHA" > "$changed"
+          test -s "$changed"
+          python3 tools/delivery/product_path.py classify \
+            --contract contracts/product-path.json \
+            --git-name-status-z "$changed" \
+            --output "$result"
+          cat "$result"
+          for key in \
+            hosted_only \
+            requires_custom_stack \
+            requires_postgresql_product \
+            requires_package_product \
+            blocked; do
+            printf '%s=%s\n' "$key" "$(jq -r ".$key" "$result")" >> "$GITHUB_OUTPUT"
+          done
+          printf 'required_evidence=%s\n' "$(jq -c '.required_evidence' "$result")" >> "$GITHUB_OUTPUT"
+          printf 'unimplemented_evidence=%s\n' "$(jq -c '.unimplemented_evidence' "$result")" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Product-path classification'
+            echo '```json'
+            cat "$result"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  hosted-proof:
+    needs: classify
+    uses: ./.github/workflows/ci.yml
+
+  custom-stack-proof:
+    needs:
+      - classify
+      - hosted-proof
+    if: >-
+      needs.classify.outputs.requires_custom_stack == 'true' &&
+      needs.hosted-proof.result == 'success'
+    uses: ./.github/workflows/custom-stack.yml
+
+  postgresql-product-proof:
+    needs:
+      - classify
+      - hosted-proof
+      - custom-stack-proof
+    if: >-
+      always() &&
+      needs.classify.outputs.requires_postgresql_product == 'true' &&
+      needs.hosted-proof.result == 'success' &&
+      (needs.custom-stack-proof.result == 'success' || needs.custom-stack-proof.result == 'skipped')
+    uses: ./.github/workflows/postgresql-product.yml
+
+  package-product-proof:
+    needs:
+      - classify
+      - hosted-proof
+      - custom-stack-proof
+      - postgresql-product-proof
+    if: >-
+      always() &&
+      needs.classify.outputs.requires_package_product == 'true' &&
+      needs.hosted-proof.result == 'success' &&
+      (needs.custom-stack-proof.result == 'success' || needs.custom-stack-proof.result == 'skipped') &&
+      (needs.postgresql-product-proof.result == 'success' || needs.postgresql-product-proof.result == 'skipped')
+    uses: ./.github/workflows/package-product.yml
+
+  product-path:
+    if: always()
+    needs:
+      - classify
+      - hosted-proof
+      - custom-stack-proof
+      - postgresql-product-proof
+      - package-product-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every selected proof surface
+        shell: bash
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          HOSTED_RESULT: ${{ needs.hosted-proof.result }}
+          CUSTOM_RESULT: ${{ needs.custom-stack-proof.result }}
+          POSTGRESQL_RESULT: ${{ needs.postgresql-product-proof.result }}
+          PACKAGE_RESULT: ${{ needs.package-product-proof.result }}
+          REQUIRES_CUSTOM: ${{ needs.classify.outputs.requires_custom_stack }}
+          REQUIRES_POSTGRESQL: ${{ needs.classify.outputs.requires_postgresql_product }}
+          REQUIRES_PACKAGE: ${{ needs.classify.outputs.requires_package_product }}
+          BLOCKED: ${{ needs.classify.outputs.blocked }}
+          REQUIRED_EVIDENCE: ${{ needs.classify.outputs.required_evidence }}
+          UNIMPLEMENTED_EVIDENCE: ${{ needs.classify.outputs.unimplemented_evidence }}
+        run: |
+          set -euo pipefail
+          test "$CLASSIFY_RESULT" = success
+          test "$HOSTED_RESULT" = success
+          if [[ "$REQUIRES_CUSTOM" == true ]]; then
+            test "$CUSTOM_RESULT" = success
+          else
+            test "$CUSTOM_RESULT" = skipped
+          fi
+          if [[ "$REQUIRES_POSTGRESQL" == true ]]; then
+            test "$POSTGRESQL_RESULT" = success
+          else
+            test "$POSTGRESQL_RESULT" = skipped
+          fi
+          if [[ "$REQUIRES_PACKAGE" == true ]]; then
+            test "$PACKAGE_RESULT" = success
+          else
+            test "$PACKAGE_RESULT" = skipped
+          fi
+          if [[ "$BLOCKED" == true ]]; then
+            echo "product-path refuses to green without providers for: $UNIMPLEMENTED_EVIDENCE" >&2
+            exit 1
+          fi
+          {
+            echo '## Product-path gate'
+            echo "Required evidence: $REQUIRED_EVIDENCE"
+            echo "Hosted proof: $HOSTED_RESULT"
+            echo "Custom-stack proof: $CUSTOM_RESULT"
+            echo "PostgreSQL-product proof: $POSTGRESQL_RESULT"
+            echo "Package-product proof: $PACKAGE_RESULT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Migration aliases for the three currently protected legacy contexts. They do not
+  # independently prove anything: each can green only after the authoritative
+  # product-path gate has accepted every evidence surface selected for this change.
+  # Once main protection requires `product-path`, these aliases can be removed.
+  legacy-requirements:
+    name: requirements
+    needs: product-path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: test "${{ needs.product-path.result }}" = success
+
+  legacy-native-dev:
+    name: native (linux-dev)
+    needs: product-path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: test "${{ needs.product-path.result }}" = success
+
+  legacy-native-sanitize:
+    name: native (linux-sanitize)
+    needs: product-path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: test "${{ needs.product-path.result }}" = success

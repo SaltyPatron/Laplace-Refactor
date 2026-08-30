@@ -11,6 +11,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -108,6 +109,18 @@ class ProductPackageTests(unittest.TestCase):
         mutant = copy.deepcopy(self.contract)
         mutant["host_build_provider"]["additional_receipted_files"] = []
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "additional host"):
+            PACKAGE.validate_contract(mutant)
+
+    def test_tree_sitter_source_root_cannot_be_omitted(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["build"].pop("tree_sitter_root")
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "build.tree_sitter_root"):
+            PACKAGE.validate_contract(mutant)
+
+    def test_tree_sitter_source_must_share_locked_dependency_generation(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["build"]["tree_sitter_root"] = "/opt/laplace/external/other/tree-sitter"
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "locked dependency generation"):
             PACKAGE.validate_contract(mutant)
 
     def test_blake3_revision_root_cannot_be_collapsed_to_source_subtree(self) -> None:
@@ -247,9 +260,10 @@ class ProductPackageTests(unittest.TestCase):
         self.assertFalse(all(gates.values()))
 
     def test_product_selection_reuses_only_an_exact_receipted_plan(self) -> None:
-        build = self.root / "build"
-        stage = self.root / "stage"
-        build.mkdir()
+        plan_id = "c" * 64
+        build = self.root / "product/build" / plan_id
+        stage = self.root / "product/stage" / plan_id
+        build.mkdir(parents=True)
         release = stage / "root/opt/laplace/releases" / ("a" * 64)
         release.mkdir(parents=True)
         manifest = {
@@ -273,7 +287,7 @@ class ProductPackageTests(unittest.TestCase):
         receipt_path = build / "package-receipt.json"
         receipt_path.write_bytes(PACKAGE.canonical_bytes(receipt))
         plan = {
-            "plan_id": "c" * 64,
+            "plan_id": plan_id,
             "plan_sha256": "b" * 64,
             "build_directory": str(build),
             "stage_directory": str(stage),
@@ -288,6 +302,79 @@ class ProductPackageTests(unittest.TestCase):
         receipt_path.write_bytes(PACKAGE.canonical_bytes(receipt))
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "exact plan"):
             PACKAGE.select_or_build_product(self.contract, REPOSITORY, plan)
+
+    def test_incomplete_same_plan_workspace_is_repaired_under_lock(self) -> None:
+        plan_id = "c" * 64
+        plan_sha = "d" * 64
+        package_id = "e" * 64
+        product_root = self.root / "product"
+        build = product_root / "build" / plan_id
+        stage = product_root / "stage" / plan_id
+        build.mkdir(parents=True)
+        stage.mkdir(parents=True)
+        (build / "partial").write_text("incomplete\n", encoding="utf-8")
+        plan = {
+            "plan_id": plan_id,
+            "plan_sha256": plan_sha,
+            "build_directory": str(build),
+            "stage_directory": str(stage),
+        }
+
+        def execute(_contract: dict, _repository: Path, supplied: dict) -> dict:
+            self.assertEqual(supplied, plan)
+            self.assertFalse(build.exists())
+            self.assertFalse(stage.exists())
+            build.mkdir(parents=True)
+            release = stage / "root/opt/laplace/releases" / package_id
+            release.mkdir(parents=True)
+            manifest = {
+                "package_id": package_id,
+                "root": f"/opt/laplace/releases/{package_id}",
+            }
+            manifest_path = build / "package-manifest.json"
+            manifest_path.write_bytes(PACKAGE.canonical_bytes(manifest))
+            receipt = {
+                "schema": PACKAGE.RECEIPT_SCHEMA,
+                "plan_sha256": plan_sha,
+                "package_id": package_id,
+                "manifest": str(manifest_path),
+                "manifest_sha256": PACKAGE.sha256_file(manifest_path),
+                "physical_root": str(release),
+                "activation_eligible": True,
+                "build_input_closure_complete": True,
+                "product_activated": False,
+            }
+            (build / "package-receipt.json").write_bytes(
+                PACKAGE.canonical_bytes(receipt)
+            )
+            return receipt
+
+        with mock.patch.object(PACKAGE, "execute_plan", side_effect=execute) as execute_mock:
+            selected = PACKAGE.select_or_build_product(self.contract, REPOSITORY, plan)
+        execute_mock.assert_called_once()
+        self.assertTrue(selected["built_new"])
+        self.assertEqual(selected["package_id"], package_id)
+        self.assertTrue((product_root / "locks" / f"{plan_id}.lock").is_file())
+
+    def test_product_plan_lock_rejects_cross_root_cleanup_authority(self) -> None:
+        plan_id = "f" * 64
+        plan = {
+            "plan_id": plan_id,
+            "build_directory": str(self.root / "product-a/build" / plan_id),
+            "stage_directory": str(self.root / "product-b/stage" / plan_id),
+        }
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "share a product root"):
+            PACKAGE.product_plan_lock_path(plan)
+
+    def test_product_plan_lock_rejects_wrong_named_roots(self) -> None:
+        plan_id = "f" * 64
+        plan = {
+            "plan_id": plan_id,
+            "build_directory": str(self.root / "product/work" / plan_id),
+            "stage_directory": str(self.root / "product/stage" / plan_id),
+        }
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "named roots"):
+            PACKAGE.product_plan_lock_path(plan)
 
     def test_selected_tool_bytes_are_reverified(self) -> None:
         tool = self.root / "cmake"
@@ -315,7 +402,8 @@ class ProductPackageTests(unittest.TestCase):
         stage = self.root / "stage"
         toolchain = self.root / "toolchain"
         provider = self.root / "provider"
-        for path in (repository, build, stage, toolchain, provider):
+        tree_sitter = self.root / "tree-sitter"
+        for path in (repository, build, stage, toolchain, provider, tree_sitter):
             path.mkdir()
         plan = {
             "repository_root": str(repository),
@@ -328,6 +416,7 @@ class ProductPackageTests(unittest.TestCase):
             },
             "build_input_roots": {
                 "provider": {"path": str(provider)},
+                "tree-sitter": {"path": str(tree_sitter)},
             },
             "build_input_files": {},
         }
@@ -337,7 +426,7 @@ class ProductPackageTests(unittest.TestCase):
         )
         self.assertIn("--unshare-all", sandbox)
         triples = [sandbox[index : index + 3] for index in range(len(sandbox) - 2)]
-        for path in (repository, toolchain, provider):
+        for path in (repository, toolchain, provider, tree_sitter):
             self.assertIn(["--ro-bind", str(path), str(path)], triples)
         for path in (build, stage):
             self.assertIn(["--bind", str(path), str(path)], triples)
