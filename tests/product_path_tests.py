@@ -50,17 +50,19 @@ class ProductPathTests(unittest.TestCase):
         self.assertIn("postgresql-product", result["unimplemented_evidence"])
         self.assertTrue(result["blocked"])
 
-    def test_package_change_cannot_green_without_exact_package_provider(self) -> None:
+    def test_package_change_requires_exact_package_provider(self) -> None:
         result = self.classify("tools/product/build-package.py")
         self.assertIn("package", result["classes"])
         self.assertTrue(result["requires_package_product"])
-        self.assertIn("package-product", result["unimplemented_evidence"])
-        self.assertTrue(result["blocked"])
+        self.assertIn("package-product", result["required_evidence"])
+        self.assertNotIn("package-product", result["unimplemented_evidence"])
+        self.assertFalse(result["blocked"])
 
     def test_delivery_change_requires_package_but_control_plane_does_not(self) -> None:
         delivery = self.classify("tools/delivery/product_activation.py")
         self.assertIn("package", delivery["classes"])
-        self.assertTrue(delivery["blocked"])
+        self.assertTrue(delivery["requires_package_product"])
+        self.assertFalse(delivery["blocked"])
         control = self.classify("tools/delivery/product_path.py")
         self.assertEqual(control["classes"], ["product-semantic"])
         self.assertTrue(control["requires_custom_stack"])
@@ -68,8 +70,6 @@ class ProductPathTests(unittest.TestCase):
         self.assertFalse(control["blocked"])
 
     def test_deleted_semantic_path_has_same_classification_as_modified_path(self) -> None:
-        # Git supplies path names independently of status. Deletions must therefore
-        # enter this classifier rather than being filtered out by the workflow.
         result = self.classify("postgres/extension/src/composition_pg.c")
         self.assertTrue(result["requires_postgresql_product"])
         self.assertTrue(result["blocked"])
@@ -121,6 +121,13 @@ class ProductPathTests(unittest.TestCase):
         provider.pop("implemented")
         with self.assertRaisesRegex(product_path.ProductPathError, "implementation state"):
             product_path.validate_contract(mutated)
+
+    def test_package_provider_is_declared_implemented(self) -> None:
+        provider = next(
+            row for row in self.contract["evidence"] if row["id"] == "package-product"
+        )
+        self.assertTrue(provider["implemented"])
+        self.assertEqual(provider["check"], "package-product-proof")
 
 
 if __name__ == "__main__":

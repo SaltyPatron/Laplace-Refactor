@@ -116,9 +116,9 @@
     },
     {
       "id": "package-product",
-      "implemented": false,
+      "implemented": true,
       "check": "package-product-proof",
-      "meaning": "exact newly composed installed package identity and durable receipt proof; unavailable until the product-path package provider is wired"
+      "meaning": "exact current-change product package composition, isolated immutable installation and replay verification, with raw package and installation receipt bytes retained in the persistent laplace-runner BLAKE3 receipt store"
     }
   ],
   "fail_closed": {

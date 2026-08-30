@@ -71,12 +71,18 @@ jobs:
     if: needs.classify.outputs.requires_custom_stack == 'true'
     uses: ./.github/workflows/custom-stack.yml
 
+  package-product-proof:
+    needs: classify
+    if: needs.classify.outputs.requires_package_product == 'true'
+    uses: ./.github/workflows/package-product.yml
+
   product-path:
     if: always()
     needs:
       - classify
       - hosted-proof
       - custom-stack-proof
+      - package-product-proof
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -86,7 +92,9 @@ jobs:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           HOSTED_RESULT: ${{ needs.hosted-proof.result }}
           CUSTOM_RESULT: ${{ needs.custom-stack-proof.result }}
+          PACKAGE_RESULT: ${{ needs.package-product-proof.result }}
           REQUIRES_CUSTOM: ${{ needs.classify.outputs.requires_custom_stack }}
+          REQUIRES_PACKAGE: ${{ needs.classify.outputs.requires_package_product }}
           BLOCKED: ${{ needs.classify.outputs.blocked }}
           REQUIRED_EVIDENCE: ${{ needs.classify.outputs.required_evidence }}
           UNIMPLEMENTED_EVIDENCE: ${{ needs.classify.outputs.unimplemented_evidence }}
@@ -99,6 +107,11 @@ jobs:
           else
             test "$CUSTOM_RESULT" = skipped
           fi
+          if [[ "$REQUIRES_PACKAGE" == true ]]; then
+            test "$PACKAGE_RESULT" = success
+          else
+            test "$PACKAGE_RESULT" = skipped
+          fi
           if [[ "$BLOCKED" == true ]]; then
             echo "product-path refuses to green without providers for: $UNIMPLEMENTED_EVIDENCE" >&2
             exit 1
@@ -108,4 +121,5 @@ jobs:
             echo "Required evidence: $REQUIRED_EVIDENCE"
             echo "Hosted proof: $HOSTED_RESULT"
             echo "Custom-stack proof: $CUSTOM_RESULT"
+            echo "Package-product proof: $PACKAGE_RESULT"
           } >> "$GITHUB_STEP_SUMMARY"
