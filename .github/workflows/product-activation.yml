@@ -48,6 +48,7 @@ jobs:
           python3 tests/product_activation_gateway_tests.py
 
   compose-product:
+    if: github.event_name == 'workflow_dispatch'
     needs: runner-authority
     runs-on:
       - self-hosted
@@ -139,6 +140,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   activate-product:
+    if: github.event_name == 'workflow_dispatch'
     needs: compose-product
     environment: product
     runs-on:
