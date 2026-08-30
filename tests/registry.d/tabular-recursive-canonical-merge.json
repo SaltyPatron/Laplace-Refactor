@@ -1,0 +1,39 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "TabularRecursiveMerge.AppendsCanonicalPlanWithGlobalAtomAndPriorResultReferences",
+      "evidence_targets": [
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "canonical decomposition plans can be merged into an existing source-admission working set without reminting Tier-0 atoms",
+        "local prior-result references are rebased into the enclosing source plan while canonical operand metadata remains identity-neutral",
+        "recursive canonical requests receive enclosing-plan source ordinals without changing their canonical child structure"
+      ]
+    },
+    {
+      "ctest_name": "TabularRecursiveMerge.RejectsForwardCanonicalResultReferences",
+      "evidence_targets": [
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "recursive canonical merge fails closed when a decomposition request violates topological prior-result ordering"
+      ]
+    },
+    {
+      "ctest_name": "decomposition.mutation-recursive-canonical-merge-drop-detected",
+      "evidence_targets": [
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "a deliberate mutant that discards the canonical decomposition plan at the source-admission merge boundary is rejected"
+      ]
+    }
+  ]
+}
