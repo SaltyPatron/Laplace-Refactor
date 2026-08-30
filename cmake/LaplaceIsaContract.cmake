@@ -361,4 +361,6 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/isa.h.in"
         "${output_path}"
         @ONLY)
+    set(LAPLACE_ISA_MAJOR "${major}" PARENT_SCOPE)
+    set(LAPLACE_ISA_MINOR "${minor}" PARENT_SCOPE)
 endfunction()
