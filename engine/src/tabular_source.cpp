@@ -21,6 +21,7 @@
 namespace recursive_admission {
 
 constexpr std::uint64_t DelimitedKindBase = UINT64_C(0x5441424c00000000);
+constexpr std::size_t WitnessCacheCapacity = 8u;
 
 bool RecursiveAdd(
     const std::uint64_t left,
@@ -97,6 +98,70 @@ laplace_digest256 DelimitedProviderFingerprint(
     RecursiveHashU32(hasher, artifact.expected_column_count);
     RecursiveHashU32(hasher, artifact.header_record_count);
     return RecursiveFinish(hasher);
+}
+
+struct WitnessCacheEntry {
+    bool present = false;
+    laplace_digest256 key{};
+    laplace_digest256 trace_fingerprint{};
+    std::uint64_t span_count = 0u;
+};
+
+thread_local std::array<WitnessCacheEntry, WitnessCacheCapacity> WitnessCache{};
+thread_local std::size_t WitnessCacheNext = 0u;
+
+laplace_digest256 WitnessCacheKey(
+    const laplace_decomposition_content& content,
+    const laplace_digest256& uax_fingerprint,
+    const laplace_digest256* delimited_fingerprint) {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    static constexpr std::string_view Domain{
+        "laplace.tabular-source.decomposition-witness-cache/v1"};
+    RecursiveHashBytes(hasher, Domain.data(), Domain.size());
+    RecursiveHashBytes(
+        hasher, uax_fingerprint.bytes, sizeof(uax_fingerprint.bytes));
+    if (delimited_fingerprint == nullptr) {
+        RecursiveHashU32(hasher, 0u);
+    } else {
+        RecursiveHashU32(hasher, 1u);
+        RecursiveHashBytes(
+            hasher, delimited_fingerprint->bytes,
+            sizeof(delimited_fingerprint->bytes));
+    }
+    RecursiveHashBytes(
+        hasher, content.media_type,
+        static_cast<std::size_t>(content.media_type_byte_count));
+    RecursiveHashBytes(
+        hasher, content.bytes, static_cast<std::size_t>(content.byte_count));
+    return RecursiveFinish(hasher);
+}
+
+bool WitnessCacheLookup(
+    const laplace_digest256& key,
+    laplace_digest256& trace_fingerprint,
+    std::uint64_t& span_count) {
+    for (const WitnessCacheEntry& entry : WitnessCache) {
+        if (entry.present &&
+            memcmp(entry.key.bytes, key.bytes, sizeof(key.bytes)) == 0) {
+            trace_fingerprint = entry.trace_fingerprint;
+            span_count = entry.span_count;
+            return true;
+        }
+    }
+    return false;
+}
+
+void WitnessCacheStore(
+    const laplace_digest256& key,
+    const laplace_digest256& trace_fingerprint,
+    const std::uint64_t span_count) {
+    WitnessCacheEntry& entry = WitnessCache[WitnessCacheNext];
+    entry.present = true;
+    entry.key = key;
+    entry.trace_fingerprint = trace_fingerprint;
+    entry.span_count = span_count;
+    WitnessCacheNext = (WitnessCacheNext + 1u) % WitnessCacheCapacity;
 }
 
 laplace_tabular_source_status DecompositionStatus(
@@ -287,13 +352,16 @@ laplace_tabular_source_status BuildRecursive(
         const laplace_tabular_artifact& artifact =
             input->artifacts[artifact_index];
         laplace_decomposition_delimited_provider delimited_provider{};
+        laplace_digest256 delimited_fingerprint{};
+        bool has_delimited_fingerprint = false;
         std::array<laplace_decomposition_provider_v1, 2> providers{};
         providers[0] = uax_provider.provider;
         std::uint64_t provider_count = 1u;
 
         if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_DELIMITED) {
-            const laplace_digest256 grammar_fingerprint =
+            delimited_fingerprint =
                 DelimitedProviderFingerprint(*input, artifact, artifact_index);
+            has_delimited_fingerprint = true;
             const std::uint32_t terminator =
                 artifact.line_terminator == LAPLACE_TABULAR_TERMINATOR_CRLF
                     ? LAPLACE_DECOMPOSITION_DELIMITED_CRLF
@@ -306,7 +374,7 @@ laplace_tabular_source_status BuildRecursive(
                     artifact.expected_column_count,
                     artifact.header_record_count,
                     DelimitedKindBase,
-                    &grammar_fingerprint);
+                    &delimited_fingerprint);
             if (provider_status != LAPLACE_DECOMPOSITION_OK) {
                 status = DecompositionStatus(provider_status);
                 goto recursive_failure;
@@ -331,36 +399,45 @@ laplace_tabular_source_status BuildRecursive(
                 sizeof(FallbackDelimitedMediaType) - 1u;
         }
 
-        if (artifact.byte_count >
-            (std::numeric_limits<std::uint64_t>::max() - 1024u) / 24u) {
-            status = LAPLACE_TABULAR_SOURCE_OVERFLOW;
-            goto recursive_failure;
-        }
-        const std::uint64_t maximum_spans = artifact.byte_count * 24u + 1024u;
-        laplace_decomposition_input decomposition_input{};
-        decomposition_input.content = content;
-        decomposition_input.providers = providers.data();
-        decomposition_input.provider_count = provider_count;
-        decomposition_input.maximum_spans = maximum_spans;
-        decomposition_input.maximum_depth = 8u;
-
-        laplace_decomposition_result* decomposition = nullptr;
-        const auto decomposition_status =
-            laplace_decomposition_run(&decomposition_input, &decomposition);
-        if (decomposition_status != LAPLACE_DECOMPOSITION_OK ||
-            decomposition == nullptr) {
-            status = DecompositionStatus(decomposition_status);
-            laplace_decomposition_result_destroy(&decomposition);
-            goto recursive_failure;
-        }
-
+        const laplace_digest256 cache_key = WitnessCacheKey(
+            content,
+            uax_fingerprint,
+            has_delimited_fingerprint ? &delimited_fingerprint : nullptr);
         laplace_digest256 trace_fingerprint{};
         std::uint64_t artifact_span_count = 0u;
-        status = DecompositionTrace(
-            content, decomposition, trace_fingerprint, artifact_span_count);
-        laplace_decomposition_result_destroy(&decomposition);
-        if (status != LAPLACE_TABULAR_SOURCE_OK) {
-            goto recursive_failure;
+        if (!WitnessCacheLookup(
+                cache_key, trace_fingerprint, artifact_span_count)) {
+            if (artifact.byte_count >
+                (std::numeric_limits<std::uint64_t>::max() - 1024u) / 24u) {
+                status = LAPLACE_TABULAR_SOURCE_OVERFLOW;
+                goto recursive_failure;
+            }
+            const std::uint64_t maximum_spans = artifact.byte_count * 24u + 1024u;
+            laplace_decomposition_input decomposition_input{};
+            decomposition_input.content = content;
+            decomposition_input.providers = providers.data();
+            decomposition_input.provider_count = provider_count;
+            decomposition_input.maximum_spans = maximum_spans;
+            decomposition_input.maximum_depth = 8u;
+
+            laplace_decomposition_result* decomposition = nullptr;
+            const auto decomposition_status =
+                laplace_decomposition_run(&decomposition_input, &decomposition);
+            if (decomposition_status != LAPLACE_DECOMPOSITION_OK ||
+                decomposition == nullptr) {
+                status = DecompositionStatus(decomposition_status);
+                laplace_decomposition_result_destroy(&decomposition);
+                goto recursive_failure;
+            }
+
+            status = DecompositionTrace(
+                content, decomposition, trace_fingerprint, artifact_span_count);
+            laplace_decomposition_result_destroy(&decomposition);
+            if (status != LAPLACE_TABULAR_SOURCE_OK) {
+                goto recursive_failure;
+            }
+            WitnessCacheStore(
+                cache_key, trace_fingerprint, artifact_span_count);
         }
         if (!RecursiveAdd(
                 recursive_span_count,
