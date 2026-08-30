@@ -219,7 +219,11 @@ public:
             plan_.span_references.front()};
 
 #if defined(LAPLACE_TEST_DECOMPOSITION_COMPOSITION_COUPLE_WITNESS)
-        const auto witness = Text(std::to_string(spans[span_count - 1u].kind));
+        const std::string witness_text =
+            std::to_string(spans[span_count - 1u].kind);
+        const auto witness = Text(
+            reinterpret_cast<const std::uint8_t*>(witness_text.data()),
+            witness_text.size());
         if (!witness.has_value()) return status_;
         root = Couple(*root, *witness);
         if (!root.has_value()) return status_;
