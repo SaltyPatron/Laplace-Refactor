@@ -6,7 +6,6 @@
       "evidence_targets": [
         "LP-TEST-AST-MERKLE-REUSE",
         "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
-        "LP-TEST-RUN-LARGE-COUNT",
         "LP-TEST-OCCURRENCE-PRESERVATION"
       ],
       "covered_dimensions": [
@@ -24,7 +23,6 @@
       "evidence_targets": [
         "LP-TEST-AST-MERKLE-REUSE",
         "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
-        "LP-TEST-RUN-LARGE-COUNT",
         "LP-TEST-OCCURRENCE-PRESERVATION"
       ],
       "covered_dimensions": [
