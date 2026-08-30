@@ -68,16 +68,22 @@ jobs:
 
           test -d "$LAPLACE_SOURCE_ESTATE_ROOT"
           unicode_root="$LAPLACE_SOURCE_ESTATE_ROOT/UCD/Public/UCD/latest"
-          iso_root="$LAPLACE_SOURCE_ESTATE_ROOT/ISO639"
-          cili_root="$LAPLACE_SOURCE_ESTATE_ROOT/CILI"
           test -d "$unicode_root"
-          test -d "$iso_root"
-          test -d "$cili_root"
+
+          controlled_source_root="$RUNNER_TEMP/laplace-sources"
+          iso_fixture="$controlled_source_root/iso-639-3-20260415"
+          cili_fixture="$controlled_source_root/cili-pwn-mappings-20240611"
+          python3 tools/sources/acquire-tabular-source.py \
+            --profile contracts/sources/iso-639-3-20260415.json \
+            --destination "$iso_fixture"
+          python3 tools/sources/acquire-tabular-source.py \
+            --profile contracts/sources/cili-pwn-mappings-20240611.json \
+            --destination "$cili_fixture"
 
           printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
           printf 'LAPLACE_UNICODE_SOURCE_ROOT=%s\n' "$unicode_root" >> "$GITHUB_ENV"
-          printf 'LAPLACE_ISO_639_SOURCE_ROOT=%s\n' "$iso_root" >> "$GITHUB_ENV"
-          printf 'LAPLACE_CILI_SOURCE_ROOT=%s\n' "$cili_root" >> "$GITHUB_ENV"
+          printf 'LAPLACE_ISO_639_SOURCE_ROOT=%s\n' "$iso_fixture" >> "$GITHUB_ENV"
+          printf 'LAPLACE_CILI_SOURCE_ROOT=%s\n' "$cili_fixture" >> "$GITHUB_ENV"
       - name: Configure outside the repository
         shell: bash
         run: |
