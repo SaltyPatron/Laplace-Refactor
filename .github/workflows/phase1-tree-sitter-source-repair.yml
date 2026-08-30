@@ -1,0 +1,70 @@
+name: phase1-tree-sitter-source-repair
+
+on:
+  push:
+    branches:
+      - repair/phase1-tree-sitter-source
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repair authority
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Preserve inert repair authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/repair/phase1_tree_sitter_source.py \
+            "$RUNNER_TEMP/phase1_tree_sitter_source.py"
+          test -s "$RUNNER_TEMP/phase1_tree_sitter_source.py"
+
+      - name: Check out exact product-path head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/product-path-gate
+          fetch-depth: 0
+
+      - name: Refuse stale publication base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 0390e94f82a8bceaa66e2cbdcd84ba47941e7dff
+          git diff --quiet
+          git diff --cached --quiet
+
+      - name: Apply verified Tree-sitter build-input repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/phase1_tree_sitter_source.py"
+          git diff --check
+
+      - name: Prove contract, sandbox, package, and product-path mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/product_package_tests.py
+          python3 tests/package_product_proof_tests.py
+          python3 tests/postgresql_product_proof_tests.py
+          python3 tests/product_path_tests.py
+
+      - name: Publish tested source tree only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "laplace-ci"
+          git config user.email "laplace-ci@users.noreply.github.com"
+          git add \
+            contracts/product-package.json \
+            tools/product/build-package.py \
+            tests/product_package_tests.py
+          test -n "$(git status --porcelain)"
+          git commit -m "Bind Tree-sitter into product build closure"
+          git push --force origin HEAD:refs/heads/repair/phase1-tree-sitter-tested
