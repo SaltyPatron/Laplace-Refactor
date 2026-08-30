@@ -37,6 +37,18 @@ if(NOT verify_result EQUAL 0)
 endif()
 
 execute_process(
+    COMMAND "${STORE}" get --digest "${expected}" --root "${TEST_ROOT}/store"
+    RESULT_VARIABLE get_result
+    OUTPUT_VARIABLE fetched
+    ERROR_VARIABLE get_error)
+if(NOT get_result EQUAL 0)
+    message(FATAL_ERROR "receipt fetch by digest failed: ${get_error}")
+endif()
+if(NOT fetched STREQUAL "abc")
+    message(FATAL_ERROR "receipt fetch did not return the exact authenticated bytes")
+endif()
+
+execute_process(
     COMMAND "${STORE}" put --receipt "${TEST_ROOT}/receipt.json" --root "${TEST_ROOT}/store"
     RESULT_VARIABLE replay_result
     OUTPUT_VARIABLE replay_digest
@@ -54,6 +66,16 @@ if(mutation_result EQUAL 0)
     message(FATAL_ERROR "mutated stored receipt was accepted")
 endif()
 execute_process(
+    COMMAND "${STORE}" get --digest "${expected}" --root "${TEST_ROOT}/store"
+    RESULT_VARIABLE mutated_get_result
+    OUTPUT_VARIABLE mutated_fetched)
+if(mutated_get_result EQUAL 0)
+    message(FATAL_ERROR "mutated stored receipt was fetched as authenticated")
+endif()
+if(NOT mutated_fetched STREQUAL "")
+    message(FATAL_ERROR "unauthenticated receipt bytes escaped through digest fetch")
+endif()
+execute_process(
     COMMAND "${STORE}" put --receipt "${TEST_ROOT}/receipt.json" --root "${TEST_ROOT}/store"
     RESULT_VARIABLE collision_result)
 if(collision_result EQUAL 0)
@@ -61,6 +83,19 @@ if(collision_result EQUAL 0)
 endif()
 
 file(REMOVE "${stored}")
+file(CREATE_LINK "${TEST_ROOT}/receipt.json" "${stored}" SYMBOLIC)
+execute_process(
+    COMMAND "${STORE}" get --digest "${expected}" --root "${TEST_ROOT}/store"
+    RESULT_VARIABLE stored_symlink_result
+    OUTPUT_VARIABLE stored_symlink_fetched)
+if(stored_symlink_result EQUAL 0)
+    message(FATAL_ERROR "symlinked stored receipt was fetched as authenticated")
+endif()
+if(NOT stored_symlink_fetched STREQUAL "")
+    message(FATAL_ERROR "symlinked stored receipt bytes escaped through digest fetch")
+endif()
+file(REMOVE "${stored}")
+
 file(CREATE_LINK "${TEST_ROOT}/receipt.json" "${TEST_ROOT}/receipt-link.json" SYMBOLIC)
 execute_process(
     COMMAND "${STORE}" put --receipt "${TEST_ROOT}/receipt-link.json" --root "${TEST_ROOT}/store"
