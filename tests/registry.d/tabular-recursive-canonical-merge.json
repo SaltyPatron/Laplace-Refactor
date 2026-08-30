@@ -26,6 +26,19 @@
       ]
     },
     {
+      "ctest_name": "TabularRecursiveMerge.RejectsWitnessMetadataAndImplicitOccurrenceFlags",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "parser or witness metadata cannot enter canonical composition operands at the recursive source-admission merge boundary",
+        "recursive canonical requests cannot implicitly emit occurrences; occurrence testimony remains a separate witnessed path",
+        "rejection occurs before destination working-set state is mutated"
+      ]
+    },
+    {
       "ctest_name": "decomposition.mutation-recursive-canonical-merge-drop-detected",
       "evidence_targets": [
         "LP-TEST-AST-MERKLE-REUSE",
