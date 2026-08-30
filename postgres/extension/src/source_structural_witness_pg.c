@@ -160,8 +160,8 @@ void laplace_pg_persist_source_structural_witnesses(
         "AND witness_fingerprint=$4 AND witness_count=$5 AND version=$6)";
     laplace_tabular_source_plan_view view;
     const laplace_tabular_decomposition_witness* witnesses;
-    size_t witness_count = 0u;
-    size_t media_type_byte_count = 0u;
+    size_t witness_count;
+    size_t media_type_byte_count;
     const uint8_t* media_types;
     Datum* trace_values;
     Datum* provider_values;
@@ -190,6 +190,7 @@ void laplace_pg_persist_source_structural_witnesses(
     Datum receipt_parameters[6];
     int result;
 
+    memset(&view, 0, sizeof(view));
     if (plan == NULL || execution == NULL || composition_input == NULL ||
         profile == NULL || execution->results == NULL ||
         composition_input->known_entities == NULL ||
@@ -199,19 +200,23 @@ void laplace_pg_persist_source_structural_witnesses(
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("Laplace structural witness deposition input is incomplete")));
     }
-    witnesses = laplace_tabular_source_decomposition_witnesses(
-        plan, &witness_count);
-    media_types = laplace_tabular_source_decomposition_media_types(
-        plan, &media_type_byte_count);
-    if (witness_count == 0u) {
+    if (view.decomposition_witness_count == 0u) {
         return;
     }
-    if (witnesses == NULL || witness_count > (size_t)INT_MAX ||
-        (media_type_byte_count != 0u && media_types == NULL)) {
+    if (view.decomposition_witness_count > (uint64_t)INT_MAX ||
+        view.decomposition_witness_media_type_byte_count > (uint64_t)SIZE_MAX ||
+        view.decomposition_witnesses == NULL ||
+        (view.decomposition_witness_media_type_byte_count != 0u &&
+         view.decomposition_witness_media_types == NULL)) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg("Laplace retained structural witness view is invalid")));
     }
+    witness_count = (size_t)view.decomposition_witness_count;
+    media_type_byte_count =
+        (size_t)view.decomposition_witness_media_type_byte_count;
+    witnesses = view.decomposition_witnesses;
+    media_types = view.decomposition_witness_media_types;
 
     trace_values = (Datum*)palloc(sizeof(*trace_values) * witness_count);
     provider_values = (Datum*)palloc(sizeof(*provider_values) * witness_count);
