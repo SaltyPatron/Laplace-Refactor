@@ -33,13 +33,16 @@ class ProductActivationGatewayBootstrapTests(unittest.TestCase):
         )
         return completed.stdout.strip()
 
+    def trusted_paths(self) -> list[str]:
+        return sorted(set(installer.SOURCE_MAP.values()) | {installer.BOOTSTRAP_SOURCE})
+
     def repository_fixture(self, root: Path) -> tuple[Path, str]:
         repository = root / "repository"
         repository.mkdir()
         self.git(repository, "init", "-q")
         self.git(repository, "config", "user.email", "laplace-tests@example.invalid")
         self.git(repository, "config", "user.name", "Laplace Tests")
-        for relative in sorted(set(installer.SOURCE_MAP.values())):
+        for relative in self.trusted_paths():
             path = repository / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"fixture:{relative}\n", encoding="utf-8")
@@ -53,7 +56,7 @@ class ProductActivationGatewayBootstrapTests(unittest.TestCase):
             binding = installer.verify_repository_binding(repository, commit)
             self.assertEqual(binding["commit"], commit)
             self.assertEqual(binding["tree"], self.git(repository, "rev-parse", "HEAD^{tree}"))
-            self.assertEqual(binding["trusted_paths"], sorted(set(installer.SOURCE_MAP.values())))
+            self.assertEqual(binding["trusted_paths"], self.trusted_paths())
 
     def test_wrong_commit_is_a_deliberate_bootstrap_defect(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-gateway-bootstrap-wrong-") as temporary:
@@ -66,6 +69,14 @@ class ProductActivationGatewayBootstrapTests(unittest.TestCase):
             repository, commit = self.repository_fixture(Path(temporary))
             trusted = repository / next(iter(installer.SOURCE_MAP.values()))
             trusted.write_text("mutated after review\n", encoding="utf-8")
+            with self.assertRaisesRegex(installer.InstallError, "trusted gateway source checkout is not clean"):
+                installer.verify_repository_binding(repository, commit)
+
+    def test_dirty_bootstrap_installer_is_a_deliberate_bootstrap_defect(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-gateway-bootstrap-installer-") as temporary:
+            repository, commit = self.repository_fixture(Path(temporary))
+            bootstrap = repository / installer.BOOTSTRAP_SOURCE
+            bootstrap.write_text("mutated root bootstrap\n", encoding="utf-8")
             with self.assertRaisesRegex(installer.InstallError, "trusted gateway source checkout is not clean"):
                 installer.verify_repository_binding(repository, commit)
 
