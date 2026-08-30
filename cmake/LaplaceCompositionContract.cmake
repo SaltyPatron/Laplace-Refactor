@@ -9,6 +9,14 @@ function(laplace_configure_composition_contract contract_path output_path)
         "${contract_json}" references prior_result)
     string(JSON topological_required GET
         "${contract_json}" references topological_order_required)
+    string(JSON LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE GET
+        "${contract_json}" request flags emit_occurrence)
+    string(JSON LAPLACE_COMPOSITION_REQUEST_KNOWN_FLAGS GET
+        "${contract_json}" request flags known_mask)
+    string(JSON request_default_flags GET
+        "${contract_json}" request flags default)
+    string(JSON occurrence_emission GET
+        "${contract_json}" request occurrence_emission)
     string(JSON LAPLACE_COMPOSITION_TIER_MINIMUM GET
         "${contract_json}" tier minimum)
     string(JSON LAPLACE_COMPOSITION_TIER_MAXIMUM GET
@@ -30,7 +38,12 @@ function(laplace_configure_composition_contract contract_path output_path)
 
     if(NOT schema STREQUAL "laplace.composition-contract/v1"
        OR NOT LAPLACE_COMPOSITION_ABI_MAJOR EQUAL 1
+       OR NOT LAPLACE_COMPOSITION_ABI_MINOR EQUAL 2
        OR NOT topological_required
+       OR NOT LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE EQUAL 1
+       OR NOT LAPLACE_COMPOSITION_REQUEST_KNOWN_FLAGS EQUAL 1
+       OR NOT request_default_flags EQUAL 0
+       OR NOT occurrence_emission STREQUAL "explicit-flag-only"
        OR tier_identity_component
        OR NOT LAPLACE_COMPOSITION_TIER_MINIMUM EQUAL 0
        OR NOT LAPLACE_COMPOSITION_TIER_MAXIMUM EQUAL 31
