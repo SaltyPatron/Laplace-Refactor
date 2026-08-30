@@ -63,6 +63,55 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
         return LAPLACE_TABULAR_SOURCE_OVERFLOW;
     }
 
+    for (std::size_t source_index = 0u;
+         source_index < source_operand_count;
+         ++source_index) {
+        const laplace_composition_operand& operand = source.operands[source_index];
+        if (operand.multiplicity != 1u ||
+            operand.relationship_metadata != 0u || operand.flags != 0u) {
+            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+        }
+        if (operand.reference_kind ==
+            LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
+            if (operand.reference_index >= source.atom_count) {
+                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            }
+        } else if (operand.reference_kind ==
+                   LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
+            if (operand.reference_index >= source.request_count) {
+                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            }
+        } else {
+            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+        }
+    }
+
+    for (std::size_t source_index = 0u;
+         source_index < source_request_count;
+         ++source_index) {
+        const laplace_composition_request& request = source.requests[source_index];
+        if (request.operand_count == 0u || request.flags != 0u ||
+            request.first_operand > source.operand_count ||
+            request.operand_count >
+                source.operand_count - request.first_operand) {
+            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+        }
+        const std::uint64_t operand_end =
+            request.first_operand + request.operand_count;
+        for (std::uint64_t operand_index = request.first_operand;
+             operand_index < operand_end;
+             ++operand_index) {
+            const laplace_composition_operand& operand =
+                source.operands[static_cast<std::size_t>(operand_index)];
+            if (operand.reference_kind ==
+                    LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT &&
+                operand.reference_index >=
+                    static_cast<std::uint64_t>(source_index)) {
+                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            }
+        }
+    }
+
     std::vector<std::uint64_t> atom_indexes;
     atom_indexes.reserve(source_atom_count);
     for (std::size_t source_index = 0u;
@@ -100,19 +149,10 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
         laplace_composition_operand operand = source.operands[source_index];
         if (operand.reference_kind ==
             LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
-            if (operand.reference_index >= source.atom_count) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
             operand.reference_index =
                 atom_indexes[static_cast<std::size_t>(operand.reference_index)];
-        } else if (operand.reference_kind ==
-                   LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
-            if (operand.reference_index >= source.request_count) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
-            operand.reference_index += request_base;
         } else {
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            operand.reference_index += request_base;
         }
         destination_operands.push_back(operand);
     }
@@ -123,32 +163,7 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
          source_index < source_request_count;
          ++source_index) {
         laplace_composition_request request = source.requests[source_index];
-        if (request.operand_count == 0u ||
-            request.first_operand > source.operand_count ||
-            request.operand_count >
-                source.operand_count - request.first_operand) {
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-        }
-        const std::uint64_t operand_end =
-            request.first_operand + request.operand_count;
-        for (std::uint64_t operand_index = request.first_operand;
-             operand_index < operand_end;
-             ++operand_index) {
-            const laplace_composition_operand& operand =
-                source.operands[static_cast<std::size_t>(operand_index)];
-            if (operand.reference_kind ==
-                    LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT &&
-                operand.reference_index >=
-                    static_cast<std::uint64_t>(source_index)) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
-        }
         request.first_operand += operand_base;
-        if (request_base >
-                std::numeric_limits<std::uint64_t>::max() -
-                    static_cast<std::uint64_t>(source_index) - 1u) {
-            return LAPLACE_TABULAR_SOURCE_OVERFLOW;
-        }
         request.source_ordinal =
             request_base + static_cast<std::uint64_t>(source_index) + 1u;
         destination_requests.push_back(request);
