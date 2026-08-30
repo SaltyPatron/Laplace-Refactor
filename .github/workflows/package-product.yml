@@ -1,0 +1,77 @@
+name: package-product
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  package-product:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - postgres-18
+      - avx2
+    timeout-minutes: 180
+    env:
+      LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Verify package-proof authority and exact PostgreSQL publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test -w "$RUNNER_TEMP"
+          test -w /build/laplace
+          git diff --quiet
+          git diff --cached --quiet
+          publication=$(jq -er '.product_activation_projection.postgresql_publication.receipt' state/continuation.json)
+          expected_sha=$(jq -er '.product_activation_projection.postgresql_publication.receipt_sha256' state/continuation.json)
+          test -f "$publication"
+          test ! -L "$publication"
+          test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
+          python3 tools/delivery/postgresql_package_publication.py verify \
+            --receipt "$publication" >/dev/null
+          printf 'LAPLACE_POSTGRESQL_PUBLICATION=%s\n' "$publication" >> "$GITHUB_ENV"
+      - name: Prove package-product verifier mutation controls
+        run: python3 tests/package_product_proof_tests.py
+      - name: Compose install replay and durably retain exact package receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          work_root="$RUNNER_TEMP/laplace-package-product-proof"
+          result="$RUNNER_TEMP/laplace-package-product-proof.json"
+          python3 tools/product/prove-package.py \
+            --repository . \
+            --postgresql-publication "$LAPLACE_POSTGRESQL_PUBLICATION" \
+            --work-root "$work_root" \
+            --output "$result"
+          expected_tree=$(git rev-parse 'HEAD^{tree}')
+          jq -e \
+            --arg source_commit "$GITHUB_SHA" \
+            --arg source_tree "$expected_tree" '
+            .schema == "laplace.package-product-proof/v1" and
+            .phase == "composed-installed-retained" and
+            .repository_commit == $source_commit and
+            .repository_tree == $source_tree and
+            .source_package_verified == true and
+            .installed_package_verified == true and
+            .installation_replay_identical == true and
+            (.package_id | test("^[0-9a-f]{64}$")) and
+            (.package_receipt_blake3 | test("^[0-9a-f]{64}$")) and
+            (.installation_receipt_blake3 | test("^[0-9a-f]{64}$")) and
+            (.binding_receipt_blake3 | test("^[0-9a-f]{64}$"))
+          ' "$result" >/dev/null
+          {
+            echo '## Exact package-product proof'
+            echo '```json'
+            cat "$result"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

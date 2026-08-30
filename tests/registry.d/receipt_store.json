@@ -1,0 +1,11 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "delivery.receipt-store-contract",
+      "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-CONTINUATION-AUTHORITY"],
+      "covered_dimensions": ["exact receipt-byte BLAKE3 content addressing", "atomic no-replacement publication", "durable file and directory synchronization", "idempotent replay verification"],
+      "defect_controls": ["mutated stored receipt", "conflicting content-addressed destination", "symlink receipt input"]
+    }
+  ]
+}
