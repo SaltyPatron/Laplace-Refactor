@@ -54,3 +54,23 @@ set_target_properties(laplace_decompose PROPERTIES
     INSTALL_RPATH_USE_LINK_PATH FALSE)
 install(TARGETS laplace_decompose
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+add_executable(laplace_receipt_store
+    receipt_store.cpp)
+target_link_libraries(laplace_receipt_store PRIVATE
+    BLAKE3::blake3)
+target_compile_options(laplace_receipt_store PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+install(TARGETS laplace_receipt_store
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+if(BUILD_TESTING)
+    add_test(
+        NAME delivery.receipt-store-contract
+        COMMAND "${CMAKE_COMMAND}"
+            "-DSTORE=$<TARGET_FILE:laplace_receipt_store>"
+            "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/receipt-store-test"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/../tests/receipt_store_test.cmake")
+    set_tests_properties(delivery.receipt-store-contract PROPERTIES
+        LABELS "delivery;receipt;blake3;package;mutation")
+endif()
