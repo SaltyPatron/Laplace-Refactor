@@ -417,8 +417,12 @@ laplace_composition_status ValidateInput(
     for (std::uint64_t index = 0U; index < input.request_count; ++index) {
         const auto& request = input.requests[index];
         std::uint64_t end{};
-        if (request.operand_count == 0U || request.source_ordinal == 0U ||
-            request.recipe_version == 0U || request.flags != 0U ||
+        const bool emit_occurrence =
+            (request.flags & LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0U;
+        if (request.operand_count == 0U ||
+            request.recipe_version == 0U ||
+            (request.flags & ~LAPLACE_COMPOSITION_REQUEST_KNOWN_FLAGS) != 0U ||
+            (emit_occurrence && request.source_ordinal == 0U) ||
             AddOverflow(request.first_operand, request.operand_count, end) ||
             end > input.operand_count) {
             return LAPLACE_COMPOSITION_INVALID_ARGUMENT;
@@ -993,25 +997,33 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
                 delete state;
                 return entity_status;
             }
-            laplace_persistence_attestation_record occurrence{};
-            occurrence.entity_id = result.entity_id;
-            occurrence.physicality_id = result.physicality_id;
-            occurrence.source_fingerprint = *input->source_fingerprint;
-            occurrence.context_fingerprint = request.occurrence_context_fingerprint;
-            occurrence.source_ordinal = request.source_ordinal;
-            occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
-            occurrence.attestation_kind =
-                LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
-            if (laplace_persistence_attestation_identify(
-                    &occurrence, &occurrence.attestation_id) !=
-                    LAPLACE_PERSISTENCE_OK) {
-                delete state;
-                return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
-            }
-            if (occurrence_index.emplace(
-                    Key(occurrence.attestation_id),
-                    state->occurrences.size()).second) {
-                state->occurrences.push_back(occurrence);
+#if defined(LAPLACE_TEST_COMPOSITION_IMPLICIT_OCCURRENCE)
+            const bool emit_occurrence = true;
+#else
+            const bool emit_occurrence =
+                (request.flags & LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0U;
+#endif
+            if (emit_occurrence) {
+                laplace_persistence_attestation_record occurrence{};
+                occurrence.entity_id = result.entity_id;
+                occurrence.physicality_id = result.physicality_id;
+                occurrence.source_fingerprint = *input->source_fingerprint;
+                occurrence.context_fingerprint = request.occurrence_context_fingerprint;
+                occurrence.source_ordinal = request.source_ordinal;
+                occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+                occurrence.attestation_kind =
+                    LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+                if (laplace_persistence_attestation_identify(
+                        &occurrence, &occurrence.attestation_id) !=
+                        LAPLACE_PERSISTENCE_OK) {
+                    delete state;
+                    return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
+                }
+                if (occurrence_index.emplace(
+                        Key(occurrence.attestation_id),
+                        state->occurrences.size()).second) {
+                    state->occurrences.push_back(occurrence);
+                }
             }
             calculated.push_back(result);
             state->results.push_back(laplace_composition_result{
