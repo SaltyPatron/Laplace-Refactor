@@ -3,9 +3,16 @@
  * Rename only its create entrypoint inside this translation unit, then layer the
  * generic recursive decomposition product path over the resulting plan.
  */
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsubobject-linkage"
+#endif
 #define laplace_tabular_source_plan_create laplace_tabular_source_plan_create_legacy
 #include "tabular_source_legacy.inc"
 #undef laplace_tabular_source_plan_create
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 #include "laplace/tabular_source_recursive.h"
 #include "laplace/decomposition_composition.h"
