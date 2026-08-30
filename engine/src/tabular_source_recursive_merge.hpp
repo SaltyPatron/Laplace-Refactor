@@ -15,11 +15,13 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
     std::vector<std::uint32_t>& destination_atoms,
     std::vector<laplace_composition_operand>& destination_operands,
     std::vector<laplace_composition_request>& destination_requests,
+    const std::uint64_t request_insert_index,
     const laplace_decomposition_composition_plan_view& source) {
 #if defined(LAPLACE_TEST_TABULAR_RECURSIVE_DROP_CANONICAL_PLAN)
     (void)destination_atoms;
     (void)destination_operands;
     (void)destination_requests;
+    (void)request_insert_index;
     (void)source;
     return LAPLACE_TABULAR_SOURCE_OK;
 #else
@@ -29,6 +31,9 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
         source.atom_count > static_cast<std::uint64_t>(SIZE_MAX) ||
         source.operand_count > static_cast<std::uint64_t>(SIZE_MAX) ||
         source.request_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+        destination_requests.empty() ||
+        request_insert_index !=
+            static_cast<std::uint64_t>(destination_requests.size() - 1u) ||
         destination_atoms.size() >
             static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max()) ||
         destination_operands.size() >
@@ -54,8 +59,7 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
 
     const std::uint64_t operand_base =
         static_cast<std::uint64_t>(destination_operands.size());
-    const std::uint64_t request_base =
-        static_cast<std::uint64_t>(destination_requests.size());
+    const std::uint64_t request_base = request_insert_index;
     if (source.operand_count >
             std::numeric_limits<std::uint64_t>::max() - operand_base ||
         source.request_count >
@@ -157,8 +161,13 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
         destination_operands.push_back(operand);
     }
 
-    destination_requests.reserve(
-        destination_requests.size() + source_request_count);
+    std::vector<laplace_composition_request> merged_requests;
+    merged_requests.reserve(destination_requests.size() + source_request_count);
+    merged_requests.insert(
+        merged_requests.end(),
+        destination_requests.begin(),
+        destination_requests.begin() +
+            static_cast<std::ptrdiff_t>(request_insert_index));
     for (std::size_t source_index = 0u;
          source_index < source_request_count;
          ++source_index) {
@@ -166,8 +175,13 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
         request.first_operand += operand_base;
         request.source_ordinal =
             request_base + static_cast<std::uint64_t>(source_index) + 1u;
-        destination_requests.push_back(request);
+        merged_requests.push_back(request);
     }
+    laplace_composition_request final_root = destination_requests.back();
+    final_root.source_ordinal =
+        request_base + source.request_count + 1u;
+    merged_requests.push_back(final_root);
+    destination_requests.swap(merged_requests);
     return LAPLACE_TABULAR_SOURCE_OK;
 #endif
 }
