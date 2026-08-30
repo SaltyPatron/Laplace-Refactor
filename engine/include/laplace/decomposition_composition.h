@@ -38,6 +38,7 @@ typedef struct laplace_decomposition_composition_plan_view {
     uint64_t root_result_index;
     uint32_t recipe_version;
     uint32_t flags;
+    laplace_composition_operand root_reference;
 } laplace_decomposition_composition_plan_view;
 
 typedef enum laplace_decomposition_composition_status {
@@ -60,6 +61,12 @@ typedef enum laplace_decomposition_composition_status {
  * context belong to that witness/evidence path; they are not constituents of the
  * content entity and must not be wrapped around content merely to mint another
  * Merkle identity.
+ *
+ * root_reference is the canonical root carrier. A single Unicode position is a
+ * KNOWN_ENTITY reference into atom_positions and therefore requires no composition
+ * request. Composite content is a PRIOR_RESULT reference into requests/results.
+ * root_result_index remains the composite-result alias and is UINT64_MAX when the
+ * canonical root is already a known Tier-0 entity.
  */
 LAPLACE_API laplace_decomposition_composition_status
 laplace_decomposition_composition_plan_create(
