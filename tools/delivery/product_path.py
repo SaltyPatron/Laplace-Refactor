@@ -203,7 +203,7 @@ def read_paths(path: Path) -> list[str]:
 
 
 def read_git_name_status_z(path: Path) -> list[str]:
-    """Read a NUL-delimited git --name-status stream without losing rename sources."""
+    """Read a NUL-delimited git --name-status stream without losing move/copy sources."""
     try:
         payload = path.read_bytes()
     except OSError as error:
@@ -223,10 +223,10 @@ def read_git_name_status_z(path: Path) -> list[str]:
         if not status:
             raise ProductPathError("changed path status code is empty")
         kind = status[0]
-        if kind not in {"A", "M", "D", "R"}:
+        if kind not in {"A", "M", "D", "R", "C", "T"}:
             raise ProductPathError(f"unsupported changed path status: {status!r}")
 
-        field_count = 2 if kind == "R" else 1
+        field_count = 2 if kind in {"R", "C"} else 1
         if index + field_count > len(fields):
             raise ProductPathError(f"changed path status {status!r} is truncated")
         raw_paths = fields[index : index + field_count]
