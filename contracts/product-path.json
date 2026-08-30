@@ -22,7 +22,9 @@
         "contracts/postgresql-build.json",
         "contracts/postgresql-cluster.json",
         "contracts/postgresql-persistence.json",
-        "contracts/unicode-postgresql.json"
+        "contracts/unicode-postgresql.json",
+        ".github/workflows/postgresql-product.yml",
+        "tests/postgresql_product_proof_tests.py"
       ],
       "exclude_patterns": [],
       "evidence": [
@@ -115,9 +117,9 @@
     },
     {
       "id": "postgresql-product",
-      "implemented": false,
+      "implemented": true,
       "check": "postgresql-product-proof",
-      "meaning": "exact selected PostgreSQL 18.6 installed package cluster loaded-object and runtime receipt proof; unavailable until the Phase-1 product cluster is activated"
+      "meaning": "exact current-change product package executed as an isolated PostgreSQL 18.6 cluster with live required-object inode and digest proof, fresh Laplace schema and epoch-state readback, and durable BLAKE3 receipts; this merge proof is not product activation"
     },
     {
       "id": "package-product",

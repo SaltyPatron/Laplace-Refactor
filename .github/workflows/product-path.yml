@@ -71,6 +71,11 @@ jobs:
     if: needs.classify.outputs.requires_custom_stack == 'true'
     uses: ./.github/workflows/custom-stack.yml
 
+  postgresql-product-proof:
+    needs: classify
+    if: needs.classify.outputs.requires_postgresql_product == 'true'
+    uses: ./.github/workflows/postgresql-product.yml
+
   package-product-proof:
     needs: classify
     if: needs.classify.outputs.requires_package_product == 'true'
@@ -82,6 +87,7 @@ jobs:
       - classify
       - hosted-proof
       - custom-stack-proof
+      - postgresql-product-proof
       - package-product-proof
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -92,8 +98,10 @@ jobs:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           HOSTED_RESULT: ${{ needs.hosted-proof.result }}
           CUSTOM_RESULT: ${{ needs.custom-stack-proof.result }}
+          POSTGRESQL_RESULT: ${{ needs.postgresql-product-proof.result }}
           PACKAGE_RESULT: ${{ needs.package-product-proof.result }}
           REQUIRES_CUSTOM: ${{ needs.classify.outputs.requires_custom_stack }}
+          REQUIRES_POSTGRESQL: ${{ needs.classify.outputs.requires_postgresql_product }}
           REQUIRES_PACKAGE: ${{ needs.classify.outputs.requires_package_product }}
           BLOCKED: ${{ needs.classify.outputs.blocked }}
           REQUIRED_EVIDENCE: ${{ needs.classify.outputs.required_evidence }}
@@ -106,6 +114,11 @@ jobs:
             test "$CUSTOM_RESULT" = success
           else
             test "$CUSTOM_RESULT" = skipped
+          fi
+          if [[ "$REQUIRES_POSTGRESQL" == true ]]; then
+            test "$POSTGRESQL_RESULT" = success
+          else
+            test "$POSTGRESQL_RESULT" = skipped
           fi
           if [[ "$REQUIRES_PACKAGE" == true ]]; then
             test "$PACKAGE_RESULT" = success
@@ -121,5 +134,6 @@ jobs:
             echo "Required evidence: $REQUIRED_EVIDENCE"
             echo "Hosted proof: $HOSTED_RESULT"
             echo "Custom-stack proof: $CUSTOM_RESULT"
+            echo "PostgreSQL-product proof: $POSTGRESQL_RESULT"
             echo "Package-product proof: $PACKAGE_RESULT"
           } >> "$GITHUB_STEP_SUMMARY"
