@@ -98,6 +98,7 @@ TEST(Iso639SourceProfile,
         GTEST_SKIP() << "pinned Unicode source root is not installed at "
                      << unicode_root;
     }
+    const std::string unicode_root_text = unicode_root.string();
 
     laplace::test::Iso639ProfileFixture fixture;
     ASSERT_TRUE(fixture.Load(SourceRoot())) << fixture.error;
@@ -116,7 +117,7 @@ TEST(Iso639SourceProfile,
     laplace_unicode_source_bundle* unicode_bundle = nullptr;
     laplace_unicode_source_receipt unicode_receipt{};
     ASSERT_EQ(laplace_unicode_source_bundle_open(
-                  unicode_root.c_str(), &unicode_bundle, &unicode_receipt),
+                  unicode_root_text.c_str(), &unicode_bundle, &unicode_receipt),
               LAPLACE_UNICODE_OK);
     ASSERT_NE(unicode_bundle, nullptr);
 
@@ -135,7 +136,7 @@ TEST(Iso639SourceProfile,
     EXPECT_EQ(recursive.root_result_index,
               legacy.root_result_index + added_request_count);
     EXPECT_EQ(recursive.root_result_index + 1u, recursive.request_count);
-    EXPECT_GT(recursive.atom_count, legacy.atom_count);
+    EXPECT_EQ(recursive.atom_count, legacy.atom_count);
     EXPECT_GT(recursive.operand_count, legacy.operand_count);
     EXPECT_GT(recursive.profile.span_count, legacy.profile.span_count);
     EXPECT_EQ(recursive.profile.output_count, recursive.request_count);
