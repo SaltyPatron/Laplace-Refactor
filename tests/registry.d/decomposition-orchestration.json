@@ -32,6 +32,29 @@
         "terminal delimited witnesses preserve typed text flags while structural delimiters remain non-text",
         "one applicable grammar execution emits the complete terminal row and field witness set without manufacturing nested parser work"
       ]
+    },
+    {
+      "ctest_name": "DecompositionComposition.CanonicalRootExcludesTraceWitnessMetadata",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "decomposition provider and syntax-kind changes alter the trace witness without becoming canonical Merkle children",
+        "the canonical root plan is the exact ordered Unicode content independent of parser trace shape and provider identity",
+        "canonical decomposition work is bounded by content rather than recursive witness metadata materialization"
+      ]
+    },
+    {
+      "ctest_name": "decomposition.mutation-witness-metadata-identity-coupling-detected",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "a deliberate mutant that inserts decomposition witness kind metadata into canonical composition is rejected by executable acceptance"
+      ]
     }
   ]
 }
