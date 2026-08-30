@@ -216,6 +216,19 @@ class PackageProductProofTests(unittest.TestCase):
                 ):
                     proof.store_receipt(store, receipt, durable_root)
 
+    def test_command_failure_retains_inner_and_outer_output(self) -> None:
+        completed = mock.Mock(
+            returncode=1,
+            stdout="inner sandbox build failure\n",
+            stderr="outer package wrapper failure\n",
+        )
+        with mock.patch.object(proof.subprocess, "run", return_value=completed):
+            with self.assertRaises(proof.PackageProductProofError) as caught:
+                proof.run(["/usr/bin/false"], "product package composition")
+        message = str(caught.exception)
+        self.assertIn("outer package wrapper failure", message)
+        self.assertIn("inner sandbox build failure", message)
+
     def test_binding_canonicalization_is_stable(self) -> None:
         value = {"b": 2, "a": 1}
         expected = b'{"a":1,"b":2}\n'

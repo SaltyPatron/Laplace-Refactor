@@ -174,6 +174,19 @@ def validate_installation(
     require_absolute_directory(expected_release, "installed immutable release")
 
 
+def command_failure_detail(
+    returncode: int, stdout: str, stderr: str, *, limit: int = 16000
+) -> str:
+    parts: list[str] = []
+    for label, value in (("stderr", stderr.strip()), ("stdout", stdout.strip())):
+        if not value:
+            continue
+        if len(value) > limit:
+            value = "...<truncated to final output>\n" + value[-limit:]
+        parts.append(f"{label}:\n{value}")
+    return "\n".join(parts) if parts else f"exit {returncode}"
+
+
 def run(command: Sequence[str], label: str) -> subprocess.CompletedProcess[str]:
     completed = subprocess.run(
         list(command),
@@ -183,7 +196,9 @@ def run(command: Sequence[str], label: str) -> subprocess.CompletedProcess[str]:
         stderr=subprocess.PIPE,
     )
     if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}"
+        detail = command_failure_detail(
+            completed.returncode, completed.stdout, completed.stderr
+        )
         raise PackageProductProofError(f"{label} failed: {detail}")
     return completed
 
@@ -196,14 +211,13 @@ def run_bytes(command: Sequence[str], label: str) -> subprocess.CompletedProcess
         stderr=subprocess.PIPE,
     )
     if completed.returncode != 0:
-        detail = (
-            completed.stderr.decode("utf-8", errors="replace").strip()
-            or completed.stdout.decode("utf-8", errors="replace").strip()
-            or f"exit {completed.returncode}"
+        detail = command_failure_detail(
+            completed.returncode,
+            completed.stdout.decode("utf-8", errors="replace"),
+            completed.stderr.decode("utf-8", errors="replace"),
         )
         raise PackageProductProofError(f"{label} failed: {detail}")
     return completed
-
 
 def repository_identity(repository: Path) -> tuple[str, str]:
     commit = run(
