@@ -1,0 +1,121 @@
+{
+  "schema": "laplace.product-path/v1",
+  "issue": 54,
+  "purpose": "Select the exact proof surfaces required by a change without converting unavailable physical evidence into success.",
+  "hosted_only_patterns": [
+    ".gitattributes",
+    ".gitignore",
+    "README.md",
+    "docs/**"
+  ],
+  "default_class": "product-semantic",
+  "default_evidence": [
+    "hosted",
+    "custom-stack"
+  ],
+  "class_rules": [
+    {
+      "id": "postgresql",
+      "patterns": [
+        "postgres/**",
+        "tools/postgresql/**",
+        "contracts/postgresql-build.json",
+        "contracts/postgresql-cluster.json",
+        "contracts/postgresql-persistence.json",
+        "contracts/unicode-postgresql.json"
+      ],
+      "evidence": [
+        "postgresql-product"
+      ]
+    },
+    {
+      "id": "package",
+      "patterns": [
+        "dependencies/**",
+        "tools/dependencies/**",
+        "tools/product/**",
+        "tools/delivery/**",
+        "contracts/product-package.json",
+        "contracts/product-activation-gateway.json",
+        "contracts/runtime-package.json",
+        "contracts/runtime-dependencies.json"
+      ],
+      "evidence": [
+        "package-product"
+      ]
+    },
+    {
+      "id": "managed",
+      "patterns": [
+        "managed/**",
+        "Directory.Build.props"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "native",
+      "patterns": [
+        "engine/**",
+        "cmake/**",
+        "CMakeLists.txt",
+        "CMakePresets.json",
+        "tools/*.c",
+        "tools/*.cc",
+        "tools/*.cpp",
+        "tools/*.h",
+        "tools/*.hpp"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "contract",
+      "patterns": [
+        "contracts/**",
+        "requirements/**",
+        "evidence/**",
+        "state/**"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "ci-test",
+      "patterns": [
+        ".github/workflows/**",
+        "tests/**",
+        "tools/tests/**"
+      ],
+      "evidence": []
+    }
+  ],
+  "evidence": [
+    {
+      "id": "hosted",
+      "implemented": true,
+      "check": "hosted-proof",
+      "meaning": "requirements, generated-contract drift, clean-room native builds, registered tests, and hosted mutation checks"
+    },
+    {
+      "id": "custom-stack",
+      "implemented": true,
+      "check": "custom-stack-proof",
+      "meaning": "laplace-runner oneAPI PostgreSQL native managed and source-estate integration proof"
+    },
+    {
+      "id": "postgresql-product",
+      "implemented": false,
+      "check": "postgresql-product-proof",
+      "meaning": "exact selected PostgreSQL 18.6 installed package cluster loaded-object and runtime receipt proof; unavailable until the Phase-1 product cluster is activated"
+    },
+    {
+      "id": "package-product",
+      "implemented": false,
+      "check": "package-product-proof",
+      "meaning": "exact newly composed installed package identity and durable receipt proof; unavailable until the product-path package provider is wired"
+    }
+  ],
+  "fail_closed": {
+    "unknown_path": "Treat as product-semantic and require hosted plus custom-stack evidence.",
+    "missing_provider": "Fail product-path; an unimplemented required evidence provider cannot be interpreted as skipped success.",
+    "runner_unavailable": "Remain queued or fail; physical runner loss cannot produce green semantic evidence."
+  }
+}
