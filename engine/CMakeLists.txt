@@ -50,6 +50,13 @@ add_library(laplace_engine SHARED
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)
+# The opaque tabular plan is intentionally defined in one translation unit and
+# retains a private ParsedArtifact implementation type. GCC's subobject-linkage
+# diagnostic is therefore not an ODR boundary, but it is promoted by -Werror.
+# Keep the diagnostic visible while preventing this private implementation
+# detail from blocking the clean-room GCC build.
+set_source_files_properties(src/tabular_source.cpp PROPERTIES
+    COMPILE_OPTIONS "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=subobject-linkage>")
 if(TARGET LaplaceOneApi::TBB AND TARGET LaplaceOneApi::MKLTbb)
     target_sources(laplace_engine PRIVATE src/execution_oneapi.cpp)
     target_link_libraries(laplace_engine PRIVATE
