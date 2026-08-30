@@ -36,13 +36,13 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          changed="$RUNNER_TEMP/laplace-product-path-changed.txt"
+          changed="$RUNNER_TEMP/laplace-product-path-changed.status"
           result="$RUNNER_TEMP/laplace-product-path.json"
-          git diff --name-only --diff-filter=ACMRD "$BASE_SHA" "$HEAD_SHA" > "$changed"
+          git diff --name-status -z -M --diff-filter=ACMRD "$BASE_SHA" "$HEAD_SHA" > "$changed"
           test -s "$changed"
           python3 tools/delivery/product_path.py classify \
             --contract contracts/product-path.json \
-            --paths-file "$changed" \
+            --git-name-status-z "$changed" \
             --output "$result"
           cat "$result"
           for key in \
