@@ -1,0 +1,27 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "DecompositionComposition.SingleCodepointRootReusesTierZeroReference",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE"
+      ],
+      "covered_dimensions": [
+        "a single Unicode codepoint produced by decomposition resolves directly to the canonical Tier-0 known-entity reference",
+        "a one-codepoint span emits no synthetic composition request or composition operands",
+        "the canonical root carrier distinguishes an existing known entity from a newly calculated prior composition result without changing content identity"
+      ]
+    },
+    {
+      "ctest_name": "decomposition.mutation-tier0-rematerialization-detected",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "a deliberate mutant that rematerializes a one-codepoint Tier-0 entity through a one-child composition request is rejected"
+      ]
+    }
+  ]
+}
