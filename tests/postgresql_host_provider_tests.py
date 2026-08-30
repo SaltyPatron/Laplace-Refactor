@@ -71,8 +71,28 @@ class HostProviderTests(unittest.TestCase):
             item.write_bytes(b"before\n")
             receipt = HOST.observe([provider], [])
             item.write_bytes(b"after\n")
-            with self.assertRaisesRegex(HOST.ProviderError, "provider bytes differ"):
+            with self.assertRaises(HOST.ProviderError) as caught:
                 HOST.verify_inputs(receipt)
+            message = str(caught.exception)
+            self.assertIn("host build provider bytes differ", message)
+            self.assertIn(str(provider.resolve()), message)
+            self.assertIn("tree_sha256", message)
+
+    def test_input_replay_localizes_selected_file_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            provider = root / "provider"
+            provider.mkdir()
+            selected = root / "selected"
+            selected.write_bytes(b"before\n")
+            receipt = HOST.observe([provider], [selected])
+            selected.write_bytes(b"after\n")
+            with self.assertRaises(HOST.ProviderError) as caught:
+                HOST.verify_inputs(receipt)
+            message = str(caught.exception)
+            self.assertIn(str(selected), message)
+            self.assertIn("sha256", message)
+            self.assertIn("size_bytes", message)
 
     def test_receipt_label_mutation_is_detected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
