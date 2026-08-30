@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import copy
+import hashlib
 import importlib.util
 import json
 import tempfile
@@ -17,6 +19,14 @@ SPEC = importlib.util.spec_from_file_location("laplace_host_provider", PATH)
 assert SPEC is not None and SPEC.loader is not None
 HOST = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(HOST)
+
+PUBLISHED_PATH = REPOSITORY / "tools/product/published-host-provider.py"
+PUBLISHED_SPEC = importlib.util.spec_from_file_location(
+    "laplace_published_host_provider", PUBLISHED_PATH
+)
+assert PUBLISHED_SPEC is not None and PUBLISHED_SPEC.loader is not None
+PUBLISHED = importlib.util.module_from_spec(PUBLISHED_SPEC)
+PUBLISHED_SPEC.loader.exec_module(PUBLISHED)
 
 
 class HostProviderTests(unittest.TestCase):
@@ -51,6 +61,37 @@ class HostProviderTests(unittest.TestCase):
                     HOST.ProviderError, "bytes or kernel identity differ"
                 ):
                     HOST.verify(receipt)
+
+    def test_published_receipt_survives_later_ambient_provider_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            provider = Path(temporary) / "provider"
+            provider.mkdir()
+            item = provider / "input"
+            item.write_bytes(b"qualified-build-input\n")
+            receipt = HOST.observe([provider], [])
+
+            item.write_bytes(b"later-unrelated-host-state\n")
+            with self.assertRaisesRegex(HOST.ProviderError, "provider bytes differ"):
+                HOST.verify_inputs(receipt)
+
+            self.assertEqual(PUBLISHED.verify_published_receipt(receipt), receipt)
+
+    def test_published_receipt_rejects_retained_provenance_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            provider = Path(temporary) / "provider"
+            provider.mkdir()
+            (provider / "input").write_bytes(b"qualified-build-input\n")
+            receipt = HOST.observe([provider], [])
+            mutated = copy.deepcopy(receipt)
+            mutated["scope"] = "product-runtime"
+            identity = dict(mutated)
+            identity.pop("provider_id", None)
+            mutated["provider_id"] = hashlib.sha256(
+                HOST.canonical_bytes(identity)
+            ).hexdigest()
+
+            with self.assertRaisesRegex(HOST.ProviderError, "scope differs"):
+                PUBLISHED.verify_published_receipt(mutated)
 
     def test_tree_mutation_is_detected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -123,7 +164,7 @@ class HostProviderTests(unittest.TestCase):
         )
         self.assertEqual(
             contract["host_build_provider"]["published_receipt_replay"],
-            "provider-bytes-only-historical-host-retained",
+            "historical-receipt-identity-no-ambient-requalification",
         )
 
 

@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Replay a published PostgreSQL host-provider receipt for product composition.
+"""Verify the historical PostgreSQL host-provider receipt carried by a publication.
 
-The PostgreSQL receipt retains the exact host and kernel that qualified that historical
-build. Product composition must reuse the exact receipted provider bytes without
-pretending that a later composition run occurred on that historical kernel.
+A PostgreSQL package publication retains the exact host-provider receipt that qualified
+that historical build. Product composition verifies that retained receipt as immutable
+historical provenance; it must not requalify the already-built package against whatever
+ambient /usr or kernel happens to exist on the later composition host.
+
+Fresh PostgreSQL builds still use tools/postgresql/host-provider.py verify/verify-inputs
+to prove the live build inputs they actually consume.
 """
 
 from __future__ import annotations
@@ -13,7 +17,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 
 HOST_PROVIDER_PATH = Path(__file__).resolve().parents[1] / "postgresql/host-provider.py"
@@ -24,6 +28,17 @@ if SPEC is None or SPEC.loader is None:
     raise RuntimeError(f"cannot load {HOST_PROVIDER_PATH}")
 HOST = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(HOST)
+
+
+def verify_published_receipt(receipt: dict[str, Any]) -> dict[str, Any]:
+    """Verify retained historical provenance without touching ambient provider paths."""
+    HOST.verify_identity(receipt)
+    if (
+        receipt.get("scope") != "build-time-provider-only"
+        or receipt.get("product_runtime_authority") is not False
+    ):
+        raise HOST.ProviderError("published host provider receipt scope differs")
+    return receipt
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -38,7 +53,7 @@ def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
     receipt_path = Path(args.receipt).resolve()
     receipt = HOST.read_receipt(receipt_path)
-    verified = HOST.verify_inputs(receipt)
+    verified = verify_published_receipt(receipt)
     print(json.dumps(verified, sort_keys=True))
     return 0
 

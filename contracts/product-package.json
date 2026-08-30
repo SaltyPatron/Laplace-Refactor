@@ -73,7 +73,7 @@
   "host_build_provider": {
     "receipt_schema": "laplace.postgresql-host-build-provider/v1",
     "verifier": "tools/product/published-host-provider.py",
-    "published_receipt_replay": "provider-bytes-only-historical-host-retained",
+    "published_receipt_replay": "historical-receipt-identity-no-ambient-requalification",
     "sandbox_executable": "/usr/bin/bwrap",
     "additional_receipted_files": [
       "/var/lib/dpkg/status"
