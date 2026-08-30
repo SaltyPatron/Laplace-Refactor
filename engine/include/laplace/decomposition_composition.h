@@ -50,16 +50,16 @@ typedef enum laplace_decomposition_composition_status {
 } laplace_decomposition_composition_status;
 
 /*
- * Lowers one exact recursive decomposition result into ordinary composition
- * requests. Source bytes are admitted as Unicode atoms only for spans explicitly
- * witnessed as TEXT. Binary spans remain structural observations; their bytes
- * are never impersonated as Unicode.
+ * Lowers exact textual content exposed by decomposition into canonical
+ * composition work without allowing parser/provider metadata to alter content
+ * identity. Equal canonical content must resolve to the same entity regardless
+ * of byte offset, provider, source, syntax role, tier, or occurrence.
  *
- * Every provider span becomes a typed occurrence node carrying provider
- * authority, kind, exact byte range, flags, depth, media type when present,
- * exact textual realization when applicable, and its parent occurrence.
- * Overlapping authorities therefore remain separate witnesses over the same
- * exact source bytes.
+ * Decomposition structure remains a separate witnessed trace. Provider identity,
+ * kind, byte ranges, flags, depth, media type, parentage, source and occurrence
+ * context belong to that witness/evidence path; they are not constituents of the
+ * content entity and must not be wrapped around content merely to mint another
+ * Merkle identity.
  */
 LAPLACE_API laplace_decomposition_composition_status
 laplace_decomposition_composition_plan_create(
