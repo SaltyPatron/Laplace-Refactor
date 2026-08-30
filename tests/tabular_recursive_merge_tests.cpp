@@ -50,11 +50,15 @@ laplace_composition_request Request(
 }
 
 TEST(TabularRecursiveMerge,
-     AppendsCanonicalPlanWithGlobalAtomAndPriorResultReferences) {
+     InsertsCanonicalPlanBeforeFinalSourceRootWithGlobalReferences) {
     std::vector<std::uint32_t> destination_atoms{'a', 'x'};
-    std::vector<laplace_composition_operand> destination_operands{Known(1u)};
+    std::vector<laplace_composition_operand> destination_operands{
+        Known(1u), Prior(0u), Known(0u)};
     std::vector<laplace_composition_request> destination_requests{
-        Request(0u, 1u, 1u, 0x10u)};
+        Request(0u, 1u, 1u, 0x10u),
+        Request(1u, 2u, 2u, 0x11u)};
+    const laplace_composition_request original_root = destination_requests.back();
+    constexpr std::uint64_t RootIndex = 1u;
 
     constexpr std::array<std::uint32_t, 3> SourceAtoms{{'a', 'b', 'c'}};
     const std::array<laplace_composition_operand, 5> SourceOperands{{
@@ -76,39 +80,52 @@ TEST(TabularRecursiveMerge,
             destination_atoms,
             destination_operands,
             destination_requests,
+            RootIndex,
             source),
         LAPLACE_TABULAR_SOURCE_OK);
 
     EXPECT_EQ(
         destination_atoms,
         (std::vector<std::uint32_t>{'a', 'x', 'b', 'c'}));
-    ASSERT_EQ(destination_operands.size(), 6u);
-    ASSERT_EQ(destination_requests.size(), 3u);
+    ASSERT_EQ(destination_operands.size(), 8u);
+    ASSERT_EQ(destination_requests.size(), 4u);
 
-    EXPECT_EQ(destination_operands[1].reference_kind,
+    EXPECT_EQ(destination_operands[3].reference_kind,
               LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY);
-    EXPECT_EQ(destination_operands[1].reference_index, 0u);
-    EXPECT_EQ(destination_operands[2].reference_index, 2u);
-    EXPECT_EQ(destination_operands[3].reference_index, 3u);
-    EXPECT_EQ(destination_operands[4].reference_kind,
+    EXPECT_EQ(destination_operands[3].reference_index, 0u);
+    EXPECT_EQ(destination_operands[4].reference_index, 2u);
+    EXPECT_EQ(destination_operands[5].reference_index, 3u);
+    EXPECT_EQ(destination_operands[6].reference_kind,
               LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT);
-    EXPECT_EQ(destination_operands[4].reference_index, 1u);
-    EXPECT_EQ(destination_operands[5].reference_index, 0u);
+    EXPECT_EQ(destination_operands[6].reference_index, 1u);
+    EXPECT_EQ(destination_operands[7].reference_index, 0u);
 
-    EXPECT_EQ(destination_requests[1].first_operand, 1u);
+    EXPECT_EQ(destination_requests[0].source_ordinal, 1u);
+    EXPECT_EQ(destination_requests[1].first_operand, 3u);
     EXPECT_EQ(destination_requests[1].operand_count, 3u);
     EXPECT_EQ(destination_requests[1].source_ordinal, 2u);
-    EXPECT_EQ(destination_requests[2].first_operand, 4u);
+    EXPECT_EQ(destination_requests[2].first_operand, 6u);
     EXPECT_EQ(destination_requests[2].operand_count, 2u);
     EXPECT_EQ(destination_requests[2].source_ordinal, 3u);
     EXPECT_EQ(destination_requests[1].flags, 0u);
     EXPECT_EQ(destination_requests[2].flags, 0u);
+
+    const auto& shifted_root = destination_requests.back();
+    EXPECT_EQ(shifted_root.first_operand, original_root.first_operand);
+    EXPECT_EQ(shifted_root.operand_count, original_root.operand_count);
+    EXPECT_EQ(shifted_root.recipe_version, original_root.recipe_version);
+    EXPECT_EQ(shifted_root.flags, original_root.flags);
+    EXPECT_EQ(shifted_root.source_ordinal, 4u);
+    EXPECT_EQ(destination_operands[1].reference_kind,
+              LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT);
+    EXPECT_EQ(destination_operands[1].reference_index, 0u);
 }
 
 TEST(TabularRecursiveMerge, RejectsForwardCanonicalResultReferences) {
-    std::vector<std::uint32_t> destination_atoms;
-    std::vector<laplace_composition_operand> destination_operands;
-    std::vector<laplace_composition_request> destination_requests;
+    std::vector<std::uint32_t> destination_atoms{'x'};
+    std::vector<laplace_composition_operand> destination_operands{Known(0u)};
+    std::vector<laplace_composition_request> destination_requests{
+        Request(0u, 1u, 1u, 0x10u)};
 
     constexpr std::array<std::uint32_t, 1> SourceAtoms{{'a'}};
     const std::array<laplace_composition_operand, 1> SourceOperands{{Prior(0u)}};
@@ -128,14 +145,19 @@ TEST(TabularRecursiveMerge, RejectsForwardCanonicalResultReferences) {
             destination_atoms,
             destination_operands,
             destination_requests,
+            0u,
             source),
         LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID);
 }
 
 TEST(TabularRecursiveMerge, RejectsWitnessMetadataAndImplicitOccurrenceFlags) {
-    std::vector<std::uint32_t> destination_atoms;
-    std::vector<laplace_composition_operand> destination_operands;
-    std::vector<laplace_composition_request> destination_requests;
+    std::vector<std::uint32_t> destination_atoms{'x'};
+    std::vector<laplace_composition_operand> destination_operands{Known(0u)};
+    std::vector<laplace_composition_request> destination_requests{
+        Request(0u, 1u, 1u, 0x10u)};
+    const auto original_atoms = destination_atoms;
+    const auto original_operands = destination_operands;
+    const auto original_requests = destination_requests;
 
     constexpr std::array<std::uint32_t, 1> SourceAtoms{{'a'}};
     std::array<laplace_composition_operand, 1> source_operands{{Known(0u)}};
@@ -156,11 +178,12 @@ TEST(TabularRecursiveMerge, RejectsWitnessMetadataAndImplicitOccurrenceFlags) {
             destination_atoms,
             destination_operands,
             destination_requests,
+            0u,
             source),
         LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID);
-    EXPECT_TRUE(destination_atoms.empty());
-    EXPECT_TRUE(destination_operands.empty());
-    EXPECT_TRUE(destination_requests.empty());
+    EXPECT_EQ(destination_atoms, original_atoms);
+    EXPECT_EQ(destination_operands.size(), original_operands.size());
+    EXPECT_EQ(destination_requests.size(), original_requests.size());
 
     source_operands[0].relationship_metadata = 0u;
     source_requests[0].flags = 1u;
@@ -169,11 +192,12 @@ TEST(TabularRecursiveMerge, RejectsWitnessMetadataAndImplicitOccurrenceFlags) {
             destination_atoms,
             destination_operands,
             destination_requests,
+            0u,
             source),
         LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID);
-    EXPECT_TRUE(destination_atoms.empty());
-    EXPECT_TRUE(destination_operands.empty());
-    EXPECT_TRUE(destination_requests.empty());
+    EXPECT_EQ(destination_atoms, original_atoms);
+    EXPECT_EQ(destination_operands.size(), original_operands.size());
+    EXPECT_EQ(destination_requests.size(), original_requests.size());
 }
 
 }  // namespace
