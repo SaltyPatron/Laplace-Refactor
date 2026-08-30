@@ -24,6 +24,7 @@ struct laplace_decomposition_composition_plan {
 namespace {
 
 constexpr std::uint32_t RecipeVersion = 1u;
+constexpr std::uint64_t NoResultIndex = std::numeric_limits<std::uint64_t>::max();
 
 bool DigestZero(const laplace_digest256& value) {
     for (const std::uint8_t byte : value.bytes) {
@@ -111,6 +112,24 @@ bool DecodeUtf8(
     return true;
 }
 
+laplace_composition_operand KnownEntityReference(const std::uint64_t index) {
+    return laplace_composition_operand{
+        index,
+        1u,
+        0u,
+        LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY,
+        0u};
+}
+
+laplace_composition_operand PriorResultReference(const std::uint64_t index) {
+    return laplace_composition_operand{
+        index,
+        1u,
+        0u,
+        LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT,
+        0u};
+}
+
 class Builder final {
 public:
     Builder(
@@ -191,7 +210,11 @@ public:
 #endif
 
         plan_.view.trace_fingerprint = Finish(trace_hasher);
-        plan_.view.root_result_index = *root;
+        plan_.view.root_reference = *root;
+        plan_.view.root_result_index =
+            root->reference_kind == LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT
+                ? root->reference_index
+                : NoResultIndex;
         plan_.view.span_count = static_cast<std::uint64_t>(span_count);
         Bind();
         return LAPLACE_DECOMPOSITION_COMPOSITION_OK;
@@ -208,7 +231,7 @@ private:
         return index;
     }
 
-    std::optional<std::uint64_t> Text(
+    std::optional<laplace_composition_operand> Text(
         const std::uint8_t* bytes,
         const std::size_t byte_count) {
         if (bytes == nullptr || byte_count == 0u) {
@@ -217,48 +240,46 @@ private:
         }
         const std::string key(
             reinterpret_cast<const char*>(bytes), byte_count);
-        const auto found = text_indexes_.find(key);
-        if (found != text_indexes_.end()) return found->second;
+        const auto found = text_references_.find(key);
+        if (found != text_references_.end()) return found->second;
 
         std::vector<std::uint32_t> positions;
         if (!DecodeUtf8(bytes, byte_count, positions) || positions.empty()) {
             status_ = LAPLACE_DECOMPOSITION_COMPOSITION_UTF8_INVALID;
             return std::nullopt;
         }
+
+#if !defined(LAPLACE_TEST_DECOMPOSITION_COMPOSITION_REMATERIALIZE_ATOM)
+        if (positions.size() == 1u) {
+            const auto reference = KnownEntityReference(AtomIndex(positions.front()));
+            text_references_.emplace(key, reference);
+            return reference;
+        }
+#endif
+
         const std::uint64_t first =
             static_cast<std::uint64_t>(plan_.operands.size());
         for (const std::uint32_t position : positions) {
-            plan_.operands.push_back(laplace_composition_operand{
-                AtomIndex(position),
-                1u,
-                0u,
-                LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY,
-                0u});
+            plan_.operands.push_back(KnownEntityReference(AtomIndex(position)));
         }
         const auto result = AddRequest(first, positions.size());
-        if (result.has_value()) text_indexes_.emplace(key, *result);
-        return result;
+        if (!result.has_value()) return std::nullopt;
+        const auto reference = PriorResultReference(*result);
+        text_references_.emplace(key, reference);
+        return reference;
     }
 
 #if defined(LAPLACE_TEST_DECOMPOSITION_COMPOSITION_COUPLE_WITNESS)
-    std::optional<std::uint64_t> Couple(
-        const std::uint64_t content,
-        const std::uint64_t witness) {
+    std::optional<laplace_composition_operand> Couple(
+        const laplace_composition_operand& content,
+        const laplace_composition_operand& witness) {
         const std::uint64_t first =
             static_cast<std::uint64_t>(plan_.operands.size());
-        plan_.operands.push_back(laplace_composition_operand{
-            content,
-            1u,
-            0u,
-            LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT,
-            0u});
-        plan_.operands.push_back(laplace_composition_operand{
-            witness,
-            1u,
-            0u,
-            LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT,
-            0u});
-        return AddRequest(first, 2u);
+        plan_.operands.push_back(content);
+        plan_.operands.push_back(witness);
+        const auto result = AddRequest(first, 2u);
+        if (!result.has_value()) return std::nullopt;
+        return PriorResultReference(*result);
     }
 #endif
 
@@ -310,7 +331,7 @@ private:
     laplace_decomposition_composition_plan& plan_;
     const laplace_decomposition_composition_input& input_;
     std::map<std::uint32_t, std::uint64_t> atom_indexes_;
-    std::map<std::string, std::uint64_t> text_indexes_;
+    std::map<std::string, laplace_composition_operand> text_references_;
     laplace_decomposition_composition_status status_{
         LAPLACE_DECOMPOSITION_COMPOSITION_OK};
 };
@@ -323,6 +344,24 @@ bool InputValid(const laplace_decomposition_composition_input& input) {
         !DigestZero(input.geometry_epoch) &&
         !DigestZero(input.occurrence_context_fingerprint) &&
         input.flags == 0u && input.reserved == 0u;
+}
+
+bool RootReferenceValid(const laplace_decomposition_composition_plan_view& view) {
+    const laplace_composition_operand& root = view.root_reference;
+    if (root.multiplicity != 1u || root.relationship_metadata != 0u ||
+        root.flags != 0u) {
+        return false;
+    }
+    if (root.reference_kind == LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
+        return root.reference_index < view.atom_count &&
+            view.root_result_index == NoResultIndex;
+    }
+    if (root.reference_kind == LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
+        return root.reference_index < view.request_count &&
+            root.reference_index == view.root_result_index &&
+            root.reference_index + 1u == view.request_count;
+    }
+    return false;
 }
 
 }  // namespace
@@ -356,13 +395,11 @@ laplace_decomposition_composition_plan_view_get(
     laplace_decomposition_composition_plan_view* view) {
     if (plan == nullptr || view == nullptr ||
         plan->view.atom_positions == nullptr ||
-        plan->view.operands == nullptr ||
-        plan->view.requests == nullptr ||
         plan->view.atom_count == 0u ||
-        plan->view.operand_count == 0u ||
-        plan->view.request_count == 0u ||
+        (plan->view.operand_count != 0u && plan->view.operands == nullptr) ||
+        (plan->view.request_count != 0u && plan->view.requests == nullptr) ||
         plan->view.span_count == 0u ||
-        plan->view.root_result_index + 1u != plan->view.request_count) {
+        !RootReferenceValid(plan->view)) {
         return LAPLACE_DECOMPOSITION_COMPOSITION_INVALID_ARGUMENT;
     }
     *view = plan->view;
