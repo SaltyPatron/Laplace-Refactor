@@ -40,6 +40,22 @@
       ]
     },
     {
+      "ctest_name": "Iso639SourceProfile.RecursiveAdmissionCarriesCanonicalDecompositionBeforeFinalRoot",
+      "evidence_targets": [
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "the product recursive source-admission API carries UAX and grammar canonical decomposition requests into the executable source plan rather than retaining only trace counts",
+        "the locked ISO source reuses the already-admitted Tier-0 atom set while adding canonical composite structure",
+        "the authoritative source root remains the final result with the same child references after recursive structure is inserted",
+        "inserted recursive requests carry no implicit occurrence flag or parser relationship metadata",
+        "raw container artifacts with no structural child decomposition remain admissible without interpreting arbitrary binary bytes as UTF-8 canonical text"
+      ]
+    },
+    {
       "ctest_name": "decomposition.mutation-recursive-canonical-merge-drop-detected",
       "evidence_targets": [
         "LP-TEST-AST-MERKLE-REUSE",
