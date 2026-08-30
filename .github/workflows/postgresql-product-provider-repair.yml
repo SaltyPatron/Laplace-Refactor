@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse "$REPAIR_BASE_SHA")" = "$REPAIR_BASE_SHA"
-          test "$(git rev-list --count "$REPAIR_BASE_SHA"..HEAD)" = 4
+          test "$(git rev-list --count "$REPAIR_BASE_SHA"..HEAD)" = 5
           python3 - <<'PY'
           from pathlib import Path
           authority = Path('.github/repair/postgresql-product-provider-authority.yml').read_text(encoding='utf-8')
@@ -72,20 +72,27 @@ jobs:
           grep -Fq 'product_probe_schema' contracts/product-activation-gateway.json
           grep -Fq 'root-authoritative PostgreSQL product probe' tools/product/prove-postgresql-product.py
 
-      - name: Publish one clean provider commit
+      - name: Publish tested payload without workflow-token mutation
         shell: bash
         run: |
           set -euo pipefail
-          rm .github/workflows/postgresql-product-provider-repair.yml
-          rm .github/repair/postgresql-product-provider-authority.yml
-          rmdir .github/repair 2>/dev/null || true
-          git add -A
+          mkdir -p .github/repair/generated
+          cp .github/workflows/product-path.yml .github/repair/generated/product-path.yml
+          cp .github/workflows/postgresql-product.yml .github/repair/generated/postgresql-product.yml
+          git restore --source="$REPAIR_BASE_SHA" -- .github/workflows/product-path.yml
+          rm .github/workflows/postgresql-product.yml
+          git add \
+            contracts/product-activation-gateway.json \
+            contracts/product-path.json \
+            tools/delivery/product_activation.py \
+            tools/product/prove-postgresql-product.py \
+            tests/product_activation_gateway_tests.py \
+            tests/product_path_tests.py \
+            tests/postgresql_product_proof_tests.py \
+            .github/repair/generated/product-path.yml \
+            .github/repair/generated/postgresql-product.yml
           git diff --cached --check
-          git reset --soft "$REPAIR_BASE_SHA"
-          test -z "$(git diff --cached --name-only | grep '^.github/repair/' || true)"
-          test -z "$(git diff --cached --name-only | grep '^.github/workflows/postgresql-product-provider-repair.yml$' || true)"
           git config user.name SaltyPatron
           git config user.email thesaltypatron@gmail.com
-          git commit -m "Implement exact PostgreSQL product proof" \
-            -m "Extend the existing root-owned gateway probe into a read-only live PostgreSQL 18.6 verifier, bind its loaded-object observation to the exact current-source package proof, retain the binding in the BLAKE3 receipt store, and wire the provider into the single fail-closed product-path gate."
-          git push --force-with-lease origin "HEAD:$REPAIR_BRANCH"
+          git commit -m "Stage tested PostgreSQL product provider payload"
+          git push origin "HEAD:$REPAIR_BRANCH"
