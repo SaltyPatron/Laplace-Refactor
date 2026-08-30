@@ -6,6 +6,7 @@ import copy
 import importlib.util
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 
@@ -100,6 +101,36 @@ class ProductPathTests(unittest.TestCase):
         result = self.classify("postgres/extension/src/composition_pg.c")
         self.assertTrue(result["requires_postgresql_product"])
         self.assertFalse(result["blocked"])
+
+    def test_git_rename_preserves_deleted_semantic_source_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            status = Path(temporary) / "changed.status"
+            status.write_bytes(
+                b"R100\0engine/src/composition.cpp\0docs/composition.md\0"
+            )
+            paths = product_path.read_git_name_status_z(status)
+        self.assertEqual(
+            paths,
+            ["engine/src/composition.cpp", "docs/composition.md"],
+        )
+        result = product_path.classify(self.contract, paths)
+        self.assertFalse(result["hosted_only"])
+        self.assertIn("native", result["classes"])
+        self.assertTrue(result["requires_custom_stack"])
+
+    def test_git_rename_with_missing_destination_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            status = Path(temporary) / "changed.status"
+            status.write_bytes(b"R100\0engine/src/composition.cpp\0")
+            with self.assertRaisesRegex(product_path.ProductPathError, "truncated"):
+                product_path.read_git_name_status_z(status)
+
+    def test_git_name_status_requires_nul_termination(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            status = Path(temporary) / "changed.status"
+            status.write_bytes(b"M\0engine/src/composition.cpp")
+            with self.assertRaisesRegex(product_path.ProductPathError, "NUL terminated"):
+                product_path.read_git_name_status_z(status)
 
     def test_mixed_docs_and_semantic_change_is_semantic(self) -> None:
         result = self.classify("docs/product/ROADMAP.md", "managed/Laplace.Managed/Isa.cs")
