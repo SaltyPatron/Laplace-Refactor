@@ -57,6 +57,23 @@ class ProductPathTests(unittest.TestCase):
         self.assertIn("package-product", result["unimplemented_evidence"])
         self.assertTrue(result["blocked"])
 
+    def test_delivery_change_requires_package_but_control_plane_does_not(self) -> None:
+        delivery = self.classify("tools/delivery/product_activation.py")
+        self.assertIn("package", delivery["classes"])
+        self.assertTrue(delivery["blocked"])
+        control = self.classify("tools/delivery/product_path.py")
+        self.assertEqual(control["classes"], ["product-semantic"])
+        self.assertTrue(control["requires_custom_stack"])
+        self.assertFalse(control["requires_package_product"])
+        self.assertFalse(control["blocked"])
+
+    def test_deleted_semantic_path_has_same_classification_as_modified_path(self) -> None:
+        # Git supplies path names independently of status. Deletions must therefore
+        # enter this classifier rather than being filtered out by the workflow.
+        result = self.classify("postgres/extension/src/composition_pg.c")
+        self.assertTrue(result["requires_postgresql_product"])
+        self.assertTrue(result["blocked"])
+
     def test_mixed_docs_and_semantic_change_is_semantic(self) -> None:
         result = self.classify("docs/product/ROADMAP.md", "managed/Laplace.Managed/Isa.cs")
         self.assertFalse(result["hosted_only"])
@@ -87,6 +104,13 @@ class ProductPathTests(unittest.TestCase):
         broken = copy.deepcopy(self.contract)
         broken["class_rules"][0]["evidence"].append("invented-provider")
         with self.assertRaisesRegex(product_path.ProductPathError, "unknown evidence"):
+            product_path.validate_contract(broken)
+
+    def test_exclusion_must_be_covered_by_positive_pattern(self) -> None:
+        broken = copy.deepcopy(self.contract)
+        package = next(row for row in broken["class_rules"] if row["id"] == "package")
+        package["exclude_patterns"].append("engine/src/composition.cpp")
+        with self.assertRaisesRegex(product_path.ProductPathError, "exclusion is not covered"):
             product_path.validate_contract(broken)
 
     def test_unimplemented_provider_cannot_be_mutated_into_success(self) -> None:
