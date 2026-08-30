@@ -96,8 +96,12 @@ TEST(TabularRecursiveMerge,
     EXPECT_EQ(
         destination_atoms,
         (std::vector<std::uint32_t>{'a', 'x', 'b', 'c'}));
-    ASSERT_EQ(destination_operands.size(), 8u);
-    ASSERT_EQ(destination_requests.size(), 4u);
+    if (destination_operands.size() != 8u ||
+        destination_requests.size() != 4u) {
+        ADD_FAILURE()
+            << "recursive canonical merge did not materialize its exact global plan";
+        return;
+    }
 
     EXPECT_EQ(destination_operands[3].reference_kind,
               LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY);
