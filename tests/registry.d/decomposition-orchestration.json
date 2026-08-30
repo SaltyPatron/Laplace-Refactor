@@ -21,6 +21,17 @@
         "text segmentation alone cannot silently promote a child span into grammar input",
         "media-type retyping does not override the explicit grammar-input applicability flag"
       ]
+    },
+    {
+      "ctest_name": "DecompositionOrchestration.DelimitedRowsAndFieldsAreTerminalWitnesses",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "delimited row and field structure is retained as witnessed spans without recursive redispatch",
+        "terminal delimited witnesses preserve typed text flags while structural delimiters remain non-text",
+        "one applicable grammar execution emits the complete terminal row and field witness set without manufacturing nested parser work"
+      ]
     }
   ]
 }
