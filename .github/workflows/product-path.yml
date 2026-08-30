@@ -38,7 +38,7 @@ jobs:
           set -euo pipefail
           changed="$RUNNER_TEMP/laplace-product-path-changed.txt"
           result="$RUNNER_TEMP/laplace-product-path.json"
-          git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" > "$changed"
+          git diff --name-only --diff-filter=ACMRD "$BASE_SHA" "$HEAD_SHA" > "$changed"
           test -s "$changed"
           python3 tools/delivery/product_path.py classify \
             --contract contracts/product-path.json \
