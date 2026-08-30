@@ -53,9 +53,14 @@ jobs:
             --postgresql-publication "$LAPLACE_POSTGRESQL_PUBLICATION" \
             --work-root "$work_root" \
             --output "$result"
-          jq -e '
+          expected_tree=$(git rev-parse 'HEAD^{tree}')
+          jq -e \
+            --arg source_commit "$GITHUB_SHA" \
+            --arg source_tree "$expected_tree" '
             .schema == "laplace.package-product-proof/v1" and
             .phase == "composed-installed-retained" and
+            .repository_commit == $source_commit and
+            .repository_tree == $source_tree and
             .source_package_verified == true and
             .installed_package_verified == true and
             .installation_replay_identical == true and
