@@ -19,8 +19,8 @@ CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witnes
     kind numeric(20, 0) NOT NULL
         CHECK (kind BETWEEN 0 AND 18446744073709551615),
     media_type bytea NOT NULL,
-    depth integer NOT NULL CHECK (depth >= 0),
-    flags integer NOT NULL CHECK (flags >= 0),
+    depth numeric(20, 0) NOT NULL CHECK (depth BETWEEN 0 AND 4294967295),
+    flags numeric(20, 0) NOT NULL CHECK (flags BETWEEN 0 AND 4294967295),
     CHECK (byte_start < byte_end),
     CHECK (
         parent_span_index = 18446744073709551615 OR
