@@ -43,6 +43,7 @@ SOURCE_MAP = {
     "contracts/unicode-product-activation.json": "contracts/unicode-product-activation.json",
     "contracts/unicode-source.json": "contracts/unicode-source.json",
 }
+BOOTSTRAP_SOURCE = "tools/delivery/install_product_activation_gateway.py"
 
 
 def prefixed(root: Path, logical: Path) -> Path:
@@ -85,7 +86,7 @@ def verify_repository_binding(repository: Path, expected_commit: str) -> dict[st
     if commit != expected:
         raise InstallError(f"expected repository commit {expected} but checkout is {commit}")
     tree = git_command(repository, ["rev-parse", "HEAD^{tree}"]).lower()
-    trusted_paths = sorted(set(SOURCE_MAP.values()))
+    trusted_paths = sorted(set(SOURCE_MAP.values()) | {BOOTSTRAP_SOURCE})
     for relative in trusted_paths:
         git_command(repository, ["cat-file", "-e", f"HEAD:{relative}"])
     status = git_command(
