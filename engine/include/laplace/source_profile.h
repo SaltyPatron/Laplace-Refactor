@@ -98,6 +98,12 @@ typedef enum laplace_source_profile_status {
     LAPLACE_SOURCE_PROFILE_RECONSTRUCTION_INVALID = 10
 } laplace_source_profile_status;
 
+LAPLACE_API uint32_t laplace_source_profile_epistemic_class(
+    const laplace_source_profile_manifest* profile);
+
+LAPLACE_API uint32_t laplace_source_profile_evidence_source_type(
+    const laplace_source_profile_manifest* profile);
+
 LAPLACE_API laplace_source_profile_status laplace_source_profile_identify(
     const laplace_source_profile_manifest* profile,
     laplace_digest256* profile_id);

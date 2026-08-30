@@ -76,7 +76,7 @@ AS $profile$
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         2,
-        0
+        34
     )::laplace.source_profile_manifest
 $profile$;
 
@@ -92,6 +92,7 @@ AS $artifacts$
             authority.archive_id,
             archive_content,
             convert_to('release.zip', 'UTF8'),
+            convert_to('application/zip', 'UTF8'),
             0, 0, 0,
             1, 0, 0, 0, 0,
             1,
@@ -103,6 +104,7 @@ AS $artifacts$
             authority.text_id,
             convert_to(E'Id\tName\neng\tEnglish\njpn\t日本語\n', 'UTF8'),
             convert_to('tables/languages.tab', 'UTF8'),
+            convert_to('text/tab-separated-values; charset=utf-8', 'UTF8'),
             3, 6, 3,
             2, 9, 1, 2, 5,
             6,
@@ -248,6 +250,7 @@ BEGIN
        OR admitted.durable_stream_record_count <= 0
        OR source_occurrences <> admitted.occurrence_count
        OR profile.reconstruction_class <> 2
+       OR profile.flags <> 34
        OR profile.mapping_count <> 2
        OR profile.transformation_count <> admitted.request_count
        OR profile.transformed_count <> admitted.request_count

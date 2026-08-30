@@ -21,9 +21,11 @@ typedef struct laplace_tabular_artifact {
     uint8_t expected_sha256[32];
     const uint8_t* bytes;
     const char* name;
+    const char* media_type;
     const struct laplace_tabular_column* columns;
     uint64_t byte_count;
     uint64_t name_byte_count;
+    uint64_t media_type_byte_count;
     uint64_t expected_record_count;
     uint64_t expected_field_count;
     uint64_t reference_column_mask;

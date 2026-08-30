@@ -1,10 +1,37 @@
 #include "laplace/isa.h"
+#include "laplace/cognition_packet.h"
 #include "laplace/trajectory.h"
 #include "context_fixture.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
+
+/*
+ * This probe links a private generated-registry mutation of isa.c.  It exercises
+ * trajectory dispatch only; cognition is intentionally outside this mutant's
+ * test boundary.  Keep the private ISA self-contained rather than linking the
+ * product cognition runtime, which would also reintroduce the production ISA.
+ */
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_required_result_words(
+    const std::uint32_t*, const std::size_t, std::size_t*) {
+    return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+}
+
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_request_context_fingerprint_words(
+    const std::uint32_t*, const std::size_t, laplace_digest256*) {
+    return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+}
+
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_execute_words(
+    const std::uint32_t*, const std::size_t,
+    std::uint32_t*, const std::size_t, std::size_t*) {
+    return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+}
 
 int main() {
     laplace_id128 entity{};

@@ -54,8 +54,9 @@
     "content_identity_excludes_source_role": true
   },
   "closure": {
-    "claims": "every non-header delimited record is one source-scoped witnessed mapping claim",
+    "claims": "every non-header delimited record is one source-scoped witnessed claim whose evidence outcome type is declared by the source profile; the tabular carrier never hard-codes mapping, assertion, definition, example, measurement, prediction, counterexample, or any other epistemic meaning",
     "claim_scope": "the profile-declared record proposition alone enters evidence and testimony; its tag field column value terminator artifact and source-boundary AST constituents remain exact structural occurrences and cannot inherit the record's epistemic role unless another explicit recipe independently declares them as propositions",
+    "outcome_type": "evidence outcome type belongs to the source-profile interpretation of a record and is orthogonal to artifact media type, delimiter grammar, modality, and evidence-source provenance",
     "opaque_raw_claims": false,
     "profile_counts": "bytes records fields syntax nodes spans edges references occurrences mappings outputs and dispositions are derived from the compiled whole working set",
     "artifact_reconstruction": "only artifacts explicitly marked exact-distribution are required to recompose byte-for-byte; every artifact still retains exact digest length name and source-graph provenance",
@@ -81,6 +82,7 @@
     "mapping-row-bypasses-reference-topology",
     "mapping-rule-changes-under-pinned-source-graph",
     "mapping-count-copied-from-claim-count",
-    "structural-field-or-value-promoted-to-record-testimony"
+    "structural-field-or-value-promoted-to-record-testimony",
+    "tabular-carrier-hardcodes-evidence-outcome"
   ]
 }

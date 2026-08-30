@@ -17,10 +17,38 @@ from typing import Any
 
 SCHEMA = "laplace.tabular-source-profile/v1"
 SCOPE_DOMAIN = b"laplace-source-profile-scope-v1\0"
-OUTCOME_TYPES = {"mapping": 5}
+OUTCOME_TYPES = {
+    "assertion": 1,
+    "measurement": 2,
+    "prediction": 3,
+    "observed_consequence": 4,
+    "mapping": 5,
+    "definition": 6,
+    "example": 7,
+    "counterexample": 8,
+    "unknown_boundary": 9,
+}
 MODES = {"raw_octets": 1, "utf8_delimited": 2}
 TERMINATORS = {None: 0, "lf": 1, "crlf": 2}
 RECONSTRUCTION = {"exact": 1, "semantic": 2, "none": 3}
+EPISTEMIC_SOURCE_CLASSES = {
+    "unspecified": 0,
+    "foundational_seed": 1,
+    "observation": 2,
+    "derived": 3,
+    "model": 4,
+}
+EVIDENCE_SOURCE_TYPES = {
+    "unspecified": 0,
+    "standard": 1,
+    "curated_dataset": 2,
+    "corpus": 3,
+    "direct_observation": 4,
+    "calculation": 5,
+    "model": 6,
+    "self_assertion": 7,
+    "external_provider": 8,
+}
 REFERENCE_ROLE_FLAGS = {
     "endpoint": 1,
     "present-declaration": 2,
@@ -79,6 +107,14 @@ def validate(document: dict[str, Any]) -> None:
     require(profile["version"] > 0, "profile version must be positive")
     require(profile["reconstruction_class"] in RECONSTRUCTION,
             "unknown reconstruction class")
+    require(profile.get("source_class") in EPISTEMIC_SOURCE_CLASSES,
+            "source profile must declare an epistemic source class")
+    require(profile["source_class"] != "unspecified",
+            "published source profiles cannot leave epistemic class unspecified")
+    require(profile.get("evidence_source_type") in EVIDENCE_SOURCE_TYPES,
+            "source profile must declare an evidence source type")
+    require(profile["evidence_source_type"] != "unspecified",
+            "published source profiles cannot leave evidence source type unspecified")
     require(coordinate["kind"] == 17, "source profile must use Highway kind 17")
     require(coordinate["version"] == profile["version"],
             "coordinate and profile versions differ")
@@ -96,6 +132,9 @@ def validate(document: dict[str, Any]) -> None:
         bytes.fromhex(artifact["sha256"])
         require(artifact["byte_count"] > 0, f"empty artifact: {name}")
         require(artifact["mode"] in MODES, f"unknown mode: {name}")
+        require(isinstance(artifact.get("media_type"), str) and artifact["media_type"],
+                f"artifact must declare media type: {name}")
+        artifact["media_type"].encode("utf-8")
         parent = artifact["parent"]
         if parent is None:
             require("container" in artifact["roles"],
@@ -253,7 +292,8 @@ def generate(document: dict[str, Any], source: Path) -> str:
         "coordinate": coordinate,
         "artifacts": [
             {"name": value["name"], "parent": value["parent"],
-             "byte_count": value["byte_count"], "sha256": value["sha256"]}
+             "byte_count": value["byte_count"], "sha256": value["sha256"],
+             "media_type": value["media_type"]}
             for value in artifacts
         ],
         "completion": document["completion"],
@@ -270,7 +310,8 @@ def generate(document: dict[str, Any], source: Path) -> str:
         f"namespace {namespace} {{",
         "struct Column { const char* bytes; std::uint64_t byte_count; };",
         "struct Artifact {",
-        "  const char* name;", "  const char* local_discovery_path;",
+        "  const char* name;", "  const char* media_type;",
+        "  const char* local_discovery_path;",
         "  const char* archive_member;", "  const Column* columns;",
         "  std::array<std::uint8_t, 32> sha256;",
         "  std::array<std::uint8_t, 32> parent_id;",
@@ -332,6 +373,10 @@ def generate(document: dict[str, Any], source: Path) -> str:
         f"inline constexpr std::uint64_t version = {coordinate['version']}u;",
         "inline constexpr std::uint32_t reconstruction_class = "
         f"{RECONSTRUCTION[profile['reconstruction_class']]}u;",
+        "inline constexpr std::uint32_t epistemic_source_class = "
+        f"{EPISTEMIC_SOURCE_CLASSES[profile['source_class']]}u;",
+        "inline constexpr std::uint32_t evidence_source_type = "
+        f"{EVIDENCE_SOURCE_TYPES[profile['evidence_source_type']]}u;",
         f"inline constexpr std::uint64_t expected_bytes = {document['denominators']['bytes']}u;",
         f"inline constexpr std::uint64_t expected_records = {document['denominators']['records']}u;",
         f"inline constexpr std::uint64_t expected_fields = {document['denominators']['fields']}u;",
@@ -357,6 +402,7 @@ def generate(document: dict[str, Any], source: Path) -> str:
         column_pointer = f"artifact_{artifact_index}_columns.data()" if columns else "nullptr"
         lines.extend([
             "  {", f"    {cxx_string(artifact['name'])},",
+            f"    {cxx_string(artifact['media_type'])},",
             f"    {cxx_string(artifact['local_discovery_path'])},",
             f"    {cxx_string(archive_member)},", f"    {column_pointer},",
             f"    {{{{{byte_list(bytes.fromhex(artifact['sha256']))}}}}},",
@@ -422,6 +468,8 @@ def generate(document: dict[str, Any], source: Path) -> str:
         "  static inline constexpr std::uint32_t coordinate_kind = kind;",
         "  static inline constexpr std::uint64_t coordinate_version = version;",
         "  static inline constexpr std::uint32_t reconstruction = reconstruction_class;",
+        "  static inline constexpr std::uint32_t epistemic_class = epistemic_source_class;",
+        "  static inline constexpr std::uint32_t evidence_type = evidence_source_type;",
         "  static inline constexpr std::uint64_t batch_bytes = preferred_batch_bytes;",
         "  static inline constexpr std::uint64_t reference_coordinate_count = expected_reference_coordinates;",
         "};",

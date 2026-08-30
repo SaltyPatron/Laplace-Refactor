@@ -13,7 +13,10 @@
       "binaryDir": "/opt/laplace/work/laplace-refactor/build/${sourceDirName}/linux-dev",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "BUILD_TESTING": "ON"
+        "BUILD_TESTING": "ON",
+        "LAPLACE_UNICODE_SOURCE_ROOT": "/vault/Data/UCD/Public/UCD/latest",
+        "LAPLACE_ISO_639_SOURCE_ROOT": "/vault/Data/ISO639",
+        "LAPLACE_CILI_SOURCE_ROOT": "/vault/Data/CILI"
       }
     },
     {

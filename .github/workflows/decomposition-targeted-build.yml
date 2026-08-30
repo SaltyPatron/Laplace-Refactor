@@ -1,0 +1,41 @@
+name: decomposition-targeted-build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: decomposition-targeted-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install --yes jq ninja-build
+      - name: Acquire pinned build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          dependency_root="$RUNNER_TEMP/laplace-dependencies"
+          ./tools/dependencies/acquire-locked-git.sh \
+            dependencies/lock.json "$dependency_root" \
+            blake3 tree-sitter
+          printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
+      - name: Configure engine-only build
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_directory="$RUNNER_TEMP/laplace-output/build/linux-dev"
+          cmake --preset linux-dev -B "$build_directory" \
+            -DBUILD_TESTING=OFF \
+            -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
+            -DLAPLACE_TREE_SITTER_SOURCE="$LAPLACE_DEPENDENCY_ROOT/tree-sitter"
+          printf 'LAPLACE_TARGET_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
+      - name: Compile recursive decomposition product slice
+        run: cmake --build "$LAPLACE_TARGET_BUILD_DIRECTORY" --parallel 2 --target laplace_engine laplace_unicode_decompose laplace_decompose

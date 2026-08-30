@@ -192,8 +192,11 @@ int main() {
         sizeof(source_artifacts[0].expected_sha256));
     source_artifacts[0].bytes = source_archive.data();
     source_artifacts[0].name = "release.zip";
+    source_artifacts[0].media_type = "application/zip";
     source_artifacts[0].byte_count = source_archive.size();
     source_artifacts[0].name_byte_count = std::strlen(source_artifacts[0].name);
+    source_artifacts[0].media_type_byte_count =
+        std::strlen(source_artifacts[0].media_type);
     source_artifacts[0].mode = LAPLACE_TABULAR_ARTIFACT_RAW;
     source_artifacts[0].flags = LAPLACE_TABULAR_ARTIFACT_CONTAINER;
     source_artifacts[1].artifact_id = ParseDigest(
@@ -206,9 +209,13 @@ int main() {
     source_artifacts[1].bytes = reinterpret_cast<const std::uint8_t*>(
         source_text.data());
     source_artifacts[1].name = "tables/languages.tab";
+    source_artifacts[1].media_type =
+        "text/tab-separated-values; charset=utf-8";
     source_artifacts[1].columns = source_columns.data();
     source_artifacts[1].byte_count = source_text.size();
     source_artifacts[1].name_byte_count = std::strlen(source_artifacts[1].name);
+    source_artifacts[1].media_type_byte_count =
+        std::strlen(source_artifacts[1].media_type);
     source_artifacts[1].expected_record_count = 3u;
     source_artifacts[1].expected_field_count = 6u;
     source_artifacts[1].reference_column_mask = 3u;
