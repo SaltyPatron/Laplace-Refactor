@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 import subprocess
 import sys
@@ -55,6 +56,49 @@ def require_authority(root: Path, authorize_system_root: bool) -> None:
         raise InstallError("installation root must be absolute")
     if root == Path("/") and (not authorize_system_root or os.geteuid() != 0):
         raise InstallError("system gateway installation requires root and --authorize-system-root")
+
+
+def git_command(repository: Path, arguments: Sequence[str]) -> str:
+    completed = subprocess.run(
+        ["git", "-C", str(repository), *arguments],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=30,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise InstallError(f"cannot verify gateway source repository: {detail}")
+    return completed.stdout.strip()
+
+
+def verify_repository_binding(repository: Path, expected_commit: str) -> dict[str, Any]:
+    expected = expected_commit.strip().lower()
+    if re.fullmatch(r"[0-9a-f]{40}", expected) is None:
+        raise InstallError("expected repository commit must be a full 40-character Git commit SHA")
+    repository = repository.resolve()
+    top_level = Path(git_command(repository, ["rev-parse", "--show-toplevel"])).resolve()
+    if top_level != repository:
+        raise InstallError("gateway source repository must be the exact Git worktree root")
+    commit = git_command(repository, ["rev-parse", "--verify", "HEAD^{commit}"]).lower()
+    if commit != expected:
+        raise InstallError(f"expected repository commit {expected} but checkout is {commit}")
+    tree = git_command(repository, ["rev-parse", "HEAD^{tree}"]).lower()
+    trusted_paths = sorted(set(SOURCE_MAP.values()))
+    for relative in trusted_paths:
+        git_command(repository, ["cat-file", "-e", f"HEAD:{relative}"])
+    status = git_command(
+        repository,
+        ["status", "--porcelain=v1", "--untracked-files=all", "--", *trusted_paths],
+    )
+    if status:
+        raise InstallError("trusted gateway source checkout is not clean at the expected repository commit")
+    return {
+        "commit": commit,
+        "tree": tree,
+        "trusted_paths": trusted_paths,
+    }
 
 
 def exact_sources(repository: Path, contract: dict[str, Any]) -> list[tuple[str, Path, int]]:
@@ -124,9 +168,21 @@ def install_gateway(
     key_path: Path,
     root: Path,
     authorize_system_root: bool,
+    expected_commit: str | None = None,
 ) -> dict[str, Any]:
     require_authority(root, authorize_system_root)
     repository = repository.resolve()
+    contract_path = contract_path.resolve()
+    canonical_contract_path = (repository / SOURCE_MAP["contracts/product-activation-gateway.json"]).resolve()
+    if contract_path != canonical_contract_path:
+        raise InstallError("gateway installation contract must be the canonical repository contract")
+    source_binding: dict[str, Any] | None = None
+    if root == Path("/"):
+        if expected_commit is None:
+            raise InstallError("system gateway installation requires --expected-commit")
+        source_binding = verify_repository_binding(repository, expected_commit)
+    elif expected_commit is not None:
+        source_binding = verify_repository_binding(repository, expected_commit)
     contract = activation.load_json(contract_path)
     activation.validate_contract(contract)
     sources = exact_sources(repository, contract)
@@ -212,6 +268,9 @@ def install_gateway(
         "secret_sha256": activation.sha256_bytes((key_text + "\n").encode("ascii")),
         "installed_new": installed_new,
         "root_owned": root == Path("/"),
+        "source_verified": source_binding is not None,
+        "source_commit": None if source_binding is None else source_binding["commit"],
+        "source_tree": None if source_binding is None else source_binding["tree"],
     }
     receipt["receipt_sha256"] = activation.document_identity(receipt, "receipt_sha256")
     return receipt
@@ -224,6 +283,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--key-file", required=True)
     parser.add_argument("--root", default="/")
     parser.add_argument("--authorize-system-root", action="store_true")
+    parser.add_argument("--expected-commit")
     parser.add_argument("--output", default="-")
     return parser.parse_args(argv)
 
@@ -236,7 +296,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         contract_path = repository / contract_path
     receipt = install_gateway(
         repository, contract_path, Path(arguments.key_file), Path(arguments.root),
-        arguments.authorize_system_root,
+        arguments.authorize_system_root, arguments.expected_commit,
     )
     content = json.dumps(receipt, indent=2, sort_keys=True) + "\n"
     if arguments.output == "-":
