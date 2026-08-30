@@ -122,3 +122,38 @@ add_test(
 set_tests_properties(
     decomposition.mutation-tier0-rematerialization-detected PROPERTIES
     LABELS "implementation;decomposition;identity;tier0;reuse;mutation")
+
+add_executable(laplace_tabular_recursive_merge_tests
+    "${CMAKE_CURRENT_LIST_DIR}/tabular_recursive_merge_tests.cpp")
+target_include_directories(laplace_tabular_recursive_merge_tests PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../engine/include"
+    "${CMAKE_CURRENT_LIST_DIR}/../engine/src"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_tabular_recursive_merge_tests PRIVATE
+    GTest::gtest_main)
+target_compile_options(laplace_tabular_recursive_merge_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_tabular_recursive_merge_tests
+    PROPERTIES LABELS "implementation;source-profile;decomposition;identity;ast;recursive")
+
+add_executable(laplace_tabular_recursive_merge_mutation_probe
+    "${CMAKE_CURRENT_LIST_DIR}/tabular_recursive_merge_tests.cpp")
+target_include_directories(laplace_tabular_recursive_merge_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../engine/include"
+    "${CMAKE_CURRENT_LIST_DIR}/../engine/src"
+    "${CMAKE_BINARY_DIR}/generated")
+target_compile_definitions(laplace_tabular_recursive_merge_mutation_probe PRIVATE
+    LAPLACE_TEST_TABULAR_RECURSIVE_DROP_CANONICAL_PLAN=1)
+target_link_libraries(laplace_tabular_recursive_merge_mutation_probe PRIVATE
+    GTest::gtest_main)
+target_compile_options(laplace_tabular_recursive_merge_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME decomposition.mutation-recursive-canonical-merge-drop-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_tabular_recursive_merge_mutation_probe>"
+        "-DFILTER=TabularRecursiveMerge.AppendsCanonicalPlanWithGlobalAtomAndPriorResultReferences"
+        -P "${CMAKE_CURRENT_LIST_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    decomposition.mutation-recursive-canonical-merge-drop-detected PROPERTIES
+    LABELS "implementation;source-profile;decomposition;identity;ast;recursive;mutation")
