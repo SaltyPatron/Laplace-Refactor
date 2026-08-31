@@ -1,0 +1,36 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "composition.resource-accounting-canonical-structure",
+      "evidence_targets": [
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "working-set physical memory follows unique canonical entities and physicalities rather than raw request count",
+        "trajectory carrier accounting follows unique physical realizations",
+        "explicit observed occurrences consume witness memory without multiplying canonical structure",
+        "equal raw request and operand cardinality distinguishes canonical reuse from genuinely distinct structure"
+      ],
+      "defect_controls": [
+        "request-count-scaled entity physicality trajectory and occurrence memory law"
+      ]
+    },
+    {
+      "ctest_name": "composition.mutation-request-count-memory-law-detected",
+      "evidence_targets": [
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "deliberate-defect sensitivity for canonical-structure resource accounting"
+      ],
+      "defect_controls": [
+        "resource estimate restored to known-plus-request entity count request physicality count expanded carriers and unconditional request witness count"
+      ]
+    }
+  ]
+}

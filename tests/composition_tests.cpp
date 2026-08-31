@@ -38,12 +38,16 @@ laplace_composition_request Request(
     std::uint64_t first,
     std::uint64_t count,
     std::uint64_t source_ordinal,
-    std::uint8_t seed) {
+    std::uint8_t seed,
+    bool emit_occurrence = true) {
     laplace_composition_request result{};
     result.first_operand = first;
     result.operand_count = count;
     result.source_ordinal = source_ordinal;
     result.recipe_version = 1U;
+    result.flags = emit_occurrence
+        ? LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE
+        : 0U;
     Fill(result.recipe_fingerprint, seed);
     Fill(result.geometry_epoch, static_cast<std::uint8_t>(seed + 0x20U));
     Fill(result.occurrence_context_fingerprint,
@@ -220,6 +224,152 @@ laplace_framework_producer_control_v1 PublicationController(
 }
 
 }  // namespace
+
+TEST(CompositionWorkingSet, CanonicalCompositionRequiresExplicitOccurrenceEmission) {
+    auto context = laplace_test_context(3U);
+    context.resource_grant.memory_bytes = UINT64_C(4) * 1024U * 1024U;
+    laplace_digest256 source_a{};
+    laplace_digest256 source_b{};
+    laplace_digest256 calculation_recipe{};
+    Fill(source_a, 0x15U);
+    Fill(source_b, 0x95U);
+    Fill(calculation_recipe, 0x35U);
+    const std::array<laplace_composition_known_entity, 2> known{{
+        Atom('g', laplace_point4d{{1.0, 0.0, 0.0, 0.0}}, 0x55U),
+        Atom('h', laplace_point4d{{0.0, 1.0, 0.0, 0.0}}, 0x75U)}};
+    const std::array<laplace_composition_operand, 2> operands{{
+        {0U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U},
+        {1U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U}}};
+    auto request_a = Request(0U, operands.size(), 17U, 0x25U, false);
+    auto request_b = request_a;
+    request_b.source_ordinal = 91U;
+    Fill(request_b.occurrence_context_fingerprint, 0xE5U);
+    const laplace_composition_working_set_input input_a{
+        &context,
+        &source_a,
+        &calculation_recipe,
+        known.data(),
+        known.size(),
+        operands.data(),
+        operands.size(),
+        &request_a,
+        1U,
+        256U,
+        0U};
+    auto input_b = input_a;
+    input_b.source_fingerprint = &source_b;
+    input_b.requests = &request_b;
+
+    laplace_composition_working_set* canonical_a = nullptr;
+    laplace_composition_working_set* canonical_b = nullptr;
+    ASSERT_EQ(laplace_composition_working_set_create(&input_a, &canonical_a),
+              LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(laplace_composition_working_set_create(&input_b, &canonical_b),
+              LAPLACE_COMPOSITION_OK);
+    laplace_composition_working_set_summary summary_a{};
+    laplace_composition_working_set_summary summary_b{};
+    ASSERT_EQ(laplace_composition_working_set_summary_get(canonical_a, &summary_a),
+              LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(laplace_composition_working_set_summary_get(canonical_b, &summary_b),
+              LAPLACE_COMPOSITION_OK);
+    EXPECT_EQ(summary_a.occurrence_count, 0U);
+    EXPECT_EQ(summary_b.occurrence_count, 0U);
+    std::size_t count_a = 0U;
+    std::size_t count_b = 0U;
+    const auto* result_a = laplace_composition_working_set_results(
+        canonical_a, &count_a);
+    const auto* result_b = laplace_composition_working_set_results(
+        canonical_b, &count_b);
+    ASSERT_NE(result_a, nullptr);
+    ASSERT_NE(result_b, nullptr);
+    ASSERT_EQ(count_a, 1U);
+    ASSERT_EQ(count_b, 1U);
+    EXPECT_EQ(std::memcmp(
+                  result_a[0].entity_id.bytes, result_b[0].entity_id.bytes,
+                  sizeof(result_a[0].entity_id.bytes)),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  result_a[0].identity_witness.bytes,
+                  result_b[0].identity_witness.bytes,
+                  sizeof(result_a[0].identity_witness.bytes)),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  result_a[0].physicality_id.bytes,
+                  result_b[0].physicality_id.bytes,
+                  sizeof(result_a[0].physicality_id.bytes)),
+              0);
+    laplace_composition_working_set_destroy(&canonical_a);
+    laplace_composition_working_set_destroy(&canonical_b);
+
+    request_a.flags = LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE;
+    request_b.flags = LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE;
+    laplace_composition_working_set* witnessed_a = nullptr;
+    laplace_composition_working_set* witnessed_b = nullptr;
+    ASSERT_EQ(laplace_composition_working_set_create(&input_a, &witnessed_a),
+              LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(laplace_composition_working_set_create(&input_b, &witnessed_b),
+              LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(laplace_composition_working_set_summary_get(witnessed_a, &summary_a),
+              LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(laplace_composition_working_set_summary_get(witnessed_b, &summary_b),
+              LAPLACE_COMPOSITION_OK);
+    EXPECT_EQ(summary_a.occurrence_count, 1U);
+    EXPECT_EQ(summary_b.occurrence_count, 1U);
+    result_a = laplace_composition_working_set_results(witnessed_a, &count_a);
+    result_b = laplace_composition_working_set_results(witnessed_b, &count_b);
+    ASSERT_NE(result_a, nullptr);
+    ASSERT_NE(result_b, nullptr);
+    EXPECT_EQ(std::memcmp(
+                  result_a[0].entity_id.bytes, result_b[0].entity_id.bytes,
+                  sizeof(result_a[0].entity_id.bytes)),
+              0);
+    EXPECT_EQ(std::memcmp(
+                  result_a[0].physicality_id.bytes,
+                  result_b[0].physicality_id.bytes,
+                  sizeof(result_a[0].physicality_id.bytes)),
+              0);
+    laplace_persistence_attestation_record occurrence_a{};
+    occurrence_a.entity_id = result_a[0].entity_id;
+    occurrence_a.physicality_id = result_a[0].physicality_id;
+    occurrence_a.source_fingerprint = source_a;
+    occurrence_a.context_fingerprint = request_a.occurrence_context_fingerprint;
+    occurrence_a.source_ordinal = request_a.source_ordinal;
+    occurrence_a.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+    occurrence_a.attestation_kind =
+        LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+    laplace_persistence_attestation_record occurrence_b = occurrence_a;
+    occurrence_b.source_fingerprint = source_b;
+    occurrence_b.context_fingerprint = request_b.occurrence_context_fingerprint;
+    occurrence_b.source_ordinal = request_b.source_ordinal;
+    ASSERT_EQ(laplace_persistence_attestation_identify(
+                  &occurrence_a, &occurrence_a.attestation_id),
+              LAPLACE_PERSISTENCE_OK);
+    ASSERT_EQ(laplace_persistence_attestation_identify(
+                  &occurrence_b, &occurrence_b.attestation_id),
+              LAPLACE_PERSISTENCE_OK);
+    EXPECT_NE(std::memcmp(
+                  occurrence_a.attestation_id.bytes,
+                  occurrence_b.attestation_id.bytes,
+                  sizeof(occurrence_a.attestation_id.bytes)),
+              0);
+    laplace_composition_working_set_destroy(&witnessed_a);
+    laplace_composition_working_set_destroy(&witnessed_b);
+
+    auto unknown_flag_request = request_a;
+    unknown_flag_request.flags = LAPLACE_COMPOSITION_REQUEST_KNOWN_FLAGS << 1U;
+    auto invalid_input = input_a;
+    invalid_input.requests = &unknown_flag_request;
+    laplace_composition_working_set* rejected = nullptr;
+    EXPECT_EQ(laplace_composition_working_set_create(&invalid_input, &rejected),
+              LAPLACE_COMPOSITION_INVALID_ARGUMENT);
+    EXPECT_EQ(rejected, nullptr);
+    auto missing_ordinal_request = request_a;
+    missing_ordinal_request.source_ordinal = 0U;
+    invalid_input.requests = &missing_ordinal_request;
+    EXPECT_EQ(laplace_composition_working_set_create(&invalid_input, &rejected),
+              LAPLACE_COMPOSITION_INVALID_ARGUMENT);
+    EXPECT_EQ(rejected, nullptr);
+}
 
 TEST(CompositionWorkingSet, BuildsDeduplicatedTopologicalDagAndProducer) {
     auto context = laplace_test_context(3U);

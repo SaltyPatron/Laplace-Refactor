@@ -56,6 +56,7 @@ static ArrayType* composition_occurrence_ids(
     laplace_digest256* identifiers;
     Datum* values;
     size_t input_index;
+    size_t identifier_count = 0u;
     size_t output_count = 0u;
     if (execution == NULL || input == NULL || unique_count == NULL ||
         execution->result_count != (size_t)input->request_count) {
@@ -67,28 +68,30 @@ static ArrayType* composition_occurrence_ids(
         sizeof(*identifiers) * execution->result_count);
     for (input_index = 0u; input_index < execution->result_count; ++input_index) {
         laplace_persistence_attestation_record occurrence;
+        const laplace_composition_request* request = &input->requests[input_index];
+        if ((request->flags & LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) == 0u) {
+            continue;
+        }
         memset(&occurrence, 0, sizeof(occurrence));
         occurrence.entity_id = execution->results[input_index].entity_id;
         occurrence.physicality_id = execution->results[input_index].physicality_id;
         occurrence.source_fingerprint = *input->source_fingerprint;
-        occurrence.context_fingerprint =
-            input->requests[input_index].occurrence_context_fingerprint;
-        occurrence.source_ordinal = input->requests[input_index].source_ordinal;
+        occurrence.context_fingerprint = request->occurrence_context_fingerprint;
+        occurrence.source_ordinal = request->source_ordinal;
         occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
         occurrence.attestation_kind =
             LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
         if (laplace_persistence_attestation_identify(
-                &occurrence, &identifiers[input_index]) !=
+                &occurrence, &identifiers[identifier_count]) !=
                 LAPLACE_PERSISTENCE_OK) {
             ereport(ERROR,
                     (errcode(ERRCODE_DATA_CORRUPTED),
                      errmsg("Laplace composition occurrence membership identity failed")));
         }
+        ++identifier_count;
     }
-    qsort(
-        identifiers, execution->result_count, sizeof(*identifiers),
-        digest_compare);
-    for (input_index = 0u; input_index < execution->result_count; ++input_index) {
+    qsort(identifiers, identifier_count, sizeof(*identifiers), digest_compare);
+    for (input_index = 0u; input_index < identifier_count; ++input_index) {
         if (output_count == 0u ||
             memcmp(identifiers[input_index].bytes,
                    identifiers[output_count - 1u].bytes, 32u) != 0) {
@@ -100,12 +103,15 @@ static ArrayType* composition_occurrence_ids(
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg("Laplace composition occurrence membership count differs from the canonical working set")));
     }
+    *unique_count = output_count;
+    if (output_count == 0u) {
+        return construct_empty_array(BYTEAOID);
+    }
     values = (Datum*)palloc(sizeof(*values) * output_count);
     for (input_index = 0u; input_index < output_count; ++input_index) {
         values[input_index] = PointerGetDatum(laplace_pg_bytes_to_bytea(
             identifiers[input_index].bytes, 32u));
     }
-    *unique_count = output_count;
     return construct_array(
         values, (int)output_count, BYTEAOID, -1, false, TYPALIGN_INT);
 }

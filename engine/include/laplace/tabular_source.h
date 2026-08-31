@@ -95,6 +95,29 @@ typedef struct laplace_tabular_mapping_occurrence {
     uint32_t flags;
 } laplace_tabular_mapping_occurrence;
 
+/*
+ * Structural grammar testimony retained by source admission.  canonical_content
+ * names only the exact span bytes in the enclosing canonical working set.  The
+ * remaining fields describe the parser/provider observation and therefore never
+ * participate in entity or physicality identity.  media_type bytes live in the
+ * plan view's decomposition_witness_media_types buffer at the declared offset.
+ */
+typedef struct laplace_tabular_decomposition_witness {
+    laplace_digest256 trace_fingerprint;
+    laplace_digest256 provider_fingerprint;
+    laplace_composition_operand canonical_content;
+    uint64_t artifact_index;
+    uint64_t span_index;
+    uint64_t parent_span_index;
+    uint64_t byte_start;
+    uint64_t byte_end;
+    uint64_t kind;
+    uint64_t media_type_byte_offset;
+    uint64_t media_type_byte_count;
+    uint32_t depth;
+    uint32_t flags;
+} laplace_tabular_decomposition_witness;
+
 typedef struct laplace_tabular_source_input {
     laplace_source_profile_manifest profile_declaration;
     laplace_digest256 geometry_epoch;
@@ -125,6 +148,8 @@ typedef struct laplace_tabular_source_plan_view {
     const uint64_t* artifact_root_result_indexes;
     const laplace_tabular_reference_occurrence* reference_occurrences;
     const laplace_tabular_mapping_occurrence* mapping_occurrences;
+    const laplace_tabular_decomposition_witness* decomposition_witnesses;
+    const uint8_t* decomposition_witness_media_types;
     uint64_t atom_count;
     uint64_t operand_count;
     uint64_t request_count;
@@ -132,6 +157,8 @@ typedef struct laplace_tabular_source_plan_view {
     uint64_t artifact_count;
     uint64_t reference_occurrence_count;
     uint64_t mapping_occurrence_count;
+    uint64_t decomposition_witness_count;
+    uint64_t decomposition_witness_media_type_byte_count;
     uint64_t root_result_index;
     uint32_t recipe_version;
     uint32_t flags;

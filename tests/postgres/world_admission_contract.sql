@@ -146,7 +146,7 @@ BEGIN
                 ::laplace.composition_operand_record
         ],
         ARRAY[
-            ROW(0::numeric,2::numeric,1::numeric,1,0,
+            ROW(0::numeric,2::numeric,1::numeric,1,1,
                 decode(repeat('b1',32),'hex'),
                 decode(repeat('c1',32),'hex'),
                 decode(repeat('d1',32),'hex'))

@@ -711,6 +711,49 @@ BEGIN
 END
 $contract$;
 
+DO $contract$
+DECLARE
+    baseline source_admission_steady_replay%ROWTYPE;
+    replay laplace.tabular_source_admission_result;
+    changed bigint;
+BEGIN
+    SELECT * INTO STRICT baseline FROM source_admission_steady_replay;
+    BEGIN
+        UPDATE laplace.physicality AS physicality
+        SET centroid_x = CASE
+            WHEN centroid_x = 0.5 THEN 0.25
+            ELSE 0.5
+        END
+        FROM laplace.attestation AS binding
+        WHERE binding.source_fingerprint = baseline.unicode_root_receipt_id
+          AND binding.attestation_kind = 3
+          AND binding.source_ordinal = 102
+          AND binding.physicality_id = physicality.physicality_id;
+        GET DIAGNOSTICS changed = ROW_COUNT;
+        IF changed <> 1 THEN
+            RAISE EXCEPTION
+                'mapped Unicode leaf defect fixture did not select one Tier-0 physicality: %',
+                changed;
+        END IF;
+
+        SELECT (admission.result).*
+        INTO STRICT replay
+        FROM (SELECT pg_temp.admit_source() AS result) AS admission;
+        IF replay.root_entity_id IS DISTINCT FROM baseline.root_entity_id
+           OR replay.root_physicality_id IS DISTINCT FROM baseline.root_physicality_id THEN
+            RAISE EXCEPTION USING
+                ERRCODE = 'LP001',
+                MESSAGE = 'source admission followed relational Unicode leaf drift instead of the mapped plane';
+        END IF;
+        RAISE EXCEPTION USING
+            ERRCODE = 'LP000',
+            MESSAGE = 'rollback mapped Unicode leaf drift fixture';
+    EXCEPTION
+        WHEN SQLSTATE 'LP000' THEN NULL;
+    END;
+END
+$contract$;
+
 EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
 SELECT e.node_id, e.proposition_id, t.testimony_id, w.admission_id
 FROM source_admission_first AS admitted

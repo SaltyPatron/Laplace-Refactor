@@ -16,6 +16,8 @@ jobs:
         run: ./tools/tests/verify-requirements.sh
       - name: Execute requirement verifier mutation checks
         run: python3 tests/requirements_trace_tests.py
+      - name: Prove selective custom-stack QA planning and fail-fast semantics
+        run: python3 tests/custom_stack_qa_tests.py
 
   native:
     runs-on: ubuntu-24.04
