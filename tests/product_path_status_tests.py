@@ -62,10 +62,14 @@ class ProductPathGitStatusTests(unittest.TestCase):
                 workflow,
                 f"legacy protected context {check_name} can bypass product-path",
             )
-            block = workflow[workflow.index(marker):]
+            start = workflow.index(marker)
+            end = workflow.find("\n  ", start + len(marker))
+            if end < 0:
+                end = len(workflow)
+            block = workflow[start:end]
             self.assertIn(
                 "    if: always() && needs.product-path.result == 'success'\n",
-                block[:600],
+                block,
                 f"legacy protected context {check_name} can be transitively skipped",
             )
         self.assertGreaterEqual(workflow.count("needs.product-path.result"), len(aliases))
