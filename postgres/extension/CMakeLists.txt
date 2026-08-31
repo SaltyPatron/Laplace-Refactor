@@ -39,6 +39,7 @@ set(laplace_postgresql_module_sources
     src/composition_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
+    src/standing_calculation_pg.c
     src/highway_registry_pg.c
     src/laplace_pg.c
     src/persistence_pg.c
@@ -157,6 +158,12 @@ if(BUILD_TESTING)
     target_compile_definitions(
         laplace_pg_evidence_testimony_replay_mutant PRIVATE
         LAPLACE_PG_EVIDENCE_TESTIMONY_ENTRYPOINT=laplace_pg_evidence_record_testimony_replay_mutant)
+    laplace_add_postgresql_mutant(
+        laplace_pg_standing_replay_mutant
+        LAPLACE_TEST_STANDING_REPLAY_VERIFY_BYPASS)
+    target_compile_definitions(
+        laplace_pg_standing_replay_mutant PRIVATE
+        LAPLACE_PG_STANDING_ENTRYPOINT=laplace_pg_evidence_calculate_standing_replay_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_source_profile_replay_mutant
         LAPLACE_TEST_SOURCE_PROFILE_REPLAY_VERIFY_BYPASS)

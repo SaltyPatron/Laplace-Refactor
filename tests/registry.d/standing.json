@@ -1,0 +1,80 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "StandingCalculation.MatchesCorrectedGlickoTwoReferenceExample",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-PREDICTION-COMPATIBILITY-STANDING"],
+      "covered_dimensions": ["corrected Glicko-2 calculation", "real opponent prior states", "exact period successor"]
+    },
+    {
+      "ctest_name": "StandingCalculation.CanonicalOrderProducesOneStateAndReceipt",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["canonical event order", "order-independent state identity", "order-independent receipt"]
+    },
+    {
+      "ctest_name": "StandingCalculation.TypedBatchCarriesTheCompletePeriodProgram",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-BULK-PARITY", "LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["typed period batch", "complete prior and event state", "single-item and batch semantic parity"]
+    },
+    {
+      "ctest_name": "StandingCalculation.RealOpponentPriorChangesUpdate",
+      "evidence_targets": ["LP-TEST-PREDICTION-COMPATIBILITY-STANDING"],
+      "covered_dimensions": ["opponent-specific prior", "matchup-sensitive standing"]
+    },
+    {
+      "ctest_name": "StandingCalculation.SuccessorConsumesPriorState",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-CONSENSUS-RECOMPUTATION-HISTORY"],
+      "covered_dimensions": ["earned successor state", "prior-state continuity", "immutable period identity"]
+    },
+    {
+      "ctest_name": "StandingCalculation.RejectsDuplicateDependenceRoot",
+      "evidence_targets": ["LP-TEST-EVIDENCE-DEPENDENCE", "LP-TEST-DEPENDENT-LINK-NONAMPLIFICATION"],
+      "covered_dimensions": ["dependence-root uniqueness", "within-period non-amplification"]
+    },
+    {
+      "ctest_name": "StandingCalculation.UnknownAndAbsenceAreNotLosses",
+      "evidence_targets": ["LP-TEST-COMPETING-PROPOSITION-PRESERVATION", "LP-TEST-NEGATIVE-EVIDENCE"],
+      "covered_dimensions": ["unknown outcome separation", "absence outcome separation", "no implicit loss promotion"]
+    },
+    {
+      "ctest_name": "StandingCalculation.RejectsCrossArenaAndIdentityDrift",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["arena isolation", "content-identity verification", "participant binding"]
+    },
+    {
+      "ctest_name": "IsaExecution.StandingMatchesCanonicalNativeOperationAndReceipt",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["public ISA standing opcode", "canonical native parity", "typed receipt"]
+    },
+    {
+      "ctest_name": "standing-calculation.mutation-prior-reset-detected",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-CONSENSUS-RECOMPUTATION-HISTORY"],
+      "covered_dimensions": ["prior-state reset mutation detection"]
+    },
+    {
+      "ctest_name": "standing-calculation.mutation-neutral-opponent-detected",
+      "evidence_targets": ["LP-TEST-PREDICTION-COMPATIBILITY-STANDING"],
+      "covered_dimensions": ["neutral-opponent substitution mutation detection"]
+    },
+    {
+      "ctest_name": "isa.mutation-standing-input-order-receipt-detected",
+      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["caller-order-dependent ISA receipt mutation detection"]
+    },
+    {
+      "ctest_name": "postgres.standing-persistent-whole-route-contract",
+      "evidence_targets": ["LP-TEST-PERSISTENT-STATE-ADDRESSING", "LP-TEST-EVIDENCE-DEPENDENCE", "LP-TEST-CONSENSUS-RECOMPUTATION-HISTORY", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["append-only standing history", "exact replay", "cross-period dependence non-amplification", "native ISA PostgreSQL parity"]
+    },
+    {
+      "ctest_name": "postgres.mutation-standing-replay-conflict-detected",
+      "evidence_targets": ["LP-TEST-PERSISTENT-STATE-ADDRESSING", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["durable standing replay conflict mutation detection"]
+    },
+    {
+      "ctest_name": "postgres.mutation-standing-dependence-history-detected",
+      "evidence_targets": ["LP-TEST-EVIDENCE-DEPENDENCE", "LP-TEST-DEPENDENT-LINK-NONAMPLIFICATION", "LP-TEST-PERSISTENT-STATE-ADDRESSING"],
+      "covered_dimensions": ["cross-period dependence-root constraint mutation detection"]
+    }
+  ]
+}

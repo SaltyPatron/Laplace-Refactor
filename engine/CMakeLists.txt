@@ -27,6 +27,7 @@ add_library(laplace_engine SHARED
     src/persistence.c
     src/evidence_lineage.c
     src/evidence_testimony.c
+    src/standing_calculation.c
     src/reference_topology.c
     src/reference_mapping.c
     src/source_profile.c
@@ -82,6 +83,7 @@ add_library(Laplace::MachineException ALIAS laplace_engine)
 add_library(Laplace::Persistence ALIAS laplace_engine)
 add_library(Laplace::EvidenceLineage ALIAS laplace_engine)
 add_library(Laplace::EvidenceTestimony ALIAS laplace_engine)
+add_library(Laplace::StandingCalculation ALIAS laplace_engine)
 add_library(Laplace::ReferenceTopology ALIAS laplace_engine)
 add_library(Laplace::ReferenceMapping ALIAS laplace_engine)
 add_library(Laplace::SourceProfile ALIAS laplace_engine)
@@ -183,6 +185,7 @@ install(FILES
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/persistence.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/evidence_lineage.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/evidence_testimony.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/standing_calculation.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/reference_topology.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/reference_mapping.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/source_profile.h"

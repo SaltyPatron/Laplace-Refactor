@@ -32,11 +32,11 @@ internal static class Program
         Require(LaplaceIsaContract.ReceiptDigestAlgorithm == "BLAKE3-256" &&
             LaplaceIsaContract.ReceiptDigestBytes == 32,
             "generated receipt descriptor differs");
-        Require(LaplaceIsaContract.Minor == 11,
+        Require(LaplaceIsaContract.Minor == 12,
             "generated ISA minor version differs");
-        Require(LaplaceIsaContract.ValueTypes.Length == 19,
+        Require(LaplaceIsaContract.ValueTypes.Length == 21,
             "generated value type inventory differs");
-        Require(LaplaceIsaContract.Operations.Length == 11,
+        Require(LaplaceIsaContract.Operations.Length == 12,
             "generated operation inventory differs");
         Require(IdentityCodepointBatch.Descriptor == LaplaceIsaContract.Operations[0],
             "generated identity declaration differs from descriptor inventory");
@@ -50,15 +50,17 @@ internal static class Program
             "generated evidence lineage declaration differs from descriptor inventory");
         Require(EvidenceRecordTestimonyBatch.Descriptor == LaplaceIsaContract.Operations[5],
             "generated evidence testimony declaration differs from descriptor inventory");
-        Require(SourceProfileValidateBatch.Descriptor == LaplaceIsaContract.Operations[6],
+        Require(EvidenceCalculateStandingBatch.Descriptor == LaplaceIsaContract.Operations[6],
+            "generated standing declaration differs from descriptor inventory");
+        Require(SourceProfileValidateBatch.Descriptor == LaplaceIsaContract.Operations[7],
             "generated source-profile declaration differs from descriptor inventory");
-        Require(WorldAdmissionCloseBatch.Descriptor == LaplaceIsaContract.Operations[7],
+        Require(WorldAdmissionCloseBatch.Descriptor == LaplaceIsaContract.Operations[8],
             "generated world-admission declaration differs from descriptor inventory");
-        Require(ReferenceTopologyResolveBatch.Descriptor == LaplaceIsaContract.Operations[8],
+        Require(ReferenceTopologyResolveBatch.Descriptor == LaplaceIsaContract.Operations[9],
             "generated reference-topology declaration differs from descriptor inventory");
-        Require(ReferenceMappingResolveBatch.Descriptor == LaplaceIsaContract.Operations[9],
+        Require(ReferenceMappingResolveBatch.Descriptor == LaplaceIsaContract.Operations[10],
             "generated reference-mapping declaration differs from descriptor inventory");
-        Require(CognitionSolvePacket.Descriptor == LaplaceIsaContract.Operations[10],
+        Require(CognitionSolvePacket.Descriptor == LaplaceIsaContract.Operations[11],
             "generated cognition declaration differs from descriptor inventory");
         Require(LaplaceHighwayContract.Version == 2U &&
             LaplaceHighwayContract.KindLanguage == 3U &&
@@ -156,6 +158,23 @@ internal static class Program
             "managed evidence testimony ISA receipt differs from direct native receipt");
         Require(RawEqual(testimony.Error, fixture.TestimonyError),
             "managed evidence testimony error fields differ from direct native result");
+
+        var standing = client.ExecuteBatch<
+            EvidenceCalculateStandingBatch,
+            LaplaceStandingPeriodInput,
+            LaplaceStandingPeriodResult>(fixture.StandingInputs, context);
+        Require(standing.Status == LaplaceIsaStatus.Ok,
+            "managed standing execution failed");
+        Require(standing.OutputCount == (ulong)fixture.StandingOutputs.Length,
+            "managed standing output count differs");
+        LaplaceStandingPeriodResult[] publishedStanding =
+            standing.Output.AsSpan(0, checked((int)standing.OutputCount)).ToArray();
+        Require(RawEqual(publishedStanding, fixture.StandingOutputs),
+            "managed standing output differs from direct native output");
+        Require(RawEqual(standing.Receipt, fixture.StandingReceipt),
+            "managed standing ISA receipt differs from direct native receipt");
+        Require(RawEqual(standing.Error, fixture.StandingError),
+            "managed standing error fields differ from direct native result");
 
         var sourceProfile = client.ExecuteBatch<
             SourceProfileValidateBatch,
@@ -382,6 +401,10 @@ internal sealed record Fixture(
     LaplaceEvidenceTestimonyReceipt[] TestimonyOutputs,
     LaplaceIsaReceipt TestimonyReceipt,
     LaplaceIsaError TestimonyError,
+    LaplaceStandingPeriodInput[] StandingInputs,
+    LaplaceStandingPeriodResult[] StandingOutputs,
+    LaplaceIsaReceipt StandingReceipt,
+    LaplaceIsaError StandingError,
     LaplaceSourceProfileManifest[] SourceProfiles,
     LaplaceSourceProfileReceipt[] SourceProfileOutputs,
     LaplaceIsaReceipt SourceProfileReceipt,
@@ -418,13 +441,15 @@ internal sealed record Fixture(
         uint highwayCount = input.ReadUInt32();
         uint highwayRegistryCount = input.ReadUInt32();
         uint testimonyCount = input.ReadUInt32();
+        uint standingCount = input.ReadUInt32();
         uint sourceProfileCount = input.ReadUInt32();
         uint worldAdmissionCount = input.ReadUInt32();
         uint referenceCount = input.ReadUInt32();
         uint mappingCount = input.ReadUInt32();
-        if (version != 8 || layoutCount > 1024 || identityCount > 1024 ||
+        if (version != 9 || layoutCount > 1024 || identityCount > 1024 ||
             trajectoryCount > 1024 || highwayCount > 1024 ||
             highwayRegistryCount > 1024 || testimonyCount > 1024 ||
+            standingCount == 0 || standingCount > 1024 ||
             sourceProfileCount > 1024 || worldAdmissionCount > 1024 ||
             referenceCount > 1024 || mappingCount > 1024)
         {
@@ -464,6 +489,12 @@ internal sealed record Fixture(
             ReadArray<LaplaceEvidenceTestimonyReceipt>(input, 1);
         LaplaceIsaReceipt testimonyReceipt = ReadOne<LaplaceIsaReceipt>(input);
         LaplaceIsaError testimonyError = ReadOne<LaplaceIsaError>(input);
+        LaplaceStandingPeriodInput[] standingInputs =
+            ReadArray<LaplaceStandingPeriodInput>(input, standingCount);
+        LaplaceStandingPeriodResult[] standingOutputs =
+            ReadArray<LaplaceStandingPeriodResult>(input, 1);
+        LaplaceIsaReceipt standingReceipt = ReadOne<LaplaceIsaReceipt>(input);
+        LaplaceIsaError standingError = ReadOne<LaplaceIsaError>(input);
         LaplaceSourceProfileManifest[] sourceProfiles =
             ReadArray<LaplaceSourceProfileManifest>(input, sourceProfileCount);
         LaplaceSourceProfileReceipt[] sourceProfileOutputs =
@@ -515,6 +546,10 @@ internal sealed record Fixture(
             testimonyOutputs,
             testimonyReceipt,
             testimonyError,
+            standingInputs,
+            standingOutputs,
+            standingReceipt,
+            standingError,
             sourceProfiles,
             sourceProfileOutputs,
             sourceProfileReceipt,

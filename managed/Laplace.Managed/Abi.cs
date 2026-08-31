@@ -220,6 +220,76 @@ public struct LaplaceEvidenceTestimonyReceipt
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct LaplaceStandingState
+{
+    public LaplaceDigest256 StateId;
+    public LaplaceDigest256 CoordinateId;
+    public LaplaceDigest256 ArenaScopeId;
+    public LaplaceDigest256 PriorStateId;
+    public LaplaceDigest256 EpochId;
+    public LaplaceDigest256 RatingRecipeId;
+    public double Rating;
+    public double RatingDeviation;
+    public double Volatility;
+    public ulong EligibleMatchCount;
+    public ulong PeriodOrdinal;
+    public uint RatingRecipeVersion;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceStandingEvent
+{
+    public LaplaceDigest256 EventId;
+    public LaplaceDigest256 ParticipantCoordinateId;
+    public LaplaceDigest256 ParticipantPriorStateId;
+    public LaplaceStandingState OpponentPriorState;
+    public LaplaceDigest256 PeriodId;
+    public LaplaceDigest256 EligibleRootId;
+    public LaplaceDigest256 OutcomeMappingId;
+    public LaplaceDigest256 ContextId;
+    public LaplaceDigest256 ValidTimeId;
+    public ulong ScoreNumerator;
+    public ulong ScoreDenominator;
+    public uint OutcomeKind;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceStandingPeriodReceipt
+{
+    public LaplaceDigest256 ReceiptId;
+    public LaplaceDigest256 PriorStateId;
+    public LaplaceDigest256 SuccessorStateId;
+    public LaplaceDigest256 PeriodId;
+    public LaplaceDigest256 InputFingerprint;
+    public LaplaceDigest256 OutputFingerprint;
+    public ulong EligibleEventCount;
+    public ulong PriorMatchCount;
+    public ulong SuccessorMatchCount;
+    public uint VolatilityIterations;
+    public uint Version;
+    public uint Status;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceStandingPeriodInput
+{
+    public LaplaceStandingState PriorState;
+    public LaplaceStandingEvent Event;
+    public double VolatilityConstraint;
+    public double ConvergenceTolerance;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceStandingPeriodResult
+{
+    public LaplaceStandingState SuccessorState;
+    public LaplaceStandingPeriodReceipt Receipt;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct LaplaceSourceProfileManifest
 {
     public LaplaceDigest256 ProfileId;
@@ -584,6 +654,56 @@ public static class LaplaceNativeAbi
         OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.NegativeDispositionCount)),
         OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.Version)),
         OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.Status)),
+        checked((uint)Marshal.SizeOf<LaplaceStandingState>()),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.StateId)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.CoordinateId)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.ArenaScopeId)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.PriorStateId)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.EpochId)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.RatingRecipeId)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.Rating)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.RatingDeviation)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.Volatility)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.EligibleMatchCount)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.PeriodOrdinal)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.RatingRecipeVersion)),
+        OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.Flags)),
+        checked((uint)Marshal.SizeOf<LaplaceStandingEvent>()),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.EventId)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.ParticipantCoordinateId)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.ParticipantPriorStateId)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.OpponentPriorState)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.PeriodId)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.EligibleRootId)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.OutcomeMappingId)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.ContextId)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.ValidTimeId)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.ScoreNumerator)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.ScoreDenominator)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.OutcomeKind)),
+        OffsetOf<LaplaceStandingEvent>(nameof(LaplaceStandingEvent.Flags)),
+        checked((uint)Marshal.SizeOf<LaplaceStandingPeriodReceipt>()),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.ReceiptId)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.PriorStateId)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.SuccessorStateId)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.PeriodId)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.InputFingerprint)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.OutputFingerprint)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.EligibleEventCount)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.PriorMatchCount)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.SuccessorMatchCount)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.VolatilityIterations)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.Version)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.Status)),
+        OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.Flags)),
+        checked((uint)Marshal.SizeOf<LaplaceStandingPeriodInput>()),
+        OffsetOf<LaplaceStandingPeriodInput>(nameof(LaplaceStandingPeriodInput.PriorState)),
+        OffsetOf<LaplaceStandingPeriodInput>(nameof(LaplaceStandingPeriodInput.Event)),
+        OffsetOf<LaplaceStandingPeriodInput>(nameof(LaplaceStandingPeriodInput.VolatilityConstraint)),
+        OffsetOf<LaplaceStandingPeriodInput>(nameof(LaplaceStandingPeriodInput.ConvergenceTolerance)),
+        checked((uint)Marshal.SizeOf<LaplaceStandingPeriodResult>()),
+        OffsetOf<LaplaceStandingPeriodResult>(nameof(LaplaceStandingPeriodResult.SuccessorState)),
+        OffsetOf<LaplaceStandingPeriodResult>(nameof(LaplaceStandingPeriodResult.Receipt)),
         checked((uint)Marshal.SizeOf<LaplaceSourceProfileManifest>()),
         OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.ProfileId)),
         OffsetOf<LaplaceSourceProfileManifest>(nameof(LaplaceSourceProfileManifest.Coordinate)),

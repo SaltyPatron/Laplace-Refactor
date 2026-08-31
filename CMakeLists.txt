@@ -114,6 +114,10 @@ include(cmake/LaplaceEvidenceTestimonyContract.cmake)
 laplace_configure_evidence_testimony_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/evidence-testimony.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/evidence_testimony.h")
+include(cmake/LaplaceStandingCalculationContract.cmake)
+laplace_configure_standing_calculation_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/standing-calculation.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/standing_calculation.h")
 include(cmake/LaplaceReferenceTopologyContract.cmake)
 laplace_configure_reference_topology_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-topology.json"

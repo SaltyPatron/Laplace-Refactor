@@ -49,6 +49,10 @@ function(laplace_configure_postgresql_bindings
         "${contract_json}" bindings postgresql evidence_record_testimony_batch record_sql_name)
     string(JSON evidence_testimony_symbol GET
         "${contract_json}" bindings postgresql evidence_record_testimony_batch record_c_symbol)
+    string(JSON evidence_standing_sql GET
+        "${contract_json}" bindings postgresql evidence_calculate_standing_batch calculate_sql_name)
+    string(JSON evidence_standing_symbol GET
+        "${contract_json}" bindings postgresql evidence_calculate_standing_batch calculate_c_symbol)
     string(JSON source_profile_validate_sql GET
         "${contract_json}" bindings postgresql source_profile_validate_batch validate_sql_name)
     string(JSON source_profile_validate_symbol GET
@@ -177,6 +181,7 @@ function(laplace_configure_postgresql_bindings
         highway_registry_resolve_sql highway_registry_resolve_symbol
         evidence_record_sql evidence_record_symbol
         evidence_testimony_sql evidence_testimony_symbol
+        evidence_standing_sql evidence_standing_symbol
         source_profile_validate_sql source_profile_validate_symbol
         world_admission_close_sql world_admission_close_symbol
         reference_topology_resolve_sql reference_topology_resolve_symbol
@@ -236,6 +241,8 @@ function(laplace_configure_postgresql_bindings
     set(LAPLACE_PG_EVIDENCE_RECORD_SYMBOL "${evidence_record_symbol}")
     set(LAPLACE_PG_EVIDENCE_TESTIMONY_SQL "${evidence_testimony_sql}")
     set(LAPLACE_PG_EVIDENCE_TESTIMONY_SYMBOL "${evidence_testimony_symbol}")
+    set(LAPLACE_PG_EVIDENCE_STANDING_SQL "${evidence_standing_sql}")
+    set(LAPLACE_PG_EVIDENCE_STANDING_SYMBOL "${evidence_standing_symbol}")
     set(LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SQL "${source_profile_validate_sql}")
     set(LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SYMBOL "${source_profile_validate_symbol}")
     set(LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL "${world_admission_close_sql}")

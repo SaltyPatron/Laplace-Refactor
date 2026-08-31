@@ -1382,6 +1382,46 @@
       "the product is not released"
     ]
   },
+  "isolated_unpublished_work": {
+    "classification": "observed-development-state-not-product-law-not-activated-product",
+    "observed_at_utc": "2026-08-31T18:25:15Z",
+    "worktree": "/tmp/laplace-persistent-product-20260831",
+    "branch": "codex/complete-laplace-20260831",
+    "base_commit": "ed2b4f42db10e61c33ab83dc0fc462c2f07f8465",
+    "whole_product_target": "Laplace works perfectly as invented and envisioned; this boundary does not narrow that target",
+    "capability": "evidence.adjudicate.typed-standing",
+    "state": "real-native-isa-managed-postgresql-implementation-and-controlled-integration-proven-not-product-activated",
+    "implemented_boundary": [
+      "corrected March 22 2022 Glicko-2 executes as one versioned native typed period operation over the exact participant prior and real opponent prior states",
+      "event order is canonical in semantic and ISA receipts while identity arena period and dependence defects fail before publication",
+      "generated ISA 1.12 and Csharp bindings execute the operation with byte-exact native result ABI and full receipt parity",
+      "PostgreSQL transactionally publishes append-only initial and earned standing states match events period receipts ordered membership and ISA receipts",
+      "replay verifies exact durable state and cross-period dependence-root reuse is rejected for the participant coordinate",
+      "prior-reset neutral-opponent caller-order-receipt durable-replay and historical-dependence deliberate defects are detected"
+    ],
+    "controlled_integration_validation": {
+      "focused_debug_tests": "17 of 17 affected native ISA generated-binding managed-parity and mutation tests passed together before the two PostgreSQL mutation additions",
+      "postgresql_tests": "3 of 3 isolated PostgreSQL production replay replay-mutation and dependence-history-mutation tests passed",
+      "sanitizers": "eight native standing tests one public ISA standing test and three standing mutation tests passed with AddressSanitizer and UndefinedBehaviorSanitizer active; LeakSanitizer was disabled because the supervising ptrace boundary is incompatible with it",
+      "authority_and_trace": "31 of 31 program-authority tests and 12 of 12 requirement-trace tests passed",
+      "generated_and_static": "generated Dotnet contract shell JSON Python and whitespace checks passed"
+    },
+    "missing_boundary": [
+      "admitted testimony is not yet lowered into standing events through an accepted recipe",
+      "authority-selected onboarding defaults outcome mappings source-type priors and earned override are not implemented",
+      "independent return legs and cross-profile dependence closure are not implemented",
+      "contradiction propagation immutable consensus and referential epochs with as-of readback are not implemented",
+      "controlled temporary PostgreSQL integration is not installed-product adjudication",
+      "foundational heterogeneous world admission cognition realization product surfaces federation and release remain incomplete"
+    ],
+    "next_boundary": "implement and prove the accepted standing recipe and testimony-to-standing lowering including source-type prior earned override and independent return-leg law, then publish immutable contradiction consensus and referential epochs through the same ISA persistence receipt and exception lifecycle",
+    "isolation": "the shared repository host services databases activation state and the other active agent's work were not mutated",
+    "nonclaims": [
+      "typed standing is not complete adjudication",
+      "temporary PostgreSQL proof is not an activated persistent product world",
+      "the refactor is not thereby deployed reboot-safe seeded released or complete"
+    ]
+  },
   "active_work": {
     "capability": "unicode.canonical-persistence-and-source-claim-scope",
     "github_issue": 13,

@@ -2,7 +2,7 @@
   "schema": "laplace.isa-contract/v1",
   "version": {
     "major": 1,
-    "minor": 11
+    "minor": 12
   },
   "execution_context": {
     "required": true,
@@ -29,7 +29,9 @@
     "reference_candidate_vector": 16,
     "reference_record_vector": 17,
     "reference_mapping_candidate_vector": 18,
-    "reference_mapping_record_vector": 19
+    "reference_mapping_record_vector": 19,
+    "standing_period_input_vector": 20,
+    "standing_period_result_vector": 21
   },
   "opcodes": {
     "identity_codepoint_batch": 131073,
@@ -38,6 +40,7 @@
     "highway_registry_materialize_batch": 262146,
     "evidence_record_lineage_batch": 327681,
     "evidence_record_testimony_batch": 327682,
+    "evidence_calculate_standing_batch": 327683,
     "source_profile_validate_batch": 393217,
     "world_admission_close_batch": 393218,
     "reference_topology_resolve_batch": 393219,
@@ -83,6 +86,11 @@
       "input_type": "evidence_testimony_record_vector",
       "output_type": "evidence_testimony_receipt_vector"
     },
+    "evidence_calculate_standing_batch": {
+      "module": "evidence",
+      "input_type": "standing_period_input_vector",
+      "output_type": "standing_period_result_vector"
+    },
     "source_profile_validate_batch": {
       "module": "admission",
       "input_type": "source_profile_manifest_vector",
@@ -116,6 +124,7 @@
     "highway_registry_materialize_batch": 1,
     "evidence_record_lineage_batch": 1,
     "evidence_record_testimony_batch": 1,
+    "evidence_calculate_standing_batch": 1,
     "source_profile_validate_batch": 1,
     "world_admission_close_batch": 1,
     "reference_topology_resolve_batch": 1,
@@ -129,6 +138,7 @@
     "highway_registry_materialize_batch": 4,
     "evidence_record_lineage_batch": 5,
     "evidence_record_testimony_batch": 6,
+    "evidence_calculate_standing_batch": 12,
     "source_profile_validate_batch": 7,
     "world_admission_close_batch": 8,
     "reference_topology_resolve_batch": 9,
@@ -165,7 +175,9 @@
         "reference_candidate_vector": "global::Laplace.Managed.LaplaceReferenceCandidate",
         "reference_record_vector": "global::Laplace.Managed.LaplaceReferenceRecord",
         "reference_mapping_candidate_vector": "global::Laplace.Managed.LaplaceReferenceMappingCandidate",
-        "reference_mapping_record_vector": "global::Laplace.Managed.LaplaceReferenceMappingRecord"
+        "reference_mapping_record_vector": "global::Laplace.Managed.LaplaceReferenceMappingRecord",
+        "standing_period_input_vector": "global::Laplace.Managed.LaplaceStandingPeriodInput",
+        "standing_period_result_vector": "global::Laplace.Managed.LaplaceStandingPeriodResult"
       },
       "operation_declarations": {
         "identity_codepoint_batch": "IdentityCodepointBatch",
@@ -174,6 +186,7 @@
         "highway_registry_materialize_batch": "HighwayRegistryMaterializeBatch",
         "evidence_record_lineage_batch": "EvidenceRecordLineageBatch",
         "evidence_record_testimony_batch": "EvidenceRecordTestimonyBatch",
+        "evidence_calculate_standing_batch": "EvidenceCalculateStandingBatch",
         "source_profile_validate_batch": "SourceProfileValidateBatch",
         "world_admission_close_batch": "WorldAdmissionCloseBatch",
         "reference_topology_resolve_batch": "ReferenceTopologyResolveBatch",
@@ -216,6 +229,10 @@
       "evidence_record_testimony_batch": {
         "record_sql_name": "evidence_record_testimony_batch",
         "record_c_symbol": "laplace_pg_evidence_record_testimony_batch"
+      },
+      "evidence_calculate_standing_batch": {
+        "calculate_sql_name": "evidence_calculate_standing_batch",
+        "calculate_c_symbol": "laplace_pg_evidence_calculate_standing_batch"
       },
       "source_profile_validate_batch": {
         "validate_sql_name": "source_profile_validate_batch",
