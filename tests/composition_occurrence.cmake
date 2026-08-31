@@ -83,3 +83,4 @@ set_tests_properties(
     LABELS "implementation;composition;identity;physicality;occurrence;resource;evidence;mutation")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/tests/source_structural_witness.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/tests/machine_exception.cmake")
