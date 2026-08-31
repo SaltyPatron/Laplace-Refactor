@@ -213,6 +213,12 @@ TEST(TabularSource, CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan) {
     EXPECT_EQ(view.profile.unresolved_count, view.profile.reference_count);
     EXPECT_EQ(view.profile.persisted_count, view.request_count);
     EXPECT_EQ(view.root_result_index + 1u, view.request_count);
+    for (std::uint64_t request_index = 0u;
+         request_index < view.request_count; ++request_index) {
+        EXPECT_EQ(
+            view.requests[static_cast<std::size_t>(request_index)].flags,
+            LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE);
+    }
     EXPECT_LT(view.claim_result_indexes[0], view.claim_result_indexes[1]);
     EXPECT_LT(view.claim_source_ordinals[0], view.claim_source_ordinals[1]);
     EXPECT_EQ(view.claim_outcome_types[0], 5u);
@@ -422,6 +428,8 @@ TEST(TabularSource, GeneratedPlanExecutesThroughCanonicalComposition) {
                   working_set, &summary),
               LAPLACE_COMPOSITION_OK);
     EXPECT_EQ(summary.request_count, view.request_count);
+    EXPECT_EQ(summary.occurrence_count, view.request_count);
+    EXPECT_GT(summary.logical_occurrence_count, 0u);
     laplace_source_profile_manifest closed_profile{};
     ASSERT_EQ(laplace_tabular_source_profile_finalize(
                   plan, &summary, &closed_profile),
@@ -441,6 +449,56 @@ TEST(TabularSource, GeneratedPlanExecutesThroughCanonicalComposition) {
         results[view.root_result_index].entity_id.bytes,
         results[view.root_result_index].entity_id.bytes + 16u,
         [](const std::uint8_t value) { return value == 0u; }));
+    laplace_composition_working_set_destroy(&working_set);
+    laplace_tabular_source_plan_destroy(&plan);
+}
+
+TEST(TabularSource, MissingSourceOccurrenceIntentIsObservable) {
+    Fixture fixture;
+    laplace_tabular_source_plan* plan = nullptr;
+    ASSERT_EQ(laplace_tabular_source_plan_create(&fixture.input, &plan),
+              LAPLACE_TABULAR_SOURCE_OK);
+    laplace_tabular_source_plan_view view{};
+    ASSERT_EQ(laplace_tabular_source_plan_view_get(plan, &view),
+              LAPLACE_TABULAR_SOURCE_OK);
+    ASSERT_GT(view.request_count, 1u);
+
+    std::vector<laplace_composition_request> mutated_requests(
+        view.requests, view.requests + static_cast<std::size_t>(view.request_count));
+    mutated_requests.front().flags &=
+        ~LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE;
+
+    std::vector<laplace_composition_known_entity> known;
+    known.reserve(static_cast<std::size_t>(view.atom_count));
+    for (std::size_t index = 0u;
+         index < static_cast<std::size_t>(view.atom_count); ++index) {
+        known.push_back(Atom(view.atom_positions[index], index));
+    }
+    auto context = laplace_test_context(4u);
+    context.resource_grant.memory_bytes = UINT64_C(256) * 1024u * 1024u;
+    const laplace_composition_working_set_input composition{
+        &context,
+        &view.source_fingerprint,
+        &view.profile.recipe_program_fingerprint,
+        known.data(),
+        view.atom_count,
+        view.operands,
+        view.operand_count,
+        mutated_requests.data(),
+        view.request_count,
+        fixture.input.preferred_batch_bytes,
+        0u};
+    laplace_composition_working_set* working_set = nullptr;
+    ASSERT_EQ(laplace_composition_working_set_create(
+                  &composition, &working_set),
+              LAPLACE_COMPOSITION_OK);
+    laplace_composition_working_set_summary summary{};
+    ASSERT_EQ(laplace_composition_working_set_summary_get(
+                  working_set, &summary),
+              LAPLACE_COMPOSITION_OK);
+    EXPECT_EQ(summary.occurrence_count, view.request_count - 1u);
+    EXPECT_NE(summary.occurrence_count, view.request_count);
+    EXPECT_GT(summary.logical_occurrence_count, 0u);
     laplace_composition_working_set_destroy(&working_set);
     laplace_tabular_source_plan_destroy(&plan);
 }
