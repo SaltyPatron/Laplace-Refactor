@@ -68,6 +68,30 @@ laplace_machine_exception_find(uint32_t condition) {
     return NULL;
 }
 
+laplace_machine_exception_status laplace_machine_exception_descriptor_validate(
+    const laplace_machine_exception_descriptor* descriptor) {
+    const laplace_machine_exception_descriptor* expected = NULL;
+
+    if (descriptor == NULL) {
+        return LAPLACE_MACHINE_EXCEPTION_INVALID_ARGUMENT;
+    }
+    if (laplace_machine_exception_registry_validate() != LAPLACE_MACHINE_EXCEPTION_OK) {
+        return LAPLACE_MACHINE_EXCEPTION_REGISTRY_INVALID;
+    }
+    expected = laplace_machine_exception_find(descriptor->condition);
+    if (expected == NULL) {
+        return LAPLACE_MACHINE_EXCEPTION_UNKNOWN_CONDITION;
+    }
+    if (expected->kind != descriptor->kind ||
+        expected->priority != descriptor->priority ||
+        expected->capability_flags != descriptor->capability_flags ||
+        expected->recovery_disposition != descriptor->recovery_disposition ||
+        expected->publication_disposition != descriptor->publication_disposition) {
+        return LAPLACE_MACHINE_EXCEPTION_INVALID_ARGUMENT;
+    }
+    return LAPLACE_MACHINE_EXCEPTION_OK;
+}
+
 laplace_machine_exception_status laplace_machine_exception_registry_validate(void) {
     const size_t count = laplace_machine_exception_descriptor_count();
     size_t outer = 0;
@@ -161,11 +185,8 @@ laplace_machine_exception_status laplace_machine_exception_why_not(
     }
     descriptor = laplace_machine_exception_find(receipt->selected.condition);
     if (descriptor == NULL ||
-        descriptor->kind != receipt->selected.kind ||
-        descriptor->priority != receipt->selected.priority ||
-        descriptor->capability_flags != receipt->selected.capability_flags ||
-        descriptor->recovery_disposition != receipt->selected.recovery_disposition ||
-        descriptor->publication_disposition != receipt->selected.publication_disposition) {
+        laplace_machine_exception_descriptor_validate(&receipt->selected) !=
+            LAPLACE_MACHINE_EXCEPTION_OK) {
         return LAPLACE_MACHINE_EXCEPTION_INVALID_ARGUMENT;
     }
 
