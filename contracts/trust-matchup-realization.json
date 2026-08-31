@@ -9,10 +9,40 @@
       "docs/product/INVENTION_MODEL.md"
     ]
   },
+  "machine_language": {
+    "internal_symbolic_floor": "complete Unicode codepoint-position space",
+    "statement": "Laplace speaks Unicode and renders requested witnessed natural languages or other modalities",
+    "natural_language_is_internal_machine_language": false,
+    "english_universal_intermediate": false
+  },
+  "tokens": {
+    "one_global_vocabulary": false,
+    "one_fixed_segmentation": false,
+    "definition": "an addressable canonical composition selected as an operand by a typed grammar cognition query realization or target-compilation recipe",
+    "structural_tier_is_identity": false,
+    "tier_is_fixed_text_ladder": false,
+    "addressable_examples": [
+      "codepoint",
+      "grapheme_or_exact_segmentation_unit",
+      "morpheme_or_lexical_form",
+      "word_or_punctuation_structure",
+      "phrase_clause_sentence_or_utterance",
+      "record_field_table_section_or_document",
+      "code_token_syntax_node_declaration_file_or_repository_tree",
+      "arbitrary_typed_universal_AST_composition"
+    ],
+    "required_navigation": [
+      "descend_to_exact_constituents",
+      "ascend_through_enclosing_trajectories",
+      "preserve_order_gap_containment_ordinal_run_and_recurrence"
+    ],
+    "native_leading_space_token_hack": false,
+    "target_tokenizer_lowering_is_compatibility_projection": true
+  },
   "distinctions": {
-    "default_prior": "initializes an eligible typed rating key only when no prior completed state exists; not testimony evidence truth or permanent importance",
+    "default_prior": "initializes an eligible typed rating key only when no prior completed state exists; not testimony evidence truth token importance or permanent standing",
     "standing": "immutable derived rating state over a pinned typed event boundary",
-    "importance": "query and semantic-act relative calculation; never one timeless entity part-of-speech source or relation score",
+    "importance": "query semantic-act token-tier language and context relative calculation; never one timeless entity part-of-speech source relation or token score",
     "formal_and_structural_result": "owned by the declared exact calculus or physicality recipe and never decided by consensus voting"
   },
   "rating": {
@@ -24,7 +54,7 @@
       "matchup_family",
       "rated_class",
       "relation_or_operation_scope",
-      "language_or_modality_scope",
+      "language_modality_or_token_tier_scope",
       "world_scope",
       "evidence_scope",
       "dependence_scope",
@@ -66,7 +96,8 @@
       "source_type_literal_as_earned_source_state",
       "one_global_entity_rating",
       "absence_or_unknown_as_loss",
-      "dependent_descendants_as_independent_matches"
+      "dependent_descendants_as_independent_matches",
+      "cooccurrence_or_frontier_competition_as_matchup"
     ],
     "history": {
       "rating_at_event": "immutable",
@@ -85,20 +116,24 @@
     "global_part_of_speech_order": false,
     "global_stop_word_deletion": false,
     "global_punctuation_stripping": false,
+    "global_token_tier_order": false,
     "inputs": [
       "semantic_act",
+      "selected_token_tier",
       "typed_AST_roles",
       "trajectory_order_gap_and_containment",
       "relation_direction",
       "negation_quantification_tense_and_modality",
-      "language",
+      "rendered_language",
       "discourse",
       "evidence_and_context",
       "goal_and_completion_obligations",
       "firmware_policy"
     ]
   },
-  "language": {
+  "language_realization": {
+    "machine_speaks_unicode": true,
+    "natural_language_is_rendered": true,
     "separate_intelligence_per_language": false,
     "english_universal_intermediate": false,
     "identification_is_readiness": false,
@@ -122,30 +157,37 @@
       "observed_realization_outcomes"
     ],
     "output": "exact modality-typed content composition with complete provenance receipt",
-    "text_output": "exact Unicode trajectory including morphology content words function words punctuation whitespace order register and pragmatics",
+    "text_output": "exact Unicode trajectory including morphology lexical and grammatical structures punctuation whitespace order register and pragmatics",
     "missing_obligation_behavior": "typed partial unsupported ambiguous incomplete-boundary or unknown with exact continuation condition",
     "silent_english_fallback": false
   },
   "acceptance": {
     "positive": [
+      "unicode_is_internal_machine_language",
+      "natural_languages_are_renderings",
+      "multiple_token_tiers_are_addressable",
+      "native_identity_has_no_leading_space_hack",
       "new_key_initializes_once_then_carries_forward",
       "opponent_strength_changes_update",
       "source_specific_state_diverges_from_source_type_prior",
       "independent_return_leg_updates_only_tested_lanes",
       "formal_arithmetic_is_nonvoting",
       "rating_history_is_as_of_and_order_invariant",
-      "function_words_punctuation_and_gaps_can_be_decisive",
+      "function_words_punctuation_gaps_and_token_tiers_can_be_decisive",
       "multilingual_realization_uses_witnessed_language_structure",
       "unsupported_language_returns_typed_why_not"
     ],
     "deliberate_defects": [
+      "natural_language_tokenizer_as_machine_language",
+      "one_fixed_token_segmentation",
+      "leading_space_native_identity",
       "neutral_opponent_replay",
       "redefault_every_fold",
       "opponent_rating_omission",
       "permanent_source_literal",
       "return_leg_omission",
       "dependent_match_amplification",
-      "global_POS_importance",
+      "global_POS_or_token_tier_importance",
       "english_stopword_or_punctuation_erasure",
       "fluent_output_without_readiness",
       "silent_english_fallback"
