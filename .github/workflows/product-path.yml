@@ -170,9 +170,12 @@ jobs:
   # An accepted push to main is the DEV/BAT deployment boundary. PR proof never invokes
   # product activation. The exact accepted SHA is passed to the existing authenticated
   # workflow-dispatch authority, which refuses a ref race before composing any package.
+  # `always()` is required because selected proof jobs may legitimately be skipped; without
+  # it GitHub propagates a transitive skip through `product-path` and suppresses deployment.
   dev-bat-deployment:
     needs: product-path
     if: >-
+      always() &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.product-path.result == 'success'
@@ -202,10 +205,13 @@ jobs:
   # Migration aliases for the three currently protected legacy contexts. They do not
   # independently prove anything: each can green only after the authoritative
   # product-path gate has accepted every evidence surface selected for this change.
+  # `always()` prevents legitimate skipped proof surfaces from transitively suppressing
+  # these aliases after product-path itself has accepted the selected proof set.
   # Once main protection requires `product-path`, these aliases can be removed.
   legacy-requirements:
     name: requirements
     needs: product-path
+    if: always() && needs.product-path.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -214,6 +220,7 @@ jobs:
   legacy-native-dev:
     name: native (linux-dev)
     needs: product-path
+    if: always() && needs.product-path.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -222,6 +229,7 @@ jobs:
   legacy-native-sanitize:
     name: native (linux-sanitize)
     needs: product-path
+    if: always() && needs.product-path.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
