@@ -19,6 +19,7 @@ add_library(laplace_engine SHARED
     src/geometry.c
     src/execution.cpp
     src/framework.c
+    src/machine_exception.c
     src/highway.c
     src/highway_ast.cpp
     src/spool.cpp
@@ -77,6 +78,7 @@ add_library(Laplace::Isa ALIAS laplace_engine)
 add_library(Laplace::Trajectory ALIAS laplace_engine)
 add_library(Laplace::Execution ALIAS laplace_engine)
 add_library(Laplace::Framework ALIAS laplace_engine)
+add_library(Laplace::MachineException ALIAS laplace_engine)
 add_library(Laplace::Persistence ALIAS laplace_engine)
 add_library(Laplace::EvidenceLineage ALIAS laplace_engine)
 add_library(Laplace::EvidenceTestimony ALIAS laplace_engine)
