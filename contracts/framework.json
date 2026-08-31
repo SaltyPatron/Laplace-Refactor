@@ -82,6 +82,65 @@
   "activation_flags": {
     "none": 0
   },
+  "machine_exception": {
+    "abi": {
+      "major": 1,
+      "minor": 0
+    },
+    "priority_law": "lower-number-is-higher-priority; priority orders simultaneous machine conditions only and is not truth confidence severity or epistemic standing",
+    "kinds": {
+      "none": 0,
+      "trap": 1,
+      "interrupt": 2,
+      "fault": 3,
+      "cancellation": 4,
+      "terminal_disposition": 5
+    },
+    "capability_flags": {
+      "precise": 1,
+      "restartable": 2,
+      "retryable": 4,
+      "reroutable": 8,
+      "replayable": 16,
+      "compensatable": 32,
+      "terminal": 64
+    },
+    "recovery_dispositions": {
+      "terminate": 0,
+      "retry": 1,
+      "reroute_replay": 2,
+      "replay": 3,
+      "typed_limit": 4
+    },
+    "publication_dispositions": {
+      "none": 0,
+      "partial": 1,
+      "upper_bound": 2
+    },
+    "conditions": {
+      "none": {"code": 0, "kind": "none", "priority": 65535, "capabilities": [], "recovery": "terminate", "publication": "none"},
+      "invalid_instruction": {"code": 1, "kind": "trap", "priority": 10, "capabilities": ["precise", "terminal"], "recovery": "terminate", "publication": "none"},
+      "invalid_operand": {"code": 2, "kind": "trap", "priority": 20, "capabilities": ["precise", "terminal"], "recovery": "terminate", "publication": "none"},
+      "implementation_fault": {"code": 3, "kind": "fault", "priority": 30, "capabilities": ["precise", "terminal"], "recovery": "terminate", "publication": "none"},
+      "durability_fault": {"code": 4, "kind": "fault", "priority": 40, "capabilities": ["precise", "restartable", "retryable", "reroutable", "replayable"], "recovery": "reroute_replay", "publication": "none"},
+      "storage_fault": {"code": 5, "kind": "fault", "priority": 50, "capabilities": ["precise", "restartable", "retryable", "reroutable", "replayable"], "recovery": "reroute_replay", "publication": "none"},
+      "hardware_fault": {"code": 6, "kind": "fault", "priority": 60, "capabilities": ["precise", "restartable", "retryable", "reroutable", "replayable"], "recovery": "reroute_replay", "publication": "none"},
+      "consistency_fault": {"code": 7, "kind": "fault", "priority": 70, "capabilities": ["precise", "restartable", "replayable"], "recovery": "replay", "publication": "none"},
+      "network_fault": {"code": 8, "kind": "fault", "priority": 80, "capabilities": ["precise", "restartable", "retryable", "reroutable", "replayable"], "recovery": "reroute_replay", "publication": "none"},
+      "provider_unavailable": {"code": 9, "kind": "fault", "priority": 90, "capabilities": ["precise", "restartable", "retryable", "reroutable", "replayable"], "recovery": "reroute_replay", "publication": "none"},
+      "authority_denied": {"code": 10, "kind": "trap", "priority": 100, "capabilities": ["precise", "terminal"], "recovery": "terminate", "publication": "none"},
+      "cancelled": {"code": 11, "kind": "cancellation", "priority": 110, "capabilities": ["precise", "restartable", "replayable"], "recovery": "replay", "publication": "none"},
+      "deadline_exceeded": {"code": 12, "kind": "interrupt", "priority": 120, "capabilities": ["precise", "restartable", "retryable", "replayable"], "recovery": "retry", "publication": "none"},
+      "resource_exhausted": {"code": 13, "kind": "terminal_disposition", "priority": 130, "capabilities": ["precise", "restartable", "retryable", "replayable"], "recovery": "retry", "publication": "none"},
+      "semantic_contradiction": {"code": 14, "kind": "terminal_disposition", "priority": 140, "capabilities": ["precise", "terminal"], "recovery": "terminate", "publication": "none"},
+      "incomplete_boundary": {"code": 15, "kind": "terminal_disposition", "priority": 150, "capabilities": ["precise", "restartable", "replayable"], "recovery": "typed_limit", "publication": "none"},
+      "unsupported_operation": {"code": 16, "kind": "terminal_disposition", "priority": 160, "capabilities": ["precise", "terminal"], "recovery": "typed_limit", "publication": "none"},
+      "partial_result": {"code": 17, "kind": "terminal_disposition", "priority": 170, "capabilities": ["precise", "terminal"], "recovery": "typed_limit", "publication": "partial"},
+      "known_upper_bound": {"code": 18, "kind": "terminal_disposition", "priority": 180, "capabilities": ["precise", "terminal"], "recovery": "typed_limit", "publication": "upper_bound"},
+      "unknown": {"code": 19, "kind": "terminal_disposition", "priority": 190, "capabilities": ["terminal"], "recovery": "typed_limit", "publication": "none"}
+    },
+    "receipt_law": "classification retains every observed condition, selects exactly one result by the generated priority law, binds the affected logical and physical execution boundary, and never converts a failed or indeterminate effect into semantic success"
+  },
   "digest": {
     "algorithm": "BLAKE3-256",
     "bytes": 32,
