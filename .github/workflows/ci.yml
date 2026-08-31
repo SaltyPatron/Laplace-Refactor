@@ -18,6 +18,15 @@ jobs:
         run: python3 tests/requirements_trace_tests.py
       - name: Prove selective custom-stack QA planning and fail-fast semantics
         run: python3 tests/custom_stack_qa_tests.py
+      - name: Verify source-estate discovery catalog
+        run: python3 tests/source_discovery_catalog_tests.py
+      - name: Verify source-estate profile resolution contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/source_estate_catalog_tests.py
+          python3 tools/sources/catalog-source-estate.py \
+            --output "$RUNNER_TEMP/laplace-source-estate-profile-plan.json"
 
   native:
     runs-on: ubuntu-24.04
