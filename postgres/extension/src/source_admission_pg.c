@@ -54,7 +54,7 @@ laplace_pg_tabular_source_plan_create_recursive(
 static void laplace_pg_source_composition_execute(
     const laplace_composition_working_set_input* input,
     laplace_pg_composition_execution* execution) {
-    laplace_pg_composition_execute(input, execution);
+    LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(input, execution);
     laplace_pg_active_source_execution = execution;
     laplace_pg_active_source_composition_input = input;
 }
