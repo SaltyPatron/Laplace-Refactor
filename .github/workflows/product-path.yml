@@ -7,7 +7,6 @@ on:
       - main
 
 permissions:
-  actions: write
   contents: read
 
 concurrency:
@@ -177,6 +176,9 @@ jobs:
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.product-path.result == 'success'
+    permissions:
+      actions: write
+      contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
