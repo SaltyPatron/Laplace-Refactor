@@ -1,0 +1,138 @@
+name: source-estate-catalog-and-profile-resolution
+
+on:
+  workflow_dispatch:
+    inputs:
+      catalog_label:
+        description: Observation label for this source-estate catalog
+        required: true
+        default: vault-estate
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-estate-catalog-and-profile-resolution
+  cancel-in-progress: false
+
+jobs:
+  catalog:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+    timeout-minutes: 120
+    env:
+      LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data
+      LAPLACE_MODEL_ESTATE_ROOT: /vault/models
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify read-only catalog execution identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test -d "$LAPLACE_SOURCE_ESTATE_ROOT"
+          test -r "$LAPLACE_SOURCE_ESTATE_ROOT"
+          test -d "$LAPLACE_MODEL_ESTATE_ROOT"
+          test -r "$LAPLACE_MODEL_ESTATE_ROOT"
+          test -w "$RUNNER_TEMP"
+      - name: Execute catalog and profile-resolution tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/source_discovery_catalog_tests.py
+          python3 tests/source_estate_catalog_tests.py
+      - name: Verify the retained physical inventory
+        run: python3 tools/audit/validate-vault-inventory.py --verify-physical
+      - name: Catalog physical structure and resolve exact repository profiles
+        id: catalog
+        shell: bash
+        env:
+          CATALOG_LABEL: ${{ inputs.catalog_label }}
+        run: |
+          set -euo pipefail
+          discovery="$RUNNER_TEMP/laplace-source-estate-catalog.json"
+          discovery_summary="$RUNNER_TEMP/laplace-source-estate-summary.json"
+          resolution="$RUNNER_TEMP/laplace-source-estate-profile-resolution.json"
+          resolution_summary="$RUNNER_TEMP/laplace-source-estate-profile-resolution-summary.json"
+
+          python3 tools/sources/catalog-source-root.py \
+            --contract contracts/source-discovery-catalog.json \
+            --root "$LAPLACE_SOURCE_ESTATE_ROOT" \
+            --label "$CATALOG_LABEL" \
+            --output "$discovery" | tee "$discovery_summary"
+          python3 tools/sources/catalog-source-root.py \
+            --contract contracts/source-discovery-catalog.json \
+            --root "$LAPLACE_SOURCE_ESTATE_ROOT" \
+            --label "$CATALOG_LABEL" \
+            --output "$discovery" \
+            --verify
+
+          python3 tools/sources/catalog-source-estate.py \
+            --source-root "$LAPLACE_SOURCE_ESTATE_ROOT" \
+            --model-root "$LAPLACE_MODEL_ESTATE_ROOT" \
+            --output "$resolution"
+
+          python3 - "$resolution" "$resolution_summary" <<'PY'
+          import hashlib
+          import json
+          import sys
+
+          source, destination = sys.argv[1:]
+          payload = open(source, "rb").read()
+          catalog = json.loads(payload)
+          dispositions = {}
+          for entry in catalog["entries"]:
+              disposition = entry["processing"]["disposition"]
+              dispositions[disposition] = dispositions.get(disposition, 0) + 1
+          summary = {
+              "schema": "laplace.source-estate-profile-resolution-summary/v1",
+              "integrity_sha256": hashlib.sha256(payload).hexdigest(),
+              "repository_profile_count": catalog["inputs"]["repository_profile_count"],
+              "dispositions": dict(sorted(dispositions.items())),
+              "estate_drift": catalog["estate_drift"],
+              "classification": catalog["classification"],
+          }
+          with open(destination, "w", encoding="utf-8") as output:
+              json.dump(summary, output, indent=2, sort_keys=True)
+              output.write("\n")
+          PY
+
+          discovery_digest=$(jq -er '.catalog_digest_sha256' "$discovery")
+          resolution_digest=$(jq -er '.integrity_sha256' "$resolution_summary")
+          test "${#discovery_digest}" -eq 64
+          test "${#resolution_digest}" -eq 64
+          printf 'discovery_digest_sha256=%s\n' "$discovery_digest" >> "$GITHUB_OUTPUT"
+          printf 'resolution_digest_sha256=%s\n' "$resolution_digest" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Source-estate catalog and exact-profile resolution'
+            echo
+            echo "- discovery artifact SHA-256: \`$discovery_digest\`"
+            echo "- profile-resolution integrity SHA-256: \`$resolution_digest\`"
+            echo
+            echo 'Neither digest is a Laplace content identity. These artifacts are development observations and planning evidence, not source authority, world admission, seed completion, product activation, or release.'
+            echo
+            echo '### Discovery summary'
+            echo '```json'
+            cat "$discovery_summary"
+            echo '```'
+            echo
+            echo '### Profile-resolution summary'
+            echo '```json'
+            cat "$resolution_summary"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload catalog and profile-resolution evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: laplace-source-estate-${{ steps.catalog.outputs.discovery_digest_sha256 }}
+          path: |
+            ${{ runner.temp }}/laplace-source-estate-catalog.json
+            ${{ runner.temp }}/laplace-source-estate-summary.json
+            ${{ runner.temp }}/laplace-source-estate-profile-resolution.json
+            ${{ runner.temp }}/laplace-source-estate-profile-resolution-summary.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
