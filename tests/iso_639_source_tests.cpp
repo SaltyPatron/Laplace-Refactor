@@ -205,8 +205,8 @@ TEST(Iso639SourceProfile,
     EXPECT_EQ(recursive_root.source_ordinal,
               recursive.root_result_index + 1u);
     EXPECT_TRUE(SameDigest(
-        recursive_root.calculation_recipe_fingerprint,
-        legacy_root.calculation_recipe_fingerprint));
+        recursive_root.recipe_fingerprint,
+        legacy_root.recipe_fingerprint));
     EXPECT_TRUE(SameDigest(
         recursive_root.geometry_epoch, legacy_root.geometry_epoch));
     EXPECT_TRUE(SameDigest(
