@@ -1470,6 +1470,14 @@ set_tests_properties(product-activation.gateway-contract PROPERTIES
     RUN_SERIAL TRUE)
 
 add_test(
+    NAME product-host.convergence-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/product_host_tests.py")
+set_tests_properties(product-host.convergence-contract PROPERTIES
+    LABELS "activation;delivery;product;host;installation;repair;security;mutation"
+    RUN_SERIAL TRUE)
+
+add_test(
     NAME product-package.contract-and-mutation
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/product_package_tests.py")
 set_tests_properties(product-package.contract-and-mutation PROPERTIES

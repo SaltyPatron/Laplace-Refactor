@@ -513,6 +513,7 @@ def validate_cluster_success(contract: dict[str, Any], result: dict[str, Any], p
         or result.get("phase") != operation["cluster_success_phase"]
         or result.get("package_id") != package_id
         or result.get("restart_proven") is not True
+        or result.get("boot_enabled") is not True
         or result.get("active_target") != f"releases/{package_id}"
         or result.get("activation_receipt_sha256") != document_identity(result, "activation_receipt_sha256")
     ):

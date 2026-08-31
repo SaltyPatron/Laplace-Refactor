@@ -795,6 +795,7 @@ class PostgreSQLClusterContract(unittest.TestCase):
         )
         self.assertEqual(result["phase"], "activated")
         self.assertTrue(result["restart_proven"])
+        self.assertTrue(result["boot_enabled"])
         self.assertEqual(recorded, ["loaded-initial", "loaded-restart"])
         self.assertEqual(
             executed,
@@ -807,6 +808,8 @@ class PostgreSQLClusterContract(unittest.TestCase):
                 "stop-candidate-for-restart-proof",
                 "start-candidate-after-restart",
                 "restart-readiness",
+                "enable-candidate-service-for-boot",
+                "verify-candidate-service-enabled",
             ],
         )
         active = clusterctl.prefixed(self.activation_root, plan["active_link"])

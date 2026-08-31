@@ -64,6 +64,12 @@
       "defect_controls": ["pull-request or non-main deployment", "changed request after authentication", "stale request", "path escape", "changed package or resource bytes", "duplicate JSON authority", "gateway key drift", "incomplete cluster restart receipt"]
     },
     {
+      "ctest_name": "product-host.convergence-contract",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-PACKAGE-LINUX"],
+      "covered_dimensions": ["system service identity convergence", "persistent build and release roots", "immutable activation gateway installation", "single install initial-run and repair entrypoint", "nonrecursive state-preserving repair"],
+      "defect_controls": ["redirected service identity", "redirected gateway executable", "manual-hotfix permission", "symlinked host boundary", "system-root execution without explicit authority"]
+    },
+    {
       "ctest_name": "product-package.contract-and-mutation",
       "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-ELF-CLOSURE", "LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
       "covered_dimensions": ["exact PostgreSQL and Laplace product overlay", "required native execution providers", "recursive ELF closure", "immutable internal symlinks", "clean input-addressed construction", "activation eligibility", "installed native resource observation", "Unicode activation identity provider"],
@@ -1969,6 +1975,12 @@
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
       "covered_dimensions": ["one generic source compiler maps raw and delimited artifacts into ordered typed universal AST composition requests", "field header record artifact and source nodes preserve exact roles and source ordinals", "exact selected distributions recompose from retained parsed structure rather than original input bytes"],
       "defect_controls": ["tabular-source.mutation-input-reconstruction-bypass-detected", "tabular-source.mutation-structural-reference-promotion-detected"]
+    },
+    {
+      "ctest_name": "TabularSource.FixedWidthRecipePreservesPaddingAndBoundedOverflowExactly",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["fixed-width physical fields remain exactly reconstructable while padding-trimmed values retain distinct semantic identity", "one recipe-declared field absorbs only the bounded overflow bytes and preserves every later field boundary", "an incorrect overflow-record denominator is rejected before publication"],
+      "defect_controls": ["DecompositionOrchestration.FixedWidthOverflowDeclarationMutationIsObservable", "changed overflow denominator under the recomputed artifact graph is rejected"]
     },
     {
       "ctest_name": "TabularSource.CompilesDeclaredReferencePairsIntoGenericMappingOccurrences",

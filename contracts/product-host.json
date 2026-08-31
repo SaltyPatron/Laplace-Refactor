@@ -1,0 +1,62 @@
+{
+  "schema": "laplace.product-host-contract/v1",
+  "version": "1.0.0",
+  "service_identity": {
+    "user": "laplace-runner",
+    "group": "laplace-runner",
+    "home": "/var/lib/agents/laplace-runner",
+    "shell": "/usr/sbin/nologin",
+    "system": true
+  },
+  "directories": [
+    {
+      "path": "/build/laplace/runner",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "2750",
+      "purpose": "persistent runner build package receipt and request state"
+    },
+    {
+      "path": "/etc/laplace",
+      "owner": "root",
+      "group": "root",
+      "mode": "0755",
+      "purpose": "root-owned product and instance configuration"
+    },
+    {
+      "path": "/opt/laplace/deployment",
+      "owner": "root",
+      "group": "root",
+      "mode": "0755",
+      "purpose": "immutable activation gateway generations"
+    },
+    {
+      "path": "/opt/laplace/releases",
+      "owner": "root",
+      "group": "root",
+      "mode": "0755",
+      "purpose": "immutable content-addressed product releases"
+    },
+    {
+      "path": "/var/lib/agents/laplace-runner",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "service identity home without an interactive shell"
+    }
+  ],
+  "modules": {
+    "gateway_contract": "contracts/product-activation-gateway.json",
+    "cluster_contract": "contracts/postgresql-cluster.json",
+    "gateway_installer": "tools/delivery/install_product_activation_gateway.py",
+    "gateway_executable": "/opt/laplace/deployment/current/bin/laplace-product-activate"
+  },
+  "lifecycle": {
+    "install": "converge host identity and directories install immutable gateway then execute one signed whole-product request",
+    "initial_run": "the install request activates package cluster Unicode and Highway and returns their durable receipt identities",
+    "repair": "converge host identity directories and gateway then exact-replay the signed product request without replacing database state",
+    "verify": "perform read-only identity directory gateway and optional product-result verification",
+    "instance_state_owner": "cluster activation module",
+    "manual_hotfixes": false
+  }
+}

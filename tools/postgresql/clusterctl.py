@@ -1293,6 +1293,14 @@ def build_plan(
             ],
             "start_candidate_service": ["systemctl", "start", instance["service"]],
             "stop_candidate_service": ["systemctl", "stop", instance["service"]],
+            "enable_candidate_service": ["systemctl", "enable", instance["service"]],
+            "disable_candidate_service": ["systemctl", "disable", instance["service"]],
+            "verify_candidate_service_enabled": [
+                "systemctl",
+                "is-enabled",
+                "--quiet",
+                instance["service"],
+            ],
             "daemon_reload": ["systemctl", "daemon-reload"],
             "probe_readiness": [
                 f"{package_root}/pgsql-18/bin/pg_isready",
@@ -1873,6 +1881,7 @@ def execute_cluster_activation(
     if staged_receipt.get("phase") != "staged":
         raise ClusterError("complete activation requires an exact staged receipt")
     started = False
+    boot_enabled = False
 
     def run(label: str, command: Sequence[str], timeout: int = 1800) -> None:
         try:
@@ -1916,6 +1925,17 @@ def execute_cluster_activation(
             raise ClusterError("loaded package identity changed across restart")
         if initial["config_files"] != restarted["config_files"]:
             raise ClusterError("generated configuration changed across restart")
+        run(
+            "enable-candidate-service-for-boot",
+            plan["commands"]["enable_candidate_service"],
+            60,
+        )
+        boot_enabled = True
+        run(
+            "verify-candidate-service-enabled",
+            plan["commands"]["verify_candidate_service_enabled"],
+            60,
+        )
         committed = commit_plan(
             plan,
             contract,
@@ -1930,10 +1950,20 @@ def execute_cluster_activation(
         result["initial_loaded_observation_sha256"] = initial["observation_sha256"]
         result["restart_loaded_observation_sha256"] = restarted["observation_sha256"]
         result["restart_proven"] = True
+        result["boot_enabled"] = True
         result["command_receipts"] = list(command_receipts)
         result["activation_receipt_sha256"] = state_observation_identity(result)
         return result
     except BaseException:
+        if boot_enabled:
+            try:
+                run(
+                    "disable-candidate-after-failure",
+                    plan["commands"]["disable_candidate_service"],
+                    60,
+                )
+            except BaseException:
+                pass
         if started:
             try:
                 run(

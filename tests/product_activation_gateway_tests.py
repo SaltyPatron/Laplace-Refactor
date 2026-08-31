@@ -433,6 +433,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
                         "phase": "activated",
                         "package_id": PACKAGE_ID,
                         "restart_proven": True,
+                        "boot_enabled": True,
                         "active_target": f"releases/{PACKAGE_ID}",
                         "cluster_plan_path": str(plan),
                     }
