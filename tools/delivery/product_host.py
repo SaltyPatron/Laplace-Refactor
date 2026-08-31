@@ -473,6 +473,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not contract_path.is_absolute():
         contract_path = repository / contract_path
     root = Path(arguments.root)
+    require_authority(root, arguments.authorize_system_root)
     contract = load_json(contract_path)
     gateway_contract = load_json(
         repository / contract["modules"]["gateway_contract"]

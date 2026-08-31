@@ -303,9 +303,16 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ProductPackageError("activation gates must remain explicit and fail closed")
 
 
+def git_command(repository: Path, *arguments: str) -> list[str]:
+    return ["git", "-c", f"safe.directory={repository}", *arguments]
+
+
 def git_output(repository: Path, *arguments: str) -> str:
     result = subprocess.run(
-        ["git", *arguments], cwd=repository, text=True, capture_output=True
+        git_command(repository, *arguments),
+        cwd=repository,
+        text=True,
+        capture_output=True,
     )
     if result.returncode != 0:
         raise ProductPackageError(result.stderr.strip() or "git command failed")
@@ -314,7 +321,13 @@ def git_output(repository: Path, *arguments: str) -> str:
 
 def repository_identity(repository: Path, require_clean: bool) -> dict[str, Any]:
     status = subprocess.run(
-        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        git_command(
+            repository,
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+        ),
         cwd=repository,
         check=True,
         stdout=subprocess.PIPE,
@@ -328,7 +341,7 @@ def repository_identity(repository: Path, require_clean: bool) -> dict[str, Any]
     }
     if status:
         tracked_patch = subprocess.run(
-            ["git", "diff", "--binary", "HEAD", "--"],
+            git_command(repository, "diff", "--binary", "HEAD", "--"),
             cwd=repository,
             check=True,
             stdout=subprocess.PIPE,
