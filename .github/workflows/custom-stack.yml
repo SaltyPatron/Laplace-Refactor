@@ -1,17 +1,14 @@
 name: custom-stack-ci
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: custom-stack-ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: laplace-physical-product-proof
+  cancel-in-progress: false
 
 jobs:
   postgresql-native:

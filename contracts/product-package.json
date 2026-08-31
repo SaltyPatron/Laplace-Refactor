@@ -68,11 +68,13 @@
     "install_libdir": "lib",
     "blake3_root": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/blake3",
     "blake3_source": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/blake3/c",
+    "tree_sitter_root": "/opt/laplace/external/source-generations/f9fa2f2723d506d5a678f0bba204f67ab6a483ad09509199ce5c3f1a7ef92fd7/tree-sitter",
     "parallel_jobs": 6
   },
   "host_build_provider": {
     "receipt_schema": "laplace.postgresql-host-build-provider/v1",
-    "verifier": "tools/postgresql/host-provider.py",
+    "verifier": "tools/product/published-host-provider.py",
+    "published_receipt_replay": "historical-receipt-identity-no-ambient-requalification",
     "sandbox_executable": "/usr/bin/bwrap",
     "additional_receipted_files": [
       "/var/lib/dpkg/status"
