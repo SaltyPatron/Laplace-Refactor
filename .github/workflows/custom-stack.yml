@@ -180,6 +180,37 @@ jobs:
             failure=$(jq -r '.primary_terminal_result.failure.test // .primary_terminal_result.failure.class // "unknown custom-stack failure"' "$result")
             echo "::error title=custom-stack primary terminal failure::$failure"
           fi
+      - name: Persist custom-stack terminal result by BLAKE3
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="${LAPLACE_CUSTOM_STACK_QA_RESULT:-$RUNNER_TEMP/laplace-custom-stack-qa/result.json}"
+          if [[ ! -s "$result" ]]; then
+            echo 'No completed custom-stack terminal result exists for durable publication.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          store="$LAPLACE_CI_BUILD_DIRECTORY/tools/laplace_receipt_store"
+          receipt_root=$(jq -r '.durability.receipt_root' contracts/custom-stack-qa.json)
+          test -x "$store"
+          test "$receipt_root" != null
+          test "${receipt_root#/}" != "$receipt_root"
+          mkdir -p "$receipt_root"
+          test -d "$receipt_root"
+          test ! -L "$receipt_root"
+          digest=$("$store" put --receipt "$result" --root "$receipt_root")
+          test "${#digest}" -eq 64
+          "$store" verify --digest "$digest" --root "$receipt_root"
+          replay="$RUNNER_TEMP/laplace-custom-stack-qa-result-replay.json"
+          "$store" get --digest "$digest" --root "$receipt_root" > "$replay"
+          cmp --silent "$result" "$replay"
+          printf 'LAPLACE_CUSTOM_STACK_QA_BLAKE3=%s\n' "$digest" >> "$GITHUB_ENV"
+          {
+            echo '## Durable custom-stack QA receipt'
+            echo "- BLAKE3: \`$digest\`"
+            echo "- receipt root: \`$receipt_root\`"
+            echo '- exact readback: verified'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload custom-stack QA evidence copy
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
