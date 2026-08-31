@@ -1,3 +1,13 @@
+-- Canonical composition may calculate and durably receipt structure without
+-- witnessing an occurrence.  occurrence_count is therefore a nonnegative
+-- emitted-state count, while logical_occurrence_count remains the positive
+-- denominator derived from the nonempty request set.
+ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_execution_receipt
+    DROP CONSTRAINT composition_execution_receipt_occurrence_count_check;
+ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_execution_receipt
+    ADD CONSTRAINT composition_execution_receipt_occurrence_count_check
+    CHECK (occurrence_count >= 0);
+
 CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness (
     source_profile_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
         REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_profile(profile_id)

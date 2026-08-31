@@ -106,7 +106,7 @@ AS $fixture$
         ],
         ARRAY[
             ROW(
-                0::numeric, 2::numeric, source_ordinal, 1, 1,
+                0::numeric, 2::numeric, source_ordinal, 1, 0,
                 decode(repeat('b1', 32), 'hex'),
                 decode(repeat('c1', 32), 'hex'),
                 decode(repeat('d1', 32), 'hex')
@@ -180,13 +180,13 @@ AS $fixture$
         ],
         ARRAY[
             ROW(
-                0::numeric, 2::numeric, source_ordinal, 1, 1,
+                0::numeric, 2::numeric, source_ordinal, 1, 0,
                 decode(repeat('b1', 32), 'hex'),
                 decode(repeat('c1', 32), 'hex'),
                 decode(repeat('d1', 32), 'hex')
             )::laplace.composition_request_record,
             ROW(
-                2::numeric, 2::numeric, source_ordinal + 1::numeric, 1, 1,
+                2::numeric, 2::numeric, source_ordinal + 1::numeric, 1, 0,
                 decode(repeat('b1', 32), 'hex'),
                 decode(repeat('c1', 32), 'hex'),
                 decode(repeat('d2', 32), 'hex')
@@ -243,11 +243,11 @@ BEGIN
        OR first_result.novel_physicality_count <> 1
        OR first_result.trajectory_vertex_count <> 2
        OR first_result.novel_trajectory_vertex_count <> 2
-       OR first_result.occurrence_count <> 1
+       OR first_result.occurrence_count <> 0
        OR first_result.entity_inserted <> 3
        OR first_result.physicality_inserted <> 1
        OR first_result.trajectory_vertex_inserted <> 2
-       OR first_result.occurrence_inserted <> 1
+       OR first_result.occurrence_inserted <> 0
        OR first_result.entity_presence_round_count <> 2
        OR first_result.physicality_presence_round_count <> 1
        OR first_result.result_entity_ids[1] <> fixture.expected_result_entity
@@ -285,6 +285,13 @@ BEGIN
        THEN
         RAISE EXCEPTION 'first whole-working-set composition deposition differs from contract: %',
             first_result;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM laplace.composition_execution_occurrence_member
+        WHERE working_set_receipt = first_result.working_set_receipt) THEN
+        RAISE EXCEPTION
+            'canonical composition emitted occurrence state without the explicit request flag';
     END IF;
     IF NOT EXISTS (
         SELECT 1 FROM laplace.entity
