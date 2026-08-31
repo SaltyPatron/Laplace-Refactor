@@ -10,6 +10,14 @@
     "build_once": true,
     "later_operator_cancellation_cannot_reclassify_recorded_failure": true
   },
+  "durability": {
+    "receipt_root": "/build/laplace/runner/product/receipts/custom-stack-qa",
+    "store_executable": "tools/laplace_receipt_store",
+    "identity": "BLAKE3-256 over exact terminal-result receipt bytes",
+    "verify_after_put": true,
+    "readback_compare": true,
+    "actions_artifact_is_convenience_copy_only": true
+  },
   "isolated_tests": [
     {
       "ctest_name": "postgres.composition-whole-boundary-measurement",
@@ -137,6 +145,7 @@
     "isolated_test_missing_from_registry": "reject the QA plan",
     "selected_profile_without_isolated_test": "reject the QA plan",
     "selected_test_missing_from_ctest": "reject before execution",
-    "terminal_test_failure_timeout_or_crash": "record the primary terminal lane result and stop before any later selected physical test"
+    "terminal_test_failure_timeout_or_crash": "record the primary terminal lane result and stop before any later selected physical test",
+    "durable_receipt_failure": "the custom-stack job is not accepted without verified BLAKE3 storage and exact readback of an available terminal result"
   }
 }
