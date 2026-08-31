@@ -69,6 +69,10 @@ function(laplace_configure_postgresql_bindings
         "${contract_json}" bindings postgresql reference_mapping_resolve_batch resolve_sql_name)
     string(JSON reference_mapping_resolve_symbol GET
         "${contract_json}" bindings postgresql reference_mapping_resolve_batch resolve_c_symbol)
+    string(JSON stock_recipe_compile_catalog_sql GET
+        "${contract_json}" bindings postgresql stock_recipe_compile_catalog_batch compile_sql_name)
+    string(JSON stock_recipe_compile_catalog_symbol GET
+        "${contract_json}" bindings postgresql stock_recipe_compile_catalog_batch compile_c_symbol)
     string(JSON source_admit_tabular_sql GET
         "${contract_json}" bindings postgresql source_admit_tabular admit_sql_name)
     string(JSON source_admit_tabular_symbol GET
@@ -186,6 +190,7 @@ function(laplace_configure_postgresql_bindings
         world_admission_close_sql world_admission_close_symbol
         reference_topology_resolve_sql reference_topology_resolve_symbol
         reference_mapping_resolve_sql reference_mapping_resolve_symbol
+        stock_recipe_compile_catalog_sql stock_recipe_compile_catalog_symbol
         source_admit_tabular_sql source_admit_tabular_symbol
         persistence_deposit_sql persistence_deposit_symbol
         composition_deposit_sql composition_deposit_symbol
@@ -255,6 +260,10 @@ function(laplace_configure_postgresql_bindings
         "${reference_mapping_resolve_sql}")
     set(LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SYMBOL
         "${reference_mapping_resolve_symbol}")
+    set(LAPLACE_PG_STOCK_RECIPE_COMPILE_CATALOG_SQL
+        "${stock_recipe_compile_catalog_sql}")
+    set(LAPLACE_PG_STOCK_RECIPE_COMPILE_CATALOG_SYMBOL
+        "${stock_recipe_compile_catalog_symbol}")
     set(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL "${source_admit_tabular_sql}")
     set(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL "${source_admit_tabular_symbol}")
     set(LAPLACE_PG_CARRIER_ENCODING "${carrier_encoding}")

@@ -320,6 +320,59 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.source_profile_result AS (
     no_reconstruction_count numeric(20, 0)
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.stock_recipe_manifest AS (
+    recipe_id bytea,
+    parent_recipe_id bytea,
+    source_profile_id bytea,
+    source_artifact_id bytea,
+    grammar_provider_id bytea,
+    codec_provider_id bytea,
+    lowering_program_id bytea,
+    recomposition_program_id bytea,
+    semantic_segmentation_law_id bytea,
+    conformance_id bytea,
+    loss_policy_id bytea,
+    correction_epoch_id bytea,
+    sibling_ordinal numeric(20, 0),
+    scope_kind integer,
+    modality_kind integer,
+    version integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.stock_perfcache_plane_manifest AS (
+    plane_id bytea,
+    recipe_id bytea,
+    key_kind_id bytea,
+    value_kind_id bytea,
+    dependency_epoch_id bytea,
+    generation_program_id bytea,
+    semantic_verifier_id bytea,
+    invalidation_law_id bytea,
+    rebuild_law_id bytea,
+    version integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.stock_catalog_item AS (
+    recipe @LAPLACE_PG_SCHEMA@.stock_recipe_manifest,
+    perfcache_plane @LAPLACE_PG_SCHEMA@.stock_perfcache_plane_manifest,
+    item_kind integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.stock_catalog_result AS (
+    catalog_id bytea,
+    recipe_set_fingerprint bytea,
+    perfcache_set_fingerprint bytea,
+    isa_receipt_id bytea,
+    recipe_count numeric(20, 0),
+    source_count numeric(20, 0),
+    perfcache_plane_count numeric(20, 0),
+    maximum_scope_kind integer,
+    version integer
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_candidate AS (
     source_profile_id bytea,
     kind integer,
@@ -1090,6 +1143,66 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt_member (
     member_ordinal numeric(20, 0) NOT NULL CHECK (member_ordinal > 0),
     PRIMARY KEY (receipt_id, profile_id),
     UNIQUE (receipt_id, member_ordinal)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.stock_recipe (
+    recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    parent_recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    source_profile_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    source_artifact_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    grammar_provider_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    codec_provider_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    lowering_program_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    recomposition_program_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    semantic_segmentation_law_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    conformance_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    loss_policy_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    correction_epoch_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    sibling_ordinal numeric(20, 0) NOT NULL CHECK (sibling_ordinal > 0),
+    scope_kind integer NOT NULL CHECK (scope_kind BETWEEN 1 AND 6),
+    modality_kind integer NOT NULL CHECK (modality_kind > 0),
+    version integer NOT NULL CHECK (version = 1),
+    flags integer NOT NULL CHECK (flags = 0),
+    UNIQUE (source_profile_id, parent_recipe_id, scope_kind, sibling_ordinal)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.stock_perfcache_plane (
+    plane_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.stock_recipe(recipe_id),
+    key_kind_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    value_kind_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    dependency_epoch_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    generation_program_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    semantic_verifier_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    invalidation_law_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    rebuild_law_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    version integer NOT NULL CHECK (version = 1),
+    flags integer NOT NULL CHECK (flags = 0),
+    UNIQUE (recipe_id, key_kind_id, value_kind_id)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.stock_catalog_receipt (
+    catalog_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    recipe_set_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    perfcache_set_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    isa_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.execution_receipt(receipt_id),
+    recipe_count numeric(20, 0) NOT NULL CHECK (recipe_count > 0),
+    source_count numeric(20, 0) NOT NULL CHECK (source_count > 0),
+    perfcache_plane_count numeric(20, 0) NOT NULL CHECK (perfcache_plane_count >= 0),
+    maximum_scope_kind integer NOT NULL CHECK (maximum_scope_kind BETWEEN 1 AND 6),
+    version integer NOT NULL CHECK (version = 1),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.stock_catalog_receipt_member (
+    catalog_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.stock_catalog_receipt(catalog_id),
+    item_kind integer NOT NULL CHECK (item_kind IN (1, 2)),
+    item_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    PRIMARY KEY (catalog_id, item_kind, item_id)
 );
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.reference_coordinate (
@@ -1994,6 +2107,13 @@ RETURNS @LAPLACE_PG_SCHEMA@.source_profile_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_STOCK_RECIPE_COMPILE_CATALOG_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.stock_catalog_item[])
+RETURNS @LAPLACE_PG_SCHEMA@.stock_catalog_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_STOCK_RECIPE_COMPILE_CATALOG_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
     @LAPLACE_PG_SCHEMA@.world_admission_request[])
@@ -2106,6 +2226,10 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_period_receipt_member FROM PUBL
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt_member FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.stock_recipe FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.stock_perfcache_plane FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.stock_catalog_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.stock_catalog_receipt_member FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.reference_coordinate FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.reference_occurrence FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.reference_topology_receipt FROM PUBLIC;
@@ -2205,6 +2329,11 @@ REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
         @LAPLACE_PG_SCHEMA@.source_profile_manifest[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_STOCK_RECIPE_COMPILE_CATALOG_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.stock_catalog_item[])
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL@(

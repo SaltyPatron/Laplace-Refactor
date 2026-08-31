@@ -313,6 +313,68 @@ public struct LaplaceStandingPeriodResult
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct LaplaceStockRecipe
+{
+    public LaplaceDigest256 RecipeId;
+    public LaplaceDigest256 ParentRecipeId;
+    public LaplaceDigest256 SourceProfileId;
+    public LaplaceDigest256 SourceArtifactId;
+    public LaplaceDigest256 GrammarProviderId;
+    public LaplaceDigest256 CodecProviderId;
+    public LaplaceDigest256 LoweringProgramId;
+    public LaplaceDigest256 RecompositionProgramId;
+    public LaplaceDigest256 SemanticSegmentationLawId;
+    public LaplaceDigest256 ConformanceId;
+    public LaplaceDigest256 LossPolicyId;
+    public LaplaceDigest256 CorrectionEpochId;
+    public ulong SiblingOrdinal;
+    public uint ScopeKind;
+    public uint ModalityKind;
+    public uint Version;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceStockPerfcachePlane
+{
+    public LaplaceDigest256 PlaneId;
+    public LaplaceDigest256 RecipeId;
+    public LaplaceDigest256 KeyKindId;
+    public LaplaceDigest256 ValueKindId;
+    public LaplaceDigest256 DependencyEpochId;
+    public LaplaceDigest256 GenerationProgramId;
+    public LaplaceDigest256 SemanticVerifierId;
+    public LaplaceDigest256 InvalidationLawId;
+    public LaplaceDigest256 RebuildLawId;
+    public uint Version;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceStockCatalogItem
+{
+    public LaplaceStockRecipe Recipe;
+    public LaplaceStockPerfcachePlane PerfcachePlane;
+    public uint ItemKind;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LaplaceStockCatalogReceipt
+{
+    public LaplaceDigest256 CatalogId;
+    public LaplaceDigest256 RecipeSetFingerprint;
+    public LaplaceDigest256 PerfcacheSetFingerprint;
+    public ulong RecipeCount;
+    public ulong SourceCount;
+    public ulong PerfcachePlaneCount;
+    public uint MaximumScopeKind;
+    public uint Version;
+    public uint Status;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct LaplaceSourceProfileManifest
 {
     public LaplaceDigest256 ProfileId;
@@ -892,6 +954,52 @@ public static class LaplaceNativeAbi
         OffsetOf<LaplaceReferenceMappingRecord>(nameof(LaplaceReferenceMappingRecord.MappingId)),
         OffsetOf<LaplaceReferenceMappingRecord>(nameof(LaplaceReferenceMappingRecord.Disposition)),
         OffsetOf<LaplaceReferenceMappingRecord>(nameof(LaplaceReferenceMappingRecord.Reserved)),
+        checked((uint)Marshal.SizeOf<LaplaceStockRecipe>()),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.RecipeId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.ParentRecipeId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.SourceProfileId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.SourceArtifactId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.GrammarProviderId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.CodecProviderId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.LoweringProgramId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.RecompositionProgramId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.SemanticSegmentationLawId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.ConformanceId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.LossPolicyId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.CorrectionEpochId)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.SiblingOrdinal)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.ScopeKind)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.ModalityKind)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.Version)),
+        OffsetOf<LaplaceStockRecipe>(nameof(LaplaceStockRecipe.Flags)),
+        checked((uint)Marshal.SizeOf<LaplaceStockPerfcachePlane>()),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.PlaneId)),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.RecipeId)),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.KeyKindId)),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.ValueKindId)),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.DependencyEpochId)),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.GenerationProgramId)),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.SemanticVerifierId)),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.InvalidationLawId)),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.RebuildLawId)),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.Version)),
+        OffsetOf<LaplaceStockPerfcachePlane>(nameof(LaplaceStockPerfcachePlane.Flags)),
+        checked((uint)Marshal.SizeOf<LaplaceStockCatalogItem>()),
+        OffsetOf<LaplaceStockCatalogItem>(nameof(LaplaceStockCatalogItem.Recipe)),
+        OffsetOf<LaplaceStockCatalogItem>(nameof(LaplaceStockCatalogItem.PerfcachePlane)),
+        OffsetOf<LaplaceStockCatalogItem>(nameof(LaplaceStockCatalogItem.ItemKind)),
+        OffsetOf<LaplaceStockCatalogItem>(nameof(LaplaceStockCatalogItem.Flags)),
+        checked((uint)Marshal.SizeOf<LaplaceStockCatalogReceipt>()),
+        OffsetOf<LaplaceStockCatalogReceipt>(nameof(LaplaceStockCatalogReceipt.CatalogId)),
+        OffsetOf<LaplaceStockCatalogReceipt>(nameof(LaplaceStockCatalogReceipt.RecipeSetFingerprint)),
+        OffsetOf<LaplaceStockCatalogReceipt>(nameof(LaplaceStockCatalogReceipt.PerfcacheSetFingerprint)),
+        OffsetOf<LaplaceStockCatalogReceipt>(nameof(LaplaceStockCatalogReceipt.RecipeCount)),
+        OffsetOf<LaplaceStockCatalogReceipt>(nameof(LaplaceStockCatalogReceipt.SourceCount)),
+        OffsetOf<LaplaceStockCatalogReceipt>(nameof(LaplaceStockCatalogReceipt.PerfcachePlaneCount)),
+        OffsetOf<LaplaceStockCatalogReceipt>(nameof(LaplaceStockCatalogReceipt.MaximumScopeKind)),
+        OffsetOf<LaplaceStockCatalogReceipt>(nameof(LaplaceStockCatalogReceipt.Version)),
+        OffsetOf<LaplaceStockCatalogReceipt>(nameof(LaplaceStockCatalogReceipt.Status)),
+        OffsetOf<LaplaceStockCatalogReceipt>(nameof(LaplaceStockCatalogReceipt.Flags)),
         LaplaceExecutionContext.NativeAbiSize,
     ];
 

@@ -35,6 +35,16 @@
       "ctest_name": "stock-recipe.mutation-parent-bypass-detected",
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
       "covered_dimensions": ["parent validation mutation detection", "cross-source hierarchy mutation detection"]
+    },
+    {
+      "ctest_name": "IsaExecution.StockRecipeCatalogMatchesCanonicalNativeOperationAndReceipt",
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["public stock-catalog ISA opcode", "canonical native parity", "caller-order-invariant input and receipt identity", "perfcache declaration mutation sensitivity"]
+    },
+    {
+      "ctest_name": "postgres.stock-recipe-persistent-catalog-contract",
+      "evidence_targets": ["LP-TEST-PERSISTENT-STATE-ADDRESSING", "LP-TEST-ISA-RECEIPT", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["durable stock recipe hierarchy", "durable recipe-owned perfcache declaration", "native ISA PostgreSQL parity", "caller-order-invariant replay", "conflicting durable replay rejection"]
     }
   ]
 }

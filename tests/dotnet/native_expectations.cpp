@@ -6,6 +6,7 @@
 #include "laplace/reference_topology.h"
 #include "laplace/source_profile.h"
 #include "laplace/standing_calculation.h"
+#include "laplace/stock_recipe.h"
 #include "laplace/trajectory.h"
 #include "laplace/world_admission.h"
 #include "../context_fixture.h"
@@ -41,6 +42,10 @@ static_assert(std::is_standard_layout_v<laplace_standing_event>);
 static_assert(std::is_standard_layout_v<laplace_standing_period_receipt>);
 static_assert(std::is_standard_layout_v<laplace_standing_period_input>);
 static_assert(std::is_standard_layout_v<laplace_standing_period_result>);
+static_assert(std::is_standard_layout_v<laplace_stock_recipe>);
+static_assert(std::is_standard_layout_v<laplace_stock_perfcache_plane>);
+static_assert(std::is_standard_layout_v<laplace_stock_catalog_item>);
+static_assert(std::is_standard_layout_v<laplace_stock_catalog_receipt>);
 static_assert(std::is_standard_layout_v<laplace_source_profile_manifest>);
 static_assert(std::is_standard_layout_v<laplace_source_profile_receipt>);
 static_assert(std::is_standard_layout_v<laplace_world_admission_record>);
@@ -211,6 +216,56 @@ laplace_standing_event StandingEvent(
     return event;
 }
 
+laplace_stock_recipe StockRecipe(
+    std::uint8_t seed,
+    std::uint8_t profile_seed,
+    std::uint32_t scope,
+    const laplace_digest256& parent = {}) {
+    laplace_stock_recipe recipe{};
+    recipe.parent_recipe_id = parent;
+    Fill(&recipe.source_profile_id, profile_seed);
+    Fill(&recipe.source_artifact_id, static_cast<std::uint8_t>(seed + 1u));
+    Fill(&recipe.grammar_provider_id, static_cast<std::uint8_t>(seed + 2u));
+    Fill(&recipe.codec_provider_id, static_cast<std::uint8_t>(seed + 3u));
+    Fill(&recipe.lowering_program_id, static_cast<std::uint8_t>(seed + 4u));
+    Fill(&recipe.recomposition_program_id, static_cast<std::uint8_t>(seed + 5u));
+    Fill(&recipe.semantic_segmentation_law_id, 0xe0u);
+    Fill(&recipe.conformance_id, static_cast<std::uint8_t>(seed + 6u));
+    Fill(&recipe.loss_policy_id, static_cast<std::uint8_t>(seed + 7u));
+    Fill(&recipe.correction_epoch_id, static_cast<std::uint8_t>(seed + 8u));
+    recipe.sibling_ordinal = 1u;
+    recipe.scope_kind = scope;
+    recipe.modality_kind = 1u;
+    recipe.version = LAPLACE_STOCK_VERSION;
+    if (laplace_stock_recipe_identify(&recipe, &recipe.recipe_id) !=
+        LAPLACE_STOCK_RECIPE_OK) {
+        std::fputs("direct native stock recipe identity failed\n", stderr);
+        std::exit(70);
+    }
+    return recipe;
+}
+
+laplace_stock_perfcache_plane StockPerfcachePlane(
+    std::uint8_t seed,
+    const laplace_digest256& recipe_id) {
+    laplace_stock_perfcache_plane plane{};
+    plane.recipe_id = recipe_id;
+    Fill(&plane.key_kind_id, static_cast<std::uint8_t>(seed + 1u));
+    Fill(&plane.value_kind_id, static_cast<std::uint8_t>(seed + 2u));
+    Fill(&plane.dependency_epoch_id, static_cast<std::uint8_t>(seed + 3u));
+    Fill(&plane.generation_program_id, static_cast<std::uint8_t>(seed + 4u));
+    Fill(&plane.semantic_verifier_id, static_cast<std::uint8_t>(seed + 5u));
+    Fill(&plane.invalidation_law_id, static_cast<std::uint8_t>(seed + 6u));
+    Fill(&plane.rebuild_law_id, static_cast<std::uint8_t>(seed + 7u));
+    plane.version = LAPLACE_STOCK_VERSION;
+    if (laplace_stock_perfcache_plane_identify(&plane, &plane.plane_id) !=
+        LAPLACE_STOCK_RECIPE_OK) {
+        std::fputs("direct native stock perfcache identity failed\n", stderr);
+        std::exit(70);
+    }
+    return plane;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -219,7 +274,7 @@ int main(int argc, char** argv) {
         return 64;
     }
 
-    const std::array<std::size_t, 323> native_layout{{
+    const std::array<std::size_t, 369> native_layout{{
         sizeof(laplace_digest256),
         sizeof(laplace_id128),
         sizeof(laplace_trajectory_carrier),
@@ -542,6 +597,52 @@ int main(int argc, char** argv) {
         offsetof(laplace_reference_mapping_record, mapping_id),
         offsetof(laplace_reference_mapping_record, disposition),
         offsetof(laplace_reference_mapping_record, reserved),
+        sizeof(laplace_stock_recipe),
+        offsetof(laplace_stock_recipe, recipe_id),
+        offsetof(laplace_stock_recipe, parent_recipe_id),
+        offsetof(laplace_stock_recipe, source_profile_id),
+        offsetof(laplace_stock_recipe, source_artifact_id),
+        offsetof(laplace_stock_recipe, grammar_provider_id),
+        offsetof(laplace_stock_recipe, codec_provider_id),
+        offsetof(laplace_stock_recipe, lowering_program_id),
+        offsetof(laplace_stock_recipe, recomposition_program_id),
+        offsetof(laplace_stock_recipe, semantic_segmentation_law_id),
+        offsetof(laplace_stock_recipe, conformance_id),
+        offsetof(laplace_stock_recipe, loss_policy_id),
+        offsetof(laplace_stock_recipe, correction_epoch_id),
+        offsetof(laplace_stock_recipe, sibling_ordinal),
+        offsetof(laplace_stock_recipe, scope_kind),
+        offsetof(laplace_stock_recipe, modality_kind),
+        offsetof(laplace_stock_recipe, version),
+        offsetof(laplace_stock_recipe, flags),
+        sizeof(laplace_stock_perfcache_plane),
+        offsetof(laplace_stock_perfcache_plane, plane_id),
+        offsetof(laplace_stock_perfcache_plane, recipe_id),
+        offsetof(laplace_stock_perfcache_plane, key_kind_id),
+        offsetof(laplace_stock_perfcache_plane, value_kind_id),
+        offsetof(laplace_stock_perfcache_plane, dependency_epoch_id),
+        offsetof(laplace_stock_perfcache_plane, generation_program_id),
+        offsetof(laplace_stock_perfcache_plane, semantic_verifier_id),
+        offsetof(laplace_stock_perfcache_plane, invalidation_law_id),
+        offsetof(laplace_stock_perfcache_plane, rebuild_law_id),
+        offsetof(laplace_stock_perfcache_plane, version),
+        offsetof(laplace_stock_perfcache_plane, flags),
+        sizeof(laplace_stock_catalog_item),
+        offsetof(laplace_stock_catalog_item, recipe),
+        offsetof(laplace_stock_catalog_item, perfcache_plane),
+        offsetof(laplace_stock_catalog_item, item_kind),
+        offsetof(laplace_stock_catalog_item, flags),
+        sizeof(laplace_stock_catalog_receipt),
+        offsetof(laplace_stock_catalog_receipt, catalog_id),
+        offsetof(laplace_stock_catalog_receipt, recipe_set_fingerprint),
+        offsetof(laplace_stock_catalog_receipt, perfcache_set_fingerprint),
+        offsetof(laplace_stock_catalog_receipt, recipe_count),
+        offsetof(laplace_stock_catalog_receipt, source_count),
+        offsetof(laplace_stock_catalog_receipt, perfcache_plane_count),
+        offsetof(laplace_stock_catalog_receipt, maximum_scope_kind),
+        offsetof(laplace_stock_catalog_receipt, version),
+        offsetof(laplace_stock_catalog_receipt, status),
+        offsetof(laplace_stock_catalog_receipt, flags),
         sizeof(laplace_framework_context),
     }};
     std::array<std::uint32_t, native_layout.size()> layout{};
@@ -818,6 +919,48 @@ int main(int argc, char** argv) {
     const std::array<laplace_standing_period_result, 1> standing_outputs{{
         standing_output_capacity[0]}};
 
+    std::array<laplace_stock_catalog_item, 3> stock_catalog_items{};
+    stock_catalog_items[0].recipe = StockRecipe(
+        0x10u, 0x11u, LAPLACE_STOCK_SCOPE_SOURCE);
+    stock_catalog_items[0].item_kind = LAPLACE_STOCK_ITEM_RECIPE;
+    stock_catalog_items[1].recipe = StockRecipe(
+        0x20u, 0x11u, LAPLACE_STOCK_SCOPE_DIGITAL_OBJECT,
+        stock_catalog_items[0].recipe.recipe_id);
+    stock_catalog_items[1].item_kind = LAPLACE_STOCK_ITEM_RECIPE;
+    stock_catalog_items[2].perfcache_plane = StockPerfcachePlane(
+        0x90u, stock_catalog_items[1].recipe.recipe_id);
+    stock_catalog_items[2].item_kind = LAPLACE_STOCK_ITEM_PERFCACHE_PLANE;
+    std::array<laplace_stock_catalog_receipt, 3> stock_catalog_output_capacity{};
+    std::array<laplace_isa_value_view, 2> stock_catalog_values{{
+        {stock_catalog_items.data(), stock_catalog_items.size(),
+         stock_catalog_items.size(),
+         static_cast<std::uint32_t>(sizeof(stock_catalog_items[0])),
+         LAPLACE_ISA_VALUE_STOCK_CATALOG_ITEM_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u},
+        {stock_catalog_output_capacity.data(), 0u,
+         stock_catalog_output_capacity.size(),
+         static_cast<std::uint32_t>(sizeof(stock_catalog_output_capacity[0])),
+         LAPLACE_ISA_VALUE_STOCK_CATALOG_RECEIPT_VECTOR,
+         LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u}}};
+    laplace_isa_instruction stock_catalog_instruction{
+        LAPLACE_ISA_OPCODE_STOCK_RECIPE_COMPILE_CATALOG_BATCH,
+        0u,
+        1u,
+        LAPLACE_ISA_INSTRUCTION_VERSION_STOCK_RECIPE_COMPILE_CATALOG_BATCH,
+        LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+    auto stock_catalog_program = Program(
+        &stock_catalog_instruction, stock_catalog_values.data(), &context);
+    laplace_isa_receipt stock_catalog_receipt{};
+    laplace_isa_error stock_catalog_error{};
+    if (laplace_isa_execute(
+            &stock_catalog_program, &stock_catalog_receipt,
+            &stock_catalog_error) != LAPLACE_ISA_OK) {
+        std::fputs("direct native stock-catalog ISA execution failed\n", stderr);
+        return 17;
+    }
+    const std::array<laplace_stock_catalog_receipt, 1> stock_catalog_outputs{{
+        stock_catalog_output_capacity[0]}};
+
     laplace_digest256 selected_boundary{};
     Fill(&selected_boundary, 0x91u);
     auto make_source_profile = [&](std::uint8_t seed, bool reverse_scope) {
@@ -1083,7 +1226,7 @@ int main(int argc, char** argv) {
         return 73;
     }
     Write(output, MAGIC);
-    const std::uint32_t fixture_version = 9u;
+    const std::uint32_t fixture_version = 10u;
     const std::uint32_t layout_count = static_cast<std::uint32_t>(layout.size());
     const std::uint32_t identity_count = static_cast<std::uint32_t>(positions.size());
     const std::uint32_t trajectory_count = static_cast<std::uint32_t>(carriers.size());
@@ -1095,6 +1238,8 @@ int main(int argc, char** argv) {
         static_cast<std::uint32_t>(testimony_records.size());
     const std::uint32_t standing_count =
         static_cast<std::uint32_t>(standing_inputs.size());
+    const std::uint32_t stock_catalog_count =
+        static_cast<std::uint32_t>(stock_catalog_items.size());
     const std::uint32_t source_profile_count =
         static_cast<std::uint32_t>(source_profiles.size());
     const std::uint32_t world_admission_count =
@@ -1111,6 +1256,7 @@ int main(int argc, char** argv) {
     Write(output, highway_registry_count);
     Write(output, testimony_count);
     Write(output, standing_count);
+    Write(output, stock_catalog_count);
     Write(output, source_profile_count);
     Write(output, world_admission_count);
     Write(output, reference_count);
@@ -1141,6 +1287,10 @@ int main(int argc, char** argv) {
     Write(output, standing_outputs);
     Write(output, standing_receipt);
     Write(output, standing_error);
+    Write(output, stock_catalog_items);
+    Write(output, stock_catalog_outputs);
+    Write(output, stock_catalog_receipt);
+    Write(output, stock_catalog_error);
     Write(output, source_profiles);
     Write(output, source_profile_outputs);
     Write(output, source_profile_receipt);

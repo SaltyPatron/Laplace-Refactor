@@ -12,6 +12,7 @@
 #include "laplace/evidence_lineage.h"
 #include "laplace/evidence_testimony.h"
 #include "laplace/standing_calculation.h"
+#include "laplace/stock_recipe.h"
 #include "laplace/highway.h"
 #include "laplace/reference_mapping.h"
 #include "laplace/reference_topology.h"
@@ -156,6 +157,10 @@ static uint32_t value_element_bytes(uint32_t type) {
             return (uint32_t)sizeof(laplace_standing_period_input);
         case LAPLACE_ISA_VALUE_STANDING_PERIOD_RESULT_VECTOR:
             return (uint32_t)sizeof(laplace_standing_period_result);
+        case LAPLACE_ISA_VALUE_STOCK_CATALOG_ITEM_VECTOR:
+            return (uint32_t)sizeof(laplace_stock_catalog_item);
+        case LAPLACE_ISA_VALUE_STOCK_CATALOG_RECEIPT_VECTOR:
+            return (uint32_t)sizeof(laplace_stock_catalog_receipt);
         default:
             return 0;
     }
@@ -260,6 +265,16 @@ static void copy_source_profile_inputs(
     for (index = 0u; index < input->count; ++index) {
         memcpy(&profiles[(size_t)index], const_value_element(input, index),
                sizeof(profiles[index]));
+    }
+}
+
+static void copy_stock_catalog_items(
+    const laplace_isa_value_view* input,
+    laplace_stock_catalog_item* items) {
+    uint64_t index;
+    for (index = 0u; index < input->count; ++index) {
+        memcpy(&items[(size_t)index], const_value_element(input, index),
+               sizeof(items[index]));
     }
 }
 
@@ -719,6 +734,75 @@ static laplace_isa_status validate_source_profile_validate_batch(
         profile_input, (size_t)input->count, &receipt, &profile_error);
     free(contiguous);
     if (status != LAPLACE_SOURCE_PROFILE_OK) {
+        return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                    instruction_index, instruction->input_value);
+    }
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status validate_stock_recipe_compile_catalog_batch(
+    const laplace_isa_program* program,
+    const laplace_isa_instruction* instruction,
+    uint64_t instruction_index,
+    laplace_isa_error* error) {
+    const laplace_isa_value_view* input = &program->values[instruction->input_value];
+    const laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_stock_catalog_item* contiguous = NULL;
+    const laplace_stock_catalog_item* items;
+    laplace_stock_catalog_receipt receipt;
+    laplace_stock_recipe_error catalog_error;
+    laplace_stock_recipe_status status;
+    uint64_t working_bytes;
+    const uint64_t per_item_bytes =
+        2u * ((uint64_t)sizeof(laplace_stock_recipe) +
+              (uint64_t)sizeof(laplace_stock_perfcache_plane));
+    if (input->count == 0u || input->count > SIZE_MAX) {
+        return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
+                    instruction_index, instruction->input_value);
+    }
+    if (output->capacity < 1u) {
+        return fail(error, LAPLACE_ISA_RESULT_CAPACITY_INSUFFICIENT,
+                    instruction_index, instruction->output_value);
+    }
+    if (input->count > UINT64_MAX / per_item_bytes) {
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->input_value);
+    }
+    working_bytes = input->count * per_item_bytes;
+    items = (const laplace_stock_catalog_item*)input->data;
+    if (input->stride_bytes != sizeof(*contiguous) ||
+        (uintptr_t)input->data % _Alignof(laplace_stock_catalog_item) != 0u) {
+        if (input->count > UINT64_MAX / sizeof(*contiguous) ||
+            UINT64_MAX - working_bytes < input->count * sizeof(*contiguous)) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        working_bytes += input->count * sizeof(*contiguous);
+        contiguous = (laplace_stock_catalog_item*)calloc(
+            (size_t)input->count, sizeof(*contiguous));
+        if (contiguous == NULL) {
+            return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                        instruction_index, instruction->input_value);
+        }
+        copy_stock_catalog_items(input, contiguous);
+        items = contiguous;
+    }
+    if (working_bytes > program->context->resource_grant.memory_bytes) {
+        free(contiguous);
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->input_value);
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&catalog_error, 0, sizeof(catalog_error));
+    status = laplace_stock_recipe_compile_catalog_items(
+        items, (size_t)input->count, &receipt, &catalog_error);
+    free(contiguous);
+    if (status == LAPLACE_STOCK_RECIPE_RESOURCE_INSUFFICIENT ||
+        status == LAPLACE_STOCK_RECIPE_OVERFLOW) {
+        return fail(error, LAPLACE_ISA_RESOURCE_INSUFFICIENT,
+                    instruction_index, instruction->input_value);
+    }
+    if (status != LAPLACE_STOCK_RECIPE_OK) {
         return fail(error, LAPLACE_ISA_INPUT_OUT_OF_RANGE,
                     instruction_index, instruction->input_value);
     }
@@ -1253,6 +1337,85 @@ static void hash_program(
     finish_digest(&hasher, digest);
 }
 
+static void hash_stock_recipe(
+    blake3_hasher* hasher, const laplace_stock_recipe* recipe) {
+    blake3_hasher_update(hasher, recipe->recipe_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->parent_recipe_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->source_profile_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->source_artifact_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->grammar_provider_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->codec_provider_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->lowering_program_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->recomposition_program_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->semantic_segmentation_law_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->conformance_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->loss_policy_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->correction_epoch_id.bytes, 32u);
+    hash_u64(hasher, recipe->sibling_ordinal);
+    hash_u32(hasher, recipe->scope_kind);
+    hash_u32(hasher, recipe->modality_kind);
+    hash_u32(hasher, recipe->version);
+    hash_u32(hasher, recipe->flags);
+}
+
+static void hash_stock_perfcache_plane(
+    blake3_hasher* hasher, const laplace_stock_perfcache_plane* plane) {
+    blake3_hasher_update(hasher, plane->plane_id.bytes, 32u);
+    blake3_hasher_update(hasher, plane->recipe_id.bytes, 32u);
+    blake3_hasher_update(hasher, plane->key_kind_id.bytes, 32u);
+    blake3_hasher_update(hasher, plane->value_kind_id.bytes, 32u);
+    blake3_hasher_update(hasher, plane->dependency_epoch_id.bytes, 32u);
+    blake3_hasher_update(hasher, plane->generation_program_id.bytes, 32u);
+    blake3_hasher_update(hasher, plane->semantic_verifier_id.bytes, 32u);
+    blake3_hasher_update(hasher, plane->invalidation_law_id.bytes, 32u);
+    blake3_hasher_update(hasher, plane->rebuild_law_id.bytes, 32u);
+    hash_u32(hasher, plane->version);
+    hash_u32(hasher, plane->flags);
+}
+
+static void hash_stock_catalog_receipt(
+    blake3_hasher* hasher, const laplace_stock_catalog_receipt* receipt) {
+    blake3_hasher_update(hasher, receipt->catalog_id.bytes, 32u);
+    blake3_hasher_update(hasher, receipt->recipe_set_fingerprint.bytes, 32u);
+    blake3_hasher_update(hasher, receipt->perfcache_set_fingerprint.bytes, 32u);
+    hash_u64(hasher, receipt->recipe_count);
+    hash_u64(hasher, receipt->source_count);
+    hash_u64(hasher, receipt->perfcache_plane_count);
+    hash_u32(hasher, receipt->maximum_scope_kind);
+    hash_u32(hasher, receipt->version);
+    hash_u32(hasher, receipt->status);
+    hash_u32(hasher, receipt->flags);
+}
+
+static void hash_stock_catalog_item(
+    blake3_hasher* hasher, const laplace_stock_catalog_item* item) {
+    hash_stock_recipe(hasher, &item->recipe);
+    hash_stock_perfcache_plane(hasher, &item->perfcache_plane);
+    hash_u32(hasher, item->item_kind);
+    hash_u32(hasher, item->flags);
+}
+
+static int compare_stock_catalog_item_identity(
+    const void* left, const void* right) {
+    const laplace_stock_catalog_item* first =
+        (const laplace_stock_catalog_item*)left;
+    const laplace_stock_catalog_item* second =
+        (const laplace_stock_catalog_item*)right;
+    const laplace_digest256* first_id;
+    const laplace_digest256* second_id;
+    if (first->item_kind < second->item_kind) {
+        return -1;
+    }
+    if (first->item_kind > second->item_kind) {
+        return 1;
+    }
+    first_id = first->item_kind == LAPLACE_STOCK_ITEM_RECIPE
+        ? &first->recipe.recipe_id : &first->perfcache_plane.plane_id;
+    second_id = second->item_kind == LAPLACE_STOCK_ITEM_RECIPE
+        ? &second->recipe.recipe_id : &second->perfcache_plane.plane_id;
+    return memcmp(first_id->bytes, second_id->bytes, sizeof(first_id->bytes));
+}
+
 static bool hash_value_vector(
     blake3_hasher* hasher,
     const laplace_isa_value_view* value) {
@@ -1278,6 +1441,25 @@ static bool hash_value_vector(
         return true;
     }
 #endif
+    if (value->type == LAPLACE_ISA_VALUE_STOCK_CATALOG_ITEM_VECTOR) {
+        laplace_stock_catalog_item* ordered;
+        if (value->count > SIZE_MAX / sizeof(*ordered)) {
+            return false;
+        }
+        ordered = (laplace_stock_catalog_item*)malloc(
+            (size_t)value->count * sizeof(*ordered));
+        if (ordered == NULL) {
+            return false;
+        }
+        copy_stock_catalog_items(value, ordered);
+        qsort(ordered, (size_t)value->count, sizeof(*ordered),
+              compare_stock_catalog_item_identity);
+        for (index = 0u; index < value->count; ++index) {
+            hash_stock_catalog_item(hasher, &ordered[(size_t)index]);
+        }
+        free(ordered);
+        return true;
+    }
     for (index = 0; index < value->count; ++index) {
         const uint8_t* item = const_value_element(value, index);
         switch (value->type) {
@@ -1445,6 +1627,18 @@ static bool hash_value_vector(
                 memcpy(&result, item, sizeof(result));
                 hash_standing_state(hasher, &result.successor_state);
                 hash_standing_receipt(hasher, &result.receipt);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_STOCK_CATALOG_ITEM_VECTOR: {
+                laplace_stock_catalog_item catalog_item;
+                memcpy(&catalog_item, item, sizeof(catalog_item));
+                hash_stock_catalog_item(hasher, &catalog_item);
+                break;
+            }
+            case LAPLACE_ISA_VALUE_STOCK_CATALOG_RECEIPT_VECTOR: {
+                laplace_stock_catalog_receipt catalog_receipt;
+                memcpy(&catalog_receipt, item, sizeof(catalog_receipt));
+                hash_stock_catalog_receipt(hasher, &catalog_receipt);
                 break;
             }
             case LAPLACE_ISA_VALUE_SOURCE_PROFILE_MANIFEST_VECTOR: {
@@ -2038,6 +2232,55 @@ static laplace_isa_status execute_source_profile_validate_batch(
         profile_input, (size_t)input->count, &receipt, &error);
     free(contiguous);
     if (status != LAPLACE_SOURCE_PROFILE_OK) {
+        return LAPLACE_ISA_EXECUTION_FAILED;
+    }
+    memcpy(value_element(output, 0u), &receipt, sizeof(receipt));
+    output->count = 1u;
+    return LAPLACE_ISA_OK;
+}
+
+static laplace_isa_status execute_stock_recipe_compile_catalog_batch(
+    laplace_isa_program* program,
+    const laplace_isa_instruction* instruction) {
+    laplace_isa_value_view* input = &program->values[instruction->input_value];
+    laplace_isa_value_view* output = &program->values[instruction->output_value];
+    laplace_stock_catalog_item* contiguous = NULL;
+    const laplace_stock_catalog_item* items;
+    laplace_stock_catalog_receipt receipt;
+    laplace_stock_recipe_error error;
+    laplace_stock_recipe_status status;
+    uint64_t working_bytes = input->count *
+        2u * ((uint64_t)sizeof(laplace_stock_recipe) +
+              (uint64_t)sizeof(laplace_stock_perfcache_plane));
+    items = (const laplace_stock_catalog_item*)input->data;
+    if (input->stride_bytes != sizeof(*contiguous) ||
+        (uintptr_t)input->data % _Alignof(laplace_stock_catalog_item) != 0u) {
+        if (UINT64_MAX - working_bytes < input->count * sizeof(*contiguous)) {
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        working_bytes += input->count * sizeof(*contiguous);
+        contiguous = (laplace_stock_catalog_item*)calloc(
+            (size_t)input->count, sizeof(*contiguous));
+        if (contiguous == NULL) {
+            return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+        }
+        copy_stock_catalog_items(input, contiguous);
+        items = contiguous;
+    }
+    if (working_bytes > program->context->resource_grant.memory_bytes) {
+        free(contiguous);
+        return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+    }
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&error, 0, sizeof(error));
+    status = laplace_stock_recipe_compile_catalog_items(
+        items, (size_t)input->count, &receipt, &error);
+    free(contiguous);
+    if (status == LAPLACE_STOCK_RECIPE_RESOURCE_INSUFFICIENT ||
+        status == LAPLACE_STOCK_RECIPE_OVERFLOW) {
+        return LAPLACE_ISA_RESOURCE_INSUFFICIENT;
+    }
+    if (status != LAPLACE_STOCK_RECIPE_OK) {
         return LAPLACE_ISA_EXECUTION_FAILED;
     }
     memcpy(value_element(output, 0u), &receipt, sizeof(receipt));

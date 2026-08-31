@@ -21,7 +21,7 @@ test_root=$(mktemp -d "$temporary_parent/laplace-postgres-test.XXXXXX")
 data_directory="$test_root/data"
 socket_directory=$(mktemp -d /tmp/lp-pg.XXXXXX)
 server_log="$test_root/postgres.log"
-port=55432
+port=${LAPLACE_POSTGRES_TEST_PORT:-55432}
 server_started=0
 perfcache_root="$test_root/perfcache-root"
 mkdir -p -- "$perfcache_root"
@@ -229,6 +229,18 @@ elif [[ "$mode" == "standing" || "$mode" == "standing-mutation" ||
         fi
         psql_arguments+=(-v "standing_mutant_module=$LAPLACE_MUTANT_MODULE")
     fi
+elif [[ "$mode" == "stock-catalog" ]]; then
+    probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$native_probe")
+    while IFS='=' read -r key value; do
+        if [[ ! "$key" =~ ^STOCK_[A-Z0-9_]+$ ||
+              ! "$value" =~ ^[0-9a-f]+$ ]]; then
+            echo "native stock recipe probe emitted an invalid value: $key" >&2
+            exit 89
+        fi
+        shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+        psql_arguments+=(-v "$shell_name=$value")
+    done <<<"$probe_output"
 elif [[ "$mode" == "perfcache-mutation" ]]; then
     if [[ -z "${LAPLACE_MUTANT_MODULE:-}" || ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
         echo "perfcache mutant module is missing" >&2

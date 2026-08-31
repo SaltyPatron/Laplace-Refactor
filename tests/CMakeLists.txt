@@ -2206,6 +2206,7 @@ add_library(laplace_isa_preflight_mutant STATIC
     ../engine/src/reference_topology.c
     ../engine/src/reference_mapping.c
     ../engine/src/source_profile.c
+    ../engine/src/stock_recipe.c
     ../engine/src/world_admission.c
     ../engine/src/identity.c
     ../engine/src/framework.c
@@ -2243,6 +2244,7 @@ add_library(laplace_isa_standing_order_mutant STATIC
     ../engine/src/reference_topology.c
     ../engine/src/reference_mapping.c
     ../engine/src/source_profile.c
+    ../engine/src/stock_recipe.c
     ../engine/src/world_admission.c
     ../engine/src/identity.c
     ../engine/src/framework.c
@@ -2294,6 +2296,7 @@ add_library(laplace_isa_registry_mutant STATIC
     ../engine/src/reference_topology.c
     ../engine/src/reference_mapping.c
     ../engine/src/source_profile.c
+    ../engine/src/stock_recipe.c
     ../engine/src/world_admission.c
     ../engine/src/identity.c
     ../engine/src/framework.c
@@ -2341,6 +2344,7 @@ add_library(laplace_isa_context_mutant STATIC
     ../engine/src/reference_topology.c
     ../engine/src/reference_mapping.c
     ../engine/src/source_profile.c
+    ../engine/src/stock_recipe.c
     ../engine/src/world_admission.c
     ../engine/src/identity.c
     ../engine/src/framework.c
@@ -2697,6 +2701,10 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_contract.sql"
         @ONLY)
     configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/stock_recipe_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/stock_recipe_contract.sql"
+        @ONLY)
+    configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/standing_replay_mutation.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_replay_mutation.sql"
         COPYONLY)
@@ -2792,6 +2800,13 @@ if(LAPLACE_POSTGRES_ENABLED)
     target_link_libraries(laplace_postgres_standing_probe PRIVATE
         Laplace::StandingCalculation Laplace::Isa)
     target_compile_options(laplace_postgres_standing_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+    add_executable(laplace_postgres_stock_recipe_probe
+        postgres/stock_recipe_probe.cpp)
+    target_link_libraries(laplace_postgres_stock_recipe_probe PRIVATE
+        Laplace::StockRecipe Laplace::Isa)
+    target_compile_options(laplace_postgres_stock_recipe_probe PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 
     add_executable(laplace_postgres_iso_639_profile_probe
@@ -2902,6 +2917,26 @@ if(LAPLACE_POSTGRES_ENABLED)
     set_tests_properties(postgres.standing-persistent-whole-route-contract PROPERTIES
         LABELS "implementation;postgresql;standing;glicko2;isa;persistence;replay;receipt"
         RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.stock-recipe-persistent-catalog-contract
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            stock-catalog
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_stock_recipe_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/stock_recipe_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.stock-recipe-persistent-catalog-contract PROPERTIES
+        LABELS "implementation;postgresql;recipe;perfcache;isa;persistence;replay;receipt"
+        RUN_SERIAL TRUE
+        ENVIRONMENT
+            "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/postgres;LAPLACE_POSTGRES_TEST_PORT=55439")
 
     add_test(
         NAME postgres.mutation-standing-replay-conflict-detected

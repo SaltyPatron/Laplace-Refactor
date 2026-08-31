@@ -50,6 +50,7 @@ set(laplace_postgresql_module_sources
     src/set_pg.c
     src/source_admission_pg.c
     src/source_profile_pg.c
+    src/stock_recipe_pg.c
     src/source_structural_witness_pg.c
     src/unicode_perfcache_pg.c
     src/unicode_atoms_pg.c

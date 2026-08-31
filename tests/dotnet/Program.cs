@@ -32,11 +32,11 @@ internal static class Program
         Require(LaplaceIsaContract.ReceiptDigestAlgorithm == "BLAKE3-256" &&
             LaplaceIsaContract.ReceiptDigestBytes == 32,
             "generated receipt descriptor differs");
-        Require(LaplaceIsaContract.Minor == 12,
+        Require(LaplaceIsaContract.Minor == 13,
             "generated ISA minor version differs");
-        Require(LaplaceIsaContract.ValueTypes.Length == 21,
+        Require(LaplaceIsaContract.ValueTypes.Length == 23,
             "generated value type inventory differs");
-        Require(LaplaceIsaContract.Operations.Length == 12,
+        Require(LaplaceIsaContract.Operations.Length == 13,
             "generated operation inventory differs");
         Require(IdentityCodepointBatch.Descriptor == LaplaceIsaContract.Operations[0],
             "generated identity declaration differs from descriptor inventory");
@@ -60,7 +60,10 @@ internal static class Program
             "generated reference-topology declaration differs from descriptor inventory");
         Require(ReferenceMappingResolveBatch.Descriptor == LaplaceIsaContract.Operations[10],
             "generated reference-mapping declaration differs from descriptor inventory");
-        Require(CognitionSolvePacket.Descriptor == LaplaceIsaContract.Operations[11],
+        Require(StockRecipeCompileCatalogBatch.Descriptor ==
+            LaplaceIsaContract.Operations[11],
+            "generated stock-catalog declaration differs from descriptor inventory");
+        Require(CognitionSolvePacket.Descriptor == LaplaceIsaContract.Operations[12],
             "generated cognition declaration differs from descriptor inventory");
         Require(LaplaceHighwayContract.Version == 2U &&
             LaplaceHighwayContract.KindLanguage == 3U &&
@@ -175,6 +178,24 @@ internal static class Program
             "managed standing ISA receipt differs from direct native receipt");
         Require(RawEqual(standing.Error, fixture.StandingError),
             "managed standing error fields differ from direct native result");
+
+        var stockCatalog = client.ExecuteBatch<
+            StockRecipeCompileCatalogBatch,
+            LaplaceStockCatalogItem,
+            LaplaceStockCatalogReceipt>(fixture.StockCatalogItems, context);
+        Require(stockCatalog.Status == LaplaceIsaStatus.Ok,
+            "managed stock-catalog execution failed");
+        Require(stockCatalog.OutputCount == (ulong)fixture.StockCatalogOutputs.Length,
+            "managed stock-catalog output count differs");
+        LaplaceStockCatalogReceipt[] publishedStockCatalog =
+            stockCatalog.Output.AsSpan(
+                0, checked((int)stockCatalog.OutputCount)).ToArray();
+        Require(RawEqual(publishedStockCatalog, fixture.StockCatalogOutputs),
+            "managed stock-catalog output differs from direct native output");
+        Require(RawEqual(stockCatalog.Receipt, fixture.StockCatalogReceipt),
+            "managed stock-catalog ISA receipt differs from direct native receipt");
+        Require(RawEqual(stockCatalog.Error, fixture.StockCatalogError),
+            "managed stock-catalog error fields differ from direct native result");
 
         var sourceProfile = client.ExecuteBatch<
             SourceProfileValidateBatch,
@@ -405,6 +426,10 @@ internal sealed record Fixture(
     LaplaceStandingPeriodResult[] StandingOutputs,
     LaplaceIsaReceipt StandingReceipt,
     LaplaceIsaError StandingError,
+    LaplaceStockCatalogItem[] StockCatalogItems,
+    LaplaceStockCatalogReceipt[] StockCatalogOutputs,
+    LaplaceIsaReceipt StockCatalogReceipt,
+    LaplaceIsaError StockCatalogError,
     LaplaceSourceProfileManifest[] SourceProfiles,
     LaplaceSourceProfileReceipt[] SourceProfileOutputs,
     LaplaceIsaReceipt SourceProfileReceipt,
@@ -442,14 +467,16 @@ internal sealed record Fixture(
         uint highwayRegistryCount = input.ReadUInt32();
         uint testimonyCount = input.ReadUInt32();
         uint standingCount = input.ReadUInt32();
+        uint stockCatalogCount = input.ReadUInt32();
         uint sourceProfileCount = input.ReadUInt32();
         uint worldAdmissionCount = input.ReadUInt32();
         uint referenceCount = input.ReadUInt32();
         uint mappingCount = input.ReadUInt32();
-        if (version != 9 || layoutCount > 1024 || identityCount > 1024 ||
+        if (version != 10 || layoutCount > 1024 || identityCount > 1024 ||
             trajectoryCount > 1024 || highwayCount > 1024 ||
             highwayRegistryCount > 1024 || testimonyCount > 1024 ||
             standingCount == 0 || standingCount > 1024 ||
+            stockCatalogCount == 0 || stockCatalogCount > 1024 ||
             sourceProfileCount > 1024 || worldAdmissionCount > 1024 ||
             referenceCount > 1024 || mappingCount > 1024)
         {
@@ -495,6 +522,12 @@ internal sealed record Fixture(
             ReadArray<LaplaceStandingPeriodResult>(input, 1);
         LaplaceIsaReceipt standingReceipt = ReadOne<LaplaceIsaReceipt>(input);
         LaplaceIsaError standingError = ReadOne<LaplaceIsaError>(input);
+        LaplaceStockCatalogItem[] stockCatalogItems =
+            ReadArray<LaplaceStockCatalogItem>(input, stockCatalogCount);
+        LaplaceStockCatalogReceipt[] stockCatalogOutputs =
+            ReadArray<LaplaceStockCatalogReceipt>(input, 1);
+        LaplaceIsaReceipt stockCatalogReceipt = ReadOne<LaplaceIsaReceipt>(input);
+        LaplaceIsaError stockCatalogError = ReadOne<LaplaceIsaError>(input);
         LaplaceSourceProfileManifest[] sourceProfiles =
             ReadArray<LaplaceSourceProfileManifest>(input, sourceProfileCount);
         LaplaceSourceProfileReceipt[] sourceProfileOutputs =
@@ -550,6 +583,10 @@ internal sealed record Fixture(
             standingOutputs,
             standingReceipt,
             standingError,
+            stockCatalogItems,
+            stockCatalogOutputs,
+            stockCatalogReceipt,
+            stockCatalogError,
             sourceProfiles,
             sourceProfileOutputs,
             sourceProfileReceipt,
