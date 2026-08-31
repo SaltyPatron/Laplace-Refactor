@@ -1,0 +1,395 @@
+{
+  "schema": "laplace.source-discovery-catalog-contract/v1",
+  "status": "required",
+  "issue": 112,
+  "purpose": "Produce deterministic discovery-only evidence about a local source estate without promoting paths, suffixes, parser success, or generated plans into source authority, semantic truth, world admission, or product activation.",
+  "identity": {
+    "algorithm": "sha256-canonical-json",
+    "includes": [
+      "contract_sha256",
+      "entries",
+      "summary"
+    ],
+    "excludes": [
+      "absolute_root",
+      "catalog_label",
+      "observation_time",
+      "mtime",
+      "uid",
+      "gid",
+      "filesystem_traversal_order"
+    ]
+  },
+  "limits": {
+    "read_block_bytes": 1048576,
+    "strict_structure_probe_max_bytes": 67108864,
+    "archive_probe_max_bytes": 2147483648,
+    "archive_member_limit": 100000,
+    "prefix_probe_bytes": 512,
+    "suffix_probe_bytes": 16
+  },
+  "format_hints": [
+    {
+      "id": "png",
+      "media_type": "image/png",
+      "extensions": [".png"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "89504e470d0a1a0a"}
+      ],
+      "provider_candidates": [
+        {"family": "codec", "key": "png", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "jpeg",
+      "media_type": "image/jpeg",
+      "extensions": [".jpg", ".jpeg", ".jpe"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "ffd8ff"}
+      ],
+      "provider_candidates": [
+        {"family": "codec", "key": "jpeg", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "gif87a",
+      "media_type": "image/gif",
+      "extensions": [".gif"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "474946383761"}
+      ],
+      "provider_candidates": [
+        {"family": "codec", "key": "gif", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "gif89a",
+      "media_type": "image/gif",
+      "extensions": [".gif"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "474946383961"}
+      ],
+      "provider_candidates": [
+        {"family": "codec", "key": "gif", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "pdf",
+      "media_type": "application/pdf",
+      "extensions": [".pdf"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "255044462d"}
+      ],
+      "provider_candidates": [
+        {"family": "document-parser", "key": "pdf", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "zip",
+      "media_type": "application/zip",
+      "extensions": [".zip", ".jar", ".docx", ".xlsx", ".pptx", ".epub"],
+      "signature_alternatives": [
+        [{"location": "prefix", "offset": 0, "hex": "504b0304"}],
+        [{"location": "prefix", "offset": 0, "hex": "504b0506"}],
+        [{"location": "prefix", "offset": 0, "hex": "504b0708"}]
+      ],
+      "strict_probe": "zip-central-directory",
+      "provider_candidates": [
+        {"family": "container", "key": "zip", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "gzip",
+      "media_type": "application/gzip",
+      "extensions": [".gz", ".tgz"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "1f8b"}
+      ],
+      "provider_candidates": [
+        {"family": "container", "key": "gzip", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "bzip2",
+      "media_type": "application/x-bzip2",
+      "extensions": [".bz2", ".tbz2"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "425a68"}
+      ],
+      "provider_candidates": [
+        {"family": "container", "key": "bzip2", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "xz",
+      "media_type": "application/x-xz",
+      "extensions": [".xz", ".txz"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "fd377a585a00"}
+      ],
+      "provider_candidates": [
+        {"family": "container", "key": "xz", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "zstd",
+      "media_type": "application/zstd",
+      "extensions": [".zst", ".zstd"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "28b52ffd"}
+      ],
+      "provider_candidates": [
+        {"family": "container", "key": "zstd", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "tar",
+      "media_type": "application/x-tar",
+      "extensions": [".tar", ".tgz", ".tbz2", ".txz"],
+      "signature_alternatives": [
+        [{"location": "prefix", "offset": 257, "hex": "7573746172"}],
+        [{"location": "prefix", "offset": 257, "hex": "75737461722020"}]
+      ],
+      "strict_probe": "tar-member-table",
+      "provider_candidates": [
+        {"family": "container", "key": "tar", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "sqlite3",
+      "media_type": "application/vnd.sqlite3",
+      "extensions": [".sqlite", ".sqlite3", ".db"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "53514c69746520666f726d6174203300"}
+      ],
+      "provider_candidates": [
+        {"family": "database-reader", "key": "sqlite3", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "parquet",
+      "media_type": "application/vnd.apache.parquet",
+      "extensions": [".parquet"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "50415231"},
+        {"location": "suffix", "offset": 0, "hex": "50415231"}
+      ],
+      "provider_candidates": [
+        {"family": "columnar-reader", "key": "parquet", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "wav",
+      "media_type": "audio/wav",
+      "extensions": [".wav", ".wave"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "52494646"},
+        {"location": "prefix", "offset": 8, "hex": "57415645"}
+      ],
+      "provider_candidates": [
+        {"family": "codec", "key": "wav", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "ogg",
+      "media_type": "application/ogg",
+      "extensions": [".ogg", ".oga", ".ogv", ".opus"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "4f676753"}
+      ],
+      "provider_candidates": [
+        {"family": "codec", "key": "ogg", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "flac",
+      "media_type": "audio/flac",
+      "extensions": [".flac"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "664c6143"}
+      ],
+      "provider_candidates": [
+        {"family": "codec", "key": "flac", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "elf",
+      "media_type": "application/x-elf",
+      "extensions": [".so", ".o", ".elf"],
+      "signatures": [
+        {"location": "prefix", "offset": 0, "hex": "7f454c46"}
+      ],
+      "provider_candidates": [
+        {"family": "binary-format", "key": "elf", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "json",
+      "media_type": "application/json",
+      "extensions": [".json", ".jsonl", ".ndjson"],
+      "strict_probe": "json-document",
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "json", "status": "grammar-binding-required"},
+        {"family": "standards-parser", "key": "json", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "xml",
+      "media_type": "application/xml",
+      "extensions": [".xml", ".xhtml", ".svg", ".rdf", ".owl"],
+      "strict_probe": "xml-document",
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "xml", "status": "grammar-binding-required"},
+        {"family": "standards-parser", "key": "xml", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "tab-separated",
+      "media_type": "text/tab-separated-values",
+      "extensions": [".tsv", ".tab", ".conllu", ".conll"],
+      "provider_candidates": [
+        {"family": "tabular-parser", "key": "tab-separated", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "csv",
+      "media_type": "text/csv",
+      "extensions": [".csv"],
+      "provider_candidates": [
+        {"family": "tabular-parser", "key": "csv", "status": "probe-required"}
+      ]
+    },
+    {
+      "id": "c",
+      "media_type": "text/x-c",
+      "extensions": [".c", ".h"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "c", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "cpp",
+      "media_type": "text/x-c++",
+      "extensions": [".cc", ".cpp", ".cxx", ".hpp", ".hh", ".hxx", ".h"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "cpp", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "c-sharp",
+      "media_type": "text/x-csharp",
+      "extensions": [".cs"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "c_sharp", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "python",
+      "media_type": "text/x-python",
+      "extensions": [".py", ".pyi"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "python", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "rust",
+      "media_type": "text/x-rust",
+      "extensions": [".rs"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "rust", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "go",
+      "media_type": "text/x-go",
+      "extensions": [".go"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "go", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "java",
+      "media_type": "text/x-java-source",
+      "extensions": [".java"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "java", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "javascript",
+      "media_type": "text/javascript",
+      "extensions": [".js", ".jsx", ".mjs", ".cjs"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "javascript", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "typescript",
+      "media_type": "text/typescript",
+      "extensions": [".ts", ".tsx", ".mts", ".cts"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "typescript", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "sql",
+      "media_type": "application/sql",
+      "extensions": [".sql"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "sql", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "bash",
+      "media_type": "application/x-sh",
+      "extensions": [".sh", ".bash"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "bash", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "markdown",
+      "media_type": "text/markdown",
+      "extensions": [".md", ".markdown"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "markdown", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "yaml",
+      "media_type": "application/yaml",
+      "extensions": [".yaml", ".yml"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "yaml", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "toml",
+      "media_type": "application/toml",
+      "extensions": [".toml"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "toml", "status": "grammar-binding-required"}
+      ]
+    },
+    {
+      "id": "pgn",
+      "media_type": "application/x-chess-pgn",
+      "extensions": [".pgn"],
+      "provider_candidates": [
+        {"family": "tree-sitter", "key": "pgn", "status": "grammar-binding-required"},
+        {"family": "laplace-native-grammar", "key": "pgn", "status": "probe-required"}
+      ]
+    }
+  ],
+  "laws": {
+    "path_is_discovery_only": true,
+    "extension_is_authority": false,
+    "magic_is_semantics": false,
+    "strict_parse_is_truth": false,
+    "generated_profile_is_active": false,
+    "follow_symlinks": false,
+    "omit_unknown_or_unreadable": false,
+    "arbitrary_binary_is_utf8": false,
+    "source_bytes_uploaded_by_catalog_workflow": false
+  }
+}
