@@ -17,6 +17,7 @@ CUSTOM_STACK_PATH = REPOSITORY / ".github/workflows/custom-stack.yml"
 POSTGRESQL_PRODUCT_PATH = REPOSITORY / ".github/workflows/postgresql-product.yml"
 PACKAGE_PRODUCT_PATH = REPOSITORY / ".github/workflows/package-product.yml"
 PRODUCT_ACTIVATION_PATH = REPOSITORY / ".github/workflows/product-activation.yml"
+ACTIVATION_CONTRACT_PATH = REPOSITORY / "contracts/product-activation-gateway.json"
 SPEC = importlib.util.spec_from_file_location("laplace_product_path_status_tests", MODULE_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("cannot load product-path module")
@@ -61,6 +62,33 @@ class ProductPathGitStatusTests(unittest.TestCase):
                 f"legacy protected context {check_name} can bypass product-path",
             )
         self.assertGreaterEqual(workflow.count("needs.product-path.result"), len(aliases))
+
+    def assert_main_push_deployment_boundary(
+        self, workflow: str, activation: str, contract: str
+    ) -> None:
+        self.assertIn(
+            "  dev-bat-deployment:\n    needs: product-path\n",
+            workflow,
+        )
+        deployment = workflow[workflow.index("  dev-bat-deployment:"):]
+        self.assertIn("github.event_name == 'push'", deployment)
+        self.assertIn("github.ref == 'refs/heads/main'", deployment)
+        self.assertIn("needs.product-path.result == 'success'", deployment)
+        self.assertIn("actions: write", workflow)
+        self.assertIn("actions/workflows/product-activation.yml/dispatches", deployment)
+        self.assertIn("inputs[expected_sha]=$EXPECTED_SHA", deployment)
+        self.assertIn("EXPECTED_SHA: ${{ github.sha }}", deployment)
+        self.assertIn("  workflow_dispatch:\n", activation)
+        self.assertIn("      expected_sha:\n", activation)
+        self.assertIn("        required: true\n", activation)
+        self.assertNotIn("  pull_request:\n", activation)
+        self.assertNotIn("  push:\n", activation)
+        self.assertGreaterEqual(
+            activation.count("test \"$GITHUB_SHA\" = '${{ inputs.expected_sha }}'"),
+            3,
+        )
+        self.assertIn("Verify the deployed DEV/BAT generation after activation", activation)
+        self.assertIn('"deployment_event": "workflow_dispatch"', contract)
 
     def test_type_change_remains_semantic_and_requires_custom_stack(self) -> None:
         paths = self.read_status(b"T\0engine/src/composition.cpp\0")
@@ -109,8 +137,15 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         self.assertIn("  workflow_dispatch:\n", activation)
+        self.assertNotIn("  workflow_call:\n", activation)
         self.assertNotIn("  pull_request:\n", activation)
         self.assertNotIn("  push:\n", activation)
+
+    def test_main_push_is_dev_bat_deployment_boundary(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
+        contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
+        self.assert_main_push_deployment_boundary(workflow, activation, contract)
 
     def test_physical_product_proofs_are_serialized(self) -> None:
         workflows = {
@@ -177,6 +212,31 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertNotEqual(workflow, mutant)
         with self.assertRaises(AssertionError):
             self.assert_legacy_branch_protection_bridge(mutant)
+
+    def test_deliberate_pr_deployment_defect_is_detected(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
+        contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
+        mutant = workflow.replace(
+            "github.event_name == 'push'",
+            "github.event_name == 'pull_request'",
+            1,
+        )
+        self.assertNotEqual(workflow, mutant)
+        with self.assertRaises(AssertionError):
+            self.assert_main_push_deployment_boundary(mutant, activation, contract)
+
+    def test_deliberate_unbound_dispatch_sha_is_detected(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
+        contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
+        mutant = activation.replace(
+            "          test \"$GITHUB_SHA\" = '${{ inputs.expected_sha }}'\n",
+            "",
+        )
+        self.assertNotEqual(activation, mutant)
+        with self.assertRaises(AssertionError):
+            self.assert_main_push_deployment_boundary(workflow, mutant, contract)
 
 
 if __name__ == "__main__":

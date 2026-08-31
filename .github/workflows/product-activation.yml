@@ -2,6 +2,11 @@ name: product-activation
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact accepted main commit to deploy
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -25,6 +30,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
           sudo -n -l
       - name: Verify the exact runner-readable PostgreSQL publication
         shell: bash
@@ -74,6 +83,7 @@ jobs:
           test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
           test "$GITHUB_REF" = refs/heads/main
           test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
           git diff --quiet
           git diff --cached --quiet
           postgresql_publication=$(jq -er '.product_activation_projection.postgresql_publication.receipt' state/continuation.json)
@@ -133,7 +143,7 @@ jobs:
           printf 'resource_observation=%s\n' "$resource_observation" >> "$GITHUB_OUTPUT"
           printf 'package_id=%s\n' "$package_id" >> "$GITHUB_OUTPUT"
           {
-            echo '## Product package selected for activation'
+            echo '## Product package selected for DEV/BAT activation'
             echo '```json'
             jq '{schema, package_id, manifest, manifest_sha256, physical_root, activation_eligible, build_input_closure_complete}' "$product_receipt"
             echo '```'
@@ -161,6 +171,7 @@ jobs:
           test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
           test "$GITHUB_REF" = refs/heads/main
           test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
           test -n "$LAPLACE_ACTIVATION_HMAC_KEY_B64"
           test -x /opt/laplace/deployment/current/bin/laplace-product-activate
           sudo -n /opt/laplace/deployment/current/bin/laplace-product-activate probe
@@ -184,17 +195,54 @@ jobs:
           result="$RUNNER_TEMP/laplace-product-activation-result.json"
           sudo -n /opt/laplace/deployment/current/bin/laplace-product-activate \
             execute-request < "$LAPLACE_ACTIVATION_REQUEST" > "$result"
-          jq -e '
+          jq -e \
+            --arg package_id '${{ needs.compose-product.outputs.package_id }}' \
+            --arg repository_commit "$GITHUB_SHA" '
             .schema == "laplace.product-activation-gateway-result/v1" and
             .phase == "product-unicode-and-highway-activated" and
+            .package_id == $package_id and
+            .repository_commit == $repository_commit and
             (.package_installation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
             (.cluster_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
             (.unicode_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
-            (.highway_activation_receipt_sha256 | test("^[0-9a-f]{64}$"))
+            (.highway_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
+            (.result_sha256 | test("^[0-9a-f]{64}$"))
           ' "$result" >/dev/null
+          printf 'LAPLACE_PRODUCT_ACTIVATION_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
           {
             echo '## Product activation result'
             echo '```json'
             cat "$result"
             echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify the deployed DEV/BAT generation after activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$LAPLACE_PRODUCT_ACTIVATION_RESULT"
+          package_id='${{ needs.compose-product.outputs.package_id }}'
+          test -s "$result"
+          test "$(jq -er '.package_id' "$result")" = "$package_id"
+          test "$(jq -er '.repository_commit' "$result")" = "$GITHUB_SHA"
+          cluster_result=$(jq -er '.cluster_result' "$result")
+          unicode_result=$(jq -er '.unicode_result' "$result")
+          highway_result=$(jq -er '.highway_result' "$result")
+          for receipt in "$cluster_result" "$unicode_result" "$highway_result"; do
+            test -r "$receipt"
+            test ! -L "$receipt"
+          done
+          test "$(jq -er '.phase' "$cluster_result")" = activated
+          test "$(jq -er '.package_id' "$cluster_result")" = "$package_id"
+          test "$(jq -er '.restart_proven' "$cluster_result")" = true
+          test "$(jq -er '.package_id' "$unicode_result")" = "$package_id"
+          test "$(jq -er '.package_id' "$highway_result")" = "$package_id"
+          sudo -n /opt/laplace/deployment/current/bin/laplace-product-activate probe
+          {
+            echo '## DEV/BAT post-deploy proof'
+            echo "- repository commit: \`$GITHUB_SHA\`"
+            echo "- package: \`$package_id\`"
+            echo '- cluster restart: proven'
+            echo '- Unicode activation receipt: readable'
+            echo '- Highway activation receipt: readable'
+            echo '- installed deployment gateway probe: passed'
           } >> "$GITHUB_STEP_SUMMARY"
