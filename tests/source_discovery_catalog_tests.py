@@ -55,7 +55,7 @@ class SourceDiscoveryCatalogTests(unittest.TestCase):
         catalog_tool.validate_catalog(catalog, self.contract)
         return catalog
 
-    def test_relocation_and_host_metadata_do_not_change_identity(self) -> None:
+    def test_relocation_and_host_metadata_do_not_change_artifact_digest(self) -> None:
         first = self.temporary / "first"
         second = self.temporary / "elsewhere" / "second"
         self.make_fixture(first)
@@ -65,15 +65,16 @@ class SourceDiscoveryCatalogTests(unittest.TestCase):
                 os.utime(path, (1_700_000_000 + index, 1_700_000_000 + index))
         a = self.build(first, "first-label")
         b = self.build(second, "second-label")
-        self.assertEqual(a["catalog_id"], b["catalog_id"])
+        self.assertEqual(a["catalog_digest_sha256"], b["catalog_digest_sha256"])
         self.assertEqual(a["entries"], b["entries"])
         self.assertNotEqual(a["catalog_label"], b["catalog_label"])
+        self.assertIn("laplace-content-identity", a["nonclaims"])
 
-    def test_duplicates_remain_distinct_occurrences_in_one_content_group(self) -> None:
+    def test_duplicate_digests_retain_distinct_path_occurrences(self) -> None:
         root = self.temporary / "source"
         self.make_fixture(root)
         catalog = self.build(root)
-        groups = catalog["summary"]["duplicate_content_groups"]
+        groups = catalog["summary"]["duplicate_file_digest_groups"]
         self.assertEqual(len(groups), 1)
         self.assertEqual(groups[0]["paths"], ["a.json", "nested/copy.json"])
         rows = {entry["path"]: entry for entry in catalog["entries"]}
@@ -133,13 +134,15 @@ class SourceDiscoveryCatalogTests(unittest.TestCase):
         self.assertEqual(rows["link-to-a"]["disposition"], "not-followed")
         self.assertNotIn("byte_count", rows["link-to-a"])
 
-    def test_content_change_changes_catalog_identity(self) -> None:
+    def test_content_change_changes_catalog_artifact_digest(self) -> None:
         root = self.temporary / "source"
         self.make_fixture(root)
         before = self.build(root)
         (root / "a.json").write_text('{"value": [2, 5, 6]}\n', encoding="utf-8")
         after = self.build(root)
-        self.assertNotEqual(before["catalog_id"], after["catalog_id"])
+        self.assertNotEqual(
+            before["catalog_digest_sha256"], after["catalog_digest_sha256"]
+        )
 
     def test_deliberate_host_path_injection_is_rejected(self) -> None:
         root = self.temporary / "source"
@@ -171,8 +174,6 @@ class SourceDiscoveryCatalogTests(unittest.TestCase):
         (root / "lie.json").write_bytes(bytes.fromhex("89504e470d0a1a0a") + b"binary")
         catalog = self.build(root)
         row = next(entry for entry in catalog["entries"] if entry["path"] == "lie.json")
-        # A mutant selecting only the extension would return JSON. The contract keeps
-        # both candidates and the exact disagreement so qualification cannot hide it.
         self.assertEqual(row["format_candidate_disposition"], "multiple-candidates")
         self.assertTrue(row["extension_exact_conflict"])
         self.assertEqual(
