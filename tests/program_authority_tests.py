@@ -310,6 +310,47 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(document.get("schema") == "laplace.continuation-checkpoint/v1", "continuation schema drift")
     require(document.get("classification") == "observed-development-state-not-product-law", "observed state promoted to product law")
     inputs = document.get("development_inputs", {})
+    repository = document.get("repository", {})
+    preservation_path = ROOT / repository.get("preserved_interrupted_work", "")
+    preservation_audit_path = ROOT / repository.get("preservation_audit", "")
+    require(
+        preservation_path.is_file() and preservation_audit_path.is_file(),
+        "interrupted local/UI work preservation evidence is missing",
+    )
+    preservation = load(preservation_path)
+    require(
+        preservation.get("schema") == "laplace.local-work-preservation/v1"
+        and preservation.get("classification")
+        == "observed-development-state-not-product-law-or-acceptance",
+        "interrupted work preservation state was promoted or malformed",
+    )
+    require(
+        preservation.get("preservation_method", {}).get("worktree_mutation") is False
+        and preservation.get("preservation_method", {}).get(
+            "remote_reachability_result_count"
+        )
+        == 0,
+        "interrupted work was not preserved non-destructively or is not remote-reachable",
+    )
+    interrupted = preservation.get("interrupted_worktrees", [])
+    require(
+        len(interrupted) == 2
+        and {item.get("label") for item in interrupted}
+        == {"pr93-local-session-work", "pr94-local-session-work"}
+        and all(item.get("snapshot_commit") and item.get("remote_ref") for item in interrupted),
+        "PR93/PR94 interrupted work preservation boundary drift",
+    )
+    contains_all(
+        preservation,
+        (
+            "session limit",
+            "UI-agent work advanced separately",
+            "does not make the interrupted local delta obsolete",
+            "do not reset",
+            "not tested or merge-ready",
+        ),
+        "local/UI work provenance, recovery, or nonclaims were narrowed",
+    )
     require(inputs.get("data_root", {}).get("observed_path") == "/vault/Data", "data root observation lost")
     require(inputs.get("model_root", {}).get("observed_path") == "/vault/models", "model root observation lost")
     contains_all(inputs.get("data_root", {}).get("observed_top_level_entries", []), ("UCD", "TreeSitter", "Wordnet", "FrameNet", "Tatoeba", "Games", "code-authority"), "known data-root inventory was narrowed")

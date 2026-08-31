@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-29T19:19:51Z",
+  "observed_at_utc": "2026-08-31T06:05:30Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,14 +12,17 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "integration/current",
+    "active_branch": "prep/source-recipe-estate",
     "active_worktree": "/home/ahart/Projects/Laplace-Refactor",
-    "base_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
+    "base_commit": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "53829330fdfc39ffa821f3f1506098e784edd0e9",
-    "observed_branch_head": "53829330fdfc39ffa821f3f1506098e784edd0e9",
-    "implementation_checkpoint_commit": "53829330fdfc39ffa821f3f1506098e784edd0e9",
-    "pull_request": 92
+    "published_checkpoint_commit": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
+    "observed_branch_head": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
+    "implementation_checkpoint_commit": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
+    "pull_request": null,
+    "preserved_interrupted_work": "state/local-work-preservation-2026-08-31.json",
+    "preservation_audit": "docs/audits/LOCAL_UI_WORK_PRESERVATION_2026-08-31.md",
+    "continuation_rule": "reconcile preserved local-session work with later UI-agent and remote work without mutating the original dirty worktrees or equating pull-request supersession with semantic obsolescence"
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-29T21:48:53Z",
@@ -1490,8 +1493,8 @@
     "current_disposition": "product composition succeeds through laplace-runner; root activation is blocked by the absent trusted deployment gateway"
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-28T22:43:35Z",
-    "main_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
+    "observed_at_utc": "2026-08-31T06:05:30Z",
+    "main_commit": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
     "product_cluster_project_status": "In Progress",
