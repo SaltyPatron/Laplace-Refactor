@@ -18,7 +18,7 @@ from pathlib import Path, PurePosixPath
 import stat
 import sys
 import tarfile
-from typing import Any, Iterable, Iterator, Sequence
+from typing import Any, Iterator, Sequence
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -79,16 +79,20 @@ def _validate_signature(signature: dict[str, Any], field: str) -> None:
 
 def validate_contract(contract: dict[str, Any]) -> None:
     require(contract.get("schema") == CONTRACT_SCHEMA, "unknown discovery contract schema")
-    identity = contract.get("identity")
-    require(isinstance(identity, dict), "identity contract is absent")
-    require(identity.get("algorithm") == "sha256-canonical-json",
-            "unsupported catalog identity algorithm")
-    includes = _string_array(identity.get("includes"), "identity.includes")
+    artifact_digest = contract.get("artifact_digest")
+    require(isinstance(artifact_digest, dict), "artifact digest contract is absent")
+    require(artifact_digest.get("algorithm") == "sha256-canonical-json",
+            "unsupported catalog artifact digest algorithm")
+    includes = _string_array(
+        artifact_digest.get("includes"), "artifact_digest.includes"
+    )
     require(includes == ["contract_sha256", "entries", "summary"],
-            "catalog identity inputs differ")
-    excluded = set(_string_array(identity.get("excludes"), "identity.excludes"))
+            "catalog artifact digest inputs differ")
+    excluded = set(_string_array(
+        artifact_digest.get("excludes"), "artifact_digest.excludes"
+    ))
     require({"absolute_root", "observation_time", "mtime", "uid", "gid"} <= excluded,
-            "catalog identity does not exclude host-local metadata")
+            "catalog artifact digest does not exclude host-local metadata")
 
     limits = contract.get("limits")
     require(isinstance(limits, dict), "limits are absent")
@@ -162,6 +166,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
         "omit_unknown_or_unreadable": False,
         "arbitrary_binary_is_utf8": False,
         "source_bytes_uploaded_by_catalog_workflow": False,
+        "sha256_digest_is_laplace_content_identity": False,
     }
     require(all(laws.get(key) is value for key, value in required_laws.items()),
             "discovery laws differ")
@@ -532,8 +537,7 @@ def _walk(root: Path) -> Iterator[tuple[Path, str, os.stat_result]]:
                 entries = sorted(iterator, key=lambda item: os.fsencode(item.name))
         except OSError as error:
             if relative_directory.parts:
-                synthetic = directory
-                yield synthetic, canonical_relative(relative_directory), error  # type: ignore[misc]
+                yield directory, canonical_relative(relative_directory), error  # type: ignore[misc]
             else:
                 raise CatalogError(f"cannot enumerate source root: {type(error).__name__}") from error
             return
@@ -602,8 +606,6 @@ def build_catalog(contract: dict[str, Any], root: Path, label: str) -> dict[str,
                 path, relative, contract, extension_index, signed_hints
             ))
         elif stat.S_ISDIR(mode):
-            # Readable directories are represented through their descendants. Empty
-            # directory identity is deliberately not part of source-content discovery.
             continue
         else:
             entries.append({
@@ -645,12 +647,12 @@ def build_catalog(contract: dict[str, Any], root: Path, label: str) -> dict[str,
         "disposition_counts": dict(sorted(disposition_counts.items())),
         "observed_file_bytes": total_bytes,
         "observed_distinct_file_digests": len(digest_paths),
-        "duplicate_content_group_count": len(duplicate_groups),
-        "duplicate_content_groups": duplicate_groups,
+        "duplicate_file_digest_group_count": len(duplicate_groups),
+        "duplicate_file_digest_groups": duplicate_groups,
         "format_candidate_occurrences": dict(sorted(format_counts.items())),
     }
     contract_sha256 = hashlib.sha256(canonical(contract)).hexdigest()
-    identity_body = {
+    digest_body = {
         "contract_sha256": contract_sha256,
         "entries": entries,
         "summary": summary,
@@ -660,10 +662,11 @@ def build_catalog(contract: dict[str, Any], root: Path, label: str) -> dict[str,
         "status": "discovery-only",
         "catalog_label": label,
         "contract_sha256": contract_sha256,
-        "catalog_id": hashlib.sha256(canonical(identity_body)).hexdigest(),
+        "catalog_digest_sha256": hashlib.sha256(canonical(digest_body)).hexdigest(),
         "entries": entries,
         "summary": summary,
         "nonclaims": [
+            "laplace-content-identity",
             "source-authority",
             "release-identity",
             "license-permission",
@@ -699,17 +702,21 @@ def validate_catalog(catalog: dict[str, Any], contract: dict[str, Any]) -> None:
     for path in paths:
         canonical_relative(Path(path))
     forbidden_keys = {"absolute_root", "observation_time", "mtime", "uid", "gid"}
-    require(not (forbidden_keys & set(catalog)), "catalog contains host-local identity fields")
-    identity_body = {
+    require(not (forbidden_keys & set(catalog)), "catalog contains host-local digest fields")
+    digest_body = {
         "contract_sha256": contract_sha256,
         "entries": entries,
         "summary": summary,
     }
-    expected = hashlib.sha256(canonical(identity_body)).hexdigest()
-    require(catalog.get("catalog_id") == expected, "catalog identity differs")
+    expected = hashlib.sha256(canonical(digest_body)).hexdigest()
+    require(catalog.get("catalog_digest_sha256") == expected,
+            "catalog artifact digest differs")
     nonclaims = catalog.get("nonclaims")
-    require(isinstance(nonclaims, list) and "world-admission" in nonclaims
-            and "selected-parser" in nonclaims and "trust-or-truth" in nonclaims,
+    require(isinstance(nonclaims, list)
+            and "laplace-content-identity" in nonclaims
+            and "world-admission" in nonclaims
+            and "selected-parser" in nonclaims
+            and "trust-or-truth" in nonclaims,
             "catalog nonclaims are incomplete")
 
 
@@ -744,10 +751,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             encoding="utf-8",
         )
     print(json.dumps({
-        "catalog_id": catalog["catalog_id"],
+        "catalog_digest_sha256": catalog["catalog_digest_sha256"],
         "entry_count": catalog["summary"]["entry_count"],
         "observed_file_bytes": catalog["summary"]["observed_file_bytes"],
-        "duplicate_content_group_count": catalog["summary"]["duplicate_content_group_count"],
+        "duplicate_file_digest_group_count": catalog["summary"]["duplicate_file_digest_group_count"],
         "status": catalog["status"],
     }, sort_keys=True))
     return 0
