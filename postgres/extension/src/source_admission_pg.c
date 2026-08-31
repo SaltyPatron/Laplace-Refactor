@@ -3,6 +3,9 @@
  * existing admission call through the recursive engine path using the same
  * verified Unicode source estate that builds the active Unicode product.
  */
+#include "postgres.h"
+#include "utils/errcodes.h"
+
 #include <string.h>
 
 #include "laplace/tabular_source_recursive.h"
