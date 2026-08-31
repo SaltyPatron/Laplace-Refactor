@@ -24,6 +24,20 @@
 #include "laplace/decomposition_uax29.h"
 #include "tabular_source_recursive_merge.hpp"
 
+namespace {
+
+void MarkSourceOccurrenceRequests(laplace_tabular_source_plan& plan) {
+#if defined(LAPLACE_TEST_TABULAR_OMIT_SOURCE_OCCURRENCES)
+    (void)plan;
+#else
+    for (auto& request : plan.requests) {
+        request.flags |= LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE;
+    }
+#endif
+}
+
+}  // namespace
+
 namespace recursive_admission {
 
 constexpr std::uint64_t DelimitedKindBase = UINT64_C(0x5441424c00000000);
@@ -600,6 +614,7 @@ laplace_tabular_source_status BuildRecursive(
     status = UpdateProfileCounts(
         *created, legacy_output_count, recursive_span_count);
     if (status != LAPLACE_TABULAR_SOURCE_OK) goto recursive_failure;
+    MarkSourceOccurrenceRequests(*created);
 
     {
         blake3_hasher hasher;
@@ -667,7 +682,12 @@ recursive_failure:
 extern "C" laplace_tabular_source_status laplace_tabular_source_plan_create(
     const laplace_tabular_source_input* input,
     laplace_tabular_source_plan** plan) {
-    return laplace_tabular_source_plan_create_legacy(input, plan);
+    const laplace_tabular_source_status status =
+        laplace_tabular_source_plan_create_legacy(input, plan);
+    if (status == LAPLACE_TABULAR_SOURCE_OK && plan != nullptr && *plan != nullptr) {
+        MarkSourceOccurrenceRequests(**plan);
+    }
+    return status;
 }
 
 extern "C" void laplace_tabular_source_plan_destroy(
