@@ -227,18 +227,42 @@ bool ArtifactValid(const laplace_tabular_artifact& artifact) {
     }
     if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_RAW) {
         return artifact.columns == nullptr &&
+            artifact.fixed_width_fields == nullptr &&
             artifact.delimiter == 0u &&
             artifact.line_terminator == LAPLACE_TABULAR_TERMINATOR_NONE &&
             artifact.expected_column_count == 0u &&
             artifact.expected_record_count == 0u &&
             artifact.expected_field_count == 0u &&
-            artifact.reference_column_mask == 0u &&
+            artifact.reference_column_mask == 0u && artifact.padding_byte == 0u &&
+            artifact.overflow_field_index == 0u &&
+            artifact.maximum_overflow_bytes == 0u &&
+            artifact.expected_overflow_record_count == 0u &&
             artifact.outcome_type == 0u && artifact.header_record_count == 0u;
     }
-    if (artifact.mode != LAPLACE_TABULAR_ARTIFACT_DELIMITED ||
-        artifact.columns == nullptr ||
-        !(artifact.delimiter > 0u && artifact.delimiter < 0x80u &&
-          artifact.delimiter != '\r' && artifact.delimiter != '\n')) {
+    if ((artifact.mode != LAPLACE_TABULAR_ARTIFACT_DELIMITED &&
+         artifact.mode != LAPLACE_TABULAR_ARTIFACT_FIXED_WIDTH) ||
+        artifact.columns == nullptr) {
+        return false;
+    }
+    if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_DELIMITED &&
+        (!(artifact.delimiter > 0u && artifact.delimiter < 0x80u &&
+           artifact.delimiter != '\r' && artifact.delimiter != '\n') ||
+         artifact.fixed_width_fields != nullptr || artifact.padding_byte != 0u ||
+         artifact.overflow_field_index != 0u ||
+         artifact.maximum_overflow_bytes != 0u ||
+         artifact.expected_overflow_record_count != 0u)) {
+        return false;
+    }
+    if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_FIXED_WIDTH &&
+        (artifact.delimiter != 0u || artifact.fixed_width_fields == nullptr ||
+         artifact.padding_byte > 0x7fu ||
+         ((artifact.overflow_field_index ==
+               LAPLACE_TABULAR_FIXED_WIDTH_NO_OVERFLOW_FIELD) !=
+          (artifact.maximum_overflow_bytes == 0u)) ||
+         (artifact.maximum_overflow_bytes != 0u &&
+          artifact.overflow_field_index >= artifact.expected_column_count) ||
+         artifact.expected_overflow_record_count >
+             artifact.expected_record_count)) {
         return false;
     }
     if (!(
@@ -260,6 +284,12 @@ bool ArtifactValid(const laplace_tabular_artifact& artifact) {
             !DecodeUtf8(
                 column.bytes, static_cast<std::size_t>(column.byte_count),
                 positions) || positions.empty()) {
+            return false;
+        }
+        if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_FIXED_WIDTH &&
+            (artifact.fixed_width_fields[index].width == 0u ||
+             (artifact.fixed_width_fields[index].flags &
+              ~LAPLACE_TABULAR_FIXED_WIDTH_KNOWN_FIELD_FLAGS) != 0u)) {
             return false;
         }
     }
@@ -369,6 +399,17 @@ laplace_tabular_source_status ArtifactGraph(
                 hasher, artifact.columns[column_index].bytes,
                 static_cast<std::size_t>(
                     artifact.columns[column_index].byte_count));
+        }
+        if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_FIXED_WIDTH) {
+            HashU32(hasher, artifact.padding_byte);
+            HashU32(hasher, artifact.overflow_field_index);
+            HashU32(hasher, artifact.maximum_overflow_bytes);
+            HashU32(hasher, artifact.expected_overflow_record_count);
+            for (std::size_t field_index = 0u;
+                 field_index < artifact.expected_column_count; ++field_index) {
+                HashU32(hasher, artifact.fixed_width_fields[field_index].width);
+                HashU32(hasher, artifact.fixed_width_fields[field_index].flags);
+            }
         }
         HashU64(hasher, artifact.expected_record_count);
         HashU64(hasher, artifact.expected_field_count);
@@ -523,14 +564,15 @@ public:
         const auto artifact_tag = Tag("artifact");
         const auto raw_tag = Tag("raw-octets");
         const auto delimited_tag = Tag("utf8-delimited");
+        const auto fixed_width_tag = Tag("utf8-fixed-width");
         const auto field_tag = Tag("field");
         const auto header_tag = Tag("header");
         const auto record_tag = Tag("record");
         const auto lf_tag = Tag("lf");
         const auto crlf_tag = Tag("crlf");
         if (!source_tag || !artifact_tag || !raw_tag || !delimited_tag ||
-            !field_tag || !header_tag || !record_tag || !lf_tag ||
-            !crlf_tag) {
+            !fixed_width_tag || !field_tag || !header_tag || !record_tag ||
+            !lf_tag || !crlf_tag) {
             return LAPLACE_TABULAR_SOURCE_MEMORY_FAILURE;
         }
         mapping_relation_indexes_.reserve(
@@ -555,7 +597,8 @@ public:
              ++artifact_index) {
             const auto result = BuildArtifact(
                 input_.artifacts[artifact_index], artifact_index,
-                *artifact_tag, *raw_tag, *delimited_tag, *field_tag,
+                *artifact_tag, *raw_tag, *delimited_tag, *fixed_width_tag,
+                *field_tag,
                 *header_tag, *record_tag, *lf_tag, *crlf_tag);
             if (!result.has_value()) {
                 return status_;
@@ -870,6 +913,7 @@ private:
         const std::uint64_t artifact_tag,
         const std::uint64_t raw_tag,
         const std::uint64_t delimited_tag,
+        const std::uint64_t fixed_width_tag,
         const std::uint64_t field_tag,
         const std::uint64_t header_tag,
         const std::uint64_t record_tag,
@@ -928,7 +972,7 @@ private:
                 }
                 artifact_children.emplace_back(*raw, Role::Value);
             }
-        } else {
+        } else if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_DELIMITED) {
             artifact_children.emplace_back(delimited_tag, Role::Tag);
             const std::uint8_t delimiter_byte =
                 static_cast<std::uint8_t>(artifact.delimiter);
@@ -945,6 +989,18 @@ private:
                 return std::nullopt;
             }
             artifact_children.emplace_back(*delimiter, Role::Column);
+            artifact_children.emplace_back(terminator, Role::Terminator);
+        } else {
+            artifact_children.emplace_back(fixed_width_tag, Role::Tag);
+            const std::uint64_t terminator =
+                artifact.line_terminator == LAPLACE_TABULAR_TERMINATOR_LF
+                ? lf_tag : crlf_tag;
+            if (!ParseFixedWidth(
+                    artifact, artifact_index, context, parsed,
+                    field_tag, header_tag,
+                    record_tag, terminator, artifact_children)) {
+                return std::nullopt;
+            }
             artifact_children.emplace_back(terminator, Role::Terminator);
         }
 #if defined(LAPLACE_TEST_TABULAR_CORRUPT_PARSED_RECONSTRUCTION)
@@ -1216,6 +1272,307 @@ parsed_reconstruction_corrupted:
                 artifact.expected_record_count - artifact.header_record_count);
     }
 
+    bool ParseFixedWidth(
+        const laplace_tabular_artifact& artifact,
+        const std::size_t artifact_index,
+        const laplace_digest256& context,
+        ParsedArtifact& parsed,
+        const std::uint64_t field_tag,
+        const std::uint64_t header_tag,
+        const std::uint64_t record_tag,
+        const std::uint64_t terminator_tag,
+        std::vector<std::pair<std::uint64_t, Role>>& artifact_children) {
+        const std::size_t byte_count =
+            static_cast<std::size_t>(artifact.byte_count);
+        const std::size_t terminator_bytes =
+            artifact.line_terminator == LAPLACE_TABULAR_TERMINATOR_LF ? 1u : 2u;
+        std::size_t nominal_width = 0u;
+        for (std::size_t index = 0u;
+             index < artifact.expected_column_count; ++index) {
+            if (artifact.fixed_width_fields[index].width >
+                std::numeric_limits<std::size_t>::max() - nominal_width) {
+                status_ = LAPLACE_TABULAR_SOURCE_OVERFLOW;
+                return false;
+            }
+            nominal_width += artifact.fixed_width_fields[index].width;
+        }
+        std::vector<std::uint64_t> columns;
+        std::vector<std::vector<std::uint32_t>> declared_columns;
+        columns.reserve(artifact.expected_column_count);
+        declared_columns.reserve(artifact.expected_column_count);
+        for (std::size_t index = 0u;
+             index < artifact.expected_column_count; ++index) {
+            const auto& declaration = artifact.columns[index];
+            std::vector<std::uint32_t> positions;
+            if (!DecodeUtf8(
+                    declaration.bytes,
+                    static_cast<std::size_t>(declaration.byte_count),
+                    positions) || positions.empty()) {
+                status_ = LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+                return false;
+            }
+            const auto column = Text(
+                declaration.bytes,
+                static_cast<std::size_t>(declaration.byte_count),
+                context, true);
+            if (!column) return false;
+            columns.push_back(*column);
+            declared_columns.push_back(std::move(positions));
+        }
+
+        std::size_t line_start = 0u;
+        std::uint32_t overflow_record_count = 0u;
+        while (line_start < byte_count) {
+            std::size_t line_end = line_start;
+            while (line_end < byte_count && artifact.bytes[line_end] != '\n') {
+                ++line_end;
+            }
+            if (line_end == byte_count ||
+                (terminator_bytes == 2u &&
+                 (line_end == line_start || artifact.bytes[line_end - 1u] != '\r')) ||
+                (terminator_bytes == 1u && line_end > line_start &&
+                 artifact.bytes[line_end - 1u] == '\r')) {
+                status_ = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                return false;
+            }
+            const std::size_t content_end = line_end - (terminator_bytes - 1u);
+            const std::size_t physical_width = content_end - line_start;
+            if (physical_width < nominal_width) {
+                status_ = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                return false;
+            }
+            const std::size_t overflow = physical_width - nominal_width;
+            if (overflow > artifact.maximum_overflow_bytes ||
+                (overflow != 0u && artifact.overflow_field_index ==
+                    LAPLACE_TABULAR_FIXED_WIDTH_NO_OVERFLOW_FIELD)) {
+                status_ = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                return false;
+            }
+            if (overflow != 0u) {
+                if (overflow_record_count ==
+                    std::numeric_limits<std::uint32_t>::max()) {
+                    status_ = LAPLACE_TABULAR_SOURCE_OVERFLOW;
+                    return false;
+                }
+                ++overflow_record_count;
+            }
+
+            std::vector<std::vector<std::uint32_t>> fields;
+            std::vector<std::vector<std::uint32_t>> values;
+            std::vector<std::pair<std::size_t, std::size_t>> value_spans;
+            fields.reserve(artifact.expected_column_count);
+            values.reserve(artifact.expected_column_count);
+            value_spans.reserve(artifact.expected_column_count);
+            std::size_t field_start = line_start;
+            for (std::size_t field_index = 0u;
+                 field_index < artifact.expected_column_count; ++field_index) {
+                std::size_t field_width =
+                    artifact.fixed_width_fields[field_index].width;
+                if (field_index == artifact.overflow_field_index) {
+                    if (overflow >
+                        std::numeric_limits<std::size_t>::max() - field_width) {
+                        status_ = LAPLACE_TABULAR_SOURCE_OVERFLOW;
+                        return false;
+                    }
+                    field_width += overflow;
+                }
+                if (field_width > content_end - field_start) {
+                    status_ = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                    return false;
+                }
+                const std::size_t field_end = field_start + field_width;
+                std::vector<std::uint32_t> physical_positions;
+                if (!DecodeUtf8(
+                        artifact.bytes + field_start, field_width,
+                        physical_positions)) {
+                    status_ = LAPLACE_TABULAR_SOURCE_UTF8_INVALID;
+                    return false;
+                }
+                std::size_t value_start = field_start;
+                std::size_t value_end = field_end;
+                const std::uint32_t field_flags =
+                    artifact.fixed_width_fields[field_index].flags;
+                if ((field_flags & LAPLACE_TABULAR_FIXED_WIDTH_TRIM_LEFT) != 0u) {
+                    while (value_start < value_end &&
+                           artifact.bytes[value_start] == artifact.padding_byte) {
+                        ++value_start;
+                    }
+                }
+                if ((field_flags & LAPLACE_TABULAR_FIXED_WIDTH_TRIM_RIGHT) != 0u) {
+                    while (value_end > value_start &&
+                           artifact.bytes[value_end - 1u] == artifact.padding_byte) {
+                        --value_end;
+                    }
+                }
+                std::vector<std::uint32_t> value_positions;
+                if (!DecodeUtf8(
+                        artifact.bytes + value_start, value_end - value_start,
+                        value_positions)) {
+                    status_ = LAPLACE_TABULAR_SOURCE_UTF8_INVALID;
+                    return false;
+                }
+                fields.push_back(std::move(physical_positions));
+                values.push_back(std::move(value_positions));
+                value_spans.emplace_back(value_start, value_end);
+                field_start = field_end;
+            }
+            if (field_start != content_end) {
+                status_ = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                return false;
+            }
+
+            const bool header =
+                parsed.rows.size() < artifact.header_record_count;
+            const std::uint64_t data_row_ordinal =
+                header ? 0u : static_cast<std::uint64_t>(
+                    parsed.rows.size() - artifact.header_record_count + 1u);
+            std::vector<std::pair<std::uint64_t, Role>> row_children{{
+                header ? header_tag : record_tag,
+                header ? Role::Header : Role::Tag}};
+            struct PendingReference {
+                std::uint64_t value_result_index;
+                std::uint64_t field_result_index;
+                const laplace_tabular_reference_rule* rule;
+                std::size_t column_index;
+            };
+            std::vector<PendingReference> pending_references;
+            std::vector<std::uint64_t> row_reference_indexes(
+                fields.size(), std::numeric_limits<std::uint64_t>::max());
+            for (std::size_t field_index = 0u;
+                 field_index < fields.size(); ++field_index) {
+                std::optional<std::uint64_t> value;
+                const auto& value_span = value_spans[field_index];
+                if (value_span.first != value_span.second) {
+                    value = Text(
+                        artifact.bytes + value_span.first,
+                        value_span.second - value_span.first, context, true);
+                    if (!value) return false;
+                }
+                std::vector<std::pair<std::uint64_t, Role>> field_children{{
+                    field_tag, Role::Tag}};
+                if (header) {
+                    if (!value || values[field_index] !=
+                                      declared_columns[field_index]) {
+                        status_ = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                        return false;
+                    }
+                    field_children.emplace_back(
+                        columns[field_index], Role::Column);
+                } else {
+                    field_children.emplace_back(
+                        columns[field_index], Role::Column);
+                    if (value) field_children.emplace_back(*value, Role::Value);
+                    if (((artifact.reference_column_mask >> field_index) & 1u) != 0u &&
+                        value && !Add(plan_.view.profile.reference_count, 1u)) {
+                        status_ = LAPLACE_TABULAR_SOURCE_OVERFLOW;
+                        return false;
+                    }
+                }
+                const auto field_node = Node(field_children, context);
+                if (!field_node) return false;
+                row_children.emplace_back(*field_node, Role::Field);
+#if defined(LAPLACE_TEST_TABULAR_PROMOTE_FIELDS_TO_CLAIMS)
+                if (!header) {
+                    plan_.claim_result_indexes.push_back(*field_node);
+                    plan_.claim_source_ordinals.push_back(
+                        plan_.requests[static_cast<std::size_t>(*field_node)]
+                            .source_ordinal);
+                    plan_.claim_outcome_types.push_back(artifact.outcome_type);
+                }
+#endif
+                if (!header && value) {
+                    const auto* rule = ReferenceRule(artifact_index, field_index);
+                    if (rule != nullptr) {
+                        pending_references.push_back(PendingReference{
+                            *value, *field_node, rule, field_index});
+                    }
+                }
+            }
+            row_children.emplace_back(terminator_tag, Role::Terminator);
+            const auto row = Node(row_children, context);
+            if (!row) return false;
+            artifact_children.emplace_back(
+                *row, header ? Role::Header : Role::Record);
+            if (!header) {
+                plan_.claim_result_indexes.push_back(*row);
+                plan_.claim_source_ordinals.push_back(
+                    plan_.requests[static_cast<std::size_t>(*row)].source_ordinal);
+                plan_.claim_outcome_types.push_back(artifact.outcome_type);
+                for (const auto& pending : pending_references) {
+                    row_reference_indexes[pending.column_index] =
+                        static_cast<std::uint64_t>(
+                            plan_.reference_occurrences.size());
+                    plan_.reference_occurrences.push_back(
+                        laplace_tabular_reference_occurrence{
+                            pending.rule->name_space,
+                            pending.value_result_index,
+                            pending.field_result_index,
+                            *row,
+                            plan_.requests[static_cast<std::size_t>(*row)]
+                                .source_ordinal,
+                            static_cast<std::uint64_t>(artifact_index + 1u),
+                            data_row_ordinal,
+                            static_cast<std::uint64_t>(pending.column_index + 1u),
+                            pending.rule->kind,
+                            pending.rule->flags});
+                }
+                for (std::size_t mapping_index = 0u;
+                     mapping_index <
+                         static_cast<std::size_t>(input_.mapping_rule_count);
+                     ++mapping_index) {
+                    const auto& rule = input_.mapping_rules[mapping_index];
+                    if (rule.artifact_index != artifact_index) continue;
+                    const std::uint64_t left =
+                        row_reference_indexes[rule.left_column_index];
+                    const std::uint64_t right =
+                        row_reference_indexes[rule.right_column_index];
+                    if (left == std::numeric_limits<std::uint64_t>::max() ||
+                        right == std::numeric_limits<std::uint64_t>::max() ||
+                        !Add(plan_.view.profile.mapping_count, 1u)) {
+                        status_ = left ==
+                                std::numeric_limits<std::uint64_t>::max() ||
+                            right == std::numeric_limits<std::uint64_t>::max()
+                            ? LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID
+                            : LAPLACE_TABULAR_SOURCE_OVERFLOW;
+                        return false;
+                    }
+                    plan_.mapping_occurrences.push_back(
+                        laplace_tabular_mapping_occurrence{
+                            mapping_relation_indexes_[mapping_index],
+                            left, right, *row,
+                            plan_.requests[static_cast<std::size_t>(*row)]
+                                .source_ordinal,
+                            static_cast<std::uint64_t>(artifact_index + 1u),
+                            data_row_ordinal,
+                            rule.relation_version,
+                            rule.relation_kind,
+                            rule.flags});
+                }
+            }
+            parsed.rows.push_back(std::move(fields));
+            line_start = line_end + 1u;
+        }
+        std::uint64_t field_count{};
+        if (parsed.rows.size() != artifact.expected_record_count ||
+            overflow_record_count != artifact.expected_overflow_record_count ||
+            artifact.expected_record_count >
+                std::numeric_limits<std::uint64_t>::max() /
+                artifact.expected_column_count) {
+            status_ = LAPLACE_TABULAR_SOURCE_DENOMINATOR_MISMATCH;
+            return false;
+        }
+        field_count = artifact.expected_record_count *
+            artifact.expected_column_count;
+        if (field_count != artifact.expected_field_count) {
+            status_ = LAPLACE_TABULAR_SOURCE_DENOMINATOR_MISMATCH;
+            return false;
+        }
+        return Add(plan_.view.profile.record_count, artifact.expected_record_count) &&
+            Add(plan_.view.profile.field_count, field_count) &&
+            Add(plan_.view.profile.claim_count,
+                artifact.expected_record_count - artifact.header_record_count);
+    }
+
     bool FinalizeProfile() {
         laplace_source_profile_manifest& profile = plan_.view.profile;
         for (std::size_t index = 0u;
@@ -1335,7 +1692,8 @@ public:
         for (const auto& row : artifact.rows) {
             for (std::size_t field_index = 0u;
                  field_index < row.size(); ++field_index) {
-                if (field_index != 0u) {
+                if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_DELIMITED &&
+                    field_index != 0u) {
                     output.push_back(static_cast<std::uint8_t>(artifact.delimiter));
                 }
                 for (const std::uint32_t value : row[field_index]) {

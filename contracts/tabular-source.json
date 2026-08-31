@@ -1,6 +1,6 @@
 {
   "schema": "laplace.tabular-source-contract/v1",
-  "abi": {"major": 1, "minor": 4},
+  "abi": {"major": 1, "minor": 5},
   "identity": {
     "artifact_graph_domain": "laplace-tabular-artifact-graph-v1",
     "source_graph_domain": "laplace-tabular-source-graph-v1",
@@ -9,7 +9,8 @@
   },
   "artifact_modes": {
     "raw_octets": 1,
-    "utf8_delimited": 2
+    "utf8_delimited": 2,
+    "utf8_fixed_width": 3
   },
   "artifact_reconstruction_flag": {
     "exact_distribution": 4,
@@ -37,6 +38,8 @@
   "grammar": {
     "encoding": "raw artifacts retain exact digest provenance and retain octet AST content only when exact-distribution is declared; delimited selected content requires shortest-form Unicode scalar UTF-8",
     "delimiter": "one declared nonzero single-byte delimiter outside UTF-8 continuation bytes",
+    "fixed_width": "one ordered field-width vector partitions every record in bytes; per-field padding trim affects only semantic value spans and never exact physical field spans or reconstruction",
+    "fixed_width_overflow": "a profile may identify one field that absorbs a bounded number of extra physical bytes; every such byte is retained in the field and as an explicit overflow witness and exact overflow-record denominators must close",
     "quoting": "none in v1; a delimiter or line terminator always closes a field",
     "columns": "every delimited artifact declares exact UTF-8 column identities independently of whether those identities are serialized as a header",
     "header": "a delimited artifact declares zero or one exact header record; when present its fields must byte-match the declared column identities, and when absent the first physical record is data",

@@ -1,0 +1,319 @@
+{
+  "schema": "laplace.tabular-source-profile/v1",
+  "profile": {
+    "name": "FIDE September 2026 combined standard rapid blitz rating list",
+    "version": 1,
+    "reconstruction_class": "semantic",
+    "source_class": "observation",
+    "purpose": [
+      "witness the exact FIDE-published September 2026 player rating records",
+      "retain standard rapid and blitz rating games and K-factor dimensions separately",
+      "retain player identity labels federation sex titles birth-year and activity as attributed source testimony"
+    ],
+    "prohibited_authority": [
+      "person identity outside the FIDE release namespace",
+      "current federation or rating outside this release",
+      "one FIDE ID occurrence as proof that no duplicate record exists",
+      "copyright permission or redistribution rights"
+    ],
+    "evidence_source_type": "external_provider"
+  },
+  "coordinate": {
+    "kind": 17,
+    "authority": "International Chess Federation",
+    "release": "FIDE Rating List September 2026 published 2026-08-31",
+    "namespace": "https://ratings.fide.com/",
+    "local_identifier": "combined-standard-rapid-blitz-rating-list",
+    "version": 1,
+    "scope_identity_algorithm": "first-128-bits-of-SHA-256 over laplace-source-profile-scope-v1, field name, and exact UTF-8 value"
+  },
+  "authority_and_release": {
+    "publisher": "International Chess Federation (FIDE)",
+    "release_label": "September 2026 FRL",
+    "publication_date": "2026-08-31",
+    "official_download_page": "https://ratings.fide.com/download_lists.phtml",
+    "selected_txt_url": "https://ratings.fide.com/download/players_list.zip",
+    "companion_xml_url": "https://ratings.fide.com/download/players_list_xml.zip",
+    "supersession": "every monthly list is a distinct append-only release coordinate"
+  },
+  "license": {
+    "identity": "FIDE ratings-site all-rights-reserved notice",
+    "authority_url": "https://ratings.fide.com/download_lists.phtml",
+    "exact_notice_utf8": "© 2026 FIDE International Chess Federation. All Rights Reserved. No part of this site may be reproduced, stored in a retrieval system or transmitted in any way or by any means (including photocopying, recording or storing it in any medium by electronic means), without the written permission of FIDE International Chess Federation.",
+    "exact_notice_sha256": "3d5706884923e75c92d4e50b9d01b8c7db1a8a5b924ce53963ebe44947472595",
+    "applies_to": "the official ratings site and acquired September 2026 distributions",
+    "disposition": "permission-required; Laplace packages the recipe and hashes, not acquired FIDE artifacts",
+    "excludes": "public download availability is not treated as a copyright grant"
+  },
+  "artifacts": [
+    {
+      "name": "players_list.zip",
+      "local_discovery_path": "players_list.zip",
+      "media_type": "application/zip",
+      "byte_count": 44224890,
+      "sha256": "1e0882e411a4922f71cdc512a8fa9680aa1f13e888903a8a7705ec68b7b159fc",
+      "mode": "raw_octets",
+      "roles": ["container", "exact-hashed-provenance"],
+      "parent": null,
+      "acquisition": {
+        "transport": "https",
+        "url": "https://ratings.fide.com/download/players_list.zip",
+        "retry_attempts": 3
+      },
+      "exact_distribution": false,
+      "reconstruction_disposition": "wrapper representation is not selected content"
+    },
+    {
+      "name": "players_list/players_list_foa.txt",
+      "local_discovery_path": "players_list_foa.txt",
+      "archive_member": "players_list_foa.txt",
+      "media_type": "text/plain; charset=us-ascii",
+      "byte_count": 313681655,
+      "sha256": "12ef4329fe798bf4134ee0da7789e45a0a1daf53270d932e81d73cc52df1c6f2",
+      "mode": "utf8_fixed_width",
+      "roles": ["member", "exact-selected-content", "authority-witness"],
+      "parent": "players_list.zip",
+      "exact_distribution": true,
+      "line_terminator": "crlf",
+      "columns": [
+        "ID Number", "Name", "Fed", "Sex", "Tit", "WTit", "OTit", "FOA",
+        "SRtng", "SGm", "SK", "RRtng", "RGm", "Rk", "BRtng", "BGm", "BK",
+        "B-day", "Flag"
+      ],
+      "fixed_width_fields": [
+        {"width": 15, "trim": "both"},
+        {"width": 61, "trim": "both"},
+        {"width": 4, "trim": "both"},
+        {"width": 4, "trim": "both"},
+        {"width": 5, "trim": "both"},
+        {"width": 5, "trim": "both"},
+        {"width": 15, "trim": "both"},
+        {"width": 4, "trim": "both"},
+        {"width": 6, "trim": "both"},
+        {"width": 4, "trim": "both"},
+        {"width": 3, "trim": "both"},
+        {"width": 6, "trim": "both"},
+        {"width": 4, "trim": "both"},
+        {"width": 3, "trim": "both"},
+        {"width": 6, "trim": "both"},
+        {"width": 4, "trim": "both"},
+        {"width": 3, "trim": "both"},
+        {"width": 6, "trim": "both"},
+        {"width": 4, "trim": "both"}
+      ],
+      "padding_byte": 32,
+      "overflow_field_index": 6,
+      "maximum_overflow_bytes": 1,
+      "overflow_record_count": 3,
+      "header_record_count": 1,
+      "reference_columns": [0],
+      "reference_bindings": [
+        {
+          "column": 0,
+          "kind": 7,
+          "namespace": "https://ratings.fide.com/profile/",
+          "roles": ["endpoint", "present-declaration"]
+        }
+      ],
+      "record_count": 1912693,
+      "field_count": 36341167,
+      "claim_count": 1912692,
+      "mapping_count": 0,
+      "outcome_type": "assertion"
+    },
+    {
+      "name": "players_list_xml.zip",
+      "local_discovery_path": "players_list_xml.zip",
+      "media_type": "application/zip",
+      "byte_count": 50041552,
+      "sha256": "1e56d933658d46cd4f1f19013c288eb73879b278f995b6234e92d0a2bd95f37a",
+      "mode": "raw_octets",
+      "roles": ["container", "exact-hashed-provenance", "cross-format-witness"],
+      "parent": null,
+      "acquisition": {
+        "transport": "https",
+        "url": "https://ratings.fide.com/download/players_list_xml.zip",
+        "retry_attempts": 3
+      },
+      "exact_distribution": false,
+      "reconstruction_disposition": "wrapper representation is not selected content"
+    },
+    {
+      "name": "players_list_xml/players_list_xml_foa.xml",
+      "local_discovery_path": "players_list_xml_foa.xml",
+      "archive_member": "players_list_xml_foa.xml",
+      "media_type": "application/xml",
+      "byte_count": 846594696,
+      "sha256": "73095bf4aa3ff598c623b208caa03ec45c12178cc554233b11a43ff2a97c08cf",
+      "mode": "raw_octets",
+      "roles": ["member", "exact-hashed-provenance", "cross-format-witness"],
+      "parent": "players_list_xml.zip",
+      "exact_distribution": false,
+      "reconstruction_disposition": "generic XML grammar admission pending; exact bytes remain hash-bound"
+    }
+  ],
+  "syntax_authority": {
+    "provider": "laplace.tabular-source-contract/v1.5 fixed-width provider",
+    "encoding": "US-ASCII, a strict subset of shortest-form Unicode scalar UTF-8",
+    "grammar": "one nominal 162-byte fixed-width record plus CRLF; OTit alone may absorb one extra byte",
+    "field_starts_one_based": [1, 16, 77, 81, 85, 90, 95, 110, 114, 120, 124, 127, 133, 137, 140, 146, 150, 153, 159],
+    "physical_widths_including_cr": {"163": 1912690, "164": 3},
+    "overflow_rows": [
+      {"line": 382056, "fide_id": "3101959", "o_title": "LSI,FI,SI,SLI,NA", "foa_title": "AFM"},
+      {"line": 1162619, "fide_id": "7802374", "o_title": "SI,LSI,NI,SLI,NA", "foa_title": "AIM"},
+      {"line": 1689107, "fide_id": "30915694", "o_title": "FI,SI,LSI,AO,SLI", "foa_title": ""}
+    ],
+    "duplicate_id_occurrence": {
+      "fide_id": "5019168",
+      "lines": [1644105, 1644106],
+      "federation": "IND",
+      "foa_values": ["ACM", ""]
+    },
+    "unknown_form": "reject-before-publication",
+    "error_recovery": "none"
+  },
+  "recipe_program": {
+    "coordinate": "laplace.recipe/fide-combined-rating-list/2026-09/v1",
+    "stages": [
+      "verify-artifact-graph", "parse-fixed-width", "witness-overflow",
+      "lower-universal-ast", "compose", "presence", "deposit",
+      "reference-topology", "field-semantics", "lineage", "testimony",
+      "world-close", "readback"
+    ],
+    "source_named_semantic_dispatch": false,
+    "semantic_segmentation_law": "laplace.semantic-segmentation/modality-agnostic/v1",
+    "selected_content_rule": "retain every physical field padding overflow record and CRLF while semantic values exclude only declared padding",
+    "companion_rule": "TXT and XML are dependent serializations of one publisher release, never independent votes",
+    "perfcache_planes": [
+      {
+        "name": "FIDE ID to ordered occurrence set",
+        "key": "release-scoped FIDE ID coordinate",
+        "value": "all durable record occurrence identities in source order",
+        "dependency": "source profile artifact graph recipe correction and topology epochs",
+        "generator": "batch fold without collapsing duplicate testimony",
+        "verifier": "every cached member readbacks to exact durable record and field identities",
+        "invalidation": "any dependency epoch change",
+        "rebuild": "deterministic from durable occurrences",
+        "non_authority": "cannot select one duplicate occurrence as truth"
+      },
+      {
+        "name": "FIDE rating testimony by modality",
+        "key": "record occurrence and standard rapid or blitz kind",
+        "value": "rating games K-factor release and testimony identities",
+        "dependency": "field recipe source profile and testimony epochs",
+        "generator": "batch projection of three distinct rating dimensions",
+        "verifier": "exact durable field rejoin with absence distinct from zero",
+        "invalidation": "any dependency epoch change",
+        "rebuild": "deterministic from durable testimony",
+        "non_authority": "never becomes rating truth outside the witnessed release"
+      },
+      {
+        "name": "FIDE federation and title occurrence sets",
+        "key": "field kind and exact code",
+        "value": "ordered record and field occurrence identities",
+        "dependency": "source profile field recipe and correction epochs",
+        "generator": "batch invert admitted field testimony",
+        "verifier": "each membership replays to its exact source field",
+        "invalidation": "any dependency epoch change",
+        "rebuild": "deterministic from durable field testimony",
+        "non_authority": "does not normalize or resolve unknown codes"
+      }
+    ]
+  },
+  "universal_ast_mapping": {
+    "root": "source boundary",
+    "artifact": ["tag", "name", "digest", "parent artifact", "mode", "ordered selected content"],
+    "record": ["record tag", "ordered physical fields", "exact CRLF"],
+    "field": ["field tag", "column identity", "trimmed value", "physical padding and overflow witnesses"],
+    "field_semantics": {
+      "ID Number": "stable release-scoped FIDE player reference occurrence",
+      "Name": "player label testimony",
+      "Fed": "release-scoped federation testimony, not player identity",
+      "Sex": "source code distinct from title and flag",
+      "Tit": "open-title code", "WTit": "women-title code",
+      "OTit": "ordered other-title codes", "FOA": "online-arena title code",
+      "SRtng/SGm/SK": "standard rating measurement games and K factor",
+      "RRtng/RGm/Rk": "rapid rating measurement games and K factor",
+      "BRtng/BGm/BK": "blitz rating measurement games and K factor",
+      "B-day": "birth year testimony, not complete date",
+      "Flag": "exact activity or women flag code with case preserved"
+    },
+    "roles_are_occurrence_metadata": true,
+    "content_identity_excludes_source_role": true,
+    "prohibited_collapse": [
+      "standard rapid and blitz", "rating games and K factor",
+      "Tit WTit OTit and FOA", "Sex and Flag", "duplicate FIDE ID occurrences"
+    ],
+    "intentional_loss": ["ZIP wrapper representation", "XML tree semantics pending generic XML admission"]
+  },
+  "highway_and_references": {
+    "namespaces": ["https://ratings.fide.com/profile/"],
+    "join_keys": ["ID Number"],
+    "reference_identity": "FIDE authority release namespace exact ID Number and version",
+    "initial_disposition": {
+      "kind": "unresolved",
+      "count": 1912692,
+      "until_operation": "typed FIDE authority-release-namespace Highway topology"
+    },
+    "unique_reference_coordinates": 1912691,
+    "duplicate_occurrence_law": "FIN 5019168 is one coordinate with two immutable record occurrences; a federation transfer would retain the FIN and change federation testimony over time"
+  },
+  "epistemic_witnessing": {
+    "witness": "International Chess Federation September 2026 rating-list publication",
+    "claim_unit": "one exact non-header player row plus separately typed field testimony",
+    "asserted_validity": "FIDE publication scoped to this exact release",
+    "dependence_root": "both distributions share one FIDE release dependence root",
+    "standing": "not adjudicated by this profile"
+  },
+  "denominators": {
+    "bytes": 1254542793,
+    "containers": 2,
+    "members": 2,
+    "files": 4,
+    "records": 1912693,
+    "fields": 36341167,
+    "claims": 1912692,
+    "mappings": 0,
+    "errors": 0,
+    "unknowns": 0,
+    "references": 1912692,
+    "reference_coordinates": 1912691,
+    "overflow_records": 3,
+    "duplicate_reference_occurrences": 1,
+    "companion_xml_players": 1912692,
+    "equations": [
+      "bytes = both ZIPs plus selected TXT and companion XML member bytes",
+      "records = one header plus 1912692 player rows",
+      "fields = records times nineteen columns",
+      "references = one FIDE ID per player row",
+      "reference coordinates = reference occurrences minus one duplicate FIN"
+    ]
+  },
+  "conformance": {
+    "positive": [
+      "four exact byte counts and SHA-256 values",
+      "nineteen fixed-width fields and exact CRLF reconstruction",
+      "three OTit overflow rows cross-witnessed by XML o_title and foa_title",
+      "FIN 5019168 remains two record occurrences under one coordinate"
+    ],
+    "negative": [
+      "changed artifact byte", "overflow assigned outside OTit",
+      "overflow truncation or width beyond one byte", "wrong overflow denominator",
+      "duplicate FIN rows collapsed", "rating modalities or title classes collapsed",
+      "TXT and XML counted as independent evidence"
+    ]
+  },
+  "completion": {
+    "predicate": "the exact artifact graph closes at 1254542793 bytes; TXT closes at 1912693 records, 36341167 fields, 1912692 claims and references, 1912691 coordinates, three OTit overflow witnesses, one duplicate-coordinate occurrence, and exact reconstruction; XML hashes player count and overflow splits as a dependent companion",
+    "does_not_prove": [
+      "FIDE redistribution permission", "generic XML admission",
+      "truth of player attributes", "rating comparability across kinds or releases",
+      "configured seed", "product activation", "general cognition", "release"
+    ]
+  },
+  "execution": {
+    "geometry_epoch_scope": "Unicode 17 product root active at execution",
+    "occurrence_context": "FIDE September 2026 combined rating-list source occurrence",
+    "preferred_batch_bytes": 8388608
+  }
+}

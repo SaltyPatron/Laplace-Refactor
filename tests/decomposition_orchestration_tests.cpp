@@ -1,6 +1,7 @@
 #include "laplace/decomposition.h"
 #include "laplace/decomposition_composition.h"
 #include "laplace/decomposition_delimited.h"
+#include "laplace/decomposition_fixed_width.h"
 
 #include <gtest/gtest.h>
 
@@ -387,6 +388,167 @@ TEST(DecompositionOrchestration, DelimitedRowsAndFieldsAreTerminalWitnesses) {
     EXPECT_EQ(spans[5].flags, 0u);
 
     laplace_decomposition_result_destroy(&result);
+    EXPECT_EQ(result, nullptr);
+}
+
+TEST(DecompositionOrchestration, FixedWidthOverflowIsExplicitAndDoesNotShiftLaterFields) {
+    constexpr std::string_view bytes{"001AB  ZQ\r\n002ABCDEQR\r\n"};
+    constexpr std::string_view media{"text/plain; charset=us-ascii"};
+    constexpr std::uint32_t trim =
+        LAPLACE_DECOMPOSITION_FIXED_WIDTH_TRIM_LEFT |
+        LAPLACE_DECOMPOSITION_FIXED_WIDTH_TRIM_RIGHT;
+    constexpr std::array<laplace_decomposition_fixed_width_field, 3> fields{{
+        {3u, trim}, {4u, trim}, {2u, trim}}};
+    laplace_decomposition_fixed_width_provider fixed{};
+    const laplace_digest256 fingerprint = Fingerprint(0x34u);
+    ASSERT_EQ(
+        laplace_decomposition_fixed_width_provider_init(
+            &fixed,
+            fields.data(),
+            fields.size(),
+            0u,
+            LAPLACE_DECOMPOSITION_FIXED_WIDTH_CRLF,
+            ' ',
+            1u,
+            1u,
+            UINT64_C(0x4657445400000000),
+            &fingerprint),
+        LAPLACE_DECOMPOSITION_OK);
+
+    laplace_decomposition_input input{};
+    input.content.bytes =
+        reinterpret_cast<const std::uint8_t*>(bytes.data());
+    input.content.byte_count = bytes.size();
+    input.content.media_type = media.data();
+    input.content.media_type_byte_count = media.size();
+    input.providers = &fixed.provider;
+    input.provider_count = 1u;
+    input.maximum_spans = 32u;
+    input.maximum_depth = 8u;
+
+    laplace_decomposition_result* result = nullptr;
+    ASSERT_EQ(laplace_decomposition_run(&input, &result),
+              LAPLACE_DECOMPOSITION_OK);
+    ASSERT_NE(result, nullptr);
+    std::size_t span_count = 0u;
+    const laplace_decomposition_span* spans =
+        laplace_decomposition_spans(result, &span_count);
+    ASSERT_NE(spans, nullptr);
+    ASSERT_EQ(span_count, 18u);
+
+    EXPECT_EQ(spans[12].kind, fixed.field_kind);
+    EXPECT_EQ(spans[12].byte_start, 14u);
+    EXPECT_EQ(spans[12].byte_end, 19u);
+    EXPECT_EQ(spans[14].kind, fixed.overflow_kind);
+    EXPECT_EQ(spans[14].byte_start, 18u);
+    EXPECT_EQ(spans[14].byte_end, 19u);
+    EXPECT_EQ(spans[15].kind, fixed.field_kind);
+    EXPECT_EQ(spans[15].byte_start, 19u);
+    EXPECT_EQ(spans[15].byte_end, 21u);
+    EXPECT_EQ(
+        std::string_view(
+            reinterpret_cast<const char*>(input.content.bytes +
+                                           spans[13].byte_start),
+            spans[13].byte_end - spans[13].byte_start),
+        "ABCDE");
+    EXPECT_EQ(
+        std::string_view(
+            reinterpret_cast<const char*>(input.content.bytes +
+                                           spans[16].byte_start),
+            spans[16].byte_end - spans[16].byte_start),
+        "QR");
+
+    laplace_decomposition_result_destroy(&result);
+    EXPECT_EQ(result, nullptr);
+}
+
+TEST(DecompositionOrchestration, FixedWidthOverflowDeclarationMutationIsObservable) {
+    constexpr std::string_view bytes{"002ABCDEQR\r\n"};
+    constexpr std::string_view media{"text/plain"};
+    constexpr std::uint32_t trim =
+        LAPLACE_DECOMPOSITION_FIXED_WIDTH_TRIM_LEFT |
+        LAPLACE_DECOMPOSITION_FIXED_WIDTH_TRIM_RIGHT;
+    constexpr std::array<laplace_decomposition_fixed_width_field, 3> fields{{
+        {3u, trim}, {4u, trim}, {2u, trim}}};
+    const laplace_digest256 correct_fingerprint = Fingerprint(0x35u);
+    const laplace_digest256 mutant_fingerprint = Fingerprint(0x36u);
+    laplace_decomposition_fixed_width_provider correct{};
+    laplace_decomposition_fixed_width_provider mutant{};
+    ASSERT_EQ(laplace_decomposition_fixed_width_provider_init(
+                  &correct, fields.data(), fields.size(), 0u,
+                  LAPLACE_DECOMPOSITION_FIXED_WIDTH_CRLF, ' ', 1u, 1u,
+                  UINT64_C(0x4657445500000000), &correct_fingerprint),
+              LAPLACE_DECOMPOSITION_OK);
+    ASSERT_EQ(laplace_decomposition_fixed_width_provider_init(
+                  &mutant, fields.data(), fields.size(), 0u,
+                  LAPLACE_DECOMPOSITION_FIXED_WIDTH_CRLF, ' ', 2u, 1u,
+                  UINT64_C(0x4657445600000000), &mutant_fingerprint),
+              LAPLACE_DECOMPOSITION_OK);
+
+    auto run = [&](laplace_decomposition_fixed_width_provider& provider) {
+        laplace_decomposition_input input{};
+        input.content.bytes =
+            reinterpret_cast<const std::uint8_t*>(bytes.data());
+        input.content.byte_count = bytes.size();
+        input.content.media_type = media.data();
+        input.content.media_type_byte_count = media.size();
+        input.providers = &provider.provider;
+        input.provider_count = 1u;
+        input.maximum_spans = 24u;
+        input.maximum_depth = 8u;
+        laplace_decomposition_result* result = nullptr;
+        EXPECT_EQ(laplace_decomposition_run(&input, &result),
+                  LAPLACE_DECOMPOSITION_OK);
+        return result;
+    };
+
+    laplace_decomposition_result* correct_result = run(correct);
+    laplace_decomposition_result* mutant_result = run(mutant);
+    ASSERT_NE(correct_result, nullptr);
+    ASSERT_NE(mutant_result, nullptr);
+    std::size_t correct_count = 0u;
+    std::size_t mutant_count = 0u;
+    const auto* correct_spans =
+        laplace_decomposition_spans(correct_result, &correct_count);
+    const auto* mutant_spans =
+        laplace_decomposition_spans(mutant_result, &mutant_count);
+    ASSERT_EQ(correct_count, 10u);
+    ASSERT_EQ(mutant_count, 10u);
+    EXPECT_EQ(correct_spans[7].kind, correct.field_kind);
+    EXPECT_EQ(mutant_spans[6].kind, mutant.field_kind);
+    EXPECT_EQ(correct_spans[7].byte_start, 8u);
+    EXPECT_EQ(mutant_spans[6].byte_start, 7u);
+    EXPECT_NE(correct_spans[7].byte_start, mutant_spans[6].byte_start);
+
+    laplace_decomposition_result_destroy(&correct_result);
+    laplace_decomposition_result_destroy(&mutant_result);
+}
+
+TEST(DecompositionOrchestration, FixedWidthRejectsOverflowBeyondRecipeBound) {
+    constexpr std::string_view bytes{"002ABCDEFQR\r\n"};
+    constexpr std::string_view media{"text/plain"};
+    constexpr std::array<laplace_decomposition_fixed_width_field, 3> fields{{
+        {3u, 0u}, {4u, 0u}, {2u, 0u}}};
+    const laplace_digest256 fingerprint = Fingerprint(0x37u);
+    laplace_decomposition_fixed_width_provider fixed{};
+    ASSERT_EQ(laplace_decomposition_fixed_width_provider_init(
+                  &fixed, fields.data(), fields.size(), 0u,
+                  LAPLACE_DECOMPOSITION_FIXED_WIDTH_CRLF, ' ', 1u, 1u,
+                  UINT64_C(0x4657445700000000), &fingerprint),
+              LAPLACE_DECOMPOSITION_OK);
+    laplace_decomposition_input input{};
+    input.content.bytes =
+        reinterpret_cast<const std::uint8_t*>(bytes.data());
+    input.content.byte_count = bytes.size();
+    input.content.media_type = media.data();
+    input.content.media_type_byte_count = media.size();
+    input.providers = &fixed.provider;
+    input.provider_count = 1u;
+    input.maximum_spans = 24u;
+    input.maximum_depth = 8u;
+    laplace_decomposition_result* result = nullptr;
+    EXPECT_EQ(laplace_decomposition_run(&input, &result),
+              LAPLACE_DECOMPOSITION_PROVIDER_FAILURE);
     EXPECT_EQ(result, nullptr);
 }
 

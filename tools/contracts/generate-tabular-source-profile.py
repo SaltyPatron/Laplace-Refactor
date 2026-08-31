@@ -28,7 +28,7 @@ OUTCOME_TYPES = {
     "counterexample": 8,
     "unknown_boundary": 9,
 }
-MODES = {"raw_octets": 1, "utf8_delimited": 2}
+MODES = {"raw_octets": 1, "utf8_delimited": 2, "utf8_fixed_width": 3}
 TERMINATORS = {None: 0, "lf": 1, "crlf": 2}
 RECONSTRUCTION = {"exact": 1, "semantic": 2, "none": 3}
 EPISTEMIC_SOURCE_CLASSES = {
@@ -153,8 +153,6 @@ def validate(document: dict[str, Any]) -> None:
             require("member" in artifact["roles"],
                     f"child is not marked as a member: {name}")
         if artifact["mode"] == "raw_octets":
-            require(parent is None and not artifact["exact_distribution"],
-                    "profile must not promote its distribution wrapper to selected content")
             require(not artifact.get("columns") and
                     artifact.get("header_record_count", 0) == 0,
                     f"raw artifact declares tabular syntax: {name}")
@@ -237,10 +235,46 @@ def validate(document: dict[str, Any]) -> None:
                     f"mapping denominator does not follow data rows and rules: {name}")
             require(artifact["outcome_type"] in OUTCOME_TYPES,
                     f"unknown outcome type: {name}")
+            if artifact["mode"] == "utf8_delimited":
+                require(
+                    artifact.get("delimiter", 0) in range(1, 128)
+                    and artifact["delimiter"] not in (10, 13),
+                    f"invalid delimiter: {name}",
+                )
+                require(not artifact.get("fixed_width_fields"),
+                        f"delimited artifact declares fixed-width fields: {name}")
+            else:
+                fixed_fields = artifact.get("fixed_width_fields", [])
+                require(len(fixed_fields) == len(columns),
+                        f"fixed-width field declaration mismatch: {name}")
+                require(all(
+                    isinstance(field.get("width"), int)
+                    and field["width"] > 0
+                    and field.get("trim") in ("none", "left", "right", "both")
+                    for field in fixed_fields),
+                    f"invalid fixed-width field declaration: {name}")
+                require(artifact.get("delimiter", 0) == 0,
+                        f"fixed-width artifact declares delimiter: {name}")
+                require(artifact.get("padding_byte") in range(0, 128),
+                        f"invalid fixed-width padding byte: {name}")
+                overflow_field = artifact.get("overflow_field_index")
+                maximum_overflow = artifact.get("maximum_overflow_bytes", 0)
+                expected_overflow = artifact.get("overflow_record_count", 0)
+                require(
+                    (overflow_field is None and maximum_overflow == 0
+                     and expected_overflow == 0)
+                    or (isinstance(overflow_field, int)
+                        and 0 <= overflow_field < len(columns)
+                        and isinstance(maximum_overflow, int)
+                        and maximum_overflow > 0
+                        and isinstance(expected_overflow, int)
+                        and 0 <= expected_overflow <= artifact["record_count"]),
+                    f"invalid fixed-width overflow declaration: {name}",
+                )
         names.append(name)
         by_name[name] = artifact
     require(names == sorted(names), "artifact graph is not in canonical name order")
-    tables = [value for value in artifacts if value["mode"] == "utf8_delimited"]
+    tables = [value for value in artifacts if value["mode"] != "raw_octets"]
     require(sum(value["byte_count"] for value in artifacts) == denominators["bytes"],
             "byte denominator mismatch")
     require(len(artifacts) == denominators["files"], "file denominator mismatch")
@@ -309,10 +343,12 @@ def generate(document: dict[str, Any], source: Path) -> str:
         "#include <array>", "#include <cstddef>", "#include <cstdint>",
         f"namespace {namespace} {{",
         "struct Column { const char* bytes; std::uint64_t byte_count; };",
+        "struct FixedWidthField { std::uint32_t width; std::uint32_t flags; };",
         "struct Artifact {",
         "  const char* name;", "  const char* media_type;",
         "  const char* local_discovery_path;",
         "  const char* archive_member;", "  const Column* columns;",
+        "  const FixedWidthField* fixed_width_fields;",
         "  std::array<std::uint8_t, 32> sha256;",
         "  std::array<std::uint8_t, 32> parent_id;",
         "  std::uint64_t byte_count;", "  std::uint64_t record_count;",
@@ -320,7 +356,10 @@ def generate(document: dict[str, Any], source: Path) -> str:
         "  std::uint32_t mode;", "  std::uint32_t delimiter;",
         "  std::uint32_t line_terminator;", "  std::uint32_t column_count;",
         "  std::uint32_t header_record_count;", "  std::uint32_t outcome_type;",
-        "  std::uint32_t flags;", "};",
+        "  std::uint32_t flags;", "  std::uint32_t padding_byte;",
+        "  std::uint32_t overflow_field_index;",
+        "  std::uint32_t maximum_overflow_bytes;",
+        "  std::uint32_t expected_overflow_record_count;", "};",
         "struct ReferenceRule {",
         "  std::array<std::uint8_t, 16> namespace_id;",
         "  std::uint64_t artifact_index;", "  std::uint64_t column_index;",
@@ -341,6 +380,16 @@ def generate(document: dict[str, Any], source: Path) -> str:
             for column in columns:
                 lines.append(
                     f"  {{{cxx_string(column)}, {len(column.encode('utf-8'))}u}},")
+            lines.append("}};")
+        fixed_fields = artifact.get("fixed_width_fields", [])
+        if fixed_fields:
+            trim_flags = {"none": 0, "left": 1, "right": 2, "both": 3}
+            lines.append(
+                f"inline constexpr std::array<FixedWidthField, {len(fixed_fields)}> "
+                f"artifact_{artifact_index}_fixed_width_fields{{{{")
+            for field in fixed_fields:
+                lines.append(
+                    f"  {{{field['width']}u, {trim_flags[field['trim']]}u}},")
             lines.append("}};")
     for field in ("authority", "release", "namespace", "local_identifier"):
         value = scope_id(field, coordinate[field])
@@ -400,11 +449,22 @@ def generate(document: dict[str, Any], source: Path) -> str:
         reference_mask = sum(1 << value for value in artifact.get("reference_columns", []))
         archive_member = artifact.get("archive_member", "")
         column_pointer = f"artifact_{artifact_index}_columns.data()" if columns else "nullptr"
+        fixed_width_pointer = (
+            f"artifact_{artifact_index}_fixed_width_fields.data()"
+            if artifact.get("fixed_width_fields") else "nullptr"
+        )
+        overflow_field = artifact.get("overflow_field_index")
+        overflow_field_value = (
+            0xFFFFFFFF
+            if artifact["mode"] == "utf8_fixed_width" and overflow_field is None
+            else (0 if overflow_field is None else overflow_field)
+        )
         lines.extend([
             "  {", f"    {cxx_string(artifact['name'])},",
             f"    {cxx_string(artifact['media_type'])},",
             f"    {cxx_string(artifact['local_discovery_path'])},",
             f"    {cxx_string(archive_member)},", f"    {column_pointer},",
+            f"    {fixed_width_pointer},",
             f"    {{{{{byte_list(bytes.fromhex(artifact['sha256']))}}}}},",
             f"    {{{{{byte_list(parent_id)}}}}},", f"    {artifact['byte_count']}u,",
             f"    {artifact.get('record_count', 0)}u,",
@@ -413,7 +473,10 @@ def generate(document: dict[str, Any], source: Path) -> str:
             f"    {TERMINATORS[artifact.get('line_terminator')]}u,",
             f"    {len(columns)}u,", f"    {artifact.get('header_record_count', 0)}u,",
             f"    {OUTCOME_TYPES.get(artifact.get('outcome_type'), 0)}u,",
-            f"    {flags}u", "  },",
+            f"    {flags}u,", f"    {artifact.get('padding_byte', 0)}u,",
+            f"    {overflow_field_value}u,",
+            f"    {artifact.get('maximum_overflow_bytes', 0)}u,",
+            f"    {artifact.get('overflow_record_count', 0)}u", "  },",
         ])
     reference_rules: list[str] = []
     mapping_rules: list[str] = []

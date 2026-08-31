@@ -34,6 +34,40 @@
       ]
     },
     {
+      "ctest_name": "DecompositionOrchestration.FixedWidthOverflowIsExplicitAndDoesNotShiftLaterFields",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "fixed-width physical fields and padding-trimmed semantic values remain distinct exact spans",
+        "a bounded declared overflow belongs to its recipe-selected field and receives an explicit ambiguity witness",
+        "later field boundaries remain exact instead of silently shifting or truncating"
+      ]
+    },
+    {
+      "ctest_name": "DecompositionOrchestration.FixedWidthOverflowDeclarationMutationIsObservable",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "a deliberate wrong overflow-field declaration changes exact downstream field boundaries",
+        "source recipe overflow policy is executable rather than documentary"
+      ]
+    },
+    {
+      "ctest_name": "DecompositionOrchestration.FixedWidthRejectsOverflowBeyondRecipeBound",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "record-width deviations beyond the recipe bound fail before publication",
+        "unknown malformed rows cannot be silently repaired"
+      ]
+    },
+    {
       "ctest_name": "DecompositionComposition.CanonicalRootExcludesTraceWitnessMetadata",
       "evidence_targets": [
         "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
