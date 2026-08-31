@@ -74,7 +74,11 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertIn("github.event_name == 'push'", deployment)
         self.assertIn("github.ref == 'refs/heads/main'", deployment)
         self.assertIn("needs.product-path.result == 'success'", deployment)
-        self.assertIn("actions: write", workflow)
+        self.assertIn("    permissions:\n      actions: write\n      contents: read\n", deployment)
+        top_level_permissions = workflow[
+            workflow.index("permissions:\n"):workflow.index("\nconcurrency:")
+        ]
+        self.assertNotIn("actions: write", top_level_permissions)
         self.assertIn("actions/workflows/product-activation.yml/dispatches", deployment)
         self.assertIn("inputs[expected_sha]=$EXPECTED_SHA", deployment)
         self.assertIn("EXPECTED_SHA: ${{ github.sha }}", deployment)
