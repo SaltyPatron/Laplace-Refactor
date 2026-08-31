@@ -34,6 +34,7 @@ jobs:
           python3 tests/product_path_tests.py
           python3 tests/product_path_status_tests.py
           python3 tests/proof_workspace_cleanup_tests.py
+          python3 tests/dev_bat_deployment_reachability_tests.py
       - name: Classify exact changed paths
         id: classify
         shell: bash
@@ -171,9 +172,12 @@ jobs:
   # An accepted push to main is the DEV/BAT deployment boundary. PR proof never invokes
   # product activation. The exact accepted SHA is passed to the existing authenticated
   # workflow-dispatch authority, which refuses a ref race before composing any package.
+  # always() is required because GitHub otherwise propagates skipped optional proof jobs
+  # through the successful aggregate gate and silently skips this deployment job.
   dev-bat-deployment:
     needs: product-path
     if: >-
+      always() &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.product-path.result == 'success'
@@ -203,10 +207,12 @@ jobs:
   # Migration aliases for the three currently protected legacy contexts. They do not
   # independently prove anything: each can green only after the authoritative
   # product-path gate has accepted every evidence surface selected for this change.
+  # always() keeps the aliases reachable when optional product proof lanes are skipped.
   # Once main protection requires `product-path`, these aliases can be removed.
   legacy-requirements:
     name: requirements
     needs: product-path
+    if: always() && needs.product-path.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -215,6 +221,7 @@ jobs:
   legacy-native-dev:
     name: native (linux-dev)
     needs: product-path
+    if: always() && needs.product-path.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -223,6 +230,7 @@ jobs:
   legacy-native-sanitize:
     name: native (linux-sanitize)
     needs: product-path
+    if: always() && needs.product-path.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
