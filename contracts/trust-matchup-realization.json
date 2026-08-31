@@ -1,0 +1,154 @@
+{
+  "schema": "laplace.trust-matchup-realization/v1",
+  "status": "required",
+  "authority": {
+    "source": "inventor-direct-requirement",
+    "issues": [16, 17, 18, 19, 23, 53, 110],
+    "higher_authority": [
+      "docs/product/CONSTITUTION.md",
+      "docs/product/INVENTION_MODEL.md"
+    ]
+  },
+  "distinctions": {
+    "default_prior": "initializes an eligible typed rating key only when no prior completed state exists; not testimony evidence truth or permanent importance",
+    "standing": "immutable derived rating state over a pinned typed event boundary",
+    "importance": "query and semantic-act relative calculation; never one timeless entity part-of-speech source or relation score",
+    "formal_and_structural_result": "owned by the declared exact calculus or physicality recipe and never decided by consensus voting"
+  },
+  "rating": {
+    "method": "Glicko-2 only where a typed matchup recipe declares an outcome-bearing comparison",
+    "state_fields": ["rating", "rating_deviation", "volatility"],
+    "key_fields": [
+      "participant_identity",
+      "participant_role",
+      "matchup_family",
+      "rated_class",
+      "relation_or_operation_scope",
+      "language_or_modality_scope",
+      "world_scope",
+      "evidence_scope",
+      "dependence_scope",
+      "context_scope",
+      "valid_time_boundary",
+      "rating_recipe_identity",
+      "publication_epoch"
+    ],
+    "initialization": {
+      "condition": "no prior completely published state for the exact typed key",
+      "parameters": "declared by the versioned lane recipe",
+      "application_count": 1,
+      "recorded_separately": true,
+      "not_evidence": true
+    },
+    "matchup_event_fields": [
+      "participants_and_roles",
+      "both_prior_states",
+      "typed_subject_under_test",
+      "eligible_root_evidence",
+      "dependence_reduction",
+      "expected_result",
+      "typed_observed_outcome",
+      "outcome_mapping",
+      "valid_time",
+      "observation_time",
+      "event_ordinal",
+      "world_and_context",
+      "program_parameters_provider_receipt"
+    ],
+    "required_inputs": {
+      "opponent_rating": true,
+      "opponent_rating_deviation": true,
+      "participant_volatility": true
+    },
+    "forbidden_substitutions": [
+      "constant_neutral_opponent_after_initialization",
+      "witness_count_as_rating",
+      "source_type_literal_as_earned_source_state",
+      "one_global_entity_rating",
+      "absence_or_unknown_as_loss",
+      "dependent_descendants_as_independent_matches"
+    ],
+    "history": {
+      "rating_at_event": "immutable",
+      "late_event_behavior": "publish a new deterministic replay epoch",
+      "prior_epoch_overwrite": false,
+      "same_boundary_ingest_order_invariant": true
+    },
+    "return_leg": {
+      "required_for_earned_trust": true,
+      "independent_outcome_required": true,
+      "self_certification_forbidden": true,
+      "proposition_leg_and_participant_leg_separate": true
+    }
+  },
+  "contextual_importance": {
+    "global_part_of_speech_order": false,
+    "global_stop_word_deletion": false,
+    "global_punctuation_stripping": false,
+    "inputs": [
+      "semantic_act",
+      "typed_AST_roles",
+      "trajectory_order_gap_and_containment",
+      "relation_direction",
+      "negation_quantification_tense_and_modality",
+      "language",
+      "discourse",
+      "evidence_and_context",
+      "goal_and_completion_obligations",
+      "firmware_policy"
+    ]
+  },
+  "language": {
+    "separate_intelligence_per_language": false,
+    "english_universal_intermediate": false,
+    "identification_is_readiness": false,
+    "readiness_key": [
+      "language_coordinate",
+      "semantic_act_class",
+      "realization_recipe",
+      "world_and_evidence_epoch",
+      "context_and_register"
+    ],
+    "required_state_as_applicable": [
+      "morphology",
+      "syntax",
+      "orthography",
+      "punctuation_conventions",
+      "trajectory_order",
+      "pragmatics",
+      "discourse_forms",
+      "semantic_to_surface_mappings",
+      "examples_counterexamples_and_corrections",
+      "observed_realization_outcomes"
+    ],
+    "output": "exact modality-typed content composition with complete provenance receipt",
+    "text_output": "exact Unicode trajectory including morphology content words function words punctuation whitespace order register and pragmatics",
+    "missing_obligation_behavior": "typed partial unsupported ambiguous incomplete-boundary or unknown with exact continuation condition",
+    "silent_english_fallback": false
+  },
+  "acceptance": {
+    "positive": [
+      "new_key_initializes_once_then_carries_forward",
+      "opponent_strength_changes_update",
+      "source_specific_state_diverges_from_source_type_prior",
+      "independent_return_leg_updates_only_tested_lanes",
+      "formal_arithmetic_is_nonvoting",
+      "rating_history_is_as_of_and_order_invariant",
+      "function_words_punctuation_and_gaps_can_be_decisive",
+      "multilingual_realization_uses_witnessed_language_structure",
+      "unsupported_language_returns_typed_why_not"
+    ],
+    "deliberate_defects": [
+      "neutral_opponent_replay",
+      "redefault_every_fold",
+      "opponent_rating_omission",
+      "permanent_source_literal",
+      "return_leg_omission",
+      "dependent_match_amplification",
+      "global_POS_importance",
+      "english_stopword_or_punctuation_erasure",
+      "fluent_output_without_readiness",
+      "silent_english_fallback"
+    ]
+  }
+}
