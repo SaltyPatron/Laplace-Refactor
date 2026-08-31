@@ -57,15 +57,15 @@ jobs:
             --label "$CATALOG_LABEL" \
             --output "$output" \
             --verify
-          catalog_id=$(jq -r '.catalog_id' "$output")
-          test "$catalog_id" != null
-          printf 'catalog_id=%s\n' "$catalog_id" >> "$GITHUB_OUTPUT"
+          catalog_digest=$(jq -r '.catalog_digest_sha256' "$output")
+          test "$catalog_digest" != null
+          printf 'catalog_digest_sha256=%s\n' "$catalog_digest" >> "$GITHUB_OUTPUT"
           {
             echo '## Source-estate discovery catalog'
             echo
-            echo "Catalog ID: \`$catalog_id\`"
+            echo "Catalog artifact SHA-256: \`$catalog_digest\`"
             echo
-            echo 'This is discovery-only evidence. It is not source authority, profile completion, world admission, foundational seed completion, product activation, or release.'
+            echo 'This digest is not a Laplace content identity. The catalog is discovery-only evidence, not source authority, profile completion, world admission, foundational seed completion, product activation, or release.'
             echo
             echo '```json'
             cat "$summary"
@@ -74,7 +74,7 @@ jobs:
       - name: Upload discovery-only catalog
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: laplace-source-estate-catalog-${{ steps.catalog.outputs.catalog_id }}
+          name: laplace-source-estate-catalog-${{ steps.catalog.outputs.catalog_digest_sha256 }}
           path: |
             ${{ runner.temp }}/laplace-source-estate-catalog.json
             ${{ runner.temp }}/laplace-source-estate-summary.json
