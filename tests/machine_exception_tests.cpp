@@ -76,6 +76,23 @@ TEST(MachineExceptionRegistry, GeneratedRegistryPreservesDistinctMachineConditio
               LAPLACE_MACHINE_PUBLICATION_NONE);
     EXPECT_NE(hardware->capability_flags & LAPLACE_MACHINE_CAPABILITY_REPLAYABLE,
               0u);
+
+    for (std::size_t index = 0;
+         index < laplace_machine_exception_descriptor_count(); ++index) {
+        EXPECT_EQ(laplace_machine_exception_descriptor_validate(
+                      &laplace_machine_exception_descriptors()[index]),
+                  LAPLACE_MACHINE_EXCEPTION_OK);
+    }
+
+    auto flattened_hardware = *hardware;
+    flattened_hardware.condition = LAPLACE_MACHINE_CONDITION_UNKNOWN;
+    EXPECT_EQ(laplace_machine_exception_descriptor_validate(&flattened_hardware),
+              LAPLACE_MACHINE_EXCEPTION_INVALID_ARGUMENT);
+
+    auto capability_drift = *hardware;
+    capability_drift.capability_flags = unknown->capability_flags;
+    EXPECT_EQ(laplace_machine_exception_descriptor_validate(&capability_drift),
+              LAPLACE_MACHINE_EXCEPTION_INVALID_ARGUMENT);
 }
 
 TEST(MachineExceptionRegistry, PrioritySelectionRetainsEveryObservedConditionAndBinding) {
