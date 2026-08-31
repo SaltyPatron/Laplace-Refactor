@@ -388,26 +388,57 @@ laplace_evidence_testimony_record TestimonyRecord(std::uint8_t seed) {
     return value;
 }
 
+laplace_standing_recipe StandingRecipe() {
+    laplace_standing_recipe value{};
+    value.authority_receipt_id = TestimonyDigest(0x10u);
+    value.evaluation_law_id = TestimonyDigest(0x20u);
+    value.world_context_id = TestimonyDigest(0x30u);
+    value.language_modality_id = TestimonyDigest(0x40u);
+    value.valid_time_scope_id = TestimonyDigest(0x50u);
+    value.evidence_boundary_id = TestimonyDigest(0x60u);
+    value.default_rating = 1500.0;
+    value.default_rating_deviation = 200.0;
+    value.default_volatility = 0.06;
+    value.volatility_constraint = 0.5;
+    value.convergence_tolerance = 0.000001;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_CONFIRM - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_CONFIRM - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_REFUTE - 1u] = 1u;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 2u;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_UNCERTAIN - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_UNCERTAIN - 1u] = 2u;
+    value.rateable_outcome_mask = 0x0fu;
+    value.participant_role = 1u;
+    value.arena_kind = 1u;
+    value.version = LAPLACE_STANDING_VERSION;
+    EXPECT_EQ(laplace_standing_recipe_identify(&value, &value.recipe_id),
+              LAPLACE_STANDING_OK);
+    return value;
+}
+
 laplace_standing_state StandingState(
     std::uint8_t participant_seed,
     double rating,
     double deviation) {
-    laplace_standing_coordinate coordinate{};
-    coordinate.participant_id = TestimonyDigest(participant_seed);
-    coordinate.evaluation_law_id = TestimonyDigest(0x20u);
-    coordinate.world_context_id = TestimonyDigest(0x30u);
-    coordinate.language_modality_id = TestimonyDigest(0x40u);
-    coordinate.valid_time_scope_id = TestimonyDigest(0x50u);
-    coordinate.evidence_boundary_id = TestimonyDigest(0x60u);
-    coordinate.rating_recipe_id = TestimonyDigest(0x70u);
-    coordinate.participant_role = 1u;
-    coordinate.arena_kind = 1u;
-    coordinate.rating_recipe_version = 1u;
+    const auto recipe = StandingRecipe();
+    const auto participant_id = TestimonyDigest(participant_seed);
     const auto epoch = TestimonyDigest(0x80u);
     laplace_standing_state state{};
     EXPECT_EQ(laplace_standing_onboard(
-                  &coordinate, &epoch, rating, deviation, 0.06, &state),
+                  &recipe, &participant_id, &epoch, &state),
               LAPLACE_STANDING_OK);
+    if (rating != recipe.default_rating ||
+        deviation != recipe.default_rating_deviation) {
+        state.prior_state_id = TestimonyDigest(
+            static_cast<std::uint8_t>(participant_seed + 0x31u));
+        state.rating = rating;
+        state.rating_deviation = deviation;
+        state.eligible_match_count = 1u;
+        state.period_ordinal = 1u;
+        EXPECT_EQ(laplace_standing_state_identify(&state, &state.state_id),
+                  LAPLACE_STANDING_OK);
+    }
     return state;
 }
 
@@ -423,8 +454,6 @@ laplace_standing_event StandingEvent(
     value.opponent_prior_state = opponent;
     value.period_id = period;
     value.eligible_root_id = TestimonyDigest(seed);
-    value.outcome_mapping_id = TestimonyDigest(
-        static_cast<std::uint8_t>(seed + 1u));
     value.context_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 2u));
     value.valid_time_id = TestimonyDigest(
         static_cast<std::uint8_t>(seed + 3u));
@@ -433,6 +462,10 @@ laplace_standing_event StandingEvent(
     value.outcome_kind = score == 0u
         ? LAPLACE_STANDING_OUTCOME_REFUTE
         : LAPLACE_STANDING_OUTCOME_CONFIRM;
+    const auto recipe = StandingRecipe();
+    EXPECT_EQ(laplace_standing_outcome_mapping_identify(
+                  &recipe, value.outcome_kind, &value.outcome_mapping_id),
+              LAPLACE_STANDING_OK);
     EXPECT_EQ(laplace_standing_event_identify(&value, &value.event_id),
               LAPLACE_STANDING_OK);
     return value;
@@ -709,11 +742,10 @@ TEST(IsaExecution, StandingMatchesCanonicalNativeOperationAndReceipt) {
     const auto participant = StandingState(0x01u, 1500.0, 200.0);
     const auto period = TestimonyDigest(0x90u);
     std::array<laplace_standing_period_input, 2> inputs{};
+    inputs[0].recipe = StandingRecipe();
     inputs[0].prior_state = participant;
     inputs[0].event = StandingEvent(
         participant, StandingState(0x02u, 1400.0, 80.0), period, 0xa0u, 1u);
-    inputs[0].volatility_constraint = 0.5;
-    inputs[0].convergence_tolerance = 0.000001;
     inputs[1] = inputs[0];
     inputs[1].event = StandingEvent(
         participant, StandingState(0x03u, 1600.0, 80.0), period, 0xb0u, 0u);

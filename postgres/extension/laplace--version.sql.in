@@ -180,6 +180,28 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_state AS (
     flags integer
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_recipe AS (
+    recipe_id bytea,
+    authority_receipt_id bytea,
+    evaluation_law_id bytea,
+    world_context_id bytea,
+    language_modality_id bytea,
+    valid_time_scope_id bytea,
+    evidence_boundary_id bytea,
+    default_rating double precision,
+    default_rating_deviation double precision,
+    default_volatility double precision,
+    volatility_constraint double precision,
+    convergence_tolerance double precision,
+    score_numerator numeric(20, 0)[],
+    score_denominator numeric(20, 0)[],
+    rateable_outcome_mask integer,
+    participant_role integer,
+    arena_kind integer,
+    version integer,
+    flags integer
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_event AS (
     event_id bytea,
     participant_coordinate_id bytea,
@@ -197,10 +219,9 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_event AS (
 );
 
 CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_period_input AS (
+    recipe @LAPLACE_PG_SCHEMA@.standing_recipe,
     prior_state @LAPLACE_PG_SCHEMA@.standing_state,
-    event @LAPLACE_PG_SCHEMA@.standing_event,
-    volatility_constraint double precision,
-    convergence_tolerance double precision
+    event @LAPLACE_PG_SCHEMA@.standing_event
 );
 
 CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_period_result AS (
@@ -851,6 +872,30 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt_member (
     UNIQUE (receipt_id, member_ordinal)
 );
 
+CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_recipe_history (
+    recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    authority_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    evaluation_law_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    world_context_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    language_modality_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    valid_time_scope_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    evidence_boundary_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    default_rating double precision NOT NULL,
+    default_rating_deviation double precision NOT NULL CHECK (default_rating_deviation > 0),
+    default_volatility double precision NOT NULL CHECK (default_volatility > 0),
+    volatility_constraint double precision NOT NULL CHECK (volatility_constraint > 0),
+    convergence_tolerance double precision NOT NULL CHECK (convergence_tolerance > 0),
+    score_numerator numeric(20, 0)[] NOT NULL CHECK (cardinality(score_numerator) = 9),
+    score_denominator numeric(20, 0)[] NOT NULL CHECK (cardinality(score_denominator) = 9),
+    rateable_outcome_mask integer NOT NULL CHECK (rateable_outcome_mask > 0),
+    participant_role integer NOT NULL CHECK (participant_role > 0),
+    arena_kind integer NOT NULL CHECK (arena_kind > 0),
+    version integer NOT NULL CHECK (version = 1),
+    flags integer NOT NULL CHECK (flags = 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
 CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_state_history (
     state_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
     coordinate_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
@@ -858,7 +903,8 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_state_history (
     prior_state_id @LAPLACE_PG_SCHEMA@.record_id_256 NULL
         REFERENCES @LAPLACE_PG_SCHEMA@.standing_state_history(state_id),
     epoch_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    rating_recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    rating_recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_recipe_history(recipe_id),
     rating double precision NOT NULL,
     rating_deviation double precision NOT NULL CHECK (rating_deviation > 0),
     volatility double precision NOT NULL CHECK (volatility > 0),
@@ -2040,6 +2086,7 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt_member FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_state_history FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_recipe_history FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_match_event FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_period_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_period_receipt_member FROM PUBLIC;

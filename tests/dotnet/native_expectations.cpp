@@ -35,6 +35,7 @@ static_assert(std::is_standard_layout_v<laplace_highway_coordinate>);
 static_assert(std::is_standard_layout_v<laplace_highway_registry_receipt>);
 static_assert(std::is_standard_layout_v<laplace_evidence_testimony_record>);
 static_assert(std::is_standard_layout_v<laplace_evidence_testimony_receipt>);
+static_assert(std::is_standard_layout_v<laplace_standing_recipe>);
 static_assert(std::is_standard_layout_v<laplace_standing_state>);
 static_assert(std::is_standard_layout_v<laplace_standing_event>);
 static_assert(std::is_standard_layout_v<laplace_standing_period_receipt>);
@@ -111,29 +112,67 @@ void Fill(laplace_id128* identity, std::uint8_t value) {
     std::memset(identity->bytes, value, sizeof(identity->bytes));
 }
 
+laplace_standing_recipe StandingRecipe() {
+    laplace_standing_recipe recipe{};
+    Fill(&recipe.authority_receipt_id, 0xdfu);
+    Fill(&recipe.evaluation_law_id, 0xe0u);
+    Fill(&recipe.world_context_id, 0xe1u);
+    Fill(&recipe.language_modality_id, 0xe2u);
+    Fill(&recipe.valid_time_scope_id, 0xe3u);
+    Fill(&recipe.evidence_boundary_id, 0xe4u);
+    recipe.default_rating = 1500.0;
+    recipe.default_rating_deviation = 200.0;
+    recipe.default_volatility = 0.06;
+    recipe.volatility_constraint = 0.5;
+    recipe.convergence_tolerance = 0.000001;
+    recipe.score_numerator[LAPLACE_STANDING_OUTCOME_CONFIRM - 1u] = 1u;
+    recipe.score_denominator[LAPLACE_STANDING_OUTCOME_CONFIRM - 1u] = 1u;
+    recipe.score_denominator[LAPLACE_STANDING_OUTCOME_REFUTE - 1u] = 1u;
+    recipe.score_numerator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 1u;
+    recipe.score_denominator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 2u;
+    recipe.score_numerator[LAPLACE_STANDING_OUTCOME_UNCERTAIN - 1u] = 1u;
+    recipe.score_denominator[LAPLACE_STANDING_OUTCOME_UNCERTAIN - 1u] = 2u;
+    recipe.rateable_outcome_mask = 0x0fu;
+    recipe.participant_role = 1u;
+    recipe.arena_kind = 1u;
+    recipe.version = LAPLACE_STANDING_VERSION;
+    if (laplace_standing_recipe_identify(&recipe, &recipe.recipe_id) !=
+        LAPLACE_STANDING_OK) {
+        std::fputs("direct native standing recipe identity failed\n", stderr);
+        std::exit(70);
+    }
+    return recipe;
+}
+
 laplace_standing_state StandingState(
     std::uint8_t participant_seed,
     double rating,
     double deviation) {
-    laplace_standing_coordinate coordinate{};
-    Fill(&coordinate.participant_id, participant_seed);
-    Fill(&coordinate.evaluation_law_id, 0xe0u);
-    Fill(&coordinate.world_context_id, 0xe1u);
-    Fill(&coordinate.language_modality_id, 0xe2u);
-    Fill(&coordinate.valid_time_scope_id, 0xe3u);
-    Fill(&coordinate.evidence_boundary_id, 0xe4u);
-    Fill(&coordinate.rating_recipe_id, 0xe5u);
-    coordinate.participant_role = 1u;
-    coordinate.arena_kind = 1u;
-    coordinate.rating_recipe_version = 1u;
+    const auto recipe = StandingRecipe();
+    laplace_digest256 participant_id{};
+    Fill(&participant_id, participant_seed);
     laplace_digest256 epoch{};
     Fill(&epoch, 0xe6u);
     laplace_standing_state state{};
     if (laplace_standing_onboard(
-            &coordinate, &epoch, rating, deviation, 0.06, &state) !=
+            &recipe, &participant_id, &epoch, &state) !=
         LAPLACE_STANDING_OK) {
         std::fputs("direct native standing onboarding failed\n", stderr);
         std::exit(70);
+    }
+    if (rating != recipe.default_rating ||
+        deviation != recipe.default_rating_deviation) {
+        Fill(&state.prior_state_id,
+             static_cast<std::uint8_t>(participant_seed + 0x31u));
+        state.rating = rating;
+        state.rating_deviation = deviation;
+        state.eligible_match_count = 1u;
+        state.period_ordinal = 1u;
+        if (laplace_standing_state_identify(&state, &state.state_id) !=
+            LAPLACE_STANDING_OK) {
+            std::fputs("direct native earned standing state failed\n", stderr);
+            std::exit(70);
+        }
     }
     return state;
 }
@@ -150,8 +189,6 @@ laplace_standing_event StandingEvent(
     event.opponent_prior_state = opponent;
     event.period_id = period;
     Fill(&event.eligible_root_id, root_seed);
-    Fill(&event.outcome_mapping_id,
-         static_cast<std::uint8_t>(root_seed + 1u));
     Fill(&event.context_id, static_cast<std::uint8_t>(root_seed + 2u));
     Fill(&event.valid_time_id, static_cast<std::uint8_t>(root_seed + 3u));
     event.score_numerator = score;
@@ -159,6 +196,13 @@ laplace_standing_event StandingEvent(
     event.outcome_kind = score == 0u
         ? LAPLACE_STANDING_OUTCOME_REFUTE
         : LAPLACE_STANDING_OUTCOME_CONFIRM;
+    const auto recipe = StandingRecipe();
+    if (laplace_standing_outcome_mapping_identify(
+            &recipe, event.outcome_kind, &event.outcome_mapping_id) !=
+        LAPLACE_STANDING_OK) {
+        std::fputs("direct native standing mapping identity failed\n", stderr);
+        std::exit(70);
+    }
     if (laplace_standing_event_identify(&event, &event.event_id) !=
         LAPLACE_STANDING_OK) {
         std::fputs("direct native standing event identity failed\n", stderr);
@@ -175,7 +219,7 @@ int main(int argc, char** argv) {
         return 64;
     }
 
-    const std::array<std::size_t, 304> native_layout{{
+    const std::array<std::size_t, 323> native_layout{{
         sizeof(laplace_digest256),
         sizeof(laplace_id128),
         sizeof(laplace_trajectory_carrier),
@@ -283,6 +327,26 @@ int main(int argc, char** argv) {
         offsetof(laplace_evidence_testimony_receipt, negative_disposition_count),
         offsetof(laplace_evidence_testimony_receipt, version),
         offsetof(laplace_evidence_testimony_receipt, status),
+        sizeof(laplace_standing_recipe),
+        offsetof(laplace_standing_recipe, recipe_id),
+        offsetof(laplace_standing_recipe, authority_receipt_id),
+        offsetof(laplace_standing_recipe, evaluation_law_id),
+        offsetof(laplace_standing_recipe, world_context_id),
+        offsetof(laplace_standing_recipe, language_modality_id),
+        offsetof(laplace_standing_recipe, valid_time_scope_id),
+        offsetof(laplace_standing_recipe, evidence_boundary_id),
+        offsetof(laplace_standing_recipe, default_rating),
+        offsetof(laplace_standing_recipe, default_rating_deviation),
+        offsetof(laplace_standing_recipe, default_volatility),
+        offsetof(laplace_standing_recipe, volatility_constraint),
+        offsetof(laplace_standing_recipe, convergence_tolerance),
+        offsetof(laplace_standing_recipe, score_numerator),
+        offsetof(laplace_standing_recipe, score_denominator),
+        offsetof(laplace_standing_recipe, rateable_outcome_mask),
+        offsetof(laplace_standing_recipe, participant_role),
+        offsetof(laplace_standing_recipe, arena_kind),
+        offsetof(laplace_standing_recipe, version),
+        offsetof(laplace_standing_recipe, flags),
         sizeof(laplace_standing_state),
         offsetof(laplace_standing_state, state_id),
         offsetof(laplace_standing_state, coordinate_id),
@@ -326,10 +390,9 @@ int main(int argc, char** argv) {
         offsetof(laplace_standing_period_receipt, status),
         offsetof(laplace_standing_period_receipt, flags),
         sizeof(laplace_standing_period_input),
+        offsetof(laplace_standing_period_input, recipe),
         offsetof(laplace_standing_period_input, prior_state),
         offsetof(laplace_standing_period_input, event),
-        offsetof(laplace_standing_period_input, volatility_constraint),
-        offsetof(laplace_standing_period_input, convergence_tolerance),
         sizeof(laplace_standing_period_result),
         offsetof(laplace_standing_period_result, successor_state),
         offsetof(laplace_standing_period_result, receipt),
@@ -713,11 +776,10 @@ int main(int argc, char** argv) {
     laplace_digest256 standing_period{};
     Fill(&standing_period, 0xe7u);
     std::array<laplace_standing_period_input, 2> standing_inputs{};
+    standing_inputs[0].recipe = StandingRecipe();
     standing_inputs[0].prior_state = standing_participant;
     standing_inputs[0].event = StandingEvent(
         standing_participant, standing_opponent_a, standing_period, 0x41u, 1u);
-    standing_inputs[0].volatility_constraint = 0.5;
-    standing_inputs[0].convergence_tolerance = 0.000001;
     standing_inputs[1] = standing_inputs[0];
     standing_inputs[1].event = StandingEvent(
         standing_participant, standing_opponent_b, standing_period, 0x51u, 0u);

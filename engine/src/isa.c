@@ -1091,6 +1091,32 @@ static void hash_standing_state(
     hash_u32(hasher, state->flags);
 }
 
+static void hash_standing_recipe(
+    blake3_hasher* hasher, const laplace_standing_recipe* recipe) {
+    uint32_t index;
+    blake3_hasher_update(hasher, recipe->recipe_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->authority_receipt_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->evaluation_law_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->world_context_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->language_modality_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->valid_time_scope_id.bytes, 32u);
+    blake3_hasher_update(hasher, recipe->evidence_boundary_id.bytes, 32u);
+    hash_binary64(hasher, recipe->default_rating);
+    hash_binary64(hasher, recipe->default_rating_deviation);
+    hash_binary64(hasher, recipe->default_volatility);
+    hash_binary64(hasher, recipe->volatility_constraint);
+    hash_binary64(hasher, recipe->convergence_tolerance);
+    for (index = 0u; index < LAPLACE_STANDING_OUTCOME_KIND_COUNT; ++index) {
+        hash_u64(hasher, recipe->score_numerator[index]);
+        hash_u64(hasher, recipe->score_denominator[index]);
+    }
+    hash_u32(hasher, recipe->rateable_outcome_mask);
+    hash_u32(hasher, recipe->participant_role);
+    hash_u32(hasher, recipe->arena_kind);
+    hash_u32(hasher, recipe->version);
+    hash_u32(hasher, recipe->flags);
+}
+
 static void hash_standing_event(
     blake3_hasher* hasher, const laplace_standing_event* event) {
     blake3_hasher_update(hasher, event->event_id.bytes, 32u);
@@ -1111,10 +1137,9 @@ static void hash_standing_event(
 static void hash_standing_input(
     blake3_hasher* hasher,
     const laplace_standing_period_input* input) {
+    hash_standing_recipe(hasher, &input->recipe);
     hash_standing_state(hasher, &input->prior_state);
     hash_standing_event(hasher, &input->event);
-    hash_binary64(hasher, input->volatility_constraint);
-    hash_binary64(hasher, input->convergence_tolerance);
 }
 
 #if !defined(LAPLACE_TEST_STANDING_INPUT_ORDER_RECEIPT)

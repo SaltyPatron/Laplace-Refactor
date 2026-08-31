@@ -46,6 +46,91 @@ static int32 required_nonnegative_int32(
     return value;
 }
 
+static void read_score_array(
+    Datum datum, uint64_t output[LAPLACE_STANDING_OUTCOME_KIND_COUNT],
+    const char* field) {
+    ArrayType* array = DatumGetArrayTypeP(datum);
+    Datum* values = NULL;
+    bool* nulls = NULL;
+    int count = 0;
+    int16 type_length;
+    bool type_by_value;
+    char type_alignment;
+    int index;
+    if (ARR_NDIM(array) != 1 ||
+        ARR_DIMS(array)[0] != (int)LAPLACE_STANDING_OUTCOME_KIND_COUNT ||
+        ARR_LBOUND(array)[0] != 1 || ARR_ELEMTYPE(array) != NUMERICOID) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATATYPE_MISMATCH),
+                 errmsg("Laplace standing %s must be an exact nine-element numeric array", field)));
+    }
+    get_typlenbyvalalign(
+        NUMERICOID, &type_length, &type_by_value, &type_alignment);
+    deconstruct_array(
+        array, NUMERICOID, type_length, type_by_value, type_alignment,
+        &values, &nulls, &count);
+    for (index = 0; index < count; ++index) {
+        if (nulls[index]) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                     errmsg("Laplace standing %s cannot contain nulls", field)));
+        }
+        output[index] = laplace_pg_uint64_from_numeric(values[index], field);
+    }
+}
+
+static void read_recipe(
+    HeapTupleHeader tuple, laplace_standing_recipe* recipe) {
+    memset(recipe, 0, sizeof(*recipe));
+    laplace_pg_read_digest(
+        laplace_pg_required_composite_attribute(tuple, 1, "standing recipe_id"),
+        &recipe->recipe_id, "standing recipe_id");
+    laplace_pg_read_digest(
+        laplace_pg_required_composite_attribute(tuple, 2, "standing authority_receipt_id"),
+        &recipe->authority_receipt_id, "standing authority_receipt_id");
+    laplace_pg_read_digest(
+        laplace_pg_required_composite_attribute(tuple, 3, "standing evaluation_law_id"),
+        &recipe->evaluation_law_id, "standing evaluation_law_id");
+    laplace_pg_read_digest(
+        laplace_pg_required_composite_attribute(tuple, 4, "standing world_context_id"),
+        &recipe->world_context_id, "standing world_context_id");
+    laplace_pg_read_digest(
+        laplace_pg_required_composite_attribute(tuple, 5, "standing language_modality_id"),
+        &recipe->language_modality_id, "standing language_modality_id");
+    laplace_pg_read_digest(
+        laplace_pg_required_composite_attribute(tuple, 6, "standing valid_time_scope_id"),
+        &recipe->valid_time_scope_id, "standing valid_time_scope_id");
+    laplace_pg_read_digest(
+        laplace_pg_required_composite_attribute(tuple, 7, "standing evidence_boundary_id"),
+        &recipe->evidence_boundary_id, "standing evidence_boundary_id");
+    recipe->default_rating = DatumGetFloat8(
+        laplace_pg_required_composite_attribute(tuple, 8, "standing default_rating"));
+    recipe->default_rating_deviation = DatumGetFloat8(
+        laplace_pg_required_composite_attribute(tuple, 9, "standing default_rating_deviation"));
+    recipe->default_volatility = DatumGetFloat8(
+        laplace_pg_required_composite_attribute(tuple, 10, "standing default_volatility"));
+    recipe->volatility_constraint = DatumGetFloat8(
+        laplace_pg_required_composite_attribute(tuple, 11, "standing volatility_constraint"));
+    recipe->convergence_tolerance = DatumGetFloat8(
+        laplace_pg_required_composite_attribute(tuple, 12, "standing convergence_tolerance"));
+    read_score_array(
+        laplace_pg_required_composite_attribute(tuple, 13, "standing score_numerator"),
+        recipe->score_numerator, "score_numerator");
+    read_score_array(
+        laplace_pg_required_composite_attribute(tuple, 14, "standing score_denominator"),
+        recipe->score_denominator, "score_denominator");
+    recipe->rateable_outcome_mask = (uint32_t)required_nonnegative_int32(
+        tuple, 15, "rateable_outcome_mask");
+    recipe->participant_role = (uint32_t)required_nonnegative_int32(
+        tuple, 16, "participant_role");
+    recipe->arena_kind = (uint32_t)required_nonnegative_int32(
+        tuple, 17, "arena_kind");
+    recipe->version = (uint32_t)required_nonnegative_int32(
+        tuple, 18, "recipe version");
+    recipe->flags = (uint32_t)required_nonnegative_int32(
+        tuple, 19, "recipe flags");
+}
+
 static void read_state(
     HeapTupleHeader tuple,
     laplace_standing_state* state,
@@ -160,6 +245,7 @@ static laplace_standing_period_input* read_inputs(
         sizeof(*inputs) * (size_t)count);
     for (index = 0; index < count; ++index) {
         HeapTupleHeader input;
+        HeapTupleHeader recipe;
         HeapTupleHeader prior;
         HeapTupleHeader event;
         if (nulls[index]) {
@@ -168,18 +254,15 @@ static laplace_standing_period_input* read_inputs(
                      errmsg("Laplace standing input cannot contain null records")));
         }
         input = DatumGetHeapTupleHeader(values[index]);
+        recipe = DatumGetHeapTupleHeader(
+            laplace_pg_required_composite_attribute(input, 1, "standing recipe"));
         prior = DatumGetHeapTupleHeader(
-            laplace_pg_required_composite_attribute(input, 1, "standing prior_state"));
+            laplace_pg_required_composite_attribute(input, 2, "standing prior_state"));
         event = DatumGetHeapTupleHeader(
-            laplace_pg_required_composite_attribute(input, 2, "standing event"));
+            laplace_pg_required_composite_attribute(input, 3, "standing event"));
+        read_recipe(recipe, &inputs[index].recipe);
         read_state(prior, &inputs[index].prior_state, "standing prior_state");
         read_event(event, &inputs[index].event);
-        inputs[index].volatility_constraint = DatumGetFloat8(
-            laplace_pg_required_composite_attribute(
-                input, 3, "standing volatility_constraint"));
-        inputs[index].convergence_tolerance = DatumGetFloat8(
-            laplace_pg_required_composite_attribute(
-                input, 4, "standing convergence_tolerance"));
     }
     *input_count = (size_t)count;
     return inputs;
@@ -190,6 +273,28 @@ static void persist_standing(
     Datum input_array,
     const laplace_standing_period_result* result,
     const laplace_isa_receipt* isa_receipt) {
+    static const char recipe_write_sql[] =
+        "WITH input AS (SELECT DISTINCT ON ((i.recipe).recipe_id) (i.recipe).*"
+        " FROM unnest($1::" LAPLACE_PG_SCHEMA ".standing_period_input[]) i"
+        " ORDER BY (i.recipe).recipe_id)"
+        " INSERT INTO " LAPLACE_PG_SCHEMA ".standing_recipe_history(recipe_id,authority_receipt_id,evaluation_law_id,world_context_id,language_modality_id,valid_time_scope_id,evidence_boundary_id,default_rating,default_rating_deviation,default_volatility,volatility_constraint,convergence_tolerance,score_numerator,score_denominator,rateable_outcome_mask,participant_role,arena_kind,version,flags)"
+        " SELECT recipe_id,authority_receipt_id,evaluation_law_id,world_context_id,language_modality_id,valid_time_scope_id,evidence_boundary_id,default_rating,default_rating_deviation,default_volatility,volatility_constraint,convergence_tolerance,score_numerator,score_denominator,rateable_outcome_mask,participant_role,arena_kind,version,flags FROM input ON CONFLICT DO NOTHING";
+    static const char recipe_verify_sql[] =
+        "WITH input AS MATERIALIZED (SELECT DISTINCT ON ((i.recipe).recipe_id) (i.recipe).*"
+        " FROM unnest($1::" LAPLACE_PG_SCHEMA ".standing_period_input[]) i"
+        " ORDER BY (i.recipe).recipe_id)"
+        " SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".standing_recipe_history r USING(recipe_id)"
+        " WHERE r.recipe_id IS NULL OR r.authority_receipt_id<>i.authority_receipt_id"
+        " OR r.evaluation_law_id<>i.evaluation_law_id OR r.world_context_id<>i.world_context_id"
+        " OR r.language_modality_id<>i.language_modality_id OR r.valid_time_scope_id<>i.valid_time_scope_id"
+        " OR r.evidence_boundary_id<>i.evidence_boundary_id OR r.default_rating IS DISTINCT FROM i.default_rating"
+        " OR r.default_rating_deviation IS DISTINCT FROM i.default_rating_deviation"
+        " OR r.default_volatility IS DISTINCT FROM i.default_volatility"
+        " OR r.volatility_constraint IS DISTINCT FROM i.volatility_constraint"
+        " OR r.convergence_tolerance IS DISTINCT FROM i.convergence_tolerance"
+        " OR r.score_numerator<>i.score_numerator OR r.score_denominator<>i.score_denominator"
+        " OR r.rateable_outcome_mask<>i.rateable_outcome_mask OR r.participant_role<>i.participant_role"
+        " OR r.arena_kind<>i.arena_kind OR r.version<>i.version OR r.flags<>i.flags)";
     static const char initial_write_sql[] =
         "WITH raw AS ("
         " SELECT (i.prior_state).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".standing_period_input[]) i"
@@ -273,6 +378,9 @@ static void persist_standing(
     if (SPI_connect() != SPI_OK_CONNECT) {
         ereport(ERROR,(errcode(ERRCODE_CONNECTION_FAILURE),errmsg("Laplace standing persistence could not connect to SPI")));
     }
+    laplace_pg_execute_set_write_verify(
+        recipe_write_sql, recipe_verify_sql, 1, input_types, input_values,
+        "standing recipe replay");
 #if defined(LAPLACE_TEST_STANDING_REPLAY_VERIFY_BYPASS)
     if (SPI_execute_with_args(initial_write_sql,1,input_types,input_values,NULL,false,0) != SPI_OK_INSERT) {
         ereport(ERROR,(errcode(ERRCODE_INTERNAL_ERROR),errmsg("Laplace standing initial-state write failed")));

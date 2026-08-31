@@ -27,25 +27,45 @@ void Print(const char* name, const laplace_digest256& value) {
     std::putchar('\n');
 }
 
-laplace_standing_state State(
-    std::uint8_t participant_seed,
-    double rating,
-    double deviation) {
-    laplace_standing_coordinate coordinate{};
-    coordinate.participant_id = Digest(participant_seed);
-    coordinate.evaluation_law_id = Digest(0x20u);
-    coordinate.world_context_id = Digest(0x30u);
-    coordinate.language_modality_id = Digest(0x40u);
-    coordinate.valid_time_scope_id = Digest(0x50u);
-    coordinate.evidence_boundary_id = Digest(0x60u);
-    coordinate.rating_recipe_id = Digest(0x70u);
-    coordinate.participant_role = 1u;
-    coordinate.arena_kind = 1u;
-    coordinate.rating_recipe_version = 1u;
+laplace_standing_recipe Recipe() {
+    laplace_standing_recipe value{};
+    value.authority_receipt_id = Digest(0x10u);
+    value.evaluation_law_id = Digest(0x20u);
+    value.world_context_id = Digest(0x30u);
+    value.language_modality_id = Digest(0x40u);
+    value.valid_time_scope_id = Digest(0x50u);
+    value.evidence_boundary_id = Digest(0x60u);
+    value.default_rating = 1500.0;
+    value.default_rating_deviation = 200.0;
+    value.default_volatility = 0.06;
+    value.volatility_constraint = 0.5;
+    value.convergence_tolerance = 0.000001;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_CONFIRM - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_CONFIRM - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_REFUTE - 1u] = 1u;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 2u;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_UNCERTAIN - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_UNCERTAIN - 1u] = 2u;
+    value.rateable_outcome_mask = 0x0fu;
+    value.participant_role = 1u;
+    value.arena_kind = 1u;
+    value.version = LAPLACE_STANDING_VERSION;
+    if (laplace_standing_recipe_identify(&value, &value.recipe_id) !=
+        LAPLACE_STANDING_OK) {
+        std::fputs("standing recipe identity failed\n", stderr);
+        std::exit(70);
+    }
+    return value;
+}
+
+laplace_standing_state State(std::uint8_t participant_seed) {
+    const auto recipe = Recipe();
+    const auto participant_id = Digest(participant_seed);
     const auto epoch = Digest(0x80u);
     laplace_standing_state state{};
     if (laplace_standing_onboard(
-            &coordinate, &epoch, rating, deviation, 0.06, &state) !=
+            &recipe, &participant_id, &epoch, &state) !=
         LAPLACE_STANDING_OK) {
         std::fputs("standing onboarding failed\n", stderr);
         std::exit(70);
@@ -65,7 +85,6 @@ laplace_standing_event Event(
     value.opponent_prior_state = opponent;
     value.period_id = period;
     value.eligible_root_id = Digest(seed);
-    value.outcome_mapping_id = Digest(static_cast<std::uint8_t>(seed + 1u));
     value.context_id = Digest(static_cast<std::uint8_t>(seed + 2u));
     value.valid_time_id = Digest(static_cast<std::uint8_t>(seed + 3u));
     value.score_numerator = score;
@@ -73,6 +92,13 @@ laplace_standing_event Event(
     value.outcome_kind = score == 0u
         ? LAPLACE_STANDING_OUTCOME_REFUTE
         : LAPLACE_STANDING_OUTCOME_CONFIRM;
+    const auto recipe = Recipe();
+    if (laplace_standing_outcome_mapping_identify(
+            &recipe, value.outcome_kind, &value.outcome_mapping_id) !=
+        LAPLACE_STANDING_OK) {
+        std::fputs("standing outcome mapping identity failed\n", stderr);
+        std::exit(71);
+    }
     if (laplace_standing_event_identify(&value, &value.event_id) !=
         LAPLACE_STANDING_OK) {
         std::fputs("standing event identity failed\n", stderr);
@@ -84,15 +110,15 @@ laplace_standing_event Event(
 }  // namespace
 
 int main() {
-    const auto participant = State(0x01u, 1500.0, 200.0);
-    const auto opponent_a = State(0x02u, 1400.0, 80.0);
-    const auto opponent_b = State(0x03u, 1600.0, 80.0);
+    const auto recipe = Recipe();
+    const auto participant = State(0x01u);
+    const auto opponent_a = State(0x02u);
+    const auto opponent_b = State(0x03u);
     const auto period = Digest(0x90u);
     std::array<laplace_standing_period_input, 2> inputs{};
+    inputs[0].recipe = recipe;
     inputs[0].prior_state = participant;
     inputs[0].event = Event(participant, opponent_a, period, 0xa0u, 1u);
-    inputs[0].volatility_constraint = 0.5;
-    inputs[0].convergence_tolerance = 0.000001;
     inputs[1] = inputs[0];
     inputs[1].event = Event(participant, opponent_b, period, 0xb0u, 0u);
     laplace_standing_period_result output{};
@@ -129,6 +155,20 @@ int main() {
         return 73;
     }
     Print("STANDING_PARTICIPANT_STATE", participant.state_id);
+    Print("STANDING_RECIPE", recipe.recipe_id);
+    Print("STANDING_AUTHORITY_RECEIPT", recipe.authority_receipt_id);
+    laplace_digest256 confirm_mapping{};
+    laplace_digest256 refute_mapping{};
+    if (laplace_standing_outcome_mapping_identify(
+            &recipe, LAPLACE_STANDING_OUTCOME_CONFIRM, &confirm_mapping) !=
+            LAPLACE_STANDING_OK ||
+        laplace_standing_outcome_mapping_identify(
+            &recipe, LAPLACE_STANDING_OUTCOME_REFUTE, &refute_mapping) !=
+            LAPLACE_STANDING_OK) {
+        return 76;
+    }
+    Print("STANDING_CONFIRM_MAPPING", confirm_mapping);
+    Print("STANDING_REFUTE_MAPPING", refute_mapping);
     Print("STANDING_PARTICIPANT_COORDINATE", participant.coordinate_id);
     Print("STANDING_ARENA", participant.arena_scope_id);
     Print("STANDING_OPPONENT_A_STATE", opponent_a.state_id);
@@ -154,11 +194,10 @@ int main() {
 
     const auto second_period = Digest(0x91u);
     std::array<laplace_standing_period_input, 1> second_inputs{};
+    second_inputs[0].recipe = recipe;
     second_inputs[0].prior_state = output.successor_state;
     second_inputs[0].event = Event(
         output.successor_state, opponent_a, second_period, 0xc0u, 1u);
-    second_inputs[0].volatility_constraint = 0.5;
-    second_inputs[0].convergence_tolerance = 0.000001;
     laplace_standing_period_result second_output{};
     if (laplace_standing_calculate_period_batch(
             second_inputs.data(), second_inputs.size(), &second_output,

@@ -53,6 +53,143 @@ static int numeric_state_valid(double rating, double deviation, double volatilit
         isfinite(volatility) && volatility > 0.0;
 }
 
+static int initial_state_matches_recipe(
+    const laplace_standing_state* state,
+    const laplace_standing_recipe* recipe) {
+    return state->period_ordinal != 0u ||
+        (state->eligible_match_count == 0u &&
+         state->rating == recipe->default_rating &&
+         state->rating_deviation == recipe->default_rating_deviation &&
+         state->volatility == recipe->default_volatility);
+}
+
+static uint64_t greatest_common_divisor(uint64_t left, uint64_t right) {
+    while (right != 0u) {
+        const uint64_t remainder = left % right;
+        left = right;
+        right = remainder;
+    }
+    return left;
+}
+
+static int recipe_shape_valid(const laplace_standing_recipe* recipe) {
+    uint32_t index;
+    const uint32_t allowed_mask =
+        (UINT32_C(1) << LAPLACE_STANDING_OUTCOME_UNCERTAIN) - UINT32_C(1);
+    if (recipe == NULL ||
+        bytes_zero(&recipe->authority_receipt_id,
+                   sizeof(recipe->authority_receipt_id)) ||
+        bytes_zero(&recipe->evaluation_law_id,
+                   sizeof(recipe->evaluation_law_id)) ||
+        bytes_zero(&recipe->world_context_id,
+                   sizeof(recipe->world_context_id)) ||
+        bytes_zero(&recipe->language_modality_id,
+                   sizeof(recipe->language_modality_id)) ||
+        bytes_zero(&recipe->valid_time_scope_id,
+                   sizeof(recipe->valid_time_scope_id)) ||
+        bytes_zero(&recipe->evidence_boundary_id,
+                   sizeof(recipe->evidence_boundary_id)) ||
+        !numeric_state_valid(recipe->default_rating,
+                             recipe->default_rating_deviation,
+                             recipe->default_volatility) ||
+        !isfinite(recipe->volatility_constraint) ||
+        recipe->volatility_constraint <= 0.0 ||
+        !isfinite(recipe->convergence_tolerance) ||
+        recipe->convergence_tolerance <= 0.0 ||
+        recipe->rateable_outcome_mask == 0u ||
+        (recipe->rateable_outcome_mask & ~allowed_mask) != 0u ||
+        recipe->participant_role == 0u || recipe->arena_kind == 0u ||
+        recipe->version != LAPLACE_STANDING_VERSION ||
+        recipe->flags != LAPLACE_STANDING_FLAGS_NONE) {
+        return 0;
+    }
+    for (index = 0u; index < LAPLACE_STANDING_OUTCOME_KIND_COUNT; ++index) {
+        const int rateable =
+            (recipe->rateable_outcome_mask & (UINT32_C(1) << index)) != 0u;
+        if ((rateable &&
+             (recipe->score_denominator[index] == 0u ||
+              recipe->score_numerator[index] >
+                  recipe->score_denominator[index] ||
+              greatest_common_divisor(recipe->score_numerator[index],
+                                      recipe->score_denominator[index]) != 1u)) ||
+            (!rateable &&
+             (recipe->score_numerator[index] != 0u ||
+              recipe->score_denominator[index] != 0u))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+laplace_standing_status laplace_standing_recipe_identify(
+    const laplace_standing_recipe* recipe,
+    laplace_digest256* recipe_id) {
+    blake3_hasher hasher;
+    uint32_t index;
+    if (recipe_id == NULL || !recipe_shape_valid(recipe)) {
+        return LAPLACE_STANDING_RECIPE_INVALID;
+    }
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(&hasher, LAPLACE_STANDING_RECIPE_DOMAIN,
+        sizeof(LAPLACE_STANDING_RECIPE_DOMAIN) - 1u);
+    blake3_hasher_update(&hasher, recipe->authority_receipt_id.bytes, 32u);
+    blake3_hasher_update(&hasher, recipe->evaluation_law_id.bytes, 32u);
+    blake3_hasher_update(&hasher, recipe->world_context_id.bytes, 32u);
+    blake3_hasher_update(&hasher, recipe->language_modality_id.bytes, 32u);
+    blake3_hasher_update(&hasher, recipe->valid_time_scope_id.bytes, 32u);
+    blake3_hasher_update(&hasher, recipe->evidence_boundary_id.bytes, 32u);
+    hash_double(&hasher, recipe->default_rating);
+    hash_double(&hasher, recipe->default_rating_deviation);
+    hash_double(&hasher, recipe->default_volatility);
+    hash_double(&hasher, recipe->volatility_constraint);
+    hash_double(&hasher, recipe->convergence_tolerance);
+    for (index = 0u; index < LAPLACE_STANDING_OUTCOME_KIND_COUNT; ++index) {
+        hash_u64(&hasher, recipe->score_numerator[index]);
+        hash_u64(&hasher, recipe->score_denominator[index]);
+    }
+    hash_u32(&hasher, recipe->rateable_outcome_mask);
+    hash_u32(&hasher, recipe->participant_role);
+    hash_u32(&hasher, recipe->arena_kind);
+    hash_u32(&hasher, recipe->version);
+    hash_u32(&hasher, recipe->flags);
+    finish_digest(&hasher, recipe_id);
+    return LAPLACE_STANDING_OK;
+}
+
+laplace_standing_status laplace_standing_outcome_mapping_identify(
+    const laplace_standing_recipe* recipe,
+    uint32_t outcome_kind,
+    laplace_digest256* mapping_id) {
+    laplace_digest256 expected_recipe_id;
+    blake3_hasher hasher;
+    uint32_t index;
+    laplace_standing_status status;
+    if (mapping_id == NULL || outcome_kind < LAPLACE_STANDING_OUTCOME_CONFIRM ||
+        outcome_kind > LAPLACE_STANDING_OUTCOME_INVALID_EXECUTION) {
+        return LAPLACE_STANDING_RECIPE_INVALID;
+    }
+    status = laplace_standing_recipe_identify(recipe, &expected_recipe_id);
+    if (status != LAPLACE_STANDING_OK) {
+        return status;
+    }
+    if (!digest_equal(&recipe->recipe_id, &expected_recipe_id)) {
+        return LAPLACE_STANDING_RECIPE_IDENTITY_MISMATCH;
+    }
+    index = outcome_kind - 1u;
+    if ((recipe->rateable_outcome_mask & (UINT32_C(1) << index)) == 0u) {
+        return LAPLACE_STANDING_OUTCOME_NOT_RATEABLE;
+    }
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(&hasher, LAPLACE_STANDING_OUTCOME_MAPPING_DOMAIN,
+        sizeof(LAPLACE_STANDING_OUTCOME_MAPPING_DOMAIN) - 1u);
+    blake3_hasher_update(&hasher, recipe->recipe_id.bytes, 32u);
+    hash_u32(&hasher, outcome_kind);
+    hash_u64(&hasher, recipe->score_numerator[index]);
+    hash_u64(&hasher, recipe->score_denominator[index]);
+    finish_digest(&hasher, mapping_id);
+    return LAPLACE_STANDING_OK;
+}
+
 static void hash_arena_scope(
     blake3_hasher* hasher, const laplace_standing_coordinate* coordinate) {
     blake3_hasher_update(hasher, coordinate->evaluation_law_id.bytes, 32u);
@@ -185,30 +322,50 @@ laplace_standing_status laplace_standing_event_identify(
 }
 
 laplace_standing_status laplace_standing_onboard(
-    const laplace_standing_coordinate* coordinate,
+    const laplace_standing_recipe* recipe,
+    const laplace_digest256* participant_id,
     const laplace_digest256* initialization_epoch_id,
-    double default_rating,
-    double default_rating_deviation,
-    double default_volatility,
     laplace_standing_state* state) {
+    laplace_standing_coordinate coordinate;
+    laplace_digest256 expected_recipe_id;
     laplace_standing_status status;
-    if (state == NULL || initialization_epoch_id == NULL ||
+    if (state == NULL || participant_id == NULL || initialization_epoch_id == NULL ||
+        bytes_zero(participant_id, sizeof(*participant_id)) ||
         bytes_zero(initialization_epoch_id, sizeof(*initialization_epoch_id)) ||
-        !numeric_state_valid(default_rating, default_rating_deviation, default_volatility)) {
+        recipe == NULL) {
         return LAPLACE_STANDING_INVALID_ARGUMENT;
     }
+    status = laplace_standing_recipe_identify(recipe, &expected_recipe_id);
+    if (status != LAPLACE_STANDING_OK) {
+        return status;
+    }
+    if (!digest_equal(&recipe->recipe_id, &expected_recipe_id)) {
+        return LAPLACE_STANDING_RECIPE_IDENTITY_MISMATCH;
+    }
+    memset(&coordinate, 0, sizeof(coordinate));
+    coordinate.participant_id = *participant_id;
+    coordinate.evaluation_law_id = recipe->evaluation_law_id;
+    coordinate.world_context_id = recipe->world_context_id;
+    coordinate.language_modality_id = recipe->language_modality_id;
+    coordinate.valid_time_scope_id = recipe->valid_time_scope_id;
+    coordinate.evidence_boundary_id = recipe->evidence_boundary_id;
+    coordinate.rating_recipe_id = recipe->recipe_id;
+    coordinate.participant_role = recipe->participant_role;
+    coordinate.arena_kind = recipe->arena_kind;
+    coordinate.rating_recipe_version = recipe->version;
+    coordinate.flags = LAPLACE_STANDING_FLAGS_NONE;
     memset(state, 0, sizeof(*state));
     status = laplace_standing_coordinate_identify(
-        coordinate, &state->arena_scope_id, &state->coordinate_id);
+        &coordinate, &state->arena_scope_id, &state->coordinate_id);
     if (status != LAPLACE_STANDING_OK) {
         return status;
     }
     state->epoch_id = *initialization_epoch_id;
-    state->rating_recipe_id = coordinate->rating_recipe_id;
-    state->rating = default_rating;
-    state->rating_deviation = default_rating_deviation;
-    state->volatility = default_volatility;
-    state->rating_recipe_version = coordinate->rating_recipe_version;
+    state->rating_recipe_id = recipe->recipe_id;
+    state->rating = recipe->default_rating;
+    state->rating_deviation = recipe->default_rating_deviation;
+    state->volatility = recipe->default_volatility;
+    state->rating_recipe_version = recipe->version;
     state->flags = LAPLACE_STANDING_FLAGS_NONE;
     status = laplace_standing_state_identify(state, &state->state_id);
     return status;
@@ -316,17 +473,17 @@ static void initialize_receipt(laplace_standing_period_receipt* receipt) {
 }
 
 laplace_standing_status laplace_standing_calculate_period(
+    const laplace_standing_recipe* recipe,
     const laplace_standing_state* prior_state,
     const laplace_digest256* period_id,
     const laplace_standing_event* events,
     size_t event_count,
-    double volatility_constraint,
-    double convergence_tolerance,
     laplace_standing_state* successor_state,
     laplace_standing_period_receipt* receipt,
     laplace_standing_error* error) {
     laplace_standing_event* ordered = NULL;
     laplace_digest256* roots = NULL;
+    laplace_digest256 expected_recipe_id;
     laplace_digest256 expected_state_id;
     blake3_hasher input_hasher;
     blake3_hasher output_hasher;
@@ -355,12 +512,17 @@ laplace_standing_status laplace_standing_calculate_period(
         error->volatility_iterations = 0u;
         error->reserved = 0u;
     }
-    if (prior_state == NULL || period_id == NULL || events == NULL ||
+    if (recipe == NULL || prior_state == NULL || period_id == NULL || events == NULL ||
         event_count == 0u || successor_state == NULL || receipt == NULL ||
-        bytes_zero(period_id, sizeof(*period_id)) ||
-        !isfinite(volatility_constraint) || volatility_constraint <= 0.0 ||
-        !isfinite(convergence_tolerance) || convergence_tolerance <= 0.0) {
+        bytes_zero(period_id, sizeof(*period_id))) {
         return LAPLACE_STANDING_INVALID_ARGUMENT;
+    }
+    status = laplace_standing_recipe_identify(recipe, &expected_recipe_id);
+    if (status != LAPLACE_STANDING_OK) {
+        return status;
+    }
+    if (!digest_equal(&recipe->recipe_id, &expected_recipe_id)) {
+        return LAPLACE_STANDING_RECIPE_IDENTITY_MISMATCH;
     }
     status = laplace_standing_state_identify(prior_state, &expected_state_id);
     if (status != LAPLACE_STANDING_OK) {
@@ -368,6 +530,13 @@ laplace_standing_status laplace_standing_calculate_period(
     }
     if (!digest_equal(&expected_state_id, &prior_state->state_id)) {
         return LAPLACE_STANDING_STATE_IDENTITY_MISMATCH;
+    }
+    if (!digest_equal(&prior_state->rating_recipe_id, &recipe->recipe_id) ||
+        prior_state->rating_recipe_version != recipe->version) {
+        return LAPLACE_STANDING_ARENA_MISMATCH;
+    }
+    if (!initial_state_matches_recipe(prior_state, recipe)) {
+        return LAPLACE_STANDING_PRIOR_MISMATCH;
     }
     if (event_count > SIZE_MAX / sizeof(*ordered) ||
         event_count > SIZE_MAX / sizeof(*roots)) {
@@ -384,6 +553,7 @@ laplace_standing_status laplace_standing_calculate_period(
     qsort(ordered, event_count, sizeof(*ordered), compare_event);
     for (index = 0u; index < event_count; ++index) {
         laplace_digest256 expected_event_id;
+        laplace_digest256 expected_mapping_id;
         laplace_digest256 expected_opponent_state_id;
         status = laplace_standing_state_identify(
             &ordered[index].opponent_prior_state, &expected_opponent_state_id);
@@ -407,6 +577,24 @@ laplace_standing_status laplace_standing_calculate_period(
             if (error != NULL) error->event_index = (uint64_t)index;
             goto failure;
         }
+        status = laplace_standing_outcome_mapping_identify(
+            recipe, ordered[index].outcome_kind, &expected_mapping_id);
+        if (status != LAPLACE_STANDING_OK) {
+            if (error != NULL) error->event_index = (uint64_t)index;
+            goto failure;
+        }
+#if !defined(LAPLACE_TEST_STANDING_ACCEPT_CALLER_MAPPING)
+        if (!digest_equal(&expected_mapping_id,
+                          &ordered[index].outcome_mapping_id) ||
+            ordered[index].score_numerator !=
+                recipe->score_numerator[ordered[index].outcome_kind - 1u] ||
+            ordered[index].score_denominator !=
+                recipe->score_denominator[ordered[index].outcome_kind - 1u]) {
+            status = LAPLACE_STANDING_OUTCOME_MAPPING_MISMATCH;
+            if (error != NULL) error->event_index = (uint64_t)index;
+            goto failure;
+        }
+#endif
         if (index != 0u && digest_equal(
                 &ordered[index - 1u].event_id, &ordered[index].event_id)) {
             status = LAPLACE_STANDING_EVENT_DUPLICATE;
@@ -431,6 +619,12 @@ laplace_standing_status laplace_standing_calculate_period(
             ordered[index].opponent_prior_state.rating_recipe_version !=
                 prior_state->rating_recipe_version) {
             status = LAPLACE_STANDING_ARENA_MISMATCH;
+            if (error != NULL) error->event_index = (uint64_t)index;
+            goto failure;
+        }
+        if (!initial_state_matches_recipe(
+                &ordered[index].opponent_prior_state, recipe)) {
+            status = LAPLACE_STANDING_PRIOR_MISMATCH;
             if (error != NULL) error->event_index = (uint64_t)index;
             goto failure;
         }
@@ -461,8 +655,7 @@ laplace_standing_status laplace_standing_calculate_period(
         sizeof(LAPLACE_STANDING_INPUT_DOMAIN) - 1u);
     blake3_hasher_update(&input_hasher, prior_state->state_id.bytes, 32u);
     blake3_hasher_update(&input_hasher, period_id->bytes, 32u);
-    hash_double(&input_hasher, volatility_constraint);
-    hash_double(&input_hasher, convergence_tolerance);
+    blake3_hasher_update(&input_hasher, recipe->recipe_id.bytes, 32u);
     hash_u64(&input_hasher, (uint64_t)event_count);
     for (index = 0u; index < event_count; ++index) {
         double opponent_rating = ordered[index].opponent_prior_state.rating;
@@ -495,7 +688,8 @@ laplace_standing_status laplace_standing_calculate_period(
     variance = 1.0 / variance_inverse;
     delta = variance * improvement_sum;
     status = solve_volatility(phi, participant_volatility, variance, delta,
-        volatility_constraint, convergence_tolerance, &next_volatility, &iterations);
+        recipe->volatility_constraint, recipe->convergence_tolerance,
+        &next_volatility, &iterations);
     if (status != LAPLACE_STANDING_OK) {
         if (error != NULL) error->volatility_iterations = iterations;
         goto failure;
@@ -582,6 +776,7 @@ laplace_standing_status laplace_standing_calculate_period_batch(
     laplace_standing_error* error) {
     laplace_standing_event* events;
     laplace_digest256 identified_state_id;
+    laplace_digest256 identified_recipe_id;
     size_t index;
     laplace_standing_status status;
     if (inputs == NULL || input_count == 0u || result == NULL ||
@@ -593,15 +788,30 @@ laplace_standing_status laplace_standing_calculate_period_batch(
         return LAPLACE_STANDING_RESOURCE_INSUFFICIENT;
     }
     for (index = 0u; index < input_count; ++index) {
+        status = laplace_standing_recipe_identify(
+            &inputs[index].recipe, &identified_recipe_id);
+        if (status != LAPLACE_STANDING_OK ||
+            !digest_equal(&identified_recipe_id,
+                          &inputs[index].recipe.recipe_id) ||
+            !digest_equal(&inputs[index].recipe.recipe_id,
+                          &inputs[0].recipe.recipe_id)) {
+            if (error != NULL) {
+                error->event_index = (uint64_t)index;
+                error->volatility_iterations = 0u;
+                error->reserved = 0u;
+            }
+            free(events);
+            return status == LAPLACE_STANDING_OK
+                ? LAPLACE_STANDING_RECIPE_IDENTITY_MISMATCH
+                : status;
+        }
         status = laplace_standing_state_identify(
             &inputs[index].prior_state, &identified_state_id);
         if (status != LAPLACE_STANDING_OK ||
             !digest_equal(&identified_state_id,
                           &inputs[index].prior_state.state_id) ||
             !digest_equal(&inputs[index].prior_state.state_id,
-                          &inputs[0].prior_state.state_id) ||
-            inputs[index].volatility_constraint != inputs[0].volatility_constraint ||
-            inputs[index].convergence_tolerance != inputs[0].convergence_tolerance) {
+                          &inputs[0].prior_state.state_id)) {
             if (error != NULL) {
                 error->event_index = (uint64_t)index;
                 error->volatility_iterations = 0u;
@@ -614,9 +824,9 @@ laplace_standing_status laplace_standing_calculate_period_batch(
     }
     memset(result, 0, sizeof(*result));
     status = laplace_standing_calculate_period(
-        &inputs[0].prior_state, &inputs[0].event.period_id,
-        events, input_count, inputs[0].volatility_constraint,
-        inputs[0].convergence_tolerance, &result->successor_state,
+        &inputs[0].recipe, &inputs[0].prior_state,
+        &inputs[0].event.period_id, events, input_count,
+        &result->successor_state,
         &result->receipt, error);
     free(events);
     return status;

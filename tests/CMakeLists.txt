@@ -673,6 +673,36 @@ add_test(
 set_tests_properties(standing-calculation.mutation-neutral-opponent-detected PROPERTIES
     LABELS "implementation;standing;glicko2;mutation")
 
+add_library(laplace_standing_caller_mapping_mutant STATIC
+    ../engine/src/standing_calculation.c)
+target_include_directories(laplace_standing_caller_mapping_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_standing_caller_mapping_mutant PRIVATE
+    BLAKE3::blake3 m)
+target_compile_definitions(laplace_standing_caller_mapping_mutant PRIVATE
+    LAPLACE_TEST_STANDING_ACCEPT_CALLER_MAPPING=1)
+target_compile_options(laplace_standing_caller_mapping_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes;-ffp-contract=off>)
+add_executable(laplace_standing_caller_mapping_mutation_probe
+    standing_calculation_tests.cpp)
+target_include_directories(laplace_standing_caller_mapping_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_standing_caller_mapping_mutation_probe PRIVATE
+    laplace_standing_caller_mapping_mutant GTest::gtest_main)
+target_compile_options(laplace_standing_caller_mapping_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME standing-calculation.mutation-caller-mapping-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_standing_caller_mapping_mutation_probe>"
+        "-DFILTER=StandingCalculation.RejectsCallerInventedOutcomeMappingsAndScores"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    standing-calculation.mutation-caller-mapping-detected PROPERTIES
+    LABELS "implementation;standing;recipe;identity;mutation")
+
 add_library(laplace_evidence_testimony_profile_mutant STATIC
     ../engine/src/evidence_testimony.c)
 target_include_directories(laplace_evidence_testimony_profile_mutant PRIVATE
@@ -1505,6 +1535,7 @@ if(LAPLACE_ENABLE_DOTNET_BINDINGS)
         DEPENDS
             laplace_dotnet_bindings
             "${CMAKE_SOURCE_DIR}/Directory.Build.props"
+            "${CMAKE_SOURCE_DIR}/managed/Laplace.Managed/Abi.cs"
             "${laplace_dotnet_test_project}"
             "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/Program.cs"
         COMMENT "Building dependency-free managed/native ISA parity tests"

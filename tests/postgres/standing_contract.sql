@@ -37,6 +37,7 @@ CREATE FUNCTION pg_temp.standing_state(
     state_id bytea,
     coordinate_id bytea,
     arena_scope_id bytea,
+    recipe_id bytea,
     rating double precision,
     deviation double precision)
 RETURNS laplace.standing_state
@@ -44,11 +45,28 @@ LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE
 AS $state$
     SELECT ROW(
         state_id, coordinate_id, arena_scope_id, decode(repeat('00',32),'hex'),
-        pg_temp.seed_digest(128), pg_temp.seed_digest(112),
+        pg_temp.seed_digest(128), recipe_id,
         rating, deviation, 0.06::double precision,
         0::numeric, 0::numeric, 1, 0
     )::laplace.standing_state
 $state$;
+
+CREATE FUNCTION pg_temp.standing_recipe(recipe_id bytea, authority_receipt_id bytea)
+RETURNS laplace.standing_recipe
+LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE
+AS $recipe$
+    SELECT ROW(
+        recipe_id, authority_receipt_id, pg_temp.seed_digest(32),
+        pg_temp.seed_digest(48), pg_temp.seed_digest(64),
+        pg_temp.seed_digest(80), pg_temp.seed_digest(96),
+        1500.0::double precision, 200.0::double precision,
+        0.06::double precision, 0.5::double precision,
+        0.000001::double precision,
+        ARRAY[1,0,1,1,0,0,0,0,0]::numeric[],
+        ARRAY[1,1,2,2,0,0,0,0,0]::numeric[],
+        15, 1, 1, 1, 0
+    )::laplace.standing_recipe
+$recipe$;
 
 CREATE FUNCTION pg_temp.standing_event(
     event_id bytea,
@@ -56,6 +74,7 @@ CREATE FUNCTION pg_temp.standing_event(
     opponent laplace.standing_state,
     period_seed integer,
     event_seed integer,
+    outcome_mapping_id bytea,
     score numeric,
     outcome integer)
 RETURNS laplace.standing_event
@@ -64,7 +83,7 @@ AS $event$
     SELECT ROW(
         event_id, (participant).coordinate_id, (participant).state_id, opponent,
         pg_temp.seed_digest(period_seed), pg_temp.seed_digest(event_seed),
-        pg_temp.seed_digest(event_seed + 1), pg_temp.seed_digest(event_seed + 2),
+        outcome_mapping_id, pg_temp.seed_digest(event_seed + 2),
         pg_temp.seed_digest(event_seed + 3), score, 1::numeric, outcome, 0
     )::laplace.standing_event
 $event$;
@@ -72,6 +91,10 @@ $event$;
 CREATE TEMP TABLE standing_expected AS
 SELECT
     decode(:'standing_participant_state','hex') participant_state,
+    decode(:'standing_recipe','hex') recipe,
+    decode(:'standing_authority_receipt','hex') authority_receipt,
+    decode(:'standing_confirm_mapping','hex') confirm_mapping,
+    decode(:'standing_refute_mapping','hex') refute_mapping,
     decode(:'standing_participant_coordinate','hex') participant_coordinate,
     decode(:'standing_arena','hex') arena,
     decode(:'standing_opponent_a_state','hex') opponent_a_state,
@@ -101,6 +124,7 @@ SELECT
 
 DO $contract$
 DECLARE
+    standing_recipe laplace.standing_recipe;
     participant laplace.standing_state;
     opponent_a laplace.standing_state;
     opponent_b laplace.standing_state;
@@ -115,22 +139,24 @@ DECLARE
     expected standing_expected%ROWTYPE;
 BEGIN
     SELECT * INTO STRICT expected FROM standing_expected;
+    standing_recipe := pg_temp.standing_recipe(
+        expected.recipe, expected.authority_receipt);
     participant := pg_temp.standing_state(
         expected.participant_state, expected.participant_coordinate,
-        expected.arena, 1500.0, 200.0);
+        expected.arena, expected.recipe, 1500.0, 200.0);
     opponent_a := pg_temp.standing_state(
         expected.opponent_a_state, expected.opponent_a_coordinate,
-        expected.arena, 1400.0, 80.0);
+        expected.arena, expected.recipe, 1500.0, 200.0);
     opponent_b := pg_temp.standing_state(
         expected.opponent_b_state, expected.opponent_b_coordinate,
-        expected.arena, 1600.0, 80.0);
+        expected.arena, expected.recipe, 1500.0, 200.0);
     first_inputs := ARRAY[
-        ROW(participant, pg_temp.standing_event(
+        ROW(standing_recipe, participant, pg_temp.standing_event(
             expected.event_a, participant, opponent_a,
-            144, 160, 1, 1), 0.5, 0.000001)::laplace.standing_period_input,
-        ROW(participant, pg_temp.standing_event(
+            144, 160, expected.confirm_mapping, 1, 1))::laplace.standing_period_input,
+        ROW(standing_recipe, participant, pg_temp.standing_event(
             expected.event_b, participant, opponent_b,
-            144, 176, 0, 2), 0.5, 0.000001)::laplace.standing_period_input
+            144, 176, expected.refute_mapping, 0, 2))::laplace.standing_period_input
     ];
     first_result := laplace.evidence_calculate_standing_batch(
         pg_temp.execution_context(), first_inputs);
@@ -156,7 +182,8 @@ BEGIN
        OR replay_result.isa_receipt_id <> first_result.isa_receipt_id THEN
         RAISE EXCEPTION 'standing replay changed canonical identity';
     END IF;
-    IF (SELECT count(*) FROM laplace.standing_state_history) <> 4
+    IF (SELECT count(*) FROM laplace.standing_recipe_history) <> 1
+       OR (SELECT count(*) FROM laplace.standing_state_history) <> 4
        OR (SELECT count(*) FROM laplace.standing_match_event) <> 2
        OR (SELECT count(*) FROM laplace.standing_period_receipt) <> 1
        OR (SELECT count(*) FROM laplace.standing_period_receipt_member) <> 2
@@ -175,9 +202,9 @@ BEGIN
         first_result.state_flags)::laplace.standing_state;
 
     repeated_root_inputs := ARRAY[
-        ROW(second_prior, pg_temp.standing_event(
+        ROW(standing_recipe, second_prior, pg_temp.standing_event(
             expected.repeated_root_event, second_prior, opponent_a,
-            191, 160, 1, 1), 0.5, 0.000001)::laplace.standing_period_input
+            191, 160, expected.confirm_mapping, 1, 1))::laplace.standing_period_input
     ];
     BEGIN
         PERFORM laplace.evidence_calculate_standing_batch(
@@ -195,9 +222,9 @@ BEGIN
     rejected := false;
 
     second_inputs := ARRAY[
-        ROW(second_prior, pg_temp.standing_event(
+        ROW(standing_recipe, second_prior, pg_temp.standing_event(
             expected.second_event, second_prior, opponent_a,
-            145, 192, 1, 1), 0.5, 0.000001)::laplace.standing_period_input
+            145, 192, expected.confirm_mapping, 1, 1))::laplace.standing_period_input
     ];
     second_result := laplace.evidence_calculate_standing_batch(
         pg_temp.execution_context(), second_inputs);
@@ -215,7 +242,8 @@ BEGIN
        OR second_result.successor_match_count <> 3 THEN
         RAISE EXCEPTION 'earned standing did not continue from its durable predecessor';
     END IF;
-    IF (SELECT count(*) FROM laplace.standing_state_history) <> 5
+    IF (SELECT count(*) FROM laplace.standing_recipe_history) <> 1
+       OR (SELECT count(*) FROM laplace.standing_state_history) <> 5
        OR (SELECT count(*) FROM laplace.standing_match_event) <> 3
        OR (SELECT count(*) FROM laplace.standing_period_receipt) <> 2
        OR (SELECT count(*) FROM laplace.standing_period_receipt_member) <> 3
@@ -239,6 +267,23 @@ BEGIN
     UPDATE laplace.standing_match_event
     SET context_id = pg_temp.seed_digest(162)
     WHERE event_id = expected.event_a;
+
+    rejected := false;
+    UPDATE laplace.standing_recipe_history
+    SET default_rating = default_rating + 1.0
+    WHERE recipe_id = expected.recipe;
+    BEGIN
+        PERFORM laplace.evidence_calculate_standing_batch(
+            pg_temp.execution_context(), first_inputs);
+    EXCEPTION WHEN data_corrupted THEN
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'standing replay accepted corrupted durable recipe history';
+    END IF;
+    UPDATE laplace.standing_recipe_history
+    SET default_rating = 1500.0
+    WHERE recipe_id = expected.recipe;
 
     rejected := false;
     UPDATE laplace.standing_state_history

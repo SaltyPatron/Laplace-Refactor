@@ -22,19 +22,33 @@ bool equal_digest(const laplace_digest256& left, const laplace_digest256& right)
     return std::memcmp(left.bytes, right.bytes, sizeof(left.bytes)) == 0;
 }
 
-laplace_standing_coordinate coordinate(std::uint8_t participant_seed) {
-    laplace_standing_coordinate value{};
-    value.participant_id = digest(participant_seed);
+laplace_standing_recipe recipe(std::uint8_t scope_seed = 0x20u) {
+    laplace_standing_recipe value{};
+    value.authority_receipt_id = digest(0x10u);
     value.evaluation_law_id = digest(0x20u);
-    value.world_context_id = digest(0x30u);
+    value.world_context_id = digest(scope_seed);
     value.language_modality_id = digest(0x40u);
     value.valid_time_scope_id = digest(0x50u);
     value.evidence_boundary_id = digest(0x60u);
-    value.rating_recipe_id = digest(0x70u);
+    value.default_rating = 1500.0;
+    value.default_rating_deviation = 200.0;
+    value.default_volatility = 0.06;
+    value.volatility_constraint = 0.5;
+    value.convergence_tolerance = 0.000001;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_CONFIRM - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_CONFIRM - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_REFUTE - 1u] = 1u;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 2u;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_UNCERTAIN - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_UNCERTAIN - 1u] = 2u;
+    value.rateable_outcome_mask = 0x0fu;
     value.participant_role = 1u;
     value.arena_kind = 1u;
-    value.rating_recipe_version = 1u;
+    value.version = LAPLACE_STANDING_VERSION;
     value.flags = LAPLACE_STANDING_FLAGS_NONE;
+    EXPECT_EQ(laplace_standing_recipe_identify(&value, &value.recipe_id),
+              LAPLACE_STANDING_OK);
     return value;
 }
 
@@ -43,12 +57,25 @@ laplace_standing_state onboard(
     double rating,
     double deviation,
     double volatility = 0.06) {
-    const auto participant = coordinate(participant_seed);
+    const auto standing_recipe = recipe();
+    const auto participant = digest(participant_seed);
     const auto epoch = digest(0x80u);
     laplace_standing_state state{};
     EXPECT_EQ(laplace_standing_onboard(
-                  &participant, &epoch, rating, deviation, volatility, &state),
+                  &standing_recipe, &participant, &epoch, &state),
               LAPLACE_STANDING_OK);
+    if (rating != standing_recipe.default_rating ||
+        deviation != standing_recipe.default_rating_deviation ||
+        volatility != standing_recipe.default_volatility) {
+        state.prior_state_id = digest(static_cast<std::uint8_t>(participant_seed + 0x31u));
+        state.rating = rating;
+        state.rating_deviation = deviation;
+        state.volatility = volatility;
+        state.eligible_match_count = 1u;
+        state.period_ordinal = 1u;
+        EXPECT_EQ(laplace_standing_state_identify(&state, &state.state_id),
+                  LAPLACE_STANDING_OK);
+    }
     return state;
 }
 
@@ -65,7 +92,6 @@ laplace_standing_event event(
     value.opponent_prior_state = opponent;
     value.period_id = period_id;
     value.eligible_root_id = digest(seed);
-    value.outcome_mapping_id = digest(static_cast<std::uint8_t>(seed + 1u));
     value.context_id = digest(static_cast<std::uint8_t>(seed + 2u));
     value.valid_time_id = digest(static_cast<std::uint8_t>(seed + 3u));
     value.score_numerator = score_numerator;
@@ -75,6 +101,11 @@ laplace_standing_event event(
         : (score_numerator == score_denominator
                ? LAPLACE_STANDING_OUTCOME_CONFIRM
                : LAPLACE_STANDING_OUTCOME_DRAW);
+    const auto standing_recipe = recipe();
+    EXPECT_EQ(laplace_standing_outcome_mapping_identify(
+                  &standing_recipe, value.outcome_kind,
+                  &value.outcome_mapping_id),
+              LAPLACE_STANDING_OK);
     value.flags = LAPLACE_STANDING_FLAGS_NONE;
     EXPECT_EQ(laplace_standing_event_identify(&value, &value.event_id),
               LAPLACE_STANDING_OK);
@@ -91,8 +122,9 @@ laplace_standing_status calculate(
     laplace_standing_error* error = nullptr) {
     laplace_standing_period_receipt local_receipt{};
     laplace_standing_error local_error{};
+    const auto standing_recipe = recipe();
     return laplace_standing_calculate_period(
-        &prior, &period, events, event_count, 0.5, 0.000001,
+        &standing_recipe, &prior, &period, events, event_count,
         successor, receipt == nullptr ? &local_receipt : receipt,
         error == nullptr ? &local_error : error);
 }
@@ -124,6 +156,88 @@ TEST(StandingCalculation, MatchesCorrectedGlickoTwoReferenceExample) {
     EXPECT_EQ(receipt.status, LAPLACE_STANDING_OK);
 }
 
+TEST(StandingCalculation, RecipeIdentityBindsAuthorityDefaultsAndMappings) {
+    const auto accepted = recipe();
+    auto changed_authority = accepted;
+    changed_authority.authority_receipt_id = digest(0xe1u);
+    laplace_digest256 changed_id{};
+    ASSERT_EQ(laplace_standing_recipe_identify(&changed_authority, &changed_id),
+              LAPLACE_STANDING_OK);
+    EXPECT_FALSE(equal_digest(changed_id, accepted.recipe_id));
+
+    auto changed_default = accepted;
+    changed_default.default_rating += 1.0;
+    ASSERT_EQ(laplace_standing_recipe_identify(&changed_default, &changed_id),
+              LAPLACE_STANDING_OK);
+    EXPECT_FALSE(equal_digest(changed_id, accepted.recipe_id));
+
+    auto changed_mapping = accepted;
+    changed_mapping.score_numerator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 2u;
+    changed_mapping.score_denominator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 3u;
+    ASSERT_EQ(laplace_standing_recipe_identify(&changed_mapping, &changed_id),
+              LAPLACE_STANDING_OK);
+    EXPECT_FALSE(equal_digest(changed_id, accepted.recipe_id));
+}
+
+TEST(StandingCalculation, OnboardingConsumesOnlyTheIdentifiedRecipeDefaults) {
+    const auto accepted = recipe();
+    const auto participant_id = digest(0x01u);
+    const auto epoch = digest(0x80u);
+    laplace_standing_state state{};
+    ASSERT_EQ(laplace_standing_onboard(
+                  &accepted, &participant_id, &epoch, &state),
+              LAPLACE_STANDING_OK);
+    EXPECT_DOUBLE_EQ(state.rating, accepted.default_rating);
+    EXPECT_DOUBLE_EQ(state.rating_deviation,
+                     accepted.default_rating_deviation);
+    EXPECT_DOUBLE_EQ(state.volatility, accepted.default_volatility);
+    EXPECT_TRUE(equal_digest(state.rating_recipe_id, accepted.recipe_id));
+
+    auto stale_identity = accepted;
+    stale_identity.default_rating += 1.0;
+    EXPECT_EQ(laplace_standing_onboard(
+                  &stale_identity, &participant_id, &epoch, &state),
+              LAPLACE_STANDING_RECIPE_IDENTITY_MISMATCH);
+
+    auto forged_initial = onboard(0x01u, 1500.0, 200.0);
+    forged_initial.rating += 1.0;
+    ASSERT_EQ(laplace_standing_state_identify(
+                  &forged_initial, &forged_initial.state_id),
+              LAPLACE_STANDING_OK);
+    const auto opponent = onboard(0x02u, 1500.0, 200.0);
+    const auto period = digest(0x8eu);
+    const auto forged_event = event(
+        forged_initial, opponent, period, 0x9du, 1u);
+    laplace_standing_state successor{};
+    EXPECT_EQ(calculate(
+                  forged_initial, period, &forged_event, 1u, &successor),
+              LAPLACE_STANDING_PRIOR_MISMATCH);
+}
+
+TEST(StandingCalculation, RejectsCallerInventedOutcomeMappingsAndScores) {
+    const auto participant = onboard(0x01u, 1500.0, 200.0);
+    const auto opponent = onboard(0x02u, 1400.0, 80.0);
+    const auto period = digest(0x8fu);
+    auto invented_mapping = event(
+        participant, opponent, period, 0x9fu, 1u);
+    invented_mapping.outcome_mapping_id = digest(0xefu);
+    ASSERT_EQ(laplace_standing_event_identify(
+                  &invented_mapping, &invented_mapping.event_id),
+              LAPLACE_STANDING_OK);
+    laplace_standing_state successor{};
+    EXPECT_EQ(calculate(participant, period, &invented_mapping, 1u, &successor),
+              LAPLACE_STANDING_OUTCOME_MAPPING_MISMATCH);
+
+    auto invented_score = event(participant, opponent, period, 0x9eu, 1u);
+    invented_score.score_numerator = 1u;
+    invented_score.score_denominator = 2u;
+    ASSERT_EQ(laplace_standing_event_identify(
+                  &invented_score, &invented_score.event_id),
+              LAPLACE_STANDING_OK);
+    EXPECT_EQ(calculate(participant, period, &invented_score, 1u, &successor),
+              LAPLACE_STANDING_OUTCOME_MAPPING_MISMATCH);
+}
+
 TEST(StandingCalculation, CanonicalOrderProducesOneStateAndReceipt) {
     const auto participant = onboard(0x01u, 1500.0, 200.0);
     const auto period = digest(0x91u);
@@ -152,11 +266,10 @@ TEST(StandingCalculation, TypedBatchCarriesTheCompletePeriodProgram) {
     const auto participant = onboard(0x01u, 1500.0, 200.0);
     const auto period = digest(0x98u);
     std::array<laplace_standing_period_input, 2> inputs{};
+    inputs[0].recipe = recipe();
     inputs[0].prior_state = participant;
     inputs[0].event = event(
         participant, onboard(0x02u, 1400.0, 80.0), period, 0xa7u, 1u);
-    inputs[0].volatility_constraint = 0.5;
-    inputs[0].convergence_tolerance = 0.000001;
     inputs[1] = inputs[0];
     inputs[1].event = event(
         participant, onboard(0x03u, 1600.0, 80.0), period, 0xb7u, 0u);
@@ -247,12 +360,12 @@ TEST(StandingCalculation, UnknownAndAbsenceAreNotLosses) {
 TEST(StandingCalculation, RejectsCrossArenaAndIdentityDrift) {
     const auto participant = onboard(0x01u, 1500.0, 200.0);
     const auto period = digest(0x97u);
-    auto other_coordinate = coordinate(0x02u);
-    other_coordinate.world_context_id = digest(0xeeu);
+    auto other_recipe = recipe(0xeeu);
     const auto epoch = digest(0x80u);
+    const auto other_participant = digest(0x02u);
     laplace_standing_state other_arena{};
     ASSERT_EQ(laplace_standing_onboard(
-                  &other_coordinate, &epoch, 1400.0, 80.0, 0.06, &other_arena),
+                  &other_recipe, &other_participant, &epoch, &other_arena),
               LAPLACE_STANDING_OK);
     auto cross_arena = event(participant, other_arena, period, 0xa6u, 1u);
     laplace_standing_state successor{};

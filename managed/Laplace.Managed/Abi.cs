@@ -220,6 +220,30 @@ public struct LaplaceEvidenceTestimonyReceipt
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public unsafe struct LaplaceStandingRecipe
+{
+    public LaplaceDigest256 RecipeId;
+    public LaplaceDigest256 AuthorityReceiptId;
+    public LaplaceDigest256 EvaluationLawId;
+    public LaplaceDigest256 WorldContextId;
+    public LaplaceDigest256 LanguageModalityId;
+    public LaplaceDigest256 ValidTimeScopeId;
+    public LaplaceDigest256 EvidenceBoundaryId;
+    public double DefaultRating;
+    public double DefaultRatingDeviation;
+    public double DefaultVolatility;
+    public double VolatilityConstraint;
+    public double ConvergenceTolerance;
+    public fixed ulong ScoreNumerator[9];
+    public fixed ulong ScoreDenominator[9];
+    public uint RateableOutcomeMask;
+    public uint ParticipantRole;
+    public uint ArenaKind;
+    public uint Version;
+    public uint Flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct LaplaceStandingState
 {
     public LaplaceDigest256 StateId;
@@ -276,10 +300,9 @@ public struct LaplaceStandingPeriodReceipt
 [StructLayout(LayoutKind.Sequential)]
 public struct LaplaceStandingPeriodInput
 {
+    public LaplaceStandingRecipe Recipe;
     public LaplaceStandingState PriorState;
     public LaplaceStandingEvent Event;
-    public double VolatilityConstraint;
-    public double ConvergenceTolerance;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -654,6 +677,26 @@ public static class LaplaceNativeAbi
         OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.NegativeDispositionCount)),
         OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.Version)),
         OffsetOf<LaplaceEvidenceTestimonyReceipt>(nameof(LaplaceEvidenceTestimonyReceipt.Status)),
+        checked((uint)Marshal.SizeOf<LaplaceStandingRecipe>()),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.RecipeId)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.AuthorityReceiptId)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.EvaluationLawId)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.WorldContextId)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.LanguageModalityId)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.ValidTimeScopeId)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.EvidenceBoundaryId)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.DefaultRating)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.DefaultRatingDeviation)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.DefaultVolatility)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.VolatilityConstraint)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.ConvergenceTolerance)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.ScoreNumerator)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.ScoreDenominator)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.RateableOutcomeMask)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.ParticipantRole)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.ArenaKind)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.Version)),
+        OffsetOf<LaplaceStandingRecipe>(nameof(LaplaceStandingRecipe.Flags)),
         checked((uint)Marshal.SizeOf<LaplaceStandingState>()),
         OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.StateId)),
         OffsetOf<LaplaceStandingState>(nameof(LaplaceStandingState.CoordinateId)),
@@ -697,10 +740,9 @@ public static class LaplaceNativeAbi
         OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.Status)),
         OffsetOf<LaplaceStandingPeriodReceipt>(nameof(LaplaceStandingPeriodReceipt.Flags)),
         checked((uint)Marshal.SizeOf<LaplaceStandingPeriodInput>()),
+        OffsetOf<LaplaceStandingPeriodInput>(nameof(LaplaceStandingPeriodInput.Recipe)),
         OffsetOf<LaplaceStandingPeriodInput>(nameof(LaplaceStandingPeriodInput.PriorState)),
         OffsetOf<LaplaceStandingPeriodInput>(nameof(LaplaceStandingPeriodInput.Event)),
-        OffsetOf<LaplaceStandingPeriodInput>(nameof(LaplaceStandingPeriodInput.VolatilityConstraint)),
-        OffsetOf<LaplaceStandingPeriodInput>(nameof(LaplaceStandingPeriodInput.ConvergenceTolerance)),
         checked((uint)Marshal.SizeOf<LaplaceStandingPeriodResult>()),
         OffsetOf<LaplaceStandingPeriodResult>(nameof(LaplaceStandingPeriodResult.SuccessorState)),
         OffsetOf<LaplaceStandingPeriodResult>(nameof(LaplaceStandingPeriodResult.Receipt)),

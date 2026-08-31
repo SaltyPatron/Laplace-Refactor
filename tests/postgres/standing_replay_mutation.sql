@@ -14,25 +14,28 @@ DECLARE
     participant laplace.standing_state;
     opponent_a laplace.standing_state;
     opponent_b laplace.standing_state;
+    recipe laplace.standing_recipe;
     inputs laplace.standing_period_input[];
 BEGIN
     SELECT * INTO STRICT expected FROM standing_expected;
+    recipe := pg_temp.standing_recipe(
+        expected.recipe, expected.authority_receipt);
     participant := pg_temp.standing_state(
         expected.participant_state, expected.participant_coordinate,
-        expected.arena, 1500.0, 200.0);
+        expected.arena, expected.recipe, 1500.0, 200.0);
     opponent_a := pg_temp.standing_state(
         expected.opponent_a_state, expected.opponent_a_coordinate,
-        expected.arena, 1400.0, 80.0);
+        expected.arena, expected.recipe, 1500.0, 200.0);
     opponent_b := pg_temp.standing_state(
         expected.opponent_b_state, expected.opponent_b_coordinate,
-        expected.arena, 1600.0, 80.0);
+        expected.arena, expected.recipe, 1500.0, 200.0);
     inputs := ARRAY[
-        ROW(participant, pg_temp.standing_event(
+        ROW(recipe, participant, pg_temp.standing_event(
             expected.event_a, participant, opponent_a,
-            144, 160, 1, 1), 0.5, 0.000001)::laplace.standing_period_input,
-        ROW(participant, pg_temp.standing_event(
+            144, 160, expected.confirm_mapping, 1, 1))::laplace.standing_period_input,
+        ROW(recipe, participant, pg_temp.standing_event(
             expected.event_b, participant, opponent_b,
-            144, 176, 0, 2), 0.5, 0.000001)::laplace.standing_period_input
+            144, 176, expected.refute_mapping, 0, 2))::laplace.standing_period_input
     ];
     UPDATE laplace.standing_state_history
     SET rating = rating + 1.0

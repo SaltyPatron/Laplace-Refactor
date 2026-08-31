@@ -7,6 +7,21 @@
       "covered_dimensions": ["corrected Glicko-2 calculation", "real opponent prior states", "exact period successor"]
     },
     {
+      "ctest_name": "StandingCalculation.RecipeIdentityBindsAuthorityDefaultsAndMappings",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["authority receipt binding", "typed default binding", "outcome mapping binding"]
+    },
+    {
+      "ctest_name": "StandingCalculation.OnboardingConsumesOnlyTheIdentifiedRecipeDefaults",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-PERSISTENT-STATE-ADDRESSING"],
+      "covered_dimensions": ["one-time typed default", "recipe identity validation", "coordinate recipe binding"]
+    },
+    {
+      "ctest_name": "StandingCalculation.RejectsCallerInventedOutcomeMappingsAndScores",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-NEGATIVE-EVIDENCE"],
+      "covered_dimensions": ["accepted mapping identity", "exact rational score", "caller policy rejection"]
+    },
+    {
       "ctest_name": "StandingCalculation.CanonicalOrderProducesOneStateAndReceipt",
       "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-BULK-DETERMINISM"],
       "covered_dimensions": ["canonical event order", "order-independent state identity", "order-independent receipt"]
@@ -55,6 +70,11 @@
       "ctest_name": "standing-calculation.mutation-neutral-opponent-detected",
       "evidence_targets": ["LP-TEST-PREDICTION-COMPATIBILITY-STANDING"],
       "covered_dimensions": ["neutral-opponent substitution mutation detection"]
+    },
+    {
+      "ctest_name": "standing-calculation.mutation-caller-mapping-detected",
+      "evidence_targets": ["LP-TEST-EVIDENCE-TOPOLOGY-STANDING", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["caller-supplied outcome mapping acceptance mutation detection"]
     },
     {
       "ctest_name": "isa.mutation-standing-input-order-receipt-detected",
