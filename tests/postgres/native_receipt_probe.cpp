@@ -175,6 +175,10 @@ bool AppendPersistenceFrame(
 int main() {
     const std::array<std::uint8_t, 5> source_archive{{0u, 1u, 255u, 'P', 'K'}};
     const std::string source_text{"Id\tName\neng\tEnglish\njpn\t日本語\n"};
+    static constexpr std::string_view source_archive_media_type{
+        "application/zip"};
+    static constexpr std::string_view source_text_media_type{
+        "text/tab-separated-values; charset=utf-8"};
     static constexpr std::array<std::string_view, 2> source_column_names{{
         "Id", "Name"}};
     std::array<laplace_tabular_column, 2> source_columns{};
@@ -192,8 +196,10 @@ int main() {
         sizeof(source_artifacts[0].expected_sha256));
     source_artifacts[0].bytes = source_archive.data();
     source_artifacts[0].name = "release.zip";
+    source_artifacts[0].media_type = source_archive_media_type.data();
     source_artifacts[0].byte_count = source_archive.size();
     source_artifacts[0].name_byte_count = std::strlen(source_artifacts[0].name);
+    source_artifacts[0].media_type_byte_count = source_archive_media_type.size();
     source_artifacts[0].mode = LAPLACE_TABULAR_ARTIFACT_RAW;
     source_artifacts[0].flags = LAPLACE_TABULAR_ARTIFACT_CONTAINER;
     source_artifacts[1].artifact_id = ParseDigest(
@@ -206,9 +212,11 @@ int main() {
     source_artifacts[1].bytes = reinterpret_cast<const std::uint8_t*>(
         source_text.data());
     source_artifacts[1].name = "tables/languages.tab";
+    source_artifacts[1].media_type = source_text_media_type.data();
     source_artifacts[1].columns = source_columns.data();
     source_artifacts[1].byte_count = source_text.size();
     source_artifacts[1].name_byte_count = std::strlen(source_artifacts[1].name);
+    source_artifacts[1].media_type_byte_count = source_text_media_type.size();
     source_artifacts[1].expected_record_count = 3u;
     source_artifacts[1].expected_field_count = 6u;
     source_artifacts[1].reference_column_mask = 3u;

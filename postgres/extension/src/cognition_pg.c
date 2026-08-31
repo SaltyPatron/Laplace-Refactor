@@ -23,7 +23,7 @@
 #include "laplace_pg_internal.h"
 #include "set_pg.h"
 
-PG_FUNCTION_INFO_V1(laplace_pg_cognition_solve);
+PG_FUNCTION_INFO_V1(laplace_pg_cognition_solve_isa);
 
 static void read_digest_attribute(
     HeapTupleHeader tuple,
@@ -405,7 +405,7 @@ static ArrayType* solution_array(const double* solution, size_t count) {
         type_length, type_by_value, type_alignment);
 }
 
-Datum laplace_pg_cognition_solve(PG_FUNCTION_ARGS) {
+Datum laplace_pg_cognition_solve_isa(PG_FUNCTION_ARGS) {
     laplace_framework_context context;
     laplace_digest256 context_fingerprint;
     laplace_cognition_operator_program operator_program;

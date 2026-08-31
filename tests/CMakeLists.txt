@@ -80,7 +80,8 @@ target_include_directories(laplace_tabular_source_tests PRIVATE
 target_compile_options(laplace_tabular_source_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_tabular_source_tests PROPERTIES
-    LABELS "implementation;source-profile;grammar;recipe;ast;composition")
+    LABELS "implementation;source-profile;grammar;recipe;ast;composition"
+    ENVIRONMENT "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}")
 
 add_executable(laplace_iso_639_source_tests
     iso_639_source_tests.cpp)

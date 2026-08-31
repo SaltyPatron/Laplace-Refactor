@@ -30,6 +30,7 @@ add_library(laplace_engine SHARED
     src/reference_mapping.c
     src/source_profile.c
     src/tabular_source.cpp
+    src/decomposition_composition.cpp
     src/world_admission.c
     src/composition.cpp
     src/trajectory.c
@@ -76,6 +77,7 @@ add_library(Laplace::ReferenceTopology ALIAS laplace_engine)
 add_library(Laplace::ReferenceMapping ALIAS laplace_engine)
 add_library(Laplace::SourceProfile ALIAS laplace_engine)
 add_library(Laplace::TabularSource ALIAS laplace_engine)
+add_library(Laplace::DecompositionComposition ALIAS laplace_engine)
 add_library(Laplace::WorldAdmission ALIAS laplace_engine)
 add_library(Laplace::Composition ALIAS laplace_engine)
 add_library(Laplace::Highway ALIAS laplace_engine)
