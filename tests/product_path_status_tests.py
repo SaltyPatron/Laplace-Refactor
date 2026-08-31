@@ -68,7 +68,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
                 end = len(workflow)
             block = workflow[start:end]
             self.assertIn(
-                "    if: always() && needs.product-path.result == 'success'\n",
+                "    if: always() && needs.product-path.result == 'success'",
                 block,
                 f"legacy protected context {check_name} can be transitively skipped",
             )
