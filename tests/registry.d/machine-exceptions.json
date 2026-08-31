@@ -1,0 +1,63 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "MachineExceptionRegistry.GeneratedRegistryPreservesDistinctMachineConditions",
+      "evidence_targets": [
+        "LP-TEST-MACHINE-EXCEPTION-TAXONOMY",
+        "LP-TEST-HARDWARE-FAULT-DISPOSITION"
+      ],
+      "covered_dimensions": [
+        "generated condition identity",
+        "trap fault cancellation and terminal-disposition separation",
+        "hardware unknown resource deadline contradiction and provider noncollapse",
+        "failed-condition nonpublication"
+      ],
+      "defect_controls": ["hardware fault collapsed to unknown"]
+    },
+    {
+      "ctest_name": "MachineExceptionRegistry.PrioritySelectionRetainsEveryObservedConditionAndBinding",
+      "evidence_targets": ["LP-TEST-EXCEPTION-PRIORITY"],
+      "covered_dimensions": [
+        "generated priority law",
+        "lower-priority condition retention",
+        "instruction program plan provider node world transaction durability replay and invalidated-output binding"
+      ],
+      "defect_controls": ["route-specific catch order", "discarded simultaneous conditions"]
+    },
+    {
+      "ctest_name": "MachineExceptionReceipt.ReplayBoundaryAndFailedPublicationRemainExplicit",
+      "evidence_targets": [
+        "LP-TEST-FAULT-REPLAY-BOUNDARY",
+        "LP-TEST-FAILED-EFFECT-NONPUBLICATION",
+        "LP-TEST-WHY-NOT-TYPED-DISPOSITION"
+      ],
+      "covered_dimensions": [
+        "durable replay origin",
+        "invalidated output boundary",
+        "reroute replay capability",
+        "typed why-not work obligations and continuation condition"
+      ],
+      "defect_controls": ["failed effect published as semantic success", "replay without durable boundary"]
+    },
+    {
+      "ctest_name": "MachineExceptionRegistry.TypedLimitsCannotImpersonateSemanticSuccess",
+      "evidence_targets": ["LP-TEST-PARTIAL-NONCOMPLETION"],
+      "covered_dimensions": [
+        "partial result publication",
+        "known upper bound publication",
+        "semantic contradiction nonpublication"
+      ],
+      "defect_controls": ["partial or upper-bound result promoted to complete semantic success"]
+    },
+    {
+      "ctest_name": "machine-exception.mutation-hardware-to-unknown-detected",
+      "evidence_targets": [
+        "LP-TEST-MACHINE-EXCEPTION-TAXONOMY",
+        "LP-TEST-HARDWARE-FAULT-DISPOSITION"
+      ],
+      "covered_dimensions": ["deliberate condition-collapse rejection"],
+      "defect_controls": ["hardware fault reclassified as epistemic unknown"]
+    }
+  ]
+}
