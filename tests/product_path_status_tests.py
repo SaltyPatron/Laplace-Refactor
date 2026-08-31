@@ -56,10 +56,17 @@ class ProductPathGitStatusTests(unittest.TestCase):
             "legacy-native-sanitize": "native (linux-sanitize)",
         }
         for job_id, check_name in aliases.items():
+            marker = f"  {job_id}:\n    name: {check_name}\n    needs: product-path\n"
             self.assertIn(
-                f"  {job_id}:\n    name: {check_name}\n    needs: product-path\n",
+                marker,
                 workflow,
                 f"legacy protected context {check_name} can bypass product-path",
+            )
+            block = workflow[workflow.index(marker):]
+            self.assertIn(
+                "    if: always() && needs.product-path.result == 'success'\n",
+                block[:600],
+                f"legacy protected context {check_name} can be transitively skipped",
             )
         self.assertGreaterEqual(workflow.count("needs.product-path.result"), len(aliases))
 
@@ -71,7 +78,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
             workflow,
         )
         deployment = workflow[workflow.index("  dev-bat-deployment:"):]
-        self.assertIn("github.event_name == 'push'", deployment)
+        self.assertIn("      always() &&\n      github.event_name == 'push'", deployment)
         self.assertIn("github.ref == 'refs/heads/main'", deployment)
         self.assertIn("needs.product-path.result == 'success'", deployment)
         self.assertIn("    permissions:\n      actions: write\n      contents: read\n", deployment)
@@ -217,6 +224,17 @@ class ProductPathGitStatusTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.assert_legacy_branch_protection_bridge(mutant)
 
+    def test_deliberate_legacy_skip_cascade_is_detected(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        mutant = workflow.replace(
+            "    if: always() && needs.product-path.result == 'success'\n",
+            "",
+            1,
+        )
+        self.assertNotEqual(workflow, mutant)
+        with self.assertRaises(AssertionError):
+            self.assert_legacy_branch_protection_bridge(mutant)
+
     def test_deliberate_pr_deployment_defect_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
@@ -224,6 +242,19 @@ class ProductPathGitStatusTests(unittest.TestCase):
         mutant = workflow.replace(
             "github.event_name == 'push'",
             "github.event_name == 'pull_request'",
+            1,
+        )
+        self.assertNotEqual(workflow, mutant)
+        with self.assertRaises(AssertionError):
+            self.assert_main_push_deployment_boundary(mutant, activation, contract)
+
+    def test_deliberate_deployment_skip_cascade_is_detected(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
+        contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
+        mutant = workflow.replace(
+            "      always() &&\n      github.event_name == 'push'",
+            "      github.event_name == 'push'",
             1,
         )
         self.assertNotEqual(workflow, mutant)
