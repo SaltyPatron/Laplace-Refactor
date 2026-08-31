@@ -1,0 +1,35 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "StockRecipe.CompilesRecursiveMultiSourceCatalogWithDerivedPlanes",
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-ADMISSION-SOURCE-TOPOLOGY"],
+      "covered_dimensions": ["source release collection object region and semantic-construction recipe hierarchy", "multiple unrelated source profiles", "recipe-owned derived perfcache planes"]
+    },
+    {
+      "ctest_name": "StockRecipe.CatalogIdentityIsInvariantToCallerOrder",
+      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["canonical catalog identity", "caller-order independence", "complete recipe and perfcache set binding"]
+    },
+    {
+      "ctest_name": "StockRecipe.RejectsOrphanAndCrossSourceHierarchy",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["orphan rejection", "source-profile isolation", "strict parent scope"]
+    },
+    {
+      "ctest_name": "StockRecipe.RejectsUnownedOrSemanticallyDriftedPerfcachePlane",
+      "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
+      "covered_dimensions": ["perfcache recipe ownership", "semantic verifier identity binding", "acceleration cannot self-authorize"]
+    },
+    {
+      "ctest_name": "StockRecipe.RequiresOneSharedModalityAgnosticSegmentationLaw",
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["one shared semantic segmentation law", "modality-neutral recipe catalog", "source-specific semantic branch rejection"]
+    },
+    {
+      "ctest_name": "stock-recipe.mutation-parent-bypass-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["parent validation mutation detection", "cross-source hierarchy mutation detection"]
+    }
+  ]
+}

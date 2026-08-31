@@ -615,6 +615,41 @@ target_compile_options(laplace_standing_calculation_tests PRIVATE
 gtest_discover_tests(laplace_standing_calculation_tests PROPERTIES
     LABELS "implementation;standing;glicko2;evidence;receipt")
 
+add_executable(laplace_stock_recipe_tests stock_recipe_tests.cpp)
+target_link_libraries(laplace_stock_recipe_tests PRIVATE
+    Laplace::StockRecipe GTest::gtest_main)
+target_compile_options(laplace_stock_recipe_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_stock_recipe_tests PROPERTIES
+    LABELS "implementation;recipe;source-profile;perfcache;catalog")
+
+add_library(laplace_stock_recipe_parent_mutant STATIC
+    ../engine/src/stock_recipe.c)
+target_include_directories(laplace_stock_recipe_parent_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_stock_recipe_parent_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_stock_recipe_parent_mutant PRIVATE
+    LAPLACE_TEST_STOCK_RECIPE_PARENT_BYPASS=1)
+target_compile_options(laplace_stock_recipe_parent_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_stock_recipe_parent_mutation_probe stock_recipe_tests.cpp)
+target_include_directories(laplace_stock_recipe_parent_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_stock_recipe_parent_mutation_probe PRIVATE
+    laplace_stock_recipe_parent_mutant GTest::gtest_main)
+target_compile_options(laplace_stock_recipe_parent_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME stock-recipe.mutation-parent-bypass-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_stock_recipe_parent_mutation_probe>"
+        "-DFILTER=StockRecipe.RejectsOrphanAndCrossSourceHierarchy"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(stock-recipe.mutation-parent-bypass-detected PROPERTIES
+    LABELS "implementation;recipe;source-profile;mutation")
+
 add_library(laplace_standing_prior_reset_mutant STATIC
     ../engine/src/standing_calculation.c)
 target_include_directories(laplace_standing_prior_reset_mutant PRIVATE

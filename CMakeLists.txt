@@ -118,6 +118,10 @@ include(cmake/LaplaceStandingCalculationContract.cmake)
 laplace_configure_standing_calculation_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/standing-calculation.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/standing_calculation.h")
+include(cmake/LaplaceStockRecipeContract.cmake)
+laplace_configure_stock_recipe_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/stock-recipe.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/stock_recipe.h")
 include(cmake/LaplaceReferenceTopologyContract.cmake)
 laplace_configure_reference_topology_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-topology.json"

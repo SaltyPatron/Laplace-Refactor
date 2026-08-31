@@ -1,0 +1,25 @@
+{
+  "schema": "laplace.stock-recipe-catalog/v1",
+  "version": 1,
+  "domains": {
+    "recipe": "laplace.stock-recipe.v1",
+    "perfcache_plane": "laplace.stock-recipe.perfcache-plane.v1",
+    "catalog": "laplace.stock-recipe.catalog.v1"
+  },
+  "scope_kinds": {
+    "source": 1,
+    "release": 2,
+    "collection": 3,
+    "digital_object": 4,
+    "structural_region": 5,
+    "semantic_construction": 6
+  },
+  "flags": {"none": 0},
+  "law": {
+    "authority": "the configured authority manufactures and selects stock recipes; filesystem discovery cannot admit one",
+    "hierarchy": "every non-source recipe names an earlier-scope parent in the same source profile and sibling ordinals are unique",
+    "semantics": "every recipe binds the shared modality-agnostic semantic-segmentation law plus exact grammar codec lowering recomposition loss correction and conformance witnesses",
+    "perfcache": "each declared derived plane binds exact key value dependency generation verification invalidation and rebuild law and can only accelerate its owning canonical recipe",
+    "canonical": "catalog identity is invariant to caller order and covers every recipe and perfcache declaration"
+  }
+}
