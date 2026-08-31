@@ -189,12 +189,18 @@ requirements:
       - LP-TEST-CONSENSUS-EPOCH-ASOF
       - LP-TEST-CONSENSUS-RECOMPUTATION-HISTORY
   - id: LP-EVIDENCE-004
-    statement: Competing true false uncertain and contradicted propositions remain exact addressable content with complete testimony while standing is calculated from typed relational density independent roots compatibility prediction contradiction time context and trust rather than raw link count; immutable observations are retained independently of query-relative conclusions so ingest order cannot rewrite what occurred and one outcome cannot validate unrelated outputs from the same event.
+    statement: Competing true false uncertain and contradicted propositions remain exact addressable content with complete testimony while standing is calculated only in a declared typed outcome-bearing lane from both participants prior rating deviation and volatility with one-time default initialization immutable rating-at-event history dependence-aware evidence and a separate independent return leg for earned trust; exact physicality and formal derivation never become votes, absence is not a loss, immutable observations remain independent of query-relative conclusions, ingest order cannot rewrite what occurred, and one outcome cannot validate an unrelated lane.
     evidence:
       - LP-TEST-COMPETING-PROPOSITION-PRESERVATION
       - LP-TEST-EVIDENCE-TOPOLOGY-STANDING
       - LP-TEST-DEPENDENT-LINK-NONAMPLIFICATION
       - LP-TEST-PREDICTION-COMPATIBILITY-STANDING
+      - LP-TEST-RATING-DEFAULT-ONCE
+      - LP-TEST-RATING-OPPONENT-STATE
+      - LP-TEST-TRUST-RETURN-LEG
+      - LP-TEST-RATING-UNKNOWN-NONLOSS
+      - LP-TEST-FORMAL-RESULT-NONVOTING
+      - LP-TEST-RATING-EVENT-TIME-REPLAY
   - id: LP-CONVERSATION-001
     statement: Conversation is persistent multilingual cross-modal ISA execution rather than isolated lookup.
     evidence:
@@ -226,7 +232,7 @@ requirements:
       - LP-TEST-LOSSY-PROJECTION-DECLARATION
       - LP-TEST-TARGET-SHAPE-NONPROOF
   - id: LP-QUERY-001
-    statement: Neighbor is a program scoped calculation over distinct exact structural geometric occurrence semantic and epistemic channels whose Glicko 2 trust context epoch importance and ranking inputs remain receipted and whose result never becomes canonical authority or a timeless universal score.
+    statement: Neighbor and constituent importance are program-scoped calculations over distinct exact structural geometric occurrence semantic and epistemic channels whose Glicko 2 trust context epoch semantic act token tier language AST role trajectory relation direction and completion inputs remain receipted; no noun function word punctuation whitespace gap source relation tier rank or result becomes canonical authority or a timeless universal score.
     evidence:
       - LP-TEST-QUERY-STRUCTURAL-NEIGHBOR-NO-TESTIMONY
       - LP-TEST-QUERY-METRIC-FAMILY-DIVERGENCE
@@ -235,6 +241,7 @@ requirements:
       - LP-TEST-QUERY-CONTEXTUAL-IMPORTANCE
       - LP-TEST-QUERY-RANK-NONAUTHORITY
       - LP-TEST-QUERY-CROSS-ROUTE-PARITY
+      - LP-TEST-CONTEXTUAL-CONSTITUENT-IMPORTANCE
   - id: LP-SEARCH-001
     statement: Goal directed query and cognition compile indexed A star or declared best first search over typed substrate states with bulk frontier generation contextual costs proven heuristic and reopen semantics deterministic completion receipts and no KNN ANN vector or lookup result acting as universal relevance.
     evidence:
@@ -351,12 +358,15 @@ requirements:
       - LP-TEST-AIMAP-POSTPROCESS-VALIDITY
       - LP-TEST-AIMAP-RANK-NONCYCLING
   - id: LP-REALIZATION-001
-    statement: Cognition selects a typed semantic act before a modality realizer calculates and generates exact content under structural evidence and receipt constraints without using an English token plan as the universal intermediate form.
+    statement: Cognition selects a typed semantic act before a modality realizer calculates and generates exact content under witnessed morphology syntax orthography punctuation trajectory pragmatics discourse context register evidence and receipt constraints without using an English token plan as the universal intermediate form; language identification alone is not realization readiness, missing obligations produce an exact typed why-not, and later outcomes can update only the exact tested realizer lane.
     evidence:
       - LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION
       - LP-TEST-CROSS-MODAL-SEMANTIC-PLAN
       - LP-TEST-MULTILINGUAL-NON-ENGLISH-INTERMEDIATE
       - LP-TEST-REALIZATION-PROVENANCE-CLOSURE
+      - LP-TEST-LANGUAGE-READINESS-WHY-NOT
+      - LP-TEST-SEMANTIC-ACT-MULTILINGUAL-REALIZATION
+      - LP-TEST-REALIZER-LANE-RETURN-LEG
   - id: LP-MODEL-001
     statement: Models enter as witnesses and do not impose their architecture on Laplace or other targets.
     evidence:
@@ -400,11 +410,14 @@ requirements:
       - LP-TEST-MODEL-EFFECTIVE-SUPPORT
       - LP-TEST-MODEL-ARBITRARY-THRESHOLD-REJECTION
   - id: LP-LANGUAGE-001
-    statement: Ordered composition and realization are Unicode native and reproduce CJK and every other script without an English token or punctuation dependency.
+    statement: Laplace speaks the complete Unicode codepoint-position machine language and renders witnessed natural languages and modalities; recipes address canonical compositions at any required structural tier with exact descent and enclosing-trajectory ascent, while token tier role occurrence language whitespace and interpretation remain outside content identity and no fixed subword vocabulary leading-space hack English pivot stop-word deletion or punctuation erasure defines native semantics.
     evidence:
       - LP-TEST-CJK-TRAJECTORY-RENDER
       - LP-TEST-CONVERSATION-MULTILINGUAL
       - LP-TEST-UNICODE-ATOM-FLOOR
+      - LP-TEST-UNICODE-MACHINE-LANGUAGE
+      - LP-TEST-TIERED-TOKEN-ADDRESSING
+      - LP-TEST-NATIVE-LEADING-SPACE-NONIDENTITY
   - id: LP-PERF-001
     statement: Complete ingest reaches at least 500000 input records per second on the declared i7-6850K system.
     evidence:
@@ -478,6 +491,22 @@ requirements:
       - LP-TEST-ADMISSION-READ-REACHABILITY
       - LP-TEST-ADMISSION-NO-TRAINING
       - LP-TEST-ADMISSION-GRAMMAR-NONSEMANTIC
+  - id: LP-SEED-001
+    statement: The configured foundational seed is a versioned authority-selected manifest of exact source release profile artifact graph and role coordinates independent of local discovery paths; inventory provider qualification template acceptance controlled integration activated-product world admission configured seed completion deployed inference acceptance and release remain distinct receipted states, and unrelated files under an observed root cannot expand the seed.
+    evidence:
+      - LP-TEST-SELECTED-SEED-MANIFEST
+      - LP-TEST-SEED-STAGE-SEPARATION
+  - id: LP-TEMPLATE-001
+    statement: Candidate source-profile grammar codec universal-AST lowering testimony reference and reconstruction templates are synthesized by comparing exact qualified source structures with accepted generic recipes and prior corrections while preserving source-specific academic semantics ambiguity loss errors unmatched fields and authority obligations; only conformance and authority publish an immutable accepted version for later reuse, and no candidate becomes a source-named private engine truth or active recipe by resemblance.
+    evidence:
+      - LP-TEST-RECIPE-TEMPLATE-INFERENCE
+      - LP-TEST-RECIPE-TEMPLATE-CORRECTION-REUSE
+      - LP-TEST-RECIPE-TEMPLATE-UNRESOLVED
+  - id: LP-INFERENCE-001
+    statement: Before production-user content is admitted or release is claimed the installed activated product with its configured foundational seed must answer an indirectly derivable question through the public cognition and realization route using no direct target attestation, produce a typed derivation trust disposition exact language realization and complete receipt, distinguish formal result from testimony and standing, and reproduce the same semantic result and derivation after restart while deliberate lookup voting scope missing-operation and corrupt-receipt defects fail.
+    evidence:
+      - LP-TEST-CLEAN-SEED-INDIRECT-INFERENCE
+      - LP-TEST-CLEAN-SEED-DELIBERATE-DEFECTS
   - id: LP-APPLICATION-001
     statement: People organizations external accounts memberships achievements activities repositories product views interfaces nodes and every other application concept enter according to role as the same exact content referential state AST composition occurrence testimony governance recipe effect and receipt forms and cannot create an application specific identity evidence persistence query cognition or realization engine.
     evidence:

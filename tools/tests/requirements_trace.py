@@ -14,6 +14,7 @@ from typing import Iterable
 PRODUCT_SCHEMA = "laplace.requirements/v1"
 ALIGNMENT_SCHEMA = "laplace.alignment/v1"
 OPERATION_SCHEMA = "laplace.operation-model/v1"
+AUTHORITY_STACK_SCHEMA = "laplace.authority-stack/v1"
 PRODUCT_ID = re.compile(r"^LP-[A-Z0-9-]+$")
 EVIDENCE_ID = re.compile(r"^LP-TEST-[A-Z0-9-]+$")
 ALIGNMENT_ID = re.compile(r"^LAP-ALIGN-[A-Z0-9-]+$")
@@ -51,6 +52,8 @@ class TraceReport:
     implemented_evidence_count: int
     operation_stage_count: int
     operationally_mapped_product_count: int
+    required_authority_contract_count: int
+    required_contract_scenario_count: int
 
 
 def _read_lines(path: Path) -> list[str]:
@@ -446,6 +449,150 @@ def feature_scenarios(feature_root: Path, known_evidence: set[str]) -> int:
     return count
 
 
+def required_feature_scenario_tags(
+    path: Path,
+    known_evidence: set[str],
+) -> list[set[str]]:
+    lines = _read_lines(path)
+    scenarios: list[set[str]] = []
+    pending_tags: set[str] = set()
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("@"):
+            pending_tags = {
+                tag
+                for tag in re.findall(r"@([A-Z0-9-]+)", stripped)
+                if tag.startswith("LP-TEST-")
+            }
+            unknown = sorted(pending_tags - known_evidence)
+            if unknown:
+                raise TraceError(
+                    f"required feature references unknown evidence targets: {path}: "
+                    + ", ".join(unknown)
+                )
+            continue
+        if re.fullmatch(r"Scenario(?: Outline)?: .+", stripped):
+            if not pending_tags:
+                raise TraceError(f"required feature has an untagged scenario: {path}: {stripped}")
+            scenarios.append(set(pending_tags))
+            pending_tags.clear()
+            continue
+        if stripped and not stripped.startswith("#") and not stripped.startswith("Feature:"):
+            pending_tags.clear()
+    if not scenarios:
+        raise TraceError(f"required feature has no tagged scenarios: {path}")
+    return scenarios
+
+
+def validate_required_authority_contracts(
+    repo_root: Path,
+    product: dict[str, ProductRequirement],
+    operation_stages: dict[str, dict[str, object]],
+) -> tuple[int, int]:
+    authority_path = repo_root / "contracts/authority-stack.json"
+    try:
+        authority = json.loads(authority_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise TraceError(f"cannot read {authority_path}: {error}") from error
+    if authority.get("schema") != AUTHORITY_STACK_SCHEMA:
+        raise TraceError(f"{authority_path} must use {AUTHORITY_STACK_SCHEMA}")
+    load_order = authority.get("required_load_order")
+    if not isinstance(load_order, list) or not load_order:
+        raise TraceError(f"{authority_path} has no required_load_order")
+    loaded_contracts = {
+        entry.get("path")
+        for entry in load_order
+        if isinstance(entry, dict) and entry.get("class") == "executable_contract"
+    }
+
+    evidence_owners: dict[str, list[str]] = {}
+    for requirement in product.values():
+        for evidence in requirement.evidence:
+            evidence_owners.setdefault(evidence, []).append(requirement.identifier)
+    stage_issues = {
+        issue
+        for stage in operation_stages.values()
+        for issue in stage["github_issues"]
+    }
+
+    required_count = 0
+    scenario_count = 0
+    for path in sorted((repo_root / "contracts").glob("*.json")):
+        try:
+            raw_contract = path.read_text(encoding="utf-8")
+        except (OSError, json.JSONDecodeError) as error:
+            raise TraceError(f"cannot read {path}: {error}") from error
+        if '"authority_stack_required"' not in raw_contract:
+            continue
+        try:
+            contract = json.loads(raw_contract)
+        except json.JSONDecodeError as error:
+            raise TraceError(f"cannot read required contract {path}: {error}") from error
+        traceability = contract.get("traceability")
+        if not isinstance(traceability, dict) or traceability.get("authority_stack_required") is not True:
+            continue
+        required_count += 1
+        relative = path.relative_to(repo_root).as_posix()
+        if relative not in loaded_contracts:
+            raise TraceError(f"required contract is absent from authority load order: {relative}")
+
+        contract_requirements = traceability.get("product_requirements")
+        if (
+            not isinstance(contract_requirements, list)
+            or not contract_requirements
+            or any(item not in product for item in contract_requirements)
+            or len(contract_requirements) != len(set(contract_requirements))
+        ):
+            raise TraceError(f"required contract has invalid product joins: {relative}")
+        contract_requirement_set = set(contract_requirements)
+
+        contract_issues = traceability.get("github_issues")
+        if (
+            not isinstance(contract_issues, list)
+            or not contract_issues
+            or any(not isinstance(item, int) or isinstance(item, bool) or item <= 0 for item in contract_issues)
+            or len(contract_issues) != len(set(contract_issues))
+        ):
+            raise TraceError(f"required contract has invalid issue joins: {relative}")
+        missing_issues = sorted(set(contract_issues) - stage_issues)
+        if missing_issues:
+            raise TraceError(
+                f"required contract issues are absent from operation graph: {relative}: "
+                + ", ".join(str(issue) for issue in missing_issues)
+            )
+
+        feature_files = traceability.get("feature_files")
+        if (
+            not isinstance(feature_files, list)
+            or not feature_files
+            or any(not isinstance(item, str) or not item for item in feature_files)
+            or len(feature_files) != len(set(feature_files))
+        ):
+            raise TraceError(f"required contract has invalid feature joins: {relative}")
+        for feature_relative in feature_files:
+            feature_path = repo_root / feature_relative
+            if feature_path.is_absolute() and not feature_path.is_relative_to(repo_root):
+                raise TraceError(f"required contract has unsafe feature join: {relative}")
+            if not feature_path.is_file():
+                raise TraceError(f"required contract feature is missing: {feature_relative}")
+            tagged_scenarios = required_feature_scenario_tags(feature_path, set(evidence_owners))
+            scenario_count += len(tagged_scenarios)
+            for tags in tagged_scenarios:
+                for tag in tags:
+                    owners = evidence_owners.get(tag, [])
+                    if len(owners) != 1:
+                        raise TraceError(
+                            f"required scenario evidence target lacks exactly one product owner: {tag}"
+                        )
+                    if owners[0] not in contract_requirement_set:
+                        raise TraceError(
+                            f"required scenario evidence target is outside contract product joins: {relative}: {tag}"
+                        )
+    if required_count == 0:
+        raise TraceError("no authority-stack-required contracts were declared")
+    return required_count, scenario_count
+
+
 def _flatten(values: Iterable[Iterable[str]]) -> set[str]:
     return {item for group in values for item in group}
 
@@ -524,6 +671,9 @@ def validate(repo_root: Path) -> TraceReport:
     scenario_count = feature_scenarios(
         repo_root / "requirements/features", evidence_ids
     )
+    required_contract_count, required_contract_scenario_count = (
+        validate_required_authority_contracts(repo_root, product, operation_stages)
+    )
     return TraceReport(
         product_requirement_count=len(product),
         evidence_target_count=len(evidence_ids),
@@ -534,6 +684,8 @@ def validate(repo_root: Path) -> TraceReport:
         implemented_evidence_count=len(implemented_evidence),
         operation_stage_count=len(operation_stages),
         operationally_mapped_product_count=len(operational_product_ids),
+        required_authority_contract_count=required_contract_count,
+        required_contract_scenario_count=required_contract_scenario_count,
     )
 
 
@@ -560,7 +712,9 @@ def main() -> int:
         f"{report.registered_test_count} registered tests, "
         f"{report.implemented_evidence_count} implemented evidence targets, "
         f"{report.operation_stage_count} operation stages, "
-        f"{report.operationally_mapped_product_count} operationally mapped product requirements"
+        f"{report.operationally_mapped_product_count} operationally mapped product requirements, "
+        f"{report.required_authority_contract_count} authority-stack-required contracts, "
+        f"{report.required_contract_scenario_count} required contract scenarios"
     )
     return 0
 

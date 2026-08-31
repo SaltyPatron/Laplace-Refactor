@@ -26,7 +26,7 @@ An issue, document, schema, Gherkin scenario, green authority test, or populated
 does not advance a mechanism to an implementation proof state. One corpus, grammar,
 modality, model, platform, or product surface cannot certify the universal machine.
 
-## Present boundary — 2026-08-26
+## Present boundary — 2026-08-31
 
 | Capability | Current fact |
 | --- | --- |
@@ -42,7 +42,11 @@ modality, model, platform, or product surface cannot certify the universal machi
 | Universal AST grammar registry and general recipe compiler | Unimplemented |
 | Whole-machine typed numerical highway | Partial: exact generated registry and scoped coordinates, ISA materialization, canonical Unicode-backed AST admission, shared presence/deposition, controlled numeric-epoch activation, epoch-pinned active readback, and protected product-controller/gateway composition implemented; protected product activation and whole-seed topology remain incomplete |
 | Exact non-Unicode source profiles | Partial: the real ISO 639-3 2026-04-15 release profile and generic tabular compiler are controlled-integration proven; no profile is world-admitted in the activated product |
+| Source-estate discovery, provider qualification, and reusable template inference | Required and operationally separated under #112/#115; PR #114 is an open unmerged discovery-catalog slice; provider qualification and template/correction execution are unimplemented |
 | Heterogeneous world admission and foundational knowledge seed | Partial mechanism: synthetic and ISO 639-3 whole routes are controlled-integration proven; no activated-product world admission or configured foundational seed exists |
+| Typed Glicko-2 matchup onboarding and trust return legs | Required under #110 with default-once, real-opponent, immutable-history, dependence, and return-leg acceptance; execution and persistence are unimplemented |
+| Unicode-native token tiers and witnessed language realization | Required contract and tagged acceptance exist; tier selection, cognition, readiness, and realization engines are unimplemented |
+| Clean-seed indirect inference before production-user admission | Release-blocking requirement under #116; configured seed, public-route derivation/trust/realization, restart, replay, and deliberate defects are unimplemented |
 | Typed A-star query, answerability, cognition, and realization | Unimplemented |
 | General model decomposition and target compiler | Unimplemented |
 | Typed model-behavior admission and measured effective support | Unimplemented; tracked by #71 |
@@ -105,6 +109,12 @@ product Unicode root + typed numerical highway
 testimony / lineage + exact heterogeneous source profiles and world admission
               |
               v
+source discovery/qualification + reusable template correction
+              |
+              v
+configured foundational seed closure
+              |
+              v
 adjudication + typed operators + indexed A* + answerability
               |
               v
@@ -146,15 +156,20 @@ different structural, reference, evidence, and realization programs.
 | `bootstrap.unicode-root` | Product-deposited and coherently activated Unicode atom floor | #13, #14 | Calculation, sibling deposition, public epoch-pinned access, and the complete restart/readback controller are integration-proven; not product activated | Successor package and PostgreSQL 18.6 cluster active with exact durable DB/cache/root receipt |
 | `substrate.highway` | Append-only typed coordinates for every machine namespace | #52 | Partial: generated registry, exact scoped coordinate operation, ISA 1.4 materialization, native/PostgreSQL/C# mirrors, canonical Unicode-backed AST admission, shared set-wise presence/deposition, controlled durable activation, restart replay, epoch-pinned active readback, and protected product-controller/gateway composition are implemented; product activation has not run | Activate the exact product package/cluster/Unicode/Highway chain, then implement whole-seed topology, append-only successor activation, and cross-language/cross-modality bubble-up/bubble-down proof |
 | `evidence.record-lineage` | Immutable occurrences, testimony, derivation, and dependence roots | #16 | Partial: typed lineage plus complete profile/recipe/trust/outcome/uncertainty testimony records execute through native, ISA, managed, PostgreSQL, and one real ISO source route; adjudication and cross-source dependence remain | Cross-source provenance, negative/unresolved real-source dispositions, standing, contradiction, referential and consensus epochs |
+| `world.discover-qualify-sources` | Deterministic discovery catalog and qualified Tree-sitter/codec/standards-provider receipts without source-authority promotion | #112 | Unimplemented on `main`; PR #114 is open and unmerged | Relocation-invariant catalog plus bounded provider coverage/error/recovery/reconstruction receipts |
+| `world.infer-source-templates` | Reusable generic recipe/template proposals, source-specific academic deltas, explicit unresolved obligations, correction, and immutable accepted versions | #115 | Unimplemented | Cross-source reuse, correction carry-forward, reconstruction/loss, and auto-activation mutants |
 | `world.admit-witnesses` | Exact source profiles and heterogeneous AST world admission | #53, #59 | Partial: generic tabular recipe plus synthetic and real ISO 639-3 source-to-PostgreSQL whole routes are controlled-integration proven; selected tables are exact while the archive wrapper is provenance-only; 18,805 typed ISO reference occurrences resolve into 9,339 scoped coordinates with 18,404 present, 401 retired, and zero unresolved dispositions; product world admission is absent | Unrelated grammars/modalities, explicit cross-namespace mappings, cross-profile closure, activated-product readback, complete configured profiles, performance, and seed receipt |
-| `evidence.adjudicate` | Immutable standing, contradiction, and referential epochs | #16 | Unimplemented | Deterministic dependence-aware adjudication and as-of replay |
+| `evidence.adjudicate` | Immutable standing, typed matchup/onboarding, contradiction, and referential epochs | #16, #110 | Unimplemented | Default-once real-opponent Glicko-2, independent return legs, deterministic dependence-aware adjudication, and as-of replay |
 | `query.guidance-search` | Typed operators, guidance, indexed A-star, answerability, and completion | #17, #60 | Unimplemented | Independent oracles, shortest-path certificates, typed incompleteness, SQL parity |
 | `cognition.realize-effect` | Semantic-act selection, reversible realization, and authorized effects | #18 | Unimplemented | Goal completion, AST transformation, exact recomposition, effect and consequence receipts |
 | `learning.discovery-ooda` | Evidence learning, frayed-edge discovery, experiments, and calculus extension | #19 | Unimplemented | Disjoint evidence, counterexamples, OODA replay, non-self-corroboration |
+| `world.configure-foundational-seed` | Authority-selected configured seed closure across admitted profiles, references, dependence, evidence, and required publications | #53, #115 | Unimplemented | Exact selected manifest, cross-profile closure, denominators, active epoch, and why-not receipt |
 | `model.ingest-generate` | Model witnesses, behavior experiments, effective support, induced operators, AImaps, and named-invariant target compilation | #20, #61, #71 | Unimplemented | Typed behavior readback and target-runtime oracles reject arbitrary pruning, flattening, and shape-only exports |
 | `product.materialize-entity-world` | People/organizations as worlds; personal webs, entitlements, identity, and surfaces | #21, #62, #63, #64, #68 | Unimplemented | Audience/visibility/security and semantic parity across generated surfaces |
 | `runtime.federate-nodes` | Authenticated world exchange, placement, convergence, and one-machine portability | #21, #65, #66, #67 | Unimplemented | Partition/replay convergence, durability proof, x86/ARM semantic parity |
-| `delivery.activate-product` | Installed package, services, generated manual, diagnostics, and release evidence | #21, #22, #50, #69 | Partial: current-main package composition/revalidation, signed package selection, root installation, isolated cluster, Unicode, and Highway workflow are implemented; root gateway and product are not activated | Install the immutable root gateway trust anchor, execute protected activation, then complete Linux/Windows lifecycle and whole-product release decision |
+| `delivery.activate-product` | Installed package, services, generated manual inputs, diagnostics, and activated product state | #21, #50, #69 | Partial: current-main package composition/revalidation, signed package selection, root installation, isolated cluster, Unicode, and Highway workflow are implemented; root gateway and product are not activated | Install the immutable root gateway trust anchor, execute protected activation, and prove Linux/Windows lifecycle |
+| `delivery.accept-seeded-inference` | Clean configured-seed indirect derivation, trust explanation, exact language realization, restart, replay, and deliberate-defect proof through the public product | #116 | Unimplemented | No direct target attestation or production-user state; arithmetic contradiction/modulo/missing-operator/corrupt-receipt controls pass |
+| `delivery.release-product` | Complete-product acceptance and exact release publication | #22 | Unimplemented | Every required state and complete-route receipt closes; exact package/manual/provenance are published |
 
 ## Critical path from the interrupted work
 
@@ -181,23 +196,34 @@ interesting corpus:
    effect topology; implement append-only successor activation and witnessed
    bubble-up/bubble-down routes. Equal local numbers never collapse across those
    dimensions without witnessed mappings.
-5. Populate exact source profiles over the known heterogeneous source universe, then
-   schedule recipe DAGs across the configured working set. Close artifact, syntax,
-   reference, evidence, readback, denominator, performance, and publication receipts.
-6. Admit the configured foundational world boundary. This—not WordNet, PGN, or any
-   other exemplar—is the knowledge-seed outcome.
-7. Build typed operators, indexed search, answerability, cognition, recomposition, and
+5. Inventory only the authority-selected source estate, qualify every eligible pinned
+   Tree-sitter/codec/standards provider, infer reusable generic template parts, retain
+   source-specific academic semantic deltas and unresolved obligations, and publish
+   accepted corrections as immutable reusable versions. The observed contents of
+   `/vault/Data` and `/vault/models` cannot select the seed.
+6. Populate exact source profiles and schedule recipe DAGs across the configured
+   working set. Close artifact, syntax, reference, evidence, readback, denominator,
+   performance, and publication receipts. FIDE/FICS and academic behavior/language
+   sources require exact authority, release, license, construct, annotation, and
+   measurement profiles rather than source-name trust defaults.
+7. Admit and close the configured foundational world boundary. This—not WordNet, PGN,
+   one catalog, or any other exemplar—is the knowledge-seed outcome.
+8. Build typed operators, indexed search, answerability, cognition, recomposition, and
    realization over that state. KNN, ANN, geometry, perfcaches, and top-k may generate
    frontier candidates; none becomes universal relevance, truth, or completion.
-8. Prove model witness/target compilation and entity-world product surfaces as sibling
+9. Prove model witness/target compilation and entity-world product surfaces as sibling
    programs over the same machine. Admit model behavior through typed experiment
    coordinates and measured effective-support laws under #71. Do not flatten relation
    families for model export or create social/profile-specific semantics for product
    delivery.
-9. Prove federation and physical placement, then portability on actual selected ARM
+10. Prove federation and physical placement, then portability on actual selected ARM
     hardware without creating a reduced edition.
-10. Generate the architecture manual from the same registries and release only the
-    package whose complete-product receipts the manual describes.
+11. Before production-user admission, execute #116 through the installed public product
+    with the configured seed, no direct target attestation, and zero production-user
+    observations; prove derivation, typed trust, exact language realization, restart,
+    replay, and deliberate failures.
+12. Generate the architecture manual from the same registries and release only the
+    package whose complete-product receipts—including #116—the manual describes.
 
 ## Parallel lanes that do not change the critical path
 
@@ -220,7 +246,7 @@ interesting corpus:
 ## DevOps control plane
 
 GitHub issue #23 owns the whole product. Phase milestones order capability exits.
-Issues #10, #15, #17, #20, #21, #50, #52, and #53 own major capability programs;
+Issues #10, #15, #17, #20, #21, #50, #52, #53, #110, #112, #115, and #116 own major capability or release-gate programs;
 focused subissues own independently acceptable outcomes. GitHub Project #2,
 `Laplace Refactor — Machine Roadmap`, tracks phase, proof state, priority, work class,
 and operational stage. Issue #72 owns sparse addressability and measured

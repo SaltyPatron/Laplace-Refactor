@@ -58,10 +58,12 @@
     {"order": 11, "path": "contracts/recipe-model.json", "class": "executable_contract", "purpose": "typed grammar recipe compilation and execution law"},
     {"order": 12, "path": "contracts/source-profile-model.json", "class": "executable_contract", "purpose": "Unicode-level exact source release artifact grammar recipe witness and closure law"},
     {"order": 13, "path": "contracts/source-admission.json", "class": "executable_contract", "purpose": "complete witness topology and generic source-admission law"},
-    {"order": 14, "path": "docs/architecture/ACCEPTANCE.md", "class": "executable_contract", "purpose": "implementation-level and complete-product proof boundaries"},
-    {"order": 15, "path": "docs/product/ROADMAP.md", "class": "program_execution_projection", "purpose": "current proof-state critical path and GitHub ownership projected from the operational contract"},
-    {"order": 16, "path": "docs/audits/CONTINUATION_WORK_AUDIT_2026-08-26.md", "class": "observed_development_state", "purpose": "dated session chronology work effort action inventory process corrections and publication boundary"},
-    {"order": 17, "path": "state/continuation.json", "class": "observed_development_state", "purpose": "verified current work and runtime checkpoint"}
+    {"order": 14, "path": "contracts/trust-matchup-realization.json", "class": "executable_contract", "purpose": "Unicode machine language tiered operand standing matchup onboarding trust return-leg contextual importance and language realization law"},
+    {"order": 15, "path": "contracts/source-recipe-preparation.json", "class": "executable_contract", "purpose": "selected seed identity provider qualification reusable source-template correction academic semantic delta and deployed clean-seed inference law"},
+    {"order": 16, "path": "docs/architecture/ACCEPTANCE.md", "class": "executable_contract", "purpose": "implementation-level and complete-product proof boundaries"},
+    {"order": 17, "path": "docs/product/ROADMAP.md", "class": "program_execution_projection", "purpose": "current proof-state critical path and GitHub ownership projected from the operational contract"},
+    {"order": 18, "path": "docs/audits/CONTINUATION_WORK_AUDIT_2026-08-26.md", "class": "observed_development_state", "purpose": "dated session chronology work effort action inventory process corrections and publication boundary"},
+    {"order": 19, "path": "state/continuation.json", "class": "observed_development_state", "purpose": "verified current work and runtime checkpoint"}
   ],
   "work_selection_gate": [
     "state the complete product behavior this work advances",

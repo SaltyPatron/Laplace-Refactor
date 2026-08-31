@@ -1,0 +1,132 @@
+{
+  "schema": "laplace.source-recipe-preparation/v1",
+  "status": "required",
+  "authority": {
+    "source": "inventor-direct-requirement",
+    "issues": [23, 53, 112, 115, 116, 117],
+    "higher_authority": [
+      "docs/product/CONSTITUTION.md",
+      "docs/product/INVENTION_MODEL.md",
+      "contracts/recipe-model.json",
+      "contracts/source-profile-model.json",
+      "contracts/source-admission.json"
+    ]
+  },
+  "traceability": {
+    "authority_stack_required": true,
+    "product_requirements": [
+      "LP-SEED-001",
+      "LP-TEMPLATE-001",
+      "LP-INFERENCE-001"
+    ],
+    "feature_files": [
+      "requirements/features/source_recipe_preparation.feature"
+    ],
+    "github_issues": [112, 115, 116]
+  },
+  "state_separation": [
+    "inventor_selected_source_identity",
+    "local_artifact_discovery",
+    "provider_qualification",
+    "candidate_template_synthesis",
+    "accepted_template_version",
+    "source_profile_conformance",
+    "controlled_integration",
+    "activated_product_world_admission",
+    "configured_foundational_seed_completion",
+    "deployed_clean_seed_inference_acceptance",
+    "release"
+  ],
+  "selected_seed": {
+    "rule": "the configured seed is a versioned authority-selected manifest of exact source releases profiles artifact graphs and roles; it is never inferred from a directory listing",
+    "observed_roots": ["/vault/Data", "/vault/models"],
+    "observed_roots_are_authority": false,
+    "unselected_artifacts_expand_manifest": false,
+    "current_starting_families": [
+      "Unicode_UCD_DUCET_and_conformance",
+      "ISO_639_CILI_PWN_WordNet_OMW_Wiktionary_Webster_Britannica_1911",
+      "Project_Gutenberg_Universal_Dependencies_Tatoeba_OpenSubtitles",
+      "FrameNet_PropBank_VerbNet_SemLink_PredicateMatrix_MapNet_WordFrameNet",
+      "ConceptNet_and_ATOMIC_family",
+      "code_repository_build_execution_and_tool_history",
+      "image_audio_video_geospatial_game_chess_and_model_artifacts"
+    ],
+    "requested_expansion_families_requiring_exact_authority_release_license_resolution": [
+      "FIDE_chess_authority_and_rating_material",
+      "FICS_game_and_rating_observations",
+      "academic_hate_speech_abusive_language_and_behavior_taxonomies_datasets_and_measurement_sources"
+    ]
+  },
+  "provider_boundary": {
+    "tree_sitter": "replaceable concrete syntax witness whose nodes fields ordered children spans aliases errors missing nodes recoveries scanner and provider identity remain witnessed state",
+    "codecs_and_standards_parsers": "replaceable recovery providers for binary media containers tensors games and other digital structures",
+    "canonical_lowering": "covered exact content lowers through the common Unicode numeric universal AST and Merkle DAG identity law",
+    "forbidden": [
+      "extension_only_provider_selection",
+      "arbitrary_binary_as_UTF8",
+      "provider_metadata_in_content_identity",
+      "parse_success_as_semantic_authority"
+    ]
+  },
+  "template_inference": {
+    "inputs": [
+      "exact selected source profile and artifact observations",
+      "qualified provider receipts",
+      "accepted generic recipes and source templates",
+      "source documentation schemas examples counterexamples and licenses",
+      "prior human or authority corrections"
+    ],
+    "candidate_outputs": [
+      "reused generic container grammar codec and AST lowering parts",
+      "source specific semantic testimony and reference deltas",
+      "exact reconstruction or declared loss",
+      "unresolved ambiguous unsupported conflicting and authority dependent obligations",
+      "positive fixtures and deliberate defects"
+    ],
+    "acceptance": "authority correction and conformance publish an immutable template recipe version; later compatible sources reuse that accepted version as a prior candidate without inheriting authority truth or trust",
+    "forbidden": [
+      "source_named_private_ETL_engine",
+      "silent_unmatched_field_drop",
+      "redefaulting_an_accepted_mapping_as_new",
+      "automatic_candidate_activation",
+      "structural_resemblance_as_field_meaning_or_truth"
+    ]
+  },
+  "academic_semantic_delta": {
+    "rule": "generic syntax recovery is shared while each academic source declares its own documented roles qualifications time scope uncertainty contradictions retractions references and unknowns as attributed candidate testimony",
+    "examples": [
+      "dictionary_entry_headword_part_of_speech_sense_definition_usage_etymology_reference",
+      "encyclopedia_article_section_author_date_citation_caption_historical_scope",
+      "chess_event_player_rating_game_move_clock_result_authority_and_observation",
+      "behavior_language_policy_construct_annotation_unit_population_sampling_label_guideline_adjudication_harm_target_context_and_measurement_limit"
+    ],
+    "parsed_field_is_truth": false
+  },
+  "clean_seed_inference_gate": {
+    "question_class": "ask how trustworthy an indirectly derivable proposition is and why",
+    "reference_fixture": "ordinary natural arithmetic trust explanation for two plus two equals four",
+    "direct_target_attestation_required": false,
+    "production_user_content_count": 0,
+    "required_route": [
+      "installed_activated_product",
+      "configured_seed_manifest",
+      "public_conversation_and_cognition_program",
+      "typed_semantic_and_scope_resolution",
+      "native_ISA_PostgreSQL_calculation_and_derivation",
+      "typed_trust_disposition",
+      "language_realization",
+      "durable_readback_restart_and_replay"
+    ],
+    "deliberate_defects": [
+      "direct_string_lookup",
+      "source_consensus_in_place_of_formal_derivation",
+      "production_user_state_participation",
+      "private_helper_bypass",
+      "explanation_disconnected_from_receipt",
+      "missing_operator_guess",
+      "modulo_scope_memorization_failure",
+      "corrupt_derivation_replay_acceptance",
+      "silent_English_fallback"
+    ]
+  }
+}

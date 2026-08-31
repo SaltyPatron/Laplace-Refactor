@@ -9,6 +9,20 @@
       "docs/product/INVENTION_MODEL.md"
     ]
   },
+  "traceability": {
+    "authority_stack_required": true,
+    "product_requirements": [
+      "LP-PHYSICALITY-001",
+      "LP-EVIDENCE-004",
+      "LP-QUERY-001",
+      "LP-REALIZATION-001",
+      "LP-LANGUAGE-001"
+    ],
+    "feature_files": [
+      "requirements/features/trust_matchup_realization.feature"
+    ],
+    "github_issues": [16, 17, 18, 110]
+  },
   "machine_language": {
     "internal_symbolic_floor": "complete Unicode codepoint-position space",
     "statement": "Laplace speaks Unicode and renders requested witnessed natural languages or other modalities",
