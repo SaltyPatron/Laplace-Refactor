@@ -27,6 +27,10 @@ jobs:
           python3 tests/source_estate_catalog_tests.py
           python3 tools/sources/catalog-source-estate.py \
             --output "$RUNNER_TEMP/laplace-source-estate-catalog.json"
+      - name: Prove installed activation receipt compatibility
+        run: python3 tests/product_activation_runtime_adapter_tests.py
+      - name: Prove durable product service and cold-boot contracts
+        run: python3 tests/product_service_state_tests.py
 
   native:
     runs-on: ubuntu-24.04

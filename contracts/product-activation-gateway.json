@@ -48,6 +48,8 @@
       "controllers/clusterctl.py",
       "controllers/highwayctl.py",
       "controllers/hostctl.py",
+      "controllers/product_activation_impl.py",
+      "controllers/product_service_state.py",
       "controllers/unicodectl.py"
     ]
   },
@@ -62,6 +64,17 @@
     "unicode_source_root": "/opt/laplace/sources/unicode/17.0.0",
     "unicode_result": "/opt/laplace/receipts/postgresql/refactor/unicode-activation-result.json",
     "highway_result": "/opt/laplace/receipts/postgresql/refactor/highway-activation-result.json"
+  },
+  "service_state": {
+    "controller": "/opt/laplace/deployment/current/controllers/product_service_state.py",
+    "cluster_service": "laplace-refactor-postgresql.service",
+    "cluster_unit": "/etc/systemd/system/laplace-refactor-postgresql.service",
+    "enable_path_unit": "laplace-product-service-enablement.path",
+    "enable_service_unit": "laplace-product-service-enablement.service",
+    "boot_readback_unit": "laplace-product-cold-boot-readback.service",
+    "enablement_receipt": "/opt/laplace/receipts/postgresql/refactor/service-enablement.json",
+    "boot_readback_receipt": "/opt/laplace/receipts/postgresql/refactor/boot-readback.json",
+    "boot_id_path": "/proc/sys/kernel/random/boot_id"
   },
   "operation": {
     "name": "activate-product-unicode-and-highway",
