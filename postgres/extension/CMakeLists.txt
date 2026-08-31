@@ -165,6 +165,12 @@ if(BUILD_TESTING)
         laplace_pg_standing_replay_mutant PRIVATE
         LAPLACE_PG_STANDING_ENTRYPOINT=laplace_pg_evidence_calculate_standing_replay_mutant)
     laplace_add_postgresql_mutant(
+        laplace_pg_standing_admission_mutant
+        LAPLACE_TEST_STANDING_ADMISSION_BYPASS)
+    target_compile_definitions(
+        laplace_pg_standing_admission_mutant PRIVATE
+        LAPLACE_PG_STANDING_ENTRYPOINT=laplace_pg_evidence_calculate_standing_admission_mutant)
+    laplace_add_postgresql_mutant(
         laplace_pg_source_profile_replay_mutant
         LAPLACE_TEST_SOURCE_PROFILE_REPLAY_VERIFY_BYPASS)
     target_compile_definitions(

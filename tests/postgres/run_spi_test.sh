@@ -208,7 +208,8 @@ elif [[ "$mode" == "contract" || "$mode" == "persistence-mutation" ]]; then
     variable_file="$test_root/native-variables.sql"
     umask 077
     printf "\\set persistence_bulk_stream '%s'\n" "$bulk_stream" >"$variable_file"
-elif [[ "$mode" == "standing" || "$mode" == "standing-mutation" ]]; then
+elif [[ "$mode" == "standing" || "$mode" == "standing-mutation" ||
+        "$mode" == "standing-admission-mutation" ]]; then
     probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
         "$native_probe")
     while IFS='=' read -r key value; do
@@ -220,7 +221,8 @@ elif [[ "$mode" == "standing" || "$mode" == "standing-mutation" ]]; then
         shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
         psql_arguments+=(-v "$shell_name=$value")
     done <<<"$probe_output"
-    if [[ "$mode" == "standing-mutation" ]]; then
+    if [[ "$mode" == "standing-mutation" ||
+          "$mode" == "standing-admission-mutation" ]]; then
         if [[ -z "${LAPLACE_MUTANT_MODULE:-}" || ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
             echo "standing replay mutant module is missing" >&2
             exit 66

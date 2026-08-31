@@ -896,6 +896,18 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_recipe_history (
     recorded_by name NOT NULL DEFAULT current_user
 );
 
+CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_recipe_admission (
+    recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_recipe_history(recipe_id),
+    authority_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    authority_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    evidence_epoch @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    admission_sequence bigint NOT NULL CHECK (admission_sequence > 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    UNIQUE (authority_fingerprint, evidence_epoch, admission_sequence)
+);
+
 CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_state_history (
     state_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
     coordinate_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
@@ -2087,6 +2099,7 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt_member FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_state_history FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_recipe_history FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_recipe_admission FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_match_event FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_period_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_period_receipt_member FROM PUBLIC;

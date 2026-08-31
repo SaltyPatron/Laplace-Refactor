@@ -268,22 +268,25 @@ static laplace_standing_period_input* read_inputs(
     return inputs;
 }
 
-static void persist_standing(
+static void require_recipe_admission(
     Oid input_array_type,
     Datum input_array,
-    const laplace_standing_period_result* result,
-    const laplace_isa_receipt* isa_receipt) {
-    static const char recipe_write_sql[] =
-        "WITH input AS (SELECT DISTINCT ON ((i.recipe).recipe_id) (i.recipe).*"
-        " FROM unnest($1::" LAPLACE_PG_SCHEMA ".standing_period_input[]) i"
-        " ORDER BY (i.recipe).recipe_id)"
-        " INSERT INTO " LAPLACE_PG_SCHEMA ".standing_recipe_history(recipe_id,authority_receipt_id,evaluation_law_id,world_context_id,language_modality_id,valid_time_scope_id,evidence_boundary_id,default_rating,default_rating_deviation,default_volatility,volatility_constraint,convergence_tolerance,score_numerator,score_denominator,rateable_outcome_mask,participant_role,arena_kind,version,flags)"
-        " SELECT recipe_id,authority_receipt_id,evaluation_law_id,world_context_id,language_modality_id,valid_time_scope_id,evidence_boundary_id,default_rating,default_rating_deviation,default_volatility,volatility_constraint,convergence_tolerance,score_numerator,score_denominator,rateable_outcome_mask,participant_role,arena_kind,version,flags FROM input ON CONFLICT DO NOTHING";
-    static const char recipe_verify_sql[] =
+    const laplace_framework_context* context) {
+#if !defined(LAPLACE_TEST_STANDING_ADMISSION_BYPASS)
+    static const char admission_sql[] =
         "WITH input AS MATERIALIZED (SELECT DISTINCT ON ((i.recipe).recipe_id) (i.recipe).*"
         " FROM unnest($1::" LAPLACE_PG_SCHEMA ".standing_period_input[]) i"
         " ORDER BY (i.recipe).recipe_id)"
-        " SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".standing_recipe_history r USING(recipe_id)"
+        " SELECT NOT EXISTS (SELECT FROM input i"
+        " LEFT JOIN " LAPLACE_PG_SCHEMA ".standing_recipe_admission a USING(recipe_id)"
+        " WHERE a.recipe_id IS NULL OR a.authority_receipt_id<>i.authority_receipt_id"
+        " OR a.authority_fingerprint<>$2 OR a.evidence_epoch<>$3)";
+    static const char history_sql[] =
+        "WITH input AS MATERIALIZED (SELECT DISTINCT ON ((i.recipe).recipe_id) (i.recipe).*"
+        " FROM unnest($1::" LAPLACE_PG_SCHEMA ".standing_period_input[]) i"
+        " ORDER BY (i.recipe).recipe_id)"
+        " SELECT NOT EXISTS (SELECT FROM input i"
+        " LEFT JOIN " LAPLACE_PG_SCHEMA ".standing_recipe_history r USING(recipe_id)"
         " WHERE r.recipe_id IS NULL OR r.authority_receipt_id<>i.authority_receipt_id"
         " OR r.evaluation_law_id<>i.evaluation_law_id OR r.world_context_id<>i.world_context_id"
         " OR r.language_modality_id<>i.language_modality_id OR r.valid_time_scope_id<>i.valid_time_scope_id"
@@ -295,6 +298,58 @@ static void persist_standing(
         " OR r.score_numerator<>i.score_numerator OR r.score_denominator<>i.score_denominator"
         " OR r.rateable_outcome_mask<>i.rateable_outcome_mask OR r.participant_role<>i.participant_role"
         " OR r.arena_kind<>i.arena_kind OR r.version<>i.version OR r.flags<>i.flags)";
+    Oid types[3] = {input_array_type, BYTEAOID, BYTEAOID};
+    Datum values[3];
+    int status;
+    bool is_null = false;
+    Datum admitted;
+    values[0] = input_array;
+    values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        context->authority_fingerprint.bytes, 32u));
+    values[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        context->epochs[LAPLACE_FRAMEWORK_EPOCH_EVIDENCE].bytes, 32u));
+    if (SPI_connect() != SPI_OK_CONNECT) {
+        ereport(ERROR,(errcode(ERRCODE_CONNECTION_FAILURE),
+                       errmsg("Laplace standing admission could not connect to SPI")));
+    }
+    status = SPI_execute_with_args(admission_sql, 3, types, values, NULL, true, 1);
+    if (status != SPI_OK_SELECT || SPI_processed != 1u) {
+        ereport(ERROR,(errcode(ERRCODE_INTERNAL_ERROR),
+                       errmsg("Laplace standing admission readback failed")));
+    }
+    admitted = SPI_getbinval(
+        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &is_null);
+    if (is_null || !DatumGetBool(admitted)) {
+        ereport(ERROR,(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+                       errmsg("Laplace standing recipe is not admitted for the active authority and evidence epoch")));
+    }
+    status = SPI_execute_with_args(history_sql, 1, types, values, NULL, true, 1);
+    if (status != SPI_OK_SELECT || SPI_processed != 1u) {
+        ereport(ERROR,(errcode(ERRCODE_INTERNAL_ERROR),
+                       errmsg("Laplace standing recipe history readback failed")));
+    }
+    admitted = SPI_getbinval(
+        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &is_null);
+    if (is_null || !DatumGetBool(admitted)) {
+        ereport(ERROR,(errcode(ERRCODE_DATA_CORRUPTED),
+                       errmsg("Laplace standing admitted recipe history is corrupt")));
+    }
+    if (SPI_finish() != SPI_OK_FINISH) {
+        ereport(ERROR,(errcode(ERRCODE_INTERNAL_ERROR),
+                       errmsg("Laplace standing admission could not close SPI")));
+    }
+#else
+    (void)input_array_type;
+    (void)input_array;
+    (void)context;
+#endif
+}
+
+static void persist_standing(
+    Oid input_array_type,
+    Datum input_array,
+    const laplace_standing_period_result* result,
+    const laplace_isa_receipt* isa_receipt) {
     static const char initial_write_sql[] =
         "WITH raw AS ("
         " SELECT (i.prior_state).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".standing_period_input[]) i"
@@ -378,9 +433,6 @@ static void persist_standing(
     if (SPI_connect() != SPI_OK_CONNECT) {
         ereport(ERROR,(errcode(ERRCODE_CONNECTION_FAILURE),errmsg("Laplace standing persistence could not connect to SPI")));
     }
-    laplace_pg_execute_set_write_verify(
-        recipe_write_sql, recipe_verify_sql, 1, input_types, input_values,
-        "standing recipe replay");
 #if defined(LAPLACE_TEST_STANDING_REPLAY_VERIFY_BYPASS)
     if (SPI_execute_with_args(initial_write_sql,1,input_types,input_values,NULL,false,0) != SPI_OK_INSERT) {
         ereport(ERROR,(errcode(ERRCODE_INTERNAL_ERROR),errmsg("Laplace standing initial-state write failed")));
@@ -418,6 +470,8 @@ Datum LAPLACE_PG_STANDING_ENTRYPOINT(PG_FUNCTION_ARGS) {
     const laplace_standing_state* state;
     const laplace_standing_period_receipt* receipt;
     laplace_pg_read_execution_context(PG_GETARG_DATUM(0), &context);
+    require_recipe_admission(
+        input_array_type, PointerGetDatum(input_array), &context);
     inputs = read_inputs(input_array, &input_count);
     qsort(inputs, input_count, sizeof(*inputs), compare_period_input);
     memset(&isa_output, 0, sizeof(isa_output));

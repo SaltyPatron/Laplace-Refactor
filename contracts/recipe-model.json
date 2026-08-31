@@ -17,6 +17,15 @@
     "highway_binding": "the typed append-only recipe coordinate is generated through the common numerical highway",
     "scope_law": "equal local identifiers in different kinds authorities releases or namespaces remain different coordinates unless explicit witnessed mappings relate them"
   },
+  "stock_catalog": {
+    "authority": "Laplace manufactures and versions an authority-selected stock recipe catalog for every configured source rather than waiting for external recipe authorship or treating discovered files as anonymous observations",
+    "recursive_scope": ["source", "release", "collection", "document or digital object", "structural region", "semantic construction"],
+    "required_profiles": ["Unicode and its constituent standards", "ISO registries", "CILI", "WordNet", "Britannica 1911", "Gutenberg Webster's Unabridged", "dictionaries and thesauri", "academic documents", "every other configured source under the selected manifest"],
+    "semantic_segmentation": "shared modality-agnostic typed operators identify semantic boundaries compositions roles references and acts at the structural tier required by the program; UAX 29 remains one text-edge witness and is not the universal semantic segmenter",
+    "specialization": "known source formats receive exact grammar codec lowering reconstruction ambiguity loss correction and conformance declarations while reusing the common AST recipe ISA evidence and receipt lifecycle",
+    "perfcache": "each recipe declares any justified derived planes including exact key and value kinds dependency epochs source and recipe fingerprints generation law semantic verifier activation invalidation replay and rebuild behavior; a perfcache accelerates the canonical result and never becomes source identity truth semantics or completion authority",
+    "admission": "discovery manufacture qualification authority selection activation and execution are distinct append-only states with separate receipts"
+  },
   "recipe_kinds": [
     "grammar-parse-lower-and-recompose",
     "canonicalize-and-identify",

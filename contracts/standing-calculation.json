@@ -11,6 +11,7 @@
   },
   "domains": {
     "recipe": "laplace.standing.recipe.v1",
+    "recipe_admission": "laplace.standing.recipe-admission.v1",
     "outcome_mapping": "laplace.standing.outcome-mapping.v1",
     "arena_scope": "laplace.standing.arena-scope.v1",
     "coordinate": "laplace.standing.coordinate.v1",
@@ -39,6 +40,7 @@
     "successor": "each period consumes the exact immediately preceding state and never receives defaults",
     "opponent": "each event carries and validates the real opponent prior state in the same arena scope",
     "dependence": "eligible evidence root identities are unique within the pure closed period and PostgreSQL rejects reuse across every published period for the participant coordinate",
+    "admission": "PostgreSQL calculation may consume only a recipe already deposited by the protected authority lifecycle into the durable admission set for the exact active authority fingerprint and evidence epoch; calculation cannot create its own admission",
     "outcome": "confirm refute draw or uncertain may be mapped only by the exact mapping contained in the content-identified arena recipe; separate authority admission determines whether that recipe may enter a world; absent unknown denied exhausted and invalid execution are not rating results",
     "order": "events are internally canonicalized by immutable event identity before floating-point accumulation",
     "publication": "the pure calculation emits an immutable successor and receipt; PostgreSQL owns append-only publication and replay conflict rejection"

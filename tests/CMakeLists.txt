@@ -2666,6 +2666,10 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_replay_mutation.sql"
         COPYONLY)
     configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/standing_admission_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_admission_mutation.sql"
+        COPYONLY)
+    configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/standing_dependence_mutation.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_dependence_mutation.sql"
         COPYONLY)
@@ -2881,6 +2885,25 @@ if(LAPLACE_POSTGRES_ENABLED)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_standing_mutation_failure.cmake")
     set_tests_properties(postgres.mutation-standing-replay-conflict-detected PROPERTIES
         LABELS "postgresql;standing;persistence;replay;mutation"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.mutation-standing-admission-bypass-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_standing_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_standing_admission_mutant>"
+            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_admission_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_standing_admission_mutation_failure.cmake")
+    set_tests_properties(postgres.mutation-standing-admission-bypass-detected PROPERTIES
+        LABELS "postgresql;standing;authority;evidence-epoch;persistence;mutation"
         RUN_SERIAL TRUE)
 
     add_test(

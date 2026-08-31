@@ -24,6 +24,25 @@ AS $context$
     )::laplace.execution_context
 $context$;
 
+CREATE FUNCTION pg_temp.stale_standing_context()
+RETURNS laplace.execution_context
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $context$
+    SELECT ROW(
+        ARRAY[
+            decode(repeat('01',32),'hex'), decode(repeat('02',32),'hex'),
+            decode(repeat('03',32),'hex'), decode(repeat('ff',32),'hex'),
+            decode(repeat('05',32),'hex'), decode(repeat('06',32),'hex'),
+            decode(repeat('07',32),'hex'), decode(repeat('08',32),'hex'),
+            decode(repeat('09',32),'hex'), decode(repeat('0a',32),'hex')
+        ],
+        decode(repeat('a0',32),'hex'), 1048576::bigint, 4, 1,
+        1023::bigint, @LAPLACE_FRAMEWORK_MAJOR@::smallint,
+        @LAPLACE_FRAMEWORK_MINOR@::smallint,
+        @LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY@::integer
+    )::laplace.execution_context
+$context$;
+
 CREATE FUNCTION pg_temp.seed_digest(seed integer)
 RETURNS bytea
 LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE
@@ -122,6 +141,23 @@ SELECT
     :'standing_second_deviation'::double precision second_deviation,
     :'standing_second_volatility'::double precision second_volatility;
 
+\if :{?standing_admission_mutant}
+CREATE FUNCTION pg_temp.standing_unadmitted_probe(
+    laplace.execution_context, laplace.standing_period_input[])
+RETURNS laplace.standing_period_result
+AS :'standing_mutant_module',
+   'laplace_pg_evidence_calculate_standing_admission_mutant'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+\else
+CREATE FUNCTION pg_temp.standing_unadmitted_probe(
+    laplace.execution_context, laplace.standing_period_input[])
+RETURNS laplace.standing_period_result
+LANGUAGE SQL VOLATILE STRICT PARALLEL UNSAFE
+AS $probe$
+    SELECT laplace.evidence_calculate_standing_batch($1, $2)
+$probe$;
+\endif
+
 DO $contract$
 DECLARE
     standing_recipe laplace.standing_recipe;
@@ -158,6 +194,55 @@ BEGIN
             expected.event_b, participant, opponent_b,
             144, 176, expected.refute_mapping, 0, 2))::laplace.standing_period_input
     ];
+
+    INSERT INTO laplace.standing_recipe_history(
+        recipe_id, authority_receipt_id, evaluation_law_id, world_context_id,
+        language_modality_id, valid_time_scope_id, evidence_boundary_id,
+        default_rating, default_rating_deviation, default_volatility,
+        volatility_constraint, convergence_tolerance, score_numerator,
+        score_denominator, rateable_outcome_mask, participant_role,
+        arena_kind, version, flags)
+    VALUES (
+        (standing_recipe).recipe_id, (standing_recipe).authority_receipt_id,
+        (standing_recipe).evaluation_law_id, (standing_recipe).world_context_id,
+        (standing_recipe).language_modality_id, (standing_recipe).valid_time_scope_id,
+        (standing_recipe).evidence_boundary_id, (standing_recipe).default_rating,
+        (standing_recipe).default_rating_deviation, (standing_recipe).default_volatility,
+        (standing_recipe).volatility_constraint, (standing_recipe).convergence_tolerance,
+        (standing_recipe).score_numerator, (standing_recipe).score_denominator,
+        (standing_recipe).rateable_outcome_mask, (standing_recipe).participant_role,
+        (standing_recipe).arena_kind, (standing_recipe).version, (standing_recipe).flags);
+
+    BEGIN
+        PERFORM pg_temp.standing_unadmitted_probe(
+            pg_temp.execution_context(), first_inputs);
+    EXCEPTION WHEN insufficient_privilege THEN
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'standing admission mutant accepted an unadmitted recipe';
+    END IF;
+    rejected := false;
+
+    INSERT INTO laplace.standing_recipe_admission(
+        recipe_id, authority_receipt_id, authority_fingerprint,
+        evidence_epoch, admission_sequence)
+    VALUES (
+        (standing_recipe).recipe_id, (standing_recipe).authority_receipt_id,
+        (pg_temp.execution_context()).authority_fingerprint,
+        (pg_temp.execution_context()).epochs[4], 1);
+
+    BEGIN
+        PERFORM laplace.evidence_calculate_standing_batch(
+            pg_temp.stale_standing_context(), first_inputs);
+    EXCEPTION WHEN insufficient_privilege THEN
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'standing accepted an admission from a stale evidence epoch';
+    END IF;
+    rejected := false;
+
     first_result := laplace.evidence_calculate_standing_batch(
         pg_temp.execution_context(), first_inputs);
     IF first_result.state_id <> expected.successor_state
@@ -183,6 +268,7 @@ BEGIN
         RAISE EXCEPTION 'standing replay changed canonical identity';
     END IF;
     IF (SELECT count(*) FROM laplace.standing_recipe_history) <> 1
+       OR (SELECT count(*) FROM laplace.standing_recipe_admission) <> 1
        OR (SELECT count(*) FROM laplace.standing_state_history) <> 4
        OR (SELECT count(*) FROM laplace.standing_match_event) <> 2
        OR (SELECT count(*) FROM laplace.standing_period_receipt) <> 1
@@ -243,6 +329,7 @@ BEGIN
         RAISE EXCEPTION 'earned standing did not continue from its durable predecessor';
     END IF;
     IF (SELECT count(*) FROM laplace.standing_recipe_history) <> 1
+       OR (SELECT count(*) FROM laplace.standing_recipe_admission) <> 1
        OR (SELECT count(*) FROM laplace.standing_state_history) <> 5
        OR (SELECT count(*) FROM laplace.standing_match_event) <> 3
        OR (SELECT count(*) FROM laplace.standing_period_receipt) <> 2
