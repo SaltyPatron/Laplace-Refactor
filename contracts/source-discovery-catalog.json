@@ -3,7 +3,7 @@
   "status": "required",
   "issue": 112,
   "purpose": "Produce deterministic discovery-only evidence about a local source estate without promoting paths, suffixes, parser success, or generated plans into source authority, semantic truth, world admission, or product activation.",
-  "identity": {
+  "artifact_digest": {
     "algorithm": "sha256-canonical-json",
     "includes": [
       "contract_sha256",
@@ -390,6 +390,7 @@
     "follow_symlinks": false,
     "omit_unknown_or_unreadable": false,
     "arbitrary_binary_is_utf8": false,
-    "source_bytes_uploaded_by_catalog_workflow": false
+    "source_bytes_uploaded_by_catalog_workflow": false,
+    "sha256_digest_is_laplace_content_identity": false
   }
 }
