@@ -1,0 +1,165 @@
+{
+  "schema": "laplace.standing-matchup/v1",
+  "authority": {
+    "constitution_sections": ["6", "7"],
+    "invention_model_sections": ["8", "10"],
+    "architecture": "docs/product/STANDING_MATCHUPS.md",
+    "historical_counterexamples": [
+      "SaltyPatron/Laplace#1303",
+      "SaltyPatron/Laplace#1321"
+    ]
+  },
+  "purpose": "calculate immutable typed standing and uncertainty from real witnessed matchups without turning defaults counts source classes or query rankings into permanent truth",
+  "state": {
+    "identity_exclusions": [
+      "content identity",
+      "physicality identity",
+      "occurrence identity",
+      "testimony identity"
+    ],
+    "coordinate_key": [
+      "participant identity",
+      "participant role",
+      "arena kind",
+      "relation or evaluation law",
+      "world and context scope",
+      "language and modality scope when applicable",
+      "valid-time scope",
+      "evidence and dependence boundary",
+      "rating recipe and version"
+    ],
+    "values": [
+      "rating",
+      "rating deviation",
+      "volatility",
+      "eligible matchup count",
+      "prior standing state",
+      "standing epoch",
+      "receipt"
+    ],
+    "publication": "append immutable successor epochs; never rewrite prior state or source testimony"
+  },
+  "defaults": {
+    "ownership": "versioned typed default registry",
+    "numeric_values": "declared by each accepted arena; this contract does not invent them",
+    "use": "initialize one previously unseen exact standing coordinate",
+    "new_participant_state": "publish an immutable zero-match default state before or atomically with the first admissible matchup",
+    "subsequent_state": "consume the immediately preceding completely published state for that coordinate",
+    "prohibitions": [
+      "reapply defaults on every fold",
+      "reapply defaults on process restart",
+      "replace earned participant standing with source-type prior",
+      "reuse standing from another arena merely because content identity is equal"
+    ]
+  },
+  "matchup": {
+    "required_fields": [
+      "participant and opponent",
+      "participant roles",
+      "arena and evaluation law",
+      "pre-match standing states",
+      "observed or reproducibly calculated outcome",
+      "typed outcome and score mapping",
+      "eligible evidence roots and dependence closure",
+      "context and valid time",
+      "rating period",
+      "program parameters engine and receipt"
+    ],
+    "creation_rule": "a declared recipe must prove that the outcome tests the exact proposition operation interpretation or realization being rated",
+    "not_sufficient": [
+      "co-occurrence",
+      "frequency",
+      "adjacency",
+      "parser emission",
+      "source reputation",
+      "raw witness count",
+      "nonempty query result",
+      "whole-event success"
+    ],
+    "opponent_rule": "use the opponent's prior rating and deviation when available; use the typed default only for an unseen opponent coordinate",
+    "dependence_rule": "match cardinality is calculated after eligible root collapse; copied or derived descendants do not manufacture games"
+  },
+  "outcomes": {
+    "retained_kinds": [
+      "confirm",
+      "refute",
+      "draw",
+      "uncertain",
+      "absent",
+      "unknown",
+      "denied",
+      "exhausted",
+      "invalid execution"
+    ],
+    "rating_rule": "only outcome kinds explicitly admitted by the arena recipe are mapped to Glicko-2 scores",
+    "prohibitions": [
+      "unknown as loss",
+      "absence as refutation",
+      "implementation fault as epistemic outcome",
+      "partial completion as win"
+    ]
+  },
+  "return_leg": {
+    "required": true,
+    "rule": "after an independently supported later boundary evaluates a proposition or operation, eligible prior participants may play a return-leg matchup against that outcome",
+    "epoch_separation": "a participant cannot use consensus it helped create as independent evidence of its own reliability in the same epoch",
+    "source_type_prior": "remains separately queryable and may initialize a source coordinate but cannot replace earned source standing"
+  },
+  "rating_period": {
+    "boundary": "closed immutable admitted event set",
+    "order": "deterministic and invariant to ingestion order for the same boundary",
+    "replay": "idempotent; the same event identity cannot increment matchup count twice",
+    "missing_state": "return a typed why-not result rather than substitute a flat score or unrelated default",
+    "as_of": "historical queries select an immutable standing epoch; current queries select the latest completely published eligible epoch"
+  },
+  "usage": {
+    "allowed": [
+      "adjudication input",
+      "query-relative frontier ordering",
+      "firmware route selection",
+      "parser and decomposer evaluation",
+      "referent competition",
+      "realization and translation evaluation",
+      "source and relation standing"
+    ],
+    "forbidden": [
+      "universal truth scalar",
+      "global entity importance",
+      "relation semantics",
+      "traversal procedure",
+      "content identity input",
+      "flat replacement for typed evidence dimensions"
+    ]
+  },
+  "realization": {
+    "language_capability": "a witnessed set of identification interpretation semantic-act realization reconstruction correction and consequence capabilities, not a boolean flag",
+    "competition_scope": "nouns function words particles punctuation whitespace morphology word order prosody and code syntax compete only under the typed obligations they can satisfy",
+    "result_binding": "an observed rendering outcome updates only the responsible realizer grammar operator or firmware route and only for distinctions the outcome actually tested"
+  },
+  "required_acceptance": [
+    "LP-TEST-STANDING-NEW-PARTICIPANT-DEFAULT-ONCE",
+    "LP-TEST-STANDING-FIRST-MATCH-FROM-DEFAULT",
+    "LP-TEST-STANDING-SUCCESSOR-CONSUMES-PRIOR",
+    "LP-TEST-STANDING-REPLAY-IDEMPOTENT",
+    "LP-TEST-STANDING-REAL-OPPONENT",
+    "LP-TEST-STANDING-RETURN-LEG",
+    "LP-TEST-STANDING-DEPENDENCE-ROOT-CARDINALITY",
+    "LP-TEST-STANDING-CROSS-ARENA-ISOLATION",
+    "LP-TEST-STANDING-OUTCOME-KIND-SEPARATION",
+    "LP-TEST-STANDING-ASOF-EPOCH",
+    "LP-TEST-REALIZATION-CONTEXTUAL-CONSTITUENT-IMPORTANCE",
+    "LP-TEST-LANGUAGE-CAPABILITY-NONBOOLEAN"
+  ],
+  "deliberate_defects": [
+    "default reset on every fold",
+    "fixed neutral opponent after onboarding",
+    "source-type literal permanently replaces source standing",
+    "raw witness count becomes game count",
+    "copied evidence amplifies standing",
+    "standing leaks across arenas contexts languages modalities or time",
+    "unknown becomes loss",
+    "absence becomes refutation",
+    "whole event success updates unrelated outputs",
+    "nouns permanently outrank function words or punctuation"
+  ]
+}
