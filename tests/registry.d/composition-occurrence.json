@@ -1,0 +1,52 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "CompositionWorkingSet.CanonicalCompositionRequiresExplicitOccurrenceEmission",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "canonical composition independent of source and occurrence context",
+        "occurrence emission is explicit and default-off",
+        "occurrence identity varies without changing entity or physicality identity",
+        "unknown occurrence flags and unaddressable requested occurrences are rejected"
+      ],
+      "defect_controls": [
+        "implicit observed-occurrence emission from every composition request"
+      ]
+    },
+    {
+      "ctest_name": "TabularSource.MissingSourceOccurrenceIntentIsObservable",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "source admission carries occurrence intent explicitly into canonical composition",
+        "removing one source occurrence request changes only the emitted occurrence set while canonical composition remains executable",
+        "missing occurrence intent remains observable rather than being reconstructed from canonical content"
+      ],
+      "defect_controls": [
+        "source occurrence silently inferred from canonical composition despite missing explicit emission intent"
+      ]
+    },
+    {
+      "ctest_name": "composition.mutation-implicit-occurrence-detected",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "deliberate-defect sensitivity for occurrence/content separation"
+      ],
+      "defect_controls": [
+        "production composition restored to unconditional observed-occurrence emission"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "DecompositionWitnessBinding.EqualSpanContentReusesCanonicalReferenceAcrossOffsetsAndWitnessMetadata",
+      "evidence_targets": [
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "decomposition spans bind parser and grammar witness structure to canonical content references rather than reminting provenance-shaped content",
+        "equal exact span bytes at different offsets reuse one canonical Merkle reference",
+        "provider and syntax-kind changes alter the structural trace witness without altering canonical span references",
+        "the decomposition root is the canonical reference carried by the root witness span"
+      ]
+    },
+    {
+      "ctest_name": "decomposition.mutation-equal-span-remint-detected",
+      "evidence_targets": [
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "a deliberate mutant that bypasses canonical span-content reuse and remints equal span bytes is rejected by executable acceptance"
+      ]
+    }
+  ]
+}

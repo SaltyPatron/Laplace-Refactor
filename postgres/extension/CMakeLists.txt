@@ -19,6 +19,21 @@ laplace_configure_postgresql_bindings(
     "${extension_sql}"
     "${extension_control}")
 
+file(READ "${CMAKE_SOURCE_DIR}/contracts/isa.json"
+    laplace_source_structural_witness_contract)
+string(JSON LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA GET
+    "${laplace_source_structural_witness_contract}" bindings postgresql schema)
+set(source_structural_witness_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/source_structural_witness.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/source_structural_witness.sql.in"
+    "${source_structural_witness_sql}"
+    @ONLY)
+file(READ "${source_structural_witness_sql}"
+    LAPLACE_SOURCE_STRUCTURAL_WITNESS_SQL)
+file(APPEND "${extension_sql}"
+    "\n${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SQL}\n")
+
 set(laplace_postgresql_module_sources
     src/cognition_isa_pg.c
     src/composition_pg.c
@@ -34,6 +49,7 @@ set(laplace_postgresql_module_sources
     src/set_pg.c
     src/source_admission_pg.c
     src/source_profile_pg.c
+    src/source_structural_witness_pg.c
     src/unicode_perfcache_pg.c
     src/unicode_atoms_pg.c
     src/unicode_root_pg.c

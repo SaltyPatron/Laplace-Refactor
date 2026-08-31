@@ -2,12 +2,21 @@
   "schema": "laplace.composition-contract/v1",
   "abi": {
     "major": 1,
-    "minor": 1
+    "minor": 2
   },
   "references": {
     "known_entity": 1,
     "prior_result": 2,
     "topological_order_required": true
+  },
+  "request": {
+    "flags": {
+      "emit_occurrence": 1,
+      "known_mask": 1,
+      "default": 0
+    },
+    "occurrence_emission": "explicit-flag-only",
+    "canonical_result_independence": "source ordinal source fingerprint and occurrence context may change occurrence identity but cannot change entity or physicality identity"
   },
   "identity": {
     "deduplication_key": "BLAKE3-256 identity witness with BLAKE3-128 public prefix",
