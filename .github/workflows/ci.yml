@@ -18,6 +18,10 @@ jobs:
         run: python3 tests/requirements_trace_tests.py
       - name: Prove selective custom-stack QA planning and fail-fast semantics
         run: python3 tests/custom_stack_qa_tests.py
+      - name: Prove installed activation receipt compatibility
+        run: python3 tests/product_activation_runtime_adapter_tests.py
+      - name: Prove durable product service and cold-boot contracts
+        run: python3 tests/product_service_state_tests.py
 
   native:
     runs-on: ubuntu-24.04
