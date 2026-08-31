@@ -33,6 +33,7 @@ jobs:
         run: |
           python3 tests/product_path_tests.py
           python3 tests/product_path_status_tests.py
+          python3 tests/proof_workspace_cleanup_tests.py
       - name: Classify exact changed paths
         id: classify
         shell: bash

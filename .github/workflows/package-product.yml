@@ -27,6 +27,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Sweep stale interrupted package-product residue
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --minimum-age-seconds 300 \
+            --name laplace-package-product-proof
       - name: Verify package-proof authority and exact PostgreSQL publication
         shell: bash
         run: |
@@ -79,3 +87,11 @@ jobs:
             cat "$result"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Clean disposable package-product workspace
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --name laplace-package-product-proof

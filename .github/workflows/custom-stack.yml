@@ -30,6 +30,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Sweep stale interrupted custom-stack residue
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --minimum-age-seconds 300 \
+            --name laplace-sources \
+            --name laplace-output \
+            --name laplace-custom-stack-qa \
+            --name laplace-custom-stack-qa-result-replay.json \
+            --name laplace-custom-stack-changed.status \
+            --name laplace-custom-stack-qa-plan.json
       - name: Select exact custom-stack QA boundaries
         shell: bash
         env:
@@ -247,3 +260,16 @@ jobs:
           set -euo pipefail
           find "$RUNNER_TEMP" -type f -path '*/laplace-postgres-test.*/postgres.log' \
             -print -exec sed -n '1,240p' {} \;
+      - name: Clean disposable custom-stack workspaces
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --name laplace-sources \
+            --name laplace-output \
+            --name laplace-custom-stack-qa \
+            --name laplace-custom-stack-qa-result-replay.json \
+            --name laplace-custom-stack-changed.status \
+            --name laplace-custom-stack-qa-plan.json
