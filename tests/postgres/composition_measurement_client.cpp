@@ -282,7 +282,7 @@ SELECT
         (0,left_kind,left_index),(1,right_kind,right_index))
         AS operand(operand_slot,reference_kind,reference_index)) AS operands,
     (SELECT array_agg(
-        ROW(result_index * 2,2::numeric,result_index + 1,1,0,
+        ROW(result_index * 2,2::numeric,result_index + 1,1,1,
             decode(repeat('b1',32),'hex'),decode(repeat('c1',32),'hex'),
             decode(repeat('d1',32),'hex'))::laplace.composition_request_record
         ORDER BY result_index)

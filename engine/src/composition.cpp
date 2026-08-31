@@ -263,6 +263,7 @@ laplace_composition_status EstimateMemory(
     estimated = 0U;
     std::uint64_t maximum_entities{};
     std::uint64_t maximum_carriers{};
+    std::uint64_t requested_occurrences{};
     if (AddOverflow(
             input.known_entity_count, input.request_count, maximum_entities)) {
         return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
@@ -281,6 +282,12 @@ laplace_composition_status EstimateMemory(
             return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
         }
     }
+    for (std::uint64_t index = 0U; index < input.request_count; ++index) {
+        if ((input.requests[index].flags &
+             LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0U) {
+            ++requested_occurrences;
+        }
+    }
     if (!AddMemory(input.known_entity_count,
                    sizeof(laplace_composition_known_entity), estimated) ||
         !AddMemory(input.request_count,
@@ -291,7 +298,7 @@ laplace_composition_status EstimateMemory(
                    sizeof(laplace_composition_entity_candidate) * 4U, estimated) ||
         !AddMemory(input.request_count,
                    sizeof(PhysicalityBundle) * 4U, estimated) ||
-        !AddMemory(input.request_count,
+        !AddMemory(requested_occurrences,
                    sizeof(laplace_persistence_attestation_record) * 2U, estimated) ||
         !AddMemory(maximum_carriers,
                    sizeof(laplace_trajectory_carrier) * 3U, estimated) ||
@@ -304,7 +311,7 @@ laplace_composition_status EstimateMemory(
         !AddMemory(maximum_carriers,
                    laplace_persistence_frame_bytes(
                        LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT), estimated) ||
-        !AddMemory(input.request_count,
+        !AddMemory(requested_occurrences,
                    laplace_persistence_frame_bytes(
                        LAPLACE_PERSISTENCE_RECORD_ATTESTATION), estimated)) {
         return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
@@ -418,7 +425,8 @@ laplace_composition_status ValidateInput(
         const auto& request = input.requests[index];
         std::uint64_t end{};
         if (request.operand_count == 0U || request.source_ordinal == 0U ||
-            request.recipe_version == 0U || request.flags != 0U ||
+            request.recipe_version == 0U ||
+            (request.flags & ~LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0U ||
             AddOverflow(request.first_operand, request.operand_count, end) ||
             end > input.operand_count) {
             return LAPLACE_COMPOSITION_INVALID_ARGUMENT;
@@ -804,7 +812,15 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
         state->results.reserve(static_cast<std::size_t>(input->request_count));
         state->entities.reserve(static_cast<std::size_t>(maximum_entities));
         state->physicalities.reserve(static_cast<std::size_t>(input->request_count));
-        state->occurrences.reserve(static_cast<std::size_t>(input->request_count));
+        const auto requested_occurrence_count = static_cast<std::size_t>(
+            std::count_if(
+                input->requests,
+                input->requests + input->request_count,
+                [](const laplace_composition_request& request) {
+                    return (request.flags &
+                            LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0U;
+                }));
+        state->occurrences.reserve(requested_occurrence_count);
 
         std::unordered_map<IdKey, DigestKey, ByteKeyHash<16>> witnesses;
         std::unordered_map<DigestKey, std::size_t, ByteKeyHash<32>> entity_index;
@@ -813,7 +829,7 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
         witnesses.reserve(static_cast<std::size_t>(maximum_entities));
         entity_index.reserve(static_cast<std::size_t>(maximum_entities));
         physicality_index.reserve(static_cast<std::size_t>(input->request_count));
-        occurrence_index.reserve(static_cast<std::size_t>(input->request_count));
+        occurrence_index.reserve(requested_occurrence_count);
 
         for (std::uint64_t index = 0U; index < input->known_entity_count; ++index) {
             const ResolvedValue known = KnownResolved(input->known_entities[index]);
@@ -993,25 +1009,30 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
                 delete state;
                 return entity_status;
             }
-            laplace_persistence_attestation_record occurrence{};
-            occurrence.entity_id = result.entity_id;
-            occurrence.physicality_id = result.physicality_id;
-            occurrence.source_fingerprint = *input->source_fingerprint;
-            occurrence.context_fingerprint = request.occurrence_context_fingerprint;
-            occurrence.source_ordinal = request.source_ordinal;
-            occurrence.flags = LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
-            occurrence.attestation_kind =
-                LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
-            if (laplace_persistence_attestation_identify(
-                    &occurrence, &occurrence.attestation_id) !=
-                    LAPLACE_PERSISTENCE_OK) {
-                delete state;
-                return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
-            }
-            if (occurrence_index.emplace(
-                    Key(occurrence.attestation_id),
-                    state->occurrences.size()).second) {
-                state->occurrences.push_back(occurrence);
+            if ((request.flags &
+                 LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0U) {
+                laplace_persistence_attestation_record occurrence{};
+                occurrence.entity_id = result.entity_id;
+                occurrence.physicality_id = result.physicality_id;
+                occurrence.source_fingerprint = *input->source_fingerprint;
+                occurrence.context_fingerprint =
+                    request.occurrence_context_fingerprint;
+                occurrence.source_ordinal = request.source_ordinal;
+                occurrence.flags =
+                    LAPLACE_PERSISTENCE_ATTESTATION_HAS_PHYSICALITY;
+                occurrence.attestation_kind =
+                    LAPLACE_PERSISTENCE_ATTESTATION_OBSERVED_OCCURRENCE;
+                if (laplace_persistence_attestation_identify(
+                        &occurrence, &occurrence.attestation_id) !=
+                        LAPLACE_PERSISTENCE_OK) {
+                    delete state;
+                    return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
+                }
+                if (occurrence_index.emplace(
+                        Key(occurrence.attestation_id),
+                        state->occurrences.size()).second) {
+                    state->occurrences.push_back(occurrence);
+                }
             }
             calculated.push_back(result);
             state->results.push_back(laplace_composition_result{

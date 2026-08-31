@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: clean-room-ci-${{ github.ref }}
+  group: laplace-verification-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -80,3 +80,9 @@ jobs:
         run: ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" --output-on-failure
       - name: Verify test registry
         run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY"
+
+  custom-stack:
+    needs:
+      - requirements
+      - native
+    uses: ./.github/workflows/custom-stack.yml

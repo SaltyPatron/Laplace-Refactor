@@ -2,7 +2,7 @@
   "schema": "laplace.composition-contract/v1",
   "abi": {
     "major": 1,
-    "minor": 1
+    "minor": 2
   },
   "references": {
     "known_entity": 1,
@@ -30,6 +30,13 @@
     "output_order": "entities-by-content-id-then-physicalities-by-record-id-then-trajectories-by-physicality-id-and-vertex-index",
     "failure_atomicity": "no-result-visible-until-complete-working-set-validates",
     "resource_authority": "immutable-framework-context-memory-grant"
+  },
+  "occurrence_emission": {
+    "default": "none",
+    "request_flag": 1,
+    "rule": "canonical composition calculates entity physicality and trajectory without creating an occurrence; a request emits one observed occurrence only when the explicit flag is present",
+    "identity_separation": "source ordinal source fingerprint and occurrence context affect the occurrence record and working-set receipt but never entity physicality or trajectory identity",
+    "accounting": "occurrence storage and working memory scale with explicitly requested unique occurrence records rather than composition request count"
   },
   "presence": {
     "dispositions": {
