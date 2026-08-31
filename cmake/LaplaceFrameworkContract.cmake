@@ -33,6 +33,21 @@ function(laplace_configure_framework_contract contract_path output_path)
     string(JSON optional_presence GET "${contract_json}" digest optional_presence)
     string(JSON absent_epoch_payload GET "${contract_json}" digest absent_epoch_payload)
 
+    string(JSON machine_exception_abi_major GET "${contract_json}" machine_exception abi major)
+    string(JSON machine_exception_abi_minor GET "${contract_json}" machine_exception abi minor)
+    foreach(kind IN ITEMS none trap interrupt fault cancellation terminal_disposition)
+        string(JSON kind_${kind} GET "${contract_json}" machine_exception kinds ${kind})
+    endforeach()
+    foreach(capability IN ITEMS precise restartable retryable reroutable replayable compensatable terminal)
+        string(JSON capability_${capability} GET "${contract_json}" machine_exception capability_flags ${capability})
+    endforeach()
+    foreach(recovery IN ITEMS terminate retry reroute_replay replay typed_limit)
+        string(JSON recovery_${recovery} GET "${contract_json}" machine_exception recovery_dispositions ${recovery})
+    endforeach()
+    foreach(publication IN ITEMS none partial upper_bound)
+        string(JSON publication_${publication} GET "${contract_json}" machine_exception publication_dispositions ${publication})
+    endforeach()
+
     if(NOT contract_schema STREQUAL "laplace.framework-contract/v1")
         message(FATAL_ERROR "Unsupported framework contract schema: ${contract_schema}")
     endif()
@@ -45,6 +60,10 @@ function(laplace_configure_framework_contract contract_path output_path)
        OR NOT producer_control_minor EQUAL 0)
         message(FATAL_ERROR
             "Current framework ABI must remain 1.6 with provider ABIs at 1.0")
+    endif()
+    if(NOT machine_exception_abi_major EQUAL 1 OR
+       NOT machine_exception_abi_minor EQUAL 0)
+        message(FATAL_ERROR "Machine exception ABI must remain 1.0")
     endif()
     set(expected_epoch 0)
     foreach(epoch IN ITEMS source identity geometry evidence firmware dependency database perfcache numeric package)
@@ -68,6 +87,111 @@ function(laplace_configure_framework_contract contract_path output_path)
        NOT optional_presence STREQUAL "typed-state-only" OR
        NOT absent_epoch_payload STREQUAL "canonical-all-zero")
         message(FATAL_ERROR "Framework digest presence contract changed")
+    endif()
+
+    if(NOT kind_none EQUAL 0 OR NOT kind_trap EQUAL 1 OR
+       NOT kind_interrupt EQUAL 2 OR NOT kind_fault EQUAL 3 OR
+       NOT kind_cancellation EQUAL 4 OR NOT kind_terminal_disposition EQUAL 5)
+        message(FATAL_ERROR "Machine exception kind assignment changed")
+    endif()
+    if(NOT capability_precise EQUAL 1 OR NOT capability_restartable EQUAL 2 OR
+       NOT capability_retryable EQUAL 4 OR NOT capability_reroutable EQUAL 8 OR
+       NOT capability_replayable EQUAL 16 OR NOT capability_compensatable EQUAL 32 OR
+       NOT capability_terminal EQUAL 64)
+        message(FATAL_ERROR "Machine exception capability assignment changed")
+    endif()
+    if(NOT recovery_terminate EQUAL 0 OR NOT recovery_retry EQUAL 1 OR
+       NOT recovery_reroute_replay EQUAL 2 OR NOT recovery_replay EQUAL 3 OR
+       NOT recovery_typed_limit EQUAL 4)
+        message(FATAL_ERROR "Machine exception recovery assignment changed")
+    endif()
+    if(NOT publication_none EQUAL 0 OR NOT publication_partial EQUAL 1 OR
+       NOT publication_upper_bound EQUAL 2)
+        message(FATAL_ERROR "Machine exception publication assignment changed")
+    endif()
+
+    set(machine_conditions
+        none
+        invalid_instruction
+        invalid_operand
+        implementation_fault
+        durability_fault
+        storage_fault
+        hardware_fault
+        consistency_fault
+        network_fault
+        provider_unavailable
+        authority_denied
+        cancelled
+        deadline_exceeded
+        resource_exhausted
+        semantic_contradiction
+        incomplete_boundary
+        unsupported_operation
+        partial_result
+        known_upper_bound
+        unknown)
+    list(LENGTH machine_conditions machine_condition_count)
+    set(machine_priorities "")
+    set(expected_condition_code 0)
+    foreach(condition IN LISTS machine_conditions)
+        string(JSON condition_code GET "${contract_json}" machine_exception conditions ${condition} code)
+        string(JSON condition_kind GET "${contract_json}" machine_exception conditions ${condition} kind)
+        string(JSON condition_priority GET "${contract_json}" machine_exception conditions ${condition} priority)
+        string(JSON condition_recovery GET "${contract_json}" machine_exception conditions ${condition} recovery)
+        string(JSON condition_publication GET "${contract_json}" machine_exception conditions ${condition} publication)
+        if(NOT condition_code EQUAL expected_condition_code)
+            message(FATAL_ERROR "Machine exception condition code changed: ${condition}")
+        endif()
+        if(condition STREQUAL "none")
+            if(NOT condition_priority EQUAL 65535)
+                message(FATAL_ERROR "Machine exception none priority changed")
+            endif()
+        else()
+            list(FIND machine_priorities "${condition_priority}" duplicate_priority)
+            if(NOT duplicate_priority EQUAL -1)
+                message(FATAL_ERROR "Machine exception priority repeated: ${condition_priority}")
+            endif()
+            list(APPEND machine_priorities "${condition_priority}")
+        endif()
+
+        set(kind_variable "kind_${condition_kind}")
+        if(NOT DEFINED ${kind_variable})
+            message(FATAL_ERROR "Unknown machine exception kind: ${condition_kind}")
+        endif()
+        set(condition_kind_value "${${kind_variable}}")
+
+        set(condition_capabilities 0)
+        string(JSON capability_count LENGTH "${contract_json}" machine_exception conditions ${condition} capabilities)
+        if(capability_count GREATER 0)
+            math(EXPR capability_last "${capability_count} - 1")
+            foreach(capability_index RANGE 0 ${capability_last})
+                string(JSON capability_name GET "${contract_json}" machine_exception conditions ${condition} capabilities ${capability_index})
+                set(capability_variable "capability_${capability_name}")
+                if(NOT DEFINED ${capability_variable})
+                    message(FATAL_ERROR "Unknown machine exception capability: ${capability_name}")
+                endif()
+                math(EXPR condition_capabilities "${condition_capabilities} | ${${capability_variable}}")
+            endforeach()
+        endif()
+
+        set(recovery_variable "recovery_${condition_recovery}")
+        set(publication_variable "publication_${condition_publication}")
+        if(NOT DEFINED ${recovery_variable} OR NOT DEFINED ${publication_variable})
+            message(FATAL_ERROR "Unknown machine exception recovery or publication disposition: ${condition}")
+        endif()
+
+        string(TOUPPER "${condition}" condition_upper)
+        set("LAPLACE_MACHINE_CONDITION_${condition_upper}" "${condition_code}")
+        set("LAPLACE_MACHINE_KIND_${condition_upper}" "${condition_kind_value}")
+        set("LAPLACE_MACHINE_PRIORITY_${condition_upper}" "${condition_priority}")
+        set("LAPLACE_MACHINE_CAPABILITIES_${condition_upper}" "${condition_capabilities}")
+        set("LAPLACE_MACHINE_RECOVERY_${condition_upper}" "${${recovery_variable}}")
+        set("LAPLACE_MACHINE_PUBLICATION_${condition_upper}" "${${publication_variable}}")
+        math(EXPR expected_condition_code "${expected_condition_code} + 1")
+    endforeach()
+    if(NOT machine_condition_count EQUAL 20 OR NOT expected_condition_code EQUAL 20)
+        message(FATAL_ERROR "Machine exception condition registry cardinality changed")
     endif()
 
     set(LAPLACE_FRAMEWORK_MAJOR "${major}")
@@ -109,6 +233,35 @@ function(laplace_configure_framework_contract contract_path output_path)
     set(LAPLACE_FRAMEWORK_DIGEST_ALL_BIT_PATTERNS_VALID 1)
     set(LAPLACE_FRAMEWORK_OPTIONAL_PRESENCE_TYPED_STATE_ONLY 1)
     set(LAPLACE_FRAMEWORK_ABSENT_EPOCH_PAYLOAD_CANONICAL_ZERO 1)
+
+    set(LAPLACE_MACHINE_EXCEPTION_ABI_MAJOR "${machine_exception_abi_major}")
+    set(LAPLACE_MACHINE_EXCEPTION_ABI_MINOR "${machine_exception_abi_minor}")
+    set(LAPLACE_MACHINE_KIND_NONE "${kind_none}")
+    set(LAPLACE_MACHINE_KIND_TRAP "${kind_trap}")
+    set(LAPLACE_MACHINE_KIND_INTERRUPT "${kind_interrupt}")
+    set(LAPLACE_MACHINE_KIND_FAULT "${kind_fault}")
+    set(LAPLACE_MACHINE_KIND_CANCELLATION "${kind_cancellation}")
+    set(LAPLACE_MACHINE_KIND_TERMINAL_DISPOSITION "${kind_terminal_disposition}")
+    set(LAPLACE_MACHINE_CAPABILITY_PRECISE "${capability_precise}")
+    set(LAPLACE_MACHINE_CAPABILITY_RESTARTABLE "${capability_restartable}")
+    set(LAPLACE_MACHINE_CAPABILITY_RETRYABLE "${capability_retryable}")
+    set(LAPLACE_MACHINE_CAPABILITY_REROUTABLE "${capability_reroutable}")
+    set(LAPLACE_MACHINE_CAPABILITY_REPLAYABLE "${capability_replayable}")
+    set(LAPLACE_MACHINE_CAPABILITY_COMPENSATABLE "${capability_compensatable}")
+    set(LAPLACE_MACHINE_CAPABILITY_TERMINAL "${capability_terminal}")
+    math(EXPR machine_capability_known_mask
+        "${capability_precise} | ${capability_restartable} | ${capability_retryable} | ${capability_reroutable} | ${capability_replayable} | ${capability_compensatable} | ${capability_terminal}")
+    set(LAPLACE_MACHINE_CAPABILITY_KNOWN_MASK "${machine_capability_known_mask}")
+    set(LAPLACE_MACHINE_RECOVERY_TERMINATE "${recovery_terminate}")
+    set(LAPLACE_MACHINE_RECOVERY_RETRY "${recovery_retry}")
+    set(LAPLACE_MACHINE_RECOVERY_REROUTE_REPLAY "${recovery_reroute_replay}")
+    set(LAPLACE_MACHINE_RECOVERY_REPLAY "${recovery_replay}")
+    set(LAPLACE_MACHINE_RECOVERY_TYPED_LIMIT "${recovery_typed_limit}")
+    set(LAPLACE_MACHINE_PUBLICATION_NONE "${publication_none}")
+    set(LAPLACE_MACHINE_PUBLICATION_PARTIAL "${publication_partial}")
+    set(LAPLACE_MACHINE_PUBLICATION_UPPER_BOUND "${publication_upper_bound}")
+    set(LAPLACE_MACHINE_CONDITION_COUNT "${machine_condition_count}")
+
     set(LAPLACE_FRAMEWORK_MAJOR "${major}" PARENT_SCOPE)
     set(LAPLACE_FRAMEWORK_MINOR "${minor}" PARENT_SCOPE)
     set(LAPLACE_FRAMEWORK_CONTEXT_BOOTSTRAP "${context_bootstrap}" PARENT_SCOPE)
