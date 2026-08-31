@@ -112,6 +112,34 @@ TEST(StockRecipe, CatalogIdentityIsInvariantToCallerOrder) {
     EXPECT_EQ(0, std::memcmp(&first, &second, sizeof(first)));
 }
 
+TEST(StockRecipe, TypedItemBatchPreservesCompleteCatalogSemantics) {
+    const auto recipes = CatalogRecipes();
+    const std::array planes{Plane(0x90u, recipes[3].recipe_id),
+                            Plane(0xa0u, recipes[5].recipe_id)};
+    std::array<laplace_stock_catalog_item, 10> items{};
+    for (std::size_t index = 0; index < recipes.size(); ++index) {
+        items[index].recipe = recipes[index];
+        items[index].item_kind = LAPLACE_STOCK_ITEM_RECIPE;
+    }
+    for (std::size_t index = 0; index < planes.size(); ++index) {
+        items[recipes.size() + index].perfcache_plane = planes[index];
+        items[recipes.size() + index].item_kind = LAPLACE_STOCK_ITEM_PERFCACHE_PLANE;
+    }
+    laplace_stock_catalog_receipt direct{};
+    laplace_stock_catalog_receipt typed{};
+    ASSERT_EQ(laplace_stock_recipe_compile_catalog(
+                  recipes.data(), recipes.size(), planes.data(), planes.size(),
+                  &direct, nullptr), LAPLACE_STOCK_RECIPE_OK);
+    ASSERT_EQ(laplace_stock_recipe_compile_catalog_items(
+                  items.data(), items.size(), &typed, nullptr),
+              LAPLACE_STOCK_RECIPE_OK);
+    EXPECT_EQ(0, std::memcmp(&direct, &typed, sizeof(direct)));
+    items[0].perfcache_plane = planes[0];
+    EXPECT_EQ(laplace_stock_recipe_compile_catalog_items(
+                  items.data(), items.size(), &typed, nullptr),
+              LAPLACE_STOCK_RECIPE_INVALID);
+}
+
 TEST(StockRecipe, RejectsOrphanAndCrossSourceHierarchy) {
     auto recipes = CatalogRecipes();
     laplace_stock_catalog_receipt receipt{};

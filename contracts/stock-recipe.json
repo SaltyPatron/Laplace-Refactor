@@ -14,6 +14,7 @@
     "structural_region": 5,
     "semantic_construction": 6
   },
+  "item_kinds": {"recipe": 1, "perfcache_plane": 2},
   "flags": {"none": 0},
   "law": {
     "authority": "the configured authority manufactures and selects stock recipes; filesystem discovery cannot admit one",

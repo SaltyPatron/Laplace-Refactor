@@ -1408,10 +1408,10 @@
     "controlled_integration_validation": {
       "focused_debug_tests": "17 of 17 affected tests pass: eleven native standing tests one public ISA standing test three standing mutation tests and two generated-binding managed/native parity tests",
       "postgresql_tests": "4 of 4 isolated PostgreSQL production replay admission-bypass-mutation and dependence-history-mutation tests passed with durable authority-and-evidence-epoch recipe admission",
-      "sanitizers": "eleven native standing tests one public ISA standing test three standing mutation tests five native stock-recipe tests and one stock-recipe mutation test passed with AddressSanitizer and UndefinedBehaviorSanitizer active; LeakSanitizer was disabled because the supervising ptrace boundary is incompatible with it",
+      "sanitizers": "eleven native standing tests one public ISA standing test three standing mutation tests five native stock-recipe tests and one stock-recipe mutation test passed with AddressSanitizer and UndefinedBehaviorSanitizer active before the subsequent typed-item adapter; LeakSanitizer was disabled because the supervising ptrace boundary is incompatible with it",
       "authority_and_trace": "the program invention-authority and requirement-traceability contract entrypoints pass after the recipe-bound change; the prior complete authority and trace runs were 31 of 31 and 12 of 12",
       "generated_and_static": "standing and stock-recipe contract generation CMake configuration JSON parsing and whitespace checks pass; generated Dotnet standing contract and native parity pass",
-      "stock_recipe_tests": "five native stock-recipe catalog tests and one deliberate parent-validation mutation test pass"
+      "stock_recipe_tests": "six native stock-recipe catalog tests including direct-versus-typed-item vector parity and one deliberate parent-validation mutation test pass"
     },
     "missing_boundary": [
       "the stock-recipe catalog operation is native-only and the protected authority lifecycle does not yet manufacture persist or activate exact declarations for every selected source collection document object structural region and semantic construction",

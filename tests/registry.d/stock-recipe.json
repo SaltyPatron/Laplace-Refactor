@@ -12,6 +12,11 @@
       "covered_dimensions": ["canonical catalog identity", "caller-order independence", "complete recipe and perfcache set binding"]
     },
     {
+      "ctest_name": "StockRecipe.TypedItemBatchPreservesCompleteCatalogSemantics",
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["one typed item vector", "recipe and perfcache discriminant separation", "direct and vector catalog parity"]
+    },
+    {
       "ctest_name": "StockRecipe.RejectsOrphanAndCrossSourceHierarchy",
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
       "covered_dimensions": ["orphan rejection", "source-profile isolation", "strict parent scope"]

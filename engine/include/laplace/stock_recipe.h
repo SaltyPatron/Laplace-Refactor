@@ -46,6 +46,13 @@ typedef struct laplace_stock_perfcache_plane {
     uint32_t flags;
 } laplace_stock_perfcache_plane;
 
+typedef struct laplace_stock_catalog_item {
+    laplace_stock_recipe recipe;
+    laplace_stock_perfcache_plane perfcache_plane;
+    uint32_t item_kind;
+    uint32_t flags;
+} laplace_stock_catalog_item;
+
 typedef struct laplace_stock_catalog_receipt {
     laplace_digest256 catalog_id;
     laplace_digest256 recipe_set_fingerprint;
@@ -91,6 +98,9 @@ LAPLACE_API laplace_stock_recipe_status laplace_stock_perfcache_plane_identify(
 LAPLACE_API laplace_stock_recipe_status laplace_stock_recipe_compile_catalog(
     const laplace_stock_recipe* recipes, size_t recipe_count,
     const laplace_stock_perfcache_plane* planes, size_t plane_count,
+    laplace_stock_catalog_receipt* receipt, laplace_stock_recipe_error* error);
+LAPLACE_API laplace_stock_recipe_status laplace_stock_recipe_compile_catalog_items(
+    const laplace_stock_catalog_item* items, size_t item_count,
     laplace_stock_catalog_receipt* receipt, laplace_stock_recipe_error* error);
 
 #ifdef __cplusplus

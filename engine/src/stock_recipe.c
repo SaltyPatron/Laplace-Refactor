@@ -321,3 +321,51 @@ laplace_stock_recipe_status laplace_stock_recipe_compile_catalog(
     free(ordered_recipes);
     return LAPLACE_STOCK_RECIPE_OK;
 }
+
+laplace_stock_recipe_status laplace_stock_recipe_compile_catalog_items(
+    const laplace_stock_catalog_item* items, size_t item_count,
+    laplace_stock_catalog_receipt* receipt, laplace_stock_recipe_error* error) {
+    laplace_stock_recipe* recipes;
+    laplace_stock_perfcache_plane* planes;
+    size_t recipe_count = 0u;
+    size_t plane_count = 0u;
+    size_t index;
+    laplace_stock_recipe_status status;
+    if (items == NULL || item_count == 0u || receipt == NULL ||
+        item_count > SIZE_MAX / sizeof(*recipes) ||
+        item_count > SIZE_MAX / sizeof(*planes)) {
+        return fail(error, LAPLACE_STOCK_RECIPE_INVALID_ARGUMENT, 0u, 0u);
+    }
+    recipes = (laplace_stock_recipe*)malloc(item_count * sizeof(*recipes));
+    planes = (laplace_stock_perfcache_plane*)malloc(item_count * sizeof(*planes));
+    if (recipes == NULL || planes == NULL) {
+        free(planes);
+        free(recipes);
+        return fail(error, LAPLACE_STOCK_RECIPE_RESOURCE_INSUFFICIENT, 0u, 0u);
+    }
+    for (index = 0u; index < item_count; ++index) {
+        if (items[index].flags != LAPLACE_STOCK_FLAGS_NONE) {
+            free(planes);
+            free(recipes);
+            return fail(error, LAPLACE_STOCK_RECIPE_INVALID, index, index);
+        }
+        if (items[index].item_kind == LAPLACE_STOCK_ITEM_RECIPE &&
+            bytes_zero(&items[index].perfcache_plane,
+                       sizeof(items[index].perfcache_plane))) {
+            recipes[recipe_count++] = items[index].recipe;
+        } else if (items[index].item_kind == LAPLACE_STOCK_ITEM_PERFCACHE_PLANE &&
+                   bytes_zero(&items[index].recipe,
+                              sizeof(items[index].recipe))) {
+            planes[plane_count++] = items[index].perfcache_plane;
+        } else {
+            free(planes);
+            free(recipes);
+            return fail(error, LAPLACE_STOCK_RECIPE_INVALID, index, index);
+        }
+    }
+    status = laplace_stock_recipe_compile_catalog(
+        recipes, recipe_count, planes, plane_count, receipt, error);
+    free(planes);
+    free(recipes);
+    return status;
+}
