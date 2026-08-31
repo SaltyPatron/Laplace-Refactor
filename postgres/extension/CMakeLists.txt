@@ -32,7 +32,24 @@ configure_file(
 file(READ "${source_structural_witness_sql}"
     LAPLACE_SOURCE_STRUCTURAL_WITNESS_SQL)
 file(APPEND "${extension_sql}"
-    "\n${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SQL}\n")
+    "\
+${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SQL}\
+")
+
+set(LAPLACE_MACHINE_EXCEPTION_SCHEMA
+    "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
+set(machine_exception_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/machine_exception.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/machine_exception.sql.in"
+    "${machine_exception_sql}"
+    @ONLY)
+file(READ "${machine_exception_sql}"
+    LAPLACE_MACHINE_EXCEPTION_SQL)
+file(APPEND "${extension_sql}"
+    "\
+${LAPLACE_MACHINE_EXCEPTION_SQL}\
+")
 
 set(laplace_postgresql_module_sources
     src/cognition_isa_pg.c
@@ -41,6 +58,7 @@ set(laplace_postgresql_module_sources
     src/evidence_testimony_pg.c
     src/highway_registry_pg.c
     src/laplace_pg.c
+    src/machine_exception_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c
     src/perfcache_pg.c
@@ -62,8 +80,8 @@ function(laplace_configure_postgresql_module target)
     target_include_directories(${target} PRIVATE
         "${CMAKE_BINARY_DIR}/generated")
     target_link_libraries(${target} PRIVATE
-        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence
-        Laplace::Perfcache Laplace::UnicodeNumeric)
+        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::MachineException
+        Laplace::Persistence Laplace::Perfcache Laplace::UnicodeNumeric)
     target_compile_definitions(${target} PRIVATE
         LAPLACE_UNICODE_SOURCE_ROOT="${LAPLACE_UNICODE_SOURCE_ROOT}")
     target_compile_options(${target} PRIVATE
