@@ -16,6 +16,13 @@ jobs:
         run: ./tools/tests/verify-requirements.sh
       - name: Execute requirement verifier mutation checks
         run: python3 tests/requirements_trace_tests.py
+      - name: Verify source-estate profile resolution contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/source_estate_catalog_tests.py
+          python3 tools/sources/catalog-source-estate.py \
+            --output "$RUNNER_TEMP/laplace-source-estate-catalog.json"
 
   native:
     runs-on: ubuntu-24.04
