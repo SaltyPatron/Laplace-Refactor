@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import datetime as dt
 import fnmatch
 import json
@@ -19,6 +20,8 @@ from typing import Any, Iterable, Sequence
 SCHEMA = "laplace.custom-stack-qa/v1"
 PLAN_SCHEMA = "laplace.custom-stack-qa-plan/v1"
 RESULT_SCHEMA = "laplace.custom-stack-qa-result/v1"
+SELECTION_PROOF_EXIT = 86
+_CTEST_ERE_META = frozenset(r"\.^$*+?()[]{}|")
 
 
 class QaError(RuntimeError):
@@ -38,7 +41,9 @@ def read_json(path: Path) -> dict[str, Any]:
 def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     temporary.replace(path)
 
 
@@ -113,7 +118,9 @@ def eligible_registry_names(repo_root: Path, profile: str) -> list[str]:
     names: list[str] = []
     for row in registry_entries(repo_root):
         profiles = row.get("profiles")
-        if profiles is None or (isinstance(profiles, list) and profile in profiles):
+        if profiles is None or (
+            isinstance(profiles, list) and profile in profiles
+        ):
             names.append(str(row["ctest_name"]))
     return names
 
@@ -140,10 +147,17 @@ def validate_contract(contract: dict[str, Any], repo_root: Path) -> None:
         if not isinstance(name, str) or not name or name in isolated_names:
             raise QaError("isolated test name is absent or duplicated")
         if name not in eligible:
-            raise QaError(f"isolated test is absent from custom-stack registry: {name}")
+            raise QaError(
+                f"isolated test is absent from custom-stack registry: {name}"
+            )
         if not isinstance(profile, str) or not profile:
             raise QaError(f"isolated test has invalid profile: {name}")
-        if not isinstance(order, int) or isinstance(order, bool) or order < 0 or order in orders:
+        if (
+            not isinstance(order, int)
+            or isinstance(order, bool)
+            or order < 0
+            or order in orders
+        ):
             raise QaError(f"isolated test has invalid or duplicate order: {name}")
         isolated_names.add(name)
         profiles.add(profile)
@@ -159,20 +173,38 @@ def validate_contract(contract: dict[str, Any], repo_root: Path) -> None:
         identifier = row.get("id")
         patterns = row.get("patterns")
         selected_profiles = row.get("profiles")
-        if not isinstance(identifier, str) or not identifier or identifier in rule_ids:
+        if (
+            not isinstance(identifier, str)
+            or not identifier
+            or identifier in rule_ids
+        ):
             raise QaError("selection rule id is absent or duplicated")
-        if not isinstance(patterns, list) or not patterns or any(not isinstance(x, str) or not x for x in patterns):
+        if (
+            not isinstance(patterns, list)
+            or not patterns
+            or any(not isinstance(x, str) or not x for x in patterns)
+        ):
             raise QaError(f"selection rule has invalid patterns: {identifier}")
-        if not isinstance(selected_profiles, list) or not selected_profiles or any(not isinstance(x, str) or not x for x in selected_profiles):
-            raise QaError(f"selection rule has invalid profiles: {identifier}")
+        if (
+            not isinstance(selected_profiles, list)
+            or not selected_profiles
+            or any(not isinstance(x, str) or not x for x in selected_profiles)
+        ):
+            raise QaError(
+                f"selection rule has invalid profiles: {identifier}"
+            )
         unknown = sorted(set(selected_profiles) - profiles)
         if unknown:
-            raise QaError(f"selection rule names unknown profiles: {identifier}: {unknown}")
+            raise QaError(
+                f"selection rule names unknown profiles: {identifier}: {unknown}"
+            )
         rule_ids.add(identifier)
         selected_profile_names.update(selected_profiles)
     missing_profiles = sorted(profiles - selected_profile_names)
     if missing_profiles:
-        raise QaError(f"isolated QA profiles have no selection rule: {missing_profiles}")
+        raise QaError(
+            f"isolated QA profiles have no selection rule: {missing_profiles}"
+        )
 
 
 def matches(path: str, patterns: Iterable[str]) -> bool:
@@ -199,9 +231,15 @@ def build_plan(
     for rule in contract["selection_rules"]:
         if any(matches(path, rule["patterns"]) for path in canonical):
             selected_rules.append(str(rule["id"]))
-            selected_profiles.update(str(value) for value in rule["profiles"])
+            selected_profiles.update(
+                str(value) for value in rule["profiles"]
+            )
     selected_rows = sorted(
-        (row for row in isolated_rows if str(row["profile"]) in selected_profiles),
+        (
+            row
+            for row in isolated_rows
+            if str(row["profile"]) in selected_profiles
+        ),
         key=lambda row: int(row["order"]),
     )
     selected = [str(row["ctest_name"]) for row in selected_rows]
@@ -231,7 +269,9 @@ def ctest_names(build_directory: Path, ctest: str) -> set[str]:
         text=True,
     )
     if completed.returncode != 0:
-        raise QaError(f"cannot enumerate CTest tests: {completed.stderr.strip()}")
+        raise QaError(
+            f"cannot enumerate CTest tests: {completed.stderr.strip()}"
+        )
     try:
         document = json.loads(completed.stdout)
     except json.JSONDecodeError as error:
@@ -239,25 +279,103 @@ def ctest_names(build_directory: Path, ctest: str) -> set[str]:
     tests = document.get("tests")
     if not isinstance(tests, list):
         raise QaError("CTest inventory has no tests array")
-    return {str(row["name"]) for row in tests if isinstance(row, dict) and isinstance(row.get("name"), str)}
+    return {
+        str(row["name"])
+        for row in tests
+        if isinstance(row, dict) and isinstance(row.get("name"), str)
+    }
+
+
+def ctest_ere_escape(name: str) -> str:
+    """Escape one exact CTest test name for the POSIX ERE accepted by CTest 3.22."""
+
+    if not isinstance(name, str) or not name:
+        raise QaError("cannot encode an empty CTest test name")
+    return "".join(
+        ("\\" + character) if character in _CTEST_ERE_META else character
+        for character in name
+    )
 
 
 def test_regex(names: Sequence[str]) -> str:
     if not names:
-        return r"a^"
-    return "^(?:" + "|".join(re.escape(name) for name in names) + ")$"
+        raise QaError("cannot build a CTest selector for an empty test set")
+    return "^(" + "|".join(ctest_ere_escape(name) for name in names) + ")$"
 
 
 def utc_now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def first_failure(report: Path, log: Path, status: int) -> dict[str, Any] | None:
+def _junit_cases(report: Path) -> list[ET.Element]:
+    if not report.is_file():
+        raise QaError(f"CTest JUnit report was not produced: {report}")
+    try:
+        root = ET.parse(report).getroot()
+    except (ET.ParseError, OSError) as error:
+        raise QaError(f"CTest JUnit report is invalid: {report}: {error}") from error
+    return list(root.iter("testcase"))
+
+
+def _observed_junit_names(report: Path) -> list[str]:
+    names: list[str] = []
+    for case in _junit_cases(report):
+        name = case.get("name")
+        if not isinstance(name, str) or not name:
+            raise QaError("CTest JUnit contains a testcase without an exact name")
+        names.append(name)
+    return names
+
+
+def verify_success_execution(
+    report: Path, planned_names: Sequence[str]
+) -> list[str]:
+    """Prove that a zero-exit CTest lane actually executed exactly its plan."""
+
+    if not planned_names:
+        raise QaError("successful CTest lane has an empty planned test set")
+    cases = _junit_cases(report)
+    observed: list[str] = []
+    skipped: list[str] = []
+    for case in cases:
+        name = case.get("name")
+        if not isinstance(name, str) or not name:
+            raise QaError("CTest JUnit contains a testcase without an exact name")
+        observed.append(name)
+        if case.find("skipped") is not None:
+            skipped.append(name)
+        if case.find("failure") is not None or case.find("error") is not None:
+            raise QaError(
+                f"CTest exited zero but JUnit records a failure for {name}"
+            )
+    if skipped:
+        raise QaError(
+            "CTest exited zero but required tests were skipped: "
+            + ", ".join(skipped[:16])
+        )
+    if not observed:
+        raise QaError("CTest exited zero without executing any selected test")
+    if Counter(observed) != Counter(planned_names):
+        missing = sorted((Counter(planned_names) - Counter(observed)).elements())
+        extra = sorted((Counter(observed) - Counter(planned_names)).elements())
+        raise QaError(
+            "CTest successful execution differs from the selected plan: "
+            f"missing={missing[:16]} extra={extra[:16]} "
+            f"planned_count={len(planned_names)} executed_count={len(observed)}"
+        )
+    return observed
+
+
+def first_failure(
+    report: Path, log: Path, status: int
+) -> dict[str, Any] | None:
     if report.is_file():
         try:
             root = ET.parse(report).getroot()
             for case in root.iter("testcase"):
-                failures = list(case.findall("failure")) + list(case.findall("error"))
+                failures = list(case.findall("failure")) + list(
+                    case.findall("error")
+                )
                 if failures:
                     text = " ".join(
                         filter(
@@ -272,7 +390,11 @@ def first_failure(report: Path, log: Path, status: int) -> dict[str, Any] | None
                     return {
                         "test": case.get("name", "<unnamed>"),
                         "elapsed_seconds": case.get("time"),
-                        "class": "timeout" if "timeout" in lowered or "timed out" in lowered else "test-failure",
+                        "class": (
+                            "timeout"
+                            if "timeout" in lowered or "timed out" in lowered
+                            else "test-failure"
+                        ),
                         "detail": text[:4000],
                     }
         except (ET.ParseError, OSError):
@@ -280,7 +402,9 @@ def first_failure(report: Path, log: Path, status: int) -> dict[str, Any] | None
     if status != 0:
         tail = ""
         try:
-            lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
+            lines = log.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines()
             tail = "\n".join(lines[-80:])
         except OSError:
             pass
@@ -288,7 +412,11 @@ def first_failure(report: Path, log: Path, status: int) -> dict[str, Any] | None
         return {
             "test": None,
             "elapsed_seconds": None,
-            "class": "timeout" if "timeout" in lowered or "timed out" in lowered else "ctest-failure",
+            "class": (
+                "timeout"
+                if "timeout" in lowered or "timed out" in lowered
+                else "ctest-failure"
+            ),
             "detail": tail[-4000:],
         }
     return None
@@ -302,6 +430,8 @@ def run_ctest_lane(
     output_directory: Path,
     ctest: str,
 ) -> dict[str, Any]:
+    if not names:
+        raise QaError(f"custom-stack QA lane {lane!r} has no executable tests")
     report = output_directory / f"{lane}.junit.xml"
     log = output_directory / f"{lane}.log"
     command = [
@@ -331,18 +461,46 @@ def run_ctest_lane(
             sys.stdout.flush()
             output.write(line)
             output.flush()
-        status = process.wait()
+        ctest_status = process.wait()
     elapsed = time.monotonic() - start
-    failure = first_failure(report, log, status)
+
+    executed_names: list[str] = []
+    try:
+        if report.is_file():
+            executed_names = _observed_junit_names(report)
+    except QaError:
+        executed_names = []
+
+    effective_status = ctest_status
+    failure = first_failure(report, log, ctest_status)
+    selection_verified = False
+    if ctest_status == 0:
+        try:
+            executed_names = verify_success_execution(report, names)
+            selection_verified = True
+        except QaError as error:
+            effective_status = SELECTION_PROOF_EXIT
+            failure = {
+                "test": None,
+                "elapsed_seconds": None,
+                "class": "selection-proof-failure",
+                "detail": str(error)[:4000],
+            }
+
     return {
         "lane": lane,
+        "planned_test_count": len(names),
         "test_count": len(names),
+        "executed_test_count": len(executed_names),
+        "executed_tests": executed_names,
+        "selection_verified": selection_verified,
         "command": command,
         "started_at_utc": started,
         "ended_at_utc": utc_now(),
         "elapsed_seconds": round(elapsed, 6),
-        "exit_code": status,
-        "result": "passed" if status == 0 else "failed",
+        "ctest_exit_code": ctest_status,
+        "exit_code": effective_status,
+        "result": "passed" if effective_status == 0 else "failed",
         "junit": str(report),
         "log": str(log),
         "primary_failure": failure,
@@ -360,14 +518,20 @@ def execute_plan(
         raise QaError("custom-stack QA plan schema differs")
     core = plan.get("core_tests")
     selected = plan.get("selected_physical_tests")
-    if not isinstance(core, list) or any(not isinstance(x, str) or not x for x in core):
+    if not isinstance(core, list) or any(
+        not isinstance(x, str) or not x for x in core
+    ):
         raise QaError("plan core_tests is invalid")
-    if not isinstance(selected, list) or any(not isinstance(x, str) or not x for x in selected):
+    if not isinstance(selected, list) or any(
+        not isinstance(x, str) or not x for x in selected
+    ):
         raise QaError("plan selected_physical_tests is invalid")
     available = ctest_names(build_directory, ctest)
     missing = sorted((set(core) | set(selected)) - available)
     if missing:
-        raise QaError(f"selected custom-stack tests are absent from CTest: {missing}")
+        raise QaError(
+            f"selected custom-stack tests are absent from CTest: {missing}"
+        )
     output_directory.mkdir(parents=True, exist_ok=True)
     result: dict[str, Any] = {
         "schema": RESULT_SCHEMA,
@@ -379,9 +543,28 @@ def execute_plan(
         "aggregate_required_qa": "running",
     }
     write_json_atomic(result_path, result)
-    lanes = [("core", core)]
+
+    lanes: list[tuple[str, list[str]]] = []
+    if core:
+        lanes.append(("core", core))
     if selected:
         lanes.append(("selected-physical", selected))
+    if not lanes:
+        result["aggregate_required_qa"] = "failed"
+        result["primary_terminal_result"] = {
+            "lane": None,
+            "failure": {
+                "test": None,
+                "elapsed_seconds": None,
+                "class": "selection-plan-empty",
+                "detail": "custom-stack QA plan selects no executable tests",
+            },
+            "exit_code": SELECTION_PROOF_EXIT,
+        }
+        result["ended_at_utc"] = utc_now()
+        write_json_atomic(result_path, result)
+        return SELECTION_PROOF_EXIT
+
     for lane, names in lanes:
         lane_result = run_ctest_lane(
             lane=lane,
@@ -396,12 +579,14 @@ def execute_plan(
                 "lane": lane,
                 "failure": lane_result["primary_failure"],
                 "exit_code": lane_result["exit_code"],
+                "ctest_exit_code": lane_result["ctest_exit_code"],
             }
             result["aggregate_required_qa"] = "failed"
             result["ended_at_utc"] = utc_now()
             write_json_atomic(result_path, result)
             return int(lane_result["exit_code"] or 1)
         write_json_atomic(result_path, result)
+
     result["aggregate_required_qa"] = "passed"
     result["ended_at_utc"] = utc_now()
     write_json_atomic(result_path, result)
@@ -412,8 +597,16 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     select = subparsers.add_parser("select")
-    select.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
-    select.add_argument("--contract", type=Path, default=Path("contracts/custom-stack-qa.json"))
+    select.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path(__file__).resolve().parents[2],
+    )
+    select.add_argument(
+        "--contract",
+        type=Path,
+        default=Path("contracts/custom-stack-qa.json"),
+    )
     select.add_argument("--git-name-status-z", type=Path, required=True)
     select.add_argument("--head-sha")
     select.add_argument("--output", type=Path, required=True)
