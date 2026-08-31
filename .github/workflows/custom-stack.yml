@@ -28,6 +28,35 @@ jobs:
       LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Select exact custom-stack QA boundaries
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$BASE_SHA"
+          test -n "$HEAD_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA^{commit}"
+          changed="$RUNNER_TEMP/laplace-custom-stack-changed.status"
+          plan="$RUNNER_TEMP/laplace-custom-stack-qa-plan.json"
+          git diff --name-status -z -M --diff-filter=ACMRTD "$BASE_SHA" "$HEAD_SHA" > "$changed"
+          test -s "$changed"
+          python3 tools/tests/custom_stack_qa.py select \
+            --contract contracts/custom-stack-qa.json \
+            --git-name-status-z "$changed" \
+            --head-sha "$HEAD_SHA" \
+            --output "$plan"
+          printf 'LAPLACE_CUSTOM_STACK_QA_PLAN=%s\n' "$plan" >> "$GITHUB_ENV"
+          {
+            echo '## Custom-stack QA selection'
+            echo '```json'
+            jq '{head_sha, selected_rules, selected_profiles, eligible_test_count, core_test_count, selected_physical_test_count, selected_physical_tests}' "$plan"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Verify execution identity and toolchain
         shell: bash
         run: |
@@ -111,49 +140,57 @@ jobs:
           printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
       - name: Build native engine PostgreSQL extension and managed bindings
         run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 6
-      - name: Execute complete custom-stack profile
+      - name: Execute selected custom-stack QA fail-fast
+        shell: bash
+        run: |
+          set -uo pipefail
+          qa_directory="$RUNNER_TEMP/laplace-custom-stack-qa"
+          result="$qa_directory/result.json"
+          mkdir -p "$qa_directory"
+          printf 'LAPLACE_CUSTOM_STACK_QA_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
+          set +e
+          python3 tools/tests/custom_stack_qa.py execute \
+            --plan "$LAPLACE_CUSTOM_STACK_QA_PLAN" \
+            --build-directory "$LAPLACE_CI_BUILD_DIRECTORY" \
+            --output-directory "$qa_directory" \
+            --result "$result"
+          status=$?
+          set -e
+          if [[ -s "$result" ]]; then
+            cat "$result"
+          fi
+          exit "$status"
+      - name: Retain exact custom-stack terminal result
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
-          report="$RUNNER_TEMP/laplace-custom-stack-junit.xml"
-          printf 'LAPLACE_CUSTOM_STACK_JUNIT=%s\n' "$report" >> "$GITHUB_ENV"
-          ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" \
-            --output-on-failure \
-            --output-junit "$report"
-      - name: Retain exact custom-stack failure identity
-        if: failure()
-        shell: bash
-        run: |
-          set -euo pipefail
-          report="${LAPLACE_CUSTOM_STACK_JUNIT:-$RUNNER_TEMP/laplace-custom-stack-junit.xml}"
-          if [[ ! -s "$report" ]]; then
-            echo 'custom-stack JUnit report was not produced' >> "$GITHUB_STEP_SUMMARY"
+          result="${LAPLACE_CUSTOM_STACK_QA_RESULT:-$RUNNER_TEMP/laplace-custom-stack-qa/result.json}"
+          if [[ ! -s "$result" ]]; then
+            echo 'Custom-stack QA was interrupted before a terminal result receipt was written.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          python3 - "$report" "$GITHUB_STEP_SUMMARY" <<'PY'
-          import sys
-          import xml.etree.ElementTree as ET
-
-          report, summary = sys.argv[1:]
-          root = ET.parse(report).getroot()
-          failed = []
-          for case in root.iter("testcase"):
-              failures = list(case.findall("failure")) + list(case.findall("error"))
-              if failures:
-                  failed.append((case.get("name", "<unnamed>"), case.get("time", ""), failures))
-          with open(summary, "a", encoding="utf-8") as output:
-              output.write("## Exact custom-stack failures\n")
-              if not failed:
-                  output.write("CTest failed without a testcase failure record.\n")
-              for name, elapsed, failures in failed:
-                  output.write(f"- `{name}` ({elapsed}s)\n")
-                  for failure in failures:
-                      message = (failure.get("message") or "").strip().replace("\n", " ")
-                      if message:
-                          output.write(f"  - {message[:1000]}\n")
-                  print(f"::error title=custom-stack failure::{name} ({elapsed}s)")
-          PY
+          {
+            echo '## Custom-stack QA terminal state'
+            echo '```json'
+            jq '{head_sha, selected_profiles, aggregate_required_qa, primary_terminal_result, lanes: [.lanes[] | {lane, test_count, result, exit_code, elapsed_seconds, primary_failure}]}' "$result"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$(jq -r '.aggregate_required_qa' "$result")" == failed ]]; then
+            failure=$(jq -r '.primary_terminal_result.failure.test // .primary_terminal_result.failure.class // "unknown custom-stack failure"' "$result")
+            echo "::error title=custom-stack primary terminal failure::$failure"
+          fi
+      - name: Upload custom-stack QA evidence copy
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: custom-stack-qa-${{ github.sha }}
+          path: ${{ runner.temp }}/laplace-custom-stack-qa/
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 9
       - name: Verify custom-stack registry
+        if: success()
         run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY" custom-stack
       - name: Publish measured perfcache receipt
         if: always()
