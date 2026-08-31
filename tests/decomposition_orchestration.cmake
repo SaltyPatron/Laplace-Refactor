@@ -9,3 +9,5 @@ target_compile_options(laplace_decomposition_orchestration_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_decomposition_orchestration_tests
     PROPERTIES LABELS "implementation;decomposition;recipe;recursive;grammar")
+
+include("${CMAKE_CURRENT_LIST_DIR}/machine_exception.cmake")
