@@ -1,7 +1,33 @@
-Feature: Typed matchups initialize once and language realization remains structural
-  Defaults are uncertain priors, Glicko-2 standing is earned through typed outcomes,
-  and query-relative importance and exact language realization never collapse into one
-  flat score.
+Feature: Unicode-native tiered tokens, typed matchups, and language realization
+  Laplace speaks Unicode, renders natural language or another modality, addresses
+  canonical compositions at the structural tier required by the current program, and
+  earns Glicko-2 standing only from typed outcomes.
+
+  Scenario: Laplace speaks Unicode and renders language
+    Given the machine has the complete Unicode codepoint-position floor
+    And one semantic act can be requested in several natural languages
+    When cognition and realization traces are inspected
+    Then the shared internal symbolic floor is Unicode rather than English or another natural language
+    And each natural language is a witnessed interpretation and realization scope over shared semantic state
+    And each output language is an exact Unicode composition produced by its own recipe
+    And no English token sequence is required as a universal intermediate
+    But treating one natural language tokenizer vocabulary as the machine language fails acceptance
+
+  Scenario: Tokens are addressable at multiple structural tiers
+    Given exact Unicode content has recursively composed canonical structures from codepoint leaves through larger universal AST nodes
+    When a grammar cognition query or realization recipe selects operands
+    Then it may address the canonical compositions at the structural altitude required by that program
+    And every selected unit can descend to exact constituents and ascend through enclosing trajectories
+    And equal content retains one identity while role occurrence tier source language and interpretation remain outside that identity
+    But flattening all operations to one fixed subword segmentation fails acceptance
+
+  Scenario: Native token identity has no leading-space hack
+    Given the exact Unicode sequence contains a word whitespace punctuation or a space-free script
+    When its content and trajectory are calculated
+    Then each exact constituent and every larger observed or generated composition remains addressable
+    And boundaries order gaps containment and recurrence come from structure and physicality
+    And the lexical content is not reminted merely because whitespace precedes or follows it
+    But making leading-space English tokens or stop-word deletion a native identity law fails acceptance
 
   Scenario: A new rating lane consumes its default exactly once
     Given a rating recipe declares a participant lane with versioned initial rating deviation and volatility
