@@ -106,6 +106,21 @@ class ProductHostTests(unittest.TestCase):
                 REPOSITORY, self.contract_path, Path("/missing"), Path("/"), False
             )
 
+    def test_first_install_key_generation_is_exact_and_replayable(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="laplace-product-host-key-"
+        ) as temporary:
+            key = Path(temporary) / "etc/laplace/product-activation.key"
+            self.assertTrue(host.ensure_activation_key(key, True))
+            first = key.read_bytes()
+            self.assertEqual(stat.S_IMODE(key.stat().st_mode), 0o400)
+            self.assertFalse(host.ensure_activation_key(key, True))
+            self.assertEqual(key.read_bytes(), first)
+            key.chmod(0o600)
+            key.write_text("invalid\n", encoding="ascii")
+            with self.assertRaises(host.gateway.activation.ActivationGatewayError):
+                host.ensure_activation_key(key, False)
+
     def test_contract_mutants_cannot_redirect_host_authority(self) -> None:
         for label, mutate in (
             (

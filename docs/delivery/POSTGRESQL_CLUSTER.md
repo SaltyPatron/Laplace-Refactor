@@ -214,6 +214,17 @@ second semantic implementation. Repair changes only declared directory metadata 
 exact gateway bytes before exact product replay; it does not recursively rewrite
 PGDATA, WAL, logs, receipts, or package generations.
 
+Fresh local installation is one administrator command; the activation key is generated
+once at its final root-only path and exact replay never replaces it:
+
+```sh
+sudo tools/delivery/product_host.py install \
+  --authorize-system-root \
+  --generate-key \
+  --postgresql-publication /opt/laplace/receipts/postgresql/<publication-id>.json \
+  --output /opt/laplace/receipts/deployments/product-host-install.json
+```
+
 ## Product Unicode activation
 
 Cluster activation and Unicode activation are separate receipted product states.

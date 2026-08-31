@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import grp
 import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
 import pwd
+import secrets
 import stat
 import subprocess
 import sys
@@ -302,6 +304,22 @@ def execute_product_request(executable: Path, request_path: Path) -> dict[str, A
     return result
 
 
+def ensure_activation_key(key_path: Path, generate: bool) -> bool:
+    if key_path.exists() or key_path.is_symlink():
+        if not key_path.is_file() or key_path.is_symlink():
+            raise HostError("activation key is not one physical file")
+        gateway.activation.decode_key(key_path.read_text(encoding="ascii").strip())
+        return False
+    if not generate:
+        raise HostError("activation key is absent; use --generate-key for first install")
+    key_path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    physical_directory(key_path.parent)
+    encoded = base64.b64encode(secrets.token_bytes(32)) + b"\n"
+    gateway.activation.atomic_write(key_path, encoded, 0o400)
+    gateway.activation.decode_key(key_path.read_text(encoding="ascii").strip())
+    return True
+
+
 def run_service(
     identity: dict[str, Any], command: Sequence[str], timeout: int
 ) -> bytes:
@@ -438,7 +456,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("command", choices=("converge", "install", "initial-run", "repair"))
     parser.add_argument("--repository", default=str(REPOSITORY))
     parser.add_argument("--contract", default="contracts/product-host.json")
-    parser.add_argument("--key-file", required=True)
+    parser.add_argument("--key-file")
+    parser.add_argument("--generate-key", action="store_true")
     parser.add_argument("--request")
     parser.add_argument("--postgresql-publication")
     parser.add_argument("--root", default="/")
@@ -454,12 +473,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not contract_path.is_absolute():
         contract_path = repository / contract_path
     root = Path(arguments.root)
+    contract = load_json(contract_path)
+    gateway_contract = load_json(
+        repository / contract["modules"]["gateway_contract"]
+    )
+    logical_key = Path(gateway_contract["request"]["secret_path"])
+    key_path = (
+        Path(arguments.key_file)
+        if arguments.key_file is not None
+        else prefixed(root, logical_key)
+    )
+    generated_key = ensure_activation_key(key_path, arguments.generate_key)
     receipt = converge_host(
         repository,
         contract_path,
-        Path(arguments.key_file),
+        key_path,
         root,
         arguments.authorize_system_root,
+    )
+    receipt["activation_key_generated"] = generated_key
+    receipt["receipt_sha256"] = gateway.activation.document_identity(
+        receipt, "receipt_sha256"
     )
     if arguments.command in {"install", "initial-run", "repair"}:
         if (arguments.request is None) == (arguments.postgresql_publication is None):
