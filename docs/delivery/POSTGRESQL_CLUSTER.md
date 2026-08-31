@@ -204,11 +204,15 @@ proof fails closed.
 `tools/delivery/product_host.py` is the administrator-facing convergent entrypoint.
 `converge` creates or repairs only the declared service identity, persistent runner
 roots, and immutable gateway. `install`, `initial-run`, and `repair` additionally
-require one authenticated whole-product request and dispatch it through that installed
-gateway. They compose the package, cluster, Unicode, and Highway modules without a
-general root shell or a second implementation. Repair changes only declared directory
-metadata and exact gateway bytes; it does not recursively rewrite PGDATA, WAL, logs,
-receipts, or package generations.
+accept either one authenticated CI request or one verified PostgreSQL publication.
+For a local publication, the entrypoint drops package composition and native resource
+observation to `laplace-runner`; the installed root-owned gateway then derives an
+authenticated local-administrator request from the package receipt and package-bound
+resource observation. The local route is not present in sudoers. Both routes compose
+the package, cluster, Unicode, and Highway modules without a general root shell or a
+second semantic implementation. Repair changes only declared directory metadata and
+exact gateway bytes before exact product replay; it does not recursively rewrite
+PGDATA, WAL, logs, receipts, or package generations.
 
 ## Product Unicode activation
 

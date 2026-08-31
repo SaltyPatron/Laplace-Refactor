@@ -18,6 +18,12 @@
     "secret_environment": "LAPLACE_ACTIVATION_HMAC_KEY_B64",
     "secret_path": "/etc/laplace/product-activation.key"
   },
+  "local_administrator": {
+    "enabled": true,
+    "actor": "local-system-administrator",
+    "workflow_run_id": 0,
+    "workflow_run_attempt": 0
+  },
   "gateway": {
     "release_root": "/opt/laplace/deployment/releases",
     "active_link": "/opt/laplace/deployment/current",

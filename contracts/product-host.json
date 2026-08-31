@@ -49,7 +49,9 @@
     "gateway_contract": "contracts/product-activation-gateway.json",
     "cluster_contract": "contracts/postgresql-cluster.json",
     "gateway_installer": "tools/delivery/install_product_activation_gateway.py",
-    "gateway_executable": "/opt/laplace/deployment/current/bin/laplace-product-activate"
+    "gateway_executable": "/opt/laplace/deployment/current/bin/laplace-product-activate",
+    "product_builder": "tools/product/build-package.py",
+    "cluster_controller": "tools/postgresql/clusterctl.py"
   },
   "lifecycle": {
     "install": "converge host identity and directories install immutable gateway then execute one signed whole-product request",

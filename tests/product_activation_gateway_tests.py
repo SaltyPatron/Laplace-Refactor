@@ -73,6 +73,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
             "schema": "laplace.package-manifest/v1",
             "package_id": PACKAGE_ID,
             "root": f"{product['package_release_root']}/{PACKAGE_ID}",
+            "provenance": {"repository_commit": COMMIT},
         }
         manifest.write_bytes(activation.canonical_bytes(manifest_document))
         source_root = root / "stage" / BUILD_ID / "root"
@@ -186,6 +187,35 @@ class ProductActivationGatewayTests(unittest.TestCase):
             package_receipt.write_text("{}\n", encoding="utf-8")
             with self.assertRaisesRegex(
                 activation.ActivationGatewayError, "package receipt bytes"
+            ):
+                activation.validate_request(contract, request, KEY, NOW)
+
+    def test_local_administrator_selection_binds_the_package_commit(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="laplace-activation-local-admin-"
+        ) as temporary:
+            contract, _continuation, _environment, manifest, resource = self.fixture(
+                Path(temporary)
+            )
+            request = activation.build_local_administrator_request(
+                contract,
+                manifest.parent / "package-receipt.json",
+                resource,
+                KEY,
+                NOW,
+            )
+            payload = activation.validate_request(contract, request, KEY, NOW)
+            self.assertEqual(payload["repository"]["commit"], COMMIT)
+            self.assertEqual(
+                payload["repository"]["actor"], "local-system-administrator"
+            )
+            self.assertEqual(payload["repository"]["workflow_run_id"], 0)
+            changed = activation.load_json(manifest)
+            changed["provenance"]["repository_commit"] = "1f" * 20
+            manifest.write_bytes(activation.canonical_bytes(changed))
+            with self.assertRaisesRegex(
+                activation.ActivationGatewayError,
+                "commit differs from the package|manifest bytes",
             ):
                 activation.validate_request(contract, request, KEY, NOW)
 
@@ -322,6 +352,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
             self.assertEqual(sudoers.count("NOPASSWD:"), 2)
             self.assertNotIn("*", sudoers)
             self.assertNotIn(" ALL\n", sudoers)
+            self.assertNotIn("execute-local-selection", sudoers)
             other = root / "other-key"
             other.write_text(base64.b64encode(b"x" * 32).decode("ascii") + "\n", encoding="ascii")
             with self.assertRaisesRegex(installer.InstallError, "key differs"):

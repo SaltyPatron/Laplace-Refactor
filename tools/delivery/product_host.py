@@ -104,6 +104,8 @@ def validate_contract(contract: dict[str, Any], repository: Path) -> None:
         "cluster_contract": "contracts/postgresql-cluster.json",
         "gateway_installer": "tools/delivery/install_product_activation_gateway.py",
         "gateway_executable": "/opt/laplace/deployment/current/bin/laplace-product-activate",
+        "product_builder": "tools/product/build-package.py",
+        "cluster_controller": "tools/postgresql/clusterctl.py",
     }
     if modules != expected_modules:
         raise HostError("product host module selection differs")
@@ -300,6 +302,137 @@ def execute_product_request(executable: Path, request_path: Path) -> dict[str, A
     return result
 
 
+def run_service(
+    identity: dict[str, Any], command: Sequence[str], timeout: int
+) -> bytes:
+    completed = subprocess.run(
+        ["/usr/sbin/runuser", "--user", identity["user"], "--", *command],
+        check=False,
+        cwd="/",
+        env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=timeout,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.decode("utf-8", "replace").strip() or f"exit {completed.returncode}"
+        raise HostError(f"runner product command failed: {detail}")
+    return completed.stdout
+
+
+def run_service_json(
+    identity: dict[str, Any], command: Sequence[str], timeout: int
+) -> dict[str, Any]:
+    output = run_service(identity, command, timeout)
+    try:
+        result = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise HostError("runner product command returned invalid JSON") from error
+    if not isinstance(result, dict):
+        raise HostError("runner product command did not return an object")
+    return result
+
+
+def prepare_product(
+    repository: Path,
+    contract: dict[str, Any],
+    postgresql_publication: Path,
+) -> tuple[Path, Path, dict[str, Any]]:
+    if os.geteuid() != 0:
+        raise HostError("local product composition requires the administrator entrypoint")
+    modules = contract["modules"]
+    identity = contract["service_identity"]
+    selection = run_service_json(
+        identity,
+        [
+            "/usr/bin/python3",
+            str(repository / modules["product_builder"]),
+            "--repository",
+            str(repository),
+            "compose",
+            "--postgresql-publication",
+            str(postgresql_publication),
+        ],
+        21600,
+    )
+    required = {
+        "schema", "plan_id", "plan_sha256", "build_directory",
+        "stage_directory", "product_receipt", "package_id", "built_new",
+    }
+    if set(selection) != required:
+        raise HostError("product package selection fields differ")
+    package_id = gateway.activation.require_hex(
+        selection.get("package_id"), gateway.activation.HEX_64, "selected package id"
+    )
+    product_receipt = Path(selection["product_receipt"])
+    package_manifest = Path(selection["build_directory"]) / "package-manifest.json"
+    package_source_root = Path(selection["stage_directory"]) / "root"
+    gateway_contract = load_json(repository / modules["gateway_contract"])
+    receipt_root = Path(gateway_contract["product"]["plan_receipt_root"])
+    resource_directory = receipt_root / package_id
+    resource_observation = resource_directory / "resource-observation.json"
+    run_service(
+        identity,
+        ["/usr/bin/install", "-d", "-m", "2750", str(resource_directory)],
+        60,
+    )
+    run_service(
+        identity,
+        [
+            "/usr/bin/python3",
+            str(repository / modules["cluster_controller"]),
+            "observe-resources",
+            "--contract",
+            str(repository / modules["cluster_contract"]),
+            "--package-manifest",
+            str(package_manifest),
+            "--package-physical-root",
+            str(package_source_root),
+            "--output",
+            str(resource_observation),
+        ],
+        3600,
+    )
+    if not product_receipt.is_file() or product_receipt.is_symlink():
+        raise HostError("selected product receipt is absent")
+    if not resource_observation.is_file() or resource_observation.is_symlink():
+        raise HostError("selected resource observation is absent")
+    return product_receipt, resource_observation, selection
+
+
+def execute_local_selection(
+    executable: Path,
+    product_receipt: Path,
+    resource_observation: Path,
+) -> dict[str, Any]:
+    completed = subprocess.run(
+        [
+            str(executable),
+            "execute-local-selection",
+            "--product-receipt",
+            str(product_receipt),
+            "--resource-observation",
+            str(resource_observation),
+        ],
+        check=False,
+        cwd="/",
+        env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=21600,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.decode("utf-8", "replace").strip() or f"exit {completed.returncode}"
+        raise HostError(f"local whole-product activation failed: {detail}")
+    try:
+        result = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise HostError("local whole-product activation returned invalid JSON") from error
+    if result.get("phase") != "product-unicode-and-highway-activated":
+        raise HostError("local whole-product activation did not reach its terminal phase")
+    return result
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("converge", "install", "initial-run", "repair"))
@@ -307,6 +440,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--contract", default="contracts/product-host.json")
     parser.add_argument("--key-file", required=True)
     parser.add_argument("--request")
+    parser.add_argument("--postgresql-publication")
     parser.add_argument("--root", default="/")
     parser.add_argument("--authorize-system-root", action="store_true")
     parser.add_argument("--output", default="-")
@@ -328,17 +462,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         arguments.authorize_system_root,
     )
     if arguments.command in {"install", "initial-run", "repair"}:
-        if arguments.request is None:
+        if (arguments.request is None) == (arguments.postgresql_publication is None):
             raise HostError(
-                f"{arguments.command} requires one signed whole-product --request"
+                f"{arguments.command} requires exactly one --request or --postgresql-publication"
             )
         executable = prefixed(
             root, Path(load_json(contract_path)["modules"]["gateway_executable"])
         )
-        receipt["activation"] = execute_product_request(
-            executable, Path(arguments.request)
-        )
-        receipt["phase"] = "product-ready"
+        if arguments.request is not None:
+            receipt["activation"] = execute_product_request(
+                executable, Path(arguments.request)
+            )
+        else:
+            product_receipt, resource_observation, selection = prepare_product(
+                repository,
+                load_json(contract_path),
+                Path(arguments.postgresql_publication),
+            )
+            receipt["package_selection"] = selection
+            receipt["activation"] = execute_local_selection(
+                executable, product_receipt, resource_observation
+            )
+        receipt["phase"] = "product-activation-complete"
         receipt["product_activated"] = True
         receipt["receipt_sha256"] = gateway.activation.document_identity(
             receipt, "receipt_sha256"
