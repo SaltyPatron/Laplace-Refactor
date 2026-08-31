@@ -27,6 +27,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Sweep stale interrupted PostgreSQL-product residue
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --minimum-age-seconds 300 \
+            --name laplace-postgresql-product-proof
       - name: Verify PostgreSQL-product proof authority
         shell: bash
         run: |
@@ -84,3 +92,21 @@ jobs:
             cat "$result"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Print bounded PostgreSQL-product failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          work_root="$RUNNER_TEMP/laplace-postgresql-product-proof"
+          if [[ -d "$work_root" && ! -L "$work_root" ]]; then
+            find "$work_root" -xdev -type f -name 'postgres.log' -size -1048577c \
+              -print -exec sh -c 'tail -n 240 "$1"' _ {} \;
+          fi
+      - name: Clean disposable PostgreSQL-product workspace
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --name laplace-postgresql-product-proof
