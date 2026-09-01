@@ -6,6 +6,12 @@ scope. Callers name direct children of one runner-temporary root. The tool refus
 traversal, symlink roots, nested mount/device boundaries, and workspaces still referenced
 by a live process. A minimum-age gate supports recovery of residue from interrupted
 self-hosted jobs without allowing a cleanup pass to race freshly created state.
+
+Explicitly named workspaces are strict: inability to inspect or remove one fails the
+cleanup. Prefix-discovered residue is different because it can predate the current run
+and can be owned by a historical process identity. Inaccessible discovered residue is
+reported as such and left untouched instead of preventing an unrelated current proof
+from executing. It never becomes a successful cleanup claim.
 """
 
 from __future__ import annotations
@@ -145,12 +151,33 @@ def _remove_entry(path: Path, expected_device: int) -> int:
     return 1
 
 
+def _inaccessible_result(
+    name: str,
+    target: Path,
+    error: OSError,
+    *,
+    age_seconds: float | None,
+) -> dict[str, object]:
+    result: dict[str, object] = {
+        "name": name,
+        "state": "inaccessible",
+        "reason": "permission-denied",
+        "removed_entries": 0,
+        "path": str(target),
+        "error": str(error),
+    }
+    if age_seconds is not None:
+        result["age_seconds"] = age_seconds
+    return result
+
+
 def cleanup(
     root: Path,
     names: Sequence[str],
     *,
     minimum_age_seconds: int = 0,
     proc_root: Path = Path("/proc"),
+    report_inaccessible_names: frozenset[str] = frozenset(),
 ) -> dict[str, object]:
     if minimum_age_seconds < 0:
         raise CleanupError("minimum workspace age cannot be negative")
@@ -170,6 +197,15 @@ def cleanup(
         except FileNotFoundError:
             results.append({"name": name, "state": "absent", "removed_entries": 0})
             continue
+        except PermissionError as error:
+            if name in report_inaccessible_names:
+                results.append(
+                    _inaccessible_result(name, target, error, age_seconds=None)
+                )
+                continue
+            raise CleanupError(
+                f"cannot inspect explicitly named disposable workspace {target}: {error}"
+            ) from error
         except OSError as error:
             raise CleanupError(f"cannot inspect disposable workspace {target}: {error}") from error
 
@@ -188,7 +224,24 @@ def cleanup(
             raise CleanupError(
                 f"refusing active workspace {target}: process references " + ", ".join(active[:16])
             )
-        removed = _remove_entry(target, root_device)
+        try:
+            removed = _remove_entry(target, root_device)
+        except PermissionError as error:
+            if name in report_inaccessible_names:
+                results.append(
+                    _inaccessible_result(
+                        name,
+                        target,
+                        error,
+                        age_seconds=age_seconds,
+                    )
+                )
+                continue
+            raise CleanupError(
+                f"cannot remove explicitly named disposable workspace {target}: {error}"
+            ) from error
+        except OSError as error:
+            raise CleanupError(f"cannot remove disposable workspace {target}: {error}") from error
         results.append(
             {
                 "name": name,
@@ -219,12 +272,16 @@ def main(argv: Sequence[str]) -> int:
     arguments = parse_args(argv)
     if not arguments.name and not arguments.discover_prefix:
         raise CleanupError("at least one explicit name or safe discovery prefix is required")
-    names = list(arguments.name)
-    names.extend(discover_names(Path(arguments.runner_temp), arguments.discover_prefix))
+    explicit_names = list(arguments.name)
+    discovered_names = discover_names(
+        Path(arguments.runner_temp), arguments.discover_prefix
+    )
+    names = explicit_names + discovered_names
     result = cleanup(
         Path(arguments.runner_temp),
         names,
         minimum_age_seconds=arguments.minimum_age_seconds,
+        report_inaccessible_names=frozenset(discovered_names),
     )
     sys.stdout.write(json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n")
     return 0
