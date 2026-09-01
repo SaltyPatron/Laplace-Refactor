@@ -384,6 +384,7 @@ laplace_tabular_source_status BuildRecursive(
     if (status != LAPLACE_TABULAR_SOURCE_OK || created == nullptr) {
         return status;
     }
+    MarkSourceOccurrenceRequests(*created);
 
     laplace_unicode_source_receipt unicode_receipt{};
     laplace_uax29_tables* uax_tables = nullptr;
@@ -681,7 +682,6 @@ laplace_tabular_source_status BuildRecursive(
     status = UpdateProfileCounts(
         *created, legacy_output_count, recursive_span_count);
     if (status != LAPLACE_TABULAR_SOURCE_OK) goto recursive_failure;
-    MarkSourceOccurrenceRequests(*created);
 
     {
         blake3_hasher hasher;
