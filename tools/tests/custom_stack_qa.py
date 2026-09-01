@@ -125,12 +125,33 @@ def eligible_registry_names(repo_root: Path, profile: str) -> list[str]:
     return names
 
 
+def explicit_registry_names(repo_root: Path, profile: str) -> list[str]:
+    """Return tests whose registry row explicitly requires this provider."""
+
+    names: list[str] = []
+    for row in registry_entries(repo_root):
+        profiles = row.get("profiles")
+        if isinstance(profiles, list) and profile in profiles:
+            names.append(str(row["ctest_name"]))
+    return names
+
+
 def validate_contract(contract: dict[str, Any], repo_root: Path) -> None:
     if contract.get("schema") != SCHEMA:
         raise QaError("custom-stack QA schema differs")
     registry_profile = contract.get("registry_profile")
     if not isinstance(registry_profile, str) or not registry_profile:
         raise QaError("registry_profile is invalid")
+    execution = contract.get("execution")
+    if not isinstance(execution, dict):
+        raise QaError("custom-stack QA execution policy is absent")
+    for field in ("core_parallel_jobs", "selected_physical_parallel_jobs"):
+        if (
+            not isinstance(execution.get(field), int)
+            or isinstance(execution[field], bool)
+            or execution[field] <= 0
+        ):
+            raise QaError(f"custom-stack QA {field} must be a positive integer")
     eligible = set(eligible_registry_names(repo_root, registry_profile))
     isolated = contract.get("isolated_tests")
     if not isinstance(isolated, list) or not isolated:
@@ -223,9 +244,10 @@ def build_plan(
         raise QaError("cannot plan custom-stack QA for an empty change set")
     registry_profile = str(contract["registry_profile"])
     eligible = eligible_registry_names(repo_root, registry_profile)
+    explicit = explicit_registry_names(repo_root, registry_profile)
     isolated_rows = list(contract["isolated_tests"])
     isolated_names = {str(row["ctest_name"]) for row in isolated_rows}
-    core = [name for name in eligible if name not in isolated_names]
+    core = [name for name in explicit if name not in isolated_names]
     selected_profiles: set[str] = set()
     selected_rules: list[str] = []
     for rule in contract["selection_rules"]:
@@ -251,6 +273,11 @@ def build_plan(
         "selected_rules": selected_rules,
         "selected_profiles": sorted(selected_profiles),
         "registry_profile": registry_profile,
+        "hosted_antecedent_required": True,
+        "core_parallel_jobs": int(contract["execution"]["core_parallel_jobs"]),
+        "selected_physical_parallel_jobs": int(
+            contract["execution"]["selected_physical_parallel_jobs"]
+        ),
         "core_tests": core,
         "selected_physical_tests": selected,
         "isolated_test_count": len(isolated_names),
@@ -429,6 +456,7 @@ def run_ctest_lane(
     build_directory: Path,
     output_directory: Path,
     ctest: str,
+    parallel_jobs: int,
 ) -> dict[str, Any]:
     if not names:
         raise QaError(f"custom-stack QA lane {lane!r} has no executable tests")
@@ -440,6 +468,8 @@ def run_ctest_lane(
         str(build_directory),
         "--output-on-failure",
         "--stop-on-failure",
+        "--parallel",
+        str(parallel_jobs),
         "--output-junit",
         str(report),
         "-R",
@@ -461,6 +491,7 @@ def run_ctest_lane(
             sys.stdout.flush()
             output.write(line)
             output.flush()
+        process.stdout.close()
         ctest_status = process.wait()
     elapsed = time.monotonic() - start
 
@@ -544,11 +575,15 @@ def execute_plan(
     }
     write_json_atomic(result_path, result)
 
-    lanes: list[tuple[str, list[str]]] = []
+    lanes: list[tuple[str, list[str], int]] = []
     if core:
-        lanes.append(("core", core))
+        lanes.append(("core", core, int(plan.get("core_parallel_jobs", 1))))
     if selected:
-        lanes.append(("selected-physical", selected))
+        lanes.append((
+            "selected-physical",
+            selected,
+            int(plan.get("selected_physical_parallel_jobs", 1)),
+        ))
     if not lanes:
         result["aggregate_required_qa"] = "failed"
         result["primary_terminal_result"] = {
@@ -565,13 +600,14 @@ def execute_plan(
         write_json_atomic(result_path, result)
         return SELECTION_PROOF_EXIT
 
-    for lane, names in lanes:
+    for lane, names, parallel_jobs in lanes:
         lane_result = run_ctest_lane(
             lane=lane,
             names=names,
             build_directory=build_directory,
             output_directory=output_directory,
             ctest=ctest,
+            parallel_jobs=parallel_jobs,
         )
         result["lanes"].append(lane_result)
         if lane_result["result"] != "passed":

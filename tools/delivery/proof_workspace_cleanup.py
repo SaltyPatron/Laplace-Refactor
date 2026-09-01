@@ -21,7 +21,11 @@ import time
 from typing import Sequence
 
 
-SAFE_NAME = re.compile(r"^laplace-[a-z0-9][a-z0-9._-]*$")
+SAFE_NAME = re.compile(
+    r"^(?:laplace-postgres-test\.[A-Za-z0-9]+|"
+    r"laplace-[a-z0-9][a-z0-9._-]*|lp-pg\.[A-Za-z0-9]+)$"
+)
+SAFE_DISCOVERY_PREFIXES = frozenset(("laplace-postgres-test.", "lp-pg."))
 
 
 class CleanupError(RuntimeError):
@@ -47,6 +51,25 @@ def _target(root: Path, name: str) -> Path:
     if target.parent != root:
         raise CleanupError("disposable workspace must be a direct child of runner temp")
     return target
+
+
+def discover_names(root: Path, prefixes: Sequence[str]) -> list[str]:
+    """Discover only the two exact disposable PostgreSQL workspace namespaces."""
+
+    physical_root = _physical_root(root)
+    for prefix in prefixes:
+        if prefix not in SAFE_DISCOVERY_PREFIXES:
+            raise CleanupError(f"unsafe disposable workspace discovery prefix: {prefix!r}")
+    try:
+        names = [entry.name for entry in os.scandir(physical_root)]
+    except OSError as error:
+        raise CleanupError(f"cannot enumerate runner temporary root {root}: {error}") from error
+    return sorted(
+        name
+        for name in names
+        if SAFE_NAME.fullmatch(name) is not None
+        and any(name.startswith(prefix) for prefix in prefixes)
+    )
 
 
 def _contains(root: Path, candidate: Path) -> bool:
@@ -186,16 +209,21 @@ def cleanup(
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runner-temp", required=True)
-    parser.add_argument("--name", action="append", required=True)
+    parser.add_argument("--name", action="append", default=[])
+    parser.add_argument("--discover-prefix", action="append", default=[])
     parser.add_argument("--minimum-age-seconds", type=int, default=0)
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str]) -> int:
     arguments = parse_args(argv)
+    if not arguments.name and not arguments.discover_prefix:
+        raise CleanupError("at least one explicit name or safe discovery prefix is required")
+    names = list(arguments.name)
+    names.extend(discover_names(Path(arguments.runner_temp), arguments.discover_prefix))
     result = cleanup(
         Path(arguments.runner_temp),
-        arguments.name,
+        names,
         minimum_age_seconds=arguments.minimum_age_seconds,
     )
     sys.stdout.write(json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n")

@@ -1,5 +1,6 @@
 #include "postgres.h"
 
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -9,6 +10,7 @@
 #include "executor/spi.h"
 #include "fmgr.h"
 #include "funcapi.h"
+#include "miscadmin.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/memutils.h"
@@ -60,8 +62,8 @@ static SPIPlanPtr deposit_receipt_verify_plan = NULL;
 
 static const char* const record_type_names[5] = {
     "entity_record",
-    "physicality_record",
-    "physicality_trajectory_segment_record",
+    "physicality_deposit_record",
+    NULL,
     "attestation_record",
     "consensus_record"};
 
@@ -102,6 +104,7 @@ static ArrayType* build_entity_array(const persistence_batch_state* state) {
 }
 
 static ArrayType* build_physicality_array(const persistence_batch_state* state) {
+    static const uint8_t empty_trajectory = 0u;
     laplace_pg_composite_binding binding;
     Datum* rows = state->summary.physicality_count == 0 ? NULL :
         (Datum*)palloc(sizeof(*rows) *
@@ -109,12 +112,49 @@ static ArrayType* build_physicality_array(const persistence_batch_state* state) 
     ArrayType* result;
     uint64_t row = 0;
     uint64_t index;
-    laplace_pg_physicality_binding_open(&binding);
+    laplace_pg_physicality_deposit_binding_open(&binding);
     for (index = 0; index < state->count; ++index) {
         const staged_record* staged = &state->records[index];
         if (staged->record.kind == LAPLACE_PERSISTENCE_RECORD_PHYSICALITY) {
-            rows[row++] = laplace_pg_physicality_record(
-                &binding, &staged->record.value.physicality);
+            const laplace_persistence_physicality_record* physicality =
+                &staged->record.value.physicality;
+            const uint64_t vertex_count = physicality->vertex_count;
+            size_t trajectory_bytes;
+            uint8_t* trajectory;
+            uint64_t vertex;
+            if (vertex_count > SIZE_MAX / sizeof(laplace_trajectory_carrier) ||
+                vertex_count > state->count - index - 1u) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_DATA_CORRUPTED),
+                         errmsg("Laplace persistence batch split a physicality trajectory")));
+            }
+            trajectory_bytes =
+                (size_t)vertex_count * sizeof(laplace_trajectory_carrier);
+            trajectory = trajectory_bytes == 0u ?
+                (uint8_t*)&empty_trajectory : (uint8_t*)palloc(trajectory_bytes);
+            for (vertex = 0u; vertex < vertex_count; ++vertex) {
+                const staged_record* segment =
+                    &state->records[index + 1u + vertex];
+                if (segment->record.kind !=
+                        LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT ||
+                    segment->record.value.trajectory_segment.vertex_index != vertex ||
+                    memcmp(
+                        segment->record.value.trajectory_segment.physicality_id.bytes,
+                        physicality->physicality_id.bytes,
+                        sizeof(physicality->physicality_id.bytes)) != 0) {
+                    ereport(ERROR,
+                            (errcode(ERRCODE_DATA_CORRUPTED),
+                             errmsg("Laplace persistence trajectory group is not canonical")));
+                }
+                memcpy(
+                    trajectory + (size_t)vertex *
+                        sizeof(laplace_trajectory_carrier),
+                    segment->frame +
+                        LAPLACE_PERSISTENCE_FRAME_HEADER_BYTES + 40u,
+                    sizeof(laplace_trajectory_carrier));
+            }
+            rows[row++] = laplace_pg_physicality_deposit_record(
+                &binding, physicality, trajectory, trajectory_bytes);
         }
     }
     result = laplace_pg_composite_array(&binding, rows, row);
@@ -122,54 +162,33 @@ static ArrayType* build_physicality_array(const persistence_batch_state* state) 
     return result;
 }
 
-static ArrayType* build_trajectory_array(const persistence_batch_state* state) {
-    static const Oid attribute_types[11] = {
-        BYTEAOID, NUMERICOID, BYTEAOID, BYTEAOID, NUMERICOID,
-        INT8OID, INT8OID, INT4OID, INT4OID, INT2OID, BOOLOID};
-    static const int32 attribute_typmods[11] = {
-        -1, LAPLACE_PG_NUMERIC_TYPMOD(20, 0), -1, -1,
-        LAPLACE_PG_NUMERIC_TYPMOD(20, 0), -1, -1, -1, -1, -1, -1};
-    laplace_pg_composite_binding binding;
+static ArrayType* build_trajectory_reference_array(
+    const persistence_batch_state* state) {
     Datum* rows = state->summary.trajectory_segment_count == 0 ? NULL :
         (Datum*)palloc(sizeof(*rows) *
                       (size_t)state->summary.trajectory_segment_count);
-    ArrayType* result;
     uint64_t row = 0;
     uint64_t index;
-    laplace_pg_composite_binding_open(
-        record_type_names[2], attribute_types, attribute_typmods,
-        11, &binding);
     for (index = 0; index < state->count; ++index) {
         const staged_record* staged = &state->records[index];
         if (staged->record.kind == LAPLACE_PERSISTENCE_RECORD_PHYSICALITY_TRAJECTORY_SEGMENT) {
             const laplace_persistence_trajectory_segment_record* value =
                 &staged->record.value.trajectory_segment;
-            Datum fields[11];
-            bool nulls[11] = {false};
-            fields[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                value->physicality_id.bytes, sizeof(value->physicality_id.bytes)));
-            fields[1] = laplace_pg_numeric_from_uint64(value->vertex_index);
-            fields[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                staged->frame + LAPLACE_PERSISTENCE_FRAME_HEADER_BYTES + 40u,
-                sizeof(value->carrier)));
-            fields[3] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            rows[row++] = PointerGetDatum(laplace_pg_bytes_to_bytea(
                 value->occurrence.entity_id.bytes,
                 sizeof(value->occurrence.entity_id.bytes)));
-            fields[4] = laplace_pg_numeric_from_uint64(
-                value->occurrence.logical_ordinal);
-            fields[5] = Int64GetDatum(laplace_pg_checked_int64(
-                value->occurrence.metadata, "trajectory metadata"));
-            fields[6] = Int64GetDatum((int64)value->occurrence.atom);
-            fields[7] = Int32GetDatum((int32)value->occurrence.packed_ordinal);
-            fields[8] = Int32GetDatum((int32)value->occurrence.run_length);
-            fields[9] = Int16GetDatum((int16)value->occurrence.tier);
-            fields[10] = BoolGetDatum(value->occurrence.has_atom != 0);
-            rows[row++] = laplace_pg_composite_record(&binding, fields, nulls);
         }
     }
-    result = laplace_pg_composite_array(&binding, rows, row);
-    laplace_pg_composite_binding_close(&binding);
-    return result;
+    if (row == 0u) {
+        return construct_empty_array(BYTEAOID);
+    }
+    if (row > INT_MAX) {
+        ereport(ERROR,
+                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                 errmsg("Laplace trajectory reference batch is too large")));
+    }
+    return construct_array(
+        rows, (int)row, BYTEAOID, -1, false, TYPALIGN_INT);
 }
 
 static ArrayType* build_attestation_array(const persistence_batch_state* state) {
@@ -279,11 +298,11 @@ static const char* reference_sql(void) {
     static const char sql[] =
         "WITH incoming_entity AS (SELECT entity_id FROM pg_temp.laplace_persistence_stage_entity), "
         "incoming_physicality AS (SELECT physicality_id, entity_id FROM pg_temp.laplace_persistence_stage_physicality), "
-        "incoming_segment AS (SELECT physicality_id, constituent_entity_id FROM pg_temp.laplace_persistence_stage_trajectory_segment), "
+        "incoming_trajectory_reference AS (SELECT constituent_entity_id FROM pg_temp.laplace_persistence_stage_trajectory_reference), "
         "incoming_attestation AS (SELECT entity_id, physicality_id FROM pg_temp.laplace_persistence_stage_attestation), "
         "incoming_consensus AS (SELECT proposition_entity_id AS entity_id FROM pg_temp.laplace_persistence_stage_consensus), "
-        "entity_reference AS (SELECT entity_id FROM incoming_physicality UNION SELECT constituent_entity_id FROM incoming_segment UNION SELECT entity_id FROM incoming_attestation UNION SELECT entity_id FROM incoming_consensus), "
-        "physicality_reference AS (SELECT physicality_id FROM incoming_segment UNION SELECT physicality_id FROM incoming_attestation WHERE physicality_id IS NOT NULL) "
+        "entity_reference AS (SELECT entity_id FROM incoming_physicality UNION SELECT constituent_entity_id FROM incoming_trajectory_reference UNION SELECT entity_id FROM incoming_attestation UNION SELECT entity_id FROM incoming_consensus), "
+        "physicality_reference AS (SELECT physicality_id FROM incoming_attestation WHERE physicality_id IS NOT NULL) "
         "SELECT "
         "(SELECT count(*) FROM entity_reference r LEFT JOIN " LAPLACE_PG_SCHEMA ".entity e ON e.entity_id=r.entity_id "
         " LEFT JOIN incoming_entity i ON i.entity_id=r.entity_id "
@@ -313,8 +332,8 @@ static const char* write_partition_lock_sql(void) {
 static const char* stage_sql(size_t kind) {
     static const char* const statements[5] = {
         "INSERT INTO pg_temp.laplace_persistence_stage_entity SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA ".entity_record[])",
-        "INSERT INTO pg_temp.laplace_persistence_stage_physicality SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA ".physicality_record[])",
-        "INSERT INTO pg_temp.laplace_persistence_stage_trajectory_segment SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA ".physicality_trajectory_segment_record[])",
+        "INSERT INTO pg_temp.laplace_persistence_stage_physicality SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA ".physicality_deposit_record[])",
+        "INSERT INTO pg_temp.laplace_persistence_stage_trajectory_reference SELECT * FROM unnest($1::bytea[])",
         "INSERT INTO pg_temp.laplace_persistence_stage_attestation SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA ".attestation_record[])",
         "INSERT INTO pg_temp.laplace_persistence_stage_consensus SELECT * FROM unnest($1::" LAPLACE_PG_SCHEMA ".consensus_record[])"};
     return statements[kind];
@@ -328,14 +347,10 @@ static const char* insert_sql(size_t kind) {
             "WHERE NOT EXISTS (SELECT 1 FROM " LAPLACE_PG_SCHEMA ".entity s WHERE s.entity_id=i.entity_id)";
     }
     if (kind == 1) {
-        return "WITH trajectory AS ("
-            "SELECT physicality_id,string_agg(carrier,'\\x'::bytea ORDER BY vertex_index) AS bytes "
-            "FROM pg_temp.laplace_persistence_stage_trajectory_segment GROUP BY physicality_id), "
-            "incoming AS (SELECT p.*,CASE WHEN p.vertex_count=0 THEN '\\x'::bytea ELSE t.bytes END AS trajectory "
-            "FROM pg_temp.laplace_persistence_stage_physicality p LEFT JOIN trajectory t USING(physicality_id)) "
-            "INSERT INTO " LAPLACE_PG_SCHEMA ".physicality "
-            "SELECT i.* FROM incoming i WHERE NOT EXISTS (SELECT 1 FROM "
-            LAPLACE_PG_SCHEMA ".physicality s WHERE s.physicality_id=i.physicality_id)";
+        return "INSERT INTO " LAPLACE_PG_SCHEMA ".physicality "
+            "SELECT i.* FROM pg_temp.laplace_persistence_stage_physicality i WHERE NOT EXISTS (SELECT 1 FROM "
+            LAPLACE_PG_SCHEMA ".physicality s WHERE s.physicality_id=i.physicality_id) "
+            "RETURNING vertex_count";
     }
     if (kind == 3) {
         return "INSERT INTO " LAPLACE_PG_SCHEMA ".attestation "
@@ -359,9 +374,7 @@ static const char* verify_sql(size_t kind) {
             "AND s.identity_witness=i.identity_witness";
     }
     if (kind == 1) {
-        return "WITH trajectory AS (SELECT physicality_id,string_agg(carrier,'\\x'::bytea ORDER BY vertex_index) AS bytes FROM pg_temp.laplace_persistence_stage_trajectory_segment GROUP BY physicality_id), "
-            "incoming AS (SELECT p.*,CASE WHEN p.vertex_count=0 THEN '\\x'::bytea ELSE t.bytes END AS trajectory FROM pg_temp.laplace_persistence_stage_physicality p LEFT JOIN trajectory t USING(physicality_id)) "
-            "SELECT count(*) FROM incoming i JOIN "
+        return "SELECT count(*) FROM pg_temp.laplace_persistence_stage_physicality i JOIN "
             LAPLACE_PG_SCHEMA ".physicality s ON s.physicality_id=i.physicality_id "
             "AND s.entity_id=i.entity_id "
             "AND s.physicality_type=i.physicality_type "
@@ -472,32 +485,27 @@ static void initialize_staging_tables(void) {
         "(LIKE " LAPLACE_PG_SCHEMA ".entity) "
         "ON COMMIT DELETE ROWS",
         "CREATE TEMP TABLE IF NOT EXISTS laplace_persistence_stage_physicality "
-        "AS SELECT physicality_id,entity_id,physicality_type,vertex_class,recipe_version,structural_form,dimension_count,flags,recipe_fingerprint,geometry_epoch,trajectory_fingerprint,centroid_x,centroid_y,centroid_z,centroid_m,radius,logical_count,vertex_count FROM " LAPLACE_PG_SCHEMA ".physicality WITH NO DATA",
-        "CREATE TEMP TABLE IF NOT EXISTS laplace_persistence_stage_trajectory_segment "
-        "(physicality_id bytea,vertex_index numeric(20,0),carrier bytea,constituent_entity_id bytea,logical_ordinal numeric(20,0),metadata bigint,atom bigint,packed_ordinal integer,run_length integer,tier smallint,has_atom boolean) "
+        "AS SELECT * FROM " LAPLACE_PG_SCHEMA ".physicality WITH NO DATA",
+        "CREATE TEMP TABLE IF NOT EXISTS laplace_persistence_stage_trajectory_reference "
+        "(constituent_entity_id bytea) "
         "ON COMMIT DELETE ROWS",
         "CREATE TEMP TABLE IF NOT EXISTS laplace_persistence_stage_attestation "
         "AS SELECT * FROM " LAPLACE_PG_SCHEMA ".attestation WITH NO DATA",
         "CREATE TEMP TABLE IF NOT EXISTS laplace_persistence_stage_consensus "
         "AS SELECT * FROM " LAPLACE_PG_SCHEMA ".consensus WITH NO DATA"
     };
-    static const char* const index_statements[5] = {
-        "CREATE INDEX IF NOT EXISTS laplace_persistence_stage_entity_id_idx "
-        "ON pg_temp.laplace_persistence_stage_entity(entity_id)",
-        "CREATE INDEX IF NOT EXISTS laplace_persistence_stage_physicality_id_idx "
-        "ON pg_temp.laplace_persistence_stage_physicality(physicality_id)",
-        "CREATE INDEX IF NOT EXISTS laplace_persistence_stage_trajectory_order_idx "
-        "ON pg_temp.laplace_persistence_stage_trajectory_segment(physicality_id,vertex_index)",
-        "CREATE INDEX IF NOT EXISTS laplace_persistence_stage_attestation_id_idx "
-        "ON pg_temp.laplace_persistence_stage_attestation(attestation_id)",
-        "CREATE INDEX IF NOT EXISTS laplace_persistence_stage_consensus_id_idx "
-        "ON pg_temp.laplace_persistence_stage_consensus(consensus_id)"
-    };
+    static const char drop_indexes_statement[] =
+        "DROP INDEX IF EXISTS "
+        "pg_temp.laplace_persistence_stage_entity_id_idx,"
+        "pg_temp.laplace_persistence_stage_physicality_id_idx,"
+        "pg_temp.laplace_persistence_stage_trajectory_reference_idx,"
+        "pg_temp.laplace_persistence_stage_attestation_id_idx,"
+        "pg_temp.laplace_persistence_stage_consensus_id_idx";
     static const char truncate_statement[] =
         "TRUNCATE TABLE "
         "pg_temp.laplace_persistence_stage_entity, "
         "pg_temp.laplace_persistence_stage_physicality, "
-        "pg_temp.laplace_persistence_stage_trajectory_segment, "
+        "pg_temp.laplace_persistence_stage_trajectory_reference, "
         "pg_temp.laplace_persistence_stage_attestation, "
         "pg_temp.laplace_persistence_stage_consensus";
     size_t kind;
@@ -511,14 +519,12 @@ static void initialize_staging_tables(void) {
                      errdetail("record_family=%zu spi_result=%d", kind, result)));
         }
     }
-    for (kind = 0; kind < 5; ++kind) {
-        result = SPI_execute(index_statements[kind], false, 0);
-        if (result != SPI_OK_UTILITY) {
-            ereport(ERROR,
-                    (errcode(ERRCODE_INTERNAL_ERROR),
-                     errmsg("Laplace persistence staging index initialization failed"),
-                     errdetail("record_family=%zu spi_result=%d", kind, result)));
-        }
+    result = SPI_execute(drop_indexes_statement, false, 0);
+    if (result != SPI_OK_UTILITY) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("Laplace persistence staging index reset failed"),
+                 errdetail("spi_result=%d", result)));
     }
     result = SPI_execute(truncate_statement, false, 0);
     if (result != SPI_OK_UTILITY) {
@@ -529,11 +535,36 @@ static void initialize_staging_tables(void) {
     }
 }
 
+static void index_staging_tables(void) {
+    static const char* const statements[5] = {
+        "CREATE INDEX laplace_persistence_stage_entity_id_idx "
+        "ON pg_temp.laplace_persistence_stage_entity(entity_id)",
+        "CREATE INDEX laplace_persistence_stage_physicality_id_idx "
+        "ON pg_temp.laplace_persistence_stage_physicality(physicality_id)",
+        "CREATE INDEX laplace_persistence_stage_trajectory_reference_idx "
+        "ON pg_temp.laplace_persistence_stage_trajectory_reference(constituent_entity_id)",
+        "CREATE INDEX laplace_persistence_stage_attestation_id_idx "
+        "ON pg_temp.laplace_persistence_stage_attestation(attestation_id)",
+        "CREATE INDEX laplace_persistence_stage_consensus_id_idx "
+        "ON pg_temp.laplace_persistence_stage_consensus(consensus_id)"
+    };
+    size_t kind;
+    for (kind = 0; kind < 5; ++kind) {
+        const int result = SPI_execute(statements[kind], false, 0);
+        if (result != SPI_OK_UTILITY) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_INTERNAL_ERROR),
+                     errmsg("Laplace persistence staging index construction failed"),
+                     errdetail("record_family=%zu spi_result=%d", kind, result)));
+        }
+    }
+}
+
 static void analyze_staging_tables(void) {
     static const char statement[] =
         "ANALYZE pg_temp.laplace_persistence_stage_entity, "
         "pg_temp.laplace_persistence_stage_physicality, "
-        "pg_temp.laplace_persistence_stage_trajectory_segment, "
+        "pg_temp.laplace_persistence_stage_trajectory_reference, "
         "pg_temp.laplace_persistence_stage_attestation, "
         "pg_temp.laplace_persistence_stage_consensus";
     const int result = SPI_execute(statement, false, 0);
@@ -558,7 +589,8 @@ static void prepare_staging_plans(persistence_sink_state* state) {
     }
     for (kind = 0; kind < 5; ++kind) {
         Oid types[1] = {
-            laplace_pg_composite_array_oid(record_type_names[kind])};
+            kind == 2 ? BYTEAARRAYOID :
+                laplace_pg_composite_array_oid(record_type_names[kind])};
         state->stage_plans[kind] = SPI_prepare(stage_sql(kind), 1, types);
         if (kind != 2) {
             state->insert_plans[kind] = SPI_prepare(insert_sql(kind), 0, NULL);
@@ -588,12 +620,30 @@ static void execute_record_family(
         kind == 1 ? LAPLACE_PERSISTENCE_PG_PLAN_PHYSICALITY_INSERT :
         kind == 3 ? LAPLACE_PERSISTENCE_PG_PLAN_ATTESTATION_INSERT :
                     LAPLACE_PERSISTENCE_PG_PLAN_CONSENSUS_INSERT);
-    if (result != SPI_OK_INSERT || SPI_processed > count) {
+    if ((kind == 1 ? result != SPI_OK_INSERT_RETURNING : result != SPI_OK_INSERT) ||
+        SPI_processed > count) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
                  errmsg("Laplace persistence insert was not set-bounded")));
     }
     inserted = (uint64_t)SPI_processed;
+    if (kind == 1) {
+        uint64_t row;
+        for (row = 0; row < inserted; ++row) {
+            bool is_null = false;
+            const Datum vertex_count = SPI_getbinval(
+                SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 1, &is_null);
+            const uint64_t vertices = is_null ? UINT64_MAX :
+                laplace_pg_uint64_from_numeric(
+                    vertex_count, "inserted physicality vertex_count");
+            if (is_null || UINT64_MAX - state->inserted[2] < vertices) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+                         errmsg("Laplace persistence inserted trajectory count overflowed")));
+            }
+            state->inserted[2] += vertices;
+        }
+    }
     if (UINT64_MAX - state->inserted[kind] < inserted) {
         ereport(ERROR,
                 (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
@@ -645,9 +695,7 @@ static laplace_framework_status sink_begin(
     uint64_t total_bytes) {
     persistence_sink_state* state = (persistence_sink_state*)opaque;
     if (record_type != LAPLACE_PERSISTENCE_STREAM_RECORD_TYPE ||
-        total_records == 0 || total_bytes == 0 ||
-        total_records != state->summary.frame_count ||
-        total_bytes != state->summary.byte_count) {
+        total_records == 0 || total_bytes == 0) {
         return LAPLACE_FRAMEWORK_STREAM_INVALID;
     }
     if (SPI_connect() != SPI_OK_CONNECT) {
@@ -794,7 +842,7 @@ static laplace_framework_status sink_stage(
     }
     arrays[0] = build_entity_array(&staged);
     arrays[1] = build_physicality_array(&staged);
-    arrays[2] = build_trajectory_array(&staged);
+    arrays[2] = build_trajectory_reference_array(&staged);
     arrays[3] = build_attestation_array(&staged);
     arrays[4] = build_consensus_array(&staged);
     counts[0] = staged.summary.entity_count;
@@ -847,29 +895,20 @@ static laplace_framework_status sink_seal(
     const laplace_digest256* stream_fingerprint,
     laplace_digest256* artifact_fingerprint) {
     persistence_sink_state* state = (persistence_sink_state*)opaque;
-    const uint64_t counts[5] = {
-        state->summary.entity_count,
-        state->summary.physicality_count,
-        state->summary.trajectory_segment_count,
-        state->summary.attestation_count,
-        state->summary.consensus_count};
+    uint64_t counts[5];
     size_t kind;
     if (!state->spi_connected ||
-        state->staged_summary.entity_count != state->summary.entity_count ||
-        state->staged_summary.physicality_count !=
-            state->summary.physicality_count ||
-        state->staged_summary.trajectory_segment_count !=
-            state->summary.trajectory_segment_count ||
-        state->staged_summary.attestation_count !=
-            state->summary.attestation_count ||
-        state->staged_summary.consensus_count !=
-            state->summary.consensus_count ||
-        state->staged_summary.logical_occurrence_count !=
-            state->summary.logical_occurrence_count ||
         state->staged_summary.frame_count != state->expected_records ||
         state->staged_summary.byte_count != state->expected_bytes) {
         return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
     }
+    state->summary = state->staged_summary;
+    counts[0] = state->summary.entity_count;
+    counts[1] = state->summary.physicality_count;
+    counts[2] = state->summary.trajectory_segment_count;
+    counts[3] = state->summary.attestation_count;
+    counts[4] = state->summary.consensus_count;
+    index_staging_tables();
     analyze_staging_tables();
     acquire_write_partitions(state);
     execute_reference_check(state);
@@ -877,11 +916,6 @@ static laplace_framework_status sink_seal(
         if (kind != 2) {
             execute_record_family(state, kind, counts[kind]);
         }
-    }
-    if (state->inserted[1] == state->summary.physicality_count) {
-        state->inserted[2] = state->summary.trajectory_segment_count;
-    } else if (state->inserted[1] != 0u) {
-        return LAPLACE_FRAMEWORK_SINK_SEAL_FAILED;
     }
     if (state->batch_context != NULL) {
         MemoryContextDelete(state->batch_context);
@@ -990,9 +1024,9 @@ static void persist_deposit_receipt(
 #endif
 }
 
-static int persistence_producer_never_cancel(void* state) {
+static int persistence_producer_cancel_requested(void* state) {
     (void)state;
-    return 0;
+    return InterruptPending != 0;
 }
 
 static void persistence_producer_observe_progress(
@@ -1008,19 +1042,9 @@ void LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
     const laplace_digest256* recipe_fingerprint,
     const laplace_framework_producer_v1* producer,
     laplace_pg_persistence_producer_result* result) {
-    laplace_framework_producer_plan plan;
-    laplace_framework_canonical_batch* batches;
-    laplace_digest256 cursor;
-    laplace_digest256 completion;
-    laplace_digest256 preflight_stream_fingerprint;
-    laplace_persistence_summary summary;
     laplace_framework_sink_v1 sink;
     laplace_framework_producer_control_v1 control;
     persistence_sink_state state;
-    uint32_t record_type = 0;
-    uint64_t total_records = 0;
-    uint64_t total_bytes = 0;
-    uint64_t index;
     laplace_framework_status framework_status;
     if (context == NULL || source_fingerprint == NULL ||
         recipe_fingerprint == NULL || producer == NULL || result == NULL ||
@@ -1038,46 +1062,7 @@ void LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("read-only Laplace execution context cannot deposit canonical state")));
     }
-    memset(&plan, 0, sizeof(plan));
-    if (producer->prepare(
-            producer->state, context, source_fingerprint, recipe_fingerprint,
-            &plan) != LAPLACE_FRAMEWORK_OK ||
-        plan.batch_count == 0u || plan.batch_count > SIZE_MAX / sizeof(*batches)) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace persistence producer preflight plan is invalid")));
-    }
-    batches = (laplace_framework_canonical_batch*)palloc0(
-        (size_t)plan.batch_count * sizeof(*batches));
-    for (index = 0; index < plan.batch_count; ++index) {
-        if (producer->next(
-                producer->state, index, &batches[index], &cursor) !=
-            LAPLACE_FRAMEWORK_OK) {
-            producer->abort(producer->state);
-            ereport(ERROR,
-                    (errcode(ERRCODE_DATA_EXCEPTION),
-                     errmsg("Laplace persistence producer preflight batch failed"),
-                     errdetail("batch=%llu", (unsigned long long)index)));
-        }
-    }
-    if (producer->finish(producer->state, &completion) != LAPLACE_FRAMEWORK_OK ||
-        laplace_persistence_validate_stream(
-            batches, (size_t)plan.batch_count, &summary) !=
-            LAPLACE_PERSISTENCE_OK ||
-        laplace_framework_canonical_stream_fingerprint(
-            batches, (size_t)plan.batch_count,
-            &preflight_stream_fingerprint, &record_type,
-            &total_records, &total_bytes) != LAPLACE_FRAMEWORK_OK ||
-        record_type != LAPLACE_PERSISTENCE_STREAM_RECORD_TYPE ||
-        total_records != plan.total_records || total_bytes != plan.total_bytes) {
-        producer->abort(producer->state);
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace persistence producer failed whole-stream preflight")));
-    }
-
     memset(&state, 0, sizeof(state));
-    state.summary = summary;
     memset(&sink, 0, sizeof(sink));
     sink.state = &state;
     sink.begin = sink_begin;
@@ -1087,21 +1072,17 @@ void LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
     sink.abi_major = LAPLACE_FRAMEWORK_SINK_ABI_MAJOR;
     sink.abi_minor = LAPLACE_FRAMEWORK_SINK_ABI_MINOR;
     memset(&control, 0, sizeof(control));
-    control.cancel_requested = persistence_producer_never_cancel;
+    control.cancel_requested = persistence_producer_cancel_requested;
     control.observe_progress = persistence_producer_observe_progress;
     control.abi_major = LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MAJOR;
     control.abi_minor = LAPLACE_FRAMEWORK_PRODUCER_CONTROL_ABI_MINOR;
     framework_status = laplace_framework_run_producer(
         context, source_fingerprint, recipe_fingerprint,
         producer, &control, &sink, 1u, &result->producer);
-    if (framework_status != LAPLACE_FRAMEWORK_OK ||
-        memcmp(
-            result->producer.stream.stream_fingerprint.bytes,
-            preflight_stream_fingerprint.bytes,
-            sizeof(preflight_stream_fingerprint.bytes)) != 0) {
+    if (framework_status != LAPLACE_FRAMEWORK_OK) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace persistence producer execution diverged from preflight"),
+                 errmsg("Laplace persistence producer execution failed"),
                  errdetail("framework_status=%d producer_status=%d stream_status=%d failed_batch=%llu failed_sink=%llu",
                            (int)framework_status,
                            (int)result->producer.status,
@@ -1116,7 +1097,7 @@ void LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
                  errmsg("cannot close Laplace persistence SPI provider")));
     }
     state.spi_connected = 0;
-    result->summary = summary;
+    result->summary = state.summary;
     memcpy(result->inserted, state.inserted, sizeof(result->inserted));
     result->plan_sequence_fingerprint = state.plan_sequence_fingerprint;
     result->plan_count = state.plan_count;

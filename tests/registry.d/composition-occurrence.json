@@ -35,6 +35,22 @@
       ]
     },
     {
+      "ctest_name": "TabularSource.BlanketStructuralOccurrenceEmissionIsObservable",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "structural composition requests do not become witnessed source occurrences merely because they participate in canonical content",
+        "blanket occurrence emission is observably different from the exact source-occurrence denominator",
+        "canonical structure and witnessed observation remain separate typed dimensions"
+      ],
+      "defect_controls": [
+        "every structural request is deliberately marked as an occurrence and exceeds the exact witnessed denominator"
+      ]
+    },
+    {
       "ctest_name": "composition.mutation-implicit-occurrence-detected",
       "evidence_targets": [
         "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",

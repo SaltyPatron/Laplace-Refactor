@@ -4,9 +4,12 @@
   "purpose": "Select only the expensive physical QA boundaries implicated by the changed product behavior while preserving a shared custom-stack core and failing a selected lane at its first terminal result.",
   "registry_profile": "custom-stack",
   "execution": {
-    "core": "all tests eligible for the custom-stack registry profile except explicitly isolated physical-boundary tests",
+    "hosted_antecedent": "the product-path hosted proof must succeed before this workflow is invoked",
+    "core": "only tests whose registry row explicitly names the custom-stack provider profile, excluding isolated physical-boundary tests; profile-less tests already succeeded in the hosted antecedent and are not repeated",
     "selected_physical": "only isolated tests whose QA profile is selected by the exact changed paths",
     "stop_on_failure": true,
+    "core_parallel_jobs": 6,
+    "selected_physical_parallel_jobs": 1,
     "build_once": true,
     "later_operator_cancellation_cannot_reclassify_recorded_failure": true
   },
@@ -34,35 +37,53 @@
       "reason": "receipt verification for the measured composition boundary"
     },
     {
-      "ctest_name": "postgres.unicode-root-persistence-contract",
-      "profile": "unicode-root-boundary",
+      "ctest_name": "perfcache.hot-lookup-receipt-contract-and-mutation",
+      "profile": "unicode-hot-performance",
+      "order": 15,
+      "resource_class": "full-unicode-perfcache-performance",
+      "reason": "full generated Unicode planes and measured hot lookup are rebuilt only when their implementation or contract changes"
+    },
+    {
+      "ctest_name": "postgres.mutation-unicode-access-expected-epoch-detected",
+      "profile": "unicode-access-epoch",
+      "order": 16,
+      "resource_class": "full-unicode-postgresql-mutation",
+      "reason": "the full Unicode root is rebuilt for this mutation only when the public epoch access implementation or its contract changes"
+    },
+    {
+      "ctest_name": "postgres.source-admission-suite-whole-route-contract",
+      "profile": "source-admission-suite",
       "order": 20,
-      "resource_class": "postgresql-full-unicode-root",
-      "reason": "complete Unicode root PostgreSQL persistence proof"
-    },
-    {
-      "ctest_name": "postgres.source-admission-whole-route-contract",
-      "profile": "source-admission-generic",
-      "order": 30,
-      "resource_class": "postgresql-source-admission",
-      "reason": "generic source-admission whole-route proof"
-    },
-    {
-      "ctest_name": "postgres.iso-639-source-admission-whole-route-contract",
-      "profile": "source-iso639",
-      "order": 40,
-      "resource_class": "postgresql-real-source-profile",
-      "reason": "real ISO 639 source-profile whole-route proof"
-    },
-    {
-      "ctest_name": "postgres.cili-source-admission-whole-route-contract",
-      "profile": "source-cili",
-      "order": 50,
-      "resource_class": "postgresql-real-source-profile",
-      "reason": "real CILI source-profile whole-route proof"
+      "resource_class": "postgresql-unicode-and-source-admission-suite",
+      "reason": "one Unicode generation followed by generic ISO 639 and CILI whole-route proofs in the same physical PostgreSQL boundary"
     }
   ],
   "selection_rules": [
+    {
+      "id": "unicode-hot-performance",
+      "patterns": [
+        "contracts/perfcache.json",
+        "engine/include/laplace/perfcache*.h",
+        "engine/src/perfcache*.c",
+        "engine/src/perfcache*.cpp",
+        "engine/src/unicode_identity_reverse.cpp",
+        "engine/src/unicode_tier0.cpp",
+        "tests/perfcache_*",
+        "tests/unicode_identity_reverse_tests.cpp",
+        "tests/unicode_tier0_tests.cpp"
+      ],
+      "profiles": ["unicode-hot-performance"]
+    },
+    {
+      "id": "unicode-access-epoch",
+      "patterns": [
+        "postgres/extension/src/perfcache_pg.c",
+        "postgres/extension/src/unicode_access_pg.c",
+        "tests/postgres/unicode_access_epoch_mutation.sql",
+        "tests/expect_postgres_unicode_access_mutation_failure.cmake"
+      ],
+      "profiles": ["unicode-access-epoch"]
+    },
     {
       "id": "composition-boundary",
       "patterns": [
@@ -89,7 +110,7 @@
         "tests/postgres/unicode_*",
         "tools/postgresql/unicodectl.py"
       ],
-      "profiles": ["unicode-root-boundary"]
+      "profiles": ["source-admission-suite"]
     },
     {
       "id": "source-admission-generic",
@@ -119,7 +140,7 @@
         "tools/contracts/generate-tabular-source-profile.py",
         "tools/sources/acquire-tabular-source.py"
       ],
-      "profiles": ["source-admission-generic", "source-iso639", "source-cili"]
+      "profiles": ["source-admission-suite"]
     },
     {
       "id": "source-iso639",
@@ -128,7 +149,7 @@
         "tests/iso_639_*",
         "tests/postgres/iso_639_*"
       ],
-      "profiles": ["source-iso639"]
+      "profiles": ["source-admission-suite"]
     },
     {
       "id": "source-cili",
@@ -137,7 +158,7 @@
         "tests/cili_*",
         "tests/postgres/cili_*"
       ],
-      "profiles": ["source-cili"]
+      "profiles": ["source-admission-suite"]
     }
   ],
   "fail_closed": {

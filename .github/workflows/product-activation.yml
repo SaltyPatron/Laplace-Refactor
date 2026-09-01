@@ -275,10 +275,33 @@ jobs:
           test "$(systemctl is-active "$cluster_service")" = active
           test "$(systemctl is-enabled "$boot_unit")" = enabled
           sudo -n /opt/laplace/deployment/current/bin/laplace-product-activate probe
+
+          package_root=$(jq -er '.package_root' "$cluster_result")
+          psql="$package_root/pgsql-18/bin/psql"
+          test -x "$psql"
+          live_query=$(
+            "$psql" \
+              --host /run/laplace-refactor-postgresql \
+              --port 55433 \
+              --username laplace_app \
+              --dbname laplace_refactor \
+              --no-psqlrc \
+              --set ON_ERROR_STOP=1 \
+              --tuples-only \
+              --no-align \
+              --field-separator '|' \
+              --command "SELECT version(),current_database(),current_user,(SELECT extversion FROM pg_extension WHERE extname='laplace')"
+          )
+          IFS='|' read -r live_version live_database live_role live_extension <<<"$live_query"
+          [[ "$live_version" == PostgreSQL\ 18.6* ]]
+          test "$live_database" = laplace_refactor
+          test "$live_role" = laplace_app
+          [[ "$live_extension" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           {
             echo '## DEV/BAT post-deploy proof'
             echo "- repository commit: \`$GITHUB_SHA\`"
             echo "- package: \`$package_id\`"
+            echo "- live query: \`$live_version | $live_database | $live_role | laplace $live_extension\`"
             echo '- cluster process restart: proven'
             echo '- Unicode activation receipt: readable'
             echo '- Highway activation receipt: readable'

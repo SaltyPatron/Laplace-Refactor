@@ -156,8 +156,10 @@ TEST(CiliSource, CompilesExactHeaderlessMappingsThroughTheGenericPlan) {
                       recursive_plan, &recursive),
                   LAPLACE_TABULAR_SOURCE_OK);
 
-        ASSERT_GE(recursive.request_count, view.request_count);
-        ASSERT_GE(recursive.operand_count, view.operand_count);
+        ASSERT_EQ(recursive.request_count, view.request_count);
+        ASSERT_EQ(recursive.operand_count, view.operand_count);
+        ASSERT_EQ(recursive.atom_count, view.atom_count);
+        ASSERT_EQ(recursive.root_result_index, view.root_result_index);
         const std::uint64_t added_requests =
             recursive.request_count - view.request_count;
         const std::uint64_t added_operands =
@@ -165,8 +167,19 @@ TEST(CiliSource, CompilesExactHeaderlessMappingsThroughTheGenericPlan) {
         ASSERT_GT(recursive.decomposition_witness_count, 0u);
         EXPECT_LE(
             recursive.decomposition_witness_count,
-            structural_witness_bound);
-        EXPECT_LE(added_requests, recursive.decomposition_witness_count);
+            fixture.artifacts.size());
+        EXPECT_GT(structural_witness_bound,
+                  recursive.decomposition_witness_count);
+        for (std::uint64_t witness_index = 0u;
+             witness_index < recursive.decomposition_witness_count;
+             ++witness_index) {
+            const auto& witness =
+                recursive.decomposition_witnesses[witness_index];
+            EXPECT_EQ(witness.span_index, 0u);
+            EXPECT_EQ(
+                witness.parent_span_index,
+                std::numeric_limits<std::uint64_t>::max());
+        }
 
         ASSERT_LE(
             delimited_bytes,

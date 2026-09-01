@@ -63,4 +63,11 @@ void laplace_pg_execute_set_write_verify(
     Datum* parameter_values,
     const char* operation_name);
 
+void laplace_pg_execute_set_write_exact(
+    const char* sql,
+    int parameter_count,
+    Oid* parameter_types,
+    Datum* parameter_values,
+    const char* operation_name);
+
 #endif

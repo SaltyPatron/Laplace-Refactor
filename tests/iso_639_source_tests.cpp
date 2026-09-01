@@ -97,7 +97,7 @@ TEST(Iso639SourceProfile, CompilesLockedReleaseThroughGenericTabularEngine) {
 }
 
 TEST(Iso639SourceProfile,
-     RecursiveAdmissionCarriesCanonicalDecompositionBeforeFinalRoot) {
+     RecursiveAdmissionDoesNotRemintCanonicalContent) {
     const fs::path unicode_root = UnicodeSourceRoot();
     if (!fs::is_directory(unicode_root)) {
         GTEST_SKIP() << "pinned Unicode source root is not installed at "
@@ -135,30 +135,25 @@ TEST(Iso639SourceProfile,
     ASSERT_EQ(laplace_tabular_source_plan_view_get(recursive_plan, &recursive),
               LAPLACE_TABULAR_SOURCE_OK);
 
-    ASSERT_GT(recursive.request_count, legacy.request_count);
-    const std::uint64_t added_request_count =
-        recursive.request_count - legacy.request_count;
-    EXPECT_EQ(recursive.root_result_index,
-              legacy.root_result_index + added_request_count);
+    EXPECT_EQ(recursive.request_count, legacy.request_count);
+    EXPECT_EQ(recursive.operand_count, legacy.operand_count);
+    EXPECT_EQ(recursive.atom_count, legacy.atom_count);
+    EXPECT_EQ(recursive.root_result_index, legacy.root_result_index);
     EXPECT_EQ(recursive.root_result_index + 1u, recursive.request_count);
     ASSERT_NE(legacy.atom_positions, nullptr);
     ASSERT_NE(recursive.atom_positions, nullptr);
-    EXPECT_GE(recursive.atom_count, legacy.atom_count);
-    EXPECT_GT(recursive.operand_count, legacy.operand_count);
     EXPECT_GT(recursive.profile.span_count, legacy.profile.span_count);
     EXPECT_EQ(recursive.profile.output_count, recursive.request_count);
     EXPECT_EQ(recursive.profile.transformed_count, recursive.request_count);
-
-    std::vector<bool> recursive_atom_referenced(
-        static_cast<std::size_t>(recursive.atom_count), false);
 
     ASSERT_GT(recursive.decomposition_witness_count, 0u);
     ASSERT_NE(recursive.decomposition_witnesses, nullptr);
     ASSERT_GT(recursive.decomposition_witness_media_type_byte_count, 0u);
     ASSERT_NE(recursive.decomposition_witness_media_types, nullptr);
-    EXPECT_EQ(
+    EXPECT_GT(
         recursive.profile.span_count,
         legacy.profile.span_count + recursive.decomposition_witness_count);
+    EXPECT_LE(recursive.decomposition_witness_count, recursive.artifact_count);
 
     for (std::uint64_t witness_index = 0u;
          witness_index < recursive.decomposition_witness_count;
@@ -175,27 +170,15 @@ TEST(Iso639SourceProfile,
         EXPECT_EQ(witness.canonical_content.multiplicity, 1u);
         EXPECT_EQ(witness.canonical_content.relationship_metadata, 0u);
         EXPECT_EQ(witness.canonical_content.flags, 0u);
-        if (witness.span_index == 0u) {
-            EXPECT_EQ(
-                witness.parent_span_index,
-                std::numeric_limits<std::uint64_t>::max());
-        } else {
-            EXPECT_LT(witness.parent_span_index, witness.span_index);
-        }
-        if (witness.canonical_content.reference_kind ==
-            LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
-            EXPECT_LT(witness.canonical_content.reference_index,
-                      recursive.atom_count);
-            if (witness.canonical_content.reference_index < recursive.atom_count) {
-                recursive_atom_referenced[static_cast<std::size_t>(
-                    witness.canonical_content.reference_index)] = true;
-            }
-        } else {
-            ASSERT_EQ(witness.canonical_content.reference_kind,
-                      LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT);
-            EXPECT_LT(witness.canonical_content.reference_index,
-                      recursive.root_result_index);
-        }
+        EXPECT_EQ(witness.span_index, 0u);
+        EXPECT_EQ(
+            witness.parent_span_index,
+            std::numeric_limits<std::uint64_t>::max());
+        ASSERT_EQ(witness.canonical_content.reference_kind,
+                  LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT);
+        EXPECT_EQ(
+            witness.canonical_content.reference_index,
+            recursive.artifact_root_result_indexes[witness.artifact_index]);
         ASSERT_LE(
             witness.media_type_byte_offset,
             recursive.decomposition_witness_media_type_byte_count);
@@ -221,73 +204,6 @@ TEST(Iso639SourceProfile,
     EXPECT_TRUE(SameDigest(
         recursive_root.occurrence_context_fingerprint,
         legacy_root.occurrence_context_fingerprint));
-
-    for (std::uint64_t request_index = legacy.root_result_index;
-         request_index < recursive.root_result_index;
-         ++request_index) {
-        const laplace_composition_request& request =
-            recursive.requests[request_index];
-        EXPECT_EQ(request.flags, 0u);
-        EXPECT_EQ(request.source_ordinal, request_index + 1u);
-        ASSERT_GT(request.operand_count, 0u);
-        ASSERT_LE(request.first_operand + request.operand_count,
-                  recursive.operand_count);
-        for (std::uint64_t operand_index = request.first_operand;
-             operand_index < request.first_operand + request.operand_count;
-             ++operand_index) {
-            const laplace_composition_operand& operand =
-                recursive.operands[operand_index];
-            EXPECT_EQ(operand.multiplicity, 1u);
-            EXPECT_EQ(operand.relationship_metadata, 0u);
-            EXPECT_EQ(operand.flags, 0u);
-            if (operand.reference_kind ==
-                LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
-                EXPECT_LT(operand.reference_index, recursive.atom_count);
-                if (operand.reference_index < recursive.atom_count) {
-                    recursive_atom_referenced[static_cast<std::size_t>(
-                        operand.reference_index)] = true;
-                }
-            } else {
-                EXPECT_EQ(operand.reference_kind,
-                          LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT);
-                EXPECT_LT(operand.reference_index, request_index);
-            }
-        }
-    }
-
-    for (std::uint64_t legacy_index = 0u;
-         legacy_index < legacy.atom_count; ++legacy_index) {
-        bool retained = false;
-        for (std::uint64_t recursive_index = 0u;
-             recursive_index < recursive.atom_count; ++recursive_index) {
-            if (legacy.atom_positions[legacy_index] ==
-                recursive.atom_positions[recursive_index]) {
-                retained = true;
-                break;
-            }
-        }
-        EXPECT_TRUE(retained)
-            << "recursive admission dropped legacy atom position "
-            << legacy.atom_positions[legacy_index];
-    }
-    for (std::uint64_t recursive_index = 0u;
-         recursive_index < recursive.atom_count; ++recursive_index) {
-        bool inherited = false;
-        for (std::uint64_t legacy_index = 0u;
-             legacy_index < legacy.atom_count; ++legacy_index) {
-            if (recursive.atom_positions[recursive_index] ==
-                legacy.atom_positions[legacy_index]) {
-                inherited = true;
-                break;
-            }
-        }
-        if (!inherited) {
-            EXPECT_TRUE(recursive_atom_referenced[static_cast<std::size_t>(
-                recursive_index)])
-                << "recursive admission added an unreferenced atom position "
-                << recursive.atom_positions[recursive_index];
-        }
-    }
 
     ASSERT_LE(legacy_root.first_operand + legacy_root.operand_count,
               legacy.operand_count);

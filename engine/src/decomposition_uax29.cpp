@@ -21,7 +21,19 @@ laplace_decomposition_status Applicable(
     if (span == nullptr || applicable == nullptr) {
         return LAPLACE_DECOMPOSITION_INVALID_ARGUMENT;
     }
-    *applicable = (span->flags & LAPLACE_DECOMPOSITION_SPAN_TEXT) != 0u ? 1 : 0;
+    /*
+     * A grammar-bearing container must be decomposed by its selected grammar
+     * first.  Running UAX 29 over the same container in parallel creates an
+     * overlapping second tree (rows, fields, words, graphemes and sentences
+     * all as siblings) and turns source bytes into duplicate canonical work.
+     * Text selected by a recipe can be redispatched without GRAMMAR_INPUT and
+     * reaches this provider through the same generic interface.
+     */
+    *applicable =
+        (span->flags & LAPLACE_DECOMPOSITION_SPAN_TEXT) != 0u &&
+        (span->flags & LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT) == 0u
+        ? 1
+        : 0;
     return LAPLACE_DECOMPOSITION_OK;
 }
 

@@ -479,6 +479,7 @@ struct ParsedArtifact {
     std::string name;
     std::vector<std::uint32_t> raw_octets;
     std::vector<std::vector<std::vector<std::uint32_t>>> rows;
+    std::vector<std::uint8_t> verified_reconstruction;
     std::uint32_t delimiter{};
     std::uint32_t terminator{};
     std::uint32_t mode{};
@@ -496,6 +497,7 @@ struct laplace_tabular_source_plan {
     std::vector<std::uint64_t> claim_source_ordinals;
     std::vector<std::uint32_t> claim_outcome_types;
     std::vector<std::uint64_t> artifact_root_result_indexes;
+    std::vector<std::uint64_t> observed_content_result_indexes;
     std::vector<laplace_tabular_reference_occurrence> reference_occurrences;
     std::vector<laplace_tabular_mapping_occurrence> mapping_occurrences;
     std::vector<ParsedArtifact> artifacts;
@@ -553,6 +555,9 @@ public:
                 graph,
                 input_.profile_declaration.artifact_graph_fingerprint)) {
             return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+        }
+        if (!ReservePlanStorage()) {
+            return status_;
         }
         plan_.view.source_fingerprint = SourceFingerprint(graph);
         plan_.view.profile = input_.profile_declaration;
@@ -618,6 +623,147 @@ public:
     }
 
 private:
+    bool ReservePlanStorage() {
+        const auto add = [this](std::uint64_t& destination,
+                                const std::uint64_t value) {
+            if (destination > std::numeric_limits<std::uint64_t>::max() - value) {
+                status_ = LAPLACE_TABULAR_SOURCE_OVERFLOW;
+                return false;
+            }
+            destination += value;
+            return true;
+        };
+        const auto multiply = [this](const std::uint64_t left,
+                                     const std::uint64_t right,
+                                     std::uint64_t& product) {
+            if (left != 0u &&
+                right > std::numeric_limits<std::uint64_t>::max() / left) {
+                status_ = LAPLACE_TABULAR_SOURCE_OVERFLOW;
+                return false;
+            }
+            product = left * right;
+            return true;
+        };
+
+        std::uint64_t request_bound = 17u + input_.mapping_rule_count;
+        std::uint64_t operand_bound = 512u;
+        std::uint64_t claim_bound = 0u;
+        std::uint64_t reference_bound = 0u;
+        std::uint64_t mapping_bound = 0u;
+        std::uint64_t observed_content_bound = 0u;
+        for (std::size_t artifact_index = 0u;
+             artifact_index < static_cast<std::size_t>(input_.artifact_count);
+             ++artifact_index) {
+            const auto& artifact = input_.artifacts[artifact_index];
+            const std::uint64_t data_records =
+                artifact.expected_record_count - artifact.header_record_count;
+            std::uint64_t value = 0u;
+            if (!add(request_bound, 4u) ||
+                !add(operand_bound, artifact.name_byte_count) ||
+                !add(operand_bound, 64u) ||
+                !add(operand_bound, artifact.expected_record_count + 8u) ||
+                !add(claim_bound, data_records)) {
+                return false;
+            }
+            if (!IdZero(artifact.parent_artifact_id) &&
+                (!add(request_bound, 1u) || !add(operand_bound, 64u))) {
+                return false;
+            }
+            if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_RAW) {
+                if ((artifact.flags &
+                     LAPLACE_TABULAR_ARTIFACT_EXACT_DISTRIBUTION) != 0u &&
+                    (!add(request_bound, 1u) ||
+                     !add(operand_bound, artifact.byte_count) ||
+                     !add(observed_content_bound, 1u))) {
+                    return false;
+                }
+                continue;
+            }
+            if (!multiply(artifact.expected_field_count, 2u, value) ||
+                !add(request_bound, value) ||
+                !add(request_bound, artifact.expected_record_count) ||
+                !add(request_bound, artifact.expected_column_count + 2u) ||
+                !add(operand_bound, artifact.byte_count) ||
+                !multiply(artifact.expected_field_count, 3u, value) ||
+                !add(operand_bound, value) ||
+                !multiply(
+                    artifact.expected_record_count,
+                    (std::uint64_t)artifact.expected_column_count + 2u,
+                    value) ||
+                !add(operand_bound, value)) {
+                return false;
+            }
+            for (std::size_t column = 0u;
+                 column < artifact.expected_column_count; ++column) {
+                if (!add(operand_bound, artifact.columns[column].byte_count)) {
+                    return false;
+                }
+            }
+            std::uint64_t artifact_reference_rules = 0u;
+            for (std::size_t rule_index = 0u;
+                 rule_index < static_cast<std::size_t>(input_.reference_rule_count);
+                 ++rule_index) {
+                if (input_.reference_rules[rule_index].artifact_index ==
+                    artifact_index) {
+                    ++artifact_reference_rules;
+                }
+            }
+            if (!multiply(data_records, artifact_reference_rules, value) ||
+                !add(reference_bound, value)) {
+                return false;
+            }
+            std::uint64_t artifact_mapping_rules = 0u;
+            for (std::size_t rule_index = 0u;
+                 rule_index < static_cast<std::size_t>(input_.mapping_rule_count);
+                 ++rule_index) {
+                if (input_.mapping_rules[rule_index].artifact_index ==
+                    artifact_index) {
+                    ++artifact_mapping_rules;
+                }
+            }
+            if (!multiply(data_records, artifact_mapping_rules, value) ||
+                !add(mapping_bound, value)) {
+                return false;
+            }
+            if ((artifact.flags &
+                 LAPLACE_TABULAR_ARTIFACT_EXACT_DISTRIBUTION) != 0u &&
+                !add(observed_content_bound, artifact.expected_field_count)) {
+                return false;
+            }
+        }
+        for (std::size_t rule_index = 0u;
+             rule_index < static_cast<std::size_t>(input_.mapping_rule_count);
+             ++rule_index) {
+            if (!add(
+                    operand_bound,
+                    input_.mapping_rules[rule_index]
+                        .relation_content_byte_count)) {
+                return false;
+            }
+        }
+        if (request_bound > plan_.requests.max_size() ||
+            operand_bound > plan_.operands.max_size() ||
+            claim_bound > plan_.claim_result_indexes.max_size() ||
+            reference_bound > plan_.reference_occurrences.max_size() ||
+            mapping_bound > plan_.mapping_occurrences.max_size() ||
+            observed_content_bound >
+                plan_.observed_content_result_indexes.max_size()) {
+            status_ = LAPLACE_TABULAR_SOURCE_OVERFLOW;
+            return false;
+        }
+        plan_.requests.reserve(static_cast<std::size_t>(request_bound));
+        plan_.operands.reserve(static_cast<std::size_t>(operand_bound));
+        plan_.claim_result_indexes.reserve(static_cast<std::size_t>(claim_bound));
+        plan_.claim_source_ordinals.reserve(static_cast<std::size_t>(claim_bound));
+        plan_.claim_outcome_types.reserve(static_cast<std::size_t>(claim_bound));
+        plan_.reference_occurrences.reserve(
+            static_cast<std::size_t>(reference_bound));
+        plan_.mapping_occurrences.reserve(static_cast<std::size_t>(mapping_bound));
+        plan_.observed_content_result_indexes.reserve(
+            static_cast<std::size_t>(observed_content_bound));
+        return true;
+    }
+
     bool ValidateReferenceRules() {
         if ((input_.reference_rules == nullptr) !=
                 (input_.reference_rule_count == 0u) ||
@@ -970,6 +1116,7 @@ private:
                 if (!raw) {
                     return std::nullopt;
                 }
+                plan_.observed_content_result_indexes.push_back(*raw);
                 artifact_children.emplace_back(*raw, Role::Value);
             }
         } else if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_DELIMITED) {
@@ -1133,6 +1280,9 @@ parsed_reconstruction_corrupted:
                         span.second - span.first, context, true);
                     if (!value) {
                         return false;
+                    }
+                    if (parsed.exact_distribution) {
+                        plan_.observed_content_result_indexes.push_back(*value);
                     }
                 }
                 std::vector<std::pair<std::uint64_t, Role>> field_children{{
@@ -1447,6 +1597,9 @@ parsed_reconstruction_corrupted:
                         artifact.bytes + value_span.first,
                         value_span.second - value_span.first, context, true);
                     if (!value) return false;
+                    if (parsed.exact_distribution) {
+                        plan_.observed_content_result_indexes.push_back(*value);
+                    }
                 }
                 std::vector<std::pair<std::uint64_t, Role>> field_children{{
                     field_tag, Role::Tag}};
@@ -1673,6 +1826,13 @@ parsed_reconstruction_corrupted:
                 return false;
             }
             HashBytes(hasher, output.data(), output.size());
+#if !defined(LAPLACE_TEST_TABULAR_RECOMPOSE_FROM_INPUT)
+            plan_.artifacts[index].verified_reconstruction = std::move(output);
+            std::vector<std::uint32_t>().swap(
+                plan_.artifacts[index].raw_octets);
+            std::vector<std::vector<std::vector<std::uint32_t>>>().swap(
+                plan_.artifacts[index].rows);
+#endif
         }
         plan_.view.reconstruction_fingerprint = Finish(hasher);
         return true;
@@ -1682,6 +1842,10 @@ public:
     static void Recompose(
         const ParsedArtifact& artifact,
         std::vector<std::uint8_t>& output) {
+        if (!artifact.verified_reconstruction.empty()) {
+            output = artifact.verified_reconstruction;
+            return;
+        }
         if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_RAW) {
             output.reserve(artifact.raw_octets.size());
             for (const std::uint32_t value : artifact.raw_octets) {
@@ -1830,7 +1994,7 @@ laplace_tabular_source_profile_finalize(
         return LAPLACE_TABULAR_SOURCE_DENOMINATOR_MISMATCH;
     }
     *profile = plan->view.profile;
-    profile->occurrence_count = composition->logical_occurrence_count;
+    profile->occurrence_count = composition->occurrence_count;
     if (laplace_source_profile_identify(profile, &profile->profile_id) !=
             LAPLACE_SOURCE_PROFILE_OK) {
         return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;

@@ -19,7 +19,6 @@
 #endif
 
 #include "laplace/tabular_source_recursive.h"
-#include "laplace/decomposition_composition.h"
 #include "laplace/decomposition_delimited.h"
 #include "laplace/decomposition_fixed_width.h"
 #include "laplace/decomposition_uax29.h"
@@ -28,11 +27,42 @@
 namespace {
 
 void MarkSourceOccurrenceRequests(laplace_tabular_source_plan& plan) {
+    for (auto& request : plan.requests) {
+        request.flags &= ~LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE;
+    }
 #if defined(LAPLACE_TEST_TABULAR_OMIT_SOURCE_OCCURRENCES)
     (void)plan;
-#else
+#elif defined(LAPLACE_TEST_TABULAR_MARK_EVERY_REQUEST_AS_SOURCE_OCCURRENCE)
     for (auto& request : plan.requests) {
         request.flags |= LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE;
+    }
+#else
+    const auto mark = [&plan](const std::uint64_t result_index) {
+        if (result_index < plan.requests.size()) {
+            plan.requests[static_cast<std::size_t>(result_index)].flags |=
+                LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE;
+        }
+    };
+
+    /* Canonical composition requests are content construction, not observed
+     * source uses.  Witness only the source boundary, selected exact artifact
+     * roots, and the explicit source claims.  Interior paths remain exactly
+     * addressable through their immutable trajectories without minting an
+     * attestation for every AST node. */
+    mark(plan.view.root_result_index);
+    for (std::size_t artifact_index = 0u;
+         artifact_index < plan.artifacts.size(); ++artifact_index) {
+        if (plan.artifacts[artifact_index].exact_distribution &&
+            artifact_index < plan.artifact_root_result_indexes.size()) {
+            mark(plan.artifact_root_result_indexes[artifact_index]);
+        }
+    }
+    for (const std::uint64_t claim_result_index : plan.claim_result_indexes) {
+        mark(claim_result_index);
+    }
+    for (const std::uint64_t content_result_index :
+         plan.observed_content_result_indexes) {
+        mark(content_result_index);
     }
 #endif
 }
@@ -233,23 +263,6 @@ laplace_tabular_source_status DecompositionStatus(
     }
 }
 
-laplace_tabular_source_status DecompositionCompositionStatus(
-    const laplace_decomposition_composition_status status) {
-    switch (status) {
-        case LAPLACE_DECOMPOSITION_COMPOSITION_OK:
-            return LAPLACE_TABULAR_SOURCE_OK;
-        case LAPLACE_DECOMPOSITION_COMPOSITION_MEMORY_FAILURE:
-            return LAPLACE_TABULAR_SOURCE_MEMORY_FAILURE;
-        case LAPLACE_DECOMPOSITION_COMPOSITION_OVERFLOW:
-            return LAPLACE_TABULAR_SOURCE_OVERFLOW;
-        case LAPLACE_DECOMPOSITION_COMPOSITION_DECOMPOSITION_INVALID:
-        case LAPLACE_DECOMPOSITION_COMPOSITION_UTF8_INVALID:
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-        default:
-            return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
-    }
-}
-
 laplace_tabular_source_status DecompositionTrace(
     const laplace_decomposition_content& content,
     const laplace_decomposition_result* decomposition,
@@ -384,8 +397,6 @@ laplace_tabular_source_status BuildRecursive(
     if (status != LAPLACE_TABULAR_SOURCE_OK || created == nullptr) {
         return status;
     }
-    MarkSourceOccurrenceRequests(*created);
-
     laplace_unicode_source_receipt unicode_receipt{};
     laplace_uax29_tables* uax_tables = nullptr;
     if (laplace_unicode_source_bundle_receipt(
@@ -564,104 +575,48 @@ laplace_tabular_source_status BuildRecursive(
         }
 
         if (decomposition_summary.span_count > 1u) {
-            const std::uint64_t insertion_index =
-                created->view.root_result_index;
-            laplace_decomposition_composition_input composition_input{};
-            composition_input.content = &content;
-            composition_input.decomposition = decomposition;
-            composition_input.recipe_fingerprint =
-                input->profile_declaration.recipe_program_fingerprint;
-            composition_input.geometry_epoch = input->geometry_epoch;
-            composition_input.occurrence_context_fingerprint =
-                input->occurrence_context_fingerprint;
-            composition_input.source_ordinal_base = insertion_index;
-
-            laplace_decomposition_composition_plan* composition_plan = nullptr;
-            const auto composition_status =
-                laplace_decomposition_composition_plan_create(
-                    &composition_input, &composition_plan);
-            if (composition_status != LAPLACE_DECOMPOSITION_COMPOSITION_OK ||
-                composition_plan == nullptr) {
-                status = DecompositionCompositionStatus(composition_status);
-                laplace_decomposition_composition_plan_destroy(&composition_plan);
-                laplace_decomposition_result_destroy(&decomposition);
-                goto recursive_failure;
-            }
-
-            laplace_decomposition_composition_plan_view composition_view{};
-            const auto view_status =
-                laplace_decomposition_composition_plan_view_get(
-                    composition_plan, &composition_view);
-            if (view_status != LAPLACE_DECOMPOSITION_COMPOSITION_OK) {
-                status = DecompositionCompositionStatus(view_status);
-                laplace_decomposition_composition_plan_destroy(&composition_plan);
-                laplace_decomposition_result_destroy(&decomposition);
-                goto recursive_failure;
-            }
-
             std::size_t span_count = 0u;
             const laplace_decomposition_span* spans =
                 laplace_decomposition_spans(decomposition, &span_count);
             if (spans == nullptr ||
-                span_count != static_cast<std::size_t>(composition_view.span_count)) {
+                span_count != static_cast<std::size_t>(
+                    decomposition_summary.span_count) ||
+                artifact_index >= created->artifact_root_result_indexes.size()) {
                 status = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-                laplace_decomposition_composition_plan_destroy(&composition_plan);
                 laplace_decomposition_result_destroy(&decomposition);
                 goto recursive_failure;
             }
-            std::vector<laplace::internal::RecursiveDecompositionWitnessInput>
-                witness_inputs;
-            witness_inputs.reserve(span_count);
-            for (std::size_t span_index = 0u;
-                 span_index < span_count;
-                 ++span_index) {
-                std::size_t media_type_bytes = 0u;
-                const char* media_type = laplace_decomposition_span_media_type(
-                    decomposition, span_index, &media_type_bytes);
-                if ((media_type == nullptr) != (media_type_bytes == 0u)) {
-                    status = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-                    laplace_decomposition_composition_plan_destroy(&composition_plan);
-                    laplace_decomposition_result_destroy(&decomposition);
-                    goto recursive_failure;
-                }
-                const laplace_decomposition_span& span = spans[span_index];
-                laplace::internal::RecursiveDecompositionWitnessInput witness{};
-                witness.provider_fingerprint = span.provider_fingerprint;
-                witness.media_type = media_type;
-                witness.byte_start = span.byte_start;
-                witness.byte_end = span.byte_end;
-                witness.parent_span_index = span.parent_span_index;
-                witness.kind = span.kind;
-                witness.media_type_byte_count =
-                    static_cast<std::uint64_t>(media_type_bytes);
-                witness.depth = span.depth;
-                witness.flags = span.flags;
-                witness_inputs.push_back(witness);
+            std::size_t root_media_type_bytes = 0u;
+            const char* root_media_type = laplace_decomposition_span_media_type(
+                decomposition, 0u, &root_media_type_bytes);
+            if ((root_media_type == nullptr) !=
+                (root_media_type_bytes == 0u)) {
+                status = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                laplace_decomposition_result_destroy(&decomposition);
+                goto recursive_failure;
             }
+            const laplace_decomposition_span& root_span = spans[0];
+            laplace::internal::RecursiveDecompositionWitnessInput root_witness{};
+            root_witness.provider_fingerprint = root_span.provider_fingerprint;
+            root_witness.media_type = root_media_type;
+            root_witness.byte_start = root_span.byte_start;
+            root_witness.byte_end = root_span.byte_end;
+            root_witness.parent_span_index = root_span.parent_span_index;
+            root_witness.kind = root_span.kind;
+            root_witness.media_type_byte_count =
+                static_cast<std::uint64_t>(root_media_type_bytes);
+            root_witness.depth = root_span.depth;
+            root_witness.flags = root_span.flags;
 
-            status = laplace::internal::MergeRecursiveCanonicalComposition(
-                created->atom_positions,
-                created->operands,
-                created->requests,
-                insertion_index,
-                composition_view);
-            if (status == LAPLACE_TABULAR_SOURCE_OK) {
-                status = laplace::internal::AppendRecursiveDecompositionWitnesses(
-                    created->atom_positions,
-                    insertion_index,
-                    composition_view,
-                    static_cast<std::uint64_t>(artifact_index),
-                    trace_fingerprint,
-                    witness_inputs.data(),
-                    static_cast<std::uint64_t>(witness_inputs.size()),
-                    decomposition_witnesses,
-                    decomposition_witness_media_types);
-            }
-            if (status == LAPLACE_TABULAR_SOURCE_OK) {
-                created->view.root_result_index =
-                    insertion_index + composition_view.request_count;
-            }
-            laplace_decomposition_composition_plan_destroy(&composition_plan);
+            status = laplace::internal::AppendRecursiveDecompositionWitnesses(
+                static_cast<std::uint64_t>(created->requests.size()),
+                created->artifact_root_result_indexes[artifact_index],
+                static_cast<std::uint64_t>(artifact_index),
+                trace_fingerprint,
+                root_witness,
+                static_cast<std::uint64_t>(span_count),
+                decomposition_witnesses,
+                decomposition_witness_media_types);
             if (status != LAPLACE_TABULAR_SOURCE_OK) {
                 laplace_decomposition_result_destroy(&decomposition);
                 goto recursive_failure;
@@ -733,6 +688,7 @@ laplace_tabular_source_status BuildRecursive(
             static_cast<std::uint64_t>(decomposition_witness_media_types.size());
     }
 
+    MarkSourceOccurrenceRequests(*created);
     BindView(*created);
     laplace_uax29_tables_destroy(&uax_tables);
     *plan = created;

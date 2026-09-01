@@ -1589,6 +1589,19 @@
       "defect_controls": ["provider version drift", "runtime object digest or omission", "header omission", "ambient latest path", "selection claiming activation", "CMake selection emitted without installed-byte verification"]
     },
     {
+      "ctest_name": "delivery.runner-orphan-cleanup-contract",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE"],
+      "covered_dimensions": ["interrupted runner-owned PostgreSQL backends are reclaimed before a new physical proof starts", "durable services, live job descendants, and processes owned by another account cannot be selected"],
+      "defect_controls": ["cross-service PostgreSQL selection", "live job descendant selection", "cross-owner process selection", "workflow cleanup omission"]
+    },
+    {
+      "ctest_name": "postgres.source-resource-guard-contract",
+      "evidence_targets": ["LP-TEST-FINITE-RESOURCE-BOUNDARY", "LP-TEST-INSTALL-CONVERGENCE"],
+      "covered_dimensions": ["source-admission statement wall database WAL workspace temporary-file and PostgreSQL process-tree RSS ceilings", "first resource breach cancels the client and emits an exact observed-versus-authorized receipt", "interrupted PostgreSQL test data and socket namespaces are reclaimed without crossing active process or filesystem boundaries"],
+      "defect_controls": ["WAL ceiling omission", "wall-time ceiling omission", "broad disposable-workspace selection"],
+      "profiles": ["postgres", "custom-stack"]
+    },
+    {
       "ctest_name": "DependencyMath.CurrentEigenAndSpectraComputeSelectedEigenpairs",
       "evidence_targets": ["LP-TEST-DEPENDENCY-INTENT"],
       "covered_dimensions": ["selected Eigen and Spectra source compatibility", "symmetric eigensolver behavioral result"],
@@ -1930,10 +1943,10 @@
       "defect_controls": ["world-admission.mutation-lineage-binding-detected", "deleted durable lineage receipt membership is rejected by the production PostgreSQL route"]
     },
     {
-      "ctest_name": "postgres.unicode-root-persistence-contract",
+      "ctest_name": "postgres.source-admission-suite-whole-route-contract",
       "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-BOUNDED-CROSSINGS"],
-      "covered_dimensions": ["one 2230150-frame canonical stream feeding PostgreSQL and Tier-0 sibling sinks", "1114112 normalized entity physicality atom and DUCET rows", "set-oriented bounded SPI plans", "canonical transport excluded from normalized storage", "normalized heap bounded to 110 percent of packed transport", "exact SQL plan manifest", "ordered executed plan sequence", "set-wise durable effect cardinalities", "cross-sink artifact receipts", "transaction-deferred coherent activation", "indexed atom lookup"],
+      "evidence_targets": ["LP-TEST-UNICODE-SEED-SINGLE-ORIGIN", "LP-TEST-UNICODE-ATOM-FLOOR", "LP-TEST-DUCET-COMPLETE-ORDER", "LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-PERFCACHE-TYPED-REGISTRY", "LP-TEST-PERFCACHE-SEMANTIC-PARITY", "LP-TEST-PERFCACHE-PREFAULT-BEFORE-ACTIVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION"],
+      "covered_dimensions": ["one 2230150-frame canonical stream feeds PostgreSQL and the immutable Tier-0 and reverse siblings exactly once before every source program", "1114112 normalized entity physicality atom and DUCET rows", "set-oriented bounded SPI plans", "canonical transport excluded from normalized storage", "normalized heap bounded to 110 percent of packed transport", "exact SQL plan manifest", "ordered executed plan sequence", "set-wise durable effect cardinalities", "cross-sink artifact receipts", "transaction-deferred coherent activation", "indexed atom lookup", "the generic synthetic source program executes after the shared Unicode activation with exact replay rollback structural witness testimony and world-admission proofs", "the locked ISO 639-3 program preserves its exact profile topology 17110 claims 128125 recursive composition requests and 18805 typed reference dispositions", "the locked CILI program preserves 235242 mappings 470484 endpoint occurrences 352835 authority-scoped coordinates and unresolved mapping propositions", "generic ISO and CILI source-byte topology authority and receipt mutations fail without partial publication"],
       "defect_controls": ["postgres.mutation-unicode-plan-substitution-detected", "postgres.mutation-unicode-access-expected-epoch-detected", "postgres.mutation-blind-persistence-conflict-detected", "postgres.mutation-perfcache-expected-epoch-detected"]
     },
     {
@@ -1941,14 +1954,21 @@
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-BOUNDED-CROSSINGS"],
       "covered_dimensions": ["one substituted SQL plan changes the exact plan manifest"],
-      "controls": "postgres.unicode-root-persistence-contract"
+      "controls": "postgres.source-admission-suite-whole-route-contract"
     },
     {
       "ctest_name": "postgres.mutation-unicode-access-expected-epoch-detected",
       "profiles": ["custom-stack"],
       "evidence_targets": ["LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-SEMANTIC-PARITY"],
       "covered_dimensions": ["public Unicode Tier-0 and reverse access cannot bypass the caller expected epoch"],
-      "controls": "postgres.unicode-root-persistence-contract"
+      "controls": "postgres.source-admission-suite-whole-route-contract"
+    },
+    {
+      "ctest_name": "postgres.reference-topology-byte-batch-contract",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-ADMISSION-SOURCE-TOPOLOGY"],
+      "covered_dimensions": ["40000 distinct native reference occurrences persist through the public PostgreSQL route", "the declared 8 MiB authority derives a saturated record batch without a fixed record-count constant", "exact durable coordinate occurrence and receipt-membership cardinalities", "measured elapsed WAL and database-growth boundary on an isolated disposable cluster"],
+      "defect_controls": ["a fixed 16384-record batch leaves at least one full encoded record unused and fails the saturation assertion", "missing coordinate occurrence or receipt-member persistence fails exact durable counts"]
     },
     {
       "ctest_name": "postgres.spi-isa-contract",
@@ -2101,24 +2121,6 @@
       "ctest_name": "tabular-source.acquisition-contract-and-mutation",
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-CLEANROOM-SEPARATION"],
       "covered_dimensions": ["clean-room source acquisition uses the authority-declared HTTPS artifact rather than a private vault path", "downloaded archive and every selected member match exact byte and SHA-256 locks before atomic publication", "replay verifies the existing receipted tree without network access", "digest member path archive equivalence and insecure transport mutations fail closed"]
-    },
-    {
-      "ctest_name": "postgres.source-admission-whole-route-contract",
-      "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE"],
-      "covered_dimensions": ["one public PostgreSQL source-admission operation composes source AST state deposits canonical content resolves typed reference topology persists profile lineage testimony and closes world admission in one transaction", "row field exact value coordinate and occurrence identities remain separately durable", "exact Unicode content remains queryable and reconstructable through the shared substrate", "topology and world receipts replay idempotently while rejected source-byte mutation rolls back without partial durable state", "durable structural-witness row drift and structural-witness receipt drift are independently rejected and rolled back on public replay"]
-    },
-    {
-      "ctest_name": "postgres.iso-639-source-admission-whole-route-contract",
-      "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-BOUNDED-CROSSINGS"],
-      "covered_dimensions": ["the real locked ISO 639-3 release traverses generated profile authority native composition canonical persistence typed reference topology evidence testimony and world admission through one public PostgreSQL operation", "17110 claims and 128125 recursive composition requests persist transactionally", "all 18805 typed reference occurrences close as 9339 scoped coordinates with 18404 present 401 retired and zero unresolved dispositions", "row field exact value coordinate and occurrence identities remain separately durable without asserting cross-namespace mappings", "English Japanese eng and jpn exact content are independently queryable while the unselected ZIP wrapper is not falsely deposited as exact content", "deterministic replay preserves semantic and topology identity and cardinality", "digest and parent-topology defects roll back with no published effect"]
-    },
-    {
-      "ctest_name": "postgres.cili-source-admission-whole-route-contract",
-      "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-HIGHWAY-EXTERNAL-REFERENCE-SEPARATION"],
-      "covered_dimensions": ["the real locked CILI PWN mapping release traverses generated authority native composition canonical persistence typed reference topology typed reference mapping evidence testimony and world admission through one public PostgreSQL operation", "235242 exact headerless rows preserve 470484 unresolved endpoint occurrences across 352835 authority-scoped coordinates and 235242 unresolved mapping propositions", "the first mapping row and selected identifiers remain exact queryable Unicode compositions while the ZIP wrapper is not promoted to canonical content", "first replay preserves semantic receipts and canonical cardinality while recording the changed physical presence execution and steady-state replay then preserves every receipt and row cardinality", "source byte parent topology and mapping-rule authority mutations roll back with no durable effect"]
     }
   ]
 }

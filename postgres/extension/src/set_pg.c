@@ -239,3 +239,28 @@ void laplace_pg_execute_set_write_verify(
                  errmsg("Laplace %s conflicts with durable state", operation_name)));
     }
 }
+
+void laplace_pg_execute_set_write_exact(
+    const char* sql,
+    int parameter_count,
+    Oid* parameter_types,
+    Datum* parameter_values,
+    const char* operation_name) {
+    int result;
+    if (sql == NULL || operation_name == NULL || parameter_count < 0 ||
+        (parameter_count != 0 &&
+         (parameter_types == NULL || parameter_values == NULL))) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace exact set-write contract is invalid")));
+    }
+    result = SPI_execute_with_args(
+        sql, parameter_count, parameter_types, parameter_values,
+        NULL, false, 1);
+    if (result != SPI_OK_SELECT ||
+        !laplace_pg_scalar_boolean(operation_name)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace %s conflicts with durable state", operation_name)));
+    }
+}

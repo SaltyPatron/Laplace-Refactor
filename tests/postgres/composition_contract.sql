@@ -219,6 +219,7 @@ DECLARE
     first_result laplace.composition_deposit_result;
     replay_result laplace.composition_deposit_result;
     repeated_result laplace.composition_deposit_result;
+    mixed_result laplace.composition_deposit_result;
     semantic_drift_rejected boolean := false;
     replay_collision_rejected boolean := false;
     before_entities bigint;
@@ -294,6 +295,25 @@ BEGIN
         RAISE EXCEPTION
             'canonical composition emitted occurrence state without the explicit request flag';
     END IF;
+    BEGIN
+        INSERT INTO laplace.composition_execution_occurrence_member(
+            working_set_receipt, occurrence_id, member_ordinal)
+        VALUES (
+            first_result.working_set_receipt,
+            decode(repeat('ff', 32), 'hex'),
+            1);
+        RAISE EXCEPTION
+            'composition occurrence membership accepted an absent occurrence';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
+    IF EXISTS (
+        SELECT 1
+        FROM laplace.composition_execution_occurrence_member
+        WHERE working_set_receipt = first_result.working_set_receipt) THEN
+        RAISE EXCEPTION
+            'rejected composition occurrence membership published partial state';
+    END IF;
     IF NOT EXISTS (
         SELECT 1 FROM laplace.entity
         WHERE entity_id = first_result.result_entity_ids[1])
@@ -347,6 +367,22 @@ BEGIN
     repeated_result := pg_temp.composition_fixture_deposit();
     IF repeated_result IS DISTINCT FROM replay_result THEN
         RAISE EXCEPTION 'steady-state composition replay receipt is not deterministic';
+    END IF;
+
+    -- The first member of the pair is the exact [A,B] composition deposited
+    -- above; the second is the independently calculated [B,A] composition.
+    -- This proves a single set can contain an existing and a novel
+    -- physicality without either fabricating or dropping trajectory counts.
+    mixed_result := pg_temp.composition_fixture_pair_deposit();
+    IF mixed_result.unique_physicality_count <> 2
+       OR mixed_result.novel_physicality_count <> 1
+       OR mixed_result.trajectory_vertex_count <> 4
+       OR mixed_result.novel_trajectory_vertex_count <> 2
+       OR mixed_result.physicality_inserted <> 1
+       OR mixed_result.trajectory_vertex_inserted <> 2 THEN
+        RAISE EXCEPTION
+            'mixed existing/novel composition set produced an inexact receipt: %',
+            mixed_result;
     END IF;
     BEGIN
         UPDATE laplace.composition_execution_receipt

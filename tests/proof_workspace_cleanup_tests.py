@@ -35,7 +35,7 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
     def assert_cleanup_step(self, workflow: str, names: tuple[str, ...]) -> None:
         self.assertGreaterEqual(workflow.count("tools/delivery/proof_workspace_cleanup.py"), 2)
         cleanup_index = workflow.rindex("tools/delivery/proof_workspace_cleanup.py")
-        cleanup_prefix = workflow[max(0, cleanup_index - 240):cleanup_index]
+        cleanup_prefix = workflow[max(0, cleanup_index - 900):cleanup_index]
         self.assertIn("if: always()", cleanup_prefix)
         for name in names:
             self.assertIn(f"--name {name}", workflow[cleanup_index:])
@@ -73,6 +73,27 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
         self.assertEqual(first["results"][0]["state"], "absent")
         self.assertEqual(second["results"][0]["state"], "absent")
 
+    def test_discovers_only_exact_postgresql_disposable_namespaces(self) -> None:
+        expected = (
+            self.root / "laplace-postgres-test.Abc123",
+            self.root / "lp-pg.XyZ789",
+        )
+        for target in expected:
+            target.mkdir()
+        (self.root / "laplace-output").mkdir()
+        (self.root / "lp-pg-invalid").mkdir()
+
+        self.assertEqual(
+            CLEANUP.discover_names(
+                self.root, ["laplace-postgres-test.", "lp-pg."]
+            ),
+            ["laplace-postgres-test.Abc123", "lp-pg.XyZ789"],
+        )
+
+    def test_deliberate_broad_discovery_prefix_is_rejected(self) -> None:
+        with self.assertRaisesRegex(CLEANUP.CleanupError, "unsafe.*discovery prefix"):
+            CLEANUP.discover_names(self.root, ["laplace-"])
+
     def test_stale_workspace_can_be_recovered_after_minimum_age(self) -> None:
         target = self.root / "laplace-output"
         target.mkdir()
@@ -100,11 +121,19 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
         custom = CUSTOM_STACK.read_text(encoding="utf-8")
         self.assert_stale_sweep(custom, custom_names)
         self.assert_cleanup_step(custom, custom_names)
+        self.assertGreaterEqual(
+            custom.count("--discover-prefix laplace-postgres-test."), 2
+        )
+        self.assertGreaterEqual(custom.count("--discover-prefix lp-pg."), 2)
 
         postgres_names = ("laplace-postgresql-product-proof",)
         postgres = POSTGRESQL_PRODUCT.read_text(encoding="utf-8")
         self.assert_stale_sweep(postgres, postgres_names)
         self.assert_cleanup_step(postgres, postgres_names)
+        self.assertGreaterEqual(
+            postgres.count("--discover-prefix laplace-postgres-test."), 2
+        )
+        self.assertGreaterEqual(postgres.count("--discover-prefix lp-pg."), 2)
 
         package_names = ("laplace-package-product-proof",)
         package = PACKAGE_PRODUCT.read_text(encoding="utf-8")

@@ -48,6 +48,13 @@ BEGIN
        OR EXISTS (
             SELECT 1
             FROM laplace.source_structural_witness AS witness
+            WHERE witness.source_profile_id = first.profile_id
+              AND (witness.span_index <> 0
+                   OR witness.parent_span_index <>
+                      18446744073709551615::numeric))
+       OR EXISTS (
+            SELECT 1
+            FROM laplace.source_structural_witness AS witness
             LEFT JOIN laplace.entity AS entity
               ON entity.entity_id = witness.canonical_entity_id
             WHERE witness.source_profile_id = first.profile_id

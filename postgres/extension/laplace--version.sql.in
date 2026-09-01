@@ -64,6 +64,31 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.physicality_record AS (
     vertex_count numeric(20, 0)
 );
 
+-- Internal set-transport for the canonical persistence sink.  The native
+-- engine assembles and validates trajectory bytes before SPI; PostgreSQL only
+-- stages and publishes the already-canonical row.
+CREATE TYPE @LAPLACE_PG_SCHEMA@.physicality_deposit_record AS (
+    physicality_id bytea,
+    entity_id bytea,
+    physicality_type integer,
+    vertex_class integer,
+    recipe_version integer,
+    structural_form integer,
+    dimension_count integer,
+    flags integer,
+    recipe_fingerprint bytea,
+    geometry_epoch bytea,
+    trajectory_fingerprint bytea,
+    centroid_x double precision,
+    centroid_y double precision,
+    centroid_z double precision,
+    centroid_m double precision,
+    radius double precision,
+    logical_count numeric(20, 0),
+    vertex_count numeric(20, 0),
+    trajectory bytea
+);
+
 -- This is a transport continuation for one Physicality.  It is assembled into
 -- physicality.trajectory before canonical publication and is never a durable
 -- semantic row family.
@@ -428,7 +453,11 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_topology_result AS (
     coordinate_count numeric(20, 0),
     present_count numeric(20, 0),
     retired_count numeric(20, 0),
-    unresolved_count numeric(20, 0)
+    unresolved_count numeric(20, 0),
+    persistence_batch_count numeric(20, 0),
+    maximum_persistence_batch_records numeric(20, 0),
+    maximum_encoded_persistence_batch_bytes numeric(20, 0),
+    minimum_encoded_persistence_record_bytes numeric(20, 0)
 );
 
 CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_mapping_candidate AS (
@@ -501,7 +530,11 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_mapping_result AS (
     proposition_count numeric(20, 0),
     resolved_count numeric(20, 0),
     unresolved_count numeric(20, 0),
-    retired_count numeric(20, 0)
+    retired_count numeric(20, 0),
+    persistence_batch_count numeric(20, 0),
+    maximum_persistence_batch_records numeric(20, 0),
+    maximum_encoded_persistence_batch_bytes numeric(20, 0),
+    minimum_encoded_persistence_record_bytes numeric(20, 0)
 );
 
 CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_artifact AS (
@@ -584,6 +617,14 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_admission_result AS (
     reference_mapping_resolved_count numeric(20, 0),
     reference_mapping_unresolved_count numeric(20, 0),
     reference_mapping_retired_count numeric(20, 0),
+    reference_persistence_batch_count numeric(20, 0),
+    reference_maximum_persistence_batch_records numeric(20, 0),
+    reference_maximum_encoded_persistence_batch_bytes numeric(20, 0),
+    reference_minimum_encoded_persistence_record_bytes numeric(20, 0),
+    reference_mapping_persistence_batch_count numeric(20, 0),
+    reference_mapping_maximum_persistence_batch_records numeric(20, 0),
+    reference_mapping_maximum_encoded_persistence_batch_bytes numeric(20, 0),
+    reference_mapping_minimum_encoded_persistence_record_bytes numeric(20, 0),
     status integer
 );
 
@@ -750,6 +791,9 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.physicality (
 CREATE INDEX physicality_trajectory_fingerprint_idx
     ON @LAPLACE_PG_SCHEMA@.physicality
     (trajectory_fingerprint, physicality_id);
+CREATE INDEX physicality_logical_count_idx
+    ON @LAPLACE_PG_SCHEMA@.physicality
+    (logical_count, physicality_id);
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.attestation (
     attestation_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
@@ -778,6 +822,9 @@ CREATE INDEX attestation_source_idx
 CREATE INDEX attestation_entity_idx
     ON @LAPLACE_PG_SCHEMA@.attestation
     (entity_id, attestation_kind, attestation_id);
+CREATE INDEX attestation_physicality_source_idx
+    ON @LAPLACE_PG_SCHEMA@.attestation
+    (physicality_id, source_fingerprint, attestation_kind, attestation_id);
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.consensus (
     consensus_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
@@ -2137,14 +2184,16 @@ LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
-    @LAPLACE_PG_SCHEMA@.reference_candidate[])
+    @LAPLACE_PG_SCHEMA@.reference_candidate[],
+    numeric)
 RETURNS @LAPLACE_PG_SCHEMA@.reference_topology_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
-    @LAPLACE_PG_SCHEMA@.reference_mapping_candidate[])
+    @LAPLACE_PG_SCHEMA@.reference_mapping_candidate[],
+    numeric)
 RETURNS @LAPLACE_PG_SCHEMA@.reference_mapping_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
@@ -2357,12 +2406,14 @@ REVOKE EXECUTE ON FUNCTION
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
-        @LAPLACE_PG_SCHEMA@.reference_candidate[])
+        @LAPLACE_PG_SCHEMA@.reference_candidate[],
+        numeric)
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
-        @LAPLACE_PG_SCHEMA@.reference_mapping_candidate[])
+        @LAPLACE_PG_SCHEMA@.reference_mapping_candidate[],
+        numeric)
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL@(

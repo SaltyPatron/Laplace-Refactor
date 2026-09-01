@@ -31,10 +31,26 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Terminate stale database workers from interrupted jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/runner_orphan_cleanup.py \
+            --minimum-age-seconds 300 \
+            --grace-seconds 5 \
+            --terminate
       - name: Sweep stale interrupted custom-stack residue
         shell: bash
         run: |
           set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --minimum-age-seconds 300 \
+            --discover-prefix laplace-postgres-test.
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp /tmp \
+            --minimum-age-seconds 300 \
+            --discover-prefix lp-pg.
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --minimum-age-seconds 300 \
@@ -68,7 +84,7 @@ jobs:
           {
             echo '## Custom-stack QA selection'
             echo '```json'
-            jq '{head_sha, selected_rules, selected_profiles, eligible_test_count, core_test_count, selected_physical_test_count, selected_physical_tests}' "$plan"
+            jq '{head_sha, hosted_antecedent_required, selected_rules, selected_profiles, eligible_test_count, core_test_count, selected_physical_test_count, selected_physical_tests}' "$plan"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Verify execution identity and toolchain
@@ -300,6 +316,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 tools/delivery/runner_orphan_cleanup.py \
+            --minimum-age-seconds 0 \
+            --grace-seconds 5 \
+            --terminate
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --discover-prefix laplace-postgres-test.
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp /tmp \
+            --discover-prefix lp-pg.
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --name laplace-sources \

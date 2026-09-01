@@ -284,12 +284,18 @@ TEST(TabularSource, CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan) {
     EXPECT_EQ(view.profile.unresolved_count, view.profile.reference_count);
     EXPECT_EQ(view.profile.persisted_count, view.request_count);
     EXPECT_EQ(view.root_result_index + 1u, view.request_count);
+    std::uint64_t source_occurrence_count = 0u;
     for (std::uint64_t request_index = 0u;
          request_index < view.request_count; ++request_index) {
-        EXPECT_EQ(
-            view.requests[static_cast<std::size_t>(request_index)].flags,
-            LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE);
+        if ((view.requests[static_cast<std::size_t>(request_index)].flags &
+             LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0u) {
+            ++source_occurrence_count;
+        }
     }
+    /* One source boundary, two artifact roots, two record claims, one exact
+     * raw value, and six exact delimited field values are witnessed.  Tags,
+     * schema nodes, codepoint atoms, and recursive grammar spans are not. */
+    EXPECT_EQ(source_occurrence_count, 12u);
     EXPECT_LT(view.claim_result_indexes[0], view.claim_result_indexes[1]);
     EXPECT_LT(view.claim_source_ordinals[0], view.claim_source_ordinals[1]);
     EXPECT_EQ(view.claim_outcome_types[0], 5u);
@@ -538,13 +544,14 @@ TEST(TabularSource, GeneratedPlanExecutesThroughCanonicalComposition) {
                   working_set, &summary),
               LAPLACE_COMPOSITION_OK);
     EXPECT_EQ(summary.request_count, view.request_count);
-    EXPECT_EQ(summary.occurrence_count, view.request_count);
+    EXPECT_EQ(summary.occurrence_count, 12u);
     EXPECT_GT(summary.logical_occurrence_count, 0u);
     laplace_source_profile_manifest closed_profile{};
     ASSERT_EQ(laplace_tabular_source_profile_finalize(
                   plan, &summary, &closed_profile),
               LAPLACE_TABULAR_SOURCE_OK);
-    EXPECT_EQ(closed_profile.occurrence_count,
+    EXPECT_EQ(closed_profile.occurrence_count, summary.occurrence_count);
+    EXPECT_NE(closed_profile.occurrence_count,
               summary.logical_occurrence_count);
     EXPECT_FALSE(std::all_of(
         closed_profile.profile_id.bytes,
@@ -575,7 +582,7 @@ TEST(TabularSource, MissingSourceOccurrenceIntentIsObservable) {
 
     std::vector<laplace_composition_request> mutated_requests(
         view.requests, view.requests + static_cast<std::size_t>(view.request_count));
-    mutated_requests.front().flags &=
+    mutated_requests[static_cast<std::size_t>(view.root_result_index)].flags &=
         ~LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE;
 
     std::vector<laplace_composition_known_entity> known;
@@ -606,10 +613,44 @@ TEST(TabularSource, MissingSourceOccurrenceIntentIsObservable) {
     ASSERT_EQ(laplace_composition_working_set_summary_get(
                   working_set, &summary),
               LAPLACE_COMPOSITION_OK);
-    EXPECT_EQ(summary.occurrence_count, view.request_count - 1u);
-    EXPECT_NE(summary.occurrence_count, view.request_count);
+    EXPECT_EQ(summary.occurrence_count, 11u);
+    EXPECT_NE(summary.occurrence_count, 12u);
     EXPECT_GT(summary.logical_occurrence_count, 0u);
     laplace_composition_working_set_destroy(&working_set);
+    laplace_tabular_source_plan_destroy(&plan);
+}
+
+TEST(TabularSource, BlanketStructuralOccurrenceEmissionIsObservable) {
+    Fixture fixture;
+    laplace_tabular_source_plan* plan = nullptr;
+    ASSERT_EQ(laplace_tabular_source_plan_create(&fixture.input, &plan),
+              LAPLACE_TABULAR_SOURCE_OK);
+    laplace_tabular_source_plan_view view{};
+    ASSERT_EQ(laplace_tabular_source_plan_view_get(plan, &view),
+              LAPLACE_TABULAR_SOURCE_OK);
+
+    std::vector<laplace_composition_request> mutated_requests(
+        view.requests, view.requests + static_cast<std::size_t>(view.request_count));
+    for (auto& request : mutated_requests) {
+        request.flags |= LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE;
+    }
+    const auto emitted = std::count_if(
+        mutated_requests.begin(), mutated_requests.end(),
+        [](const laplace_composition_request& request) {
+            return (request.flags &
+                    LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0u;
+        });
+    EXPECT_EQ(static_cast<std::uint64_t>(emitted), view.request_count);
+    EXPECT_GT(view.request_count, 12u);
+
+    const auto actual = std::count_if(
+        view.requests,
+        view.requests + static_cast<std::size_t>(view.request_count),
+        [](const laplace_composition_request& request) {
+            return (request.flags &
+                    LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0u;
+        });
+    EXPECT_EQ(static_cast<std::uint64_t>(actual), 12u);
     laplace_tabular_source_plan_destroy(&plan);
 }
 

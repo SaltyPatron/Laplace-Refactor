@@ -2841,6 +2841,14 @@ if(LAPLACE_POSTGRES_ENABLED)
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/cili_source_admission_contract.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/cili_source_admission_contract.sql")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/source_admission_suite_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_suite_contract.sql"
+        COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/source_admission_active_control_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_active_control_mutation.sql"
+        COPYONLY)
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
@@ -2929,6 +2937,24 @@ if(LAPLACE_POSTGRES_ENABLED)
     set_tests_properties(postgres.spi-isa-contract PROPERTIES
         LABELS "implementation;postgresql;spi;isa;receipt"
         RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.reference-topology-byte-batch-contract
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            mutation
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/reference_topology_persistence_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.reference-topology-byte-batch-contract PROPERTIES
+        LABELS "implementation;postgresql;spi;reference-topology;persistence;bulk;performance;receipt"
+        TIMEOUT 120)
 
     add_test(
         NAME postgres.composition-working-set-contract
@@ -3135,89 +3161,28 @@ if(LAPLACE_POSTGRES_ENABLED)
         RUN_SERIAL TRUE)
 
     add_test(
-        NAME postgres.unicode-root-persistence-contract
-        COMMAND "${CMAKE_COMMAND}" -E env
-            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
-            "${LAPLACE_BASH_EXECUTABLE}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
-            unicode-root
-            "${LAPLACE_POSTGRES_BINDIR}"
-            "$<TARGET_FILE_DIR:laplace_pg>/share"
-            "$<TARGET_FILE_DIR:laplace_pg>"
-            "$<TARGET_FILE_DIR:laplace_engine>"
-            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
-            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
-            "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
-            "${laplace_sanitizer_preload}")
-    set_tests_properties(postgres.unicode-root-persistence-contract PROPERTIES
-        LABELS "implementation;postgresql;spi;unicode;root;persistence;perfcache;receipt"
-        RUN_SERIAL TRUE
-        SKIP_RETURN_CODE 77
-        TIMEOUT 1800)
-
-    add_test(
-        NAME postgres.source-admission-whole-route-contract
-        COMMAND "${CMAKE_COMMAND}" -E env
-            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
-            "${LAPLACE_BASH_EXECUTABLE}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
-            source-admission
-            "${LAPLACE_POSTGRES_BINDIR}"
-            "$<TARGET_FILE_DIR:laplace_pg>/share"
-            "$<TARGET_FILE_DIR:laplace_pg>"
-            "$<TARGET_FILE_DIR:laplace_engine>"
-            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
-            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
-            "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_contract.sql"
-            "${laplace_sanitizer_preload}")
-    set_tests_properties(postgres.source-admission-whole-route-contract PROPERTIES
-        LABELS "implementation;postgresql;unicode;source-profile;grammar;composition;evidence;testimony;world-admission;replay;rollback;receipt;cohesion"
-        RUN_SERIAL TRUE
-        SKIP_RETURN_CODE 77
-        TIMEOUT 1800)
-
-    add_test(
-        NAME postgres.iso-639-source-admission-whole-route-contract
+        NAME postgres.source-admission-suite-whole-route-contract
         COMMAND "${CMAKE_COMMAND}" -E env
             "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
             "LAPLACE_ISO_639_SOURCE_ROOT=${LAPLACE_ISO_639_SOURCE_ROOT}"
-            "${LAPLACE_BASH_EXECUTABLE}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
-            iso-639-admission
-            "${LAPLACE_POSTGRES_BINDIR}"
-            "$<TARGET_FILE_DIR:laplace_pg>/share"
-            "$<TARGET_FILE_DIR:laplace_pg>"
-            "$<TARGET_FILE_DIR:laplace_engine>"
-            "$<TARGET_FILE:laplace_postgres_iso_639_profile_probe>"
-            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
-            "${CMAKE_CURRENT_BINARY_DIR}/postgres/iso_639_source_admission_contract.sql"
-            "${laplace_sanitizer_preload}")
-    set_tests_properties(
-        postgres.iso-639-source-admission-whole-route-contract PROPERTIES
-        LABELS "implementation;postgresql;unicode;source-profile;iso-639;grammar;composition;evidence;testimony;world-admission;replay;rollback;receipt;cohesion"
-        RUN_SERIAL TRUE
-        SKIP_RETURN_CODE 77
-        TIMEOUT 1800)
-
-    add_test(
-        NAME postgres.cili-source-admission-whole-route-contract
-        COMMAND "${CMAKE_COMMAND}" -E env
-            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
             "LAPLACE_CILI_SOURCE_ROOT=${LAPLACE_CILI_SOURCE_ROOT}"
+            "LAPLACE_SOURCE_ADMISSION_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "LAPLACE_ISO_639_PROFILE_PROBE=$<TARGET_FILE:laplace_postgres_iso_639_profile_probe>"
+            "LAPLACE_CILI_PROFILE_PROBE=$<TARGET_FILE:laplace_postgres_cili_profile_probe>"
             "${LAPLACE_BASH_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
-            cili-admission
+            source-admission-suite
             "${LAPLACE_POSTGRES_BINDIR}"
             "$<TARGET_FILE_DIR:laplace_pg>/share"
             "$<TARGET_FILE_DIR:laplace_pg>"
             "$<TARGET_FILE_DIR:laplace_engine>"
-            "$<TARGET_FILE:laplace_postgres_cili_profile_probe>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
             "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
-            "${CMAKE_CURRENT_BINARY_DIR}/postgres/cili_source_admission_contract.sql"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_suite_contract.sql"
             "${laplace_sanitizer_preload}")
     set_tests_properties(
-        postgres.cili-source-admission-whole-route-contract PROPERTIES
-        LABELS "implementation;postgresql;unicode;source-profile;cili;grammar;composition;evidence;testimony;reference-topology;reference-mapping;world-admission;replay;rollback;receipt;cohesion"
+        postgres.source-admission-suite-whole-route-contract PROPERTIES
+        LABELS "implementation;postgresql;spi;unicode;root;persistence;perfcache;source-profile;iso-639;cili;grammar;composition;evidence;testimony;reference-topology;reference-mapping;world-admission;replay;rollback;receipt;cohesion"
         RUN_SERIAL TRUE
         SKIP_RETURN_CODE 77
         TIMEOUT 3600)
@@ -3357,7 +3322,7 @@ if(LAPLACE_POSTGRES_ENABLED)
         postgres.mutation-composition-presence-blind-detected
         laplace_pg_composition_presence_blind_mutant
         composition_presence_blind_mutation.sql
-        "Laplace persistence producer execution diverged from preflight")
+        "Laplace persistence producer execution failed")
     laplace_add_postgresql_composition_mutation(
         postgres.mutation-composition-presence-per-row-detected
         laplace_pg_composition_presence_per_row_mutant
@@ -3493,6 +3458,18 @@ if(UNIX)
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/installed_provider_lock_tests.py")
     set_tests_properties(dependencies.installed-provider-contract PROPERTIES
         LABELS "implementation;package;dependencies;oneapi;mutation")
+
+    add_test(
+        NAME delivery.runner-orphan-cleanup-contract
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/runner_orphan_cleanup_tests.py")
+    set_tests_properties(delivery.runner-orphan-cleanup-contract PROPERTIES
+        LABELS "implementation;delivery;runner;cleanup;mutation")
+
+    add_test(
+        NAME postgres.source-resource-guard-contract
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgres_resource_guard_tests.py")
+    set_tests_properties(postgres.source-resource-guard-contract PROPERTIES
+        LABELS "implementation;postgresql;source;resources;cleanup;mutation")
 
     find_program(LAPLACE_BASH_EXECUTABLE bash REQUIRED)
     add_test(

@@ -12,11 +12,13 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/memutils.h"
 
 #include "laplace/contract/postgresql_bindings.h"
 #include "laplace/isa.h"
 #include "laplace/reference_topology.h"
 #include "laplace_pg_internal.h"
+#include "reference_topology_pg.h"
 #include "set_pg.h"
 
 #ifndef LAPLACE_PG_REFERENCE_TOPOLOGY_ENTRYPOINT
@@ -147,10 +149,63 @@ static laplace_reference_candidate* read_candidates(
     return candidates;
 }
 
-static ArrayType* record_array(
+typedef struct laplace_pg_reference_record_batch {
+    ArrayType* records;
+    Oid array_oid;
+    size_t record_count;
+    uint64_t encoded_bytes;
+    uint64_t minimum_encoded_record_bytes;
+} laplace_pg_reference_record_batch;
+
+static Datum record_datum(
+    const laplace_pg_composite_binding* binding,
+    const laplace_reference_record* record) {
+    Datum fields[20];
+    bool nulls[20] = {false};
+    fields[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->reference_id.bytes, 32u));
+    fields[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->occurrence_id.bytes, 32u));
+    fields[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->candidate.source_profile_id.bytes, 32u));
+    fields[3] = Int32GetDatum((int32)record->candidate.key.kind);
+    fields[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->candidate.key.authority.bytes, 16u));
+    fields[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->candidate.key.release.bytes, 16u));
+    fields[6] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->candidate.key.name_space.bytes, 16u));
+    fields[7] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->candidate.key.local_identifier.bytes, 16u));
+    fields[8] = laplace_pg_numeric_from_uint64(
+        record->candidate.key.version);
+    fields[9] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->coordinate.coordinate.bytes, 16u));
+    fields[10] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->coordinate.collision_fingerprint.bytes, 32u));
+    fields[11] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->candidate.row_entity_id.bytes, 16u));
+    fields[12] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->candidate.field_entity_id.bytes, 16u));
+    fields[13] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        record->candidate.value_entity_id.bytes, 16u));
+    fields[14] = laplace_pg_numeric_from_uint64(
+        record->candidate.source_ordinal);
+    fields[15] = laplace_pg_numeric_from_uint64(
+        record->candidate.artifact_ordinal);
+    fields[16] = laplace_pg_numeric_from_uint64(
+        record->candidate.row_ordinal);
+    fields[17] = laplace_pg_numeric_from_uint64(
+        record->candidate.column_ordinal);
+    fields[18] = Int32GetDatum((int32)record->candidate.rule_flags);
+    fields[19] = Int32GetDatum((int32)record->disposition);
+    return laplace_pg_composite_record(binding, fields, nulls);
+}
+
+static laplace_pg_reference_record_batch record_array(
     const laplace_reference_record* records,
     size_t record_count,
-    Oid* array_oid) {
+    uint64_t preferred_batch_bytes) {
     static const Oid types[20] = {
         BYTEAOID, BYTEAOID, BYTEAOID, INT4OID,
         BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, NUMERICOID,
@@ -166,90 +221,112 @@ static ArrayType* record_array(
         LAPLACE_PG_NUMERIC_TYPMOD(20, 0),
         LAPLACE_PG_NUMERIC_TYPMOD(20, 0), -1, -1};
     laplace_pg_composite_binding binding;
-    Datum* rows = (Datum*)palloc(sizeof(*rows) * record_count);
+    Datum* rows;
+    size_t capacity;
     size_t index;
-    ArrayType* result;
+    const uint64_t batch_byte_limit =
+        preferred_batch_bytes > (uint64_t)MaxAllocSize ?
+            (uint64_t)MaxAllocSize : preferred_batch_bytes;
+    uint64_t encoded_data_bytes = 0u;
+    laplace_pg_reference_record_batch result;
+    memset(&result, 0, sizeof(result));
+    if (record_count == 0u || preferred_batch_bytes == 0u) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace reference topology batch requires records and a positive byte limit")));
+    }
+    capacity = record_count;
+    if (capacity > (size_t)(batch_byte_limit / sizeof(*rows))) {
+        capacity = (size_t)(batch_byte_limit / sizeof(*rows));
+    }
+    if (capacity > (size_t)INT_MAX) {
+        capacity = (size_t)INT_MAX;
+    }
+    if (capacity > (size_t)(MaxAllocSize / sizeof(*rows))) {
+        capacity = (size_t)(MaxAllocSize / sizeof(*rows));
+    }
+    if (capacity == 0u) {
+        ereport(ERROR,
+                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                 errmsg("Laplace reference topology batch-byte authority cannot hold one encoded record"),
+                 errdetail("preferred_batch_bytes=%llu",
+                           (unsigned long long)preferred_batch_bytes)));
+    }
+    rows = (Datum*)palloc(sizeof(*rows) * capacity);
     laplace_pg_composite_binding_open(
         "reference_topology_record", types, typmods, 20, &binding);
-    for (index = 0u; index < record_count; ++index) {
-        const laplace_reference_record* record = &records[index];
-        Datum fields[20];
-        bool nulls[20] = {false};
-        fields[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->reference_id.bytes, 32u));
-        fields[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->occurrence_id.bytes, 32u));
-        fields[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->candidate.source_profile_id.bytes, 32u));
-        fields[3] = Int32GetDatum((int32)record->candidate.key.kind);
-        fields[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->candidate.key.authority.bytes, 16u));
-        fields[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->candidate.key.release.bytes, 16u));
-        fields[6] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->candidate.key.name_space.bytes, 16u));
-        fields[7] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->candidate.key.local_identifier.bytes, 16u));
-        fields[8] = laplace_pg_numeric_from_uint64(
-            record->candidate.key.version);
-        fields[9] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->coordinate.coordinate.bytes, 16u));
-        fields[10] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->coordinate.collision_fingerprint.bytes, 32u));
-        fields[11] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->candidate.row_entity_id.bytes, 16u));
-        fields[12] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->candidate.field_entity_id.bytes, 16u));
-        fields[13] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            record->candidate.value_entity_id.bytes, 16u));
-        fields[14] = laplace_pg_numeric_from_uint64(
-            record->candidate.source_ordinal);
-        fields[15] = laplace_pg_numeric_from_uint64(
-            record->candidate.artifact_ordinal);
-        fields[16] = laplace_pg_numeric_from_uint64(
-            record->candidate.row_ordinal);
-        fields[17] = laplace_pg_numeric_from_uint64(
-            record->candidate.column_ordinal);
-        fields[18] = Int32GetDatum((int32)record->candidate.rule_flags);
-        fields[19] = Int32GetDatum((int32)record->disposition);
-        rows[index] = laplace_pg_composite_record(&binding, fields, nulls);
+    for (index = 0u; index < capacity; ++index) {
+        Datum row = record_datum(&binding, &records[index]);
+        const uint64_t row_bytes = (uint64_t)MAXALIGN(
+            VARSIZE_ANY(DatumGetPointer(row)));
+        const uint64_t projected_bytes =
+            (uint64_t)ARR_OVERHEAD_NONULLS(1) +
+            encoded_data_bytes + row_bytes;
+        if (projected_bytes > batch_byte_limit) {
+            if (index == 0u) {
+                laplace_pg_composite_binding_close(&binding);
+                ereport(ERROR,
+                        (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                         errmsg("Laplace reference topology encoded record exceeds its batch-byte authority"),
+                         errdetail("record_bytes=%llu preferred_batch_bytes=%llu",
+                                   (unsigned long long)projected_bytes,
+                                   (unsigned long long)preferred_batch_bytes)));
+            }
+            break;
+        }
+        rows[index] = row;
+        encoded_data_bytes += row_bytes;
+        if (result.minimum_encoded_record_bytes == 0u ||
+            row_bytes < result.minimum_encoded_record_bytes) {
+            result.minimum_encoded_record_bytes = row_bytes;
+        }
     }
-    result = laplace_pg_composite_array(
-        &binding, rows, (uint64_t)record_count);
-    *array_oid = binding.array_oid;
+    result.records = laplace_pg_composite_array(
+        &binding, rows, (uint64_t)index);
+    result.array_oid = binding.array_oid;
+    result.record_count = index;
+    result.encoded_bytes = (uint64_t)VARSIZE_ANY(result.records);
+    if (result.encoded_bytes > batch_byte_limit) {
+        laplace_pg_composite_binding_close(&binding);
+        ereport(ERROR,
+                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                 errmsg("Laplace reference topology encoded batch exceeded its byte authority"),
+                 errdetail("encoded_bytes=%llu preferred_batch_bytes=%llu",
+                           (unsigned long long)result.encoded_bytes,
+                           (unsigned long long)preferred_batch_bytes)));
+    }
     laplace_pg_composite_binding_close(&binding);
     return result;
 }
 
 static void persist_topology(
-    ArrayType* records,
-    Oid records_array_oid,
+    const laplace_reference_record* records,
+    size_t record_count,
+    uint64_t preferred_batch_bytes,
     const laplace_reference_topology_receipt* topology_receipt,
-    const laplace_isa_receipt* isa_receipt) {
+    const laplace_isa_receipt* isa_receipt,
+    laplace_pg_reference_persistence_measurement* measurement) {
     static const char coordinates_write_sql[] =
-        "INSERT INTO " LAPLACE_PG_SCHEMA ".reference_coordinate(kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint) SELECT DISTINCT kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) ON CONFLICT DO NOTHING";
-    static const char coordinates_verify_sql[] =
-        "WITH input AS MATERIALIZED (SELECT DISTINCT kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[])) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".reference_coordinate c ON c.coordinate=i.coordinate WHERE c.coordinate IS NULL OR c.kind<>i.kind OR c.authority<>i.authority OR c.release<>i.release OR c.namespace<>i.namespace OR c.local_identifier<>i.local_identifier OR c.version<>i.version OR c.collision_fingerprint<>i.collision_fingerprint)";
+        "WITH input AS MATERIALIZED (SELECT DISTINCT kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[])),inserted AS (INSERT INTO " LAPLACE_PG_SCHEMA ".reference_coordinate(kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint) SELECT kind,authority,release,namespace,local_identifier,version,coordinate,collision_fingerprint FROM input ON CONFLICT DO NOTHING RETURNING 1) SELECT (SELECT count(*) FROM inserted)+(SELECT count(*) FROM input i JOIN " LAPLACE_PG_SCHEMA ".reference_coordinate c USING(coordinate) WHERE c.kind=i.kind AND c.authority=i.authority AND c.release=i.release AND c.namespace=i.namespace AND c.local_identifier=i.local_identifier AND c.version=i.version AND c.collision_fingerprint=i.collision_fingerprint)=(SELECT count(*) FROM input)";
     static const char occurrences_write_sql[] =
-        "INSERT INTO " LAPLACE_PG_SCHEMA ".reference_occurrence(reference_id,occurrence_id,source_profile_id,coordinate,row_entity_id,field_entity_id,value_entity_id,source_ordinal,artifact_ordinal,row_ordinal,column_ordinal,rule_flags,disposition) SELECT reference_id,occurrence_id,source_profile_id,coordinate,row_entity_id,field_entity_id,value_entity_id,source_ordinal,artifact_ordinal,row_ordinal,column_ordinal,rule_flags,disposition FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) ON CONFLICT DO NOTHING";
-    static const char occurrences_verify_sql[] =
-        "WITH input AS MATERIALIZED (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) r) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".reference_occurrence o ON o.reference_id=i.reference_id WHERE o.reference_id IS NULL OR o.occurrence_id<>i.occurrence_id OR o.source_profile_id<>i.source_profile_id OR o.coordinate<>i.coordinate OR o.row_entity_id<>i.row_entity_id OR o.field_entity_id<>i.field_entity_id OR o.value_entity_id<>i.value_entity_id OR o.source_ordinal<>i.source_ordinal OR o.artifact_ordinal<>i.artifact_ordinal OR o.row_ordinal<>i.row_ordinal OR o.column_ordinal<>i.column_ordinal OR o.rule_flags<>i.rule_flags OR o.disposition<>i.disposition)";
+        "WITH input AS MATERIALIZED (SELECT (r).* FROM unnest($1::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) r),inserted AS (INSERT INTO " LAPLACE_PG_SCHEMA ".reference_occurrence(reference_id,occurrence_id,source_profile_id,coordinate,row_entity_id,field_entity_id,value_entity_id,source_ordinal,artifact_ordinal,row_ordinal,column_ordinal,rule_flags,disposition) SELECT reference_id,occurrence_id,source_profile_id,coordinate,row_entity_id,field_entity_id,value_entity_id,source_ordinal,artifact_ordinal,row_ordinal,column_ordinal,rule_flags,disposition FROM input ON CONFLICT DO NOTHING RETURNING 1) SELECT (SELECT count(*) FROM inserted)+(SELECT count(*) FROM input i JOIN " LAPLACE_PG_SCHEMA ".reference_occurrence o USING(reference_id) WHERE o.occurrence_id=i.occurrence_id AND o.source_profile_id=i.source_profile_id AND o.coordinate=i.coordinate AND o.row_entity_id=i.row_entity_id AND o.field_entity_id=i.field_entity_id AND o.value_entity_id=i.value_entity_id AND o.source_ordinal=i.source_ordinal AND o.artifact_ordinal=i.artifact_ordinal AND o.row_ordinal=i.row_ordinal AND o.column_ordinal=i.column_ordinal AND o.rule_flags=i.rule_flags AND o.disposition=i.disposition)=(SELECT count(*) FROM input)";
     static const char receipt_write_sql[] =
         "INSERT INTO " LAPLACE_PG_SCHEMA ".reference_topology_receipt(receipt_id,source_profile_id,input_fingerprint,output_fingerprint,isa_receipt_id,occurrence_count,coordinate_count,present_count,retired_count,unresolved_count,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING";
     static const char receipt_verify_sql[] =
         "SELECT EXISTS (SELECT FROM " LAPLACE_PG_SCHEMA ".reference_topology_receipt WHERE receipt_id=$1 AND source_profile_id=$2 AND input_fingerprint=$3 AND output_fingerprint=$4 AND isa_receipt_id=$5 AND occurrence_count=$6 AND coordinate_count=$7 AND present_count=$8 AND retired_count=$9 AND unresolved_count=$10 AND version=$11)";
     static const char members_write_sql[] =
-        "WITH input AS (SELECT $1::bytea AS receipt_id,(r).occurrence_id,ordinality::numeric AS member_ordinal FROM unnest($2::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) WITH ORDINALITY r) INSERT INTO " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member(receipt_id,occurrence_id,member_ordinal) SELECT receipt_id,occurrence_id,member_ordinal FROM input ON CONFLICT DO NOTHING";
-    static const char members_verify_sql[] =
-        "WITH input AS MATERIALIZED (SELECT $1::bytea AS receipt_id,(r).occurrence_id,ordinality::numeric AS member_ordinal FROM unnest($2::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) WITH ORDINALITY r) SELECT NOT EXISTS (SELECT FROM input i LEFT JOIN " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member m ON m.receipt_id=i.receipt_id AND m.occurrence_id=i.occurrence_id WHERE m.receipt_id IS NULL OR m.member_ordinal<>i.member_ordinal) AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member m WHERE m.receipt_id=$1)=(SELECT count(*) FROM input)";
-    Oid record_types[1] = {records_array_oid};
-    Datum record_values[1] = {PointerGetDatum(records)};
+        "WITH input AS MATERIALIZED (SELECT $1::bytea AS receipt_id,(r).occurrence_id,($3::bigint+ordinality)::numeric AS member_ordinal FROM unnest($2::" LAPLACE_PG_SCHEMA ".reference_topology_record[]) WITH ORDINALITY r),inserted AS (INSERT INTO " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member(receipt_id,occurrence_id,member_ordinal) SELECT receipt_id,occurrence_id,member_ordinal FROM input ON CONFLICT DO NOTHING RETURNING 1) SELECT (SELECT count(*) FROM inserted)+(SELECT count(*) FROM input i JOIN " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member m USING(receipt_id,occurrence_id) WHERE m.member_ordinal=i.member_ordinal)=(SELECT count(*) FROM input)";
+    static const char members_count_sql[] =
+        "SELECT count(*)=$2::bigint FROM " LAPLACE_PG_SCHEMA ".reference_topology_receipt_member WHERE receipt_id=$1";
     Oid receipt_types[11] = {
         BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID,
         INT8OID, INT8OID, INT8OID, INT8OID, INT8OID, INT4OID};
     Datum receipt_values[11];
-    Oid member_types[2] = {BYTEAOID, records_array_oid};
-    Datum member_values[2];
+    MemoryContext batch_context;
+    MemoryContext prior_context;
+    size_t offset;
+    int result;
+    memset(measurement, 0, sizeof(*measurement));
     receipt_values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         topology_receipt->receipt_id.bytes, 32u));
     receipt_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
@@ -271,25 +348,77 @@ static void persist_topology(
     receipt_values[9] = Int64GetDatum(laplace_pg_checked_int64(
         topology_receipt->unresolved_count, "reference unresolved count"));
     receipt_values[10] = Int32GetDatum((int32)topology_receipt->version);
-    member_values[0] = receipt_values[0];
-    member_values[1] = PointerGetDatum(records);
     if (SPI_connect() != SPI_OK_CONNECT) {
         ereport(ERROR,
                 (errcode(ERRCODE_CONNECTION_FAILURE),
                  errmsg("Laplace reference topology persistence could not connect to SPI")));
     }
     laplace_pg_execute_set_write_verify(
-        coordinates_write_sql, coordinates_verify_sql,
-        1, record_types, record_values, "reference coordinate");
-    laplace_pg_execute_set_write_verify(
-        occurrences_write_sql, occurrences_verify_sql,
-        1, record_types, record_values, "reference occurrence");
-    laplace_pg_execute_set_write_verify(
         receipt_write_sql, receipt_verify_sql,
         11, receipt_types, receipt_values, "reference topology receipt");
-    laplace_pg_execute_set_write_verify(
-        members_write_sql, members_verify_sql,
-        2, member_types, member_values, "reference topology membership");
+    batch_context = AllocSetContextCreate(
+        CurrentMemoryContext,
+        "Laplace reference topology persistence batch",
+        ALLOCSET_DEFAULT_SIZES);
+    prior_context = MemoryContextSwitchTo(batch_context);
+    for (offset = 0u; offset < record_count;) {
+        const size_t remaining = record_count - offset;
+        laplace_pg_reference_record_batch batch = record_array(
+            records + offset, remaining, preferred_batch_bytes);
+        Oid record_types[1] = {batch.array_oid};
+        Datum record_values[1] = {PointerGetDatum(batch.records)};
+        Oid member_types[3] = {BYTEAOID, batch.array_oid, INT8OID};
+        Datum member_values[3] = {
+            receipt_values[0],
+            PointerGetDatum(batch.records),
+            Int64GetDatum(laplace_pg_checked_int64(
+                (uint64_t)offset, "reference topology member offset"))};
+        laplace_pg_execute_set_write_exact(
+            coordinates_write_sql,
+            1, record_types, record_values, "reference coordinate batch");
+        laplace_pg_execute_set_write_exact(
+            occurrences_write_sql,
+            1, record_types, record_values, "reference occurrence batch");
+        laplace_pg_execute_set_write_exact(
+            members_write_sql,
+            3, member_types, member_values, "reference topology membership batch");
+        ++measurement->batch_count;
+        if ((uint64_t)batch.record_count > measurement->maximum_batch_records) {
+            measurement->maximum_batch_records = (uint64_t)batch.record_count;
+        }
+        if (batch.encoded_bytes > measurement->maximum_encoded_batch_bytes) {
+            measurement->maximum_encoded_batch_bytes = batch.encoded_bytes;
+        }
+        if (measurement->minimum_encoded_record_bytes == 0u ||
+            batch.minimum_encoded_record_bytes <
+                measurement->minimum_encoded_record_bytes) {
+            measurement->minimum_encoded_record_bytes =
+                batch.minimum_encoded_record_bytes;
+        }
+        offset += batch.record_count;
+        MemoryContextSwitchTo(prior_context);
+        MemoryContextReset(batch_context);
+        prior_context = MemoryContextSwitchTo(batch_context);
+    }
+    MemoryContextSwitchTo(prior_context);
+    MemoryContextDelete(batch_context);
+    {
+        Oid count_types[2] = {BYTEAOID, INT8OID};
+        Datum count_values[2] = {
+            receipt_values[0],
+            Int64GetDatum(laplace_pg_checked_int64(
+                (uint64_t)record_count,
+                "reference topology membership count"))};
+        result = SPI_execute_with_args(
+            members_count_sql, 2, count_types, count_values,
+            NULL, false, 1);
+        if (result != SPI_OK_SELECT ||
+            !laplace_pg_scalar_boolean("reference topology membership count")) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace reference topology membership cardinality conflicts with durable state")));
+        }
+    }
     if (SPI_finish() != SPI_OK_FINISH) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
@@ -334,38 +463,30 @@ static ArrayType* disposition_array(
         values, (int)record_count, INT4OID, sizeof(int32), true, TYPALIGN_INT);
 }
 
-Datum LAPLACE_PG_REFERENCE_TOPOLOGY_ENTRYPOINT(PG_FUNCTION_ARGS) {
-    laplace_framework_context context;
-    ArrayType* input_array = PG_GETARG_ARRAYTYPE_P(1);
-    laplace_reference_candidate* candidates;
-    laplace_reference_record* records;
+void laplace_pg_reference_topology_execute_and_persist(
+    const laplace_framework_context* context,
+    const laplace_reference_candidate* candidates,
+    size_t candidate_count,
+    uint64_t preferred_batch_bytes,
+    laplace_reference_record* records,
+    laplace_pg_reference_topology_execution* execution) {
     laplace_reference_record* reconstructed_records;
-    size_t candidate_count = 0u;
-    laplace_reference_topology_receipt semantic_receipt;
     laplace_reference_topology_error semantic_error;
     laplace_isa_value_view values[2];
     laplace_isa_instruction instruction;
     laplace_isa_program program;
-    laplace_isa_receipt isa_receipt;
     laplace_isa_error isa_error;
-    ArrayType* persisted_records;
-    Oid persisted_records_oid;
-    Datum result_values[14];
-    bool result_nulls[14] = {false};
-    HeapTuple result_tuple;
-    laplace_pg_read_execution_context(PG_GETARG_DATUM(0), &context);
-    if ((context.flags & LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY) != 0u) {
+    if (context == NULL || candidates == NULL || candidate_count == 0u ||
+        preferred_batch_bytes == 0u || records == NULL || execution == NULL) {
         ereport(ERROR,
-                (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-                 errmsg("Laplace reference topology persistence requires a writable execution context")));
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace reference topology execution requires exact nonempty native inputs")));
     }
-    candidates = read_candidates(input_array, &candidate_count);
-    records = (laplace_reference_record*)palloc0(
-        sizeof(*records) * candidate_count);
+    memset(execution, 0, sizeof(*execution));
     reconstructed_records = (laplace_reference_record*)palloc0(
         sizeof(*reconstructed_records) * candidate_count);
     memset(values, 0, sizeof(values));
-    values[0].data = candidates;
+    values[0].data = (void*)candidates;
     values[0].count = (uint64_t)candidate_count;
     values[0].capacity = (uint64_t)candidate_count;
     values[0].stride_bytes = sizeof(*candidates);
@@ -382,16 +503,15 @@ Datum LAPLACE_PG_REFERENCE_TOPOLOGY_ENTRYPOINT(PG_FUNCTION_ARGS) {
     memset(&program, 0, sizeof(program));
     program.instructions = &instruction;
     program.values = values;
-    program.context = &context;
+    program.context = context;
     program.instruction_count = 1u;
     program.value_count = 2u;
     program.major = LAPLACE_ISA_MAJOR;
     program.minor = LAPLACE_ISA_MINOR;
     program.receipt_detail = LAPLACE_ISA_RECEIPT_DETAIL_FULL;
-    memset(&isa_receipt, 0, sizeof(isa_receipt));
     memset(&isa_error, 0, sizeof(isa_error));
-    if (laplace_isa_execute(&program, &isa_receipt, &isa_error) !=
-        LAPLACE_ISA_OK) {
+    if (laplace_isa_execute(
+            &program, &execution->isa_receipt, &isa_error) != LAPLACE_ISA_OK) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
                  errmsg("Laplace reference topology ISA execution failed"),
@@ -399,25 +519,50 @@ Datum LAPLACE_PG_REFERENCE_TOPOLOGY_ENTRYPOINT(PG_FUNCTION_ARGS) {
                            (int)isa_error.status,
                            (unsigned long long)isa_error.instruction_index)));
     }
-    memset(&semantic_receipt, 0, sizeof(semantic_receipt));
     memset(&semantic_error, 0, sizeof(semantic_error));
     if (laplace_reference_topology_resolve_batch(
             candidates, candidate_count, reconstructed_records,
-            &semantic_receipt,
-            &semantic_error) != LAPLACE_REFERENCE_TOPOLOGY_OK ||
+            &execution->semantic_receipt, &semantic_error) !=
+            LAPLACE_REFERENCE_TOPOLOGY_OK ||
         memcmp(records, reconstructed_records,
                sizeof(*records) * candidate_count) != 0) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
                  errmsg("Laplace reference topology semantic receipt reconstruction failed")));
     }
+    pfree(reconstructed_records);
     laplace_pg_persist_execution_receipt(
-        &isa_receipt, candidate_count, instruction.opcode);
-    persisted_records = record_array(
-        records, candidate_count, &persisted_records_oid);
+        &execution->isa_receipt, candidate_count, instruction.opcode);
     persist_topology(
-        persisted_records, persisted_records_oid,
-        &semantic_receipt, &isa_receipt);
+        records, candidate_count, preferred_batch_bytes,
+        &execution->semantic_receipt, &execution->isa_receipt,
+        &execution->persistence);
+}
+
+Datum LAPLACE_PG_REFERENCE_TOPOLOGY_ENTRYPOINT(PG_FUNCTION_ARGS) {
+    laplace_framework_context context;
+    ArrayType* input_array = PG_GETARG_ARRAYTYPE_P(1);
+    const uint64_t preferred_batch_bytes = laplace_pg_uint64_from_numeric(
+        PG_GETARG_DATUM(2), "reference topology preferred_batch_bytes");
+    laplace_reference_candidate* candidates;
+    laplace_reference_record* records;
+    size_t candidate_count = 0u;
+    laplace_pg_reference_topology_execution execution;
+    Datum result_values[18];
+    bool result_nulls[18] = {false};
+    HeapTuple result_tuple;
+    laplace_pg_read_execution_context(PG_GETARG_DATUM(0), &context);
+    if ((context.flags & LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY) != 0u) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+                 errmsg("Laplace reference topology persistence requires a writable execution context")));
+    }
+    candidates = read_candidates(input_array, &candidate_count);
+    records = (laplace_reference_record*)palloc0(
+        sizeof(*records) * candidate_count);
+    laplace_pg_reference_topology_execute_and_persist(
+        &context, candidates, candidate_count, preferred_batch_bytes,
+        records, &execution);
     result_values[0] = PointerGetDatum(bytea_field_array(
         records, candidate_count, 0));
     result_values[1] = PointerGetDatum(bytea_field_array(
@@ -427,26 +572,34 @@ Datum LAPLACE_PG_REFERENCE_TOPOLOGY_ENTRYPOINT(PG_FUNCTION_ARGS) {
     result_values[3] = PointerGetDatum(disposition_array(
         records, candidate_count));
     result_values[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        semantic_receipt.receipt_id.bytes, 32u));
+        execution.semantic_receipt.receipt_id.bytes, 32u));
     result_values[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        semantic_receipt.source_profile_id.bytes, 32u));
+        execution.semantic_receipt.source_profile_id.bytes, 32u));
     result_values[6] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        semantic_receipt.input_fingerprint.bytes, 32u));
+        execution.semantic_receipt.input_fingerprint.bytes, 32u));
     result_values[7] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        semantic_receipt.output_fingerprint.bytes, 32u));
+        execution.semantic_receipt.output_fingerprint.bytes, 32u));
     result_values[8] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        isa_receipt.receipt_id.bytes, 32u));
+        execution.isa_receipt.receipt_id.bytes, 32u));
     result_values[9] = laplace_pg_numeric_from_uint64(
-        semantic_receipt.occurrence_count);
+        execution.semantic_receipt.occurrence_count);
     result_values[10] = laplace_pg_numeric_from_uint64(
-        semantic_receipt.coordinate_count);
+        execution.semantic_receipt.coordinate_count);
     result_values[11] = laplace_pg_numeric_from_uint64(
-        semantic_receipt.present_count);
+        execution.semantic_receipt.present_count);
     result_values[12] = laplace_pg_numeric_from_uint64(
-        semantic_receipt.retired_count);
+        execution.semantic_receipt.retired_count);
     result_values[13] = laplace_pg_numeric_from_uint64(
-        semantic_receipt.unresolved_count);
+        execution.semantic_receipt.unresolved_count);
+    result_values[14] = laplace_pg_numeric_from_uint64(
+        execution.persistence.batch_count);
+    result_values[15] = laplace_pg_numeric_from_uint64(
+        execution.persistence.maximum_batch_records);
+    result_values[16] = laplace_pg_numeric_from_uint64(
+        execution.persistence.maximum_encoded_batch_bytes);
+    result_values[17] = laplace_pg_numeric_from_uint64(
+        execution.persistence.minimum_encoded_record_bytes);
     result_tuple = laplace_pg_form_result_tuple(
-        fcinfo, result_values, result_nulls, 14);
+        fcinfo, result_values, result_nulls, 18);
     PG_RETURN_DATUM(HeapTupleGetDatum(result_tuple));
 }

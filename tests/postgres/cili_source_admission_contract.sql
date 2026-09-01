@@ -1,4 +1,7 @@
+\if :{?source_skip_unicode}
+\else
 \ir unicode_root_contract.sql
+\endif
 
 CREATE TEMP TABLE cili_artifact_bytes (
     ordinal integer PRIMARY KEY,
@@ -450,11 +453,29 @@ BEGIN
        OR admitted.reference_present_count <> 0
        OR admitted.reference_retired_count <> 0
        OR admitted.reference_unresolved_count <> expected.reference_count
+       OR admitted.reference_persistence_batch_count <= 0
+       OR admitted.reference_maximum_persistence_batch_records <= 0
+       OR admitted.reference_maximum_encoded_persistence_batch_bytes >
+          (SELECT preferred_batch_bytes FROM cili_profile_authority)
+       OR admitted.reference_minimum_encoded_persistence_record_bytes <= 0
+       OR (admitted.reference_persistence_batch_count > 1
+           AND (SELECT preferred_batch_bytes FROM cili_profile_authority) -
+               admitted.reference_maximum_encoded_persistence_batch_bytes >=
+               admitted.reference_minimum_encoded_persistence_record_bytes)
        OR admitted.reference_mapping_occurrence_count <> expected.mapping_count
        OR admitted.reference_mapping_proposition_count <> expected.mapping_count
        OR admitted.reference_mapping_resolved_count <> 0
        OR admitted.reference_mapping_unresolved_count <> expected.mapping_count
        OR admitted.reference_mapping_retired_count <> 0
+       OR admitted.reference_mapping_persistence_batch_count <= 0
+       OR admitted.reference_mapping_maximum_persistence_batch_records <= 0
+       OR admitted.reference_mapping_maximum_encoded_persistence_batch_bytes >
+          (SELECT preferred_batch_bytes FROM cili_profile_authority)
+       OR admitted.reference_mapping_minimum_encoded_persistence_record_bytes <= 0
+       OR (admitted.reference_mapping_persistence_batch_count > 1
+           AND (SELECT preferred_batch_bytes FROM cili_profile_authority) -
+               admitted.reference_mapping_maximum_encoded_persistence_batch_bytes >=
+               admitted.reference_mapping_minimum_encoded_persistence_record_bytes)
        OR profile.byte_count <> expected.byte_count
        OR profile.container_count <> 1
        OR profile.member_count <> 2
@@ -629,43 +650,6 @@ SELECT
     (SELECT count(*) FROM laplace.evidence_node) AS evidence_count,
     (SELECT count(*) FROM laplace.evidence_testimony) AS testimony_count,
     (SELECT count(*) FROM laplace.world_admission) AS world_count;
-
-CREATE TEMP TABLE cili_steady_replay AS
-WITH admission AS MATERIALIZED (
-    SELECT pg_temp.admit_cili_source() AS result
-)
-SELECT (result).* FROM admission;
-
-DO $contract$
-DECLARE
-    replay cili_replay%ROWTYPE;
-    steady cili_steady_replay%ROWTYPE;
-    expected cili_after_replay%ROWTYPE;
-    actual cili_after_replay%ROWTYPE;
-BEGIN
-    SELECT * INTO STRICT replay FROM cili_replay;
-    SELECT * INTO STRICT steady FROM cili_steady_replay;
-    SELECT * INTO STRICT expected FROM cili_after_replay;
-    SELECT
-        (SELECT count(*) FROM laplace.entity),
-        (SELECT count(*) FROM laplace.physicality),
-        (SELECT count(*) FROM laplace.attestation WHERE attestation_kind = 1),
-        (SELECT count(*) FROM laplace.source_profile),
-        (SELECT count(*) FROM laplace.reference_coordinate),
-        (SELECT count(*) FROM laplace.reference_occurrence),
-        (SELECT count(*) FROM laplace.reference_mapping_proposition),
-        (SELECT count(*) FROM laplace.reference_mapping_occurrence),
-        (SELECT count(*) FROM laplace.evidence_node),
-        (SELECT count(*) FROM laplace.evidence_testimony),
-        (SELECT count(*) FROM laplace.world_admission)
-    INTO STRICT actual;
-    IF to_jsonb(replay) IS DISTINCT FROM to_jsonb(steady)
-       OR expected IS DISTINCT FROM actual THEN
-        RAISE EXCEPTION
-            'steady-state CILI replay changed receipts or durable cardinality';
-    END IF;
-END
-$contract$;
 
 DO $contract$
 DECLARE

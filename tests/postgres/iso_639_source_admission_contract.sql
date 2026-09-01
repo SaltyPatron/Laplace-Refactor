@@ -1,4 +1,7 @@
+\if :{?source_skip_unicode}
+\else
 \ir unicode_root_contract.sql
+\endif
 
 CREATE TEMP TABLE iso_artifact_bytes (
     ordinal integer PRIMARY KEY,
@@ -371,6 +374,19 @@ BEGIN
        OR admitted.reference_present_count <> 18404
        OR admitted.reference_retired_count <> 401
        OR admitted.reference_unresolved_count <> 0
+       OR admitted.reference_persistence_batch_count <= 0
+       OR admitted.reference_maximum_persistence_batch_records <= 0
+       OR admitted.reference_maximum_encoded_persistence_batch_bytes >
+          (SELECT preferred_batch_bytes FROM iso_profile_authority)
+       OR admitted.reference_minimum_encoded_persistence_record_bytes <= 0
+       OR (admitted.reference_persistence_batch_count > 1
+           AND (SELECT preferred_batch_bytes FROM iso_profile_authority) -
+               admitted.reference_maximum_encoded_persistence_batch_bytes >=
+               admitted.reference_minimum_encoded_persistence_record_bytes)
+       OR admitted.reference_mapping_persistence_batch_count <> 0
+       OR admitted.reference_mapping_maximum_persistence_batch_records <> 0
+       OR admitted.reference_mapping_maximum_encoded_persistence_batch_bytes <> 0
+       OR admitted.reference_mapping_minimum_encoded_persistence_record_bytes <> 0
        OR profile.byte_count <> expected.byte_count
        OR profile.container_count <> 1
        OR profile.member_count <> 4

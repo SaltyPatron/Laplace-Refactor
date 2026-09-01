@@ -849,6 +849,15 @@ void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
                          errmsg("Laplace composition producer publication failed"),
                          errdetail("status=%d", (int)status)));
             }
+            status =
+                laplace_composition_working_set_compact_publication_input(
+                    execution->working_set);
+            if (status != LAPLACE_COMPOSITION_OK) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_DATA_EXCEPTION),
+                         errmsg("Laplace composition publication input compaction failed"),
+                         errdetail("status=%d", (int)status)));
+            }
             LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
                 input->context, input->source_fingerprint,
                 input->calculation_recipe_fingerprint, &producer,

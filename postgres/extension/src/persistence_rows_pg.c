@@ -110,6 +110,72 @@ Datum laplace_pg_physicality_record(
     return laplace_pg_composite_record(binding, fields, nulls);
 }
 
+void laplace_pg_physicality_deposit_binding_open(
+    laplace_pg_composite_binding* binding) {
+    static const Oid attribute_types[19] = {
+        BYTEAOID, BYTEAOID,
+        INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, INT4OID,
+        BYTEAOID, BYTEAOID, BYTEAOID,
+        FLOAT8OID, FLOAT8OID, FLOAT8OID, FLOAT8OID, FLOAT8OID,
+        NUMERICOID, NUMERICOID, BYTEAOID};
+    static const int32 attribute_typmods[19] = {
+        -1, -1, -1, -1, -1, -1, -1, -1, -1,
+        -1, -1, -1, -1, -1, -1, -1,
+        LAPLACE_PG_NUMERIC_TYPMOD(20, 0),
+        LAPLACE_PG_NUMERIC_TYPMOD(20, 0), -1};
+    laplace_pg_composite_binding_open(
+        "physicality_deposit_record", attribute_types, attribute_typmods,
+        19, binding);
+}
+
+Datum laplace_pg_physicality_deposit_record(
+    const laplace_pg_composite_binding* binding,
+    const laplace_persistence_physicality_record* physicality,
+    const uint8_t* trajectory,
+    size_t trajectory_bytes) {
+    Datum fields[19];
+    bool nulls[19] = {false};
+    if (physicality == NULL ||
+        (trajectory_bytes != 0u && trajectory == NULL) ||
+        physicality->vertex_count > SIZE_MAX / sizeof(laplace_trajectory_carrier) ||
+        trajectory_bytes != (size_t)physicality->vertex_count *
+            sizeof(laplace_trajectory_carrier)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace physicality deposit trajectory is invalid")));
+    }
+    fields[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        physicality->physicality_id.bytes,
+        sizeof(physicality->physicality_id.bytes)));
+    fields[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        physicality->entity_id.bytes, sizeof(physicality->entity_id.bytes)));
+    fields[2] = Int32GetDatum((int32)physicality->physicality_type);
+    fields[3] = Int32GetDatum((int32)physicality->vertex_class);
+    fields[4] = Int32GetDatum((int32)physicality->recipe_version);
+    fields[5] = Int32GetDatum((int32)physicality->structural_form);
+    fields[6] = Int32GetDatum((int32)physicality->dimension_count);
+    fields[7] = Int32GetDatum((int32)physicality->flags);
+    fields[8] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        physicality->recipe_fingerprint.bytes,
+        sizeof(physicality->recipe_fingerprint.bytes)));
+    fields[9] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        physicality->geometry_epoch.bytes,
+        sizeof(physicality->geometry_epoch.bytes)));
+    fields[10] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        physicality->trajectory_fingerprint.bytes,
+        sizeof(physicality->trajectory_fingerprint.bytes)));
+    fields[11] = Float8GetDatum(physicality->centroid.component[0]);
+    fields[12] = Float8GetDatum(physicality->centroid.component[1]);
+    fields[13] = Float8GetDatum(physicality->centroid.component[2]);
+    fields[14] = Float8GetDatum(physicality->centroid.component[3]);
+    fields[15] = Float8GetDatum(physicality->radius);
+    fields[16] = laplace_pg_numeric_from_uint64(physicality->logical_count);
+    fields[17] = laplace_pg_numeric_from_uint64(physicality->vertex_count);
+    fields[18] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        trajectory, trajectory_bytes));
+    return laplace_pg_composite_record(binding, fields, nulls);
+}
+
 const char* laplace_pg_physicality_insert_sql(void) {
     return "INSERT INTO " LAPLACE_PG_SCHEMA
         ".physicality(physicality_id,entity_id,physicality_type,vertex_class,"
