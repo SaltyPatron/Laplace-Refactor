@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -24,6 +26,13 @@ VAULT_INVENTORY_PATH = ROOT / "state" / "vault-inventory.json"
 VAULT_AUDIT_PATH = ROOT / "docs" / "audits" / "VAULT_SOURCE_MODEL_AUDIT_2026-08-29.md"
 VAULT_VALIDATOR_PATH = ROOT / "tools" / "audit" / "validate-vault-inventory.py"
 VERIFY_PHYSICAL_CONTINUATION = os.environ.get("LAPLACE_VERIFY_CONTINUATION_PHYSICAL") == "1"
+
+VAULT_VALIDATOR_SPEC = importlib.util.spec_from_file_location(
+    "laplace_vault_inventory_validator", VAULT_VALIDATOR_PATH
+)
+assert VAULT_VALIDATOR_SPEC is not None and VAULT_VALIDATOR_SPEC.loader is not None
+vault_validator = importlib.util.module_from_spec(VAULT_VALIDATOR_SPEC)
+VAULT_VALIDATOR_SPEC.loader.exec_module(vault_validator)
 
 
 def load(path: Path) -> dict:
@@ -2076,6 +2085,19 @@ class ProgramAuthorityTests(unittest.TestCase):
             ),
             "human vault audit lost its complete-estate or model precedence conclusion",
         )
+
+    def test_vault_revision_observation_is_scoped_for_cross_owner_runner(self) -> None:
+        expected = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        with mock.patch.dict(
+            os.environ, {"GIT_TEST_ASSUME_DIFFERENT_OWNER": "1"}, clear=False
+        ):
+            self.assertEqual(vault_validator.git_head(ROOT), expected)
 
     def test_codex_generated_context_cannot_impersonate_inventor_evidence(self) -> None:
         records = [

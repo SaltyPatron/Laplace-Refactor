@@ -161,12 +161,32 @@ def validate_cili_nonconformance(source_root: Path) -> int:
 
 
 def git_head(path: Path) -> str:
-    return subprocess.run(
-        ["git", "-C", str(path), "rev-parse", "HEAD"],
-        check=True,
+    repository = path.resolve(strict=True)
+    result = subprocess.run(
+        [
+            "git",
+            "-c",
+            f"safe.directory={repository}",
+            "-C",
+            str(repository),
+            "rev-parse",
+            "HEAD",
+        ],
+        check=False,
         text=True,
         capture_output=True,
-    ).stdout.strip()
+    )
+    require(
+        result.returncode == 0,
+        f"cannot observe Tree-sitter revision at {repository}: {result.stderr.strip()}",
+    )
+    revision = result.stdout.strip()
+    require(
+        len(revision) in (40, 64)
+        and all(character in "0123456789abcdef" for character in revision),
+        f"invalid Tree-sitter revision at {repository}",
+    )
+    return revision
 
 
 def validate_tree_sitter(source_root: Path) -> tuple[int, int]:
