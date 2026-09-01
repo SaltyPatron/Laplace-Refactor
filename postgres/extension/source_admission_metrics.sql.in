@@ -1,0 +1,8 @@
+-- Backend-local physical execution evidence for the two most recent source-admission
+-- calls in one PostgreSQL session. This is diagnostic state only; it does not define
+-- source truth, semantic identity, standing, or admission completeness.
+
+CREATE FUNCTION @LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.source_admission_last_execution_metrics()
+RETURNS text
+AS 'MODULE_PATHNAME', 'laplace_source_admission_last_execution_metrics'
+LANGUAGE C VOLATILE PARALLEL UNSAFE;
