@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import sys
@@ -54,11 +56,28 @@ class PostgreSQLResourceGuardTests(unittest.TestCase):
         return GUARD.parse_args(raw)
 
     def test_completed_command_records_bounded_receipt(self) -> None:
-        result = GUARD.run(self.arguments([sys.executable, "-c", "pass"]))
+        output = io.StringIO()
+        command = [sys.executable, "-c", "pass"]
+        with contextlib.redirect_stdout(output):
+            result = GUARD.run(self.arguments(command))
         receipt = json.loads(self.receipt.read_text(encoding="utf-8"))
         self.assertEqual(result, 0)
         self.assertEqual(receipt["result"], "completed")
         self.assertIsNone(receipt["breach"])
+        self.assertEqual(
+            receipt["command_fingerprint"], GUARD.command_fingerprint(command)
+        )
+        marker = output.getvalue().strip()
+        expected_prefix = (
+            "LAPLACE_QA_RECEIPT postgres_resource_guard_"
+            + receipt["command_fingerprint"][:16]
+            + " "
+        )
+        self.assertTrue(marker.startswith(expected_prefix))
+        self.assertEqual(
+            json.loads(marker[len(expected_prefix):]),
+            receipt,
+        )
 
     def test_deliberate_wal_growth_is_cancelled(self) -> None:
         command = [
