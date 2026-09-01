@@ -18,7 +18,10 @@ BEGIN;
 -- terminal custom-stack receipt before this disposable PostgreSQL transaction and
 -- workspace disappear. postgres_resource_guard.py emits the corresponding wall,
 -- disk/WAL/workspace and peak PostgreSQL process-tree RSS receipt for this physical
--- source-admission execution.
+-- source-admission execution. source_admission_last_execution_metrics() retains the
+-- first CILI publication as `previous` and its immediate replay as `last`, exposing
+-- actual provider rounds, persistence plan work, source-stage SPI calls, and receipt
+-- publication calls rather than inferring crossings from SQL text.
 \pset format unaligned
 \pset tuples_only on
 SELECT
@@ -39,6 +42,18 @@ SELECT
         'reported_logical_occurrence_count', first.logical_occurrence_count,
         'reported_reference_occurrence_count', first.reference_occurrence_count,
         'reported_reference_coordinate_count', first.reference_coordinate_count,
+        'reported_reference_persistence_batch_count',
+            first.reference_persistence_batch_count,
+        'reported_reference_maximum_persistence_batch_records',
+            first.reference_maximum_persistence_batch_records,
+        'reported_reference_maximum_encoded_persistence_batch_bytes',
+            first.reference_maximum_encoded_persistence_batch_bytes,
+        'reported_reference_mapping_persistence_batch_count',
+            first.reference_mapping_persistence_batch_count,
+        'reported_reference_mapping_maximum_persistence_batch_records',
+            first.reference_mapping_maximum_persistence_batch_records,
+        'reported_reference_mapping_maximum_encoded_persistence_batch_bytes',
+            first.reference_mapping_maximum_encoded_persistence_batch_bytes,
         'reported_evidence_node_count', first.evidence_node_count,
         'reported_testimony_count', first.testimony_count,
         'reported_durable_stream_record_count', first.durable_stream_record_count,
@@ -84,6 +99,7 @@ SELECT
             after_replay.testimony_count - after_first.testimony_count,
         'replay_world_admission_growth',
             after_replay.world_count - after_first.world_count,
+        'execution_metrics', metrics.execution_metrics,
         'defect_baseline', json_build_object(
             'request_count', 24163435,
             'reported_approximate_peak_memory_gib', 20.7,
@@ -95,7 +111,10 @@ FROM cili_expected AS expected
 CROSS JOIN cili_before AS before
 CROSS JOIN cili_first AS first
 CROSS JOIN cili_after_first AS after_first
-CROSS JOIN cili_after_replay AS after_replay;
+CROSS JOIN cili_after_replay AS after_replay
+CROSS JOIN LATERAL (
+    SELECT laplace.source_admission_last_execution_metrics()::jsonb AS execution_metrics
+) AS metrics;
 \pset tuples_only off
 \pset format aligned
 ROLLBACK;
