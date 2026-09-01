@@ -9,13 +9,19 @@
   `LP-GOVERNANCE-001`, `LP-FIRMWARE-001`, and `LP-CLEANROOM-001`.
 - Architecture projects `LP-ISA-001`, `LP-FRAMEWORK-001`, `LP-REUSE-001`,
   `LP-COHESION-001`, `LP-RECIPE-001`, `LP-BULK-001`, `LP-HIGHWAY-001`, `LP-ADMISSION-001`,
-  `LP-CONNECTION-001`, `LP-LIMITS-001`, and `LP-EXCEPTION-001`.
+  `LP-COGNITION-004`, `LP-QUERY-001`, `LP-SEARCH-001`, `LP-CONNECTION-001`,
+  `LP-LIMITS-001`, and `LP-EXCEPTION-001`.
 - Product-surface and node symmetry project `LP-APPLICATION-001`,
   `LP-ENTITY-WEB-001`, `LP-ENTITLEMENT-001`, `LP-NODE-001`,
   `LP-FEDERATION-001`, and `LP-PLACEMENT-001`.
 - Evidence and persistence project `LP-STORAGE-001`, `LP-MATERIALIZATION-001`,
   `LP-PERFCACHE-001`, `LP-ACTIVATION-001`, `LP-DOC-001`, and the exact acceptance and
   continuation boundaries loaded by `contracts/authority-stack.json`.
+- `docs/architecture/COGNITION_EXECUTION.md` and
+  `contracts/cognition-execution.json` are the consolidated stable/executable
+  projection for native cognition execution. An agent implementing query, search,
+  conversation, model-operator generation, or a related database hot path must load
+  them before selecting a physical plan.
 
 ## Product authority
 
@@ -41,7 +47,9 @@
 ## Architecture
 
 - C/C++ and PostgreSQL server integration own the engine and every semantic operation.
-- SQL and C# are orchestrators. They do not contain another engine.
+- PostgreSQL supplies durable state, transactions, constraints, statistics, indexes,
+  partitions and plan-visible set routing. SQL composes and invokes typed operations.
+  SQL and C# are orchestrators; they do not contain another cognition/search engine.
 - All product behavior executes through the typed substrate instruction set.
 - Every operation has one canonical implementation.
 - Batch and bulk forms are primary and must preserve exact single-item semantics.
@@ -59,8 +67,9 @@
 - Profiles, feeds, résumés, portfolios, and personal webs are audience-authorized
   materializations over entity worlds, not opaque account fields or private engines.
 - Typed connection search declares admissible relations, direction, time, standing,
-  dependence, boundary, and completion. Raw hops, KNN, ANN, and a found path cannot
-  impersonate semantic distance, optimum, or complete answerability.
+  dependence, boundary, and completion. Raw hops, KNN, ANN, fixed fanout, lookup, and
+  a found path cannot impersonate semantic distance, optimum, cognition, or complete
+  answerability.
 - Every program is finite. Partial, upper-bound, unsupported, denied, exhausted,
   contradicted, and unknown results remain distinct and include an exact why-not
   receipt.
@@ -82,12 +91,87 @@
   causal/behavioral law, loss boundary, withheld probes, and receipts under
   `LP-MODEL-006`.
 
+## Cognition execution and database hot paths
+
+- The canonical native cognition spine is:
+
+  ```text
+  resolve exact identities + structural altitude
+    -> orient from goal/context/authority/obligations
+    -> compile finite typed guidance/search state
+    -> select admissible indexed provider families
+    -> push semantically safe hard filters into candidate generation
+    -> generate a bounded set-wise typed frontier
+    -> typed filtered indexed A* or the declared best-first law
+    -> fold only program-declared channels
+    -> update bindings/trajectory/deficits/completion obligations
+    -> repeat while obligations and finite resources permit
+    -> semantic act or exact typed why-not
+    -> exact realization/effect
+    -> complete execution receipt
+  ```
+
+- `typed filtered indexed search` is the umbrella. Use the name `A*` only when the
+  implementation actually executes `g+h` and proves the declared admissibility,
+  typed-state dominance, reopen/tie, finite-boundary, path-multiplicity and completion
+  laws. Otherwise name the actual bounded/best-first semantics.
+- Exact canonical identity is resolved before contextual meaning is selected. Do not
+  flatten identity, physicality, occurrence, testimony, interpretation, dependence,
+  standing, query-relative operator state, or realized/target artifacts into one
+  node/edge/score plane.
+- Ordinary physicality/occurrence state is already queryable knowledge. Containment,
+  ordinals, gaps, precedence/following, recurrence, co-occurrence and continuations may
+  be calculated from trajectories without materializing redundant semantic testimony.
+  Seeded facts/testimony remain a separate eligible plane.
+- Candidate providers are selected from the compiled query. Push source, context,
+  time, world, visibility, authority, evidence, relation, direction, trajectory,
+  geometry, dependence-root and standing-lane predicates into indexes/perfcaches when
+  semantically safe. Exact native validation remains authoritative.
+- An index or perfcache miss is not semantic absence unless the exact accelerator and
+  selected boundary prove completeness.
+- Frontier expansion is set-wise. A logical batch may be physically partitioned for
+  finite resources, but scalar execution remains a one-element batch of the same
+  operation and cannot become a private fallback algorithm.
+- The primary semantic/search path forbids cursor cognition, RBAR, caller-driven
+  per-row traversal, one SQL/SPI query per frontier state when set-wise expansion is
+  available, recursive SQL/CTEs as the native search engine, dynamic SQL generated per
+  candidate/frontier row/relation, silent scalar fallback from failed batch/indexed
+  execution, unbounded whole-corpus scans, giant pre-filter adjacency materialization,
+  unbounded in-memory edge loading, row-trigger cache maintenance, and hidden semantic
+  repair/deferred-write/cache-build/vacuum-like drains required before an otherwise
+  valid interactive query can use admitted state.
+- Dynamic construction is acceptable only inside an explicitly nonsemantic
+  administrative DDL/package/schema boundary. It may not become a cognition language
+  or hot-path fallback.
+- `drain` is not globally forbidden. Old readers may legitimately finish against a
+  pinned immutable perfcache generation after an atomic generation switch. That
+  concurrency lifecycle is not semantic maintenance in the cognition path.
+- An exact transformation must classify which state changed. Witness/provenance,
+  occurrence/physicality role, relation/standing, canonical constituent/value, and
+  intentional AST edits have different identity and epoch consequences. Invertible
+  recipes descend to exact declared content; probabilistic regeneration cannot
+  impersonate exact recomposition.
+- A representative cognition/search receipt records the compiled program and boundary,
+  provider/index/perfcache choices, frontier in/out, candidate rows generated/rejected/
+  accepted, rows examined, server/SPI/native crossings, `g`/`h` evaluations,
+  dominance/filter/dependence/authority/contradiction prunes, reopens, path count, peak
+  frontier and memory, CPU, I/O/buffers, elapsed time, and the completion/optimality/
+  upper-bound disposition. PostgreSQL routes include representative plan and
+  `pg_stat_statements`/equivalent evidence.
+- Do not claim that corpus scale is decoupled from forward-pass work until measured
+  receipts demonstrate the selected indexed/filtering/reuse law at representative
+  cardinality. Complexity is an acceptance contract, not an adjective.
+
 ## Evidence
 
 - Tests execute the implementation and assert exact behavior.
 - Each important test has a deliberate break proving the test detects the defect.
 - Performance claims include the measured command, input, machine, sample count,
   timing boundary, CPU, memory, I/O, database calls, and durable output counts.
+- Cognition/search performance tests additionally report candidate generation,
+  filter/prune selectivity, frontier width, crossings, selected plans/indexes, and
+  completion-proof cost; result parity without physical-plan evidence cannot certify
+  the scalable path.
 - Do not extrapolate a small fixture into a throughput claim.
 - Do not claim conversation from a lookup, model correctness from artifact shape, data
   quality from row counts, or installation from files merely existing.
