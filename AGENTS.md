@@ -11,6 +11,10 @@
   `LP-COHESION-001`, `LP-RECIPE-001`, `LP-BULK-001`, `LP-HIGHWAY-001`, `LP-ADMISSION-001`,
   `LP-SEED-001`, `LP-TEMPLATE-001`, `LP-INFERENCE-001`, `LP-CONNECTION-001`,
   `LP-LIMITS-001`, and `LP-EXCEPTION-001`.
+- Cognition execution and database hot paths additionally project the consolidated
+  `docs/architecture/COGNITION_EXECUTION.md` and `contracts/cognition-execution.json`
+  law. Query, search, conversation, model-compilation, realization, and database work
+  must load that law before choosing a physical implementation.
 - Product-surface and node symmetry project `LP-APPLICATION-001`,
   `LP-ENTITY-WEB-001`, `LP-ENTITLEMENT-001`, `LP-NODE-001`,
   `LP-FEDERATION-001`, and `LP-PLACEMENT-001`.
@@ -74,6 +78,28 @@
   AST, testimony, governance, recipe, effect, and receipt machinery.
 - Profiles, feeds, résumés, portfolios, and personal webs are audience-authorized
   materializations over entity worlds, not opaque account fields or private engines.
+- Native cognition is finite query-relative execution over exact persistent state, not
+  token-by-token dense attention, a selected topic, raw hop fanout, nearest-neighbor
+  lookup, or a scalar priority. Exact identity is resolved first; the active program
+  then selects typed structural, occurrence, fact, geometry, standing, context, and
+  evidence channels required by the goal.
+- Typed connection and cognition search is filter-first, typed, indexed, set-wise, and
+  bounded. Push semantically safe source/context/time/world/authority/evidence and
+  transition predicates into candidate generation before frontier expansion. Candidate
+  indexes and perfcaches accelerate exact predicates; they never become truth.
+- Certified A* means the declared `g+h` law, nonnegative transition costs, admissible
+  heuristic, complete typed state identity/dominance, consistent or explicit reopen
+  behavior, deterministic ties, finite boundaries, requested path multiplicity, and a
+  completion certificate. Otherwise name the actual bounded/best-first law and return
+  an exact partial, upper-bound, unknown, exhausted, or other typed disposition.
+- Cursor/RBAR cognition, one SQL/SPI call per frontier state, recursive SQL/CTEs as the
+  search engine, dynamic SQL generated per candidate/frontier/relation, silent scalar
+  fallback, giant pre-filter adjacency/world scans, unbounded in-memory edge loading,
+  per-row semantic cache maintenance, accelerator-miss-as-absence, and semantic
+  repair/deferred-write/cache-build/vacuum-like drains on an otherwise valid interactive
+  path are forbidden implementations. Epoch-pinned readers finishing on a retired
+  immutable perfcache generation after atomic handoff are a separate legitimate
+  concurrency lifecycle.
 - Typed connection search declares admissible relations, direction, time, standing,
   dependence, boundary, and completion. Raw hops, KNN, ANN, and a found path cannot
   impersonate semantic distance, optimum, or complete answerability.
@@ -104,6 +130,12 @@
 - Each important test has a deliberate break proving the test detects the defect.
 - Performance claims include the measured command, input, machine, sample count,
   timing boundary, CPU, memory, I/O, database calls, and durable output counts.
+- Complexity is an acceptance contract. A logically correct result reached through a
+  forbidden physical plan still fails. Representative cognition/search receipts expose
+  selected providers/indexes/partitions/perfcache generations, frontier in/out,
+  candidates generated/rejected/accepted, rows examined, server/SPI/native crossings,
+  `g`/`h` work, prune/reopen counts, path counts, peak frontier/memory, CPU, I/O/buffers,
+  elapsed time, and completion/optimality disposition.
 - Do not extrapolate a small fixture into a throughput claim.
 - Do not claim conversation from a lookup, model correctness from artifact shape, data
   quality from row counts, or installation from files merely existing.
@@ -121,7 +153,16 @@
   requirements.
 - Generated files identify their generator and source contract.
 - Dependency source comes from the verified lock and checksum records.
-- Preserve unrelated work. Use isolated worktrees for concurrent changes.
+- Preserve unrelated work. Isolated worktrees are temporary concurrency-safety tools,
+  not independent finish lines. Work that belongs to one dependency chain must be
+  folded into its owning integration branch promptly; do not leave overlapping partial
+  PRs open merely because they were developed in separate worktrees.
+- Prefer one integration PR per active dependency chain. Supersede or absorb redundant
+  branches only after verifying their commits/files are preserved in the owner.
+- A running CI job is not a reason to idle or open another speculative branch. Continue
+  independent safe in-scope implementation, documentation, issue reconciliation, and
+  acceptance work on the owning branch while checks execute; then repair the exact
+  failing boundary on that same branch.
 
 ## Persistence
 
