@@ -13,4 +13,5 @@ BEGIN;
 ROLLBACK;
 BEGIN;
 \ir cili_source_admission_contract.sql
+\ir cili_admission_measurement_receipt.sql
 ROLLBACK;
