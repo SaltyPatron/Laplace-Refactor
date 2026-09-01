@@ -70,6 +70,18 @@
       "defect_controls": ["redirected service identity", "redirected gateway executable", "manual-hotfix permission", "symlinked host boundary", "system-root execution without explicit authority"]
     },
     {
+      "ctest_name": "postgresql-host.inventory-and-selection-contract",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
+      "covered_dimensions": ["installed PostgreSQL version inventory", "running cluster and service discovery", "nested mount observation", "instance collision rejection", "explicit routing-provider selection", "exact package version binding"],
+      "defect_controls": ["PostgreSQL patch-version substitution", "occupied instance port", "unavailable external router", "missing routing authority", "mutated inventory receipt"]
+    },
+    {
+      "ctest_name": "product-distribution.standalone-installer-contract",
+      "evidence_targets": ["LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-PACKAGE-LINUX", "LP-TEST-DEPENDENCY-RELEASE-ASSETS"],
+      "covered_dimensions": ["standalone installer entrypoint", "immutable exact package payload", "repository-independent control bundle", "deterministic distribution archive", "materialization and repair replay"],
+      "defect_controls": ["changed control file", "changed package payload", "archive member mode loss", "repository path dependency", "conflicting installed bytes"]
+    },
+    {
       "ctest_name": "product-package.contract-and-mutation",
       "evidence_targets": ["LP-TEST-PACKAGE-LINUX", "LP-TEST-INSTALL-CONVERGENCE", "LP-TEST-DEPENDENCY-ELF-CLOSURE", "LP-TEST-TOPOLOGY-RESOURCE-PLAN"],
       "covered_dimensions": ["exact PostgreSQL and Laplace product overlay", "required native execution providers", "recursive ELF closure", "immutable internal symlinks", "clean input-addressed construction", "activation eligibility", "installed native resource observation", "Unicode activation identity provider"],

@@ -43,6 +43,7 @@
     },
     {
       "ctest_name": "postgres.stock-recipe-persistent-catalog-contract",
+      "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-PERSISTENT-STATE-ADDRESSING", "LP-TEST-ISA-RECEIPT", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-BULK-DETERMINISM"],
       "covered_dimensions": ["durable stock recipe hierarchy", "durable recipe-owned perfcache declaration", "native ISA PostgreSQL parity", "caller-order-invariant replay", "conflicting durable replay rejection"]
     }

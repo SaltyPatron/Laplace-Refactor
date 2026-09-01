@@ -83,21 +83,25 @@
     },
     {
       "ctest_name": "postgres.standing-persistent-whole-route-contract",
+      "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-PERSISTENT-STATE-ADDRESSING", "LP-TEST-EVIDENCE-DEPENDENCE", "LP-TEST-CONSENSUS-RECOMPUTATION-HISTORY", "LP-TEST-ISA-RECEIPT"],
       "covered_dimensions": ["durable authority-and-evidence-epoch recipe admission", "unadmitted and stale-epoch rejection", "append-only standing history", "exact replay", "cross-period dependence non-amplification", "native ISA PostgreSQL parity"]
     },
     {
       "ctest_name": "postgres.mutation-standing-admission-bypass-detected",
+      "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-PERSISTENT-STATE-ADDRESSING", "LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-ISA-RECEIPT"],
       "covered_dimensions": ["unadmitted recipe rejection mutation detection", "active authority binding", "active evidence-epoch binding"]
     },
     {
       "ctest_name": "postgres.mutation-standing-replay-conflict-detected",
+      "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-PERSISTENT-STATE-ADDRESSING", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-NEGATIVE"],
       "covered_dimensions": ["durable standing replay conflict mutation detection"]
     },
     {
       "ctest_name": "postgres.mutation-standing-dependence-history-detected",
+      "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-EVIDENCE-DEPENDENCE", "LP-TEST-DEPENDENT-LINK-NONAMPLIFICATION", "LP-TEST-PERSISTENT-STATE-ADDRESSING"],
       "covered_dimensions": ["cross-period dependence-root constraint mutation detection"]
     }
