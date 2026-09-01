@@ -51,6 +51,9 @@ set(LAPLACE_PRODUCT_RECEIPT "" CACHE FILEPATH
 set(LAPLACE_INSTALLER_OUTPUT_DIRECTORY
     "/build/laplace/runner/product/installers"
     CACHE PATH "Persistent output root for standalone customer installer bundles")
+set(LAPLACE_INSTALLER_ARCHIVE
+    "${CMAKE_CURRENT_BINARY_DIR}/laplace-product-installer.tar"
+    CACHE FILEPATH "Deterministic standalone customer installer archive")
 option(LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER
     "Verify and enable the exact selected installed oneAPI execution provider"
     OFF)
@@ -246,6 +249,9 @@ if(LAPLACE_PRODUCT_RECEIPT)
         message(FATAL_ERROR
             "LAPLACE_INSTALLER_OUTPUT_DIRECTORY must be an absolute persistent path")
     endif()
+    if(NOT IS_ABSOLUTE "${LAPLACE_INSTALLER_ARCHIVE}")
+        message(FATAL_ERROR "LAPLACE_INSTALLER_ARCHIVE must be an absolute path")
+    endif()
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_custom_target(laplace_product_installer
         COMMAND "${Python3_EXECUTABLE}"
@@ -254,6 +260,7 @@ if(LAPLACE_PRODUCT_RECEIPT)
             --repository "${CMAKE_CURRENT_SOURCE_DIR}"
             --product-receipt "${LAPLACE_PRODUCT_RECEIPT}"
             --output-directory "${LAPLACE_INSTALLER_OUTPUT_DIRECTORY}"
+            --archive-output "${LAPLACE_INSTALLER_ARCHIVE}"
             --result "${CMAKE_CURRENT_BINARY_DIR}/laplace-product-installer-selection.json"
         VERBATIM
         COMMENT "Compose a source-checkout-free Laplace product installer")

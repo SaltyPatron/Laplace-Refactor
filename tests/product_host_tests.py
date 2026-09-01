@@ -148,6 +148,47 @@ class ProductHostTests(unittest.TestCase):
                 with self.assertRaises(host.HostError):
                     host.validate_contract(mutant, REPOSITORY)
 
+    def test_one_command_entrypoint_resolves_exact_accepted_publication(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-accepted-product-") as temporary:
+            root = Path(temporary)
+            publication = root / "publication.json"
+            publication.write_bytes(
+                host.gateway.activation.canonical_bytes(
+                    {
+                        "schema": "laplace.postgresql-package-publication-receipt/v1",
+                        "publication_complete": True,
+                    }
+                )
+            )
+            state = root / "state.json"
+            state.write_bytes(
+                host.gateway.activation.canonical_bytes(
+                    {
+                        "schema": "laplace.product-publication-selection/v1",
+                        "classification": "authority-selected-development-publication",
+                        "postgresql_publication": {
+                            "receipt": str(publication),
+                            "receipt_sha256": host.gateway.activation.sha256_file(
+                                publication
+                            ),
+                        },
+                    }
+                )
+            )
+            self.assertEqual(host.resolve_accepted_publication(state), publication)
+            publication.write_bytes(publication.read_bytes() + b"changed\n")
+            with self.assertRaisesRegex(host.HostError, "bytes differ"):
+                host.resolve_accepted_publication(state)
+
+    def test_repository_entrypoint_is_one_command_without_internal_paths(self) -> None:
+        entrypoint = REPOSITORY / "install"
+        self.assertTrue(entrypoint.is_file())
+        source = entrypoint.read_text(encoding="utf-8")
+        self.assertIn("product_host.py\" install", source)
+        self.assertIn("--accepted-state", source)
+        self.assertIn("state/product-publication-selection.json", source)
+        self.assertNotIn("/opt/laplace/receipts/postgresql/", source)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

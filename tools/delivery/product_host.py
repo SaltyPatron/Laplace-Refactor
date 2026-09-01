@@ -593,6 +593,46 @@ def ensure_local_unicode_source(
     )
 
 
+def resolve_accepted_publication(state_path: Path) -> Path:
+    """Resolve the exact accepted local publication selected by development state."""
+    if not state_path.is_file() or state_path.is_symlink():
+        raise HostError("accepted product state must be one physical file")
+    state = load_json(state_path)
+    if (
+        state.get("schema") != "laplace.product-publication-selection/v1"
+        or state.get("classification")
+        != "authority-selected-development-publication"
+        or set(state) != {"schema", "classification", "postgresql_publication"}
+    ):
+        raise HostError("accepted product state classification differs")
+    selected = state.get("postgresql_publication")
+    if not isinstance(selected, dict) or set(selected) != {
+        "receipt",
+        "receipt_sha256",
+    }:
+        raise HostError("accepted PostgreSQL publication selection is incomplete")
+    receipt = require_logical_path(
+        selected.get("receipt"), "accepted PostgreSQL publication receipt"
+    )
+    digest = gateway.activation.require_hex(
+        selected.get("receipt_sha256"),
+        gateway.activation.HEX_64,
+        "accepted PostgreSQL publication digest",
+    )
+    if not receipt.is_file() or receipt.is_symlink():
+        raise HostError("accepted PostgreSQL publication receipt is absent")
+    if gateway.activation.sha256_file(receipt) != digest:
+        raise HostError("accepted PostgreSQL publication receipt bytes differ")
+    publication = load_json(receipt)
+    if (
+        publication.get("schema")
+        != "laplace.postgresql-package-publication-receipt/v1"
+        or publication.get("publication_complete") is not True
+    ):
+        raise HostError("accepted PostgreSQL publication state differs")
+    return receipt
+
+
 def execute_local_selection(
     executable: Path,
     product_receipt: Path,
@@ -635,6 +675,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--generate-key", action="store_true")
     parser.add_argument("--request")
     parser.add_argument("--postgresql-publication")
+    parser.add_argument("--accepted-state")
     parser.add_argument("--distribution")
     parser.add_argument("--instance-request")
     parser.add_argument("--root", default="/")
@@ -679,13 +720,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             for value in (
                 arguments.request,
                 arguments.postgresql_publication,
+                arguments.accepted_state,
                 arguments.distribution,
             )
         )
         if selected_inputs != 1:
             raise HostError(
                 f"{arguments.command} requires exactly one --request, "
-                "--postgresql-publication, or --distribution"
+                "--postgresql-publication, --accepted-state, or --distribution"
             )
         executable = prefixed(
             root, Path(load_json(contract_path)["modules"]["gateway_executable"])
@@ -712,10 +754,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     instance_request,
                 )
             else:
+                postgresql_publication = (
+                    Path(arguments.postgresql_publication)
+                    if arguments.postgresql_publication is not None
+                    else resolve_accepted_publication(Path(arguments.accepted_state))
+                )
                 product_receipt, resource_observation, selection, topology = prepare_product(
                     repository,
                     load_json(contract_path),
-                    Path(arguments.postgresql_publication),
+                    postgresql_publication,
                     instance_request,
                 )
             receipt["package_selection"] = selection

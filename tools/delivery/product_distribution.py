@@ -13,6 +13,7 @@ import grp
 import shutil
 import stat
 import sys
+import tarfile
 import tempfile
 from typing import Any, Iterable, Sequence
 
@@ -21,6 +22,7 @@ BUNDLE_SCHEMA = "laplace.product-installer-bundle/v1"
 PACKAGE_SCHEMA = "laplace.package-manifest/v1"
 RECEIPT_SCHEMA = "laplace.product-package-receipt/v1"
 MATERIALIZATION_SCHEMA = "laplace.product-installer-materialization/v1"
+ARCHIVE_SCHEMA = "laplace.product-installer-archive/v1"
 HEX_256 = "0123456789abcdef"
 
 CONTROL_SOURCES = {
@@ -516,6 +518,85 @@ def verify_bundle(manifest_path: Path) -> dict[str, Any]:
     return manifest
 
 
+def archive_filter(member: tarfile.TarInfo) -> tarfile.TarInfo:
+    member.uid = 0
+    member.gid = 0
+    member.uname = ""
+    member.gname = ""
+    member.mtime = 0
+    return member
+
+
+def archive_bundle(manifest_path: Path, output: Path) -> dict[str, Any]:
+    manifest = verify_bundle(manifest_path)
+    bundle = manifest_path.parent
+    expected_name = f"laplace-installer-{manifest['bundle_id']}"
+    if bundle.name != expected_name:
+        raise DistributionError("installer bundle directory identity differs")
+    if not output.is_absolute() or output.suffix != ".tar":
+        raise DistributionError("installer archive must be an absolute .tar path")
+    if not output.parent.is_dir() or output.parent.is_symlink():
+        raise DistributionError("installer archive parent must be a physical directory")
+    temporary = output.with_name(f".{output.name}.{os.getpid()}.tmp")
+    try:
+        with tarfile.open(temporary, "w", format=tarfile.GNU_FORMAT) as archive:
+            archive.add(
+                bundle,
+                arcname=expected_name,
+                recursive=False,
+                filter=archive_filter,
+            )
+            for path in sorted(bundle.rglob("*"), key=lambda item: item.relative_to(bundle).as_posix()):
+                archive.add(
+                    path,
+                    arcname=f"{expected_name}/{path.relative_to(bundle).as_posix()}",
+                    recursive=False,
+                    filter=archive_filter,
+                )
+        digest = sha256_file(temporary)
+        if output.exists() or output.is_symlink():
+            physical_file(output, "installer archive")
+            if sha256_file(output) != digest:
+                raise DistributionError("existing installer archive bytes differ")
+            temporary.unlink()
+        else:
+            temporary.chmod(0o444)
+            os.replace(temporary, output)
+        checksum = output.with_name(f"{output.name}.sha256")
+        checksum_content = f"{digest}  {output.name}\n".encode("ascii")
+        if checksum.exists() or checksum.is_symlink():
+            physical_file(checksum, "installer archive checksum")
+            if checksum.read_bytes() != checksum_content:
+                raise DistributionError("existing installer archive checksum differs")
+        else:
+            descriptor, temporary_checksum_name = tempfile.mkstemp(
+                prefix=f".{checksum.name}.", dir=checksum.parent
+            )
+            temporary_checksum = Path(temporary_checksum_name)
+            try:
+                with os.fdopen(descriptor, "wb") as stream:
+                    stream.write(checksum_content)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                temporary_checksum.chmod(0o444)
+                os.replace(temporary_checksum, checksum)
+            except BaseException:
+                temporary_checksum.unlink(missing_ok=True)
+                raise
+        result = {
+            "schema": ARCHIVE_SCHEMA,
+            "bundle_id": manifest["bundle_id"],
+            "archive": str(output),
+            "archive_sha256": digest,
+            "checksum": str(checksum),
+        }
+        result["receipt_sha256"] = document_identity(result, "receipt_sha256")
+        return result
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
 def prefixed(root: Path, logical: Path) -> Path:
     return logical if root == Path("/") else root.joinpath(*logical.parts[1:])
 
@@ -614,9 +695,14 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     build.add_argument("--output-directory", required=True)
     build.add_argument("--unicode-contract")
     build.add_argument("--unicode-source-root")
+    build.add_argument("--archive-output")
     build.add_argument("--result")
     verify = subparsers.add_parser("verify")
     verify.add_argument("--manifest", required=True)
+    archive = subparsers.add_parser("archive")
+    archive.add_argument("--manifest", required=True)
+    archive.add_argument("--output", required=True)
+    archive.add_argument("--result")
     install = subparsers.add_parser("materialize")
     install.add_argument("--manifest", required=True)
     install.add_argument("--root", default="/")
@@ -633,8 +719,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(arguments.unicode_contract) if arguments.unicode_contract else None,
             Path(arguments.unicode_source_root) if arguments.unicode_source_root else None,
         )
+        if arguments.archive_output:
+            result = archive_bundle(
+                Path(arguments.output_directory)
+                / f"laplace-installer-{result['bundle_id']}"
+                / "installer-manifest.json",
+                Path(arguments.archive_output),
+            )
     elif arguments.command == "verify":
         result = verify_bundle(Path(arguments.manifest))
+    elif arguments.command == "archive":
+        result = archive_bundle(Path(arguments.manifest), Path(arguments.output))
     else:
         result = materialize(Path(arguments.manifest), Path(arguments.root))
     content = json.dumps(result, indent=2, sort_keys=True) + "\n"

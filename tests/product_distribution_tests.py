@@ -8,6 +8,8 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import stat
+import tarfile
 import tempfile
 import unittest
 
@@ -191,16 +193,46 @@ class ProductDistributionTests(unittest.TestCase):
         with self.assertRaisesRegex(distribution.DistributionError, "bytes differ"):
             distribution.verify_bundle(bundle / "installer-manifest.json")
 
+    def test_archive_is_deterministic_and_preserves_product_entrypoint(self) -> None:
+        result, bundle = self.build_bundle()
+        archive = self.root / "laplace-product-installer-fixture.tar"
+        first = distribution.archive_bundle(bundle / "installer-manifest.json", archive)
+        second = distribution.archive_bundle(bundle / "installer-manifest.json", archive)
+        self.assertEqual(first, second)
+        self.assertEqual(first["bundle_id"], result["bundle_id"])
+        self.assertEqual(first["archive_sha256"], distribution.sha256_file(archive))
+        with tarfile.open(archive, "r") as package:
+            entrypoint = package.getmember(f"{bundle.name}/install")
+            postmaster = package.getmember(
+                f"{bundle.name}/payload/root/{self.manifest['root'].lstrip('/')}/"
+                "pgsql-18/bin/postmaster"
+            )
+        self.assertEqual(stat.S_IMODE(entrypoint.mode), 0o555)
+        self.assertTrue(postmaster.issym())
+        self.assertEqual(postmaster.linkname, "postgres")
+
+    def test_changed_archive_is_rejected_on_replay(self) -> None:
+        _result, bundle = self.build_bundle()
+        archive = self.root / "laplace-product-installer-fixture.tar"
+        distribution.archive_bundle(bundle / "installer-manifest.json", archive)
+        archive.chmod(0o644)
+        archive.write_bytes(archive.read_bytes() + b"changed\n")
+        with self.assertRaisesRegex(distribution.DistributionError, "archive bytes differ"):
+            distribution.archive_bundle(bundle / "installer-manifest.json", archive)
+
     def test_cmake_and_ci_publish_the_verified_installer_target(self) -> None:
         cmake = (REPOSITORY / "CMakeLists.txt").read_text(encoding="utf-8")
         workflow = (
             REPOSITORY / ".github/workflows/package-product.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("add_custom_target(laplace_product_installer", cmake)
+        self.assertIn("--archive-output", cmake)
         self.assertIn("--target laplace_product_installer", workflow)
         self.assertIn("product_distribution.py verify", workflow)
         self.assertIn("actions/upload-artifact@", workflow)
         self.assertIn("compression-level: 0", workflow)
+        self.assertIn("'.archive' \"$installer_selection\"", workflow)
+        self.assertIn("LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256", workflow)
 
 
 if __name__ == "__main__":

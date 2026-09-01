@@ -214,16 +214,24 @@ second semantic implementation. Repair changes only declared directory metadata 
 exact gateway bytes before exact product replay; it does not recursively rewrite
 PGDATA, WAL, logs, receipts, or package generations.
 
-Fresh local installation is one administrator command; the activation key is generated
-once at its final root-only path and exact replay never replaces it:
+Fresh local installation, initial run, and repair are the same convergent administrator
+command. The source commissioning entrypoint resolves the exact accepted publication
+selected by `state/product-publication-selection.json`; this narrowly scoped selection
+is distinct from the continuation checkpoint and is consumed identically by local and
+CI package composition. A customer installer carries
+the accepted package, controls, and source payload in its own immutable manifest.
+Neither route asks a person to supply an internal receipt path or content hash. The
+activation key is generated once at its final root-only path and exact replay never
+replaces it:
 
 ```sh
-sudo tools/delivery/product_host.py install \
-  --authorize-system-root \
-  --generate-key \
-  --postgresql-publication /opt/laplace/receipts/postgresql/<publication-id>.json \
-  --output /opt/laplace/receipts/deployments/product-host-install.json
+sudo ./install
 ```
+
+The package-product workflow emits a deterministic tar archive and adjacent SHA-256
+file rather than uploading a directory. This preserves the executable mode and
+symlinks required by the standalone product. After verifying and extracting that
+archive, installation is also `sudo ./install` from the extracted directory.
 
 ## Product Unicode activation
 

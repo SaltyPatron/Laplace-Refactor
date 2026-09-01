@@ -44,8 +44,10 @@ jobs:
           test -w /build/laplace
           git diff --quiet
           git diff --cached --quiet
-          publication=$(jq -er '.product_activation_projection.postgresql_publication.receipt' state/continuation.json)
-          expected_sha=$(jq -er '.product_activation_projection.postgresql_publication.receipt_sha256' state/continuation.json)
+          test "$(jq -er '.schema' state/product-publication-selection.json)" = \
+            laplace.product-publication-selection/v1
+          publication=$(jq -er '.postgresql_publication.receipt' state/product-publication-selection.json)
+          expected_sha=$(jq -er '.postgresql_publication.receipt_sha256' state/product-publication-selection.json)
           test -f "$publication"
           test ! -L "$publication"
           test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
@@ -109,7 +111,12 @@ jobs:
           python3 tools/delivery/product_distribution.py verify \
             --manifest "$installer_manifest" >/dev/null
           installer_directory=$(dirname "$installer_manifest")
-          printf 'LAPLACE_PRODUCT_INSTALLER=%s\n' "$installer_directory" >> "$GITHUB_ENV"
+          installer_archive=$(jq -er '.archive' "$installer_selection")
+          test "$(jq -er '.archive_sha256' "$installer_selection")" = \
+            "$(sha256sum "$installer_archive" | awk '{print $1}')"
+          installer_archive_sha256=$(jq -er '.checksum' "$installer_selection")
+          printf 'LAPLACE_PRODUCT_INSTALLER_ARCHIVE=%s\n' "$installer_archive" >> "$GITHUB_ENV"
+          printf 'LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256=%s\n' "$installer_archive_sha256" >> "$GITHUB_ENV"
           {
             echo '## Standalone customer installer'
             echo '```json'
@@ -120,7 +127,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: laplace-product-installer-${{ github.sha }}
-          path: ${{ env.LAPLACE_PRODUCT_INSTALLER }}
+          path: |
+            ${{ env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE }}
+            ${{ env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256 }}
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
