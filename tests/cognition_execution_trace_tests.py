@@ -26,6 +26,7 @@ REQUIRED_FILES = (
     "contracts/authority-stack.json",
     "docs/architecture/COGNITION_EXECUTION.md",
     "docs/architecture/ENGINEERING_STANDARDS.md",
+    "docs/product/ROADMAP.md",
     "requirements/features/query_neighborhood.feature",
     "README.md",
     "AGENTS.md",
