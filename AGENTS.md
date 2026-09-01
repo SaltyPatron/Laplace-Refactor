@@ -1,135 +1,151 @@
-# Working agreements
+# Laplace implementation-agent execution contract
 
-## Projection authority
+This file projects the governing invention and executable contracts into concrete implementation behavior. It cannot narrow or supersede inventor-direct requirements.
 
-- This file is a verified agent-facing projection of governing direct evidence,
-  stable product law, and executable requirements. It is not itself inventor-direct
-  evidence, and editing it cannot create, supersede, or narrow a Laplace requirement.
-- Product authority projects `LP-PRODUCT-001`, `LP-UNIVERSAL-001`, `LP-AST-001`,
-  `LP-GOVERNANCE-001`, `LP-FIRMWARE-001`, and `LP-CLEANROOM-001`.
-- Architecture projects `LP-ISA-001`, `LP-FRAMEWORK-001`, `LP-REUSE-001`,
-  `LP-COHESION-001`, `LP-RECIPE-001`, `LP-BULK-001`, `LP-HIGHWAY-001`, `LP-ADMISSION-001`,
-  `LP-CONNECTION-001`, `LP-LIMITS-001`, and `LP-EXCEPTION-001`.
-- Product-surface and node symmetry project `LP-APPLICATION-001`,
-  `LP-ENTITY-WEB-001`, `LP-ENTITLEMENT-001`, `LP-NODE-001`,
-  `LP-FEDERATION-001`, and `LP-PLACEMENT-001`.
-- Evidence and persistence project `LP-STORAGE-001`, `LP-MATERIALIZATION-001`,
-  `LP-PERFCACHE-001`, `LP-ACTIVATION-001`, `LP-DOC-001`, and the exact acceptance and
-  continuation boundaries loaded by `contracts/authority-stack.json`.
+## Required authority load order
 
-## Product authority
+Before selecting or changing work, load `contracts/authority-stack.json` and follow its order:
 
-- The user's direct requirements define Laplace.
-- The current-implementation archive is not a specification, design template, source
-  library, or completeness boundary.
-- Do not copy code, SQL, schemas, tests, scripts, workflows, layouts, names, comments,
-  or configuration from the current implementation.
-- Use independent standards and clean upstream dependency sources.
-- Historical material may supply a behavioral counterexample only. Restate the
-  counterexample without importing its implementation.
+1. `docs/audits/DIRECT_REQUIREMENT_EVIDENCE.md`
+2. `docs/product/CONSTITUTION.md`
+3. `docs/product/INVENTION_MODEL.md`
+4. this `AGENTS.md`
+5. `docs/architecture/OPERATIONAL_MODEL.md`
+6. `docs/architecture/ISA.md`
+7. `docs/architecture/BOUNDARIES.md`
+8. `docs/architecture/ENGINEERING_STANDARDS.md`
+9. `requirements/product.yaml`
+10. `contracts/operation-model.json`
+11. `contracts/recipe-model.json`
+12. `contracts/source-profile-model.json`
+13. `contracts/source-admission.json`
+14. `docs/architecture/ACCEPTANCE.md`
+15. `docs/product/ROADMAP.md`
+16. dated audit/continuation evidence
+17. `state/continuation.json`
 
-## Scope
+Direct inventor corrections outrank every derived artifact. Stable product law outranks roadmap, issue, branch, current implementation and observed runtime state. When derived sources disagree, repair the lower source instead of asking the user to re-specify the invention.
 
-- Laplace is the complete universal product described in
-  `docs/product/CONSTITUTION.md`.
-- Sequencing work does not reduce product scope.
-- Do not silently omit a modality, language, model family, product surface, platform,
-  operation, requirement, or acceptance condition.
-- Do not substitute plans, issue lists, documentation, scaffolding, or status reports
-  for an implementation outcome.
+## Delivery accountability
 
-## Architecture
+An implementation agent that accepts work owns that implementation obligation until the required behavior is delivered or the user explicitly stops/replaces the scope.
 
-- C/C++ and PostgreSQL server integration own the engine and every semantic operation.
-- SQL and C# are orchestrators. They do not contain another engine.
-- All product behavior executes through the typed substrate instruction set.
-- Every operation has one canonical implementation.
-- Batch and bulk forms are primary and must preserve exact single-item semantics.
-- Every digital structure is represented as a typed universal AST whose canonical
-  persistent form is the content-addressed Merkle DAG.
-- Grammars and recipes decompose, transform, and recompose typed trees through the
-  common ISA; a parser, codec, source adapter, or template is not a semantic engine.
-- Centralize common behavior in typed generic interfaces, generated contracts, and
-  reusable lifecycle bases. Providers may vary physical mechanism, not meaning.
-- Text is not architecturally privileged.
-- Language, modality, source, and model are witnessed dimensions, not engine branches.
-- People, organizations, accounts, entitlements, achievements, interfaces, nodes, and
-  federation are not application exceptions. They use the same referential state,
-  AST, testimony, governance, recipe, effect, and receipt machinery.
-- Profiles, feeds, résumés, portfolios, and personal webs are audience-authorized
-  materializations over entity worlds, not opaque account fields or private engines.
-- Typed connection search declares admissible relations, direction, time, standing,
-  dependence, boundary, and completion. Raw hops, KNN, ANN, and a found path cannot
-  impersonate semantic distance, optimum, or complete answerability.
-- Every program is finite. Partial, upper-bound, unsupported, denied, exhausted,
-  contradicted, and unknown results remain distinct and include an exact why-not
-  receipt.
-- Hardware faults, provider unavailability, resource exhaustion, invalid programs,
-  implementation defects, authority denial, semantic contradiction, and epistemic
-  unknowns are different machine conditions. Their generated exception law declares
-  priority, restart, retry, reroute, replay, durability, and publication behavior.
-- Hardware, operating system, storage, placement, and federation providers may change
-  validated physical plans and performance, never ISA meaning or logical results.
-- Model export names and independently tests the exact invariant it preserves. Do not
-  accept an unqualified claim of `faithful`, expected shape, loadability, correlation,
-  or one academic fixture as semantic or behavioral proof.
-- A capability exists only after its complete public program traverses the shared
-  registry, context, recipe, ISA, batch, presence, deposition, receipt, and exception
-  lifecycle. Component counts, screenshots, lookups, historical behavior, and private
-  feature routes cannot promote a missing whole operation.
-- Model behavior is experiment-scoped witnessed state. Formal nonzero support is not
-  material support; top-k, pruning, or thresholding requires a versioned measured
-  causal/behavioral law, loss boundary, withheld probes, and receipts under
-  `LP-MODEL-006`.
+Use only these active delivery states:
 
-## Evidence
+- **implementation obligation** — repository/agent work to complete;
+- **external prerequisite** — a condition genuinely outside repository/agent control, recorded with exact evidence, owner and satisfaction action;
+- **failed acceptance** — implementation exists and a required executable check/product behavior fails;
+- **delivered** — implementation is merged to the authoritative branch, required package/install/deployment/readback is complete, required acceptance is green, and the requested operator-visible behavior is demonstrated.
 
-- Tests execute the implementation and assert exact behavior.
-- Each important test has a deliberate break proving the test detects the defect.
-- Performance claims include the measured command, input, machine, sample count,
-  timing boundary, CPU, memory, I/O, database calls, and durable output counts.
-- Do not extrapolate a small fixture into a throughput claim.
-- Do not claim conversation from a lookup, model correctness from artifact shape, data
-  quality from row counts, or installation from files merely existing.
-- Unknown and unsupported results are explicit typed outcomes.
+Do not use `blocker` as a generic explanation for unfinished work. Missing code, plumbing, APIs, tests, CI sequencing, package wiring, branch/PR state, scheduler design, performance defects, source coverage, deployment code or stale generated artifacts are implementation obligations unless an external prerequisite is specifically proven.
 
-## Repository changes
+A plan, issue, PR, contract, receipt, manifest, test declaration, status report, screenshot or component count is supporting work unless that artifact itself is the requested output. Supporting work must advance an executable vertical product slice.
 
-- Keep the current-implementation archive outside every build, include, package, and
-  test search path.
-- Every new implementation file must be authored for this repository from the new
-  requirements.
-- Generated files identify their generator and source contract.
-- Dependency source comes from the verified lock and checksum records.
-- Preserve unrelated work. Use isolated worktrees for concurrent changes.
+When acceptance fails, fix the cause and continue the same workstream. A user correction expands or corrects the implementation obligation; it is not a reason to stop at analysis or open an unrelated tangent.
 
-## Persistence
+## Product scope
 
-- A direct user stop, pause, cancel, or equivalent instruction halts every tool call,
-  repository or external mutation, read-only investigation, and automatic goal
-  continuation. Resume only after a later direct user instruction explicitly resumes,
-  continues, or replaces the paused task.
-- A permission, environment, connector, runner, goal-ledger, or other external state
-  change is an observation, not a human resume instruction. Noticing a transition is
-  not proof that it completed and cannot be used to shortcut the requested boundary.
-- At the start of a resumed work session, load and validate
-  `contracts/authority-stack.json` in its declared order. The whole invention governs
-  before current branch, source inventory, issue state, or implementation pattern.
-- Read `state/continuation.json` only after stable product and executable authority.
-  Verify its base, dirty fingerprint, source roots, and live runtime observations; it
-  is observed development state and never product law.
-- Read `docs/product/ROADMAP.md` as the current program execution projection after
-  the operation and acceptance contracts. Its issue state, priorities, and sequence
-  cannot create product law or promote requirements into implementation.
-- Capability, controlled integration, installed product activation, per-source-profile
-  world admission, configured foundational seeded state, and release are distinct.
-  Never promote one state into another without its exact receipt.
-- The current branch is not sufficient continuation authority. Direct corrections,
-  supersession, the unpublished-work fingerprint, runtime state, and the complete
-  dependency graph govern continuation together.
-- Update or invalidate the continuation checkpoint in the same change that publishes,
-  completes, or supersedes its interrupted boundary.
-- Continue active work after corrections, status questions, and refinements.
-- The user controls when work stops or changes direction.
-- Report failed checks and incomplete acceptance precisely, then keep making safe
-  in-scope progress.
+- Implement the complete universal product defined by the constitution and invention model.
+- Sequencing changes order, not scope.
+- Preserve every applicable language, modality, model family, product surface, platform, operation and acceptance condition.
+- Sources provide operands/evidence/constraints/realizations; they are not the product architecture.
+- Product behavior must be executable through the same public machine lifecycle rather than private feature implementations.
+
+## Semantic ownership and execution
+
+- C/C++ plus PostgreSQL server integration own every semantic operation and calculation.
+- SQL composes fixed typed programs/queries and owns transactional orchestration; it is not a second engine.
+- C# orchestrates sources, sessions, services, APIs and lifecycle; it is not a second engine.
+- Every semantic operation has one canonical implementation.
+- Batch/vector/set forms are primary. Scalar forms delegate to the same canonical implementation.
+- A method named `batch` is insufficient if it loops through scalar, dynamic-SQL, recursive-query or SPI calls underneath.
+- Generic reusable typed interfaces own common behavior. Providers may replace physical mechanism without changing meaning.
+- Dynamic SQL, RBAR, recursive executor traversal, source-specific semantic dispatch and adapter-private algorithms are rejected from semantic hot paths unless the governing contract explicitly defines them as the physical operation.
+- Perfcache/index/materialization reuses deterministic work and remains reconstructible acceleration, never semantic authority.
+
+## Universal structure
+
+- Exact digital structure lowers through typed universal AST recipes into the content-addressed Merkle DAG.
+- Canonical content identity excludes source/path/parser/span metadata.
+- Occurrence, order, containment, gap, trajectory, provenance, source, language, modality and model state remain typed witnessed structure.
+- Same content converges to the same identity; different occurrences remain distinct where occurrence identity is part of the required observation.
+- Parsers/codecs/source adapters expose concrete structure through common recipe/ISA contracts and do not own private semantics.
+
+## Complete source-estate execution
+
+Every selected source profile declares the complete selected physical artifact graph before admission:
+
+- release/archive/file/member/sidecar/stream identity and exact digest/size;
+- explicit disposition for every constituent: admitted, equivalent packaging, superseded, excluded-with-reason, unsupported-with-why-not or absent;
+- grammar/parser/codec/recipe dependencies;
+- exact scheduling/resume/journal grain;
+- semantic grouping such as release, language, treebank, split or corpus as witnessed/dependency metadata.
+
+Execution opens each independent physical artifact once through the generic scheduler, streams read → parse → lower/compose, and hands bounded finalized sets to the shared native/PostgreSQL deposition path. Internal segmentation may distribute expensive work without changing physical artifact completion identity.
+
+Inventory, execution, journal and source receipt must reconcile the same selected artifact set. Source completion cannot be inferred from a subset chosen by one adapter.
+
+## Query, cognition and search
+
+- Query/cognition compiles typed programs over exact structure, geometry, evidence, standing, relation law, context and goals.
+- Typed search declares admissible relations/direction/time/dependence/resource/completion conditions.
+- KNN, ANN, raw hop count, permanent embedding, one scalar adjacency, arbitrary top-k or lookup-only behavior cannot replace query-relative calculation.
+- A* or declared best-first execution generates frontier candidates in bulk using the common native engine and indexes/perfcaches.
+- UAX29-only observations are already valid witnessed sequence/continuation/position/context input; seeded semantic sources add separate typed facts rather than becoming a prerequisite for ordinary content to exist as knowledge.
+- Gödel/incompleteness work generates typed candidates with ancestry and attempts disproof through the same engine; activation follows the governing evidence/authority law.
+
+## Product surfaces
+
+Product surfaces are reusable views over the same machine state and operations.
+
+- Provide generic browse → rank → entity/profile → relations/evidence/trajectory → neighboring/ranked-set navigation.
+- Support structural altitude/tier navigation across codepoints, graphemes, words, sentences, documents and higher compositions plus typed domain/entity worlds.
+- Leaderboards declare arena/measure/context/epoch and use stable cursor/pagination over the complete selected set. Internal bounded chunks must not become a hard top-K product ceiling.
+- Web/API/CLI/SQL use the same ranking/query semantics.
+- Domain products such as chess specialize presentation and domain operands while reusing the generic query, ranking, paging, identity, evidence and component surfaces.
+- Reuse board/profile/table/navigation components instead of creating feature-specific duplicates.
+
+## Evidence and acceptance
+
+- Tests execute the implementation and assert the required behavior.
+- Important acceptance has a deliberate defect proving that the test detects the named failure.
+- Performance acceptance records exact input, machine, CPU/memory/I/O/database calls, sample count, timing boundary and durable output counts.
+- Measure complete installed-path behavior at the requested scale; do not extrapolate small fixtures into product throughput.
+- Every route that claims semantic parity executes the same canonical implementation or proves byte/semantic equivalence to it.
+- Required artifact/package/receipt checks support product acceptance; they do not replace the behavioral result.
+
+## Finish-line sequencing
+
+Prefer vertical capability over additional control-plane scaffolding. The program order is the dependency graph in #23, but every phase must end in executable behavior:
+
+1. product/runtime foundation supports the engine rather than becoming the end product;
+2. universal framework/ISA executes real bulk operations;
+3. substrate storage/presence/deposition/readback operates through one native semantic owner;
+4. complete heterogeneous source profiles execute through one generic source-estate/scheduler/deposition contract (#53);
+5. query/answerability, realization and learning execute against admitted world state;
+6. model-independent compilation/execution uses the same machine;
+7. reusable entity-world/product surfaces expose browse/rank/drill-down and domain workflows (#21);
+8. complete installed-product acceptance exercises the whole path.
+
+An earlier phase may implement the minimum supporting capability required by a later vertical slice when that is the shortest route to an end-to-end result. Phase sequencing must never be used to postpone all operator-visible behavior until the end.
+
+## Repository/PR discipline
+
+- Prefer finishing the existing owning issue/branch/PR over creating parallel partial work.
+- Do not maintain overlapping open PRs for one accepted scope.
+- A PR title/body states the complete behavior advanced, implementation owner, executable acceptance and operator result.
+- Documentation-only work is valid when documentation is the requested deliverable or is required to remove an ambiguity that prevents immediate implementation; follow it with the implementation in the same accepted workstream.
+- Keep generated contracts/registries/inventories synchronized with the implementation in the same change.
+- Preserve unrelated user work and use isolated worktrees for concurrent implementation.
+- Dependency input comes from verified locks/upstream sources; historical implementation is behavioral evidence only.
+- Do not enable/request automatic Copilot code review.
+
+## Continuation and communication
+
+- A direct user stop/pause/cancel halts tool calls and mutations until the user explicitly resumes.
+- Corrections, status questions and refinements do not stop an active accepted workstream; incorporate them and continue.
+- Read `state/continuation.json` after stable authority and verify it against the physical tree/runtime before using it for continuation.
+- Update continuation/roadmap/issue acceptance when implementation changes the actual execution state.
+- Status prose is an execution handoff: state the implementation obligation, affected operation/path, acceptance command/result, and next code action.
+- Treat failed checks as implementation obligations: diagnose, fix, rerun and continue toward the requested operator-visible result.
+- The user controls scope and stop conditions; the implementation agent owns execution quality within accepted scope.
