@@ -111,6 +111,30 @@ Public functions use explicit namespaces and typed generated bindings, avoid hid
 session settings, expose planner-visible structure where required, and retain exact
 `EXPLAIN (ANALYZE, BUFFERS, WAL)` evidence for performance claims.
 
+For typed filtered indexed cognition/search, the database path is filter-first and
+frontier-set-oriented. The compiled program chooses only admissible transition-provider
+families and pushes semantically safe source, context, time, world, authority, evidence,
+relation, direction, structural, and standing predicates into candidate generation
+before expansion. PostgreSQL indexes, PostGIS/GiST paths, partitions, and immutable
+perfcaches are candidate providers; exact native validation remains semantic authority.
+
+The primary cognition/search path must reject cursor/RBAR traversal, one SQL/SPI query
+per frontier state when set-wise expansion is possible, recursive SQL or CTEs as the
+search engine, dynamic SQL generated per candidate/frontier/relation, silent scalar
+fallback from failed batch/indexed execution, giant pre-filter adjacency/world scans,
+unbounded in-memory edge loading, per-row semantic cache maintenance, and an
+accelerator miss treated as authoritative absence. Semantic repair, deferred-write
+completion, cache-building, or vacuum-like maintenance cannot be required before an
+otherwise valid admitted state is usable by an interactive query. The separate
+perfcache epoch-pinned reader drain after an atomic generation handoff remains a valid
+concurrency lifecycle.
+
+A logically correct result reached by a forbidden physical plan fails implementation
+acceptance. Representative PostgreSQL cognition receipts identify the selected plan,
+indexes/partitions/perfcache generations, frontier in/out, generated/rejected/accepted
+candidates, rows examined, heap/table fetches, SPI/native crossings, CPU, memory,
+I/O/buffers, elapsed time, and A*/best-first completion disposition.
+
 ## 7. Managed orchestration
 
 C# owns source, session, service, product API, and external-system lifecycle. It uses
@@ -151,6 +175,13 @@ effects, resources, timings, and completion. Performance evidence includes the c
 machine, real input, samples, timing boundary, CPU, memory, I/O, database calls, WAL,
 and durable output counts. Small-fixture extrapolation is prohibited.
 
+Complexity is an acceptance contract, not an implementation anecdote. For cognition,
+search, decomposition, composition, source admission, and other scalable paths, tests
+must prove both the logical result and the physical work law. Result parity alone is
+insufficient when the implementation performed RBAR, unbounded traversal, an avoidable
+whole-world scan, repeated database crossings, duplicated canonical work, or another
+forbidden mechanism. Required counters and plan evidence must make that defect visible.
+
 ## 10. Build, generation, and repository discipline
 
 Contracts generate identifiers, ABI declarations, bindings, documentation tables, and
@@ -161,5 +192,6 @@ atomic and independently verified.
 
 Historical implementation stays outside build, include, package, and test discovery.
 New code is authored from product requirements, independent standards, and verified
-upstream dependencies. Unrelated work is preserved, and concurrent changes use
-isolated worktrees.
+upstream dependencies. Unrelated work is preserved. Isolated worktrees are used only
+as temporary concurrency boundaries; accepted work is folded into the owning
+integration line promptly instead of accumulating overlapping partial PRs.
