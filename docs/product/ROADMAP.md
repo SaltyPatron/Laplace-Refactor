@@ -26,29 +26,30 @@ An issue, document, schema, Gherkin scenario, green authority test, or populated
 does not advance a mechanism to an implementation proof state. One corpus, grammar,
 modality, model, platform, or product surface cannot certify the universal machine.
 
-## Present boundary — 2026-08-31
+## Present boundary — 2026-09-01
 
 | Capability | Current fact |
 | --- | --- |
-| Clean product authority and executable requirement topology | Merged on `main` by PR #55 |
+| Clean product authority and executable requirement topology | Merged on `main` by PR #55; later authority integration remains on PR #128 until merged |
 | Selected execution-framework slices | Partial and published |
 | Unicode root calculation and PostgreSQL/Tier-0 sibling activation | Integration proven |
 | Unicode root in the selected PostgreSQL 18.6 product cluster | Not product activated |
 | Direct and reverse Unicode hot planes | Integration proven and measured under their declared boundary |
 | General whole-working-set composition and presence | Integration proven and merged by PR #73; product not activated |
+| Canonical decomposition identity / occurrence separation | Implemented on integration PR #128 with explicit-occurrence, witness-identity, Tier-0 reuse, terminal-UAX and resource-accounting deliberate defects; real CILI cardinality/resource acceptance remains open under #102 and the branch has not landed on `main` |
 | Sparse addressability and storage-compute economics | One representative composition deposition receipt exists; paired acceleration removal storage-class and bloat acceptance remain open under #72 |
 | Cross-domain whole-route cohesion | Unimplemented; tracked by #70 |
-| Typed machine exception registry and recovery planner | Unimplemented |
+| Typed machine exception registry and recovery planner | Partial on integration PR #128: generated native descriptors, exact descriptor validation, PostgreSQL projection and route-drift mutants exist; executable retry/reroute/replay, WHY_NOT and physical fault behavior remain incomplete under #56 |
 | Universal AST grammar registry and general recipe compiler | Unimplemented |
 | Whole-machine typed numerical highway | Partial: exact generated registry and scoped coordinates, ISA materialization, canonical Unicode-backed AST admission, shared presence/deposition, controlled numeric-epoch activation, epoch-pinned active readback, and protected product-controller/gateway composition implemented; protected product activation and whole-seed topology remain incomplete |
 | Exact non-Unicode source profiles | Partial: the real ISO 639-3 2026-04-15 release profile and generic tabular compiler are controlled-integration proven; no profile is world-admitted in the activated product |
-| Source-estate discovery, provider qualification, and reusable template inference | Required and operationally separated under #112/#115; the preparation branch integrates the independent PR #113 exact-profile resolver and PR #114 generic discovery-catalog slices, while physical catalog receipts, provider qualification, and template/correction execution remain incomplete |
+| Source-estate discovery, provider qualification, and reusable template inference | Required and operationally separated under #112/#115; integration PR #128 contains the exact-profile resolver and generic discovery-catalog slices, while physical catalog receipts, provider qualification, and template/correction execution remain incomplete |
 | Heterogeneous world admission and foundational knowledge seed | Partial mechanism: synthetic and ISO 639-3 whole routes are controlled-integration proven; no activated-product world admission or configured foundational seed exists |
-| Typed Glicko-2 matchup onboarding and trust return legs | Required under #110 with default-once, real-opponent, immutable-history, dependence, and return-leg acceptance; execution and persistence are unimplemented |
-| Unicode-native token tiers and witnessed language realization | Required contract and tagged acceptance exist; tier selection, cognition, readiness, and realization engines are unimplemented |
+| Typed Glicko-2 matchup onboarding and trust return legs | Partial on integration PR #128: typed standing recipes/state/events/period receipts, corrected real-opponent Glicko-2, native/ISA/C#/PostgreSQL parity, authority/evidence-epoch admission, replay and dependence-root non-amplification are controlled-integration proven; stock recipe activation, testimony lowering, independent return legs, contradiction/consensus/referential epochs and product readback remain incomplete under #110 |
+| Unicode-native token tiers and witnessed language realization | Required contract and tagged acceptance are integrated on PR #128; tier selection, complete cognition, readiness, and realization engines remain incomplete |
 | Clean-seed indirect inference before production-user admission | Release-blocking requirement under #116; configured seed, public-route derivation/trust/realization, restart, replay, and deliberate defects are unimplemented |
-| Typed A-star query, answerability, cognition, and realization | Unimplemented |
-| General model decomposition and target compiler | Unimplemented |
+| Typed filtered indexed search, answerability, cognition, and realization | Stable architecture, machine-readable execution contract, authority loading and deliberate-defect gate are integrated on PR #128; the complete native/PostgreSQL mechanism remains unimplemented under #17/#60/#132/#18 |
+| General model decomposition and target compiler | Unimplemented; trajectory-search/model-compilation architecture is integrated on PR #128 but does not constitute the compiler |
 | Typed model-behavior admission and measured effective support | Unimplemented; tracked by #71 |
 | Entity worlds, personal webs, entitlement policy, and product surfaces | Unimplemented |
 | Federation, distributed placement, ARM, and Raspberry Pi product support | Unimplemented |
@@ -56,7 +57,8 @@ modality, model, platform, or product surface cannot certify the universal machi
 
 The accepted composition boundary is merged by PR #73 and fingerprinted by
 `state/continuation.json`. Controlled Unicode integration must continue to be described
-as **when the product has Unicode**, not as activated product state.
+as **when the product has Unicode**, not as activated product state. PR #128 is branch
+state until it lands on `main`; none of its partial implementations are release claims.
 
 ### Historical operating evidence is not present product state
 
@@ -115,7 +117,7 @@ source discovery/qualification + reusable template correction
 configured foundational seed closure
               |
               v
-adjudication + typed operators + indexed A* + answerability
+adjudication + typed operators + filtered indexed search/A* + answerability
               |
               v
 semantic acts + recomposition/effects + OODA/Goedel learning
@@ -149,25 +151,25 @@ different structural, reference, evidence, and realization programs.
 | --- | --- | --- | --- | --- |
 | `foundation.acquire-build` | Verified upstream, toolchain, package, and receipt foundation | #3, #8, #12, #54 | Partial | Repeatable clean acquisition/build/install and change-sensitive product-path gate |
 | `framework.execution` | One generated registry, context, batch spine, recipe compiler, providers, route bindings, and whole-route cohesion | #4, #5, #6, #10, #57, #58, #70 | Partial | Unrelated complete programs pass one lifecycle, provider-substitution, and private-route mutation suite |
-| `machine.handle-exceptions` | Generated exceptions, traps, faults, recovery, replay, and why-not | #56 | Unimplemented | Physical/program/authority/resource/semantic fault injection and route parity |
+| `machine.handle-exceptions` | Generated exceptions, traps, faults, recovery, replay, and why-not | #56 | Partial on PR #128: native generated descriptor registry/validation plus PostgreSQL descriptor projection and route-drift mutants exist; recovery execution remains incomplete | Physical/program/authority/resource/semantic fault injection, retry/reroute/replay behavior, typed WHY_NOT and route parity |
 | `bootstrap.dependencies` | Framework-mediated package and runtime activation | #3, #12 | Partial | Exact package closure, loaded-object receipt, rollback and reactivation |
-| `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, and trajectory | #7, #13 | Whole-working-set composition and exact provider parity integration-proven by merged PR #73 | Complete generic grammar/recipe/testimony/reference closure |
+| `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, and trajectory | #7, #13, #96 | Whole-working-set composition and exact provider parity integration-proven by merged PR #73; canonical decomposition/occurrence repairs are implemented on PR #128 but not yet main/real-CILI accepted | Complete generic grammar/recipe/testimony/reference closure plus #102 real-CILI unique-structure/resource receipt |
 | `substrate.bulk-deposit` | Whole-working-set presence, filtered production, transactional bulk persistence, and paid addressability | #15, #72 | Issue #15 mechanism integration-proven by merged PR #73 on PostgreSQL 18.3/18.4 | Complete-ingest performance gates and #72 paired acceleration/storage receipts |
 | `bootstrap.unicode-root` | Product-deposited and coherently activated Unicode atom floor | #13, #14 | Calculation, sibling deposition, public epoch-pinned access, and the complete restart/readback controller are integration-proven; not product activated | Successor package and PostgreSQL 18.6 cluster active with exact durable DB/cache/root receipt |
 | `substrate.highway` | Append-only typed coordinates for every machine namespace | #52 | Partial: generated registry, exact scoped coordinate operation, ISA 1.4 materialization, native/PostgreSQL/C# mirrors, canonical Unicode-backed AST admission, shared set-wise presence/deposition, controlled durable activation, restart replay, epoch-pinned active readback, and protected product-controller/gateway composition are implemented; product activation has not run | Activate the exact product package/cluster/Unicode/Highway chain, then implement whole-seed topology, append-only successor activation, and cross-language/cross-modality bubble-up/bubble-down proof |
 | `evidence.record-lineage` | Immutable occurrences, testimony, derivation, and dependence roots | #16 | Partial: typed lineage plus complete profile/recipe/trust/outcome/uncertainty testimony records execute through native, ISA, managed, PostgreSQL, and one real ISO source route; adjudication and cross-source dependence remain | Cross-source provenance, negative/unresolved real-source dispositions, standing, contradiction, referential and consensus epochs |
-| `world.discover-qualify-sources` | Deterministic discovery catalog and qualified Tree-sitter/codec/standards-provider receipts without source-authority promotion | #112 | Partial on the integrated preparation/product branch: PR #113 and PR #114 implementations coexist with positive/mutant tests; full physical receipts, provider qualification, and main-branch acceptance remain incomplete | Relocation-invariant catalog plus bounded provider coverage/error/recovery/reconstruction receipts |
+| `world.discover-qualify-sources` | Deterministic discovery catalog and qualified Tree-sitter/codec/standards-provider receipts without source-authority promotion | #112 | Partial on integration PR #128: exact-profile resolver and generic discovery-catalog slices coexist with positive/mutant tests; full physical receipts, provider qualification, and main-branch acceptance remain incomplete | Relocation-invariant catalog plus bounded provider coverage/error/recovery/reconstruction receipts |
 | `world.infer-source-templates` | Reusable generic recipe/template proposals, source-specific academic deltas, explicit unresolved obligations, correction, and immutable accepted versions | #115 | Unimplemented | Cross-source reuse, correction carry-forward, reconstruction/loss, and auto-activation mutants |
 | `world.admit-witnesses` | Exact source profiles and heterogeneous AST world admission | #53, #59 | Partial: native stock-recipe catalog closure now covers recursive source/release/collection/object/region/construction hierarchy, one shared modality-agnostic semantic segmentation law, and recipe-owned perfcache declarations; generic tabular recipe plus synthetic and real ISO 639-3 source-to-PostgreSQL whole routes remain controlled-integration proven; product world admission is absent | Add stock-catalog ISA/C#/PostgreSQL lifecycle, manufacture exact recursive declarations for every configured source/object, implement unrelated grammars/modalities and cross-profile closure, then prove activated readback, performance, and seed receipt |
 | `evidence.adjudicate` | Immutable standing, typed matchup/onboarding, contradiction, and referential epochs | #16, #110 | Partial: content-identified authority-receipted standing recipes, corrected Glicko-2 over real priors, native/ISA/C#/PostgreSQL parity, immutable state/event/period receipts, durable authority-and-evidence-epoch admission enforcement, replay verification, and dependence-root non-amplification are controlled-integration proven; stock recipe manufacture/activation, testimony lowering, return legs, contradiction, consensus, referential epochs, and activated-product readback remain absent | Manufacture and activate the authority-selected per-source stock recipe catalog, lower admitted testimony without a private bypass, prove earned override and independent return legs, then publish contradiction/consensus/referential epochs with as-of replay |
-| `query.guidance-search` | Typed operators, guidance, indexed A-star, answerability, and completion | #17, #60 | Unimplemented | Independent oracles, shortest-path certificates, typed incompleteness, SQL parity |
+| `query.guidance-search` | Typed operators, finite guidance, filter-first indexed provider selection, bounded set-wise frontier generation, typed filtered indexed A-star/declared best-first search, answerability, and completion | #17, #60, #132 | Architecture/executable contract and mutation gate integrated on PR #128; complete mechanism remains unimplemented | Independent oracles, shortest-path certificates, typed incompleteness, native/PostgreSQL/SQL/C# route parity, representative index/plan/frontier/crossing/CPU/memory/I/O receipts, and RBAR/recursive/dynamic/scalar-fallback/giant-adjacency mutants |
 | `cognition.realize-effect` | Semantic-act selection, reversible realization, and authorized effects | #18 | Unimplemented | Goal completion, AST transformation, exact recomposition, effect and consequence receipts |
 | `learning.discovery-ooda` | Evidence learning, frayed-edge discovery, experiments, and calculus extension | #19 | Unimplemented | Disjoint evidence, counterexamples, OODA replay, non-self-corroboration |
 | `world.configure-foundational-seed` | Authority-selected configured seed closure across admitted profiles, references, dependence, evidence, and required publications | #53, #115 | Unimplemented | Exact selected manifest, cross-profile closure, denominators, active epoch, and why-not receipt |
-| `model.ingest-generate` | Model witnesses, behavior experiments, effective support, induced operators, AImaps, and named-invariant target compilation | #20, #61, #71 | Unimplemented | Typed behavior readback and target-runtime oracles reject arbitrary pruning, flattening, and shape-only exports |
+| `model.ingest-generate` | Model witnesses, behavior experiments, effective support, induced operators, AImaps, and named-invariant target compilation | #20, #61, #71 | Unimplemented; trajectory-search/model-compilation architecture is integrated on PR #128 | Typed behavior readback and target-runtime oracles reject arbitrary pruning, flattening, and shape-only exports |
 | `product.materialize-entity-world` | People/organizations as worlds; personal webs, entitlements, identity, and surfaces | #21, #62, #63, #64, #68 | Unimplemented | Audience/visibility/security and semantic parity across generated surfaces |
 | `runtime.federate-nodes` | Authenticated world exchange, placement, convergence, and one-machine portability | #21, #65, #66, #67 | Unimplemented | Partition/replay convergence, durability proof, x86/ARM semantic parity |
-| `delivery.activate-product` | Installed package, services, generated manual inputs, diagnostics, and activated product state | #21, #50, #69 | Partial: current-main package composition/revalidation, signed package selection, root installation, isolated cluster, Unicode, and Highway workflow are implemented; root gateway and product are not activated | Install the immutable root gateway trust anchor, execute protected activation, and prove Linux/Windows lifecycle |
+| `delivery.activate-product` | Installed package, services, generated manual inputs, diagnostics, and activated product state | #21, #50, #69, #128 | Partial: package composition/revalidation, signed package selection, root installation, isolated cluster, Unicode/Highway activation workflow and durable service/cold-boot identity implementation exist across main + PR #128; protected product activation and cold-boot proof have not completed | Land #128, install the immutable root gateway trust anchor, execute protected activation, prove exact package/cluster/Unicode/Highway/service identity and a later host-boot readback, then prove Linux/Windows lifecycle |
 | `delivery.accept-seeded-inference` | Clean configured-seed indirect derivation, trust explanation, exact language realization, restart, replay, and deliberate-defect proof through the public product | #116 | Unimplemented | No direct target attestation or production-user state; arithmetic contradiction/modulo/missing-operator/corrupt-receipt controls pass |
 | `delivery.release-product` | Complete-product acceptance and exact release publication | #22 | Unimplemented | Every required state and complete-route receipt closes; exact package/manual/provenance are published |
 
@@ -176,18 +178,25 @@ different structural, reference, evidence, and realization programs.
 The immediate sequence is governed by the machine's dependencies rather than by an
 interesting corpus:
 
-1. Establish the exact PostgreSQL 18.6 product cluster, install and verify the accepted
+1. Land integration PR #128 only after its exact-head product-path checks pass. Then
+   establish the exact PostgreSQL 18.6 product cluster, install and verify the accepted
    package, deposit the complete Unicode root through the accepted product boundary,
    publish the direct/reverse siblings from the same retained stream, activate one
-   coherent epoch, restart, and prove public readback and readiness.
+   coherent epoch, restart, and prove public readback, durable service identity and
+   later-host-boot persistence.
 2. Execute the 500,000-records-per-second and qualifying-real-corpus 30-seconds-per-GB
-   complete-ingest gates. Execute #72 against representative deposited state so every
-   accepted index or perfcache proves the addressability it purchases and a dense
-   absence/noise-floor mutant fails.
+   complete-ingest gates. Complete #102 against repaired real CILI so unique canonical
+   structure, physicality, explicit witness counts, peak memory, DB crossings/work and
+   durable records are measured against the former recursive-request defect baseline.
+   Execute #72 against representative deposited state so every accepted index or
+   perfcache proves the addressability it purchases and a dense absence/noise-floor
+   mutant fails.
 3. Finish the universal framework obligations exposed by that work—especially the
    grammar/recipe compiler, module admission, provider substitution, typed machine
    exception lifecycle, and issue #70 whole-route cohesion across unrelated complete
-   programs—instead of allowing composition to grow a private framework.
+   programs—instead of allowing composition to grow a private framework. Complete #56
+   beyond descriptor exposure into typed WHY_NOT, retry/reroute/replay and physical
+   fault behavior.
 4. Run the protected product activation chain now that the registry traverses the
    common Unicode-backed AST, recipe, whole-working-set, presence, canonical deposition,
    framework activation, receipt, restart, replay, and application-readback lifecycle.
@@ -208,31 +217,45 @@ interesting corpus:
    measurement profiles rather than source-name trust defaults.
 7. Admit and close the configured foundational world boundary. This—not WordNet, PGN,
    one catalog, or any other exemplar—is the knowledge-seed outcome.
-8. Build typed operators, indexed search, answerability, cognition, recomposition, and
-   realization over that state. KNN, ANN, geometry, perfcaches, and top-k may generate
-   frontier candidates; none becomes universal relevance, truth, or completion.
-9. Prove model witness/target compilation and entity-world product surfaces as sibling
-   programs over the same machine. Admit model behavior through typed experiment
-   coordinates and measured effective-support laws under #71. Do not flatten relation
-   families for model export or create social/profile-specific semantics for product
-   delivery.
-10. Prove federation and physical placement, then portability on actual selected ARM
+8. Implement the common `docs/architecture/COGNITION_EXECUTION.md` path over admitted
+   state: exact resolve/orient, compiled typed guidance, admissible provider selection,
+   safe filter pushdown, bounded set-wise frontier generation, typed filtered indexed
+   A-star or the honestly declared best-first law, evidence fold, obligation update,
+   exact WHY_NOT or semantic completion, and realization. KNN, ANN, geometry,
+   perfcaches, and top-k may generate candidates only; none becomes universal
+   relevance, truth, or completion. Cursor/RBAR/per-frontier-state SQL/SPI,
+   recursive/dynamic SQL cognition, silent scalar fallback, giant pre-filter world or
+   adjacency scans, accelerator-miss-as-absence, and semantic maintenance drains must
+   fail the same acceptance lane even if they return a logically correct result.
+   Require representative plan/index/frontier/crossing/CPU/memory/I/O/timing receipts.
+9. Complete #110's remaining standing path—authority-selected stock recipe activation,
+   testimony lowering, independent return legs and immutable contradiction/consensus/
+   referential epochs—then use that exact lane-specific state only as a declared input
+   to cognition and realization, never universal importance or truth.
+10. Prove model witness/target compilation and entity-world product surfaces as sibling
+    programs over the same machine. Admit model behavior through typed experiment
+    coordinates and measured effective-support laws under #71. Do not flatten relation
+    families for model export or create social/profile-specific semantics for product
+    delivery.
+11. Prove federation and physical placement, then portability on actual selected ARM
     hardware without creating a reduced edition.
-11. Before production-user admission, execute #116 through the installed public product
+12. Before production-user admission, execute #116 through the installed public product
     with the configured seed, no direct target attestation, and zero production-user
     observations; prove derivation, typed trust, exact language realization, restart,
     replay, and deliberate failures.
-12. Generate the architecture manual from the same registries and release only the
+13. Generate the architecture manual from the same registries and release only the
     package whose complete-product receipts—including #116—the manual describes.
 
 ## Parallel lanes that do not change the critical path
 
-- **Authority and acceptance:** maintain requirement trace, deliberate-defect
-  coverage, generated manual inputs, and proof-state accuracy as mechanisms land.
-- **DevOps and receipts:** make the product-path gate change-sensitive, retain
-  content-addressed receipts beyond transient Actions retention, reconcile stale PRs,
-  retain exact storage-class and paired acceleration receipts, and add
-  deployments/releases only when real installed product state exists.
+- **Authority and acceptance:** maintain requirement trace, cognition-execution
+  authority/projection drift checks, deliberate-defect coverage, generated manual
+  inputs, and proof-state accuracy as mechanisms land.
+- **DevOps and receipts:** keep PR #128 as the single integration finish line until it
+  lands, repair exact-head CI failures on that branch instead of spawning siblings,
+  retain content-addressed receipts beyond transient Actions retention, retain exact
+  storage-class and paired acceleration receipts, and add deployments/releases only
+  when real installed product state exists.
 - **Source reconnaissance:** inventory exact releases, files, licenses, grammars,
   identifiers, joins, denominators, errors, and negative controls without writing
   one-off importers or claiming world admission.
@@ -246,18 +269,25 @@ interesting corpus:
 ## DevOps control plane
 
 GitHub issue #23 owns the whole product. Phase milestones order capability exits.
-Issues #10, #15, #17, #20, #21, #50, #52, #53, #110, #112, #115, and #116 own major capability or release-gate programs;
-focused subissues own independently acceptable outcomes. GitHub Project #2,
-`Laplace Refactor — Machine Roadmap`, tracks phase, proof state, priority, work class,
-and operational stage. Issue #72 owns sparse addressability and measured
-storage-compute economics as a Phase 4 subissue of #15.
+Issues #10, #15, #17, #20, #21, #50, #52, #53, #56, #96, #110, #112, #115, and #116
+own major capability or release-gate programs; focused subissues own independently
+acceptable outcomes. GitHub Project #2, `Laplace Refactor — Machine Roadmap`, tracks
+phase, proof state, priority, work class, and operational stage. Issue #72 owns sparse
+addressability and measured storage-compute economics as a Phase 4 subissue of #15.
+
+Until it lands, PR #128 / `codex/complete-laplace-20260831` is the single integration
+finish line for the accumulated branch estate. Redundant sibling PRs were closed or
+absorbed only after their work was verified in that branch. A CI failure is repaired
+there; CI runtime is used for independent safe documentation, issue reconciliation,
+deliberate-defect coverage, and nonconflicting implementation rather than creating a
+new parallel finish line.
 
 The former Project #1 contains historical old-iteration work and is not clean-product
 authority. It must not be used to infer this roadmap or reintroduce historical
 implementation language such as an unqualified model-export claim of “faithful.”
 
-Required checks are evidence gates, not release state. The future `product-path` gate
-must require exact custom-stack evidence when changed semantics need it without making
+Required checks are evidence gates, not release state. The `product-path` gate must
+require exact custom-stack evidence when changed semantics need it without making
 documentation-only work depend unconditionally on a home runner. Performance receipts
 must be content-addressed and durably retained; a transient Actions summary is a
 convenience copy, not the evidence store.
