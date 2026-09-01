@@ -9,7 +9,8 @@
   `LP-GOVERNANCE-001`, `LP-FIRMWARE-001`, and `LP-CLEANROOM-001`.
 - Architecture projects `LP-ISA-001`, `LP-FRAMEWORK-001`, `LP-REUSE-001`,
   `LP-COHESION-001`, `LP-RECIPE-001`, `LP-BULK-001`, `LP-HIGHWAY-001`, `LP-ADMISSION-001`,
-  `LP-CONNECTION-001`, `LP-LIMITS-001`, and `LP-EXCEPTION-001`.
+  `LP-SEED-001`, `LP-TEMPLATE-001`, `LP-INFERENCE-001`, `LP-CONNECTION-001`,
+  `LP-LIMITS-001`, and `LP-EXCEPTION-001`.
 - Product-surface and node symmetry project `LP-APPLICATION-001`,
   `LP-ENTITY-WEB-001`, `LP-ENTITLEMENT-001`, `LP-NODE-001`,
   `LP-FEDERATION-001`, and `LP-PLACEMENT-001`.
@@ -53,6 +54,21 @@
   reusable lifecycle bases. Providers may vary physical mechanism, not meaning.
 - Text is not architecturally privileged.
 - Language, modality, source, and model are witnessed dimensions, not engine branches.
+- Laplace speaks Unicode and renders witnessed language or modality. Recipes select
+  addressable canonical compositions at the structural tier required by the program;
+  no fixed subword vocabulary, leading-space token, English pivot, stop-word deletion,
+  or punctuation erasure is native identity or semantics.
+- Defaults initialize an exact typed standing lane once. Glicko-2 matchups require real
+  outcome-bearing opponents and both prior states; earned trust requires an independent
+  return leg, immutable history, and dependence reduction. Exact physicality and formal
+  derivation never become votes.
+- The configured seed is an authority-selected manifest, not a directory listing.
+  Discovery, provider qualification, template inference/correction, profile admission,
+  configured-seed closure, deployed indirect-inference acceptance, and release are
+  separate states.
+- Source templates reuse qualified generic grammar/codec/AST structure and accepted
+  corrections while source-specific academic semantics, ambiguity, loss, unmatched
+  fields, testimony, and authority obligations remain explicit.
 - People, organizations, accounts, entitlements, achievements, interfaces, nodes, and
   federation are not application exceptions. They use the same referential state,
   AST, testimony, governance, recipe, effect, and receipt machinery.
@@ -92,6 +108,10 @@
 - Do not claim conversation from a lookup, model correctness from artifact shape, data
   quality from row counts, or installation from files merely existing.
 - Unknown and unsupported results are explicit typed outcomes.
+- Before release or production-user admission, the installed product must prove a
+  clean-seed indirect inference through the public cognition and realization route,
+  without direct target lookup, popularity voting, private helper bypass, or silent
+  language fallback, and retain derivation/trust/realization restart receipts.
 
 ## Repository changes
 

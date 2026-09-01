@@ -112,7 +112,13 @@ def validate_authority(document: dict) -> None:
     agents = next(item for item in order if item.get("path") == "AGENTS.md")
     require(agents.get("class") == "verified_working_projection", "AGENTS projection was promoted to inventor authority")
     agents_text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    contains_all(agents_text, ("verified agent-facing projection", "editing it cannot create", "LP-AST-001", "LP-GOVERNANCE-001", "LP-RECIPE-001", "LP-COHESION-001", "LP-MODEL-006", "LP-ADMISSION-001", "LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001", "LP-ENTITY-WEB-001", "LP-FEDERATION-001", "LP-MATERIALIZATION-001", "LP-ACTIVATION-001"), "AGENTS projection lost its authority joins")
+    contains_all(agents_text, ("verified agent-facing projection", "editing it cannot create", "LP-AST-001", "LP-GOVERNANCE-001", "LP-RECIPE-001", "LP-COHESION-001", "LP-MODEL-006", "LP-ADMISSION-001", "LP-SEED-001", "LP-TEMPLATE-001", "LP-INFERENCE-001", "LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001", "LP-ENTITY-WEB-001", "LP-FEDERATION-001", "LP-MATERIALIZATION-001", "LP-ACTIVATION-001"), "AGENTS projection lost its authority joins")
+    require("contracts/trust-matchup-realization.json" in paths, "trust matchup and realization contract is not load-bearing")
+    require("contracts/source-recipe-preparation.json" in paths, "source recipe preparation contract is not load-bearing")
+    trust_contract = load(ROOT / "contracts" / "trust-matchup-realization.json")
+    contains_all(trust_contract, ("Laplace speaks Unicode", "application_count", "opponent_rating", "return_leg", "silent_english_fallback"), "trust matchup token or realization law was narrowed")
+    source_recipe_contract = load(ROOT / "contracts" / "source-recipe-preparation.json")
+    contains_all(source_recipe_contract, ("directory listing", "FIDE", "FICS", "academic_hate_speech", "template_inference", "academic_semantic_delta", "clean_seed_inference_gate", "direct_string_lookup"), "selected seed template or deployed inference law was narrowed")
     require(paths[-1] == "state/continuation.json", "observed state is not loaded last")
     require("docs/audits/CONTINUATION_WORK_AUDIT_2026-08-26.md" in paths, "continuation work and action audit is not load-bearing")
     transformation_text = (ROOT / "requirements" / "features" / "universal_ast_recipe.feature").read_text(encoding="utf-8")
@@ -310,6 +316,47 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
     require(document.get("schema") == "laplace.continuation-checkpoint/v1", "continuation schema drift")
     require(document.get("classification") == "observed-development-state-not-product-law", "observed state promoted to product law")
     inputs = document.get("development_inputs", {})
+    repository = document.get("repository", {})
+    preservation_path = ROOT / repository.get("preserved_interrupted_work", "")
+    preservation_audit_path = ROOT / repository.get("preservation_audit", "")
+    require(
+        preservation_path.is_file() and preservation_audit_path.is_file(),
+        "interrupted local/UI work preservation evidence is missing",
+    )
+    preservation = load(preservation_path)
+    require(
+        preservation.get("schema") == "laplace.local-work-preservation/v1"
+        and preservation.get("classification")
+        == "observed-development-state-not-product-law-or-acceptance",
+        "interrupted work preservation state was promoted or malformed",
+    )
+    require(
+        preservation.get("preservation_method", {}).get("worktree_mutation") is False
+        and preservation.get("preservation_method", {}).get(
+            "remote_reachability_result_count"
+        )
+        == 0,
+        "interrupted work was not preserved non-destructively or is not remote-reachable",
+    )
+    interrupted = preservation.get("interrupted_worktrees", [])
+    require(
+        len(interrupted) == 2
+        and {item.get("label") for item in interrupted}
+        == {"pr93-local-session-work", "pr94-local-session-work"}
+        and all(item.get("snapshot_commit") and item.get("remote_ref") for item in interrupted),
+        "PR93/PR94 interrupted work preservation boundary drift",
+    )
+    contains_all(
+        preservation,
+        (
+            "session limit",
+            "UI-agent work advanced separately",
+            "does not make the interrupted local delta obsolete",
+            "do not reset",
+            "not tested or merge-ready",
+        ),
+        "local/UI work provenance, recovery, or nonclaims were narrowed",
+    )
     require(inputs.get("data_root", {}).get("observed_path") == "/vault/Data", "data root observation lost")
     require(inputs.get("model_root", {}).get("observed_path") == "/vault/models", "model root observation lost")
     contains_all(inputs.get("data_root", {}).get("observed_top_level_entries", []), ("UCD", "TreeSitter", "Wordnet", "FrameNet", "Tatoeba", "Games", "code-authority"), "known data-root inventory was narrowed")
@@ -1938,7 +1985,7 @@ def validate_operation(document: dict) -> None:
     cycles = document.get("runtime_cycles", {})
     require(set(cycles) == {"observe_calculate_realize", "evidence_learning", "calculus_extension", "model_symmetry"}, "whole machine cycles were omitted")
     stages = {stage.get("id"): stage for stage in document.get("stages", [])}
-    required = {"framework.execution", "machine.handle-exceptions", "substrate.compose-physicality", "substrate.bulk-deposit", "substrate.highway", "evidence.record-lineage", "world.admit-witnesses", "evidence.adjudicate", "query.guidance-search", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate", "product.materialize-entity-world", "runtime.federate-nodes"}
+    required = {"framework.execution", "machine.handle-exceptions", "substrate.compose-physicality", "substrate.bulk-deposit", "substrate.highway", "evidence.record-lineage", "world.discover-qualify-sources", "world.infer-source-templates", "world.admit-witnesses", "world.configure-foundational-seed", "evidence.adjudicate", "query.guidance-search", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate", "product.materialize-entity-world", "runtime.federate-nodes", "delivery.accept-seeded-inference", "delivery.release-product"}
     require(required.issubset(stages), "whole capability graph was narrowed")
     require("seed.heterogeneous" not in stages, "monolithic seed stage returned")
     require(set(stages["world.admit-witnesses"].get("depends_on", [])) == {"substrate.highway", "substrate.bulk-deposit", "evidence.record-lineage"}, "world admission dependencies drift")
@@ -1962,6 +2009,12 @@ def validate_operation(document: dict) -> None:
     require(stages["runtime.federate-nodes"].get("depends_on", [])[-1] == "product.materialize-entity-world", "federation bypasses authorized entity-world projection")
     require(stages["substrate.highway"].get("github_issues") == [52], "highway issue ownership drift")
     require(stages["world.admit-witnesses"].get("github_issues") == [53, 59], "world admission issue ownership drift")
+    require(stages["world.discover-qualify-sources"].get("github_issues") == [112], "source discovery and provider qualification issue ownership drift")
+    require(stages["world.infer-source-templates"].get("github_issues") == [115], "source template inference issue ownership drift")
+    require(110 in stages["evidence.adjudicate"].get("github_issues", []), "typed matchup onboarding issue ownership drift")
+    require(stages["delivery.accept-seeded-inference"].get("github_issues") == [116], "clean-seed inference acceptance issue ownership drift")
+    require(stages["delivery.release-product"].get("github_issues") == [22], "release issue ownership drift")
+    require(stages["delivery.accept-seeded-inference"].get("depends_on") == ["delivery.activate-product", "world.configure-foundational-seed", "cognition.realize-effect"], "clean-seed acceptance bypasses activation seed or cognition")
     contains_all(stages["framework.execution"].get("implementation", {}), ("published code proves", "universal AST type system", "recipe compiler", "remain unimplemented"), "framework partial state overclaims the recipe machine")
     contains_all(stages["bootstrap.unicode-root"].get("implementation", {}), ("controlled integration", "PostgreSQL 18.6 product cluster", "not proven"), "Unicode integration was promoted to product or generic-machine proof")
     contains_all(stages["substrate.bulk-deposit"].get("implementation", {}), ("merged pull request 73", "semantic parity", "provider-independent", "six provider mutants", "five-sample", "500000-records-per-second", "product activation"), "composition proof state drift")
