@@ -73,6 +73,7 @@
     "gateway_executable": "/opt/laplace/deployment/current/bin/laplace-product-activate",
     "product_builder": "tools/product/build-package.py",
     "distribution_controller": "tools/delivery/product_distribution.py",
+    "installer_root": "/build/laplace/runner/product/installers",
     "cluster_controller": "tools/postgresql/clusterctl.py",
     "host_contract": "contracts/postgresql-host.json",
     "host_controller": "tools/postgresql/hostctl.py",

@@ -128,6 +128,7 @@ def validate_contract(contract: dict[str, Any], repository: Path) -> None:
         "gateway_executable": "/opt/laplace/deployment/current/bin/laplace-product-activate",
         "product_builder": "tools/product/build-package.py",
         "distribution_controller": "tools/delivery/product_distribution.py",
+        "installer_root": "/build/laplace/runner/product/installers",
         "cluster_controller": "tools/postgresql/clusterctl.py",
         "host_contract": "contracts/postgresql-host.json",
         "host_controller": "tools/postgresql/hostctl.py",
@@ -135,6 +136,7 @@ def validate_contract(contract: dict[str, Any], repository: Path) -> None:
     }
     if modules != expected_modules:
         raise HostError("product host module selection differs")
+    require_logical_path(modules["installer_root"], "modules.installer_root")
     gateway_contract = load_json(repository / modules["gateway_contract"])
     cluster_contract = load_json(repository / modules["cluster_contract"])
     host_contract = load_json(repository / modules["host_contract"])
@@ -412,6 +414,36 @@ def prepare_product(
     product_receipt = Path(selection["product_receipt"])
     package_manifest = Path(selection["build_directory"]) / "package-manifest.json"
     package_source_root = Path(selection["stage_directory"]) / "root"
+    installer = run_service_json(
+        identity,
+        [
+            "/usr/bin/python3",
+            str(repository / modules["distribution_controller"]),
+            "build",
+            "--repository",
+            str(repository),
+            "--product-receipt",
+            str(product_receipt),
+            "--output-directory",
+            modules["installer_root"],
+        ],
+        7200,
+    )
+    bundle_id = distribution.require_hex(
+        installer.get("bundle_id"), "customer installer bundle id"
+    )
+    selection["customer_installer"] = {
+        "bundle_id": bundle_id,
+        "directory": f"{modules['installer_root']}/laplace-installer-{bundle_id}",
+        "manifest": (
+            f"{modules['installer_root']}/laplace-installer-{bundle_id}/"
+            "installer-manifest.json"
+        ),
+        "package_id": installer.get("package", {}).get("id"),
+        "unicode_source_id": installer.get("sources", {})
+        .get("unicode", {})
+        .get("id"),
+    }
     return prepare_selected_product(
         repository,
         contract,
