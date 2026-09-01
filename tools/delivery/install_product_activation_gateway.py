@@ -196,15 +196,32 @@ def install_gateway(
         os.chown(receipt_root, 0, 0)
 
     relative_target = os.path.relpath(release, active.parent)
+    previous_active_target: str | None = None
+    pointer_changed = False
     if active.is_symlink() and os.readlink(active) == relative_target:
         pass
-    elif active.exists() or active.is_symlink():
-        raise InstallError("existing activation gateway pointer differs")
     else:
+        if active.exists() and not active.is_symlink():
+            raise InstallError("existing activation gateway pointer is not a symlink")
+        if active.is_symlink():
+            previous_active_target = os.readlink(active)
+            try:
+                existing_release = active.resolve(strict=True)
+                existing_release.relative_to(release_root.resolve())
+            except (OSError, ValueError) as error:
+                raise InstallError(
+                    "existing activation gateway pointer escapes its release root"
+                ) from error
+            activation.verify_installed_bundle(
+                existing_release / "bin/laplace-product-activate",
+                require_root_ownership=root == Path("/"),
+            )
         active.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
         temporary_link = active.parent / f".{active.name}.{bundle_id[:16]}"
+        temporary_link.unlink(missing_ok=True)
         os.symlink(relative_target, temporary_link)
         os.replace(temporary_link, active)
+        pointer_changed = True
     receipt = {
         "schema": "laplace.product-activation-gateway-installation/v1",
         "bundle_id": bundle_id,
@@ -214,6 +231,8 @@ def install_gateway(
         "sudoers_sha256": activation.sha256_bytes(desired_sudoers),
         "secret_sha256": activation.sha256_bytes((key_text + "\n").encode("ascii")),
         "installed_new": installed_new,
+        "previous_active_target": previous_active_target,
+        "active_pointer_changed": pointer_changed,
         "root_owned": root == Path("/"),
     }
     receipt["receipt_sha256"] = activation.document_identity(receipt, "receipt_sha256")

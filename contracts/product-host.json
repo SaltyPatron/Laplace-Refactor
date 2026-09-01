@@ -52,6 +52,13 @@
       "purpose": "immutable content-addressed product releases"
     },
     {
+      "path": "/opt/laplace/sources",
+      "owner": "root",
+      "group": "root",
+      "mode": "0755",
+      "purpose": "immutable verified standards and configured source package inputs"
+    },
+    {
       "path": "/var/lib/agents/laplace-runner",
       "owner": "laplace-runner",
       "group": "laplace-runner",
@@ -65,6 +72,7 @@
     "gateway_installer": "tools/delivery/install_product_activation_gateway.py",
     "gateway_executable": "/opt/laplace/deployment/current/bin/laplace-product-activate",
     "product_builder": "tools/product/build-package.py",
+    "distribution_controller": "tools/delivery/product_distribution.py",
     "cluster_controller": "tools/postgresql/clusterctl.py",
     "host_contract": "contracts/postgresql-host.json",
     "host_controller": "tools/postgresql/hostctl.py",

@@ -37,6 +37,16 @@ hostctl = importlib.util.module_from_spec(HOSTCTL_SPEC)
 sys.modules[HOSTCTL_SPEC.name] = hostctl
 HOSTCTL_SPEC.loader.exec_module(hostctl)
 
+DISTRIBUTION_PATH = Path(__file__).with_name("product_distribution.py")
+DISTRIBUTION_SPEC = importlib.util.spec_from_file_location(
+    "laplace_product_host_distribution", DISTRIBUTION_PATH
+)
+if DISTRIBUTION_SPEC is None or DISTRIBUTION_SPEC.loader is None:
+    raise RuntimeError("cannot load product distribution controller")
+distribution = importlib.util.module_from_spec(DISTRIBUTION_SPEC)
+sys.modules[DISTRIBUTION_SPEC.name] = distribution
+DISTRIBUTION_SPEC.loader.exec_module(distribution)
+
 SCHEMA = "laplace.product-host-contract/v1"
 RECEIPT_SCHEMA = "laplace.product-host-convergence-receipt/v1"
 
@@ -117,6 +127,7 @@ def validate_contract(contract: dict[str, Any], repository: Path) -> None:
         "gateway_installer": "tools/delivery/install_product_activation_gateway.py",
         "gateway_executable": "/opt/laplace/deployment/current/bin/laplace-product-activate",
         "product_builder": "tools/product/build-package.py",
+        "distribution_controller": "tools/delivery/product_distribution.py",
         "cluster_controller": "tools/postgresql/clusterctl.py",
         "host_contract": "contracts/postgresql-host.json",
         "host_controller": "tools/postgresql/hostctl.py",
@@ -401,7 +412,34 @@ def prepare_product(
     product_receipt = Path(selection["product_receipt"])
     package_manifest = Path(selection["build_directory"]) / "package-manifest.json"
     package_source_root = Path(selection["stage_directory"]) / "root"
+    return prepare_selected_product(
+        repository,
+        contract,
+        product_receipt,
+        package_manifest,
+        package_source_root,
+        selection,
+        instance_request_path,
+    )
+
+
+def prepare_selected_product(
+    repository: Path,
+    contract: dict[str, Any],
+    product_receipt: Path,
+    package_manifest: Path,
+    package_source_root: Path,
+    selection: dict[str, Any],
+    instance_request_path: Path,
+) -> tuple[Path, Path, dict[str, Any], dict[str, Any]]:
+    modules = contract["modules"]
+    identity = contract["service_identity"]
     package_document = load_json(package_manifest)
+    package_id = gateway.activation.require_hex(
+        package_document.get("package_id"),
+        gateway.activation.HEX_64,
+        "selected package id",
+    )
     host_contract = hostctl.load_json(repository / modules["host_contract"])
     instance_request = hostctl.load_json(instance_request_path)
     cluster_contract = load_json(repository / modules["cluster_contract"])
@@ -469,6 +507,60 @@ def prepare_product(
     return product_receipt, resource_observation, selection, topology
 
 
+def prepare_distribution(
+    repository: Path,
+    contract: dict[str, Any],
+    distribution_manifest: Path,
+    instance_request_path: Path,
+) -> tuple[Path, Path, dict[str, Any], dict[str, Any]]:
+    if os.geteuid() != 0:
+        raise HostError("product distribution installation requires root")
+    materialized = distribution.materialize(distribution_manifest, Path("/"))
+    product_receipt = Path(materialized["product_receipt"])
+    package_manifest = Path(materialized["package_manifest"])
+    package_source_root = Path(materialized["package_source_root"])
+    selection = {
+        "schema": distribution.MATERIALIZATION_SCHEMA,
+        "plan_id": materialized["bundle_id"],
+        "plan_sha256": materialized["receipt_sha256"],
+        "build_directory": str(package_manifest.parent),
+        "stage_directory": str(package_source_root.parent),
+        "product_receipt": str(product_receipt),
+        "package_id": materialized["package_id"],
+        "built_new": False,
+        "unicode_source": materialized["unicode_source"],
+    }
+    return prepare_selected_product(
+        repository,
+        contract,
+        product_receipt,
+        package_manifest,
+        package_source_root,
+        selection,
+        instance_request_path,
+    )
+
+
+def ensure_local_unicode_source(
+    repository: Path,
+    gateway_contract: dict[str, Any],
+    root: Path,
+) -> dict[str, Any]:
+    source_contract_path = repository / "contracts/unicode-source.json"
+    source_contract = distribution.load_json(source_contract_path)
+    reference = source_contract.get("authority", {}).get(
+        "local_verified_reference_root"
+    )
+    if not isinstance(reference, str):
+        raise HostError("Unicode source contract omits its verified reference root")
+    return distribution.materialize_unicode_source(
+        source_contract_path,
+        Path(reference),
+        Path(gateway_contract["product"]["unicode_source_root"]),
+        root,
+    )
+
+
 def execute_local_selection(
     executable: Path,
     product_receipt: Path,
@@ -511,6 +603,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--generate-key", action="store_true")
     parser.add_argument("--request")
     parser.add_argument("--postgresql-publication")
+    parser.add_argument("--distribution")
     parser.add_argument("--instance-request")
     parser.add_argument("--root", default="/")
     parser.add_argument("--authorize-system-root", action="store_true")
@@ -549,13 +642,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         receipt, "receipt_sha256"
     )
     if arguments.command in {"install", "initial-run", "repair"}:
-        if (arguments.request is None) == (arguments.postgresql_publication is None):
+        selected_inputs = sum(
+            value is not None
+            for value in (
+                arguments.request,
+                arguments.postgresql_publication,
+                arguments.distribution,
+            )
+        )
+        if selected_inputs != 1:
             raise HostError(
-                f"{arguments.command} requires exactly one --request or --postgresql-publication"
+                f"{arguments.command} requires exactly one --request, "
+                "--postgresql-publication, or --distribution"
             )
         executable = prefixed(
             root, Path(load_json(contract_path)["modules"]["gateway_executable"])
         )
+        if arguments.distribution is None:
+            receipt["unicode_source"] = ensure_local_unicode_source(
+                repository, gateway_contract, root
+            )
         if arguments.request is not None:
             receipt["activation"] = execute_product_request(
                 executable, Path(arguments.request)
@@ -566,12 +672,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if arguments.instance_request is not None
                 else repository / load_json(contract_path)["modules"]["default_instance_request"]
             )
-            product_receipt, resource_observation, selection, topology = prepare_product(
-                repository,
-                load_json(contract_path),
-                Path(arguments.postgresql_publication),
-                instance_request,
-            )
+            if arguments.distribution is not None:
+                product_receipt, resource_observation, selection, topology = prepare_distribution(
+                    repository,
+                    load_json(contract_path),
+                    Path(arguments.distribution),
+                    instance_request,
+                )
+            else:
+                product_receipt, resource_observation, selection, topology = prepare_product(
+                    repository,
+                    load_json(contract_path),
+                    Path(arguments.postgresql_publication),
+                    instance_request,
+                )
             receipt["package_selection"] = selection
             receipt["host_topology"] = topology
             receipt["activation"] = execute_local_selection(
@@ -599,6 +713,7 @@ if __name__ == "__main__":
         HostError,
         gateway.InstallError,
         gateway.activation.ActivationGatewayError,
+        distribution.DistributionError,
     ) as error:
         print(f"product host: {error}", file=sys.stderr)
         raise SystemExit(1)

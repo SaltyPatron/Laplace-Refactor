@@ -1485,6 +1485,14 @@ set_tests_properties(product-host.convergence-contract PROPERTIES
     RUN_SERIAL TRUE)
 
 add_test(
+    NAME product-distribution.standalone-installer-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/product_distribution_tests.py")
+set_tests_properties(product-distribution.standalone-installer-contract PROPERTIES
+    LABELS "delivery;product;installation;distribution;package;mutation"
+    RUN_SERIAL TRUE)
+
+add_test(
     NAME product-package.contract-and-mutation
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/product_package_tests.py")
 set_tests_properties(product-package.contract-and-mutation PROPERTIES

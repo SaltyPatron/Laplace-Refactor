@@ -46,6 +46,11 @@ set(LAPLACE_DEPENDENCY_LOCK
 set(LAPLACE_INSTALLED_PROVIDER_LOCK
     "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/installed-lock.json"
     CACHE FILEPATH "Selected installed-provider byte lock")
+set(LAPLACE_PRODUCT_RECEIPT "" CACHE FILEPATH
+    "Accepted product receipt used to compose a standalone customer installer")
+set(LAPLACE_INSTALLER_OUTPUT_DIRECTORY
+    "/build/laplace/runner/product/installers"
+    CACHE PATH "Persistent output root for standalone customer installer bundles")
 option(LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER
     "Verify and enable the exact selected installed oneAPI execution provider"
     OFF)
@@ -230,6 +235,29 @@ if(LAPLACE_PG_CONFIG)
 endif()
 
 add_subdirectory(tools)
+
+if(LAPLACE_PRODUCT_RECEIPT)
+    if(NOT IS_ABSOLUTE "${LAPLACE_PRODUCT_RECEIPT}"
+       OR NOT EXISTS "${LAPLACE_PRODUCT_RECEIPT}")
+        message(FATAL_ERROR
+            "LAPLACE_PRODUCT_RECEIPT must name an existing absolute accepted receipt")
+    endif()
+    if(NOT IS_ABSOLUTE "${LAPLACE_INSTALLER_OUTPUT_DIRECTORY}")
+        message(FATAL_ERROR
+            "LAPLACE_INSTALLER_OUTPUT_DIRECTORY must be an absolute persistent path")
+    endif()
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_custom_target(laplace_product_installer
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/delivery/product_distribution.py"
+            build
+            --repository "${CMAKE_CURRENT_SOURCE_DIR}"
+            --product-receipt "${LAPLACE_PRODUCT_RECEIPT}"
+            --output-directory "${LAPLACE_INSTALLER_OUTPUT_DIRECTORY}"
+            --result "${CMAKE_CURRENT_BINARY_DIR}/laplace-product-installer-selection.json"
+        VERBATIM
+        COMMENT "Compose a source-checkout-free Laplace product installer")
+endif()
 
 if(BUILD_TESTING)
     if(NOT IS_ABSOLUTE "${LAPLACE_GTEST_SOURCE}")

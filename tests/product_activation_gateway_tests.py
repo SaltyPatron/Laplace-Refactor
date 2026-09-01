@@ -7,6 +7,7 @@ import copy
 import datetime as dt
 import importlib.util
 import json
+import shutil
 from pathlib import Path
 import sys
 import tempfile
@@ -363,6 +364,43 @@ class ProductActivationGatewayTests(unittest.TestCase):
                     root,
                     False,
                 )
+
+    def test_verified_gateway_upgrade_atomically_selects_a_new_generation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-gateway-upgrade-") as temporary:
+            root = Path(temporary) / "host"
+            repository = Path(temporary) / "repository"
+            key = Path(temporary) / "key"
+            key.write_text(base64.b64encode(KEY).decode("ascii") + "\n", encoding="ascii")
+            first = installer.install_gateway(
+                REPOSITORY,
+                REPOSITORY / "contracts/product-activation-gateway.json",
+                key,
+                root,
+                False,
+            )
+            for relative in installer.SOURCE_MAP.values():
+                source = REPOSITORY / relative
+                destination = repository / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, destination)
+            changed = repository / "tools/postgresql/hostctl.py"
+            changed.write_bytes(changed.read_bytes() + b"\n# upgrade fixture\n")
+            second = installer.install_gateway(
+                repository,
+                repository / "contracts/product-activation-gateway.json",
+                key,
+                root,
+                False,
+            )
+            self.assertNotEqual(first["bundle_id"], second["bundle_id"])
+            self.assertTrue(second["installed_new"])
+            self.assertTrue(second["active_pointer_changed"])
+            self.assertIsNotNone(second["previous_active_target"])
+            active = root / "opt/laplace/deployment/current"
+            self.assertEqual(active.resolve().name, second["bundle_id"])
+            self.assertTrue(
+                (root / "opt/laplace/deployment/releases" / first["bundle_id"]).is_dir()
+            )
 
     def test_workflow_keeps_pull_requests_out_of_the_activation_job(self) -> None:
         workflow = (REPOSITORY / ".github/workflows/product-activation.yml").read_text(

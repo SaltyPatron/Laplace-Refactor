@@ -59,7 +59,7 @@
     "package_release_root": "/opt/laplace/releases",
     "plan_receipt_root": "/build/laplace/runner/product/receipts/plans",
     "cluster_activation_root": "/opt/laplace/receipts/postgresql/refactor/cluster-activation",
-    "unicode_source_root": "/vault/Data/UCD/Public/UCD/latest",
+    "unicode_source_root": "/opt/laplace/sources/unicode/17.0.0",
     "unicode_result": "/opt/laplace/receipts/postgresql/refactor/unicode-activation-result.json",
     "highway_result": "/opt/laplace/receipts/postgresql/refactor/highway-activation-result.json"
   },
