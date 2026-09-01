@@ -346,6 +346,13 @@ def validate(repo_root: Path) -> None:
             "semantic repair",
             "logically correct result reached by a forbidden physical plan fails",
         ),
+        "docs/product/ROADMAP.md": (
+            "last verified capability snapshot",
+            "typed filtered indexed a-star",
+            "filter-first indexed frontier generation",
+            "recursive/dynamic sql cognition",
+            "cognition-execution contract/projection drift checks",
+        ),
         "requirements/features/query_neighborhood.feature": (
             "typed filtered indexed state search",
             "filter-first",
