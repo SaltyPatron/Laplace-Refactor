@@ -1,0 +1,171 @@
+{
+  "schema": "laplace.cognition-execution/v1",
+  "authority": {
+    "class": "executable_contract",
+    "stable_reference": "docs/architecture/COGNITION_EXECUTION.md",
+    "requirements": [
+      "LP-COGNITION-004",
+      "LP-QUERY-001",
+      "LP-SEARCH-001",
+      "LP-CONNECTION-001",
+      "LP-LIMITS-001",
+      "LP-BULK-001"
+    ],
+    "owners": [7, 14, 16, 17, 18, 60, 110, 132]
+  },
+  "terms": {
+    "forward_pass": "a finite query-relative native cognition execution over exact persistent substrate state; not autoregressive token continuation",
+    "search_umbrella": "typed filtered indexed search",
+    "astar_name": "typed filtered indexed A*",
+    "astar_claim_rule": "the A* name is permitted only when g+h, admissibility, state identity, reopen/tie, boundary and completion-certificate obligations are satisfied",
+    "fallback_name": "declared bounded/best-first search"
+  },
+  "logical_spine": [
+    "resolve canonical identities and selected structural altitude",
+    "orient from goal discourse session authority resources and obligations",
+    "compile finite typed guidance and search state",
+    "select only admissible transition-provider families",
+    "scan indexed physicality and occurrence candidates",
+    "scan indexed eligible typed facts and testimony",
+    "scan optional geometry locality and standing candidates",
+    "push semantically safe hard filters into candidate generation",
+    "form a bounded typed frontier",
+    "route with typed filtered indexed A* or the declared best-first law",
+    "fold only program-declared structural semantic evidence and standing channels",
+    "update bindings trajectory deficits and completion obligations",
+    "repeat while unresolved obligations and finite resources permit",
+    "select a complete semantic act or exact typed why-not result",
+    "realize or execute through the declared recipe",
+    "witness result path evidence boundary and execution receipt"
+  ],
+  "state_separation": [
+    "canonical content identity",
+    "physicality calculation",
+    "occurrence and observation",
+    "testimony and seeded fact",
+    "dependence and provenance",
+    "standing and adjudication epoch",
+    "query-relative operator state",
+    "realized or target artifact"
+  ],
+  "provider_law": {
+    "frontier": "set-wise bounded typed working set",
+    "selection": "choose only providers enabled by the compiled transition law",
+    "filter_pushdown": "push hard predicates into candidate generation whenever semantically safe",
+    "candidate_authority": "indexes and perfcaches generate candidates and never become truth",
+    "exact_validation": "exact native predicates remain authoritative where accelerators may admit false positives",
+    "absence": "accelerator miss is non-authoritative unless completeness is proven for the exact boundary",
+    "candidate_families": [
+      "constituent containment ordinal run and trajectory",
+      "semantic relation endpoint type role and direction",
+      "source context valid-time observation-time world visibility authority and evidence epoch",
+      "dependence root",
+      "typed standing lane",
+      "GiST Hilbert geometry point curve set and manifold locality",
+      "typed immutable perfcache modules"
+    ]
+  },
+  "astar": {
+    "priority": "f(s) = g(s) + h(s)",
+    "required_for_optimality_claim": [
+      "nonnegative declared transition costs",
+      "admissible heuristic for the exact typed state space",
+      "consistency proof or explicit reopen semantics",
+      "complete typed state identity and dominance",
+      "deterministic tie law",
+      "requested path multiplicity",
+      "finite evidence world authority resource and search boundary",
+      "terminal completion certificate"
+    ],
+    "when_unproven": [
+      "reachability",
+      "known upper bound",
+      "partial",
+      "unknown",
+      "exhausted",
+      "other declared typed disposition"
+    ]
+  },
+  "sql_native_boundary": {
+    "native_owner": "C/C++ and PostgreSQL server engine owns semantic calculation search and cognition",
+    "postgresql_owner": "durable state transactions constraints partitions statistics indexes and plan-visible set routing",
+    "sql_owner": "typed set-oriented orchestration program composition and invocation",
+    "managed_owner": "source service session API and lifecycle orchestration",
+    "plan_law": "primary cognition and search plans are prepared parameterized reusable set-oriented and measured at representative cardinality"
+  },
+  "forbidden_primary_path_mechanisms": [
+    "cursor-driven cognition",
+    "RBAR or caller-driven per-row traversal",
+    "one SQL or SPI query per frontier state when set-wise expansion is possible",
+    "recursive SQL or recursive CTE used as the native graph or search engine",
+    "dynamic SQL generated per candidate frontier row relation or fallback",
+    "silent scalar-query fallback from failed batch or indexed execution",
+    "unbounded whole-corpus scan where an admitted indexed provider exists",
+    "giant universal adjacency materialization before filtering",
+    "unbounded in-memory edge loading",
+    "row-trigger or per-row cache maintenance on scalable paths",
+    "accelerator miss treated as authoritative absence without completeness proof",
+    "semantic repair deferred-write completion cache-build vacuum-like repair or maintenance drain required before an otherwise valid interactive query can use admitted state",
+    "raw graph hop fixed fanout nearest-neighbor lookup scalar score or selected topic treated as cognition"
+  ],
+  "allowed_drain": "epoch-pinned readers may finish on a retired immutable perfcache generation after atomic handoff; this concurrency lifecycle is not semantic maintenance in the cognition path",
+  "allowed_dynamic_construction": "administrative DDL package or schema generation may use dynamic construction only inside its declared nonsemantic boundary and may not become cognition or search execution",
+  "edit_dispositions": {
+    "witness_or_interpretation": "canonical content unchanged; publish witnessed state or evidence epoch",
+    "occurrence_or_physicality_role": "canonical content unchanged; publish the declared occurrence or physicality state",
+    "relation_or_standing": "canonical endpoints unchanged; publish testimony calculation or standing epoch",
+    "canonical_constituent_or_value": "mint the new canonical content identity and every affected ancestor composition",
+    "intentional_ast_transformation": "publish a new exact composition and a receipted relation to the original",
+    "invertible_recipe": "descent reproduces the exact declared content and may not be replaced by probabilistic regeneration"
+  },
+  "required_execution_receipt": [
+    "compiled program and query identity",
+    "world evidence source time context and authority boundary",
+    "selected transition-provider families",
+    "index partition and perfcache generation per provider",
+    "frontier states in and out",
+    "candidate rows generated",
+    "candidate rows rejected by hard filters",
+    "exact candidate states accepted",
+    "rows examined",
+    "index scans and relevant heap or table fetches",
+    "server SPI and native crossings",
+    "g and h evaluations",
+    "dominance prunes",
+    "hard-filter authority dependence and contradiction prunes",
+    "reopen events",
+    "requested and returned path count",
+    "peak frontier width",
+    "peak working memory",
+    "CPU time",
+    "I/O time and buffers or bytes where available",
+    "elapsed time",
+    "result and completion optimality or upper-bound disposition",
+    "open obligations and exact continuation condition when incomplete"
+  ],
+  "postgresql_evidence": [
+    "representative EXPLAIN ANALYZE BUFFERS WAL SETTINGS TIMING where PostgreSQL participates",
+    "pg_stat_statements or equivalent bounded-crossing observation",
+    "selected index and partition plan identity",
+    "logical-result parity when a rebuildable accelerator is removed or substituted",
+    "measured performance delta rather than index-presence inference"
+  ],
+  "deliberate_defects": [
+    "raw-hop or fixed-fanout equivalence",
+    "endpoint-only state dominance",
+    "g-only priority while claiming A*",
+    "known path reported as shortest without completion proof",
+    "universal adjacency or global embedding similarity plane",
+    "per-frontier-state SQL or SPI expansion",
+    "recursive SQL search engine",
+    "dynamic per-candidate SQL cognition",
+    "scalar or RBAR fallback on a batch path",
+    "dropped source context time evidence or authority filter",
+    "dependent copies counted as independent evidence",
+    "accelerator miss treated as absence",
+    "semantic maintenance or repair drain required before query use",
+    "unbounded adjacency load or full-corpus scan despite an admitted indexed provider",
+    "result parity accepted without the required plan crossing frontier and performance receipt"
+  ],
+  "proof_boundary": "primitive kernels graph viewers one-hop queries historical behavior and green contract tests cannot prove the complete installed public cognition path"
+}
