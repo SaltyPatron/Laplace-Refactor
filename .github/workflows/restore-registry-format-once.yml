@@ -1,0 +1,53 @@
+name: restore-registry-format-once
+
+on:
+  push:
+    branches:
+      - codex/complete-laplace-20260831
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/complete-laplace-20260831
+          fetch-depth: 1
+      - name: Restore exact registry formatting and retain only the profile fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=6b351a3afcf53e98ab6fb9cb8f35b23ba1c5c441
+          git fetch --no-tags --depth=1 origin "$base"
+          git show FETCH_HEAD:tests/registry.json > /tmp/registry.base.json
+          python3 - <<'PY'
+          from pathlib import Path
+
+          src = Path('/tmp/registry.base.json').read_text(encoding='utf-8')
+          marker = '"ctest_name": "postgres.source-resource-guard-contract"'
+          start = src.find(marker)
+          if start < 0:
+              raise SystemExit('resource guard registry row missing from publication base')
+          next_entry = src.find('\n    {', start + len(marker))
+          if next_entry < 0:
+              next_entry = len(src)
+          row = src[start:next_entry]
+          old = '"profiles": ["postgres", "custom-stack"]'
+          new = '"profiles": ["core", "postgres", "custom-stack"]'
+          if row.count(old) != 1:
+              raise SystemExit(f'expected one old profile declaration in row, found {row.count(old)}')
+          row = row.replace(old, new, 1)
+          src = src[:start] + row + src[next_entry:]
+          Path('tests/registry.json').write_text(src, encoding='utf-8')
+          PY
+          python3 -m json.tool tests/registry.json >/dev/null
+          git rm .github/workflows/restore-registry-format-once.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tests/registry.json
+          git diff --cached --check
+          git commit -m 'Restore registry formatting with core resource guard profile'
+          git push origin HEAD:codex/complete-laplace-20260831
