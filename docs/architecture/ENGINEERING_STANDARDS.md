@@ -5,6 +5,11 @@ They apply to native code, PostgreSQL server integration, SQL, C#, generators, s
 recipes, tests, packages, and delivery automation. Passing formatting or compiling is
 not sufficient; the implementation must preserve the product laws.
 
+For query, search, conversation, realization planning, model-operator generation, or a
+related database hot path, `docs/architecture/COGNITION_EXECUTION.md` and
+`contracts/cognition-execution.json` are mandatory execution authority in addition to
+the general standards below.
+
 ## 1. Begin with the whole operation
 
 Before implementing a component, identify the complete product behavior, its typed
@@ -36,16 +41,17 @@ proof that distinguishes one machine from a collection of reusable-looking islan
 
 ## 2. One semantic implementation
 
-C/C++ and PostgreSQL server integration own every semantic operation. SQL and C# only
-orchestrate generated typed surfaces. A transport, source adapter, parser binding,
-cache, database serializer, test helper, CLI, HTTP endpoint, or target exporter cannot
-contain a second implementation of identity, AST lowering, composition, physicality,
-evidence, cognition, realization, or model semantics.
+C/C++ and PostgreSQL server integration own every semantic operation. PostgreSQL
+supplies durable state, transactions, constraints, indexes, statistics, partitions,
+and plan-visible set routing. SQL composes and invokes generated typed operations; C#
+orchestrates external lifecycle. Neither SQL nor C# contains another cognition/search
+engine.
 
 Scalar operations lower to the vector-first implementation. Serial, partitioned,
 parallel, direct-native, PostgreSQL, SQL, and managed routes produce identical logical
 results and receipt meaning. An optimization may change a physical plan, never the
-operation.
+operation. Failure of a preferred physical plan may not silently select a different
+semantic algorithm.
 
 ## 3. Generics, interfaces, and reuse
 
@@ -83,6 +89,12 @@ content, preserve unchanged subtree identities, and record typed edits and relat
 Unknown nodes, fields, errors, ambiguities, unsupported operations, and lossy paths are
 explicit outcomes.
 
+An implementation that edits addressable state must classify the state class before
+mutation. Witness/provenance/interpretation, occurrence/physicality role,
+relation/standing, canonical constituent/value, and intentional AST transformation
+have different identity and epoch consequences. Invertible recipes descend to exact
+content; probabilistic regeneration cannot impersonate exact recomposition.
+
 ## 5. Native code and ABI
 
 - Use fixed-width types at persisted, generated, wire, and ABI boundaries.
@@ -109,9 +121,65 @@ SQL owns transactions, constraints, indexes, set routing, program composition, a
 result projection. It does not implement recursive semantic algorithms in SQL text.
 Public functions use explicit namespaces and typed generated bindings, avoid hidden
 session settings, expose planner-visible structure where required, and retain exact
-`EXPLAIN (ANALYZE, BUFFERS, WAL)` evidence for performance claims.
+`EXPLAIN (ANALYZE, BUFFERS, WAL, SETTINGS, TIMING)` evidence for performance claims.
 
-## 7. Managed orchestration
+For cognition/search paths specifically:
+
+- frontier expansion is set-wise and bounded;
+- the compiled query chooses admissible provider families and hard filters are pushed
+  into indexes/perfcaches when semantically safe;
+- exact native predicates remain authoritative after candidate generation;
+- an index/perfcache miss cannot prove semantic absence without a completeness proof;
+- one SQL/SPI call per frontier state is forbidden when the same transition family can
+  be expanded as one bounded set operation;
+- cursors, RBAR, caller-driven per-row loops, recursive SQL/CTEs as the graph/search
+  engine, and unbounded adjacency loads are forbidden;
+- dynamic SQL generated per candidate, frontier row, relation, or fallback is
+  forbidden on the semantic hot path;
+- failure or absence of a declared batch/index plan may not silently fall back to a
+  scalar/RBAR algorithm; return a typed failure/why-not or select an explicitly
+  declared semantically equivalent physical plan with its own receipt and acceptance;
+- semantic repair, deferred-write completion, cache-build, vacuum-like repair, or
+  maintenance drains may not be prerequisites for otherwise valid admitted state to
+  participate in an interactive query. Epoch-pinned readers finishing on a retired
+  immutable perfcache generation after atomic handoff are a distinct legitimate
+  concurrency lifecycle;
+- dynamic DDL/package/schema construction is allowed only inside its explicit
+  nonsemantic administrative boundary and cannot become an execution language for
+  cognition.
+
+## 7. Typed filtered indexed cognition/search
+
+The canonical native cognition/search physical-plan discipline is:
+
+```text
+resolve exact identities / altitude
+-> compile finite typed guidance and search state
+-> select only admissible transition providers
+-> push safe filters into indexed candidate generation
+-> form a bounded typed frontier
+-> typed filtered indexed A* or declared best-first law
+-> fold only program-declared channels
+-> update bindings trajectory deficits and completion obligations
+-> repeat only while finite resources and unresolved obligations permit
+-> semantic act / exact typed why-not
+-> realization/effect + complete receipt
+```
+
+Use the name A* only when the implementation executes actual `g+h` and satisfies the
+admissibility, consistency/reopen, complete typed-state dominance, deterministic tie,
+path-multiplicity, finite-boundary, and completion-certificate contracts. Otherwise
+name the actual best-first/bounded law. A raw hop, fixed fanout, lookup, KNN/ANN result,
+selected topic, or scalar priority is not cognition.
+
+The active frontier is a bounded working set over exact persistent state, not a license
+to materialize world-all-pairs adjacency. Exact identity, Merkle-DAG/subtree reuse,
+trajectory-prefix/run reuse, transposition/convergent-state reuse, per-epoch result
+reuse, and measured typed acceleration are exploited before repeated computation.
+Claims that corpus growth is decoupled from active inference work require measured
+representative evidence.
+
+## 8. Managed orchestration
 
 C# owns source, session, service, product API, and external-system lifecycle. It uses
 generated types and a generic transport/lifecycle spine, batches work, applies
@@ -119,7 +187,7 @@ backpressure, propagates cancellation and authority, and preserves native receip
 It does not normalize semantics, reinterpret errors, rebuild ASTs, or implement a
 private cognition path.
 
-## 8. Persistence, acceleration, and effects
+## 9. Persistence, acceleration, and effects
 
 Canonical content/AST state, occurrences/testimony, reproducible derived epochs,
 retained inference/working state, acceleration artifacts, and external effects have
@@ -139,7 +207,7 @@ bloat cost, read CPU/I/O/latency benefit, work avoided, rebuild law, observation
 window, and removal condition. Acceleration removal may fail a performance budget but
 must preserve semantics and receipt meaning.
 
-## 9. Tests and evidence
+## 10. Tests and evidence
 
 Tests execute the production implementation at the boundary they claim. Important
 tests have a deliberate mutant that changes the mechanism and must fail for the exact
@@ -151,7 +219,20 @@ effects, resources, timings, and completion. Performance evidence includes the c
 machine, real input, samples, timing boundary, CPU, memory, I/O, database calls, WAL,
 and durable output counts. Small-fixture extrapolation is prohibited.
 
-## 10. Build, generation, and repository discipline
+Representative cognition/search receipts additionally include the compiled query and
+boundary, selected providers/indexes/partitions/perfcache generations, frontier states
+in/out, candidates generated/rejected/accepted, rows examined, relevant heap/table
+fetches, server/SPI/native crossings, `g`/`h` evaluations, prune classes, reopen events,
+path counts, peak frontier and working memory, CPU, I/O/buffers, elapsed time, and the
+completion/optimality/upper-bound disposition. A logically correct result reached by a
+forbidden physical plan fails scalable-search acceptance.
+
+Deliberate search/database mutants include per-frontier-state SPI, recursive SQL,
+dynamic per-candidate SQL, scalar/RBAR fallback, giant pre-filter adjacency, dropped
+hard filters, accelerator-miss-as-absence, and semantic maintenance drain. Each must
+turn the exact owning acceptance gate red.
+
+## 11. Build, generation, and repository discipline
 
 Contracts generate identifiers, ABI declarations, bindings, documentation tables, and
 other repeated authority. Generated files identify their generator and exact source
