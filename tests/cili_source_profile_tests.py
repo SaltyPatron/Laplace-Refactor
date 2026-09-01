@@ -16,6 +16,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "contracts" / "sources" / "cili-pwn-mappings-20240611.json"
 GENERATOR = ROOT / "tools" / "contracts" / "generate-tabular-source-profile.py"
+SOURCE_SUITE = ROOT / "tests" / "postgres" / "source_admission_suite_contract.sql"
 SOURCE = Path(
     os.environ.get(
         "LAPLACE_CILI_SOURCE_ROOT",
@@ -72,6 +73,42 @@ class CiliSourceProfileContract(unittest.TestCase):
             "Changed descriptive label"
         changed = self.compile(source_specific_name_does_not_control_generated_namespace, True)
         self.assertIn(b"namespace laplace::generated::cili_pwn_mappings_20240611", changed)
+
+    def test_whole_route_emits_canonical_cardinality_and_replay_receipt(self) -> None:
+        suite = SOURCE_SUITE.read_text(encoding="utf-8")
+        self.assertIn(
+            "LAPLACE_QA_RECEIPT cili_admission_cardinality ", suite
+        )
+        for field in (
+            "reported_request_count",
+            "reported_durable_stream_record_count",
+            "canonical_entity_delta",
+            "canonical_physicality_delta",
+            "explicit_occurrence_delta",
+            "reference_coordinate_delta",
+            "reference_occurrence_delta",
+            "mapping_proposition_delta",
+            "mapping_occurrence_delta",
+            "evidence_node_delta",
+            "testimony_delta",
+            "replay_entity_growth",
+            "replay_physicality_growth",
+            "replay_occurrence_growth",
+            "replay_evidence_node_growth",
+            "replay_testimony_growth",
+        ):
+            self.assertIn(f"'{field}'", suite)
+        self.assertIn("'request_count', 24163435", suite)
+        self.assertIn("'reported_approximate_peak_memory_gib', 20.7", suite)
+        mutant = suite.replace(
+            "'canonical_entity_delta', after_first.entity_count - before.entity_count",
+            "'canonical_entity_delta', first.request_count",
+            1,
+        )
+        self.assertNotIn(
+            "'canonical_entity_delta', after_first.entity_count - before.entity_count",
+            mutant,
+        )
 
     @unittest.skipUnless(SOURCE.is_dir(), "locked CILI source root unavailable")
     def test_locked_members_are_exact_headerless_bit_recomposable_content(self) -> None:
