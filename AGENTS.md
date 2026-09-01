@@ -1,6 +1,6 @@
 # Laplace implementation-agent execution contract
 
-This file projects the governing invention and executable contracts into concrete implementation behavior. It cannot narrow or supersede inventor-direct requirements.
+This file projects the governing invention and executable contracts into concrete implementation behavior. It is a **verified agent-facing projection** of higher authority; editing it cannot create, remove, or narrow product authority or requirements.
 
 ## Required authority load order
 
@@ -25,6 +25,10 @@ Before selecting or changing work, load `contracts/authority-stack.json` and fol
 17. `state/continuation.json`
 
 Direct inventor corrections outrank every derived artifact. Stable product law outranks roadmap, issue, branch, current implementation and observed runtime state. When derived sources disagree, repair the lower source instead of asking the user to re-specify the invention.
+
+### Machine-joined authority requirements
+
+This projection must remain joined to the executable requirement graph. At minimum, implementation work preserves and traces the authority represented by `LP-AST-001`, `LP-GOVERNANCE-001`, `LP-RECIPE-001`, `LP-COHESION-001`, `LP-MODEL-006`, `LP-ADMISSION-001`, `LP-CONNECTION-001`, `LP-LIMITS-001`, `LP-EXCEPTION-001`, `LP-ENTITY-WEB-001`, `LP-FEDERATION-001`, `LP-MATERIALIZATION-001`, and `LP-ACTIVATION-001`. These joins are requirement references, not permission for this file to redefine them.
 
 ## Delivery accountability
 
