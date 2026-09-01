@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,9 @@ import subprocess
 import sys
 import time
 from typing import Sequence
+
+
+EMBEDDED_RECEIPT_PREFIX = "LAPLACE_QA_RECEIPT"
 
 
 def allocated_bytes(root: Path) -> int:
@@ -66,6 +70,13 @@ def resident_bytes(root_pid: int) -> int:
                     total += int(fields[1]) * 1024
                 break
     return total
+
+
+def command_fingerprint(command: Sequence[str]) -> str:
+    encoded = json.dumps(
+        list(command), ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def parse_args(arguments: Sequence[str]) -> argparse.Namespace:
@@ -162,9 +173,11 @@ def run(arguments: argparse.Namespace) -> int:
         time.sleep(arguments.sample_seconds)
 
     elapsed = time.monotonic() - started
+    fingerprint = command_fingerprint(arguments.command)
     receipt = {
         "schema": "laplace.postgresql-test-resource-guard/v1",
         "result": "resource-ceiling-breached" if breach is not None else "completed",
+        "command_fingerprint": fingerprint,
         "elapsed_seconds": round(elapsed, 6),
         "accounting": {
             "data_bytes": "allocated growth from pre-command baseline",
@@ -184,12 +197,17 @@ def run(arguments: argparse.Namespace) -> int:
         "breach": breach,
         "client_returncode": child.returncode,
     }
-    arguments.receipt.write_text(
-        json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
-        encoding="utf-8",
-    )
+    encoded = json.dumps(receipt, sort_keys=True, separators=(",", ":"))
+    arguments.receipt.write_text(encoded + "\n", encoding="utf-8")
+
+    # CTest workspaces are disposable. Emit the exact receipt as a single line so
+    # custom_stack_qa.py can embed it in the BLAKE3-addressed terminal QA receipt
+    # before the physical workspace is removed.
+    receipt_name = f"postgres_resource_guard_{fingerprint[:16]}"
+    print(f"{EMBEDDED_RECEIPT_PREFIX} {receipt_name} {encoded}")
+
     if breach is not None:
-        print(json.dumps(receipt, sort_keys=True), file=sys.stderr)
+        print(encoded, file=sys.stderr)
         return 90
     return int(child.returncode or 0)
 
