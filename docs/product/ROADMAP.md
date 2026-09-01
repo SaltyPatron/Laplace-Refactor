@@ -26,7 +26,12 @@ An issue, document, schema, Gherkin scenario, green authority test, or populated
 does not advance a mechanism to an implementation proof state. One corpus, grammar,
 modality, model, platform, or product surface cannot certify the universal machine.
 
-## Present boundary — 2026-08-26
+## Last verified capability snapshot — 2026-08-26
+
+This is the latest capability snapshot currently encoded in this roadmap. The calendar
+may be later than this snapshot. A later issue, PR, workflow run, or conversation does
+not silently advance these rows; the operation/roadmap projection must be updated from
+accepted evidence when its proof state changes.
 
 | Capability | Current fact |
 | --- | --- |
@@ -43,7 +48,7 @@ modality, model, platform, or product surface cannot certify the universal machi
 | Whole-machine typed numerical highway | Partial: exact generated registry and scoped coordinates, ISA materialization, canonical Unicode-backed AST admission, shared presence/deposition, controlled numeric-epoch activation, epoch-pinned active readback, and protected product-controller/gateway composition implemented; protected product activation and whole-seed topology remain incomplete |
 | Exact non-Unicode source profiles | Partial: the real ISO 639-3 2026-04-15 release profile and generic tabular compiler are controlled-integration proven; no profile is world-admitted in the activated product |
 | Heterogeneous world admission and foundational knowledge seed | Partial mechanism: synthetic and ISO 639-3 whole routes are controlled-integration proven; no activated-product world admission or configured foundational seed exists |
-| Typed A-star query, answerability, cognition, and realization | Unimplemented |
+| Typed filtered indexed A-star query, answerability, cognition, and realization | Unimplemented; architecture and acceptance are centralized by `docs/architecture/COGNITION_EXECUTION.md` / `contracts/cognition-execution.json` but that does not prove the mechanism |
 | General model decomposition and target compiler | Unimplemented |
 | Typed model-behavior admission and measured effective support | Unimplemented; tracked by #71 |
 | Entity worlds, personal webs, entitlement policy, and product surfaces | Unimplemented |
@@ -105,7 +110,7 @@ product Unicode root + typed numerical highway
 testimony / lineage + exact heterogeneous source profiles and world admission
               |
               v
-adjudication + typed operators + indexed A* + answerability
+adjudication + typed operators + typed filtered indexed search/A* + answerability
               |
               v
 semantic acts + recomposition/effects + OODA/Goedel learning
@@ -148,7 +153,7 @@ different structural, reference, evidence, and realization programs.
 | `evidence.record-lineage` | Immutable occurrences, testimony, derivation, and dependence roots | #16 | Partial: typed lineage plus complete profile/recipe/trust/outcome/uncertainty testimony records execute through native, ISA, managed, PostgreSQL, and one real ISO source route; adjudication and cross-source dependence remain | Cross-source provenance, negative/unresolved real-source dispositions, standing, contradiction, referential and consensus epochs |
 | `world.admit-witnesses` | Exact source profiles and heterogeneous AST world admission | #53, #59 | Partial: generic tabular recipe plus synthetic and real ISO 639-3 source-to-PostgreSQL whole routes are controlled-integration proven; selected tables are exact while the archive wrapper is provenance-only; 18,805 typed ISO reference occurrences resolve into 9,339 scoped coordinates with 18,404 present, 401 retired, and zero unresolved dispositions; product world admission is absent | Unrelated grammars/modalities, explicit cross-namespace mappings, cross-profile closure, activated-product readback, complete configured profiles, performance, and seed receipt |
 | `evidence.adjudicate` | Immutable standing, contradiction, and referential epochs | #16 | Unimplemented | Deterministic dependence-aware adjudication and as-of replay |
-| `query.guidance-search` | Typed operators, guidance, indexed A-star, answerability, and completion | #17, #60 | Unimplemented | Independent oracles, shortest-path certificates, typed incompleteness, SQL parity |
+| `query.guidance-search` | Typed operators, finite guidance, filter-first indexed frontier generation, typed filtered indexed A-star/declared best-first search, answerability, and completion | #17, #60 | Unimplemented | Common cognition-execution contract, independent oracles, shortest-path certificates, typed incompleteness, route parity, and representative provider/index/frontier/crossing/CPU/memory/I/O receipts; forbidden RBAR/recursive/dynamic/fallback plans fail even on result parity |
 | `cognition.realize-effect` | Semantic-act selection, reversible realization, and authorized effects | #18 | Unimplemented | Goal completion, AST transformation, exact recomposition, effect and consequence receipts |
 | `learning.discovery-ooda` | Evidence learning, frayed-edge discovery, experiments, and calculus extension | #19 | Unimplemented | Disjoint evidence, counterexamples, OODA replay, non-self-corroboration |
 | `model.ingest-generate` | Model witnesses, behavior experiments, effective support, induced operators, AImaps, and named-invariant target compilation | #20, #61, #71 | Unimplemented | Typed behavior readback and target-runtime oracles reject arbitrary pruning, flattening, and shape-only exports |
@@ -186,9 +191,17 @@ interesting corpus:
    reference, evidence, readback, denominator, performance, and publication receipts.
 6. Admit the configured foundational world boundary. This—not WordNet, PGN, or any
    other exemplar—is the knowledge-seed outcome.
-7. Build typed operators, indexed search, answerability, cognition, recomposition, and
-   realization over that state. KNN, ANN, geometry, perfcaches, and top-k may generate
-   frontier candidates; none becomes universal relevance, truth, or completion.
+7. Implement the common `docs/architecture/COGNITION_EXECUTION.md` path over that state:
+   exact resolve/orient, compiled typed guidance, admissible provider selection, safe
+   filter pushdown, bounded set-wise frontier generation, typed filtered indexed A-star
+   or the declared best-first law, evidence fold, obligation update, exact why-not or
+   semantic completion, and realization. KNN, ANN, geometry, perfcaches, and top-k may
+   generate candidates; none becomes universal relevance, truth, or completion.
+   Cursor/RBAR/per-frontier-state SQL/SPI, recursive/dynamic SQL cognition, silent
+   scalar fallback, giant pre-filter adjacency/world scans, accelerator-miss-as-absence,
+   and semantic maintenance drains must fail the same acceptance lane even if they
+   return a logically correct answer. Representative plan/frontier/crossing/CPU/memory/
+   I/O/timing receipts are required.
 8. Prove model witness/target compilation and entity-world product surfaces as sibling
    programs over the same machine. Admit model behavior through typed experiment
    coordinates and measured effective-support laws under #71. Do not flatten relation
@@ -201,8 +214,9 @@ interesting corpus:
 
 ## Parallel lanes that do not change the critical path
 
-- **Authority and acceptance:** maintain requirement trace, deliberate-defect
-  coverage, generated manual inputs, and proof-state accuracy as mechanisms land.
+- **Authority and acceptance:** maintain requirement trace, cognition-execution
+  contract/projection drift checks, deliberate-defect coverage, generated manual
+  inputs, and proof-state accuracy as mechanisms land.
 - **DevOps and receipts:** make the product-path gate change-sensitive, retain
   content-addressed receipts beyond transient Actions retention, reconcile stale PRs,
   retain exact storage-class and paired acceleration receipts, and add
