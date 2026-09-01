@@ -15,6 +15,11 @@ static void laplace_pg_machine_exception_descriptor_values(
     Datum values[6],
     bool nulls[6]) {
     size_t index = 0;
+#if defined(LAPLACE_TEST_PG_MACHINE_EXCEPTION_CAPABILITY_DRIFT)
+    laplace_machine_exception_descriptor drifted = *descriptor;
+    drifted.capability_flags ^= UINT32_C(1);
+    descriptor = &drifted;
+#endif
 
     if (laplace_machine_exception_descriptor_validate(descriptor) !=
         LAPLACE_MACHINE_EXCEPTION_OK) {

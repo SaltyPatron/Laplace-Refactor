@@ -204,6 +204,9 @@ if(BUILD_TESTING)
     laplace_add_postgresql_mutant(
         laplace_pg_unicode_access_epoch_mutant
         LAPLACE_TEST_UNICODE_ACCESS_IGNORE_EXPECTED_EPOCH)
+    laplace_add_postgresql_mutant(
+        laplace_pg_machine_exception_drift_mutant
+        LAPLACE_TEST_PG_MACHINE_EXCEPTION_CAPABILITY_DRIFT)
 endif()
 
 install(TARGETS laplace_pg

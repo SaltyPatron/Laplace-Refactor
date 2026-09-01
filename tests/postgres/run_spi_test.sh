@@ -241,6 +241,25 @@ elif [[ "$mode" == "stock-catalog" ]]; then
         shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
         psql_arguments+=(-v "$shell_name=$value")
     done <<<"$probe_output"
+elif [[ "$mode" == "machine-exception" ||
+        "$mode" == "machine-exception-mutation" ]]; then
+    probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$native_probe")
+    expected_hex=$(awk -F= \
+        '$1 == "MACHINE_EXCEPTION_EXPECTED_HEX" {print $2}' <<<"$probe_output")
+    if [[ ! "$expected_hex" =~ ^[0-9a-f]+$ ]]; then
+        echo "native machine-exception probe emitted an invalid registry" >&2
+        exit 90
+    fi
+    psql_arguments+=(-v "machine_exception_expected_hex=$expected_hex")
+    if [[ "$mode" == "machine-exception-mutation" ]]; then
+        if [[ -z "${LAPLACE_MUTANT_MODULE:-}" ||
+              ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
+            echo "machine-exception mutant module is missing" >&2
+            exit 66
+        fi
+        psql_arguments+=(-v "machine_exception_mutant_module=$LAPLACE_MUTANT_MODULE")
+    fi
 elif [[ "$mode" == "perfcache-mutation" ]]; then
     if [[ -z "${LAPLACE_MUTANT_MODULE:-}" || ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
         echo "perfcache mutant module is missing" >&2

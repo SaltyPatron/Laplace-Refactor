@@ -2728,6 +2728,10 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/stock_recipe_contract.sql"
         @ONLY)
     configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/machine_exception_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/machine_exception_contract.sql"
+        COPYONLY)
+    configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/standing_replay_mutation.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_replay_mutation.sql"
         COPYONLY)
@@ -2830,6 +2834,13 @@ if(LAPLACE_POSTGRES_ENABLED)
     target_link_libraries(laplace_postgres_stock_recipe_probe PRIVATE
         Laplace::StockRecipe Laplace::Isa)
     target_compile_options(laplace_postgres_stock_recipe_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+    add_executable(laplace_postgres_machine_exception_probe
+        postgres/machine_exception_probe.cpp)
+    target_link_libraries(laplace_postgres_machine_exception_probe PRIVATE
+        Laplace::MachineException)
+    target_compile_options(laplace_postgres_machine_exception_probe PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 
     add_executable(laplace_postgres_iso_639_profile_probe
@@ -2960,6 +2971,48 @@ if(LAPLACE_POSTGRES_ENABLED)
         RUN_SERIAL TRUE
         ENVIRONMENT
             "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/postgres;LAPLACE_POSTGRES_TEST_PORT=55439")
+
+    add_test(
+        NAME postgres.machine-exception-registry-route-contract
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            machine-exception
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_machine_exception_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/machine_exception_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.machine-exception-registry-route-contract PROPERTIES
+        LABELS "implementation;postgresql;machine-exception;registry;parity"
+        RUN_SERIAL TRUE
+        ENVIRONMENT
+            "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/postgres;LAPLACE_POSTGRES_TEST_PORT=55440")
+
+    add_test(
+        NAME postgres.mutation-machine-exception-route-drift-detected
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "LAPLACE_MUTANT_MODULE=$<TARGET_FILE:laplace_pg_machine_exception_drift_mutant>"
+            "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            machine-exception-mutation
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_machine_exception_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/machine_exception_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.mutation-machine-exception-route-drift-detected PROPERTIES
+        LABELS "implementation;postgresql;machine-exception;registry;parity;mutation"
+        RUN_SERIAL TRUE
+        ENVIRONMENT
+            "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/postgres;LAPLACE_POSTGRES_TEST_PORT=55441")
 
     add_test(
         NAME postgres.mutation-standing-replay-conflict-detected
