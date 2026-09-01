@@ -293,6 +293,83 @@ raise SystemExit(exit_code)
                 lane["executed_tests"], ["core.one", "core.two"]
             )
             self.assertTrue(lane["selection_verified"])
+            self.assertTrue(lane["evidence_receipts_verified"])
+            self.assertEqual(lane["embedded_receipts"], [])
+
+    def test_embedded_physical_receipts_are_retained_in_terminal_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            embedded = {
+                "schema": "laplace.postgresql-test-resource-guard/v1",
+                "result": "completed",
+                "maxima": {"rss_bytes": 123456},
+            }
+            fake = self._fake_ctest(
+                root,
+                inventory=["selected.physical"],
+                junit=(
+                    "<testsuite>"
+                    "<testcase name=\"selected.physical\" time=\"0.2\"/>"
+                    "</testsuite>"
+                ),
+                output=(
+                    "LAPLACE_QA_RECEIPT postgres_source_resource_guard "
+                    + json.dumps(embedded, separators=(",", ":"))
+                ),
+            )
+            plan = {
+                "schema": qa.PLAN_SCHEMA,
+                "head_sha": "candidate",
+                "selected_profiles": ["fixture"],
+                "core_tests": [],
+                "selected_physical_tests": ["selected.physical"],
+                "selected_physical_parallel_jobs": 1,
+            }
+            result = root / "result.json"
+            status = qa.execute_plan(
+                plan, root / "build", root / "qa", result, str(fake)
+            )
+            self.assertEqual(status, 0)
+            recorded = json.loads(result.read_text(encoding="utf-8"))
+            lane = recorded["lanes"][0]
+            self.assertTrue(lane["evidence_receipts_verified"])
+            self.assertEqual(
+                lane["embedded_receipts"],
+                [{"name": "postgres_source_resource_guard", "receipt": embedded}],
+            )
+
+    def test_malformed_embedded_receipt_turns_zero_exit_red(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake = self._fake_ctest(
+                root,
+                inventory=["selected.physical"],
+                junit=(
+                    "<testsuite>"
+                    "<testcase name=\"selected.physical\" time=\"0.2\"/>"
+                    "</testsuite>"
+                ),
+                output="LAPLACE_QA_RECEIPT broken {not-json}",
+            )
+            plan = {
+                "schema": qa.PLAN_SCHEMA,
+                "head_sha": "candidate",
+                "selected_profiles": ["fixture"],
+                "core_tests": [],
+                "selected_physical_tests": ["selected.physical"],
+                "selected_physical_parallel_jobs": 1,
+            }
+            result = root / "result.json"
+            status = qa.execute_plan(
+                plan, root / "build", root / "qa", result, str(fake)
+            )
+            self.assertEqual(status, qa.EVIDENCE_RECEIPT_EXIT)
+            recorded = json.loads(result.read_text(encoding="utf-8"))
+            lane = recorded["lanes"][0]
+            self.assertFalse(lane["evidence_receipts_verified"])
+            self.assertEqual(
+                lane["primary_failure"]["class"], "evidence-receipt-failure"
+            )
 
     def test_empty_execution_plan_fails_closed_with_terminal_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
