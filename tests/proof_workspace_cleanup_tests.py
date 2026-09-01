@@ -9,6 +9,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -108,6 +109,41 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
         self.assertEqual(receipt["minimum_age_seconds"], 300)
         self.assertEqual(receipt["results"][0]["state"], "removed")
         self.assertFalse(target.exists())
+
+    def test_discovered_inaccessible_stale_residue_is_reported_not_promoted(self) -> None:
+        target = self.root / "lp-pg.OldResidue"
+        target.mkdir()
+        old = time.time() - 600
+        os.utime(target, (old, old))
+        denied = PermissionError(13, "Permission denied", str(target))
+        with mock.patch.object(CLEANUP, "_remove_entry", side_effect=denied):
+            receipt = CLEANUP.cleanup(
+                self.root,
+                [target.name],
+                minimum_age_seconds=300,
+                proc_root=self.root / "no-proc",
+                report_inaccessible_names=frozenset((target.name,)),
+            )
+        result = receipt["results"][0]
+        self.assertEqual(result["state"], "inaccessible")
+        self.assertEqual(result["reason"], "permission-denied")
+        self.assertEqual(result["removed_entries"], 0)
+        self.assertTrue(target.exists())
+
+    def test_explicit_inaccessible_workspace_still_fails_cleanup(self) -> None:
+        target = self.root / "laplace-output"
+        target.mkdir()
+        denied = PermissionError(13, "Permission denied", str(target))
+        with mock.patch.object(CLEANUP, "_remove_entry", side_effect=denied):
+            with self.assertRaisesRegex(
+                CLEANUP.CleanupError, "cannot remove explicitly named"
+            ):
+                CLEANUP.cleanup(
+                    self.root,
+                    [target.name],
+                    proc_root=self.root / "no-proc",
+                )
+        self.assertTrue(target.exists())
 
     def test_workflows_sweep_interrupted_residue_and_cleanup_terminal_workspaces(self) -> None:
         custom_names = (
