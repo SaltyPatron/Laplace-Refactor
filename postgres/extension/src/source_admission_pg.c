@@ -11,6 +11,7 @@
 #include "postgres.h"
 #include "executor/spi.h"
 #include "fmgr.h"
+#include "lib/stringinfo.h"
 #include "utils/builtins.h"
 #include "utils/errcodes.h"
 
