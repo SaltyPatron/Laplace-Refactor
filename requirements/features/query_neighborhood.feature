@@ -51,14 +51,20 @@ Feature: Program-scoped typed neighborhood calculation
     Then component values, ordering, ties, selected set, and receipts agree
     And no route substitutes a private metric or importance implementation
 
-  Scenario: A cognition query compiles an indexed typed state search
+  @LP-TEST-SEARCH-QUERY-COMPILED-STATE @LP-TEST-SEARCH-INDEXED-BULK-FRONTIER
+  Scenario: A cognition query compiles typed filtered indexed state search
     Given a goal requires containment, ordinal, semantic, source-standing, and geometric transitions
     When Laplace compiles its search program
     Then the initial states, terminal predicate, enabled transition families, hard constraints, accumulated costs, remaining-cost estimate, evidence epoch, and tie rules are explicit
-    And native and PostgreSQL indexes generate each eligible frontier family in bounded bulk batches
+    And only provider families justified by the compiled transition law participate
+    And semantically safe source context time world authority evidence relation trajectory geometry dependence and standing filters are pushed into candidate generation
+    And native PostgreSQL indexes and typed perfcaches generate each eligible frontier family in bounded bulk batches
+    And exact native predicates remain authoritative after candidate generation
+    And an accelerator miss is not semantic absence unless completeness is proven for the exact boundary
     And no scalar graph or permanent vector space replaces the typed state transitions
 
-  Scenario: An A-star optimality claim requires a valid heuristic contract
+  @LP-TEST-SEARCH-ASTAR-OPTIMALITY-CERTIFICATE
+  Scenario: A typed filtered indexed A-star optimality claim requires a valid heuristic contract
     Given a small independently solved typed state space with nonnegative query costs
     When A-star executes with an admissible consistent heuristic
     Then the selected terminal path matches the independent optimum
@@ -85,6 +91,7 @@ Feature: Program-scoped typed neighborhood calculation
     Then expansion order, duplicate and reopen decisions, pruned states, terminal result, and receipt agree
     And changing physical plans without changing logical semantics preserves the accepted result
 
+  @LP-TEST-SEARCH-ASTAR-PRIORITY-SEMANTICS
   Scenario: Declared A-star priority actually uses the certified heuristic
     Given an admissible nonzero heuristic changes the order of unequal accumulated-cost frontier states
     When the search program declares A-star semantics
@@ -92,6 +99,7 @@ Feature: Program-scoped typed neighborhood calculation
     And the accepted result agrees with an independent least-cost oracle
     But ordering accumulated cost first and consulting the heuristic only on exact ties is reported as uniform-cost search rather than A-star
 
+  @LP-TEST-SEARCH-DEPTH-STATE-COMPLETENESS
   Scenario: Bounded state identity preserves a feasible shallower arrival
     Given one entity can be reached by a cheap deep state and a costlier shallow state
     And only the shallow state has enough remaining depth to reach the goal
@@ -99,6 +107,7 @@ Feature: Program-scoped typed neighborhood calculation
     Then its canonical state key or dominance law preserves the feasible shallow state
     And keying only by entity identity does not suppress the accepted path
 
+  @LP-TEST-SEARCH-PATH-COUNT
   Scenario: Requested path multiplicity is executed
     Given a query requests three distinct accepted paths with declared diversity and ordering rules
     When the search program completes
@@ -106,11 +115,15 @@ Feature: Program-scoped typed neighborhood calculation
     And every path has an independent transition receipt and deterministic rank
     And ignoring the requested path count fails the result contract
 
-  Scenario: Frontier expansion is set-oriented
+  @LP-TEST-SEARCH-INDEXED-BULK-FRONTIER
+  Scenario: Frontier expansion is set-oriented and filter-first
     Given one search iteration contains many frontier states sharing indexed transition families
     When native PostgreSQL execution expands the frontier
     Then it issues bounded set-oriented expansion operations rather than one database call per state
-    And the receipt reports frontier size, rows examined, index plans, crossings, emitted states, and elapsed time
+    And hard predicates are applied in the selected indexed providers before a broad adjacency is materialized when semantically safe
+    And no otherwise valid admitted state requires a semantic repair deferred-write cache-build or vacuum-like maintenance drain before the query can use it
+    And the receipt reports frontier size candidates generated rejected and accepted rows examined selected index and partition plans server SPI and native crossings peak frontier and memory CPU I O buffers and elapsed time
+    But cursor or RBAR expansion one SPI query per frontier state recursive SQL or CTE search dynamic SQL per candidate scalar fallback giant pre-filter adjacency loading and whole-corpus scans despite an admitted indexed provider fail this contract even when they happen to return the same logical path
 
   Scenario: Scalar edge cost cannot erase the typed transition
     Given two transitions reach the same target with the same scalar cost but differ in layer, direction, relation law, source, context, and evidence roots
