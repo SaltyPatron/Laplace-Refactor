@@ -21,6 +21,8 @@ SCHEMA = "laplace.custom-stack-qa/v1"
 PLAN_SCHEMA = "laplace.custom-stack-qa-plan/v1"
 RESULT_SCHEMA = "laplace.custom-stack-qa-result/v1"
 SELECTION_PROOF_EXIT = 86
+EVIDENCE_RECEIPT_EXIT = 87
+EMBEDDED_RECEIPT_PREFIX = "LAPLACE_QA_RECEIPT "
 _CTEST_ERE_META = frozenset(r"\.^$*+?()[]{}|")
 
 
@@ -393,6 +395,44 @@ def verify_success_execution(
     return observed
 
 
+def embedded_receipts(log: Path) -> list[dict[str, Any]]:
+    """Parse machine-readable receipts deliberately emitted by physical tests.
+
+    These receipts are copied into the terminal custom-stack result so the durable
+    BLAKE3 receipt does not depend on transient CTest logs or workspaces for resource,
+    cardinality, plan, or other explicitly emitted physical evidence.
+    """
+
+    try:
+        lines = log.read_text(encoding="utf-8", errors="strict").splitlines()
+    except (OSError, UnicodeError) as error:
+        raise QaError(f"cannot read custom-stack lane log for evidence: {log}: {error}") from error
+    receipts: list[dict[str, Any]] = []
+    names: set[str] = set()
+    for line in lines:
+        marker = line.strip()
+        if not marker.startswith(EMBEDDED_RECEIPT_PREFIX):
+            continue
+        payload = marker[len(EMBEDDED_RECEIPT_PREFIX):]
+        if " " not in payload:
+            raise QaError("embedded QA receipt omits its name or JSON payload")
+        name, encoded = payload.split(" ", 1)
+        if not name or name in names:
+            raise QaError(f"embedded QA receipt name is absent or duplicated: {name!r}")
+        try:
+            receipt = json.loads(encoded)
+        except json.JSONDecodeError as error:
+            raise QaError(f"embedded QA receipt {name!r} is invalid JSON: {error}") from error
+        if not isinstance(receipt, dict):
+            raise QaError(f"embedded QA receipt {name!r} is not an object")
+        schema = receipt.get("schema")
+        if not isinstance(schema, str) or not schema.startswith("laplace."):
+            raise QaError(f"embedded QA receipt {name!r} has no Laplace schema")
+        names.add(name)
+        receipts.append({"name": name, "receipt": receipt})
+    return receipts
+
+
 def first_failure(
     report: Path, log: Path, status: int
 ) -> dict[str, Any] | None:
@@ -505,7 +545,22 @@ def run_ctest_lane(
     effective_status = ctest_status
     failure = first_failure(report, log, ctest_status)
     selection_verified = False
-    if ctest_status == 0:
+    retained_receipts: list[dict[str, Any]] = []
+    evidence_verified = False
+    try:
+        retained_receipts = embedded_receipts(log)
+        evidence_verified = True
+    except QaError as error:
+        if ctest_status == 0:
+            effective_status = EVIDENCE_RECEIPT_EXIT
+            failure = {
+                "test": None,
+                "elapsed_seconds": None,
+                "class": "evidence-receipt-failure",
+                "detail": str(error)[:4000],
+            }
+
+    if ctest_status == 0 and effective_status == 0:
         try:
             executed_names = verify_success_execution(report, names)
             selection_verified = True
@@ -525,6 +580,8 @@ def run_ctest_lane(
         "executed_test_count": len(executed_names),
         "executed_tests": executed_names,
         "selection_verified": selection_verified,
+        "evidence_receipts_verified": evidence_verified,
+        "embedded_receipts": retained_receipts,
         "command": command,
         "started_at_utc": started,
         "ended_at_utc": utc_now(),
