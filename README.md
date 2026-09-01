@@ -1,9 +1,11 @@
 # Laplace
 
-Laplace is a complete replacement execution architecture for the transformer. It
-executes through SQL over a universal persistent substrate, with all semantic and
-computational behavior implemented by a C/C++ engine integrated with PostgreSQL
-through its extension and server programming interfaces.
+Laplace is a complete replacement execution architecture for the transformer. Its
+semantic and computational behavior is executed by a C/C++ engine integrated with
+PostgreSQL through extension and server programming interfaces. PostgreSQL supplies
+persistent typed state, transactions, statistics, indexes, partitions, and
+plan-visible set routing. SQL composes and invokes typed set-oriented operations; it
+is not a second cognition engine.
 
 Text, images, audio, video, code, games, model state, and future media use the same
 identity, composition, relation, evidence, trust, execution, and materialization
@@ -14,6 +16,17 @@ Laplace has no token context window and does not use softmax to invent a continu
 Any addressable substrate state can be execution input. Every result must be supported
 by witnessed state or a reproducible calculated operation and carry a receipt.
 
+Native cognition is a finite query-relative execution over exact persistent state:
+resolve canonical identities, compile typed guidance, select admissible indexed
+providers, push safe filters into bounded set-wise frontier generation, route through
+typed filtered indexed A* or a declared best-first law, fold eligible evidence,
+update completion obligations, and realize an exact result or typed why-not. A raw
+hop, fixed fanout, lookup, nearest-neighbor result, recursive SQL walk, or nonempty row
+set is not a forward pass. The stable specification is
+[`docs/architecture/COGNITION_EXECUTION.md`](docs/architecture/COGNITION_EXECUTION.md)
+and its machine-readable contract is
+[`contracts/cognition-execution.json`](contracts/cognition-execution.json).
+
 ## Status
 
 This repository is being established from first principles. It makes no claim that
@@ -22,11 +35,12 @@ it. A successful build, a nonempty result, an artifact of a particular size, or 
 response with the expected shape is not product acceptance.
 
 The machine-readable authority load order is `contracts/authority-stack.json`. It loads
-the complete invention, typed recipe model, universal source-admission law, acceptance
-boundary, and only then the observed checkpoint at `state/continuation.json`. A resumed
-implementation session validates that order before selecting work. In particular, the
-controlled Unicode PostgreSQL/Tier-0 activation path is integration-proven while the
-selected PostgreSQL 18.6 product cluster and product Unicode root remain inactive.
+the complete invention, consolidated cognition execution law, typed recipe model,
+universal source-admission law, acceptance boundary, and only then the observed
+checkpoint at `state/continuation.json`. A resumed implementation session validates
+that order before selecting work. In particular, the controlled Unicode
+PostgreSQL/Tier-0 activation path is integration-proven while the selected PostgreSQL
+18.6 product cluster and product Unicode root remain inactive.
 
 The executable baseline currently contains the fixed BLAKE3-128 identity contract,
 complete Unicode-position encoding, ordered recursive composition, run-span identity
@@ -109,8 +123,11 @@ paths and hashes and rejects incomplete or conflicting package graphs.
 
 ## Required architecture
 
-- C/C++ and PostgreSQL server integration form the engine.
-- SQL is the typed execution and transaction orchestration surface.
+- C/C++ and PostgreSQL server integration form the engine and own semantic execution.
+- PostgreSQL supplies durable state, transactions, constraints, indexes, statistics,
+  partitions, and plan-visible set routing.
+- SQL is the typed set-oriented execution and transaction orchestration surface; it
+  does not implement a recursive/RBAR/dynamic-SQL cognition engine.
 - C# orchestrates sources, sessions, services, product APIs, and lifecycle.
 - The substrate instruction set is executable, versioned, typed, vector-first, and
   receipt-producing.
@@ -123,17 +140,33 @@ paths and hashes and rejects incomplete or conflicting package graphs.
   it is how the persistent calculating machine acquires world state without requiring
   a training campaign or GPU execution.
 - Batch and bulk operations are the primary forms. Single-item calls use the same
-  canonical implementation.
+  canonical implementation; silent scalar/RBAR fallback is not an alternate semantic
+  path.
 - There is one implementation for each semantic fact.
 - Native cognition calculates and generates typed operator applications from exact
   layered substrate state, relation laws, evidence, context, and goals. It does not
   flatten meaning into a permanent graph, embedding, or model.
 - The layer-metrized operator, typed defect/innovation calculus, semantic-act
   selection, and modality realization are distinct receipt-producing stages.
-- Query and cognition compile indexed A-star or declared best-first search over typed
-  states. Exact structure, multiple geometric metrics, Glicko-2 standing, trust,
-  context, and relation law generate bulk frontier candidates; no KNN, ANN, lookup, or
-  permanent score defines universal relevance.
+- Query and cognition compile **typed filtered indexed search** over typed states.
+  A* is claimed only when actual `g+h`, heuristic, typed-state, reopen/tie, finite
+  boundary and completion-certificate laws are proven; otherwise the engine names the
+  declared best-first/bounded law. Exact structure, multiple geometric metrics,
+  Glicko-2 standing, trust, context, and relation law generate bounded frontier
+  candidates; no KNN, ANN, lookup, fixed fanout, or permanent score defines universal
+  relevance.
+- Candidate providers push semantically safe source/context/time/world/authority/
+  evidence/relation/trajectory/geometry/dependence filters into indexes/perfcaches
+  before frontier materialization. Accelerator misses do not prove semantic absence
+  without exact completeness proof.
+- Primary cognition/search routes reject cursor/RBAR/per-frontier-state SQL/SPI,
+  recursive SQL as the search engine, dynamic per-candidate SQL, giant pre-filter
+  adjacency materialization, unbounded whole-corpus edge loading, and semantic
+  repair/maintenance drains required before otherwise valid admitted state can be
+  queried.
+- Representative cognition/search receipts report selected providers/plans/indexes,
+  frontier cardinality, candidate generation/filtering, crossings, prune/reopen work,
+  memory, CPU, I/O/buffers, elapsed time and completion/optimality disposition.
 - The Gödel engine uses persistent typed incompleteness as a discovery signal. It
   predicts constrained vacancies, generates and tries to disprove candidate facts,
   laws, operators, firmware operations, and cognition programs, and versions accepted
@@ -147,8 +180,13 @@ paths and hashes and rejects incomplete or conflicting package graphs.
 - `docs/product/` — invention constitution and clean-room rules.
 - `docs/architecture/` — engine, instruction set, data, boundary, and native cognition
   mathematics specifications.
+- [`docs/architecture/COGNITION_EXECUTION.md`](docs/architecture/COGNITION_EXECUTION.md)
+  — single native cognition/forward-pass execution spine, typed filtered indexed
+  search, exact edit/recomposition law, SQL/native boundary and performance receipts.
 - [`docs/architecture/OPERATIONAL_MODEL.md`](docs/architecture/OPERATIONAL_MODEL.md) —
   whole-product execution order and the framework shared by every module.
+- [`contracts/cognition-execution.json`](contracts/cognition-execution.json) —
+  machine-readable cognition execution, forbidden-hot-path and receipt contract.
 - [`contracts/operation-model.json`](contracts/operation-model.json) — mechanically
   validated operational-stage graph joined to every product requirement.
 - [`contracts/authority-stack.json`](contracts/authority-stack.json) — governing load
