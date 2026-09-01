@@ -64,3 +64,42 @@ BEGIN
     END IF;
 END
 $contract$;
+
+DO $mutation$
+DECLARE
+    replay source_admission_replay%ROWTYPE;
+BEGIN
+    SELECT * INTO STRICT replay FROM source_admission_replay;
+
+    BEGIN
+        UPDATE laplace.source_structural_witness
+        SET flags = flags + 1
+        WHERE ctid = (
+            SELECT ctid
+            FROM laplace.source_structural_witness
+            WHERE source_profile_id = replay.profile_id
+            ORDER BY artifact_index, span_index
+            LIMIT 1);
+        PERFORM pg_temp.admit_source();
+        RAISE EXCEPTION
+            'structural witness mutation was accepted by durable replay';
+    EXCEPTION
+        WHEN SQLSTATE 'XX001' THEN NULL;
+    END;
+
+    BEGIN
+        UPDATE laplace.source_structural_witness_receipt
+        SET witness_fingerprint = set_byte(
+            witness_fingerprint, 0,
+            get_byte(witness_fingerprint, 0) # 1)
+        WHERE source_profile_id = replay.profile_id
+          AND composition_working_set_receipt =
+              replay.composition_working_set_receipt_id;
+        PERFORM pg_temp.admit_source();
+        RAISE EXCEPTION
+            'structural witness receipt mutation was accepted by durable replay';
+    EXCEPTION
+        WHEN SQLSTATE 'XX001' THEN NULL;
+    END;
+END
+$mutation$;

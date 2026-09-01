@@ -264,6 +264,7 @@ struct laplace_composition_working_set {
     std::vector<laplace_framework_canonical_batch> batches;
     laplace_digest256 producer_fingerprint{};
     std::uint64_t preferred_batch_bytes{};
+    std::uint32_t effect_disposition{LAPLACE_FRAMEWORK_EFFECT_NONE};
 };
 
 namespace {
@@ -953,7 +954,20 @@ laplace_composition_status BuildStream(
         }
     }
     if (offsets.empty()) {
+#if defined(LAPLACE_TEST_COMPOSITION_REJECT_EMPTY_EFFECT)
         return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
+#else
+        if (laplace_framework_canonical_empty_stream_fingerprint(
+                LAPLACE_COMPOSITION_STREAM_RECORD_TYPE,
+                &state.summary.stream_fingerprint) != LAPLACE_FRAMEWORK_OK) {
+            return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
+        }
+        state.summary.batch_count = 0U;
+        state.summary.stream_record_count = 0U;
+        state.summary.stream_byte_count = 0U;
+        state.effect_disposition = LAPLACE_FRAMEWORK_EFFECT_NONE;
+        return LAPLACE_COMPOSITION_OK;
+#endif
     }
     offsets.push_back(static_cast<std::uint64_t>(state.stream.size()));
     const std::uint64_t target = preferred_batch_bytes == 0U
@@ -1008,6 +1022,7 @@ laplace_composition_status BuildStream(
     state.summary.batch_count = static_cast<std::uint64_t>(state.batches.size());
     state.summary.stream_record_count = records;
     state.summary.stream_byte_count = bytes;
+    state.effect_disposition = LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT;
     return LAPLACE_COMPOSITION_OK;
 }
 
@@ -1031,6 +1046,7 @@ void RefreshPublicationFingerprints(laplace_composition_working_set& state) {
     HashU64(hasher, state.summary.novel_physicality_count);
     HashU64(hasher, state.summary.novel_trajectory_vertex_count);
     HashU64(hasher, state.summary.occurrence_count);
+    HashU32(hasher, state.effect_disposition);
     state.summary.receipt_id = Finish(hasher);
     blake3_hasher_init(&hasher);
     HashString(hasher, ProducerDomain);
@@ -1314,6 +1330,21 @@ extern "C" laplace_composition_status laplace_composition_working_set_summary_ge
     return LAPLACE_COMPOSITION_OK;
 }
 
+extern "C" laplace_composition_status
+laplace_composition_working_set_effect_disposition_get(
+    const laplace_composition_working_set* working_set,
+    std::uint32_t* effect_disposition) {
+    if (working_set == nullptr || effect_disposition == nullptr) {
+        return LAPLACE_COMPOSITION_INVALID_ARGUMENT;
+    }
+    if (working_set->summary.presence_applied == 0U) {
+        *effect_disposition = LAPLACE_FRAMEWORK_EFFECT_NONE;
+        return LAPLACE_COMPOSITION_PRESENCE_REQUIRED;
+    }
+    *effect_disposition = working_set->effect_disposition;
+    return LAPLACE_COMPOSITION_OK;
+}
+
 extern "C" const laplace_composition_result*
 laplace_composition_working_set_results(
     const laplace_composition_working_set* working_set,
@@ -1467,6 +1498,7 @@ static laplace_composition_status ApplyPresence(
         working_set->summary.batch_count = 0U;
         working_set->summary.stream_record_count = 0U;
         working_set->summary.stream_byte_count = 0U;
+        working_set->effect_disposition = LAPLACE_FRAMEWORK_EFFECT_NONE;
         working_set->summary.presence_applied = 0U;
         working_set->producer_fingerprint = laplace_digest256{};
         return LAPLACE_COMPOSITION_MEMORY_FAILURE;

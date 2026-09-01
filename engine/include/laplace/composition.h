@@ -190,6 +190,11 @@ LAPLACE_API laplace_composition_status laplace_composition_working_set_summary_g
     const laplace_composition_working_set* working_set,
     laplace_composition_working_set_summary* summary);
 
+LAPLACE_API laplace_composition_status
+laplace_composition_working_set_effect_disposition_get(
+    const laplace_composition_working_set* working_set,
+    uint32_t* effect_disposition);
+
 LAPLACE_API const laplace_composition_result* laplace_composition_working_set_results(
     const laplace_composition_working_set* working_set,
     size_t* result_count);

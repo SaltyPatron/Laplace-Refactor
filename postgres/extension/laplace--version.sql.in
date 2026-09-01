@@ -1388,16 +1388,29 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.composition_execution_receipt (
     presence_disposition_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     presence_provider_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     presence_provider_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    producer_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    staged_stream_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+    producer_receipt @LAPLACE_PG_SCHEMA@.record_id_256,
+    staged_stream_receipt @LAPLACE_PG_SCHEMA@.record_id_256
         REFERENCES @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt(receipt_id),
     stream_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    sink_artifacts_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    occurrence_count numeric(20, 0) NOT NULL CHECK (occurrence_count > 0),
+    sink_artifacts_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256,
+    occurrence_count numeric(20, 0) NOT NULL CHECK (occurrence_count >= 0),
     logical_occurrence_count numeric(20, 0) NOT NULL CHECK (logical_occurrence_count > 0),
-    stream_record_count numeric(20, 0) NOT NULL CHECK (stream_record_count > 0),
+    stream_record_count numeric(20, 0) NOT NULL CHECK (stream_record_count >= 0),
+    effect_disposition integer NOT NULL CHECK (effect_disposition IN (0, 1)),
     recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-    recorded_by name NOT NULL DEFAULT current_user
+    recorded_by name NOT NULL DEFAULT current_user,
+    CHECK (
+        (effect_disposition = 0
+         AND producer_receipt IS NULL
+         AND staged_stream_receipt IS NULL
+         AND sink_artifacts_fingerprint IS NULL
+         AND stream_record_count = 0)
+        OR
+        (effect_disposition = 1
+         AND producer_receipt IS NOT NULL
+         AND staged_stream_receipt IS NOT NULL
+         AND sink_artifacts_fingerprint IS NOT NULL
+         AND stream_record_count > 0))
 );
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.composition_execution_occurrence_member (
@@ -1821,6 +1834,7 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_deposit_result AS (
     entity_presence_dispositions smallint[],
     physicality_presence_dispositions smallint[],
     estimated_peak_working_bytes numeric(20, 0),
+    effect_disposition integer,
     status integer
 );
 

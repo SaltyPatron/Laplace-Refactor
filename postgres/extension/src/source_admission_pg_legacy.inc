@@ -1466,7 +1466,7 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
         composition_input.request_count = plan.request_count;
         composition_input.preferred_batch_bytes = preferred_batch_bytes;
         LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(&composition_input, &execution);
-        laplace_pg_persist_composition_execution_receipt(
+        LAPLACE_PG_COMPOSITION_PERSIST_RECEIPT_SYMBOL(
             &execution, &composition_input);
         if (laplace_tabular_source_profile_finalize(
                 source_plan, &execution.summary, &profile) !=

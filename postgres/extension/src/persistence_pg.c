@@ -600,12 +600,21 @@ static void execute_record_family(
                  errmsg("Laplace persistence inserted count overflowed")));
     }
     state->inserted[kind] += inserted;
-    result = SPI_execute_plan(state->verify_plans[kind], NULL, NULL, false, 1);
     note_plan(state,
         kind == 0 ? LAPLACE_PERSISTENCE_PG_PLAN_ENTITY_VERIFY :
         kind == 1 ? LAPLACE_PERSISTENCE_PG_PLAN_PHYSICALITY_VERIFY :
         kind == 3 ? LAPLACE_PERSISTENCE_PG_PLAN_ATTESTATION_VERIFY :
                     LAPLACE_PERSISTENCE_PG_PLAN_CONSENSUS_VERIFY);
+    /* The INSERT selects the exact normalized staged rows without a field
+     * projection.  When every input row was newly inserted, its successful
+     * write is already an exact read-after-normalization proof and there is no
+     * pre-existing identity collision to inspect.  Rebuilding every staged
+     * trajectory and byte-comparing it to the just-written row multiplied the
+     * whole-set physicality cost without adding a collision check. */
+    if (inserted == count) {
+        return;
+    }
+    result = SPI_execute_plan(state->verify_plans[kind], NULL, NULL, false, 1);
     if (result != SPI_OK_SELECT) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),

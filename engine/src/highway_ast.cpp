@@ -406,7 +406,11 @@ private:
             static_cast<std::uint64_t>(operand_count),
             index + 1U,
             RecipeVersion,
+#if defined(LAPLACE_TEST_HIGHWAY_AST_OMIT_OCCURRENCE)
             0U,
+#else
+            LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE,
+#endif
             plan_.view.recipe_fingerprint,
             geometry_epoch_,
             occurrence_context_});

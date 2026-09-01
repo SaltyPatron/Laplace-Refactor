@@ -418,6 +418,35 @@ add_test(
 set_tests_properties(highway.mutation-release-scope-omission-detected PROPERTIES
     LABELS "implementation;highway;coordinate;mutation")
 
+add_library(laplace_highway_ast_occurrence_mutant STATIC
+    ../engine/src/highway_ast.cpp)
+target_include_directories(laplace_highway_ast_occurrence_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_highway_ast_occurrence_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_highway_ast_occurrence_mutant PRIVATE
+    LAPLACE_TEST_HIGHWAY_AST_OMIT_OCCURRENCE=1)
+target_compile_options(laplace_highway_ast_occurrence_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_highway_ast_occurrence_mutation_probe highway_tests.cpp)
+target_include_directories(laplace_highway_ast_occurrence_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_highway_ast_occurrence_mutation_probe PRIVATE
+    laplace_highway_ast_occurrence_mutant Laplace::Engine GTest::gtest_main)
+target_compile_options(laplace_highway_ast_occurrence_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME highway.mutation-implicit-registry-occurrence-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_highway_ast_occurrence_mutation_probe>"
+        "-DFILTER=HighwayRegistry.AstRequestsEveryObservedOccurrenceExplicitly"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    highway.mutation-implicit-registry-occurrence-detected PROPERTIES
+    LABELS "implementation;highway;ast;occurrence;mutation")
+
 add_executable(laplace_evidence_lineage_tests evidence_lineage_tests.cpp)
 target_link_libraries(laplace_evidence_lineage_tests PRIVATE
     Laplace::EvidenceLineage GTest::gtest_main)

@@ -244,6 +244,7 @@ BEGIN
        OR first_result.trajectory_vertex_count <> 2
        OR first_result.novel_trajectory_vertex_count <> 2
        OR first_result.occurrence_count <> 0
+       OR first_result.effect_disposition <> 1
        OR first_result.entity_inserted <> 3
        OR first_result.physicality_inserted <> 1
        OR first_result.trajectory_vertex_inserted <> 2
@@ -327,7 +328,15 @@ BEGIN
        OR replay_result.novel_entity_count <> 0
        OR replay_result.novel_physicality_count <> 0
        OR replay_result.novel_trajectory_vertex_count <> 0
-       OR replay_result.stream_record_count <> 1
+       OR replay_result.stream_record_count <> 0
+       OR replay_result.stream_byte_count <> 0
+       OR replay_result.batch_count <> 0
+       OR replay_result.effect_disposition <> 0
+       OR replay_result.producer_receipt IS NOT NULL
+       OR replay_result.staged_stream_receipt IS NOT NULL
+       OR replay_result.sink_artifacts_fingerprint IS NOT NULL
+       OR replay_result.plan_sequence_fingerprint IS NOT NULL
+       OR replay_result.plan_count <> 0
        OR replay_result.entity_inserted <> 0
        OR replay_result.physicality_inserted <> 0
        OR replay_result.trajectory_vertex_inserted <> 0
@@ -340,13 +349,11 @@ BEGIN
         RAISE EXCEPTION 'steady-state composition replay receipt is not deterministic';
     END IF;
     BEGIN
-        UPDATE laplace.canonical_deposit_receipt
-        SET total_records = total_records + 1
-        WHERE receipt_id = replay_result.staged_stream_receipt;
+        UPDATE laplace.composition_execution_receipt
+        SET stream_fingerprint = set_byte(stream_fingerprint, 0,
+            get_byte(stream_fingerprint, 0) # 1)
+        WHERE working_set_receipt = replay_result.working_set_receipt;
         PERFORM pg_temp.composition_fixture_deposit();
-        UPDATE laplace.canonical_deposit_receipt
-        SET total_records = total_records - 1
-        WHERE receipt_id = replay_result.staged_stream_receipt;
     EXCEPTION
         WHEN SQLSTATE 'XX001' THEN
             replay_collision_rejected := true;

@@ -47,6 +47,33 @@
       "defect_controls": [
         "production composition restored to unconditional observed-occurrence emission"
       ]
+    },
+    {
+      "ctest_name": "CompositionWorkingSet.ExactStateWithoutOccurrenceIsAReceiptedNoOp",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "all exact-present state without explicit occurrence emission is a successful typed no-op",
+        "empty effect has a deterministic typed stream fingerprint and no persistence batches"
+      ],
+      "defect_controls": [
+        "exact-present no-op rejected as an invalid persistence stream"
+      ]
+    },
+    {
+      "ctest_name": "composition.mutation-empty-effect-rejection-detected",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "deliberate-defect sensitivity for exact-present no-op publication"
+      ],
+      "defect_controls": [
+        "production composition restored to rejecting empty exact-present effects"
+      ]
     }
   ]
 }

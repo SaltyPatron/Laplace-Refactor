@@ -155,6 +155,11 @@
       "covered_dimensions": ["partition-independent stream identity", "ordered canonical bytes"]
     },
     {
+      "ctest_name": "CanonicalStream.EmptyFingerprintIsTypedAndDeterministic",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-WHOLE-OPERATION-TRACE"],
+      "covered_dimensions": ["zero-record canonical streams retain record-type identity and deterministic framing"]
+    },
+    {
       "ctest_name": "CanonicalStream.SourceAndRecipeAreMandatoryReceiptBindings",
       "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT"],
       "covered_dimensions": ["mandatory exact source identity", "mandatory recipe identity", "stage-only effect disposition", "receipt sensitivity"],
@@ -1623,6 +1628,18 @@
       "covered_dimensions": ["generated kind alias and disposition rows are the native registry authority", "registry activation epoch is independent of execution context", "materialization receipt binds the execution context and complete registry identity"]
     },
     {
+      "ctest_name": "HighwayRegistry.AstRequestsEveryObservedOccurrenceExplicitly",
+      "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"],
+      "covered_dimensions": ["every witnessed Highway registry AST node explicitly requests occurrence emission instead of relying on composition defaults"],
+      "defect_controls": ["highway.mutation-implicit-registry-occurrence-detected"]
+    },
+    {
+      "ctest_name": "highway.mutation-implicit-registry-occurrence-detected",
+      "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-OCCURRENCE-PRESERVATION"],
+      "covered_dimensions": ["omitted Highway registry occurrence flags are detected before PostgreSQL persistence"],
+      "controls": "HighwayRegistry.AstRequestsEveryObservedOccurrenceExplicitly"
+    },
+    {
       "ctest_name": "highway.mutation-release-scope-omission-detected",
       "evidence_targets": ["LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION"],
       "covered_dimensions": ["omitting the release scope from coordinate identity is detected"],
@@ -2089,7 +2106,7 @@
       "ctest_name": "postgres.source-admission-whole-route-contract",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-DERIVATION-LINEAGE-CLOSURE"],
-      "covered_dimensions": ["one public PostgreSQL source-admission operation composes source AST state deposits canonical content resolves typed reference topology persists profile lineage testimony and closes world admission in one transaction", "row field exact value coordinate and occurrence identities remain separately durable", "exact Unicode content remains queryable and reconstructable through the shared substrate", "topology and world receipts replay idempotently while rejected source-byte mutation rolls back without partial durable state"]
+      "covered_dimensions": ["one public PostgreSQL source-admission operation composes source AST state deposits canonical content resolves typed reference topology persists profile lineage testimony and closes world admission in one transaction", "row field exact value coordinate and occurrence identities remain separately durable", "exact Unicode content remains queryable and reconstructable through the shared substrate", "topology and world receipts replay idempotently while rejected source-byte mutation rolls back without partial durable state", "durable structural-witness row drift and structural-witness receipt drift are independently rejected and rolled back on public replay"]
     },
     {
       "ctest_name": "postgres.iso-639-source-admission-whole-route-contract",

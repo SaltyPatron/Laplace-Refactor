@@ -27,9 +27,10 @@ BEGIN
         inputs.preferred_batch_bytes)).*
     INTO STRICT result
     FROM pg_temp.composition_fixture_inputs() AS inputs;
-    UPDATE laplace.canonical_deposit_receipt
-    SET total_records = total_records + 1
-    WHERE receipt_id = result.staged_stream_receipt;
+    UPDATE laplace.composition_execution_receipt
+    SET stream_fingerprint = set_byte(stream_fingerprint, 0,
+        get_byte(stream_fingerprint, 0) # 1)
+    WHERE working_set_receipt = result.working_set_receipt;
     PERFORM pg_temp.composition_mutant_deposit(
         inputs.execution_context,
         inputs.source_fingerprint,

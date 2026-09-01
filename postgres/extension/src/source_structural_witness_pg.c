@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "access/xact.h"
 #include "catalog/pg_type.h"
 #include "executor/spi.h"
 #include "utils/array.h"
@@ -55,6 +56,18 @@ static bool spi_boolean(void) {
     value = SPI_getbinval(
         SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &is_null);
     return !is_null && DatumGetBool(value);
+}
+
+static int64 spi_int64_column(int column) {
+    bool is_null = false;
+    Datum value;
+    if (SPI_processed != 1u || SPI_tuptable == NULL || column < 1 ||
+        column > SPI_tuptable->tupdesc->natts) {
+        return -1;
+    }
+    value = SPI_getbinval(
+        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, column, &is_null);
+    return is_null ? -1 : DatumGetInt64(value);
 }
 
 static laplace_id128 canonical_entity_id(
@@ -125,20 +138,27 @@ void laplace_pg_persist_source_structural_witnesses(
     static const char receipt_domain[] =
         "laplace.source-structural-witness-receipt/v1";
     static const uint8_t empty_byte = 0u;
-    static const char witnesses_sql[] =
+    static const char witnesses_insert_sql[] =
         "WITH input AS (SELECT $1::bytea AS source_profile_id,u.* FROM unnest("
         "$2::bytea[],$3::bytea[],$4::bytea[],$5::numeric[],$6::numeric[],"
         "$7::numeric[],$8::numeric[],$9::numeric[],$10::numeric[],$11::bytea[],"
         "$12::numeric[],$13::numeric[]) AS u(trace_fingerprint,provider_fingerprint,"
         "canonical_entity_id,artifact_index,span_index,parent_span_index,byte_start,"
-        "byte_end,kind,media_type,depth,flags)),"
-        "written AS (INSERT INTO " LAPLACE_PG_SCHEMA ".source_structural_witness("
+        "byte_end,kind,media_type,depth,flags)) "
+        "INSERT INTO " LAPLACE_PG_SCHEMA ".source_structural_witness("
         "source_profile_id,artifact_index,span_index,parent_span_index,trace_fingerprint,"
         "provider_fingerprint,canonical_entity_id,byte_start,byte_end,kind,media_type,"
         "depth,flags) SELECT source_profile_id,artifact_index,span_index,parent_span_index,"
         "trace_fingerprint,provider_fingerprint,canonical_entity_id,byte_start,byte_end,"
-        "kind,media_type,depth,flags FROM input ON CONFLICT DO NOTHING RETURNING 1) "
-        "SELECT (SELECT count(*) FROM written)>=0 AND NOT EXISTS (SELECT FROM input i "
+        "kind,media_type,depth,flags FROM input ON CONFLICT DO NOTHING";
+    static const char witnesses_verify_sql[] =
+        "WITH input AS (SELECT $1::bytea AS source_profile_id,u.* FROM unnest("
+        "$2::bytea[],$3::bytea[],$4::bytea[],$5::numeric[],$6::numeric[],"
+        "$7::numeric[],$8::numeric[],$9::numeric[],$10::numeric[],$11::bytea[],"
+        "$12::numeric[],$13::numeric[]) AS u(trace_fingerprint,provider_fingerprint,"
+        "canonical_entity_id,artifact_index,span_index,parent_span_index,byte_start,"
+        "byte_end,kind,media_type,depth,flags)), "
+        "mismatched AS (SELECT 1 FROM input i "
         "LEFT JOIN " LAPLACE_PG_SCHEMA ".source_structural_witness s ON "
         "s.source_profile_id=i.source_profile_id AND s.artifact_index=i.artifact_index "
         "AND s.span_index=i.span_index WHERE s.source_profile_id IS NULL OR "
@@ -146,15 +166,20 @@ void laplace_pg_persist_source_structural_witnesses(
         "OR s.provider_fingerprint<>i.provider_fingerprint OR "
         "s.canonical_entity_id<>i.canonical_entity_id OR s.byte_start<>i.byte_start OR "
         "s.byte_end<>i.byte_end OR s.kind<>i.kind OR s.media_type<>i.media_type OR "
-        "s.depth<>i.depth OR s.flags<>i.flags) AND "
+        "s.depth<>i.depth OR s.flags<>i.flags) "
+        "SELECT (SELECT count(*) FROM mismatched)=0 "
+        "AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".source_structural_witness "
+        "WHERE source_profile_id=$1)=(SELECT count(*) FROM input), "
+        "(SELECT count(*) FROM input), "
         "(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".source_structural_witness "
-        "WHERE source_profile_id=$1)=(SELECT count(*) FROM input)";
-    static const char receipt_sql[] =
-        "WITH written AS (INSERT INTO " LAPLACE_PG_SCHEMA
+        "WHERE source_profile_id=$1), (SELECT count(*) FROM mismatched)";
+    static const char receipt_insert_sql[] =
+        "INSERT INTO " LAPLACE_PG_SCHEMA
         ".source_structural_witness_receipt(receipt_id,source_profile_id,"
         "composition_working_set_receipt,witness_fingerprint,witness_count,version) "
-        "VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1) "
-        "SELECT (SELECT count(*) FROM written)>=0 AND EXISTS (SELECT FROM "
+        "VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING";
+    static const char receipt_verify_sql[] =
+        "SELECT EXISTS (SELECT FROM "
         LAPLACE_PG_SCHEMA ".source_structural_witness_receipt WHERE receipt_id=$1 "
         "AND source_profile_id=$2 AND composition_working_set_receipt=$3 "
         "AND witness_fingerprint=$4 AND witness_count=$5 AND version=$6)";
@@ -189,6 +214,7 @@ void laplace_pg_persist_source_structural_witnesses(
         BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, NUMERICOID, INT4OID};
     Datum receipt_parameters[6];
     int result;
+    uint64 inserted_count = 0u;
 
     memset(&view, 0, sizeof(view));
     if (plan == NULL || execution == NULL || composition_input == NULL ||
@@ -235,9 +261,6 @@ void laplace_pg_persist_source_structural_witnesses(
     hash_bytes(
         &hasher, (const uint8_t*)witness_domain, sizeof(witness_domain) - 1u);
     hash_bytes(&hasher, profile->profile_id.bytes, sizeof(profile->profile_id.bytes));
-    hash_bytes(
-        &hasher, execution->summary.receipt_id.bytes,
-        sizeof(execution->summary.receipt_id.bytes));
     hash_u64(&hasher, (uint64_t)witness_count);
 
     for (index = 0u; index < witness_count; ++index) {
@@ -338,14 +361,40 @@ void laplace_pg_persist_source_structural_witnesses(
                  errmsg("Laplace structural witness deposition could not connect")));
     }
     result = SPI_execute_with_args(
-        witnesses_sql, 13, witness_types, witness_parameters, NULL, false, 1);
-    if (result != SPI_OK_SELECT || !spi_boolean()) {
+        witnesses_insert_sql, 13, witness_types, witness_parameters, NULL, false, 0);
+    if (result != SPI_OK_INSERT) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace structural witness deposition/readback diverged")));
+                 errmsg("Laplace structural witness deposition failed"),
+                 errdetail("SPI status=%d", result)));
+    }
+    inserted_count = SPI_processed;
+    CommandCounterIncrement();
+    result = SPI_execute_with_args(
+        witnesses_verify_sql, 13, witness_types, witness_parameters, NULL, false, 1);
+    if (result != SPI_OK_SELECT || !spi_boolean()) {
+        const int64 input_count = spi_int64_column(2);
+        const int64 stored_count = spi_int64_column(3);
+        const int64 mismatch_count = spi_int64_column(4);
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace structural witness deposition/readback diverged"),
+                 errdetail("inserted=%llu input=%lld stored=%lld mismatched=%lld",
+                           (unsigned long long)inserted_count,
+                           (long long)input_count, (long long)stored_count,
+                           (long long)mismatch_count)));
     }
     result = SPI_execute_with_args(
-        receipt_sql, 6, receipt_types, receipt_parameters, NULL, false, 1);
+        receipt_insert_sql, 6, receipt_types, receipt_parameters, NULL, false, 0);
+    if (result != SPI_OK_INSERT) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace structural witness receipt deposition failed"),
+                 errdetail("SPI status=%d", result)));
+    }
+    CommandCounterIncrement();
+    result = SPI_execute_with_args(
+        receipt_verify_sql, 6, receipt_types, receipt_parameters, NULL, false, 1);
     if (result != SPI_OK_SELECT || !spi_boolean()) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
