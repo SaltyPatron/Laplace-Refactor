@@ -27,6 +27,16 @@ gateway = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = gateway
 SPEC.loader.exec_module(gateway)
 
+HOSTCTL_PATH = REPOSITORY / "tools/postgresql/hostctl.py"
+HOSTCTL_SPEC = importlib.util.spec_from_file_location(
+    "laplace_product_host_topology", HOSTCTL_PATH
+)
+if HOSTCTL_SPEC is None or HOSTCTL_SPEC.loader is None:
+    raise RuntimeError("cannot load PostgreSQL host topology controller")
+hostctl = importlib.util.module_from_spec(HOSTCTL_SPEC)
+sys.modules[HOSTCTL_SPEC.name] = hostctl
+HOSTCTL_SPEC.loader.exec_module(hostctl)
+
 SCHEMA = "laplace.product-host-contract/v1"
 RECEIPT_SCHEMA = "laplace.product-host-convergence-receipt/v1"
 
@@ -108,12 +118,17 @@ def validate_contract(contract: dict[str, Any], repository: Path) -> None:
         "gateway_executable": "/opt/laplace/deployment/current/bin/laplace-product-activate",
         "product_builder": "tools/product/build-package.py",
         "cluster_controller": "tools/postgresql/clusterctl.py",
+        "host_contract": "contracts/postgresql-host.json",
+        "host_controller": "tools/postgresql/hostctl.py",
+        "default_instance_request": "contracts/instances/refactor.json",
     }
     if modules != expected_modules:
         raise HostError("product host module selection differs")
     gateway_contract = load_json(repository / modules["gateway_contract"])
     cluster_contract = load_json(repository / modules["cluster_contract"])
+    host_contract = load_json(repository / modules["host_contract"])
     gateway.activation.validate_contract(gateway_contract)
+    hostctl.validate_contract(host_contract)
     if gateway_contract["repository"]["runner_user"] != identity["user"]:
         raise HostError("gateway runner identity differs from host identity")
     if cluster_contract.get("instance", {}).get("os_user") != identity["user"]:
@@ -355,7 +370,8 @@ def prepare_product(
     repository: Path,
     contract: dict[str, Any],
     postgresql_publication: Path,
-) -> tuple[Path, Path, dict[str, Any]]:
+    instance_request_path: Path,
+) -> tuple[Path, Path, dict[str, Any], dict[str, Any]]:
     if os.geteuid() != 0:
         raise HostError("local product composition requires the administrator entrypoint")
     modules = contract["modules"]
@@ -385,14 +401,39 @@ def prepare_product(
     product_receipt = Path(selection["product_receipt"])
     package_manifest = Path(selection["build_directory"]) / "package-manifest.json"
     package_source_root = Path(selection["stage_directory"]) / "root"
+    package_document = load_json(package_manifest)
+    host_contract = hostctl.load_json(repository / modules["host_contract"])
+    instance_request = hostctl.load_json(instance_request_path)
+    cluster_contract = load_json(repository / modules["cluster_contract"])
+    if instance_request.get("instance") != {
+        key: cluster_contract["instance"][key]
+        for key in instance_request.get("instance", {})
+    }:
+        raise HostError(
+            "selected instance request is not yet represented by the cluster activation contract"
+        )
+    host_inventory = hostctl.inventory(host_contract, Path("/"))
+    host_selection = hostctl.select_host(
+        host_contract, host_inventory, instance_request, package_document
+    )
+    if host_selection.get("activation_disposition") != "eligible-for-new-cluster-plan":
+        raise HostError("selected host topology is not eligible for new-cluster activation")
     gateway_contract = load_json(repository / modules["gateway_contract"])
     receipt_root = Path(gateway_contract["product"]["plan_receipt_root"])
     resource_directory = receipt_root / package_id
     resource_observation = resource_directory / "resource-observation.json"
+    inventory_path = resource_directory / "host-inventory.json"
+    selection_path = resource_directory / "host-selection.json"
     run_service(
         identity,
         ["/usr/bin/install", "-d", "-m", "2750", str(resource_directory)],
         60,
+    )
+    gateway.activation.atomic_write(
+        inventory_path, hostctl.canonical_bytes(host_inventory), 0o640
+    )
+    gateway.activation.atomic_write(
+        selection_path, hostctl.canonical_bytes(host_selection), 0o640
     )
     run_service(
         identity,
@@ -415,7 +456,17 @@ def prepare_product(
         raise HostError("selected product receipt is absent")
     if not resource_observation.is_file() or resource_observation.is_symlink():
         raise HostError("selected resource observation is absent")
-    return product_receipt, resource_observation, selection
+    topology = {
+        "inventory": str(inventory_path),
+        "inventory_sha256": host_inventory["inventory_sha256"],
+        "selection": str(selection_path),
+        "selection_sha256": host_selection["selection_sha256"],
+        "mode": host_selection["mode"],
+        "routing": host_selection["routing"],
+        "postgresql": host_selection["postgresql"],
+        "activation_disposition": host_selection["activation_disposition"],
+    }
+    return product_receipt, resource_observation, selection, topology
 
 
 def execute_local_selection(
@@ -460,6 +511,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--generate-key", action="store_true")
     parser.add_argument("--request")
     parser.add_argument("--postgresql-publication")
+    parser.add_argument("--instance-request")
     parser.add_argument("--root", default="/")
     parser.add_argument("--authorize-system-root", action="store_true")
     parser.add_argument("--output", default="-")
@@ -509,12 +561,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 executable, Path(arguments.request)
             )
         else:
-            product_receipt, resource_observation, selection = prepare_product(
+            instance_request = Path(
+                arguments.instance_request
+                if arguments.instance_request is not None
+                else repository / load_json(contract_path)["modules"]["default_instance_request"]
+            )
+            product_receipt, resource_observation, selection, topology = prepare_product(
                 repository,
                 load_json(contract_path),
                 Path(arguments.postgresql_publication),
+                instance_request,
             )
             receipt["package_selection"] = selection
+            receipt["host_topology"] = topology
             receipt["activation"] = execute_local_selection(
                 executable, product_receipt, resource_observation
             )

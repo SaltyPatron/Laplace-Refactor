@@ -43,6 +43,10 @@ class ProductHostTests(unittest.TestCase):
             self.contract["lifecycle"]["instance_state_owner"],
             "cluster activation module",
         )
+        self.assertEqual(
+            self.contract["modules"]["host_controller"],
+            "tools/postgresql/hostctl.py",
+        )
 
     def test_fixture_convergence_is_persistent_exact_and_repairable(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-product-host-") as temporary:

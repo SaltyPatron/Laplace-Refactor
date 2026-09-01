@@ -8,6 +8,7 @@
     "manifest_schema": "laplace.package-manifest/v1",
     "identity_algorithm": "sha256-manifest-payload-v1",
     "postgresql_version": "18.6",
+    "postgresql_major": 18,
     "release_root": "/opt/laplace/releases",
     "active_link": "/opt/laplace/current",
     "required_files": [

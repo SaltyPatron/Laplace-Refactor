@@ -38,13 +38,16 @@
       "contracts/highway-product-activation.json",
       "contracts/highway.json",
       "contracts/history/highway-v1.json",
+      "contracts/instances/refactor.json",
       "contracts/postgresql-cluster.json",
+      "contracts/postgresql-host.json",
       "contracts/product-activation-gateway.json",
       "contracts/unicode-postgresql.json",
       "contracts/unicode-product-activation.json",
       "contracts/unicode-source.json",
       "controllers/clusterctl.py",
       "controllers/highwayctl.py",
+      "controllers/hostctl.py",
       "controllers/unicodectl.py"
     ]
   },

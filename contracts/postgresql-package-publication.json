@@ -10,6 +10,7 @@
   "receipt_mode": "0640",
   "required_source_state": {
     "version": "PostgreSQL 18.6",
+    "major": 18,
     "build_input_closure_complete": true,
     "recursive_elf_closure_verified": true,
     "runtime_provider_qualification_complete": true,

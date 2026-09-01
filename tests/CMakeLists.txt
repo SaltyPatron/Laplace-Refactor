@@ -1445,6 +1445,13 @@ set_tests_properties(postgresql-cluster.activation-contract PROPERTIES
     RUN_SERIAL TRUE)
 
 add_test(
+    NAME postgresql-host.inventory-and-selection-contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_host_tests.py")
+set_tests_properties(postgresql-host.inventory-and-selection-contract PROPERTIES
+    LABELS "activation;installation;postgresql;discovery;topology;routing;mutation"
+    RUN_SERIAL TRUE)
+
+add_test(
     NAME unicode-product.activation-contract
     COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/unicode_product_activation_tests.py"

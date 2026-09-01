@@ -1,0 +1,28 @@
+{
+  "schema": "laplace.postgresql-instance-request/v1",
+  "mode": "create",
+  "postgresql": {
+    "version": "18.6",
+    "major": 18
+  },
+  "instance": {
+    "id": "refactor",
+    "service": "laplace-refactor-postgresql.service",
+    "port": 55433,
+    "socket_directory": "/run/laplace-refactor-postgresql",
+    "data_directory": "/opt/laplace/pgdata/refactor/data",
+    "wal_directory": "/var/lib/pgwal/refactor",
+    "temp_directory": "/pgtemp/refactor",
+    "perfcache_directory": "/opt/laplace/pgdata/refactor/perfcache",
+    "config_directory": "/etc/laplace/instances/refactor",
+    "log_directory": "/var/log/laplace/postgresql/refactor",
+    "receipt_directory": "/opt/laplace/receipts/postgresql/refactor"
+  },
+  "routing": {
+    "mode": "direct-unix",
+    "endpoint": {
+      "socket_directory": "/run/laplace-refactor-postgresql",
+      "port": 55433
+    }
+  }
+}

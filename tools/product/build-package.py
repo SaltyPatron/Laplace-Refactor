@@ -119,9 +119,21 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ProductPackageError("PostgreSQL package receipt schema is invalid")
     if postgresql.get("publication_receipt_schema") != PUBLICATION_SCHEMA:
         raise ProductPackageError("PostgreSQL publication receipt schema is invalid")
-    if postgresql.get("version") != "PostgreSQL 18.6":
-        raise ProductPackageError("product package must select exact PostgreSQL 18.6")
-    if postgresql.get("logical_prefix") != "/opt/laplace/current/pgsql-18":
+    postgresql_version = postgresql.get("version")
+    postgresql_major = postgresql.get("major")
+    match = (
+        re.fullmatch(r"PostgreSQL ([0-9]+(?:\.[0-9]+)+)", postgresql_version)
+        if isinstance(postgresql_version, str)
+        else None
+    )
+    if (
+        match is None
+        or not isinstance(postgresql_major, int)
+        or postgresql_major <= 0
+        or int(match.group(1).split(".", 1)[0]) != postgresql_major
+    ):
+        raise ProductPackageError("product PostgreSQL version and major are invalid")
+    if postgresql.get("logical_prefix") != f"/opt/laplace/current/pgsql-{postgresql_major}":
         raise ProductPackageError("PostgreSQL logical prefix is invalid")
     if laplace.get("logical_prefix") != "/opt/laplace/current":
         raise ProductPackageError("Laplace logical prefix is invalid")
@@ -785,8 +797,9 @@ def verify_postgresql_receipt(
     )
     if not prefix.is_dir() or prefix.is_symlink() or not readelf.is_file():
         raise ProductPackageError("PostgreSQL package bytes or selected readelf are absent")
-    postgres = prefix / "pgsql-18/bin/postgres"
-    pg_config = prefix / "pgsql-18/bin/pg_config"
+    postgresql_layout = f"pgsql-{contract['postgresql']['major']}"
+    postgres = prefix / postgresql_layout / "bin/postgres"
+    pg_config = prefix / postgresql_layout / "bin/pg_config"
     if not postgres.is_file() or not pg_config.is_file():
         raise ProductPackageError("PostgreSQL package omits server executables")
     version = subprocess.run(
@@ -1463,6 +1476,7 @@ def execute_plan(
     laplace_build = build_directory / "laplace"
     log = build_directory / "build.log"
     build = contract["build"]
+    postgresql_layout = f"pgsql-{contract['postgresql']['major']}"
     toolchain = plan["product_toolchain"]["tools"]
     cmake = toolchain["cmake"]["path"]
     ninja = toolchain["ninja"]["path"]
@@ -1503,7 +1517,7 @@ def execute_plan(
         f"-DLAPLACE_DEPENDENCY_LOCK={repository / 'dependencies/lock.json'}",
         f"-DLAPLACE_INSTALLED_PROVIDER_LOCK={plan['installed_provider_lock']}",
         "-DLAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER=ON",
-        f"-DLAPLACE_PG_CONFIG={staged_prefix / 'pgsql-18/bin/pg_config'}",
+        f"-DLAPLACE_PG_CONFIG={staged_prefix / postgresql_layout / 'bin/pg_config'}",
         f"-DLAPLACE_PG_PHYSICAL_ROOT={stage_directory / 'root'}",
     ]
     run_logged(
@@ -1559,8 +1573,8 @@ def execute_plan(
     manifest: dict[str, Any] = {
         "schema": MANIFEST_SCHEMA,
         "postgresql": {
-            "version": "18.6",
-            "pg_config": "pgsql-18/bin/pg_config",
+            "version": contract["postgresql"]["version"].removeprefix("PostgreSQL "),
+            "pg_config": f"pgsql-{contract['postgresql']['major']}/bin/pg_config",
             "build_input_id": plan["postgresql"]["build_input_id"],
             "package_receipt_sha256": plan["postgresql"]["receipt_sha256"],
         },

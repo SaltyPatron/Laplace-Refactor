@@ -24,6 +24,20 @@
       "purpose": "root-owned product and instance configuration"
     },
     {
+      "path": "/etc/laplace/connections",
+      "owner": "root",
+      "group": "root",
+      "mode": "0755",
+      "purpose": "typed client routing selections without embedded semantic behavior"
+    },
+    {
+      "path": "/etc/laplace/instances",
+      "owner": "root",
+      "group": "root",
+      "mode": "0755",
+      "purpose": "typed PostgreSQL instance selections and generated configuration"
+    },
+    {
       "path": "/opt/laplace/deployment",
       "owner": "root",
       "group": "root",
@@ -51,7 +65,10 @@
     "gateway_installer": "tools/delivery/install_product_activation_gateway.py",
     "gateway_executable": "/opt/laplace/deployment/current/bin/laplace-product-activate",
     "product_builder": "tools/product/build-package.py",
-    "cluster_controller": "tools/postgresql/clusterctl.py"
+    "cluster_controller": "tools/postgresql/clusterctl.py",
+    "host_contract": "contracts/postgresql-host.json",
+    "host_controller": "tools/postgresql/hostctl.py",
+    "default_instance_request": "contracts/instances/refactor.json"
   },
   "lifecycle": {
     "install": "converge host identity and directories install immutable gateway then execute one signed whole-product request",
