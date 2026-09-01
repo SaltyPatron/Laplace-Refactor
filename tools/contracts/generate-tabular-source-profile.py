@@ -153,6 +153,8 @@ def validate(document: dict[str, Any]) -> None:
             require("member" in artifact["roles"],
                     f"child is not marked as a member: {name}")
         if artifact["mode"] == "raw_octets":
+            require(parent is None and not artifact["exact_distribution"],
+                    "profile must not promote its distribution wrapper to selected content")
             require(not artifact.get("columns") and
                     artifact.get("header_record_count", 0) == 0,
                     f"raw artifact declares tabular syntax: {name}")

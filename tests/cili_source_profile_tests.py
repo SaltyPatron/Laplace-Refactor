@@ -16,7 +16,12 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "contracts" / "sources" / "cili-pwn-mappings-20240611.json"
 GENERATOR = ROOT / "tools" / "contracts" / "generate-tabular-source-profile.py"
-SOURCE = Path(os.environ.get("LAPLACE_CILI_SOURCE_ROOT", ""))
+SOURCE = Path(
+    os.environ.get(
+        "LAPLACE_CILI_SOURCE_ROOT",
+        "/__laplace_locked_cili_source_is_not_configured__",
+    )
+)
 
 
 class CiliSourceProfileContract(unittest.TestCase):
