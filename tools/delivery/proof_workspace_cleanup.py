@@ -63,7 +63,11 @@ def _proc_link_target(link: Path) -> Path | None:
     except (FileNotFoundError, PermissionError, OSError):
         return None
     if raw.endswith(" (deleted)"):
-        raw = raw[: -len(" (deleted)")]
+        # Linux appends this marker when a process still holds an inode whose
+        # namespace entry is already gone. It cannot reference a later tree
+        # recreated at the same pathname and therefore must not block cleanup
+        # of that distinct current workspace.
+        return None
     candidate = Path(raw)
     if not candidate.is_absolute():
         return None

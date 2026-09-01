@@ -178,6 +178,21 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
             CLEANUP.cleanup(self.root, [target.name], proc_root=proc_root)
         self.assertEqual(marker.read_text(encoding="utf-8"), "keep\n")
 
+    def test_deleted_inode_reference_cannot_claim_recreated_workspace(self) -> None:
+        target = self.root / "laplace-output"
+        target.mkdir()
+        marker = target / "current"
+        marker.write_text("current generation\n", encoding="utf-8")
+        proc_root = self.root / "proc"
+        fd_root = proc_root / "1234/fd"
+        fd_root.mkdir(parents=True)
+        (fd_root / "7").symlink_to(f"{marker} (deleted)")
+
+        receipt = CLEANUP.cleanup(self.root, [target.name], proc_root=proc_root)
+
+        self.assertEqual(receipt["results"][0]["state"], "removed")
+        self.assertFalse(target.exists())
+
     def test_deliberate_cross_device_entry_is_rejected_before_deletion(self) -> None:
         target = self.root / "laplace-package-product-proof"
         target.mkdir()
