@@ -89,6 +89,25 @@
     "original_final_delta": "diff the interrupted HEAD against snapshot_commit",
     "rule": "restore or reconcile only in a new isolated worktree; do not reset, clean, checkout over, or rebase either original dirty worktree"
   },
+  "reconciliation": {
+    "audit": "docs/audits/PR93_PR94_LOCAL_REMOTE_RECONCILIATION_2026-08-31.md",
+    "pr93": {
+      "disposition": "preserved-historical-implementation-and-deliberate-defect",
+      "reason": "recursive provider and span metadata was admitted as composition content and the test required a larger canonical request population; current authority requires structural witness state outside content identity",
+      "continued_by": "PR 107 canonical decomposition witness boundary"
+    },
+    "pr94": {
+      "disposition": "semantic-boundary-retained-and-expanded",
+      "retained_requirement": "canonical composition does not implicitly emit occurrence testimony; explicit occurrence intent and separate resource accounting are required",
+      "continued_by": "PR 107 request.flags.emit_occurrence, logical-versus-emitted occurrence accounting, structural-witness persistence, and deliberate-defect tests"
+    },
+    "pr94_workflows": {
+      "disposition": "intent-superseded-by-current-product-path-governance",
+      "retained_intent": "custom-stack proof is reusable and destructive product activation is not an ordinary pull-request action",
+      "continued_by": "PR 105 fail-closed product-path classifier and gate on current main"
+    },
+    "acceptance_nonclaim": "this reconciliation identifies lineage and supersession only; it does not accept PR 107 or restore either local snapshot into current implementation"
+  },
   "nonclaims": [
     "the snapshots are not tested or merge-ready",
     "remote publication is preservation and not acceptance",
