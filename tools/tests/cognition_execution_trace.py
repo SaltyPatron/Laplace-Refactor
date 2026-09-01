@@ -33,9 +33,14 @@ def text(path: Path) -> str:
         raise ContractError(f"cannot read {path}: {error}") from error
 
 
+def normalized(value: object) -> str:
+    rendered = json.dumps(value, sort_keys=True) if not isinstance(value, str) else value
+    return " ".join(rendered.lower().split())
+
+
 def contains_all(value: object, terms: tuple[str, ...], message: str) -> None:
-    rendered = json.dumps(value, sort_keys=True).lower() if not isinstance(value, str) else value.lower()
-    missing = [term for term in terms if term.lower() not in rendered]
+    rendered = normalized(value)
+    missing = [term for term in terms if normalized(term) not in rendered]
     require(not missing, f"{message}: {', '.join(missing)}")
 
 
