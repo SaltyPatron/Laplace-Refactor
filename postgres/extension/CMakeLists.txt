@@ -51,6 +51,21 @@ file(APPEND "${extension_sql}"
 ${LAPLACE_MACHINE_EXCEPTION_SQL}\
 ")
 
+set(LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA
+    "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
+set(source_admission_metrics_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/source_admission_metrics.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/source_admission_metrics.sql.in"
+    "${source_admission_metrics_sql}"
+    @ONLY)
+file(READ "${source_admission_metrics_sql}"
+    LAPLACE_SOURCE_ADMISSION_METRICS_SQL)
+file(APPEND "${extension_sql}"
+    "\
+${LAPLACE_SOURCE_ADMISSION_METRICS_SQL}\
+")
+
 set(laplace_postgresql_module_sources
     src/cognition_isa_pg.c
     src/composition_pg.c
