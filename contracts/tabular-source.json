@@ -36,7 +36,8 @@
     "parent_artifact": 12
   },
   "grammar": {
-    "encoding": "raw artifacts retain exact digest provenance and retain octet AST content only when exact-distribution is declared; delimited selected content requires shortest-form Unicode scalar UTF-8",
+    "encoding": "raw artifacts retain exact digest provenance and retain octet AST content only when exact-distribution is declared; delimited and fixed-width selected content requires shortest-form Unicode scalar UTF-8",
+    "media_type": "a source-declared media type is preserved exactly; when omitted, utf8_delimited uses text/tab-separated-values and utf8_fixed_width uses text/plain; charset=utf-8, while raw_octets has no invented fallback media type",
     "delimiter": "one declared nonzero single-byte delimiter outside UTF-8 continuation bytes",
     "fixed_width": "one ordered field-width vector partitions every record in bytes; per-field padding trim affects only semantic value spans and never exact physical field spans or reconstruction",
     "fixed_width_overflow": "a profile may identify one field that absorbs a bounded number of extra physical bytes; every such byte is retained in the field and as an explicit overflow witness and exact overflow-record denominators must close",
@@ -74,6 +75,7 @@
     "missing-final-record-terminator",
     "wrong-field-count",
     "invalid-utf8",
+    "fixed-width-inherits-delimited-tsv-media-fallback",
     "source-specific-header-dispatch",
     "role-entering-content-identity",
     "reconstruction-uses-original-input-buffer",
