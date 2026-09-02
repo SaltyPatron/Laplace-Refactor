@@ -503,6 +503,8 @@ laplace_tabular_source_status BuildRecursive(
 
         static constexpr char FallbackDelimitedMediaType[] =
             "text/tab-separated-values";
+        static constexpr char FallbackFixedWidthMediaType[] =
+            "text/plain; charset=utf-8";
         laplace_decomposition_content content{};
         content.bytes = artifact.bytes;
         content.byte_count = artifact.byte_count;
@@ -511,10 +513,14 @@ laplace_tabular_source_status BuildRecursive(
         if (artifact.media_type != nullptr) {
             content.media_type = artifact.media_type;
             content.media_type_byte_count = artifact.media_type_byte_count;
-        } else if (artifact.mode != LAPLACE_TABULAR_ARTIFACT_RAW) {
+        } else if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_DELIMITED) {
             content.media_type = FallbackDelimitedMediaType;
             content.media_type_byte_count =
                 sizeof(FallbackDelimitedMediaType) - 1u;
+        } else if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_FIXED_WIDTH) {
+            content.media_type = FallbackFixedWidthMediaType;
+            content.media_type_byte_count =
+                sizeof(FallbackFixedWidthMediaType) - 1u;
         }
 
         const laplace_digest256 cache_key = WitnessCacheKey(
