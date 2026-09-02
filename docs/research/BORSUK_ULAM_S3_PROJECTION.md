@@ -1,10 +1,12 @@
 # Borsuk-Ulam consequences for Laplace S3 structural projections
 
 Status: research/implementation input, 2026-09-02. This note supplements
-`STRUCTURAL_TRAJECTORY_METRICS.md`, the glome geometry acceptance, and issue #168.
-It constrains structural projection behavior; it does not define semantic equivalence.
+`STRUCTURAL_TRAJECTORY_METRICS.md`, `PHYSICALITY_COORD_TRAJECTORY_REALIZATION.md`, the
+glome geometry acceptance, and issue #168. It constrains the real `S3` coordinate
+projection boundary; it does not define semantic equivalence and it does not describe
+the trajectory's discrete BLAKE3 payload packing.
 
-## The theorem applies directly to the S3 projection boundary
+## The theorem applies to the real `physicality.coord` S3 domain
 
 For every continuous map
 
@@ -18,159 +20,172 @@ Borsuk-Ulam guarantees at least one antipodal pair `x` and `-x` such that
 f(x) = f(-x).
 ```
 
-Therefore for Laplace's canonical structural glome:
+Laplace Tier-0 atom `physicality.coord` values are real four-component structural
+points on the pinned unit `S3` / glome. Therefore any declared continuous view
 
 ```text
 f : S3 -> R3
 ```
 
-any continuous three-dimensional projection or continuous three-component feature map
-is necessarily non-injective somewhere on the full S3 domain. At least one antipodal
-pair is collapsed by the projection. The same non-injectivity consequence applies to
-continuous maps into lower Euclidean dimensions as well.
+is necessarily non-injective somewhere on the full manifold. At least one antipodal
+pair is collapsed by that continuous three-component view. Continuous maps into lower
+Euclidean dimensions inherit the same non-injectivity consequence.
 
-This is a mathematical reason, not merely a UI convention, that a 3D/2D projection
-cannot replace canonical four-component S3 physicality.
+This is a mathematical reason that a continuous 3D/2D view cannot replace the real
+four-component `physicality.coord` on the complete S3 structural domain.
+
+Higher-tier composition centroids need an additional qualification: the canonical
+four-component arithmetic centroid of child `coord` values may lie inside the glome
+rather than on unit S3. Borsuk-Ulam is therefore invoked for the actual S3-valued
+boundary/domain of the selected physicality recipe, not indiscriminately for every
+four-component centroid stored by Laplace.
+
+## `physicality.trajectory` is a different object
+
+`physicality.trajectory` is not the lower-dimensional projection governed by the
+statement above. It is an ordered, exact, mantissa-packed payload carrier.
+
+For composition physicalities its vertices encode a canonical BLAKE3-128 constituent
+identity plus ordinal/run/RLE/flags and other typed metadata. The coordinate-shaped
+`X/Y/Z/M` storage is exploited as an address/index carrier. Conceptually the `XYZ`
+mantissa capacity forms a hash/address coordinate, with `M` the metadata-rich lane;
+the historical/current exact layout also uses spare `Z` payload bits for metadata.
+
+That mapping is discrete and its correctness contract is exact pack/unpack. It is not a
+continuous map from the real S3 coordinate of the constituent into R3. Borsuk-Ulam does
+not imply a collision in this hash payload representation.
+
+The two operations must not be conflated:
+
+```text
+real physicality.coord on S3 -> continuous R3 display/feature projection
+    Borsuk-Ulam constrains global injectivity
+
+BLAKE3-128 constituent id -> trajectory mantissa XYZ/M payload
+    discrete exact address/metadata encoding
+```
+
+A trajectory vertex can look like a 3D/4D coordinate to a geometry library while
+remaining semantically non-spatial. Applying a geometric metric directly to those
+payload numbers measures packed bits, not Laplace structural shape.
 
 ## This does not make antipodes canonically identical
 
 Borsuk-Ulam says that a lower-dimensional continuous map must identify some antipodal
-pair. It does **not** say that canonical S3 points `x` and `-x` are the same Laplace
-physicality, the same content, or semantically equivalent.
+pair. It does **not** say that canonical S3 points `x` and `-x` are equal content,
+equal physicality, or semantically equivalent.
 
-The distinction is:
+Accordingly, the prohibition on silently applying quaternion orientation semantics
+(`q ~ -q` or `abs(dot)`) remains valid. Laplace S3 is a structural content geometry,
+not automatically the projective rotation space `SO(3)`.
 
-```text
-canonical S3 structural state:
-    x != -x unless the exact physicality/identity contract separately says otherwise
+## Hopf projection is a separate many-to-one structural view
 
-continuous lower-dimensional projection:
-    there exists x for which f(x) = f(-x)
-```
-
-Accordingly, the existing prohibition on silently applying quaternion orientation
-semantics (`q ~ -q` or `abs(dot)`) remains valid. Laplace S3 is a structural content
-geometry, not automatically the projective rotation space `SO(3)`.
-
-Borsuk-Ulam actually strengthens the projection-nonauthority rule: collisions are not
-an implementation accident that a clever continuous 3D projection can universally
-avoid.
-
-## Hopf projection is an even stronger many-to-one case
-
-Laplace also uses Hopf structure as a calculated view. The standard Hopf map
+The standard Hopf map
 
 ```text
 h : S3 -> S2
 ```
 
-satisfies
-
-```text
-h(x) = h(-x)
-```
-
-for every antipodal pair, not merely for one guaranteed pair. More generally, each
-Hopf base point has an `S1` fiber, so the base projection intentionally collapses an
-entire circle of S3 points.
+has `S1` fibers. The S2 base therefore intentionally loses distinctions present on S3,
+including antipodal pairs sharing the same base location.
 
 Consequences:
 
-- Hopf base coordinates cannot be canonical physicality identity;
+- Hopf base coordinates cannot replace `physicality.coord`;
 - equal Hopf base location does not imply equal S3 point, constituent, trajectory, or
   semantic state;
-- fiber phase is required when the calculation needs to distinguish points within a
-  Hopf fiber;
-- a visualization using only the S2 base is intentionally lossy and must receipt that
-  loss.
+- fiber phase/state is required when a calculation needs to distinguish points in the
+  same fiber;
+- a base-only visualization carries an explicit many-to-one loss receipt.
 
 ## Finite Unicode placement versus the continuous theorem
 
-Borsuk-Ulam is a theorem about the full continuous sphere. Laplace's Tier-0 Unicode
-placement is a finite population of sampled S3 points. A particular continuous
-projection can be injective on that finite sampled subset even though it cannot be
-injective on all of S3.
+Borsuk-Ulam is about the complete continuous sphere. Laplace Tier-0 Unicode placement
+is a finite sampled population on S3. A particular continuous projection may happen to
+be injective on that finite sample while remaining globally non-injective.
 
 Therefore acceptance must not falsely claim:
 
 ```text
-Borsuk-Ulam => the current 1,114,112 sampled Unicode points necessarily contain a
+Borsuk-Ulam => the current 1,114,112 sampled atom points necessarily contain a
 projected antipodal collision.
 ```
 
-Instead it establishes the stronger architectural boundary:
+The correct architectural claim is:
 
 ```text
-no continuous lower-dimensional representation has a global injectivity contract over
-canonical S3.
+no continuous R3 representation has a global injectivity contract over the complete
+canonical S3 domain.
 ```
 
-Any finite-sample no-collision observation is a property of that sample/projection
-epoch, not a theorem that the projection is lossless.
+A finite no-collision observation is a property of the selected sample/projection
+epoch, not a proof that the projection can replace S3.
 
 ## Relation to angular, Fréchet, Hausdorff, Karcher and Hilbert calculations
 
-Borsuk-Ulam is not another interchangeable distance metric. It constrains projection
-and representation.
+Borsuk-Ulam is a representation/projection constraint, not another distance metric.
 
-- **Angular/geodesic** distance operates on canonical S3 points and can distinguish
-  antipodes at distance `pi` under the declared unit-sphere metric.
-- **Fréchet** compares realized ordered coordinate trajectories; doing it after a
-  lossy lower-dimensional projection can collapse distinctions that exist in S3.
-- **Hausdorff** has the same projection-loss concern for sets/shapes while answering a
-  different set-coverage question.
-- **Karcher/Fréchet means** should be calculated on the declared manifold when the
-  program requires intrinsic geometry; calculating after an unreceipted projection
-  changes the optimization problem.
-- **Hilbert locality** is a discrete/index projection over declared four-dimensional
-  coordinates and remains a candidate/index operation rather than a theorem-preserving
-  replacement for S3.
+- **Angular/geodesic** calculations consume real `physicality.coord` when the recipe
+  asks for S3 geometry.
+- **Fréchet** consumes a realized ordered curve: decode the packed trajectory's
+  constituent IDs, resolve each child's real `coord`, then compare those coordinates.
+  Running Fréchet directly on packed trajectory `XYZM` is a typed defect.
+- **Hausdorff** has the same realized-coordinate requirement when used for structural
+  set/shape geometry, while remaining distinct from order-sensitive Fréchet.
+- **Karcher/Fréchet means** are intrinsic manifold calculations over the declared real
+  coordinate set and remain additional views rather than the canonical arithmetic
+  composition centroid.
+- **Hilbert locality** is an index projection over the declared real four-dimensional
+  coordinate and is not the trajectory's BLAKE3 hash/address packing.
 
-A metric recipe must therefore state whether it consumes canonical S3 coordinates or a
-particular projected view. Projected calculations carry the projection identity and
-loss contract in their receipt.
+Every receipt must therefore identify which coordinate class was consumed:
+
+```text
+real coord
+packed trajectory payload
+realized curve
+continuous display projection
+Hopf base/fiber view
+Hilbert index projection
+```
+
+Storage compatibility cannot erase this type distinction.
 
 ## Semantic-web consequence
 
-Projection collision is structural representation loss, not semantic convergence.
-Two canonical structural states may map to the same 3D/S2 display point and still have
-completely different relation/evidence webs. Conversely, semantically related entities
-may be distant in S3.
-
-This is another reason for the inventor-direct separation:
+All of these remain structural state. Projection collision, hash-address locality,
+centroid proximity, or curve similarity is not semantic convergence.
 
 ```text
-S3 / physicality = structure
-semantic relation/evidence web = semantics
+physicality / packed structural manifest / realized geometry = structure
+semantic relation/evidence web = meaning, relation, evidence, context, standing
 ```
 
-A projection may help humans or candidate generation see the structure. The semantic
-web resolves meaning, evidence, relation type, context, standing, discourse and goal.
+The semantic web may use structural candidates, but it decides semantic admissibility
+under the active program.
 
 ## Implementation and acceptance consequences
 
-1. Every continuous S3 -> R3/R2 display or feature projection is declared lossy at the
-   full-manifold contract level.
-2. No projection output can replace canonical four-component physicality or content
-   identity.
-3. Projected equality never establishes canonical S3 equality or semantic equivalence.
-4. Exact structural operations requiring S3 use canonical coordinates or prove that
-   the selected projection preserves the needed invariant for the bounded input.
-5. Fréchet/Hausdorff/Karcher calculations state whether they operate intrinsically on
-   S3 or on a declared projection and receipt any loss.
-6. Hopf S2 base-only views explicitly retain the fact that fibers are many-to-one.
-7. A deliberate mutant that treats a collision-free finite sample as proof of global
-   projection injectivity must fail.
-8. A deliberate mutant that treats equal projected points as equal semantic entities
-   must fail.
+1. Continuous S3 -> R3/R2 views declare full-manifold non-injectivity.
+2. The discrete trajectory BLAKE3 payload is explicitly excluded from the Borsuk-Ulam
+   projection claim.
+3. `physicality.coord` and `physicality.trajectory` never share a geometric meaning
+   merely because both use geometry-compatible storage.
+4. Fréchet/Hausdorff/geometric curve work first realizes trajectory IDs to child
+   `physicality.coord` values.
+5. A mutant that applies Borsuk-Ulam to the hash packer fails the type contract.
+6. A mutant that runs spatial math on packed trajectory payloads fails even if it
+   returns finite numeric results.
+7. A mutant that treats a collision-free finite S3 sample as proof of global
+   projection injectivity fails.
+8. Equal projected values never establish canonical identity or semantic equivalence.
 
 ## Research anchors
 
 - Karol Borsuk, *Drei Sätze über die n-dimensionale euklidische Sphäre*, Fundamenta
-  Mathematicae 20 (1933), 177-190. The Borsuk-Ulam theorem is the relevant projection
-  obstruction.
-- The standard Hopf fibration `S3 -> S2` is a many-to-one structural projection with
-  circle fibers and identifies antipodal points in the base projection.
+  Mathematicae 20 (1933), 177-190.
+- The standard Hopf fibration `S3 -> S2` supplies the relevant many-to-one fiber view.
 
-The theorem is used here to constrain what Laplace is allowed to infer from a
-lower-dimensional representation. It does not convert topology into semantic truth.
+The theorem is used to constrain continuous views of Laplace's **real S3 coordinate**.
+It does not convert packed content addressing or topology into semantic truth.
