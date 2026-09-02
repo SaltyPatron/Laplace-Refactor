@@ -1,0 +1,21 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "TabularFixedWidthMedia.MissingMediaTypeUsesUtf8PlainTextNotDelimitedTsv",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
+        "LP-TEST-AST-EXACT-RECOMPOSITION",
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "fixed-width recursive decomposition uses a text/plain UTF-8 fallback when source authority omits media type",
+        "delimited TSV fallback cannot leak into fixed-width decomposition witness identity",
+        "the effective media type remains visible in the exact decomposition witness receipt"
+      ],
+      "defect_controls": [
+        "fixed-width source without an explicit media type inherits text/tab-separated-values"
+      ]
+    }
+  ]
+}
