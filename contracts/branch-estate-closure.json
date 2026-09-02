@@ -1,0 +1,75 @@
+{
+  "schema": "laplace.branch-estate-closure/v1",
+  "repository": "SaltyPatron/Laplace-Refactor",
+  "authority": {
+    "whole_product_issue": 23,
+    "governance_issue": 180,
+    "closure_issue": 183,
+    "complete_product_acceptance_issue": 22,
+    "authoritative_branch": "main"
+  },
+  "law": {
+    "branch_is_temporary_concurrency_boundary": true,
+    "branch_is_never_durable_work_storage": true,
+    "unique_work_requires_disposition": true,
+    "unaccounted_unique_branch_is_program_failure": true,
+    "branch_creation_freeze_while_unresolved": true,
+    "failed_owning_pr_must_be_repaired_or_explicitly_superseded": true,
+    "sibling_branch_does_not_count_as_repair": true,
+    "archive_may_not_hold_only_required_implementation": true
+  },
+  "dispositions": {
+    "allowed": [
+      "ACTIVE_PR",
+      "MERGED",
+      "REUSE",
+      "ADAPT",
+      "SUPERSEDED",
+      "RETIRE",
+      "ARCHIVE",
+      "UNACCOUNTED_UNIQUE_BRANCH"
+    ],
+    "failure_dispositions": ["UNACCOUNTED_UNIQUE_BRANCH"],
+    "requirements": {
+      "ACTIVE_PR": ["pr_number", "owner_issue", "route_to_main", "exit_condition"],
+      "MERGED": ["authoritative_main_commit", "reconciled_behavior"],
+      "REUSE": ["owner_issue", "route_to_main", "reconciled_behavior", "acceptance_owner"],
+      "ADAPT": ["owner_issue", "route_to_main", "reconciled_behavior", "invalid_old_assumption", "acceptance_owner"],
+      "SUPERSEDED": ["replacement_owner", "reconciled_behavior", "supersession_evidence"],
+      "RETIRE": ["reconciled_behavior", "retirement_reason", "requirement_nonloss_evidence"],
+      "ARCHIVE": ["historical_only_reason", "required_behavior_elsewhere"],
+      "UNACCOUNTED_UNIQUE_BRANCH": ["branch", "owner_issue"]
+    }
+  },
+  "reconciliation_method": [
+    "compare-tip-to-current-main",
+    "record-merge-base-ahead-behind-and-unique-commits",
+    "compare-against-active-pr-heads-and-overlapping-lineages",
+    "identify-unique-behavior-not-only-unique-files-or-commit-counts",
+    "map-valid-behavior-to-current-requirement-milestone-owner-and-acceptance",
+    "replay-or-rederive-valid-work-on-current-main",
+    "run-positive-acceptance-and-required-deliberate-defect",
+    "merge-only-green-exact-head-work",
+    "record-final-disposition-and-replacement-or-merge-identity",
+    "archive-or-delete-only-after-behavior-reconciliation"
+  ],
+  "terminal_zero_counters": [
+    "open_prs_with_failed_required_checks",
+    "unaccounted_unique_branch_tips",
+    "valid_orphan_implementation",
+    "required_behavior_without_current_owner",
+    "active_branch_without_explicit_disposition",
+    "branch_only_acceptance_or_evidence"
+  ],
+  "terminal_rule": "Every terminal zero counter must equal zero before #22 or #23 may close or a release may publish.",
+  "mutation_requirements": [
+    "unknown-unique-branch-must-fail",
+    "silent-retirement-of-required-behavior-must-fail",
+    "active-pr-without-route-to-main-must-fail",
+    "merged-without-authoritative-main-commit-must-fail",
+    "archive-containing-only-required-implementation-must-fail",
+    "terminal-ready-with-nonzero-counter-must-fail"
+  ],
+  "ledger": "state/branch-estate-ledger.json",
+  "documentation": "docs/product/BRANCH_ESTATE_CLOSURE.md"
+}
