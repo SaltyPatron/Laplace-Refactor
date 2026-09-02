@@ -146,7 +146,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 tests/source_estate_catalog_tests.py
-          python3 tools/audit/validate-vault-inventory.py --verify-physical
+          # The checked-in vault inventory is a dated observed-development-state
+          # document, not physical source authority. Validate its internal contract,
+          # then let the fresh catalog below observe and report physical estate drift.
+          # Requiring current /vault top-level names to equal the historical snapshot
+          # would make mutable development state an execution gate and prevent the
+          # discovery operation from reporting the very drift it exists to measure.
+          python3 tools/audit/validate-vault-inventory.py
           catalog="$RUNNER_TEMP/laplace-source-estate-catalog.json"
           python3 tools/sources/catalog-source-estate.py \
             --source-root "$LAPLACE_SOURCE_ESTATE_ROOT" \
@@ -277,7 +283,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload custom-stack QA evidence copy
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: custom-stack-qa-${{ github.sha }}
           path: ${{ runner.temp }}/laplace-custom-stack-qa/
@@ -286,7 +292,9 @@ jobs:
           compression-level: 9
       - name: Verify custom-stack registry
         if: success()
-        run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY" custom-stack
+        env:
+          LAPLACE_TEST_PROFILE: custom-stack
+        run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY"
       - name: Publish measured perfcache receipt
         if: always()
         shell: bash
