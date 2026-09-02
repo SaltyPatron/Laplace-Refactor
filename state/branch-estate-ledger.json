@@ -102,11 +102,11 @@
     }
   ],
   "terminal_counters": {
-    "open_prs_with_failed_required_checks": 5,
+    "open_prs_not_green_and_merged": 5,
     "unaccounted_unique_branch_tips": 13,
-    "valid_orphan_implementation": 3,
+    "unreconciled_branch_only_implementation_candidates": 3,
     "required_behavior_without_current_owner": 0,
-    "active_branch_without_explicit_disposition": 13,
+    "active_branch_without_resolved_disposition": 13,
     "branch_only_acceptance_or_evidence": 1
   },
   "counting_law": "Do not sum ahead_by values across overlapping branches. Reconcile ancestry and final behavior first so the same implementation lineage is not counted repeatedly."
