@@ -82,5 +82,22 @@ set_tests_properties(
     composition.mutation-request-count-memory-law-detected PROPERTIES
     LABELS "implementation;composition;identity;physicality;occurrence;resource;evidence;mutation")
 
+# #177: a source/file is not the scheduling atom.  The clean composition
+# engine already carries exact prior-result dependencies, so derive the
+# dependency frontiers independently of read/batch/worker/provider choices.
+add_executable(laplace_composition_frontier_tests
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_frontier_tests.cpp")
+target_link_libraries(laplace_composition_frontier_tests PRIVATE
+    Laplace::Composition
+    GTest::gtest_main)
+target_compile_options(laplace_composition_frontier_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME composition.dependency-frontier-plan
+    COMMAND "$<TARGET_FILE:laplace_composition_frontier_tests>")
+set_tests_properties(
+    composition.dependency-frontier-plan PROPERTIES
+    LABELS "implementation;composition;execution;working-set;resource;determinism")
+
 include("${CMAKE_CURRENT_SOURCE_DIR}/tests/source_structural_witness.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/tests/machine_exception.cmake")
