@@ -137,9 +137,9 @@ Ordered child identities form a composite preimage.
 Role, type, tier, coordinate, ordinal, source, and context never enter the content
 hash. A one-child composition is the child itself.
 
-Every modality ultimately composes over the complete Unicode codepoint-position
-floor. Numeric `255` is the content trajectory `2 -> 5 -> 5` whether it is a channel
-value, address segment, byte maximum, sample, model value, or instruction operand.
+Every modality ultimately composes over the complete Unicode codepoint-position floor.
+Numeric `255` is the content trajectory `2 -> 5 -> 5` whether it is a channel value,
+address segment, byte maximum, sample, model value, or instruction operand.
 The surrounding composition and testimony establish its role.
 
 Append-only numerical highways provide typed coordinates for languages, scripts,
@@ -200,29 +200,58 @@ into opaque names or detached sibling values.
 
 Physicality is the calculated realization of an entity: structural form, dimensions,
 placement, locality, shape, order, multiplicity, and serialization. Coordinates,
-centroids, trajectory points, ordinals, packed metadata, curves, angular distance, and
-Fréchet distance retain distinct typed meanings.
+centroids, trajectory payloads, realized coordinate curves, ordinals, packed metadata,
+curves, angular distance, and Fréchet distance retain distinct typed meanings.
 
-The bit-perfect physicality trajectory is a Merkle DAG from container trunk to
-codepoint leaves. It directly calculates constituent identity, role, ordinal, run,
-tier, ancestry, containment, precedence, following, recurrence, shape, dimensions,
-centroid, radius, and locality. These are structural facts bound to a physicality
-recipe and calculation receipt. They do not require testimony and cannot be weakened
-by source trust or popularity. Occurrence records where a realization appeared;
-testimony begins where a witness makes a claim about structure, interpretation,
-meaning, or use.
+The bit-perfect physicality trajectory is a Merkle-DAG structural manifest from
+container trunk to codepoint leaves. Under its pinned recipe it directly calculates
+constituent identity, role, ordinal, run, tier, ancestry, containment, precedence,
+following, recurrence, shape, dimensions, centroid, radius, and locality. These are
+structural facts bound to a physicality recipe and calculation receipt. They do not
+require testimony and cannot be weakened by source trust or popularity. Occurrence
+records where a realization appeared; testimony begins where a witness makes a claim
+about structure, interpretation, meaning, or use.
 
-No implementation may substitute one physical meaning for another because the storage
-types happen to be compatible.
+The coordinate and trajectory fields are deliberately different types even when both
+use geometry-compatible storage:
+
+```text
+physicality.coord
+    = the real four-component structural placement
+
+physicality.trajectory
+    = an ordered exact mantissa-packed identity/metadata manifest
+
+realized coordinate curve
+    = trajectory constituent identities resolved to child physicality.coord values
+```
+
+Tier-0 `coord` values inhabit the pinned unit S3/glome. Higher-tier `coord` values are
+the declared four-dimensional arithmetic centroid of actual child coordinates and may
+lie inside the glome. Angular/geodesic and Hilbert/locality operations that require the
+real structural coordinate consume `coord`.
 
 The trajectory column is a typed payload carrier encoded in four finite binary64 slots.
-For a composition physicality, its vertex class carries constituent identity, ordinal,
-run length, tier, atom, and structural flags. Other declared physicality classes may
-use the same carrier width for a typed relation walk or exact numeric factor payload.
-Physicality type, vertex class, recipe, and receipt select the decoder. A host-language
-`Hash128`, geometry point, or binary64 field states storage width and layout; it does not
-by itself state that the payload is an entity identity, spatial coordinate, or scalar.
-A mismatched decoder is a typed error.
+For a composition physicality, the carrier bit-packs the canonical constituent
+BLAKE3-128 identity plus ordinal, run/RLE, tier/atom/class flags and other typed
+metadata. Conceptually its `X/Y/Z` mantissa capacity is a BLAKE3/SIMD hash-address
+coordinate used for compact transport and indexing, while `M` is the metadata-rich
+lane; the exact generated ABI may use spare payload bits in other lanes as well. This
+coordinate-shaped address carrier is not the constituent's real S3 point.
+
+Other declared physicality classes may use the same carrier width for a typed relation
+walk or exact numeric factor payload. Physicality type, vertex class, recipe, and
+receipt select the decoder. A host-language `Hash128`, geometry point, or binary64
+field states storage width and layout; it does not by itself state that the payload is
+an entity identity, spatial coordinate, or scalar. A mismatched decoder is a typed
+error.
+
+When a calculation requires path geometry, it decodes the packed trajectory, resolves
+each constituent identity to the real `physicality.coord`, preserves order and
+multiplicity, and constructs the realized coordinate curve. Fréchet, Hausdorff and
+other geometric path calculations operate on that realized curve when their recipe
+requires real structural shape. Running them directly on packed trajectory `XYZM`
+measures payload bits rather than composition geometry and is a type-erasure defect.
 
 Index projections accelerate declared questions without replacing the trajectory.
 B-tree expressions serve exact first-constituent and Hilbert/locality ordering, GIN
@@ -236,11 +265,14 @@ Complete DUCET ordering over all 1,114,112 codepoint positions indexes determini
 Super-Fibonacci placement on S3. Its bounded population, Hopf radial split, and two
 fiber phases belong to the versioned geometry recipe. Hopf maps and three-dimensional
 glome projections are calculated views and never replace the canonical four-component
-point. Composite coordinates are four-dimensional
-arithmetic centroids of actual child points and retain their radius. Four 32-bit
-coordinate dimensions form the 128-bit Hilbert locality key. Packed trajectory
-mantissas retain constituent identity, ordinal, run length, and typed metadata;
-realized curves resolve those identities to live coordinates.
+point. For any continuous map of the real S3 structural domain into R3, Borsuk-Ulam
+forbids global injectivity; this projection law does not apply to the trajectory's
+discrete exact BLAKE3 mantissa packing, which is a different address/payload operation.
+Composite coordinates are four-dimensional arithmetic centroids of actual child
+points and retain their radius. Four 32-bit coordinate dimensions form the 128-bit
+Hilbert locality key. Packed trajectory mantissas retain constituent identity,
+ordinal, run length, and typed metadata; realized curves resolve those identities to
+live coordinates.
 
 Physicality proposes and organizes candidates. Witnessed relations and trust-bearing
 evidence decide standing.
@@ -250,8 +282,9 @@ instantiate physical structure. A classifier's conclusion is a derived attestati
 with its calculation lineage. Observed use is an occurrence with context. New claims
 or occurrences never mutate the entity or an existing immutable physicality.
 
-Physicality is many-to-one. Equal centroid, radius, or locality never establishes
-equal identity, equal constituents, equal trajectory, or equal meaning.
+Physicality is many-to-one. Equal centroid, radius, locality, packed-address proximity,
+or projected display location never establishes equal identity, equal constituents,
+equal trajectory, or equal meaning.
 
 ## 6. Evidence and trust
 
@@ -334,23 +367,24 @@ content. Any knowingly lossy projection declares exactly what it discards and is
 ineligible for operations that require the discarded information.
 
 `Neighbor` is a program-defined calculated result, not a universal relation. Exact
-Merkle-DAG adjacency, tier, containment, ordinal and occurrence scope; S3 angle,
-radius, Hilbert locality, Fréchet, Hausdorff and Karcher-derived geometry; and
-Glicko-2 standing, source trust, source-type trust, dependence, contradiction, context,
-and epoch remain distinct typed channels. A query may calculate a scalar rank, partial
-order, path cost, or selected set from those channels, but the result is bound to its
-goal and receipt and never becomes a timeless importance score. Relation importance
-is contextual: the same noun, function word, ordinal, pixel, axis, or instruction can
-be decisive or irrelevant under different declared programs.
+Merkle-DAG adjacency, tier, containment, ordinal and occurrence scope; real S3 angle,
+radius, Hilbert locality, realized-curve Fréchet, Hausdorff and Karcher-derived
+geometry; packed trajectory address/index structure; and Glicko-2 standing, source
+trust, source-type trust, dependence, contradiction, context, and epoch remain distinct
+typed channels. A query may calculate a scalar rank, partial order, path cost, or
+selected set from those channels, but the result is bound to its goal and receipt and
+never becomes a timeless importance score. Relation importance is contextual: the same
+noun, function word, ordinal, pixel, axis, or instruction can be decisive or irrelevant
+under different declared programs.
 
-Goal-directed query and cognition use query-compiled indexed state search. The
-program declares its terminal predicate, enabled typed transitions, accumulated cost,
+Goal-directed query and cognition use query-compiled indexed state search. The program
+declares its terminal predicate, enabled typed transitions, accumulated cost,
 remaining-cost estimate, evidence boundary, context, pruning, duplicate-state, reopen,
 tie, and completion rules. Indexes generate bounded frontier batches; they do not
 define relevance. A metric nearest-neighbor instruction may supply candidates to the
-search, but no KNN, ANN, vector, graph, or lookup result becomes the cognition policy.
-A result described as A-star optimal must prove the required heuristic and state-space
-conditions in its receipt.
+search, but no KNN, ANN, vector, graph, hash-address, or lookup result becomes the
+cognition policy. A result described as A-star optimal must prove the required
+heuristic and state-space conditions in its receipt.
 
 A cognition layer is a state transformation, not another raw graph hop. The current
 typed guidance state projects queries for unresolved obligations; indexes and
@@ -372,9 +406,10 @@ are never treated as interchangeable signals.
 The fast cognition loop executes a query within the current calculus. The learning
 loop deposits new observations and publishes a new adjudicated epoch. The Gödel loop
 uses persistent typed incompatibility, vacancy, innovation, contradiction, failed
-prediction, or failed action outcome as a discovery signal and proposes an extension
-to facts, relation families, motifs, laws, operators, firmware operations, or cognition
-programs. None of these loops can impersonate another in state or receipts.
+prediction, failed action outcome, and successful/failed cognition trajectories as
+discovery signals and proposes extensions to facts, relation families, motifs, laws,
+operators, firmware operations, cognition programs, or semantically equivalent
+acceleration paths. None of these loops can impersonate another in state or receipts.
 
 The discovery loop does not claim to complete the formal system. A structurally
 predicted vacancy remains unfilled until eligible observation or testimony supplies an
@@ -382,6 +417,13 @@ occupant. Candidate extensions are fitted and evaluated across declared disjoint
 boundaries, searched for counterexamples, charged complexity, compared by predicted
 outcomes, versioned, and explicitly activated. Self-generated candidates and
 descendants never become independent corroboration of themselves.
+
+A repeatedly proven cognition program can become a reusable skill; firmware may learn
+a habit that schedules it earlier under matching state; a semantically equivalent
+fused/indexed/perfcache/native fast path may become muscle memory after parity and
+measured physical benefit are proven. Habit changes scheduling, not truth. Muscle
+memory changes physical execution, not logical semantics. Historical program and
+acceleration versions remain replayable.
 
 An artifact produced by a machine-synthesized recipe is a self-authored structure in
 the technical provenance sense only when the receipt proves that the active recipe was
@@ -504,10 +546,10 @@ epoch.
 Corpus, domain, composition, transition, and operator planes are generated only after
 their declared canonical calculation or source-admission boundary is durable. They are
 built and verified in bulk and atomically activated at the end of that boundary;
-row-by-row cache maintenance cannot sit on the admission hot path. Once active, these planes can answer
-exact composition, reconstruction, rendering preparation, presence, and CRUD-routing
-questions without a database crossing whenever their typed contract fully covers the
-operation.
+row-by-row cache maintenance cannot sit on the admission hot path. Once active, these
+planes can answer exact composition, reconstruction, rendering preparation, presence,
+and CRUD-routing questions without a database crossing whenever their typed contract
+fully covers the operation.
 
 ## 11. Model independence
 
