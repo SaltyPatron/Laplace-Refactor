@@ -1,0 +1,29 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "finish-line.program-contract-and-mutation",
+      "evidence_targets": [
+        "LP-TEST-CONTINUATION-AUTHORITY",
+        "LP-TEST-REQUIREMENTS-TRACEABILITY"
+      ],
+      "covered_dimensions": [
+        "whole-product issue and complete-product acceptance remain the finish-line authority rather than a pull request",
+        "nine GitHub milestone identities bind the operation-model phase graph with explicit exit predicates and evidence boundaries",
+        "active sprint work has dependencies executable exits and immediate next actions",
+        "conventional architecture substitutions are explicit negative controls rather than implicit implementation defaults",
+        "repeated independent leaf defects escalate to a common semantic or physical owner",
+        "later direct inventor corrections remain obligations after historical audit cutoffs",
+        "old-iteration benchmark evidence cannot be promoted into refactor performance and benchmark physical plans cannot be relabeled"
+      ],
+      "defect_controls": [
+        "mandatory whole-product owner removed",
+        "file source or record worker-atom substitution removed from negative controls",
+        "active sprint item has no exit condition",
+        "GitHub milestone identity silently changed",
+        "pull request promoted to product finish line",
+        "deliberate-defect evidence removed from delivered-state chain"
+      ]
+    }
+  ]
+}
