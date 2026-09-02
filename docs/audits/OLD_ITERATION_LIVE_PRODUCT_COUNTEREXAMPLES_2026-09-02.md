@@ -10,7 +10,8 @@ A live old-iteration session on 2026-09-02 exposed several defects at once:
 2. Chess Lab transcript content can exist while the containing product panel collapses to a title bar;
 3. player standing/rating state is visibly corrupted at a scale that changes roster ordering, not merely formatting;
 4. glome/trajectory visuals still fail to communicate genuine depth and the point markers render effectively black/invisible in the observed browser;
-5. the new clarification that `physicality.coord`, packed `physicality.trajectory`, and the realized coordinate curve are different structural objects must remain wired into every visualization and metric path.
+5. the new clarification that `physicality.coord`, packed `physicality.trajectory`, and the realized coordinate curve are different structural objects must remain wired into every visualization and metric path;
+6. dense query/visualization instruments such as the paired Glome panes need a context-preserving in-place expand/fullscreen workbench rather than being permanently constrained to a small content-column card or redirected to another route.
 
 These observations are additive evidence for existing owners such as old-repo #833 and clean-repo #110/#136/#139/#168/#21. They do not supersede those issues.
 
@@ -130,7 +131,32 @@ Required visual acceptance:
 
 Borsuk-Ulam remains a constraint on continuous `S3 -> R3` projection of the real Tier-0 structural manifold. It is not a constraint on the discrete exact BLAKE3 mantissa trajectory packer. This distinction must remain explicit in UI code and documentation.
 
-## 5. Preservation / no-regression rule
+## 5. Dense inspection surfaces need in-place expand/fullscreen, not a redirect
+
+The live Glome page also demonstrates a different defect from #4. Even after the mathematical/rendering problems are fixed, the paired Packed/Placement instrument is permanently constrained to the ordinary Explore content column. A compact thumbnail is useful for orientation; it is not enough for serious inspection of dense trajectories, depth, labels, ordinal correspondence, neighbors, semantic overlays, evidence, or query/search receipts.
+
+The required behavior is a **context-preserving workbench expansion**, not navigation to another page.
+
+For the Glome fixture, expanded mode must retain the same:
+
+- entity and selected tab;
+- Packed/Placement identities;
+- selected ordinal/RLE synchronization;
+- structural/semantic overlay mode and already loaded neighbors;
+- X-M/declared 4D rotation values;
+- camera/orbit/zoom state where practical;
+- highlighted walk/path;
+- pinned result, geometry, evidence and consensus identities.
+
+Closing must return to the same embedded state. Expanding the viewport must not, by itself, issue a new semantic query, select a different neighbor frontier, change standing, or advance to another epoch.
+
+This is directly relevant to chat/query accuracy and performance. Explore/Glome is one inspection lens over the same machine state that conversation/query execution should expose. A compact chat answer can stay compact, while an `inspect interpretation/evidence/search/geometry/standing/receipt` action opens the same generic workbench shell over the actual pinned result. That is how the user can inspect why a request was interpreted a certain way, which providers were used, where search spent work, and whether a bad answer came from interpretation, evidence, standing, search, or realization.
+
+Performance telemetry in the expanded view must come from the same execution receipts used by runtime measurement/billing/Gödel analysis: estimated versus actual rows/candidates, frontier/filter counts, provider/index/perfcache generation, CPU/memory/I/O/database crossings, elapsed stage times, and completion/WHY_NOT state. The UI cannot invent a second measurement system.
+
+Clean owners: #176 and `docs/product/CONTEXT_PRESERVING_INSPECTION_WORKSURFACES.md`. Old direct repair: `SaltyPatron/Laplace#1450`.
+
+## 6. Preservation / no-regression rule
 
 This audit adds evidence; it does not replace prior work.
 
@@ -141,7 +167,10 @@ The following existing work remains authoritative within its declared boundary:
 - clean #136 for the complete cross-modal chess proving slice;
 - clean #139 for Stockfish/Cute Chess generation and cumulative ablation;
 - clean #168 and `PHYSICALITY_COORD_TRAJECTORY_REALIZATION.md` for structural geometry, packed trajectory, realized curves, Borsuk-Ulam, and metric-provider separation;
+- clean #172 for content-driven container sizing;
+- clean #174 for visual depth/color/projection correctness;
+- clean #176 for context-preserving fullscreen/workbench inspection;
 - clean #21 for reusable product surfaces rather than route-private UI semantics;
 - all prior audits, requirements, contracts, tests, and implementation evidence on PR #128.
 
-Any repair must be additive or a deliberate correction with exact provenance. A later implementation must not make these defects disappear by deleting the historical evidence, collapsing units into a new untyped scalar, removing transcript functionality, flattening packed/placement distinction, or replacing the full Chess Forward Pass with a stronger conventional chess engine.
+Any repair must be additive or a deliberate correction with exact provenance. A later implementation must not make these defects disappear by deleting the historical evidence, collapsing units into a new untyped scalar, removing transcript functionality, flattening packed/placement distinction, redirecting dense inspection to a new page that loses/reconstructs state, or replacing the full Chess Forward Pass with a stronger conventional chess engine.
