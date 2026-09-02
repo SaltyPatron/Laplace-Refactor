@@ -30,6 +30,7 @@
       "UNACCOUNTED_UNIQUE_BRANCH"
     ],
     "failure_dispositions": ["UNACCOUNTED_UNIQUE_BRANCH"],
+    "resolved_dispositions": ["MERGED", "REUSE", "ADAPT", "SUPERSEDED", "RETIRE", "ARCHIVE"],
     "requirements": {
       "ACTIVE_PR": ["pr_number", "owner_issue", "route_to_main", "exit_condition"],
       "MERGED": ["authoritative_main_commit", "reconciled_behavior"],
@@ -56,9 +57,9 @@
   "terminal_zero_counters": [
     "open_prs_with_failed_required_checks",
     "unaccounted_unique_branch_tips",
-    "valid_orphan_implementation",
+    "unreconciled_branch_only_implementation_candidates",
     "required_behavior_without_current_owner",
-    "active_branch_without_explicit_disposition",
+    "active_branch_without_resolved_disposition",
     "branch_only_acceptance_or_evidence"
   ],
   "terminal_rule": "Every terminal zero counter must equal zero before #22 or #23 may close or a release may publish.",
