@@ -118,6 +118,7 @@ static void laplace_pg_append_metrics_json(
 
 Datum laplace_source_admission_last_execution_metrics(PG_FUNCTION_ARGS) {
     StringInfoData output;
+    (void)fcinfo;
     initStringInfo(&output);
     appendStringInfoString(
         &output,
