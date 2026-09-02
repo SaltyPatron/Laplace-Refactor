@@ -24,6 +24,27 @@
         "pull request promoted to product finish line",
         "deliberate-defect evidence removed from delivered-state chain"
       ]
+    },
+    {
+      "ctest_name": "finish-line.branch-estate-closure-and-mutation",
+      "evidence_targets": [
+        "LP-TEST-CONTINUATION-AUTHORITY",
+        "LP-TEST-REQUIREMENTS-TRACEABILITY"
+      ],
+      "covered_dimensions": [
+        "every unique non-main branch is temporary work state with an explicit reconciliation disposition",
+        "open PR heads retain a concrete route to authoritative main rather than becoming durable work storage",
+        "unaccounted branch-only implementation is a P0 failure state rather than hidden progress",
+        "branch lineage accounting does not sum overlapping ahead-by counts as independent work",
+        "complete-product acceptance remains false until every branch-estate terminal counter is zero"
+      ],
+      "defect_controls": [
+        "terminal-ready promoted while branch-estate counters remain nonzero",
+        "active PR loses its route to main",
+        "unaccounted branch is silently retired without behavior reconciliation",
+        "branch is called merged without an authoritative-main commit",
+        "unaccounted unique branch is removed from failure dispositions"
+      ]
     }
   ]
 }
