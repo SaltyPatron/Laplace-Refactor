@@ -17,6 +17,8 @@ Feature: Unicode atoms inhabit one exact versioned glome geometry
     Then every base point lies on S2 within the pinned numeric contract
     And polar height follows the declared rank law
     And both circle phase distributions satisfy the declared complete population bounds
+    And antipodal S3 points may share the same Hopf base without becoming equal canonical physicalities
+    And the base projection retains the many to one fiber loss in its receipt
 
   Scenario: Glome projection is a view rather than physicality
     Given two canonical points that differ only in their fourth component
@@ -24,6 +26,15 @@ Feature: Unicode atoms inhabit one exact versioned glome geometry
     Then an appropriate rotation exposes their difference
     And the receipt records the rotation projection and discarded dimension
     But the projected triples cannot replace the canonical points or their Hilbert keys
+
+  Scenario: Borsuk Ulam forbids a globally injective continuous three dimensional glome projection
+    Given canonical physicality is defined on the full S3 structural manifold
+    And a declared display or feature map continuously maps S3 into three or fewer Euclidean dimensions
+    When the projection contract is evaluated
+    Then it declares that at least one antipodal pair on the full S3 domain must share a projected value
+    And projected equality does not imply canonical S3 equality content identity or semantic equivalence
+    And a collision free observation on the finite Unicode sample cannot certify global injectivity
+    But canonical four component physicality remains available for exact structural calculation
 
   Scenario: Composite radius remains inside the glome
     Given a composition of multiple canonical atom points
