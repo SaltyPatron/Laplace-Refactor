@@ -99,5 +99,27 @@ set_tests_properties(
     composition.dependency-frontier-plan PROPERTIES
     LABELS "implementation;composition;execution;working-set;resource;determinism")
 
+# Deliberate defect: erase all prior-result dependency depth.  The deep-chain
+# fixture must fail, proving that the frontier gate detects a scheduler that
+# would run a parent beside unresolved children.
+add_executable(laplace_composition_frontier_mutation_probe
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_frontier_tests.cpp")
+target_link_libraries(laplace_composition_frontier_mutation_probe PRIVATE
+    Laplace::Composition
+    GTest::gtest_main)
+target_compile_definitions(laplace_composition_frontier_mutation_probe PRIVATE
+    LAPLACE_TEST_COMPOSITION_FRONTIER_FLATTEN_DEPENDENCIES=1)
+target_compile_options(laplace_composition_frontier_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME composition.mutation-flattened-frontier-dependencies-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_composition_frontier_mutation_probe>"
+        "-DFILTER=CompositionFrontierPlan.DeepChainHasOneRequestPerDependencyFrontier"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/expect_gtest_failure.cmake")
+set_tests_properties(
+    composition.mutation-flattened-frontier-dependencies-detected PROPERTIES
+    LABELS "implementation;composition;execution;working-set;determinism;mutation")
+
 include("${CMAKE_CURRENT_SOURCE_DIR}/tests/source_structural_witness.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/tests/machine_exception.cmake")
