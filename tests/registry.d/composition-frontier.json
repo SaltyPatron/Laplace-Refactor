@@ -1,0 +1,25 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "composition.dependency-frontier-plan",
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
+        "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"
+      ],
+      "covered_dimensions": [
+        "composition request dependencies are compiled into deterministic ready frontiers rather than source or file worker atoms",
+        "wide independent requests expose parallel width while deep chains expose their real critical path",
+        "canonical request order remains stable inside a frontier",
+        "preferred persistence batch bytes and CPU memory IO resource grants cannot redefine the semantic dependency graph",
+        "forward self unknown and out-of-range references fail before physical execution"
+      ],
+      "defect_controls": [
+        "file or source object used as the composition scheduler atom",
+        "physical worker or persistence batch settings redefine composition dependency depth",
+        "parent request scheduled before an unresolved prior-result dependency"
+      ]
+    }
+  ]
+}
