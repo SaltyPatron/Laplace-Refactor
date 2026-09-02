@@ -31,7 +31,8 @@
     "recipe_program": [
       "typed recipe coordinates and fingerprints for block discovery parsing lowering canonicalization identity composition physicality reference witnessing deposition readback and recomposition as applicable",
       "exact input and output shapes provider bindings local dependencies epochs authority effects resources loss inverse vectors completion and receipt requirements",
-      "a source-local dependency DAG that may be interleaved with other profiles by the whole-working-set planner and does not impose a global source or pass order"
+      "a source-local dependency DAG that may be interleaved with other profiles by the whole-working-set planner and does not impose a global source or pass order",
+      "artifact grain parser or codec source-object grain canonical composition occurrence testimony grain and physical read feed record probe worker scheduling and deposit batching are declared as separate coordinates rather than inferred from one implementation shape"
     ],
     "universal_ast_mapping": [
       "every concrete symbol field record attribute relation endpoint and source position mapped to a typed AST role occurrence testimony outcome or explicit loss",
@@ -57,6 +58,8 @@
       "immutable positive conformance vectors source-specific negative controls malformed and adversarial fixtures",
       "provider substitution scalar vector partition replay and PostgreSQL semantic parity",
       "exact or declared semantic readback reference reachability source fidelity idempotency cancellation restart and durable effect checks",
+      "physical-plan equivalence vectors vary transport read and parser-feed chunking record and presence-probe batching worker topology scheduling and deposit batching while requiring one identical canonical semantic fingerprint",
+      "the semantic fingerprint covers canonical content and universal AST identity composition physicality trajectory occurrence typed reference testimony dependence provenance and reconstruction while CPU memory IO timing temporary staging and worker receipts may differ",
       "human-authored grammar profile recipe correction conformance and intervention effort plus the shared generic code reused from prior unrelated profiles",
       "profile completion predicate and the explicit statement that profile completion cannot certify generic admission product world state or release"
     ]
@@ -66,6 +69,8 @@
     "recipe_boundary": "all source-varying behavior is declared as typed data and compiled through the common recipe compiler and ISA rather than a source-named semantic dispatcher or opaque callback",
     "working_set": "the whole-working-set planner may combine compatible operations from several profiles so shared subtrees references mappings and dependence are resolved once over the selected boundary",
     "reuse": "registry validation planning batching presence deposition receipt and lifecycle code is shared; a profile contributes declarations grammar bindings conformance vectors and only truly source-specific kernels",
+    "physical_plan_invariance": "artifact occurrence transport read or feed chunk parser or codec source object canonical content or occurrence and persistence batch are distinct boundaries; changing any legal physical partitioning resource topology or scheduling plan must not change canonical admitted semantics and is observable only through the bound physical execution receipt",
+    "resource_law": "streaming versus retaining a complete source working set is selected from the admitted source structure topology memory and resource plan; neither strategy is a semantic doctrine and both must satisfy the same canonical fingerprint when both are legal",
     "unsupported": "absence of a valid profile grammar recipe or declared disposition is an explicit unsupported result and never an invitation to guess"
   },
   "selected_boundary": {
@@ -85,6 +90,11 @@
     "mirror-or-derived-source-counted-as-independent-evidence",
     "opaque-record-replaces-universal-AST-mapping",
     "row-count-used-as-source-closure",
-    "one-profile-completion-claims-generic-admission"
+    "one-profile-completion-claims-generic-admission",
+    "transport-read-chunk-becomes-record-or-content-boundary",
+    "record-or-probe-batch-size-changes-canonical-state",
+    "worker-or-scheduling-plan-changes-testimony-cardinality",
+    "deposit-or-merge-batching-changes-occurrence-identity",
+    "source-provenance-or-batch-ordinal-salted-into-canonical-content"
   ]
 }
