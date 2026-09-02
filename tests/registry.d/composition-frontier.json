@@ -20,6 +20,20 @@
         "physical worker or persistence batch settings redefine composition dependency depth",
         "parent request scheduled before an unresolved prior-result dependency"
       ]
+    },
+    {
+      "ctest_name": "composition.mutation-flattened-frontier-dependencies-detected",
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
+        "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"
+      ],
+      "covered_dimensions": [
+        "deliberate-defect sensitivity to a physical planner that erases prior-result dependency depth"
+      ],
+      "defect_controls": [
+        "all composition requests flattened into one ready frontier despite parent-child dependencies"
+      ]
     }
   ]
 }
