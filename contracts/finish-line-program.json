@@ -1,0 +1,274 @@
+{
+  "schema": "laplace.finish-line-program/v1",
+  "repository": "SaltyPatron/Laplace-Refactor",
+  "project": {
+    "number": 2,
+    "name": "Laplace Refactor — Machine Roadmap"
+  },
+  "program_authority": {
+    "whole_product_issue": 23,
+    "governance_issue": 180,
+    "complete_product_acceptance_issue": 22,
+    "finish_line_kind": "whole-product-contract",
+    "pull_request_is_never_product_finish_line": true,
+    "rule": "Branches and pull requests are implementation slices. The product finish line is the whole-product law plus this program contract plus complete installed-product acceptance."
+  },
+  "terminal_definition": {
+    "statement": "Laplace is finished only when the exact accepted package executes the complete configured machine from acquisition and activation through canonical world state, cognition, realization/effects, learning, product surfaces, recovery, readback, receipts and release acceptance without a private semantic engine or forbidden physical-plan substitution.",
+    "delivered_chain": [
+      "inventor-or-stable-product-law",
+      "versioned-contract-or-requirement",
+      "one-semantic-implementation-owner",
+      "positive-executable-acceptance",
+      "deliberate-defect-or-mutation-sensitivity",
+      "provider-and-route-parity-when-applicable",
+      "package-install-activation-identity-when-applicable",
+      "durable-or-public-readback-when-applicable",
+      "representative-physical-plan-and-performance-receipt-when-applicable",
+      "owning-milestone-exit-predicate"
+    ],
+    "non_proofs": [
+      "issue-count",
+      "pull-request-count",
+      "green-component-test",
+      "successful-load",
+      "expected-shape",
+      "nonempty-result",
+      "fluent-output",
+      "screenshot",
+      "historical-capability",
+      "documentation-only",
+      "benchmark-with-different-semantic-work"
+    ]
+  },
+  "work_state_machine": {
+    "states": ["planned", "active", "blocked", "failed-acceptance", "delivered", "superseded"],
+    "active_requires": ["owner", "phase", "milestone", "dependencies", "exit_condition", "immediate_next_action"],
+    "delivered_requires": "all-applicable-terminal-definition-delivered-chain-evidence",
+    "supersession_rule": "A superseded issue PR branch contract or document must name its successor; it cannot remain the current finish-line authority."
+  },
+  "milestones": [
+    {
+      "phase": 0,
+      "github_milestone_number": 1,
+      "github_title": "Phase 0 — Canonical cutover",
+      "operation_model_title": "Phase 0 — Product authority and clean-room foundation",
+      "primary_owners": [2, 24],
+      "exit_predicate": "The historical evidence boundary is frozen, clean-room authority is canonical, direct requirements are bound, and historical implementation cannot enter the clean build or masquerade as product law.",
+      "evidence_boundary": "authority provenance, archive/cutover, direct-evidence indexing, clean-room mutation"
+    },
+    {
+      "phase": 1,
+      "github_milestone_number": 3,
+      "github_title": "Phase 1 — Industrial build and dependency foundation",
+      "operation_model_title": "Phase 1 — Industrial build and dependency foundation",
+      "primary_owners": [3, 12],
+      "exit_predicate": "A clean supported host reproducibly acquires, verifies, builds, packages, installs and re-verifies the selected dependency, asset and PostgreSQL product graph with durable provenance and loaded-object closure.",
+      "evidence_boundary": "clean build, package, dependency locks, assets, SBOM, install/reinstall, loaded objects"
+    },
+    {
+      "phase": 2,
+      "github_milestone_number": 2,
+      "github_title": "Phase 2 — Universal execution framework and ISA",
+      "operation_model_title": "Phase 2 — Universal execution framework and ISA",
+      "primary_owners": [4, 5, 6, 10, 56, 70],
+      "exit_predicate": "Unrelated complete programs traverse one generated registry, execution context, recipe and ISA, conserved resource authority, provider boundary, batch/persistence/receipt lifecycle and processor-grade exception/recovery path without private component engines.",
+      "evidence_boundary": "framework/provider substitution, generated bindings, topology grants, PostgreSQL/SPI parity, exception/recovery, cross-domain cohesion"
+    },
+    {
+      "phase": 3,
+      "github_milestone_number": 4,
+      "github_title": "Phase 3 — Universal substrate state",
+      "operation_model_title": "Phase 3 — Universal substrate state",
+      "primary_owners": [7, 13, 14, 15, 16, 52, 110, 177, 179],
+      "exit_predicate": "Canonical identity, Merkle-DAG composition, physicality, trajectories, whole-working-set dedup/presence, Unicode root, Highway, testimony/lineage/standing and bulk persistence execute through the common machine with deterministic scalar/provider parity and no duplicate semantic execution.",
+      "evidence_boundary": "identity/composition/physicality, single-DAG execution, Unicode/perfcache, Highway, evidence lineage, persistence, resource and execution receipts"
+    },
+    {
+      "phase": 4,
+      "github_milestone_number": 5,
+      "github_title": "Phase 4 — Batch world-state admission",
+      "operation_model_title": "Phase 4 — Batch world-state admission",
+      "primary_owners": [53, 72, 112, 115, 171],
+      "exit_predicate": "Selected heterogeneous source profiles execute one provider-plus-recipe-plus-universal-AST admission spine; every artifact/object/field/reference/evidence disposition closes to durable readback and equivalent legal physical plans produce identical canonical world state.",
+      "evidence_boundary": "source-profile closure, physical-plan invariance, cross-family conformance, configured world admission, sparse storage-compute receipts"
+    },
+    {
+      "phase": 5,
+      "github_milestone_number": 6,
+      "github_title": "Phase 5 — Universal query and conversation",
+      "operation_model_title": "Phase 5 — Universal query and conversation",
+      "primary_owners": [17, 18, 19, 60, 132, 136, 168, 169, 170],
+      "exit_predicate": "Real requests compile and execute finite typed guidance, indexed candidate generation, typed search/operators/folds, evidence-aware completion, semantic acts, realization/effects and witnessed learning/discovery through one public route with exact why-not and physical-plan receipts.",
+      "evidence_boundary": "query/cognition/realization/learning route parity, typed completion, forbidden-plan mutations, representative end-to-end receipts"
+    },
+    {
+      "phase": 6,
+      "github_milestone_number": 7,
+      "github_title": "Phase 6 — Model independence",
+      "operation_model_title": "Phase 6 — Model independence",
+      "primary_owners": [20, 61, 71, 129],
+      "exit_predicate": "Conventional models are optional witnessed inputs/targets; behavior is experiment-scoped; target operators/artifacts compile from selected substrate state under named invariants and independent runtime oracles without flattening the native machine.",
+      "evidence_boundary": "model witness decomposition, behavior/effective support, operator/AImap invariants, scoped target compilation, independent target-runtime acceptance"
+    },
+    {
+      "phase": 7,
+      "github_milestone_number": 8,
+      "github_title": "Phase 7 — Complete product surfaces",
+      "operation_model_title": "Phase 7 — Complete product surfaces",
+      "primary_owners": [21, 140],
+      "exit_predicate": "Entity worlds, identity/visibility, entitlements, billing, product surfaces, APIs, packages, operations, placement and federation materialize the same machine semantics without application-private engines and pass supported-platform lifecycle/durability acceptance.",
+      "evidence_boundary": "entity-world and authorization parity, commercial governance, API/UI routes, package lifecycle, node/federation/placement acceptance"
+    },
+    {
+      "phase": 8,
+      "github_milestone_number": 9,
+      "github_title": "Phase 8 — Full acceptance and release",
+      "operation_model_title": "Phase 8 — Full acceptance and release",
+      "primary_owners": [22, 23, 165, 166, 167, 180],
+      "exit_predicate": "The exact installed package passes complete cross-route/cross-platform/cross-language/cross-modal/cross-model acceptance, deliberate defects, performance/economic evidence, recovery, provenance/manual parity and release publication. No lower proof state substitutes.",
+      "evidence_boundary": "complete installed-product suite, benchmark receipts, provenance/signatures, manual parity, release package and replayable evidence"
+    }
+  ],
+  "operational_graph": {
+    "contract": "contracts/operation-model.json",
+    "coverage_rule": "Every current operation-model stage and every phase referenced by a stage must map to exactly one finish-line milestone. The operation model owns stage enumeration; this contract must not maintain a divergent copied stage list.",
+    "phase_count": 9
+  },
+  "mandatory_capability_owners": [
+    3, 4, 5, 6, 7, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 52, 53, 56, 60, 70, 72, 110, 112, 115, 129, 132, 136, 140, 165, 166, 167, 168, 169, 170, 171, 177, 179, 180
+  ],
+  "anti_substitution_controls": {
+    "required": [
+      "dense-all-pairs-for-sparse-indexed-n-to-k",
+      "file-source-record-as-worker-atom",
+      "private-etl-or-decomposer-engine-per-source",
+      "physical-batch-boundary-as-semantic-boundary",
+      "global-adjacency-embedding-nearest-neighbor-or-flat-score-as-machine",
+      "bpe-or-fixed-tokenizer-as-native-symbolic-floor",
+      "gradient-or-checkpoint-training-as-native-admission-authority",
+      "gpu-or-world-model-residency-as-semantic-requirement",
+      "sql-cursor-rbar-recursive-or-dynamic-per-candidate-cognition",
+      "ui-api-csharp-or-source-adapter-private-semantics",
+      "source-path-tier-occurrence-time-worker-or-batch-in-canonical-content-identity",
+      "semantic-preflight-replayed-and-discarded-before-real-execution",
+      "load-shape-fluency-nonempty-or-historical-result-as-complete-acceptance"
+    ],
+    "coverage_rule": "Every critical control must have an owning positive acceptance and a deliberate-defect or mutation somewhere in the acceptance graph before the owning milestone can close."
+  },
+  "rework_escalation": {
+    "repeat_leaf_threshold": 2,
+    "rule": "When the same defect class appears in two independent leaves, the next primary change must identify and repair the generic semantic or physical owner before another leaf-only patch can count as progress.",
+    "required_actions": [
+      "identify-common-owner",
+      "create-or-update-generic-contract-and-implementation-owner",
+      "add-cross-family-fixture-or-mutation",
+      "make-leaf-fixes-consume-generic-correction",
+      "record-legitimate-source-or-domain-specific-remainder"
+    ],
+    "known_classes": [
+      "source-specific-decomposer-reinvention",
+      "physical-batching-leaks-into-identity",
+      "duplicated-lifecycle-or-receipt-machinery",
+      "file-grain-parallel-scheduling",
+      "duplicate-semantic-calculation-in-planning-and-execution"
+    ]
+  },
+  "current_sprints": [
+    {
+      "id": "substrate-execution-correctness-2026-09-02",
+      "state": "active",
+      "outcome": "Make composition execution generic, dependency-aware, single-calculation and resource-conserved before world admission or performance work builds on it.",
+      "items": [
+        {
+          "issue": 4,
+          "role": "prerequisite-owner",
+          "phase": 2,
+          "milestone": 2,
+          "dependencies": [],
+          "exit_condition": "The execution grant/provider authority exposes the CPU/memory/concurrency controls required by component execution without private resource pools.",
+          "immediate_next_action": "Consume the existing execution grant/provider boundary from composition rather than inventing another scheduler."
+        },
+        {
+          "issue": 10,
+          "role": "prerequisite-owner",
+          "phase": 2,
+          "milestone": 2,
+          "dependencies": [4],
+          "exit_condition": "Composition execution is admitted through the common framework/provider/receipt lifecycle and cannot create a private execution framework.",
+          "immediate_next_action": "Keep provider selection and receipts in the common framework while #177 integrates ready-frontier execution."
+        },
+        {
+          "issue": 177,
+          "role": "active-implementation",
+          "phase": 3,
+          "milestone": 4,
+          "dependencies": [4, 10],
+          "current_pr": 178,
+          "exit_condition": "One semantic composition DAG executes dependency frontiers through admitted resource/provider authority with scalar parity, deterministic merge, bounded concurrent memory and receipted single-object scaling.",
+          "immediate_next_action": "After frontier-plan acceptance, pre-size per-request slots and execute each ready frontier through the existing execution provider."
+        },
+        {
+          "issue": 179,
+          "role": "active-implementation",
+          "phase": 3,
+          "milestone": 4,
+          "dependencies": [10],
+          "exit_condition": "Normal composition executes each semantic request once; planning uses bounded/static work or retained prepared results and exact reconciliation without a discarded duplicate semantic pass.",
+          "immediate_next_action": "Retain prepared request calculations or replace exact dry-run calculation with a cheaper bounded preflight before provider execution."
+        },
+        {
+          "issue": 171,
+          "role": "cross-boundary-gate",
+          "phase": 4,
+          "milestone": 5,
+          "dependencies": [177, 179],
+          "exit_condition": "Legal read/feed/batch/worker/schedule/deposit plans produce an identical normalized canonical world fingerprint across materially different source families.",
+          "immediate_next_action": "Extend source-profile conformance to consume the corrected execution plan and compare semantic fingerprints across worker and batching variants."
+        }
+      ]
+    }
+  ],
+  "direct_correction_capture": {
+    "historical_audit_issue": 24,
+    "rule": "A closed historical audit is a bounded evidence checkpoint, not permission to ignore later direct corrections. Every material direct correction must map to an existing requirement/contract/issue/test or create/update one before it can disappear from the active obligation graph.",
+    "assistant_hypothesis_is_authority": false,
+    "lower_authority_conflict_disposition": "update-or-explicitly-supersede",
+    "unresolved_direct_correction_blocks_complete_claim": true
+  },
+  "benchmark_truth": {
+    "legacy_single_thread": {
+      "repository": "SaltyPatron/Laplace",
+      "run": 33608791817,
+      "classification": "measured-old-iteration-single-thread-core-floor",
+      "bpe4_equivalent_per_second": 465000,
+      "may_be_attributed_to_refactor": false
+    },
+    "legacy_file_grain_scale": {
+      "repository": "SaltyPatron/Laplace",
+      "run": 33608791817,
+      "classification": "finite-corpus-file-grain-scheduler-lower-bound",
+      "may_be_used_as_whole_machine_ceiling": false
+    },
+    "independent_stream_scale": {
+      "classification": "aggregate-service-saturation-only",
+      "proves_single_semantic_dag_parallelism": false
+    },
+    "refactor_benchmarks": {
+      "owner_issue": 166,
+      "rule": "Refactor performance is earned only by its own receipted execution over matched semantic work and acceptance boundaries."
+    },
+    "forbidden_speedup_methods": [
+      "multiply-scalar-throughput-by-worker-count",
+      "duplicate-workload-and-call-it-single-dag-parallelism",
+      "hide-a-second-semantic-calculation-pass",
+      "change-quality-or-acceptance-boundary",
+      "change-source-or-semantic-work-boundary-without-labeling-it"
+    ]
+  },
+  "issue_pr_contract": {
+    "required_issue_fields": ["product_behavior", "phase", "milestone", "owner", "dependencies", "exit_condition", "immediate_next_action"],
+    "required_implementation_pr_fields": ["governing_laplace_law", "conventional_substitution_rejected", "semantic_owner", "physical_providers", "positive_acceptance", "deliberate_defect", "evidence_boundary", "next_action"],
+    "pr_rule": "A PR may deliver an implementation slice but can never become the product completion authority."
+  }
+}
