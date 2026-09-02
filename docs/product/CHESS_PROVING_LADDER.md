@@ -1,77 +1,68 @@
 # Chess proving ladder — cross-modal forward program with a pinned conventional ruler
 
-Chess is a required whole-machine proving slice for Laplace because the domain supplies exact state,
-legal transitions, measurable outcomes, rich historical trajectories, expert literature, lexical
-semantics, deterministic calculations, external evaluators, and exact tablebase closures.
+Chess is a required whole-machine proving slice because it supplies exact state, legal transitions,
+measurable outcomes, historical trajectories, expert literature, lexical semantics, deterministic
+calculations, external evaluators, and exact tablebase closures.
 
-Primary clean issue ownership: #17, #60, #132, #136, #139, with evidence/standing from #16/#110,
-source admission from #53, and whole-route cohesion from #70. Historical behavioral evidence and
-counterexamples live in `SaltyPatron/Laplace` #574/#833/#834/#1419/#1424.
+Primary clean ownership: #17, #60, #132, #136, #139, with evidence/standing from #16/#110, source
+admission from #53, and whole-route cohesion from #70. Historical behavioral evidence and negative
+controls live in `SaltyPatron/Laplace` #487/#491/#574/#833/#834/#1419/#1424.
 
-## What the proof must establish
-
-The outcome is not a private chess engine beside Laplace. It is one common ISA/cognition program
-that can select and compose:
-
-- canonical board/game identity and physicality trajectories;
-- exact legality/material/board calculations;
-- classical proposal/search state;
-- PGN/live-game observations and outcomes;
-- player/opponent/rating/time-conditioned history;
-- structural/motif/geometry calculations and observed residuals;
-- grandmaster-book document observations and attributed testimony;
-- WordNet/OMW/Wiktionary/dictionary lexical/sense state;
-- opening/catalog/tablebase facts;
-- external Stockfish calculations as a versioned witness;
-- typed standing/uncertainty;
-- query-relative goal/firmware/resource policy.
-
-No one state class may impersonate another.
-
-## Cross-modal chess examples
-
-### `fork`
+## The three-part proving stack
 
 ```text
-lexical sources        candidate senses / definitions / taxonomy
-grandmaster book       prose, explanation, diagram/variation grounding
-board calculator       exact fork geometry
-PGN/live games         observed occurrences, responses, players, outcomes
+Stockfish
+  one strong classical calculated chess metric/provider
+  external calibration/reference/full-strength opponent
+
+Laplace
+  canonical persistent chess world
+  cross-modal Chess Forward Pass under test
+
+cutechess-cli
+  neutral match/tournament conductor
+  paired openings/colors/clocks/process lifecycle
+  PGN/transcript/result recorder
 ```
 
-The program uses context to select the chess-eligible sense while retaining canonical content
-identity and source-specific provenance.
+Stockfish is not a separate epistemic class or final-move authority. Cute Chess is not a decorative
+demo wrapper. The former supplies a powerful conventional metric/opponent; the latter keeps the
+experiment mechanically stable while Laplace variants change.
 
-### `gambit`
+## Canonical chess law
 
-```text
-lexical meaning
-+ named opening / book explanation
-+ exact material sacrifice / imbalance
-+ observed game/player/era/time trajectories
-```
+Chess follows the same content law as every other modality:
 
-Exact material remains negative when material is sacrificed. Other selected channels may support
-the gambit under the active goal without rewriting the material calculation.
+> **same canonical content = same BLAKE3 identity**
+
+The old issue `SaltyPatron/Laplace#491` records the required identity ruling: canonical
+`PositionContent`/Hash128 is substrate identity; Zobrist is a TT/search accelerator only.
+
+The primitive domain is bounded — 64 squares, fixed piece kinds/colors, bounded move forms — while
+complete positions and trajectories are combinatorially huge.
+
+A game is an ordered physicality trajectory over shared canonical states/actions. The same position
+or move reached by several PGNs, a book, self-play, or analyzer source remains one canonical content
+identity while every occurrence keeps its own event/source/player/time/provenance state.
 
 ## Material-first law
 
-Material is exact deterministic state and remains available without corpus evidence. It is the
-start of the measured ladder, not a universal objective and not a signal to replace with frequency.
+Material is exact deterministic state and remains available without corpus evidence. It is a
+baseline to supplement, not a universal objective and not a signal to replace with popularity.
 
-Historical observations such as a very large playing-strength gain from adding material are
-valuable hypotheses/fixtures. The clean contract never hardcodes an Elo value for material, rook
-files, pawn structure, or any later channel. The experiment measures them.
+Historical observations such as a very large material Elo gain are hypotheses/fixtures to reproduce
+or falsify. The clean contract never hardcodes an Elo value for material, rook files, pawn structure,
+Stockfish analysis, or any later plane.
 
-## Typed structural/calculation planes
+## Typed chess calculations
 
-A conforming recipe may calculate and expose separately:
+A conforming recipe may expose separately:
 
 - material/imbalance and phase;
 - piece-square placement;
 - bishop pair;
 - rook open/semi-open files;
-- pawn structure: doubled, isolated, connected, passed, backward/candidate passers, islands/chains
+- pawn structures: doubled, isolated, connected, passed, backward/candidate passers, islands/chains
   where defined;
 - king safety/pawn shield;
 - mobility, constrained pieces, space under an explicit definition;
@@ -82,14 +73,83 @@ A conforming recipe may calculate and expose separately:
 - last-move/trajectory context;
 - opening/LINE state;
 - exact tablebase state/distance;
-- transpositions and structural/geometry peers.
+- transpositions and structural/geometry peers;
+- Stockfish classical analysis under a declared generation/recipe.
 
-These are calculations/structures. Game/book/source observations about their effectiveness are
+These are calculations/structures. Game/book/player/source observations about their effectiveness are
 separate evidence lanes.
 
-## One native program
+## Stockfish is another classical metric plane
 
-The representative clean execution is:
+Stockfish's distinction is the breadth/strength of its calculation, not ontology.
+
+A reproducible analysis coordinate binds approximately:
+
+```text
+canonical position/state id
+candidate move id when move-scoped
+Stockfish generation:
+  release/build/binary digest
+  NNUE/network identity
+  calculation-affecting UCI options
+analysis recipe:
+  fixed depth and/or nodes
+  searchmoves / MultiPV policy
+  tablebase boundary/options when selected
+  adapter/calculation version
+-> calculated result content
+```
+
+Eligible output may include cp/mate score, WDL estimate, per-candidate move delta/quality,
+depth/seldepth/nodes, PV/MultiPV, and declared tactical/search labels.
+
+These remain distinct from exact Laplace legality/material calculations, exact tablebase facts,
+observed PGN outcomes, grandmaster-book testimony, player history, and lexical/semantic facts.
+
+### Deterministic convergence and deduplication
+
+For a deterministic census profile:
+
+- same canonical input + same generation/recipe should converge to the same calculated content;
+- repeated execution does not create independent semantic support;
+- run/provenance occurrence may remain separately visible;
+- crash/resume cannot double-count completed calculations;
+- a changed result under an allegedly deterministic closed recipe is a typed reproducibility
+  discrepancy, not a new position identity and not something to average away.
+
+Use fixed binary/network/options, fixed depth/nodes, and single-thread execution where required to
+eliminate parallel scheduling variation. Full-strength multithread/time-based match search is a
+separate profile and need not promise bit-identical internal traces.
+
+The same canonical position/move observed in many PGNs/books/games can therefore share one Stockfish
+calculation while every occurrence/source remains independently attributable.
+
+## Cross-modal chess examples
+
+### `fork`
+
+```text
+lexical sources        candidate senses/definitions/taxonomy
+grandmaster book       prose/explanation/diagram grounding
+board calculator       exact fork geometry
+Stockfish              classical tactical/evaluation metric
+PGN/live games         observed occurrences/responses/players/outcomes
+```
+
+### `gambit`
+
+```text
+lexical meaning
++ named opening/book explanation
++ exact material sacrifice/imbalance
++ optional Stockfish classical analysis
++ observed game/player/era/time trajectories
+```
+
+The material deficit remains exact even when other selected channels support the gambit under the
+active goal.
+
+## One native program
 
 ```text
 RESOLVE board + language/content identities
@@ -98,7 +158,7 @@ RESOLVE board + language/content identities
 -> COMPILE guidance/search program
 -> SELECT admissible observation/fact/calculation/standing providers
 -> SCAN document/game physicality + evidence
--> CALCULATE board/material/structure/motif/tablebase state
+-> CALCULATE board/material/structure/motif/tablebase/Stockfish state as selected
 -> PROPOSE legal/tactical candidate batch
 -> FOLD/COMPARE only declared channels
 -> SEARCH/UPDATE descendant states under finite resources
@@ -107,136 +167,138 @@ RESOLVE board + language/content identities
 -> WITNESS result/consequence + receipt
 ```
 
-Search-tree use must extend beyond root-only substrate steering. The physical plan uses native/
-set-wise/batched/perfcache execution rather than one PostgreSQL/SPI query per node.
+A Stockfish `bestmove` cannot satisfy the final Laplace selection obligation merely because it
+exists. Search-tree use must extend beyond root-only substrate steering and the physical plan cannot
+perform one PostgreSQL/SPI query per node.
 
-## Stockfish is the ruler/teacher, not Laplace
+## Stockfish profiles
 
-Stockfish represents a strong conventional chess/search architecture useful precisely because it is
-independent of Laplace.
+### Deterministic analysis/census
 
-#139 owns the comparator contract. A comparator **generation** binds exact:
+Creates reproducible classical metric state over selected canonical positions/moves.
+
+### Calibration opponent
+
+Strength-limited profile for coarse localization of a Laplace variant. UCI Elo is a comparator
+control, not a universal human rating claim.
+
+### Fixed reference opponent
+
+Pinned resource/configuration profile used as the unchanged external ruler across the whole ladder.
+
+### Host-max opponent
+
+Full-strength conventional ceiling challenge, potentially multithreaded with large hash/tablebases/
+host tuning. Every calculation-affecting setting and hardware/resource boundary is receipted.
+
+Changing any field creates a new generation.
+
+## Cute Chess orchestration contract
+
+A match generation binds exact Cute Chess version/recipe plus:
+
+- exact engine executable/configuration identities;
+- paired/color-swapped opening suite and order;
+- gauntlet/round-robin/self-play/variant scheduling;
+- clocks/time-control/depth/nodes interface as selected;
+- process lifecycle and crash/time-loss handling;
+- adjudication/result semantics;
+- PGN/transcript/result artifact settings;
+- deterministic queue/order when required.
+
+The harness can measure:
 
 ```text
-engine release + binary digest + build target
-NNUE/network/assets loaded
-UCI option set
-Threads / Hash / Syzygy boundary
-hardware/topology/affinity/resource policy
-opening/challenge suite
-match depth/nodes/time/adjudication law
+Ai vs Ai-1                    incremental channel contribution
+full vs full-minus-X          channel interaction/necessity
+Ai vs Stockfish(reference)    progress on one frozen ruler
+Laplace X vs Laplace Y        firmware/provider comparison
+Laplace full vs SF host-max   conventional ceiling challenge
+self-play/regression          behavior/stability
 ```
 
-Changing any calculation-affecting comparator input creates a new generation.
+Produced PGNs are admitted only into a later evidence epoch. A frozen experiment cannot mutate its
+own world while measuring it.
 
-### Calibration profile
+## Benchmark analysis-boundary honesty
 
-A strength-limited Stockfish profile may locate a current Laplace variant coarsely. The UCI Elo
-setting is a comparator control, not a universal human Elo assertion.
+Because Stockfish analysis can be admitted as a classical metric, every benchmark declares whether
+its exact positions/moves were already analyzed by the selected generation.
 
-### Fixed reference profile
+Two valid experiment types:
 
-A reproducible resource profile is used for repeated regression/strength measurements across
-Laplace versions.
+- **Stockfish-informed** — the Stockfish calculated plane is eligible like any other selected metric;
+- **held-out / Stockfish-blind** — benchmark positions are outside the analysis census or the
+  Stockfish plane is disabled at inference.
 
-### Host-max profile
+The defect is hiding which experiment was run.
 
-A full-strength conventional ceiling challenge may deliberately use all suitable host resources.
-The host/configuration receipt is part of the result; it cannot be presented as hardware-independent.
-
-### Census/teacher profile
-
-Stockfish may calculate position evaluations, PVs, move deltas/quality labels, tactical candidates,
-or bounded search results as a versioned provider.
-
-In the inventor's use of `training`, these calculations can become admitted evidence that Laplace
-later compares with independent games, books, exact tablebases, player trajectories, and outcomes.
-This is not a requirement for gradient descent and the evaluator is not truth by fiat.
-
-A Stockfish `bestmove` cannot satisfy the Laplace final selection obligation merely by existing.
-
-## Frozen-ruler experiment law
+## Frozen-ruler law
 
 One experiment pins:
 
 ```text
-comparator generation
+Stockfish opponent generation
+Stockfish analysis generation + inclusion/holdout law
+Cute Chess generation/recipe
 Laplace world/evidence epoch
 Laplace firmware/recipe
 opening/challenge suite
-Laplace and comparator resource policy
-adjudication/tie/randomization law
+hardware/resource policy
+match/adjudication/tie law
 ```
 
-Every Laplace rung is compared against that same ruler. Match/evaluation results do not enter the
-same pinned world while the experiment runs; later admission creates a new evidence epoch.
-
-If Stockfish is tuned more aggressively, a new comparator generation is published and the reference
-ladder is rerun. Old measurements remain attached to their original ruler.
+Every rung uses the same boundary. Improving the comparator/orchestrator creates a new generation
+and requires a new reference run rather than rewriting old results.
 
 ## Cumulative ladder
 
-A useful initial ladder is:
+A representative recipe is:
 
 ```text
-A0  legal/tactical proposal + material
-A1  + classical placement / phase
-A2  + bishop pair / rook files / pawn structure
-A3  + remaining deterministic structures / motifs / geometry
-A4  + learned placement residuals
-A5  + learned structural residuals
-A6  + global game/trajectory observation
-A7  + player/opponent/rating/time conditioning
-A8  + opening/shape/tablebase/catalog providers
-A9  + grandmaster-book/expert evidence where applicable
-A10 + lexical/sense/domain cross-modal providers where applicable
-A11 + complete selected #136 Chess Forward Pass
+A0  deterministic legality/tactical proposal + material
+A1  + classical placement/phase
+A2  + rook-file/pawn-structure/bishop-pair and other exact structures
+A3  + motifs/geometry/remaining deterministic calculations
+A4  + optional Stockfish classical-analysis plane under declared scope
+A5  + learned placement residuals
+A6  + learned structural residuals
+A7  + global game/trajectory observations
+A8  + player/opponent/rating/time conditioning
+A9  + opening/shape/tablebase/catalog providers
+A10 + grandmaster-book/expert evidence where relevant
+A11 + lexical/sense/domain cross-modal providers where relevant
+A12 + complete selected #136 Chess Forward Pass
 ```
 
-The exact sequence is an experiment recipe, not permanent architecture.
+The exact sequence is an experiment recipe, not ontology. Each component/rung should support
+adjacent, full-minus-one, and fixed-external-ruler measurement where mathematically useful.
 
-Every rung should support, where feasible:
-
-- **adjacent ablation**: `Ai` versus `Ai-1` under matched resources;
-- **external ruler**: `Ai` versus the same comparator generation;
-- **full-minus-one**: complete program versus complete program with one channel removed.
-
-This distinguishes isolated contribution, cumulative progress, and interactions.
-
-## Match protocol
-
-The acceptance protocol should include:
+## Measurement protocol
 
 - exact color-swapped paired opening suite;
-- same opening distribution for all variants;
-- identical relevant resource budgets across compared Laplace variants;
+- identical opening distribution/order across variants;
+- identical relevant Laplace resource budgets;
 - sufficient games for the stated statistical conclusion;
 - W-D-L, Elo with uncertainty/margin and/or SPRT where appropriate;
 - CPU, nodes, memory, I/O, elapsed, provider/crossing metrics;
 - failures, crashes, time losses, adjudications, unavailable providers;
-- raw game/transcript/config/result artifacts;
+- raw PGN/config/transcript/result artifacts;
 - no mid-run score promoted as final evidence.
-
-A playing-strength gain is meaningful only with its cost and configuration boundary.
 
 ## Uncertainty-driven compute
 
-Typed uncertainty may guide physical effort:
-
-- exact terminal/tablebase closure can stop speculative search;
-- strong low-uncertainty agreement can reduce confirmation work;
-- novel/high-RD/contradictory states can receive more work when resources permit;
-- exhaustion returns typed partial/upper-bound/why-not state.
-
-Standing never overrides exact legality or terminal constraints.
+Typed uncertainty may guide physical effort: exact terminal closure can stop speculative search;
+low-uncertainty agreement can reduce confirmation; novel/high-RD/contradictory state can receive more
+work; exhaustion returns typed partial/upper-bound/why-not state. Standing never overrides exact
+legality or terminal constraints.
 
 ## Move receipt
-
-A selected move can expose separate contributions:
 
 ```text
 exact material/tactical state
 deterministic structural calculations
+Stockfish classical analysis when selected
 classical proposal
 observed game trajectory/outcome state
 player/context-conditioned state
@@ -249,36 +311,37 @@ final selection/completion reason
 ```
 
 Observed/expert contributions trace to exact evidence/dependence/provenance. Calculations trace to
-the calculation recipe/version.
+the exact calculation recipe/version.
 
 ## Long-term hypothesis and falsifiability
 
-The experiment is allowed to show either result.
+The experiment is allowed to show either result. If the complete Laplace program eventually beats a
+pinned full-strength Stockfish generation in a statistically defensible match, that is a measured
+outcome; if not, the ladder identifies which expected gains fail, interact badly, or cost too much.
 
-If the complete Laplace program eventually beats a pinned full-strength Stockfish generation in a
-statistically defensible match, that is a measured outcome and may be stated. The design does not
-assume it in advance.
-
-If it does not, the ladder identifies where expected gains fail and which typed planes are useful,
-neutral, harmful, or too expensive.
-
-The point is not to reproduce Stockfish internally. Laplace is testing whether a persistent typed
-cross-modal world can become a stronger decision system while a strong conventional platform stays
-available as a ruler, tactical witness, and regression opponent.
+The point is not to reproduce Stockfish internally. Stockfish remains a strong classical metric,
+analysis provider, regression opponent, and independent ruler while Laplace tests whether a
+persistent typed cross-modal world can become a stronger decision platform.
 
 ## Acceptance / deliberate defects
 
 #136 and #139 own executable acceptance. Required failures include:
 
+- analyzer/source-specific copies of equal canonical positions;
+- deterministic Stockfish reruns multiplying independent support;
+- same-recipe output disagreement hidden by averaging;
+- multithread/time-based full-strength search mislabeled deterministic census;
 - hidden Stockfish bestmove fallback;
-- comparator configuration drift between rungs;
-- evaluator output promoted to tablebase/world truth;
-- match games mutating their own frozen experiment epoch;
-- material/rook/pawn Elo constants hardcoded instead of measured;
-- one permanent scalar flattening every chess channel;
-- substrate used only at the root;
-- book/lexical state used only by an explanation UI;
+- comparator or Cute Chess drift between rungs;
+- Stockfish output promoted to tablebase/world truth;
+- held-out claims over previously analyzed positions without disclosure;
+- match games mutating their own frozen epoch;
+- hardcoded material/rook/pawn/Stockfish Elo constants;
+- one scalar flattening every chess plane;
+- root-only substrate use;
+- book/lexical state used only by explanation UI;
 - per-node SQL/SPI search;
-- superiority claimed without the pinned full-strength result.
+- superiority claimed without pinned full-strength evidence.
 
-The positive proof keeps Stockfish independent and makes every additional Laplace plane measurable.
+The positive proof keeps canonical identity shared, classical metrics typed, Cute Chess neutral, and
+every additional Laplace plane measurable.
