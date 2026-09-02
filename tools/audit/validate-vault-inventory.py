@@ -249,6 +249,24 @@ def validate_model_weight_closure(model_root: Path, inventory: dict) -> tuple[in
     return index_count, reference_count, safetensors_packages, symlinks_checked
 
 
+def observe_root_drift(physical_names: set[str], inventoried_names: set[str], root_label: str) -> list[str]:
+    """Require the dated snapshot to remain present while permitting newer observations.
+
+    The vault inventory is explicitly observed development state rather than source
+    authority.  A directory added after the snapshot is therefore drift to report,
+    not evidence that the snapshot's already-inventoried entries disappeared.  A
+    missing inventoried directory remains a hard failure because the subsequent
+    exact-artifact checks depend on that recorded physical evidence.
+    """
+
+    missing = sorted(inventoried_names - physical_names)
+    require(
+        not missing,
+        f"physical {root_label} root is missing inventoried directories: {missing}",
+    )
+    return sorted(physical_names - inventoried_names)
+
+
 def validate_physical(document: dict) -> dict:
     data_root = Path(document["roots"]["data"])
     model_root = Path(document["roots"]["models"])
@@ -257,8 +275,10 @@ def validate_physical(document: dict) -> dict:
 
     data_names = {path.name for path in data_root.iterdir() if path.is_dir()}
     model_names = {path.name for path in model_root.iterdir() if path.is_dir()}
-    require(data_names == set(entry_map(document, "data_root")), "physical data root differs from inventory")
-    require(model_names == set(entry_map(document, "model_root")), "physical model root differs from inventory")
+    inventoried_data_names = set(entry_map(document, "data_root"))
+    inventoried_model_names = set(entry_map(document, "model_root"))
+    extra_data_names = observe_root_drift(data_names, inventoried_data_names, "data")
+    extra_model_names = observe_root_drift(model_names, inventoried_model_names, "model")
 
     iso_checked = validate_exact_artifacts(ISO_CONTRACT_PATH, data_root / "ISO639")
     unicode_checked = validate_unicode(data_root / "UCD" / "Public" / "UCD" / "latest")
@@ -273,6 +293,10 @@ def validate_physical(document: dict) -> dict:
     return {
         "physical_data_directories": len(data_names),
         "physical_model_directories": len(model_names),
+        "inventoried_data_directories": len(inventoried_data_names),
+        "inventoried_model_directories": len(inventoried_model_names),
+        "extra_data_directories_observed_after_snapshot": extra_data_names,
+        "extra_model_directories_observed_after_snapshot": extra_model_names,
         "iso_artifacts_verified": iso_checked,
         "unicode_artifacts_verified": unicode_checked,
         "cili_selected_mismatches_verified": cili_mismatches,
