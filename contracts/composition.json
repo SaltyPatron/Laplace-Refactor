@@ -38,7 +38,12 @@
     "deduplication_scope": "all-known-and-calculated-entities-and-physicalities",
     "output_order": "entities-by-content-id-then-physicalities-by-record-id-then-trajectories-by-physicality-id-and-vertex-index",
     "failure_atomicity": "no-result-visible-until-complete-working-set-validates",
-    "resource_authority": "immutable-framework-context-memory-grant"
+    "resource_authority": "immutable-framework-context-memory-grant",
+    "physical_execution_grain": "dependency-frontiers-derived-only-from-known-entity-and-prior-result-references",
+    "frontier_order": "requests-with-equal-dependency-depth-retain-canonical-request-index-order",
+    "parallelism_law": "source-file-record-read-chunk-worker-and-persistence-batch-boundaries-never-define-composition-dependencies",
+    "provider_law": "ready-frontier-execution-must-use-the-common-execution-runtime-provider-and-framework-resource-grant-not-a-composition-private-thread-pool",
+    "scalar_oracle": "resource-grant-one-and-the-existing-scalar-working-set-calculation-remain-semantic-oracles-for-parallel-provider-parity"
   },
   "presence": {
     "dispositions": {
@@ -75,7 +80,7 @@
     "durability_rule": "fsync and synchronous commit remain enabled",
     "required_input": ["known entities", "composition requests", "operands", "PostgreSQL stored input datum bytes", "preferred batch bytes"],
     "required_machine": ["operating system", "kernel", "architecture", "CPU model", "online processors", "page bytes", "PostgreSQL exact version"],
-    "required_sample_evidence": ["wall time", "server user and system CPU", "resident memory before and after", "process-lifetime high-water memory", "native planned peak working bytes", "read and write syscalls", "filesystem read and write bytes", "WAL bytes", "database calls", "stream bytes", "durable output counts", "working-set receipt", "presence semantic receipt", "presence execution receipt", "stream fingerprint"],
+    "required_sample_evidence": ["wall time", "server user and system CPU", "resident memory before and after", "process-lifetime high-water memory", "native planned peak working bytes", "read and write syscalls", "filesystem read and write bytes", "WAL bytes", "database calls", "stream bytes", "durable output counts", "working-set receipt", "presence semantic receipt", "presence execution receipt", "stream fingerprint", "dependency frontier count", "maximum ready frontier width", "critical path depth", "worker grant and execution-provider identity when parallel execution is active"],
     "proof_boundary": "representative universal-AST composition deposition integration measurement only",
     "nonclaims": ["complete ingest throughput gate", "qualifying real-corpus seconds-per-GB gate", "cold-cache performance", "product activation"]
   }
