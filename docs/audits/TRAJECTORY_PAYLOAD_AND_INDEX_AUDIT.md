@@ -4,13 +4,32 @@
 
 This audit corrects a classification error made while examining three recovered
 Git-unpublished source bodies. It distinguishes the trajectory carrier's binary width
-from the semantic class carried in those bits, and binds that distinction to a bounded
-read-only observation of the live database.
+from the semantic class carried in those bits, binds that distinction to a bounded
+read-only observation of the live database, and records the inventor-direct distinction
+between real `physicality.coord` geometry and the packed `physicality.trajectory`
+address/manifest carrier.
 
 No historical source is implementation authority for the clean product. The recovered
 files are evidence of continuity and of prior behavior only.
 
 ## Corrected model
+
+There are three distinct structural objects:
+
+```text
+physicality.coord
+    real four-component structural placement
+
+physicality.trajectory
+    exact typed packed manifest/address carrier
+
+realized coordinate curve
+    decoded trajectory constituents resolved to their real physicality.coord values
+```
+
+`physicality.coord` is the real geometry. Tier-0 points inhabit the pinned S3/glome;
+higher compositions use the declared arithmetic centroid of child coordinates and may
+lie inside the glome.
 
 The physicality trajectory is a typed payload channel carried in four finite binary64
 slots per vertex. The packing pins the exponent and uses sign and mantissa bits as an
@@ -28,9 +47,37 @@ the same carrier to exact float32 values. The host `Hash128` type used by one re
 C# encoder is a 128-bit carrier in that context, not proof that the value is an entity
 identity.
 
+The composition carrier can be understood as a coordinate-shaped BLAKE3/SIMD address:
+most of the `X/Y/Z` mantissa capacity carries the 128-bit constituent identity while
+`M` is the metadata-rich lane for ordinal, run/RLE and remaining metadata. The exact
+historical bit layout also uses spare `Z` payload bits for part of the flags word. The
+generated ABI, not the host coordinate names, defines the exact meaning.
+
 The same rule applies to the PostgreSQL geometry type: a packed vertex stored in a
-`GeometryZM` column is not thereby a live spatial point. Realized curves resolve
-composition identities to live physicality coordinates before curve mathematics.
+`GeometryZM` column is not thereby a live spatial point. Its coordinate-looking values
+are exact payload/address lanes. Realized curves resolve composition identities to live
+`physicality.coord` values before curve mathematics.
+
+## Historical exact carrier layout evidence
+
+The recovered historical packer used 53 payload bits per binary64 slot by pinning the
+exponent and using sign plus mantissa. The exact composition/testimony carrier layout
+was:
+
+| Slot | Payload use |
+|---|---|
+| X | low 53 bits of `entity_id.lo` |
+| Y | remaining 11 bits of `entity_id.lo` plus low 42 bits of `entity_id.hi` |
+| Z | remaining 22 bits of `entity_id.hi` plus low 31 metadata/flag bits |
+| M | 16-bit ordinal + 16-bit run length + high 21 metadata/flag bits |
+
+This is historical implementation evidence, not an instruction to freeze that exact
+clean-product lane assignment. The clean law is that the carrier is exact, generated,
+typed, and not spatial merely because the ABI uses `XYZM`.
+
+The user-facing conceptual shorthand `XYZ = BLAKE3 hash/address coordinate; M =
+metadata` is therefore valid at the role level, with the precise ABI caveat that spare
+`Z` capacity can carry metadata bits in the packed representation.
 
 ## Structural calculation
 
@@ -44,6 +91,32 @@ A composition trajectory supplies exact structure without attestation rows:
 
 The database does not need every derived pair persisted. Its indexes generate bounded
 candidates, after which the typed decoder verifies the exact relation.
+
+The packed ordinal may appear redundant with vertex sequence position, but it remains a
+declared field of the exact portable carrier. It may support validation, slicing,
+replay, indexing and run semantics. Removing it is an ABI/product decision requiring an
+explicit versioned replacement and proof, not an implicit normalization.
+
+## Realized shape calculation
+
+A packed trajectory is not itself the geometric path of the composition. When a
+program asks for geometric shape:
+
+```text
+packed trajectory
+  -> decode IDs + ordinal/run/metadata
+  -> resolve each constituent's real physicality.coord
+  -> preserve declared order and multiplicity
+  -> realized coordinate curve
+```
+
+Fréchet, Hausdorff and other path/shape metrics operate on that realized curve when the
+metric recipe names real physical geometry. Applying those functions directly to the
+packed `XYZM` payload can return finite deterministic numbers while measuring BLAKE3
+and metadata bit layout instead of structural shape.
+
+Borsuk-Ulam likewise concerns continuous projection of the real S3 `coord` domain. It
+does not govern the discrete exact BLAKE3 mantissa packer in `trajectory`.
 
 ## Live read-only observation
 
