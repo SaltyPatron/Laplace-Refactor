@@ -245,7 +245,7 @@ if(BUILD_TESTING)
         message(FATAL_ERROR "LAPLACE_SPECTRA_SOURCE does not contain Spectra")
     endif()
     laplace_verify_git_dependency(
-        eigen "${LAPLACE_EIGEN_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK")
+        eigen "${LAPLACE_EIGEN_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK}")
     laplace_verify_git_dependency(
         spectra "${LAPLACE_SPECTRA_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK}")
     set(INSTALL_GTEST OFF CACHE BOOL "Do not install internal test dependency" FORCE)
