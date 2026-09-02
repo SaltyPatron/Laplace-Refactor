@@ -14,8 +14,8 @@
   `LP-ENTITY-WEB-001`, `LP-ENTITLEMENT-001`, `LP-NODE-001`,
   `LP-FEDERATION-001`, and `LP-PLACEMENT-001`.
 - Evidence and persistence project `LP-STORAGE-001`, `LP-MATERIALIZATION-001`,
-  `LP-PERFCACHE-001`, `LP-ACTIVATION-001`, `LP-DOC-001`, and the exact acceptance and
-  continuation boundaries loaded by `contracts/authority-stack.json`.
+  `LP-PERFCACHE-001`, `LP-ACTIVATION-001`, `LP-DOC-001`, and the exact acceptance,
+  finish-line, and continuation boundaries loaded by `contracts/authority-stack.json`.
 
 ## Product authority
 
@@ -33,6 +33,13 @@
 - Laplace is the complete universal product described in
   `docs/product/CONSTITUTION.md`.
 - Sequencing work does not reduce product scope.
+- `contracts/finish-line-program.json` is the executable whole-product work-selection
+  and closure contract. A pull request, branch, issue count, component-green state, or
+  historical implementation is never the product finish line.
+- Select implementation work from the current bounded sprint in the finish-line
+  contract or from an explicit dependency/evidence change that updates that sprint.
+  Do not abandon the dependency path merely because another task matches a familiar
+  implementation pattern more readily.
 - Do not silently omit a modality, language, model family, product surface, platform,
   operation, requirement, or acceptance condition.
 - Do not substitute plans, issue lists, documentation, scaffolding, or status reports
@@ -51,6 +58,10 @@
   common ISA; a parser, codec, source adapter, or template is not a semantic engine.
 - Centralize common behavior in typed generic interfaces, generated contracts, and
   reusable lifecycle bases. Providers may vary physical mechanism, not meaning.
+- Every implementation issue and PR names the governing Laplace law and the attractive
+  **conventional substitution** it is not silently implementing. A conventional
+  algorithm may be an admitted physical provider; familiarity does not grant it
+  semantic authority.
 - Text is not architecturally privileged.
 - Language, modality, source, and model are witnessed dimensions, not engine branches.
 - People, organizations, accounts, entitlements, achievements, interfaces, nodes, and
@@ -86,8 +97,19 @@
 
 - Tests execute the implementation and assert exact behavior.
 - Each important test has a deliberate break proving the test detects the defect.
+- Critical conventional-substitution controls in the finish-line contract need
+  positive acceptance plus a deliberate defect or mutation before their owning
+  milestone may close. Prose prohibition is not enough.
+- If the same defect class appears in two independent leaves, stop treating another
+  leaf-only patch as the primary repair. Identify the **generic owner**, update its
+  contract/implementation, add a cross-family fixture or mutation, and make affected
+  leaves consume that correction.
 - Performance claims include the measured command, input, machine, sample count,
   timing boundary, CPU, memory, I/O, database calls, and durable output counts.
+- Performance also names the semantic work and physical plan. Old-iteration results do
+  not become refactor evidence; replicated independent streams do not prove one
+  semantic DAG is internally parallel; file-grain makespan does not prove a machine
+  ceiling; hidden duplicate semantic passes remain measured work.
 - Do not extrapolate a small fixture into a throughput claim.
 - Do not claim conversation from a lookup, model correctness from artifact shape, data
   quality from row counts, or installation from files merely existing.
@@ -102,6 +124,9 @@
 - Generated files identify their generator and source contract.
 - Dependency source comes from the verified lock and checksum records.
 - Preserve unrelated work. Use isolated worktrees for concurrent changes.
+- A red owning PR is repaired rather than bypassed by an overlapping implementation
+  branch unless the former branch is explicitly retired/superseded in the finish-line
+  program. PR count is not progress.
 
 ## Persistence
 
@@ -115,18 +140,26 @@
 - At the start of a resumed work session, load and validate
   `contracts/authority-stack.json` in its declared order. The whole invention governs
   before current branch, source inventory, issue state, or implementation pattern.
-- Read `state/continuation.json` only after stable product and executable authority.
-  Verify its base, dirty fingerprint, source roots, and live runtime observations; it
-  is observed development state and never product law.
+- Load `contracts/finish-line-program.json` after the stable architecture/acceptance
+  contracts and before the roadmap or mutable continuation state. Its current sprint,
+  milestone exits, anti-substitution matrix, rework escalation, benchmark-truth rules,
+  and delivered evidence chain constrain work selection.
+- Read `state/continuation.json` only after stable product, executable authority, and
+  the finish-line program. Verify its base, dirty fingerprint, source roots, and live
+  runtime observations; it is observed development state and never product law.
 - Read `docs/product/ROADMAP.md` as the current program execution projection after
-  the operation and acceptance contracts. Its issue state, priorities, and sequence
-  cannot create product law or promote requirements into implementation.
+  the operation, acceptance, and finish-line contracts. Its issue state, priorities,
+  and sequence cannot create product law or promote requirements into implementation.
+- A closed direct-evidence audit is a historical checkpoint, not a freeze on later
+  inventor corrections. Bind every material later correction into an existing
+  requirement/contract/issue/test or create/update one, and update or explicitly
+  supersede lower-authority artifacts it invalidates.
 - Capability, controlled integration, installed product activation, per-source-profile
   world admission, configured foundational seeded state, and release are distinct.
   Never promote one state into another without its exact receipt.
 - The current branch is not sufficient continuation authority. Direct corrections,
-  supersession, the unpublished-work fingerprint, runtime state, and the complete
-  dependency graph govern continuation together.
+  supersession, the unpublished-work fingerprint, runtime state, the finish-line
+  program, and the complete dependency graph govern continuation together.
 - Update or invalidate the continuation checkpoint in the same change that publishes,
   completes, or supersedes its interrupted boundary.
 - Continue active work after corrections, status questions, and refinements.
