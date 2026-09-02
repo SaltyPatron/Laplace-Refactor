@@ -96,6 +96,7 @@ struct FrontierPlan final {
                 }
                 ++output.dependency_edge_count;
 
+#if !defined(LAPLACE_TEST_COMPOSITION_FRONTIER_FLATTEN_DEPENDENCIES)
                 const std::uint64_t parent_depth =
                     output.depth_by_request[
                         static_cast<std::size_t>(operand.reference_index)];
@@ -104,6 +105,7 @@ struct FrontierPlan final {
                     return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
                 }
                 depth = std::max(depth, parent_depth + 1U);
+#endif
             }
             output.depth_by_request[request_offset] = depth;
             maximum_depth = std::max(maximum_depth, depth);
@@ -124,8 +126,9 @@ struct FrontierPlan final {
         const std::uint64_t frontier_count = maximum_depth + 1U;
         output.frontier_offsets.assign(
             static_cast<std::size_t>(frontier_count + 1U), 0U);
-        for (const std::uint64_t depth : output.depth_by_request) {
-            ++output.frontier_offsets[static_cast<std::size_t>(depth + 1U)];
+        for (const std::uint64_t request_depth : output.depth_by_request) {
+            ++output.frontier_offsets[
+                static_cast<std::size_t>(request_depth + 1U)];
         }
         for (std::size_t frontier = 1U;
              frontier < output.frontier_offsets.size(); ++frontier) {
@@ -137,9 +140,9 @@ struct FrontierPlan final {
         output.request_indices.assign(request_count, 0U);
         for (std::uint64_t request_index = 0U;
              request_index < input.request_count; ++request_index) {
-            const std::uint64_t depth =
+            const std::uint64_t request_depth =
                 output.depth_by_request[static_cast<std::size_t>(request_index)];
-            auto& cursor = cursors[static_cast<std::size_t>(depth)];
+            auto& cursor = cursors[static_cast<std::size_t>(request_depth)];
             output.request_indices[static_cast<std::size_t>(cursor)] = request_index;
             ++cursor;
         }
