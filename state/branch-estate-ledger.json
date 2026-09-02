@@ -1,0 +1,113 @@
+{
+  "schema": "laplace.branch-estate-ledger/v1",
+  "contract": "contracts/branch-estate-closure.json",
+  "captured_utc": "2026-09-02T22:20:34Z",
+  "authoritative_branch": "main",
+  "observed_summary": {
+    "repository_branch_count": 124,
+    "open_pr_head_count": 5,
+    "live_unique_no_open_pr_tip_count": 13,
+    "overlapping_reconciliation_family_count": 6,
+    "terminal_ready": false
+  },
+  "open_pr_heads": [
+    {
+      "branch": "codex/complete-laplace-20260831",
+      "pr_number": 128,
+      "owner_issue": 23,
+      "disposition": "ACTIVE_PR",
+      "route_to_main": "repair required checks on exact head, reconcile branch-only work, then merge or explicitly supersede",
+      "exit_condition": "exact accepted head is green and valid unique work is merged to main or preserved under explicit supersession"
+    },
+    {
+      "branch": "docs/billing-entitlements-resource-costing",
+      "pr_number": 150,
+      "owner_issue": 140,
+      "disposition": "ACTIVE_PR",
+      "route_to_main": "repair required checks then merge or supersede with exact preserved contract content",
+      "exit_condition": "billing/economics authority is represented on authoritative main with green exact-head proof"
+    },
+    {
+      "branch": "docs/source-admission-invariance",
+      "pr_number": 175,
+      "owner_issue": 171,
+      "disposition": "ACTIVE_PR",
+      "route_to_main": "repair required checks then merge or supersede while preserving source-admission invariance law",
+      "exit_condition": "source-admission invariance contract is on authoritative main with green exact-head proof"
+    },
+    {
+      "branch": "feat/composition-frontier-plan",
+      "pr_number": 178,
+      "owner_issue": 177,
+      "disposition": "ACTIVE_PR",
+      "route_to_main": "repair custom-stack/product-path failure on owning branch, then merge exact accepted implementation",
+      "exit_condition": "frontier-plan slice passes every required proof and lands on authoritative main without sibling bypass"
+    },
+    {
+      "branch": "governance/executable-finish-line",
+      "pr_number": 181,
+      "owner_issue": 180,
+      "disposition": "ACTIVE_PR",
+      "route_to_main": "finish executable governance including branch-estate closure, repair exact-head checks, then merge",
+      "exit_condition": "finish-line and branch-estate governance are green and represented on authoritative main"
+    }
+  ],
+  "unaccounted_unique_tips": [
+    {"branch":"feat/cognition-forward-pass","owner_issue":183,"family":"cognition-forward-pass","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"feat/decomposition-integration","owner_issue":183,"family":"decomposition-foundational-admission","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"feat/foundational-admission-runtime","owner_issue":183,"family":"decomposition-foundational-admission","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"feat/occurrence-attestation-separation","owner_issue":183,"family":"occurrence-product-phase1-repairs","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"feat/postgresql-product-proof","owner_issue":183,"family":"occurrence-product-phase1-repairs","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"fix/dev-bat-service-persistence","owner_issue":183,"family":"product-service-persistence","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"integration/whole-product-current-main-fix","owner_issue":183,"family":"decomposition-foundational-admission","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"ops/live-product-probe","owner_issue":183,"family":"live-product-proof","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"repair/phase1-product-package-concurrency","owner_issue":183,"family":"occurrence-product-phase1-repairs","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"repair/phase1-tree-sitter-source","owner_issue":183,"family":"occurrence-product-phase1-repairs","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"repair/phase1-tree-sitter-tested","owner_issue":183,"family":"occurrence-product-phase1-repairs","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"repair/runtime-endpoints-20260826","owner_issue":183,"family":"runtime-dependency-endpoints","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
+    {"branch":"validate/decomposition-integration-1994ec","owner_issue":183,"family":"decomposition-foundational-admission","disposition":"UNACCOUNTED_UNIQUE_BRANCH"}
+  ],
+  "known_absorbed_observations": [
+    {
+      "branch": "fix/custom-stack-zero-test-false-pass",
+      "observation": "compare against current main reports ahead_by=0",
+      "note": "recorded as absorbed evidence; not counted as live orphan implementation"
+    },
+    {
+      "branch": "repair/live-runtime-20260826",
+      "observation": "compare against current main reports ahead_by=0",
+      "note": "recorded as absorbed evidence; not counted as live orphan implementation"
+    },
+    {
+      "branch": "prep/source-recipe-estate",
+      "observation": "branch is an ancestor of active PR #128 head",
+      "note": "represented by an active PR lineage; reconcile through #128 rather than double-counting"
+    }
+  ],
+  "confirmed_branch_only_findings": [
+    {
+      "branch": "feat/cognition-forward-pass",
+      "finding": "dedicated cognition-forward-pass contract/API/native implementation is absent from current main and PR #128 under those paths",
+      "disposition_required": "REUSE, ADAPT, SUPERSEDED or RETIRE only after behavior-level reconciliation"
+    },
+    {
+      "branch": "feat/decomposition-integration",
+      "finding": "native tabular-decomposition API/implementation is absent from current main and PR #128 under those paths",
+      "disposition_required": "REUSE, ADAPT, SUPERSEDED or RETIRE only after behavior-level reconciliation"
+    },
+    {
+      "branch": "ops/live-product-probe",
+      "finding": "self-hosted live PostgreSQL/service probe workflow is absent from current main and PR #128",
+      "disposition_required": "REUSE, ADAPT, SUPERSEDED or RETIRE only after behavior-level reconciliation"
+    }
+  ],
+  "terminal_counters": {
+    "open_prs_with_failed_required_checks": 5,
+    "unaccounted_unique_branch_tips": 13,
+    "valid_orphan_implementation": 3,
+    "required_behavior_without_current_owner": 0,
+    "active_branch_without_explicit_disposition": 13,
+    "branch_only_acceptance_or_evidence": 1
+  },
+  "counting_law": "Do not sum ahead_by values across overlapping branches. Reconcile ancestry and final behavior first so the same implementation lineage is not counted repeatedly."
+}
