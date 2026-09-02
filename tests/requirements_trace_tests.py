@@ -62,6 +62,12 @@ class RequirementTraceTests(unittest.TestCase):
         self.assertIn(before, content)
         path.write_text(content.replace(before, after, 1), encoding="utf-8")
 
+    def set_required_feature_files(self, feature_files: list[str]) -> None:
+        path = self.root / "contracts/trust-matchup-realization.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["traceability"]["feature_files"] = feature_files
+        path.write_text(json.dumps(document), encoding="utf-8")
+
     def test_current_graph_is_valid(self) -> None:
         report = TRACE.validate(self.root)
         self.assertGreater(report.direct_requirement_count, 0)
@@ -101,6 +107,34 @@ class RequirementTraceTests(unittest.TestCase):
         path.write_text(json.dumps(document), encoding="utf-8")
         with self.assertRaisesRegex(TRACE.TraceError, "absent from operation graph"):
             TRACE.validate(self.root)
+
+    def test_required_feature_parent_traversal_is_rejected_even_when_target_exists(self) -> None:
+        outside = self.root.parent / f"{self.root.name}-outside.feature"
+        shutil.copy2(
+            self.root / "requirements/features/trust_matchup_realization.feature",
+            outside,
+        )
+        try:
+            self.set_required_feature_files([f"../{outside.name}"])
+            with self.assertRaisesRegex(TRACE.TraceError, "unsafe feature join"):
+                TRACE.validate(self.root)
+        finally:
+            outside.unlink(missing_ok=True)
+
+    def test_required_feature_symlink_escape_is_rejected(self) -> None:
+        outside = self.root.parent / f"{self.root.name}-outside-symlink.feature"
+        shutil.copy2(
+            self.root / "requirements/features/trust_matchup_realization.feature",
+            outside,
+        )
+        linked = self.root / "requirements/features/escaped.feature"
+        linked.symlink_to(outside)
+        try:
+            self.set_required_feature_files(["requirements/features/escaped.feature"])
+            with self.assertRaisesRegex(TRACE.TraceError, "unsafe feature join"):
+                TRACE.validate(self.root)
+        finally:
+            outside.unlink(missing_ok=True)
 
     def test_unknown_product_join_is_rejected(self) -> None:
         self.replace(
