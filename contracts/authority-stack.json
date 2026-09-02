@@ -59,20 +59,25 @@
     {"order": 12, "path": "contracts/source-profile-model.json", "class": "executable_contract", "purpose": "Unicode-level exact source release artifact grammar recipe witness and closure law"},
     {"order": 13, "path": "contracts/source-admission.json", "class": "executable_contract", "purpose": "complete witness topology and generic source-admission law"},
     {"order": 14, "path": "docs/architecture/ACCEPTANCE.md", "class": "executable_contract", "purpose": "implementation-level and complete-product proof boundaries"},
-    {"order": 15, "path": "docs/product/ROADMAP.md", "class": "program_execution_projection", "purpose": "current proof-state critical path and GitHub ownership projected from the operational contract"},
-    {"order": 16, "path": "docs/audits/CONTINUATION_WORK_AUDIT_2026-08-26.md", "class": "observed_development_state", "purpose": "dated session chronology work effort action inventory process corrections and publication boundary"},
-    {"order": 17, "path": "state/continuation.json", "class": "observed_development_state", "purpose": "verified current work and runtime checkpoint"}
+    {"order": 15, "path": "contracts/finish-line-program.json", "class": "executable_contract", "purpose": "whole-product finish line phase and milestone exits bounded sprint anti-substitution rework escalation and evidence closure"},
+    {"order": 16, "path": "docs/product/ROADMAP.md", "class": "program_execution_projection", "purpose": "current proof-state critical path and GitHub ownership projected from the operational and finish-line contracts"},
+    {"order": 17, "path": "docs/audits/CONTINUATION_WORK_AUDIT_2026-08-26.md", "class": "observed_development_state", "purpose": "dated session chronology work effort action inventory process corrections and publication boundary"},
+    {"order": 18, "path": "state/continuation.json", "class": "observed_development_state", "purpose": "verified current work and runtime checkpoint"}
   ],
   "work_selection_gate": [
     "state the complete product behavior this work advances",
+    "load contracts/finish-line-program.json and select work from its current bounded sprint or from an explicit dependency/evidence update that changes that sprint",
     "trace the behavior through universal AST Merkle DAG recipe ISA evidence cognition and realization laws as applicable",
     "identify the one native semantic owner and every replaceable physical provider",
+    "name the attractive conventional substitution this work must not silently implement and identify the positive plus deliberate-defect evidence that detects it",
+    "when the same defect class appears in two independent leaves identify and repair the generic owner before another leaf-only patch can count as primary progress",
     "declare processor exception retry reroute replay durability and publication behavior for every failure boundary",
     "prove scalar vector batch PostgreSQL SQL and Csharp routes retain one meaning",
     "prove materially unrelated complete programs traverse one lifecycle without private semantic persistence or error routes",
     "separate implementation integration product-activation source-profile world-admission configured foundational seed release and observed-state claims",
+    "bind performance claims to exact semantic work and physical plan and never promote old-iteration evidence into refactor performance",
     "verify the continuation checkpoint against the physical worktree and live runtime",
-    "reject a source corpus format branch component issue or green check as a completeness boundary"
+    "reject a source corpus format branch component issue pull request green check or benchmark headline as a completeness boundary"
   ],
   "forbidden_substitutions": [
     "source ingestion for the product purpose",
@@ -81,6 +86,9 @@
     "a permanent graph embedding or model for query-relative calculation",
     "raw hop count KNN ANN or one scalar adjacency for a typed connection or cognition program",
     "a source parser for a semantic engine",
+    "a file source record or transport chunk for the semantic scheduling atom when the canonical DAG exposes finer independent work",
+    "physical read parser-feed probe worker or deposit batch boundaries for canonical identity or semantic structure",
+    "dense all-pairs state or arithmetic for a sparse indexed N-to-K program without an explicit measured operator requirement",
     "governance policy standing permission or firmware for knowledge identity or testimony",
     "a personality prompt for executable firmware",
     "an application account profile billing social resume or federation schema for a private semantic engine",
@@ -93,15 +101,19 @@
     "one source or modality for generic acceptance",
     "component success database scale screenshot API breadth or historical behavior for current whole-route capability",
     "formal nonzero model support arbitrary top-k or an unmeasured threshold for material semantic support",
-    "training for admission and interoperability",
-    "GPU availability for semantic execution",
+    "a fixed BPE or tokenizer vocabulary for the Unicode-native symbolic floor",
+    "gradient or checkpoint training for native source admission interoperability or learning authority",
+    "GPU model or world residency for semantic execution",
+    "planner or preflight replay of expensive semantic calculation that is discarded before the real execution",
+    "cursor RBAR recursive SQL or dynamic per-candidate SQL for the native cognition engine when set-wise indexed execution is available",
+    "UI API Csharp or a source adapter for a private semantic implementation",
     "current branch shape for invention chronology",
     "observed development state for stable product law",
-    "issue plan documentation or artifact shape for implementation acceptance"
+    "issue plan documentation artifact shape issue count pull-request count or green component state for implementation or product acceptance"
   ],
   "state_boundary": {
     "checkpoint": "state/continuation.json",
-    "rule": "load observed state only after the whole invention and executable contracts; stale or unavailable observations become explicit unknowns and never override product law"
+    "rule": "load observed state only after the whole invention executable contracts and finish-line program; stale or unavailable observations become explicit unknowns and never override product law"
   },
   "session_control": {
     "pause": "a direct user stop pause cancel or equivalent instruction halts tool calls repository changes external changes and automatic goal continuation",
