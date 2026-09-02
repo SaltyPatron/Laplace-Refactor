@@ -27,14 +27,24 @@ Feature: Unicode atoms inhabit one exact versioned glome geometry
     And the receipt records the rotation projection and discarded dimension
     But the projected triples cannot replace the canonical points or their Hilbert keys
 
-  Scenario: Borsuk Ulam forbids a globally injective continuous three dimensional glome projection
-    Given canonical physicality is defined on the full S3 structural manifold
-    And a declared display or feature map continuously maps S3 into three or fewer Euclidean dimensions
+  Scenario: Borsuk Ulam forbids a globally injective continuous three dimensional Tier 0 glome projection
+    Given Tier 0 physicality coord is defined on the full S3 structural manifold
+    And a declared display or feature map continuously maps that S3 into three or fewer Euclidean dimensions
     When the projection contract is evaluated
     Then it declares that at least one antipodal pair on the full S3 domain must share a projected value
     And projected equality does not imply canonical S3 equality content identity or semantic equivalence
     And a collision free observation on the finite Unicode sample cannot certify global injectivity
-    But canonical four component physicality remains available for exact structural calculation
+    But canonical four component physicality coord remains available for exact structural calculation
+
+  Scenario: Coord and trajectory use different coordinate semantics
+    Given physicality coord is the real four component structural placement
+    And a composition physicality trajectory is an ordered mantissa packed GeometryZM carrier
+    When one trajectory vertex is decoded
+    Then its coordinate shaped payload reconstructs the declared canonical constituent identity and metadata
+    And ordinal run length RLE flags and other declared metadata remain exact under the vertex recipe
+    And the packed trajectory vertex is not interpreted as the constituent S3 coordinate
+    And a geometric path calculation first resolves each decoded constituent to its real physicality coord
+    And treating packed trajectory XYZM as live geometry fails the typed payload contract
 
   Scenario: Composite radius remains inside the glome
     Given a composition of multiple canonical atom points
