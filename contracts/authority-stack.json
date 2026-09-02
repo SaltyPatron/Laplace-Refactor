@@ -60,13 +60,16 @@
     {"order": 13, "path": "contracts/source-admission.json", "class": "executable_contract", "purpose": "complete witness topology and generic source-admission law"},
     {"order": 14, "path": "docs/architecture/ACCEPTANCE.md", "class": "executable_contract", "purpose": "implementation-level and complete-product proof boundaries"},
     {"order": 15, "path": "contracts/finish-line-program.json", "class": "executable_contract", "purpose": "whole-product finish line phase and milestone exits bounded sprint anti-substitution rework escalation and evidence closure"},
-    {"order": 16, "path": "docs/product/ROADMAP.md", "class": "program_execution_projection", "purpose": "current proof-state critical path and GitHub ownership projected from the operational and finish-line contracts"},
-    {"order": 17, "path": "docs/audits/CONTINUATION_WORK_AUDIT_2026-08-26.md", "class": "observed_development_state", "purpose": "dated session chronology work effort action inventory process corrections and publication boundary"},
-    {"order": 18, "path": "state/continuation.json", "class": "observed_development_state", "purpose": "verified current work and runtime checkpoint"}
+    {"order": 16, "path": "contracts/branch-estate-closure.json", "class": "executable_contract", "purpose": "branch lifecycle dispositions route-to-main law zero-orphan terminal counters and branch-creation freeze"},
+    {"order": 17, "path": "state/branch-estate-ledger.json", "class": "observed_development_state", "purpose": "current reconciled and unresolved unique branch tips open PR heads overlap families and terminal branch-estate counters"},
+    {"order": 18, "path": "docs/product/ROADMAP.md", "class": "program_execution_projection", "purpose": "current proof-state critical path and GitHub ownership projected from the operational finish-line and branch-estate contracts"},
+    {"order": 19, "path": "docs/audits/CONTINUATION_WORK_AUDIT_2026-08-26.md", "class": "observed_development_state", "purpose": "dated session chronology work effort action inventory process corrections and publication boundary"},
+    {"order": 20, "path": "state/continuation.json", "class": "observed_development_state", "purpose": "verified current work and runtime checkpoint"}
   ],
   "work_selection_gate": [
     "state the complete product behavior this work advances",
-    "load contracts/finish-line-program.json and select work from its current bounded sprint or from an explicit dependency/evidence update that changes that sprint",
+    "load contracts/finish-line-program.json then contracts/branch-estate-closure.json and state/branch-estate-ledger.json before selecting implementation work",
+    "while the branch-estate ledger has unresolved unique work select repair reconciliation merge or explicit supersession work under issue 183 instead of opening unrelated branches",
     "trace the behavior through universal AST Merkle DAG recipe ISA evidence cognition and realization laws as applicable",
     "identify the one native semantic owner and every replaceable physical provider",
     "name the attractive conventional substitution this work must not silently implement and identify the positive plus deliberate-defect evidence that detects it",
@@ -76,7 +79,7 @@
     "prove materially unrelated complete programs traverse one lifecycle without private semantic persistence or error routes",
     "separate implementation integration product-activation source-profile world-admission configured foundational seed release and observed-state claims",
     "bind performance claims to exact semantic work and physical plan and never promote old-iteration evidence into refactor performance",
-    "verify the continuation checkpoint against the physical worktree and live runtime",
+    "verify the branch-estate ledger and continuation checkpoint against authoritative Git refs physical worktree and live runtime as applicable",
     "reject a source corpus format branch component issue pull request green check or benchmark headline as a completeness boundary"
   ],
   "forbidden_substitutions": [
@@ -107,13 +110,15 @@
     "planner or preflight replay of expensive semantic calculation that is discarded before the real execution",
     "cursor RBAR recursive SQL or dynamic per-candidate SQL for the native cognition engine when set-wise indexed execution is available",
     "UI API Csharp or a source adapter for a private semantic implementation",
+    "a new sibling branch or integration branch for repairing work already owned by an unresolved branch or failed PR without explicit supersession",
     "current branch shape for invention chronology",
     "observed development state for stable product law",
-    "issue plan documentation artifact shape issue count pull-request count or green component state for implementation or product acceptance"
+    "issue plan documentation artifact shape issue count pull-request count branch count or green component state for implementation or product acceptance"
   ],
   "state_boundary": {
+    "branch_estate_checkpoint": "state/branch-estate-ledger.json",
     "checkpoint": "state/continuation.json",
-    "rule": "load observed state only after the whole invention executable contracts and finish-line program; stale or unavailable observations become explicit unknowns and never override product law"
+    "rule": "load observed state only after the whole invention executable finish-line and branch-estate contracts; stale or unavailable observations become explicit unknowns and never override product law"
   },
   "session_control": {
     "pause": "a direct user stop pause cancel or equivalent instruction halts tool calls repository changes external changes and automatic goal continuation",
