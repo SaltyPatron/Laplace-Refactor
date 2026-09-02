@@ -33,117 +33,170 @@ program such as a mechanism explanation.
 
 ### 2. Interpretation is cognition, not preprocessing
 
-Getting from the exact utterance to something equivalent to:
+Resolving candidate language, grammar, usages, senses, referents, discourse bindings,
+semantic act and completion obligations is part of the forward cognition program. A
+rank-1 topic election, endpoint lookup, fixed read name, regex, highest-frequency sense,
+nearest geometric point or highest-standing row cannot replace that work.
+
+The system may retain several competing interpretations, project discriminating
+queries, fold evidence, update the joint interpretation state and repeat. Ambiguity is
+a valid persistent result when the evidence does not close.
+
+### 3. S3 is structural; the relation/evidence web is semantic
+
+Laplace's real S3/glome placement is structural physicality. It supplies exact
+coordinates, centroids/radii, locality and geometric/curve candidate calculations.
+
+The semantic web is the typed relation/evidence world: usages, senses, referents,
+propositions, relation laws, testimony, dependence, standing, context, time, discourse,
+goals and outcomes.
+
+Structural proximity can propose a candidate. It cannot by itself establish meaning,
+truth, relevance, sense or semantic completion.
+
+### 4. `physicality.coord` and `physicality.trajectory` are not the same geometry
+
+This distinction is explicit inventor-direct architecture:
 
 ```text
-goal = explain mechanism
-referent = atmospheric-lightning sense
-obligations = initiating conditions + transitions + effects + evidence + completion
+physicality.coord
+    = the real four-component structural coordinate
+
+physicality.trajectory
+    = an ordered mantissa-packed manifest/address carrier
+      containing constituent BLAKE3 identity plus structural metadata
 ```
 
-is itself part of the forward/cognition pass. It cannot be supplied by an endpoint,
-hardcoded English intent router, rank-1 topic selector, stop-word heuristic, or fixed
-string pattern.
+Tier-0 `coord` values lie on the unit S3/glome. Higher compositions use the declared
+four-dimensional arithmetic centroid of child `coord` values and may lie inside the
+glome.
 
-The same exact prompt may compile differently under different legitimate persistent
-discourse, and ambiguity must remain explicit when the evidence does not justify one
-program.
+The `trajectory` carrier uses coordinate-shaped binary64 mantissa lanes to bit-pack the
+canonical BLAKE3/SIMD identity and metadata for indexing, compact transport and exact
+reconstruction. Conceptually `XYZ` provide the hash/address coordinate capacity and
+`M` is the metadata-rich lane carrying ordinal, RLE/run and other typed metadata; the
+exact generated ABI may use spare payload bits in other lanes as well.
 
-### 3. Daisy chaining and frog hopping cross typed state
+The trajectory's coordinate-looking values are **not** the constituent's real S3
+coordinate. A geometric curve must be realized by decoding the constituent IDs and
+resolving each constituent's real `physicality.coord` in trajectory order.
 
-Cognition must be able to move among exact structure, occurrences, containers, usages,
-senses/referents, typed semantic relations, testimony, deterministic calculations,
-documents, games, geometry and derived propositions without flattening those classes
-into one generic graph.
+Therefore Fréchet/Hausdorff/path geometry over the packed trajectory payload is a type
+error even if a geometry library returns a finite number. The operation has measured
+BLAKE3/metadata bit layout, not structural shape.
 
-A route is a typed program over those state classes, not a raw hop count or fanout.
+The dedicated architecture record is
+`docs/architecture/PHYSICALITY_COORD_TRAJECTORY_REALIZATION.md`.
 
-### 4. The S3/glome is structural
+### 5. Borsuk-Ulam applies to the real S3 projection boundary, not the hash packer
 
-The S3 geometry belongs to physicality/structure. It represents exact calculated
-placement, shape, order, locality and realized structural trajectories.
+For a continuous map `S3 -> R3` of the real unit `physicality.coord` manifold,
+Borsuk-Ulam guarantees global non-injectivity somewhere. A continuous 3D display or
+feature projection cannot replace the canonical four-component S3 state.
 
-It is not Laplace's semantic embedding.
+The packed trajectory hash/address coordinate is a different construction: a discrete,
+exact bit encoding of BLAKE3 identity plus metadata. Borsuk-Ulam does not govern its
+pack/unpack injectivity because it is not a continuous projection of S3.
 
-### 5. The web is semantic
-
-The typed relation/evidence world is the semantic web: usages, senses, referents,
-propositions, relation types, testimony, dependence, standing, context, time, discourse,
-programs and observed outcomes.
-
-Structural geometry and semantic web state cooperate but remain separate. Geometric
-proximity can propose or organize candidates; semantic/evidence laws establish whether
-a candidate matters to the current goal.
-
-### 6. Structural metric families include angular, Fréchet, Karcher, etc.
-
-The cognition/search/discovery design must not omit the existing metric family:
-
-- exact physicality structure, order, containment, gap, recurrence and trajectory;
-- S3 angular/geodesic calculations;
-- radius;
-- Hilbert locality;
-- Fréchet trajectory/curve comparison;
-- Hausdorff set/shape comparison;
-- Karcher/Fréchet-mean-derived manifold calculations;
-- other separately declared structural point/curve/set/manifold calculations.
-
-These metrics answer different structural questions and cannot be collapsed into one
-universal distance. In particular, Fréchet is useful for ordered trajectory shape;
-Hausdorff is not an order-preserving substitute; Karcher-derived views do not replace
-the canonical arithmetic composition centroid; Hilbert is locality/indexing rather
-than semantic truth.
-
-### 7. Gödel discovers procedures as well as facts
-
-The Gödel engine is intended to discover persistent improvements to how Laplace
-calculates. Successful and failed cognition trajectories are memory and discovery
-input.
-
-Gödel can discover recurring structural and semantic execution motifs, propose new
-cognition programs, operators, relation laws, firmware operations and instructions,
-test them against held-out evidence and counterexamples, and activate only versions
-that survive the declared proof boundary.
-
-### 8. Skill, habit and muscle memory are persistent machine behavior
-
-A useful distinction is:
+This creates two distinct legitimate 3D notions that must never be conflated:
 
 ```text
-memory       = retained observations/executions/trajectories/outcomes
-skill        = a reusable proven cognition program/operator
-habit        = firmware learns when that operation is worth proposing/scheduling
-muscle memory= proven equivalent compiled/indexed/perfcache/native acceleration
+real S3 coord -> continuous 3D view
+    structural projection with an explicit loss contract
+
+BLAKE3-128 id -> trajectory XYZ/M mantissa carrier
+    exact discrete address/metadata encoding
 ```
 
-Habit cannot become truth or mandatory hidden dispatch. Muscle memory cannot become
-opacity or semantic drift. Both remain versioned, receipted, replayable and traceable to
-the primitive evidence/program that justified them.
+### 6. Angular, Fréchet, Hausdorff, Karcher, Hilbert and packed hash locality remain distinct
 
-### 9. Structural similarity is only a Gödel hypothesis generator
+No universal structural distance exists.
 
-Repeated cognition traces may be structurally similar under exact AST motifs, S3
-angle, Fréchet, Hausdorff, Karcher-derived summaries, Hilbert locality, recurrence or
-other physicality calculations. That similarity can propose a reusable procedure.
+- angular/geodesic operates on the declared real S3 coordinate;
+- Fréchet operates on a realized ordered coordinate curve;
+- Hausdorff answers a different set/shape coverage question;
+- Karcher-derived values are intrinsic manifold summaries and do not replace the
+  canonical arithmetic composition centroid;
+- Hilbert is an index/locality projection of real four-dimensional coordinates;
+- packed BLAKE3 trajectory locality is address/payload structure, not real S3 locality;
+- exact containment/order/ordinal/RLE relations come from decoded physicality and do
+  not need approximation by any metric.
 
-Semantic promotion requires separate relation/evidence/context/outcome proof. Two
-structurally close traces can require different acts; two semantically equivalent acts
-can have very different structures across languages/modalities.
+### 7. Daisy chains and frog hops are typed execution
 
-## Repository actions created from these corrections
+Cognition may cross exact structural and semantic state classes while preserving the
+meaning of every transition:
+
+```text
+exact composition
+-> occurrence/container
+-> structural role
+-> usage
+-> candidate sense/referent
+-> typed semantic relation/evidence
+-> another canonical entity
+-> deterministic calculation
+-> another physicality/document/game/source
+-> derived proposition
+```
+
+This is the intended daisy-chain/frog-hop behavior. It is not one flattened graph walk.
+
+### 8. Gödel discovers better ways to think, not only more facts
+
+Successful and failed cognition executions are persistent typed trajectories. The
+Gödel engine must be able to compare them, detect recurring useful or defective
+procedures, synthesize candidate cognition programs/operators/firmware operations,
+search counterexamples, evaluate held-out behavior and activate only proven versions.
+
+Structural comparison can use exact AST/trajectory shape, real S3 angular calculations,
+realized Fréchet/Hausdorff, Karcher-derived summaries, Hilbert locality, order/gaps and
+recurrence. The packed trajectory remains the exact identity/ordering manifest used to
+reconstruct what happened; it does not become the geometric shape metric itself.
+
+Semantic comparison separately retains relation types, senses/referents, discourse,
+obligations, evidence roots, contradiction, standing, world/time/context and outcomes.
+A recurring structural motif may generate a procedural hypothesis but cannot establish
+semantic equivalence.
+
+### 9. Memory, skill, habit and muscle memory are different persistence levels
+
+- **memory**: retained observations, trajectories, programs, outcomes and receipts;
+- **skill**: a reusable versioned cognition program/operator with proven semantics;
+- **habit**: firmware learns when a proven skill is worth proposing earlier;
+- **muscle memory**: a repeatedly proven procedure acquires a semantically equivalent
+  fused/indexed/perfcache/native fast path so primitive rediscovery is unnecessary.
+
+Habit changes scheduling, not truth. Muscle memory changes physical execution, not
+logical semantics. Every promoted operation retains ancestry, versioning, held-out
+acceptance, counterexamples and replay through the primitive path.
+
+### 10. The `How does X work?` family is a proof fixture, not a hardcoded grammar rule
+
+The first execution of `How does lightning work?` may need to inspect the whole
+utterance, usages, competing senses/referents and discourse before it can justify a
+mechanism-explanation program. Repeated successful and failed examples may later allow
+Gödel to discover a reusable mechanism program.
+
+The learned result cannot be an English `starts_with("how does")` rule, a noun bonus,
+a rank-1 topic election or any other pre-baked weighting shortcut. It must survive
+paraphrase, language differences, ambiguous names and negative contexts where similar
+surface forms require a different semantic act.
+
+## Repository projection of these corrections
+
+Current architecture/research records:
 
 - `docs/architecture/STRUCTURAL_GEOMETRY_SEMANTIC_WEB_AND_GODEL_HABITS.md`
+- `docs/architecture/PHYSICALITY_COORD_TRAJECTORY_REALIZATION.md`
 - `docs/research/STRUCTURAL_TRAJECTORY_METRICS.md`
-- #168 — structural S3/trajectory geometry vs semantic web and metric providers
-- #169 — Gödel procedural memory / habit / muscle-memory induction and compilation
-- #170 — whole-observation joint interpretation before focus
-- #19 updated to make procedural cognition discovery an explicit closure obligation
-- #17, #18, #60 and #132 cross-linked with the corrections
+- `docs/research/BORSUK_ULAM_S3_PROJECTION.md`
 
-## Acceptance implication
+Implementation/acceptance issues:
 
-The clean product is not complete if it answers the lightning fixture correctly by
-hardcoding the right focus, intent or prose. It must demonstrate the route that earned
-the interpretation, the typed structural and semantic evidence it used, the guidance
-obligations it completed, and—once learned habits exist—the ancestry showing how a
-reusable procedure was discovered, validated, activated and optionally accelerated.
+- #168 structural coord/packed-trajectory/metric/provider boundary;
+- #169 Gödel procedural memory, habit and muscle-memory compilation;
+- #170 whole-observation interpretation before focus.
+
+These are corrections to derived product artifacts, not evidence that the implementation
+is complete.
