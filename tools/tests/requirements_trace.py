@@ -489,6 +489,7 @@ def validate_required_authority_contracts(
     product: dict[str, ProductRequirement],
     operation_stages: dict[str, dict[str, object]],
 ) -> tuple[int, int]:
+    repo_root = repo_root.resolve()
     authority_path = repo_root / "contracts/authority-stack.json"
     try:
         authority = json.loads(authority_path.read_text(encoding="utf-8"))
@@ -570,8 +571,11 @@ def validate_required_authority_contracts(
         ):
             raise TraceError(f"required contract has invalid feature joins: {relative}")
         for feature_relative in feature_files:
-            feature_path = repo_root / feature_relative
-            if feature_path.is_absolute() and not feature_path.is_relative_to(repo_root):
+            feature_declared = Path(feature_relative)
+            if feature_declared.is_absolute() or ".." in feature_declared.parts:
+                raise TraceError(f"required contract has unsafe feature join: {relative}")
+            feature_path = (repo_root / feature_declared).resolve()
+            if not feature_path.is_relative_to(repo_root):
                 raise TraceError(f"required contract has unsafe feature join: {relative}")
             if not feature_path.is_file():
                 raise TraceError(f"required contract feature is missing: {feature_relative}")
