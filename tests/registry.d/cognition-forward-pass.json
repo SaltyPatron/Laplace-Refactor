@@ -1,0 +1,35 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionForwardPass.CompletesOnlyAfterAllObligationsResolve",
+      "evidence_targets": ["LP-TEST-GUIDANCE-COMPLETION", "LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["multi-layer typed guidance loop", "all required obligations before completion", "layer and provider-call receipts"]
+    },
+    {
+      "ctest_name": "CognitionForwardPass.DoesNotTerminateAfterOneLayerWhenObligationRemains",
+      "evidence_targets": ["LP-TEST-PARTIAL-NONCOMPLETION", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["one-hop noncompletion", "layer-limit disposition", "remaining required obligation readback"]
+    },
+    {
+      "ctest_name": "CognitionForwardPass.ProviderEnumerationOrderCannotChangeReceipt",
+      "evidence_targets": ["LP-TEST-GUIDANCE-OPERATION-CONTRACT", "LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["canonical candidate ordering", "provider-order nonauthority", "deterministic final receipt"]
+    },
+    {
+      "ctest_name": "CognitionForwardPass.RejectsMalformedEnumerationReceipt",
+      "evidence_targets": ["LP-TEST-GUIDANCE-OPERATION-CONTRACT"],
+      "covered_dimensions": ["provider state binding", "projection receipt binding", "fail-closed malformed provider evidence"]
+    },
+    {
+      "ctest_name": "CognitionForwardPass.StopsBeforeExecutingUnaffordableOperation",
+      "evidence_targets": ["LP-TEST-DEFICIT-ACTION-SCHEDULER"],
+      "covered_dimensions": ["resource budget hard boundary", "unaffordable operation nonexecution", "typed resource-limit disposition"]
+    },
+    {
+      "ctest_name": "CognitionForwardPass.AlreadyCompleteStateDoesNotCallProvider",
+      "evidence_targets": ["LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["semantic completion short circuit", "zero provider calls", "final-state clone and identity"]
+    }
+  ]
+}

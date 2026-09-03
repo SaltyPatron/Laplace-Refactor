@@ -1,3 +1,8 @@
+include("${PROJECT_SOURCE_DIR}/cmake/LaplaceCognitionForwardPassContract.cmake")
+laplace_configure_cognition_forward_pass_contract(
+    "${PROJECT_SOURCE_DIR}/contracts/cognition-forward-pass.json"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/cognition_forward_pass.h")
+
 set(LAPLACE_TREE_SITTER_SOURCE "" CACHE PATH "Verified upstream Tree-sitter source directory")
 if(NOT IS_ABSOLUTE "${LAPLACE_TREE_SITTER_SOURCE}")
     message(FATAL_ERROR "LAPLACE_TREE_SITTER_SOURCE must be an absolute verified source path")
@@ -51,6 +56,7 @@ add_library(laplace_engine SHARED
     src/decomposition_fixed_width.cpp
     src/decomposition_tree_sitter.cpp
     src/tree_sitter_grammar.cpp
+    src/cognition_forward_pass.cpp
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)
@@ -98,6 +104,7 @@ add_library(Laplace::UnicodeRoot ALIAS laplace_engine)
 add_library(Laplace::Uax29 ALIAS laplace_engine)
 add_library(Laplace::TextDecomposition ALIAS laplace_engine)
 add_library(Laplace::Decomposition ALIAS laplace_engine)
+add_library(Laplace::CognitionForwardPass ALIAS laplace_engine)
 
 if(TARGET LaplaceOneApi::MKLRuntime)
     if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
@@ -197,4 +204,5 @@ install(FILES
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/world_admission.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/composition.h"
     "${CMAKE_BINARY_DIR}/generated/laplace/contract/highway.h"
+    "${CMAKE_BINARY_DIR}/generated/laplace/contract/cognition_forward_pass.h"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")
