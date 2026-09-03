@@ -378,18 +378,19 @@ TEST(ObservationQuery, ExpandsImmediateSuccessorFromPhysicalityWithoutTestimony)
         LAPLACE_OBSERVATION_QUERY_OK);
     bool saw_internal_run_successor = false;
     bool saw_next_run_successor = false;
-    for (std::size_t index = 0U; index < transition_count; ++index) {
+    for (std::size_t transition_index = 0U;
+         transition_index < transition_count; ++transition_index) {
         EXPECT_EQ(
-            transitions[index].relation_family,
+            transitions[transition_index].relation_family,
             LAPLACE_OBSERVATION_QUERY_SUCCESSOR);
         EXPECT_EQ(
-            transitions[index].source_layer,
+            transitions[transition_index].source_layer,
             LAPLACE_OBSERVATION_QUERY_SOURCE_PHYSICALITY);
-        EXPECT_TRUE(Zero(transitions[index].evidence_root_fingerprint));
+        EXPECT_TRUE(Zero(transitions[transition_index].evidence_root_fingerprint));
         saw_internal_run_successor = saw_internal_run_successor ||
-            Same(transitions[index].target.anchor_id, a_coordinate);
+            Same(transitions[transition_index].target.anchor_id, a_coordinate);
         saw_next_run_successor = saw_next_run_successor ||
-            Same(transitions[index].target.anchor_id, b_coordinate);
+            Same(transitions[transition_index].target.anchor_id, b_coordinate);
     }
     EXPECT_TRUE(saw_internal_run_successor);
     EXPECT_TRUE(saw_next_run_successor);
