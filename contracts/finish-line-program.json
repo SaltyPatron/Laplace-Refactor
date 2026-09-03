@@ -8,15 +8,17 @@
   "program_authority": {
     "whole_product_issue": 23,
     "governance_issue": 180,
+    "research_program_preservation_issue": 184,
     "complete_product_acceptance_issue": 22,
     "finish_line_kind": "whole-product-contract",
     "pull_request_is_never_product_finish_line": true,
-    "rule": "Branches and pull requests are implementation slices. The product finish line is the whole-product law plus this program contract plus complete installed-product acceptance."
+    "rule": "Branches and pull requests are implementation slices. The product finish line is the whole-product law plus the mathematical research-program invariants plus this program contract plus complete installed-product acceptance."
   },
   "terminal_definition": {
-    "statement": "Laplace is finished only when the exact accepted package executes the complete configured machine from acquisition and activation through canonical world state, cognition, realization/effects, learning, product surfaces, recovery, readback, receipts and release acceptance without a private semantic engine or forbidden physical-plan substitution.",
+    "statement": "Laplace is finished only when the exact accepted package executes the complete configured machine from acquisition and activation through canonical world state, cognition, realization/effects, learning, product surfaces, recovery, readback, receipts and release acceptance without a private semantic engine, loss of the mathematical research-program state distinctions, or forbidden physical-plan substitution.",
     "delivered_chain": [
       "inventor-or-stable-product-law",
+      "research-program-invariants-reconciled",
       "versioned-contract-or-requirement",
       "one-semantic-implementation-owner",
       "positive-executable-acceptance",
@@ -46,6 +48,45 @@
     "active_requires": ["owner", "phase", "milestone", "dependencies", "exit_condition", "immediate_next_action"],
     "delivered_requires": "all-applicable-terminal-definition-delivered-chain-evidence",
     "supersession_rule": "A superseded issue PR branch contract or document must name its successor; it cannot remain the current finish-line authority."
+  },
+  "research_program_preservation": {
+    "issue": 184,
+    "direct_synthesis": "docs/audits/INVENTOR_DIRECT_SYNTHESIS_2026-09-02.md",
+    "stable_synthesis": "docs/product/LAPLACE_MATHEMATICAL_RESEARCH_PROGRAM.md",
+    "rule": "Every material implementation slice must preserve the applicable coupled-machine state distinctions and map any later direct correction into the governing requirement contract issue and deliberate-defect acceptance before a conflicting lower-authority shortcut can become architecture.",
+    "required_invariants": [
+      "prompt-trunk-before-topic",
+      "language-agnostic-processor-language-specific-evidence",
+      "uniform-userprompt-source-prior-separate-earned-user-standing",
+      "constituent-role-importance-is-not-source-trust",
+      "structural-s3-and-packed-trajectory-are-not-semantic-web",
+      "finite-active-operations-dynamic-query-relative-programs",
+      "generate-typed-operator-before-target-tensor",
+      "qk-compatibility-may-differ-from-vo-contribution",
+      "godel-skill-habit-muscle-memory-remain-distinct",
+      "self-reentry-does-not-create-independent-evidence",
+      "no-leaf-mvp-may-replace-a-missing-machine-layer"
+    ]
+  },
+  "progress_accounting": {
+    "rule": "Progress is reduction or closure of an explicit executable exit predicate acceptance obligation prerequisite or branch-reconciliation obligation. Activity artifacts alone do not count.",
+    "status_only_is_progress": false,
+    "pr_count_is_progress": false,
+    "branch_count_is_progress": false,
+    "documentation_only_is_implementation_progress": false,
+    "required_progress_receipt_fields": [
+      "authoritative_base_head",
+      "owning_issue_pr",
+      "product_behavior_advanced",
+      "requirement_or_contract",
+      "exact_changes",
+      "tests_or_acceptance_run",
+      "deliberate_defect_status_when_applicable",
+      "remaining_open_or_failed_predicates",
+      "blocker_when_blocked",
+      "immediate_next_action"
+    ],
+    "continuation_rule": "After corrections status questions review findings or failed checks, continue safe in-scope work on the same dependency chain until an executable boundary advances, a real blocker is reached, or the user stops or changes direction."
   },
   "milestones": [
     {
@@ -98,9 +139,9 @@
       "github_milestone_number": 6,
       "github_title": "Phase 5 — Universal query and conversation",
       "operation_model_title": "Phase 5 — Universal query and conversation",
-      "primary_owners": [17, 18, 19, 60, 132, 136, 168, 169, 170],
-      "exit_predicate": "Real requests compile and execute finite typed guidance, indexed candidate generation, typed search/operators/folds, evidence-aware completion, semantic acts, realization/effects and witnessed learning/discovery through one public route with exact why-not and physical-plan receipts.",
-      "evidence_boundary": "query/cognition/realization/learning route parity, typed completion, forbidden-plan mutations, representative end-to-end receipts"
+      "primary_owners": [17, 18, 19, 60, 132, 136, 168, 169, 170, 182],
+      "exit_predicate": "Real requests compile from canonical prompt trunks and execute finite typed guidance, indexed candidate generation, typed search/operators/folds, evidence-aware completion, semantic acts, realization/effects and witnessed learning/discovery through one public route with exact why-not and physical-plan receipts.",
+      "evidence_boundary": "prompt-root query/cognition/realization/learning route parity, typed completion, forbidden-plan mutations, representative end-to-end receipts"
     },
     {
       "phase": 6,
@@ -108,7 +149,7 @@
       "github_title": "Phase 6 — Model independence",
       "operation_model_title": "Phase 6 — Model independence",
       "primary_owners": [20, 61, 71, 129],
-      "exit_predicate": "Conventional models are optional witnessed inputs/targets; behavior is experiment-scoped; target operators/artifacts compile from selected substrate state under named invariants and independent runtime oracles without flattening the native machine.",
+      "exit_predicate": "Conventional models are optional witnessed inputs/targets; behavior is experiment-scoped; target operators/artifacts compile from selected typed substrate state before tensor factorization under named invariants and independent runtime oracles without flattening the native machine.",
       "evidence_boundary": "model witness decomposition, behavior/effective support, operator/AImap invariants, scoped target compilation, independent target-runtime acceptance"
     },
     {
@@ -125,9 +166,9 @@
       "github_milestone_number": 9,
       "github_title": "Phase 8 — Full acceptance and release",
       "operation_model_title": "Phase 8 — Full acceptance and release",
-      "primary_owners": [22, 23, 165, 166, 167, 180],
-      "exit_predicate": "The exact installed package passes complete cross-route/cross-platform/cross-language/cross-modal/cross-model acceptance, deliberate defects, performance/economic evidence, recovery, provenance/manual parity and release publication. No lower proof state substitutes.",
-      "evidence_boundary": "complete installed-product suite, benchmark receipts, provenance/signatures, manual parity, release package and replayable evidence"
+      "primary_owners": [22, 23, 165, 166, 167, 180, 184],
+      "exit_predicate": "The exact installed package passes complete cross-route/cross-platform/cross-language/cross-modal/cross-model acceptance, deliberate defects, mathematical-research-program invariant reconciliation, performance/economic evidence, recovery, provenance/manual parity and release publication. No lower proof state substitutes.",
+      "evidence_boundary": "complete installed-product suite, research-program anti-flattening and anti-hyperfocus proofs, benchmark receipts, provenance/signatures, manual parity, release package and replayable evidence"
     }
   ],
   "operational_graph": {
@@ -136,7 +177,7 @@
     "phase_count": 9
   },
   "mandatory_capability_owners": [
-    2, 3, 4, 5, 6, 7, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 52, 53, 56, 60, 61, 70, 71, 72, 110, 112, 115, 129, 132, 136, 140, 165, 166, 167, 168, 169, 170, 171, 177, 179, 180
+    2, 3, 4, 5, 6, 7, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 52, 53, 56, 60, 61, 70, 71, 72, 110, 112, 115, 129, 132, 136, 140, 165, 166, 167, 168, 169, 170, 171, 177, 179, 180, 182, 184
   ],
   "anti_substitution_controls": {
     "required": [
@@ -152,7 +193,12 @@
       "ui-api-csharp-or-source-adapter-private-semantics",
       "source-path-tier-occurrence-time-worker-or-batch-in-canonical-content-identity",
       "semantic-preflight-replayed-and-discarded-before-real-execution",
-      "load-shape-fluency-nonempty-or-historical-result-as-complete-acceptance"
+      "load-shape-fluency-nonempty-or-historical-result-as-complete-acceptance",
+      "rank-1-topic-or-token-class-weight-as-interpretation",
+      "global-source-trust-scalar-for-prior-and-earned-standing",
+      "flatten-before-target-operator-generation",
+      "gguf-load-or-extra-heads-as-generated-semantics",
+      "habit-or-fast-path-bypasses-current-semantic-validity"
     ],
     "coverage_rule": "Every critical control must have an owning positive acceptance and a deliberate-defect or mutation somewhere in the acceptance graph before the owning milestone can close."
   },
@@ -171,7 +217,9 @@
       "physical-batching-leaks-into-identity",
       "duplicated-lifecycle-or-receipt-machinery",
       "file-grain-parallel-scheduling",
-      "duplicate-semantic-calculation-in-planning-and-execution"
+      "duplicate-semantic-calculation-in-planning-and-execution",
+      "flattened-target-operator-generation",
+      "topic-or-token-priority-standing-in-for-interpretation"
     ]
   },
   "current_sprints": [
@@ -268,7 +316,7 @@
   },
   "issue_pr_contract": {
     "required_issue_fields": ["product_behavior", "phase", "milestone", "owner", "dependencies", "exit_condition", "immediate_next_action"],
-    "required_implementation_pr_fields": ["governing_laplace_law", "conventional_substitution_rejected", "semantic_owner", "physical_providers", "positive_acceptance", "deliberate_defect", "evidence_boundary", "next_action"],
-    "pr_rule": "A PR may deliver an implementation slice but can never become the product completion authority."
+    "required_implementation_pr_fields": ["governing_laplace_law", "conventional_substitution_rejected", "semantic_owner", "physical_providers", "positive_acceptance", "deliberate_defect", "evidence_boundary", "next_action", "progress_receipt"],
+    "pr_rule": "A PR may deliver an implementation slice but can never become the product completion authority. Every implementation PR must leave an exact progress receipt rather than activity-only status."
   }
 }
