@@ -23,14 +23,14 @@
       ]
     },
     {
-      "ctest_name": "DecompositionOrchestration.DelimitedRowsAndFieldsAreTerminalWitnesses",
+      "ctest_name": "DecompositionOrchestration.DelimitedRowsStayTerminalAndFieldsRedispatch",
       "evidence_targets": [
         "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
       ],
       "covered_dimensions": [
-        "delimited row and field structure is retained as witnessed spans without recursive redispatch",
-        "terminal delimited witnesses preserve typed text flags while structural delimiters remain non-text",
-        "one applicable grammar execution emits the complete terminal row and field witness set without manufacturing nested parser work"
+        "delimited row structure remains a terminal witness while non-empty textual fields are explicitly redispatched",
+        "field leaves carry TEXT plus REDISPATCH while delimiters terminators and row structure do not manufacture recursive structural work",
+        "redispatch is bounded to semantic textual leaves so UAX29 language reference and domain providers can continue without overlapping whole-row expansion"
       ]
     },
     {
@@ -41,6 +41,7 @@
       ],
       "covered_dimensions": [
         "fixed-width physical fields and padding-trimmed semantic values remain distinct exact spans",
+        "padding-trimmed textual values are redispatched while physical field padding overflow and record structure remain terminal",
         "a bounded declared overflow belongs to its recipe-selected field and receives an explicit ambiguity witness",
         "later field boundaries remain exact instead of silently shifting or truncating"
       ]
