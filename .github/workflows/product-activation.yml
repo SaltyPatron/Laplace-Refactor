@@ -55,6 +55,7 @@ jobs:
         run: |
           python3 tests/highway_product_activation_tests.py
           python3 tests/product_activation_gateway_tests.py
+          python3 tests/product_activation_preflight_tests.py
           python3 tests/product_activation_runtime_adapter_tests.py
           python3 tests/product_service_state_tests.py
 
@@ -176,7 +177,39 @@ jobs:
           test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
           test -n "$LAPLACE_ACTIVATION_HMAC_KEY_B64"
           test -x /opt/laplace/deployment/current/bin/laplace-product-activate
-          sudo -n /opt/laplace/deployment/current/bin/laplace-product-activate probe
+
+          installed_probe="$RUNNER_TEMP/laplace-installed-activation-probe.json"
+          source_probe="$RUNNER_TEMP/laplace-source-activation-probe.json"
+          sudo -n /opt/laplace/deployment/current/bin/laplace-product-activate probe \
+            > "$installed_probe"
+          python3 tools/delivery/product_activation_preflight.py > "$source_probe"
+          python3 - "$installed_probe" "$source_probe" <<'PY'
+          import json
+          import sys
+
+          installed_path, source_path = sys.argv[1:]
+          with open(installed_path, "r", encoding="utf-8") as stream:
+              installed = json.load(stream)
+          with open(source_path, "r", encoding="utf-8") as stream:
+              source = json.load(stream)
+          if installed.get("schema") != "laplace.product-activation-gateway-probe/v2":
+              raise SystemExit(
+                  "installed activation gateway predates trust preflight; "
+                  "reconverge the root-owned gateway before product activation"
+              )
+          if source.get("schema") != "laplace.product-activation-source-preflight/v1":
+              raise SystemExit("source activation preflight schema differs")
+          for field, label in (
+              ("bundle_id", "trusted gateway bundle"),
+              ("contract_sha256", "activation contract"),
+              ("key_fingerprint_sha256", "protected activation key"),
+          ):
+              if installed.get(field) != source.get(field):
+                  raise SystemExit(
+                      f"{label} differs between installed root authority and "
+                      "the protected workflow source"
+                  )
+          PY
       - name: Compile the exact authenticated activation request
         shell: bash
         run: |

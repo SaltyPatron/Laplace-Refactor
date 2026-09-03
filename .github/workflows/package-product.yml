@@ -98,9 +98,27 @@ jobs:
           product_build_directory=$(dirname "$product_receipt")
           cmake_build_directory="$product_build_directory/laplace"
           installer_root=/build/laplace/runner/product/installers
+
+          # Reconfigure from the exact package bytes proved above, never from an
+          # ambient host PostgreSQL. pg_config reports the package's logical
+          # /opt/laplace/releases/<id> paths, so provide the corresponding staged
+          # physical root exactly as build-package.py does during composition.
+          package_manifest=$(jq -er '.manifest' "$product_receipt")
+          logical_release=$(jq -er '.root' "$package_manifest")
+          physical_release=$(jq -er '.physical_root' "$product_receipt")
+          case "$physical_release" in
+            *"$logical_release") pg_physical_root="${physical_release%"$logical_release"}" ;;
+            *) echo 'product physical root does not end in its logical release root' >&2; exit 1 ;;
+          esac
+          pg_config="$physical_release/pgsql-18/bin/pg_config"
+          test -x "$pg_config"
+          test "$($pg_config --version | awk '{print $2}' | cut -d. -f1)" = 18
+
           cmake -S . -B "$cmake_build_directory" \
             -DLAPLACE_PRODUCT_RECEIPT="$product_receipt" \
-            -DLAPLACE_INSTALLER_OUTPUT_DIRECTORY="$installer_root"
+            -DLAPLACE_INSTALLER_OUTPUT_DIRECTORY="$installer_root" \
+            -DLAPLACE_PG_CONFIG="$pg_config" \
+            -DLAPLACE_PG_PHYSICAL_ROOT="$pg_physical_root"
           cmake --build "$cmake_build_directory" --target laplace_product_installer
           package_id=$(jq -er '.package_id' "$product_receipt")
           installer_selection="$cmake_build_directory/laplace-product-installer-selection.json"
