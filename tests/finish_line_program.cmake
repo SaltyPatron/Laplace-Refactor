@@ -1,3 +1,5 @@
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 add_test(
     NAME finish-line.program-contract-and-mutation
     COMMAND "${Python3_EXECUTABLE}"
