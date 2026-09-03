@@ -238,6 +238,16 @@ class PackageProductProofTests(unittest.TestCase):
             hashlib.sha256(proof.canonical_bytes(value)).hexdigest(),
         )
 
+    def test_installer_reconfigure_uses_proved_package_postgresql(self) -> None:
+        workflow = (REPOSITORY / ".github/workflows/package-product.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("physical_release=$(jq -er '.physical_root'", workflow)
+        self.assertIn('pg_config="$physical_release/pgsql-18/bin/pg_config"', workflow)
+        self.assertIn('-DLAPLACE_PG_CONFIG="$pg_config"', workflow)
+        self.assertIn('-DLAPLACE_PG_PHYSICAL_ROOT="$pg_physical_root"', workflow)
+        self.assertNotIn('-DLAPLACE_PG_CONFIG=/opt/laplace/pgsql-18/bin/pg_config', workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
