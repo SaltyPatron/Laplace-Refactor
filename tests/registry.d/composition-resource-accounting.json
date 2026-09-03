@@ -9,27 +9,29 @@
         "LP-TEST-OCCURRENCE-PRESERVATION"
       ],
       "covered_dimensions": [
-        "working-set physical memory follows unique canonical entities and physicalities rather than raw request count",
-        "trajectory carrier accounting follows unique physical realizations",
+        "preflight resource planning uses conservative request-shape upper bounds without replaying semantic calculation",
+        "planned entity physicality trajectory-carrier and occurrence upper bounds are receipted separately from actual unique canonical counts",
+        "actual canonical entity physicality and trajectory counts still collapse repeated structure after the single semantic pass",
         "explicit observed occurrences consume witness memory without multiplying canonical structure",
-        "equal raw request and operand cardinality distinguishes canonical reuse from genuinely distinct structure"
+        "each admitted request reports exactly one semantic calculation"
       ],
       "defect_controls": [
-        "request-count-scaled entity physicality trajectory and occurrence memory law"
+        "semantic preflight replay disguised as exact resource counting",
+        "planned resource bounds conflated with actual deduplicated semantic counts"
       ]
     },
     {
-      "ctest_name": "composition.mutation-request-count-memory-law-detected",
+      "ctest_name": "composition.mutation-duplicate-semantic-calculation-detected",
       "evidence_targets": [
         "LP-TEST-AST-MERKLE-REUSE",
         "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
         "LP-TEST-OCCURRENCE-PRESERVATION"
       ],
       "covered_dimensions": [
-        "deliberate-defect sensitivity for canonical-structure resource accounting"
+        "deliberate-defect sensitivity for duplicate semantic request execution"
       ],
       "defect_controls": [
-        "resource estimate restored to known-plus-request entity count request physicality count expanded carriers and unconditional request witness count"
+        "CalculateRequest-equivalent semantic work replayed after the admitted request has already been calculated"
       ]
     }
   ]
