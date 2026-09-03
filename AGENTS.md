@@ -29,8 +29,8 @@
   exit predicate and carry a progress receipt.
 - Conventional substitution must be explicitly admitted as a physical provider or
   rejected by the owning contract before it can replace the governed machine law.
-- Repeated independent failures of the same defect class must escalate to the generic
-  owner before another leaf-only repair can count as progress.
+- Repeated independent failures must escalate to the generic owner before another
+  leaf-only repair can count as progress.
 
 ## Product authority
 
