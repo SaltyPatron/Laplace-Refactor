@@ -1,0 +1,74 @@
+{
+  "schema": "laplace.original-invention-lineage/v1",
+  "source_repository": "SaltyPatron/Laplace",
+  "pinned_commit": "d2f5a9bfeda117c65a82cea2d02bc769d97de8cc",
+  "authority": {
+    "inventor_product_law": "Inventor-authored invention catalogs, product specifications, architecture descriptions, direct behavioral definitions, and product-surface semantics in the original Laplace lineage remain product-law evidence until an inventor-direct correction explicitly supersedes them.",
+    "implementation_boundary": "Historical implementation code, ABI, schema, deployment topology, performance characteristics, and accidental defects are not automatically clean-refactor implementation authority and must be rederived against current contracts.",
+    "no_summary_substitution": "A derived Refactor summary, issue, PR, agent note, governance rule, or conventional architecture analogy cannot silently narrow, replace, or demote inventor-authored original product law.",
+    "reconciliation_rule": "When Refactor behavior differs from a pinned original invention artifact, the difference must be classified as preserved, corrected by inventor-direct authority, intentionally rederived with semantic parity, or unresolved. Absence of reconciliation is an implementation defect, not permission to invent a replacement.",
+    "whole_product_rule": "Laplace is the integrated invention. A local component, parser, ETL lane, database table, UI stub, green test, PR, or package fragment cannot stand in for the complete machine behavior described by the invention lineage."
+  },
+  "artifacts": [
+    {
+      "path": "docs/INVENTIONS.md",
+      "blob_sha": "8649af6a653e7194b2eacf4634183ef381a33c77",
+      "class": "inventor-product-law",
+      "preserves": [
+        "content-addressed identity",
+        "Unicode/DUCET universal text floor",
+        "S3 geometry",
+        "typed physicalities and occurrences",
+        "evidence consensus and Glicko epistemology",
+        "one ordered ingest spine and pure omni-modal decomposers",
+        "checkpoint-as-source and model symmetry",
+        "dynamic-frontier generation",
+        "one typed operation ISA",
+        "whole-prompt-root cognition",
+        "consumer-role separation for Q/K/V/O and related conventional model anatomy",
+        "whole-product identity"
+      ]
+    },
+    {
+      "path": "docs/specs/36_Laplace_Forward_Pass.md",
+      "blob_sha": "a9e13653cdca6c09fdeadd968100eb0ef1e364a4",
+      "class": "inventor-product-law",
+      "preserves": [
+        "RESOLVE ORIENT ROUTE SCAN COMPOSE PROPOSE STEER SELECT REALIZE WITNESS",
+        "stateful emission where each emitted constituent updates the next frontier",
+        "one program across conversation code games model-scoped queries and export",
+        "MCP HTTP streaming and export semantic trace parity",
+        "no external answer-writing LLM or GPU requirement"
+      ]
+    },
+    {
+      "path": "web/src/explore/browse/BrowseHome.tsx",
+      "blob_sha": "0e70fb8fcbbf24a4874dfd7decd7cdfd44c2d16c",
+      "class": "inventor-product-surface-evidence",
+      "preserves": [
+        "browse from a surface or canonical entity",
+        "follow relations compositions evidence and graph state",
+        "2D and 3D neighborhood exploration",
+        "connected Chess Highway Warehouse Walk Matchup and Audit surfaces"
+      ]
+    },
+    {
+      "path": "web/src/explore/entity/EntityDetail.tsx",
+      "blob_sha": "8f42fbc3f293bfe64c063f15e2db9f5c580b12f6",
+      "class": "inventor-product-surface-evidence",
+      "preserves": [
+        "Overview Graph Glome Structure Links Provenance and Export entity views",
+        "members peers containers decomposition and structural-neighbor navigation",
+        "consensus-edge and S3-coordinate exploration",
+        "entity-centered navigation rather than flat administrative row browsing"
+      ]
+    }
+  ],
+  "required_negative_controls": [
+    "original-inventor-product-law-demoted-to-counterexample-only",
+    "derived-refactor-summary-overrides-unreconciled-original-law",
+    "historical-implementation-abi-copied-as-clean-authority",
+    "flat-admin-table-substitutes-for-navigable-entity-world",
+    "component-green-state-substitutes-for-whole-laplace"
+  ]
+}

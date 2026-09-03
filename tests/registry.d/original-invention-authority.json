@@ -1,0 +1,24 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "finish-line.original-invention-authority-and-mutation",
+      "evidence_targets": [
+        "LP-TEST-CONTINUATION-AUTHORITY",
+        "LP-TEST-REQUIREMENTS-TRACEABILITY"
+      ],
+      "covered_dimensions": [
+        "inventor-authored original Laplace invention and product-surface semantics remain load-bearing product-law evidence instead of being collapsed into counterexample-only history",
+        "historical implementation ABI schema deployment topology and defects remain separate from inventor-authored product law",
+        "derived Refactor summaries issues PRs and agent interpretations cannot silently replace unreconciled original invention law",
+        "the original forward-pass law and navigable Explore entity-world surface are pinned as concrete reconciliation inputs",
+        "whole-Laplace behavior remains the completion boundary rather than component or green-PR state"
+      ],
+      "defect_controls": [
+        "original inventor product law is demoted to counterexample-only evidence",
+        "original invention lineage disappears from authority load order",
+        "flat administrative table is permitted to replace the navigable entity-world browser"
+      ]
+    }
+  ]
+}

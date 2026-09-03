@@ -15,3 +15,11 @@ add_test(
 set_tests_properties(
     finish-line.branch-estate-closure-and-mutation PROPERTIES
     LABELS "contract;program;governance;finish-line;branch-estate;mutation")
+
+add_test(
+    NAME finish-line.original-invention-authority-and-mutation
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/original_invention_authority_tests.py")
+set_tests_properties(
+    finish-line.original-invention-authority-and-mutation PROPERTIES
+    LABELS "contract;requirements;program;governance;finish-line;invention-lineage;mutation")
