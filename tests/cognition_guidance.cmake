@@ -9,6 +9,15 @@ target_compile_options(laplace_cognition_guidance_tests PRIVATE
 gtest_discover_tests(laplace_cognition_guidance_tests PROPERTIES
     LABELS "implementation;cognition;guidance;query;evidence;fold;projection;decision;receipt")
 
+add_executable(laplace_cognition_forward_pass_tests
+    "${PROJECT_SOURCE_DIR}/tests/cognition_forward_pass_tests.cpp")
+target_link_libraries(laplace_cognition_forward_pass_tests PRIVATE
+    Laplace::CognitionForwardPass BLAKE3::blake3 GTest::gtest_main)
+target_compile_options(laplace_cognition_forward_pass_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_cognition_forward_pass_tests PROPERTIES
+    LABELS "implementation;cognition;forward-pass;guidance;provider;resource;receipt")
+
 function(laplace_add_cognition_guidance_mutation suffix definition test_name filter)
     set(library "laplace_cognition_guidance_${suffix}_mutant")
     set(probe "laplace_cognition_guidance_${suffix}_mutation_probe")
