@@ -44,11 +44,14 @@ typedef struct laplace_decomposition_fixed_width_provider {
 /*
  * Generic fixed-width serialization grammar. Every physical field is retained
  * as an exact structural span. A separately emitted, padding-trimmed value span
- * is textual content; padding therefore remains reconstructable without
- * becoming part of the semantic value. A recipe may name one field that
- * absorbs a bounded record-width overflow. The overflow bytes receive their
- * own witness span, so a malformed or ambiguous upstream row cannot be
- * silently shifted, truncated, or repaired.
+ * is textual content and is redispatched so UAX29, language, reference, and
+ * domain providers can continue decomposition from the semantic leaf. Physical
+ * fields, padding, overflow witnesses, records, and terminators remain terminal;
+ * padding therefore stays reconstructable without becoming part of the semantic
+ * value or recreating overlapping whole-row recursive work. A recipe may name
+ * one field that absorbs a bounded record-width overflow. The overflow bytes
+ * receive their own witness span, so a malformed or ambiguous upstream row
+ * cannot be silently shifted, truncated, or repaired.
  *
  * The field declaration storage is caller-owned and must outlive every use of
  * the initialized provider.
