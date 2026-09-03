@@ -1,10 +1,12 @@
 #include "laplace/isa.h"
 #include "laplace/evidence_lineage.h"
 #include "laplace/evidence_testimony.h"
+#include "laplace/standing_calculation.h"
 #include "laplace/highway.h"
 #include "laplace/reference_mapping.h"
 #include "laplace/reference_topology.h"
 #include "laplace/source_profile.h"
+#include "laplace/stock_recipe.h"
 #include "laplace/trajectory.h"
 #include "laplace/world_admission.h"
 #include "context_fixture.h"
@@ -16,6 +18,27 @@
 #include <vector>
 
 #include <gtest/gtest.h>
+
+#if defined(LAPLACE_TEST_STANDING_ISOLATED_MUTANT)
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_required_result_words(
+    const std::uint32_t*, const std::size_t, std::size_t*) {
+    return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+}
+
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_request_context_fingerprint_words(
+    const std::uint32_t*, const std::size_t, laplace_digest256*) {
+    return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+}
+
+extern "C" laplace_cognition_packet_status
+laplace_cognition_packet_execute_words(
+    const std::uint32_t*, const std::size_t,
+    std::uint32_t*, const std::size_t, std::size_t*) {
+    return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+}
+#endif
 
 namespace {
 
@@ -133,6 +156,25 @@ laplace_isa_value_view TestimonyOutputView(
             LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
 }
 
+laplace_isa_value_view StandingInputView(
+    laplace_standing_period_input* data,
+    std::size_t count) {
+    return {data, static_cast<std::uint64_t>(count),
+            static_cast<std::uint64_t>(count),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_STANDING_PERIOD_INPUT_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view StandingOutputView(
+    laplace_standing_period_result* data,
+    std::size_t capacity) {
+    return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_STANDING_PERIOD_RESULT_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
 laplace_isa_value_view SourceProfileInputView(
     laplace_source_profile_manifest* data,
     std::size_t count) {
@@ -168,6 +210,25 @@ laplace_isa_value_view WorldAdmissionOutputView(
     return {data, 0u, static_cast<std::uint64_t>(capacity),
             static_cast<std::uint32_t>(sizeof(*data)),
             LAPLACE_ISA_VALUE_WORLD_ADMISSION_RECEIPT_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view StockCatalogInputView(
+    laplace_stock_catalog_item* data,
+    std::size_t count) {
+    return {data, static_cast<std::uint64_t>(count),
+            static_cast<std::uint64_t>(count),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_STOCK_CATALOG_ITEM_VECTOR,
+            LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
+}
+
+laplace_isa_value_view StockCatalogOutputView(
+    laplace_stock_catalog_receipt* data,
+    std::size_t capacity) {
+    return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint32_t>(sizeof(*data)),
+            LAPLACE_ISA_VALUE_STOCK_CATALOG_RECEIPT_VECTOR,
             LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
 }
 
@@ -267,6 +328,15 @@ laplace_isa_instruction TestimonyInstruction(
             LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
 }
 
+laplace_isa_instruction StandingInstruction(
+    std::uint32_t input,
+    std::uint32_t output) {
+    return {LAPLACE_ISA_OPCODE_EVIDENCE_CALCULATE_STANDING_BATCH,
+            input, output,
+            LAPLACE_ISA_INSTRUCTION_VERSION_EVIDENCE_CALCULATE_STANDING_BATCH,
+            LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
 laplace_isa_instruction SourceProfileInstruction(
     std::uint32_t input,
     std::uint32_t output) {
@@ -282,6 +352,15 @@ laplace_isa_instruction WorldAdmissionInstruction(
     return {LAPLACE_ISA_OPCODE_WORLD_ADMISSION_CLOSE_BATCH,
             input, output,
             LAPLACE_ISA_INSTRUCTION_VERSION_WORLD_ADMISSION_CLOSE_BATCH,
+            LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
+}
+
+laplace_isa_instruction StockRecipeCompileCatalogInstruction(
+    std::uint32_t input,
+    std::uint32_t output) {
+    return {LAPLACE_ISA_OPCODE_STOCK_RECIPE_COMPILE_CATALOG_BATCH,
+            input, output,
+            LAPLACE_ISA_INSTRUCTION_VERSION_STOCK_RECIPE_COMPILE_CATALOG_BATCH,
             LAPLACE_ISA_KNOWN_INSTRUCTION_FLAGS};
 }
 
@@ -335,6 +414,89 @@ laplace_evidence_testimony_record TestimonyRecord(std::uint8_t seed) {
     value.flags = LAPLACE_EVIDENCE_TESTIMONY_FLAGS_NONE;
     EXPECT_EQ(laplace_evidence_testimony_identify(&value, &value.testimony_id),
               LAPLACE_EVIDENCE_TESTIMONY_OK);
+    return value;
+}
+
+laplace_standing_recipe StandingRecipe() {
+    laplace_standing_recipe value{};
+    value.authority_receipt_id = TestimonyDigest(0x10u);
+    value.evaluation_law_id = TestimonyDigest(0x20u);
+    value.world_context_id = TestimonyDigest(0x30u);
+    value.language_modality_id = TestimonyDigest(0x40u);
+    value.valid_time_scope_id = TestimonyDigest(0x50u);
+    value.evidence_boundary_id = TestimonyDigest(0x60u);
+    value.default_rating = 1500.0;
+    value.default_rating_deviation = 200.0;
+    value.default_volatility = 0.06;
+    value.volatility_constraint = 0.5;
+    value.convergence_tolerance = 0.000001;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_CONFIRM - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_CONFIRM - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_REFUTE - 1u] = 1u;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_DRAW - 1u] = 2u;
+    value.score_numerator[LAPLACE_STANDING_OUTCOME_UNCERTAIN - 1u] = 1u;
+    value.score_denominator[LAPLACE_STANDING_OUTCOME_UNCERTAIN - 1u] = 2u;
+    value.rateable_outcome_mask = 0x0fu;
+    value.participant_role = 1u;
+    value.arena_kind = 1u;
+    value.version = LAPLACE_STANDING_VERSION;
+    EXPECT_EQ(laplace_standing_recipe_identify(&value, &value.recipe_id),
+              LAPLACE_STANDING_OK);
+    return value;
+}
+
+laplace_standing_state StandingState(
+    std::uint8_t participant_seed,
+    double rating,
+    double deviation) {
+    const auto recipe = StandingRecipe();
+    const auto participant_id = TestimonyDigest(participant_seed);
+    const auto epoch = TestimonyDigest(0x80u);
+    laplace_standing_state state{};
+    EXPECT_EQ(laplace_standing_onboard(
+                  &recipe, &participant_id, &epoch, &state),
+              LAPLACE_STANDING_OK);
+    if (rating != recipe.default_rating ||
+        deviation != recipe.default_rating_deviation) {
+        state.prior_state_id = TestimonyDigest(
+            static_cast<std::uint8_t>(participant_seed + 0x31u));
+        state.rating = rating;
+        state.rating_deviation = deviation;
+        state.eligible_match_count = 1u;
+        state.period_ordinal = 1u;
+        EXPECT_EQ(laplace_standing_state_identify(&state, &state.state_id),
+                  LAPLACE_STANDING_OK);
+    }
+    return state;
+}
+
+laplace_standing_event StandingEvent(
+    const laplace_standing_state& participant,
+    const laplace_standing_state& opponent,
+    const laplace_digest256& period,
+    std::uint8_t seed,
+    std::uint64_t score) {
+    laplace_standing_event value{};
+    value.participant_coordinate_id = participant.coordinate_id;
+    value.participant_prior_state_id = participant.state_id;
+    value.opponent_prior_state = opponent;
+    value.period_id = period;
+    value.eligible_root_id = TestimonyDigest(seed);
+    value.context_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 2u));
+    value.valid_time_id = TestimonyDigest(
+        static_cast<std::uint8_t>(seed + 3u));
+    value.score_numerator = score;
+    value.score_denominator = 1u;
+    value.outcome_kind = score == 0u
+        ? LAPLACE_STANDING_OUTCOME_REFUTE
+        : LAPLACE_STANDING_OUTCOME_CONFIRM;
+    const auto recipe = StandingRecipe();
+    EXPECT_EQ(laplace_standing_outcome_mapping_identify(
+                  &recipe, value.outcome_kind, &value.outcome_mapping_id),
+              LAPLACE_STANDING_OK);
+    EXPECT_EQ(laplace_standing_event_identify(&value, &value.event_id),
+              LAPLACE_STANDING_OK);
     return value;
 }
 
@@ -405,6 +567,68 @@ laplace_world_admission_record WorldAdmission(std::uint8_t seed) {
     EXPECT_EQ(laplace_world_admission_identify(&value, &value.admission_id),
               LAPLACE_WORLD_ADMISSION_OK);
     return value;
+}
+
+laplace_stock_recipe StockRecipe(
+    std::uint8_t seed,
+    std::uint8_t profile_seed,
+    std::uint32_t scope,
+    const laplace_digest256& parent = {}) {
+    laplace_stock_recipe value{};
+    value.parent_recipe_id = parent;
+    value.source_profile_id = TestimonyDigest(profile_seed);
+    value.source_artifact_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 1u));
+    value.grammar_provider_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 2u));
+    value.codec_provider_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 3u));
+    value.lowering_program_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 4u));
+    value.recomposition_program_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 5u));
+    value.semantic_segmentation_law_id = TestimonyDigest(0xe0u);
+    value.conformance_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 6u));
+    value.loss_policy_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 7u));
+    value.correction_epoch_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 8u));
+    value.sibling_ordinal = 1u;
+    value.scope_kind = scope;
+    value.modality_kind = 1u;
+    value.version = LAPLACE_STOCK_VERSION;
+    EXPECT_EQ(laplace_stock_recipe_identify(&value, &value.recipe_id),
+              LAPLACE_STOCK_RECIPE_OK);
+    return value;
+}
+
+laplace_stock_perfcache_plane StockPerfcachePlane(
+    std::uint8_t seed,
+    const laplace_digest256& recipe_id) {
+    laplace_stock_perfcache_plane value{};
+    value.recipe_id = recipe_id;
+    value.key_kind_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 1u));
+    value.value_kind_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 2u));
+    value.dependency_epoch_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 3u));
+    value.generation_program_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 4u));
+    value.semantic_verifier_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 5u));
+    value.invalidation_law_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 6u));
+    value.rebuild_law_id = TestimonyDigest(static_cast<std::uint8_t>(seed + 7u));
+    value.version = LAPLACE_STOCK_VERSION;
+    EXPECT_EQ(laplace_stock_perfcache_plane_identify(&value, &value.plane_id),
+              LAPLACE_STOCK_RECIPE_OK);
+    return value;
+}
+
+std::array<laplace_stock_catalog_item, 4> StockCatalogItems() {
+    std::array<laplace_stock_catalog_item, 4> items{};
+    items[0].recipe = StockRecipe(
+        0x10u, 0x11u, LAPLACE_STOCK_SCOPE_SOURCE);
+    items[0].item_kind = LAPLACE_STOCK_ITEM_RECIPE;
+    items[1].recipe = StockRecipe(
+        0x20u, 0x11u, LAPLACE_STOCK_SCOPE_DIGITAL_OBJECT,
+        items[0].recipe.recipe_id);
+    items[1].item_kind = LAPLACE_STOCK_ITEM_RECIPE;
+    items[2].recipe = StockRecipe(
+        0x30u, 0x31u, LAPLACE_STOCK_SCOPE_SOURCE);
+    items[2].item_kind = LAPLACE_STOCK_ITEM_RECIPE;
+    items[3].perfcache_plane = StockPerfcachePlane(
+        0x90u, items[1].recipe.recipe_id);
+    items[3].item_kind = LAPLACE_STOCK_ITEM_PERFCACHE_PLANE;
+    return items;
 }
 
 laplace_highway_key HighwayKey(std::uint32_t kind, std::uint8_t seed) {
@@ -493,7 +717,7 @@ laplace_isa_program Program(
 
 TEST(IsaAbi, ContractAssignmentsAreStable) {
     static_assert(LAPLACE_ISA_MAJOR == 1u);
-    static_assert(LAPLACE_ISA_MINOR == 11u);
+    static_assert(LAPLACE_ISA_MINOR == 13u);
     static_assert(LAPLACE_ISA_VALUE_U32_VECTOR != LAPLACE_ISA_VALUE_ID128_VECTOR);
     static_assert(sizeof(laplace_isa_digest256) == 32u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH, 0x00020001u);
@@ -502,10 +726,16 @@ TEST(IsaAbi, ContractAssignmentsAreStable) {
     EXPECT_EQ(LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH, 0x00040002u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_LINEAGE_BATCH, 0x00050001u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_TESTIMONY_BATCH, 0x00050002u);
+    EXPECT_EQ(LAPLACE_ISA_OPCODE_EVIDENCE_CALCULATE_STANDING_BATCH, 0x00050003u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_SOURCE_PROFILE_VALIDATE_BATCH, 0x00060001u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_WORLD_ADMISSION_CLOSE_BATCH, 0x00060002u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_REFERENCE_TOPOLOGY_RESOLVE_BATCH, 0x00060003u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_REFERENCE_MAPPING_RESOLVE_BATCH, 0x00060004u);
+    EXPECT_EQ(LAPLACE_ISA_OPCODE_STOCK_RECIPE_COMPILE_CATALOG_BATCH, 0x00060005u);
+    EXPECT_EQ(LAPLACE_ISA_VALUE_STOCK_CATALOG_ITEM_VECTOR, 22u);
+    EXPECT_EQ(LAPLACE_ISA_VALUE_STOCK_CATALOG_RECEIPT_VECTOR, 23u);
+    EXPECT_EQ(LAPLACE_ISA_INTRODUCED_MINOR_STOCK_RECIPE_COMPILE_CATALOG_BATCH,
+              13u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_COGNITION_SOLVE_PACKET, 0x00070001u);
     EXPECT_EQ(LAPLACE_ISA_INSTRUCTION_VERSION_COGNITION_SOLVE_PACKET, 1u);
     EXPECT_EQ(LAPLACE_ISA_INTRODUCED_MINOR_COGNITION_SOLVE_PACKET, 11u);
@@ -604,6 +834,60 @@ TEST(IsaExecution, EvidenceTestimonyMatchesCanonicalNativeOperationAndReceipt) {
               LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);
 }
 
+TEST(IsaExecution, StandingMatchesCanonicalNativeOperationAndReceipt) {
+    const auto participant = StandingState(0x01u, 1500.0, 200.0);
+    const auto period = TestimonyDigest(0x90u);
+    std::array<laplace_standing_period_input, 2> inputs{};
+    inputs[0].recipe = StandingRecipe();
+    inputs[0].prior_state = participant;
+    inputs[0].event = StandingEvent(
+        participant, StandingState(0x02u, 1400.0, 80.0), period, 0xa0u, 1u);
+    inputs[1] = inputs[0];
+    inputs[1].event = StandingEvent(
+        participant, StandingState(0x03u, 1600.0, 80.0), period, 0xb0u, 0u);
+    laplace_standing_period_result native{};
+    laplace_standing_error standing_error{};
+    ASSERT_EQ(laplace_standing_calculate_period_batch(
+                  inputs.data(), inputs.size(), &native, &standing_error),
+              LAPLACE_STANDING_OK);
+    laplace_standing_period_result output{};
+    std::array<laplace_isa_value_view, 2> values{{
+        StandingInputView(inputs.data(), inputs.size()),
+        StandingOutputView(&output, 1u)}};
+    auto instruction = StandingInstruction(0u, 1u);
+    auto program = Program(&instruction, 1u, values.data(), values.size());
+    laplace_isa_receipt receipt{};
+    laplace_isa_error error{};
+
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(values[1].count, 1u);
+    EXPECT_EQ(std::memcmp(&output, &native, sizeof(output)), 0);
+    EXPECT_EQ(receipt.executed_instruction_count, 1u);
+
+    const auto first_receipt = receipt;
+    std::reverse(inputs.begin(), inputs.end());
+    values[1].count = 0u;
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    EXPECT_EQ(std::memcmp(&output, &native, sizeof(output)), 0);
+    EXPECT_EQ(std::memcmp(&receipt, &first_receipt, sizeof(receipt)), 0);
+
+    inputs[1].event.context_id.bytes[0] ^= 0x80u;
+    ASSERT_EQ(laplace_standing_event_identify(
+                  &inputs[1].event, &inputs[1].event.event_id),
+              LAPLACE_STANDING_OK);
+    values[1].count = 0u;
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    EXPECT_NE(std::memcmp(first_receipt.input_fingerprint.bytes,
+                          receipt.input_fingerprint.bytes, 32u), 0);
+    EXPECT_NE(std::memcmp(first_receipt.receipt_id.bytes,
+                          receipt.receipt_id.bytes, 32u), 0);
+
+    program.minor = 11u;
+    values[1].count = 0u;
+    EXPECT_EQ(laplace_isa_validate(&program, &error),
+              LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);
+}
+
 TEST(IsaExecution, SourceProfileMatchesCanonicalNativeOperationAndReceipt) {
     std::array<laplace_source_profile_manifest, 2> profiles{{
         SourceProfile(0x10u), SourceProfile(0x50u)}};
@@ -657,6 +941,61 @@ TEST(IsaExecution, WorldAdmissionMatchesCanonicalNativeOperationAndReceipt) {
     EXPECT_EQ(std::memcmp(&output, &native_receipt, sizeof(output)), 0);
     EXPECT_EQ(receipt.executed_instruction_count, 1u);
     program.minor = 7u;
+    values[1].count = 0u;
+    EXPECT_EQ(laplace_isa_validate(&program, &error),
+              LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);
+}
+
+TEST(IsaExecution, StockRecipeCatalogMatchesCanonicalNativeOperationAndReceipt) {
+    auto items = StockCatalogItems();
+    laplace_stock_catalog_receipt native_receipt{};
+    laplace_stock_recipe_error native_error{};
+    ASSERT_EQ(laplace_stock_recipe_compile_catalog_items(
+                  items.data(), items.size(), &native_receipt, &native_error),
+              LAPLACE_STOCK_RECIPE_OK);
+
+    laplace_stock_catalog_receipt output{};
+    std::array<laplace_isa_value_view, 2> values{{
+        StockCatalogInputView(items.data(), items.size()),
+        StockCatalogOutputView(&output, 1u)}};
+    auto instruction = StockRecipeCompileCatalogInstruction(0u, 1u);
+    auto program = Program(&instruction, 1u, values.data(), values.size());
+    laplace_isa_receipt receipt{};
+    laplace_isa_error error{};
+
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    ASSERT_EQ(values[1].count, 1u);
+    EXPECT_EQ(std::memcmp(&output, &native_receipt, sizeof(output)), 0);
+    EXPECT_EQ(receipt.executed_instruction_count, 1u);
+
+    const auto first_receipt = receipt;
+    std::reverse(items.begin(), items.end());
+    values[1].count = 0u;
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    EXPECT_EQ(std::memcmp(&output, &native_receipt, sizeof(output)), 0);
+    EXPECT_EQ(std::memcmp(&receipt, &first_receipt, sizeof(receipt)), 0);
+
+    items = StockCatalogItems();
+    items[3].perfcache_plane.generation_program_id.bytes[0] ^= 0x80u;
+    ASSERT_EQ(laplace_stock_perfcache_plane_identify(
+                  &items[3].perfcache_plane,
+                  &items[3].perfcache_plane.plane_id),
+              LAPLACE_STOCK_RECIPE_OK);
+    values[1].count = 0u;
+    ASSERT_EQ(laplace_isa_execute(&program, &receipt, &error), LAPLACE_ISA_OK);
+    EXPECT_NE(std::memcmp(first_receipt.input_fingerprint.bytes,
+                          receipt.input_fingerprint.bytes, 32u), 0);
+    EXPECT_NE(std::memcmp(first_receipt.receipt_id.bytes,
+                          receipt.receipt_id.bytes, 32u), 0);
+
+    values[0].count = 0u;
+    values[1].count = 0u;
+    EXPECT_EQ(laplace_isa_validate(&program, &error),
+              LAPLACE_ISA_INPUT_OUT_OF_RANGE);
+    EXPECT_EQ(error.value_index, 0u);
+    values[0].count = items.size();
+
+    program.minor = 12u;
     values[1].count = 0u;
     EXPECT_EQ(laplace_isa_validate(&program, &error),
               LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);

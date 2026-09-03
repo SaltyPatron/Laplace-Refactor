@@ -58,6 +58,32 @@
       ],
       "covered_dimensions": ["deliberate condition-collapse rejection"],
       "defect_controls": ["hardware fault reclassified as epistemic unknown"]
+    },
+    {
+      "ctest_name": "postgres.machine-exception-registry-route-contract",
+      "evidence_targets": [
+        "LP-TEST-MACHINE-EXCEPTION-TAXONOMY",
+        "LP-TEST-EXCEPTION-PRIORITY",
+        "LP-TEST-HARDWARE-FAULT-DISPOSITION"
+      ],
+      "covered_dimensions": [
+        "ordered PostgreSQL rows match every native generated condition descriptor field",
+        "PostgreSQL exposes native condition recovery publication priority and capability values without semantic translation"
+      ],
+      "defect_controls": ["SQL route row omission", "SQL route descriptor drift"],
+      "profiles": ["postgres", "custom-stack"]
+    },
+    {
+      "ctest_name": "postgres.mutation-machine-exception-route-drift-detected",
+      "evidence_targets": [
+        "LP-TEST-MACHINE-EXCEPTION-TAXONOMY",
+        "LP-TEST-HARDWARE-FAULT-DISPOSITION"
+      ],
+      "covered_dimensions": [
+        "native descriptor validation rejects a PostgreSQL route that changes capability semantics"
+      ],
+      "defect_controls": ["PostgreSQL capability flattening"],
+      "profiles": ["postgres", "custom-stack"]
     }
   ]
 }

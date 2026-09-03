@@ -190,6 +190,11 @@ LAPLACE_API laplace_composition_status laplace_composition_working_set_summary_g
     const laplace_composition_working_set* working_set,
     laplace_composition_working_set_summary* summary);
 
+LAPLACE_API laplace_composition_status
+laplace_composition_working_set_effect_disposition_get(
+    const laplace_composition_working_set* working_set,
+    uint32_t* effect_disposition);
+
 LAPLACE_API const laplace_composition_result* laplace_composition_working_set_results(
     const laplace_composition_working_set* working_set,
     size_t* result_count);
@@ -224,6 +229,16 @@ laplace_composition_working_set_resolve_presence(
 LAPLACE_API laplace_composition_status laplace_composition_working_set_producer(
     laplace_composition_working_set* working_set,
     laplace_framework_producer_v1* producer);
+
+/*
+ * Releases presence-candidate and trajectory construction storage after the
+ * canonical stream has been sealed. Results, dispositions, summaries,
+ * receipts, and producer output remain available. Physical providers use this
+ * boundary before copying the canonical stream into external persistence.
+ */
+LAPLACE_API laplace_composition_status
+laplace_composition_working_set_compact_publication_input(
+    laplace_composition_working_set* working_set);
 
 LAPLACE_API void laplace_composition_working_set_destroy(
     laplace_composition_working_set** working_set);

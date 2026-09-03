@@ -25,6 +25,8 @@
 #include "laplace/tabular_source.h"
 #include "composition_pg.h"
 #include "laplace_pg_internal.h"
+#include "reference_mapping_pg.h"
+#include "reference_topology_pg.h"
 #include "set_pg.h"
 #include "source_profile_pg.h"
 #include "unicode_atoms_pg.h"
@@ -67,11 +69,19 @@ typedef struct laplace_pg_source_stage_receipts {
     uint64_t reference_present_count;
     uint64_t reference_retired_count;
     uint64_t reference_unresolved_count;
+    uint64_t reference_persistence_batch_count;
+    uint64_t reference_maximum_persistence_batch_records;
+    uint64_t reference_maximum_encoded_persistence_batch_bytes;
+    uint64_t reference_minimum_encoded_persistence_record_bytes;
     uint64_t reference_mapping_occurrence_count;
     uint64_t reference_mapping_proposition_count;
     uint64_t reference_mapping_resolved_count;
     uint64_t reference_mapping_unresolved_count;
     uint64_t reference_mapping_retired_count;
+    uint64_t reference_mapping_persistence_batch_count;
+    uint64_t reference_mapping_maximum_persistence_batch_records;
+    uint64_t reference_mapping_maximum_encoded_persistence_batch_bytes;
+    uint64_t reference_mapping_minimum_encoded_persistence_record_bytes;
     uint64_t evidence_node_count;
     uint64_t testimony_count;
 } laplace_pg_source_stage_receipts;
@@ -614,6 +624,7 @@ static laplace_reference_candidate* build_reference_candidates(
     return candidates;
 }
 
+#if 0
 static ArrayType* reference_candidate_array(
     const laplace_reference_candidate* candidates,
     size_t candidate_count,
@@ -670,6 +681,7 @@ static ArrayType* reference_candidate_array(
     laplace_pg_composite_binding_close(&binding);
     return result;
 }
+#endif
 
 static laplace_reference_mapping_candidate* build_mapping_candidates(
     const laplace_tabular_source_plan_view* plan,
@@ -758,6 +770,7 @@ static laplace_reference_mapping_candidate* build_mapping_candidates(
     return candidates;
 }
 
+#if 0
 static ArrayType* mapping_candidate_array(
     const laplace_reference_mapping_candidate* candidates,
     size_t candidate_count,
@@ -840,6 +853,7 @@ static ArrayType* mapping_candidate_array(
     laplace_pg_composite_binding_close(&binding);
     return result;
 }
+#endif
 
 static ArrayType* lineage_array(
     const laplace_pg_source_claim* claims,
@@ -995,29 +1009,37 @@ static void call_source_profile(
     }
 }
 
+#if 0
 static void call_reference_topology(
     Datum context,
     ArrayType* candidates,
     Oid candidate_array_oid,
+    uint64_t preferred_batch_bytes,
     laplace_pg_source_stage_receipts* receipts) {
     static const char sql[] =
         "SELECT (r).reference_topology_receipt_id,(r).isa_receipt_id,"
         "(r).occurrence_count,(r).coordinate_count,(r).present_count,"
-        "(r).retired_count,(r).unresolved_count FROM (SELECT "
+        "(r).retired_count,(r).unresolved_count,"
+        "(r).persistence_batch_count,"
+        "(r).maximum_persistence_batch_records,"
+        "(r).maximum_encoded_persistence_batch_bytes,"
+        "(r).minimum_encoded_persistence_record_bytes FROM (SELECT "
         LAPLACE_PG_SCHEMA "." LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SQL
-        "($1,$2) AS r) q";
-    Oid types[2] = {
+        "($1,$2,$3) AS r) q";
+    Oid types[3] = {
         laplace_pg_composite_type_oid("execution_context"),
-        candidate_array_oid};
-    Datum values[2] = {context, PointerGetDatum(candidates)};
+        candidate_array_oid, NUMERICOID};
+    Datum values[3] = {
+        context, PointerGetDatum(candidates),
+        laplace_pg_numeric_from_uint64(preferred_batch_bytes)};
     int result;
     if (SPI_connect() != SPI_OK_CONNECT) {
         ereport(ERROR,
                 (errcode(ERRCODE_CONNECTION_FAILURE),
                  errmsg("Laplace reference-topology stage could not connect")));
     }
-    result = SPI_execute_with_args(sql, 2, types, values, NULL, false, 0);
-    require_spi_result(result, 7, "reference-topology stage");
+    result = SPI_execute_with_args(sql, 3, types, values, NULL, false, 0);
+    require_spi_result(result, 11, "reference-topology stage");
     laplace_pg_read_digest(
         required_tuple_value(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1,
                              "reference-topology receipt"),
@@ -1046,6 +1068,26 @@ static void call_reference_topology(
         required_tuple_value(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 7,
                              "reference unresolved count"),
         "reference unresolved count");
+    receipts->reference_persistence_batch_count =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 8,
+            "reference persistence batch count"),
+            "reference persistence batch count");
+    receipts->reference_maximum_persistence_batch_records =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 9,
+            "reference maximum persistence batch records"),
+            "reference maximum persistence batch records");
+    receipts->reference_maximum_encoded_persistence_batch_bytes =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 10,
+            "reference maximum encoded persistence batch bytes"),
+            "reference maximum encoded persistence batch bytes");
+    receipts->reference_minimum_encoded_persistence_record_bytes =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 11,
+            "reference minimum encoded persistence record bytes"),
+            "reference minimum encoded persistence record bytes");
     if (SPI_finish() != SPI_OK_FINISH) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
@@ -1057,25 +1099,32 @@ static void call_reference_mapping(
     Datum context,
     ArrayType* candidates,
     Oid candidate_array_oid,
+    uint64_t preferred_batch_bytes,
     laplace_pg_source_stage_receipts* receipts) {
     static const char sql[] =
         "SELECT (r).reference_mapping_receipt_id,(r).isa_receipt_id,"
         "(r).occurrence_count,(r).proposition_count,(r).resolved_count,"
-        "(r).unresolved_count,(r).retired_count FROM (SELECT "
+        "(r).unresolved_count,(r).retired_count,"
+        "(r).persistence_batch_count,"
+        "(r).maximum_persistence_batch_records,"
+        "(r).maximum_encoded_persistence_batch_bytes,"
+        "(r).minimum_encoded_persistence_record_bytes FROM (SELECT "
         LAPLACE_PG_SCHEMA "." LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SQL
-        "($1,$2) AS r) q";
-    Oid types[2] = {
+        "($1,$2,$3) AS r) q";
+    Oid types[3] = {
         laplace_pg_composite_type_oid("execution_context"),
-        candidate_array_oid};
-    Datum values[2] = {context, PointerGetDatum(candidates)};
+        candidate_array_oid, NUMERICOID};
+    Datum values[3] = {
+        context, PointerGetDatum(candidates),
+        laplace_pg_numeric_from_uint64(preferred_batch_bytes)};
     int result;
     if (SPI_connect() != SPI_OK_CONNECT) {
         ereport(ERROR,
                 (errcode(ERRCODE_CONNECTION_FAILURE),
                  errmsg("Laplace reference-mapping stage could not connect")));
     }
-    result = SPI_execute_with_args(sql, 2, types, values, NULL, false, 0);
-    require_spi_result(result, 7, "reference-mapping stage");
+    result = SPI_execute_with_args(sql, 3, types, values, NULL, false, 0);
+    require_spi_result(result, 11, "reference-mapping stage");
     laplace_pg_read_digest(
         required_tuple_value(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1,
                              "reference-mapping receipt"),
@@ -1109,12 +1158,33 @@ static void call_reference_mapping(
             SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 7,
             "reference-mapping retired count"),
             "reference-mapping retired count");
+    receipts->reference_mapping_persistence_batch_count =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 8,
+            "reference-mapping persistence batch count"),
+            "reference-mapping persistence batch count");
+    receipts->reference_mapping_maximum_persistence_batch_records =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 9,
+            "reference-mapping maximum persistence batch records"),
+            "reference-mapping maximum persistence batch records");
+    receipts->reference_mapping_maximum_encoded_persistence_batch_bytes =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 10,
+            "reference-mapping maximum encoded persistence batch bytes"),
+            "reference-mapping maximum encoded persistence batch bytes");
+    receipts->reference_mapping_minimum_encoded_persistence_record_bytes =
+        laplace_pg_uint64_from_numeric(required_tuple_value(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 11,
+            "reference-mapping minimum encoded persistence record bytes"),
+            "reference-mapping minimum encoded persistence record bytes");
     if (SPI_finish() != SPI_OK_FINISH) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
                  errmsg("Laplace reference-mapping stage could not close")));
     }
 }
+#endif
 
 static void call_lineage(
     Datum context,
@@ -1362,26 +1432,20 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
     laplace_reference_record* reference_records = NULL;
     laplace_reference_mapping_candidate* mapping_candidates = NULL;
     laplace_reference_mapping_record* mapping_records = NULL;
-    laplace_reference_topology_receipt reference_native_receipt;
-    laplace_reference_topology_error reference_native_error;
-    laplace_reference_mapping_receipt mapping_native_receipt;
-    laplace_reference_mapping_error mapping_native_error;
+    laplace_pg_reference_topology_execution reference_execution;
+    laplace_pg_reference_mapping_execution mapping_execution;
     laplace_pg_source_stage_receipts receipts;
     ArrayType* profiles;
-    ArrayType* reference_candidate_values;
-    ArrayType* mapping_candidate_values;
     ArrayType* lineage;
     ArrayType* testimony;
     ArrayType* world_request;
     Oid profile_array_oid;
-    Oid reference_candidate_array_oid;
-    Oid mapping_candidate_array_oid;
     Oid lineage_array_oid;
     Oid testimony_array_oid;
     Oid world_request_array_oid;
     const laplace_composition_result* root;
-    Datum result_values[42];
-    bool result_nulls[42] = {false};
+    Datum result_values[50];
+    bool result_nulls[50] = {false};
     HeapTuple result_tuple;
     const Datum context_datum = PG_GETARG_DATUM(0);
     const uint64_t preferred_batch_bytes = laplace_pg_uint64_from_numeric(
@@ -1396,10 +1460,8 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
     memset(&composition_input, 0, sizeof(composition_input));
     memset(&execution, 0, sizeof(execution));
     memset(&receipts, 0, sizeof(receipts));
-    memset(&reference_native_receipt, 0, sizeof(reference_native_receipt));
-    memset(&reference_native_error, 0, sizeof(reference_native_error));
-    memset(&mapping_native_receipt, 0, sizeof(mapping_native_receipt));
-    memset(&mapping_native_error, 0, sizeof(mapping_native_error));
+    memset(&reference_execution, 0, sizeof(reference_execution));
+    memset(&mapping_execution, 0, sizeof(mapping_execution));
     laplace_pg_read_execution_context(context_datum, &context);
     if ((context.flags & LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY) != 0u) {
         ereport(ERROR,
@@ -1466,7 +1528,7 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
         composition_input.request_count = plan.request_count;
         composition_input.preferred_batch_bytes = preferred_batch_bytes;
         LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(&composition_input, &execution);
-        laplace_pg_persist_composition_execution_receipt(
+        LAPLACE_PG_COMPOSITION_PERSIST_RECEIPT_SYMBOL(
             &execution, &composition_input);
         if (laplace_tabular_source_profile_finalize(
                 source_plan, &execution.summary, &profile) !=
@@ -1484,29 +1546,40 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
             reference_records = (laplace_reference_record*)palloc0(
                 sizeof(*reference_records) *
                 (size_t)plan.reference_occurrence_count);
-            if (laplace_reference_topology_resolve_batch(
-                    reference_candidates,
-                    (size_t)plan.reference_occurrence_count,
-                    reference_records, &reference_native_receipt,
-                    &reference_native_error) !=
-                LAPLACE_REFERENCE_TOPOLOGY_OK) {
-                ereport(ERROR,
-                        (errcode(ERRCODE_DATA_CORRUPTED),
-                         errmsg("Laplace source reference topology could not be reconstructed natively")));
-            }
-            reference_candidate_values = reference_candidate_array(
-                reference_candidates,
+            laplace_pg_reference_topology_execute_and_persist(
+                &context, reference_candidates,
                 (size_t)plan.reference_occurrence_count,
-                &reference_candidate_array_oid);
-            call_reference_topology(
-                context_datum, reference_candidate_values,
-                reference_candidate_array_oid, &receipts);
+                preferred_batch_bytes, reference_records,
+                &reference_execution);
+            receipts.reference_topology =
+                reference_execution.semantic_receipt.receipt_id;
+            receipts.reference_topology_isa =
+                reference_execution.isa_receipt.receipt_id;
+            receipts.reference_occurrence_count =
+                reference_execution.semantic_receipt.occurrence_count;
+            receipts.reference_coordinate_count =
+                reference_execution.semantic_receipt.coordinate_count;
+            receipts.reference_present_count =
+                reference_execution.semantic_receipt.present_count;
+            receipts.reference_retired_count =
+                reference_execution.semantic_receipt.retired_count;
+            receipts.reference_unresolved_count =
+                reference_execution.semantic_receipt.unresolved_count;
+            receipts.reference_persistence_batch_count =
+                reference_execution.persistence.batch_count;
+            receipts.reference_maximum_persistence_batch_records =
+                reference_execution.persistence.maximum_batch_records;
+            receipts.reference_maximum_encoded_persistence_batch_bytes =
+                reference_execution.persistence.maximum_encoded_batch_bytes;
+            receipts.reference_minimum_encoded_persistence_record_bytes =
+                reference_execution.persistence.minimum_encoded_record_bytes;
             if (receipts.reference_occurrence_count !=
                     plan.reference_occurrence_count ||
                 memcmp(receipts.reference_topology.bytes,
-                       reference_native_receipt.receipt_id.bytes, 32u) != 0 ||
+                       reference_execution.semantic_receipt.receipt_id.bytes,
+                       32u) != 0 ||
                 receipts.reference_coordinate_count !=
-                    reference_native_receipt.coordinate_count ||
+                    reference_execution.semantic_receipt.coordinate_count ||
                 receipts.reference_present_count +
                     receipts.reference_retired_count +
                     receipts.reference_unresolved_count !=
@@ -1522,29 +1595,40 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
                 mapping_records = (laplace_reference_mapping_record*)palloc0(
                     sizeof(*mapping_records) *
                     (size_t)plan.mapping_occurrence_count);
-                if (laplace_reference_mapping_resolve_batch(
-                        mapping_candidates,
-                        (size_t)plan.mapping_occurrence_count,
-                        mapping_records, &mapping_native_receipt,
-                        &mapping_native_error) !=
-                    LAPLACE_REFERENCE_MAPPING_OK) {
-                    ereport(ERROR,
-                            (errcode(ERRCODE_DATA_CORRUPTED),
-                             errmsg("Laplace source reference mapping could not be reconstructed natively")));
-                }
-                mapping_candidate_values = mapping_candidate_array(
-                    mapping_candidates,
+                laplace_pg_reference_mapping_execute_and_persist(
+                    &context, mapping_candidates,
                     (size_t)plan.mapping_occurrence_count,
-                    &mapping_candidate_array_oid);
-                call_reference_mapping(
-                    context_datum, mapping_candidate_values,
-                    mapping_candidate_array_oid, &receipts);
+                    preferred_batch_bytes, mapping_records,
+                    &mapping_execution);
+                receipts.reference_mapping =
+                    mapping_execution.semantic_receipt.receipt_id;
+                receipts.reference_mapping_isa =
+                    mapping_execution.isa_receipt.receipt_id;
+                receipts.reference_mapping_occurrence_count =
+                    mapping_execution.semantic_receipt.occurrence_count;
+                receipts.reference_mapping_proposition_count =
+                    mapping_execution.semantic_receipt.proposition_count;
+                receipts.reference_mapping_resolved_count =
+                    mapping_execution.semantic_receipt.resolved_count;
+                receipts.reference_mapping_unresolved_count =
+                    mapping_execution.semantic_receipt.unresolved_count;
+                receipts.reference_mapping_retired_count =
+                    mapping_execution.semantic_receipt.retired_count;
+                receipts.reference_mapping_persistence_batch_count =
+                    mapping_execution.persistence.batch_count;
+                receipts.reference_mapping_maximum_persistence_batch_records =
+                    mapping_execution.persistence.maximum_batch_records;
+                receipts.reference_mapping_maximum_encoded_persistence_batch_bytes =
+                    mapping_execution.persistence.maximum_encoded_batch_bytes;
+                receipts.reference_mapping_minimum_encoded_persistence_record_bytes =
+                    mapping_execution.persistence.minimum_encoded_record_bytes;
                 if (receipts.reference_mapping_occurrence_count !=
                         plan.mapping_occurrence_count ||
                     memcmp(receipts.reference_mapping.bytes,
-                           mapping_native_receipt.receipt_id.bytes, 32u) != 0 ||
+                           mapping_execution.semantic_receipt.receipt_id.bytes,
+                           32u) != 0 ||
                     receipts.reference_mapping_proposition_count !=
-                        mapping_native_receipt.proposition_count ||
+                        mapping_execution.semantic_receipt.proposition_count ||
                     receipts.reference_mapping_resolved_count +
                         receipts.reference_mapping_unresolved_count +
                         receipts.reference_mapping_retired_count !=
@@ -1644,9 +1728,25 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
             receipts.reference_mapping_unresolved_count);
         result_values[40] = laplace_pg_numeric_from_uint64(
             receipts.reference_mapping_retired_count);
-        result_values[41] = Int32GetDatum((int32)LAPLACE_TABULAR_SOURCE_OK);
+        result_values[41] = laplace_pg_numeric_from_uint64(
+            receipts.reference_persistence_batch_count);
+        result_values[42] = laplace_pg_numeric_from_uint64(
+            receipts.reference_maximum_persistence_batch_records);
+        result_values[43] = laplace_pg_numeric_from_uint64(
+            receipts.reference_maximum_encoded_persistence_batch_bytes);
+        result_values[44] = laplace_pg_numeric_from_uint64(
+            receipts.reference_minimum_encoded_persistence_record_bytes);
+        result_values[45] = laplace_pg_numeric_from_uint64(
+            receipts.reference_mapping_persistence_batch_count);
+        result_values[46] = laplace_pg_numeric_from_uint64(
+            receipts.reference_mapping_maximum_persistence_batch_records);
+        result_values[47] = laplace_pg_numeric_from_uint64(
+            receipts.reference_mapping_maximum_encoded_persistence_batch_bytes);
+        result_values[48] = laplace_pg_numeric_from_uint64(
+            receipts.reference_mapping_minimum_encoded_persistence_record_bytes);
+        result_values[49] = Int32GetDatum((int32)LAPLACE_TABULAR_SOURCE_OK);
         result_tuple = laplace_pg_form_result_tuple(
-            fcinfo, result_values, result_nulls, 42);
+            fcinfo, result_values, result_nulls, 50);
     }
     PG_CATCH();
     {

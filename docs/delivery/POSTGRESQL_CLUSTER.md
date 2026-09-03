@@ -76,12 +76,14 @@ rejected. `trust` is forbidden.
    inspects `/proc/<pid>/exe` plus `/proc/<pid>/maps`. The postmaster, extension,
    statistics extension, and native engine paths and bytes must equal the package
    manifest.
-5. **Restart proof and commit** stops and starts the candidate, requires a different
+5. **Restart proof, boot enablement, and commit** stops and starts the candidate, requires a different
    postmaster PID with the same positive PostgreSQL system identifier, and repeats the
-   complete loaded-object and generated-configuration observation. Only after both
-   observations pass is `/opt/laplace/current` switched atomically. Failure before
-   that commit stops the candidate when possible, leaves the prior pointer untouched,
-   preserves database state, and writes a typed failure receipt.
+   complete loaded-object and generated-configuration observation. It then enables the
+   exact candidate unit and proves `systemctl is-enabled` before
+   `/opt/laplace/current` is switched atomically. Failure before that commit disables
+   and stops the candidate when possible, leaves the prior pointer untouched,
+   preserves database state, and writes a typed failure receipt. Boot enablement is
+   necessary but does not replace the separately required physical reboot proof.
 6. **Commit (low-level)** requires a separately acquired loaded-state observation proving the
    service, system identifier, cluster paths, generated configuration hashes, and
    exact executable/shared-object hashes. Only then is `/opt/laplace/current`
@@ -198,6 +200,38 @@ activations run through CI/CD. Exact replay returns the existing content-address
 result; a changed key, request, route, package receipt, package source root, resource
 receipt, cluster restart proof, Unicode readback proof, or Highway active-readback
 proof fails closed.
+
+`tools/delivery/product_host.py` is the administrator-facing convergent entrypoint.
+`converge` creates or repairs only the declared service identity, persistent runner
+roots, and immutable gateway. `install`, `initial-run`, and `repair` additionally
+accept either one authenticated CI request or one verified PostgreSQL publication.
+For a local publication, the entrypoint drops package composition and native resource
+observation to `laplace-runner`; the installed root-owned gateway then derives an
+authenticated local-administrator request from the package receipt and package-bound
+resource observation. The local route is not present in sudoers. Both routes compose
+the package, cluster, Unicode, and Highway modules without a general root shell or a
+second semantic implementation. Repair changes only declared directory metadata and
+exact gateway bytes before exact product replay; it does not recursively rewrite
+PGDATA, WAL, logs, receipts, or package generations.
+
+Fresh local installation, initial run, and repair are the same convergent administrator
+command. The source commissioning entrypoint resolves the exact accepted publication
+selected by `state/product-publication-selection.json`; this narrowly scoped selection
+is distinct from the continuation checkpoint and is consumed identically by local and
+CI package composition. A customer installer carries
+the accepted package, controls, and source payload in its own immutable manifest.
+Neither route asks a person to supply an internal receipt path or content hash. The
+activation key is generated once at its final root-only path and exact replay never
+replaces it:
+
+```sh
+sudo ./install
+```
+
+The package-product workflow emits a deterministic tar archive and adjacent SHA-256
+file rather than uploading a directory. This preserves the executable mode and
+symlinks required by the standalone product. After verifying and extracting that
+archive, installation is also `sudo ./install` from the extracted directory.
 
 ## Product Unicode activation
 

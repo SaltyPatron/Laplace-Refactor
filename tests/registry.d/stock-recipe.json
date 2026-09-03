@@ -1,0 +1,51 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "StockRecipe.CompilesRecursiveMultiSourceCatalogWithDerivedPlanes",
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-ADMISSION-SOURCE-TOPOLOGY"],
+      "covered_dimensions": ["source release collection object region and semantic-construction recipe hierarchy", "multiple unrelated source profiles", "recipe-owned derived perfcache planes"]
+    },
+    {
+      "ctest_name": "StockRecipe.CatalogIdentityIsInvariantToCallerOrder",
+      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["canonical catalog identity", "caller-order independence", "complete recipe and perfcache set binding"]
+    },
+    {
+      "ctest_name": "StockRecipe.TypedItemBatchPreservesCompleteCatalogSemantics",
+      "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-ISA-TYPE-SAFETY"],
+      "covered_dimensions": ["one typed item vector", "recipe and perfcache discriminant separation", "direct and vector catalog parity"]
+    },
+    {
+      "ctest_name": "StockRecipe.RejectsOrphanAndCrossSourceHierarchy",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["orphan rejection", "source-profile isolation", "strict parent scope"]
+    },
+    {
+      "ctest_name": "StockRecipe.RejectsUnownedOrSemanticallyDriftedPerfcachePlane",
+      "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
+      "covered_dimensions": ["perfcache recipe ownership", "semantic verifier identity binding", "acceleration cannot self-authorize"]
+    },
+    {
+      "ctest_name": "StockRecipe.RequiresOneSharedModalityAgnosticSegmentationLaw",
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["one shared semantic segmentation law", "modality-neutral recipe catalog", "source-specific semantic branch rejection"]
+    },
+    {
+      "ctest_name": "stock-recipe.mutation-parent-bypass-detected",
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["parent validation mutation detection", "cross-source hierarchy mutation detection"]
+    },
+    {
+      "ctest_name": "IsaExecution.StockRecipeCatalogMatchesCanonicalNativeOperationAndReceipt",
+      "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-TYPE-SAFETY", "LP-TEST-ISA-RECEIPT", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["public stock-catalog ISA opcode", "canonical native parity", "caller-order-invariant input and receipt identity", "perfcache declaration mutation sensitivity"]
+    },
+    {
+      "ctest_name": "postgres.stock-recipe-persistent-catalog-contract",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-PERSISTENT-STATE-ADDRESSING", "LP-TEST-ISA-RECEIPT", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-BULK-DETERMINISM"],
+      "covered_dimensions": ["durable stock recipe hierarchy", "durable recipe-owned perfcache declaration", "native ISA PostgreSQL parity", "caller-order-invariant replay", "conflicting durable replay rejection"]
+    }
+  ]
+}

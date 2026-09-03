@@ -260,6 +260,23 @@ laplace_framework_status laplace_framework_canonical_stream_fingerprint(
     return LAPLACE_FRAMEWORK_OK;
 }
 
+laplace_framework_status
+laplace_framework_canonical_empty_stream_fingerprint(
+    uint32_t record_type,
+    laplace_digest256* fingerprint) {
+    blake3_hasher hasher;
+    if (record_type == 0 || fingerprint == NULL) {
+        return LAPLACE_FRAMEWORK_INVALID_ARGUMENT;
+    }
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(&hasher, STREAM_DOMAIN, sizeof(STREAM_DOMAIN) - 1u);
+    hash_u32(&hasher, record_type);
+    hash_u64(&hasher, 0u);
+    hash_u64(&hasher, 0u);
+    finish_digest(&hasher, fingerprint);
+    return LAPLACE_FRAMEWORK_OK;
+}
+
 static laplace_framework_status validate_sinks(
     const laplace_framework_sink_v1* sinks,
     size_t sink_count,

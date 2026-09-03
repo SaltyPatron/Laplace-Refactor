@@ -46,6 +46,14 @@ set(LAPLACE_DEPENDENCY_LOCK
 set(LAPLACE_INSTALLED_PROVIDER_LOCK
     "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/installed-lock.json"
     CACHE FILEPATH "Selected installed-provider byte lock")
+set(LAPLACE_PRODUCT_RECEIPT "" CACHE FILEPATH
+    "Accepted product receipt used to compose a standalone customer installer")
+set(LAPLACE_INSTALLER_OUTPUT_DIRECTORY
+    "/build/laplace/runner/product/installers"
+    CACHE PATH "Persistent output root for standalone customer installer bundles")
+set(LAPLACE_INSTALLER_ARCHIVE
+    "${CMAKE_CURRENT_BINARY_DIR}/laplace-product-installer.tar"
+    CACHE FILEPATH "Deterministic standalone customer installer archive")
 option(LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER
     "Verify and enable the exact selected installed oneAPI execution provider"
     OFF)
@@ -114,6 +122,14 @@ include(cmake/LaplaceEvidenceTestimonyContract.cmake)
 laplace_configure_evidence_testimony_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/evidence-testimony.json"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/evidence_testimony.h")
+include(cmake/LaplaceStandingCalculationContract.cmake)
+laplace_configure_standing_calculation_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/standing-calculation.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/standing_calculation.h")
+include(cmake/LaplaceStockRecipeContract.cmake)
+laplace_configure_stock_recipe_contract(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/stock-recipe.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/stock_recipe.h")
 include(cmake/LaplaceReferenceTopologyContract.cmake)
 laplace_configure_reference_topology_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-topology.json"
@@ -223,6 +239,33 @@ endif()
 
 add_subdirectory(tools)
 
+if(LAPLACE_PRODUCT_RECEIPT)
+    if(NOT IS_ABSOLUTE "${LAPLACE_PRODUCT_RECEIPT}"
+       OR NOT EXISTS "${LAPLACE_PRODUCT_RECEIPT}")
+        message(FATAL_ERROR
+            "LAPLACE_PRODUCT_RECEIPT must name an existing absolute accepted receipt")
+    endif()
+    if(NOT IS_ABSOLUTE "${LAPLACE_INSTALLER_OUTPUT_DIRECTORY}")
+        message(FATAL_ERROR
+            "LAPLACE_INSTALLER_OUTPUT_DIRECTORY must be an absolute persistent path")
+    endif()
+    if(NOT IS_ABSOLUTE "${LAPLACE_INSTALLER_ARCHIVE}")
+        message(FATAL_ERROR "LAPLACE_INSTALLER_ARCHIVE must be an absolute path")
+    endif()
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_custom_target(laplace_product_installer
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/delivery/product_distribution.py"
+            build
+            --repository "${CMAKE_CURRENT_SOURCE_DIR}"
+            --product-receipt "${LAPLACE_PRODUCT_RECEIPT}"
+            --output-directory "${LAPLACE_INSTALLER_OUTPUT_DIRECTORY}"
+            --archive-output "${LAPLACE_INSTALLER_ARCHIVE}"
+            --result "${CMAKE_CURRENT_BINARY_DIR}/laplace-product-installer-selection.json"
+        VERBATIM
+        COMMENT "Compose a source-checkout-free Laplace product installer")
+endif()
+
 if(BUILD_TESTING)
     if(NOT IS_ABSOLUTE "${LAPLACE_GTEST_SOURCE}")
         message(FATAL_ERROR "LAPLACE_GTEST_SOURCE must be an absolute verified source path when BUILD_TESTING=ON")
@@ -268,7 +311,6 @@ if(BUILD_TESTING)
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_solver.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/decomposition_orchestration.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_occurrence.cmake")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/finish_line_program.cmake")
 endif()
 
 configure_package_config_file(

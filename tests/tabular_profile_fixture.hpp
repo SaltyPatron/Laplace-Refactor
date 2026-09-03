@@ -24,6 +24,8 @@ struct TabularProfileFixture {
     std::array<std::vector<std::uint8_t>, Profile::artifact_size> storage;
     std::array<std::vector<laplace_tabular_column>,
                Profile::artifact_size> columns;
+    std::array<std::vector<laplace_tabular_fixed_width_field>,
+               Profile::artifact_size> fixed_width_fields;
     std::array<laplace_tabular_artifact, Profile::artifact_size> artifacts{};
     std::array<laplace_tabular_reference_rule,
                Profile::reference_rule_size> reference_rules{};
@@ -102,6 +104,18 @@ struct TabularProfileFixture {
             }
             artifact.columns = columns[index].empty()
                 ? nullptr : columns[index].data();
+            fixed_width_fields[index].reserve(generated.column_count);
+            if (generated.fixed_width_fields != nullptr) {
+                for (std::size_t field_index = 0u;
+                     field_index < generated.column_count; ++field_index) {
+                    fixed_width_fields[index].push_back(
+                        laplace_tabular_fixed_width_field{
+                            generated.fixed_width_fields[field_index].width,
+                            generated.fixed_width_fields[field_index].flags});
+                }
+            }
+            artifact.fixed_width_fields = fixed_width_fields[index].empty()
+                ? nullptr : fixed_width_fields[index].data();
             artifact.byte_count = generated.byte_count;
             artifact.name_byte_count = std::strlen(generated.name);
             artifact.media_type_byte_count = std::strlen(generated.media_type);
@@ -115,6 +129,11 @@ struct TabularProfileFixture {
             artifact.header_record_count = generated.header_record_count;
             artifact.outcome_type = generated.outcome_type;
             artifact.flags = generated.flags;
+            artifact.padding_byte = generated.padding_byte;
+            artifact.overflow_field_index = generated.overflow_field_index;
+            artifact.maximum_overflow_bytes = generated.maximum_overflow_bytes;
+            artifact.expected_overflow_record_count =
+                generated.expected_overflow_record_count;
         }
         for (std::size_t index = 0u;
              index < Profile::reference_rule_size; ++index) {

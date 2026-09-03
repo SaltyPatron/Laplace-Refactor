@@ -1,0 +1,16 @@
+-- Contract view of the native machine-condition registry.
+-- PostgreSQL does not reinterpret condition, recovery, publication, or capability semantics.
+
+CREATE TYPE @LAPLACE_MACHINE_EXCEPTION_SCHEMA@.machine_exception_descriptor AS (
+    condition bigint,
+    kind bigint,
+    priority bigint,
+    capability_flags bigint,
+    recovery_disposition bigint,
+    publication_disposition bigint
+);
+
+CREATE FUNCTION @LAPLACE_MACHINE_EXCEPTION_SCHEMA@.machine_exception_registry()
+RETURNS SETOF @LAPLACE_MACHINE_EXCEPTION_SCHEMA@.machine_exception_descriptor
+AS 'MODULE_PATHNAME', 'laplace_pg_machine_exception_registry'
+LANGUAGE C STABLE PARALLEL SAFE;

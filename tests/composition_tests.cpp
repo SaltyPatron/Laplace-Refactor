@@ -680,6 +680,90 @@ TEST(CompositionWorkingSet, PresenceFiltersExactStateBeforePublication) {
     laplace_composition_working_set_destroy(&working_set);
 }
 
+TEST(CompositionWorkingSet, ExactStateWithoutOccurrenceIsAReceiptedNoOp) {
+    auto context = laplace_test_context(3U);
+    context.resource_grant.memory_bytes = UINT64_C(4) * 1024U * 1024U;
+    laplace_digest256 source{};
+    laplace_digest256 calculation_recipe{};
+    Fill(source, 0x13U);
+    Fill(calculation_recipe, 0x33U);
+    const std::array<laplace_composition_known_entity, 2> known{{
+        Atom('a', laplace_point4d{{1.0, 0.0, 0.0, 0.0}}, 0x53U),
+        Atom('b', laplace_point4d{{0.0, 1.0, 0.0, 0.0}}, 0x73U)}};
+    const std::array<laplace_composition_operand, 2> operands{{
+        {0U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U},
+        {1U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U}}};
+    const auto request = Request(
+        0U, operands.size(), 1U, 0x23U, false);
+    const laplace_composition_working_set_input input{
+        &context,
+        &source,
+        &calculation_recipe,
+        known.data(),
+        known.size(),
+        operands.data(),
+        operands.size(),
+        &request,
+        1U,
+        256U,
+        0U};
+    laplace_composition_working_set* working_set = nullptr;
+    ASSERT_EQ(laplace_composition_working_set_create(&input, &working_set),
+              LAPLACE_COMPOSITION_OK);
+    laplace_composition_working_set_summary summary{};
+    ASSERT_EQ(laplace_composition_working_set_summary_get(
+                  working_set, &summary),
+              LAPLACE_COMPOSITION_OK);
+    PresenceFixture presence{
+        std::vector<std::uint8_t>(
+            static_cast<std::size_t>(summary.unique_entity_count),
+            LAPLACE_COMPOSITION_EXACT_PRESENT),
+        std::vector<std::uint8_t>(
+            static_cast<std::size_t>(summary.unique_physicality_count),
+            LAPLACE_COMPOSITION_EXACT_PRESENT),
+        2U,
+        1U,
+        false};
+    auto provider = Provider(presence);
+    laplace_composition_presence_receipt presence_receipt{};
+    ASSERT_EQ(laplace_composition_working_set_resolve_presence(
+                  working_set, &provider, &presence_receipt),
+              LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(laplace_composition_working_set_summary_get(
+                  working_set, &summary),
+              LAPLACE_COMPOSITION_OK);
+    EXPECT_EQ(summary.novel_entity_count, 0U);
+    EXPECT_EQ(summary.novel_physicality_count, 0U);
+    EXPECT_EQ(summary.novel_trajectory_vertex_count, 0U);
+    EXPECT_EQ(summary.occurrence_count, 0U);
+    EXPECT_EQ(summary.batch_count, 0U);
+    EXPECT_EQ(summary.stream_record_count, 0U);
+    EXPECT_EQ(summary.stream_byte_count, 0U);
+    std::uint32_t effect_disposition = UINT32_MAX;
+    ASSERT_EQ(laplace_composition_working_set_effect_disposition_get(
+                  working_set, &effect_disposition),
+              LAPLACE_COMPOSITION_OK);
+    EXPECT_EQ(effect_disposition, LAPLACE_FRAMEWORK_EFFECT_NONE);
+    laplace_digest256 expected_empty{};
+    ASSERT_EQ(laplace_framework_canonical_empty_stream_fingerprint(
+                  LAPLACE_COMPOSITION_STREAM_RECORD_TYPE, &expected_empty),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(std::memcmp(
+                  summary.stream_fingerprint.bytes, expected_empty.bytes,
+                  sizeof(expected_empty.bytes)),
+              0);
+    const laplace_digest256 zero{};
+    EXPECT_NE(std::memcmp(
+                  summary.receipt_id.bytes, zero.bytes,
+                  sizeof(summary.receipt_id.bytes)),
+              0);
+    EXPECT_NE(std::memcmp(
+                  summary.presence_receipt_id.bytes, zero.bytes,
+                  sizeof(summary.presence_receipt_id.bytes)),
+              0);
+    laplace_composition_working_set_destroy(&working_set);
+}
+
 TEST(CompositionWorkingSet, PresenceSemanticsSurviveProviderSubstitution) {
     auto context = laplace_test_context(3U);
     context.resource_grant.memory_bytes = UINT64_C(4) * 1024U * 1024U;

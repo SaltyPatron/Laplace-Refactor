@@ -35,6 +35,22 @@
       ]
     },
     {
+      "ctest_name": "TabularSource.BlanketStructuralOccurrenceEmissionIsObservable",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "structural composition requests do not become witnessed source occurrences merely because they participate in canonical content",
+        "blanket occurrence emission is observably different from the exact source-occurrence denominator",
+        "canonical structure and witnessed observation remain separate typed dimensions"
+      ],
+      "defect_controls": [
+        "every structural request is deliberately marked as an occurrence and exceeds the exact witnessed denominator"
+      ]
+    },
+    {
       "ctest_name": "composition.mutation-implicit-occurrence-detected",
       "evidence_targets": [
         "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
@@ -46,6 +62,33 @@
       ],
       "defect_controls": [
         "production composition restored to unconditional observed-occurrence emission"
+      ]
+    },
+    {
+      "ctest_name": "CompositionWorkingSet.ExactStateWithoutOccurrenceIsAReceiptedNoOp",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "all exact-present state without explicit occurrence emission is a successful typed no-op",
+        "empty effect has a deterministic typed stream fingerprint and no persistence batches"
+      ],
+      "defect_controls": [
+        "exact-present no-op rejected as an invalid persistence stream"
+      ]
+    },
+    {
+      "ctest_name": "composition.mutation-empty-effect-rejection-detected",
+      "evidence_targets": [
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "deliberate-defect sensitivity for exact-present no-op publication"
+      ],
+      "defect_controls": [
+        "production composition restored to rejecting empty exact-present effects"
       ]
     }
   ]

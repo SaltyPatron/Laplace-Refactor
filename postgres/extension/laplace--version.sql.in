@@ -64,6 +64,31 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.physicality_record AS (
     vertex_count numeric(20, 0)
 );
 
+-- Internal set-transport for the canonical persistence sink.  The native
+-- engine assembles and validates trajectory bytes before SPI; PostgreSQL only
+-- stages and publishes the already-canonical row.
+CREATE TYPE @LAPLACE_PG_SCHEMA@.physicality_deposit_record AS (
+    physicality_id bytea,
+    entity_id bytea,
+    physicality_type integer,
+    vertex_class integer,
+    recipe_version integer,
+    structural_form integer,
+    dimension_count integer,
+    flags integer,
+    recipe_fingerprint bytea,
+    geometry_epoch bytea,
+    trajectory_fingerprint bytea,
+    centroid_x double precision,
+    centroid_y double precision,
+    centroid_z double precision,
+    centroid_m double precision,
+    radius double precision,
+    logical_count numeric(20, 0),
+    vertex_count numeric(20, 0),
+    trajectory bytea
+);
+
 -- This is a transport continuation for one Physicality.  It is assembled into
 -- physicality.trajectory before canonical publication and is never a durable
 -- semantic row family.
@@ -164,6 +189,92 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.evidence_testimony_result AS (
     negative_disposition_count numeric(20, 0)
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_state AS (
+    state_id bytea,
+    coordinate_id bytea,
+    arena_scope_id bytea,
+    prior_state_id bytea,
+    epoch_id bytea,
+    rating_recipe_id bytea,
+    rating double precision,
+    rating_deviation double precision,
+    volatility double precision,
+    eligible_match_count numeric(20, 0),
+    period_ordinal numeric(20, 0),
+    rating_recipe_version integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_recipe AS (
+    recipe_id bytea,
+    authority_receipt_id bytea,
+    evaluation_law_id bytea,
+    world_context_id bytea,
+    language_modality_id bytea,
+    valid_time_scope_id bytea,
+    evidence_boundary_id bytea,
+    default_rating double precision,
+    default_rating_deviation double precision,
+    default_volatility double precision,
+    volatility_constraint double precision,
+    convergence_tolerance double precision,
+    score_numerator numeric(20, 0)[],
+    score_denominator numeric(20, 0)[],
+    rateable_outcome_mask integer,
+    participant_role integer,
+    arena_kind integer,
+    version integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_event AS (
+    event_id bytea,
+    participant_coordinate_id bytea,
+    participant_prior_state_id bytea,
+    opponent_prior_state @LAPLACE_PG_SCHEMA@.standing_state,
+    period_id bytea,
+    eligible_root_id bytea,
+    outcome_mapping_id bytea,
+    context_id bytea,
+    valid_time_id bytea,
+    score_numerator numeric(20, 0),
+    score_denominator numeric(20, 0),
+    outcome_kind integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_period_input AS (
+    recipe @LAPLACE_PG_SCHEMA@.standing_recipe,
+    prior_state @LAPLACE_PG_SCHEMA@.standing_state,
+    event @LAPLACE_PG_SCHEMA@.standing_event
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.standing_period_result AS (
+    state_id bytea,
+    coordinate_id bytea,
+    arena_scope_id bytea,
+    prior_state_id bytea,
+    epoch_id bytea,
+    rating_recipe_id bytea,
+    rating double precision,
+    rating_deviation double precision,
+    volatility double precision,
+    eligible_match_count numeric(20, 0),
+    period_ordinal numeric(20, 0),
+    rating_recipe_version integer,
+    state_flags integer,
+    receipt_id bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    isa_receipt_id bytea,
+    eligible_event_count numeric(20, 0),
+    prior_match_count numeric(20, 0),
+    successor_match_count numeric(20, 0),
+    volatility_iterations integer,
+    receipt_version integer,
+    receipt_flags integer
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.source_profile_manifest AS (
     profile_id bytea,
     coordinate_kind integer,
@@ -234,6 +345,59 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.source_profile_result AS (
     no_reconstruction_count numeric(20, 0)
 );
 
+CREATE TYPE @LAPLACE_PG_SCHEMA@.stock_recipe_manifest AS (
+    recipe_id bytea,
+    parent_recipe_id bytea,
+    source_profile_id bytea,
+    source_artifact_id bytea,
+    grammar_provider_id bytea,
+    codec_provider_id bytea,
+    lowering_program_id bytea,
+    recomposition_program_id bytea,
+    semantic_segmentation_law_id bytea,
+    conformance_id bytea,
+    loss_policy_id bytea,
+    correction_epoch_id bytea,
+    sibling_ordinal numeric(20, 0),
+    scope_kind integer,
+    modality_kind integer,
+    version integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.stock_perfcache_plane_manifest AS (
+    plane_id bytea,
+    recipe_id bytea,
+    key_kind_id bytea,
+    value_kind_id bytea,
+    dependency_epoch_id bytea,
+    generation_program_id bytea,
+    semantic_verifier_id bytea,
+    invalidation_law_id bytea,
+    rebuild_law_id bytea,
+    version integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.stock_catalog_item AS (
+    recipe @LAPLACE_PG_SCHEMA@.stock_recipe_manifest,
+    perfcache_plane @LAPLACE_PG_SCHEMA@.stock_perfcache_plane_manifest,
+    item_kind integer,
+    flags integer
+);
+
+CREATE TYPE @LAPLACE_PG_SCHEMA@.stock_catalog_result AS (
+    catalog_id bytea,
+    recipe_set_fingerprint bytea,
+    perfcache_set_fingerprint bytea,
+    isa_receipt_id bytea,
+    recipe_count numeric(20, 0),
+    source_count numeric(20, 0),
+    perfcache_plane_count numeric(20, 0),
+    maximum_scope_kind integer,
+    version integer
+);
+
 CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_candidate AS (
     source_profile_id bytea,
     kind integer,
@@ -289,7 +453,11 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_topology_result AS (
     coordinate_count numeric(20, 0),
     present_count numeric(20, 0),
     retired_count numeric(20, 0),
-    unresolved_count numeric(20, 0)
+    unresolved_count numeric(20, 0),
+    persistence_batch_count numeric(20, 0),
+    maximum_persistence_batch_records numeric(20, 0),
+    maximum_encoded_persistence_batch_bytes numeric(20, 0),
+    minimum_encoded_persistence_record_bytes numeric(20, 0)
 );
 
 CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_mapping_candidate AS (
@@ -362,7 +530,11 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.reference_mapping_result AS (
     proposition_count numeric(20, 0),
     resolved_count numeric(20, 0),
     unresolved_count numeric(20, 0),
-    retired_count numeric(20, 0)
+    retired_count numeric(20, 0),
+    persistence_batch_count numeric(20, 0),
+    maximum_persistence_batch_records numeric(20, 0),
+    maximum_encoded_persistence_batch_bytes numeric(20, 0),
+    minimum_encoded_persistence_record_bytes numeric(20, 0)
 );
 
 CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_artifact AS (
@@ -445,6 +617,14 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.tabular_source_admission_result AS (
     reference_mapping_resolved_count numeric(20, 0),
     reference_mapping_unresolved_count numeric(20, 0),
     reference_mapping_retired_count numeric(20, 0),
+    reference_persistence_batch_count numeric(20, 0),
+    reference_maximum_persistence_batch_records numeric(20, 0),
+    reference_maximum_encoded_persistence_batch_bytes numeric(20, 0),
+    reference_minimum_encoded_persistence_record_bytes numeric(20, 0),
+    reference_mapping_persistence_batch_count numeric(20, 0),
+    reference_mapping_maximum_persistence_batch_records numeric(20, 0),
+    reference_mapping_maximum_encoded_persistence_batch_bytes numeric(20, 0),
+    reference_mapping_minimum_encoded_persistence_record_bytes numeric(20, 0),
     status integer
 );
 
@@ -611,6 +791,9 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.physicality (
 CREATE INDEX physicality_trajectory_fingerprint_idx
     ON @LAPLACE_PG_SCHEMA@.physicality
     (trajectory_fingerprint, physicality_id);
+CREATE INDEX physicality_logical_count_idx
+    ON @LAPLACE_PG_SCHEMA@.physicality
+    (logical_count, physicality_id);
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.attestation (
     attestation_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
@@ -639,6 +822,9 @@ CREATE INDEX attestation_source_idx
 CREATE INDEX attestation_entity_idx
     ON @LAPLACE_PG_SCHEMA@.attestation
     (entity_id, attestation_kind, attestation_id);
+CREATE INDEX attestation_physicality_source_idx
+    ON @LAPLACE_PG_SCHEMA@.attestation
+    (physicality_id, source_fingerprint, attestation_kind, attestation_id);
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.consensus (
     consensus_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
@@ -786,6 +972,125 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt_member (
     UNIQUE (receipt_id, member_ordinal)
 );
 
+CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_recipe_history (
+    recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    authority_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    evaluation_law_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    world_context_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    language_modality_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    valid_time_scope_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    evidence_boundary_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    default_rating double precision NOT NULL,
+    default_rating_deviation double precision NOT NULL CHECK (default_rating_deviation > 0),
+    default_volatility double precision NOT NULL CHECK (default_volatility > 0),
+    volatility_constraint double precision NOT NULL CHECK (volatility_constraint > 0),
+    convergence_tolerance double precision NOT NULL CHECK (convergence_tolerance > 0),
+    score_numerator numeric(20, 0)[] NOT NULL CHECK (cardinality(score_numerator) = 9),
+    score_denominator numeric(20, 0)[] NOT NULL CHECK (cardinality(score_denominator) = 9),
+    rateable_outcome_mask integer NOT NULL CHECK (rateable_outcome_mask > 0),
+    participant_role integer NOT NULL CHECK (participant_role > 0),
+    arena_kind integer NOT NULL CHECK (arena_kind > 0),
+    version integer NOT NULL CHECK (version = 1),
+    flags integer NOT NULL CHECK (flags = 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_recipe_admission (
+    recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_recipe_history(recipe_id),
+    authority_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    authority_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    evidence_epoch @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    admission_sequence bigint NOT NULL CHECK (admission_sequence > 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    UNIQUE (authority_fingerprint, evidence_epoch, admission_sequence)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_state_history (
+    state_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    coordinate_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    arena_scope_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    prior_state_id @LAPLACE_PG_SCHEMA@.record_id_256 NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_state_history(state_id),
+    epoch_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    rating_recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_recipe_history(recipe_id),
+    rating double precision NOT NULL,
+    rating_deviation double precision NOT NULL CHECK (rating_deviation > 0),
+    volatility double precision NOT NULL CHECK (volatility > 0),
+    eligible_match_count numeric(20, 0) NOT NULL CHECK (eligible_match_count >= 0),
+    period_ordinal numeric(20, 0) NOT NULL CHECK (period_ordinal >= 0),
+    rating_recipe_version integer NOT NULL CHECK (rating_recipe_version > 0),
+    flags integer NOT NULL CHECK (flags = 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    UNIQUE (coordinate_id, period_ordinal),
+    CHECK ((period_ordinal = 0 AND prior_state_id IS NULL AND eligible_match_count = 0)
+        OR (period_ordinal > 0 AND prior_state_id IS NOT NULL))
+);
+
+CREATE UNIQUE INDEX standing_state_single_successor_idx
+    ON @LAPLACE_PG_SCHEMA@.standing_state_history(prior_state_id)
+    WHERE prior_state_id IS NOT NULL;
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_match_event (
+    event_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    participant_coordinate_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    participant_prior_state_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_state_history(state_id),
+    opponent_prior_state_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_state_history(state_id),
+    period_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    eligible_root_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    outcome_mapping_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    context_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    valid_time_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    score_numerator numeric(20, 0) NOT NULL CHECK (score_numerator >= 0),
+    score_denominator numeric(20, 0) NOT NULL CHECK (score_denominator > 0),
+    outcome_kind integer NOT NULL CHECK (outcome_kind BETWEEN 1 AND 4),
+    flags integer NOT NULL CHECK (flags = 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    CHECK (score_numerator <= score_denominator),
+    CONSTRAINT standing_match_event_one_root_per_participant
+        UNIQUE (participant_coordinate_id, eligible_root_id)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_period_receipt (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    prior_state_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_state_history(state_id),
+    successor_state_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL UNIQUE
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_state_history(state_id),
+    period_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    input_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    output_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    isa_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.execution_receipt(receipt_id),
+    eligible_event_count numeric(20, 0) NOT NULL CHECK (eligible_event_count > 0),
+    prior_match_count numeric(20, 0) NOT NULL CHECK (prior_match_count >= 0),
+    successor_match_count numeric(20, 0) NOT NULL CHECK (
+        successor_match_count = prior_match_count + eligible_event_count),
+    volatility_iterations integer NOT NULL CHECK (volatility_iterations >= 0),
+    version integer NOT NULL CHECK (version = 1),
+    flags integer NOT NULL CHECK (flags = 0),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    UNIQUE (prior_state_id, period_id)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.standing_period_receipt_member (
+    receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_period_receipt(receipt_id),
+    event_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.standing_match_event(event_id),
+    member_ordinal numeric(20, 0) NOT NULL CHECK (member_ordinal > 0),
+    PRIMARY KEY (receipt_id, event_id),
+    UNIQUE (receipt_id, member_ordinal)
+);
+
 CREATE TABLE @LAPLACE_PG_SCHEMA@.source_profile (
     profile_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
     coordinate_kind integer NOT NULL CHECK (coordinate_kind = 17),
@@ -885,6 +1190,66 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt_member (
     member_ordinal numeric(20, 0) NOT NULL CHECK (member_ordinal > 0),
     PRIMARY KEY (receipt_id, profile_id),
     UNIQUE (receipt_id, member_ordinal)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.stock_recipe (
+    recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    parent_recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    source_profile_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    source_artifact_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    grammar_provider_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    codec_provider_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    lowering_program_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    recomposition_program_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    semantic_segmentation_law_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    conformance_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    loss_policy_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    correction_epoch_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    sibling_ordinal numeric(20, 0) NOT NULL CHECK (sibling_ordinal > 0),
+    scope_kind integer NOT NULL CHECK (scope_kind BETWEEN 1 AND 6),
+    modality_kind integer NOT NULL CHECK (modality_kind > 0),
+    version integer NOT NULL CHECK (version = 1),
+    flags integer NOT NULL CHECK (flags = 0),
+    UNIQUE (source_profile_id, parent_recipe_id, scope_kind, sibling_ordinal)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.stock_perfcache_plane (
+    plane_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    recipe_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.stock_recipe(recipe_id),
+    key_kind_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    value_kind_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    dependency_epoch_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    generation_program_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    semantic_verifier_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    invalidation_law_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    rebuild_law_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    version integer NOT NULL CHECK (version = 1),
+    flags integer NOT NULL CHECK (flags = 0),
+    UNIQUE (recipe_id, key_kind_id, value_kind_id)
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.stock_catalog_receipt (
+    catalog_id @LAPLACE_PG_SCHEMA@.record_id_256 PRIMARY KEY,
+    recipe_set_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    perfcache_set_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    isa_receipt_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.execution_receipt(receipt_id),
+    recipe_count numeric(20, 0) NOT NULL CHECK (recipe_count > 0),
+    source_count numeric(20, 0) NOT NULL CHECK (source_count > 0),
+    perfcache_plane_count numeric(20, 0) NOT NULL CHECK (perfcache_plane_count >= 0),
+    maximum_scope_kind integer NOT NULL CHECK (maximum_scope_kind BETWEEN 1 AND 6),
+    version integer NOT NULL CHECK (version = 1),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user
+);
+
+CREATE TABLE @LAPLACE_PG_SCHEMA@.stock_catalog_receipt_member (
+    catalog_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_PG_SCHEMA@.stock_catalog_receipt(catalog_id),
+    item_kind integer NOT NULL CHECK (item_kind IN (1, 2)),
+    item_id @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
+    PRIMARY KEY (catalog_id, item_kind, item_id)
 );
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.reference_coordinate (
@@ -1070,16 +1435,29 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.composition_execution_receipt (
     presence_disposition_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     presence_provider_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     presence_provider_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    producer_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    staged_stream_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
+    producer_receipt @LAPLACE_PG_SCHEMA@.record_id_256,
+    staged_stream_receipt @LAPLACE_PG_SCHEMA@.record_id_256
         REFERENCES @LAPLACE_PG_SCHEMA@.canonical_deposit_receipt(receipt_id),
     stream_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    sink_artifacts_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
-    occurrence_count numeric(20, 0) NOT NULL CHECK (occurrence_count > 0),
+    sink_artifacts_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256,
+    occurrence_count numeric(20, 0) NOT NULL CHECK (occurrence_count >= 0),
     logical_occurrence_count numeric(20, 0) NOT NULL CHECK (logical_occurrence_count > 0),
-    stream_record_count numeric(20, 0) NOT NULL CHECK (stream_record_count > 0),
+    stream_record_count numeric(20, 0) NOT NULL CHECK (stream_record_count >= 0),
+    effect_disposition integer NOT NULL CHECK (effect_disposition IN (0, 1)),
     recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-    recorded_by name NOT NULL DEFAULT current_user
+    recorded_by name NOT NULL DEFAULT current_user,
+    CHECK (
+        (effect_disposition = 0
+         AND producer_receipt IS NULL
+         AND staged_stream_receipt IS NULL
+         AND sink_artifacts_fingerprint IS NULL
+         AND stream_record_count = 0)
+        OR
+        (effect_disposition = 1
+         AND producer_receipt IS NOT NULL
+         AND staged_stream_receipt IS NOT NULL
+         AND sink_artifacts_fingerprint IS NOT NULL
+         AND stream_record_count > 0))
 );
 
 CREATE TABLE @LAPLACE_PG_SCHEMA@.composition_execution_occurrence_member (
@@ -1503,6 +1881,7 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.composition_deposit_result AS (
     entity_presence_dispositions smallint[],
     physicality_presence_dispositions smallint[],
     estimated_peak_working_bytes numeric(20, 0),
+    effect_disposition integer,
     status integer
 );
 
@@ -1775,11 +2154,25 @@ RETURNS @LAPLACE_PG_SCHEMA@.evidence_testimony_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_EVIDENCE_TESTIMONY_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_EVIDENCE_STANDING_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.standing_period_input[])
+RETURNS @LAPLACE_PG_SCHEMA@.standing_period_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_EVIDENCE_STANDING_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
     @LAPLACE_PG_SCHEMA@.source_profile_manifest[])
 RETURNS @LAPLACE_PG_SCHEMA@.source_profile_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_STOCK_RECIPE_COMPILE_CATALOG_SQL@(
+    @LAPLACE_PG_SCHEMA@.execution_context,
+    @LAPLACE_PG_SCHEMA@.stock_catalog_item[])
+RETURNS @LAPLACE_PG_SCHEMA@.stock_catalog_result
+AS 'MODULE_PATHNAME', '@LAPLACE_PG_STOCK_RECIPE_COMPILE_CATALOG_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL@(
@@ -1791,14 +2184,16 @@ LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
-    @LAPLACE_PG_SCHEMA@.reference_candidate[])
+    @LAPLACE_PG_SCHEMA@.reference_candidate[],
+    numeric)
 RETURNS @LAPLACE_PG_SCHEMA@.reference_topology_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
 CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SQL@(
     @LAPLACE_PG_SCHEMA@.execution_context,
-    @LAPLACE_PG_SCHEMA@.reference_mapping_candidate[])
+    @LAPLACE_PG_SCHEMA@.reference_mapping_candidate[],
+    numeric)
 RETURNS @LAPLACE_PG_SCHEMA@.reference_mapping_result
 AS 'MODULE_PATHNAME', '@LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SYMBOL@'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
@@ -1885,9 +2280,19 @@ REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_lineage_receipt_member FROM PUB
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.evidence_testimony_receipt_member FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_state_history FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_recipe_history FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_recipe_admission FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_match_event FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_period_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.standing_period_receipt_member FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.source_profile_receipt_member FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.stock_recipe FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.stock_perfcache_plane FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.stock_catalog_receipt FROM PUBLIC;
+REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.stock_catalog_receipt_member FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.reference_coordinate FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.reference_occurrence FROM PUBLIC;
 REVOKE ALL ON TABLE @LAPLACE_PG_SCHEMA@.reference_topology_receipt FROM PUBLIC;
@@ -1979,9 +2384,19 @@ REVOKE EXECUTE ON FUNCTION
         @LAPLACE_PG_SCHEMA@.evidence_testimony_record[])
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_EVIDENCE_STANDING_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.standing_period_input[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
         @LAPLACE_PG_SCHEMA@.source_profile_manifest[])
+    FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION
+    @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_STOCK_RECIPE_COMPILE_CATALOG_SQL@(
+        @LAPLACE_PG_SCHEMA@.execution_context,
+        @LAPLACE_PG_SCHEMA@.stock_catalog_item[])
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL@(
@@ -1991,12 +2406,14 @@ REVOKE EXECUTE ON FUNCTION
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_REFERENCE_TOPOLOGY_RESOLVE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
-        @LAPLACE_PG_SCHEMA@.reference_candidate[])
+        @LAPLACE_PG_SCHEMA@.reference_candidate[],
+        numeric)
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SQL@(
         @LAPLACE_PG_SCHEMA@.execution_context,
-        @LAPLACE_PG_SCHEMA@.reference_mapping_candidate[])
+        @LAPLACE_PG_SCHEMA@.reference_mapping_candidate[],
+        numeric)
     FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION
     @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL@(

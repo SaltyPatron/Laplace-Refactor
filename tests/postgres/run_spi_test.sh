@@ -21,7 +21,7 @@ test_root=$(mktemp -d "$temporary_parent/laplace-postgres-test.XXXXXX")
 data_directory="$test_root/data"
 socket_directory=$(mktemp -d /tmp/lp-pg.XXXXXX)
 server_log="$test_root/postgres.log"
-port=55432
+port=${LAPLACE_POSTGRES_TEST_PORT:-55432}
 server_started=0
 perfcache_root="$test_root/perfcache-root"
 mkdir -p -- "$perfcache_root"
@@ -30,8 +30,27 @@ if [[ -n "$sanitizer_preload" ]]; then
     server_asan_options="${server_asan_options}${server_asan_options:+:}detect_leaks=0"
 fi
 
+collect_process_tree() {
+    local pid=$1
+    local children_file="/proc/$pid/task/$pid/children"
+    local child
+    if [[ -r "$children_file" ]]; then
+        for child in $(<"$children_file"); do
+            collect_process_tree "$child"
+        done
+    fi
+    printf '%s\n' "$pid"
+}
+
 cleanup() {
     exit_code=$?
+    test_processes=()
+    if [[ -r "$data_directory/postmaster.pid" ]]; then
+        postmaster_pid=$(head -n 1 -- "$data_directory/postmaster.pid" || true)
+        if [[ "$postmaster_pid" =~ ^[0-9]+$ ]]; then
+            mapfile -t test_processes < <(collect_process_tree "$postmaster_pid" | sort -un)
+        fi
+    fi
     if [[ $server_started -eq 1 ]]; then
         if ! "$pg_bindir/pg_ctl" -D "$data_directory" -m fast -t 5 -w stop \
             >/dev/null 2>&1; then
@@ -39,13 +58,24 @@ cleanup() {
                 >/dev/null 2>&1 || true
         fi
     fi
+    for pid in "${test_processes[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -KILL "$pid" 2>/dev/null || true
+        fi
+    done
     if [[ "$socket_directory" == /tmp/lp-pg.* ]]; then
         rmdir -- "$socket_directory" 2>/dev/null || true
     fi
-    if [[ $exit_code -eq 0 && "$test_root" == "$temporary_parent"/laplace-postgres-test.* ]]; then
-        rm -rf -- "$test_root"
-    else
+    if [[ "$test_root" != "$temporary_parent"/laplace-postgres-test.* ]]; then
+        echo "refusing to clean unexpected PostgreSQL test root: $test_root" >&2
+        exit 91
+    fi
+    if [[ $exit_code -ne 0 &&
+          "${LAPLACE_POSTGRES_TEST_RETAIN_ON_FAILURE:-0}" == 1 &&
+          "${GITHUB_ACTIONS:-false}" != true ]]; then
         echo "PostgreSQL test evidence retained at $test_root" >&2
+    else
+        rm -rf -- "$test_root"
     fi
     exit "$exit_code"
 }
@@ -61,8 +91,19 @@ else
 fi
 if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
       "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
-      "$mode" == "cili-admission" ]]; then
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     postgres_options="$postgres_options -c shared_buffers=512MB -c max_wal_size=8GB -c checkpoint_timeout=30min"
+fi
+if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+    statement_timeout_ms=${LAPLACE_POSTGRES_STATEMENT_TIMEOUT_MS:-60000}
+    temporary_file_limit_kb=${LAPLACE_POSTGRES_TEMP_FILE_LIMIT_KB:-524288}
+    if [[ ! "$statement_timeout_ms" =~ ^[1-9][0-9]*$ ||
+          ! "$temporary_file_limit_kb" =~ ^[1-9][0-9]*$ ]]; then
+        echo "PostgreSQL source resource limits must be positive integers" >&2
+        exit 64
+    fi
+    postgres_options="$postgres_options -c temp_file_limit=$temporary_file_limit_kb"
 fi
 
 ASAN_OPTIONS="$server_asan_options" \
@@ -208,6 +249,58 @@ elif [[ "$mode" == "contract" || "$mode" == "persistence-mutation" ]]; then
     variable_file="$test_root/native-variables.sql"
     umask 077
     printf "\\set persistence_bulk_stream '%s'\n" "$bulk_stream" >"$variable_file"
+elif [[ "$mode" == "standing" || "$mode" == "standing-mutation" ||
+        "$mode" == "standing-admission-mutation" ]]; then
+    probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$native_probe")
+    while IFS='=' read -r key value; do
+        if [[ ! "$key" =~ ^STANDING_[A-Z0-9_]+$ ||
+              ! "$value" =~ ^[0-9a-f.-]+$ ]]; then
+            echo "native standing probe emitted an invalid value: $key" >&2
+            exit 88
+        fi
+        shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+        psql_arguments+=(-v "$shell_name=$value")
+    done <<<"$probe_output"
+    if [[ "$mode" == "standing-mutation" ||
+          "$mode" == "standing-admission-mutation" ]]; then
+        if [[ -z "${LAPLACE_MUTANT_MODULE:-}" || ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
+            echo "standing replay mutant module is missing" >&2
+            exit 66
+        fi
+        psql_arguments+=(-v "standing_mutant_module=$LAPLACE_MUTANT_MODULE")
+    fi
+elif [[ "$mode" == "stock-catalog" ]]; then
+    probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$native_probe")
+    while IFS='=' read -r key value; do
+        if [[ ! "$key" =~ ^STOCK_[A-Z0-9_]+$ ||
+              ! "$value" =~ ^[0-9a-f]+$ ]]; then
+            echo "native stock recipe probe emitted an invalid value: $key" >&2
+            exit 89
+        fi
+        shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+        psql_arguments+=(-v "$shell_name=$value")
+    done <<<"$probe_output"
+elif [[ "$mode" == "machine-exception" ||
+        "$mode" == "machine-exception-mutation" ]]; then
+    probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$native_probe")
+    expected_hex=$(awk -F= \
+        '$1 == "MACHINE_EXCEPTION_EXPECTED_HEX" {print $2}' <<<"$probe_output")
+    if [[ ! "$expected_hex" =~ ^[0-9a-f]+$ ]]; then
+        echo "native machine-exception probe emitted an invalid registry" >&2
+        exit 90
+    fi
+    psql_arguments+=(-v "machine_exception_expected_hex=$expected_hex")
+    if [[ "$mode" == "machine-exception-mutation" ]]; then
+        if [[ -z "${LAPLACE_MUTANT_MODULE:-}" ||
+              ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
+            echo "machine-exception mutant module is missing" >&2
+            exit 66
+        fi
+        psql_arguments+=(-v "machine_exception_mutant_module=$LAPLACE_MUTANT_MODULE")
+    fi
 elif [[ "$mode" == "perfcache-mutation" ]]; then
     if [[ -z "${LAPLACE_MUTANT_MODULE:-}" || ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
         echo "perfcache mutant module is missing" >&2
@@ -216,7 +309,7 @@ elif [[ "$mode" == "perfcache-mutation" ]]; then
     psql_arguments+=(-v "perfcache_mutant_module=$LAPLACE_MUTANT_MODULE")
 elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
       "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
-      "$mode" == "cili-admission" ]]; then
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     unicode_source_root=${LAPLACE_UNICODE_SOURCE_ROOT:-}
     if [[ -z "$unicode_source_root" || ! -d "$unicode_source_root" ]]; then
         echo "verified Unicode source root is unavailable: $unicode_source_root" >&2
@@ -231,6 +324,63 @@ elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
         -v "unicode_spool_directory=$unicode_spool_directory"
         -v "unicode_tier0_path=$unicode_tier0_path"
         -v "unicode_reverse_path=$unicode_reverse_path")
+    if [[ "$mode" == "source-admission-suite" ]]; then
+        source_probe=${LAPLACE_SOURCE_ADMISSION_PROBE:-}
+        iso_probe=${LAPLACE_ISO_639_PROFILE_PROBE:-}
+        cili_probe=${LAPLACE_CILI_PROFILE_PROBE:-}
+        for probe in "$source_probe" "$iso_probe" "$cili_probe"; do
+            if [[ -z "$probe" || ! -x "$probe" ]]; then
+                echo "source-admission suite probe is unavailable: $probe" >&2
+                exit 85
+            fi
+        done
+
+        probe_output=$("$source_probe")
+        for key in TABULAR_ARTIFACT_GRAPH TABULAR_ARCHIVE_ID TABULAR_TEXT_ID; do
+            value=$(awk -F= -v key="$key" '$1 == key {print $2}' <<<"$probe_output")
+            if [[ ! "$value" =~ ^[0-9a-f]+$ ]]; then
+                echo "native source probe did not emit $key" >&2
+                exit 85
+            fi
+            shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+            psql_arguments+=(-v "$shell_name=$value")
+        done
+
+        iso_source_root=${LAPLACE_ISO_639_SOURCE_ROOT:-/vault/Data/ISO639}
+        cili_source_root=${LAPLACE_CILI_SOURCE_ROOT:-}
+        if [[ ! -d "$iso_source_root" ]]; then
+            echo "verified ISO 639 source root is unavailable: $iso_source_root" >&2
+            exit 77
+        fi
+        if [[ -z "$cili_source_root" || ! -d "$cili_source_root" ]]; then
+            echo "verified CILI source root is unavailable: $cili_source_root" >&2
+            exit 77
+        fi
+
+        probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$iso_probe" "$iso_source_root" "$unicode_source_root")
+        while IFS='=' read -r key value; do
+            if [[ "$key" != ISO_* || ! "$value" =~ ^[0-9a-f]+$ ]]; then
+                echo "native ISO 639 profile probe emitted an invalid value: $key" >&2
+                exit 86
+            fi
+            shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+            psql_arguments+=(-v "$shell_name=$value")
+        done <<<"$probe_output"
+        psql_arguments+=(-v "iso_source_root=$iso_source_root")
+
+        probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$cili_probe" "$cili_source_root" "$unicode_source_root")
+        while IFS='=' read -r key value; do
+            if [[ "$key" != CILI_* || ! "$value" =~ ^[0-9a-f]+$ ]]; then
+                echo "native CILI profile probe emitted an invalid value: $key" >&2
+                exit 87
+            fi
+            shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
+            psql_arguments+=(-v "$shell_name=$value")
+        done <<<"$probe_output"
+        psql_arguments+=(-v "cili_source_root=$cili_source_root")
+    fi
     if [[ "$mode" == "iso-639-admission" ]]; then
         iso_source_root=${LAPLACE_ISO_639_SOURCE_ROOT:-/vault/Data/ISO639}
         if [[ ! -d "$iso_source_root" ]]; then
@@ -238,7 +388,7 @@ elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
             exit 77
         fi
         probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-            "$native_probe" "$iso_source_root")
+            "$native_probe" "$iso_source_root" "$unicode_source_root")
         while IFS='=' read -r key value; do
             if [[ "$key" != ISO_* || ! "$value" =~ ^[0-9a-f]+$ ]]; then
                 echo "native ISO 639 profile probe emitted an invalid value: $key" >&2
@@ -256,7 +406,7 @@ elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
             exit 77
         fi
         probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-            "$native_probe" "$cili_source_root")
+            "$native_probe" "$cili_source_root" "$unicode_source_root")
         while IFS='=' read -r key value; do
             if [[ "$key" != CILI_* || ! "$value" =~ ^[0-9a-f]+$ ]]; then
                 echo "native CILI profile probe emitted an invalid value: $key" >&2
@@ -317,15 +467,64 @@ if [[ "$mode" == "composition-measurement" ]]; then
     exit 0
 fi
 
+if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+    unicode_bootstrap_timeout_ms=${LAPLACE_POSTGRES_UNICODE_BOOTSTRAP_TIMEOUT_MS:-300000}
+    if [[ ! "$unicode_bootstrap_timeout_ms" =~ ^[1-9][0-9]*$ ]]; then
+        echo "PostgreSQL Unicode bootstrap timeout must be a positive integer" >&2
+        exit 64
+    fi
+    postmaster_pid=$(head -n 1 -- "$data_directory/postmaster.pid")
+    unicode_bootstrap_command=(
+        "$pg_bindir/psql" "${psql_arguments[@]}"
+        -c "SET statement_timeout = '$unicode_bootstrap_timeout_ms ms'"
+        -f "$(dirname "$sql_file")/unicode_root_contract.sql")
+    python3 "$(dirname "$0")/../../tools/tests/postgres_resource_guard.py" \
+        --data-directory "$data_directory" \
+        --workspace-directory "$test_root" \
+        --postmaster-pid "$postmaster_pid" \
+        --max-wall-seconds "${LAPLACE_POSTGRES_UNICODE_MAX_WALL_SECONDS:-300}" \
+        --max-data-bytes "${LAPLACE_POSTGRES_UNICODE_MAX_DATA_BYTES:-8589934592}" \
+        --max-wal-bytes "${LAPLACE_POSTGRES_UNICODE_MAX_WAL_BYTES:-8589934592}" \
+        --max-workspace-bytes "${LAPLACE_POSTGRES_UNICODE_MAX_WORKSPACE_BYTES:-12884901888}" \
+        --max-rss-bytes "${LAPLACE_POSTGRES_MAX_RSS_BYTES:-12884901888}" \
+        --sample-seconds 1 \
+        --receipt "$test_root/unicode-resource-guard.json" \
+        -- "${unicode_bootstrap_command[@]}"
+    psql_arguments+=(-v source_skip_unicode=1)
+fi
+
+psql_command=("$pg_bindir/psql" "${psql_arguments[@]}")
+if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+    psql_command+=(-c "SET statement_timeout = '$statement_timeout_ms ms'")
+fi
 if [[ -n "${variable_file:-}" ]]; then
-    "$pg_bindir/psql" "${psql_arguments[@]}" -f "$variable_file" -f "$sql_file"
+    psql_command+=(-f "$variable_file")
+fi
+psql_command+=(-f "$sql_file")
+
+if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+    python3 "$(dirname "$0")/../../tools/tests/postgres_resource_guard.py" \
+        --data-directory "$data_directory" \
+        --workspace-directory "$test_root" \
+        --postmaster-pid "$postmaster_pid" \
+        --max-wall-seconds "${LAPLACE_POSTGRES_MAX_WALL_SECONDS:-60}" \
+        --max-data-bytes "${LAPLACE_POSTGRES_MAX_DATA_BYTES:-1073741824}" \
+        --max-wal-bytes "${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}" \
+        --max-workspace-bytes "${LAPLACE_POSTGRES_MAX_WORKSPACE_BYTES:-2147483648}" \
+        --max-rss-bytes "${LAPLACE_POSTGRES_MAX_RSS_BYTES:-12884901888}" \
+        --sample-seconds 1 \
+        --receipt "$test_root/resource-guard.json" \
+        -- "${psql_command[@]}"
 else
-    "$pg_bindir/psql" "${psql_arguments[@]}" -f "$sql_file"
+    "${psql_command[@]}"
 fi
 
 if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
       "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
-      "$mode" == "cili-admission" ]]; then
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     if [[ ! -f "$unicode_tier0_path" ]]; then
         echo "Unicode Tier-0 artifact was not published" >&2
         exit 80

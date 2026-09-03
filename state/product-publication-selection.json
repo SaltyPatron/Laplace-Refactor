@@ -1,0 +1,8 @@
+{
+  "classification": "authority-selected-development-publication",
+  "postgresql_publication": {
+    "receipt": "/opt/laplace/receipts/postgresql/4b72b3782f3a766b35b5cd8d061c72dc4ca223d0d3e823a4aa4a4b96d043993a.json",
+    "receipt_sha256": "8260fdc87e8911a4ccef6c9f284426910fc71835db5a1cb67576045e56016549"
+  },
+  "schema": "laplace.product-publication-selection/v1"
+}

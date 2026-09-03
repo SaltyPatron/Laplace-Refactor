@@ -219,6 +219,7 @@ DECLARE
     first_result laplace.composition_deposit_result;
     replay_result laplace.composition_deposit_result;
     repeated_result laplace.composition_deposit_result;
+    mixed_result laplace.composition_deposit_result;
     semantic_drift_rejected boolean := false;
     replay_collision_rejected boolean := false;
     before_entities bigint;
@@ -244,6 +245,7 @@ BEGIN
        OR first_result.trajectory_vertex_count <> 2
        OR first_result.novel_trajectory_vertex_count <> 2
        OR first_result.occurrence_count <> 0
+       OR first_result.effect_disposition <> 1
        OR first_result.entity_inserted <> 3
        OR first_result.physicality_inserted <> 1
        OR first_result.trajectory_vertex_inserted <> 2
@@ -293,6 +295,25 @@ BEGIN
         RAISE EXCEPTION
             'canonical composition emitted occurrence state without the explicit request flag';
     END IF;
+    BEGIN
+        INSERT INTO laplace.composition_execution_occurrence_member(
+            working_set_receipt, occurrence_id, member_ordinal)
+        VALUES (
+            first_result.working_set_receipt,
+            decode(repeat('ff', 32), 'hex'),
+            1);
+        RAISE EXCEPTION
+            'composition occurrence membership accepted an absent occurrence';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
+    IF EXISTS (
+        SELECT 1
+        FROM laplace.composition_execution_occurrence_member
+        WHERE working_set_receipt = first_result.working_set_receipt) THEN
+        RAISE EXCEPTION
+            'rejected composition occurrence membership published partial state';
+    END IF;
     IF NOT EXISTS (
         SELECT 1 FROM laplace.entity
         WHERE entity_id = first_result.result_entity_ids[1])
@@ -327,7 +348,15 @@ BEGIN
        OR replay_result.novel_entity_count <> 0
        OR replay_result.novel_physicality_count <> 0
        OR replay_result.novel_trajectory_vertex_count <> 0
-       OR replay_result.stream_record_count <> 1
+       OR replay_result.stream_record_count <> 0
+       OR replay_result.stream_byte_count <> 0
+       OR replay_result.batch_count <> 0
+       OR replay_result.effect_disposition <> 0
+       OR replay_result.producer_receipt IS NOT NULL
+       OR replay_result.staged_stream_receipt IS NOT NULL
+       OR replay_result.sink_artifacts_fingerprint IS NOT NULL
+       OR replay_result.plan_sequence_fingerprint IS NOT NULL
+       OR replay_result.plan_count <> 0
        OR replay_result.entity_inserted <> 0
        OR replay_result.physicality_inserted <> 0
        OR replay_result.trajectory_vertex_inserted <> 0
@@ -339,14 +368,28 @@ BEGIN
     IF repeated_result IS DISTINCT FROM replay_result THEN
         RAISE EXCEPTION 'steady-state composition replay receipt is not deterministic';
     END IF;
+
+    -- The first member of the pair is the exact [A,B] composition deposited
+    -- above; the second is the independently calculated [B,A] composition.
+    -- This proves a single set can contain an existing and a novel
+    -- physicality without either fabricating or dropping trajectory counts.
+    mixed_result := pg_temp.composition_fixture_pair_deposit();
+    IF mixed_result.unique_physicality_count <> 2
+       OR mixed_result.novel_physicality_count <> 1
+       OR mixed_result.trajectory_vertex_count <> 4
+       OR mixed_result.novel_trajectory_vertex_count <> 2
+       OR mixed_result.physicality_inserted <> 1
+       OR mixed_result.trajectory_vertex_inserted <> 2 THEN
+        RAISE EXCEPTION
+            'mixed existing/novel composition set produced an inexact receipt: %',
+            mixed_result;
+    END IF;
     BEGIN
-        UPDATE laplace.canonical_deposit_receipt
-        SET total_records = total_records + 1
-        WHERE receipt_id = replay_result.staged_stream_receipt;
+        UPDATE laplace.composition_execution_receipt
+        SET stream_fingerprint = set_byte(stream_fingerprint, 0,
+            get_byte(stream_fingerprint, 0) # 1)
+        WHERE working_set_receipt = replay_result.working_set_receipt;
         PERFORM pg_temp.composition_fixture_deposit();
-        UPDATE laplace.canonical_deposit_receipt
-        SET total_records = total_records - 1
-        WHERE receipt_id = replay_result.staged_stream_receipt;
     EXCEPTION
         WHEN SQLSTATE 'XX001' THEN
             replay_collision_rejected := true;

@@ -39,6 +39,12 @@ class RequirementTraceTests(unittest.TestCase):
         shutil.copy2(REPO_ROOT / "tests/registry.json", self.root / "tests/registry.json")
         operation_model = REPO_ROOT / "contracts/operation-model.json"
         shutil.copy2(operation_model, self.root / "contracts/operation-model.json")
+        for contract in (
+            "authority-stack.json",
+            "trust-matchup-realization.json",
+            "source-recipe-preparation.json",
+        ):
+            shutil.copy2(REPO_ROOT / "contracts" / contract, self.root / "contracts" / contract)
         operation_document = json.loads(operation_model.read_text(encoding="utf-8"))
         for stage in operation_document["stages"]:
             for relative in stage["implementation"]["evidence"]:
@@ -56,6 +62,12 @@ class RequirementTraceTests(unittest.TestCase):
         self.assertIn(before, content)
         path.write_text(content.replace(before, after, 1), encoding="utf-8")
 
+    def set_required_feature_files(self, feature_files: list[str]) -> None:
+        path = self.root / "contracts/trust-matchup-realization.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["traceability"]["feature_files"] = feature_files
+        path.write_text(json.dumps(document), encoding="utf-8")
+
     def test_current_graph_is_valid(self) -> None:
         report = TRACE.validate(self.root)
         self.assertGreater(report.direct_requirement_count, 0)
@@ -65,6 +77,64 @@ class RequirementTraceTests(unittest.TestCase):
             report.operationally_mapped_product_count,
             report.product_requirement_count,
         )
+        self.assertEqual(report.required_authority_contract_count, 2)
+        self.assertGreater(report.required_contract_scenario_count, 0)
+
+    def test_required_contract_missing_from_authority_stack_is_rejected(self) -> None:
+        path = self.root / "contracts/authority-stack.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["required_load_order"] = [
+            entry
+            for entry in document["required_load_order"]
+            if entry["path"] != "contracts/trust-matchup-realization.json"
+        ]
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "absent from authority load order"):
+            TRACE.validate(self.root)
+
+    def test_untagged_required_contract_scenario_is_rejected(self) -> None:
+        path = self.root / "requirements/features/trust_matchup_realization.feature"
+        content = path.read_text(encoding="utf-8")
+        content = content.replace("  @LP-TEST-UNICODE-MACHINE-LANGUAGE\n", "", 1)
+        path.write_text(content, encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "untagged scenario"):
+            TRACE.validate(self.root)
+
+    def test_required_contract_issue_missing_from_operation_graph_is_rejected(self) -> None:
+        path = self.root / "contracts/trust-matchup-realization.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["traceability"]["github_issues"].append(999999)
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(TRACE.TraceError, "absent from operation graph"):
+            TRACE.validate(self.root)
+
+    def test_required_feature_parent_traversal_is_rejected_even_when_target_exists(self) -> None:
+        outside = self.root.parent / f"{self.root.name}-outside.feature"
+        shutil.copy2(
+            self.root / "requirements/features/trust_matchup_realization.feature",
+            outside,
+        )
+        try:
+            self.set_required_feature_files([f"../{outside.name}"])
+            with self.assertRaisesRegex(TRACE.TraceError, "unsafe feature join"):
+                TRACE.validate(self.root)
+        finally:
+            outside.unlink(missing_ok=True)
+
+    def test_required_feature_symlink_escape_is_rejected(self) -> None:
+        outside = self.root.parent / f"{self.root.name}-outside-symlink.feature"
+        shutil.copy2(
+            self.root / "requirements/features/trust_matchup_realization.feature",
+            outside,
+        )
+        linked = self.root / "requirements/features/escaped.feature"
+        linked.symlink_to(outside)
+        try:
+            self.set_required_feature_files(["requirements/features/escaped.feature"])
+            with self.assertRaisesRegex(TRACE.TraceError, "unsafe feature join"):
+                TRACE.validate(self.root)
+        finally:
+            outside.unlink(missing_ok=True)
 
     def test_unknown_product_join_is_rejected(self) -> None:
         self.replace(

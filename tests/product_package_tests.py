@@ -53,10 +53,21 @@ class ProductPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "activation gates"):
             PACKAGE.validate_contract(mutant)
 
-    def test_postgresql_version_cannot_be_widened(self) -> None:
+    def test_postgresql_version_cannot_be_widened_to_a_major_only(self) -> None:
         mutant = copy.deepcopy(self.contract)
         mutant["postgresql"]["version"] = "PostgreSQL 18"
-        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "exact PostgreSQL 18.6"):
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "version and major"):
+            PACKAGE.validate_contract(mutant)
+
+    def test_exact_same_major_patch_profile_is_supported(self) -> None:
+        profile = copy.deepcopy(self.contract)
+        profile["postgresql"]["version"] = "PostgreSQL 18.3"
+        PACKAGE.validate_contract(profile)
+
+    def test_postgresql_major_must_match_the_exact_version(self) -> None:
+        mutant = copy.deepcopy(self.contract)
+        mutant["postgresql"]["major"] = 17
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "version and major"):
             PACKAGE.validate_contract(mutant)
 
     def test_postgresql_publication_receipt_cannot_be_bypassed(self) -> None:

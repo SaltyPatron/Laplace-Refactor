@@ -93,6 +93,10 @@ LAPLACE_API const laplace_machine_exception_descriptor*
 laplace_machine_exception_find(uint32_t condition);
 
 LAPLACE_API laplace_machine_exception_status
+laplace_machine_exception_descriptor_validate(
+    const laplace_machine_exception_descriptor* descriptor);
+
+LAPLACE_API laplace_machine_exception_status
 laplace_machine_exception_registry_validate(void);
 
 LAPLACE_API laplace_machine_exception_status laplace_machine_exception_classify(

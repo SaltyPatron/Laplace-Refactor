@@ -9,6 +9,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -35,7 +36,7 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
     def assert_cleanup_step(self, workflow: str, names: tuple[str, ...]) -> None:
         self.assertGreaterEqual(workflow.count("tools/delivery/proof_workspace_cleanup.py"), 2)
         cleanup_index = workflow.rindex("tools/delivery/proof_workspace_cleanup.py")
-        cleanup_prefix = workflow[max(0, cleanup_index - 240):cleanup_index]
+        cleanup_prefix = workflow[max(0, cleanup_index - 900):cleanup_index]
         self.assertIn("if: always()", cleanup_prefix)
         for name in names:
             self.assertIn(f"--name {name}", workflow[cleanup_index:])
@@ -73,6 +74,27 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
         self.assertEqual(first["results"][0]["state"], "absent")
         self.assertEqual(second["results"][0]["state"], "absent")
 
+    def test_discovers_only_exact_postgresql_disposable_namespaces(self) -> None:
+        expected = (
+            self.root / "laplace-postgres-test.Abc123",
+            self.root / "lp-pg.XyZ789",
+        )
+        for target in expected:
+            target.mkdir()
+        (self.root / "laplace-output").mkdir()
+        (self.root / "lp-pg-invalid").mkdir()
+
+        self.assertEqual(
+            CLEANUP.discover_names(
+                self.root, ["laplace-postgres-test.", "lp-pg."]
+            ),
+            ["laplace-postgres-test.Abc123", "lp-pg.XyZ789"],
+        )
+
+    def test_deliberate_broad_discovery_prefix_is_rejected(self) -> None:
+        with self.assertRaisesRegex(CLEANUP.CleanupError, "unsafe.*discovery prefix"):
+            CLEANUP.discover_names(self.root, ["laplace-"])
+
     def test_stale_workspace_can_be_recovered_after_minimum_age(self) -> None:
         target = self.root / "laplace-output"
         target.mkdir()
@@ -88,6 +110,41 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
         self.assertEqual(receipt["results"][0]["state"], "removed")
         self.assertFalse(target.exists())
 
+    def test_discovered_inaccessible_stale_residue_is_reported_not_promoted(self) -> None:
+        target = self.root / "lp-pg.OldResidue"
+        target.mkdir()
+        old = time.time() - 600
+        os.utime(target, (old, old))
+        denied = PermissionError(13, "Permission denied", str(target))
+        with mock.patch.object(CLEANUP, "_remove_entry", side_effect=denied):
+            receipt = CLEANUP.cleanup(
+                self.root,
+                [target.name],
+                minimum_age_seconds=300,
+                proc_root=self.root / "no-proc",
+                report_inaccessible_names=frozenset((target.name,)),
+            )
+        result = receipt["results"][0]
+        self.assertEqual(result["state"], "inaccessible")
+        self.assertEqual(result["reason"], "permission-denied")
+        self.assertEqual(result["removed_entries"], 0)
+        self.assertTrue(target.exists())
+
+    def test_explicit_inaccessible_workspace_still_fails_cleanup(self) -> None:
+        target = self.root / "laplace-output"
+        target.mkdir()
+        denied = PermissionError(13, "Permission denied", str(target))
+        with mock.patch.object(CLEANUP, "_remove_entry", side_effect=denied):
+            with self.assertRaisesRegex(
+                CLEANUP.CleanupError, "cannot remove explicitly named"
+            ):
+                CLEANUP.cleanup(
+                    self.root,
+                    [target.name],
+                    proc_root=self.root / "no-proc",
+                )
+        self.assertTrue(target.exists())
+
     def test_workflows_sweep_interrupted_residue_and_cleanup_terminal_workspaces(self) -> None:
         custom_names = (
             "laplace-sources",
@@ -100,11 +157,19 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
         custom = CUSTOM_STACK.read_text(encoding="utf-8")
         self.assert_stale_sweep(custom, custom_names)
         self.assert_cleanup_step(custom, custom_names)
+        self.assertGreaterEqual(
+            custom.count("--discover-prefix laplace-postgres-test."), 2
+        )
+        self.assertGreaterEqual(custom.count("--discover-prefix lp-pg."), 2)
 
         postgres_names = ("laplace-postgresql-product-proof",)
         postgres = POSTGRESQL_PRODUCT.read_text(encoding="utf-8")
         self.assert_stale_sweep(postgres, postgres_names)
         self.assert_cleanup_step(postgres, postgres_names)
+        self.assertGreaterEqual(
+            postgres.count("--discover-prefix laplace-postgres-test."), 2
+        )
+        self.assertGreaterEqual(postgres.count("--discover-prefix lp-pg."), 2)
 
         package_names = ("laplace-package-product-proof",)
         package = PACKAGE_PRODUCT.read_text(encoding="utf-8")
@@ -177,6 +242,21 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
         with self.assertRaisesRegex(CLEANUP.CleanupError, "refusing active workspace"):
             CLEANUP.cleanup(self.root, [target.name], proc_root=proc_root)
         self.assertEqual(marker.read_text(encoding="utf-8"), "keep\n")
+
+    def test_deleted_inode_reference_cannot_claim_recreated_workspace(self) -> None:
+        target = self.root / "laplace-output"
+        target.mkdir()
+        marker = target / "current"
+        marker.write_text("current generation\n", encoding="utf-8")
+        proc_root = self.root / "proc"
+        fd_root = proc_root / "1234/fd"
+        fd_root.mkdir(parents=True)
+        (fd_root / "7").symlink_to(f"{marker} (deleted)")
+
+        receipt = CLEANUP.cleanup(self.root, [target.name], proc_root=proc_root)
+
+        self.assertEqual(receipt["results"][0]["state"], "removed")
+        self.assertFalse(target.exists())
 
     def test_deliberate_cross_device_entry_is_rejected_before_deletion(self) -> None:
         target = self.root / "laplace-package-product-proof"

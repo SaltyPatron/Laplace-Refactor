@@ -140,7 +140,11 @@ def validate_contract(contract: dict[str, Any]) -> None:
     product = contract.get("product")
     operation = contract.get("operation")
     trusted = contract.get("trusted_bundle")
-    if not all(isinstance(value, dict) for value in (repository, request, gateway, product, operation, trusted)):
+    local_administrator = contract.get("local_administrator")
+    if not all(isinstance(value, dict) for value in (
+        repository, request, gateway, product, operation, trusted,
+        local_administrator,
+    )):
         raise ActivationGatewayError("activation gateway contract sections are incomplete")
     if repository.get("runner_user") != repository.get("runner_group"):
         raise ActivationGatewayError("runner user and group must share one service identity")
@@ -148,6 +152,13 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ActivationGatewayError("request/result schema declaration differs")
     if request.get("hmac_algorithm") != "HMAC-SHA-256" or request.get("hmac_domain") != REQUEST_SCHEMA:
         raise ActivationGatewayError("activation request authentication law differs")
+    if local_administrator != {
+        "enabled": True,
+        "actor": "local-system-administrator",
+        "workflow_run_id": 0,
+        "workflow_run_attempt": 0,
+    }:
+        raise ActivationGatewayError("local administrator activation route differs")
     maximum = request.get("maximum_bytes")
     age = request.get("maximum_age_seconds")
     if not isinstance(maximum, int) or maximum < 4096 or maximum > 1024 * 1024:
@@ -418,6 +429,49 @@ def build_request(
     return request
 
 
+def build_local_administrator_request(
+    contract: dict[str, Any],
+    package_receipt_path: Path,
+    resource_observation_path: Path,
+    key: bytes,
+    now: dt.datetime,
+) -> dict[str, Any]:
+    """Bind a root-local activation to the same exact package inputs as CI."""
+    validate_contract(contract)
+    selected_package, selected_resource = delivery_selection_from_receipts(
+        contract, package_receipt_path, resource_observation_path
+    )
+    manifest = load_json(Path(selected_package["manifest"]))
+    provenance = manifest.get("provenance")
+    commit = provenance.get("repository_commit") if isinstance(provenance, dict) else None
+    require_hex(commit, HEX_40, "package repository commit")
+    local = contract["local_administrator"]
+    payload = {
+        "schema": REQUEST_SCHEMA,
+        "operation": contract["operation"]["name"],
+        "created_utc": now.astimezone(dt.timezone.utc).replace(
+            microsecond=0
+        ).isoformat().replace("+00:00", "Z"),
+        "repository": {
+            "slug": contract["repository"]["slug"],
+            "ref": contract["repository"]["deployment_ref"],
+            "commit": commit,
+            "workflow_run_id": local["workflow_run_id"],
+            "workflow_run_attempt": local["workflow_run_attempt"],
+            "actor": local["actor"],
+        },
+        "contract_sha256": sha256_bytes(canonical_bytes(contract)),
+        "package": selected_package,
+        "resource_observation": selected_resource,
+        "unicode": {"source_root": contract["product"]["unicode_source_root"]},
+    }
+    validate_physical_inputs(contract, payload)
+    request = {"schema": REQUEST_SCHEMA, "payload": payload}
+    request["request_id"] = sha256_bytes(canonical_bytes(payload))
+    request["hmac_sha256"] = request_mac(contract, payload, key)
+    return request
+
+
 def validate_request(
     contract: dict[str, Any], request: dict[str, Any], key: bytes, now: dt.datetime
 ) -> dict[str, Any]:
@@ -475,6 +529,30 @@ def validate_request(
     if repository.get("slug") != authority["slug"] or repository.get("ref") != authority["deployment_ref"]:
         raise ActivationGatewayError("activation request repository authority differs")
     require_hex(repository.get("commit"), HEX_40, "request commit")
+    local = contract["local_administrator"]
+    if repository.get("actor") == local["actor"]:
+        if (
+            repository.get("workflow_run_id") != local["workflow_run_id"]
+            or repository.get("workflow_run_attempt")
+            != local["workflow_run_attempt"]
+        ):
+            raise ActivationGatewayError("local administrator request identity differs")
+        manifest = load_json(Path(payload["package"]["manifest"]))
+        provenance = manifest.get("provenance")
+        if (
+            not isinstance(provenance, dict)
+            or provenance.get("repository_commit") != repository.get("commit")
+        ):
+            raise ActivationGatewayError(
+                "local administrator request commit differs from the package"
+            )
+    elif (
+        not isinstance(repository.get("workflow_run_id"), int)
+        or repository["workflow_run_id"] <= 0
+        or not isinstance(repository.get("workflow_run_attempt"), int)
+        or repository["workflow_run_attempt"] <= 0
+    ):
+        raise ActivationGatewayError("workflow request identity is invalid")
     created = parse_utc(payload.get("created_utc"))
     current = now.astimezone(dt.timezone.utc)
     age = (current - created).total_seconds()
@@ -513,6 +591,7 @@ def validate_cluster_success(contract: dict[str, Any], result: dict[str, Any], p
         or result.get("phase") != operation["cluster_success_phase"]
         or result.get("package_id") != package_id
         or result.get("restart_proven") is not True
+        or result.get("boot_enabled") is not True
         or result.get("active_target") != f"releases/{package_id}"
         or result.get("activation_receipt_sha256") != document_identity(result, "activation_receipt_sha256")
     ):
@@ -774,6 +853,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     create.add_argument("--output", required=True)
     execute = subparsers.add_parser("execute-request")
     execute.add_argument("--contract")
+    local = subparsers.add_parser("execute-local-selection")
+    local.add_argument("--product-receipt", required=True)
+    local.add_argument("--resource-observation", required=True)
     subparsers.add_parser("probe")
     return parser.parse_args(argv)
 
@@ -812,7 +894,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not key_path.is_file() or key_path.is_symlink() or (key_path.stat().st_mode & 0o077) != 0:
         raise ActivationGatewayError("root deployment secret is absent or has unsafe permissions")
     key = decode_key(key_path.read_text(encoding="ascii").strip())
-    request = parse_json(read_stdin_bounded(contract["request"]["maximum_bytes"]))
+    if arguments.command == "execute-local-selection":
+        request = build_local_administrator_request(
+            contract,
+            Path(arguments.product_receipt),
+            Path(arguments.resource_observation),
+            key,
+            dt.datetime.now(dt.timezone.utc),
+        )
+    else:
+        request = parse_json(read_stdin_bounded(contract["request"]["maximum_bytes"]))
     result = execute_request(contract, request, key, bundle, dt.datetime.now(dt.timezone.utc))
     sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
     return 0

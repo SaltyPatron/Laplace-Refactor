@@ -1,0 +1,99 @@
+{
+  "schema": "laplace.postgresql-host-contract/v1",
+  "version": "1.0.0",
+  "postgresql": {
+    "supported_major_versions": [
+      18
+    ],
+    "exact_package_version_required": true,
+    "patch_binary_compatibility_assumed": false,
+    "package_layout": "pgsql-{major}",
+    "binary_candidates": [
+      "/opt/laplace/current/pgsql-*/bin",
+      "/opt/laplace/releases/*/pgsql-*/bin",
+      "/opt/laplace/pgsql-*/bin",
+      "/usr/lib/postgresql/*/bin",
+      "/usr/pgsql-*/bin",
+      "/usr/local/pgsql-*/bin"
+    ]
+  },
+  "discovery": {
+    "process_root": "/proc",
+    "systemd_unit_roots": [
+      "/etc/systemd/system",
+      "/run/systemd/system",
+      "/usr/lib/systemd/system",
+      "/lib/systemd/system"
+    ],
+    "mountinfo": "/proc/self/mountinfo",
+    "postgresql_service_name_fragments": [
+      "laplace",
+      "postgres"
+    ],
+    "routing_providers": {
+      "haproxy": {
+        "binary_candidates": [
+          "/usr/sbin/haproxy",
+          "/usr/local/sbin/haproxy"
+        ],
+        "service_fragments": [
+          "haproxy"
+        ]
+      },
+      "keepalived": {
+        "binary_candidates": [
+          "/usr/sbin/keepalived",
+          "/usr/local/sbin/keepalived"
+        ],
+        "service_fragments": [
+          "keepalived"
+        ]
+      },
+      "patroni": {
+        "binary_candidates": [
+          "/usr/bin/patroni",
+          "/usr/local/bin/patroni"
+        ],
+        "service_fragments": [
+          "patroni"
+        ]
+      },
+      "pgbouncer": {
+        "binary_candidates": [
+          "/usr/bin/pgbouncer",
+          "/usr/local/bin/pgbouncer"
+        ],
+        "service_fragments": [
+          "pgbouncer"
+        ]
+      },
+      "repmgr": {
+        "binary_candidates": [
+          "/usr/bin/repmgr",
+          "/usr/local/bin/repmgr"
+        ],
+        "service_fragments": [
+          "repmgr"
+        ]
+      }
+    }
+  },
+  "topology": {
+    "modes": [
+      "adopt",
+      "create",
+      "external"
+    ],
+    "routing_modes": [
+      "direct-tcp",
+      "direct-unix",
+      "external-haproxy",
+      "external-pgbouncer"
+    ],
+    "create_requires_unclaimed_targets": true,
+    "adopt_requires_exact_system_identifier": true,
+    "adopt_requires_exact_server_version": true,
+    "adopt_requires_loaded_extension_proof": true,
+    "external_requires_authority_receipt": true
+  }
+}

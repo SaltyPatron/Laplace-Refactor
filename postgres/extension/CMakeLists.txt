@@ -32,15 +32,49 @@ configure_file(
 file(READ "${source_structural_witness_sql}"
     LAPLACE_SOURCE_STRUCTURAL_WITNESS_SQL)
 file(APPEND "${extension_sql}"
-    "\n${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SQL}\n")
+    "\
+${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SQL}\
+")
+
+set(LAPLACE_MACHINE_EXCEPTION_SCHEMA
+    "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
+set(machine_exception_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/machine_exception.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/machine_exception.sql.in"
+    "${machine_exception_sql}"
+    @ONLY)
+file(READ "${machine_exception_sql}"
+    LAPLACE_MACHINE_EXCEPTION_SQL)
+file(APPEND "${extension_sql}"
+    "\
+${LAPLACE_MACHINE_EXCEPTION_SQL}\
+")
+
+set(LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA
+    "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
+set(source_admission_metrics_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/source_admission_metrics.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/source_admission_metrics.sql.in"
+    "${source_admission_metrics_sql}"
+    @ONLY)
+file(READ "${source_admission_metrics_sql}"
+    LAPLACE_SOURCE_ADMISSION_METRICS_SQL)
+file(APPEND "${extension_sql}"
+    "\
+${LAPLACE_SOURCE_ADMISSION_METRICS_SQL}\
+")
 
 set(laplace_postgresql_module_sources
     src/cognition_isa_pg.c
     src/composition_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
+    src/standing_calculation_pg.c
     src/highway_registry_pg.c
     src/laplace_pg.c
+    src/machine_exception_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c
     src/perfcache_pg.c
@@ -49,6 +83,7 @@ set(laplace_postgresql_module_sources
     src/set_pg.c
     src/source_admission_pg.c
     src/source_profile_pg.c
+    src/stock_recipe_pg.c
     src/source_structural_witness_pg.c
     src/unicode_perfcache_pg.c
     src/unicode_atoms_pg.c
@@ -62,8 +97,8 @@ function(laplace_configure_postgresql_module target)
     target_include_directories(${target} PRIVATE
         "${CMAKE_BINARY_DIR}/generated")
     target_link_libraries(${target} PRIVATE
-        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::Persistence
-        Laplace::Perfcache Laplace::UnicodeNumeric)
+        BLAKE3::blake3 Laplace::Composition Laplace::Isa Laplace::MachineException
+        Laplace::Persistence Laplace::Perfcache Laplace::UnicodeNumeric)
     target_compile_definitions(${target} PRIVATE
         LAPLACE_UNICODE_SOURCE_ROOT="${LAPLACE_UNICODE_SOURCE_ROOT}")
     target_compile_options(${target} PRIVATE
@@ -144,6 +179,7 @@ if(BUILD_TESTING)
         LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_replay_receipt_mutant
         LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_replay_receipt_mutant
         LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_replay_receipt_mutant
+        LAPLACE_PG_COMPOSITION_PERSIST_RECEIPT_SYMBOL=laplace_pg_composition_persist_receipt_replay_receipt_mutant
         LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL=laplace_pg_persistence_run_producer_replay_receipt_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_evidence_root_replay_mutant
@@ -157,6 +193,18 @@ if(BUILD_TESTING)
     target_compile_definitions(
         laplace_pg_evidence_testimony_replay_mutant PRIVATE
         LAPLACE_PG_EVIDENCE_TESTIMONY_ENTRYPOINT=laplace_pg_evidence_record_testimony_replay_mutant)
+    laplace_add_postgresql_mutant(
+        laplace_pg_standing_replay_mutant
+        LAPLACE_TEST_STANDING_REPLAY_VERIFY_BYPASS)
+    target_compile_definitions(
+        laplace_pg_standing_replay_mutant PRIVATE
+        LAPLACE_PG_STANDING_ENTRYPOINT=laplace_pg_evidence_calculate_standing_replay_mutant)
+    laplace_add_postgresql_mutant(
+        laplace_pg_standing_admission_mutant
+        LAPLACE_TEST_STANDING_ADMISSION_BYPASS)
+    target_compile_definitions(
+        laplace_pg_standing_admission_mutant PRIVATE
+        LAPLACE_PG_STANDING_ENTRYPOINT=laplace_pg_evidence_calculate_standing_admission_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_source_profile_replay_mutant
         LAPLACE_TEST_SOURCE_PROFILE_REPLAY_VERIFY_BYPASS)
@@ -172,6 +220,9 @@ if(BUILD_TESTING)
     laplace_add_postgresql_mutant(
         laplace_pg_unicode_access_epoch_mutant
         LAPLACE_TEST_UNICODE_ACCESS_IGNORE_EXPECTED_EPOCH)
+    laplace_add_postgresql_mutant(
+        laplace_pg_machine_exception_drift_mutant
+        LAPLACE_TEST_PG_MACHINE_EXCEPTION_CAPABILITY_DRIFT)
 endif()
 
 install(TARGETS laplace_pg

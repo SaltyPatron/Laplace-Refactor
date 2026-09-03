@@ -170,3 +170,27 @@ TEST(HighwayRegistry, GeneratedRowsAndMaterializationReceiptAreExact) {
                           other_context.activation_epoch_fingerprint.bytes,
                           sizeof(first.activation_epoch_fingerprint.bytes)), 0);
 }
+
+TEST(HighwayRegistry, AstRequestsEveryObservedOccurrenceExplicitly) {
+    auto context = laplace_test_context(12u);
+    laplace_highway_registry_receipt receipt{};
+    ASSERT_EQ(laplace_highway_registry_materialize(&context, &receipt),
+              LAPLACE_HIGHWAY_OK);
+    laplace_highway_registry_ast_plan* plan = nullptr;
+    ASSERT_EQ(laplace_highway_registry_ast_plan_create(
+                  &receipt.activation_epoch_fingerprint,
+                  &receipt.receipt_id,
+                  &plan),
+              LAPLACE_HIGHWAY_OK);
+    laplace_highway_registry_ast_view view{};
+    ASSERT_EQ(laplace_highway_registry_ast_plan_view(plan, &view),
+              LAPLACE_HIGHWAY_OK);
+    ASSERT_NE(view.requests, nullptr);
+    ASSERT_GT(view.request_count, 0U);
+    for (std::uint64_t index = 0U; index < view.request_count; ++index) {
+        EXPECT_EQ(view.requests[index].flags,
+                  LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE);
+    }
+    laplace_highway_registry_ast_plan_destroy(&plan);
+    EXPECT_EQ(plan, nullptr);
+}

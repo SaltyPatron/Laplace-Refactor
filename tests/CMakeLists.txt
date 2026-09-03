@@ -418,6 +418,35 @@ add_test(
 set_tests_properties(highway.mutation-release-scope-omission-detected PROPERTIES
     LABELS "implementation;highway;coordinate;mutation")
 
+add_library(laplace_highway_ast_occurrence_mutant STATIC
+    ../engine/src/highway_ast.cpp)
+target_include_directories(laplace_highway_ast_occurrence_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_highway_ast_occurrence_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_highway_ast_occurrence_mutant PRIVATE
+    LAPLACE_TEST_HIGHWAY_AST_OMIT_OCCURRENCE=1)
+target_compile_options(laplace_highway_ast_occurrence_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_highway_ast_occurrence_mutation_probe highway_tests.cpp)
+target_include_directories(laplace_highway_ast_occurrence_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_highway_ast_occurrence_mutation_probe PRIVATE
+    laplace_highway_ast_occurrence_mutant Laplace::Engine GTest::gtest_main)
+target_compile_options(laplace_highway_ast_occurrence_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME highway.mutation-implicit-registry-occurrence-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_highway_ast_occurrence_mutation_probe>"
+        "-DFILTER=HighwayRegistry.AstRequestsEveryObservedOccurrenceExplicitly"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    highway.mutation-implicit-registry-occurrence-detected PROPERTIES
+    LABELS "implementation;highway;ast;occurrence;mutation")
+
 add_executable(laplace_evidence_lineage_tests evidence_lineage_tests.cpp)
 target_link_libraries(laplace_evidence_lineage_tests PRIVATE
     Laplace::EvidenceLineage GTest::gtest_main)
@@ -606,6 +635,137 @@ target_compile_options(laplace_evidence_testimony_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_evidence_testimony_tests PROPERTIES
     LABELS "implementation;evidence;testimony;receipt")
+
+add_executable(laplace_standing_calculation_tests standing_calculation_tests.cpp)
+target_link_libraries(laplace_standing_calculation_tests PRIVATE
+    Laplace::StandingCalculation GTest::gtest_main)
+target_compile_options(laplace_standing_calculation_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_standing_calculation_tests PROPERTIES
+    LABELS "implementation;standing;glicko2;evidence;receipt")
+
+add_executable(laplace_stock_recipe_tests stock_recipe_tests.cpp)
+target_link_libraries(laplace_stock_recipe_tests PRIVATE
+    Laplace::StockRecipe GTest::gtest_main)
+target_compile_options(laplace_stock_recipe_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_stock_recipe_tests PROPERTIES
+    LABELS "implementation;recipe;source-profile;perfcache;catalog")
+
+add_library(laplace_stock_recipe_parent_mutant STATIC
+    ../engine/src/stock_recipe.c)
+target_include_directories(laplace_stock_recipe_parent_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_stock_recipe_parent_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_stock_recipe_parent_mutant PRIVATE
+    LAPLACE_TEST_STOCK_RECIPE_PARENT_BYPASS=1)
+target_compile_options(laplace_stock_recipe_parent_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+add_executable(laplace_stock_recipe_parent_mutation_probe stock_recipe_tests.cpp)
+target_include_directories(laplace_stock_recipe_parent_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_stock_recipe_parent_mutation_probe PRIVATE
+    laplace_stock_recipe_parent_mutant GTest::gtest_main)
+target_compile_options(laplace_stock_recipe_parent_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME stock-recipe.mutation-parent-bypass-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_stock_recipe_parent_mutation_probe>"
+        "-DFILTER=StockRecipe.RejectsOrphanAndCrossSourceHierarchy"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(stock-recipe.mutation-parent-bypass-detected PROPERTIES
+    LABELS "implementation;recipe;source-profile;mutation")
+
+add_library(laplace_standing_prior_reset_mutant STATIC
+    ../engine/src/standing_calculation.c)
+target_include_directories(laplace_standing_prior_reset_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_standing_prior_reset_mutant PRIVATE
+    BLAKE3::blake3 m)
+target_compile_definitions(laplace_standing_prior_reset_mutant PRIVATE
+    LAPLACE_TEST_STANDING_RESET_PRIOR=1)
+target_compile_options(laplace_standing_prior_reset_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes;-ffp-contract=off>)
+add_executable(laplace_standing_prior_reset_mutation_probe
+    standing_calculation_tests.cpp)
+target_include_directories(laplace_standing_prior_reset_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_standing_prior_reset_mutation_probe PRIVATE
+    laplace_standing_prior_reset_mutant GTest::gtest_main)
+target_compile_options(laplace_standing_prior_reset_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME standing-calculation.mutation-prior-reset-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_standing_prior_reset_mutation_probe>"
+        "-DFILTER=StandingCalculation.SuccessorConsumesPriorState"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(standing-calculation.mutation-prior-reset-detected PROPERTIES
+    LABELS "implementation;standing;glicko2;mutation")
+
+add_library(laplace_standing_neutral_opponent_mutant STATIC
+    ../engine/src/standing_calculation.c)
+target_include_directories(laplace_standing_neutral_opponent_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_standing_neutral_opponent_mutant PRIVATE
+    BLAKE3::blake3 m)
+target_compile_definitions(laplace_standing_neutral_opponent_mutant PRIVATE
+    LAPLACE_TEST_STANDING_NEUTRAL_OPPONENT=1)
+target_compile_options(laplace_standing_neutral_opponent_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes;-ffp-contract=off>)
+add_executable(laplace_standing_neutral_opponent_mutation_probe
+    standing_calculation_tests.cpp)
+target_include_directories(laplace_standing_neutral_opponent_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_standing_neutral_opponent_mutation_probe PRIVATE
+    laplace_standing_neutral_opponent_mutant GTest::gtest_main)
+target_compile_options(laplace_standing_neutral_opponent_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME standing-calculation.mutation-neutral-opponent-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_standing_neutral_opponent_mutation_probe>"
+        "-DFILTER=StandingCalculation.RealOpponentPriorChangesUpdate"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(standing-calculation.mutation-neutral-opponent-detected PROPERTIES
+    LABELS "implementation;standing;glicko2;mutation")
+
+add_library(laplace_standing_caller_mapping_mutant STATIC
+    ../engine/src/standing_calculation.c)
+target_include_directories(laplace_standing_caller_mapping_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_standing_caller_mapping_mutant PRIVATE
+    BLAKE3::blake3 m)
+target_compile_definitions(laplace_standing_caller_mapping_mutant PRIVATE
+    LAPLACE_TEST_STANDING_ACCEPT_CALLER_MAPPING=1)
+target_compile_options(laplace_standing_caller_mapping_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes;-ffp-contract=off>)
+add_executable(laplace_standing_caller_mapping_mutation_probe
+    standing_calculation_tests.cpp)
+target_include_directories(laplace_standing_caller_mapping_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_standing_caller_mapping_mutation_probe PRIVATE
+    laplace_standing_caller_mapping_mutant GTest::gtest_main)
+target_compile_options(laplace_standing_caller_mapping_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME standing-calculation.mutation-caller-mapping-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_standing_caller_mapping_mutation_probe>"
+        "-DFILTER=StandingCalculation.RejectsCallerInventedOutcomeMappingsAndScores"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    standing-calculation.mutation-caller-mapping-detected PROPERTIES
+    LABELS "implementation;standing;recipe;identity;mutation")
 
 add_library(laplace_evidence_testimony_profile_mutant STATIC
     ../engine/src/evidence_testimony.c)
@@ -1314,6 +1474,13 @@ set_tests_properties(postgresql-cluster.activation-contract PROPERTIES
     RUN_SERIAL TRUE)
 
 add_test(
+    NAME postgresql-host.inventory-and-selection-contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgresql_host_tests.py")
+set_tests_properties(postgresql-host.inventory-and-selection-contract PROPERTIES
+    LABELS "activation;installation;postgresql;discovery;topology;routing;mutation"
+    RUN_SERIAL TRUE)
+
+add_test(
     NAME unicode-product.activation-contract
     COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/unicode_product_activation_tests.py"
@@ -1336,6 +1503,22 @@ add_test(
         "${CMAKE_CURRENT_SOURCE_DIR}/product_activation_gateway_tests.py")
 set_tests_properties(product-activation.gateway-contract PROPERTIES
     LABELS "activation;delivery;product;postgresql;unicode;highway;security;mutation"
+    RUN_SERIAL TRUE)
+
+add_test(
+    NAME product-host.convergence-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/product_host_tests.py")
+set_tests_properties(product-host.convergence-contract PROPERTIES
+    LABELS "activation;delivery;product;host;installation;repair;security;mutation"
+    RUN_SERIAL TRUE)
+
+add_test(
+    NAME product-distribution.standalone-installer-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/product_distribution_tests.py")
+set_tests_properties(product-distribution.standalone-installer-contract PROPERTIES
+    LABELS "delivery;product;installation;distribution;package;mutation"
     RUN_SERIAL TRUE)
 
 add_test(
@@ -1439,6 +1622,7 @@ if(LAPLACE_ENABLE_DOTNET_BINDINGS)
         DEPENDS
             laplace_dotnet_bindings
             "${CMAKE_SOURCE_DIR}/Directory.Build.props"
+            "${CMAKE_SOURCE_DIR}/managed/Laplace.Managed/Abi.cs"
             "${laplace_dotnet_test_project}"
             "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/Program.cs"
         COMMENT "Building dependency-free managed/native ISA parity tests"
@@ -2070,9 +2254,11 @@ set_tests_properties(isa.preflight-atomicity-contract PROPERTIES
 add_library(laplace_isa_preflight_mutant STATIC
     ../engine/src/evidence_lineage.c
     ../engine/src/evidence_testimony.c
+    ../engine/src/standing_calculation.c
     ../engine/src/reference_topology.c
     ../engine/src/reference_mapping.c
     ../engine/src/source_profile.c
+    ../engine/src/stock_recipe.c
     ../engine/src/world_admission.c
     ../engine/src/identity.c
     ../engine/src/framework.c
@@ -2103,6 +2289,48 @@ add_test(
 set_tests_properties(isa.mutation-partial-preflight-detected PROPERTIES
     LABELS "isa;mutation")
 
+add_library(laplace_isa_standing_order_mutant STATIC
+    ../engine/src/evidence_lineage.c
+    ../engine/src/evidence_testimony.c
+    ../engine/src/standing_calculation.c
+    ../engine/src/reference_topology.c
+    ../engine/src/reference_mapping.c
+    ../engine/src/source_profile.c
+    ../engine/src/stock_recipe.c
+    ../engine/src/world_admission.c
+    ../engine/src/identity.c
+    ../engine/src/framework.c
+    ../engine/src/highway.c
+    ../engine/src/isa.c
+    ../engine/src/trajectory.c)
+target_include_directories(laplace_isa_standing_order_mutant
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include"
+        "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_isa_standing_order_mutant PRIVATE BLAKE3::blake3)
+target_compile_definitions(laplace_isa_standing_order_mutant
+    PRIVATE LAPLACE_TEST_STANDING_INPUT_ORDER_RECEIPT=1)
+target_compile_options(laplace_isa_standing_order_mutant PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-Wstrict-prototypes>)
+
+add_executable(laplace_isa_standing_order_mutation_probe
+    isa_tests.cpp)
+target_compile_definitions(laplace_isa_standing_order_mutation_probe
+    PRIVATE LAPLACE_TEST_STANDING_ISOLATED_MUTANT=1)
+target_link_libraries(laplace_isa_standing_order_mutation_probe
+    PRIVATE laplace_isa_standing_order_mutant GTest::gtest_main)
+target_compile_options(laplace_isa_standing_order_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME isa.mutation-standing-input-order-receipt-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_isa_standing_order_mutation_probe>"
+        "-DFILTER=IsaExecution.StandingMatchesCanonicalNativeOperationAndReceipt"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(
+    isa.mutation-standing-input-order-receipt-detected PROPERTIES
+    LABELS "isa;standing;receipt;mutation")
+
 add_executable(laplace_isa_registry_probe
     isa_registry_probe.cpp)
 target_link_libraries(laplace_isa_registry_probe PRIVATE Laplace::Isa)
@@ -2116,9 +2344,11 @@ set_tests_properties(isa.generated-registry-dispatch-contract PROPERTIES
 add_library(laplace_isa_registry_mutant STATIC
     ../engine/src/evidence_lineage.c
     ../engine/src/evidence_testimony.c
+    ../engine/src/standing_calculation.c
     ../engine/src/reference_topology.c
     ../engine/src/reference_mapping.c
     ../engine/src/source_profile.c
+    ../engine/src/stock_recipe.c
     ../engine/src/world_admission.c
     ../engine/src/identity.c
     ../engine/src/framework.c
@@ -2162,9 +2392,11 @@ set_tests_properties(isa.execution-context-binding-contract PROPERTIES
 add_library(laplace_isa_context_mutant STATIC
     ../engine/src/evidence_lineage.c
     ../engine/src/evidence_testimony.c
+    ../engine/src/standing_calculation.c
     ../engine/src/reference_topology.c
     ../engine/src/reference_mapping.c
     ../engine/src/source_profile.c
+    ../engine/src/stock_recipe.c
     ../engine/src/world_admission.c
     ../engine/src/identity.c
     ../engine/src/framework.c
@@ -2517,6 +2749,30 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/world_admission_contract.sql"
         @ONLY)
     configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/standing_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_contract.sql"
+        @ONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/stock_recipe_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/stock_recipe_contract.sql"
+        @ONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/machine_exception_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/machine_exception_contract.sql"
+        COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/standing_replay_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_replay_mutation.sql"
+        COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/standing_admission_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_admission_mutation.sql"
+        COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/standing_dependence_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_dependence_mutation.sql"
+        COPYONLY)
+    configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/unicode_root_contract.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
         @ONLY)
@@ -2585,6 +2841,14 @@ if(LAPLACE_POSTGRES_ENABLED)
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/cili_source_admission_contract.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/cili_source_admission_contract.sql")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/source_admission_suite_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_suite_contract.sql"
+        COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/source_admission_active_control_mutation.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_active_control_mutation.sql"
+        COPYONLY)
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
@@ -2593,6 +2857,27 @@ if(LAPLACE_POSTGRES_ENABLED)
         Laplace::Persistence
         Laplace::ReferenceMapping)
     target_compile_options(laplace_postgres_native_receipt_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+    add_executable(laplace_postgres_standing_probe
+        postgres/standing_probe.cpp)
+    target_link_libraries(laplace_postgres_standing_probe PRIVATE
+        Laplace::StandingCalculation Laplace::Isa)
+    target_compile_options(laplace_postgres_standing_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+    add_executable(laplace_postgres_stock_recipe_probe
+        postgres/stock_recipe_probe.cpp)
+    target_link_libraries(laplace_postgres_stock_recipe_probe PRIVATE
+        Laplace::StockRecipe Laplace::Isa)
+    target_compile_options(laplace_postgres_stock_recipe_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+    add_executable(laplace_postgres_machine_exception_probe
+        postgres/machine_exception_probe.cpp)
+    target_link_libraries(laplace_postgres_machine_exception_probe PRIVATE
+        Laplace::MachineException)
+    target_compile_options(laplace_postgres_machine_exception_probe PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 
     add_executable(laplace_postgres_iso_639_profile_probe
@@ -2654,6 +2939,24 @@ if(LAPLACE_POSTGRES_ENABLED)
         RUN_SERIAL TRUE)
 
     add_test(
+        NAME postgres.reference-topology-byte-batch-contract
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            mutation
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/reference_topology_persistence_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.reference-topology-byte-batch-contract PROPERTIES
+        LABELS "implementation;postgresql;spi;reference-topology;persistence;bulk;performance;receipt"
+        TIMEOUT 120)
+
+    add_test(
         NAME postgres.composition-working-set-contract
         COMMAND "${LAPLACE_BASH_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
@@ -2685,6 +2988,142 @@ if(LAPLACE_POSTGRES_ENABLED)
             "${laplace_sanitizer_preload}")
     set_tests_properties(postgres.world-admission-whole-route-contract PROPERTIES
         LABELS "implementation;postgresql;world-admission;composition;evidence;testimony;receipt;cohesion"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.standing-persistent-whole-route-contract
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            standing
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_standing_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(postgres.standing-persistent-whole-route-contract PROPERTIES
+        LABELS "implementation;postgresql;standing;glicko2;isa;persistence;replay;receipt"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.stock-recipe-persistent-catalog-contract
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            stock-catalog
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_stock_recipe_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/stock_recipe_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.stock-recipe-persistent-catalog-contract PROPERTIES
+        LABELS "implementation;postgresql;recipe;perfcache;isa;persistence;replay;receipt"
+        RUN_SERIAL TRUE
+        ENVIRONMENT
+            "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/postgres;LAPLACE_POSTGRES_TEST_PORT=55439")
+
+    add_test(
+        NAME postgres.machine-exception-registry-route-contract
+        COMMAND "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            machine-exception
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_machine_exception_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/machine_exception_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.machine-exception-registry-route-contract PROPERTIES
+        LABELS "implementation;postgresql;machine-exception;registry;parity"
+        RUN_SERIAL TRUE
+        ENVIRONMENT
+            "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/postgres;LAPLACE_POSTGRES_TEST_PORT=55440")
+
+    add_test(
+        NAME postgres.mutation-machine-exception-route-drift-detected
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "LAPLACE_MUTANT_MODULE=$<TARGET_FILE:laplace_pg_machine_exception_drift_mutant>"
+            "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            machine-exception-mutation
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_machine_exception_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/machine_exception_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.mutation-machine-exception-route-drift-detected PROPERTIES
+        LABELS "implementation;postgresql;machine-exception;registry;parity;mutation"
+        RUN_SERIAL TRUE
+        ENVIRONMENT
+            "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/postgres;LAPLACE_POSTGRES_TEST_PORT=55441")
+
+    add_test(
+        NAME postgres.mutation-standing-replay-conflict-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_standing_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_standing_replay_mutant>"
+            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_replay_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_standing_mutation_failure.cmake")
+    set_tests_properties(postgres.mutation-standing-replay-conflict-detected PROPERTIES
+        LABELS "postgresql;standing;persistence;replay;mutation"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.mutation-standing-admission-bypass-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_standing_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "-DMUTANT_MODULE=$<TARGET_FILE:laplace_pg_standing_admission_mutant>"
+            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_admission_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_standing_admission_mutation_failure.cmake")
+    set_tests_properties(postgres.mutation-standing-admission-bypass-detected PROPERTIES
+        LABELS "postgresql;standing;authority;evidence-epoch;persistence;mutation"
+        RUN_SERIAL TRUE)
+
+    add_test(
+        NAME postgres.mutation-standing-dependence-history-detected
+        COMMAND "${CMAKE_COMMAND}"
+            "-DBASH=${LAPLACE_BASH_EXECUTABLE}"
+            "-DRUNNER=${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            "-DPG_BINDIR=${LAPLACE_POSTGRES_BINDIR}"
+            "-DCONTROL_ROOT=$<TARGET_FILE_DIR:laplace_pg>/share"
+            "-DMODULE_DIRECTORY=$<TARGET_FILE_DIR:laplace_pg>"
+            "-DENGINE_DIRECTORY=$<TARGET_FILE_DIR:laplace_engine>"
+            "-DNATIVE_PROBE=$<TARGET_FILE:laplace_postgres_standing_probe>"
+            "-DPERFCACHE_PROBE=$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "-DSQL_FILE=${CMAKE_CURRENT_BINARY_DIR}/postgres/standing_dependence_mutation.sql"
+            "-DSANITIZER_PRELOAD=${laplace_sanitizer_preload}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_postgres_standing_dependence_mutation_failure.cmake")
+    set_tests_properties(
+        postgres.mutation-standing-dependence-history-detected PROPERTIES
+        LABELS "postgresql;standing;dependence;persistence;mutation"
         RUN_SERIAL TRUE)
 
     set(composition_measurement_receipt
@@ -2722,89 +3161,28 @@ if(LAPLACE_POSTGRES_ENABLED)
         RUN_SERIAL TRUE)
 
     add_test(
-        NAME postgres.unicode-root-persistence-contract
-        COMMAND "${CMAKE_COMMAND}" -E env
-            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
-            "${LAPLACE_BASH_EXECUTABLE}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
-            unicode-root
-            "${LAPLACE_POSTGRES_BINDIR}"
-            "$<TARGET_FILE_DIR:laplace_pg>/share"
-            "$<TARGET_FILE_DIR:laplace_pg>"
-            "$<TARGET_FILE_DIR:laplace_engine>"
-            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
-            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
-            "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
-            "${laplace_sanitizer_preload}")
-    set_tests_properties(postgres.unicode-root-persistence-contract PROPERTIES
-        LABELS "implementation;postgresql;spi;unicode;root;persistence;perfcache;receipt"
-        RUN_SERIAL TRUE
-        SKIP_RETURN_CODE 77
-        TIMEOUT 1800)
-
-    add_test(
-        NAME postgres.source-admission-whole-route-contract
-        COMMAND "${CMAKE_COMMAND}" -E env
-            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
-            "${LAPLACE_BASH_EXECUTABLE}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
-            source-admission
-            "${LAPLACE_POSTGRES_BINDIR}"
-            "$<TARGET_FILE_DIR:laplace_pg>/share"
-            "$<TARGET_FILE_DIR:laplace_pg>"
-            "$<TARGET_FILE_DIR:laplace_engine>"
-            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
-            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
-            "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_contract.sql"
-            "${laplace_sanitizer_preload}")
-    set_tests_properties(postgres.source-admission-whole-route-contract PROPERTIES
-        LABELS "implementation;postgresql;unicode;source-profile;grammar;composition;evidence;testimony;world-admission;replay;rollback;receipt;cohesion"
-        RUN_SERIAL TRUE
-        SKIP_RETURN_CODE 77
-        TIMEOUT 1800)
-
-    add_test(
-        NAME postgres.iso-639-source-admission-whole-route-contract
+        NAME postgres.source-admission-suite-whole-route-contract
         COMMAND "${CMAKE_COMMAND}" -E env
             "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
             "LAPLACE_ISO_639_SOURCE_ROOT=${LAPLACE_ISO_639_SOURCE_ROOT}"
-            "${LAPLACE_BASH_EXECUTABLE}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
-            iso-639-admission
-            "${LAPLACE_POSTGRES_BINDIR}"
-            "$<TARGET_FILE_DIR:laplace_pg>/share"
-            "$<TARGET_FILE_DIR:laplace_pg>"
-            "$<TARGET_FILE_DIR:laplace_engine>"
-            "$<TARGET_FILE:laplace_postgres_iso_639_profile_probe>"
-            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
-            "${CMAKE_CURRENT_BINARY_DIR}/postgres/iso_639_source_admission_contract.sql"
-            "${laplace_sanitizer_preload}")
-    set_tests_properties(
-        postgres.iso-639-source-admission-whole-route-contract PROPERTIES
-        LABELS "implementation;postgresql;unicode;source-profile;iso-639;grammar;composition;evidence;testimony;world-admission;replay;rollback;receipt;cohesion"
-        RUN_SERIAL TRUE
-        SKIP_RETURN_CODE 77
-        TIMEOUT 1800)
-
-    add_test(
-        NAME postgres.cili-source-admission-whole-route-contract
-        COMMAND "${CMAKE_COMMAND}" -E env
-            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
             "LAPLACE_CILI_SOURCE_ROOT=${LAPLACE_CILI_SOURCE_ROOT}"
+            "LAPLACE_SOURCE_ADMISSION_PROBE=$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "LAPLACE_ISO_639_PROFILE_PROBE=$<TARGET_FILE:laplace_postgres_iso_639_profile_probe>"
+            "LAPLACE_CILI_PROFILE_PROBE=$<TARGET_FILE:laplace_postgres_cili_profile_probe>"
             "${LAPLACE_BASH_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
-            cili-admission
+            source-admission-suite
             "${LAPLACE_POSTGRES_BINDIR}"
             "$<TARGET_FILE_DIR:laplace_pg>/share"
             "$<TARGET_FILE_DIR:laplace_pg>"
             "$<TARGET_FILE_DIR:laplace_engine>"
-            "$<TARGET_FILE:laplace_postgres_cili_profile_probe>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
             "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
-            "${CMAKE_CURRENT_BINARY_DIR}/postgres/cili_source_admission_contract.sql"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_suite_contract.sql"
             "${laplace_sanitizer_preload}")
     set_tests_properties(
-        postgres.cili-source-admission-whole-route-contract PROPERTIES
-        LABELS "implementation;postgresql;unicode;source-profile;cili;grammar;composition;evidence;testimony;reference-topology;reference-mapping;world-admission;replay;rollback;receipt;cohesion"
+        postgres.source-admission-suite-whole-route-contract PROPERTIES
+        LABELS "implementation;postgresql;spi;unicode;root;persistence;perfcache;source-profile;iso-639;cili;grammar;composition;evidence;testimony;reference-topology;reference-mapping;world-admission;replay;rollback;receipt;cohesion"
         RUN_SERIAL TRUE
         SKIP_RETURN_CODE 77
         TIMEOUT 3600)
@@ -2944,7 +3322,7 @@ if(LAPLACE_POSTGRES_ENABLED)
         postgres.mutation-composition-presence-blind-detected
         laplace_pg_composition_presence_blind_mutant
         composition_presence_blind_mutation.sql
-        "Laplace persistence producer execution diverged from preflight")
+        "Laplace persistence producer execution failed")
     laplace_add_postgresql_composition_mutation(
         postgres.mutation-composition-presence-per-row-detected
         laplace_pg_composition_presence_per_row_mutant
@@ -3080,6 +3458,18 @@ if(UNIX)
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/installed_provider_lock_tests.py")
     set_tests_properties(dependencies.installed-provider-contract PROPERTIES
         LABELS "implementation;package;dependencies;oneapi;mutation")
+
+    add_test(
+        NAME delivery.runner-orphan-cleanup-contract
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/runner_orphan_cleanup_tests.py")
+    set_tests_properties(delivery.runner-orphan-cleanup-contract PROPERTIES
+        LABELS "implementation;delivery;runner;cleanup;mutation")
+
+    add_test(
+        NAME postgres.source-resource-guard-contract
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/postgres_resource_guard_tests.py")
+    set_tests_properties(postgres.source-resource-guard-contract PROPERTIES
+        LABELS "implementation;postgresql;source;resources;cleanup;mutation")
 
     find_program(LAPLACE_BASH_EXECUTABLE bash REQUIRED)
     add_test(

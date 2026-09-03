@@ -282,7 +282,7 @@ SELECT
         (0,left_kind,left_index),(1,right_kind,right_index))
         AS operand(operand_slot,reference_kind,reference_index)) AS operands,
     (SELECT array_agg(
-        ROW(result_index * 2,2::numeric,result_index + 1,1,0,
+        ROW(result_index * 2,2::numeric,result_index + 1,1,1,
             decode(repeat('b1',32),'hex'),decode(repeat('c1',32),'hex'),
             decode(repeat('d1',32),'hex'))::laplace.composition_request_record
         ORDER BY result_index)
@@ -434,18 +434,43 @@ int main(int argc, char** argv) {
                 }
                 return std::string(PQgetvalue(result.get(), 0, column));
             };
-            if (Unsigned(field(4)) != ExpectedEntities ||
-                Unsigned(field(5)) != ExpectedPhysicalities ||
-                Unsigned(field(6)) != ExpectedVertices ||
-                Unsigned(field(7)) != ExpectedOccurrences ||
-                Unsigned(field(8)) != ExpectedStreamRecords ||
-                Unsigned(field(10)) != ExpectedEntities ||
-                Unsigned(field(11)) != ExpectedPhysicalities ||
-                Unsigned(field(12)) != ExpectedVertices ||
-                Unsigned(field(13)) != ExpectedOccurrences ||
-                Unsigned(field(14)) != 11U || Unsigned(field(15)) != 5U ||
-                Unsigned(field(16)) != 1U || Unsigned(field(18)) != 0U) {
-                throw std::runtime_error("whole-boundary durable counts changed");
+            const auto unique_entities = Unsigned(field(4));
+            const auto unique_physicalities = Unsigned(field(5));
+            const auto trajectory_vertices = Unsigned(field(6));
+            const auto occurrences = Unsigned(field(7));
+            const auto stream_records = Unsigned(field(8));
+            const auto inserted_entities = Unsigned(field(10));
+            const auto inserted_physicalities = Unsigned(field(11));
+            const auto inserted_vertices = Unsigned(field(12));
+            const auto inserted_occurrences = Unsigned(field(13));
+            const auto plan_count = Unsigned(field(14));
+            const auto entity_presence_rounds = Unsigned(field(15));
+            const auto physicality_presence_rounds = Unsigned(field(16));
+            const auto operation_status = Unsigned(field(18));
+            if (unique_entities != ExpectedEntities ||
+                unique_physicalities != ExpectedPhysicalities ||
+                trajectory_vertices != ExpectedVertices ||
+                occurrences != ExpectedOccurrences ||
+                stream_records != ExpectedStreamRecords ||
+                inserted_entities != ExpectedEntities ||
+                inserted_physicalities != ExpectedPhysicalities ||
+                inserted_vertices != ExpectedVertices ||
+                inserted_occurrences != ExpectedOccurrences ||
+                plan_count != 11U || entity_presence_rounds != 5U ||
+                physicality_presence_rounds != 1U || operation_status != 0U) {
+                std::ostringstream error;
+                error << "whole-boundary durable counts changed: entities="
+                      << unique_entities << '/' << inserted_entities
+                      << " physicalities=" << unique_physicalities << '/'
+                      << inserted_physicalities << " vertices="
+                      << trajectory_vertices << '/' << inserted_vertices
+                      << " occurrences=" << occurrences << '/'
+                      << inserted_occurrences << " stream_records="
+                      << stream_records << " plans=" << plan_count
+                      << " presence_rounds=" << entity_presence_rounds << '/'
+                      << physicality_presence_rounds << " status="
+                      << operation_status;
+                throw std::runtime_error(error.str());
             }
             const auto durable_outputs = Unsigned(Scalar(
                 connection,

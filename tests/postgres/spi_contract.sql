@@ -857,6 +857,8 @@ DECLARE
     invalid_candidates laplace.reference_mapping_candidate[];
     invalid_candidate laplace.reference_mapping_candidate;
     rollback_candidates laplace.reference_mapping_candidate[];
+    bulk_candidates laplace.reference_mapping_candidate[];
+    bulk_result laplace.reference_mapping_result;
     result laplace.reference_mapping_result;
     replay laplace.reference_mapping_result;
     receipt_xmin xid;
@@ -969,7 +971,7 @@ BEGIN
             2, 1, 2, 1, 8, 1, 1, 6)::laplace.reference_mapping_candidate];
 
     result := laplace.reference_mapping_resolve_batch(
-        pg_temp.persistence_context(), candidates);
+        pg_temp.persistence_context(), candidates, 1048576::numeric);
     IF result.mapping_ids IS DISTINCT FROM expected.mapping_ids
        OR result.proposition_ids IS DISTINCT FROM expected.proposition_ids
        OR result.occurrence_ids IS DISTINCT FROM expected.occurrence_ids
@@ -983,7 +985,11 @@ BEGIN
        OR result.proposition_count <> 2
        OR result.resolved_count <> 2
        OR result.unresolved_count <> 1
-       OR result.retired_count <> 0 THEN
+       OR result.retired_count <> 0
+       OR result.persistence_batch_count <> 1
+       OR result.maximum_persistence_batch_records <> 3
+       OR result.maximum_encoded_persistence_batch_bytes > 1048576
+       OR result.minimum_encoded_persistence_record_bytes <= 0 THEN
         RAISE EXCEPTION 'PostgreSQL reference mapping differs from direct native ISA'
             USING DETAIL = result::text;
     END IF;
@@ -1003,7 +1009,7 @@ BEGIN
     FROM laplace.reference_mapping_receipt
     WHERE receipt_id = result.reference_mapping_receipt_id;
     replay := laplace.reference_mapping_resolve_batch(
-        pg_temp.persistence_context(), candidates);
+        pg_temp.persistence_context(), candidates, 1048576::numeric);
     IF replay IS DISTINCT FROM result OR NOT EXISTS (
         SELECT FROM laplace.reference_mapping_receipt
         WHERE receipt_id = result.reference_mapping_receipt_id
@@ -1016,7 +1022,7 @@ BEGIN
         SET left_disposition = 2
         WHERE occurrence_id = expected.occurrence_ids[1];
         PERFORM laplace.reference_mapping_resolve_batch(
-            pg_temp.persistence_context(), candidates);
+            pg_temp.persistence_context(), candidates, 1048576::numeric);
         RAISE EXCEPTION 'conflicting durable reference mapping was accepted';
     EXCEPTION
         WHEN data_corrupted THEN NULL;
@@ -1035,7 +1041,7 @@ BEGIN
     SELECT count(*) INTO execution_before FROM laplace.execution_receipt;
     BEGIN
         PERFORM laplace.reference_mapping_resolve_batch(
-            pg_temp.persistence_context(), invalid_candidates);
+            pg_temp.persistence_context(), invalid_candidates, 1048576::numeric);
         RAISE EXCEPTION 'reference mapping accepted a coordinate that conflicts with its durable reference';
     EXCEPTION
         WHEN data_corrupted THEN NULL;
@@ -1060,7 +1066,7 @@ BEGIN
     SELECT count(*) INTO execution_before FROM laplace.execution_receipt;
     BEGIN
         PERFORM laplace.reference_mapping_resolve_batch(
-            pg_temp.persistence_context(), rollback_candidates);
+            pg_temp.persistence_context(), rollback_candidates, 1048576::numeric);
         RAISE EXCEPTION 'force reference mapping transaction rollback';
     EXCEPTION
         WHEN raise_exception THEN NULL;
@@ -1070,6 +1076,104 @@ BEGIN
        OR (SELECT count(*) FROM laplace.reference_mapping_receipt) <> receipt_before
        OR (SELECT count(*) FROM laplace.execution_receipt) <> execution_before THEN
         RAISE EXCEPTION 'reference mapping rollback published partial durable state';
+    END IF;
+
+    WITH generated AS (
+        SELECT candidate_ordinal,
+               int8send(candidate_ordinal) || int8send(1) AS left_coordinate,
+               int8send(candidate_ordinal) || int8send(2) AS right_coordinate,
+               decode(repeat('d1', 16), 'hex') ||
+                   int8send(candidate_ordinal) || int8send(1) AS left_reference_id,
+               decode(repeat('d1', 16), 'hex') ||
+                   int8send(candidate_ordinal) || int8send(2) AS right_reference_id
+        FROM generate_series(1, 4096) candidate_ordinal
+    ), coordinates_to_insert AS (
+        SELECT 7 AS kind,
+               decode(repeat('b1', 16), 'hex') AS authority,
+               decode(repeat('b2', 16), 'hex') AS release,
+               decode(repeat('b3', 16), 'hex') AS namespace,
+               coordinate AS local_identifier,
+               1::numeric AS version,
+               coordinate,
+               coordinate || coordinate AS collision_fingerprint
+        FROM generated
+        CROSS JOIN LATERAL unnest(
+            ARRAY[left_coordinate, right_coordinate]) coordinate
+    )
+    INSERT INTO laplace.reference_coordinate(
+        kind, authority, release, namespace, local_identifier,
+        version, coordinate, collision_fingerprint)
+    SELECT * FROM coordinates_to_insert;
+
+    WITH generated AS (
+        SELECT candidate_ordinal,
+               side,
+               int8send(candidate_ordinal) || int8send(side) AS coordinate,
+               decode(repeat('d1', 16), 'hex') ||
+                   int8send(candidate_ordinal) || int8send(side) AS reference_id,
+               decode(repeat('d2', 16), 'hex') ||
+                   int8send(candidate_ordinal) || int8send(side) AS occurrence_id
+        FROM generate_series(1, 4096) candidate_ordinal
+        CROSS JOIN generate_series(1, 2) side
+    )
+    INSERT INTO laplace.reference_occurrence(
+        reference_id, occurrence_id, source_profile_id, coordinate,
+        row_entity_id, field_entity_id, value_entity_id,
+        source_ordinal, artifact_ordinal, row_ordinal, column_ordinal,
+        rule_flags, disposition)
+    SELECT reference_id, occurrence_id, profiles.profile_a_id, coordinate,
+           decode(repeat('60', 16), 'hex'),
+           CASE side WHEN 1 THEN decode(repeat('70', 16), 'hex')
+                     ELSE decode(repeat('90', 16), 'hex') END,
+           CASE side WHEN 1 THEN decode(repeat('80', 16), 'hex')
+                     ELSE decode(repeat('a0', 16), 'hex') END,
+           candidate_ordinal + 100, 1, candidate_ordinal + 100, side,
+           1, 1
+    FROM generated;
+
+    WITH generated AS (
+        SELECT candidate_ordinal,
+               int8send(candidate_ordinal) || int8send(1) AS left_coordinate,
+               int8send(candidate_ordinal) || int8send(2) AS right_coordinate,
+               decode(repeat('d1', 16), 'hex') ||
+                   int8send(candidate_ordinal) || int8send(1) AS left_reference_id,
+               decode(repeat('d1', 16), 'hex') ||
+                   int8send(candidate_ordinal) || int8send(2) AS right_reference_id
+        FROM generate_series(1, 4096) candidate_ordinal
+    )
+    SELECT array_agg(
+        ROW(
+            expected.boundary_id, profiles.profile_a_id,
+            left_reference_id, right_reference_id,
+            left_coordinate, left_coordinate || left_coordinate, 7, 1,
+            right_coordinate, right_coordinate || right_coordinate, 7, 1,
+            decode(repeat('50', 16), 'hex'),
+            decode(repeat('60', 16), 'hex'),
+            decode(repeat('70', 16), 'hex'),
+            decode(repeat('80', 16), 'hex'),
+            decode(repeat('90', 16), 'hex'),
+            decode(repeat('a0', 16), 'hex'),
+            candidate_ordinal + 100, 1, candidate_ordinal + 100,
+            1, 8, 1, 1, 1
+        )::laplace.reference_mapping_candidate
+        ORDER BY candidate_ordinal)
+    INTO STRICT bulk_candidates
+    FROM generated;
+
+    bulk_result := laplace.reference_mapping_resolve_batch(
+        pg_temp.persistence_context(), bulk_candidates, 1048576::numeric);
+    IF bulk_result.occurrence_count <> 4096
+       OR bulk_result.proposition_count <> 4096
+       OR bulk_result.resolved_count <> 4096
+       OR bulk_result.unresolved_count <> 0
+       OR bulk_result.retired_count <> 0
+       OR bulk_result.persistence_batch_count <= 1
+       OR bulk_result.maximum_persistence_batch_records >= 4096
+       OR bulk_result.maximum_encoded_persistence_batch_bytes > 1048576
+       OR 1048576 - bulk_result.maximum_encoded_persistence_batch_bytes >=
+          bulk_result.minimum_encoded_persistence_record_bytes THEN
+        RAISE EXCEPTION 'reference mapping byte-derived persistence changed exact bulk semantics'
+            USING DETAIL = bulk_result::text;
     END IF;
 END
 $reference_mapping$;

@@ -199,138 +199,71 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
 }
 
 inline laplace_tabular_source_status AppendRecursiveDecompositionWitnesses(
-    const std::vector<std::uint32_t>& destination_atoms,
-    const std::uint64_t request_base,
-    const laplace_decomposition_composition_plan_view& source,
+    const std::uint64_t destination_request_count,
+    const std::uint64_t canonical_result_index,
     const std::uint64_t artifact_index,
     const laplace_digest256& trace_fingerprint,
-    const RecursiveDecompositionWitnessInput* spans,
+    const RecursiveDecompositionWitnessInput& root_span,
     const std::uint64_t span_count,
     std::vector<laplace_tabular_decomposition_witness>& destination_witnesses,
     std::vector<std::uint8_t>& destination_media_types) {
-    if (span_count == 0u || spans == nullptr || source.span_count != span_count ||
-        source.span_references == nullptr || source.atom_count == 0u ||
-        source.atom_positions == nullptr ||
-        span_count > static_cast<std::uint64_t>(SIZE_MAX) ||
+    if (span_count == 0u || destination_request_count == 0u ||
+        canonical_result_index >= destination_request_count ||
         destination_witnesses.size() >
             static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max()) ||
         destination_media_types.size() >
-            static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max())) {
+            static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max()) ||
+        root_span.byte_start >= root_span.byte_end ||
+        root_span.parent_span_index !=
+            std::numeric_limits<std::uint64_t>::max() ||
+        (root_span.media_type == nullptr) !=
+            (root_span.media_type_byte_count == 0u) ||
+        root_span.media_type_byte_count >
+            static_cast<std::uint64_t>(SIZE_MAX)) {
         return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
     }
-
-    const std::size_t count = static_cast<std::size_t>(span_count);
-    if (count > destination_witnesses.max_size() - destination_witnesses.size()) {
+    if (destination_witnesses.size() == destination_witnesses.max_size()) {
         return LAPLACE_TABULAR_SOURCE_OVERFLOW;
     }
+    const laplace_composition_operand canonical{
+        canonical_result_index,
+        1u,
+        0u,
+        LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT,
+        0u};
 
-    std::vector<laplace_tabular_decomposition_witness> pending_witnesses;
-    std::vector<std::uint8_t> pending_media_types;
-    pending_witnesses.reserve(count);
-
-    for (std::size_t index = 0u; index < count; ++index) {
-        const RecursiveDecompositionWitnessInput& span = spans[index];
-        if (span.byte_start >= span.byte_end ||
-            (index == 0u && span.parent_span_index !=
-                                std::numeric_limits<std::uint64_t>::max()) ||
-            (index != 0u &&
-             span.parent_span_index >= static_cast<std::uint64_t>(index)) ||
-            (span.media_type == nullptr) != (span.media_type_byte_count == 0u) ||
-            span.media_type_byte_count > static_cast<std::uint64_t>(SIZE_MAX)) {
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-        }
-
-        laplace_composition_operand canonical = source.span_references[index];
-        if (canonical.multiplicity != 1u ||
-            canonical.relationship_metadata != 0u || canonical.flags != 0u) {
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-        }
-        if (canonical.reference_kind ==
-            LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
-            if (canonical.reference_index >= source.atom_count) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
-            const std::uint32_t position = source.atom_positions[
-                static_cast<std::size_t>(canonical.reference_index)];
-            std::uint64_t destination_index =
-                std::numeric_limits<std::uint64_t>::max();
-            for (std::size_t candidate = 0u;
-                 candidate < destination_atoms.size();
-                 ++candidate) {
-                if (destination_atoms[candidate] == position) {
-                    destination_index = static_cast<std::uint64_t>(candidate);
-                    break;
-                }
-            }
-            if (destination_index == std::numeric_limits<std::uint64_t>::max()) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
-            canonical.reference_index = destination_index;
-        } else if (canonical.reference_kind ==
-                   LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
-            if (canonical.reference_index >= source.request_count ||
-                canonical.reference_index >
-                    std::numeric_limits<std::uint64_t>::max() - request_base) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
-            canonical.reference_index += request_base;
-        } else {
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-        }
-
-        const std::size_t media_count =
-            static_cast<std::size_t>(span.media_type_byte_count);
-        if (media_count >
-            pending_media_types.max_size() - pending_media_types.size() ||
-            pending_media_types.size() >
-                static_cast<std::size_t>(
-                    std::numeric_limits<std::uint64_t>::max()) - media_count ||
-            destination_media_types.size() >
-                static_cast<std::size_t>(
-                    std::numeric_limits<std::uint64_t>::max()) -
-                    pending_media_types.size() - media_count) {
-            return LAPLACE_TABULAR_SOURCE_OVERFLOW;
-        }
-        const std::uint64_t media_offset =
-            static_cast<std::uint64_t>(destination_media_types.size()) +
-            static_cast<std::uint64_t>(pending_media_types.size());
-
-        laplace_tabular_decomposition_witness witness{};
-        witness.trace_fingerprint = trace_fingerprint;
-        witness.provider_fingerprint = span.provider_fingerprint;
-        witness.canonical_content = canonical;
-        witness.artifact_index = artifact_index;
-        witness.span_index = static_cast<std::uint64_t>(index);
-        witness.parent_span_index = span.parent_span_index;
-        witness.byte_start = span.byte_start;
-        witness.byte_end = span.byte_end;
-        witness.kind = span.kind;
-        witness.media_type_byte_offset = media_offset;
-        witness.media_type_byte_count = span.media_type_byte_count;
-        witness.depth = span.depth;
-        witness.flags = span.flags;
-        pending_witnesses.push_back(witness);
-        if (media_count != 0u) {
-            const auto* bytes =
-                reinterpret_cast<const std::uint8_t*>(span.media_type);
-            pending_media_types.insert(
-                pending_media_types.end(), bytes, bytes + media_count);
-        }
+    const std::size_t media_count =
+        static_cast<std::size_t>(root_span.media_type_byte_count);
+    if (media_count >
+        destination_media_types.max_size() - destination_media_types.size()) {
+        return LAPLACE_TABULAR_SOURCE_OVERFLOW;
     }
+    laplace_tabular_decomposition_witness witness{};
+    witness.trace_fingerprint = trace_fingerprint;
+    witness.provider_fingerprint = root_span.provider_fingerprint;
+    witness.canonical_content = canonical;
+    witness.artifact_index = artifact_index;
+    witness.span_index = 0u;
+    witness.parent_span_index = root_span.parent_span_index;
+    witness.byte_start = root_span.byte_start;
+    witness.byte_end = root_span.byte_end;
+    witness.kind = root_span.kind;
+    witness.media_type_byte_offset =
+        static_cast<std::uint64_t>(destination_media_types.size());
+    witness.media_type_byte_count = root_span.media_type_byte_count;
+    witness.depth = root_span.depth;
+    witness.flags = root_span.flags;
 
 #if defined(LAPLACE_TEST_TABULAR_RECURSIVE_DROP_WITNESS_BINDINGS)
     return LAPLACE_TABULAR_SOURCE_OK;
 #else
-    if (pending_media_types.size() >
-        destination_media_types.max_size() - destination_media_types.size()) {
-        return LAPLACE_TABULAR_SOURCE_OVERFLOW;
+    destination_witnesses.push_back(witness);
+    if (media_count != 0u) {
+        const auto* bytes =
+            reinterpret_cast<const std::uint8_t*>(root_span.media_type);
+        destination_media_types.insert(
+            destination_media_types.end(), bytes, bytes + media_count);
     }
-    destination_witnesses.insert(
-        destination_witnesses.end(),
-        pending_witnesses.begin(), pending_witnesses.end());
-    destination_media_types.insert(
-        destination_media_types.end(),
-        pending_media_types.begin(), pending_media_types.end());
     return LAPLACE_TABULAR_SOURCE_OK;
 #endif
 }

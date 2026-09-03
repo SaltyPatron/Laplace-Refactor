@@ -9,12 +9,14 @@ function(laplace_configure_tabular_source_contract contract_path output)
     string(JSON reconstruction_domain GET "${contract}" identity reconstruction_domain)
     string(JSON mode_raw GET "${contract}" artifact_modes raw_octets)
     string(JSON mode_delimited GET "${contract}" artifact_modes utf8_delimited)
+    string(JSON mode_fixed_width GET "${contract}" artifact_modes utf8_fixed_width)
     string(JSON terminator_none GET "${contract}" line_terminators none)
     string(JSON terminator_lf GET "${contract}" line_terminators lf)
     string(JSON terminator_crlf GET "${contract}" line_terminators crlf)
     if(NOT schema STREQUAL "laplace.tabular-source-contract/v1" OR
-       NOT abi_major EQUAL 1 OR NOT abi_minor EQUAL 4 OR
+       NOT abi_major EQUAL 1 OR NOT abi_minor EQUAL 5 OR
        NOT mode_raw EQUAL 1 OR NOT mode_delimited EQUAL 2 OR
+       NOT mode_fixed_width EQUAL 3 OR
        NOT terminator_none EQUAL 0 OR NOT terminator_lf EQUAL 1 OR
        NOT terminator_crlf EQUAL 2)
         message(FATAL_ERROR "Tabular source contract changed incompatibly")
@@ -27,6 +29,7 @@ function(laplace_configure_tabular_source_contract contract_path output)
     set(LAPLACE_TABULAR_RECONSTRUCTION_DOMAIN "${reconstruction_domain}")
     set(LAPLACE_TABULAR_ARTIFACT_RAW "${mode_raw}")
     set(LAPLACE_TABULAR_ARTIFACT_DELIMITED "${mode_delimited}")
+    set(LAPLACE_TABULAR_ARTIFACT_FIXED_WIDTH "${mode_fixed_width}")
     set(LAPLACE_TABULAR_TERMINATOR_NONE "${terminator_none}")
     set(LAPLACE_TABULAR_TERMINATOR_LF "${terminator_lf}")
     set(LAPLACE_TABULAR_TERMINATOR_CRLF "${terminator_crlf}")

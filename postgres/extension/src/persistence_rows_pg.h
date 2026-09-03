@@ -23,6 +23,15 @@ Datum laplace_pg_physicality_record(
     const laplace_pg_composite_binding* binding,
     const laplace_persistence_physicality_record* physicality);
 
+void laplace_pg_physicality_deposit_binding_open(
+    laplace_pg_composite_binding* binding);
+
+Datum laplace_pg_physicality_deposit_record(
+    const laplace_pg_composite_binding* binding,
+    const laplace_persistence_physicality_record* physicality,
+    const uint8_t* trajectory,
+    size_t trajectory_bytes);
+
 const char* laplace_pg_physicality_insert_sql(void);
 const char* laplace_pg_physicality_verify_sql(void);
 

@@ -7,6 +7,7 @@ import copy
 import datetime as dt
 import importlib.util
 import json
+import shutil
 from pathlib import Path
 import sys
 import tempfile
@@ -73,6 +74,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
             "schema": "laplace.package-manifest/v1",
             "package_id": PACKAGE_ID,
             "root": f"{product['package_release_root']}/{PACKAGE_ID}",
+            "provenance": {"repository_commit": COMMIT},
         }
         manifest.write_bytes(activation.canonical_bytes(manifest_document))
         source_root = root / "stage" / BUILD_ID / "root"
@@ -186,6 +188,35 @@ class ProductActivationGatewayTests(unittest.TestCase):
             package_receipt.write_text("{}\n", encoding="utf-8")
             with self.assertRaisesRegex(
                 activation.ActivationGatewayError, "package receipt bytes"
+            ):
+                activation.validate_request(contract, request, KEY, NOW)
+
+    def test_local_administrator_selection_binds_the_package_commit(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="laplace-activation-local-admin-"
+        ) as temporary:
+            contract, _continuation, _environment, manifest, resource = self.fixture(
+                Path(temporary)
+            )
+            request = activation.build_local_administrator_request(
+                contract,
+                manifest.parent / "package-receipt.json",
+                resource,
+                KEY,
+                NOW,
+            )
+            payload = activation.validate_request(contract, request, KEY, NOW)
+            self.assertEqual(payload["repository"]["commit"], COMMIT)
+            self.assertEqual(
+                payload["repository"]["actor"], "local-system-administrator"
+            )
+            self.assertEqual(payload["repository"]["workflow_run_id"], 0)
+            changed = activation.load_json(manifest)
+            changed["provenance"]["repository_commit"] = "1f" * 20
+            manifest.write_bytes(activation.canonical_bytes(changed))
+            with self.assertRaisesRegex(
+                activation.ActivationGatewayError,
+                "commit differs from the package|manifest bytes",
             ):
                 activation.validate_request(contract, request, KEY, NOW)
 
@@ -322,6 +353,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
             self.assertEqual(sudoers.count("NOPASSWD:"), 2)
             self.assertNotIn("*", sudoers)
             self.assertNotIn(" ALL\n", sudoers)
+            self.assertNotIn("execute-local-selection", sudoers)
             other = root / "other-key"
             other.write_text(base64.b64encode(b"x" * 32).decode("ascii") + "\n", encoding="ascii")
             with self.assertRaisesRegex(installer.InstallError, "key differs"):
@@ -332,6 +364,43 @@ class ProductActivationGatewayTests(unittest.TestCase):
                     root,
                     False,
                 )
+
+    def test_verified_gateway_upgrade_atomically_selects_a_new_generation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-gateway-upgrade-") as temporary:
+            root = Path(temporary) / "host"
+            repository = Path(temporary) / "repository"
+            key = Path(temporary) / "key"
+            key.write_text(base64.b64encode(KEY).decode("ascii") + "\n", encoding="ascii")
+            first = installer.install_gateway(
+                REPOSITORY,
+                REPOSITORY / "contracts/product-activation-gateway.json",
+                key,
+                root,
+                False,
+            )
+            for relative in installer.SOURCE_MAP.values():
+                source = REPOSITORY / relative
+                destination = repository / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, destination)
+            changed = repository / "tools/postgresql/hostctl.py"
+            changed.write_bytes(changed.read_bytes() + b"\n# upgrade fixture\n")
+            second = installer.install_gateway(
+                repository,
+                repository / "contracts/product-activation-gateway.json",
+                key,
+                root,
+                False,
+            )
+            self.assertNotEqual(first["bundle_id"], second["bundle_id"])
+            self.assertTrue(second["installed_new"])
+            self.assertTrue(second["active_pointer_changed"])
+            self.assertIsNotNone(second["previous_active_target"])
+            active = root / "opt/laplace/deployment/current"
+            self.assertEqual(active.resolve().name, second["bundle_id"])
+            self.assertTrue(
+                (root / "opt/laplace/deployment/releases" / first["bundle_id"]).is_dir()
+            )
 
     def test_workflow_keeps_pull_requests_out_of_the_activation_job(self) -> None:
         workflow = (REPOSITORY / ".github/workflows/product-activation.yml").read_text(
@@ -433,6 +502,7 @@ class ProductActivationGatewayTests(unittest.TestCase):
                         "phase": "activated",
                         "package_id": PACKAGE_ID,
                         "restart_proven": True,
+                        "boot_enabled": True,
                         "active_target": f"releases/{PACKAGE_ID}",
                         "cluster_plan_path": str(plan),
                     }

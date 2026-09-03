@@ -1,0 +1,83 @@
+name: source-estate-discovery-catalog
+
+on:
+  workflow_dispatch:
+    inputs:
+      catalog_label:
+        description: Discovery-only label for this catalog observation
+        required: true
+        default: vault-data
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-estate-discovery-catalog
+  cancel-in-progress: false
+
+jobs:
+  catalog:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+    timeout-minutes: 120
+    env:
+      LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify read-only catalog execution identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test -d "$LAPLACE_SOURCE_ESTATE_ROOT"
+          test -r "$LAPLACE_SOURCE_ESTATE_ROOT"
+          test -w "$RUNNER_TEMP"
+      - name: Execute fast catalog tests
+        run: python3 tests/source_discovery_catalog_tests.py
+      - name: Catalog the observed source estate
+        id: catalog
+        shell: bash
+        env:
+          CATALOG_LABEL: ${{ inputs.catalog_label }}
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/laplace-source-estate-catalog.json"
+          summary="$RUNNER_TEMP/laplace-source-estate-summary.json"
+          python3 tools/sources/catalog-source-root.py \
+            --contract contracts/source-discovery-catalog.json \
+            --root "$LAPLACE_SOURCE_ESTATE_ROOT" \
+            --label "$CATALOG_LABEL" \
+            --output "$output" | tee "$summary"
+          python3 tools/sources/catalog-source-root.py \
+            --contract contracts/source-discovery-catalog.json \
+            --root "$LAPLACE_SOURCE_ESTATE_ROOT" \
+            --label "$CATALOG_LABEL" \
+            --output "$output" \
+            --verify
+          catalog_digest=$(jq -r '.catalog_digest_sha256' "$output")
+          test "$catalog_digest" != null
+          printf 'catalog_digest_sha256=%s\n' "$catalog_digest" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Source-estate discovery catalog'
+            echo
+            echo "Catalog artifact SHA-256: \`$catalog_digest\`"
+            echo
+            echo 'This digest is not a Laplace content identity. The catalog is discovery-only evidence, not source authority, profile completion, world admission, foundational seed completion, product activation, or release.'
+            echo
+            echo '```json'
+            cat "$summary"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload discovery-only catalog
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: laplace-source-estate-catalog-${{ steps.catalog.outputs.catalog_digest_sha256 }}
+          path: |
+            ${{ runner.temp }}/laplace-source-estate-catalog.json
+            ${{ runner.temp }}/laplace-source-estate-summary.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9

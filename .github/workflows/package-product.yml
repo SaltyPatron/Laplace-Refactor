@@ -44,8 +44,10 @@ jobs:
           test -w /build/laplace
           git diff --quiet
           git diff --cached --quiet
-          publication=$(jq -er '.product_activation_projection.postgresql_publication.receipt' state/continuation.json)
-          expected_sha=$(jq -er '.product_activation_projection.postgresql_publication.receipt_sha256' state/continuation.json)
+          test "$(jq -er '.schema' state/product-publication-selection.json)" = \
+            laplace.product-publication-selection/v1
+          publication=$(jq -er '.postgresql_publication.receipt' state/product-publication-selection.json)
+          expected_sha=$(jq -er '.postgresql_publication.receipt_sha256' state/product-publication-selection.json)
           test -f "$publication"
           test ! -L "$publication"
           test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
@@ -87,6 +89,50 @@ jobs:
             cat "$result"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          printf 'LAPLACE_PRODUCT_PROOF_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
+      - name: Compose and verify the standalone customer installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
+          product_build_directory=$(dirname "$product_receipt")
+          cmake_build_directory="$product_build_directory/laplace"
+          installer_root=/build/laplace/runner/product/installers
+          cmake -S . -B "$cmake_build_directory" \
+            -DLAPLACE_PRODUCT_RECEIPT="$product_receipt" \
+            -DLAPLACE_INSTALLER_OUTPUT_DIRECTORY="$installer_root"
+          cmake --build "$cmake_build_directory" --target laplace_product_installer
+          package_id=$(jq -er '.package_id' "$product_receipt")
+          installer_selection="$cmake_build_directory/laplace-product-installer-selection.json"
+          test -f "$installer_selection"
+          installer_id=$(jq -er '.bundle_id' "$installer_selection")
+          installer_manifest="$installer_root/laplace-installer-$installer_id/installer-manifest.json"
+          test -f "$installer_manifest"
+          python3 tools/delivery/product_distribution.py verify \
+            --manifest "$installer_manifest" >/dev/null
+          installer_directory=$(dirname "$installer_manifest")
+          installer_archive=$(jq -er '.archive' "$installer_selection")
+          test "$(jq -er '.archive_sha256' "$installer_selection")" = \
+            "$(sha256sum "$installer_archive" | awk '{print $1}')"
+          installer_archive_sha256=$(jq -er '.checksum' "$installer_selection")
+          printf 'LAPLACE_PRODUCT_INSTALLER_ARCHIVE=%s\n' "$installer_archive" >> "$GITHUB_ENV"
+          printf 'LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256=%s\n' "$installer_archive_sha256" >> "$GITHUB_ENV"
+          {
+            echo '## Standalone customer installer'
+            echo '```json'
+            jq '{schema, bundle_id, package: {id: .package.id}, sources: {unicode: {id: .sources.unicode.id, version: .sources.unicode.version}}}' "$installer_manifest"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish the verified standalone customer installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: laplace-product-installer-${{ github.sha }}
+          path: |
+            ${{ env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE }}
+            ${{ env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256 }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
       - name: Clean disposable package-product workspace
         if: always()
         shell: bash

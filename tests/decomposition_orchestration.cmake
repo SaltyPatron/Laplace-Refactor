@@ -179,3 +179,18 @@ add_test(
 set_tests_properties(
     decomposition.mutation-recursive-witness-binding-drop-detected PROPERTIES
     LABELS "implementation;source-profile;decomposition;identity;witness;ast;recursive;mutation")
+
+add_executable(laplace_tabular_fixed_width_media_tests
+    "${CMAKE_CURRENT_LIST_DIR}/tabular_fixed_width_media_tests.cpp")
+target_include_directories(laplace_tabular_fixed_width_media_tests PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../engine/src")
+target_link_libraries(laplace_tabular_fixed_width_media_tests PRIVATE
+    Laplace::TabularSource
+    Laplace::UnicodeRoot
+    GTest::gtest_main)
+target_compile_options(laplace_tabular_fixed_width_media_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_tabular_fixed_width_media_tests
+    PROPERTIES
+        LABELS "implementation;source-profile;decomposition;fixed-width;media-type;recursive"
+        ENVIRONMENT "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}")

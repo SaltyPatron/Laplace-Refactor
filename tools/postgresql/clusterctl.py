@@ -175,8 +175,16 @@ def validate_contract(document: dict[str, Any]) -> None:
         raise ClusterError("package must require the native Unicode activation identity provider")
     if package.get("manifest_schema") != PACKAGE_SCHEMA:
         raise ClusterError("package manifest schema declaration is invalid")
-    if package.get("postgresql_version") != "18.6":
-        raise ClusterError("first cluster contract must select PostgreSQL 18.6")
+    postgresql_version = package.get("postgresql_version")
+    postgresql_major = package.get("postgresql_major")
+    if (
+        not isinstance(postgresql_version, str)
+        or re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", postgresql_version) is None
+        or not isinstance(postgresql_major, int)
+        or postgresql_major <= 0
+        or int(postgresql_version.split(".", 1)[0]) != postgresql_major
+    ):
+        raise ClusterError("cluster PostgreSQL version and major are invalid")
     if not isinstance(package.get("required_capabilities"), dict):
         raise ClusterError("package required capabilities must be an object")
 
@@ -710,7 +718,10 @@ def verify_package(
     if not isinstance(postgresql, dict) or postgresql.get("version") != contract["package"]["postgresql_version"]:
         raise ClusterError("package PostgreSQL version does not satisfy the cluster contract")
     pg_config = require_relative_path(postgresql.get("pg_config"), "package.postgresql.pg_config")
-    if pg_config != "pgsql-18/bin/pg_config":
+    expected_pg_config = (
+        f"pgsql-{contract['package']['postgresql_major']}/bin/pg_config"
+    )
+    if pg_config != expected_pg_config:
         raise ClusterError("package pg_config must resolve inside the immutable package")
     capabilities = manifest.get("capabilities")
     if not isinstance(capabilities, dict):
@@ -1133,7 +1144,8 @@ def render_service(
 ) -> str:
     instance = contract["instance"]
     policy = contract["resource_policy"]
-    postgres = f"{package_root}/pgsql-18/bin/postgres"
+    major = contract["package"]["postgresql_major"]
+    postgres = f"{package_root}/pgsql-{major}/bin/postgres"
     cpu_ids = " ".join(str(item) for item in grant["processor_ids"])
     memory_high = (
         grant["memory_bytes"]
@@ -1142,7 +1154,7 @@ def render_service(
     )
     return f"""# Generated from the verified Laplace PostgreSQL cluster plan.
 [Unit]
-Description=Isolated Laplace refactor PostgreSQL 18.6 cluster
+Description=Laplace {instance['id']} PostgreSQL {contract['package']['postgresql_version']} cluster
 After=local-fs.target
 RequiresMountsFor={instance['data_directory']} {instance['wal_directory']} {instance['temp_directory']}
 
@@ -1200,6 +1212,9 @@ def build_plan(
     package_root = package["root"]
     settings = generate_settings(contract, grant)
     instance = contract["instance"]
+    postgresql_bin = (
+        f"{package_root}/pgsql-{contract['package']['postgresql_major']}/bin"
+    )
     files = {
         f"{instance['config_directory']}/postgresql.conf": render_postgresql_conf(contract, package_root, settings),
         f"{instance['config_directory']}/pg_hba.conf": render_hba(contract),
@@ -1224,6 +1239,8 @@ def build_plan(
         "package_manifest_sha256": status.manifest_sha256,
         "package_id": package["package_id"],
         "package_root": package_root,
+        "postgresql_version": contract["package"]["postgresql_version"],
+        "postgresql_major": contract["package"]["postgresql_major"],
         "package_verified": status.verified,
         "package_verification": status.reason,
         "resource_observation_sha256": sha256_bytes(
@@ -1261,7 +1278,7 @@ def build_plan(
                 "--user",
                 instance["os_user"],
                 "--",
-                f"{package_root}/pgsql-18/bin/initdb",
+                f"{postgresql_bin}/initdb",
                 f"--pgdata={instance['data_directory']}",
                 f"--waldir={instance['wal_directory']}",
                 "--data-checksums",
@@ -1276,7 +1293,7 @@ def build_plan(
                 "--user",
                 contract["security"]["admin_os_user"],
                 "--",
-                f"{package_root}/pgsql-18/bin/psql",
+                f"{postgresql_bin}/psql",
                 "--host",
                 instance["socket_directory"],
                 "--port",
@@ -1293,9 +1310,17 @@ def build_plan(
             ],
             "start_candidate_service": ["systemctl", "start", instance["service"]],
             "stop_candidate_service": ["systemctl", "stop", instance["service"]],
+            "enable_candidate_service": ["systemctl", "enable", instance["service"]],
+            "disable_candidate_service": ["systemctl", "disable", instance["service"]],
+            "verify_candidate_service_enabled": [
+                "systemctl",
+                "is-enabled",
+                "--quiet",
+                instance["service"],
+            ],
             "daemon_reload": ["systemctl", "daemon-reload"],
             "probe_readiness": [
-                f"{package_root}/pgsql-18/bin/pg_isready",
+                f"{postgresql_bin}/pg_isready",
                 "--host",
                 instance["socket_directory"],
                 "--port",
@@ -1372,7 +1397,12 @@ def validate_plan(plan: dict[str, Any], contract: dict[str, Any] | None = None) 
     if "LD_LIBRARY_PATH" in service or "LD_PRELOAD" in service:
         raise ClusterError("generated service depends on ambient loader environment")
     package_root = str(plan.get("package_root", ""))
-    if f"ExecStart={package_root}/pgsql-18/bin/postgres " not in service:
+    postgresql_major = plan.get("postgresql_major")
+    if not isinstance(postgresql_major, int) or postgresql_major <= 0:
+        raise ClusterError("plan PostgreSQL major is invalid")
+    if contract is not None and postgresql_major != contract["package"]["postgresql_major"]:
+        raise ClusterError("plan PostgreSQL major differs from its contract")
+    if f"ExecStart={package_root}/pgsql-{postgresql_major}/bin/postgres " not in service:
         raise ClusterError("generated service does not execute the immutable package postmaster")
     if "ExecStartPost=" in service or "/bin/bash" in service or "$(seq " in service:
         raise ClusterError("generated service embeds an ambient readiness program")
@@ -1698,7 +1728,9 @@ def observe_loaded_live(
     state, postmaster_pid, service_receipt = observe_systemd_service(
         plan["instance"]["service"]
     )
-    expected_postmaster = f"{plan['package_root']}/pgsql-18/bin/postgres"
+    expected_postmaster = (
+        f"{plan['package_root']}/pgsql-{contract['package']['postgresql_major']}/bin/postgres"
+    )
     postmaster_paths = process_loaded_paths(proc_root, postmaster_pid)
     if expected_postmaster not in postmaster_paths:
         raise ClusterError("candidate service is not executing the planned package postmaster")
@@ -1711,7 +1743,7 @@ def observe_loaded_live(
         "LOAD '$libdir/pg_stat_statements'; "
         "SELECT pg_sleep(120);"
     )
-    psql = f"{plan['package_root']}/pgsql-18/bin/psql"
+    psql = f"{plan['package_root']}/pgsql-{contract['package']['postgresql_major']}/bin/psql"
     base = [
         "/usr/sbin/runuser",
         "--user",
@@ -1873,6 +1905,7 @@ def execute_cluster_activation(
     if staged_receipt.get("phase") != "staged":
         raise ClusterError("complete activation requires an exact staged receipt")
     started = False
+    boot_enabled = False
 
     def run(label: str, command: Sequence[str], timeout: int = 1800) -> None:
         try:
@@ -1916,6 +1949,17 @@ def execute_cluster_activation(
             raise ClusterError("loaded package identity changed across restart")
         if initial["config_files"] != restarted["config_files"]:
             raise ClusterError("generated configuration changed across restart")
+        run(
+            "enable-candidate-service-for-boot",
+            plan["commands"]["enable_candidate_service"],
+            60,
+        )
+        boot_enabled = True
+        run(
+            "verify-candidate-service-enabled",
+            plan["commands"]["verify_candidate_service_enabled"],
+            60,
+        )
         committed = commit_plan(
             plan,
             contract,
@@ -1930,10 +1974,20 @@ def execute_cluster_activation(
         result["initial_loaded_observation_sha256"] = initial["observation_sha256"]
         result["restart_loaded_observation_sha256"] = restarted["observation_sha256"]
         result["restart_proven"] = True
+        result["boot_enabled"] = True
         result["command_receipts"] = list(command_receipts)
         result["activation_receipt_sha256"] = state_observation_identity(result)
         return result
     except BaseException:
+        if boot_enabled:
+            try:
+                run(
+                    "disable-candidate-after-failure",
+                    plan["commands"]["disable_candidate_service"],
+                    60,
+                )
+            except BaseException:
+                pass
         if started:
             try:
                 run(

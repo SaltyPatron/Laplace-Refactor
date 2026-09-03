@@ -16,7 +16,15 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "contracts" / "sources" / "cili-pwn-mappings-20240611.json"
 GENERATOR = ROOT / "tools" / "contracts" / "generate-tabular-source-profile.py"
-SOURCE = Path(os.environ.get("LAPLACE_CILI_SOURCE_ROOT", ""))
+SOURCE_SUITE = ROOT / "tests" / "postgres" / "source_admission_suite_contract.sql"
+SOURCE_METRICS_SQL = ROOT / "postgres" / "extension" / "source_admission_metrics.sql.in"
+SOURCE_METRICS_IMPL = ROOT / "postgres" / "extension" / "src" / "source_admission_pg.c"
+SOURCE = Path(
+    os.environ.get(
+        "LAPLACE_CILI_SOURCE_ROOT",
+        "/__laplace_locked_cili_source_is_not_configured__",
+    )
+)
 
 
 class CiliSourceProfileContract(unittest.TestCase):
@@ -67,6 +75,83 @@ class CiliSourceProfileContract(unittest.TestCase):
             "Changed descriptive label"
         changed = self.compile(source_specific_name_does_not_control_generated_namespace, True)
         self.assertIn(b"namespace laplace::generated::cili_pwn_mappings_20240611", changed)
+
+    def test_whole_route_emits_canonical_cardinality_replay_and_work_receipt(self) -> None:
+        suite = SOURCE_SUITE.read_text(encoding="utf-8")
+        self.assertIn(
+            "LAPLACE_QA_RECEIPT cili_admission_cardinality ", suite
+        )
+        for field in (
+            "reported_request_count",
+            "reported_durable_stream_record_count",
+            "reported_reference_persistence_batch_count",
+            "reported_reference_mapping_persistence_batch_count",
+            "canonical_entity_delta",
+            "canonical_physicality_delta",
+            "explicit_occurrence_delta",
+            "reference_coordinate_delta",
+            "reference_occurrence_delta",
+            "mapping_proposition_delta",
+            "mapping_occurrence_delta",
+            "evidence_node_delta",
+            "testimony_delta",
+            "replay_entity_growth",
+            "replay_physicality_growth",
+            "replay_occurrence_growth",
+            "replay_evidence_node_growth",
+            "replay_testimony_growth",
+            "execution_metrics",
+        ):
+            self.assertIn(f"'{field}'", suite)
+        self.assertIn(
+            "laplace.source_admission_last_execution_metrics()::jsonb", suite
+        )
+        self.assertIn("'request_count', 24163435", suite)
+        self.assertIn("'reported_approximate_peak_memory_gib', 20.7", suite)
+        mutant = suite.replace(
+            "'canonical_entity_delta', after_first.entity_count - before.entity_count",
+            "'canonical_entity_delta', first.request_count",
+            1,
+        )
+        self.assertNotIn(
+            "'canonical_entity_delta', after_first.entity_count - before.entity_count",
+            mutant,
+        )
+
+    def test_source_execution_metrics_are_measured_not_derived_from_request_count(self) -> None:
+        sql = SOURCE_METRICS_SQL.read_text(encoding="utf-8")
+        implementation = SOURCE_METRICS_IMPL.read_text(encoding="utf-8")
+        self.assertIn("source_admission_last_execution_metrics", sql)
+        for counter in (
+            "source_stage_spi_execute_with_args_count",
+            "composition_entity_candidate_count",
+            "composition_physicality_candidate_count",
+            "composition_entity_presence_round_count",
+            "composition_physicality_presence_round_count",
+            "composition_persistence_plan_count",
+            "composition_receipt_persistence_call_count",
+        ):
+            self.assertIn(counter, implementation)
+        self.assertIn(
+            "execution->presence.entity_round_count", implementation
+        )
+        self.assertIn(
+            "execution->presence.physicality_round_count", implementation
+        )
+        self.assertIn("execution->persistence.plan_count", implementation)
+        self.assertIn("#define SPI_execute_with_args(...)", implementation)
+        self.assertNotIn(
+            "source_stage_spi_execute_with_args_count = plan.request_count",
+            implementation,
+        )
+        mutant = implementation.replace(
+            "execution->presence.entity_round_count",
+            "execution->presence.entity_candidate_count",
+            1,
+        )
+        self.assertNotIn(
+            "execution->presence.entity_round_count", mutant
+        )
 
     @unittest.skipUnless(SOURCE.is_dir(), "locked CILI source root unavailable")
     def test_locked_members_are_exact_headerless_bit_recomposable_content(self) -> None:

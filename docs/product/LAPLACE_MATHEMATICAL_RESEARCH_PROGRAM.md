@@ -517,3 +517,15 @@ This synthesis remains distributed across existing owners:
 - #132 — observation/fact/calculation provider bridge;
 - #20/#129 — model independence and target operator/tensor compilation;
 - #184 — cross-cutting preservation/proof spine for this research program.
+
+No child issue is allowed to claim the invention is complete merely because its local capability passes.
+
+## 20. Anti-loss rule
+
+Future refactors must treat this document as a preservation map, not as a shortcut around executable acceptance.
+
+When a new implementation simplifies one layer, it must show which state distinctions and laws remain available elsewhere. If it cannot, the simplification is presumed to be information loss until proven otherwise.
+
+The core invariant is:
+
+> **Laplace's intelligence is not stored in one magic representation. It emerges mechanically from exact persistent structure plus typed semantics/evidence plus a finite active calculus whose operations are selected, composed, tested, learned, and accelerated without destroying their provenance.**

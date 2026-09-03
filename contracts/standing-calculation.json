@@ -1,0 +1,48 @@
+{
+  "schema": "laplace.standing-calculation/v1",
+  "version": 1,
+  "algorithm": "Glicko-2 March 22 2022 Illinois iteration",
+  "numeric_contract": {
+    "scale_center_binary64": "0x1.7700000000000p+10",
+    "scale_divisor_binary64": "0x1.5b6f837b4a234p+7",
+    "pi_binary64": "0x1.921fb54442d18p+1",
+    "maximum_bracket_steps": 100,
+    "maximum_iterations": 100
+  },
+  "domains": {
+    "recipe": "laplace.standing.recipe.v1",
+    "recipe_admission": "laplace.standing.recipe-admission.v1",
+    "outcome_mapping": "laplace.standing.outcome-mapping.v1",
+    "arena_scope": "laplace.standing.arena-scope.v1",
+    "coordinate": "laplace.standing.coordinate.v1",
+    "state": "laplace.standing.state.v1",
+    "event": "laplace.standing.event.v1",
+    "input": "laplace.standing.period-input.v1",
+    "output": "laplace.standing.period-output.v1",
+    "receipt": "laplace.standing.period-receipt.v1"
+  },
+  "outcome_kinds": {
+    "confirm": 1,
+    "refute": 2,
+    "draw": 3,
+    "uncertain": 4,
+    "absent": 5,
+    "unknown": 6,
+    "denied": 7,
+    "exhausted": 8,
+    "invalid_execution": 9
+  },
+  "flags": {
+    "none": 0
+  },
+  "execution_law": {
+    "default": "onboarding creates one immutable zero-match state only from a content-identified authority-receipted arena recipe",
+    "successor": "each period consumes the exact immediately preceding state and never receives defaults",
+    "opponent": "each event carries and validates the real opponent prior state in the same arena scope",
+    "dependence": "eligible evidence root identities are unique within the pure closed period and PostgreSQL rejects reuse across every published period for the participant coordinate",
+    "admission": "PostgreSQL calculation may consume only a recipe already deposited by the protected authority lifecycle into the durable admission set for the exact active authority fingerprint and evidence epoch; calculation cannot create its own admission",
+    "outcome": "confirm refute draw or uncertain may be mapped only by the exact mapping contained in the content-identified arena recipe; separate authority admission determines whether that recipe may enter a world; absent unknown denied exhausted and invalid execution are not rating results",
+    "order": "events are internally canonicalized by immutable event identity before floating-point accumulation",
+    "publication": "the pure calculation emits an immutable successor and receipt; PostgreSQL owns append-only publication and replay conflict rejection"
+  }
+}

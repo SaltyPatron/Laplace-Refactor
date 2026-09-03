@@ -1,7 +1,7 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
   "classification": "observed-development-state-not-product-law",
-  "observed_at_utc": "2026-08-29T19:19:51Z",
+  "observed_at_utc": "2026-08-31T06:05:30Z",
   "validity": {
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use",
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
@@ -12,14 +12,17 @@
   },
   "repository": {
     "github": "SaltyPatron/Laplace-Refactor",
-    "active_branch": "integration/current",
+    "active_branch": "prep/source-recipe-estate",
     "active_worktree": "/home/ahart/Projects/Laplace-Refactor",
-    "base_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
+    "base_commit": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
     "published_composition_branch": true,
-    "published_checkpoint_commit": "53829330fdfc39ffa821f3f1506098e784edd0e9",
-    "observed_branch_head": "53829330fdfc39ffa821f3f1506098e784edd0e9",
-    "implementation_checkpoint_commit": "53829330fdfc39ffa821f3f1506098e784edd0e9",
-    "pull_request": 92
+    "published_checkpoint_commit": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
+    "observed_branch_head": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
+    "implementation_checkpoint_commit": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
+    "pull_request": null,
+    "preserved_interrupted_work": "state/local-work-preservation-2026-08-31.json",
+    "preservation_audit": "docs/audits/LOCAL_UI_WORK_PRESERVATION_2026-08-31.md",
+    "continuation_rule": "reconcile preserved local-session work with later UI-agent and remote work without mutating the original dirty worktrees or equating pull-request supersession with semantic obsolescence"
   },
   "development_inputs": {
     "inventory_observed_at_utc": "2026-08-29T21:48:53Z",
@@ -1382,6 +1385,54 @@
       "the product is not released"
     ]
   },
+  "isolated_unpublished_work": {
+    "classification": "observed-development-state-not-product-law-not-activated-product",
+    "observed_at_utc": "2026-08-31T18:53:07Z",
+    "worktree": "/tmp/laplace-persistent-product-20260831",
+    "branch": "codex/complete-laplace-20260831",
+    "base_commit": "ed2b4f42db10e61c33ab83dc0fc462c2f07f8465",
+    "whole_product_target": "Laplace works perfectly as invented and envisioned; this boundary does not narrow that target",
+    "capability": "evidence.adjudicate.typed-standing-and-world.stock-recipe-catalog",
+    "state": "standing-native-isa-managed-postgresql-controlled-integration-and-stock-recipe-native-implementation-proven-not-product-activated",
+    "implemented_boundary": [
+      "corrected March 22 2022 Glicko-2 executes as one versioned native typed period operation over the exact participant prior and real opponent prior states",
+      "a content-identified standing recipe binds its authority receipt arena axes one-time defaults numerical policy admitted outcome kinds and exact rational score mappings",
+      "onboarding consumes only the identified recipe defaults and calculation rejects caller-invented outcome mapping identifiers or scores",
+      "event order is canonical in semantic and ISA receipts while identity arena period and dependence defects fail before publication",
+      "generated ISA 1.12 and Csharp bindings carry the recipe and execute the operation with byte-exact native result ABI and full receipt parity",
+      "PostgreSQL transactionally publishes append-only recipe history initial and earned standing states match events period receipts ordered membership and ISA receipts",
+      "PostgreSQL requires a separately persisted recipe admission matching the active authority fingerprint and evidence epoch before any standing calculation or publication",
+      "replay verifies exact durable state and cross-period dependence-root reuse is rejected for the participant coordinate",
+      "prior-reset neutral-opponent caller-mapping caller-order-receipt durable-replay historical-dependence and recipe-admission-bypass deliberate defects are detected",
+      "a native stock-recipe catalog operation canonically closes recursive source release collection digital-object structural-region and semantic-construction recipes across unrelated profiles",
+      "the stock catalog binds one shared modality-agnostic semantic-segmentation law and recipe-owned perfcache key value dependency generation verifier invalidation and rebuild law",
+      "orphan cross-source duplicate identity-drift and unowned perfcache declarations are rejected and a parent-validation bypass mutant is detected"
+    ],
+    "controlled_integration_validation": {
+      "focused_debug_tests": "17 of 17 affected tests pass: eleven native standing tests one public ISA standing test three standing mutation tests and two generated-binding managed/native parity tests",
+      "postgresql_tests": "4 of 4 isolated PostgreSQL production replay admission-bypass-mutation and dependence-history-mutation tests passed with durable authority-and-evidence-epoch recipe admission",
+      "sanitizers": "eleven native standing tests one public ISA standing test three standing mutation tests five native stock-recipe tests and one stock-recipe mutation test passed with AddressSanitizer and UndefinedBehaviorSanitizer active before the subsequent typed-item adapter; LeakSanitizer was disabled because the supervising ptrace boundary is incompatible with it",
+      "authority_and_trace": "the program invention-authority and requirement-traceability contract entrypoints pass after the recipe-bound change; the prior complete authority and trace runs were 31 of 31 and 12 of 12",
+      "generated_and_static": "standing and stock-recipe contract generation CMake configuration JSON parsing and whitespace checks pass; generated Dotnet standing contract and native parity pass",
+      "stock_recipe_tests": "six native stock-recipe catalog tests including direct-versus-typed-item vector parity and one deliberate parent-validation mutation test pass"
+    },
+    "missing_boundary": [
+      "the stock-recipe catalog operation is native-only and the protected authority lifecycle does not yet manufacture persist or activate exact declarations for every selected source collection document object structural region and semantic construction",
+      "admitted testimony is not yet lowered into standing events through the recipe",
+      "source-type priors and earned override are not implemented",
+      "independent return legs and cross-profile dependence closure are not implemented",
+      "contradiction propagation immutable consensus and referential epochs with as-of readback are not implemented",
+      "controlled temporary PostgreSQL integration is not installed-product adjudication",
+      "foundational heterogeneous world admission cognition realization product surfaces federation and release remain incomplete"
+    ],
+    "next_boundary": "carry the stock-recipe catalog through generated ISA managed PostgreSQL persistence authority selection and coherent perfcache activation then manufacture exact recursive configured-source declarations starting with Unicode ISO CILI WordNet Britannica 1911 and Gutenberg Webster; then lower admitted testimony into standing",
+    "isolation": "the shared repository host services databases activation state and the other active agent's work were not mutated",
+    "nonclaims": [
+      "typed standing is not complete adjudication",
+      "temporary PostgreSQL proof is not an activated persistent product world",
+      "the refactor is not thereby deployed reboot-safe seeded released or complete"
+    ]
+  },
   "active_work": {
     "capability": "unicode.canonical-persistence-and-source-claim-scope",
     "github_issue": 13,
@@ -1490,8 +1541,8 @@
     "current_disposition": "product composition succeeds through laplace-runner; root activation is blocked by the absent trusted deployment gateway"
   },
   "github_observation": {
-    "observed_at_utc": "2026-08-28T22:43:35Z",
-    "main_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
+    "observed_at_utc": "2026-08-31T06:05:30Z",
+    "main_commit": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
     "whole_product_issue": 23,
     "product_cluster_issue": 12,
     "product_cluster_project_status": "In Progress",

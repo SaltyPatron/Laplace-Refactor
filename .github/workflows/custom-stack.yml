@@ -26,14 +26,31 @@ jobs:
       PATH: /opt/laplace/pgsql-18/bin:/usr/local/bin:/usr/bin:/bin
       LAPLACE_PG_CONFIG: /opt/laplace/pgsql-18/bin/pg_config
       LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data
+      LAPLACE_MODEL_ESTATE_ROOT: /vault/models
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Terminate stale database workers from interrupted jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/runner_orphan_cleanup.py \
+            --minimum-age-seconds 300 \
+            --grace-seconds 5 \
+            --terminate
       - name: Sweep stale interrupted custom-stack residue
         shell: bash
         run: |
           set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --minimum-age-seconds 300 \
+            --discover-prefix laplace-postgres-test.
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp /tmp \
+            --minimum-age-seconds 300 \
+            --discover-prefix lp-pg.
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --minimum-age-seconds 300 \
@@ -67,7 +84,7 @@ jobs:
           {
             echo '## Custom-stack QA selection'
             echo '```json'
-            jq '{head_sha, selected_rules, selected_profiles, eligible_test_count, core_test_count, selected_physical_test_count, selected_physical_tests}' "$plan"
+            jq '{head_sha, hosted_antecedent_required, selected_rules, selected_profiles, eligible_test_count, core_test_count, selected_physical_test_count, selected_physical_tests}' "$plan"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Verify execution identity and toolchain
@@ -106,6 +123,7 @@ jobs:
           ./tools/dependencies/verify-lock.sh "$dependency_root"
 
           test -d "$LAPLACE_SOURCE_ESTATE_ROOT"
+          test -d "$LAPLACE_MODEL_ESTATE_ROOT"
           unicode_root="$LAPLACE_SOURCE_ESTATE_ROOT/UCD/Public/UCD/latest"
           test -d "$unicode_root"
 
@@ -123,6 +141,45 @@ jobs:
           printf 'LAPLACE_UNICODE_SOURCE_ROOT=%s\n' "$unicode_root" >> "$GITHUB_ENV"
           printf 'LAPLACE_ISO_639_SOURCE_ROOT=%s\n' "$iso_fixture" >> "$GITHUB_ENV"
           printf 'LAPLACE_CILI_SOURCE_ROOT=%s\n' "$cili_fixture" >> "$GITHUB_ENV"
+      - name: Inventory and resolve physical source estate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/source_estate_catalog_tests.py
+          # The checked-in vault inventory is a dated observed-development-state
+          # document, not physical source authority. Validate its internal contract,
+          # then let the fresh catalog below observe and report physical estate drift.
+          # Requiring current /vault top-level names to equal the historical snapshot
+          # would make mutable development state an execution gate and prevent the
+          # discovery operation from reporting the very drift it exists to measure.
+          python3 tools/audit/validate-vault-inventory.py
+          catalog="$RUNNER_TEMP/laplace-source-estate-catalog.json"
+          python3 tools/sources/catalog-source-estate.py \
+            --source-root "$LAPLACE_SOURCE_ESTATE_ROOT" \
+            --model-root "$LAPLACE_MODEL_ESTATE_ROOT" \
+            --output "$catalog"
+          python3 - "$catalog" "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json
+          import sys
+
+          catalog_path, summary_path = sys.argv[1:]
+          with open(catalog_path, encoding="utf-8") as stream:
+              catalog = json.load(stream)
+          counts = {}
+          for entry in catalog["entries"]:
+              disposition = entry["processing"]["disposition"]
+              counts[disposition] = counts.get(disposition, 0) + 1
+          with open(summary_path, "a", encoding="utf-8") as output:
+              output.write("## Source estate profile resolution\n")
+              output.write(
+                  f"- repository profiles: {catalog['inputs']['repository_profile_count']}\n"
+              )
+              for disposition in sorted(counts):
+                  output.write(f"- {disposition}: {counts[disposition]}\n")
+              for name, values in catalog["estate_drift"].items():
+                  if values:
+                      output.write(f"- {name}: {values}\n")
+          PY
       - name: Configure outside the repository
         shell: bash
         run: |
@@ -226,7 +283,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload custom-stack QA evidence copy
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: custom-stack-qa-${{ github.sha }}
           path: ${{ runner.temp }}/laplace-custom-stack-qa/
@@ -235,7 +292,9 @@ jobs:
           compression-level: 9
       - name: Verify custom-stack registry
         if: success()
-        run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY" custom-stack
+        env:
+          LAPLACE_TEST_PROFILE: custom-stack
+        run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY"
       - name: Publish measured perfcache receipt
         if: always()
         shell: bash
@@ -265,6 +324,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 tools/delivery/runner_orphan_cleanup.py \
+            --minimum-age-seconds 0 \
+            --grace-seconds 5 \
+            --terminate
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --discover-prefix laplace-postgres-test.
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp /tmp \
+            --discover-prefix lp-pg.
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --name laplace-sources \

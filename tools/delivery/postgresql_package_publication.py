@@ -110,14 +110,37 @@ def validate_contract(contract: Mapping[str, Any]) -> None:
     if parse_mode(contract.get("receipt_mode"), "receipt_mode") != 0o640:
         raise PublicationError("publication receipt mode must remain 0640")
     required = contract.get("required_source_state")
-    if required != {
-        "version": "PostgreSQL 18.6",
-        "build_input_closure_complete": True,
-        "recursive_elf_closure_verified": True,
-        "runtime_provider_qualification_complete": True,
-        "activation_eligible": True,
+    if not isinstance(required, dict) or set(required) != {
+        "version",
+        "major",
+        "build_input_closure_complete",
+        "recursive_elf_closure_verified",
+        "runtime_provider_qualification_complete",
+        "activation_eligible",
     }:
         raise PublicationError("required accepted PostgreSQL proof state differs")
+    version = required.get("version")
+    major = required.get("major")
+    match = (
+        re.fullmatch(r"PostgreSQL ([0-9]+(?:\.[0-9]+)+)", version)
+        if isinstance(version, str)
+        else None
+    )
+    if (
+        match is None
+        or not isinstance(major, int)
+        or major <= 0
+        or int(match.group(1).split(".", 1)[0]) != major
+    ):
+        raise PublicationError("required PostgreSQL version and major differ")
+    for field in (
+        "build_input_closure_complete",
+        "recursive_elf_closure_verified",
+        "runtime_provider_qualification_complete",
+        "activation_eligible",
+    ):
+        if required.get(field) is not True:
+            raise PublicationError("required accepted PostgreSQL proof state differs")
 
 
 def require_physical_file(path: Path, field: str, expected_sha256: str | None = None) -> None:
@@ -191,6 +214,8 @@ def accepted_source(
     if receipt.get("schema") != contract["source_receipt_schema"]:
         raise PublicationError("PostgreSQL source receipt schema differs")
     for field, expected in contract["required_source_state"].items():
+        if field == "major":
+            continue
         if receipt.get(field) != expected:
             raise PublicationError(f"PostgreSQL source receipt is not accepted: {field}")
     build_input_id = require_sha256(receipt.get("build_input_id"), "build_input_id")

@@ -8,6 +8,8 @@
 #include <string>
 
 #include "laplace/tabular_source.h"
+#include "laplace/tabular_source_recursive.h"
+#include "laplace/unicode_root.h"
 
 namespace laplace::test {
 
@@ -36,8 +38,10 @@ template <typename Profile, typename Fixture>
 int RunTabularProfileProbe(
     int argc, char** argv, const std::string& prefix,
     const char* usage_label) {
-    if (argc != 2) {
-        std::fprintf(stderr, "usage: %s %s-SOURCE-ROOT\n", argv[0], usage_label);
+    if (argc != 3) {
+        std::fprintf(
+            stderr, "usage: %s %s-SOURCE-ROOT UNICODE-SOURCE-ROOT\n",
+            argv[0], usage_label);
         return 64;
     }
     Fixture fixture;
@@ -45,17 +49,28 @@ int RunTabularProfileProbe(
         std::fprintf(stderr, "%s\n", fixture.error.c_str());
         return 65;
     }
-    laplace_tabular_source_plan* plan = nullptr;
-    if (laplace_tabular_source_plan_create(&fixture.input, &plan) !=
-        LAPLACE_TABULAR_SOURCE_OK) {
-        std::fprintf(stderr, "locked %s profile did not compile\n", usage_label);
+    laplace_unicode_source_bundle* unicode_bundle = nullptr;
+    laplace_unicode_source_receipt unicode_receipt{};
+    if (laplace_unicode_source_bundle_open(
+            argv[2], &unicode_bundle, &unicode_receipt) != LAPLACE_UNICODE_OK ||
+        unicode_bundle == nullptr) {
+        std::fprintf(stderr, "locked Unicode source did not open\n");
         return 66;
+    }
+    laplace_tabular_source_plan* plan = nullptr;
+    if (laplace_tabular_source_plan_create_recursive(
+            &fixture.input, unicode_bundle, &plan) !=
+        LAPLACE_TABULAR_SOURCE_OK) {
+        laplace_unicode_source_bundle_close(&unicode_bundle);
+        std::fprintf(stderr, "locked %s profile did not compile\n", usage_label);
+        return 67;
     }
     laplace_tabular_source_plan_view view{};
     if (laplace_tabular_source_plan_view_get(plan, &view) !=
         LAPLACE_TABULAR_SOURCE_OK) {
         laplace_tabular_source_plan_destroy(&plan);
-        return 67;
+        laplace_unicode_source_bundle_close(&unicode_bundle);
+        return 68;
     }
     PrintProfileNumber(prefix + "_KIND", Profile::coordinate_kind);
     PrintProfileNumber(prefix + "_VERSION", Profile::coordinate_version);
@@ -120,6 +135,21 @@ int RunTabularProfileProbe(
     PrintProfileNumber(prefix + "_EXPECTED_CLAIMS", view.profile.claim_count);
     PrintProfileNumber(prefix + "_EXPECTED_MAPPINGS", view.profile.mapping_count);
     PrintProfileNumber(prefix + "_EXPECTED_REQUESTS", view.request_count);
+    PrintProfileNumber(prefix + "_ATOM_COUNT", view.atom_count);
+    PrintProfileNumber(prefix + "_OPERAND_COUNT", view.operand_count);
+    PrintProfileNumber(prefix + "_CLAIM_COUNT", view.claim_count);
+    PrintProfileNumber(
+        prefix + "_REFERENCE_OCCURRENCE_COUNT",
+        view.reference_occurrence_count);
+    PrintProfileNumber(
+        prefix + "_MAPPING_OCCURRENCE_COUNT",
+        view.mapping_occurrence_count);
+    PrintProfileNumber(
+        prefix + "_DECOMPOSITION_WITNESS_COUNT",
+        view.decomposition_witness_count);
+    PrintProfileNumber(
+        prefix + "_DECOMPOSITION_WITNESS_MEDIA_TYPE_BYTES",
+        view.decomposition_witness_media_type_byte_count);
     PrintProfileNumber(
         prefix + "_PREFERRED_BATCH_BYTES", Profile::batch_bytes);
     PrintProfileNumber(
@@ -195,6 +225,7 @@ int RunTabularProfileProbe(
         PrintProfileNumber(item + "FLAGS", rule.flags);
     }
     laplace_tabular_source_plan_destroy(&plan);
+    laplace_unicode_source_bundle_close(&unicode_bundle);
     return 0;
 }
 

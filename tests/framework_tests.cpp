@@ -407,6 +407,29 @@ TEST(CanonicalStream, PartitionBoundariesDoNotChangeFingerprint) {
     EXPECT_EQ(whole_bytes, partition_bytes);
 }
 
+TEST(CanonicalStream, EmptyFingerprintIsTypedAndDeterministic) {
+    laplace_digest256 first{};
+    laplace_digest256 repeated{};
+    laplace_digest256 other_type{};
+    ASSERT_EQ(laplace_framework_canonical_empty_stream_fingerprint(
+                  7U, &first),
+              LAPLACE_FRAMEWORK_OK);
+    ASSERT_EQ(laplace_framework_canonical_empty_stream_fingerprint(
+                  7U, &repeated),
+              LAPLACE_FRAMEWORK_OK);
+    ASSERT_EQ(laplace_framework_canonical_empty_stream_fingerprint(
+                  8U, &other_type),
+              LAPLACE_FRAMEWORK_OK);
+    EXPECT_EQ(std::memcmp(first.bytes, repeated.bytes, sizeof(first.bytes)), 0);
+    EXPECT_NE(std::memcmp(first.bytes, other_type.bytes, sizeof(first.bytes)), 0);
+    const laplace_digest256 zero{};
+    EXPECT_NE(std::memcmp(first.bytes, zero.bytes, sizeof(first.bytes)), 0);
+    EXPECT_EQ(laplace_framework_canonical_empty_stream_fingerprint(0U, &first),
+              LAPLACE_FRAMEWORK_INVALID_ARGUMENT);
+    EXPECT_EQ(laplace_framework_canonical_empty_stream_fingerprint(7U, nullptr),
+              LAPLACE_FRAMEWORK_INVALID_ARGUMENT);
+}
+
 TEST(CanonicalStream, FansOneStreamOutToEverySink) {
     auto context = Context();
     const std::array<std::uint8_t, 5> bytes{{9u, 8u, 7u, 6u, 5u}};

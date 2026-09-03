@@ -21,6 +21,8 @@ SCHEMA = "laplace.custom-stack-qa/v1"
 PLAN_SCHEMA = "laplace.custom-stack-qa-plan/v1"
 RESULT_SCHEMA = "laplace.custom-stack-qa-result/v1"
 SELECTION_PROOF_EXIT = 86
+EVIDENCE_RECEIPT_EXIT = 87
+EMBEDDED_RECEIPT_PREFIX = "LAPLACE_QA_RECEIPT "
 _CTEST_ERE_META = frozenset(r"\.^$*+?()[]{}|")
 
 
@@ -125,12 +127,33 @@ def eligible_registry_names(repo_root: Path, profile: str) -> list[str]:
     return names
 
 
+def explicit_registry_names(repo_root: Path, profile: str) -> list[str]:
+    """Return tests whose registry row explicitly requires this provider."""
+
+    names: list[str] = []
+    for row in registry_entries(repo_root):
+        profiles = row.get("profiles")
+        if isinstance(profiles, list) and profile in profiles:
+            names.append(str(row["ctest_name"]))
+    return names
+
+
 def validate_contract(contract: dict[str, Any], repo_root: Path) -> None:
     if contract.get("schema") != SCHEMA:
         raise QaError("custom-stack QA schema differs")
     registry_profile = contract.get("registry_profile")
     if not isinstance(registry_profile, str) or not registry_profile:
         raise QaError("registry_profile is invalid")
+    execution = contract.get("execution")
+    if not isinstance(execution, dict):
+        raise QaError("custom-stack QA execution policy is absent")
+    for field in ("core_parallel_jobs", "selected_physical_parallel_jobs"):
+        if (
+            not isinstance(execution.get(field), int)
+            or isinstance(execution[field], bool)
+            or execution[field] <= 0
+        ):
+            raise QaError(f"custom-stack QA {field} must be a positive integer")
     eligible = set(eligible_registry_names(repo_root, registry_profile))
     isolated = contract.get("isolated_tests")
     if not isinstance(isolated, list) or not isolated:
@@ -223,9 +246,10 @@ def build_plan(
         raise QaError("cannot plan custom-stack QA for an empty change set")
     registry_profile = str(contract["registry_profile"])
     eligible = eligible_registry_names(repo_root, registry_profile)
+    explicit = explicit_registry_names(repo_root, registry_profile)
     isolated_rows = list(contract["isolated_tests"])
     isolated_names = {str(row["ctest_name"]) for row in isolated_rows}
-    core = [name for name in eligible if name not in isolated_names]
+    core = [name for name in explicit if name not in isolated_names]
     selected_profiles: set[str] = set()
     selected_rules: list[str] = []
     for rule in contract["selection_rules"]:
@@ -251,6 +275,11 @@ def build_plan(
         "selected_rules": selected_rules,
         "selected_profiles": sorted(selected_profiles),
         "registry_profile": registry_profile,
+        "hosted_antecedent_required": True,
+        "core_parallel_jobs": int(contract["execution"]["core_parallel_jobs"]),
+        "selected_physical_parallel_jobs": int(
+            contract["execution"]["selected_physical_parallel_jobs"]
+        ),
         "core_tests": core,
         "selected_physical_tests": selected,
         "isolated_test_count": len(isolated_names),
@@ -366,6 +395,44 @@ def verify_success_execution(
     return observed
 
 
+def embedded_receipts(log: Path) -> list[dict[str, Any]]:
+    """Parse machine-readable receipts deliberately emitted by physical tests.
+
+    These receipts are copied into the terminal custom-stack result so the durable
+    BLAKE3 receipt does not depend on transient CTest logs or workspaces for resource,
+    cardinality, plan, or other explicitly emitted physical evidence.
+    """
+
+    try:
+        lines = log.read_text(encoding="utf-8", errors="strict").splitlines()
+    except (OSError, UnicodeError) as error:
+        raise QaError(f"cannot read custom-stack lane log for evidence: {log}: {error}") from error
+    receipts: list[dict[str, Any]] = []
+    names: set[str] = set()
+    for line in lines:
+        marker = line.strip()
+        if not marker.startswith(EMBEDDED_RECEIPT_PREFIX):
+            continue
+        payload = marker[len(EMBEDDED_RECEIPT_PREFIX):]
+        if " " not in payload:
+            raise QaError("embedded QA receipt omits its name or JSON payload")
+        name, encoded = payload.split(" ", 1)
+        if not name or name in names:
+            raise QaError(f"embedded QA receipt name is absent or duplicated: {name!r}")
+        try:
+            receipt = json.loads(encoded)
+        except json.JSONDecodeError as error:
+            raise QaError(f"embedded QA receipt {name!r} is invalid JSON: {error}") from error
+        if not isinstance(receipt, dict):
+            raise QaError(f"embedded QA receipt {name!r} is not an object")
+        schema = receipt.get("schema")
+        if not isinstance(schema, str) or not schema.startswith("laplace."):
+            raise QaError(f"embedded QA receipt {name!r} has no Laplace schema")
+        names.add(name)
+        receipts.append({"name": name, "receipt": receipt})
+    return receipts
+
+
 def first_failure(
     report: Path, log: Path, status: int
 ) -> dict[str, Any] | None:
@@ -429,6 +496,7 @@ def run_ctest_lane(
     build_directory: Path,
     output_directory: Path,
     ctest: str,
+    parallel_jobs: int,
 ) -> dict[str, Any]:
     if not names:
         raise QaError(f"custom-stack QA lane {lane!r} has no executable tests")
@@ -440,6 +508,8 @@ def run_ctest_lane(
         str(build_directory),
         "--output-on-failure",
         "--stop-on-failure",
+        "--parallel",
+        str(parallel_jobs),
         "--output-junit",
         str(report),
         "-R",
@@ -461,6 +531,7 @@ def run_ctest_lane(
             sys.stdout.flush()
             output.write(line)
             output.flush()
+        process.stdout.close()
         ctest_status = process.wait()
     elapsed = time.monotonic() - start
 
@@ -474,7 +545,22 @@ def run_ctest_lane(
     effective_status = ctest_status
     failure = first_failure(report, log, ctest_status)
     selection_verified = False
-    if ctest_status == 0:
+    retained_receipts: list[dict[str, Any]] = []
+    evidence_verified = False
+    try:
+        retained_receipts = embedded_receipts(log)
+        evidence_verified = True
+    except QaError as error:
+        if ctest_status == 0:
+            effective_status = EVIDENCE_RECEIPT_EXIT
+            failure = {
+                "test": None,
+                "elapsed_seconds": None,
+                "class": "evidence-receipt-failure",
+                "detail": str(error)[:4000],
+            }
+
+    if ctest_status == 0 and effective_status == 0:
         try:
             executed_names = verify_success_execution(report, names)
             selection_verified = True
@@ -494,6 +580,8 @@ def run_ctest_lane(
         "executed_test_count": len(executed_names),
         "executed_tests": executed_names,
         "selection_verified": selection_verified,
+        "evidence_receipts_verified": evidence_verified,
+        "embedded_receipts": retained_receipts,
         "command": command,
         "started_at_utc": started,
         "ended_at_utc": utc_now(),
@@ -544,11 +632,15 @@ def execute_plan(
     }
     write_json_atomic(result_path, result)
 
-    lanes: list[tuple[str, list[str]]] = []
+    lanes: list[tuple[str, list[str], int]] = []
     if core:
-        lanes.append(("core", core))
+        lanes.append(("core", core, int(plan.get("core_parallel_jobs", 1))))
     if selected:
-        lanes.append(("selected-physical", selected))
+        lanes.append((
+            "selected-physical",
+            selected,
+            int(plan.get("selected_physical_parallel_jobs", 1)),
+        ))
     if not lanes:
         result["aggregate_required_qa"] = "failed"
         result["primary_terminal_result"] = {
@@ -565,13 +657,14 @@ def execute_plan(
         write_json_atomic(result_path, result)
         return SELECTION_PROOF_EXIT
 
-    for lane, names in lanes:
+    for lane, names, parallel_jobs in lanes:
         lane_result = run_ctest_lane(
             lane=lane,
             names=names,
             build_directory=build_directory,
             output_directory=output_directory,
             ctest=ctest,
+            parallel_jobs=parallel_jobs,
         )
         result["lanes"].append(lane_result)
         if lane_result["result"] != "passed":

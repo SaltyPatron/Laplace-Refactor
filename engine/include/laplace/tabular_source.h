@@ -37,12 +37,30 @@ typedef struct laplace_tabular_artifact {
     uint32_t header_record_count;
     uint32_t flags;
     uint32_t reserved;
+    const struct laplace_tabular_fixed_width_field* fixed_width_fields;
+    uint32_t padding_byte;
+    uint32_t overflow_field_index;
+    uint32_t maximum_overflow_bytes;
+    uint32_t expected_overflow_record_count;
 } laplace_tabular_artifact;
 
 typedef struct laplace_tabular_column {
     const uint8_t* bytes;
     uint64_t byte_count;
 } laplace_tabular_column;
+
+typedef struct laplace_tabular_fixed_width_field {
+    uint32_t width;
+    uint32_t flags;
+} laplace_tabular_fixed_width_field;
+
+enum {
+    LAPLACE_TABULAR_FIXED_WIDTH_TRIM_LEFT = 1u,
+    LAPLACE_TABULAR_FIXED_WIDTH_TRIM_RIGHT = 2u,
+    LAPLACE_TABULAR_FIXED_WIDTH_KNOWN_FIELD_FLAGS = 3u
+};
+
+#define LAPLACE_TABULAR_FIXED_WIDTH_NO_OVERFLOW_FIELD UINT32_MAX
 
 enum {
     LAPLACE_TABULAR_ARTIFACT_CONTAINER = 1u,

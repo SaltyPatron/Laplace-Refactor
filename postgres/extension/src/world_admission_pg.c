@@ -249,7 +249,7 @@ static laplace_world_admission_record* derive_durable_records(
         tuple_digest(tuple, descriptor, 10, &records[index].evidence_lineage_receipt_id, "evidence lineage receipt");
         tuple_digest(tuple, descriptor, 11, &records[index].evidence_testimony_receipt_id, "evidence testimony receipt");
         records[index].profile_occurrence_count = tuple_u64(tuple, descriptor, 12, "profile occurrence count");
-        records[index].composition_occurrence_count = tuple_u64(tuple, descriptor, 13, "composition occurrence count");
+        records[index].composition_occurrence_count = tuple_u64(tuple, descriptor, 13, "composition logical occurrence count");
         records[index].profile_claim_count = tuple_u64(tuple, descriptor, 14, "profile claim count");
         records[index].evidence_node_count = tuple_u64(tuple, descriptor, 15, "evidence node count");
         records[index].testimony_count = tuple_u64(tuple, descriptor, 16, "testimony count");

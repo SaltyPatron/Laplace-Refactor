@@ -45,6 +45,20 @@ class CustomStackQaTests(unittest.TestCase):
         }
         self.assertTrue(isolated.isdisjoint(plan["core_tests"]))
         self.assertGreater(plan["core_test_count"], 0)
+        self.assertTrue(plan["hosted_antecedent_required"])
+        profileless = {
+            row["ctest_name"]
+            for row in qa.registry_entries(ROOT)
+            if row.get("profiles") is None
+        }
+        self.assertTrue(profileless.isdisjoint(plan["core_tests"]))
+        self.assertTrue(
+            all(
+                "custom-stack" in row.get("profiles", [])
+                for row in qa.registry_entries(ROOT)
+                if row["ctest_name"] in plan["core_tests"]
+            )
+        )
 
     def test_composition_change_selects_only_composition_boundary(self) -> None:
         plan = self.plan("engine/src/composition.cpp")
@@ -59,29 +73,48 @@ class CustomStackQaTests(unittest.TestCase):
             ],
         )
 
+    def test_perfcache_change_selects_hot_lookup_boundary_once(self) -> None:
+        plan = self.plan("engine/src/perfcache.cpp")
+        self.assertEqual(
+            plan["selected_profiles"], ["unicode-hot-performance"]
+        )
+        self.assertEqual(
+            plan["selected_physical_tests"],
+            ["perfcache.hot-lookup-receipt-contract-and-mutation"],
+        )
+
+    def test_unicode_access_change_selects_epoch_and_public_source_boundaries(self) -> None:
+        plan = self.plan("postgres/extension/src/unicode_access_pg.c")
+        self.assertEqual(
+            plan["selected_profiles"],
+            ["source-admission-suite", "unicode-access-epoch"],
+        )
+        self.assertEqual(
+            plan["selected_physical_tests"],
+            [
+                "postgres.mutation-unicode-access-expected-epoch-detected",
+                "postgres.source-admission-suite-whole-route-contract",
+            ],
+        )
+
     def test_generic_source_admission_change_selects_real_source_regressions(
         self,
     ) -> None:
         plan = self.plan("postgres/extension/src/source_admission_pg.c")
         self.assertEqual(
-            plan["selected_profiles"],
-            ["source-admission-generic", "source-cili", "source-iso639"],
+            plan["selected_profiles"], ["source-admission-suite"],
         )
         self.assertEqual(
             plan["selected_physical_tests"],
-            [
-                "postgres.source-admission-whole-route-contract",
-                "postgres.iso-639-source-admission-whole-route-contract",
-                "postgres.cili-source-admission-whole-route-contract",
-            ],
+            ["postgres.source-admission-suite-whole-route-contract"],
         )
 
     def test_iso_profile_change_does_not_select_cili(self) -> None:
         plan = self.plan("contracts/sources/iso-639-3-20260415.json")
-        self.assertEqual(plan["selected_profiles"], ["source-iso639"])
+        self.assertEqual(plan["selected_profiles"], ["source-admission-suite"])
         self.assertEqual(
             plan["selected_physical_tests"],
-            ["postgres.iso-639-source-admission-whole-route-contract"],
+            ["postgres.source-admission-suite-whole-route-contract"],
         )
 
     def test_missing_isolated_registry_test_fails_closed(self) -> None:
@@ -260,6 +293,83 @@ raise SystemExit(exit_code)
                 lane["executed_tests"], ["core.one", "core.two"]
             )
             self.assertTrue(lane["selection_verified"])
+            self.assertTrue(lane["evidence_receipts_verified"])
+            self.assertEqual(lane["embedded_receipts"], [])
+
+    def test_embedded_physical_receipts_are_retained_in_terminal_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            embedded = {
+                "schema": "laplace.postgresql-test-resource-guard/v1",
+                "result": "completed",
+                "maxima": {"rss_bytes": 123456},
+            }
+            fake = self._fake_ctest(
+                root,
+                inventory=["selected.physical"],
+                junit=(
+                    "<testsuite>"
+                    "<testcase name=\"selected.physical\" time=\"0.2\"/>"
+                    "</testsuite>"
+                ),
+                output=(
+                    "LAPLACE_QA_RECEIPT postgres_source_resource_guard "
+                    + json.dumps(embedded, separators=(",", ":"))
+                ),
+            )
+            plan = {
+                "schema": qa.PLAN_SCHEMA,
+                "head_sha": "candidate",
+                "selected_profiles": ["fixture"],
+                "core_tests": [],
+                "selected_physical_tests": ["selected.physical"],
+                "selected_physical_parallel_jobs": 1,
+            }
+            result = root / "result.json"
+            status = qa.execute_plan(
+                plan, root / "build", root / "qa", result, str(fake)
+            )
+            self.assertEqual(status, 0)
+            recorded = json.loads(result.read_text(encoding="utf-8"))
+            lane = recorded["lanes"][0]
+            self.assertTrue(lane["evidence_receipts_verified"])
+            self.assertEqual(
+                lane["embedded_receipts"],
+                [{"name": "postgres_source_resource_guard", "receipt": embedded}],
+            )
+
+    def test_malformed_embedded_receipt_turns_zero_exit_red(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake = self._fake_ctest(
+                root,
+                inventory=["selected.physical"],
+                junit=(
+                    "<testsuite>"
+                    "<testcase name=\"selected.physical\" time=\"0.2\"/>"
+                    "</testsuite>"
+                ),
+                output="LAPLACE_QA_RECEIPT broken {not-json}",
+            )
+            plan = {
+                "schema": qa.PLAN_SCHEMA,
+                "head_sha": "candidate",
+                "selected_profiles": ["fixture"],
+                "core_tests": [],
+                "selected_physical_tests": ["selected.physical"],
+                "selected_physical_parallel_jobs": 1,
+            }
+            result = root / "result.json"
+            status = qa.execute_plan(
+                plan, root / "build", root / "qa", result, str(fake)
+            )
+            self.assertEqual(status, qa.EVIDENCE_RECEIPT_EXIT)
+            recorded = json.loads(result.read_text(encoding="utf-8"))
+            lane = recorded["lanes"][0]
+            self.assertFalse(lane["evidence_receipts_verified"])
+            self.assertEqual(
+                lane["primary_failure"]["class"], "evidence-receipt-failure"
+            )
 
     def test_empty_execution_plan_fails_closed_with_terminal_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

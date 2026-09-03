@@ -290,6 +290,33 @@ class PostgreSQLClusterContract(unittest.TestCase):
         ):
             self.assertIn(signature, bootstrap)
 
+    def test_same_major_patch_profile_uses_exact_selected_18_3_package(self) -> None:
+        contract = clusterctl.load_json(self.contract_path)
+        contract["package"]["postgresql_version"] = "18.3"
+        write_json(self.contract_path, contract)
+        self.contract = contract
+        package = clusterctl.load_json(self.manifest_path)
+        package["postgresql"]["version"] = "18.3"
+        package["package_id"] = clusterctl.package_identity(package)
+        package["root"] = f"/opt/laplace/releases/{package['package_id']}"
+        write_json(self.manifest_path, package)
+        write_json(self.resource_path, self.valid_resource_observation(package))
+        physical = clusterctl.prefixed(self.package_physical_root, package["root"])
+        original = next(self.package_physical_root.glob("opt/laplace/releases/*"))
+        if original != physical:
+            original.rename(physical)
+        plan = self.plan()
+        clusterctl.validate_plan(plan, contract)
+        self.assertEqual(plan["postgresql_version"], "18.3")
+        self.assertIn(
+            "Description=Laplace refactor PostgreSQL 18.3 cluster",
+            next(
+                item["content"]
+                for item in plan["files"]
+                if item["path"].endswith(".service")
+            ),
+        )
+
     def test_native_resource_observation_finalization_binds_packaged_observer(self) -> None:
         native = self.valid_resource_observation()
         package_id = native.pop("package_id")
@@ -795,6 +822,7 @@ class PostgreSQLClusterContract(unittest.TestCase):
         )
         self.assertEqual(result["phase"], "activated")
         self.assertTrue(result["restart_proven"])
+        self.assertTrue(result["boot_enabled"])
         self.assertEqual(recorded, ["loaded-initial", "loaded-restart"])
         self.assertEqual(
             executed,
@@ -807,6 +835,8 @@ class PostgreSQLClusterContract(unittest.TestCase):
                 "stop-candidate-for-restart-proof",
                 "start-candidate-after-restart",
                 "restart-readiness",
+                "enable-candidate-service-for-boot",
+                "verify-candidate-service-enabled",
             ],
         )
         active = clusterctl.prefixed(self.activation_root, plan["active_link"])

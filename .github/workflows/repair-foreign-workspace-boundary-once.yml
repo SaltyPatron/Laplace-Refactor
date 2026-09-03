@@ -1,0 +1,103 @@
+name: repair-foreign-workspace-boundary-once
+
+on:
+  push:
+    branches:
+      - codex/complete-laplace-20260831
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/complete-laplace-20260831
+          fetch-depth: 1
+      - name: Preserve cleanup authority at foreign-owned workspace roots
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          tool = Path('tools/delivery/proof_workspace_cleanup.py')
+          text = tool.read_text(encoding='utf-8')
+          old = '''        if metadata.st_dev != root_device:
+            raise CleanupError(f"refusing cross-device workspace root: {target}")
+        age_seconds = max(0.0, now - metadata.st_mtime)
+'''
+          new = '''        if metadata.st_dev != root_device:
+            raise CleanupError(f"refusing cross-device workspace root: {target}")
+        # A shared /tmp can contain a correctly named workspace created by a
+        # different authority (for example, residue from a root-run local proof).
+        # This runner must neither recurse into nor delete another uid's tree.
+        # Report the boundary and continue so foreign residue cannot DoS every
+        # subsequent self-hosted proof merely by matching our safe namespace.
+        effective_uid = os.geteuid()
+        if metadata.st_uid != effective_uid:
+            results.append(
+                {
+                    "name": name,
+                    "state": "foreign-owner",
+                    "owner_uid": metadata.st_uid,
+                    "effective_uid": effective_uid,
+                    "removed_entries": 0,
+                }
+            )
+            continue
+        age_seconds = max(0.0, now - metadata.st_mtime)
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'cleanup ownership insertion point count={text.count(old)}')
+          tool.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          tests = Path('tests/proof_workspace_cleanup_tests.py')
+          text = tests.read_text(encoding='utf-8')
+          old_import = 'import unittest\n'
+          new_import = 'import unittest\nfrom unittest import mock\n'
+          if text.count(old_import) != 1:
+              raise SystemExit('unexpected unittest import shape')
+          text = text.replace(old_import, new_import, 1)
+          anchor = '''    def test_absent_workspace_is_idempotent(self) -> None:
+        first = CLEANUP.cleanup(self.root, ["laplace-custom-stack-qa"])
+        second = CLEANUP.cleanup(self.root, ["laplace-custom-stack-qa"])
+        self.assertEqual(first["results"][0]["state"], "absent")
+        self.assertEqual(second["results"][0]["state"], "absent")
+
+'''
+          addition = anchor + '''    def test_foreign_owned_workspace_is_reported_without_crossing_authority(self) -> None:
+        target = self.root / "lp-pg.Foreign123"
+        target.mkdir()
+        marker = target / "keep"
+        marker.write_text("foreign authority\\n", encoding="utf-8")
+        current_uid = os.geteuid()
+        foreign_uid = current_uid + 1
+
+        with mock.patch.object(CLEANUP.os, "geteuid", return_value=foreign_uid):
+            receipt = CLEANUP.cleanup(
+                self.root,
+                [target.name],
+                proc_root=self.root / "no-proc",
+            )
+
+        self.assertEqual(receipt["results"][0]["state"], "foreign-owner")
+        self.assertEqual(receipt["results"][0]["owner_uid"], current_uid)
+        self.assertEqual(receipt["results"][0]["effective_uid"], foreign_uid)
+        self.assertEqual(receipt["results"][0]["removed_entries"], 0)
+        self.assertEqual(marker.read_text(encoding="utf-8"), "foreign authority\\n")
+
+'''
+          if text.count(anchor) != 1:
+              raise SystemExit(f'cleanup test insertion point count={text.count(anchor)}')
+          tests.write_text(text.replace(anchor, addition, 1), encoding='utf-8')
+          PY
+          git rm .github/workflows/repair-foreign-workspace-boundary-once.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tools/delivery/proof_workspace_cleanup.py tests/proof_workspace_cleanup_tests.py
+          git diff --cached --check
+          git commit -m 'Respect foreign-owned proof workspace boundaries'
+          git push origin HEAD:codex/complete-laplace-20260831

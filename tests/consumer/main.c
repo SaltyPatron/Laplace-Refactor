@@ -5,7 +5,12 @@
 #include "laplace/isa.h"
 #include "laplace/execution.h"
 #include "laplace/framework.h"
+#include "laplace/tabular_source.h"
 #include "laplace/trajectory.h"
+
+_Static_assert(
+    LAPLACE_TABULAR_FIXED_WIDTH_NO_OVERFLOW_FIELD == UINT32_MAX,
+    "tabular fixed-width overflow sentinel must retain the complete uint32_t range");
 
 static void initialize_context(laplace_framework_context* context) {
     size_t index;

@@ -1,0 +1,118 @@
+{
+  "schema": "laplace.local-work-preservation/v1",
+  "classification": "observed-development-state-not-product-law-or-acceptance",
+  "observed_at_utc": "2026-08-31T06:05:30Z",
+  "repository": "SaltyPatron/Laplace-Refactor",
+  "reconciliation_worktree": {
+    "path": "/home/ahart/Projects/Laplace-Refactor",
+    "branch": "prep/source-recipe-estate",
+    "base": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
+    "base_ref": "origin/main",
+    "published_ref": "origin/prep/source-recipe-estate"
+  },
+  "inventor_provenance": {
+    "rule": "the PR93 and PR94 dirty worktrees are local work performed in the interrupted coding session that hit its session limit; remote and GitHub UI-agent work advanced separately",
+    "consequence": "a superseded pull-request delivery path does not make the interrupted local delta obsolete or disposable; reconcile it file by file against later remote work",
+    "authority": "direct user correction in the resumed 2026-08-31 session"
+  },
+  "preservation_method": {
+    "operation": "git stash create without updating refs or either dirty worktree, followed by additive publication of the returned commit",
+    "snapshot_semantics": "first parent is the interrupted worktree HEAD, second parent is the staged index tree, and the preservation commit tree is the complete working-tree snapshot",
+    "worktree_mutation": false,
+    "remote_reachability_check": "git rev-list --all --not --remotes=origin",
+    "remote_reachability_result_count": 0
+  },
+  "interrupted_worktrees": [
+    {
+      "label": "pr93-local-session-work",
+      "path": "/home/ahart/Projects/Laplace-Refactor-pr93",
+      "branch": "feat/decomposition-orchestration",
+      "head": "e8de3e44b59eed0b87deb302c224db194a9e4f55",
+      "upstream": "origin/feat/decomposition-orchestration",
+      "upstream_head": "8b4c43a32edc52741c4301a8c36f4d8dc99643fd",
+      "ahead": 2,
+      "behind": 6,
+      "status_sha256": "aaef3d06a8776597095e831de24f9cb5addae756fbd89f3a7d090f4115ecca7f",
+      "final_delta_sha256": "fe5d1102f8ef9b2252267f33a270f858730195bf2898f0509c003e1ed6d74a37",
+      "staged_delta_sha256": "0625aef68ff93ac88a6ebc5e2273d5a09d5eca5def9542ce4ed23e1ffb08ab2c",
+      "unstaged_delta_sha256": "fac4e8343bf467be9d63a223001765af327f9ee891aead55e7f9930d7509ae93",
+      "final_delta": {
+        "paths": 14,
+        "insertions": 1271,
+        "deletions": 10
+      },
+      "snapshot_commit": "822bb9b35697ff65104bb1b269872b2d49967cbc",
+      "snapshot_tree": "0c44fcc2ea1cc55a79a3dd88b4821326722386ff",
+      "index_parent": "6f6966d13267f3941d6fcb1c5a7c56b4c4dc5cee",
+      "remote_ref": "origin/preserve/pr93-local-wip-20260831"
+    },
+    {
+      "label": "pr94-local-session-work",
+      "path": "/home/ahart/Projects/Laplace-Refactor-pr94",
+      "branch": "implementation/laplace-machine",
+      "head": "fe80778b8c93b71102db0a5691160a96976dd072",
+      "upstream": "origin/main",
+      "upstream_head": "ef2dc21c28a50560ade27563ff2e57e153a5e43c",
+      "ahead": 0,
+      "behind": 1,
+      "status_sha256": "e39a0dd13063975acdf2abe7c777121a8ff89351e722d80a4bc70aaa39963bbf",
+      "final_delta_sha256": "d9f7067f67fa61c495e89a7effbcc21e94f9e4e56095b691bf1087882586d55c",
+      "staged_delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unstaged_delta_sha256": "d9f7067f67fa61c495e89a7effbcc21e94f9e4e56095b691bf1087882586d55c",
+      "final_delta": {
+        "paths": 11,
+        "insertions": 147,
+        "deletions": 52
+      },
+      "snapshot_commit": "fe23b5ee9b374b0d637dbbbdf525040ddc06ecca",
+      "snapshot_tree": "e97d4bfa923b3434834cc119a23f6e8548dfdd35",
+      "index_parent": "4b8a07c26ce51179d6bd38b627dda35b950388cb",
+      "remote_ref": "origin/preserve/pr94-local-wip-20260831"
+    }
+  ],
+  "prior_archive": {
+    "local_namespace": "refs/archive/20260829/*",
+    "remote_namespace": "origin/preserve/archive-20260829/*",
+    "published_refs": 34,
+    "stash_commit": "58564eae14bbd056e1342d1ad1394e67616960e0",
+    "stash_tree": "82d8e177c99f68d4aad34f9e5030d86d7fd68249",
+    "stash_remote_refs": [
+      "origin/preserve/archive-stash-20260829",
+      "origin/preserve/archive-20260829/stash"
+    ],
+    "rule": "the archive is preservation evidence and candidate reconciliation input, not current implementation authority"
+  },
+  "recovery": {
+    "complete_working_tree": "create an isolated worktree at the snapshot commit or inspect snapshot_commit^{tree}",
+    "original_staged_delta": "diff the interrupted HEAD against index_parent",
+    "original_unstaged_delta": "diff index_parent against snapshot_commit",
+    "original_final_delta": "diff the interrupted HEAD against snapshot_commit",
+    "rule": "restore or reconcile only in a new isolated worktree; do not reset, clean, checkout over, or rebase either original dirty worktree"
+  },
+  "reconciliation": {
+    "audit": "docs/audits/PR93_PR94_LOCAL_REMOTE_RECONCILIATION_2026-08-31.md",
+    "pr93": {
+      "disposition": "preserved-historical-implementation-and-deliberate-defect",
+      "reason": "recursive provider and span metadata was admitted as composition content and the test required a larger canonical request population; current authority requires structural witness state outside content identity",
+      "continued_by": "PR 107 canonical decomposition witness boundary"
+    },
+    "pr94": {
+      "disposition": "semantic-boundary-retained-and-expanded",
+      "retained_requirement": "canonical composition does not implicitly emit occurrence testimony; explicit occurrence intent and separate resource accounting are required",
+      "continued_by": "PR 107 request.flags.emit_occurrence, logical-versus-emitted occurrence accounting, structural-witness persistence, and deliberate-defect tests"
+    },
+    "pr94_workflows": {
+      "disposition": "intent-superseded-by-current-product-path-governance",
+      "retained_intent": "custom-stack proof is reusable and destructive product activation is not an ordinary pull-request action",
+      "continued_by": "PR 105 fail-closed product-path classifier and gate on current main"
+    },
+    "acceptance_nonclaim": "this reconciliation identifies lineage and supersession only; it does not accept PR 107 or restore either local snapshot into current implementation"
+  },
+  "nonclaims": [
+    "the snapshots are not tested or merge-ready",
+    "remote publication is preservation and not acceptance",
+    "PR93 or PR94 supersession does not adjudicate the value of any local hunk",
+    "the archived refs are not product authority",
+    "no interrupted dirty worktree was modified by preservation"
+  ]
+}

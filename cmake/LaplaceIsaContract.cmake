@@ -47,6 +47,14 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" value_types reference_mapping_candidate_vector)
     string(JSON value_reference_mapping_record GET
         "${contract_json}" value_types reference_mapping_record_vector)
+    string(JSON value_standing_period_input GET
+        "${contract_json}" value_types standing_period_input_vector)
+    string(JSON value_standing_period_result GET
+        "${contract_json}" value_types standing_period_result_vector)
+    string(JSON value_stock_catalog_item GET
+        "${contract_json}" value_types stock_catalog_item_vector)
+    string(JSON value_stock_catalog_receipt GET
+        "${contract_json}" value_types stock_catalog_receipt_vector)
     string(JSON opcode_identity_codepoint GET
         "${contract_json}" opcodes identity_codepoint_batch)
     string(JSON opcode_trajectory_decode GET
@@ -59,6 +67,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" opcodes evidence_record_lineage_batch)
     string(JSON opcode_evidence_record_testimony GET
         "${contract_json}" opcodes evidence_record_testimony_batch)
+    string(JSON opcode_evidence_calculate_standing GET
+        "${contract_json}" opcodes evidence_calculate_standing_batch)
     string(JSON opcode_source_profile_validate GET
         "${contract_json}" opcodes source_profile_validate_batch)
     string(JSON opcode_world_admission_close GET
@@ -67,6 +77,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" opcodes reference_topology_resolve_batch)
     string(JSON opcode_reference_mapping_resolve GET
         "${contract_json}" opcodes reference_mapping_resolve_batch)
+    string(JSON opcode_stock_recipe_compile_catalog GET
+        "${contract_json}" opcodes stock_recipe_compile_catalog_batch)
     string(JSON opcode_cognition_solve_packet GET
         "${contract_json}" opcodes cognition_solve_packet)
     string(JSON instruction_version_identity_codepoint GET
@@ -81,6 +93,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" instruction_versions evidence_record_lineage_batch)
     string(JSON instruction_version_evidence_record_testimony GET
         "${contract_json}" instruction_versions evidence_record_testimony_batch)
+    string(JSON instruction_version_evidence_calculate_standing GET
+        "${contract_json}" instruction_versions evidence_calculate_standing_batch)
     string(JSON instruction_version_source_profile_validate GET
         "${contract_json}" instruction_versions source_profile_validate_batch)
     string(JSON instruction_version_world_admission_close GET
@@ -89,6 +103,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" instruction_versions reference_topology_resolve_batch)
     string(JSON instruction_version_reference_mapping_resolve GET
         "${contract_json}" instruction_versions reference_mapping_resolve_batch)
+    string(JSON instruction_version_stock_recipe_compile_catalog GET
+        "${contract_json}" instruction_versions stock_recipe_compile_catalog_batch)
     string(JSON instruction_version_cognition_solve_packet GET
         "${contract_json}" instruction_versions cognition_solve_packet)
     string(JSON introduced_minor_identity GET
@@ -103,6 +119,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" introduced_minor evidence_record_lineage_batch)
     string(JSON introduced_minor_evidence_record_testimony GET
         "${contract_json}" introduced_minor evidence_record_testimony_batch)
+    string(JSON introduced_minor_evidence_calculate_standing GET
+        "${contract_json}" introduced_minor evidence_calculate_standing_batch)
     string(JSON introduced_minor_source_profile_validate GET
         "${contract_json}" introduced_minor source_profile_validate_batch)
     string(JSON introduced_minor_world_admission_close GET
@@ -111,6 +129,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${contract_json}" introduced_minor reference_topology_resolve_batch)
     string(JSON introduced_minor_reference_mapping_resolve GET
         "${contract_json}" introduced_minor reference_mapping_resolve_batch)
+    string(JSON introduced_minor_stock_recipe_compile_catalog GET
+        "${contract_json}" introduced_minor stock_recipe_compile_catalog_batch)
     string(JSON introduced_minor_cognition_solve_packet GET
         "${contract_json}" introduced_minor cognition_solve_packet)
     string(JSON receipt_algorithm GET "${contract_json}" receipt digest_algorithm)
@@ -124,8 +144,8 @@ function(laplace_configure_isa_contract contract_path output_path)
     if(NOT contract_schema STREQUAL "laplace.isa-contract/v1")
         message(FATAL_ERROR "Unsupported ISA contract schema: ${contract_schema}")
     endif()
-    if(NOT major EQUAL 1 OR NOT minor EQUAL 11)
-        message(FATAL_ERROR "Current ISA version must remain 1.11")
+    if(NOT major EQUAL 1 OR NOT minor EQUAL 13)
+        message(FATAL_ERROR "Current ISA version must remain 1.13")
     endif()
     if(NOT context_required OR NOT context_framework_major EQUAL 1
        OR NOT context_program_binding OR NOT context_receipt_binding)
@@ -146,7 +166,11 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT value_reference_candidate EQUAL 16
        OR NOT value_reference_record EQUAL 17
        OR NOT value_reference_mapping_candidate EQUAL 18
-       OR NOT value_reference_mapping_record EQUAL 19)
+       OR NOT value_reference_mapping_record EQUAL 19
+       OR NOT value_standing_period_input EQUAL 20
+       OR NOT value_standing_period_result EQUAL 21
+       OR NOT value_stock_catalog_item EQUAL 22
+       OR NOT value_stock_catalog_receipt EQUAL 23)
         message(FATAL_ERROR "ISA value type assignments changed")
     endif()
     if(NOT opcode_identity_codepoint EQUAL 131073
@@ -155,10 +179,12 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT opcode_highway_registry_materialize EQUAL 262146
        OR NOT opcode_evidence_record_lineage EQUAL 327681
        OR NOT opcode_evidence_record_testimony EQUAL 327682
+       OR NOT opcode_evidence_calculate_standing EQUAL 327683
        OR NOT opcode_source_profile_validate EQUAL 393217
        OR NOT opcode_world_admission_close EQUAL 393218
        OR NOT opcode_reference_topology_resolve EQUAL 393219
        OR NOT opcode_reference_mapping_resolve EQUAL 393220
+       OR NOT opcode_stock_recipe_compile_catalog EQUAL 393221
        OR NOT opcode_cognition_solve_packet EQUAL 458753
        OR NOT instruction_version_identity_codepoint EQUAL 1
        OR NOT instruction_version_trajectory_decode EQUAL 1
@@ -166,10 +192,12 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT instruction_version_highway_registry_materialize EQUAL 1
        OR NOT instruction_version_evidence_record_lineage EQUAL 1
        OR NOT instruction_version_evidence_record_testimony EQUAL 1
+       OR NOT instruction_version_evidence_calculate_standing EQUAL 1
        OR NOT instruction_version_source_profile_validate EQUAL 1
        OR NOT instruction_version_world_admission_close EQUAL 1
        OR NOT instruction_version_reference_topology_resolve EQUAL 1
        OR NOT instruction_version_reference_mapping_resolve EQUAL 1
+       OR NOT instruction_version_stock_recipe_compile_catalog EQUAL 1
        OR NOT instruction_version_cognition_solve_packet EQUAL 1
        OR NOT introduced_minor_identity EQUAL 0
        OR NOT introduced_minor_trajectory_decode EQUAL 1
@@ -177,10 +205,12 @@ function(laplace_configure_isa_contract contract_path output_path)
        OR NOT introduced_minor_highway_registry_materialize EQUAL 4
        OR NOT introduced_minor_evidence_record_lineage EQUAL 5
        OR NOT introduced_minor_evidence_record_testimony EQUAL 6
+       OR NOT introduced_minor_evidence_calculate_standing EQUAL 12
        OR NOT introduced_minor_source_profile_validate EQUAL 7
        OR NOT introduced_minor_world_admission_close EQUAL 8
        OR NOT introduced_minor_reference_topology_resolve EQUAL 9
        OR NOT introduced_minor_reference_mapping_resolve EQUAL 10
+       OR NOT introduced_minor_stock_recipe_compile_catalog EQUAL 13
        OR NOT introduced_minor_cognition_solve_packet EQUAL 11)
         message(FATAL_ERROR "ISA opcode assignment changed")
     endif()
@@ -283,6 +313,14 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${value_reference_mapping_candidate}")
     set(LAPLACE_ISA_VALUE_REFERENCE_MAPPING_RECORD_VECTOR
         "${value_reference_mapping_record}")
+    set(LAPLACE_ISA_VALUE_STANDING_PERIOD_INPUT_VECTOR
+        "${value_standing_period_input}")
+    set(LAPLACE_ISA_VALUE_STANDING_PERIOD_RESULT_VECTOR
+        "${value_standing_period_result}")
+    set(LAPLACE_ISA_VALUE_STOCK_CATALOG_ITEM_VECTOR
+        "${value_stock_catalog_item}")
+    set(LAPLACE_ISA_VALUE_STOCK_CATALOG_RECEIPT_VECTOR
+        "${value_stock_catalog_receipt}")
     set(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH "${opcode_identity_codepoint}")
     set(LAPLACE_ISA_OPCODE_TRAJECTORY_COMPOSITION_DECODE_BATCH
         "${opcode_trajectory_decode}")
@@ -294,6 +332,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${opcode_evidence_record_lineage}")
     set(LAPLACE_ISA_OPCODE_EVIDENCE_RECORD_TESTIMONY_BATCH
         "${opcode_evidence_record_testimony}")
+    set(LAPLACE_ISA_OPCODE_EVIDENCE_CALCULATE_STANDING_BATCH
+        "${opcode_evidence_calculate_standing}")
     set(LAPLACE_ISA_OPCODE_SOURCE_PROFILE_VALIDATE_BATCH
         "${opcode_source_profile_validate}")
     set(LAPLACE_ISA_OPCODE_WORLD_ADMISSION_CLOSE_BATCH
@@ -302,6 +342,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${opcode_reference_topology_resolve}")
     set(LAPLACE_ISA_OPCODE_REFERENCE_MAPPING_RESOLVE_BATCH
         "${opcode_reference_mapping_resolve}")
+    set(LAPLACE_ISA_OPCODE_STOCK_RECIPE_COMPILE_CATALOG_BATCH
+        "${opcode_stock_recipe_compile_catalog}")
     set(LAPLACE_ISA_OPCODE_COGNITION_SOLVE_PACKET
         "${opcode_cognition_solve_packet}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_IDENTITY_CODEPOINT_BATCH
@@ -316,6 +358,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${instruction_version_evidence_record_lineage}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_EVIDENCE_RECORD_TESTIMONY_BATCH
         "${instruction_version_evidence_record_testimony}")
+    set(LAPLACE_ISA_INSTRUCTION_VERSION_EVIDENCE_CALCULATE_STANDING_BATCH
+        "${instruction_version_evidence_calculate_standing}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_SOURCE_PROFILE_VALIDATE_BATCH
         "${instruction_version_source_profile_validate}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_WORLD_ADMISSION_CLOSE_BATCH
@@ -324,6 +368,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${instruction_version_reference_topology_resolve}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_REFERENCE_MAPPING_RESOLVE_BATCH
         "${instruction_version_reference_mapping_resolve}")
+    set(LAPLACE_ISA_INSTRUCTION_VERSION_STOCK_RECIPE_COMPILE_CATALOG_BATCH
+        "${instruction_version_stock_recipe_compile_catalog}")
     set(LAPLACE_ISA_INSTRUCTION_VERSION_COGNITION_SOLVE_PACKET
         "${instruction_version_cognition_solve_packet}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_IDENTITY_CODEPOINT_BATCH
@@ -338,6 +384,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${introduced_minor_evidence_record_lineage}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_EVIDENCE_RECORD_TESTIMONY_BATCH
         "${introduced_minor_evidence_record_testimony}")
+    set(LAPLACE_ISA_INTRODUCED_MINOR_EVIDENCE_CALCULATE_STANDING_BATCH
+        "${introduced_minor_evidence_calculate_standing}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_SOURCE_PROFILE_VALIDATE_BATCH
         "${introduced_minor_source_profile_validate}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_WORLD_ADMISSION_CLOSE_BATCH
@@ -346,6 +394,8 @@ function(laplace_configure_isa_contract contract_path output_path)
         "${introduced_minor_reference_topology_resolve}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_REFERENCE_MAPPING_RESOLVE_BATCH
         "${introduced_minor_reference_mapping_resolve}")
+    set(LAPLACE_ISA_INTRODUCED_MINOR_STOCK_RECIPE_COMPILE_CATALOG_BATCH
+        "${introduced_minor_stock_recipe_compile_catalog}")
     set(LAPLACE_ISA_INTRODUCED_MINOR_COGNITION_SOLVE_PACKET
         "${introduced_minor_cognition_solve_packet}")
     set(LAPLACE_ISA_RECEIPT_DIGEST_BYTES "${receipt_bytes}")

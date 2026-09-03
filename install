@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+LAPLACE_REPOSITORY=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+exec /usr/bin/python3 \
+  "$LAPLACE_REPOSITORY/tools/delivery/product_host.py" install \
+  --repository "$LAPLACE_REPOSITORY" \
+  --authorize-system-root \
+  --generate-key \
+  --accepted-state "$LAPLACE_REPOSITORY/state/product-publication-selection.json" \
+  --output /opt/laplace/receipts/deployments/product-host-install.json \
+  "$@"

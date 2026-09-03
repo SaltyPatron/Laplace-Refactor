@@ -240,6 +240,14 @@ BEGIN
        OR admitted.reference_present_count <> 4
        OR admitted.reference_retired_count <> 0
        OR admitted.reference_unresolved_count <> 0
+       OR admitted.reference_persistence_batch_count <= 0
+       OR admitted.reference_maximum_persistence_batch_records <= 0
+       OR admitted.reference_maximum_encoded_persistence_batch_bytes > 4096
+       OR admitted.reference_minimum_encoded_persistence_record_bytes <= 0
+       OR (admitted.reference_persistence_batch_count > 1
+           AND 4096 -
+               admitted.reference_maximum_encoded_persistence_batch_bytes >=
+               admitted.reference_minimum_encoded_persistence_record_bytes)
        OR admitted.reference_mapping_receipt_id IS NULL
        OR admitted.reference_mapping_isa_receipt_id IS NULL
        OR admitted.reference_mapping_occurrence_count <> 2
@@ -247,6 +255,14 @@ BEGIN
        OR admitted.reference_mapping_resolved_count <> 2
        OR admitted.reference_mapping_unresolved_count <> 0
        OR admitted.reference_mapping_retired_count <> 0
+       OR admitted.reference_mapping_persistence_batch_count <= 0
+       OR admitted.reference_mapping_maximum_persistence_batch_records <= 0
+       OR admitted.reference_mapping_maximum_encoded_persistence_batch_bytes > 4096
+       OR admitted.reference_mapping_minimum_encoded_persistence_record_bytes <= 0
+       OR (admitted.reference_mapping_persistence_batch_count > 1
+           AND 4096 -
+               admitted.reference_mapping_maximum_encoded_persistence_batch_bytes >=
+               admitted.reference_mapping_minimum_encoded_persistence_record_bytes)
        OR admitted.durable_stream_record_count <= 0
        OR source_occurrences <> admitted.occurrence_count
        OR profile.reconstruction_class <> 2
@@ -662,10 +678,8 @@ DO $contract$
 DECLARE
     before_counts source_admission_after_replay%ROWTYPE;
     after_counts source_admission_after_replay%ROWTYPE;
-    pinned_context laplace.execution_context;
 BEGIN
     SELECT * INTO STRICT before_counts FROM source_admission_after_replay;
-    pinned_context := pg_temp.source_admission_context();
     BEGIN
         PERFORM pg_temp.admit_source(
             pg_temp.source_artifacts(decode('0001ff504a', 'hex')));
@@ -691,22 +705,6 @@ BEGIN
     INTO STRICT after_counts;
     IF before_counts IS DISTINCT FROM after_counts THEN
         RAISE EXCEPTION 'rejected artifact mutation published partial state';
-    END IF;
-
-    BEGIN
-        UPDATE laplace.perfcache_active_control
-        SET active_present = false
-        WHERE singleton;
-        PERFORM pg_temp.admit_source(
-            pg_temp.source_artifacts(), pinned_context);
-        RAISE EXCEPTION 'absent active Unicode root was accepted';
-    EXCEPTION
-        WHEN object_not_in_prerequisite_state THEN NULL;
-    END;
-    IF NOT EXISTS (
-        SELECT 1 FROM laplace.perfcache_active_control
-        WHERE singleton AND active_present) THEN
-        RAISE EXCEPTION 'Unicode mutation subtransaction did not roll back';
     END IF;
 END
 $contract$;

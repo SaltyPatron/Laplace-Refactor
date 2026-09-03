@@ -25,7 +25,7 @@
     "parent_issue": 23,
     "project_number": 2,
     "project_url": "https://github.com/users/SaltyPatron/projects/2",
-    "tracked_issues": [3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 50, 52, 53, 54, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72],
+    "tracked_issues": [3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 50, 52, 53, 54, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 110, 112, 115, 116],
     "phase_milestones": {
       "0": "Phase 0 — Product authority and clean-room foundation",
       "1": "Phase 1 — Industrial build and dependency foundation",
@@ -191,9 +191,37 @@
       "implementation": {
         "state": "partial",
         "proven_boundary": "one versioned native lineage batch operation identifies epistemically typed evidence nodes from proposition occurrence source context ordinal kind and flags; validates an ordered direct dependence DAG; rejects cycles with the exact closed path before publication; and calculates unique terminal root closure and path depth without descendant amplification. A separate versioned native testimony batch operation binds each evidence node to an exact source profile recipe receipt trust input outcome detail source type outcome type disposition reduced rational uncertainty and nonzero sample count; enforces profile-homogeneous canonical batches; and calculates exact testimony sample uncertain and negative-disposition denominators. Both operations execute through the generated ISA, testimony has exact managed Csharp parity, PostgreSQL persists immutable lineage testimony semantic receipts exact ordered receipt membership and ISA receipts transactionally, and the world-admission operation proves testimony-to-lineage-to-composition-occurrence binding from those durable member sets",
-        "missing_boundary": "one real ISO 639-3 profile now produces profile-scoped lineage and testimony through the generic tabular recipe under controlled PostgreSQL integration, but unrelated source shapes, cross-profile dependence, negative and unresolved real-source dispositions, immutable adjudication, referential identity, standing, contradiction, and consensus epochs remain incomplete",
+        "missing_boundary": "one real ISO 639-3 profile now produces profile-scoped lineage and testimony through the generic tabular recipe under controlled PostgreSQL integration, but unrelated source shapes, cross-profile dependence, negative and unresolved real-source dispositions, testimony-to-standing adjudication, referential identity, contradiction, and consensus epochs remain incomplete",
         "evidence": ["contracts/evidence-lineage.json", "contracts/evidence-testimony.json", "contracts/isa.json", "contracts/sources/iso-639-3-20260415.json", "cmake/LaplaceEvidenceLineageContract.cmake", "cmake/LaplaceEvidenceTestimonyContract.cmake", "engine/include/laplace/evidence_lineage.h", "engine/include/laplace/evidence_testimony.h", "engine/src/evidence_lineage.c", "engine/src/evidence_testimony.c", "engine/src/isa.c", "managed/Laplace.Managed/Abi.cs", "postgres/extension/src/evidence_lineage_pg.c", "postgres/extension/src/evidence_testimony_pg.c", "postgres/extension/src/source_admission_pg.c", "postgres/extension/laplace--version.sql.in", "tests/evidence_lineage_tests.cpp", "tests/evidence_testimony_tests.cpp", "tests/isa_tests.cpp", "tests/dotnet/Program.cs", "tests/postgres/spi_contract.sql", "tests/postgres/evidence_root_replay_mutation.sql", "tests/postgres/evidence_testimony_replay_mutation.sql", "tests/postgres/iso_639_source_admission_contract.sql", "tests/registry.json", "requirements/features/world_admission.feature", "requirements/features/epistemic_lineage.feature"]
       }
+    },
+    {
+      "id": "world.discover-qualify-sources",
+      "program_phases": [4],
+      "github_issues": [112],
+      "depends_on": ["foundation.acquire-build", "framework.execution"],
+      "owner": "read-only source-estate discovery and replaceable grammar codec and standards-provider qualification programs",
+      "consumes": ["authority-selected source coordinates", "observed artifact roots", "pinned provider estate", "finite probe resources"],
+      "produces": ["deterministic discovery catalog", "artifact-family candidates", "provider qualification receipts", "explicit unsupported ambiguous corrupt and inaccessible dispositions"],
+      "persistent_authority": ["catalog integrity artifact", "provider identity and qualification receipts", "discovery observations that are not source authority"],
+      "acceleration": ["content-integrity duplicate grouping", "bounded parallel provider probes", "archive member inventory without extraction"],
+      "receipts": ["selected coordinate and observed-path separation", "bytes integrity and container observations", "provider coverage error recovery determinism and reconstruction", "resource and failure dispositions"],
+      "product_requirements": ["LP-SEED-001", "LP-TEMPLATE-001", "LP-RECIPE-001", "LP-CLEANROOM-001"],
+      "implementation": {"state": "partial", "proven_boundary": "the generic deterministic read-only discovery catalog and the exact repository-profile resolver execute on this preparation branch with positive and deliberate-defect tests; discovery integrity digests remain separate from Laplace content identity and exact profile resolution does not promote unprofiled or nonconforming artifacts", "missing_boundary": "full physical-estate catalog receipts, provider qualification, source-family semantic qualification, and accepted per-source recipes are not complete", "evidence": ["contracts/source-discovery-catalog.json", "contracts/source-recipe-preparation.json", "contracts/source-profile-model.json", "requirements/features/source_recipe_preparation.feature", "tools/sources/catalog-source-root.py", "tools/sources/catalog-source-estate.py", "tests/source_discovery_catalog_tests.py", "tests/source_estate_catalog_tests.py", ".github/workflows/source-catalog.yml"]}
+    },
+    {
+      "id": "world.infer-source-templates",
+      "program_phases": [4],
+      "github_issues": [115],
+      "depends_on": ["framework.execution", "world.discover-qualify-sources"],
+      "owner": "native whole-working-set structural matcher and recipe compiler with authority correction and immutable template version publication",
+      "consumes": ["qualified provider trees and receipts", "accepted generic recipes and source templates", "source documentation schemas examples counterexamples and licenses", "prior authority corrections"],
+      "produces": ["candidate reusable structural mappings", "source-specific academic semantic deltas", "unresolved completion obligations", "accepted immutable template versions after authority and conformance"],
+      "persistent_authority": ["candidate ancestry and proposal evidence", "corrections and counterexamples", "accepted template recipe versions and conformance vectors"],
+      "acceleration": ["structural motif indexes", "accepted mapping reuse", "whole-working-set candidate generation"],
+      "receipts": ["reused and source-specific parts", "proposal evidence", "ambiguity loss and unmatched fields", "authority decision and version succession"],
+      "product_requirements": ["LP-TEMPLATE-001", "LP-RECIPE-001", "LP-GODEL-001", "LP-REUSE-001"],
+      "implementation": {"state": "unimplemented", "missing_boundary": "contracts and acceptance scenarios exist but no native ISA PostgreSQL correction publication or template-reuse engine exists", "evidence": ["contracts/source-recipe-preparation.json", "contracts/recipe-model.json", "requirements/features/source_recipe_preparation.feature"]}
     },
     {
       "id": "world.admit-witnesses",
@@ -209,15 +237,15 @@
       "product_requirements": ["LP-AST-001", "LP-RECIPE-001", "LP-ADMISSION-001", "LP-BULK-001", "LP-STORAGE-001", "LP-MATERIALIZATION-001"],
       "implementation": {
         "state": "partial",
-        "proven_boundary": "a versioned native source-profile operation binds typed source-profile highway identity to authority release license artifact graph syntax authority recipe universal-AST mapping highway references epistemic witnessing denominators conformance completion and selected-boundary fingerprints; validates required source denominators exact disposition closure reconstruction class and one selected boundary across multiple ordered profiles. A separate native world-admission operation closes exact source-profile recipe composition-working-set presence producer stream lineage testimony reconstruction readback and denominator state through generated ISA 1.9 and exact managed parity. One declarative generic tabular-source compiler verifies a parent-linked artifact graph, parses raw or fixed-width Unicode-delimited syntax into typed universal AST requests, preserves selected exact content independently of curated-distribution reconstruction, executes the shared whole-working-set composer, and emits typed reference occurrences that keep row field and exact value identities distinct. The real locked ISO 639-3 2026-04-15 profile compiles through that mechanism: its ZIP remains hash-attributed provenance while four selected tables recompose bit-for-bit. One canonical native and ISA reference-topology operation resolves all 18805 marked join-key occurrences under exact authority release namespace local-identifier and version scope into 9339 coordinates with 18404 present 401 retired and zero unresolved dispositions without asserting cross-namespace mappings. The public PostgreSQL source-admission operation resolves the active Unicode atom floor, composes and deposits canonical AST state, persists the typed reference topology plus 17110 profile-scoped lineage and testimony claims, closes the world-admission receipt, and proves exact content readback deterministic replay and mutation rollback in controlled integration",
-        "missing_boundary": "the ISO 639-3 result is controlled integration rather than an admission receipt in the activated PostgreSQL 18.6 product; unrelated tabular grammars, non-tabular codecs and modalities, explicit cross-namespace mappings, cross-profile reference and dependence closure, the remaining configured source profiles, foundational heterogeneous seed, performance gates, product activation, adjudication, cognition, and release remain incomplete",
-        "evidence": ["contracts/recipe-model.json", "contracts/source-profile-model.json", "contracts/source-admission.json", "contracts/source-profile-execution.json", "contracts/tabular-source.json", "contracts/sources/iso-639-3-20260415.json", "contracts/world-admission-execution.json", "contracts/highway.json", "contracts/isa.json", "cmake/LaplaceSourceProfileContract.cmake", "cmake/LaplaceTabularSourceContract.cmake", "cmake/LaplaceTabularSourceProfile.cmake", "cmake/LaplaceWorldAdmissionContract.cmake", "engine/include/laplace/source_profile.h", "engine/include/laplace/tabular_source.h", "engine/include/laplace/world_admission.h", "engine/src/source_profile.c", "engine/src/tabular_source.cpp", "engine/src/world_admission.c", "engine/src/isa.c", "managed/Laplace.Managed/Abi.cs", "postgres/extension/src/source_profile_pg.c", "postgres/extension/src/source_admission_pg.c", "postgres/extension/src/world_admission_pg.c", "postgres/extension/src/composition_pg.c", "postgres/extension/laplace--version.sql.in", "tools/contracts/generate-tabular-source-profile.py", "tests/source_profile_tests.cpp", "tests/tabular_source_tests.cpp", "tests/iso_639_source_tests.cpp", "tests/iso_639_source_profile_tests.py", "tests/world_admission_tests.cpp", "tests/isa_tests.cpp", "tests/dotnet/Program.cs", "tests/postgres/spi_contract.sql", "tests/postgres/world_admission_contract.sql", "tests/postgres/source_admission_contract.sql", "tests/postgres/iso_639_source_admission_contract.sql", "tests/postgres/source_profile_replay_mutation.sql", "tests/registry.json", "requirements/features/universal_ast_recipe.feature", "requirements/features/world_admission.feature"]
+        "proven_boundary": "a versioned native source-profile operation binds typed source-profile highway identity to authority release license artifact graph syntax authority recipe universal-AST mapping highway references epistemic witnessing denominators conformance completion and selected-boundary fingerprints; validates required source denominators exact disposition closure reconstruction class and one selected boundary across multiple ordered profiles. One canonical stock-recipe catalog operation content-identifies and canonically closes source release collection digital-object structural-region and semantic-construction recipe hierarchies across unrelated source profiles; binds grammar codec lowering recomposition conformance loss correction and one shared modality-agnostic semantic-segmentation law; binds recipe-owned perfcache planes to exact key value dependency generation semantic-verification invalidation and rebuild laws; and rejects orphan cross-source duplicate drifted or unowned declarations with a deliberate parent-validation mutant. Generated ISA 1.13 and Csharp bindings preserve exact native catalog identity and receipt semantics independent of caller item order. The PostgreSQL route decodes the same typed catalog items, executes the ISA operation, persists append-only recipes perfcache planes catalog receipts and ordered membership transactionally, verifies exact durable replay, and rejects conflicting prior state. A separate native world-admission operation closes exact source-profile recipe composition-working-set presence producer stream lineage testimony reconstruction readback and denominator state through generated ISA 1.9 and exact managed parity. One declarative generic tabular-source compiler verifies a parent-linked artifact graph, parses raw or single-byte-delimited Unicode syntax into typed universal AST requests, preserves selected exact content independently of curated-distribution reconstruction, executes the shared whole-working-set composer, and emits typed reference occurrences that keep row field and exact value identities distinct. The real locked ISO 639-3 2026-04-15 profile compiles through that mechanism: its ZIP remains hash-attributed provenance while four selected tables recompose bit-for-bit. One canonical native and ISA reference-topology operation resolves all 18805 marked join-key occurrences under exact authority release namespace local-identifier and version scope into 9339 coordinates with 18404 present 401 retired and zero unresolved dispositions without asserting cross-namespace mappings. The public PostgreSQL source-admission operation resolves the active Unicode atom floor, composes and deposits canonical AST state, persists the typed reference topology plus 17110 profile-scoped lineage and testimony claims, closes the world-admission receipt, and proves exact content readback deterministic replay and mutation rollback in controlled integration",
+        "missing_boundary": "no authority-selected recursive manifest yet supplies exact stock declarations for Unicode ISO CILI WordNet Britannica 1911 Gutenberg Webster dictionaries thesauri academic documents or the remaining configured source objects, and the durable catalog is not yet authority-selected or activated with coherent perfcache generations in the installed product. The ISO 639-3 result and durable catalog route are controlled integration rather than admission and activation receipts in the installed PostgreSQL 18.6 product; fixed-width and unrelated grammars, non-tabular codecs and modalities, explicit cross-namespace mappings, cross-profile reference and dependence closure, foundational heterogeneous seed, performance gates, product activation, adjudication, cognition, and release remain incomplete",
+        "evidence": ["contracts/recipe-model.json", "contracts/stock-recipe.json", "contracts/source-profile-model.json", "contracts/source-admission.json", "contracts/source-profile-execution.json", "contracts/tabular-source.json", "contracts/sources/iso-639-3-20260415.json", "contracts/world-admission-execution.json", "contracts/highway.json", "contracts/isa.json", "cmake/LaplaceStockRecipeContract.cmake", "cmake/LaplaceSourceProfileContract.cmake", "cmake/LaplaceTabularSourceContract.cmake", "cmake/LaplaceTabularSourceProfile.cmake", "cmake/LaplaceWorldAdmissionContract.cmake", "engine/include/laplace/stock_recipe.h", "engine/include/laplace/source_profile.h", "engine/include/laplace/tabular_source.h", "engine/include/laplace/world_admission.h", "engine/src/stock_recipe.c", "engine/src/source_profile.c", "engine/src/tabular_source.cpp", "engine/src/world_admission.c", "engine/src/isa.c", "managed/Laplace.Managed/Abi.cs", "postgres/extension/src/stock_recipe_pg.c", "postgres/extension/src/source_profile_pg.c", "postgres/extension/src/source_admission_pg.c", "postgres/extension/src/world_admission_pg.c", "postgres/extension/src/composition_pg.c", "postgres/extension/laplace--version.sql.in", "tools/contracts/generate-tabular-source-profile.py", "tests/stock_recipe_tests.cpp", "tests/source_profile_tests.cpp", "tests/tabular_source_tests.cpp", "tests/iso_639_source_tests.cpp", "tests/iso_639_source_profile_tests.py", "tests/world_admission_tests.cpp", "tests/isa_tests.cpp", "tests/dotnet/Program.cs", "tests/postgres/stock_recipe_probe.cpp", "tests/postgres/stock_recipe_contract.sql", "tests/postgres/spi_contract.sql", "tests/postgres/world_admission_contract.sql", "tests/postgres/source_admission_contract.sql", "tests/postgres/iso_639_source_admission_contract.sql", "tests/postgres/source_profile_replay_mutation.sql", "tests/registry.json", "requirements/features/universal_ast_recipe.feature", "requirements/features/world_admission.feature"]
       }
     },
     {
       "id": "evidence.adjudicate",
       "program_phases": [3],
-      "github_issues": [16],
+      "github_issues": [16, 110],
       "depends_on": ["evidence.record-lineage"],
       "owner": "native evidence lineage dependence trust and adjudication modules",
       "consumes": ["immutable testimony", "root observations", "dependence graph", "time context and trust recipe"],
@@ -226,7 +254,12 @@
       "acceleration": ["batch Glicko-2 calculation", "lineage closure", "epoch indexes", "derived materializations"],
       "receipts": ["testimony boundary", "independent roots", "dependence recipe", "trust inputs", "adjudication version"],
       "product_requirements": ["LP-IDENTITY-003", "LP-EVIDENCE-001", "LP-EVIDENCE-002", "LP-EVIDENCE-003", "LP-EVIDENCE-004"],
-      "implementation": {"state": "unimplemented", "evidence": ["requirements/features/epistemic_lineage.feature", "requirements/features/referential_identity.feature"]}
+      "implementation": {
+        "state": "partial",
+        "proven_boundary": "a versioned native typed standing operation implements the corrected March 22 2022 Glicko-2 calculation over an exact participant prior state and real outcome-bearing opponent prior states in one witnessed arena; canonicalizes event order; distinguishes non-rateable absent unknown denied exhausted and invalid outcomes from losses; rejects duplicate dependence roots identity drift self-match and arena drift; and emits an immutable successor state plus content-addressed period receipt. A content-identified standing recipe binds its authority receipt, arena axes, one-time defaults, numerical policy, admitted outcome kinds, and exact rational score mappings; onboarding consumes only those defaults and calculation rejects caller-invented mapping identifiers or scores. The generated ISA 1.12 opcode preserves the same recipe, result, and full receipt across caller event order, generated Csharp bindings execute it with exact native ABI result and receipt parity, and PostgreSQL consumes only a separately deposited durable recipe admission matching the active authority fingerprint and evidence epoch before transactionally publishing initial and earned state history, match events, period receipts, ordered membership, and ISA receipts with exact replay verification, single-successor continuity, and dependence-root non-amplification across every published period for the participant coordinate. Deliberate prior-reset, neutral-opponent, caller-mapping, caller-order-receipt, durable-replay-verification, and recipe-admission-bypass mutants are detected.",
+        "missing_boundary": "the protected authority lifecycle does not yet manufacture the inventor-authorized per-source stock recipe catalog or deposit its selected admissions; admitted testimony is not yet lowered into standing events through those recipes; source-type priors, earned override, independent return legs, cross-profile dependence reduction, contradiction propagation, immutable consensus epochs, as-of readback, and referential adjudication remain unimplemented; controlled temporary PostgreSQL integration is not activated-product adjudication",
+        "evidence": ["contracts/standing-calculation.json", "contracts/trust-matchup-realization.json", "contracts/isa.json", "requirements/features/trust_matchup_realization.feature", "requirements/features/epistemic_lineage.feature", "requirements/features/referential_identity.feature", "cmake/LaplaceStandingCalculationContract.cmake", "engine/include/laplace/standing_calculation.h", "engine/src/standing_calculation.c", "engine/src/isa.c", "managed/Laplace.Managed/Abi.cs", "postgres/extension/src/standing_calculation_pg.c", "postgres/extension/laplace--version.sql.in", "tests/standing_calculation_tests.cpp", "tests/isa_tests.cpp", "tests/dotnet/Program.cs", "tests/dotnet/native_expectations.cpp", "tests/postgres/standing_contract.sql", "tests/postgres/standing_admission_mutation.sql", "tests/postgres/standing_replay_mutation.sql", "tests/registry.d/standing.json"]
+      }
     },
     {
       "id": "query.guidance-search",
@@ -240,7 +273,7 @@
       "acceleration": ["indexed frontier batches", "metric candidate generators", "A-star or declared best-first search", "matrix-free operators"],
       "receipts": ["goal", "typed state", "cost and heuristic laws", "reopen and tie rules", "selected evidence and epochs"],
       "product_requirements": ["LP-CONVERSATION-001", "LP-COGNITION-001", "LP-QUERY-001", "LP-SEARCH-001", "LP-CONNECTION-001", "LP-LIMITS-001", "LP-EXCEPTION-001", "LP-COGNITION-002", "LP-COGNITION-003", "LP-COGNITION-004", "LP-GOVERNANCE-001", "LP-FIRMWARE-001"],
-      "implementation": {"state": "unimplemented", "evidence": ["docs/architecture/NATIVE_COGNITION_MATHEMATICS.md", "requirements/features/conversation_cognition.feature", "requirements/features/query_neighborhood.feature", "requirements/features/firmware_governance.feature"]}
+      "implementation": {"state": "unimplemented", "evidence": ["contracts/trust-matchup-realization.json", "docs/architecture/NATIVE_COGNITION_MATHEMATICS.md", "requirements/features/trust_matchup_realization.feature", "requirements/features/conversation_cognition.feature", "requirements/features/query_neighborhood.feature", "requirements/features/firmware_governance.feature"]}
     },
     {
       "id": "cognition.realize-effect",
@@ -254,7 +287,7 @@
       "acceleration": ["trajectory statistics", "language and modality perfcaches", "bulk codecs and effect providers"],
       "receipts": ["completion obligations", "selected act", "realizer", "exact output", "effect authorization", "world result"],
       "product_requirements": ["LP-REALIZATION-001", "LP-LANGUAGE-001"],
-      "implementation": {"state": "unimplemented", "evidence": ["requirements/features/modality_realization.feature", "requirements/features/unicode_realization.feature"]}
+      "implementation": {"state": "unimplemented", "evidence": ["contracts/trust-matchup-realization.json", "requirements/features/trust_matchup_realization.feature", "requirements/features/modality_realization.feature", "requirements/features/unicode_realization.feature"]}
     },
     {
       "id": "learning.discovery-ooda",
@@ -269,6 +302,20 @@
       "receipts": ["fray type", "vacancy signature", "fit boundary", "held-out evaluation", "external support", "activation authority"],
       "product_requirements": ["LP-OODA-001", "LP-GODEL-001"],
       "implementation": {"state": "unimplemented", "evidence": ["requirements/features/godel_ooda.feature", "requirements/features/firmware_governance.feature"]}
+    },
+    {
+      "id": "world.configure-foundational-seed",
+      "program_phases": [4, 5],
+      "github_issues": [53, 115],
+      "depends_on": ["world.admit-witnesses", "world.infer-source-templates", "evidence.adjudicate"],
+      "owner": "native configured-seed closure and cross-profile evidence reference and recipe publication program",
+      "consumes": ["authority-selected seed manifest", "conforming admitted source profiles", "accepted template and recipe versions", "cross-profile references dependence and evidence epochs"],
+      "produces": ["configured foundational heterogeneous seed epoch", "closed selected denominators", "query and realization eligible seed boundary", "exact incomplete or why-not disposition"],
+      "persistent_authority": ["selected seed manifest", "profile and artifact membership", "cross-profile closure epoch", "configured-seed completion receipt"],
+      "acceleration": ["cross-profile reference indexes", "dependence-root closure", "selected-boundary presence batches"],
+      "receipts": ["selected versus observed artifacts", "profile world-admission identities", "reference dependence and contradiction closure", "required derived publications and unresolved obligations"],
+      "product_requirements": ["LP-SEED-001", "LP-ADMISSION-001", "LP-EVIDENCE-003", "LP-ACTIVATION-001"],
+      "implementation": {"state": "unimplemented", "missing_boundary": "no configured selected-seed manifest complete source-profile estate cross-profile closure or activated configured-seed receipt exists", "evidence": ["contracts/source-recipe-preparation.json", "contracts/source-admission.json", "requirements/features/source_recipe_preparation.feature", "requirements/features/world_admission.feature"]}
     },
     {
       "id": "model.ingest-generate",
@@ -314,15 +361,15 @@
     },
     {
       "id": "delivery.activate-product",
-      "program_phases": [7, 8],
-      "github_issues": [21, 22, 50, 69],
+      "program_phases": [7],
+      "github_issues": [21, 50, 69],
       "depends_on": ["bootstrap.dependencies", "world.admit-witnesses", "cognition.realize-effect", "learning.discovery-ooda", "model.ingest-generate", "product.materialize-entity-world", "runtime.federate-nodes"],
-      "owner": "package installer service manager database migrator and release verifier",
+      "owner": "package installer service manager database migrator and product activation verifier",
       "consumes": ["verified native engine", "PostgreSQL stack", "schemas and migrations", "orchestrators", "artifacts and acceptance evidence"],
       "produces": ["one activated Linux and Windows Laplace product", "diagnostics", "repair rollback and support state"],
       "persistent_authority": ["activation manifest", "installed package receipts", "service and database version state"],
       "acceleration": ["out-of-tree builds", "hosted and self-hosted CI", "incremental package and database activation"],
-      "receipts": ["source to package provenance", "loaded objects", "database schema", "active cache epochs", "whole-product acceptance"],
+      "receipts": ["source to package provenance", "loaded objects", "database schema", "active cache epochs", "product activation state"],
       "product_requirements": ["LP-PRODUCT-001", "LP-PACKAGE-001", "LP-DOC-001", "LP-ACTIVATION-001", "LP-NODE-001", "LP-FEDERATION-001", "LP-PLACEMENT-001"],
       "implementation": {
         "state": "partial",
@@ -330,6 +377,34 @@
         "missing_boundary": "the root-owned activation gateway trust anchor is not yet physically installed no selected PostgreSQL 18.6 product cluster is active no Unicode or Highway product receipt exists and no whole-product deployment or release state exists",
         "evidence": ["docs/delivery/PRODUCT_INFRASTRUCTURE.md", "docs/delivery/POSTGRESQL_CLUSTER.md", "contracts/postgresql-cluster.json", "contracts/product-activation-gateway.json", "tools/postgresql/clusterctl.py", "tools/postgresql/unicodectl.py", "tools/delivery/product_activation.py", "tools/delivery/install_product_activation_gateway.py", "tests/postgresql_cluster_tests.py", "tests/product_activation_gateway_tests.py", ".github/workflows/custom-stack.yml", ".github/workflows/product-activation.yml"]
       }
+    },
+    {
+      "id": "delivery.accept-seeded-inference",
+      "program_phases": [8],
+      "github_issues": [116],
+      "depends_on": ["delivery.activate-product", "world.configure-foundational-seed", "cognition.realize-effect"],
+      "owner": "installed-product clean-seed public cognition derivation trust realization restart and replay acceptance program",
+      "consumes": ["activated installed product", "configured foundational seed epoch", "zero-production-user observation boundary", "indirect inference question and deliberate defects"],
+      "produces": ["typed derivation and trust disposition", "exact language realization", "restart and replay proof", "acceptance or exact why-not receipt"],
+      "persistent_authority": ["public cognition program", "participating seed and evidence boundary", "derivation semantic act realization and replay receipts"],
+      "acceleration": ["none may substitute for public-route semantic parity", "accepted indexes and perfcaches remain removable physical providers"],
+      "receipts": ["no direct target attestation", "zero production-user observations", "native ISA PostgreSQL operation lineage", "scope negative controls and restart parity"],
+      "product_requirements": ["LP-INFERENCE-001", "LP-SEED-001", "LP-COHESION-001", "LP-ACTIVATION-001", "LP-REALIZATION-001"],
+      "implementation": {"state": "unimplemented", "missing_boundary": "the configured seed cognition adjudication realization activated product and complete public-route acceptance do not exist", "evidence": ["contracts/source-recipe-preparation.json", "requirements/features/source_recipe_preparation.feature", "docs/architecture/ACCEPTANCE.md"]}
+    },
+    {
+      "id": "delivery.release-product",
+      "program_phases": [8],
+      "github_issues": [22],
+      "depends_on": ["delivery.activate-product", "delivery.accept-seeded-inference"],
+      "owner": "complete-product acceptance evidence and release publication verifier",
+      "consumes": ["activated product receipts", "configured seed and indirect-inference acceptance", "all required complete-product acceptance evidence"],
+      "produces": ["released package generation or exact blocked disposition", "release provenance and publication receipt"],
+      "persistent_authority": ["complete acceptance manifest", "release identity", "publication and rollback receipts"],
+      "acceleration": ["verified artifact reuse", "deterministic evidence aggregation"],
+      "receipts": ["all required product states", "complete acceptance results", "published package and source identities", "release or why-not disposition"],
+      "product_requirements": ["LP-PRODUCT-001", "LP-INFERENCE-001", "LP-PACKAGE-001", "LP-DOC-001", "LP-ACTIVATION-001"],
+      "implementation": {"state": "unimplemented", "missing_boundary": "no complete-product acceptance release package or publication exists", "evidence": ["contracts/source-recipe-preparation.json", "docs/architecture/ACCEPTANCE.md", "requirements/features/source_recipe_preparation.feature"]}
     }
   ]
 }

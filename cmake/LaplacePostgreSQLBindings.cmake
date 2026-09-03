@@ -49,6 +49,10 @@ function(laplace_configure_postgresql_bindings
         "${contract_json}" bindings postgresql evidence_record_testimony_batch record_sql_name)
     string(JSON evidence_testimony_symbol GET
         "${contract_json}" bindings postgresql evidence_record_testimony_batch record_c_symbol)
+    string(JSON evidence_standing_sql GET
+        "${contract_json}" bindings postgresql evidence_calculate_standing_batch calculate_sql_name)
+    string(JSON evidence_standing_symbol GET
+        "${contract_json}" bindings postgresql evidence_calculate_standing_batch calculate_c_symbol)
     string(JSON source_profile_validate_sql GET
         "${contract_json}" bindings postgresql source_profile_validate_batch validate_sql_name)
     string(JSON source_profile_validate_symbol GET
@@ -65,6 +69,10 @@ function(laplace_configure_postgresql_bindings
         "${contract_json}" bindings postgresql reference_mapping_resolve_batch resolve_sql_name)
     string(JSON reference_mapping_resolve_symbol GET
         "${contract_json}" bindings postgresql reference_mapping_resolve_batch resolve_c_symbol)
+    string(JSON stock_recipe_compile_catalog_sql GET
+        "${contract_json}" bindings postgresql stock_recipe_compile_catalog_batch compile_sql_name)
+    string(JSON stock_recipe_compile_catalog_symbol GET
+        "${contract_json}" bindings postgresql stock_recipe_compile_catalog_batch compile_c_symbol)
     string(JSON source_admit_tabular_sql GET
         "${contract_json}" bindings postgresql source_admit_tabular admit_sql_name)
     string(JSON source_admit_tabular_symbol GET
@@ -177,10 +185,12 @@ function(laplace_configure_postgresql_bindings
         highway_registry_resolve_sql highway_registry_resolve_symbol
         evidence_record_sql evidence_record_symbol
         evidence_testimony_sql evidence_testimony_symbol
+        evidence_standing_sql evidence_standing_symbol
         source_profile_validate_sql source_profile_validate_symbol
         world_admission_close_sql world_admission_close_symbol
         reference_topology_resolve_sql reference_topology_resolve_symbol
         reference_mapping_resolve_sql reference_mapping_resolve_symbol
+        stock_recipe_compile_catalog_sql stock_recipe_compile_catalog_symbol
         source_admit_tabular_sql source_admit_tabular_symbol
         persistence_deposit_sql persistence_deposit_symbol
         composition_deposit_sql composition_deposit_symbol
@@ -236,6 +246,8 @@ function(laplace_configure_postgresql_bindings
     set(LAPLACE_PG_EVIDENCE_RECORD_SYMBOL "${evidence_record_symbol}")
     set(LAPLACE_PG_EVIDENCE_TESTIMONY_SQL "${evidence_testimony_sql}")
     set(LAPLACE_PG_EVIDENCE_TESTIMONY_SYMBOL "${evidence_testimony_symbol}")
+    set(LAPLACE_PG_EVIDENCE_STANDING_SQL "${evidence_standing_sql}")
+    set(LAPLACE_PG_EVIDENCE_STANDING_SYMBOL "${evidence_standing_symbol}")
     set(LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SQL "${source_profile_validate_sql}")
     set(LAPLACE_PG_SOURCE_PROFILE_VALIDATE_SYMBOL "${source_profile_validate_symbol}")
     set(LAPLACE_PG_WORLD_ADMISSION_CLOSE_SQL "${world_admission_close_sql}")
@@ -248,6 +260,10 @@ function(laplace_configure_postgresql_bindings
         "${reference_mapping_resolve_sql}")
     set(LAPLACE_PG_REFERENCE_MAPPING_RESOLVE_SYMBOL
         "${reference_mapping_resolve_symbol}")
+    set(LAPLACE_PG_STOCK_RECIPE_COMPILE_CATALOG_SQL
+        "${stock_recipe_compile_catalog_sql}")
+    set(LAPLACE_PG_STOCK_RECIPE_COMPILE_CATALOG_SYMBOL
+        "${stock_recipe_compile_catalog_symbol}")
     set(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SQL "${source_admit_tabular_sql}")
     set(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL "${source_admit_tabular_symbol}")
     set(LAPLACE_PG_CARRIER_ENCODING "${carrier_encoding}")
