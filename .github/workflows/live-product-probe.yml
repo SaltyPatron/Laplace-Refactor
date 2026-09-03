@@ -1,0 +1,140 @@
+name: live-product-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact repository commit whose installed product is being probed
+        required: true
+        type: string
+  push:
+    branches:
+      - reconcile/live-product-probe-183
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-product-probe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - postgres-18
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Bind the probe to current refactor authority
+        id: authority
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          why_not() {
+            echo "::error title=Live product WHY_NOT::$*" >&2
+            exit 1
+          }
+          require_equal() {
+            label=$1
+            actual=$2
+            expected=$3
+            test "$actual" = "$expected" || \
+              why_not "$label expected '$expected' but observed '$actual'"
+          }
+          require_executable() {
+            path=$1
+            test -x "$path" || why_not "required installed executable is absent: $path"
+          }
+
+          require_equal 'runner identity' "$(id -un)" laplace-runner
+          require_equal 'repository identity' "$GITHUB_REPOSITORY" SaltyPatron/Laplace-Refactor
+          if test "$GITHUB_EVENT_NAME" = workflow_dispatch; then
+            require_equal 'requested repository commit' "$GITHUB_SHA" '${{ inputs.expected_sha }}'
+          fi
+
+          contract=contracts/postgresql-cluster.json
+          service=$(jq -er '.instance.service' "$contract")
+          database=$(jq -er '.instance.database' "$contract")
+          role=$(jq -er '.instance.app_role' "$contract")
+          port=$(jq -er '.instance.port' "$contract")
+          socket=$(jq -er '.instance.socket_directory' "$contract")
+          active=$(jq -er '.package.active_link' "$contract")
+          psql="$active/pgsql-18/bin/psql"
+          pg_isready="$active/pgsql-18/bin/pg_isready"
+
+          require_equal 'PostgreSQL service contract' "$service" laplace-refactor-postgresql.service
+          require_equal 'database contract' "$database" laplace_refactor
+          require_equal 'application role contract' "$role" laplace_app
+          require_equal 'PostgreSQL port contract' "$port" 55433
+          require_equal 'PostgreSQL socket contract' "$socket" /run/laplace-refactor-postgresql
+          require_equal 'active package contract' "$active" /opt/laplace/current
+          require_executable "$psql"
+          require_executable "$pg_isready"
+
+          service_state=$(systemctl is-active "$service" 2>/dev/null || true)
+          require_equal 'installed PostgreSQL service state' "$service_state" active
+          "$pg_isready" --host "$socket" --port "$port" --dbname "$database" >/dev/null || \
+            why_not "PostgreSQL is not accepting connections at $socket:$port/$database"
+
+          printf 'service=%s\n' "$service" >> "$GITHUB_OUTPUT"
+          printf 'database=%s\n' "$database" >> "$GITHUB_OUTPUT"
+          printf 'role=%s\n' "$role" >> "$GITHUB_OUTPUT"
+          printf 'port=%s\n' "$port" >> "$GITHUB_OUTPUT"
+          printf 'socket=%s\n' "$socket" >> "$GITHUB_OUTPUT"
+          printf 'psql=%s\n' "$psql" >> "$GITHUB_OUTPUT"
+
+      - name: Query the installed refactor product without exposing row contents
+        shell: bash
+        env:
+          LAPLACE_SERVICE: ${{ steps.authority.outputs.service }}
+          LAPLACE_DATABASE: ${{ steps.authority.outputs.database }}
+          LAPLACE_ROLE: ${{ steps.authority.outputs.role }}
+          LAPLACE_PORT: ${{ steps.authority.outputs.port }}
+          LAPLACE_SOCKET: ${{ steps.authority.outputs.socket }}
+          LAPLACE_PSQL: ${{ steps.authority.outputs.psql }}
+        run: |
+          set -euo pipefail
+          args=(
+            -X -w -A -t
+            -v ON_ERROR_STOP=1
+            --host "$LAPLACE_SOCKET"
+            --port "$LAPLACE_PORT"
+            --dbname "$LAPLACE_DATABASE"
+            --username "$LAPLACE_ROLE"
+          )
+
+          echo '--- installed database identity ---'
+          "$LAPLACE_PSQL" "${args[@]}" -c \
+            "select current_database(),current_user,current_setting('server_version'),(select extversion from pg_extension where extname='laplace');"
+
+          echo '--- installed extension set ---'
+          "$LAPLACE_PSQL" "${args[@]}" -c \
+            "select extname,extversion from pg_extension order by 1;"
+
+          echo '--- Laplace schema relation inventory ---'
+          "$LAPLACE_PSQL" "${args[@]}" -c \
+            "select c.relkind,c.relname,coalesce(s.n_live_tup,0),pg_total_relation_size(c.oid) from pg_class c join pg_namespace n on n.oid=c.relnamespace left join pg_stat_user_tables s on s.relid=c.oid where n.nspname='laplace' and c.relkind in ('r','p','v','m') order by c.relkind,c.relname;"
+
+          echo '--- exact counts for canonical core relations that exist ---'
+          for rel in entity physicality attestation relation composition_occurrences calculation_receipts execution_receipts perfcache_generations; do
+            fq="laplace.$rel"
+            present=$("$LAPLACE_PSQL" "${args[@]}" -c "select to_regclass('$fq') is not null;")
+            if test "$present" = t; then
+              count=$("$LAPLACE_PSQL" "${args[@]}" -c "select count(*) from $fq;")
+              printf '%s=%s\n' "$fq" "$count"
+            fi
+          done
+
+          echo '--- declared service identity ---'
+          systemctl show "$LAPLACE_SERVICE" \
+            --property=ActiveState \
+            --property=SubState \
+            --property=FragmentPath \
+            --property=ExecStart \
+            --no-pager
