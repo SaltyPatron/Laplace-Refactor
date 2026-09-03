@@ -10,6 +10,8 @@ law used by the PostgreSQL, Unicode, and Highway producers.
 from __future__ import annotations
 
 import importlib.util
+import json
+import os
 from pathlib import Path
 import sys
 from typing import Any, Sequence
@@ -39,6 +41,13 @@ def load_implementation() -> Any:
 
 
 activation = load_implementation()
+KEY_FINGERPRINT_DOMAIN = b"laplace.product-activation-key-fingerprint/v1\0"
+
+
+def activation_key_fingerprint(key: bytes) -> str:
+    """Publish only a one-way, domain-separated identity for a 256-bit key."""
+
+    return activation.sha256_bytes(KEY_FINGERPRINT_DOMAIN + key)
 
 
 def producer_document_identity(document: dict[str, Any], field: str) -> str:
@@ -143,8 +152,42 @@ def patch_implementation() -> None:
 patch_implementation()
 
 
+def probe_installed_gateway() -> dict[str, str]:
+    """Return non-secret identities for the exact root trust boundary."""
+
+    if os.geteuid() != 0:
+        raise activation.ActivationGatewayError("installed activation gateway probe requires root")
+    executable = Path(__file__).resolve()
+    bundle, _manifest = activation.verify_installed_bundle(
+        executable, require_root_ownership=True
+    )
+    contract_path = bundle / "contracts/product-activation-gateway.json"
+    contract = activation.load_json(contract_path)
+    activation.validate_contract(contract)
+    key_path = Path(contract["request"]["secret_path"])
+    if (
+        not key_path.is_file()
+        or key_path.is_symlink()
+        or (key_path.stat().st_mode & 0o077) != 0
+    ):
+        raise activation.ActivationGatewayError(
+            "root deployment secret is absent or has unsafe permissions"
+        )
+    key = activation.decode_key(key_path.read_text(encoding="ascii").strip())
+    return {
+        "schema": "laplace.product-activation-gateway-probe/v2",
+        "bundle_id": bundle.name,
+        "contract_sha256": activation.sha256_bytes(activation.canonical_bytes(contract)),
+        "key_fingerprint_sha256": activation_key_fingerprint(key),
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    return activation.main(argv)
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments == ["probe"]:
+        print(json.dumps(probe_installed_gateway(), sort_keys=True))
+        return 0
+    return activation.main(arguments)
 
 
 if __name__ == "__main__":
