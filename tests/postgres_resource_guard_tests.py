@@ -133,9 +133,28 @@ class PostgreSQLResourceGuardTests(unittest.TestCase):
             "LAPLACE_POSTGRES_MAX_DATA_BYTES:-1073741824",
             "LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912",
             "LAPLACE_POSTGRES_MAX_WORKSPACE_BYTES:-2147483648",
+            "LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WALL_SECONDS:-180",
+            "LAPLACE_POSTGRES_SOURCE_SUITE_MAX_DATA_BYTES:-3221225472",
+            "LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WAL_BYTES:-1610612736",
+            "LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WORKSPACE_BYTES:-6442450944",
             "LAPLACE_POSTGRES_MAX_RSS_BYTES:-12884901888",
         ):
             self.assertIn(boundary, harness)
+
+    def test_source_suite_scales_only_aggregate_guard_not_statement_timeout(self) -> None:
+        harness = RUN_SPI.read_text(encoding="utf-8")
+        self.assertIn(
+            'if [[ "$mode" == "source-admission-suite" ]]; then', harness
+        )
+        self.assertIn(
+            "source_max_wall_seconds=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WALL_SECONDS:-180}",
+            harness,
+        )
+        self.assertIn(
+            "statement_timeout_ms=${LAPLACE_POSTGRES_STATEMENT_TIMEOUT_MS:-60000}",
+            harness,
+        )
+        self.assertNotIn("LAPLACE_POSTGRES_STATEMENT_TIMEOUT_MS:-180000", harness)
 
     def test_deliberate_guard_omission_is_detected(self) -> None:
         harness = RUN_SPI.read_text(encoding="utf-8")
