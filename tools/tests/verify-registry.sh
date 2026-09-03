@@ -7,7 +7,11 @@ if [[ $# -lt 1 || $# -gt 2 ]]; then
 fi
 
 build_directory=$1
-profile=${2:-core}
+# Explicit caller argument wins. Reusable workflows commonly select the registry
+# surface through LAPLACE_TEST_PROFILE while passing only the build directory;
+# ignoring that environment value silently verifies the core registry against a
+# custom-stack CTest surface. Keep core as the default for ordinary hosted CI.
+profile=${2:-${LAPLACE_TEST_PROFILE:-core}}
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 registry="$repo_root/tests/registry.json"
 requirements="$repo_root/requirements/product.yaml"
