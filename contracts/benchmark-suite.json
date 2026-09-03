@@ -1,0 +1,77 @@
+{
+  "schema": "laplace.benchmark-suite/v1",
+  "owner": "framework.execution/resource-plan/receipt",
+  "dispatch": {
+    "long_running_default": "explicit-only",
+    "source_triggers_forbidden": ["push", "pull_request", "merge"],
+    "must_bind_exact_execution_identity": true
+  },
+  "profile": {
+    "required_identity": [
+      "profile_contract",
+      "input_or_corpus_identity",
+      "source_or_package_identity",
+      "topology_resource_epoch",
+      "physical_provider_plan"
+    ],
+    "required_result": [
+      "semantic_or_result_fingerprint",
+      "actual_work_vector",
+      "resource_receipt",
+      "completion_disposition"
+    ]
+  },
+  "sparse_addressability": {
+    "representative_physical_shape": "O(log N)+O(K)",
+    "not_universal": true,
+    "requires": [
+      "N_definition",
+      "K_definition",
+      "address_provider_and_completeness",
+      "filters_and_candidate_counts",
+      "actual_selected_work_algorithm",
+      "result_parity"
+    ]
+  },
+  "accelerator": {
+    "optional_physical_provider": true,
+    "semantic_authority": false,
+    "world_residency_required": false,
+    "distinguish": [
+      "installed",
+      "eligible",
+      "selected",
+      "actual_work_and_transfer"
+    ],
+    "provider_comparison_requires": [
+      "same_logical_program",
+      "same_world_evidence_epoch",
+      "same_selected_semantic_work",
+      "host_to_device_bytes",
+      "device_to_host_bytes",
+      "device_memory",
+      "provider_work",
+      "semantic_result_parity"
+    ]
+  },
+  "scaling": {
+    "single_worker_extrapolation_forbidden": true,
+    "require_affinity_topology": true,
+    "require_physical_core_boundary": true,
+    "require_smt_boundary_when_present": true,
+    "require_speedup": true,
+    "require_parallel_efficiency": true
+  },
+  "economics": {
+    "native_work_vector_is_authority": true,
+    "tokens_are_comparison_only": true,
+    "feeds": [
+      "estimator_calibration",
+      "pricing",
+      "throttles",
+      "capacity",
+      "godel_optimization",
+      "competitor_equivalence"
+    ]
+  }
+}
