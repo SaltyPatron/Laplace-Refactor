@@ -35,10 +35,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(id -un)" = laplace-runner
-          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+
+          why_not() {
+            echo "::error title=Live product WHY_NOT::$*" >&2
+            exit 1
+          }
+          require_equal() {
+            label=$1
+            actual=$2
+            expected=$3
+            test "$actual" = "$expected" || \
+              why_not "$label expected '$expected' but observed '$actual'"
+          }
+          require_executable() {
+            path=$1
+            test -x "$path" || why_not "required installed executable is absent: $path"
+          }
+
+          require_equal 'runner identity' "$(id -un)" laplace-runner
+          require_equal 'repository identity' "$GITHUB_REPOSITORY" SaltyPatron/Laplace-Refactor
           if test "$GITHUB_EVENT_NAME" = workflow_dispatch; then
-            test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
+            require_equal 'requested repository commit' "$GITHUB_SHA" '${{ inputs.expected_sha }}'
           fi
 
           contract=contracts/postgresql-cluster.json
@@ -51,16 +68,19 @@ jobs:
           psql="$active/pgsql-18/bin/psql"
           pg_isready="$active/pgsql-18/bin/pg_isready"
 
-          test "$service" = laplace-refactor-postgresql.service
-          test "$database" = laplace_refactor
-          test "$role" = laplace_app
-          test "$port" = 55433
-          test "$socket" = /run/laplace-refactor-postgresql
-          test "$active" = /opt/laplace/current
-          test -x "$psql"
-          test -x "$pg_isready"
-          test "$(systemctl is-active "$service")" = active
-          "$pg_isready" --host "$socket" --port "$port" --dbname "$database" >/dev/null
+          require_equal 'PostgreSQL service contract' "$service" laplace-refactor-postgresql.service
+          require_equal 'database contract' "$database" laplace_refactor
+          require_equal 'application role contract' "$role" laplace_app
+          require_equal 'PostgreSQL port contract' "$port" 55433
+          require_equal 'PostgreSQL socket contract' "$socket" /run/laplace-refactor-postgresql
+          require_equal 'active package contract' "$active" /opt/laplace/current
+          require_executable "$psql"
+          require_executable "$pg_isready"
+
+          service_state=$(systemctl is-active "$service" 2>/dev/null || true)
+          require_equal 'installed PostgreSQL service state' "$service_state" active
+          "$pg_isready" --host "$socket" --port "$port" --dbname "$database" >/dev/null || \
+            why_not "PostgreSQL is not accepting connections at $socket:$port/$database"
 
           printf 'service=%s\n' "$service" >> "$GITHUB_OUTPUT"
           printf 'database=%s\n' "$database" >> "$GITHUB_OUTPUT"
