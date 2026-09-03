@@ -309,6 +309,14 @@ bool BuildTransition(
     target.evidence_epoch = source.evidence_epoch;
     target.boundary_id = source.boundary_id;
     target.depth = source.depth + 1U;
+    const bool terminal_all =
+        (binding.flags & LAPLACE_OBSERVATION_QUERY_BINDING_TERMINAL_RESULTS) != 0U;
+    const bool terminal_goal =
+        (binding.flags & LAPLACE_OBSERVATION_QUERY_BINDING_GOAL_PRESENT) != 0U &&
+        SameId(binding.goal_entity_id, candidate.target_entity_id);
+    if (terminal_all || terminal_goal) {
+        target.flags = LAPLACE_QUERY_SEARCH_STATE_TERMINAL;
+    }
 
     blake3_hasher context_hasher{};
     StartDomain(&context_hasher, ContextDomain);
@@ -338,17 +346,10 @@ bool BuildTransition(
     HashDigest(&state_hasher, target.context_fingerprint);
     HashDigest(&state_hasher, target.evidence_epoch);
     HashDigest(&state_hasher, target.boundary_id);
+    HashU64(&state_hasher, target.heuristic_cost);
     HashU32(&state_hasher, target.depth);
+    HashU32(&state_hasher, target.flags);
     Finish(&state_hasher, &target.state_id);
-
-    const bool terminal_all =
-        (binding.flags & LAPLACE_OBSERVATION_QUERY_BINDING_TERMINAL_RESULTS) != 0U;
-    const bool terminal_goal =
-        (binding.flags & LAPLACE_OBSERVATION_QUERY_BINDING_GOAL_PRESENT) != 0U &&
-        SameId(binding.goal_entity_id, candidate.target_entity_id);
-    if (terminal_all || terminal_goal) {
-        target.flags = LAPLACE_QUERY_SEARCH_STATE_TERMINAL;
-    }
 
     *transition = laplace_query_search_transition{};
     transition->source_state_id = source.state_id;
@@ -691,6 +692,9 @@ laplace_query_search_state InitialSearchState(
     HashDigest(&state_hasher, state.context_fingerprint);
     HashDigest(&state_hasher, state.evidence_epoch);
     HashDigest(&state_hasher, state.boundary_id);
+    HashU64(&state_hasher, state.heuristic_cost);
+    HashU32(&state_hasher, state.depth);
+    HashU32(&state_hasher, state.flags);
     Finish(&state_hasher, &state.state_id);
     return state;
 }
@@ -882,7 +886,8 @@ int ExecuteObservationOperation(
     resolutions[0] = laplace_cognition_resolution{};
     resolutions[0].obligation_id = projection->obligation_id;
     resolutions[0].receipt_id = resolution_receipt;
-    if (path_count != 0U) {
+    if (path_count != 0U &&
+        search_receipt.disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_COMPLETE) {
         resolutions[0].value_id = result_fingerprint;
         resolutions[0].disposition = LAPLACE_COGNITION_OBLIGATION_SATISFIED;
     } else {
