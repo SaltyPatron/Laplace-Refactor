@@ -10,12 +10,9 @@
 #include <limits>
 #include <memory>
 #include <new>
-#include <set>
 #include <vector>
 
 namespace {
-
-using DigestKey = std::array<std::uint8_t, 32>;
 
 bool Zero(const laplace_digest256& value) {
     std::uint8_t aggregate = 0U;
@@ -31,12 +28,6 @@ bool Same(const laplace_digest256& left, const laplace_digest256& right) {
 
 bool DigestLess(const laplace_digest256& left, const laplace_digest256& right) {
     return std::memcmp(left.bytes, right.bytes, sizeof(left.bytes)) < 0;
-}
-
-DigestKey Key(const laplace_digest256& value) {
-    DigestKey key{};
-    std::copy(std::begin(value.bytes), std::end(value.bytes), key.begin());
-    return key;
 }
 
 void HashU32(blake3_hasher* const hasher, const std::uint32_t value) {
