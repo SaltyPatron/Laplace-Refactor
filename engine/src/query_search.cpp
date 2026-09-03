@@ -3,3 +3,5 @@
 #include "query_search_part02.inc"
 #include "query_search_part03.inc"
 #include "query_search_part04.inc"
+#include "observation_query_part00.inc"
+#include "observation_query_part01.inc"
