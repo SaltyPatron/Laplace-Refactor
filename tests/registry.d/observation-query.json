@@ -20,6 +20,11 @@
       "ctest_name": "ObservationQuery.CognitionForwardPassExecutesSharedSearchOverObservationState",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
       "covered_dimensions": ["guidance projection to typed observation binding", "native forward pass calls common query search provider", "trajectory-derived predecessor result", "resolved guidance state and complete receipt"]
+    },
+    {
+      "ctest_name": "ObservationQuery.PartialRequestedResultSetCannotSatisfyCognition",
+      "evidence_targets": ["LP-TEST-PARTIAL-NONCOMPLETION", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["requested result multiplicity remains a completion obligation", "partial bounded observation search is not promoted to satisfied", "typed unresolved result remains distinct from successful answer"]
     }
   ]
 }
