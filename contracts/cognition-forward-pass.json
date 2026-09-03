@@ -1,0 +1,36 @@
+{
+  "schema": "laplace.cognition-forward-pass/v1",
+  "version": 1,
+  "digest_algorithm": "BLAKE3-256",
+  "domains": {
+    "program": "laplace-cognition-forward-program-v1",
+    "enumeration": "laplace-cognition-forward-enumeration-v1",
+    "execution": "laplace-cognition-forward-execution-v1",
+    "layer": "laplace-cognition-forward-layer-v1",
+    "output": "laplace-cognition-forward-output-v1",
+    "receipt": "laplace-cognition-forward-receipt-v1"
+  },
+  "dispositions": {
+    "complete": 1,
+    "layer_limit": 2,
+    "provider_limit": 3,
+    "resource_limit": 4,
+    "no_operation": 5,
+    "blocked": 6,
+    "provider_failure": 7
+  },
+  "flags": {
+    "require_state_progress": 1,
+    "require_projected_query_consumption": 2,
+    "require_receipted_execution": 4
+  },
+  "laws": {
+    "layer": "each nonterminal layer projects the current typed guidance obligations, enumerates candidate operations, deterministically selects one through the guidance scheduler, executes exactly that operation, applies typed resolutions into a derived immutable guidance state, and receipts the complete transition",
+    "completion": "semantic completion is read only from guidance completion law; nonempty lookup rows, one successful hop, one path, one candidate or one executed operation cannot terminate the forward pass",
+    "progress": "a successful nonterminal layer must produce at least one typed resolution and a distinct next guidance state; silent no-op layers are invalid when progress is required",
+    "ordering": "candidate operations are canonicalized by operation identity before scheduling so provider enumeration order cannot change the selected operation or layer receipt",
+    "authority": "the guidance scheduler retains hard authority and terminal-completion validity; the forward-pass provider cannot force an ineligible operation by ordering or execution output",
+    "resources": "layers, provider calls, projected queries, candidate operations, resolutions, resource cost, IO and database operations are independently bounded and produce typed limiting dispositions",
+    "replay": "program initial state projections enumeration receipt decision execution receipt resolution set guidance transition and final state are deterministically BLAKE3 receipted"
+  }
+}
