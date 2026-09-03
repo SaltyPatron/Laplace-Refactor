@@ -16,6 +16,11 @@
 - Evidence and persistence project `LP-STORAGE-001`, `LP-MATERIALIZATION-001`,
   `LP-PERFCACHE-001`, `LP-ACTIVATION-001`, `LP-DOC-001`, and the exact acceptance,
   finish-line, and continuation boundaries loaded by `contracts/authority-stack.json`.
+- The cross-cutting mathematical research program is load-bearing. Before selecting
+  implementation work, agents must load `docs/audits/INVENTOR_DIRECT_SYNTHESIS_2026-09-02.md`
+  and `docs/product/LAPLACE_MATHEMATICAL_RESEARCH_PROGRAM.md` through the authority stack.
+  Issue #184 is the preservation/proof spine; it does not replace the implementation
+  owners, but no child may silently contradict or discard its state separations.
 
 ## Product authority
 
@@ -33,6 +38,13 @@
 - Laplace is the complete universal product described in
   `docs/product/CONSTITUTION.md`.
 - Sequencing work does not reduce product scope.
+- `docs/product/LAPLACE_MATHEMATICAL_RESEARCH_PROGRAM.md` preserves the coupled-machine
+  research program: finite active operations over exact persistent typed state,
+  whole-observation prompt-root cognition, structural S3 distinct from the semantic
+  web, seeded source priors distinct from earned participant standing, generated
+  operators before target tensors, and validated skill/habit/muscle-memory progression.
+  A leaf implementation cannot redefine these boundaries because a smaller familiar
+  MVP is easier to implement.
 - `contracts/finish-line-program.json` is the executable whole-product work-selection
   and closure contract. A pull request, branch, issue count, component-green state, or
   historical implementation is never the product finish line.
@@ -128,6 +140,33 @@
   branch unless the former branch is explicitly retired/superseded in the finish-line
   program. PR count is not progress.
 
+## Progress accounting
+
+- Activity is not progress. New issues, PRs, branches, documentation, status reports,
+  screenshots, generated shapes, or repeated investigations do not count as
+  implementation progress unless they close or materially reduce an explicit owner
+  exit predicate, acceptance obligation, branch-reconciliation obligation, or
+  prerequisite needed to do so.
+- Every active work item must keep an owner, dependencies, executable exit condition,
+  and immediate next action. When evidence changes one of those fields, update the
+  finish-line/issue projection in the same work session rather than leaving the next
+  agent to rediscover it.
+- Every agent handoff or work-session boundary records a **progress receipt** containing
+  at least: authoritative base/head, owning issue/PR, product behavior advanced,
+  requirement/contract touched, exact files or runtime state changed, tests/acceptance
+  executed and result, deliberate-defect status where applicable, remaining failed or
+  open predicates, exact blocker if blocked, and the immediate next action.
+- A progress receipt cannot claim `done`, `delivered`, or `fixed` unless the owning
+  executable exit predicate and required evidence chain close. Partial implementation
+  is named partial.
+- After a correction, status question, review finding, or failed check, continue the
+  same safe in-scope dependency chain until an executable boundary advances, a real
+  blocker is reached, or the user stops/changes direction. Do not use explanation as a
+  substitute for the next available implementation action.
+- When no implementation can safely advance because a prerequisite is genuinely
+  blocked, progress is the smallest executable action that removes or proves that
+  blocker; otherwise report the exact WHY_NOT rather than opening unrelated work.
+
 ## Persistence
 
 - A direct user stop, pause, cancel, or equivalent instruction halts every tool call,
@@ -140,6 +179,10 @@
 - At the start of a resumed work session, load and validate
   `contracts/authority-stack.json` in its declared order. The whole invention governs
   before current branch, source inventory, issue state, or implementation pattern.
+- The authority stack loads `docs/audits/INVENTOR_DIRECT_SYNTHESIS_2026-09-02.md` and
+  `docs/product/LAPLACE_MATHEMATICAL_RESEARCH_PROGRAM.md` before this agent projection.
+  A future agent must therefore reconcile proposed work with the coupled-machine
+  synthesis before selecting a convenient leaf implementation.
 - Load `contracts/finish-line-program.json` after the stable architecture/acceptance
   contracts and before the roadmap or mutable continuation state. Its current sprint,
   milestone exits, anti-substitution matrix, rework escalation, benchmark-truth rules,
