@@ -34,6 +34,29 @@
       ]
     },
     {
+      "ctest_name": "DecompositionLeafRedispatch.DelimitedFieldsReachNextTextProviderExactlyOnceWhileRowsStayTerminal",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "each delimited semantic field is actually consumed by a downstream text provider exactly once",
+        "the structural row remains terminal and cannot create a second overlapping recursive text tree",
+        "downstream leaf work is parent-bound to the exact field span rather than inferred from the whole record"
+      ]
+    },
+    {
+      "ctest_name": "DecompositionLeafRedispatch.FixedWidthTrimmedValuesReachNextTextProviderWithoutRedispatchingStructure",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "every padding-trimmed fixed-width semantic value is consumed by the downstream text provider",
+        "physical fields records padding overflow witnesses and terminators remain terminal structural evidence",
+        "semantic redispatch cannot silently duplicate physical serialization structure"
+      ]
+    },
+    {
       "ctest_name": "DecompositionOrchestration.FixedWidthOverflowIsExplicitAndDoesNotShiftLaterFields",
       "evidence_targets": [
         "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
