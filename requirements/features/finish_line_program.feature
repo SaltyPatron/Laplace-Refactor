@@ -10,7 +10,7 @@ Feature: Whole-product work selection is governed by the Laplace finish line
 
   Scenario: Familiar conventional architecture cannot silently replace a Laplace law
     Given a work item governed by an inventor-defined Laplace semantic contract
-    When an implementation selects a familiar architecture such as dense all-pairs state, file-grain scheduling, source-private ETL semantics, fixed token vocabulary, training authority, GPU residency, flat nearest-neighbor scoring, or cursor-driven cognition
+    When an implementation selects a familiar architecture such as dense all-pairs state, file-grain scheduling, source-private ETL semantics, fixed token vocabulary, training authority, GPU residency, flat nearest-neighbor scoring, cursor-driven cognition, rank-1 topic selection, flattened target operators, or a global source-trust scalar
     Then that substitution must be explicitly admitted as a physical provider or rejected by the owning contract
     And every critical forbidden substitution has deliberate-defect or mutation sensitivity before the owning milestone closes
 
@@ -45,3 +45,19 @@ Feature: Whole-product work selection is governed by the Laplace finish line
     And file-grain makespan cannot become a whole-machine ceiling
     And independent replicated streams cannot become proof of one semantic DAG parallelizing internally
     And hidden duplicate semantic execution cannot be omitted from the measured work
+
+  Scenario: The mathematical research program remains load-bearing
+    Given the inventor-direct synthesis and mathematical research-program documents are in the authority stack before agent work selection
+    And issue 184 owns preservation and proof of the coupled-machine synthesis without replacing implementation owners
+    When an agent selects or changes an implementation
+    Then prompt-root cognition finite operation selection typed trust structural geometry semantic web procedural learning and target-operator generation remain distinct where applicable
+    And a rank-1 topic global trust scalar flattened operator successful GGUF load or easy leaf MVP cannot silently replace those laws
+    And any later inventor-direct correction updates or explicitly supersedes the affected derived law
+
+  Scenario: Agent activity must advance an executable predicate
+    Given active work has an owner dependencies an exit condition and an immediate next action
+    When an agent performs repository or runtime work
+    Then progress is measured by reducing or closing an executable exit predicate acceptance obligation prerequisite or branch-reconciliation obligation
+    And issue PR branch documentation or status churn alone cannot count as implementation progress
+    And the handoff records the authoritative base and head exact changes tests or acceptance remaining failed or open predicates blocker if any and the immediate next action
+    And after a correction review finding status question or failed check the same safe dependency chain continues until a boundary advances a real blocker is reached or the user stops or redirects work
