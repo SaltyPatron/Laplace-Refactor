@@ -137,6 +137,17 @@ public:
     IndexHandle() = default;
     IndexHandle(const IndexHandle&) = delete;
     IndexHandle& operator=(const IndexHandle&) = delete;
+    IndexHandle(IndexHandle&& other) noexcept : value(other.value) {
+        other.value = nullptr;
+    }
+    IndexHandle& operator=(IndexHandle&& other) noexcept {
+        if (this != &other) {
+            laplace_observation_query_index_destroy(&value);
+            value = other.value;
+            other.value = nullptr;
+        }
+        return *this;
+    }
     ~IndexHandle() { laplace_observation_query_index_destroy(&value); }
     laplace_observation_query_index* value{};
 };
@@ -224,6 +235,49 @@ laplace_cognition_guidance_header GuidanceHeader(
     header.result_contract_fingerprint = Digest(68U);
     header.version = LAPLACE_COGNITION_GUIDANCE_VERSION;
     return header;
+}
+
+laplace_cognition_forward_program ForwardProgram(
+    const laplace_cognition_guidance_header& header) {
+    laplace_cognition_forward_program program{};
+    program.program_id = Digest(90U);
+    program.result_contract_fingerprint = header.result_contract_fingerprint;
+    program.max_layers = 2U;
+    program.max_provider_calls = 4U;
+    program.max_projected_queries = 4U;
+    program.max_candidate_operations = 4U;
+    program.max_resolutions = 2U;
+    program.max_resource_cost = 128U;
+    program.max_io_operations = 8U;
+    program.max_database_operations = 8U;
+    program.candidate_operation_capacity = 4U;
+    program.resolution_capacity = 2U;
+    program.flags =
+        LAPLACE_COGNITION_FORWARD_REQUIRE_STATE_PROGRESS |
+        LAPLACE_COGNITION_FORWARD_REQUIRE_PROJECTED_QUERY_CONSUMPTION |
+        LAPLACE_COGNITION_FORWARD_REQUIRE_RECEIPTED_EXECUTION;
+    program.version = LAPLACE_COGNITION_FORWARD_VERSION;
+    return program;
+}
+
+laplace_cognition_obligation OpenObservationObligation(
+    const ObservationFixture& fixture,
+    const laplace_observation_query_binding& binding,
+    const laplace_cognition_guidance_header& header,
+    const std::uint32_t flags = LAPLACE_COGNITION_OBLIGATION_REQUIRED) {
+    laplace_cognition_obligation obligation{};
+    obligation.obligation_id = Digest(80U);
+    obligation.binding_fingerprint = binding.binding_fingerprint;
+    obligation.world_id = header.world_id;
+    obligation.time_fingerprint = header.time_fingerprint;
+    obligation.context_fingerprint = header.context_fingerprint;
+    obligation.evidence_boundary = fixture.boundary;
+    obligation.authority_id = header.authority_id;
+    obligation.result_contract_fingerprint = header.result_contract_fingerprint;
+    obligation.kind = LAPLACE_COGNITION_OPERATION_INDEXED_SEARCH;
+    obligation.disposition = LAPLACE_COGNITION_OBLIGATION_OPEN;
+    obligation.flags = flags;
+    return obligation;
 }
 
 class GuidanceStateHandle final {
@@ -350,19 +404,7 @@ TEST(ObservationQuery, CognitionForwardPassExecutesSharedSearchOverObservationSt
     ASSERT_NE(index.value, nullptr);
 
     const auto header = GuidanceHeader(fixture);
-    laplace_cognition_obligation obligation{};
-    obligation.obligation_id = Digest(80U);
-    obligation.binding_fingerprint = binding.binding_fingerprint;
-    obligation.world_id = header.world_id;
-    obligation.time_fingerprint = header.time_fingerprint;
-    obligation.context_fingerprint = header.context_fingerprint;
-    obligation.evidence_boundary = fixture.boundary;
-    obligation.authority_id = header.authority_id;
-    obligation.result_contract_fingerprint = header.result_contract_fingerprint;
-    obligation.kind = LAPLACE_COGNITION_OPERATION_INDEXED_SEARCH;
-    obligation.disposition = LAPLACE_COGNITION_OBLIGATION_OPEN;
-    obligation.flags = LAPLACE_COGNITION_OBLIGATION_REQUIRED;
-
+    const auto obligation = OpenObservationObligation(fixture, binding, header);
     GuidanceStateHandle guidance;
     ASSERT_EQ(
         laplace_cognition_guidance_state_create(
@@ -373,24 +415,7 @@ TEST(ObservationQuery, CognitionForwardPassExecutesSharedSearchOverObservationSt
     ASSERT_EQ(
         laplace_observation_query_cognition_provider(index.value, &provider),
         LAPLACE_OBSERVATION_QUERY_OK);
-    laplace_cognition_forward_program program{};
-    program.program_id = Digest(90U);
-    program.result_contract_fingerprint = header.result_contract_fingerprint;
-    program.max_layers = 2U;
-    program.max_provider_calls = 4U;
-    program.max_projected_queries = 4U;
-    program.max_candidate_operations = 4U;
-    program.max_resolutions = 2U;
-    program.max_resource_cost = 128U;
-    program.max_io_operations = 8U;
-    program.max_database_operations = 8U;
-    program.candidate_operation_capacity = 4U;
-    program.resolution_capacity = 2U;
-    program.flags =
-        LAPLACE_COGNITION_FORWARD_REQUIRE_STATE_PROGRESS |
-        LAPLACE_COGNITION_FORWARD_REQUIRE_PROJECTED_QUERY_CONSUMPTION |
-        LAPLACE_COGNITION_FORWARD_REQUIRE_RECEIPTED_EXECUTION;
-    program.version = LAPLACE_COGNITION_FORWARD_VERSION;
+    const auto program = ForwardProgram(header);
 
     ForwardResultHandle result;
     laplace_cognition_forward_receipt forward_receipt{};
@@ -457,6 +482,54 @@ TEST(ObservationQuery, CognitionForwardPassExecutesSharedSearchOverObservationSt
     EXPECT_TRUE(Same(steps[0].target.anchor_id, a_coordinate));
     EXPECT_TRUE(Zero(steps[0].evidence_root_fingerprint));
     laplace_query_search_result_destroy(&search_result);
+}
+
+TEST(ObservationQuery, PartialRequestedResultSetCannotSatisfyCognition) {
+    const auto fixture = BuildFixture();
+    const auto binding = Binding(
+        fixture.b, LAPLACE_OBSERVATION_QUERY_PREDECESSOR, 2U);
+    const std::vector bindings{binding};
+    auto index = CreateIndex(fixture, bindings, 16U);
+    ASSERT_NE(index.value, nullptr);
+
+    const auto header = GuidanceHeader(fixture);
+    const auto obligation = OpenObservationObligation(
+        fixture, binding, header,
+        LAPLACE_COGNITION_OBLIGATION_REQUIRED |
+            LAPLACE_COGNITION_OBLIGATION_ALLOW_TYPED_UNRESOLVED);
+    GuidanceStateHandle guidance;
+    ASSERT_EQ(
+        laplace_cognition_guidance_state_create(
+            &header, &obligation, 1U, &guidance.value),
+        LAPLACE_COGNITION_GUIDANCE_OK);
+    laplace_cognition_forward_provider_v1 provider{};
+    ASSERT_EQ(
+        laplace_observation_query_cognition_provider(index.value, &provider),
+        LAPLACE_OBSERVATION_QUERY_OK);
+    const auto program = ForwardProgram(header);
+    ForwardResultHandle result;
+    laplace_cognition_forward_receipt receipt{};
+    ASSERT_EQ(
+        laplace_cognition_forward_pass_execute(
+            &program, guidance.value, &provider, &result.value, &receipt),
+        LAPLACE_COGNITION_FORWARD_OK);
+    ASSERT_NE(result.value, nullptr);
+    EXPECT_EQ(receipt.disposition, LAPLACE_COGNITION_FORWARD_COMPLETE);
+    EXPECT_EQ(receipt.final_remaining_required_count, 0U);
+
+    GuidanceStateHandle final_state;
+    ASSERT_EQ(
+        laplace_cognition_forward_result_final_state_clone(
+            result.value, &final_state.value),
+        LAPLACE_COGNITION_FORWARD_OK);
+    laplace_cognition_obligation resolved{};
+    ASSERT_EQ(
+        laplace_cognition_guidance_state_obligation(
+            final_state.value, 0U, &resolved),
+        LAPLACE_COGNITION_GUIDANCE_OK);
+    EXPECT_EQ(resolved.disposition, LAPLACE_COGNITION_OBLIGATION_UNKNOWN);
+    EXPECT_TRUE(Zero(resolved.value_id));
+    EXPECT_FALSE(Zero(resolved.resolution_receipt_id));
 }
 
 }  // namespace
