@@ -47,31 +47,16 @@ BEGIN
        OR receipt_count < 2
        OR NOT EXISTS (
             SELECT 1
-            FROM laplace.source_structural_witness AS witness
-            WHERE witness.source_profile_id = first.profile_id
-              AND witness.span_index > 0)
-       OR EXISTS (
-            SELECT 1
-            FROM laplace.source_structural_witness AS witness
-            WHERE witness.source_profile_id = first.profile_id
-              AND ((witness.span_index = 0
-                    AND witness.parent_span_index <>
-                        18446744073709551615::numeric)
-                   OR (witness.span_index > 0
-                       AND (witness.parent_span_index =
-                                18446744073709551615::numeric
-                            OR witness.parent_span_index >=
-                                witness.span_index))))
-       OR EXISTS (
-            SELECT 1
-            FROM laplace.source_structural_witness AS witness
-            LEFT JOIN laplace.source_structural_witness AS parent
-              ON parent.source_profile_id = witness.source_profile_id
-             AND parent.artifact_index = witness.artifact_index
-             AND parent.span_index = witness.parent_span_index
-            WHERE witness.source_profile_id = first.profile_id
-              AND witness.span_index > 0
-              AND parent.source_profile_id IS NULL)
+            FROM laplace.source_structural_witness AS child
+            JOIN laplace.source_structural_witness AS parent
+              ON parent.source_profile_id = child.source_profile_id
+             AND parent.artifact_index = child.artifact_index
+             AND parent.span_index = child.parent_span_index
+            WHERE child.source_profile_id = first.profile_id
+              AND child.span_index > 0
+              AND child.parent_span_index <>
+                  18446744073709551615::numeric
+              AND child.depth > parent.depth)
        OR EXISTS (
             SELECT 1
             FROM laplace.source_structural_witness AS witness
