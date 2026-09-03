@@ -336,7 +336,7 @@ TEST(DecompositionOrchestration, TextOnlyRedispatchCannotMasqueradeAsGrammarInpu
     laplace_decomposition_result_destroy(&result);
 }
 
-TEST(DecompositionOrchestration, DelimitedRowsAndFieldsAreTerminalWitnesses) {
+TEST(DecompositionOrchestration, DelimitedRowsStayTerminalAndFieldsRedispatch) {
     constexpr std::array<std::uint8_t, 4> bytes{{'a', '\t', 'b', '\n'}};
     constexpr std::string_view media{"text/tab-separated-values"};
     laplace_decomposition_delimited_provider delimited{};
@@ -372,7 +372,7 @@ TEST(DecompositionOrchestration, DelimitedRowsAndFieldsAreTerminalWitnesses) {
               LAPLACE_DECOMPOSITION_OK);
     EXPECT_EQ(summary.provider_execution_count, 1u);
     EXPECT_EQ(summary.applicable_execution_count, 1u);
-    EXPECT_EQ(summary.redispatch_count, 0u);
+    EXPECT_EQ(summary.redispatch_count, 2u);
     EXPECT_EQ(summary.maximum_depth_reached, 1u);
     EXPECT_EQ(summary.span_count, 6u);
 
@@ -382,9 +382,15 @@ TEST(DecompositionOrchestration, DelimitedRowsAndFieldsAreTerminalWitnesses) {
     ASSERT_NE(spans, nullptr);
     ASSERT_EQ(span_count, 6u);
     EXPECT_EQ(spans[1].flags, LAPLACE_DECOMPOSITION_SPAN_TEXT);
-    EXPECT_EQ(spans[2].flags, LAPLACE_DECOMPOSITION_SPAN_TEXT);
+    EXPECT_EQ(
+        spans[2].flags,
+        LAPLACE_DECOMPOSITION_SPAN_TEXT |
+            LAPLACE_DECOMPOSITION_SPAN_REDISPATCH);
     EXPECT_EQ(spans[3].flags, 0u);
-    EXPECT_EQ(spans[4].flags, LAPLACE_DECOMPOSITION_SPAN_TEXT);
+    EXPECT_EQ(
+        spans[4].flags,
+        LAPLACE_DECOMPOSITION_SPAN_TEXT |
+            LAPLACE_DECOMPOSITION_SPAN_REDISPATCH);
     EXPECT_EQ(spans[5].flags, 0u);
 
     laplace_decomposition_result_destroy(&result);
@@ -430,21 +436,41 @@ TEST(DecompositionOrchestration, FixedWidthOverflowIsExplicitAndDoesNotShiftLate
     ASSERT_EQ(laplace_decomposition_run(&input, &result),
               LAPLACE_DECOMPOSITION_OK);
     ASSERT_NE(result, nullptr);
+
+    laplace_decomposition_summary summary{};
+    ASSERT_EQ(laplace_decomposition_summary_get(result, &summary),
+              LAPLACE_DECOMPOSITION_OK);
+    EXPECT_EQ(summary.redispatch_count, 6u);
+
     std::size_t span_count = 0u;
     const laplace_decomposition_span* spans =
         laplace_decomposition_spans(result, &span_count);
     ASSERT_NE(spans, nullptr);
     ASSERT_EQ(span_count, 18u);
 
+    EXPECT_EQ(spans[1].flags, LAPLACE_DECOMPOSITION_SPAN_TEXT);
+    EXPECT_EQ(spans[2].flags, 0u);
+    EXPECT_EQ(
+        spans[3].flags,
+        LAPLACE_DECOMPOSITION_SPAN_TEXT |
+            LAPLACE_DECOMPOSITION_SPAN_REDISPATCH);
     EXPECT_EQ(spans[12].kind, fixed.field_kind);
     EXPECT_EQ(spans[12].byte_start, 14u);
     EXPECT_EQ(spans[12].byte_end, 19u);
+    EXPECT_EQ(
+        spans[13].flags,
+        LAPLACE_DECOMPOSITION_SPAN_TEXT |
+            LAPLACE_DECOMPOSITION_SPAN_REDISPATCH);
     EXPECT_EQ(spans[14].kind, fixed.overflow_kind);
     EXPECT_EQ(spans[14].byte_start, 18u);
     EXPECT_EQ(spans[14].byte_end, 19u);
     EXPECT_EQ(spans[15].kind, fixed.field_kind);
     EXPECT_EQ(spans[15].byte_start, 19u);
     EXPECT_EQ(spans[15].byte_end, 21u);
+    EXPECT_EQ(
+        spans[16].flags,
+        LAPLACE_DECOMPOSITION_SPAN_TEXT |
+            LAPLACE_DECOMPOSITION_SPAN_REDISPATCH);
     EXPECT_EQ(
         std::string_view(
             reinterpret_cast<const char*>(input.content.bytes +

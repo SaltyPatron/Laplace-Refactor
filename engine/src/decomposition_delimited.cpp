@@ -85,7 +85,9 @@ laplace_decomposition_status Apply(
                      static_cast<std::uint64_t>(field_start),
                      static_cast<std::uint64_t>(cursor),
                      provider.field_kind,
-                     static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_TEXT)) != 0) {
+                     static_cast<std::uint32_t>(
+                         LAPLACE_DECOMPOSITION_SPAN_TEXT |
+                         LAPLACE_DECOMPOSITION_SPAN_REDISPATCH)) != 0) {
                 return LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
             }
             ++column_count;
