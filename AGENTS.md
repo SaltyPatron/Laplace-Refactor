@@ -21,6 +21,16 @@
 - Evidence and persistence project `LP-STORAGE-001`, `LP-MATERIALIZATION-001`,
   `LP-PERFCACHE-001`, `LP-ACTIVATION-001`, `LP-DOC-001`, and the exact acceptance and
   continuation boundaries loaded by `contracts/authority-stack.json`.
+- Finish-line work must load `docs/audits/INVENTOR_DIRECT_SYNTHESIS_2026-09-02.md`,
+  then `docs/product/LAPLACE_MATHEMATICAL_RESEARCH_PROGRAM.md`, and the executable
+  `contracts/finish-line-program.json` in the authority-stack order before mutable
+  roadmap or continuation state can steer implementation.
+- Activity is not progress. Every active implementation item must reduce an executable
+  exit predicate, carry a progress receipt, and name whether an attractive conventional
+  substitution was explicitly admitted as a physical provider or rejected by the
+  owning contract.
+- Repeated independent failures of the same defect class must escalate to the generic
+  owner before another leaf-only repair can count as progress.
 
 ## Product authority
 
