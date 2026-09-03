@@ -478,3 +478,166 @@ chess proving, model witness/target compilation, and complete-product acceptance
 Every claimed law must graduate from prose into executable contracts and independent
 positive plus deliberate-defect acceptance at its semantic owner. This document is not
 implementation evidence and cannot close an owning issue by existing.
+
+## 17. Prompt-root cognition and UserPrompt source/witness separation
+
+A user request enters through the same ordinary canonical composition and occurrence
+machinery as other admitted content. Cognition begins from the complete prompt trunk,
+not by first privileging a noun, topic, token or punctuation class.
+
+```text
+prompt bytes/content
+-> Unicode/UAX/grammar decomposition
+-> canonical prompt trunk + occurrence/session witness
+-> exact structural descent/rise
+-> joint interpretation over the whole observation
+-> dynamic selection of finite legal operations
+-> bounded search/fold/update
+-> semantic completion or exact WHY_NOT
+-> realization/effect
+-> witnessed receipt/outcome
+```
+
+UAX29 supplies structural segmentation. It does not supply English meaning, trust, topic
+or intent. English, Japanese and other language observations may take materially
+different exact structural paths and reach equivalent semantic obligations only when
+witnessed language/semantic state supports that equivalence.
+
+All observations whose source type is `UserPrompt` begin with the same seeded
+**source-type prior**. An individual human/user/witness is a separate participant that
+may earn its own typed standing, preferences or behavioral history over time. The source
+prior and participant standing must never be collapsed into one scalar.
+
+For example:
+
+```text
+UserPrompt occurrence: "The speed of light is 14 mph."
+```
+
+The exact observation remains true as an observation of what was supplied. If cognition
+interprets it as an assertion, that proposition is one UserPrompt-rooted claim and may be
+refuted by higher-standing standards/facts, independent witnesses or deterministic
+calculation. Refuting the proposition does not erase or rewrite the observed utterance.
+
+Conversely:
+
+```text
+UserPrompt occurrence: "Answer in Japanese."
+```
+
+is still first admitted as an observation. Cognition may interpret it as a realization
+instruction. Repeated compatible observations/outcomes may later justify asking whether
+it should become a persistent preference or may feed a validated user-specific habit,
+but neither changes the global UserPrompt source-type prior.
+
+Nouns, stop/function words, punctuation and whitespace do not possess source trust.
+They are exact constituents/roles whose query-relative importance is calculated by the
+selected program.
+
+## 18. Structural geometry and the semantic/evidence web are orthogonal planes
+
+S3/`physicality.coord`, packed trajectory/address state, Hilbert locality, angular
+relations and realized structural curves are structural machinery. Typed relation law,
+semantic state, testimony/evidence, dependence and standing are separate planes.
+
+Geometry may propose structural candidates and support deterministic calculations.
+Structural proximity does not become meaning merely because it is cheap to index.
+Likewise, strong semantic/testimonial relation does not require geometric proximity to
+be true.
+
+Named mathematical tools must keep their declared jobs distinct. Representative tools
+include:
+
+- angular/coordinate calculations for declared geometric state;
+- Fréchet/Hausdorff/Karcher-derived operations for declared curve/set/center questions;
+- Hilbert/locality indexes for candidate/address locality rather than semantic truth;
+- incidence/transport operators for typed directional/role structure;
+- Laplacian/spectral constructions only on slices satisfying their mathematical
+  assumptions;
+- Lanczos for sparse selected eigenspace/subspace work;
+- Gram-Schmidt/QR for declared orthonormalization/gauge work;
+- SVD for rectangular/asymmetric factorization with explicit rank/loss;
+- Procrustes for compatible coordinate-system/scope/epoch alignment;
+- Glicko-2 only for typed outcome-bearing standing;
+- A*/best-first only for a declared finite search state with valid cost/heuristic laws.
+
+Borsuk-Ulam or another theorem may constrain a mathematical projection domain; it may
+not be invoked as a slogan to collapse distinctions between continuous S3 geometry and
+an exact discrete mantissa-packed/content-addressed trajectory carrier. The exact
+representation and the theorem's assumptions must be named before a conclusion is
+admitted.
+
+## 19. Operator generation is the research problem, not mystical emergence
+
+The unresolved mathematical work is to derive, falsify and measure correct operators
+for selected typed jobs over admitted state.
+
+For a job `j`, canonical sparse feature/operator state may be generated from exact
+selected planes. Sorted sparse features can support deterministic CPU intersections and
+dot products; typed metrics may generate weighted inner products, incidence/transport
+operators, Laplacian-compatible slices or other calculations only when their declared
+assumptions hold.
+
+No named method substitutes for the actual Laplace operator contract. Each selected
+operator must name:
+
+```text
+input state classes
+scope / evidence roots / epoch
+relation direction / role / arity as applicable
+metric / algebra / numeric representation
+resource/search boundary
+output state class
+loss / approximation boundary if any
+receipt / provenance / dependence
+positive fixtures and deliberate counterexamples
+```
+
+Target-model compilation follows this law: generate a target-neutral selected operator
+first, then factor/materialize it into Q/K/V/O/FFN/gate/head/layer/expert/embedding roles
+required by the consumer architecture. Rank insufficiency records explicit loss or
+rejects the claimed preservation invariant; random/shape filler cannot pass semantic
+acceptance.
+
+CPU execution is the semantic baseline. SIMD/GPU or other accelerators may change the
+validated physical plan but cannot change the logical operator result beyond the named
+numeric contract.
+
+## 20. Additional required falsification fixtures
+
+The preservation program must retain these acceptance probes in addition to the
+cross-domain fixtures above:
+
+- [ ] complete-prompt cognition reaches interpretation with no privileged
+  noun/topic/token constituent;
+- [ ] structurally different English/Japanese fixtures can reach equivalent obligations
+  only through their separately witnessed language/semantic paths;
+- [ ] `speed of light = 14 mph` preserves the exact utterance and interpreted claim while
+  stronger independent state can refute the proposition without deleting the witness;
+- [ ] `answer in Japanese` remains an observation at admission, can be interpreted as an
+  instruction, and can contribute to explicit/learned preference or habit formation
+  without changing the global UserPrompt prior;
+- [ ] UserPrompt source-type prior is uniform while individual participants retain
+  separate earned typed standing/history;
+- [ ] nouns, function words, punctuation and whitespace have no source-trust scalar;
+  relevance/salience is computed by the current program;
+- [ ] structural geometry, semantic relation/evidence, deterministic calculation,
+  standing, observation and testimony remain separately inspectable in one receipt;
+- [ ] one exact sparse-dot/operator fixture matches an independent calculation and can
+  drill through per-feature contributions;
+- [ ] target compilation produces materially different typed jobs in at least two
+  heads/layers and distinguishes Q/K compatibility from V/O contribution where the
+  selected recipe requires it;
+- [ ] increasing target head/layer count while feeding one flattened operator plane
+  fails the deliberate-defect test;
+- [ ] one learned skill is derived from successful and failed traces, rejected on a
+  counterexample when appropriate, scheduled as a habit only after validation, and any
+  muscle-memory acceleration proves semantic/receipt parity with less physical work;
+- [ ] a prior receipt/result/program can become a later cognition root without creating
+  independent corroboration of its own ancestry.
+
+Additional anti-loss substitutions are therefore explicit: topic election for
+interpretation, English regex dispatch for language-agnostic cognition, one global trust
+hierarchy for source prior plus participant standing, UAX segmentation for semantics,
+geometry for the semantic web, successful GGUF load for target semantics, habit for
+current-context validation, or a fast path for a different semantic program.
