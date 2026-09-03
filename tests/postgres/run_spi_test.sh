@@ -506,14 +506,24 @@ psql_command+=(-f "$sql_file")
 
 if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
       "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+    source_max_wall_seconds=${LAPLACE_POSTGRES_MAX_WALL_SECONDS:-60}
+    source_max_data_bytes=${LAPLACE_POSTGRES_MAX_DATA_BYTES:-1073741824}
+    source_max_wal_bytes=${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}
+    source_max_workspace_bytes=${LAPLACE_POSTGRES_MAX_WORKSPACE_BYTES:-2147483648}
+    if [[ "$mode" == "source-admission-suite" ]]; then
+        source_max_wall_seconds=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WALL_SECONDS:-180}
+        source_max_data_bytes=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_DATA_BYTES:-3221225472}
+        source_max_wal_bytes=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WAL_BYTES:-1610612736}
+        source_max_workspace_bytes=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WORKSPACE_BYTES:-6442450944}
+    fi
     python3 "$(dirname "$0")/../../tools/tests/postgres_resource_guard.py" \
         --data-directory "$data_directory" \
         --workspace-directory "$test_root" \
         --postmaster-pid "$postmaster_pid" \
-        --max-wall-seconds "${LAPLACE_POSTGRES_MAX_WALL_SECONDS:-60}" \
-        --max-data-bytes "${LAPLACE_POSTGRES_MAX_DATA_BYTES:-1073741824}" \
-        --max-wal-bytes "${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}" \
-        --max-workspace-bytes "${LAPLACE_POSTGRES_MAX_WORKSPACE_BYTES:-2147483648}" \
+        --max-wall-seconds "$source_max_wall_seconds" \
+        --max-data-bytes "$source_max_data_bytes" \
+        --max-wal-bytes "$source_max_wal_bytes" \
+        --max-workspace-bytes "$source_max_workspace_bytes" \
         --max-rss-bytes "${LAPLACE_POSTGRES_MAX_RSS_BYTES:-12884901888}" \
         --sample-seconds 1 \
         --receipt "$test_root/resource-guard.json" \
