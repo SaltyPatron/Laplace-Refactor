@@ -18,6 +18,7 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include "laplace/source_profile.h"
 #include "laplace/tabular_source_recursive.h"
 #include "laplace/unicode_root.h"
 #include "composition_pg.h"
@@ -175,11 +176,41 @@ laplace_pg_source_profile_finalize_with_witnesses(
     const laplace_tabular_source_plan* plan,
     const laplace_composition_working_set_summary* summary,
     laplace_source_profile_manifest* profile) {
+    laplace_source_profile_receipt receipt;
+    laplace_source_profile_error error;
     const laplace_tabular_source_status status =
         laplace_tabular_source_profile_finalize(plan, summary, profile);
     if (status != LAPLACE_TABULAR_SOURCE_OK) {
         return status;
     }
+    if (summary->logical_occurrence_count == 0u) {
+        return LAPLACE_TABULAR_SOURCE_DENOMINATOR_MISMATCH;
+    }
+
+    /*
+     * The source-profile occurrence denominator describes the canonical
+     * logical composition represented by this admission.  Explicit source
+     * occurrence attestations are intentionally a separate execution fact:
+     * recursive canonical subtrees are not allowed to manufacture source
+     * sightings merely because they were lowered into the Merkle DAG.
+     *
+     * The generic tabular finalizer predates that separation and still closes
+     * the profile on summary.occurrence_count (the explicitly emitted
+     * attestation count).  Product source admission must use the contract-owned
+     * logical denominator consumed by world_admission_close_batch while leaving
+     * summary.occurrence_count untouched in the composition execution receipt.
+     */
+    profile->occurrence_count = summary->logical_occurrence_count;
+    memset(&profile->profile_id, 0, sizeof(profile->profile_id));
+    memset(&receipt, 0, sizeof(receipt));
+    memset(&error, 0, sizeof(error));
+    if (laplace_source_profile_identify(profile, &profile->profile_id) !=
+            LAPLACE_SOURCE_PROFILE_OK ||
+        laplace_source_profile_validate_batch(profile, 1u, &receipt, &error) !=
+            LAPLACE_SOURCE_PROFILE_OK) {
+        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+    }
+
     if (plan != laplace_pg_active_source_plan ||
         laplace_pg_active_source_execution == NULL ||
         laplace_pg_active_source_composition_input == NULL ||
