@@ -294,7 +294,8 @@ elif [[ "$mode" == "machine-exception" ||
     fi
     psql_arguments+=(-v "machine_exception_expected_hex=$expected_hex")
     if [[ "$mode" == "machine-exception-mutation" ]]; then
-        if [[ -z "${LAPLACE_MUTANT_MODULE:-}" || ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
+        if [[ -z "${LAPLACE_MUTANT_MODULE:-}" ||
+              ! -f "$LAPLACE_MUTANT_MODULE" ]]; then
             echo "machine-exception mutant module is missing" >&2
             exit 66
         fi
@@ -510,10 +511,6 @@ if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
     source_max_wal_bytes=${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}
     source_max_workspace_bytes=${LAPLACE_POSTGRES_MAX_WORKSPACE_BYTES:-2147483648}
     if [[ "$mode" == "source-admission-suite" ]]; then
-        # The suite executes three independently transaction-scoped source admissions
-        # (generic tabular, ISO-639, and CILI) after the separately guarded Unicode
-        # bootstrap. Keep the 60s PostgreSQL statement timeout intact; only the
-        # aggregate process guard is the sum-sized envelope for all three workloads.
         source_max_wall_seconds=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WALL_SECONDS:-180}
         source_max_data_bytes=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_DATA_BYTES:-3221225472}
         source_max_wal_bytes=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WAL_BYTES:-1610612736}
@@ -633,19 +630,96 @@ if [[ "$mode" == "contract" ]]; then
         echo "cannot identify the perfcache reader backend" >&2
         exit 72
     fi
-    "$pg_bindir/psql" "${psql_arguments[@]}" -c \
+    "$pg_bindir/psql" "${psql_arguments[@]}" -Atqc \
         "SELECT pg_terminate_backend($terminated_backend)" >/dev/null
     if wait "$terminated_reader_pid"; then
         echo "terminated perfcache reader unexpectedly succeeded" >&2
         exit 73
     fi
-    terminated_reader_pid=
-    "$pg_bindir/psql" "${psql_arguments[@]}" -f "$perfcache_verify_sql"
-    if "$pg_bindir/psql" "${psql_arguments[@]}" -f "$perfcache_prepare_sql"; then
-        echo "malformed prepared-state request unexpectedly succeeded" >&2
+    if [[ $(
+        "$pg_bindir/psql" "${psql_arguments[@]}" -Atqc \
+            'SELECT laplace._test_perfcache_metric(2)') != 0 ]]; then
+        cat "$test_root/perfcache-terminated-reader.log" >&2
+        echo "backend termination leaked a perfcache generation pin" >&2
         exit 74
     fi
+
+    if "$pg_bindir/psql" "${psql_arguments[@]}" -f "$perfcache_prepare_sql" \
+        >"$test_root/perfcache-prepare.log" 2>&1; then
+        echo "pending perfcache activation entered a prepared transaction" >&2
+        exit 75
+    fi
+    if ! grep -Fq \
+        'prepared transactions cannot carry a pending Laplace perfcache activation' \
+        "$test_root/perfcache-prepare.log"; then
+        cat "$test_root/perfcache-prepare.log" >&2
+        echo "prepared-transaction rejection failed for an unrelated reason" >&2
+        exit 76
+    fi
+    prepare_cleanup_state=$(
+        "$pg_bindir/psql" "${psql_arguments[@]}" -Atqc \
+            "SELECT laplace._test_perfcache_metric(1), laplace._test_perfcache_metric(5), (SELECT count(*) FROM pg_prepared_xacts WHERE gid = 'laplace-perfcache-must-not-prepare')")
+    if [[ "$prepare_cleanup_state" != "3|0|0" ]]; then
+        cat "$test_root/perfcache-prepare.log" >&2
+        echo "rejected prepared transaction changed or retained perfcache state" >&2
+        exit 77
+    fi
+
+    if [[ "$postmaster_started" != $(
+        "$pg_bindir/psql" "${psql_arguments[@]}" -Atqc \
+            'SELECT pg_postmaster_start_time()') ]]; then
+        echo "perfcache epoch handoff restarted PostgreSQL" >&2
+        exit 70
+    fi
+
+    concurrency_sql="$(dirname "$sql_file")/persistence_concurrency_call.sql"
+    concurrency_verify_sql="$(dirname "$sql_file")/persistence_concurrency_verify.sql"
+    deposit_receipts_before_concurrency=$(
+        "$pg_bindir/psql" "${psql_arguments[@]}" -Atqc \
+            'SELECT count(*) FROM laplace.canonical_deposit_receipt')
+    if [[ ! "$deposit_receipts_before_concurrency" =~ ^[0-9]+$ ]]; then
+        echo "cannot establish persistence receipt baseline before concurrent deposit" >&2
+        exit 84
+    fi
+    concurrency_pids=()
+    for worker in 1 2; do
+        "$pg_bindir/psql" "${psql_arguments[@]}" -f "$concurrency_sql" \
+            >"$test_root/concurrency-$worker.log" 2>&1 &
+        concurrency_pids+=("$!")
+    done
+    concurrency_failed=0
+    for pid in "${concurrency_pids[@]}"; do
+        if ! wait "$pid"; then
+            concurrency_failed=1
+        fi
+    done
+    if [[ $concurrency_failed -ne 0 ]]; then
+        sed -n '1,240p' "$test_root"/concurrency-*.log >&2
+        exit 67
+    fi
+    "$pg_bindir/psql" "${psql_arguments[@]}" \
+        -v "persistence_expected_receipt_count=$((deposit_receipts_before_concurrency + 1))" \
+        -f "$concurrency_verify_sql"
     "$pg_bindir/psql" "${psql_arguments[@]}" -f "$perfcache_recreate_sql"
-    "$pg_bindir/psql" "${psql_arguments[@]}" -f "$perfcache_competing_activate_sql"
+
+    competing_pids=()
+    for generation in 2 7; do
+        "$pg_bindir/psql" "${psql_arguments[@]}" \
+            -v "candidate_manifest=${perfcache_manifests[$generation]}" \
+            -f "$perfcache_competing_activate_sql" \
+            >"$test_root/perfcache-competing-$generation.log" 2>&1 &
+        competing_pids+=("$!")
+    done
+    competing_successes=0
+    for pid in "${competing_pids[@]}"; do
+        if wait "$pid"; then
+            competing_successes=$((competing_successes + 1))
+        fi
+    done
+    if [[ $competing_successes -ne 1 ]]; then
+        sed -n '1,160p' "$test_root"/perfcache-competing-*.log >&2
+        echo "competing perfcache activators did not produce exactly one winner" >&2
+        exit 81
+    fi
     "$pg_bindir/psql" "${psql_arguments[@]}" -f "$perfcache_competing_verify_sql"
 fi
