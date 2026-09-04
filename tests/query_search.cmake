@@ -11,7 +11,8 @@ gtest_discover_tests(laplace_query_search_tests PROPERTIES
 
 add_executable(laplace_observation_query_tests
     "${PROJECT_SOURCE_DIR}/tests/observation_query_tests.cpp"
-    "${PROJECT_SOURCE_DIR}/tests/cognition_observation_request_tests.cpp")
+    "${PROJECT_SOURCE_DIR}/tests/cognition_observation_request_tests.cpp"
+    "${PROJECT_SOURCE_DIR}/tests/cognition_observation_request_policy_tests.cpp")
 target_link_libraries(laplace_observation_query_tests PRIVATE
     Laplace::QuerySearch GTest::gtest_main)
 target_compile_options(laplace_observation_query_tests PRIVATE
