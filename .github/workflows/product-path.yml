@@ -170,6 +170,9 @@ jobs:
   # An accepted push to main is the DEV/BAT deployment boundary. PR proof never invokes
   # product activation. The exact accepted SHA is passed to the existing authenticated
   # workflow-dispatch authority, which refuses a ref race before composing any package.
+  # This job does not finish at dispatch: it waits for that exact activation run and
+  # requires its success, so a green accepted-main run means the persistent PostgreSQL,
+  # Unicode, Highway, restart, enablement, and live-readback contract actually completed.
   # `always()` is required because selected proof jobs may legitimately be skipped; without
   # it GitHub propagates a transitive skip through `product-path` and suppresses deployment.
   dev-bat-deployment:
@@ -183,7 +186,7 @@ jobs:
       actions: write
       contents: read
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 360
     steps:
       - name: Dispatch exact accepted main generation for DEV/BAT activation
         env:
@@ -191,15 +194,57 @@ jobs:
           EXPECTED_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          dispatched_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           gh api \
             --method POST \
             "repos/$GITHUB_REPOSITORY/actions/workflows/product-activation.yml/dispatches" \
             -f ref=main \
             -f "inputs[expected_sha]=$EXPECTED_SHA"
+          printf 'LAPLACE_ACTIVATION_DISPATCHED_AT=%s\n' "$dispatched_at" >> "$GITHUB_ENV"
           {
             echo '## DEV/BAT deployment dispatch'
             echo "Exact accepted main commit: \`$EXPECTED_SHA\`"
             echo 'The product-activation authority must bind GITHUB_SHA to this value before package composition.'
+            echo 'This accepted-main run remains incomplete until that activation finishes successfully.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Require persistent product activation to finish successfully
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$LAPLACE_ACTIVATION_DISPATCHED_AT"
+          run_id=""
+          for _attempt in $(seq 1 120); do
+            run_id=$(
+              gh api --method GET \
+                "repos/$GITHUB_REPOSITORY/actions/workflows/product-activation.yml/runs" \
+                -f "head_sha=$EXPECTED_SHA" \
+                -f event=workflow_dispatch \
+                -f per_page=20 |
+              jq -r \
+                --arg sha "$EXPECTED_SHA" \
+                --arg since "$LAPLACE_ACTIVATION_DISPATCHED_AT" \
+                '[.workflow_runs[] | select(.head_sha == $sha and .created_at >= $since)] | sort_by(.created_at) | last | .id // empty'
+            )
+            if [[ -n "$run_id" ]]; then
+              break
+            fi
+            sleep 5
+          done
+          test -n "$run_id"
+          gh run watch "$run_id" \
+            --repo "$GITHUB_REPOSITORY" \
+            --exit-status \
+            --interval 10
+          conclusion=$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)
+          test "$conclusion" = success
+          {
+            echo '## Persistent DEV/BAT activation'
+            echo "Activation workflow run: \`$run_id\`"
+            echo "Exact accepted main commit: \`$EXPECTED_SHA\`"
+            echo 'Conclusion: success'
+            echo 'Accepted-main CI is green only after the persistent activation workflow has completed its restart/enablement/live-readback contract.'
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Migration aliases for the three currently protected legacy contexts. They do not
