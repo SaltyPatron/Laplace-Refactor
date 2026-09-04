@@ -1,0 +1,17 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "postgres.observation-cognition-native-parity",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": [
+        "PostgreSQL typed request transport into canonical native request lowering",
+        "canonical physicality and packed trajectory transport validation",
+        "depth-two predecessor search through shared observation provider",
+        "forward-pass completion and exact native receipt parity",
+        "query intent excluded from immutable observation-index identity"
+      ]
+    }
+  ]
+}
