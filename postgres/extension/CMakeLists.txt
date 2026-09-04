@@ -66,6 +66,21 @@ file(APPEND "${extension_sql}"
 ${LAPLACE_SOURCE_ADMISSION_METRICS_SQL}\
 ")
 
+set(LAPLACE_OBSERVATION_COGNITION_SCHEMA
+    "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
+set(observation_cognition_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/observation_cognition.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/observation_cognition.sql.in"
+    "${observation_cognition_sql}"
+    @ONLY)
+file(READ "${observation_cognition_sql}"
+    LAPLACE_OBSERVATION_COGNITION_SQL)
+file(APPEND "${extension_sql}"
+    "\
+${LAPLACE_OBSERVATION_COGNITION_SQL}\
+")
+
 set(laplace_postgresql_module_sources
     src/cognition_isa_pg.c
     src/composition_pg.c
@@ -75,6 +90,7 @@ set(laplace_postgresql_module_sources
     src/highway_registry_pg.c
     src/laplace_pg.c
     src/machine_exception_pg.c
+    src/observation_cognition_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c
     src/perfcache_pg.c
@@ -120,6 +136,37 @@ set_target_properties(laplace_pg PROPERTIES
 if(BUILD_TESTING)
     target_compile_definitions(laplace_pg PRIVATE
         LAPLACE_POSTGRES_TESTING=1)
+
+    set(observation_cognition_contract_sql
+        "${CMAKE_CURRENT_BINARY_DIR}/observation_cognition_contract.sql")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/observation_cognition_contract.sql.in"
+        "${observation_cognition_contract_sql}"
+        @ONLY)
+    find_program(LAPLACE_OBSERVATION_COGNITION_BASH bash REQUIRED)
+    add_executable(laplace_postgres_observation_cognition_probe
+        tests/observation_cognition_probe.cpp)
+    target_link_libraries(laplace_postgres_observation_cognition_probe PRIVATE
+        Laplace::Isa Laplace::Persistence)
+    target_compile_options(laplace_postgres_observation_cognition_probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow;-ffp-contract=off>)
+    add_test(
+        NAME postgres.observation-cognition-native-parity
+        COMMAND "${LAPLACE_OBSERVATION_COGNITION_BASH}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_observation_cognition_test.sh"
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_observation_cognition_probe>"
+            "${observation_cognition_contract_sql}"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(postgres.observation-cognition-native-parity PROPERTIES
+        LABELS "implementation;postgresql;cognition;observation;query;forward-pass;receipt"
+        RUN_SERIAL TRUE
+        TIMEOUT 120
+        ENVIRONMENT
+            "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/observation-cognition;LAPLACE_POSTGRES_OBSERVATION_TEST_PORT=55442")
 
     function(laplace_add_postgresql_mutant target definition)
         add_library(${target} MODULE ${laplace_postgresql_module_sources})
