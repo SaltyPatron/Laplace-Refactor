@@ -163,27 +163,12 @@ chown root:root "$SUDOERS_TARGET"
 for action in start stop restart; do
     /usr/bin/runuser --user "$RUNNER_USER" -- \
         /usr/bin/sudo -n -l /usr/bin/systemctl "$action" "$SERVICE" >/dev/null
- done
+done
 
 # Durable bootstrap receipt. It records prerequisites only; product activation state is
 # intentionally absent because setup-host is not the product installer/deployer.
 TMP_RECEIPT="$(mktemp)"
 trap 'rm -f "$TMP_RECEIPT"' EXIT
-/usr/bin/python3 - \
-    "$UNIT_TARGET" \
-    "$SUDOERS_TARGET" \
-    "$RUNNER_USER" \
-    "$RUNNER_GROUP" > "$TMP_RECEIPT" <<'PY'
-import hashlib
-import json
-from pathlib import Path
-import pwd
-import grp
-import sys
-
-unit, sudoers, user, group = map(Path, sys.argv[1:3]) + tuple(sys.argv[3:]) if False else (None, None, None, None)
-PY
-# Keep receipt construction simple and deterministic without importing product code.
 UNIT_SHA="$(sha256sum "$UNIT_TARGET" | awk '{print $1}')"
 SUDOERS_SHA="$(sha256sum "$SUDOERS_TARGET" | awk '{print $1}')"
 RUNNER_UID="$(id -u "$RUNNER_USER")"
@@ -211,6 +196,7 @@ cat > "$TMP_RECEIPT" <<EOF
   "activation_gateway_installed": false
 }
 EOF
+/usr/bin/python3 -m json.tool "$TMP_RECEIPT" >/dev/null
 /usr/bin/install -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0640 "$TMP_RECEIPT" "$BOOTSTRAP_RECEIPT"
 
 cat <<EOF
