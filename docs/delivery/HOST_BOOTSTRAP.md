@@ -4,72 +4,72 @@ Laplace-Refactor has one human host-bootstrap boundary and one recurring product
 
 ## One-time human bootstrap
 
-Run once on a Linux product host:
+Run once, and rerun only to reconcile host prerequisites:
 
 ```sh
 sudo bash scripts/setup-host.sh
 ```
 
-`setup-host.sh` is infrastructure establishment only. Its final contract is limited to prerequisites the service account cannot establish for itself:
+`setup-host.sh` is infrastructure establishment only. It may use administrator authority because it creates operating-system identities and installs static host policy. It does **not** execute product delivery.
 
-- create/verify the `laplace-runner` service identity;
-- establish persistent service-owned roots under `/build` and `/opt/laplace` plus the selected data/WAL/log/config/receipt parents;
-- install the static system-level service definition and boot policy required by the host;
-- install exact passwordless sudo entries only for the narrow system-service operations that actually require host privilege;
-- retain an exact bootstrap receipt.
+It establishes only:
 
-The bootstrap does **not** build Laplace, compose or select a product package, initialize PostgreSQL, activate Unicode, activate the Highway, write normal product receipts, or execute a product deployment as root.
+- the `laplace-runner` system identity;
+- persistent product/runtime roots owned by `laplace-runner` under `/build`, `/opt/laplace`, `/pgtemp`, `/var/lib/pgwal`, and `/var/log/laplace`;
+- the exact instance configuration directory `/etc/laplace/instances/refactor`, delegated to `laplace-runner` while `/etc/laplace` remains administrator-owned;
+- one static `laplace-refactor-postgresql.service` systemd envelope from `packaging/systemd/laplace-refactor-postgresql.service`;
+- exactly three passwordless recurring service operations for `laplace-runner`: `systemctl start`, `stop`, and `restart` for that one unit;
+- a durable prerequisite receipt at `/opt/laplace/receipts/bootstrap/host.json`.
 
-## Inventor correction — recurring root activation is not architecture
+The bootstrap does **not** build PostgreSQL or Laplace, compose/install/select a product package, initialize or migrate PostgreSQL, seed Unicode, activate the Highway, write normal product activation receipts, install an activation HMAC key, or install/invoke a whole-product root activation gateway.
 
-The prior version of this document described a root-owned product activation gateway and `laplace-runner -> sudo -> gateway execute-request` as the recurring delivery path. That boundary was incorrect and is superseded by inventor direction on 2026-09-04 and the corrected #120 contract.
+The bootstrap receipt explicitly records `product_activated=false` and `activation_gateway_installed=false`.
 
-`laplace-runner` is the recurring OS/service/CI execution identity under #12. Root authority must not become the owner of package selection, PostgreSQL state, Unicode/Highway activation, receipts, or product semantics merely because systemd and a few host operations require privilege.
+## Recurring ownership
 
-If an operating-system action still requires privilege after bootstrap, CI may invoke only the exact narrow sudo/system-service operation required for that action. A privileged helper may not parse or execute the whole product activation program.
-
-## Persistent state ownership
-
-After bootstrap, the product/runtime is service-owned. At minimum:
+After bootstrap, the recurring product owner is `laplace-runner`, consistent with #12 and corrected #120.
 
 ```text
-package/build/release state       laplace-runner
-PostgreSQL PGDATA                 laplace-runner
-PostgreSQL WAL                    laplace-runner
-perfcache/runtime state           laplace-runner
-product/cluster receipts          laplace-runner
-Unicode/Highway receipts          laplace-runner
-product execution                 laplace-runner
+accepted main
+  -> CI running as laplace-runner
+  -> compose/select exact package
+  -> install/select persistent /opt/laplace release
+  -> initialize or reverify persistent PostgreSQL state
+  -> activate Unicode / Highway / later product epochs
+  -> write durable receipts
+  -> query/read back the installed product
 ```
 
-System-owned files are limited to actual host policy such as the static systemd unit and sudo policy. Configuration that changes with a product generation must not force the whole deployment back across a root boundary.
+Root is not the package, database, Unicode, Highway, receipt, or semantic execution owner. When the operating system requires privilege, CI may invoke only the static service lifecycle commands installed by bootstrap. A privileged process must not parse or execute an authenticated whole-product request.
 
-## CI/CD owns product delivery after bootstrap
+## Static PostgreSQL service envelope
 
-After `setup-host.sh` succeeds, accepted pushes to `main` are the normal DEV/BAT product-delivery path:
+The systemd unit is installed once by bootstrap and points at the stable product selection path:
 
 ```text
-push to main
-  -> product-path
-  -> selected hosted/custom-stack/PostgreSQL/package proof
-  -> dev-bat-deployment as laplace-runner
-  -> persistent package/release selection as laplace-runner
-  -> PostgreSQL activation/repair as laplace-runner
-  -> Unicode activation as laplace-runner
-  -> Highway activation as laplace-runner
-  -> narrow system-service operation only where the OS requires privilege
-  -> service restart/readback
+/opt/laplace/current/pgsql-18/bin/postgres
 ```
 
-`product-path` does not treat dispatch as completion. The accepted-main run must wait for the exact persistent deployment result and require its successful conclusion.
+CI owns `/opt/laplace/current` selection and the PostgreSQL configuration/state underneath the delegated product roots. The systemd unit is not regenerated for every package or resource observation. Dynamic PostgreSQL/resource decisions belong in product configuration and execution receipts, not in a root-rewritten service file.
 
-## Current implementation defect on PR #215
+## Persistent state
 
-At the time of this correction, the branch still contains a root-owned activation-gateway implementation and the workflow still invokes `sudo ... laplace-product-activate execute-request`. That implementation is **not** accepted as the final boundary and PR #215 must not merge on the basis of that path. The PR exit condition now requires recurring delivery to be owned by `laplace-runner` with root narrowed to bootstrap/system-host operations.
+The selected refactor product uses durable paths from `contracts/postgresql-cluster.json`, including:
 
-## Real installed-product readback
+```text
+PGDATA      /opt/laplace/pgdata/refactor/data
+WAL         /var/lib/pgwal/refactor
+perfcache   /opt/laplace/pgdata/refactor/perfcache
+config      /etc/laplace/instances/refactor
+logs        /var/log/laplace/postgresql/refactor
+receipts    /opt/laplace/receipts/postgresql/refactor
+```
 
-A deployment is not established by unit/fixture tests or by a disposable `$RUNNER_TEMP` PostgreSQL cluster. The persistent product must exist at the declared host paths and answer through its installed service:
+The setup script may remove an exact candidate leaf only when it is empty stale bootstrap residue. Nonempty product state is preserved.
+
+## Real installed-product acceptance
+
+A build, fixture cluster, disposable `$RUNNER_TEMP` database, or Actions artifact is not deployment evidence. Delivery requires the real host state to survive the workflow and answer through the installed product:
 
 ```sh
 systemctl is-active laplace-refactor-postgresql.service
@@ -87,13 +87,15 @@ systemctl is-active laplace-refactor-postgresql.service
   -c "select current_database(), current_user, current_setting('server_version'), (select extversion from pg_extension where extname='laplace');"
 ```
 
-`.github/workflows/live-product-probe.yml` performs this class of direct installed-host readback. Product activation must retain exact package, cluster, Unicode, Highway, service-enablement, and boot/readback receipts under persistent service-owned state.
+The accepted deployment must also prove exact installed package identity, PostgreSQL restart persistence, and durable Unicode/Highway/product receipt readback.
 
-## Local/customer install path
+## Human/CI boundary
 
-A customer/administrator installer may legitimately require administrator authority to establish machine-wide prerequisites. That is distinct from the recurring DEV/BAT CI identity. On the development/BAT host, the intended sequence is:
+The development/BAT sequence is intentionally short:
 
 ```text
-sudo bash scripts/setup-host.sh   # once: prerequisites only
-push/merge accepted main work     # thereafter: laplace-runner owns delivery
+sudo bash scripts/setup-host.sh   # once: host prerequisites only
+push/merge accepted main work     # thereafter: CI/CD owns product delivery
 ```
+
+If recurring CI requires another broad root program, the privilege boundary has regressed and the implementation is incomplete.
