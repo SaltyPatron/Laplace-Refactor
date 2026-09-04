@@ -55,6 +55,16 @@
       "ctest_name": "CognitionObservationRequest.ProviderRejectsCompiledPolicyDrift",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
       "covered_dimensions": ["compiled search boundary must match immutable observation index", "post-compilation policy drift fails before provider publication"]
+    },
+    {
+      "ctest_name": "CognitionObservationRequest.NewRequestExecutesAgainstPreviouslyBuiltUnboundIndex",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["observation index is built before request exists", "runtime binding is supplied by compiled request rather than index construction", "two-hop goal executes through request-bound provider", "index identity remains unchanged"]
+    },
+    {
+      "ctest_name": "CognitionObservationRequest.DifferentRuntimeRequestsDoNotChangeIndexIdentity",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["query intent is not observation-index identity", "different typed relations produce different requests over one immutable binding-free index", "provider publication does not mutate the observation estate"]
     }
   ]
 }
