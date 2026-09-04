@@ -139,7 +139,8 @@ laplace_decomposition_status Apply(
             if (value_start < value_end &&
                 !EmitSpan(emit, emit_state, value_start, value_end,
                           provider.value_kind,
-                          LAPLACE_DECOMPOSITION_SPAN_TEXT)) {
+                          LAPLACE_DECOMPOSITION_SPAN_TEXT |
+                              LAPLACE_DECOMPOSITION_SPAN_REDISPATCH)) {
                 return LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
             }
             if (field_index == provider.overflow_field_index && overflow != 0u) {
