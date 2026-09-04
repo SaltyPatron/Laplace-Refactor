@@ -44,7 +44,7 @@ class ProductPathTests(unittest.TestCase):
         self.assertFalse(result["blocked"])
 
     def test_postgresql_change_requires_exact_product_provider(self) -> None:
-        result = self.classify("postgres/extension/src/composition_pg.c")
+        result = self.classify("integrations/postgresql/extension/src/composition_pg.c")
         self.assertIn("postgresql", result["classes"])
         self.assertTrue(result["requires_custom_stack"])
         self.assertTrue(result["requires_postgresql_product"])
@@ -98,7 +98,7 @@ class ProductPathTests(unittest.TestCase):
         self.assertFalse(control["blocked"])
 
     def test_deleted_semantic_path_has_same_classification_as_modified_path(self) -> None:
-        result = self.classify("postgres/extension/src/composition_pg.c")
+        result = self.classify("integrations/postgresql/extension/src/composition_pg.c")
         self.assertTrue(result["requires_postgresql_product"])
         self.assertFalse(result["blocked"])
 
@@ -187,7 +187,7 @@ class ProductPathTests(unittest.TestCase):
         )
         provider["implemented"] = False
         result = product_path.classify(
-            mutated, ["postgres/extension/src/composition_pg.c"]
+            mutated, ["integrations/postgresql/extension/src/composition_pg.c"]
         )
         self.assertTrue(result["blocked"])
         self.assertIn("postgresql-product", result["unimplemented_evidence"])
