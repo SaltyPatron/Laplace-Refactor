@@ -21,7 +21,10 @@ Feature: Unicode-native tiered tokens, typed matchups, and language realization
     Then it may address the canonical compositions at the structural altitude required by that program
     And every selected unit can descend to exact constituents and ascend through enclosing trajectories
     And equal content retains one identity while role occurrence tier source language and interpretation remain outside that identity
+    And an unresolved higher composition may fall back to smaller exact tiers without discarding its original root or occurrence
+    And an exact whole-trunk or exact subtrajectory match is considered before approximate geometric candidates when both are available
     But flattening all operations to one fixed subword segmentation fails acceptance
+    And treating conventional byte fallback as the native Laplace fallback fails acceptance
 
   @LP-TEST-NATIVE-LEADING-SPACE-NONIDENTITY
   Scenario: Native token identity has no leading-space hack
@@ -56,15 +59,17 @@ Feature: Unicode-native tiered tokens, typed matchups, and language realization
     And preserving opponent deviation while discarding opponent rating also fails acceptance
 
   @LP-TEST-TRUST-RETURN-LEG
-  Scenario: Source trust is earned through an independent return leg
-    Given a source-type prior initializes two new sources in the same lane
-    And both testify about propositions with complete provenance
-    And one proposition is later independently corroborated while the other is independently refuted
+  Scenario: Trust is earned through an independent return leg rather than prompt admission
+    Given a seeded source profile may emit explicit typed testimony under its declared contract
+    And a production UserPrompt is admitted as exact canonical content occurrence and trajectory with zero semantic attestations
+    And cognition may derive that the prompt expresses a factual assertion without converting the prompt into testimony
+    And the assertion is later independently corroborated or refuted by an eligible calculation observation or admitted evidence boundary
     When return-leg matchup events are published
-    Then the source-specific standings diverge from the shared prior
-    And only evidence roots independent of each source contribute outcomes
-    And mirrors quotations model descendants and self-generated explanations cannot manufacture wins
-    But permanent source-type literals in place of source-specific state fail acceptance
+    Then only the participants and typed reliability lanes actually tested by the independent outcome are eligible to update
+    And a refuted user assertion can lower that user's applicable factual-reliability standing
+    And the immutable original prompt remains unchanged and attestation-free
+    And mirrors quotations model descendants internal thoughts generated explanations and self-output cannot manufacture wins losses or independent roots
+    But permanent source-type literals in place of earned participant state fail acceptance
 
   @LP-TEST-RATING-UNKNOWN-NONLOSS
   Scenario: Unknown and absence are not losses
@@ -82,6 +87,7 @@ Feature: Unicode-native tiered tokens, typed matchups, and language realization
     Then the formal proposition remains entailed without a Glicko vote
     And dependent volume cannot override the derivation
     And the independent derivation outcome may update the reliability lanes of sources that asserted the contradiction
+    And merely recording a user's false utterance does not itself create contradiction testimony or a rating loss until an eligible independent outcome exists
 
   @LP-TEST-RATING-EVENT-TIME-REPLAY
   Scenario: Rating history is event-time and order stable
@@ -116,6 +122,7 @@ Feature: Unicode-native tiered tokens, typed matchups, and language realization
     When the text realizers calculate exact output
     Then each output is an exact Unicode composition with its own morphology function words punctuation whitespace order and pragmatics
     And every reused and newly composed subtree is identified in the receipt
+    And the realizer may fall back from a missing larger composition to smaller exact tiers and compose upward without losing the semantic act or unresolved obligations
     And none of the outputs is required to pass through an English token sequence
 
   @LP-TEST-REALIZER-LANE-RETURN-LEG

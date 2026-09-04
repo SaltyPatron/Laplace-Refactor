@@ -6,7 +6,8 @@
     "issues": [16, 17, 18, 19, 23, 53, 110],
     "higher_authority": [
       "docs/product/CONSTITUTION.md",
-      "docs/product/INVENTION_MODEL.md"
+      "docs/product/INVENTION_MODEL.md",
+      "docs/architecture/PROMPT_OBSERVATION_TRAJECTORY_MATCHING_AND_REALIZATION.md"
     ]
   },
   "traceability": {
@@ -23,6 +24,26 @@
     ],
     "github_issues": [16, 17, 18, 110]
   },
+  "observation_boundary": {
+    "user_prompt_admission_semantic_attestations": 0,
+    "ordinary_production_observation_semantic_attestations": 0,
+    "internal_cognition_independent_semantic_attestations": 0,
+    "generated_output_independent_semantic_attestations": 0,
+    "prompt_state_created": [
+      "canonical_content_identity",
+      "occurrence",
+      "physicality_and_trajectory",
+      "session_turn_source_time_context",
+      "execution_receipts"
+    ],
+    "production_observation_examples": ["text", "image", "audio", "video", "game", "code", "user_activity"],
+    "seeded_testimony_source_profiles_may_emit_attestations": true,
+    "seed_examples": ["WordNet", "OMW_CILI", "Wiktionary", "Universal_Dependencies", "ConceptNet", "ATOMIC", "FrameNet", "PropBank", "VerbNet", "SemLink"],
+    "interpreted_assertion_is_derived_state_not_attestation": true,
+    "contradiction_requires_compatible_conflicting_state": true,
+    "later_independent_outcome_may_update_participant_standing": true,
+    "self_corroboration_forbidden": true
+  },
   "machine_language": {
     "internal_symbolic_floor": "complete Unicode codepoint-position space",
     "statement": "Laplace speaks Unicode and renders requested witnessed natural languages or other modalities",
@@ -35,6 +56,9 @@
     "definition": "an addressable canonical composition selected as an operand by a typed grammar cognition query realization or target-compilation recipe",
     "structural_tier_is_identity": false,
     "tier_is_fixed_text_ladder": false,
+    "native_fallback": "structural_altitude_or_tier_fallback_over_exact_canonical_compositions",
+    "fallback_preserves_unresolved_parent_root": true,
+    "exact_first_before_approximate": true,
     "addressable_examples": [
       "codepoint",
       "grapheme_or_exact_segmentation_unit",
@@ -46,12 +70,24 @@
       "arbitrary_typed_universal_AST_composition"
     ],
     "required_navigation": [
+      "exact_whole_trunk_identity_lookup",
+      "exact_subcomposition_and_subtrajectory_lookup",
       "descend_to_exact_constituents",
       "ascend_through_enclosing_trajectories",
       "preserve_order_gap_containment_ordinal_run_and_recurrence"
     ],
     "native_leading_space_token_hack": false,
+    "conventional_byte_fallback_is_native": false,
     "target_tokenizer_lowering_is_compatibility_projection": true
+  },
+  "structural_candidate_boundary": {
+    "exact_identity_precedes_geometry": true,
+    "candidate_metrics": ["angular_geodesic", "Frechet", "Hausdorff", "Karcher_derived", "Hilbert", "exact_AST_or_trajectory_motif"],
+    "realized_curve_requires_resolving_trajectory_ids_to_real_coords": true,
+    "lossy_projection_can_establish_identity": false,
+    "lossy_projection_can_establish_semantic_equivalence": false,
+    "structural_similarity_can_establish_truth": false,
+    "borsuk_ulam_projection_collision_requires_full_state_disambiguation": true
   },
   "distinctions": {
     "default_prior": "initializes an eligible typed rating key only when no prior completed state exists; not testimony evidence truth token importance or permanent standing",
@@ -111,7 +147,8 @@
       "one_global_entity_rating",
       "absence_or_unknown_as_loss",
       "dependent_descendants_as_independent_matches",
-      "cooccurrence_or_frontier_competition_as_matchup"
+      "cooccurrence_or_frontier_competition_as_matchup",
+      "user_prompt_admission_as_matchup_or_attestation"
     ],
     "history": {
       "rating_at_event": "immutable",
@@ -123,7 +160,9 @@
       "required_for_earned_trust": true,
       "independent_outcome_required": true,
       "self_certification_forbidden": true,
-      "proposition_leg_and_participant_leg_separate": true
+      "proposition_leg_and_participant_leg_separate": true,
+      "false_user_assertion_can_lower_relevant_user_reliability_after_independent_adjudication": true,
+      "user_factual_reliability_does_not_override_current_self_reported_preference_without_applicable_outcome_law": true
     }
   },
   "contextual_importance": {
@@ -151,6 +190,9 @@
     "separate_intelligence_per_language": false,
     "english_universal_intermediate": false,
     "identification_is_readiness": false,
+    "exact_first_reuse": true,
+    "inverse_tier_fallback": true,
+    "tier_fallback_preserves_semantic_act_and_unresolved_obligations": true,
     "readiness_key": [
       "language_coordinate",
       "semantic_act_class",
@@ -177,23 +219,37 @@
   },
   "acceptance": {
     "positive": [
+      "user_prompt_admission_creates_zero_semantic_attestations",
+      "internal_cognition_and_generated_output_create_zero_independent_attestations",
+      "seeded_profiles_can_supply_explicit_typed_testimony",
       "unicode_is_internal_machine_language",
       "natural_languages_are_renderings",
       "multiple_token_tiers_are_addressable",
+      "native_tier_fallback_preserves_root_and_exact_structure",
+      "exact_identity_and_subtrajectory_checks_precede_geometry",
+      "projection_collisions_do_not_collapse_identity_or_semantics",
       "native_identity_has_no_leading_space_hack",
       "new_key_initializes_once_then_carries_forward",
       "opponent_strength_changes_update",
       "source_specific_state_diverges_from_source_type_prior",
       "independent_return_leg_updates_only_tested_lanes",
+      "independently_refuted_user_assertion_can_lower_relevant_user_reliability",
       "formal_arithmetic_is_nonvoting",
       "rating_history_is_as_of_and_order_invariant",
       "function_words_punctuation_gaps_and_token_tiers_can_be_decisive",
       "multilingual_realization_uses_witnessed_language_structure",
+      "realization_can_fall_back_to_smaller_exact_tiers_and_recompose",
       "unsupported_language_returns_typed_why_not"
     ],
     "deliberate_defects": [
+      "user_prompt_to_attestation_on_admission",
+      "internal_thought_or_generated_prose_as_independent_testimony",
       "natural_language_tokenizer_as_machine_language",
       "one_fixed_token_segmentation",
+      "conventional_byte_fallback_as_native_semantics",
+      "tier_fallback_discards_parent_root",
+      "approximate_or_geometric_search_before_available_exact_match",
+      "projection_collision_as_identity_or_semantic_equivalence",
       "leading_space_native_identity",
       "neutral_opponent_replay",
       "redefault_every_fold",
