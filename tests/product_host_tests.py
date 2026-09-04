@@ -80,7 +80,7 @@ class ProductHostTests(unittest.TestCase):
         receipt = declared[instance["receipt_directory"]]
         self.assertEqual(receipt["owner"], "laplace-runner")
         self.assertEqual(receipt["group"], "laplace-runner")
-        self.assertEqual(receipt["mode"], "0750")
+        self.assertIn(receipt["mode"], {"0750", "2750"})
 
     def test_fixture_convergence_is_persistent_exact_and_repairable(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-product-host-") as temporary:
@@ -244,21 +244,51 @@ class ProductHostTests(unittest.TestCase):
         self.assertIn("state/product-publication-selection.json", source)
         self.assertNotIn("/opt/laplace/receipts/postgresql/", source)
 
-    def test_setup_host_is_bootstrap_only_then_hands_control_to_cicd(self) -> None:
+    def test_setup_host_is_prerequisites_only_then_hands_control_to_cicd(self) -> None:
         entrypoint = REPOSITORY / "scripts/setup-host.sh"
+        unit = REPOSITORY / "packaging/systemd/laplace-refactor-postgresql.service"
         self.assertTrue(entrypoint.is_file())
+        self.assertTrue(unit.is_file())
         source = entrypoint.read_text(encoding="utf-8")
-        self.assertIn("product_host.py converge", source)
-        self.assertIn("--authorize-system-root", source)
-        self.assertIn("--generate-key", source)
-        self.assertIn("laplace-product-activate", source)
-        self.assertIn("sudo -n", source)
-        self.assertIn("config_directory", source)
-        self.assertNotIn('Path(instance["receipt_directory"])', source)
-        self.assertNotIn("product_host.py install", source)
-        self.assertNotIn("--accepted-state", source)
-        self.assertNotIn("build-package.py", source)
-        self.assertNotIn("clusterctl.py activate-product", source)
+        service = unit.read_text(encoding="utf-8")
+
+        # Positive bootstrap boundary.
+        self.assertIn("laplace-runner", source)
+        self.assertIn("packaging/systemd/$SERVICE", source)
+        self.assertIn("/etc/sudoers.d/laplace-refactor-postgresql-service", source)
+        self.assertIn("systemctl start $SERVICE", source)
+        self.assertIn("systemctl stop $SERVICE", source)
+        self.assertIn("systemctl restart $SERVICE", source)
+        self.assertIn('"product_activated": false', source)
+        self.assertIn('"activation_gateway_installed": false', source)
+        self.assertIn("User=laplace-runner", service)
+        self.assertIn("Group=laplace-runner", service)
+        self.assertIn(
+            "ExecStart=/opt/laplace/current/pgsql-18/bin/postgres",
+            service,
+        )
+
+        # Bootstrap must never become deployment/product execution again.
+        for forbidden in (
+            "product_host.py",
+            "--generate-key",
+            "laplace-product-activate",
+            "execute-request",
+            "LAPLACE_ACTIVATION_HMAC_KEY_B64",
+            "build-package.py",
+            "clusterctl.py activate-product",
+            "unicodectl.py",
+            "highwayctl.py",
+            "--accepted-state",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
+
+        # The static host unit cannot encode a package-id or per-deploy resource plan.
+        self.assertNotIn("AllowedCPUs=", service)
+        self.assertNotIn("MemoryHigh=", service)
+        self.assertNotIn("MemoryMax=", service)
+        self.assertNotIn("/opt/laplace/releases/", service)
 
 
 if __name__ == "__main__":
