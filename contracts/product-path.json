@@ -17,7 +17,7 @@
     {
       "id": "postgresql",
       "patterns": [
-        "postgres/**",
+        "integrations/postgresql/**",
         "tools/postgresql/**",
         "contracts/postgresql-build.json",
         "contracts/postgresql-cluster.json",
