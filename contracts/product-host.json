@@ -76,8 +76,8 @@
       "path": "/opt/laplace/receipts/postgresql/refactor",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "0750",
-      "purpose": "persistent refactor activation evidence Unicode Highway service and cold-boot receipts"
+      "mode": "2750",
+      "purpose": "setgid persistent refactor activation evidence Unicode Highway service and cold-boot receipts so root-written 0640 receipts remain readable by laplace-runner"
     },
     {
       "path": "/opt/laplace/releases",
