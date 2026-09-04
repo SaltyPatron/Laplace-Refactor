@@ -40,14 +40,14 @@ done
 
 cd "$REPOSITORY"
 
-# Older host-convergence generations incorrectly created the cluster-owned instance
-# leaf directories before cluster activation. Fresh activation intentionally requires
-# those leaves to be absent. Remove only exact empty directories named by the current
-# cluster contract. Never delete a file, symlink, nonempty directory, PGDATA, WAL,
-# receipt, log, or any other product state.
+# Older host-convergence generations incorrectly created cluster-owned instance leaf
+# directories before cluster activation. Fresh activation requires those candidate
+# paths to be absent. Remove only exact EMPTY directories named below. Never delete a
+# file, symlink, nonempty directory, PGDATA, WAL, receipt, log content, or any other
+# product state. The refactor receipt namespace is now persistent host-owned state and
+# is intentionally NOT part of this cleanup.
 /usr/bin/python3 - "$REPOSITORY/contracts/postgresql-cluster.json" <<'PY'
 import json
-import os
 from pathlib import Path
 import sys
 
@@ -60,8 +60,8 @@ leaves = [
     Path(instance["wal_directory"]),
     Path(instance["temp_directory"]),
     Path(instance["perfcache_directory"]),
+    Path(instance["config_directory"]),
     Path(instance["log_directory"]),
-    Path(instance["receipt_directory"]),
 ]
 for path in leaves:
     if path.is_symlink():
@@ -80,9 +80,9 @@ for path in leaves:
 PY
 
 # Converge the service identity, persistent parent roots, activation key, immutable
-# gateway, scoped sudoers policy, and product service-state systemd units. Cluster
-# leaf state (PGDATA/WAL/temp/perfcache/log/instance receipts) remains absent unless
-# an already-installed product owns it; cluster activation is its only creator.
+# gateway, scoped sudoers policy, service-state units, and persistent receipt
+# namespaces. Candidate PGDATA/WAL/temp/perfcache/config/log leaves remain absent unless
+# an existing product owns them; cluster activation is their only creator.
 /usr/bin/python3 tools/delivery/product_host.py converge \
     --repository "$REPOSITORY" \
     --authorize-system-root \
