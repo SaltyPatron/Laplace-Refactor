@@ -162,6 +162,20 @@ laplace_cognition_observation_request DynamicRequest(
 
 class DynamicIndexHandle final {
 public:
+    DynamicIndexHandle() = default;
+    DynamicIndexHandle(const DynamicIndexHandle&) = delete;
+    DynamicIndexHandle& operator=(const DynamicIndexHandle&) = delete;
+    DynamicIndexHandle(DynamicIndexHandle&& other) noexcept : value(other.value) {
+        other.value = nullptr;
+    }
+    DynamicIndexHandle& operator=(DynamicIndexHandle&& other) noexcept {
+        if (this != &other) {
+            laplace_observation_query_index_destroy(&value);
+            value = other.value;
+            other.value = nullptr;
+        }
+        return *this;
+    }
     ~DynamicIndexHandle() { laplace_observation_query_index_destroy(&value); }
     laplace_observation_query_index* value{};
 };
