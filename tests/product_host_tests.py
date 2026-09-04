@@ -48,7 +48,7 @@ class ProductHostTests(unittest.TestCase):
             "tools/postgresql/hostctl.py",
         )
 
-    def test_host_convergence_leaves_cluster_owned_leaf_state_for_activation(self) -> None:
+    def test_host_convergence_leaves_candidate_state_for_activation_but_owns_receipts(self) -> None:
         cluster = host.load_json(REPOSITORY / self.contract["modules"]["cluster_contract"])
         instance = cluster["instance"]
         declared = {item["path"]: item for item in self.contract["directories"]}
@@ -57,8 +57,8 @@ class ProductHostTests(unittest.TestCase):
             instance["wal_directory"],
             instance["temp_directory"],
             instance["perfcache_directory"],
+            instance["config_directory"],
             instance["log_directory"],
-            instance["receipt_directory"],
         }
         for path in cluster_owned:
             with self.subTest(path=path):
@@ -69,12 +69,18 @@ class ProductHostTests(unittest.TestCase):
             instance["perfcache_directory"]: "/opt/laplace/pgdata/refactor",
             instance["wal_directory"]: "/var/lib/pgwal",
             instance["temp_directory"]: "/pgtemp",
+            instance["config_directory"]: "/etc/laplace/instances",
             instance["log_directory"]: "/var/log/laplace/postgresql",
-            instance["receipt_directory"]: "/opt/laplace/receipts/postgresql",
         }
         for leaf, parent in expected_parents.items():
             with self.subTest(leaf=leaf, parent=parent):
                 self.assertIn(parent, declared)
+
+        self.assertIn(instance["receipt_directory"], declared)
+        receipt = declared[instance["receipt_directory"]]
+        self.assertEqual(receipt["owner"], "laplace-runner")
+        self.assertEqual(receipt["group"], "laplace-runner")
+        self.assertEqual(receipt["mode"], "0750")
 
     def test_fixture_convergence_is_persistent_exact_and_repairable(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-product-host-") as temporary:
@@ -107,14 +113,17 @@ class ProductHostTests(unittest.TestCase):
                 instance["wal_directory"],
                 instance["temp_directory"],
                 instance["perfcache_directory"],
+                instance["config_directory"],
                 instance["log_directory"],
-                instance["receipt_directory"],
             ):
                 target = root.joinpath(*Path(path).parts[1:])
                 self.assertFalse(
                     target.exists() or target.is_symlink(),
-                    f"host bootstrap stole cluster-owned leaf state: {path}",
+                    f"host bootstrap stole cluster-owned candidate state: {path}",
                 )
+            receipt_root = root.joinpath(*Path(instance["receipt_directory"]).parts[1:])
+            self.assertTrue(receipt_root.is_dir())
+            self.assertFalse(receipt_root.is_symlink())
 
     def test_fixture_repair_restores_mode_without_touching_contents(self) -> None:
         with tempfile.TemporaryDirectory(
@@ -244,6 +253,8 @@ class ProductHostTests(unittest.TestCase):
         self.assertIn("--generate-key", source)
         self.assertIn("laplace-product-activate", source)
         self.assertIn("sudo -n", source)
+        self.assertIn("config_directory", source)
+        self.assertNotIn('Path(instance["receipt_directory"])', source)
         self.assertNotIn("product_host.py install", source)
         self.assertNotIn("--accepted-state", source)
         self.assertNotIn("build-package.py", source)
