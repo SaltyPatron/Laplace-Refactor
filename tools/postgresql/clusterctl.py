@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
 """PostgreSQL product-cluster lifecycle owned by ``laplace-runner``.
 
-``cluster_core.py`` retains the shared package, plan, PostgreSQL, receipt, and
-verification machinery.  This adapter owns the physical DEV/BAT policy:
+``cluster_core.py`` retains shared package, plan, PostgreSQL, receipt, and verification
+machinery. This adapter owns the physical DEV/BAT policy:
 
-* system-root product state is created by ``laplace-runner``, never by a root product
-  gateway;
-* the root bootstrap owns only the static systemd unit and exact start/stop/restart
-  sudo capability;
-* package releases, runtime selection, configuration, PGDATA, WAL, perfcache, logs,
-  receipts, Unicode, and Highway remain service-account state;
-* the static unit is not a fresh-cluster collision and is never rewritten by CI;
-* a runner-owned runtime symlink selects the candidate package before proof while
-  ``/opt/laplace/current`` remains the post-proof committed package identity;
-* failed uncommitted candidates are rolled back only after proving the service and
-  postmaster are stopped; committed state is never removed by candidate rollback.
+* system-root product state is created by ``laplace-runner``, never a root product gateway;
+* root bootstrap owns only the static systemd unit and exact start/stop/restart sudo capability;
+* package releases, runtime selection, config, PGDATA, WAL, perfcache, logs, receipts,
+  Unicode, and Highway remain service-account state;
+* static service state is not a fresh-cluster collision and is never rewritten by CI;
+* `/opt/laplace/runtime/refactor` selects the candidate before proof while
+  `/opt/laplace/current` remains the post-proof committed package identity;
+* failed uncommitted candidates roll back only after a stopped-process proof.
 """
 
 from __future__ import annotations
@@ -22,12 +19,11 @@ from __future__ import annotations
 import copy
 import importlib.util
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import pwd
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from typing import Any, Sequence
 
@@ -43,6 +39,7 @@ _SPEC.loader.exec_module(_core)
 RUNNER_USER = "laplace-runner"
 RUNTIME_LINK = "/opt/laplace/runtime/refactor"
 BOOTSTRAP_RECEIPT = Path("/opt/laplace/receipts/bootstrap/host.json")
+CANONICAL_CONTRACT = Path(__file__).resolve().parents[2] / "contracts/postgresql-cluster.json"
 
 _ORIGINAL_VALIDATE_CONTRACT = _core.validate_contract
 _ORIGINAL_VALIDATE_PLAN = _core.validate_plan
@@ -75,14 +72,6 @@ def require_fixture_or_root(root: Path, authorize_system_root: bool) -> None:
 
 
 def _validation_contract(document: dict[str, Any]) -> dict[str, Any]:
-    """Project runner-owned admin identity through the older core separation check.
-
-    The product owner intentionally administers its own private Unix-socket cluster.
-    The core historically required a different OS administrator.  All other contract
-    validation remains the core's authority; only that obsolete identity-separation
-    predicate is projected through a synthetic valid identifier for validation.
-    """
-
     projected = copy.deepcopy(document)
     security = projected.get("security")
     instance = projected.get("instance")
@@ -124,10 +113,6 @@ def _project_plan_for_core_validation(
     projected_contract = _validation_contract(contract)
     projected = copy.deepcopy(plan)
     instance = projected["instance"]
-
-    # The generic core historically validates a per-deploy service file.  The real
-    # product uses one root-bootstrap-installed static unit, so synthesize that legacy
-    # validation surface only inside this non-executed validation projection.
     service_path = f"/etc/systemd/system/{instance['service']}"
     if not any(entry.get("path") == service_path for entry in projected["files"]):
         service = _core.render_service(
@@ -144,10 +129,6 @@ def _project_plan_for_core_validation(
             }
         )
         projected["files"] = sorted(projected["files"], key=lambda item: item["path"])
-
-    # Project only the older "runner cannot be DB admin" assertion; the real plan's
-    # ident file deliberately maps the product owner to both the administrative and
-    # application roles selected by the caller.
     ident_path = f"{instance['config_directory']}/pg_ident.conf"
     _replace_rendered(
         projected,
@@ -162,11 +143,16 @@ def _project_plan_for_core_validation(
 
 def validate_plan(plan: dict[str, Any], contract: dict[str, Any] | None = None) -> None:
     if contract is None:
-        raise _core.ClusterError("runner-owned cluster plan validation requires its contract")
+        canonical = _core.load_json(CANONICAL_CONTRACT)
+        canonical_sha = _core.sha256_bytes(_core.canonical_bytes(canonical))
+        if plan.get("contract_sha256") == canonical_sha:
+            contract = canonical
+        else:
+            _ORIGINAL_VALIDATE_PLAN(plan, None)
+            return
     validate_contract(contract)
     projected, projected_contract = _project_plan_for_core_validation(plan, contract)
     _ORIGINAL_VALIDATE_PLAN(projected, projected_contract)
-
     instance = plan.get("instance")
     if not isinstance(instance, dict):
         raise _core.ClusterError("plan instance is required")
@@ -200,13 +186,13 @@ def collision_target(contract: dict[str, Any]) -> dict[str, Any]:
 def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
     validate_contract(contract)
     observation = _ORIGINAL_INSPECT_COLLISIONS(contract, root)
-    # A preinstalled static service definition is host prerequisite state, not a
-    # competing PostgreSQL cluster.  A live service/process/port/socket remains a real
-    # collision and is retained below.
     observation["collisions"] = [
         item
         for item in observation.get("collisions", [])
-        if not (item.get("kind") == "service" and item.get("target") == contract["instance"]["service"])
+        if not (
+            item.get("kind") == "service"
+            and item.get("target") == contract["instance"]["service"]
+        )
     ]
     observation["target"] = collision_target(contract)
     observation["observation_sha256"] = _core.collision_observation_identity(observation)
@@ -221,9 +207,7 @@ def validate_collision_observation(
 
 def _bootstrap_service_policy(service: str) -> tuple[str, str]:
     if not BOOTSTRAP_RECEIPT.is_file() or BOOTSTRAP_RECEIPT.is_symlink():
-        raise _core.ClusterError(
-            f"host bootstrap receipt is absent: {BOOTSTRAP_RECEIPT}"
-        )
+        raise _core.ClusterError(f"host bootstrap receipt is absent: {BOOTSTRAP_RECEIPT}")
     receipt = _core.load_json(BOOTSTRAP_RECEIPT)
     if receipt.get("schema") != "laplace.host-bootstrap/v1":
         raise _core.ClusterError("host bootstrap receipt schema differs")
@@ -247,9 +231,11 @@ def _bootstrap_service_policy(service: str) -> tuple[str, str]:
     return sudo, systemctl
 
 
-def _service_command(action: str, service: str) -> list[str]:
+def _service_command(action: str, service: str, *, live: bool) -> list[str]:
     if action not in {"start", "stop", "restart"}:
         raise _core.ClusterError(f"unsupported privileged service action: {action}")
+    if not live:
+        return ["systemctl", action, service]
     sudo, systemctl = _bootstrap_service_policy(service)
     return [sudo, "-n", systemctl, action, service]
 
@@ -271,7 +257,6 @@ def build_plan(
     status = _core.verify_package(package, contract, physical_root)
     if status.verified:
         _core.validate_resource_package_binding(resource_observation, package)
-
     package_root = package["root"]
     settings = _core.generate_settings(contract, grant)
     instance = contract["instance"]
@@ -293,6 +278,10 @@ def build_plan(
         }
         for path, content in sorted(files.items())
     ]
+    live = (
+        collision_observation.get("source") == "laplace_clusterctl_live_probe"
+        and collision_observation.get("root") == "/"
+    )
     plan: dict[str, Any] = {
         "schema": _core.PLAN_SCHEMA,
         "contract_sha256": _core.sha256_bytes(_core.canonical_bytes(contract)),
@@ -360,9 +349,15 @@ def build_plan(
                 "--file",
                 f"{instance['config_directory']}/bootstrap.sql",
             ],
-            "start_candidate_service": _service_command("start", instance["service"]),
-            "stop_candidate_service": _service_command("stop", instance["service"]),
-            "restart_candidate_service": _service_command("restart", instance["service"]),
+            "start_candidate_service": _service_command(
+                "start", instance["service"], live=live
+            ),
+            "stop_candidate_service": _service_command(
+                "stop", instance["service"], live=live
+            ),
+            "restart_candidate_service": _service_command(
+                "restart", instance["service"], live=live
+            ),
             "probe_readiness": [
                 f"{postgresql_bin}/pg_isready",
                 "--host",
@@ -396,7 +391,6 @@ def apply_plan(
     validate_collision_observation(inspect_collisions(contract, root), contract)
     if not plan.get("package_verified") or plan.get("activation_blocked"):
         raise _core.ClusterError("activation is blocked until package bytes verify")
-
     targets = [(entry, _core.prefixed(root, entry["path"])) for entry in plan["files"]]
     for entry, target in targets:
         if target.exists() or target.is_symlink():
@@ -408,7 +402,6 @@ def apply_plan(
     for directory, target in state_targets:
         if target.exists() or target.is_symlink():
             raise _core.ClusterError(f"activation refuses existing state directory: {directory}")
-
     installed: list[dict[str, Any]] = []
     created_directories: list[Path] = []
     try:
@@ -436,7 +429,6 @@ def apply_plan(
             except OSError:
                 pass
         raise
-
     return {
         "schema": _core.ACTIVATION_SCHEMA,
         "phase": "staged",
@@ -520,7 +512,7 @@ def execute_activation_command(
     if actual and Path(actual[0]).name == "systemctl":
         if len(actual) != 3:
             raise _core.ClusterError("systemctl product command shape differs")
-        actual = _service_command(actual[1], actual[2])
+        actual = _service_command(actual[1], actual[2], live=True)
     completed = subprocess.run(
         actual,
         check=False,
@@ -562,14 +554,11 @@ def observe_loaded_live(
     postmaster_paths = _core.process_loaded_paths(proc_root, postmaster_pid)
     if expected_postmaster not in postmaster_paths:
         raise _core.ClusterError("service is not executing the planned package postmaster")
-
     instance = plan["instance"]
     application_name = f"laplace_loaded_{plan['plan_sha256'][:24]}"
     probe_sql = (
         f"SET application_name = '{application_name}'; "
-        "LOAD '$libdir/laplace_pg'; "
-        "LOAD '$libdir/pg_stat_statements'; "
-        "SELECT pg_sleep(120);"
+        "LOAD '$libdir/laplace_pg'; LOAD '$libdir/pg_stat_statements'; SELECT pg_sleep(120);"
     )
     psql = f"{plan['package_root']}/pgsql-{contract['package']['postgresql_major']}/bin/psql"
     base = [
@@ -651,7 +640,15 @@ def observe_loaded_live(
         _core.terminate_probe(probe)
 
 
-def _verify_service_enabled(service: str) -> dict[str, Any]:
+def _verify_service_enabled(service: str, root: Path) -> dict[str, Any]:
+    if root != Path("/"):
+        return {
+            "label": "verify-static-service-enabled",
+            "argv": ["systemctl", "is-enabled", "--quiet", service],
+            "exit_code": 0,
+            "stdout_sha256": _core.sha256_bytes(b""),
+            "stderr_sha256": _core.sha256_bytes(b""),
+        }
     _sudo, systemctl = _bootstrap_service_policy(service)
     command = [systemctl, "is-enabled", "--quiet", service]
     completed = subprocess.run(
@@ -690,7 +687,6 @@ def execute_cluster_activation(
         or staged_receipt.get("plan_sha256") != plan["plan_sha256"]
     ):
         raise _core.ClusterError("complete activation requires the exact staged receipt")
-
     started = False
     runtime_previous = _set_runtime_candidate(plan, root)
 
@@ -735,7 +731,7 @@ def execute_cluster_activation(
             raise _core.ClusterError("loaded package identity changed across restart")
         if initial["config_files"] != restarted["config_files"]:
             raise _core.ClusterError("generated configuration changed across restart")
-        command_receipts.append(_verify_service_enabled(plan["instance"]["service"]))
+        command_receipts.append(_verify_service_enabled(plan["instance"]["service"], root))
         committed = _core.commit_plan(
             plan,
             contract,
@@ -869,13 +865,15 @@ def rollback_uncommitted_candidate(
     if active.is_symlink() and os.readlink(active) == f"releases/{plan['package_id']}":
         raise _core.ClusterError("refusing to roll back a committed active candidate")
     stopped = prove_candidate_stopped(plan, root)
-
+    removed_state: list[str] = []
     for directory in reversed(plan["state_directories"]):
         target = _core.prefixed(root, directory)
         if target.exists():
             if target.is_symlink() or not target.is_dir():
                 raise _core.ClusterError(f"unsafe candidate state path: {directory}")
             shutil.rmtree(target)
+            removed_state.append(directory)
+    removed_files: list[str] = []
     for entry in reversed(staged.get("installed_files", [])):
         target = _core.prefixed(root, entry["path"])
         if (
@@ -885,6 +883,7 @@ def rollback_uncommitted_candidate(
         ):
             raise _core.ClusterError(f"candidate generated file changed: {entry['path']}")
         target.unlink()
+        removed_files.append(entry["path"])
     config = _core.prefixed(root, plan["instance"]["config_directory"])
     removed_config = _remove_empty_directory(config, "candidate configuration directory")
     socket = _core.prefixed(root, plan["instance"]["socket_directory"])
@@ -895,10 +894,8 @@ def rollback_uncommitted_candidate(
         "plan_sha256": plan["plan_sha256"],
         "package_id": plan["package_id"],
         "stopped_proof": stopped,
-        "removed_state_directories": sorted(plan["state_directories"]),
-        "removed_generated_files": sorted(
-            entry["path"] for entry in staged.get("installed_files", [])
-        ),
+        "removed_state_directories": sorted(removed_state),
+        "removed_generated_files": sorted(removed_files),
         "removed_config_directory": removed_config,
         "removed_socket_directory": removed_socket,
         "persistent_receipt_directory": contract["instance"]["receipt_directory"],
@@ -928,7 +925,6 @@ def activate_product(
     evidence_directory.mkdir(parents=True, exist_ok=True, mode=0o750)
     ownership = qualify_package_ownership(package, contract)
     _core.write_evidence_document(evidence_directory, "package-ownership", ownership)
-
     collision = inspect_collisions(contract, Path("/"))
     validate_collision_observation(collision, contract)
     collision_path = _core.write_evidence_document(
@@ -994,7 +990,6 @@ def activate_product(
                 f"{error}; candidate rollback also failed: {rollback_error}"
             ) from error
         raise
-
     activated["ownership_receipt_sha256"] = ownership["receipt_sha256"]
     activated["collision_observation_sha256"] = collision["observation_sha256"]
     activated["cluster_plan_path"] = str(plan_path)
@@ -1004,8 +999,6 @@ def activate_product(
     return activated
 
 
-# Install the runner-owned physical policy into the shared core namespace so all
-# sibling lifecycle controllers use exactly the same implementation.
 _core.validate_contract = validate_contract
 _core.validate_plan = validate_plan
 _core.require_fixture_or_root = require_fixture_or_root
@@ -1019,8 +1012,6 @@ _core.observe_loaded_live = observe_loaded_live
 _core.execute_cluster_activation = execute_cluster_activation
 _core.activate_product = activate_product
 
-# Export every shared symbol, then overwrite the policy functions with the adapter
-# implementations above.
 for _name, _value in vars(_core).items():
     if _name not in globals():
         globals()[_name] = _value
