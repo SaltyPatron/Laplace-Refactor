@@ -45,6 +45,16 @@
       "ctest_name": "CognitionObservationRequest.GoalPresenceIsExplicitNotInferredFromGoalBytes",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
       "covered_dimensions": ["goal presence uses explicit typed flag", "goal bytes cannot silently change absent-goal semantics"]
+    },
+    {
+      "ctest_name": "CognitionObservationRequest.ForwardPassConsumesCompiledTwoHopGoalPolicy",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["forward provider consumes request-owned search program", "two-hop goal requires compiled max-depth and expansion budget", "one-hop compatibility policy cannot satisfy the fixture", "shared observation expansion remains the provider"]
+    },
+    {
+      "ctest_name": "CognitionObservationRequest.ProviderRejectsCompiledPolicyDrift",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["compiled search boundary must match immutable observation index", "post-compilation policy drift fails before provider publication"]
     }
   ]
 }
