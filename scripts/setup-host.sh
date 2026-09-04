@@ -4,17 +4,23 @@
 # Human/operator boundary:
 #   sudo bash scripts/setup-host.sh
 #
-# This script does NOT build, package, seed, or activate Laplace. It converges only
-# the persistent host prerequisites and the immutable root activation gateway. After
-# this succeeds, accepted pushes to main are owned by product-path -> product-activation.
+# This script establishes host prerequisites only. It never builds, packages,
+# initializes, migrates, seeds, or activates Laplace. After this succeeds,
+# recurring product delivery belongs to CI running as laplace-runner.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 RUNNER_USER="laplace-runner"
-GATEWAY="/opt/laplace/deployment/current/bin/laplace-product-activate"
-RECEIPT="/opt/laplace/receipts/deployments/product-host-bootstrap.json"
+RUNNER_GROUP="laplace-runner"
+RUNNER_HOME="/var/lib/agents/laplace-runner"
+RUNNER_SHELL="/usr/sbin/nologin"
+SERVICE="laplace-refactor-postgresql.service"
+UNIT_SOURCE="$REPOSITORY/packaging/systemd/$SERVICE"
+UNIT_TARGET="/etc/systemd/system/$SERVICE"
+SUDOERS_TARGET="/etc/sudoers.d/laplace-refactor-postgresql-service"
+BOOTSTRAP_RECEIPT="/opt/laplace/receipts/bootstrap/host.json"
 
 if [[ "${EUID}" -ne 0 ]]; then
     if ! command -v sudo >/dev/null 2>&1; then
@@ -25,10 +31,14 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 for required in \
+    /usr/bin/getent \
+    /usr/bin/id \
+    /usr/bin/install \
     /usr/bin/python3 \
-    /usr/bin/systemctl \
     /usr/bin/runuser \
+    /usr/bin/sha256sum \
     /usr/bin/sudo \
+    /usr/bin/systemctl \
     /usr/sbin/groupadd \
     /usr/sbin/useradd \
     /usr/sbin/visudo; do
@@ -38,104 +48,178 @@ for required in \
     fi
 done
 
-cd "$REPOSITORY"
+if [[ ! -f "$UNIT_SOURCE" || -L "$UNIT_SOURCE" ]]; then
+    echo "missing tracked static service unit: $UNIT_SOURCE" >&2
+    exit 1
+fi
 
-# Older host-convergence generations incorrectly created cluster-owned instance leaf
-# directories before cluster activation. Fresh activation requires those candidate
-# paths to be absent. Remove only exact EMPTY directories named below. Never delete a
-# file, symlink, nonempty directory, PGDATA, WAL, receipt, log content, or any other
-# product state. The refactor receipt namespace is now persistent host-owned state and
-# is intentionally NOT part of this cleanup.
+# Service identity. Existing identities are verified rather than silently modified.
+if ! /usr/bin/getent group "$RUNNER_GROUP" >/dev/null; then
+    /usr/sbin/groupadd --system "$RUNNER_GROUP"
+fi
+if ! /usr/bin/id "$RUNNER_USER" >/dev/null 2>&1; then
+    /usr/sbin/useradd \
+        --system \
+        --gid "$RUNNER_GROUP" \
+        --home-dir "$RUNNER_HOME" \
+        --shell "$RUNNER_SHELL" \
+        --create-home \
+        "$RUNNER_USER"
+fi
+
+/usr/bin/python3 - "$RUNNER_USER" "$RUNNER_GROUP" "$RUNNER_HOME" "$RUNNER_SHELL" <<'PY'
+import grp
+import pwd
+import sys
+
+user, group, expected_home, expected_shell = sys.argv[1:]
+pw = pwd.getpwnam(user)
+gr = grp.getgrnam(group)
+if pw.pw_gid != gr.gr_gid:
+    raise SystemExit("laplace-runner primary group differs")
+if pw.pw_dir != expected_home:
+    raise SystemExit(f"laplace-runner home differs: {pw.pw_dir}")
+if pw.pw_shell != expected_shell:
+    raise SystemExit(f"laplace-runner shell differs: {pw.pw_shell}")
+PY
+
+# Product/runtime roots. The recurring product owner is laplace-runner. Root owns
+# only the static system service file and sudo policy installed below.
+for path in \
+    /build/laplace \
+    /build/laplace/runner \
+    /opt/laplace \
+    /opt/laplace/releases \
+    /opt/laplace/pgdata \
+    /opt/laplace/pgdata/refactor \
+    /opt/laplace/receipts \
+    /opt/laplace/receipts/bootstrap \
+    /opt/laplace/receipts/postgresql \
+    /opt/laplace/receipts/postgresql/refactor \
+    /opt/laplace/sources \
+    /pgtemp \
+    /var/lib/pgwal \
+    /var/log/laplace \
+    /var/log/laplace/postgresql \
+    /var/log/laplace/postgresql/refactor; do
+    /usr/bin/install -d -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0750 "$path"
+done
+
+# Keep the product prefix traversable by the service while retaining ownership by
+# laplace-runner so /opt/laplace/current can be atomically selected by CI without sudo.
+chmod 0755 /opt/laplace
+chmod 0755 /opt/laplace/releases
+
+# Runtime database configuration is product state. The parent remains administrator
+# owned; only this exact instance directory is delegated to laplace-runner.
+/usr/bin/install -d -o root -g root -m 0755 /etc/laplace
+/usr/bin/install -d -o root -g root -m 0755 /etc/laplace/instances
+/usr/bin/install -d -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0750 /etc/laplace/instances/refactor
+
+# Historical bootstrap generations created empty candidate leaves that later fresh
+# activation treated as collisions. Remove only exact EMPTY candidate leaves. Never
+# remove nonempty PGDATA/WAL/config/log/perfcache state.
 /usr/bin/python3 - "$REPOSITORY/contracts/postgresql-cluster.json" <<'PY'
 import json
 from pathlib import Path
 import sys
 
-contract_path = Path(sys.argv[1])
-with contract_path.open(encoding="utf-8") as stream:
-    contract = json.load(stream)
-instance = contract["instance"]
-leaves = [
-    Path(instance["data_directory"]),
-    Path(instance["wal_directory"]),
-    Path(instance["temp_directory"]),
-    Path(instance["perfcache_directory"]),
-    Path(instance["config_directory"]),
-    Path(instance["log_directory"]),
-]
-for path in leaves:
+with Path(sys.argv[1]).open(encoding="utf-8") as stream:
+    instance = json.load(stream)["instance"]
+for name in ("data_directory", "wal_directory", "temp_directory", "perfcache_directory"):
+    path = Path(instance[name])
     if path.is_symlink():
-        raise SystemExit(f"cluster-owned path is a symlink and bootstrap will not touch it: {path}")
+        raise SystemExit(f"candidate path is a symlink and bootstrap will not touch it: {path}")
     if not path.exists():
         continue
     if not path.is_dir():
-        raise SystemExit(f"cluster-owned path is not a directory and bootstrap will not touch it: {path}")
+        raise SystemExit(f"candidate path is not a directory and bootstrap will not touch it: {path}")
     try:
         next(path.iterdir())
     except StopIteration:
         path.rmdir()
-        print(f"removed empty stale bootstrap residue: {path}")
+        print(f"removed empty stale candidate leaf: {path}")
     else:
-        print(f"preserved existing nonempty cluster state: {path}")
+        print(f"preserved existing nonempty candidate state: {path}")
 PY
 
-# Converge the service identity, persistent parent roots, activation key, immutable
-# gateway, scoped sudoers policy, service-state units, and persistent receipt
-# namespaces. Candidate PGDATA/WAL/temp/perfcache/config/log leaves remain absent unless
-# an existing product owns them; cluster activation is their only creator.
-/usr/bin/python3 tools/delivery/product_host.py converge \
-    --repository "$REPOSITORY" \
-    --authorize-system-root \
-    --generate-key \
-    --output "$RECEIPT"
+# Static host service envelope. CI selects /opt/laplace/current and writes the product
+# configuration; it never rewrites the systemd unit.
+/usr/bin/install -o root -g root -m 0644 "$UNIT_SOURCE" "$UNIT_TARGET"
+/usr/bin/systemctl daemon-reload
+/usr/bin/systemctl enable "$SERVICE" >/dev/null
 
-if [[ ! -x "$GATEWAY" ]]; then
-    echo "bootstrap completed without installing the activation gateway: $GATEWAY" >&2
-    exit 1
-fi
+# Narrow recurring privilege: only service lifecycle. No shell, gateway, package,
+# database, Unicode, Highway, receipt, or arbitrary command execution as root.
+cat > "$SUDOERS_TARGET" <<EOF
+$RUNNER_USER ALL=(root) NOPASSWD: /usr/bin/systemctl start $SERVICE
+$RUNNER_USER ALL=(root) NOPASSWD: /usr/bin/systemctl stop $SERVICE
+$RUNNER_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart $SERVICE
+EOF
+chmod 0440 "$SUDOERS_TARGET"
+chown root:root "$SUDOERS_TARGET"
+/usr/sbin/visudo -cf "$SUDOERS_TARGET" >/dev/null
 
-ROOT_PROBE="$(mktemp)"
-RUNNER_PROBE="$(mktemp)"
-trap 'rm -f "$ROOT_PROBE" "$RUNNER_PROBE"' EXIT
+for action in start stop restart; do
+    /usr/bin/runuser --user "$RUNNER_USER" -- \
+        /usr/bin/sudo -n -l /usr/bin/systemctl "$action" "$SERVICE" >/dev/null
+ done
 
-"$GATEWAY" probe > "$ROOT_PROBE"
-/usr/bin/runuser --user "$RUNNER_USER" -- \
-    /usr/bin/sudo -n "$GATEWAY" probe > "$RUNNER_PROBE"
-
-/usr/bin/python3 - "$RECEIPT" "$ROOT_PROBE" "$RUNNER_PROBE" <<'PY'
+# Durable bootstrap receipt. It records prerequisites only; product activation state is
+# intentionally absent because setup-host is not the product installer/deployer.
+TMP_RECEIPT="$(mktemp)"
+trap 'rm -f "$TMP_RECEIPT"' EXIT
+/usr/bin/python3 - \
+    "$UNIT_TARGET" \
+    "$SUDOERS_TARGET" \
+    "$RUNNER_USER" \
+    "$RUNNER_GROUP" > "$TMP_RECEIPT" <<'PY'
+import hashlib
 import json
+from pathlib import Path
+import pwd
+import grp
 import sys
 
-receipt_path, root_probe_path, runner_probe_path = sys.argv[1:]
-with open(receipt_path, encoding="utf-8") as stream:
-    receipt = json.load(stream)
-with open(root_probe_path, encoding="utf-8") as stream:
-    root_probe = json.load(stream)
-with open(runner_probe_path, encoding="utf-8") as stream:
-    runner_probe = json.load(stream)
-
-if receipt.get("schema") != "laplace.product-host-convergence-receipt/v1":
-    raise SystemExit("host bootstrap receipt schema differs")
-if receipt.get("phase") != "host-ready":
-    raise SystemExit("host bootstrap did not reach host-ready")
-if receipt.get("product_activated") is not False:
-    raise SystemExit("setup-host unexpectedly activated product state")
-if root_probe.get("schema") != "laplace.product-activation-gateway-probe/v2":
-    raise SystemExit("installed gateway is not the self-upgrading v2 generation")
-for field in ("bundle_id", "contract_sha256", "key_fingerprint_sha256"):
-    if root_probe.get(field) != runner_probe.get(field):
-        raise SystemExit(f"laplace-runner gateway handoff differs for {field}")
+unit, sudoers, user, group = map(Path, sys.argv[1:3]) + tuple(sys.argv[3:]) if False else (None, None, None, None)
 PY
+# Keep receipt construction simple and deterministic without importing product code.
+UNIT_SHA="$(sha256sum "$UNIT_TARGET" | awk '{print $1}')"
+SUDOERS_SHA="$(sha256sum "$SUDOERS_TARGET" | awk '{print $1}')"
+RUNNER_UID="$(id -u "$RUNNER_USER")"
+RUNNER_GID="$(id -g "$RUNNER_USER")"
+cat > "$TMP_RECEIPT" <<EOF
+{
+  "schema": "laplace.host-bootstrap/v1",
+  "phase": "host-prerequisites-ready",
+  "service_identity": {
+    "user": "$RUNNER_USER",
+    "group": "$RUNNER_GROUP",
+    "uid": $RUNNER_UID,
+    "gid": $RUNNER_GID
+  },
+  "static_service": {
+    "unit": "$UNIT_TARGET",
+    "sha256": "$UNIT_SHA"
+  },
+  "sudo_policy": {
+    "path": "$SUDOERS_TARGET",
+    "sha256": "$SUDOERS_SHA",
+    "allowed_actions": ["start", "stop", "restart"]
+  },
+  "product_activated": false,
+  "activation_gateway_installed": false
+}
+EOF
+/usr/bin/install -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0640 "$TMP_RECEIPT" "$BOOTSTRAP_RECEIPT"
 
 cat <<EOF
-Laplace host bootstrap complete.
+Laplace host prerequisites are ready.
 
-Persistent host authority is installed and laplace-runner can invoke the bounded
-activation gateway without a password. This script intentionally did not build or
-activate the product. From here, accepted pushes to main are owned by CI/CD:
+Bootstrap stopped here by design. It did not build or activate Laplace and installed
+no product activation gateway/key. Recurring work now belongs to CI as laplace-runner.
 
-  product-path -> product-activation -> persistent PostgreSQL/Unicode/Highway readback
-
-Bootstrap receipt: $RECEIPT
-Gateway:           $GATEWAY
+Bootstrap receipt: $BOOTSTRAP_RECEIPT
+Static service:    $UNIT_TARGET
+Sudo capability:   systemctl start|stop|restart $SERVICE only
 EOF
