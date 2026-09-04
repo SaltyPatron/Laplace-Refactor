@@ -40,6 +40,45 @@ done
 
 cd "$REPOSITORY"
 
+# Older host-convergence generations incorrectly created the cluster-owned instance
+# leaf directories before cluster activation. Fresh activation intentionally requires
+# those leaves to be absent. Remove only exact empty directories named by the current
+# cluster contract. Never delete a file, symlink, nonempty directory, PGDATA, WAL,
+# receipt, log, or any other product state.
+/usr/bin/python3 - "$REPOSITORY/contracts/postgresql-cluster.json" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+
+contract_path = Path(sys.argv[1])
+with contract_path.open(encoding="utf-8") as stream:
+    contract = json.load(stream)
+instance = contract["instance"]
+leaves = [
+    Path(instance["data_directory"]),
+    Path(instance["wal_directory"]),
+    Path(instance["temp_directory"]),
+    Path(instance["perfcache_directory"]),
+    Path(instance["log_directory"]),
+    Path(instance["receipt_directory"]),
+]
+for path in leaves:
+    if path.is_symlink():
+        raise SystemExit(f"cluster-owned path is a symlink and bootstrap will not touch it: {path}")
+    if not path.exists():
+        continue
+    if not path.is_dir():
+        raise SystemExit(f"cluster-owned path is not a directory and bootstrap will not touch it: {path}")
+    try:
+        next(path.iterdir())
+    except StopIteration:
+        path.rmdir()
+        print(f"removed empty stale bootstrap residue: {path}")
+    else:
+        print(f"preserved existing nonempty cluster state: {path}")
+PY
+
 # Converge the service identity, persistent parent roots, activation key, immutable
 # gateway, scoped sudoers policy, and product service-state systemd units. Cluster
 # leaf state (PGDATA/WAL/temp/perfcache/log/instance receipts) remains absent unless
