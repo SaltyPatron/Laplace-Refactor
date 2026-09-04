@@ -1,0 +1,1 @@
+Active whole-product continuation vehicle: PR #205 / branch delivery/continue-whole-product-20260904-r2. Other similarly named branches from this reconciliation are not authoritative product work.
