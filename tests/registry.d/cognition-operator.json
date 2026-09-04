@@ -39,6 +39,21 @@
       "covered_dimensions": ["negative precision rejection", "contradiction nonencoding as negative evidence mass"]
     },
     {
+      "ctest_name": "TargetCompile.CompilesDistinctQkAndVoOperatorsBeforeTensorLayout",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"],
+      "covered_dimensions": ["target-neutral operator compilation", "QK compatibility and VO contribution remain distinct", "typed operator provenance survives materialization"]
+    },
+    {
+      "ctest_name": "TargetCompile.RejectsQkVoFlatteningEvenWhenConsumerSlotsDiffer",
+      "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-RELATION-LAW-NONFLATTENING", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["consumer tensor slot names cannot hide operator flattening", "QK and VO require distinct operator semantics"]
+    },
+    {
+      "ctest_name": "TargetCompile.CanonicalJobOrderingMakesReceiptInputOrderIndependent",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
+      "covered_dimensions": ["canonical target-job ordering", "input enumeration order cannot change target compilation receipt"]
+    },
+    {
       "ctest_name": "cognition-operator.mutation-relation-plane-flatten-detected",
       "evidence_targets": ["LP-TEST-RELATION-PLANE-TYPE-ERASURE"],
       "covered_dimensions": ["relation plane type erasure is detected"],
