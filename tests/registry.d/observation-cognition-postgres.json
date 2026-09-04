@@ -4,7 +4,7 @@
     {
       "ctest_name": "postgres.observation-cognition-native-parity",
       "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION", "LP-TEST-ISA-RECEIPT"],
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
       "covered_dimensions": [
         "PostgreSQL typed request transport into canonical native request lowering",
         "canonical physicality and packed trajectory transport validation",
