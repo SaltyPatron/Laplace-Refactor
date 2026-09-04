@@ -45,6 +45,7 @@
       "contracts/unicode-postgresql.json",
       "contracts/unicode-product-activation.json",
       "contracts/unicode-source.json",
+      "controllers/cluster_core.py",
       "controllers/clusterctl.py",
       "controllers/highwayctl.py",
       "controllers/hostctl.py",
