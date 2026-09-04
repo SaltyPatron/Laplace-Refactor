@@ -2,7 +2,6 @@ namespace laplace_cognition_observation_request_provider_detail {
 
 using laplace_observation_query_detail::Add;
 using laplace_observation_query_detail::ExecutionReceiptDomain;
-using laplace_observation_query_detail::FindBinding;
 using laplace_observation_query_detail::FindProjection;
 using laplace_observation_query_detail::Finish;
 using laplace_observation_query_detail::HashDigest;
@@ -35,12 +34,13 @@ bool CompiledStateValid(
         laplace_observation_query_detail::DigestZero(compiled.request_fingerprint)) {
         return false;
     }
-    const auto* const indexed_binding =
-        FindBinding(index, compiled.binding.binding_fingerprint);
-    if (indexed_binding == nullptr ||
-        !SameDigest(
-            indexed_binding->binding_fingerprint,
-            compiled.binding.binding_fingerprint) ||
+
+    laplace_digest256 expected_binding{};
+    if (laplace_observation_query_binding_identify(
+            &compiled.binding, &expected_binding) != LAPLACE_OBSERVATION_QUERY_OK ||
+        !SameDigest(expected_binding, compiled.binding.binding_fingerprint) ||
+        static_cast<std::uint64_t>(compiled.binding.maximum_results) >
+            index.summary.maximum_candidate_records_per_expansion ||
         !SameDigest(
             compiled.search_program.boundary_id,
             index.summary.boundary_id) ||
@@ -93,6 +93,160 @@ bool CompiledStateValid(
     return true;
 }
 
+bool ProjectionMatchesProvider(
+    const laplace_cognition_observation_request_provider& provider,
+    const laplace_cognition_query_projection& projection) {
+    return provider.index != nullptr &&
+        SameDigest(
+            projection.binding_fingerprint,
+            provider.binding.binding_fingerprint) &&
+        SameDigest(
+            projection.obligation_id,
+            provider.initial_search_state.obligation_fingerprint) &&
+        SameDigest(
+            projection.context_fingerprint,
+            provider.initial_search_state.context_fingerprint) &&
+        SameDigest(
+            projection.evidence_boundary,
+            provider.search_program.boundary_id) &&
+        SameDigest(
+            projection.result_contract_fingerprint,
+            provider.search_program.result_contract_fingerprint);
+}
+
+void FinalizeExpansionReceipt(
+    const laplace_cognition_observation_request_provider& provider,
+    const laplace_query_search_state* const states,
+    const std::size_t state_count,
+    const laplace_query_search_transition* const transitions,
+    const std::size_t transition_count,
+    laplace_query_search_expansion_receipt* const receipt) {
+    blake3_hasher receipt_hasher{};
+    StartDomain(
+        &receipt_hasher,
+        laplace_observation_query_detail::TransitionDomain);
+    HashDigest(&receipt_hasher, provider.index->summary.index_fingerprint);
+    HashDigest(&receipt_hasher, provider.request_fingerprint);
+    HashDigest(&receipt_hasher, provider.binding.binding_fingerprint);
+    HashU64(&receipt_hasher, receipt->frontier_state_count);
+    HashU64(&receipt_hasher, receipt->rows_examined);
+    HashU64(&receipt_hasher, receipt->index_plan_count);
+    HashU64(&receipt_hasher, receipt->emitted_transition_count);
+    HashU32(&receipt_hasher, receipt->limiting_disposition);
+    for (std::size_t state_index = 0U; state_index < state_count; ++state_index) {
+        HashDigest(&receipt_hasher, states[state_index].state_id);
+    }
+    for (std::size_t transition_index = 0U;
+         transition_index < transition_count; ++transition_index) {
+        HashDigest(&receipt_hasher, transitions[transition_index].transition_id);
+    }
+    Finish(&receipt_hasher, &receipt->receipt_id);
+}
+
+int ExpandCompiledObservationBatch(
+    void* const opaque,
+    const laplace_query_search_state* const states,
+    const std::uint64_t* const accumulated_costs,
+    const std::size_t state_count,
+    laplace_query_search_transition* const transitions,
+    const std::size_t transition_capacity,
+    std::size_t* const transition_count,
+    laplace_query_search_expansion_receipt* const receipt) {
+    if (opaque == nullptr || states == nullptr || accumulated_costs == nullptr ||
+        state_count == 0U || transitions == nullptr || transition_count == nullptr ||
+        receipt == nullptr) {
+        return 1;
+    }
+    auto& provider =
+        *static_cast<laplace_cognition_observation_request_provider*>(opaque);
+    if (provider.index == nullptr) return 2;
+    auto& index = *provider.index;
+    *transition_count = 0U;
+    *receipt = laplace_query_search_expansion_receipt{};
+    receipt->frontier_state_count = static_cast<std::uint64_t>(state_count);
+
+    std::vector<
+        std::pair<std::size_t, laplace_observation_query_detail::Candidate>> pending;
+    try {
+        for (std::size_t state_index = 0U;
+             state_index < state_count; ++state_index) {
+            (void)accumulated_costs[state_index];
+            const auto& state = states[state_index];
+            laplace_id128 source_entity_id{};
+            if (!SameDigest(
+                    state.binding_fingerprint,
+                    provider.binding.binding_fingerprint) ||
+                !SameDigest(state.boundary_id, index.summary.boundary_id) ||
+                !SameDigest(state.evidence_epoch, index.summary.evidence_epoch) ||
+                !laplace_observation_query_detail::ResolveCoordinate(
+                    index, state.anchor_id, &source_entity_id)) {
+                receipt->limiting_disposition =
+                    LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+                pending.clear();
+                break;
+            }
+
+            std::vector<laplace_observation_query_detail::Candidate> candidates;
+            std::uint64_t rows_examined = 0U;
+            std::uint64_t index_plans = 0U;
+            bool limited = false;
+            if (!laplace_observation_query_detail::GenerateCandidates(
+                    index, provider.binding, source_entity_id, &candidates,
+                    &rows_examined, &index_plans, &limited)) {
+                return 3;
+            }
+            if (!Add(
+                    receipt->rows_examined, rows_examined,
+                    &receipt->rows_examined) ||
+                !Add(
+                    receipt->index_plan_count, index_plans,
+                    &receipt->index_plan_count)) {
+                return 4;
+            }
+            if (limited) {
+                receipt->limiting_disposition =
+                    LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;
+                pending.clear();
+                break;
+            }
+            for (const auto& candidate : candidates) {
+                pending.emplace_back(state_index, candidate);
+            }
+        }
+    } catch (const std::bad_alloc&) {
+        return 5;
+    }
+
+    if (pending.size() > transition_capacity) {
+        pending.clear();
+        receipt->limiting_disposition =
+            LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;
+        FinalizeExpansionReceipt(
+            provider, states, state_count, transitions, 0U, receipt);
+        return 0;
+    }
+
+    for (std::size_t index_in_pending = 0U;
+         index_in_pending < pending.size(); ++index_in_pending) {
+        const auto state_index = pending[index_in_pending].first;
+        laplace_id128 source_entity_id{};
+        if (!laplace_observation_query_detail::ResolveCoordinate(
+                index, states[state_index].anchor_id, &source_entity_id) ||
+            !laplace_observation_query_detail::BuildTransition(
+                index, provider.binding, states[state_index], source_entity_id,
+                pending[index_in_pending].second,
+                &transitions[index_in_pending])) {
+            return 6;
+        }
+    }
+    *transition_count = pending.size();
+    receipt->emitted_transition_count =
+        static_cast<std::uint64_t>(pending.size());
+    FinalizeExpansionReceipt(
+        provider, states, state_count, transitions, pending.size(), receipt);
+    return 0;
+}
+
 int EnumerateCompiledObservationOperations(
     void* const opaque,
     const laplace_cognition_guidance_state* const state,
@@ -103,12 +257,59 @@ int EnumerateCompiledObservationOperations(
     const std::size_t operation_capacity,
     std::size_t* const operation_count,
     laplace_cognition_forward_enumeration_receipt* const receipt) {
-    if (opaque == nullptr) return 1;
+    if (opaque == nullptr || state == nullptr || projections == nullptr ||
+        projection_count == 0U || grant == nullptr || operations == nullptr ||
+        operation_count == nullptr || receipt == nullptr) {
+        return 1;
+    }
     auto& provider =
         *static_cast<laplace_cognition_observation_request_provider*>(opaque);
-    return laplace_observation_query_detail::EnumerateObservationOperations(
-        provider.index, state, projections, projection_count, grant,
-        operations, operation_capacity, operation_count, receipt);
+    if (provider.index == nullptr) return 2;
+    auto& index = *provider.index;
+
+    laplace_digest256 state_id{};
+    if (laplace_cognition_guidance_state_identify(state, &state_id) !=
+        LAPLACE_COGNITION_GUIDANCE_OK) {
+        return 3;
+    }
+    std::size_t emitted = 0U;
+    for (std::size_t projection_index = 0U;
+         projection_index < projection_count; ++projection_index) {
+        const auto& projection = projections[projection_index];
+        if (!ProjectionMatchesProvider(provider, projection)) continue;
+        if (emitted >= operation_capacity ||
+            !MakeOperation(
+                index, projection, provider.binding, &operations[emitted])) {
+            return 4;
+        }
+        ++emitted;
+    }
+    *operation_count = emitted;
+    *receipt = laplace_cognition_forward_enumeration_receipt{};
+    receipt->state_id = state_id;
+    laplace_observation_query_detail::ProjectionFingerprint(
+        state_id, projections, projection_count,
+        &receipt->projection_fingerprint);
+    receipt->projected_query_count = static_cast<std::uint64_t>(projection_count);
+    receipt->candidate_operation_count = static_cast<std::uint64_t>(emitted);
+
+    blake3_hasher receipt_hasher{};
+    StartDomain(
+        &receipt_hasher,
+        laplace_observation_query_detail::EnumerationReceiptDomain);
+    HashDigest(&receipt_hasher, index.summary.index_fingerprint);
+    HashDigest(&receipt_hasher, provider.request_fingerprint);
+    HashDigest(&receipt_hasher, state_id);
+    HashDigest(&receipt_hasher, receipt->projection_fingerprint);
+    HashU64(&receipt_hasher, receipt->projected_query_count);
+    HashU64(&receipt_hasher, receipt->candidate_operation_count);
+    for (std::size_t operation_index = 0U;
+         operation_index < emitted; ++operation_index) {
+        HashDigest(&receipt_hasher, operations[operation_index].operation_id);
+    }
+    Finish(&receipt_hasher, &receipt->receipt_id);
+    (void)grant;
+    return 0;
 }
 
 int ExecuteCompiledObservationOperation(
@@ -136,46 +337,21 @@ int ExecuteCompiledObservationOperation(
     const laplace_cognition_query_projection* projection = nullptr;
     if (!FindProjection(
             projections, projection_count, operation->target_obligation_id,
-            &projection)) {
+            &projection) ||
+        projection == nullptr || !ProjectionMatchesProvider(provider, *projection)) {
         return 3;
-    }
-    const auto* const binding = FindBinding(
-        index, projection->binding_fingerprint);
-    if (binding == nullptr ||
-        !SameDigest(
-            binding->binding_fingerprint,
-            provider.binding.binding_fingerprint) ||
-        !SameDigest(
-            projection->obligation_id,
-            provider.initial_search_state.obligation_fingerprint) ||
-        !SameDigest(
-            projection->context_fingerprint,
-            provider.initial_search_state.context_fingerprint) ||
-        !SameDigest(
-            projection->evidence_boundary,
-            provider.search_program.boundary_id) ||
-        !SameDigest(
-            projection->result_contract_fingerprint,
-            provider.search_program.result_contract_fingerprint) ||
-        !SameDigest(
-            provider.search_program.boundary_id,
-            index.summary.boundary_id) ||
-        !SameDigest(
-            provider.search_program.evidence_epoch,
-            index.summary.evidence_epoch)) {
-        return 4;
     }
 
     laplace_cognition_guidance_operation expected_operation{};
-    if (!MakeOperation(index, *projection, *binding, &expected_operation) ||
+    if (!MakeOperation(
+            index, *projection, provider.binding, &expected_operation) ||
         !SameDigest(expected_operation.operation_id, operation->operation_id)) {
-        return 5;
+        return 4;
     }
 
     laplace_query_search_provider_v1 search_provider{};
-    search_provider.state = &index;
-    search_provider.expand_batch =
-        laplace_observation_query_detail::ExpandObservationBatch;
+    search_provider.state = &provider;
+    search_provider.expand_batch = ExpandCompiledObservationBatch;
     search_provider.abi_major = LAPLACE_QUERY_SEARCH_PROVIDER_ABI_MAJOR;
     search_provider.abi_minor = LAPLACE_QUERY_SEARCH_PROVIDER_ABI_MINOR;
 
@@ -186,7 +362,7 @@ int ExecuteCompiledObservationOperation(
         &search_provider, &search_result, &search_receipt);
     if (search_status != LAPLACE_QUERY_SEARCH_OK || search_result == nullptr) {
         laplace_query_search_result_destroy(&search_result);
-        return 6;
+        return 5;
     }
 
     std::uint64_t execution_cost = 1U;
@@ -199,7 +375,7 @@ int ExecuteCompiledObservationOperation(
         search_receipt.database_operations >
             grant->remaining_database_operations) {
         laplace_query_search_result_destroy(&search_result);
-        return 7;
+        return 6;
     }
 
     blake3_hasher result_hasher{};
@@ -209,7 +385,7 @@ int ExecuteCompiledObservationOperation(
     HashDigest(&result_hasher, provider.search_program.program_id);
     HashDigest(&result_hasher, search_receipt.receipt_id);
     HashDigest(&result_hasher, projection->obligation_id);
-    HashDigest(&result_hasher, binding->binding_fingerprint);
+    HashDigest(&result_hasher, provider.binding.binding_fingerprint);
     HashU32(&result_hasher, search_receipt.disposition);
     const std::size_t path_count =
         laplace_query_search_result_path_count(search_result);
@@ -219,7 +395,7 @@ int ExecuteCompiledObservationOperation(
         if (laplace_query_search_result_path(
                 search_result, path_index, &path) != LAPLACE_QUERY_SEARCH_OK) {
             laplace_query_search_result_destroy(&search_result);
-            return 8;
+            return 7;
         }
         HashDigest(&result_hasher, path.path_id);
         HashDigest(&result_hasher, path.terminal_state_id);
@@ -255,7 +431,7 @@ int ExecuteCompiledObservationOperation(
     if (laplace_cognition_guidance_state_identify(state, &state_id) !=
         LAPLACE_COGNITION_GUIDANCE_OK) {
         laplace_query_search_result_destroy(&search_result);
-        return 9;
+        return 8;
     }
     *receipt = laplace_cognition_forward_execution_receipt{};
     receipt->state_id = state_id;
