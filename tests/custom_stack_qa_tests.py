@@ -84,7 +84,7 @@ class CustomStackQaTests(unittest.TestCase):
         )
 
     def test_unicode_access_change_selects_epoch_and_public_source_boundaries(self) -> None:
-        plan = self.plan("postgres/extension/src/unicode_access_pg.c")
+        plan = self.plan("integrations/postgresql/extension/src/unicode_access_pg.c")
         self.assertEqual(
             plan["selected_profiles"],
             ["source-admission-suite", "unicode-access-epoch"],
@@ -100,7 +100,7 @@ class CustomStackQaTests(unittest.TestCase):
     def test_generic_source_admission_change_selects_real_source_regressions(
         self,
     ) -> None:
-        plan = self.plan("postgres/extension/src/source_admission_pg.c")
+        plan = self.plan("integrations/postgresql/extension/src/source_admission_pg.c")
         self.assertEqual(
             plan["selected_profiles"], ["source-admission-suite"],
         )
