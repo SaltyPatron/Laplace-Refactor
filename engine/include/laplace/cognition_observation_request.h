@@ -69,6 +69,9 @@ typedef struct laplace_cognition_observation_compiled_request {
     uint32_t reserved;
 } laplace_cognition_observation_compiled_request;
 
+typedef struct laplace_cognition_observation_request_provider
+    laplace_cognition_observation_request_provider;
+
 typedef enum laplace_cognition_observation_request_status {
     LAPLACE_COGNITION_OBSERVATION_REQUEST_OK = 0,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_INVALID_ARGUMENT = 1,
@@ -77,7 +80,9 @@ typedef enum laplace_cognition_observation_request_status {
     LAPLACE_COGNITION_OBSERVATION_REQUEST_INVALID_LIMITS = 4,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_BINDING_FAILURE = 5,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_GUIDANCE_FAILURE = 6,
-    LAPLACE_COGNITION_OBSERVATION_REQUEST_COORDINATE_FAILURE = 7
+    LAPLACE_COGNITION_OBSERVATION_REQUEST_COORDINATE_FAILURE = 7,
+    LAPLACE_COGNITION_OBSERVATION_REQUEST_PROVIDER_FAILURE = 8,
+    LAPLACE_COGNITION_OBSERVATION_REQUEST_MEMORY_FAILURE = 9
 } laplace_cognition_observation_request_status;
 
 /*
@@ -108,6 +113,28 @@ laplace_cognition_observation_request_compile(
 LAPLACE_API void
 laplace_cognition_observation_compiled_request_destroy(
     laplace_cognition_observation_compiled_request* compiled);
+
+/*
+ * Binds the exact compiled search program and initial search state to a cognition
+ * provider over one immutable observation index. Unlike the compatibility
+ * observation provider, this provider does not synthesize a private one-hop
+ * search policy: forward execution consumes the request's own finite search
+ * budget, goal semantics and boundary declaration.
+ *
+ * The index and compiled request must outlive provider creation. The provider
+ * handle owns copies of the execution policy/state needed after creation and is
+ * released with laplace_cognition_observation_request_provider_destroy().
+ */
+LAPLACE_API laplace_cognition_observation_request_status
+laplace_cognition_observation_request_cognition_provider(
+    laplace_observation_query_index* index,
+    const laplace_cognition_observation_compiled_request* compiled,
+    laplace_cognition_observation_request_provider** provider_state,
+    laplace_cognition_forward_provider_v1* provider);
+
+LAPLACE_API void
+laplace_cognition_observation_request_provider_destroy(
+    laplace_cognition_observation_request_provider** provider_state);
 
 #ifdef __cplusplus
 }
