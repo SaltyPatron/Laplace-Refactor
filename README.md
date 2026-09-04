@@ -168,7 +168,7 @@ paths and hashes and rejects incomplete or conflicting package graphs.
 - `docs/delivery/` — dependency, package, installation, and release requirements.
 - `requirements/` — machine-readable requirements and acceptance identifiers.
 - `engine/` — new native engine implementation.
-- `postgres/` — PostgreSQL extension and SQL execution surface.
+- `integrations/postgresql/` — Laplace-owned PostgreSQL extension, SQL execution, and server-integration source; upstream PostgreSQL itself is dependency-managed outside the repository.
 - `orchestrator/` — C# orchestration and product services.
 - `dependencies/` — verified clean-upstream dependency supply chain.
 - `packaging/` — Linux and Windows product packages.
