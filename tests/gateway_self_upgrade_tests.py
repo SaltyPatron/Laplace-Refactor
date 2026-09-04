@@ -15,7 +15,6 @@ from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-NOW = dt.datetime(2026, 9, 4, 17, 0, 0, tzinfo=dt.timezone.utc)
 KEY = bytes(range(32))
 
 
@@ -45,6 +44,7 @@ gateway = load_module(
     "laplace_gateway_upgrade_test_gateway",
     REPOSITORY / "tools/delivery/product_activation_gateway.py",
 )
+GatewayError = gateway.activation.ActivationGatewayError
 
 
 class GatewaySelfUpgradeTests(unittest.TestCase):
@@ -74,12 +74,13 @@ class GatewaySelfUpgradeTests(unittest.TestCase):
         return source, contract
 
     def request(self, source: Path, contract: dict):
+        now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         return compiler.build_request(
             source,
             contract,
             installer.SOURCE_MAP,
             KEY,
-            NOW,
+            now,
             "github-actions",
             1234,
         )
@@ -121,7 +122,7 @@ class GatewaySelfUpgradeTests(unittest.TestCase):
             request = self.request(source, contract)
             request["mac"] = "0" * 64
             with self.assertRaisesRegex(
-                activation.ActivationGatewayError, "HMAC authentication failed"
+                GatewayError, "HMAC authentication failed"
             ):
                 gateway.execute_gateway_upgrade(
                     activation.canonical_bytes(request), contract, KEY
@@ -137,7 +138,7 @@ class GatewaySelfUpgradeTests(unittest.TestCase):
             payload = {key: value for key, value in request.items() if key != "mac"}
             request["mac"] = compiler.request_mac(payload, KEY)
             with self.assertRaisesRegex(
-                activation.ActivationGatewayError, "file roster differs"
+                GatewayError, "file roster differs"
             ):
                 gateway.execute_gateway_upgrade(
                     activation.canonical_bytes(request), contract, KEY
@@ -153,17 +154,18 @@ class GatewaySelfUpgradeTests(unittest.TestCase):
                 "contracts/product-activation-gateway.json"
             ]
             contract_file.write_bytes(activation.canonical_bytes(changed))
+            now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
             request = compiler.build_request(
                 source,
                 changed,
                 installer.SOURCE_MAP,
                 KEY,
-                NOW,
+                now,
                 "github-actions",
                 1234,
             )
             with self.assertRaisesRegex(
-                activation.ActivationGatewayError, "cannot move gateway.active_link"
+                GatewayError, "cannot move gateway.active_link"
             ):
                 gateway.execute_gateway_upgrade(
                     activation.canonical_bytes(request), contract, KEY
