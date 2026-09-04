@@ -20,8 +20,7 @@
       "LP-LANGUAGE-001"
     ],
     "feature_files": [
-      "requirements/features/trust_matchup_realization.feature",
-      "requirements/features/modality_realization.feature"
+      "requirements/features/trust_matchup_realization.feature"
     ],
     "github_issues": [16, 17, 18, 110]
   },
