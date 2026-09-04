@@ -1,57 +1,16 @@
 {
   "schema": "laplace.branch-estate-ledger/v1",
   "contract": "contracts/branch-estate-closure.json",
-  "captured_utc": "2026-09-02T22:20:34Z",
+  "captured_utc": "2026-09-04T01:16:00Z",
   "authoritative_branch": "main",
   "observed_summary": {
-    "repository_branch_count": 124,
-    "open_pr_head_count": 5,
+    "repository_branch_count": 137,
+    "open_pr_head_count": 0,
     "live_unique_no_open_pr_tip_count": 13,
     "overlapping_reconciliation_family_count": 6,
     "terminal_ready": false
   },
-  "open_pr_heads": [
-    {
-      "branch": "codex/complete-laplace-20260831",
-      "pr_number": 128,
-      "owner_issue": 23,
-      "disposition": "ACTIVE_PR",
-      "route_to_main": "repair required checks on exact head, reconcile branch-only work, then merge or explicitly supersede",
-      "exit_condition": "exact accepted head is green and valid unique work is merged to main or preserved under explicit supersession"
-    },
-    {
-      "branch": "docs/billing-entitlements-resource-costing",
-      "pr_number": 150,
-      "owner_issue": 140,
-      "disposition": "ACTIVE_PR",
-      "route_to_main": "repair required checks then merge or supersede with exact preserved contract content",
-      "exit_condition": "billing/economics authority is represented on authoritative main with green exact-head proof"
-    },
-    {
-      "branch": "docs/source-admission-invariance",
-      "pr_number": 175,
-      "owner_issue": 171,
-      "disposition": "ACTIVE_PR",
-      "route_to_main": "repair required checks then merge or supersede while preserving source-admission invariance law",
-      "exit_condition": "source-admission invariance contract is on authoritative main with green exact-head proof"
-    },
-    {
-      "branch": "feat/composition-frontier-plan",
-      "pr_number": 178,
-      "owner_issue": 177,
-      "disposition": "ACTIVE_PR",
-      "route_to_main": "repair custom-stack/product-path failure on owning branch, then merge exact accepted implementation",
-      "exit_condition": "frontier-plan slice passes every required proof and lands on authoritative main without sibling bypass"
-    },
-    {
-      "branch": "governance/executable-finish-line",
-      "pr_number": 181,
-      "owner_issue": 180,
-      "disposition": "ACTIVE_PR",
-      "route_to_main": "finish executable governance including branch-estate closure, repair exact-head checks, then merge",
-      "exit_condition": "finish-line and branch-estate governance are green and represented on authoritative main"
-    }
-  ],
+  "open_pr_heads": [],
   "unaccounted_unique_tips": [
     {"branch":"feat/cognition-forward-pass","owner_issue":183,"family":"cognition-forward-pass","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
     {"branch":"feat/decomposition-integration","owner_issue":183,"family":"decomposition-foundational-admission","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
@@ -67,6 +26,46 @@
     {"branch":"repair/runtime-endpoints-20260826","owner_issue":183,"family":"runtime-dependency-endpoints","disposition":"UNACCOUNTED_UNIQUE_BRANCH"},
     {"branch":"validate/decomposition-integration-1994ec","owner_issue":183,"family":"decomposition-foundational-admission","disposition":"UNACCOUNTED_UNIQUE_BRANCH"}
   ],
+  "resolved_tips": [
+    {
+      "branch": "codex/complete-laplace-20260831",
+      "disposition": "MERGED",
+      "authoritative_main_commit": "5ded5011c6a36ec8ee14f35a50ba32cada9cf67e",
+      "reconciled_behavior": "PR #128 consolidated product implementation and authority landed on authoritative main."
+    },
+    {
+      "branch": "docs/billing-entitlements-resource-costing",
+      "disposition": "MERGED",
+      "authoritative_main_commit": "5ded5011c6a36ec8ee14f35a50ba32cada9cf67e",
+      "reconciled_behavior": "PR #150 landed into the #128 integration lineage and reached authoritative main through PR #128."
+    },
+    {
+      "branch": "docs/source-admission-invariance",
+      "disposition": "SUPERSEDED",
+      "replacement_owner": "#171 on authoritative main",
+      "reconciled_behavior": "The physical-plan source-admission invariance law and architecture document are present on current main; the current source-profile contract retains those clauses and adds later stock-recipe/perfcache and selected-boundary authority.",
+      "supersession_evidence": "main@ec0a28e541708f54870055c672424c7a3ed51c37 contains docs/architecture/SOURCE_ADMISSION_INVARIANCE.md and contracts/source-profile-model.json with the PR #175 invariance requirements plus later authority."
+    },
+    {
+      "branch": "feat/composition-frontier-plan",
+      "disposition": "SUPERSEDED",
+      "replacement_owner": "#177 on authoritative main",
+      "reconciled_behavior": "The dependency-frontier composition planner represented by PR #178 is present on current main and remains owned by the continuing #177 execution work.",
+      "supersession_evidence": "engine/include/laplace/detail/composition_frontier.hpp has identical blob 781a4395e10c15f63570b0b9402c8e9ee5d111a8 on PR #178 branch and current main."
+    },
+    {
+      "branch": "governance/executable-finish-line",
+      "disposition": "MERGED",
+      "authoritative_main_commit": "5514982e395cf022769509a35642be04f2284661",
+      "reconciled_behavior": "PR #181 finish-line and branch-estate governance landed directly on authoritative main."
+    },
+    {
+      "branch": "delivery/full-finish-line-20260903",
+      "disposition": "MERGED",
+      "authoritative_main_commit": "ec0a28e541708f54870055c672424c7a3ed51c37",
+      "reconciled_behavior": "PR #200 consolidated cognition, composition, recursive decomposition, selected-source closure, requirements proof and installed PostgreSQL product probing into authoritative main."
+    }
+  ],
   "known_absorbed_observations": [
     {
       "branch": "fix/custom-stack-zero-test-false-pass",
@@ -80,31 +79,36 @@
     },
     {
       "branch": "prep/source-recipe-estate",
-      "observation": "branch is an ancestor of active PR #128 head",
-      "note": "represented by an active PR lineage; reconcile through #128 rather than double-counting"
+      "observation": "branch is an ancestor of the merged #128 integration lineage",
+      "note": "represented by the authoritative-main integration lineage; do not double-count it as orphan implementation"
+    },
+    {
+      "branch": "docs/source-admission-invariance",
+      "observation": "current main contains the source-admission invariance architecture document and an equal-or-stronger source-profile contract",
+      "note": "PR #175 was closed unmerged but its required behavior is superseded on main rather than discarded"
+    },
+    {
+      "branch": "feat/composition-frontier-plan",
+      "observation": "current main contains the exact composition frontier planner blob from PR #178",
+      "note": "PR #178 was closed unmerged but its core required implementation is superseded on main under #177"
     }
   ],
   "confirmed_branch_only_findings": [
     {
-      "branch": "feat/cognition-forward-pass",
-      "finding": "dedicated cognition-forward-pass contract/API/native implementation is absent from current main and PR #128 under those paths",
-      "disposition_required": "REUSE, ADAPT, SUPERSEDED or RETIRE only after behavior-level reconciliation"
-    },
-    {
       "branch": "feat/decomposition-integration",
-      "finding": "native tabular-decomposition API/implementation is absent from current main and PR #128 under those paths",
+      "finding": "the historical branch still contains tabular-decomposition surfaces not present on current main under those exact paths; reconcile the behavior against the newer universal decomposition/semantic-leaf route before disposition",
       "disposition_required": "REUSE, ADAPT, SUPERSEDED or RETIRE only after behavior-level reconciliation"
     },
     {
       "branch": "ops/live-product-probe",
-      "finding": "self-hosted live PostgreSQL/service probe workflow is absent from current main and PR #128",
+      "finding": "the historical self-hosted live PostgreSQL/service probe branch still requires behavior-level comparison against the installed-product probe now on current main",
       "disposition_required": "REUSE, ADAPT, SUPERSEDED or RETIRE only after behavior-level reconciliation"
     }
   ],
   "terminal_counters": {
-    "open_prs_not_green_and_merged": 5,
+    "open_prs_not_green_and_merged": 0,
     "unaccounted_unique_branch_tips": 13,
-    "unreconciled_branch_only_implementation_candidates": 3,
+    "unreconciled_branch_only_implementation_candidates": 2,
     "required_behavior_without_current_owner": 0,
     "active_branch_without_resolved_disposition": 13,
     "branch_only_acceptance_or_evidence": 1

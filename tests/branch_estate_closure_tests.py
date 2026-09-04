@@ -100,7 +100,18 @@ def main() -> None:
     )
 
     def active_pr_without_route(_c, l):
-        l["open_pr_heads"][0]["route_to_main"] = ""
+        l["open_pr_heads"] = [
+            {
+                "branch": "mutation/active-pr-without-route",
+                "pr_number": 999999,
+                "owner_issue": 183,
+                "disposition": "ACTIVE_PR",
+                "route_to_main": "",
+                "exit_condition": "deliberate mutation fixture",
+            }
+        ]
+        l["observed_summary"]["open_pr_head_count"] = 1
+        l["terminal_counters"]["open_prs_not_green_and_merged"] = 1
     expect_failure(contract, ledger, active_pr_without_route, "active PR without route to main")
 
     def silently_retire(_c, l):
