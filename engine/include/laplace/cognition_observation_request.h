@@ -121,9 +121,10 @@ laplace_cognition_observation_compiled_request_destroy(
  * search policy: forward execution consumes the request's own finite search
  * budget, goal semantics and boundary declaration.
  *
- * The index and compiled request must outlive provider creation. The provider
- * handle owns copies of the execution policy/state needed after creation and is
- * released with laplace_cognition_observation_request_provider_destroy().
+ * The immutable index must outlive the returned provider handle. The compiled
+ * request need only remain valid for this creation call: the provider copies the
+ * binding and execution policy/state it consumes later. Release the provider with
+ * laplace_cognition_observation_request_provider_destroy().
  */
 LAPLACE_API laplace_cognition_observation_request_status
 laplace_cognition_observation_request_cognition_provider(
