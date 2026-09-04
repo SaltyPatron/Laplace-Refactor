@@ -1,13 +1,14 @@
 include(GoogleTest)
 
 add_executable(laplace_cognition_operator_tests
-    "${PROJECT_SOURCE_DIR}/tests/cognition_operator_tests.cpp")
+    "${PROJECT_SOURCE_DIR}/tests/cognition_operator_tests.cpp"
+    "${PROJECT_SOURCE_DIR}/tests/target_compile_tests.cpp")
 target_link_libraries(laplace_cognition_operator_tests PRIVATE
     Laplace::CognitionOperator GTest::gtest_main)
 target_compile_options(laplace_cognition_operator_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_cognition_operator_tests PROPERTIES
-    LABELS "implementation;cognition;operator;incidence;relation-plane;evidence;matrix-free;receipt")
+    LABELS "implementation;cognition;operator;target-compile;incidence;relation-plane;evidence;matrix-free;receipt")
 
 function(laplace_add_cognition_operator_mutation suffix definition test_name filter)
     set(library "laplace_cognition_operator_${suffix}_mutant")
