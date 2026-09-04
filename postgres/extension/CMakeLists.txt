@@ -66,6 +66,21 @@ file(APPEND "${extension_sql}"
 ${LAPLACE_SOURCE_ADMISSION_METRICS_SQL}\
 ")
 
+set(LAPLACE_OBSERVATION_COGNITION_SCHEMA
+    "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
+set(observation_cognition_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/observation_cognition.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/observation_cognition.sql.in"
+    "${observation_cognition_sql}"
+    @ONLY)
+file(READ "${observation_cognition_sql}"
+    LAPLACE_OBSERVATION_COGNITION_SQL)
+file(APPEND "${extension_sql}"
+    "\
+${LAPLACE_OBSERVATION_COGNITION_SQL}\
+")
+
 set(laplace_postgresql_module_sources
     src/cognition_isa_pg.c
     src/composition_pg.c
@@ -75,6 +90,7 @@ set(laplace_postgresql_module_sources
     src/highway_registry_pg.c
     src/laplace_pg.c
     src/machine_exception_pg.c
+    src/observation_cognition_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c
     src/perfcache_pg.c
@@ -176,6 +192,7 @@ if(BUILD_TESTING)
         LAPLACE_TEST_COMPOSITION_REPLAY_RECEIPT_VERIFY_BYPASS)
     target_compile_definitions(
         laplace_pg_composition_replay_receipt_mutant PRIVATE
+        LAPLACE_TEST_COMPOSITION_REPLAY_RECEIPT_VERIFY_BYPASS
         LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_replay_receipt_mutant
         LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_replay_receipt_mutant
         LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_replay_receipt_mutant
