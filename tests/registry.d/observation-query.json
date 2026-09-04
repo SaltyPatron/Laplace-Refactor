@@ -25,6 +25,26 @@
       "ctest_name": "ObservationQuery.PartialRequestedResultSetCannotSatisfyCognition",
       "evidence_targets": ["LP-TEST-PARTIAL-NONCOMPLETION", "LP-TEST-GUIDANCE-COMPLETION"],
       "covered_dimensions": ["requested result multiplicity remains a completion obligation", "partial bounded observation search is not promoted to satisfied", "typed unresolved result remains distinct from successful answer"]
+    },
+    {
+      "ctest_name": "CognitionObservationRequest.CompilesAndExecutesWithoutHandBuiltGuidanceOrSearchState",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["typed request lowered to canonical binding", "request-derived guidance state", "request-derived search and forward programs", "execution through shared observation provider and query search", "no hand-authored runtime program identifiers"]
+    },
+    {
+      "ctest_name": "CognitionObservationRequest.RequestIdentityChangesWithTypedRelationIntent",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["relation family remains part of request identity", "predecessor and successor requests cannot flatten to one program"]
+    },
+    {
+      "ctest_name": "CognitionObservationRequest.RejectsPathMultiplicityThatContradictsRequestedResults",
+      "evidence_targets": ["LP-TEST-PARTIAL-NONCOMPLETION", "LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["requested result multiplicity is compiled into bounded search", "contradictory path multiplicity fails before execution"]
+    },
+    {
+      "ctest_name": "CognitionObservationRequest.GoalPresenceIsExplicitNotInferredFromGoalBytes",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["goal presence uses explicit typed flag", "goal bytes cannot silently change absent-goal semantics"]
     }
   ]
 }
