@@ -3,7 +3,7 @@
   "status": "required",
   "authority": {
     "source": "inventor-direct-requirement",
-    "issues": [16, 17, 18, 19, 23, 53, 110, 132, 168, 169, 170, 182],
+    "issues": [16, 17, 18, 19, 23, 53, 110],
     "higher_authority": [
       "docs/product/CONSTITUTION.md",
       "docs/product/INVENTION_MODEL.md",
@@ -23,7 +23,7 @@
       "requirements/features/trust_matchup_realization.feature",
       "requirements/features/modality_realization.feature"
     ],
-    "github_issues": [16, 17, 18, 19, 110, 132, 168, 169, 170, 182]
+    "github_issues": [16, 17, 18, 110]
   },
   "observation_boundary": {
     "user_prompt_admission_semantic_attestations": 0,
