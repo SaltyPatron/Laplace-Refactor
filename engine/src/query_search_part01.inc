@@ -160,6 +160,9 @@ public:
             if (status != LAPLACE_QUERY_SEARCH_OK) return status;
         }
         while (true) {
+            const auto terminal_status = HarvestTerminalFrontier(result);
+            if (terminal_status != LAPLACE_QUERY_SEARCH_OK) return terminal_status;
+            if (StopAfterTerminal(result)) break;
             DiscardStaleTop();
             if (frontier_.empty()) {
                 frontier_exhausted_ = true;
@@ -185,6 +188,25 @@ public:
     }
 
 private:
+    laplace_query_search_status HarvestTerminalFrontier(
+        laplace_query_search_result* const result) {
+        while (true) {
+            DiscardStaleTop();
+            if (frontier_.empty()) return LAPLACE_QUERY_SEARCH_OK;
+            const auto entry = frontier_.top();
+            auto& node = nodes_[entry.node_index];
+            if ((node.state.flags & LAPLACE_QUERY_SEARCH_STATE_TERMINAL) == 0U) {
+                return LAPLACE_QUERY_SEARCH_OK;
+            }
+            frontier_.pop();
+            node.closed = true;
+            if (active_frontier_count_ != 0U) --active_frontier_count_;
+            const auto status = AddPath(entry.node_index, result);
+            if (status != LAPLACE_QUERY_SEARCH_OK) return status;
+            if (StopAfterTerminal(result)) return LAPLACE_QUERY_SEARCH_OK;
+        }
+    }
+
     const laplace_query_search_program& program_;
     const laplace_query_search_provider_v1& provider_;
     laplace_query_search_receipt* receipt_;

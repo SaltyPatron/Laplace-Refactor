@@ -303,6 +303,7 @@ struct RequestLevelTask final {
     const std::vector<ResolvedValue>* calculated{};
     const std::vector<std::uint64_t>* request_indexes{};
     std::vector<RequestCalculation>* outputs{};
+    std::atomic<std::uint64_t>* semantic_calculation_count{};
     std::atomic<std::uint32_t> first_failure{LAPLACE_COMPOSITION_OK};
 };
 
@@ -332,10 +333,34 @@ laplace_execution_status CalculateRequestChunk(
         const std::uint64_t request_index =
             (*task.request_indexes)[output_index];
         RequestCalculation& output = (*task.outputs)[output_index];
+        if (task.semantic_calculation_count != nullptr) {
+            task.semantic_calculation_count->fetch_add(
+                1U, std::memory_order_relaxed);
+        }
         const auto status = CalculateRequest(
             *task.input, *task.calculated, request_index,
             output.result, output.carriers, output.physicality,
             output.has_physicality);
+#if defined(LAPLACE_TEST_COMPOSITION_DUPLICATE_CALCULATION)
+        if (status == LAPLACE_COMPOSITION_OK) {
+            RequestCalculation replay{};
+            if (task.semantic_calculation_count != nullptr) {
+                task.semantic_calculation_count->fetch_add(
+                    1U, std::memory_order_relaxed);
+            }
+            const auto replay_status = CalculateRequest(
+                *task.input, *task.calculated, request_index,
+                replay.result, replay.carriers, replay.physicality,
+                replay.has_physicality);
+            if (replay_status != LAPLACE_COMPOSITION_OK) {
+                std::uint32_t expected = LAPLACE_COMPOSITION_OK;
+                task.first_failure.compare_exchange_strong(
+                    expected, static_cast<std::uint32_t>(replay_status),
+                    std::memory_order_acq_rel);
+                return LAPLACE_EXECUTION_PROVIDER_RUN_FAILED;
+            }
+        }
+#endif
         if (status != LAPLACE_COMPOSITION_OK) {
             std::uint32_t expected = LAPLACE_COMPOSITION_OK;
             task.first_failure.compare_exchange_strong(
@@ -359,6 +384,7 @@ laplace_execution_status CalculateRequestChunk(
 template <typename Consumer>
 laplace_composition_status CalculateRequestLevels(
     const laplace_composition_working_set_input& input,
+    std::atomic<std::uint64_t>* semantic_calculation_count,
     Consumer&& consume) {
     try {
         const std::size_t request_count =
@@ -408,6 +434,7 @@ laplace_composition_status CalculateRequestLevels(
             task.calculated = &calculated;
             task.request_indexes = &request_indexes;
             task.outputs = &outputs;
+            task.semantic_calculation_count = semantic_calculation_count;
 
             laplace_execution_runtime_provider_v1 provider{};
             laplace_execution_oneapi_provider_state provider_state{};
@@ -501,25 +528,20 @@ laplace_composition_status EstimatePlanningMemory(
     return LAPLACE_COMPOSITION_OK;
 }
 
-laplace_composition_status PlanResourceCounts(
+laplace_composition_status PlanResourceBounds(
     const laplace_composition_working_set_input& input,
     ResourceCounts& resources) {
     resources = ResourceCounts{};
-    std::uint64_t maximum_entities{};
     if (AddOverflow(
-            input.known_entity_count, input.request_count, maximum_entities)) {
+            input.known_entity_count, input.request_count,
+            resources.unique_entity_count)) {
         return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
     }
+    resources.unique_physicality_count = input.request_count;
+
     try {
         std::unordered_map<IdKey, DigestKey, ByteKeyHash<16>> witnesses;
-        std::unordered_set<DigestKey, ByteKeyHash<32>> entities;
-        std::unordered_set<DigestKey, ByteKeyHash<32>> physicalities;
-        std::unordered_set<DigestKey, ByteKeyHash<32>> occurrences;
-        witnesses.reserve(static_cast<std::size_t>(maximum_entities));
-        entities.reserve(static_cast<std::size_t>(maximum_entities));
-        physicalities.reserve(static_cast<std::size_t>(input.request_count));
-        occurrences.reserve(static_cast<std::size_t>(input.request_count));
-
+        witnesses.reserve(static_cast<std::size_t>(input.known_entity_count));
         for (std::uint64_t index = 0U; index < input.known_entity_count; ++index) {
             const auto& known = input.known_entities[index];
             const IdKey id = Key(known.entity_id);
@@ -529,75 +551,51 @@ laplace_composition_status PlanResourceCounts(
                 return LAPLACE_COMPOSITION_IDENTITY_COLLISION;
             }
             witnesses.emplace(id, witness);
-            entities.insert(witness);
         }
 
-        const auto calculation_status = CalculateRequestLevels(
-            input,
-            [&](const std::uint64_t request_index,
-                const RequestCalculation& calculation) {
-            const auto& result = calculation.result;
-            const auto& carriers = calculation.carriers;
-            const auto& physicality = calculation.physicality;
+        for (std::uint64_t request_index = 0U;
+             request_index < input.request_count; ++request_index) {
+            const auto& request = input.requests[request_index];
             resources.maximum_request_operand_count = std::max(
-                resources.maximum_request_operand_count,
-                input.requests[request_index].operand_count);
-            resources.maximum_request_carrier_count = std::max(
-                resources.maximum_request_carrier_count,
-                static_cast<std::uint64_t>(carriers.size()));
-            if (AddOverflow(
-                    resources.expanded_trajectory_carrier_count,
-                    static_cast<std::uint64_t>(carriers.size()),
-                    resources.expanded_trajectory_carrier_count)) {
-                return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
-            }
-
-            const IdKey id = Key(result.entity_id);
-            const DigestKey witness = Key(result.identity_witness);
-            const auto prior = witnesses.find(id);
-            if (prior != witnesses.end() && !(prior->second == witness)) {
-                return LAPLACE_COMPOSITION_IDENTITY_COLLISION;
-            }
-            witnesses.emplace(id, witness);
-            entities.insert(witness);
-
-            if (calculation.has_physicality &&
-                physicalities.insert(Key(physicality.physicality_id)).second) {
-                if (AddOverflow(
-                        resources.unique_trajectory_carrier_count,
-                        static_cast<std::uint64_t>(carriers.size()),
-                        resources.unique_trajectory_carrier_count)) {
+                resources.maximum_request_operand_count, request.operand_count);
+            std::uint64_t request_carriers{};
+            const std::uint64_t end = request.first_operand + request.operand_count;
+            for (std::uint64_t operand_index = request.first_operand;
+                 operand_index < end; ++operand_index) {
+                const std::uint64_t multiplicity =
+                    input.operands[operand_index].multiplicity;
+                const std::uint64_t carriers =
+                    multiplicity / LAPLACE_COMPOSITION_MAXIMUM_RUN_PER_CARRIER +
+                    ((multiplicity % LAPLACE_COMPOSITION_MAXIMUM_RUN_PER_CARRIER) != 0U
+                         ? 1U
+                         : 0U);
+                if (AddOverflow(request_carriers, carriers, request_carriers)) {
                     return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
                 }
             }
-
+            resources.maximum_request_carrier_count = std::max(
+                resources.maximum_request_carrier_count, request_carriers);
+            if (AddOverflow(
+                    resources.expanded_trajectory_carrier_count,
+                    request_carriers,
+                    resources.expanded_trajectory_carrier_count)) {
+                return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
+            }
 #if defined(LAPLACE_TEST_COMPOSITION_IMPLICIT_OCCURRENCE)
             const bool emit_occurrence = true;
 #else
             const bool emit_occurrence =
-                (input.requests[request_index].flags &
-                 LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0U;
+                (request.flags & LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE) != 0U;
 #endif
-            if (emit_occurrence) {
-                laplace_persistence_attestation_record occurrence{};
-                const auto occurrence_status = MakeOccurrence(
-                    input, input.requests[request_index], result, occurrence);
-                if (occurrence_status != LAPLACE_COMPOSITION_OK) {
-                    return occurrence_status;
-                }
-                occurrences.insert(Key(occurrence.attestation_id));
+            if (emit_occurrence &&
+                AddOverflow(
+                    resources.unique_occurrence_count, 1U,
+                    resources.unique_occurrence_count)) {
+                return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
             }
-            return LAPLACE_COMPOSITION_OK;
-        });
-        if (calculation_status != LAPLACE_COMPOSITION_OK) {
-            return calculation_status;
         }
-        resources.unique_entity_count =
-            static_cast<std::uint64_t>(entities.size());
-        resources.unique_physicality_count =
-            static_cast<std::uint64_t>(physicalities.size());
-        resources.unique_occurrence_count =
-            static_cast<std::uint64_t>(occurrences.size());
+        resources.unique_trajectory_carrier_count =
+            resources.expanded_trajectory_carrier_count;
         return LAPLACE_COMPOSITION_OK;
     } catch (const std::bad_alloc&) {
         return LAPLACE_COMPOSITION_MEMORY_FAILURE;
@@ -613,14 +611,6 @@ laplace_composition_status EstimateWorkingMemory(
     std::uint64_t physicality_count = resources.unique_physicality_count;
     std::uint64_t carrier_count = resources.unique_trajectory_carrier_count;
     std::uint64_t occurrence_count = resources.unique_occurrence_count;
-#if defined(LAPLACE_TEST_COMPOSITION_REQUEST_COUNT_MEMORY)
-    if (AddOverflow(input.known_entity_count, input.request_count, entity_count)) {
-        return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
-    }
-    physicality_count = input.request_count;
-    carrier_count = resources.expanded_trajectory_carrier_count;
-    occurrence_count = input.request_count;
-#endif
     if (!AddMemory(input.request_count,
                    sizeof(laplace_composition_result), estimated) ||
         !AddMemory(input.request_count, sizeof(ResolvedValue), estimated) ||
@@ -780,7 +770,7 @@ laplace_composition_status ValidateInput(
     if (planning_bytes > input.context->resource_grant.memory_bytes) {
         return LAPLACE_COMPOSITION_RESOURCE_INSUFFICIENT;
     }
-    const auto plan_status = PlanResourceCounts(input, resources);
+    const auto plan_status = PlanResourceBounds(input, resources);
     if (plan_status != LAPLACE_COMPOSITION_OK) return plan_status;
     const auto estimate_status = EstimateWorkingMemory(input, resources, estimated_bytes);
     if (estimate_status != LAPLACE_COMPOSITION_OK) return estimate_status;
@@ -1325,6 +1315,14 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
         state->summary.known_entity_count = input->known_entity_count;
         state->summary.request_count = input->request_count;
         state->summary.operand_count = input->operand_count;
+        state->summary.planned_entity_upper_bound =
+            resources.unique_entity_count;
+        state->summary.planned_physicality_upper_bound =
+            resources.unique_physicality_count;
+        state->summary.planned_trajectory_carrier_upper_bound =
+            resources.unique_trajectory_carrier_count;
+        state->summary.planned_occurrence_upper_bound =
+            resources.unique_occurrence_count;
         state->summary.estimated_peak_working_bytes = estimated_bytes;
         state->results.resize(static_cast<std::size_t>(input->request_count));
         state->entities.reserve(
@@ -1356,8 +1354,9 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
             }
         }
 
+        std::atomic<std::uint64_t> semantic_calculation_count{0U};
         const auto calculation_status = CalculateRequestLevels(
-            *input,
+            *input, &semantic_calculation_count,
             [&](const std::uint64_t request_index,
                 RequestCalculation& calculation) {
             const auto& request = input->requests[request_index];
@@ -1461,6 +1460,8 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
                     left.attestation_id.bytes, right.attestation_id.bytes,
                     sizeof(left.attestation_id.bytes)) < 0;
             });
+        state->summary.semantic_calculation_count =
+            semantic_calculation_count.load(std::memory_order_relaxed);
         state->summary.unique_entity_count =
             static_cast<std::uint64_t>(state->entities.size());
         state->summary.unique_physicality_count =

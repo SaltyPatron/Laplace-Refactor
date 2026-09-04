@@ -1,0 +1,30 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "ObservationQuery.PreservesLogicalOccurrencesBeyondCarrierCount",
+      "evidence_targets": ["LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-CONNECTION-SEARCH-COVERAGE"],
+      "covered_dimensions": ["packed trajectory run length remains distinct from carrier count", "logical ordinal reconstruction", "immutable observation index receipt"]
+    },
+    {
+      "ctest_name": "ObservationQuery.RejectsCarrierDriftAgainstCanonicalPhysicality",
+      "evidence_targets": ["LP-TEST-OCCURRENCE-PRESERVATION"],
+      "covered_dimensions": ["trajectory fingerprint validation", "physicality-to-carrier closure", "fail-closed drift rejection"]
+    },
+    {
+      "ctest_name": "ObservationQuery.ExpandsImmediateSuccessorFromPhysicalityWithoutTestimony",
+      "evidence_targets": ["LP-TEST-CONNECTION-SEARCH-COVERAGE", "LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["physicality-derived successor calculation", "run-internal continuation plus next-run continuation", "zero fabricated evidence roots", "set-wise provider receipt"]
+    },
+    {
+      "ctest_name": "ObservationQuery.CognitionForwardPassExecutesSharedSearchOverObservationState",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["guidance projection to typed observation binding", "native forward pass calls common query search provider", "trajectory-derived predecessor result", "resolved guidance state and complete receipt"]
+    },
+    {
+      "ctest_name": "ObservationQuery.PartialRequestedResultSetCannotSatisfyCognition",
+      "evidence_targets": ["LP-TEST-PARTIAL-NONCOMPLETION", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["requested result multiplicity remains a completion obligation", "partial bounded observation search is not promoted to satisfied", "typed unresolved result remains distinct from successful answer"]
+    }
+  ]
+}

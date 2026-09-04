@@ -57,6 +57,7 @@ add_library(laplace_engine SHARED
     src/decomposition_tree_sitter.cpp
     src/tree_sitter_grammar.cpp
     src/cognition_forward_pass.cpp
+    src/observation_query.cpp
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)

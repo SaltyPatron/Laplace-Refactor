@@ -38,7 +38,7 @@ function(laplace_configure_composition_contract contract_path output_path)
 
     if(NOT schema STREQUAL "laplace.composition-contract/v1"
        OR NOT LAPLACE_COMPOSITION_ABI_MAJOR EQUAL 1
-       OR NOT LAPLACE_COMPOSITION_ABI_MINOR EQUAL 2
+       OR NOT LAPLACE_COMPOSITION_ABI_MINOR EQUAL 3
        OR NOT topological_required
        OR NOT LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE EQUAL 1
        OR NOT LAPLACE_COMPOSITION_REQUEST_KNOWN_FLAGS EQUAL 1

@@ -138,7 +138,21 @@ TEST(
         duplicate.trajectory_vertex_count);
     EXPECT_EQ(observed_duplicate.occurrence_count, RequestCount);
 
-    EXPECT_LT(
+    EXPECT_EQ(duplicate.semantic_calculation_count, RequestCount);
+    EXPECT_EQ(chain.semantic_calculation_count, RequestCount);
+    EXPECT_EQ(observed_duplicate.semantic_calculation_count, RequestCount);
+
+    EXPECT_EQ(duplicate.planned_entity_upper_bound, RequestCount + 2U);
+    EXPECT_EQ(chain.planned_entity_upper_bound, RequestCount + 2U);
+    EXPECT_EQ(duplicate.planned_physicality_upper_bound, RequestCount);
+    EXPECT_EQ(chain.planned_physicality_upper_bound, RequestCount);
+    EXPECT_EQ(duplicate.planned_trajectory_carrier_upper_bound, RequestCount * 2U);
+    EXPECT_EQ(chain.planned_trajectory_carrier_upper_bound, RequestCount * 2U);
+    EXPECT_EQ(duplicate.planned_occurrence_upper_bound, 0U);
+    EXPECT_EQ(chain.planned_occurrence_upper_bound, 0U);
+    EXPECT_EQ(observed_duplicate.planned_occurrence_upper_bound, RequestCount);
+
+    EXPECT_EQ(
         duplicate.estimated_peak_working_bytes,
         chain.estimated_peak_working_bytes);
     EXPECT_LT(

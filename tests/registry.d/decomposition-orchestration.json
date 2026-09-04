@@ -23,14 +23,37 @@
       ]
     },
     {
-      "ctest_name": "DecompositionOrchestration.DelimitedRowsAndFieldsAreTerminalWitnesses",
+      "ctest_name": "DecompositionOrchestration.DelimitedRowsStayTerminalAndFieldsRedispatch",
       "evidence_targets": [
         "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
       ],
       "covered_dimensions": [
-        "delimited row and field structure is retained as witnessed spans without recursive redispatch",
-        "terminal delimited witnesses preserve typed text flags while structural delimiters remain non-text",
-        "one applicable grammar execution emits the complete terminal row and field witness set without manufacturing nested parser work"
+        "delimited row structure remains a terminal witness while non-empty textual fields are explicitly redispatched",
+        "field leaves carry TEXT plus REDISPATCH while delimiters terminators and row structure do not manufacture recursive structural work",
+        "redispatch is bounded to semantic textual leaves so UAX29 language reference and domain providers can continue without overlapping whole-row expansion"
+      ]
+    },
+    {
+      "ctest_name": "DecompositionLeafRedispatch.DelimitedFieldsReachNextTextProviderExactlyOnceWhileRowsStayTerminal",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "each delimited semantic field is actually consumed by a downstream text provider exactly once",
+        "the structural row remains terminal and cannot create a second overlapping recursive text tree",
+        "downstream leaf work is parent-bound to the exact field span rather than inferred from the whole record"
+      ]
+    },
+    {
+      "ctest_name": "DecompositionLeafRedispatch.FixedWidthTrimmedValuesReachNextTextProviderWithoutRedispatchingStructure",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "every padding-trimmed fixed-width semantic value is consumed by the downstream text provider",
+        "physical fields records padding overflow witnesses and terminators remain terminal structural evidence",
+        "semantic redispatch cannot silently duplicate physical serialization structure"
       ]
     },
     {
@@ -41,6 +64,7 @@
       ],
       "covered_dimensions": [
         "fixed-width physical fields and padding-trimmed semantic values remain distinct exact spans",
+        "padding-trimmed textual values are redispatched while physical field padding overflow and record structure remain terminal",
         "a bounded declared overflow belongs to its recipe-selected field and receives an explicit ambiguity witness",
         "later field boundaries remain exact instead of silently shifting or truncating"
       ]

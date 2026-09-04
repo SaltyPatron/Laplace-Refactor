@@ -104,6 +104,11 @@ typedef struct laplace_composition_working_set_summary {
     uint64_t batch_count;
     uint64_t stream_record_count;
     uint64_t stream_byte_count;
+    uint64_t planned_entity_upper_bound;
+    uint64_t planned_physicality_upper_bound;
+    uint64_t planned_trajectory_carrier_upper_bound;
+    uint64_t planned_occurrence_upper_bound;
+    uint64_t semantic_calculation_count;
     uint64_t estimated_peak_working_bytes;
     uint32_t maximum_tier_floor;
     uint32_t presence_applied;
