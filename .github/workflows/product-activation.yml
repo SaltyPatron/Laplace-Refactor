@@ -22,10 +22,10 @@ jobs:
       - Linux
       - X64
       - laplace-refactor
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Inspect the established deployment authority
+      - name: Verify the one-time host bootstrap and recurring runner authority
         shell: bash
         run: |
           set -euo pipefail
@@ -34,30 +34,52 @@ jobs:
           test "$GITHUB_REF" = refs/heads/main
           test "$GITHUB_EVENT_NAME" = workflow_dispatch
           test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
-          sudo -n -l
-      - name: Verify the exact runner-readable PostgreSQL publication
-        shell: bash
+
+          bootstrap=/opt/laplace/receipts/bootstrap/host.json
+          test -r "$bootstrap"
+          test ! -L "$bootstrap"
+          jq -e '
+            .schema == "laplace.host-bootstrap/v1" and
+            .phase == "host-prerequisites-ready" and
+            .service_identity.user == "laplace-runner" and
+            .service_identity.group == "laplace-runner" and
+            .service_envelope.enabled == true and
+            .service_envelope.started_by_bootstrap == false and
+            .sudo_policy.allowed_actions == ["start","stop","restart"] and
+            .product_activated == false and
+            .postgresql_initialized == false and
+            .activation_gateway_installed == false
+          ' "$bootstrap" >/dev/null
+
+          service=$(jq -er '.sudo_policy.service' "$bootstrap")
+          systemctl_bin=$(jq -er '.sudo_policy.systemctl' "$bootstrap")
+          service_path=$(jq -er '.service_envelope.path' "$bootstrap")
+          service_sha=$(jq -er '.service_envelope.sha256' "$bootstrap")
+          test "$service" = laplace-refactor-postgresql.service
+          test -f "$service_path"
+          test ! -L "$service_path"
+          test "$(sha256sum "$service_path" | awk '{print $1}')" = "$service_sha"
+          test "$(sha256sum packaging/systemd/laplace-refactor-postgresql.service | awk '{print $1}')" = "$service_sha"
+          test "$($systemctl_bin is-enabled "$service")" = enabled
+          for action in start stop restart; do
+            sudo -n -l "$systemctl_bin" "$action" "$service" >/dev/null
+          done
+
+          test -w /build/laplace/runner
+          test -w /opt/laplace/releases
+          test -w /opt/laplace/runtime
+          test -w /opt/laplace/pgdata/refactor
+          test -w /var/lib/pgwal
+          test -w /pgtemp
+          test -w /var/log/laplace/postgresql
+          test -w /etc/laplace/instances
+
+      - name: Verify runner-owned activation contracts
         run: |
-          set -euo pipefail
-          publication=$(jq -er '.product_activation_projection.postgresql_publication.receipt' state/continuation.json)
-          expected_sha=$(jq -er '.product_activation_projection.postgresql_publication.receipt_sha256' state/continuation.json)
-          test -r "$publication"
-          test ! -L "$publication"
-          test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
-          python3 tools/delivery/postgresql_package_publication.py verify \
-            --receipt "$publication" >/dev/null
-          build_root=$(jq -er '.build.root' contracts/product-package.json)
-          stage_root=$(jq -er '.build.stage_root' contracts/product-package.json)
-          test "$build_root" = /build/laplace/runner/product/build
-          test "$stage_root" = /build/laplace/runner/product/stage
-          test -w /build/laplace
-      - name: Execute activation, receipt-identity, persistence, and gateway-upgrade contract tests
-        run: |
+          python3 tests/postgresql_cluster_tests.py
+          python3 tests/unicode_product_activation_tests.py
           python3 tests/highway_product_activation_tests.py
-          python3 tests/product_activation_gateway_tests.py
-          python3 tests/gateway_self_upgrade_tests.py
-          python3 tests/product_activation_preflight_tests.py
-          python3 tests/product_activation_runtime_adapter_tests.py
+          python3 tests/product_activation_runner_tests.py
           python3 tests/product_service_state_tests.py
 
   compose-product:
@@ -98,6 +120,7 @@ jobs:
           python3 tools/delivery/postgresql_package_publication.py verify \
             --receipt "$postgresql_publication" >/dev/null
           printf 'postgresql_publication=%s\n' "$postgresql_publication" >> "$GITHUB_OUTPUT"
+
       - name: Compose or verify the exact content-addressed product package
         id: compose
         shell: bash
@@ -107,7 +130,6 @@ jobs:
           python3 tools/product/build-package.py compose \
             --postgresql-publication '${{ steps.inputs.outputs.postgresql_publication }}' \
             --output "$selection"
-          build_directory=$(jq -er '.build_directory' "$selection")
           expected_plan_sha=$(jq -er '.plan_sha256' "$selection")
           product_receipt=$(jq -er '.product_receipt' "$selection")
           test -f "$product_receipt"
@@ -132,10 +154,11 @@ jobs:
           expected_source_root="$(jq -er '.stage_directory' "$selection")/root"
           test "$source_root" = "$expected_source_root"
           test -d "$physical_release"
-          plan_receipt_root=$(jq -er '.product.plan_receipt_root' contracts/product-activation-gateway.json)
-          resource_directory="$plan_receipt_root/$package_id"
+
+          receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
+          resource_directory="$receipt_root/plan/$package_id"
           resource_observation="$resource_directory/resource-observation.json"
-          install -d -m 2750 "$resource_directory"
+          install -d -m 0750 "$resource_directory"
           python3 tools/postgresql/clusterctl.py observe-resources \
             --contract contracts/postgresql-cluster.json \
             --package-manifest "$manifest" \
@@ -147,7 +170,7 @@ jobs:
           printf 'resource_observation=%s\n' "$resource_observation" >> "$GITHUB_OUTPUT"
           printf 'package_id=%s\n' "$package_id" >> "$GITHUB_OUTPUT"
           {
-            echo '## Product package selected for DEV/BAT activation'
+            echo '## Product package selected for persistent DEV/BAT activation'
             echo '```json'
             jq '{schema, package_id, manifest, manifest_sha256, physical_root, activation_eligible, build_input_closure_complete}' "$product_receipt"
             echo '```'
@@ -163,11 +186,9 @@ jobs:
       - X64
       - laplace-refactor
     timeout-minutes: 300
-    env:
-      LAPLACE_ACTIVATION_HMAC_KEY_B64: ${{ secrets.LAPLACE_ACTIVATION_HMAC_KEY_B64 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Verify protected deployment context and reconcile installed gateway generation
+      - name: Verify protected runner-owned deployment context
         shell: bash
         run: |
           set -euo pipefail
@@ -176,96 +197,39 @@ jobs:
           test "$GITHUB_REF" = refs/heads/main
           test "$GITHUB_EVENT_NAME" = workflow_dispatch
           test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
-          test -n "$LAPLACE_ACTIVATION_HMAC_KEY_B64"
-          gateway=/opt/laplace/deployment/current/bin/laplace-product-activate
-          test -x "$gateway"
+          git diff --quiet
+          git diff --cached --quiet
 
-          installed_probe="$RUNNER_TEMP/laplace-installed-activation-probe.json"
-          source_probe="$RUNNER_TEMP/laplace-source-activation-probe.json"
-          sudo -n "$gateway" probe > "$installed_probe"
-          python3 tools/delivery/product_activation_preflight.py > "$source_probe"
+          bootstrap=/opt/laplace/receipts/bootstrap/host.json
+          test -r "$bootstrap"
+          service=$(jq -er '.sudo_policy.service' "$bootstrap")
+          systemctl_bin=$(jq -er '.sudo_policy.systemctl' "$bootstrap")
+          service_path=$(jq -er '.service_envelope.path' "$bootstrap")
+          expected_service_sha=$(jq -er '.service_envelope.sha256' "$bootstrap")
+          test "$(sha256sum "$service_path" | awk '{print $1}')" = "$expected_service_sha"
+          test "$(sha256sum packaging/systemd/laplace-refactor-postgresql.service | awk '{print $1}')" = "$expected_service_sha"
+          test "$($systemctl_bin is-enabled "$service")" = enabled
+          for action in start stop restart; do
+            sudo -n -l "$systemctl_bin" "$action" "$service" >/dev/null
+          done
 
-          installed_schema=$(jq -er '.schema' "$installed_probe")
-          if test "$installed_schema" != laplace.product-activation-gateway-probe/v2; then
-            echo "installed activation gateway predates authenticated self-upgrade; one root bootstrap to this generation is required" >&2
-            exit 1
-          fi
-          installed_key=$(jq -er '.key_fingerprint_sha256' "$installed_probe")
-          source_key=$(jq -er '.key_fingerprint_sha256' "$source_probe")
-          test "$installed_key" = "$source_key"
-
-          installed_bundle=$(jq -er '.bundle_id' "$installed_probe")
-          source_bundle=$(jq -er '.bundle_id' "$source_probe")
-          installed_contract=$(jq -er '.contract_sha256' "$installed_probe")
-          source_contract=$(jq -er '.contract_sha256' "$source_probe")
-          if test "$installed_bundle" != "$source_bundle" || test "$installed_contract" != "$source_contract"; then
-            upgrade_request="$RUNNER_TEMP/laplace-gateway-upgrade-request.json"
-            upgrade_result="$RUNNER_TEMP/laplace-gateway-upgrade-result.json"
-            python3 tools/delivery/compile_gateway_upgrade.py \
-              --repository . \
-              --contract contracts/product-activation-gateway.json \
-              --actor github-actions \
-              --workflow-run-id "$GITHUB_RUN_ID" \
-              --output "$upgrade_request"
-            sudo -n "$gateway" execute-request < "$upgrade_request" > "$upgrade_result"
-            jq -e --arg bundle "$source_bundle" '
-              .schema == "laplace.product-activation-gateway-upgrade-result/v1" and
-              .phase == "gateway-upgraded" and
-              .bundle_id == $bundle and
-              (.receipt_sha256 | test("^[0-9a-f]{64}$"))
-            ' "$upgrade_result" >/dev/null
-            gateway=/opt/laplace/deployment/current/bin/laplace-product-activate
-            sudo -n "$gateway" probe > "$installed_probe"
-          fi
-
-          python3 - "$installed_probe" "$source_probe" <<'PY'
-          import json
-          import sys
-
-          installed_path, source_path = sys.argv[1:]
-          with open(installed_path, "r", encoding="utf-8") as stream:
-              installed = json.load(stream)
-          with open(source_path, "r", encoding="utf-8") as stream:
-              source = json.load(stream)
-          if installed.get("schema") != "laplace.product-activation-gateway-probe/v2":
-              raise SystemExit("installed activation gateway probe schema differs")
-          if source.get("schema") != "laplace.product-activation-source-preflight/v1":
-              raise SystemExit("source activation preflight schema differs")
-          for field, label in (
-              ("bundle_id", "trusted gateway bundle"),
-              ("contract_sha256", "activation contract"),
-              ("key_fingerprint_sha256", "protected activation key"),
-          ):
-              if installed.get(field) != source.get(field):
-                  raise SystemExit(
-                      f"{label} differs between installed root authority and the protected workflow source"
-                  )
-          PY
-      - name: Compile the exact authenticated activation request
-        shell: bash
-        run: |
-          set -euo pipefail
-          request="$RUNNER_TEMP/laplace-product-activation-request.json"
-          python3 tools/delivery/product_activation.py create-request \
-            --contract contracts/product-activation-gateway.json \
-            --continuation state/continuation.json \
-            --product-receipt '${{ needs.compose-product.outputs.product_receipt }}' \
-            --resource-observation '${{ needs.compose-product.outputs.resource_observation }}' \
-            --output "$request"
-          chmod 0600 "$request"
-          printf 'LAPLACE_ACTIVATION_REQUEST=%s\n' "$request" >> "$GITHUB_ENV"
-      - name: Activate PostgreSQL, Unicode, and the canonical Highway through the root gateway
+      - name: Activate PostgreSQL, Unicode, and Highway as laplace-runner
         shell: bash
         run: |
           set -euo pipefail
           result="$RUNNER_TEMP/laplace-product-activation-result.json"
-          sudo -n /opt/laplace/deployment/current/bin/laplace-product-activate \
-            execute-request < "$LAPLACE_ACTIVATION_REQUEST" > "$result"
+          python3 tools/delivery/product_activation_runner.py \
+            --product-receipt '${{ needs.compose-product.outputs.product_receipt }}' \
+            --resource-observation '${{ needs.compose-product.outputs.resource_observation }}' \
+            --repository-commit "$GITHUB_SHA" \
+            --output "$result"
           jq -e \
             --arg package_id '${{ needs.compose-product.outputs.package_id }}' \
             --arg repository_commit "$GITHUB_SHA" '
-            .schema == "laplace.product-activation-gateway-result/v1" and
+            .schema == "laplace.product-activation-result/v1" and
             .phase == "product-unicode-and-highway-activated" and
+            .execution_owner == "laplace-runner" and
+            .root_product_executor == false and
             .package_id == $package_id and
             .repository_commit == $repository_commit and
             (.package_installation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
@@ -276,20 +240,21 @@ jobs:
           ' "$result" >/dev/null
           printf 'LAPLACE_PRODUCT_ACTIVATION_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
           {
-            echo '## Product activation result'
+            echo '## Runner-owned product activation result'
             echo '```json'
             cat "$result"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Verify the deployed DEV/BAT generation after activation
+
+      - name: Verify the persistent DEV/BAT product directly
         shell: bash
         run: |
           set -euo pipefail
           result="$LAPLACE_PRODUCT_ACTIVATION_RESULT"
           package_id='${{ needs.compose-product.outputs.package_id }}'
           test -s "$result"
-          test "$(jq -er '.package_id' "$result")" = "$package_id"
-          test "$(jq -er '.repository_commit' "$result")" = "$GITHUB_SHA"
+          test "$(jq -er '.execution_owner' "$result")" = laplace-runner
+          test "$(jq -er '.root_product_executor' "$result")" = false
           cluster_result=$(jq -er '.cluster_result' "$result")
           unicode_result=$(jq -er '.unicode_result' "$result")
           highway_result=$(jq -er '.highway_result' "$result")
@@ -300,49 +265,27 @@ jobs:
           test "$(jq -er '.phase' "$cluster_result")" = activated
           test "$(jq -er '.package_id' "$cluster_result")" = "$package_id"
           test "$(jq -er '.restart_proven' "$cluster_result")" = true
+          test "$(jq -er '.boot_enabled' "$cluster_result")" = true
           test "$(jq -er '.package_id' "$unicode_result")" = "$package_id"
           test "$(jq -er '.package_id' "$highway_result")" = "$package_id"
 
-          service_receipt=$(jq -er '.service_state.enablement_receipt' contracts/product-activation-gateway.json)
-          cluster_service=$(jq -er '.service_state.cluster_service' contracts/product-activation-gateway.json)
-          boot_unit=$(jq -er '.service_state.boot_readback_unit' contracts/product-activation-gateway.json)
-          for _attempt in $(seq 1 300); do
-            if test -r "$service_receipt" && test ! -L "$service_receipt" && \
-               jq -e --arg package_id "$package_id" \
-                 '.product_identity.package_id == $package_id' "$service_receipt" >/dev/null 2>&1; then
-              break
-            fi
-            sleep 1
-          done
-          test -r "$service_receipt"
-          test ! -L "$service_receipt"
-          python3 - "$service_receipt" "$package_id" <<'PY'
-          import hashlib
-          import json
-          import sys
+          test -L /opt/laplace/current
+          test "$(readlink /opt/laplace/current)" = "releases/$package_id"
+          test -L /opt/laplace/runtime/refactor
+          test "$(readlink /opt/laplace/runtime/refactor)" = "../releases/$package_id"
+          test "$(systemctl is-enabled laplace-refactor-postgresql.service)" = enabled
+          test "$(systemctl is-active laplace-refactor-postgresql.service)" = active
 
-          path, package_id = sys.argv[1:]
-          with open(path, "r", encoding="utf-8") as stream:
-              receipt = json.load(stream)
-          assert receipt["schema"] == "laplace.product-service-enablement/v1"
-          assert receipt["phase"] == "enabled-for-cold-boot"
-          assert receipt["product_identity"]["package_id"] == package_id
-          assert receipt["enabled_for_boot"] is True
-          assert receipt["cold_boot_proven"] is False
-          payload = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
-          encoded = json.dumps(
-              payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-          ).encode("utf-8")
-          assert receipt["receipt_sha256"] == hashlib.sha256(encoded).hexdigest()
-          PY
-          test "$(systemctl is-enabled "$cluster_service")" = enabled
-          test "$(systemctl is-active "$cluster_service")" = active
-          test "$(systemctl is-enabled "$boot_unit")" = enabled
-          sudo -n /opt/laplace/deployment/current/bin/laplace-product-activate probe
-
-          package_root=$(jq -er '.package_root' "$cluster_result")
+          package_root="/opt/laplace/releases/$package_id"
+          pg_isready="$package_root/pgsql-18/bin/pg_isready"
           psql="$package_root/pgsql-18/bin/psql"
+          test -x "$pg_isready"
           test -x "$psql"
+          "$pg_isready" \
+            --host /run/laplace-refactor-postgresql \
+            --port 55433 \
+            --dbname laplace_refactor
+
           live_query=$(
             "$psql" \
               --host /run/laplace-refactor-postgresql \
@@ -362,14 +305,14 @@ jobs:
           test "$live_role" = laplace_app
           [[ "$live_extension" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           {
-            echo '## DEV/BAT post-deploy proof'
+            echo '## DEV/BAT persistent post-deploy proof'
             echo "- repository commit: \`$GITHUB_SHA\`"
             echo "- package: \`$package_id\`"
+            echo '- recurring execution owner: `laplace-runner`'
+            echo '- root product executor: `false`'
             echo "- live query: \`$live_version | $live_database | $live_role | laplace $live_extension\`"
-            echo '- cluster process restart: proven'
+            echo '- PostgreSQL process restart: proven'
             echo '- Unicode activation receipt: readable'
             echo '- Highway activation receipt: readable'
             echo '- PostgreSQL service enabled for host boot: proven'
-            echo '- cold-boot identity readback: pending a different host boot ID'
-            echo '- installed deployment gateway probe: passed'
           } >> "$GITHUB_STEP_SUMMARY"
