@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """PostgreSQL product-cluster entrypoint with persistent activation transactions.
 
-The implementation core lives in ``cluster_core.py``.  This entrypoint preserves the
-public clusterctl API while owning the product lifecycle rules that span host-owned
-receipt state and fresh candidate PostgreSQL state:
+The implementation core lives in ``cluster_core.py``. This entrypoint preserves the
+public clusterctl API while owning lifecycle rules that span host-owned receipt state
+and fresh candidate PostgreSQL state:
 
 * the persistent receipt namespace is never treated as a fresh-cluster collision;
 * a plan never claims the host-owned receipt directory as candidate database state;
-* a failed, uncommitted candidate is rolled back to a retryable boundary;
+* a failed, uncommitted candidate is rolled back to a retryable boundary only after
+  proving the candidate service/postmaster is stopped;
 * a committed/active database is never touched by candidate rollback.
 """
 
@@ -101,8 +102,101 @@ def _remove_empty_directory(path: Path, label: str) -> bool:
     try:
         path.rmdir()
     except OSError as error:
-        raise _core.ClusterError(f"{label} is not empty after candidate stop: {path}: {error}") from error
+        raise _core.ClusterError(
+            f"{label} is not empty after candidate stop: {path}: {error}"
+        ) from error
     return True
+
+
+def prove_candidate_stopped(plan: dict[str, Any], root: Path) -> dict[str, Any]:
+    """Prove no system candidate process can still own state being rolled back."""
+
+    if root != Path("/"):
+        return {
+            "schema": "laplace.postgresql-candidate-stopped-proof/v1",
+            "source": "laplace_typed_fixture",
+            "service": plan["instance"]["service"],
+            "active_state": "inactive",
+            "main_pid": 0,
+            "matching_processes": [],
+        }
+
+    service = plan["instance"]["service"]
+    command = [
+        "/usr/bin/systemctl",
+        "show",
+        service,
+        "--property=ActiveState",
+        "--property=MainPID",
+        "--no-pager",
+    ]
+    completed = subprocess.run(
+        command,
+        check=False,
+        cwd="/",
+        env=_core.activation_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=60,
+    )
+    receipt = _core.command_execution_receipt(
+        "prove-candidate-stopped-before-rollback", command, completed
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip() or "no diagnostic"
+        raise _core.ClusterError(
+            f"candidate stop proof could not inspect systemd state: {detail}"
+        )
+    fields: dict[str, str] = {}
+    for line in completed.stdout.splitlines():
+        if "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        fields[name] = value
+    active_state = fields.get("ActiveState")
+    main_pid_text = fields.get("MainPID")
+    if active_state not in {"inactive", "failed"}:
+        raise _core.ClusterError(
+            f"candidate service is not stopped before rollback: {active_state!r}"
+        )
+    if main_pid_text is None or not main_pid_text.isdecimal() or int(main_pid_text) != 0:
+        raise _core.ClusterError(
+            f"candidate service retains a postmaster before rollback: {main_pid_text!r}"
+        )
+
+    needles = (
+        plan["instance"]["data_directory"].encode("utf-8"),
+        plan["instance"]["socket_directory"].encode("utf-8"),
+    )
+    matches: list[int] = []
+    for process in Path("/proc").iterdir():
+        if not process.name.isdigit():
+            continue
+        try:
+            command_line = (process / "cmdline").read_bytes()
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            raise _core.ClusterError(
+                f"candidate stop proof cannot inspect process {process.name}: {error}"
+            ) from error
+        if command_line and any(needle in command_line for needle in needles):
+            matches.append(int(process.name))
+    if matches:
+        raise _core.ClusterError(
+            f"candidate PostgreSQL processes remain before rollback: {sorted(matches)}"
+        )
+
+    return {
+        "schema": "laplace.postgresql-candidate-stopped-proof/v1",
+        "source": "laplace_systemd_and_proc_probe",
+        "service": service,
+        "active_state": active_state,
+        "main_pid": 0,
+        "matching_processes": [],
+        "systemd_receipt": receipt,
+    }
 
 
 def rollback_uncommitted_candidate(
@@ -115,9 +209,9 @@ def rollback_uncommitted_candidate(
     """Remove only state proven to belong to an uncommitted fresh candidate.
 
     ``apply_plan`` can create these paths only after a collision-free observation.
-    Therefore the staged receipt proves provenance for the candidate state.  The
+    Therefore the staged receipt proves provenance for the candidate state. The
     content-addressed package release and persistent receipt/evidence namespace are
-    deliberately retained.  Any active pointer to this candidate blocks rollback.
+    deliberately retained. Any active pointer to this candidate blocks rollback.
     """
 
     _core.validate_plan(plan, contract)
@@ -151,10 +245,13 @@ def rollback_uncommitted_candidate(
                 f"candidate generated file changed before rollback: {entry['path']}"
             )
 
-    removed_state: list[str] = []
     expected_state = list(plan["state_directories"])
     if staged.get("state_directories") != expected_state:
         raise _core.ClusterError("staged candidate state directories differ from the plan")
+
+    stopped = prove_candidate_stopped(plan, root)
+
+    removed_state: list[str] = []
     for directory in reversed(expected_state):
         target = _core.prefixed(root, directory)
         if not (target.exists() or target.is_symlink()):
@@ -211,6 +308,7 @@ def rollback_uncommitted_candidate(
         "phase": "uncommitted-candidate-rolled-back",
         "plan_sha256": plan["plan_sha256"],
         "package_id": plan["package_id"],
+        "stopped_proof": stopped,
         "removed_state_directories": sorted(removed_state),
         "removed_generated_files": sorted(removed_files),
         "removed_config_directory": removed_config_directory,
@@ -340,6 +438,7 @@ globals().update(
     {
         "collision_target": collision_target,
         "build_plan": build_plan,
+        "prove_candidate_stopped": prove_candidate_stopped,
         "rollback_uncommitted_candidate": rollback_uncommitted_candidate,
         "activate_product": activate_product,
     }
