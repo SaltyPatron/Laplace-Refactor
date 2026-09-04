@@ -48,6 +48,27 @@ class ProductHostTests(unittest.TestCase):
             "tools/postgresql/hostctl.py",
         )
 
+    def test_persistent_postgresql_roots_match_cluster_and_runner_ownership(self) -> None:
+        cluster = host.load_json(REPOSITORY / self.contract["modules"]["cluster_contract"])
+        instance = cluster["instance"]
+        declared = {item["path"]: item for item in self.contract["directories"]}
+        persistent = {
+            instance["data_directory"],
+            instance["wal_directory"],
+            instance["temp_directory"],
+            instance["perfcache_directory"],
+            instance["log_directory"],
+            instance["receipt_directory"],
+        }
+        for path in persistent:
+            with self.subTest(path=path):
+                self.assertIn(path, declared)
+                self.assertEqual(declared[path]["owner"], instance["os_user"])
+                self.assertEqual(declared[path]["group"], instance["os_group"])
+        self.assertEqual(declared[instance["data_directory"]]["mode"], "0700")
+        self.assertEqual(declared[instance["wal_directory"]]["mode"], "0700")
+        self.assertEqual(declared[instance["temp_directory"]]["mode"], "0700")
+
     def test_fixture_convergence_is_persistent_exact_and_repairable(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-product-host-") as temporary:
             root = Path(temporary)
