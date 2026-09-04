@@ -15,6 +15,7 @@ native_probe=$5
 sql_file=$6
 sanitizer_preload=$7
 temporary_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+mkdir -p -- "$temporary_parent"
 test_root=$(mktemp -d "$temporary_parent/laplace-postgres-observation-cognition.XXXXXX")
 data_directory="$test_root/data"
 socket_directory=$(mktemp -d /tmp/lp-oc-pg.XXXXXX)
