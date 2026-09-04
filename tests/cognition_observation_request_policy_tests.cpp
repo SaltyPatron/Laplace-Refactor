@@ -63,7 +63,7 @@ Fixture BuildFixture() {
         fixture.a, fixture.b, fixture.c}};
     const std::array<std::uint32_t, 3> atoms{{0x41U, 0x42U, 0x43U}};
     for (std::size_t index = 0U; index < entities.size(); ++index) {
-        ASSERT_EQ(
+        EXPECT_EQ(
             laplace_trajectory_composition_encode(
                 &entities[index], static_cast<std::uint64_t>(index + 1U), 1U,
                 Metadata(2U, atoms[index]), &fixture.carriers[index]),
