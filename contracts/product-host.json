@@ -70,7 +70,14 @@
       "owner": "laplace-runner",
       "group": "laplace-runner",
       "mode": "0750",
-      "purpose": "parent for cluster-activation-owned PostgreSQL instance receipts"
+      "purpose": "persistent PostgreSQL receipt parent"
+    },
+    {
+      "path": "/opt/laplace/receipts/postgresql/refactor",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "persistent refactor activation evidence Unicode Highway service and cold-boot receipts"
     },
     {
       "path": "/opt/laplace/releases",
