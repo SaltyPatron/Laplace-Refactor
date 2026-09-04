@@ -48,11 +48,11 @@ class ProductHostTests(unittest.TestCase):
             "tools/postgresql/hostctl.py",
         )
 
-    def test_persistent_postgresql_roots_match_cluster_and_runner_ownership(self) -> None:
+    def test_host_convergence_leaves_cluster_owned_leaf_state_for_activation(self) -> None:
         cluster = host.load_json(REPOSITORY / self.contract["modules"]["cluster_contract"])
         instance = cluster["instance"]
         declared = {item["path"]: item for item in self.contract["directories"]}
-        persistent = {
+        cluster_owned = {
             instance["data_directory"],
             instance["wal_directory"],
             instance["temp_directory"],
@@ -60,14 +60,21 @@ class ProductHostTests(unittest.TestCase):
             instance["log_directory"],
             instance["receipt_directory"],
         }
-        for path in persistent:
+        for path in cluster_owned:
             with self.subTest(path=path):
-                self.assertIn(path, declared)
-                self.assertEqual(declared[path]["owner"], instance["os_user"])
-                self.assertEqual(declared[path]["group"], instance["os_group"])
-        self.assertEqual(declared[instance["data_directory"]]["mode"], "0700")
-        self.assertEqual(declared[instance["wal_directory"]]["mode"], "0700")
-        self.assertEqual(declared[instance["temp_directory"]]["mode"], "0700")
+                self.assertNotIn(path, declared)
+
+        expected_parents = {
+            instance["data_directory"]: "/opt/laplace/pgdata/refactor",
+            instance["perfcache_directory"]: "/opt/laplace/pgdata/refactor",
+            instance["wal_directory"]: "/var/lib/pgwal",
+            instance["temp_directory"]: "/pgtemp",
+            instance["log_directory"]: "/var/log/laplace/postgresql",
+            instance["receipt_directory"]: "/opt/laplace/receipts/postgresql",
+        }
+        for leaf, parent in expected_parents.items():
+            with self.subTest(leaf=leaf, parent=parent):
+                self.assertIn(parent, declared)
 
     def test_fixture_convergence_is_persistent_exact_and_repairable(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-product-host-") as temporary:
@@ -89,6 +96,24 @@ class ProductHostTests(unittest.TestCase):
                 self.assertFalse(target.is_symlink())
                 self.assertEqual(
                     stat.S_IMODE(target.stat().st_mode), int(item["mode"], 8)
+                )
+
+            cluster = host.load_json(
+                REPOSITORY / self.contract["modules"]["cluster_contract"]
+            )
+            instance = cluster["instance"]
+            for path in (
+                instance["data_directory"],
+                instance["wal_directory"],
+                instance["temp_directory"],
+                instance["perfcache_directory"],
+                instance["log_directory"],
+                instance["receipt_directory"],
+            ):
+                target = root.joinpath(*Path(path).parts[1:])
+                self.assertFalse(
+                    target.exists() or target.is_symlink(),
+                    f"host bootstrap stole cluster-owned leaf state: {path}",
                 )
 
     def test_fixture_repair_restores_mode_without_touching_contents(self) -> None:
@@ -209,6 +234,20 @@ class ProductHostTests(unittest.TestCase):
         self.assertIn("--accepted-state", source)
         self.assertIn("state/product-publication-selection.json", source)
         self.assertNotIn("/opt/laplace/receipts/postgresql/", source)
+
+    def test_setup_host_is_bootstrap_only_then_hands_control_to_cicd(self) -> None:
+        entrypoint = REPOSITORY / "scripts/setup-host.sh"
+        self.assertTrue(entrypoint.is_file())
+        source = entrypoint.read_text(encoding="utf-8")
+        self.assertIn("product_host.py converge", source)
+        self.assertIn("--authorize-system-root", source)
+        self.assertIn("--generate-key", source)
+        self.assertIn("laplace-product-activate", source)
+        self.assertIn("sudo -n", source)
+        self.assertNotIn("product_host.py install", source)
+        self.assertNotIn("--accepted-state", source)
+        self.assertNotIn("build-package.py", source)
+        self.assertNotIn("clusterctl.py activate-product", source)
 
 
 if __name__ == "__main__":
