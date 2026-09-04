@@ -1,0 +1,140 @@
+CREATE EXTENSION laplace;
+
+CREATE FUNCTION pg_temp.execution_context()
+RETURNS laplace.execution_context
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $context$
+    SELECT ROW(
+        ARRAY[
+            decode(repeat('01',32),'hex'), decode(repeat('02',32),'hex'),
+            decode(repeat('03',32),'hex'), decode(repeat('04',32),'hex'),
+            decode(repeat('05',32),'hex'), decode(repeat('06',32),'hex'),
+            decode(repeat('07',32),'hex'), decode(repeat('08',32),'hex'),
+            decode(repeat('09',32),'hex'), decode(repeat('0a',32),'hex')
+        ],
+        decode(repeat('a0',32),'hex'), 1048576::bigint, 4, 1,
+        1023::bigint, @LAPLACE_FRAMEWORK_MAJOR@::smallint,
+        @LAPLACE_FRAMEWORK_MINOR@::smallint,
+        @LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY@::integer
+    )::laplace.execution_context
+$context$;
+
+DO $contract$
+DECLARE
+    actual laplace.cognition_observation_result;
+    physicalities laplace.physicality_record[];
+    segments laplace.physicality_trajectory_segment_record[];
+    request laplace.cognition_observation_request;
+BEGIN
+    physicalities := ARRAY[
+        ROW(
+            decode(:'physicality_id','hex'),
+            decode(:'entity_root','hex'),
+            1, 1, 1, 1, 4, 0,
+            decode(:'recipe_fingerprint','hex'),
+            decode(:'geometry_epoch','hex'),
+            decode(:'trajectory_fingerprint','hex'),
+            0.125::double precision,
+            -0.25::double precision,
+            0.5::double precision,
+            -0.75::double precision,
+            0.875::double precision,
+            3::numeric,
+            3::numeric
+        )::laplace.physicality_record
+    ];
+
+    segments := ARRAY[
+        ROW(
+            decode(:'physicality_id','hex'), 0::numeric,
+            decode(:'carrier_0','hex'), decode(:'entity_a','hex'),
+            :'logical_ordinal_0'::numeric, :'metadata_0'::bigint,
+            :'atom_0'::bigint, :'packed_ordinal_0'::integer,
+            :'run_length_0'::integer, :'tier_0'::smallint, true
+        )::laplace.physicality_trajectory_segment_record,
+        ROW(
+            decode(:'physicality_id','hex'), 1::numeric,
+            decode(:'carrier_1','hex'), decode(:'entity_b','hex'),
+            :'logical_ordinal_1'::numeric, :'metadata_1'::bigint,
+            :'atom_1'::bigint, :'packed_ordinal_1'::integer,
+            :'run_length_1'::integer, :'tier_1'::smallint, true
+        )::laplace.physicality_trajectory_segment_record,
+        ROW(
+            decode(:'physicality_id','hex'), 2::numeric,
+            decode(:'carrier_2','hex'), decode(:'entity_c','hex'),
+            :'logical_ordinal_2'::numeric, :'metadata_2'::bigint,
+            :'atom_2'::bigint, :'packed_ordinal_2'::integer,
+            :'run_length_2'::integer, :'tier_2'::smallint, true
+        )::laplace.physicality_trajectory_segment_record
+    ];
+
+    request := ROW(
+        decode(:'entity_c','hex'),
+        decode(:'entity_a','hex'),
+        decode(:'world_id','hex'),
+        decode(:'time_fingerprint','hex'),
+        decode(:'context_fingerprint','hex'),
+        decode(:'boundary','hex'),
+        decode(:'evidence_epoch','hex'),
+        decode(:'authority_id','hex'),
+        decode(:'result_contract_fingerprint','hex'),
+        ROW(
+            2::numeric, 8::numeric, 8::numeric, 8::numeric,
+            1048576::numeric, 8::numeric, 8::numeric, 2::numeric,
+            2, 1, 2, 8
+        )::laplace.cognition_observation_search_budget,
+        ROW(
+            2::numeric, 4::numeric, 4::numeric, 4::numeric,
+            2::numeric, 128::numeric, 8::numeric, 8::numeric,
+            4, 2
+        )::laplace.cognition_observation_forward_limits,
+        4, 1, 9, 1
+    )::laplace.cognition_observation_request;
+
+    actual := laplace.cognition_observation_execute(
+        pg_temp.execution_context(), physicalities, segments, request);
+
+    IF actual.request_fingerprint <> decode(:'request_fingerprint','hex') OR
+       actual.index_fingerprint <> decode(:'index_fingerprint','hex') OR
+       actual.result_fingerprint <> decode(:'result_fingerprint','hex') OR
+       actual.resolution_receipt_id <> decode(:'resolution_receipt_id','hex') OR
+       actual.forward_receipt_id <> decode(:'forward_receipt_id','hex') OR
+       actual.forward_program_fingerprint <> decode(:'forward_program_fingerprint','hex') OR
+       actual.initial_state_id <> decode(:'initial_state_id','hex') OR
+       actual.final_state_id <> decode(:'final_state_id','hex') OR
+       actual.layer_trace_fingerprint <> decode(:'layer_trace_fingerprint','hex') OR
+       actual.output_fingerprint <> decode(:'output_fingerprint','hex') THEN
+        RAISE EXCEPTION 'PostgreSQL observation cognition receipts diverged from the native oracle';
+    END IF;
+
+    IF actual.physicality_count <> 1 OR
+       actual.trajectory_segment_count <> 3 OR
+       actual.occurrence_run_count <> 3 OR
+       actual.logical_occurrence_count <> 3 OR
+       actual.indexed_entity_count <> 4 THEN
+        RAISE EXCEPTION 'PostgreSQL observation cognition indexed-estate counters are wrong: %', actual;
+    END IF;
+
+    IF actual.layer_count <> :'expected_layer_count'::numeric OR
+       actual.provider_call_count <> :'expected_provider_call_count'::numeric OR
+       actual.projected_query_count <> :'expected_projected_query_count'::numeric OR
+       actual.candidate_operation_count <> :'expected_candidate_operation_count'::numeric OR
+       actual.resolution_count <> :'expected_resolution_count'::numeric OR
+       actual.resource_cost <> :'expected_resource_cost'::numeric OR
+       actual.io_operations <> :'expected_io_operations'::numeric OR
+       actual.database_operations <> :'expected_database_operations'::numeric OR
+       actual.final_remaining_required_count <> :'expected_remaining_required'::numeric OR
+       actual.final_completion <> :'expected_completion'::integer OR
+       actual.disposition <> :'expected_disposition'::integer OR
+       actual.obligation_disposition <> :'expected_obligation_disposition'::integer OR
+       actual.status <> :'expected_status'::integer OR
+       actual.version <> :'expected_version'::integer OR
+       actual.flags <> :'expected_flags'::integer THEN
+        RAISE EXCEPTION 'PostgreSQL observation cognition execution counters diverged from the native oracle: %', actual;
+    END IF;
+
+    IF actual.final_remaining_required_count <> 0 OR actual.resolution_count <> 1 THEN
+        RAISE EXCEPTION 'PostgreSQL observation cognition did not resolve the required C -> A depth-2 predecessor request: %', actual;
+    END IF;
+END
+$contract$;
