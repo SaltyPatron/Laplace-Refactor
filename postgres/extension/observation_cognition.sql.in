@@ -1,0 +1,98 @@
+-- PostgreSQL transport for the native observation -> guidance -> search -> forward route.
+-- SQL owns transport only. Request identity, search policy, cognition, completion and
+-- receipts are compiled and executed by the native engine.
+
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_search_budget AS (
+    max_expanded_states numeric(20, 0),
+    max_transition_records numeric(20, 0),
+    max_emitted_states numeric(20, 0),
+    max_frontier_states numeric(20, 0),
+    max_memory_bytes numeric(20, 0),
+    max_io_operations numeric(20, 0),
+    max_database_operations numeric(20, 0),
+    max_provider_calls numeric(20, 0),
+    max_depth integer,
+    requested_path_count integer,
+    frontier_batch_width integer,
+    transition_batch_capacity integer
+);
+
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_forward_limits AS (
+    max_layers numeric(20, 0),
+    max_provider_calls numeric(20, 0),
+    max_projected_queries numeric(20, 0),
+    max_candidate_operations numeric(20, 0),
+    max_resolutions numeric(20, 0),
+    max_resource_cost numeric(20, 0),
+    max_io_operations numeric(20, 0),
+    max_database_operations numeric(20, 0),
+    candidate_operation_capacity integer,
+    resolution_capacity integer
+);
+
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_request AS (
+    anchor_entity_id bytea,
+    goal_entity_id bytea,
+    world_id bytea,
+    time_fingerprint bytea,
+    context_fingerprint bytea,
+    evidence_boundary bytea,
+    evidence_epoch bytea,
+    authority_id bytea,
+    result_contract_fingerprint bytea,
+    search_budget @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_search_budget,
+    forward_limits @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_forward_limits,
+    relation_mask integer,
+    maximum_results integer,
+    flags integer,
+    version integer
+);
+
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_result AS (
+    request_fingerprint bytea,
+    index_fingerprint bytea,
+    result_fingerprint bytea,
+    resolution_receipt_id bytea,
+    forward_receipt_id bytea,
+    forward_program_fingerprint bytea,
+    initial_state_id bytea,
+    final_state_id bytea,
+    layer_trace_fingerprint bytea,
+    output_fingerprint bytea,
+    physicality_count numeric(20, 0),
+    trajectory_segment_count numeric(20, 0),
+    occurrence_run_count numeric(20, 0),
+    logical_occurrence_count numeric(20, 0),
+    indexed_entity_count numeric(20, 0),
+    layer_count numeric(20, 0),
+    provider_call_count numeric(20, 0),
+    projected_query_count numeric(20, 0),
+    candidate_operation_count numeric(20, 0),
+    resolution_count numeric(20, 0),
+    resource_cost numeric(20, 0),
+    io_operations numeric(20, 0),
+    database_operations numeric(20, 0),
+    final_remaining_required_count numeric(20, 0),
+    final_completion integer,
+    disposition integer,
+    obligation_disposition integer,
+    status integer,
+    version integer,
+    flags integer
+);
+
+CREATE FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_execute(
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality_record[],
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality_trajectory_segment_record[],
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_request)
+RETURNS @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_result
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_observation_execute'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_execute(
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality_record[],
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality_trajectory_segment_record[],
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_request)
+FROM PUBLIC;
