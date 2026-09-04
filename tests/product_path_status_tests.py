@@ -117,7 +117,14 @@ class ProductPathGitStatusTests(unittest.TestCase):
             activation.count("test \"$GITHUB_SHA\" = '${{ inputs.expected_sha }}'"),
             3,
         )
-        self.assertIn("Verify the deployed DEV/BAT generation after activation", activation)
+        self.assertIn("Verify the persistent DEV/BAT product directly", activation)
+        self.assertIn("product_activation_runner.py", activation)
+        self.assertIn(".execution_owner == \"laplace-runner\"", activation)
+        self.assertIn(".root_product_executor == false", activation)
+        self.assertNotIn("laplace-product-activate", activation)
+        self.assertNotIn("LAPLACE_ACTIVATION_HMAC_KEY_B64", activation)
+        self.assertNotIn("compile_gateway_upgrade.py", activation)
+        self.assertNotIn("product_activation.py create-request", activation)
         self.assertIn('"deployment_event": "workflow_dispatch"', contract)
 
     def test_type_change_remains_semantic_and_requires_custom_stack(self) -> None:
