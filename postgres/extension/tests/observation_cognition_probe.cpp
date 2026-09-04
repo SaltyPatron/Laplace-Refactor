@@ -137,7 +137,7 @@ laplace_cognition_observation_request Request(const Fixture& fixture) {
     request.evidence_epoch = fixture.evidence_epoch;
     request.authority_id = Digest(63U);
     request.result_contract_fingerprint = Digest(64U);
-    request.relation_mask = LAPLACE_OBSERVATION_RELATION_PREDECESSOR;
+    request.relation_mask = LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
     request.maximum_results = 1U;
     request.flags =
         LAPLACE_COGNITION_OBSERVATION_REQUEST_GOAL_PRESENT |
