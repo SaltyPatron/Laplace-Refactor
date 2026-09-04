@@ -59,7 +59,7 @@
   "security": {
     "listen_addresses": "",
     "socket_mode": "0770",
-    "admin_os_user": "ahart",
+    "admin_os_user": "laplace-runner",
     "app_os_user": "laplace-runner",
     "admin_map": "laplace_refactor_admin",
     "app_map": "laplace_refactor_app",
