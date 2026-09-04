@@ -45,6 +45,55 @@
       "purpose": "immutable activation gateway generations"
     },
     {
+      "path": "/opt/laplace/pgdata",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "persistent PostgreSQL state root owned by the product service identity"
+    },
+    {
+      "path": "/opt/laplace/pgdata/refactor",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "persistent refactor PostgreSQL instance state root"
+    },
+    {
+      "path": "/opt/laplace/pgdata/refactor/data",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0700",
+      "purpose": "persistent refactor PostgreSQL data directory preserved across product replay"
+    },
+    {
+      "path": "/opt/laplace/pgdata/refactor/perfcache",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "durable refactor PostgreSQL perfcache state"
+    },
+    {
+      "path": "/opt/laplace/receipts",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "persistent product receipt root"
+    },
+    {
+      "path": "/opt/laplace/receipts/postgresql",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "persistent PostgreSQL receipt root"
+    },
+    {
+      "path": "/opt/laplace/receipts/postgresql/refactor",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "persistent refactor PostgreSQL activation and verification receipts"
+    },
+    {
       "path": "/opt/laplace/releases",
       "owner": "root",
       "group": "root",
@@ -59,11 +108,53 @@
       "purpose": "immutable verified standards and configured source package inputs"
     },
     {
+      "path": "/pgtemp/refactor",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0700",
+      "purpose": "refactor PostgreSQL temporary-state directory"
+    },
+    {
       "path": "/var/lib/agents/laplace-runner",
       "owner": "laplace-runner",
       "group": "laplace-runner",
       "mode": "0750",
       "purpose": "service identity home without an interactive shell"
+    },
+    {
+      "path": "/var/lib/pgwal",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0700",
+      "purpose": "persistent PostgreSQL WAL root owned by the product service identity"
+    },
+    {
+      "path": "/var/lib/pgwal/refactor",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0700",
+      "purpose": "persistent refactor PostgreSQL WAL directory"
+    },
+    {
+      "path": "/var/log/laplace",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "persistent Laplace service log root"
+    },
+    {
+      "path": "/var/log/laplace/postgresql",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "persistent PostgreSQL log root"
+    },
+    {
+      "path": "/var/log/laplace/postgresql/refactor",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "0750",
+      "purpose": "persistent refactor PostgreSQL logs"
     }
   ],
   "modules": {
