@@ -19,14 +19,9 @@ AS $context$
     )::laplace.execution_context
 $context$;
 
-DO $contract$
-DECLARE
-    actual laplace.cognition_observation_result;
-    physicalities laplace.physicality_record[];
-    segments laplace.physicality_trajectory_segment_record[];
-    request laplace.cognition_observation_request;
-BEGIN
-    physicalities := ARRAY[
+CREATE TEMP TABLE observation_cognition_fixture AS
+SELECT
+    ARRAY[
         ROW(
             decode(:'physicality_id','hex'),
             decode(:'entity_root','hex'),
@@ -42,9 +37,8 @@ BEGIN
             3::numeric,
             3::numeric
         )::laplace.physicality_record
-    ];
-
-    segments := ARRAY[
+    ] AS physicalities,
+    ARRAY[
         ROW(
             decode(:'physicality_id','hex'), 0::numeric,
             decode(:'carrier_0','hex'), decode(:'entity_a','hex'),
@@ -66,9 +60,8 @@ BEGIN
             :'atom_2'::bigint, :'packed_ordinal_2'::integer,
             :'run_length_2'::integer, :'tier_2'::smallint, true
         )::laplace.physicality_trajectory_segment_record
-    ];
-
-    request := ROW(
+    ] AS segments,
+    ROW(
         decode(:'entity_c','hex'),
         decode(:'entity_a','hex'),
         decode(:'world_id','hex'),
@@ -89,21 +82,59 @@ BEGIN
             4, 2
         )::laplace.cognition_observation_forward_limits,
         4, 1, 9, 1
-    )::laplace.cognition_observation_request;
+    )::laplace.cognition_observation_request AS request;
 
-    actual := laplace.cognition_observation_execute(
-        pg_temp.execution_context(), physicalities, segments, request);
+CREATE TEMP TABLE observation_cognition_expected AS
+SELECT
+    decode(:'request_fingerprint','hex') AS request_fingerprint,
+    decode(:'index_fingerprint','hex') AS index_fingerprint,
+    decode(:'result_fingerprint','hex') AS result_fingerprint,
+    decode(:'resolution_receipt_id','hex') AS resolution_receipt_id,
+    decode(:'forward_receipt_id','hex') AS forward_receipt_id,
+    decode(:'forward_program_fingerprint','hex') AS forward_program_fingerprint,
+    decode(:'initial_state_id','hex') AS initial_state_id,
+    decode(:'final_state_id','hex') AS final_state_id,
+    decode(:'layer_trace_fingerprint','hex') AS layer_trace_fingerprint,
+    decode(:'output_fingerprint','hex') AS output_fingerprint,
+    :'expected_layer_count'::numeric AS layer_count,
+    :'expected_provider_call_count'::numeric AS provider_call_count,
+    :'expected_projected_query_count'::numeric AS projected_query_count,
+    :'expected_candidate_operation_count'::numeric AS candidate_operation_count,
+    :'expected_resolution_count'::numeric AS resolution_count,
+    :'expected_resource_cost'::numeric AS resource_cost,
+    :'expected_io_operations'::numeric AS io_operations,
+    :'expected_database_operations'::numeric AS database_operations,
+    :'expected_remaining_required'::numeric AS final_remaining_required_count,
+    :'expected_completion'::integer AS final_completion,
+    :'expected_disposition'::integer AS disposition,
+    :'expected_obligation_disposition'::integer AS obligation_disposition,
+    :'expected_status'::integer AS status,
+    :'expected_version'::integer AS version,
+    :'expected_flags'::integer AS flags;
 
-    IF actual.request_fingerprint <> decode(:'request_fingerprint','hex') OR
-       actual.index_fingerprint <> decode(:'index_fingerprint','hex') OR
-       actual.result_fingerprint <> decode(:'result_fingerprint','hex') OR
-       actual.resolution_receipt_id <> decode(:'resolution_receipt_id','hex') OR
-       actual.forward_receipt_id <> decode(:'forward_receipt_id','hex') OR
-       actual.forward_program_fingerprint <> decode(:'forward_program_fingerprint','hex') OR
-       actual.initial_state_id <> decode(:'initial_state_id','hex') OR
-       actual.final_state_id <> decode(:'final_state_id','hex') OR
-       actual.layer_trace_fingerprint <> decode(:'layer_trace_fingerprint','hex') OR
-       actual.output_fingerprint <> decode(:'output_fingerprint','hex') THEN
+CREATE TEMP TABLE observation_cognition_actual AS
+SELECT (laplace.cognition_observation_execute(
+    pg_temp.execution_context(), physicalities, segments, request)).*
+FROM observation_cognition_fixture;
+
+DO $contract$
+DECLARE
+    actual observation_cognition_actual%ROWTYPE;
+    expected observation_cognition_expected%ROWTYPE;
+BEGIN
+    SELECT * INTO STRICT actual FROM observation_cognition_actual;
+    SELECT * INTO STRICT expected FROM observation_cognition_expected;
+
+    IF actual.request_fingerprint <> expected.request_fingerprint OR
+       actual.index_fingerprint <> expected.index_fingerprint OR
+       actual.result_fingerprint <> expected.result_fingerprint OR
+       actual.resolution_receipt_id <> expected.resolution_receipt_id OR
+       actual.forward_receipt_id <> expected.forward_receipt_id OR
+       actual.forward_program_fingerprint <> expected.forward_program_fingerprint OR
+       actual.initial_state_id <> expected.initial_state_id OR
+       actual.final_state_id <> expected.final_state_id OR
+       actual.layer_trace_fingerprint <> expected.layer_trace_fingerprint OR
+       actual.output_fingerprint <> expected.output_fingerprint THEN
         RAISE EXCEPTION 'PostgreSQL observation cognition receipts diverged from the native oracle';
     END IF;
 
@@ -115,21 +146,21 @@ BEGIN
         RAISE EXCEPTION 'PostgreSQL observation cognition indexed-estate counters are wrong: %', actual;
     END IF;
 
-    IF actual.layer_count <> :'expected_layer_count'::numeric OR
-       actual.provider_call_count <> :'expected_provider_call_count'::numeric OR
-       actual.projected_query_count <> :'expected_projected_query_count'::numeric OR
-       actual.candidate_operation_count <> :'expected_candidate_operation_count'::numeric OR
-       actual.resolution_count <> :'expected_resolution_count'::numeric OR
-       actual.resource_cost <> :'expected_resource_cost'::numeric OR
-       actual.io_operations <> :'expected_io_operations'::numeric OR
-       actual.database_operations <> :'expected_database_operations'::numeric OR
-       actual.final_remaining_required_count <> :'expected_remaining_required'::numeric OR
-       actual.final_completion <> :'expected_completion'::integer OR
-       actual.disposition <> :'expected_disposition'::integer OR
-       actual.obligation_disposition <> :'expected_obligation_disposition'::integer OR
-       actual.status <> :'expected_status'::integer OR
-       actual.version <> :'expected_version'::integer OR
-       actual.flags <> :'expected_flags'::integer THEN
+    IF actual.layer_count <> expected.layer_count OR
+       actual.provider_call_count <> expected.provider_call_count OR
+       actual.projected_query_count <> expected.projected_query_count OR
+       actual.candidate_operation_count <> expected.candidate_operation_count OR
+       actual.resolution_count <> expected.resolution_count OR
+       actual.resource_cost <> expected.resource_cost OR
+       actual.io_operations <> expected.io_operations OR
+       actual.database_operations <> expected.database_operations OR
+       actual.final_remaining_required_count <> expected.final_remaining_required_count OR
+       actual.final_completion <> expected.final_completion OR
+       actual.disposition <> expected.disposition OR
+       actual.obligation_disposition <> expected.obligation_disposition OR
+       actual.status <> expected.status OR
+       actual.version <> expected.version OR
+       actual.flags <> expected.flags THEN
         RAISE EXCEPTION 'PostgreSQL observation cognition execution counters diverged from the native oracle: %', actual;
     END IF;
 
