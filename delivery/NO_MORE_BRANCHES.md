@@ -1,0 +1,1 @@
+No additional continuation branches may be created for this pass. All executable work belongs on PR #205 unless protected-main movement requires an explicit reconciliation of that same vehicle.
