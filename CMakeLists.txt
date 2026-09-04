@@ -227,11 +227,11 @@ endif()
 if(LAPLACE_PG_CONFIG)
     include(cmake/LaplacePostgreSQL.cmake)
     laplace_discover_postgresql("${LAPLACE_PG_CONFIG}")
-    add_subdirectory(postgres/extension)
+    add_subdirectory(integrations/postgresql/extension)
     target_sources(laplace_pg PRIVATE
-        postgres/extension/src/cognition_pg.c)
+        integrations/postgresql/extension/src/cognition_pg.c)
     file(READ
-        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/extension/cognition.sql"
+        "${CMAKE_CURRENT_SOURCE_DIR}/integrations/postgresql/extension/cognition.sql"
         LAPLACE_COGNITION_POSTGRES_SQL)
     file(APPEND "${LAPLACE_POSTGRES_EXTENSION_SQL}"
         "\n${LAPLACE_COGNITION_POSTGRES_SQL}\n")
