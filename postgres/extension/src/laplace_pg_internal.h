@@ -8,6 +8,7 @@
 
 #include "access/htup_details.h"
 #include "fmgr.h"
+#include "funcapi.h"
 
 #include "laplace/framework.h"
 #include "laplace/isa.h"
