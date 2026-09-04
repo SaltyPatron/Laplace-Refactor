@@ -53,6 +53,28 @@ typedef struct laplace_observation_query_binding {
     uint32_t reserved;
 } laplace_observation_query_binding;
 
+/*
+ * Canonical physicality/trajectory index input. This form deliberately contains
+ * no query binding: an immutable observation estate must be reusable by requests
+ * that did not exist when the index was built.
+ */
+typedef struct laplace_observation_query_index_base_input {
+    const laplace_persistence_physicality_record* physicalities;
+    size_t physicality_count;
+    const laplace_persistence_trajectory_segment_record* trajectory_segments;
+    size_t trajectory_segment_count;
+    laplace_digest256 boundary_id;
+    laplace_digest256 evidence_epoch;
+    uint64_t maximum_candidate_records_per_expansion;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_observation_query_index_base_input;
+
+/*
+ * Compatibility input for provider-owned/predeclared bindings. New runtime
+ * request compilation should prefer laplace_observation_query_index_create_base
+ * plus a request-bound provider so query intent never becomes index identity.
+ */
 typedef struct laplace_observation_query_index_input {
     const laplace_persistence_physicality_record* physicalities;
     size_t physicality_count;
@@ -117,9 +139,19 @@ laplace_observation_query_binding_identify(
 
 /*
  * Creates an immutable, validated observation index from canonical physicality
- * plus packed trajectory state. Index construction validates physicality
+ * plus packed trajectory state without embedding any future query intent into
+ * the index. This is the runtime-request path.
+ */
+LAPLACE_API laplace_observation_query_status
+laplace_observation_query_index_create_base(
+    const laplace_observation_query_index_base_input* input,
+    laplace_observation_query_index** index);
+
+/*
+ * Creates the same immutable physicality/trajectory index while also installing
+ * predeclared compatibility bindings. Index construction validates physicality
  * identities, contiguous segment ordinals, packed trajectory decoding,
- * trajectory fingerprints, and logical occurrence counts before publication.
+ * trajectory fingerprints, logical occurrence counts and binding identities.
  */
 LAPLACE_API laplace_observation_query_status
 laplace_observation_query_index_create(
@@ -135,9 +167,9 @@ laplace_observation_query_index_summary_get(
     laplace_observation_query_index_summary* summary);
 
 /*
- * Exposes the exact physicality/trajectory observation plane through the common
- * bounded set-wise query-search provider contract. Structural calculations do
- * not manufacture testimony or evidence roots.
+ * Exposes predeclared compatibility bindings through the common bounded set-wise
+ * query-search provider contract. Runtime request bindings should use the
+ * request-bound provider API rather than mutating this immutable index.
  */
 LAPLACE_API laplace_observation_query_status
 laplace_observation_query_search_provider(
@@ -145,9 +177,9 @@ laplace_observation_query_search_provider(
     laplace_query_search_provider_v1* provider);
 
 /*
- * Exposes the same observation plane through the native cognition forward-pass
- * provider contract. Execution lowers a projected binding through query_search
- * and resolves the obligation with the receipted result-set fingerprint.
+ * Exposes predeclared compatibility bindings through the native cognition
+ * forward-pass provider contract. Runtime request execution should use the
+ * request-bound provider API so the compiled policy remains request-owned.
  */
 LAPLACE_API laplace_observation_query_status
 laplace_observation_query_cognition_provider(
