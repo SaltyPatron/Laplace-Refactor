@@ -77,7 +77,7 @@
       "owner": "laplace-runner",
       "group": "laplace-runner",
       "mode": "2750",
-      "purpose": "setgid persistent refactor activation evidence Unicode Highway service and cold-boot receipts so root-written 0640 receipts remain readable by laplace-runner"
+      "purpose": "setgid persistent refactor activation evidence Unicode Highway service and cold-boot receipts so privileged compatibility paths remain readable by laplace-runner"
     },
     {
       "path": "/opt/laplace/releases",
@@ -92,13 +92,6 @@
       "group": "root",
       "mode": "0755",
       "purpose": "immutable verified standards and configured source package inputs"
-    },
-    {
-      "path": "/pgtemp",
-      "owner": "root",
-      "group": "root",
-      "mode": "0755",
-      "purpose": "parent for cluster-activation-owned PostgreSQL temporary state"
     },
     {
       "path": "/var/lib/agents/laplace-runner",
@@ -143,10 +136,10 @@
     "default_instance_request": "contracts/instances/refactor.json"
   },
   "lifecycle": {
-    "install": "converge host identity and parent roots install immutable gateway then execute one signed whole-product request",
-    "initial_run": "the install request lets cluster activation create and own instance leaf state then activates package cluster Unicode and Highway and returns durable receipt identities",
-    "repair": "converge host identity parent roots and gateway then exact-replay the signed product request without replacing database state",
-    "verify": "perform read-only identity parent-root gateway and optional product-result verification",
+    "install": "converge host identity and bounded parent roots, then hand recurring product delivery to the protected CI path",
+    "initial_run": "cluster activation creates and owns instance leaf state, then activates package cluster Unicode and Highway and returns durable receipt identities",
+    "repair": "reconverge bounded host prerequisites and replay product state without replacing durable database state",
+    "verify": "perform read-only identity parent-root and optional product-result verification",
     "instance_state_owner": "cluster activation module",
     "manual_hotfixes": false
   }
