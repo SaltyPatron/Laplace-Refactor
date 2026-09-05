@@ -6,6 +6,8 @@
 Description=Laplace Refactor PostgreSQL product cluster
 After=local-fs.target
 RequiresMountsFor=/opt/laplace/pgdata/refactor /var/lib/pgwal /pgtemp
+ConditionPathExists=/opt/laplace/runtime/refactor/pgsql-18/bin/postgres
+ConditionPathExists=/opt/laplace/pgdata/refactor/data/PG_VERSION
 
 [Service]
 Type=simple
