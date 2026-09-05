@@ -91,10 +91,12 @@ class ProductActivationRunnerTests(unittest.TestCase):
         self.assertIn("RUNNER_USER = \"laplace-runner\"", controller)
         self.assertIn("RUNTIME_LINK = \"/opt/laplace/runtime/refactor\"", controller)
         self.assertIn("system product lifecycle requires", controller)
+        self.assertIn("runner-owned plan cannot use runuser", controller)
         self.assertNotIn("laplace-product-activate", provider)
         self.assertNotIn("execute-request", provider)
         self.assertNotIn("runuser", provider)
-        self.assertNotIn("runuser", controller)
+        self.assertNotIn('["/usr/sbin/runuser"', controller)
+        self.assertNotIn('["runuser"', controller)
 
     def test_only_system_service_actions_cross_sudo(self) -> None:
         controller = CLUSTERCTL.read_text(encoding="utf-8")
