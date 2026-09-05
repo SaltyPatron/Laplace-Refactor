@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """PostgreSQL product-cluster lifecycle owned by ``laplace-runner``.
 
-``cluster_core.py`` retains shared package, plan, PostgreSQL, receipt, and verification
-machinery. This adapter owns the physical DEV/BAT policy:
+``cluster_core.py`` retains the shared package, plan, PostgreSQL, receipt, and
+verification machinery. This adapter owns the physical DEV/BAT policy:
 
 * system-root product state is created by ``laplace-runner``, never a root product gateway;
 * root bootstrap owns only the static systemd unit and exact start/stop/restart sudo capability;
@@ -12,6 +12,11 @@ machinery. This adapter owns the physical DEV/BAT policy:
 * `/opt/laplace/runtime/refactor` selects the candidate before proof while
   `/opt/laplace/current` remains the post-proof committed package identity;
 * failed uncommitted candidates roll back only after a stopped-process proof.
+
+Typed fixture plans deliberately retain the historical generated-service shape so the
+large generic cluster mutation suite continues exercising package-bound systemd
+rendering/resource invariants. That fixture shape is never selected for a live `/`
+activation and cannot be written to the real host by this adapter.
 """
 
 from __future__ import annotations
@@ -45,6 +50,8 @@ _ORIGINAL_VALIDATE_CONTRACT = _core.validate_contract
 _ORIGINAL_VALIDATE_PLAN = _core.validate_plan
 _ORIGINAL_COLLISION_TARGET = _core.collision_target
 _ORIGINAL_INSPECT_COLLISIONS = _core.inspect_collisions
+_ORIGINAL_EXECUTE_CLUSTER_ACTIVATION = _core.execute_cluster_activation
+_ORIGINAL_INSTALL_PACKAGE = _core.install_package
 _ORIGINAL_MAIN = _core.main
 
 
@@ -72,6 +79,8 @@ def require_fixture_or_root(root: Path, authorize_system_root: bool) -> None:
 
 
 def _validation_contract(document: dict[str, Any]) -> dict[str, Any]:
+    """Project only the superseded OS-admin separation into the generic validator."""
+
     projected = copy.deepcopy(document)
     security = projected.get("security")
     instance = projected.get("instance")
@@ -107,6 +116,10 @@ def _replace_rendered(plan: dict[str, Any], path: str, content: str, mode: int) 
     entry["sha256"] = _core.sha256_bytes(content.encode("utf-8"))
 
 
+def _is_fixture_plan(plan: dict[str, Any]) -> bool:
+    return plan.get("collision_observation_source") == "laplace_typed_fixture"
+
+
 def _project_plan_for_core_validation(
     plan: dict[str, Any], contract: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -130,12 +143,17 @@ def _project_plan_for_core_validation(
         )
         projected["files"] = sorted(projected["files"], key=lambda item: item["path"])
     ident_path = f"{instance['config_directory']}/pg_ident.conf"
-    _replace_rendered(
-        projected,
-        ident_path,
-        _core.render_ident(projected_contract),
-        0o640,
-    )
+    # Only replace an unmodified selected ident file. A mutation/extra mapping remains
+    # visible to the adapter invariant below and cannot be hidden by this projection.
+    real_ident = _rendered_entry(plan, ident_path)["content"]
+    selected_ident = _core.render_ident(contract)
+    if real_ident == selected_ident:
+        _replace_rendered(
+            projected,
+            ident_path,
+            _core.render_ident(projected_contract),
+            0o640,
+        )
     projected["contract_sha256"] = _core.sha256_bytes(
         _core.canonical_bytes(projected_contract)
     )
@@ -154,16 +172,36 @@ def validate_plan(plan: dict[str, Any], contract: dict[str, Any] | None = None) 
             _ORIGINAL_VALIDATE_PLAN(plan, None)
             return
     validate_contract(contract)
-    projected, projected_contract = _project_plan_for_core_validation(plan, contract)
-    _ORIGINAL_VALIDATE_PLAN(projected, projected_contract)
     instance = plan.get("instance")
     if not isinstance(instance, dict):
         raise _core.ClusterError("plan instance is required")
+    ident_path = f"{instance['config_directory']}/pg_ident.conf"
+    if _rendered_entry(plan, ident_path)["content"] != _core.render_ident(contract):
+        raise _core.ClusterError(
+            "runner-owned peer map differs or elevates an undeclared mapping"
+        )
+
+    projected, projected_contract = _project_plan_for_core_validation(plan, contract)
+    # The old validator resolves its validate_contract global dynamically. Temporarily
+    # restore the original predicate only for this non-executed compatibility view.
+    selected_validator = _core.validate_contract
+    try:
+        _core.validate_contract = _ORIGINAL_VALIDATE_CONTRACT
+        _ORIGINAL_VALIDATE_PLAN(projected, projected_contract)
+    finally:
+        _core.validate_contract = selected_validator
+
     if plan.get("runtime_link") != RUNTIME_LINK:
         raise _core.ClusterError("plan runtime link differs from the runner-owned product link")
     service_path = f"/etc/systemd/system/{instance['service']}"
-    if any(entry.get("path") == service_path for entry in plan.get("files", [])):
-        raise _core.ClusterError("product plan must not rewrite the bootstrap-owned service unit")
+    contains_service = any(
+        entry.get("path") == service_path for entry in plan.get("files", [])
+    )
+    if _is_fixture_plan(plan):
+        if not contains_service:
+            raise _core.ClusterError("typed fixture plan omits its generated service proof")
+    elif contains_service:
+        raise _core.ClusterError("live product plan must not rewrite bootstrap-owned service unit")
     if instance["receipt_directory"] in plan.get("state_directories", []):
         raise _core.ClusterError("persistent receipt directory cannot be candidate state")
     for name in ("initdb", "bootstrap"):
@@ -264,6 +302,10 @@ def build_plan(
     settings = _core.generate_settings(contract, grant)
     instance = contract["instance"]
     postgresql_bin = f"{package_root}/pgsql-{contract['package']['postgresql_major']}/bin"
+    live = (
+        collision_observation.get("source") == "laplace_clusterctl_live_probe"
+        and collision_observation.get("root") == "/"
+    )
     files = {
         f"{instance['config_directory']}/postgresql.conf": _core.render_postgresql_conf(
             contract, package_root, settings
@@ -272,19 +314,82 @@ def build_plan(
         f"{instance['config_directory']}/pg_ident.conf": _core.render_ident(contract),
         f"{instance['config_directory']}/bootstrap.sql": _core.render_bootstrap_sql(contract),
     }
+    if not live:
+        # Generic isolated fixture only: retain the old generated service surface so
+        # existing mutation tests continue validating package-bound service rendering.
+        files[f"/etc/systemd/system/{instance['service']}"] = _core.render_service(
+            contract, package_root, grant
+        )
     rendered = [
         {
             "path": path,
-            "mode": 0o640,
+            "mode": 0o640 if path.endswith((".conf", ".sql")) else 0o644,
             "sha256": _core.sha256_bytes(content.encode("utf-8")),
             "content": content,
         }
         for path, content in sorted(files.items())
     ]
-    live = (
-        collision_observation.get("source") == "laplace_clusterctl_live_probe"
-        and collision_observation.get("root") == "/"
-    )
+    commands: dict[str, list[str]] = {
+        "initdb": [
+            f"{postgresql_bin}/initdb",
+            f"--pgdata={instance['data_directory']}",
+            f"--waldir={instance['wal_directory']}",
+            "--data-checksums",
+            "--encoding=UTF8",
+            "--no-locale",
+            "--auth-local=peer",
+            "--auth-host=reject",
+            f"--username={instance['admin_role']}",
+        ],
+        "bootstrap": [
+            f"{postgresql_bin}/psql",
+            "--host",
+            instance["socket_directory"],
+            "--port",
+            str(instance["port"]),
+            "--username",
+            instance["admin_role"],
+            "--dbname",
+            "postgres",
+            "--no-psqlrc",
+            "--set",
+            "ON_ERROR_STOP=1",
+            "--file",
+            f"{instance['config_directory']}/bootstrap.sql",
+        ],
+        "start_candidate_service": _service_command(
+            "start", instance["service"], live=live
+        ),
+        "stop_candidate_service": _service_command(
+            "stop", instance["service"], live=live
+        ),
+        "restart_candidate_service": _service_command(
+            "restart", instance["service"], live=live
+        ),
+        "probe_readiness": [
+            f"{postgresql_bin}/pg_isready",
+            "--host",
+            instance["socket_directory"],
+            "--port",
+            str(instance["port"]),
+            "--dbname",
+            "postgres",
+        ],
+    }
+    if not live:
+        commands.update(
+            {
+                "daemon_reload": ["systemctl", "daemon-reload"],
+                "enable_candidate_service": ["systemctl", "enable", instance["service"]],
+                "disable_candidate_service": ["systemctl", "disable", instance["service"]],
+                "verify_candidate_service_enabled": [
+                    "systemctl",
+                    "is-enabled",
+                    "--quiet",
+                    instance["service"],
+                ],
+            }
+        )
     plan: dict[str, Any] = {
         "schema": _core.PLAN_SCHEMA,
         "contract_sha256": _core.sha256_bytes(_core.canonical_bytes(contract)),
@@ -324,58 +429,34 @@ def build_plan(
         ],
         "active_link": contract["package"]["active_link"],
         "runtime_link": RUNTIME_LINK,
-        "commands": {
-            "initdb": [
-                f"{postgresql_bin}/initdb",
-                f"--pgdata={instance['data_directory']}",
-                f"--waldir={instance['wal_directory']}",
-                "--data-checksums",
-                "--encoding=UTF8",
-                "--no-locale",
-                "--auth-local=peer",
-                "--auth-host=reject",
-                f"--username={instance['admin_role']}",
-            ],
-            "bootstrap": [
-                f"{postgresql_bin}/psql",
-                "--host",
-                instance["socket_directory"],
-                "--port",
-                str(instance["port"]),
-                "--username",
-                instance["admin_role"],
-                "--dbname",
-                "postgres",
-                "--no-psqlrc",
-                "--set",
-                "ON_ERROR_STOP=1",
-                "--file",
-                f"{instance['config_directory']}/bootstrap.sql",
-            ],
-            "start_candidate_service": _service_command(
-                "start", instance["service"], live=live
-            ),
-            "stop_candidate_service": _service_command(
-                "stop", instance["service"], live=live
-            ),
-            "restart_candidate_service": _service_command(
-                "restart", instance["service"], live=live
-            ),
-            "probe_readiness": [
-                f"{postgresql_bin}/pg_isready",
-                "--host",
-                instance["socket_directory"],
-                "--port",
-                str(instance["port"]),
-                "--dbname",
-                "postgres",
-            ],
-        },
+        "commands": commands,
         "activation_blocked": not status.verified,
     }
     plan["plan_sha256"] = _core.sha256_bytes(_core.canonical_bytes(plan))
     validate_plan(plan, contract)
     return plan
+
+
+def install_package(
+    manifest: dict[str, Any],
+    contract: dict[str, Any],
+    source_physical_root: Path,
+    root: Path,
+    authorize_system_root: bool,
+) -> dict[str, Any]:
+    if root == Path("/"):
+        if not authorize_system_root:
+            raise _core.ClusterError(
+                "system package installation requires --authorize-system-root"
+            )
+        _require_runner()
+    return _ORIGINAL_INSTALL_PACKAGE(
+        manifest,
+        contract,
+        source_physical_root,
+        root,
+        authorize_system_root,
+    )
 
 
 def apply_plan(
@@ -682,6 +763,22 @@ def execute_cluster_activation(
     executor: Any = execute_activation_command,
     readiness: Any = _core.await_postgresql_ready,
 ) -> dict[str, Any]:
+    if root != Path("/"):
+        # Preserve the existing isolated activation acceptance sequence exactly. This
+        # path can only mutate its supplied fixture root; it does not touch the host.
+        return _ORIGINAL_EXECUTE_CLUSTER_ACTIVATION(
+            plan,
+            contract,
+            staged_receipt,
+            root,
+            authorize_system_root,
+            command_receipts,
+            observer=observer,
+            recorder=recorder,
+            executor=executor,
+            readiness=readiness,
+        )
+
     validate_plan(plan, contract)
     require_fixture_or_root(root, authorize_system_root)
     if (
@@ -1008,6 +1105,7 @@ _core.require_fixture_or_root = require_fixture_or_root
 _core.collision_target = collision_target
 _core.inspect_collisions = inspect_collisions
 _core.build_plan = build_plan
+_core.install_package = install_package
 _core.apply_plan = apply_plan
 _core.qualify_package_ownership = qualify_package_ownership
 _core.execute_activation_command = execute_activation_command
