@@ -615,6 +615,32 @@ def execute_activation_command(
     return receipt
 
 
+def process_loaded_paths(proc_root: Path, pid: int) -> set[str]:
+    """Collect live filesystem-backed mappings without mistaking deleted pseudo maps for code."""
+    process = proc_root / str(pid)
+    try:
+        executable = os.readlink(process / "exe")
+        maps = (process / "maps").read_text(encoding="utf-8")
+    except OSError as error:
+        raise _core.ClusterError(
+            f"cannot inspect process {pid} loaded objects: {error}"
+        ) from error
+    if executable.endswith(" (deleted)"):
+        raise _core.ClusterError(f"process {pid} executable was deleted after start")
+    paths = {os.path.realpath(executable)}
+    for line in maps.splitlines():
+        fields = line.split(maxsplit=5)
+        if len(fields) != 6 or not fields[5].startswith("/"):
+            continue
+        path = fields[5]
+        if path.endswith(" (deleted)"):
+            # A deleted mapping cannot prove a currently loaded package file. Omit it;
+            # required package objects remain fail-closed in compose_loaded_observation.
+            continue
+        paths.add(os.path.realpath(path))
+    return paths
+
+
 def verify_loaded(
     plan: dict[str, Any], contract: dict[str, Any], observation: dict[str, Any]
 ) -> None:
