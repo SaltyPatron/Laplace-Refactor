@@ -18,7 +18,7 @@ const char* TargetSafeTensorRoleName(const std::uint32_t role) noexcept {
     switch (role) {
         case LAPLACE_TARGET_ROLE_COMPATIBILITY_QK: return "qk";
         case LAPLACE_TARGET_ROLE_CONTRIBUTION_VO: return "vo";
-        case LAPLACE_TARGET_ROLE_FFN: return "ffn";
+        case LAPLACE_TARGET_ROLE_TRANSFORM_FFN: return "ffn";
         case LAPLACE_TARGET_ROLE_ROUTING: return "routing";
         case LAPLACE_TARGET_ROLE_POSITION: return "position";
         case LAPLACE_TARGET_ROLE_EMBEDDING: return "embedding";
