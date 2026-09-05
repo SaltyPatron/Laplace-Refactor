@@ -300,6 +300,11 @@ real failed/open predicate instead of continuing to print step 1 forever.
 
 ## DevOps control plane
 
+GitHub Project #2 tracks this dependency graph; it is not a runtime waterfall.
+The persistent product is not product activated yet: no activated-product world admission
+or configured foundational seed exists. The heterogeneous foundational knowledge seed
+and #72 paid addressability proofs remain separate outstanding acceptance boundaries.
+
 GitHub issue #23 owns the whole product. `contracts/finish-line-program.json` owns the
 machine-readable progress/closure law. #180 owns finish-line governance; #183 owns
 branch-estate reconciliation; #184 owns cross-repository semantic reconciliation; #22

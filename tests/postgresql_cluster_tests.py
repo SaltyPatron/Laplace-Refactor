@@ -256,6 +256,30 @@ class PostgreSQLClusterContract(unittest.TestCase):
         document["root"] = f"/opt/laplace/releases/{document['package_id']}"
         write_json(self.manifest_path, document)
 
+    def test_live_plan_preserves_static_service_and_existing_receipt_root(self) -> None:
+        collision = self.valid_collision_observation()
+        collision["source"] = "laplace_clusterctl_live_probe"
+        collision["observation_sha256"] = clusterctl.collision_observation_identity(collision)
+        write_json(self.collision_path, collision)
+        plan = self.plan()
+        clusterctl.validate_plan(plan, self.contract)
+        self.assertFalse(any(row["path"].endswith(".service") for row in plan["files"]))
+        self.assertNotIn(self.contract["instance"]["receipt_directory"], plan["state_directories"])
+        self.assertFalse(any(Path(argv[0]).name == "runuser" for argv in plan["commands"].values()))
+        self.assertNotIn("daemon_reload", plan["commands"])
+        broken = copy.deepcopy(plan)
+        broken["runtime_link"] = "/tmp/changed-runtime"
+        with self.assertRaisesRegex(clusterctl.ClusterError, "plan digest"):
+            clusterctl.validate_plan(broken, self.contract)
+
+    def test_peer_file_digest_is_checked_before_provider_projection(self) -> None:
+        plan = self.plan()
+        next(row for row in plan["files"] if row["path"].endswith("pg_ident.conf"))["sha256"] = "0" * 64
+        plan.pop("plan_sha256")
+        plan["plan_sha256"] = clusterctl.sha256_bytes(clusterctl.canonical_bytes(plan))
+        with self.assertRaisesRegex(clusterctl.ClusterError, "rendered file digest"):
+            clusterctl.validate_plan(plan, self.contract)
+
     def test_verified_plan_is_isolated_and_resource_bounded(self) -> None:
         plan = self.plan()
         clusterctl.validate_plan(plan)
@@ -466,9 +490,9 @@ class PostgreSQLClusterContract(unittest.TestCase):
                 False,
             )
 
-    def test_system_package_install_requires_explicit_authorization(self) -> None:
+    def test_system_package_install_requires_runner_identity(self) -> None:
         manifest = clusterctl.load_json(self.manifest_path)
-        with self.assertRaisesRegex(clusterctl.ClusterError, "authorize-system-root"):
+        with self.assertRaisesRegex(clusterctl.ClusterError, "requires laplace-runner"):
             clusterctl.install_package(
                 manifest,
                 self.contract,
@@ -657,12 +681,12 @@ class PostgreSQLClusterContract(unittest.TestCase):
         with self.assertRaisesRegex(clusterctl.ClusterError, "immutable package postmaster"):
             clusterctl.validate_plan(plan)
 
-    def test_runner_to_admin_peer_mapping_mutant_is_rejected(self) -> None:
+    def test_undeclared_peer_mapping_mutant_is_rejected(self) -> None:
         plan = self.plan()
         ident = next(item["content"] for item in plan["files"] if item["path"].endswith("pg_ident.conf"))
         ident += f"mutant {plan['instance']['os_user']} {plan['instance']['admin_role']}\n"
         self.replace_rendered(plan, "pg_ident.conf", ident)
-        with self.assertRaisesRegex(clusterctl.ClusterError, "elevates"):
+        with self.assertRaisesRegex(clusterctl.ClusterError, "declared runner mappings"):
             clusterctl.validate_plan(plan)
 
     def test_ambient_loader_environment_mutants_are_rejected(self) -> None:
@@ -741,8 +765,8 @@ class PostgreSQLClusterContract(unittest.TestCase):
         shutil.copytree(package_source, package_target, symlinks=True)
         clusterctl.apply_plan(plan, self.contract, self.activation_root, False)
         service_receipt = {
-            "label": "observe-candidate-service",
-            "argv": ["systemctl", "show"],
+            "label": "observe-postmaster-state",
+            "argv": ["pg_ctl", "status"],
             "exit_code": 0,
             "stdout_sha256": "a" * 64,
             "stderr_sha256": "b" * 64,
@@ -752,7 +776,6 @@ class PostgreSQLClusterContract(unittest.TestCase):
             plan,
             self.contract,
             self.activation_root,
-            "active",
             1201,
             1208,
             "8672946663471807927",
@@ -766,7 +789,6 @@ class PostgreSQLClusterContract(unittest.TestCase):
                 plan,
                 self.contract,
                 self.activation_root,
-                "active",
                 1201,
                 1208,
                 "8672946663471807927",
@@ -822,21 +844,20 @@ class PostgreSQLClusterContract(unittest.TestCase):
         )
         self.assertEqual(result["phase"], "activated")
         self.assertTrue(result["restart_proven"])
-        self.assertTrue(result["boot_enabled"])
+        self.assertFalse(result["boot_enabled"])
+        self.assertFalse(result["service_integration_required"])
+        self.assertEqual(result["lifecycle_provider"], "pg_ctl")
         self.assertEqual(recorded, ["loaded-initial", "loaded-restart"])
         self.assertEqual(
             executed,
             [
                 "initialize-cluster",
-                "reload-service-manager",
-                "start-candidate-service",
+                "start-candidate-postmaster",
                 "candidate-readiness",
                 "bootstrap-product-database",
                 "stop-candidate-for-restart-proof",
                 "start-candidate-after-restart",
                 "restart-readiness",
-                "enable-candidate-service-for-boot",
-                "verify-candidate-service-enabled",
             ],
         )
         active = clusterctl.prefixed(self.activation_root, plan["active_link"])
@@ -885,7 +906,7 @@ class PostgreSQLClusterContract(unittest.TestCase):
             )
         active = clusterctl.prefixed(self.activation_root, plan["active_link"])
         self.assertFalse(active.exists())
-        self.assertIn("stop-candidate-after-failure", executed)
+        self.assertIn("stop-candidate-for-restart-proof", executed)
 
     def test_fixture_stage_commit_and_remove_preserve_database_state(self) -> None:
         plan = self.plan()

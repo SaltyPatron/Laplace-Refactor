@@ -164,8 +164,19 @@ def _project_plan_for_core_validation(
 
 def validate_plan(plan: dict[str, Any], contract: dict[str, Any] | None = None) -> None:
     if contract is None:
-        raise _core.ClusterError("runner plan validation requires its cluster contract")
+        contract = load_json(Path(__file__).resolve().parents[2] / "contracts/postgresql-cluster.json")
     validate_contract(contract)
+    candidate = dict(plan)
+    expected = candidate.pop("plan_sha256", None)
+    if expected != sha256_bytes(canonical_bytes(candidate)):
+        raise _core.ClusterError("plan digest differs from plan content")
+    if plan.get("contract_sha256") != sha256_bytes(canonical_bytes(contract)):
+        raise _core.ClusterError("plan was not generated from the supplied cluster contract")
+    ident = _rendered_entry(plan, f"{plan['instance']['config_directory']}/pg_ident.conf")
+    if ident.get("content") != render_ident(contract):
+        raise _core.ClusterError("generated peer map differs from the declared runner mappings")
+    if ident.get("sha256") != sha256_bytes(ident["content"].encode("utf-8")):
+        raise _core.ClusterError("rendered file digest differs: pg_ident.conf")
     live = plan.get("collision_observation_source") != "laplace_typed_fixture"
     service_path = f"/etc/systemd/system/{plan['instance']['service']}"
     if live and any(entry.get("path") == service_path for entry in plan.get("files", [])):
@@ -538,7 +549,7 @@ def apply_plan(
             raise _core.ClusterError(f"activation refuses existing path: {entry['path']}")
     for logical, target in state_targets:
         if target.exists() or target.is_symlink():
-            raise _core.ClusterError(f"activation refuses existing state directory: {logical}")
+            raise _core.ClusterError(f"cluster target collision: existing state directory {logical}")
 
     runtime = prefixed(root, RUNTIME_LINK)
     if root == Path("/") and (runtime.exists() or runtime.is_symlink()):

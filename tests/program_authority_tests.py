@@ -2031,9 +2031,9 @@ def validate_operation(document: dict) -> None:
         stages["delivery.activate-product"].get("implementation", {}),
         (
             "current-main content-addressed product package",
-            "signs the package receipt manifest source root and resource receipt",
-            "root gateway install or revalidate",
-            "root-owned activation gateway trust anchor is not yet physically installed",
+            "installation and activation execute as laplace-runner",
+            "static bootstrap service",
+            "controller fixtures do not prove persistent product activation",
             "no selected PostgreSQL 18.6 product cluster is active",
             "no Unicode or Highway product receipt exists",
             "no whole-product deployment or release state exists",

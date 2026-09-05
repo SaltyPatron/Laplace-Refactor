@@ -1,6 +1,7 @@
 {
   "schema": "laplace.product-path/v1",
   "issue": 54,
+  "merge_policy": "Pull requests and ordinary main pushes require hosted requirements and both native lanes. Selected physical PostgreSQL/custom-stack/package acceptance is recorded as deferred and runs only through explicit workflow_dispatch. Accepted-main product deployment retains actual installation and live readback; merge success does not claim physical acceptance or release.",
   "purpose": "Select the exact proof surfaces required by a change without converting unavailable physical evidence into success.",
   "hosted_only_patterns": [
     ".gitattributes",
