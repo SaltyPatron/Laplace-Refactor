@@ -44,7 +44,6 @@ RUNNER_USER = "laplace-runner"
 RUNTIME_LINK = "/opt/laplace/runtime/refactor"
 LIFECYCLE_PROVIDER = "pg_ctl"
 
-# Keep every shared contract/package/receipt utility available through clusterctl.
 for _name in dir(_core):
     if _name.startswith("__"):
         continue
@@ -61,7 +60,9 @@ def _runner_identity() -> pwd.struct_passwd:
     try:
         return pwd.getpwnam(RUNNER_USER)
     except KeyError as error:
-        raise _core.ClusterError(f"required service identity is absent: {RUNNER_USER}") from error
+        raise _core.ClusterError(
+            f"persistent product lifecycle requires {RUNNER_USER}; required service identity is absent"
+        ) from error
 
 
 def _require_runner() -> None:
@@ -81,12 +82,7 @@ def require_fixture_or_root(root: Path, authorize_system_root: bool) -> None:
 
 
 def _validation_contract(document: dict[str, Any]) -> dict[str, Any]:
-    """Project only the old core's service->admin prohibition for compatibility.
-
-    Production deliberately uses one OS identity (laplace-runner) with distinct
-    PostgreSQL roles.  The projection is used only to reuse legacy invariant checks;
-    it is never written, executed, or treated as product authority.
-    """
+    """Project only the old core's service->admin prohibition for compatibility."""
     projected = copy.deepcopy(document)
     security = projected.get("security")
     instance = projected.get("instance")
@@ -236,7 +232,6 @@ def validate_collision_observation(
 
 
 def inspect_collisions(contract: dict[str, Any], root: Path) -> dict[str, Any]:
-    """Observe product collisions without treating optional systemd as product state."""
     validate_contract(contract)
     if not root.is_absolute():
         raise _core.ClusterError("collision inspection root must be absolute")
