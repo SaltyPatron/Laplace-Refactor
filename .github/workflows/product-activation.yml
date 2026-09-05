@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Verify the one-time host bootstrap and recurring runner authority
+      - name: Verify runner-owned host prerequisites
         shell: bash
         run: |
           set -euo pipefail
@@ -43,27 +43,10 @@ jobs:
             .phase == "host-prerequisites-ready" and
             .service_identity.user == "laplace-runner" and
             .service_identity.group == "laplace-runner" and
-            .service_envelope.enabled == true and
-            .service_envelope.started_by_bootstrap == false and
-            .sudo_policy.allowed_actions == ["start","stop","restart"] and
             .product_activated == false and
             .postgresql_initialized == false and
             .activation_gateway_installed == false
           ' "$bootstrap" >/dev/null
-
-          service=$(jq -er '.sudo_policy.service' "$bootstrap")
-          systemctl_bin=$(jq -er '.sudo_policy.systemctl' "$bootstrap")
-          service_path=$(jq -er '.service_envelope.path' "$bootstrap")
-          service_sha=$(jq -er '.service_envelope.sha256' "$bootstrap")
-          test "$service" = laplace-refactor-postgresql.service
-          test -f "$service_path"
-          test ! -L "$service_path"
-          test "$(sha256sum "$service_path" | awk '{print $1}')" = "$service_sha"
-          test "$(sha256sum packaging/systemd/laplace-refactor-postgresql.service | awk '{print $1}')" = "$service_sha"
-          test "$($systemctl_bin is-enabled "$service")" = enabled
-          for action in start stop restart; do
-            sudo -n -l "$systemctl_bin" "$action" "$service" >/dev/null
-          done
 
           test -w /build/laplace/runner
           test -w /opt/laplace/releases
@@ -199,19 +182,9 @@ jobs:
           test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
           git diff --quiet
           git diff --cached --quiet
-
-          bootstrap=/opt/laplace/receipts/bootstrap/host.json
-          test -r "$bootstrap"
-          service=$(jq -er '.sudo_policy.service' "$bootstrap")
-          systemctl_bin=$(jq -er '.sudo_policy.systemctl' "$bootstrap")
-          service_path=$(jq -er '.service_envelope.path' "$bootstrap")
-          expected_service_sha=$(jq -er '.service_envelope.sha256' "$bootstrap")
-          test "$(sha256sum "$service_path" | awk '{print $1}')" = "$expected_service_sha"
-          test "$(sha256sum packaging/systemd/laplace-refactor-postgresql.service | awk '{print $1}')" = "$expected_service_sha"
-          test "$($systemctl_bin is-enabled "$service")" = enabled
-          for action in start stop restart; do
-            sudo -n -l "$systemctl_bin" "$action" "$service" >/dev/null
-          done
+          test -w /opt/laplace/releases
+          test -w /opt/laplace/runtime
+          test -w /opt/laplace/pgdata/refactor
 
       - name: Activate PostgreSQL, Unicode, and Highway as laplace-runner
         shell: bash
@@ -252,6 +225,8 @@ jobs:
           set -euo pipefail
           result="$LAPLACE_PRODUCT_ACTIVATION_RESULT"
           package_id='${{ needs.compose-product.outputs.package_id }}'
+          socket_directory=$(jq -er '.instance.socket_directory' contracts/postgresql-cluster.json)
+          data_directory=$(jq -er '.instance.data_directory' contracts/postgresql-cluster.json)
           test -s "$result"
           test "$(jq -er '.execution_owner' "$result")" = laplace-runner
           test "$(jq -er '.root_product_executor' "$result")" = false
@@ -265,7 +240,8 @@ jobs:
           test "$(jq -er '.phase' "$cluster_result")" = activated
           test "$(jq -er '.package_id' "$cluster_result")" = "$package_id"
           test "$(jq -er '.restart_proven' "$cluster_result")" = true
-          test "$(jq -er '.boot_enabled' "$cluster_result")" = true
+          test "$(jq -er '.lifecycle_provider' "$cluster_result")" = pg_ctl
+          test "$(jq -er '.service_integration_required' "$cluster_result")" = false
           test "$(jq -er '.package_id' "$unicode_result")" = "$package_id"
           test "$(jq -er '.package_id' "$highway_result")" = "$package_id"
 
@@ -273,22 +249,23 @@ jobs:
           test "$(readlink /opt/laplace/current)" = "releases/$package_id"
           test -L /opt/laplace/runtime/refactor
           test "$(readlink /opt/laplace/runtime/refactor)" = "../releases/$package_id"
-          test "$(systemctl is-enabled laplace-refactor-postgresql.service)" = enabled
-          test "$(systemctl is-active laplace-refactor-postgresql.service)" = active
 
           package_root="/opt/laplace/releases/$package_id"
+          pg_ctl="$package_root/pgsql-18/bin/pg_ctl"
           pg_isready="$package_root/pgsql-18/bin/pg_isready"
           psql="$package_root/pgsql-18/bin/psql"
+          test -x "$pg_ctl"
           test -x "$pg_isready"
           test -x "$psql"
+          "$pg_ctl" -D "$data_directory" status
           "$pg_isready" \
-            --host /run/laplace-refactor-postgresql \
+            --host "$socket_directory" \
             --port 55433 \
             --dbname laplace_refactor
 
           live_query=$(
             "$psql" \
-              --host /run/laplace-refactor-postgresql \
+              --host "$socket_directory" \
               --port 55433 \
               --username laplace_app \
               --dbname laplace_refactor \
@@ -309,10 +286,11 @@ jobs:
             echo "- repository commit: \`$GITHUB_SHA\`"
             echo "- package: \`$package_id\`"
             echo '- recurring execution owner: `laplace-runner`'
-            echo '- root product executor: `false`'
+            echo '- lifecycle provider: packaged `pg_ctl`'
+            echo '- recurring root/sudo/systemd dependency: `none`'
             echo "- live query: \`$live_version | $live_database | $live_role | laplace $live_extension\`"
             echo '- PostgreSQL process restart: proven'
             echo '- Unicode activation receipt: readable'
             echo '- Highway activation receipt: readable'
-            echo '- PostgreSQL service enabled for host boot: proven'
+            echo '- systemd unit: optional boot integration only'
           } >> "$GITHUB_STEP_SUMMARY"
