@@ -4,3 +4,5 @@
 #include "cognition_operator_part03.inc"
 #include "cognition_operator_part04.inc"
 #include "target_compile.inc"
+#include "target_package.inc"
+#include "target_safetensors.inc"

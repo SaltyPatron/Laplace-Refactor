@@ -419,13 +419,9 @@ static void observation_read_request(
 static void observation_cleanup(
     laplace_cognition_guidance_state** final_state,
     laplace_cognition_forward_result** forward_result,
-    laplace_cognition_observation_request_provider** provider_state,
-    laplace_cognition_observation_compiled_request* compiled,
     laplace_observation_query_index** index) {
     laplace_cognition_guidance_state_destroy(final_state);
     laplace_cognition_forward_result_destroy(forward_result);
-    laplace_cognition_observation_request_provider_destroy(provider_state);
-    laplace_cognition_observation_compiled_request_destroy(compiled);
     laplace_observation_query_index_destroy(index);
 }
 
@@ -437,13 +433,11 @@ Datum laplace_pg_cognition_observation_execute(PG_FUNCTION_ARGS) {
     laplace_observation_query_index_base_input index_input;
     laplace_observation_query_index* index = NULL;
     laplace_observation_query_index_summary index_summary;
-    laplace_cognition_observation_compiled_request compiled;
-    laplace_cognition_observation_request_provider* provider_state = NULL;
-    laplace_cognition_forward_provider_v1 provider;
     laplace_cognition_forward_result* forward_result = NULL;
     laplace_cognition_forward_receipt forward_receipt;
     laplace_cognition_guidance_state* final_state = NULL;
     laplace_cognition_obligation final_obligation;
+    laplace_digest256 request_fingerprint;
     laplace_digest256 final_state_id;
     size_t physicality_count = 0u;
     size_t segment_count = 0u;
@@ -469,6 +463,16 @@ Datum laplace_pg_cognition_observation_execute(PG_FUNCTION_ARGS) {
                  errdetail("request_bytes=%llu granted_bytes=%llu",
                            (unsigned long long)request.search_budget.max_memory_bytes,
                            (unsigned long long)context.resource_grant.memory_bytes)));
+    }
+
+    memset(&request_fingerprint, 0, sizeof(request_fingerprint));
+    request_status = laplace_cognition_observation_request_identify(
+        &request, &request_fingerprint);
+    if (request_status != LAPLACE_COGNITION_OBSERVATION_REQUEST_OK) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace typed observation request identification failed"),
+                 errdetail("request_status=%d", (int)request_status)));
     }
 
     memset(&index_input, 0, sizeof(index_input));
@@ -504,42 +508,16 @@ Datum laplace_pg_cognition_observation_execute(PG_FUNCTION_ARGS) {
                  errdetail("observation_query_status=%d", (int)query_status)));
     }
 
-    memset(&compiled, 0, sizeof(compiled));
-    request_status = laplace_cognition_observation_request_compile(&request, &compiled);
-    if (request_status != LAPLACE_COGNITION_OBSERVATION_REQUEST_OK) {
-        laplace_observation_query_index_destroy(&index);
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("Laplace typed observation request compilation failed"),
-                 errdetail("request_status=%d", (int)request_status)));
-    }
-
-    memset(&provider, 0, sizeof(provider));
-    request_status = laplace_cognition_observation_request_cognition_provider(
-        index, &compiled, &provider_state, &provider);
-    if (request_status != LAPLACE_COGNITION_OBSERVATION_REQUEST_OK) {
-        laplace_cognition_observation_compiled_request_destroy(&compiled);
-        laplace_observation_query_index_destroy(&index);
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace request-bound observation cognition provider publication failed"),
-                 errdetail("request_status=%d", (int)request_status)));
-    }
-
     memset(&forward_receipt, 0, sizeof(forward_receipt));
-    forward_status = laplace_cognition_forward_pass_execute(
-        &compiled.forward_program,
-        compiled.guidance_state,
-        &provider,
-        &forward_result,
-        &forward_receipt);
-    if (forward_status != LAPLACE_COGNITION_FORWARD_OK || forward_result == NULL) {
-        observation_cleanup(
-            &final_state, &forward_result, &provider_state, &compiled, &index);
+    request_status = laplace_cognition_observation_request_execute(
+        index, &request, &forward_result, &forward_receipt);
+    if (request_status != LAPLACE_COGNITION_OBSERVATION_REQUEST_OK ||
+        forward_result == NULL) {
+        observation_cleanup(&final_state, &forward_result, &index);
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace typed observation cognition forward execution failed"),
-                 errdetail("forward_status=%d", (int)forward_status)));
+                 errmsg("Laplace typed observation cognition execution failed"),
+                 errdetail("request_status=%d", (int)request_status)));
     }
 
     memset(&final_obligation, 0, sizeof(final_obligation));
@@ -552,24 +530,22 @@ Datum laplace_pg_cognition_observation_execute(PG_FUNCTION_ARGS) {
             final_state, 0u, &final_obligation) != LAPLACE_COGNITION_GUIDANCE_OK ||
         laplace_cognition_guidance_state_identify(
             final_state, &final_state_id) != LAPLACE_COGNITION_GUIDANCE_OK) {
-        observation_cleanup(
-            &final_state, &forward_result, &provider_state, &compiled, &index);
+        observation_cleanup(&final_state, &forward_result, &index);
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
                  errmsg("Laplace observation cognition final guidance state is not readable")));
     }
     if (memcmp(final_state_id.bytes, forward_receipt.final_state_id.bytes,
                sizeof(final_state_id.bytes)) != 0) {
-        observation_cleanup(
-            &final_state, &forward_result, &provider_state, &compiled, &index);
+        observation_cleanup(&final_state, &forward_result, &index);
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
                  errmsg("Laplace observation cognition final state disagrees with its forward receipt")));
     }
 
     result_values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        compiled.request_fingerprint.bytes,
-        sizeof(compiled.request_fingerprint.bytes)));
+        request_fingerprint.bytes,
+        sizeof(request_fingerprint.bytes)));
     result_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         index_summary.index_fingerprint.bytes,
         sizeof(index_summary.index_fingerprint.bytes)));
@@ -618,8 +594,7 @@ Datum laplace_pg_cognition_observation_execute(PG_FUNCTION_ARGS) {
     result_values[28] = Int32GetDatum((int32)forward_receipt.version);
     result_values[29] = Int32GetDatum((int32)forward_receipt.flags);
 
-    observation_cleanup(
-        &final_state, &forward_result, &provider_state, &compiled, &index);
+    observation_cleanup(&final_state, &forward_result, &index);
 
     result_tuple = laplace_pg_form_result_tuple(
         fcinfo, result_values, result_nulls, 30);
