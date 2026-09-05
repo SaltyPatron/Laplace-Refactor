@@ -107,6 +107,18 @@ class ProductActivationRunnerTests(unittest.TestCase):
         self.assertNotIn('["/usr/sbin/runuser"', controller)
         self.assertNotIn('["runuser"', controller)
 
+    def test_runner_loaded_object_probe_ignores_deleted_pseudo_maps_fail_closed(self) -> None:
+        controller = CLUSTERCTL.read_text(encoding="utf-8")
+        self.assertIn('if executable.endswith(" (deleted)"):', controller)
+        self.assertIn(
+            'raise _core.ClusterError(f"process {pid} executable was deleted after start")',
+            controller,
+        )
+        self.assertIn('if path.endswith(" (deleted)"):', controller)
+        self.assertIn("required package objects remain fail-closed", controller)
+        self.assertIn("missing = sorted(expected_paths - process_paths)", controller)
+        self.assertIn("live PostgreSQL backend omits required package objects", controller)
+
     def test_resource_observer_uses_real_runner_contract_without_legacy_cli(self) -> None:
         source = RESOURCECTL.read_text(encoding="utf-8")
         self.assertIn("clusterctl.validate_contract(contract)", source)
