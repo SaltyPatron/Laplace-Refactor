@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -368,6 +369,28 @@ class PostgreSQLClusterContract(unittest.TestCase):
             clusterctl.resource_observation_identity(result),
         )
 
+    def test_resource_command_uses_runner_contract_and_exact_observer(self) -> None:
+        native = self.valid_resource_observation()
+        native["schema"] = clusterctl.RESOURCE_CANDIDATE_SCHEMA
+        for field in ("package_id", "package_manifest_sha256", "observation_sha256"):
+            native.pop(field)
+        native["native_authority"].pop("observer")
+        output = self.root / "cli-resources.json"
+        with mock.patch.object(clusterctl.subprocess, "run", return_value=
+                               subprocess.CompletedProcess([], 0, json.dumps(native), "")) as run:
+            self.assertEqual(clusterctl.main([
+                "observe-resources", "--contract", str(self.contract_path),
+                "--package-manifest", str(self.manifest_path),
+                "--package-physical-root", str(self.package_physical_root),
+                "--output", str(output)]), 0)
+        manifest = clusterctl.load_json(self.manifest_path)
+        self.assertEqual(run.call_args.args[0][0], str(clusterctl.prefixed(
+            self.package_physical_root, manifest["root"]) / clusterctl.RESOURCE_OBSERVER_PATH))
+        result = clusterctl.load_json(output)
+        clusterctl.validate_resource_package_binding(result, manifest)
+        self.assertEqual(result["grant"], native["grant"])
+        self.assertEqual(clusterctl.load_json(self.contract_path), self.contract)
+
     def test_resource_observation_package_binding_mutants_are_rejected(self) -> None:
         for field, value in (
             ("package_id", "a" * 64),
@@ -420,6 +443,38 @@ class PostgreSQLClusterContract(unittest.TestCase):
         )
         with self.assertRaisesRegex(clusterctl.ClusterError, "packaged native observer"):
             clusterctl.validate_resource_observation(observation, self.contract)
+
+    def test_cli_installs_package_with_repository_runner_ownership(self) -> None:
+        receipt = self.root / "cli-installation.json"
+        result = subprocess.run(
+            [sys.executable, str(MODULE_PATH), "install-package",
+             "--contract", str(self.contract_path),
+             "--package-manifest", str(self.manifest_path),
+             "--package-physical-root", str(self.package_physical_root),
+             "--root", str(self.activation_root), "--receipt", str(receipt)],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        installation = clusterctl.load_json(receipt)
+        self.assertEqual(installation["phase"], "installed")
+        self.assertTrue(clusterctl.verify_package(
+            clusterctl.load_json(self.manifest_path), self.contract,
+            self.activation_root).verified)
+
+    def test_cli_plan_preserves_runner_owned_lifecycle(self) -> None:
+        output = self.root / "cli-plan.json"
+        result = subprocess.run(
+            [sys.executable, str(MODULE_PATH), "plan",
+             "--contract", str(self.contract_path),
+             "--package-manifest", str(self.manifest_path),
+             "--resource-observation", str(self.resource_path),
+             "--collision-observation", str(self.collision_path),
+             "--package-physical-root", str(self.package_physical_root),
+             "--output", str(output)],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(clusterctl.load_json(output), self.plan())
 
     def test_exact_package_install_is_atomic_verified_and_replay_safe(self) -> None:
         manifest = clusterctl.load_json(self.manifest_path)

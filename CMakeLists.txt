@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Laplace VERSION 1.0.0 LANGUAGES C CXX)
-
 include(cmake/LaplaceOutputBoundary.cmake)
 laplace_require_external_output(
     "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+
+project(Laplace VERSION 1.0.0 LANGUAGES C CXX)
 
 include(CTest)
 include(GNUInstallDirs)
