@@ -15,6 +15,7 @@ SERVICE = ROOT / "packaging/systemd/laplace-refactor-postgresql.service"
 CLUSTER = ROOT / "contracts/postgresql-cluster.json"
 RUNNER = ROOT / "tools/delivery/product_activation_runner.py"
 CLUSTERCTL = ROOT / "tools/postgresql/clusterctl.py"
+RESOURCECTL = ROOT / "tools/postgresql/resourcectl.py"
 UNICODECTL = ROOT / "tools/postgresql/unicodectl.py"
 HIGHWAYCTL = ROOT / "tools/postgresql/highwayctl.py"
 
@@ -23,6 +24,8 @@ class ProductActivationRunnerTests(unittest.TestCase):
     def test_workflow_selects_runner_provider_not_root_or_systemd(self) -> None:
         source = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("product_activation_runner.py", source)
+        self.assertIn("tools/postgresql/resourcectl.py observe-resources", source)
+        self.assertNotIn("tools/postgresql/clusterctl.py observe-resources", source)
         self.assertIn('execution_owner == "laplace-runner"', source)
         self.assertIn("root_product_executor == false", source)
         self.assertIn("pg_ctl", source)
@@ -103,6 +106,20 @@ class ProductActivationRunnerTests(unittest.TestCase):
         self.assertNotIn("systemctl", controller)
         self.assertNotIn('["/usr/sbin/runuser"', controller)
         self.assertNotIn('["runuser"', controller)
+
+    def test_resource_observer_uses_real_runner_contract_without_legacy_cli(self) -> None:
+        source = RESOURCECTL.read_text(encoding="utf-8")
+        self.assertIn("clusterctl.validate_contract(contract)", source)
+        self.assertIn("clusterctl.verify_package(", source)
+        self.assertIn("clusterctl.finalize_native_resource_observation(", source)
+        self.assertIn("clusterctl.validate_resource_observation(result, contract)", source)
+        self.assertIn("clusterctl.validate_resource_package_binding(result, package)", source)
+        self.assertIn("RESOURCE_OBSERVER_PATH", source)
+        self.assertNotIn("_validation_contract", source)
+        self.assertNotIn("cluster_core", source)
+        self.assertNotIn("runuser", source)
+        self.assertNotIn("sudo", source)
+        self.assertNotIn("systemctl", source)
 
     def test_unicode_and_highway_restart_requests_are_intercepted_by_provider(self) -> None:
         provider = RUNNER.read_text(encoding="utf-8")
