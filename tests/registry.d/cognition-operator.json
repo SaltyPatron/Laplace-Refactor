@@ -74,6 +74,21 @@
       "covered_dimensions": ["embedded package integrity identity", "bit corruption fails before decoded target state publication", "trailing unreceipted bytes are rejected"]
     },
     {
+      "ctest_name": "TargetSafeTensors.EmitsExactF64TensorsAndPackageProvenance",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"],
+      "covered_dimensions": ["SafeTensors is a codec over already-generated target state rather than a semantic generator", "exact F64 matrix and RHS payloads are emitted with deterministic tensor names", "package compile request evidence recipe target-contract slot operator and matrix provenance remain available in SafeTensors metadata"]
+    },
+    {
+      "ctest_name": "TargetSafeTensors.CanonicalCodecValidatorRejectsAnyArtifactDrift",
+      "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["canonical SafeTensors projection is byte deterministic", "codec validation checks exact header tensor order offsets and F64 payload bits against the target-neutral package", "bit corruption and unreceipted trailing bytes fail closed"]
+    },
+    {
+      "ctest_name": "TargetSafeTensors.CorruptTargetPackageCannotReachCodec",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["codec consumes only an independently validated target-neutral package", "corrupt target state cannot be serialized into a plausible consumer artifact"]
+    },
+    {
       "ctest_name": "cognition-operator.mutation-relation-plane-flatten-detected",
       "evidence_targets": ["LP-TEST-RELATION-PLANE-TYPE-ERASURE"],
       "covered_dimensions": ["relation plane type erasure is detected"],
