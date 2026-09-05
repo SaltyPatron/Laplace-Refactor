@@ -264,6 +264,44 @@ TEST(CognitionObservationRequest, CompilesAndExecutesWithoutHandBuiltGuidanceOrS
     laplace_query_search_result_destroy(&search_result);
 }
 
+TEST(CognitionObservationRequest, PublicExecuteOwnsCompileProviderAndForwardLifecycle) {
+    const auto fixture = BuildFixture();
+    const auto request = Request(fixture);
+
+    CompiledHandle binding_source;
+    ASSERT_EQ(
+        laplace_cognition_observation_request_compile(
+            &request, &binding_source.value),
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
+
+    laplace_observation_query_index_input index_input{};
+    index_input.physicalities = &fixture.physicality;
+    index_input.physicality_count = 1U;
+    index_input.trajectory_segments = fixture.segments.data();
+    index_input.trajectory_segment_count = fixture.segments.size();
+    index_input.bindings = &binding_source.value.binding;
+    index_input.binding_count = 1U;
+    index_input.boundary_id = fixture.boundary;
+    index_input.evidence_epoch = fixture.evidence_epoch;
+    index_input.maximum_candidate_records_per_expansion = 16U;
+    IndexHandle index;
+    ASSERT_EQ(
+        laplace_observation_query_index_create(&index_input, &index.value),
+        LAPLACE_OBSERVATION_QUERY_OK);
+
+    ForwardResultHandle result;
+    laplace_cognition_forward_receipt receipt{};
+    ASSERT_EQ(
+        laplace_cognition_observation_request_execute(
+            index.value, &request, &result.value, &receipt),
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
+    ASSERT_NE(result.value, nullptr);
+    EXPECT_EQ(receipt.disposition, LAPLACE_COGNITION_FORWARD_COMPLETE);
+    EXPECT_EQ(receipt.final_remaining_required_count, 0U);
+    EXPECT_EQ(receipt.final_completion, LAPLACE_COGNITION_COMPLETION_COMPLETE);
+    EXPECT_FALSE(Zero(receipt.output_fingerprint));
+}
+
 TEST(CognitionObservationRequest, RequestIdentityChangesWithTypedRelationIntent) {
     const auto fixture = BuildFixture();
     auto predecessor = Request(fixture);

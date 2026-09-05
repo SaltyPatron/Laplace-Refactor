@@ -32,6 +32,11 @@
       "covered_dimensions": ["typed request lowered to canonical binding", "request-derived guidance state", "request-derived search and forward programs", "execution through shared observation provider and query search", "no hand-authored runtime program identifiers"]
     },
     {
+      "ctest_name": "CognitionObservationRequest.PublicExecuteOwnsCompileProviderAndForwardLifecycle",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["public native request execution owns compile/provider/result lifecycle", "transport callers do not construct private guidance or search state", "complete cognition disposition and zero remaining obligations", "nonzero output fingerprint receipts the public execution boundary"]
+    },
+    {
       "ctest_name": "CognitionObservationRequest.RequestIdentityChangesWithTypedRelationIntent",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
       "covered_dimensions": ["relation family remains part of request identity", "predecessor and successor requests cannot flatten to one program"]
