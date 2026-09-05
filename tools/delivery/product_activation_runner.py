@@ -3,8 +3,8 @@
 
 This is the recurring product provider selected after one-time ``setup-host.sh``.
 It owns package installation, PostgreSQL candidate/commit, Unicode, Highway, and
-product receipts.  Root is never the product executor.  The only privileged calls
-are the exact systemd start/stop/restart commands admitted by the bootstrap receipt.
+product receipts. Root is never the product executor. The only privileged calls are
+the exact systemd start/stop/restart commands admitted by the bootstrap receipt.
 
 The semantic and PostgreSQL operations remain in the existing cluster/Unicode/Highway
 controllers; this module supplies the runner-owned physical providers they already
@@ -17,7 +17,7 @@ import argparse
 import importlib.util
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import pwd
 import subprocess
 import sys
@@ -139,7 +139,7 @@ def validate_package_installation(
         or result.get("installed_package_verified") is not True
         or result.get("overwrite_performed") is not False
         or result.get("installation_receipt_sha256")
-        != clusterctl.state_observation_identity(result)
+        != document_identity(result, "installation_receipt_sha256")
     ):
         raise RunnerActivationError("package installation receipt is incomplete")
 
@@ -154,7 +154,7 @@ def validate_cluster_result(result: dict[str, Any], package_id: str) -> Path:
         or result.get("active_target") != f"releases/{package_id}"
         or result.get("runtime_target") != f"../releases/{package_id}"
         or result.get("activation_receipt_sha256")
-        != clusterctl.state_observation_identity(result)
+        != document_identity(result, "activation_receipt_sha256")
     ):
         raise RunnerActivationError("cluster activation receipt is incomplete")
     plan = Path(result.get("cluster_plan_path", ""))
