@@ -430,7 +430,8 @@ class ProductActivationGatewayTests(unittest.TestCase):
         self.assertGreaterEqual(
             workflow.count("postgresql_package_publication.py verify"), 1
         )
-        self.assertIn("tools/postgresql/clusterctl.py observe-resources", workflow)
+        self.assertIn("tools/postgresql/resourcectl.py observe-resources", workflow)
+        self.assertNotIn("tools/postgresql/clusterctl.py observe-resources", workflow)
         self.assertIn("--product-receipt '${{ needs.compose-product.outputs.product_receipt }}'", workflow)
         self.assertIn("--resource-observation '${{ needs.compose-product.outputs.resource_observation }}'", workflow)
         self.assertIn("tools/delivery/product_activation_runner.py", workflow)
