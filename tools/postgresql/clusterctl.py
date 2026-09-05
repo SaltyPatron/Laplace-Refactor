@@ -107,6 +107,17 @@ def validate_contract(document: dict[str, Any]) -> None:
         raise _core.ClusterError("product socket directory must be runner-owned runtime state")
 
 
+def observe_resources(
+    contract_path: Path,
+    package_path: Path,
+    package_physical_root: Path,
+) -> dict[str, Any]:
+    return _core.observe_resources(
+        contract_path, package_path, package_physical_root,
+        contract_validator=validate_contract,
+    )
+
+
 def _rendered_entry(plan: dict[str, Any], path: str) -> dict[str, Any]:
     for entry in plan.get("files", []):
         if isinstance(entry, dict) and entry.get("path") == path:
@@ -1273,7 +1284,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = observe_loaded_live(plan, contract, Path("/"))
         write_json(resolve(args.output), result)
         return 0
-    return _core.main(sys.argv[1:] if argv is None else list(argv))
+    return _core.main(
+        sys.argv[1:] if argv is None else list(argv),
+        lifecycle=sys.modules[__name__],
+    )
 
 
 if __name__ == "__main__":
