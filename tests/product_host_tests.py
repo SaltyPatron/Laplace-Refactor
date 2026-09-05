@@ -247,26 +247,50 @@ class ProductHostTests(unittest.TestCase):
         self.assertIn("state/product-publication-selection.json", source)
         self.assertNotIn("/opt/laplace/receipts/postgresql/", source)
 
-    def test_setup_host_is_prerequisites_only_then_hands_control_to_cicd(self) -> None:
+    def test_setup_host_installs_only_static_envelope_then_hands_control_to_cicd(self) -> None:
         entrypoint = REPOSITORY / "scripts/setup-host.sh"
+        unit = REPOSITORY / "packaging/systemd/laplace-refactor-postgresql.service"
         self.assertTrue(entrypoint.is_file())
+        self.assertTrue(unit.is_file())
         source = entrypoint.read_text(encoding="utf-8")
+        service = unit.read_text(encoding="utf-8")
 
-        # Positive bootstrap boundary: establish identity, parent roots and exact
-        # narrow service-control capability, then stop before product deployment.
+        # One-time host envelope: identity, parent roots, static unit, enablement, and
+        # exact service-control sudo. It must stop before any product semantics.
         self.assertIn("laplace-runner", source)
         self.assertIn("resolve_command", source)
+        self.assertIn('SERVICE_SOURCE="$REPOSITORY/packaging/systemd/$SERVICE"', source)
+        self.assertIn('SERVICE_TARGET="/etc/systemd/system/$SERVICE"', source)
+        self.assertIn('"$SYSTEMCTL_BIN" daemon-reload', source)
+        self.assertIn('"$SYSTEMCTL_BIN" enable "$SERVICE"', source)
+        self.assertIn('"$SYSTEMCTL_BIN" is-enabled --quiet "$SERVICE"', source)
+        self.assertIn('"started_by_bootstrap": false', source)
+        self.assertIn("/opt/laplace/runtime", source)
         self.assertIn("/pgtemp", source)
         self.assertIn("/etc/sudoers.d/laplace-refactor-postgresql-service", source)
-        self.assertIn("$SYSTEMCTL_BIN start $SERVICE", source)
-        self.assertIn("$SYSTEMCTL_BIN stop $SERVICE", source)
-        self.assertIn("$SYSTEMCTL_BIN restart $SERVICE", source)
+        for action in ("start", "stop", "restart"):
+            self.assertIn(
+                f"$RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN {action} $SERVICE",
+                source,
+            )
         self.assertIn('"product_activated": false', source)
         self.assertIn('"postgresql_initialized": false', source)
         self.assertIn('"activation_gateway_installed": false', source)
         self.assertNotIn("runuser", source)
 
-        # Bootstrap must never become deployment/product execution again.
+        self.assertIn("User=laplace-runner", service)
+        self.assertIn("Group=laplace-runner", service)
+        self.assertIn(
+            "ExecStart=/opt/laplace/runtime/refactor/pgsql-18/bin/postgres",
+            service,
+        )
+        self.assertNotIn("ExecStart=/opt/laplace/current/", service)
+        self.assertNotIn("/opt/laplace/releases/", service)
+        self.assertNotIn("AllowedCPUs=", service)
+        self.assertNotIn("MemoryHigh=", service)
+        self.assertNotIn("MemoryMax=", service)
+
+        # Bootstrap must never become package/database/semantic execution again.
         for forbidden in (
             "product_host.py",
             "--generate-key",
@@ -278,8 +302,7 @@ class ProductHostTests(unittest.TestCase):
             "unicodectl.py",
             "highwayctl.py",
             "--accepted-state",
-            "packaging/systemd/$SERVICE",
-            "systemctl daemon-reload",
+            " initdb",
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
