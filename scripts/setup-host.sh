@@ -4,9 +4,10 @@
 # Human/operator boundary:
 #   sudo bash scripts/setup-host.sh
 #
-# This script does NOT build, package, install, initialize, migrate, seed, start,
-# or activate Laplace/PostgreSQL. It establishes the host prerequisites that CI and
-# laplace-runner need, then exits.
+# This script does NOT build or select a Laplace package, initialize/migrate/seed a
+# database, start PostgreSQL, activate Unicode/Highway, or execute product semantics.
+# It establishes the fixed host envelope and then exits. Recurring product delivery
+# belongs to CI as laplace-runner.
 
 set -euo pipefail
 
@@ -17,44 +18,59 @@ RUNNER_GROUP="laplace-runner"
 RUNNER_HOME="/var/lib/agents/laplace-runner"
 RUNNER_SHELL="/usr/sbin/nologin"
 SERVICE="laplace-refactor-postgresql.service"
+SERVICE_SOURCE="$REPOSITORY/packaging/systemd/$SERVICE"
+SERVICE_TARGET="/etc/systemd/system/$SERVICE"
 SUDOERS_TARGET="/etc/sudoers.d/laplace-refactor-postgresql-service"
 BOOTSTRAP_RECEIPT="/opt/laplace/receipts/bootstrap/host.json"
 
-if [[ "${EUID}" -ne 0 ]]; then
-    if ! command -v sudo >/dev/null 2>&1; then
-        echo "setup-host requires root and sudo is unavailable" >&2
+resolve_command() {
+    local name="$1"
+    local resolved
+    resolved="$(command -v "$name" 2>/dev/null || true)"
+    if [[ -z "$resolved" || ! -x "$resolved" ]]; then
+        echo "missing host prerequisite command: $name" >&2
         exit 1
     fi
-    exec sudo /usr/bin/bash "$0" "$@"
+    printf '%s\n' "$resolved"
+}
+
+if [[ "${EUID}" -ne 0 ]]; then
+    SUDO_BIN="$(resolve_command sudo)"
+    BASH_BIN="$(resolve_command bash)"
+    exec "$SUDO_BIN" "$BASH_BIN" "$0" "$@"
 fi
 
-for required in \
-    /usr/bin/getent \
-    /usr/bin/id \
-    /usr/bin/install \
-    /usr/bin/python3 \
-    /usr/bin/runuser \
-    /usr/bin/sha256sum \
-    /usr/bin/sudo \
-    /usr/sbin/groupadd \
-    /usr/sbin/useradd \
-    /usr/sbin/visudo; do
-    if [[ ! -x "$required" ]]; then
-        echo "missing host prerequisite: $required" >&2
-        exit 1
-    fi
-done
+GETENT_BIN="$(resolve_command getent)"
+ID_BIN="$(resolve_command id)"
+INSTALL_BIN="$(resolve_command install)"
+PYTHON_BIN="$(resolve_command python3)"
+SHA256SUM_BIN="$(resolve_command sha256sum)"
+SUDO_BIN="$(resolve_command sudo)"
+SYSTEMCTL_BIN="$(resolve_command systemctl)"
+GROUPADD_BIN="$(resolve_command groupadd)"
+USERADD_BIN="$(resolve_command useradd)"
+VISUDO_BIN="$(resolve_command visudo)"
+CHMOD_BIN="$(resolve_command chmod)"
+CHOWN_BIN="$(resolve_command chown)"
+MKTEMP_BIN="$(resolve_command mktemp)"
+AWK_BIN="$(resolve_command awk)"
+RM_BIN="$(resolve_command rm)"
 
 cd "$REPOSITORY"
+
+if [[ ! -f "$SERVICE_SOURCE" || -L "$SERVICE_SOURCE" ]]; then
+    echo "static PostgreSQL service definition is absent or unsafe: $SERVICE_SOURCE" >&2
+    exit 1
+fi
 
 # Establish the service/runner identity only when absent. An already-running GitHub
 # runner account is not rewritten merely because its login metadata differs from a
 # fresh-install preference.
-if ! /usr/bin/getent group "$RUNNER_GROUP" >/dev/null; then
-    /usr/sbin/groupadd --system "$RUNNER_GROUP"
+if ! "$GETENT_BIN" group "$RUNNER_GROUP" >/dev/null; then
+    "$GROUPADD_BIN" --system "$RUNNER_GROUP"
 fi
-if ! /usr/bin/id "$RUNNER_USER" >/dev/null 2>&1; then
-    /usr/sbin/useradd \
+if ! "$ID_BIN" "$RUNNER_USER" >/dev/null 2>&1; then
+    "$USERADD_BIN" \
         --system \
         --gid "$RUNNER_GROUP" \
         --home-dir "$RUNNER_HOME" \
@@ -63,7 +79,7 @@ if ! /usr/bin/id "$RUNNER_USER" >/dev/null 2>&1; then
         "$RUNNER_USER"
 fi
 
-/usr/bin/python3 - "$RUNNER_USER" "$RUNNER_GROUP" <<'PY'
+"$PYTHON_BIN" - "$RUNNER_USER" "$RUNNER_GROUP" <<'PY'
 import grp
 import pwd
 import sys
@@ -85,6 +101,7 @@ for path in \
     /build/laplace/runner \
     /opt/laplace \
     /opt/laplace/releases \
+    /opt/laplace/runtime \
     /opt/laplace/pgdata \
     /opt/laplace/pgdata/refactor \
     /opt/laplace/receipts \
@@ -95,22 +112,24 @@ for path in \
     /var/lib/pgwal \
     /var/log/laplace \
     /var/log/laplace/postgresql; do
-    /usr/bin/install -d -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0750 "$path"
+    "$INSTALL_BIN" -d -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0750 "$path"
 done
 
 # Product prefix is service-owned but traversable. CI can atomically manage
-# /opt/laplace/current and content-addressed releases without recurring sudo.
-chmod 0755 /opt/laplace
-chmod 0755 /opt/laplace/releases
+# /opt/laplace/current, /opt/laplace/runtime/refactor and content-addressed releases
+# without recurring sudo.
+"$CHMOD_BIN" 0755 /opt/laplace
+"$CHMOD_BIN" 0755 /opt/laplace/releases
 
-# Host-owned parent only. CI/product lifecycle owns the refactor instance config leaf.
-/usr/bin/install -d -o root -g root -m 0755 /etc/laplace
-/usr/bin/install -d -o root -g root -m 0755 /etc/laplace/instances
+# The host owns the /etc namespace; laplace-runner owns the product's instance
+# configuration content through this bounded group-writable parent.
+"$INSTALL_BIN" -d -o root -g root -m 0755 /etc/laplace
+"$INSTALL_BIN" -d -o root -g "$RUNNER_GROUP" -m 2770 /etc/laplace/instances
 
 # Older bootstrap generations created candidate leaves before activation. Remove only
 # exact EMPTY leaves. Never remove a symlink, file, nonempty PGDATA/WAL/config/log/
 # perfcache/receipt directory, or any other product state.
-/usr/bin/python3 - "$REPOSITORY/contracts/postgresql-cluster.json" <<'PY'
+"$PYTHON_BIN" - "$REPOSITORY/contracts/postgresql-cluster.json" <<'PY'
 import json
 from pathlib import Path
 import sys
@@ -143,29 +162,38 @@ for name in (
         print(f"preserved existing nonempty candidate state: {path}")
 PY
 
-# Narrow recurring privilege only. The unit itself and product lifecycle are not
-# installed or executed here. This policy cannot invoke a shell, package installer,
-# database controller, Unicode/Highway operation, or whole-product gateway as root.
+# Install one static OS service envelope. It runs as laplace-runner and points only at
+# the runner-owned /opt/laplace/runtime/refactor link. No package generation, database
+# operation, or semantic action is encoded in this bootstrap step.
+"$INSTALL_BIN" -o root -g root -m 0644 "$SERVICE_SOURCE" "$SERVICE_TARGET"
+"$SYSTEMCTL_BIN" daemon-reload
+"$SYSTEMCTL_BIN" enable "$SERVICE" >/dev/null
+"$SYSTEMCTL_BIN" is-enabled --quiet "$SERVICE"
+
+# Narrow recurring privilege only. This policy cannot invoke a shell, package
+# installer, database controller, Unicode/Highway operation, or whole-product gateway
+# as root.
 cat > "$SUDOERS_TARGET" <<EOF
-$RUNNER_USER ALL=(root) NOPASSWD: /usr/bin/systemctl start $SERVICE
-$RUNNER_USER ALL=(root) NOPASSWD: /usr/bin/systemctl stop $SERVICE
-$RUNNER_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart $SERVICE
+$RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN start $SERVICE
+$RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN stop $SERVICE
+$RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN restart $SERVICE
 EOF
-chmod 0440 "$SUDOERS_TARGET"
-chown root:root "$SUDOERS_TARGET"
-/usr/sbin/visudo -cf "$SUDOERS_TARGET" >/dev/null
+"$CHMOD_BIN" 0440 "$SUDOERS_TARGET"
+"$CHOWN_BIN" root:root "$SUDOERS_TARGET"
+"$VISUDO_BIN" -cf "$SUDOERS_TARGET" >/dev/null
 
 for action in start stop restart; do
-    /usr/bin/runuser --user "$RUNNER_USER" -- \
-        /usr/bin/sudo -n -l /usr/bin/systemctl "$action" "$SERVICE" >/dev/null
+    "$SUDO_BIN" -u "$RUNNER_USER" -- \
+        "$SUDO_BIN" -n -l "$SYSTEMCTL_BIN" "$action" "$SERVICE" >/dev/null
 done
 
-# Durable bootstrap receipt: prerequisites only, explicitly not product state.
-TMP_RECEIPT="$(mktemp)"
-trap 'rm -f "$TMP_RECEIPT"' EXIT
-SUDOERS_SHA="$(sha256sum "$SUDOERS_TARGET" | awk '{print $1}')"
-RUNNER_UID="$(id -u "$RUNNER_USER")"
-RUNNER_GID="$(id -g "$RUNNER_USER")"
+# Durable bootstrap receipt: host envelope only, explicitly not product state.
+TMP_RECEIPT="$("$MKTEMP_BIN")"
+trap '"$RM_BIN" -f "$TMP_RECEIPT"' EXIT
+SUDOERS_SHA="$("$SHA256SUM_BIN" "$SUDOERS_TARGET" | "$AWK_BIN" '{print $1}')"
+SERVICE_SHA="$("$SHA256SUM_BIN" "$SERVICE_TARGET" | "$AWK_BIN" '{print $1}')"
+RUNNER_UID="$("$ID_BIN" -u "$RUNNER_USER")"
+RUNNER_GID="$("$ID_BIN" -g "$RUNNER_USER")"
 cat > "$TMP_RECEIPT" <<EOF
 {
   "schema": "laplace.host-bootstrap/v1",
@@ -176,10 +204,17 @@ cat > "$TMP_RECEIPT" <<EOF
     "uid": $RUNNER_UID,
     "gid": $RUNNER_GID
   },
+  "service_envelope": {
+    "path": "$SERVICE_TARGET",
+    "sha256": "$SERVICE_SHA",
+    "enabled": true,
+    "started_by_bootstrap": false
+  },
   "sudo_policy": {
     "path": "$SUDOERS_TARGET",
     "sha256": "$SUDOERS_SHA",
     "service": "$SERVICE",
+    "systemctl": "$SYSTEMCTL_BIN",
     "allowed_actions": ["start", "stop", "restart"]
   },
   "product_activated": false,
@@ -187,17 +222,18 @@ cat > "$TMP_RECEIPT" <<EOF
   "activation_gateway_installed": false
 }
 EOF
-/usr/bin/python3 -m json.tool "$TMP_RECEIPT" >/dev/null
-/usr/bin/install -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0640 \
+"$PYTHON_BIN" -m json.tool "$TMP_RECEIPT" >/dev/null
+"$INSTALL_BIN" -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0640 \
     "$TMP_RECEIPT" "$BOOTSTRAP_RECEIPT"
 
 cat <<EOF
 Laplace host prerequisites are ready.
 
-setup-host stopped here by design. It did not build, install, initialize, start,
-seed, or activate the product. Recurring product delivery now belongs to CI as
-$RUNNER_USER.
+setup-host stopped here by design. It installed/enabled the static OS service envelope
+but did not select a package, initialize/start PostgreSQL, seed data, or activate
+Unicode/Highway. Recurring product delivery belongs to CI as $RUNNER_USER.
 
 Bootstrap receipt: $BOOTSTRAP_RECEIPT
-Sudo capability:   systemctl start|stop|restart $SERVICE only
+Service envelope:  $SERVICE_TARGET (enabled, not started)
+Sudo capability:   $SYSTEMCTL_BIN start|stop|restart $SERVICE only
 EOF
