@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "laplace/composition.h"
+#include "laplace/execution.h"
 
 namespace laplace::composition::detail {
 
@@ -35,6 +36,25 @@ struct FrontierPlan final {
             ? 0U
             : static_cast<std::uint64_t>(frontier_offsets.size() - 1U);
     }
+};
+
+/*
+ * Exact cheap physical preflight over an already-declared semantic request DAG.
+ * This deliberately does not calculate identities, geometry, trajectories,
+ * presence, or persistence.  It asks the common execution planner how each
+ * ready frontier would be chunked under the admitted conserved resource grant.
+ *
+ * The dependency plan remains a separate field so a change in CPU/memory/I/O
+ * grant can change only physical work plans, never canonical dependencies.
+ */
+struct FrontierExecutionPlan final {
+    FrontierPlan dependency_plan;
+    std::vector<laplace_execution_work_plan> work_plans;
+    std::uint64_t total_planned_items{};
+    std::uint64_t total_chunk_count{};
+    std::uint64_t maximum_frontier_peak_memory_bytes{};
+    std::uint32_t worker_grant{};
+    std::uint32_t maximum_outer_workers{};
 };
 
 [[nodiscard]] inline laplace_composition_status BuildFrontierPlan(
@@ -158,6 +178,91 @@ struct FrontierPlan final {
         return LAPLACE_COMPOSITION_OK;
     } catch (const std::bad_alloc&) {
         output = FrontierPlan{};
+        return LAPLACE_COMPOSITION_MEMORY_FAILURE;
+    }
+}
+
+[[nodiscard]] inline laplace_composition_status BuildFrontierExecutionPlan(
+    const laplace_composition_working_set_input& input,
+    FrontierExecutionPlan& output) noexcept {
+    output = FrontierExecutionPlan{};
+    if (input.context == nullptr) {
+        return LAPLACE_COMPOSITION_CONTEXT_INVALID;
+    }
+
+    const laplace_composition_status dependency_status =
+        BuildFrontierPlan(input, output.dependency_plan);
+    if (dependency_status != LAPLACE_COMPOSITION_OK) {
+        output = FrontierExecutionPlan{};
+        return dependency_status;
+    }
+
+    output.worker_grant = input.context->resource_grant.cpu_slots;
+    if (input.request_count == 0U) {
+        return LAPLACE_COMPOSITION_OK;
+    }
+
+    try {
+        const std::uint64_t frontier_count =
+            output.dependency_plan.frontier_count();
+        output.work_plans.reserve(static_cast<std::size_t>(frontier_count));
+        for (std::uint64_t frontier = 0U;
+             frontier < frontier_count; ++frontier) {
+            const std::size_t offset = static_cast<std::size_t>(frontier);
+            const std::uint64_t width =
+                output.dependency_plan.frontier_offsets[offset + 1U] -
+                output.dependency_plan.frontier_offsets[offset];
+            if (width == 0U) {
+                output = FrontierExecutionPlan{};
+                return LAPLACE_COMPOSITION_REFERENCE_INVALID;
+            }
+
+            laplace_execution_work_request request{};
+            request.item_count = width;
+            request.minimum_chunk_items = 1U;
+            request.outer_worker_limit = input.context->resource_grant.cpu_slots;
+            request.inner_threads_per_worker = 1U;
+            laplace_execution_work_plan plan{};
+            const laplace_execution_status execution_status =
+                laplace_execution_plan_work(
+                    &input.context->resource_grant, &request, &plan);
+            if (execution_status != LAPLACE_EXECUTION_OK) {
+                output = FrontierExecutionPlan{};
+                if (execution_status == LAPLACE_EXECUTION_RESOURCE_INSUFFICIENT ||
+                    execution_status == LAPLACE_EXECUTION_CAPACITY_INSUFFICIENT) {
+                    return LAPLACE_COMPOSITION_RESOURCE_INSUFFICIENT;
+                }
+                if (execution_status == LAPLACE_EXECUTION_OVERFLOW) {
+                    return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
+                }
+                if (execution_status == LAPLACE_EXECUTION_INVALID_ARGUMENT) {
+                    return LAPLACE_COMPOSITION_CONTEXT_INVALID;
+                }
+                return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
+            }
+
+            if (plan.chunk_count >
+                    std::numeric_limits<std::uint64_t>::max() -
+                        output.total_chunk_count ||
+                width >
+                    std::numeric_limits<std::uint64_t>::max() -
+                        output.total_planned_items) {
+                output = FrontierExecutionPlan{};
+                return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
+            }
+            output.total_chunk_count += plan.chunk_count;
+            output.total_planned_items += width;
+            output.maximum_frontier_peak_memory_bytes = std::max(
+                output.maximum_frontier_peak_memory_bytes,
+                plan.peak_memory_bytes);
+            output.maximum_outer_workers = std::max(
+                output.maximum_outer_workers,
+                plan.outer_workers);
+            output.work_plans.push_back(plan);
+        }
+        return LAPLACE_COMPOSITION_OK;
+    } catch (const std::bad_alloc&) {
+        output = FrontierExecutionPlan{};
         return LAPLACE_COMPOSITION_MEMORY_FAILURE;
     }
 }
