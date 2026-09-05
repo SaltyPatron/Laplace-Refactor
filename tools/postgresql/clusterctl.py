@@ -136,6 +136,9 @@ def _project_plan_for_core_validation(
         _core.render_ident(projected_contract),
         0o640,
     )
+    projected["contract_sha256"] = _core.sha256_bytes(
+        _core.canonical_bytes(projected_contract)
+    )
     projected.pop("plan_sha256", None)
     projected["plan_sha256"] = _core.sha256_bytes(_core.canonical_bytes(projected))
     return projected, projected_contract
