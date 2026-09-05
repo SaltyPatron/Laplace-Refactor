@@ -1,6 +1,12 @@
 name: product-path
 
 on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: Base commit for explicit physical acceptance
+        required: true
+        type: string
   pull_request:
   push:
     branches:
@@ -37,8 +43,9 @@ jobs:
         id: classify
         shell: bash
         env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.base_sha || github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          PROOF_PROFILE: ${{ github.event_name == 'workflow_dispatch' && 'physical' || 'merge' }}
         run: |
           set -euo pipefail
           test -n "$BASE_SHA"
@@ -51,6 +58,7 @@ jobs:
           test -s "$changed"
           python3 tools/delivery/product_path.py classify \
             --contract contracts/product-path.json \
+            --proof-profile "$PROOF_PROFILE" \
             --git-name-status-z "$changed" \
             --output "$result"
           cat "$result"

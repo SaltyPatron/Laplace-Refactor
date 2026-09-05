@@ -35,7 +35,7 @@
       "owner": "root",
       "group": "root",
       "mode": "0755",
-      "purpose": "typed PostgreSQL instance selections and generated configuration"
+      "purpose": "parent for cluster-activation-owned PostgreSQL instance configuration"
     },
     {
       "path": "/opt/laplace/deployment",
@@ -49,28 +49,14 @@
       "owner": "laplace-runner",
       "group": "laplace-runner",
       "mode": "0750",
-      "purpose": "persistent PostgreSQL state root owned by the product service identity"
+      "purpose": "persistent PostgreSQL state parent owned by the product service identity"
     },
     {
       "path": "/opt/laplace/pgdata/refactor",
       "owner": "laplace-runner",
       "group": "laplace-runner",
       "mode": "0750",
-      "purpose": "persistent refactor PostgreSQL instance state root"
-    },
-    {
-      "path": "/opt/laplace/pgdata/refactor/data",
-      "owner": "laplace-runner",
-      "group": "laplace-runner",
-      "mode": "0700",
-      "purpose": "persistent refactor PostgreSQL data directory preserved across product replay"
-    },
-    {
-      "path": "/opt/laplace/pgdata/refactor/perfcache",
-      "owner": "laplace-runner",
-      "group": "laplace-runner",
-      "mode": "0750",
-      "purpose": "durable refactor PostgreSQL perfcache state"
+      "purpose": "parent for cluster-activation-owned refactor data and perfcache directories"
     },
     {
       "path": "/opt/laplace/receipts",
@@ -84,14 +70,14 @@
       "owner": "laplace-runner",
       "group": "laplace-runner",
       "mode": "0750",
-      "purpose": "persistent PostgreSQL receipt root"
+      "purpose": "persistent PostgreSQL receipt parent"
     },
     {
       "path": "/opt/laplace/receipts/postgresql/refactor",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "0750",
-      "purpose": "persistent refactor PostgreSQL activation and verification receipts"
+      "mode": "2750",
+      "purpose": "setgid persistent refactor activation evidence Unicode Highway service and cold-boot receipts so privileged compatibility paths remain readable by laplace-runner"
     },
     {
       "path": "/opt/laplace/releases",
@@ -108,13 +94,6 @@
       "purpose": "immutable verified standards and configured source package inputs"
     },
     {
-      "path": "/pgtemp/refactor",
-      "owner": "laplace-runner",
-      "group": "laplace-runner",
-      "mode": "0700",
-      "purpose": "refactor PostgreSQL temporary-state directory"
-    },
-    {
       "path": "/var/lib/agents/laplace-runner",
       "owner": "laplace-runner",
       "group": "laplace-runner",
@@ -126,14 +105,7 @@
       "owner": "laplace-runner",
       "group": "laplace-runner",
       "mode": "0700",
-      "purpose": "persistent PostgreSQL WAL root owned by the product service identity"
-    },
-    {
-      "path": "/var/lib/pgwal/refactor",
-      "owner": "laplace-runner",
-      "group": "laplace-runner",
-      "mode": "0700",
-      "purpose": "persistent refactor PostgreSQL WAL directory"
+      "purpose": "parent for cluster-activation-owned PostgreSQL WAL directories"
     },
     {
       "path": "/var/log/laplace",
@@ -147,14 +119,7 @@
       "owner": "laplace-runner",
       "group": "laplace-runner",
       "mode": "0750",
-      "purpose": "persistent PostgreSQL log root"
-    },
-    {
-      "path": "/var/log/laplace/postgresql/refactor",
-      "owner": "laplace-runner",
-      "group": "laplace-runner",
-      "mode": "0750",
-      "purpose": "persistent refactor PostgreSQL logs"
+      "purpose": "parent for cluster-activation-owned PostgreSQL instance logs"
     }
   ],
   "modules": {
@@ -171,10 +136,10 @@
     "default_instance_request": "contracts/instances/refactor.json"
   },
   "lifecycle": {
-    "install": "converge host identity and directories install immutable gateway then execute one signed whole-product request",
-    "initial_run": "the install request activates package cluster Unicode and Highway and returns their durable receipt identities",
-    "repair": "converge host identity directories and gateway then exact-replay the signed product request without replacing database state",
-    "verify": "perform read-only identity directory gateway and optional product-result verification",
+    "install": "converge host identity and bounded parent roots, then hand recurring product delivery to the protected CI path",
+    "initial_run": "cluster activation creates and owns instance leaf state, then activates package cluster Unicode and Highway and returns durable receipt identities",
+    "repair": "reconverge bounded host prerequisites and replay product state without replacing durable database state",
+    "verify": "perform read-only identity parent-root and optional product-result verification",
     "instance_state_owner": "cluster activation module",
     "manual_hotfixes": false
   }

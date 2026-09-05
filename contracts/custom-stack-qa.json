@@ -77,8 +77,8 @@
     {
       "id": "unicode-access-epoch",
       "patterns": [
-        "postgres/extension/src/perfcache_pg.c",
-        "postgres/extension/src/unicode_access_pg.c",
+        "integrations/postgresql/extension/src/perfcache_pg.c",
+        "integrations/postgresql/extension/src/unicode_access_pg.c",
         "tests/postgres/unicode_access_epoch_mutation.sql",
         "tests/expect_postgres_unicode_access_mutation_failure.cmake"
       ],
@@ -91,7 +91,7 @@
         "cmake/LaplaceCompositionContract.cmake",
         "engine/include/laplace/composition.h",
         "engine/src/composition.cpp",
-        "postgres/extension/src/composition_pg.c",
+        "integrations/postgresql/extension/src/composition_pg.c",
         "tests/composition_tests.cpp",
         "tests/postgres/composition_*"
       ],
@@ -105,7 +105,7 @@
         "engine/include/laplace/unicode_*.h",
         "engine/src/unicode_*.c",
         "engine/src/unicode_*.cpp",
-        "postgres/extension/src/unicode_*.c",
+        "integrations/postgresql/extension/src/unicode_*.c",
         "tests/unicode_*.cpp",
         "tests/postgres/unicode_*",
         "tools/postgresql/unicodectl.py"
@@ -128,9 +128,9 @@
         "engine/src/source_profile.c",
         "engine/src/tabular_source.cpp",
         "engine/src/world_admission.c",
-        "postgres/extension/src/source_admission_pg.c",
-        "postgres/extension/src/source_profile_pg.c",
-        "postgres/extension/src/world_admission_pg.c",
+        "integrations/postgresql/extension/src/source_admission_pg.c",
+        "integrations/postgresql/extension/src/source_profile_pg.c",
+        "integrations/postgresql/extension/src/world_admission_pg.c",
         "tests/source_profile_tests.cpp",
         "tests/tabular_source_tests.cpp",
         "tests/world_admission_tests.cpp",

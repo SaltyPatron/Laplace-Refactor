@@ -48,26 +48,42 @@ class ProductHostTests(unittest.TestCase):
             "tools/postgresql/hostctl.py",
         )
 
-    def test_persistent_postgresql_roots_match_cluster_and_runner_ownership(self) -> None:
+    def test_host_convergence_leaves_candidate_state_for_activation_but_owns_receipts(self) -> None:
         cluster = host.load_json(REPOSITORY / self.contract["modules"]["cluster_contract"])
         instance = cluster["instance"]
         declared = {item["path"]: item for item in self.contract["directories"]}
-        persistent = {
+        cluster_owned = {
             instance["data_directory"],
             instance["wal_directory"],
             instance["temp_directory"],
             instance["perfcache_directory"],
+            instance["config_directory"],
             instance["log_directory"],
-            instance["receipt_directory"],
         }
-        for path in persistent:
+        for path in cluster_owned:
             with self.subTest(path=path):
-                self.assertIn(path, declared)
-                self.assertEqual(declared[path]["owner"], instance["os_user"])
-                self.assertEqual(declared[path]["group"], instance["os_group"])
-        self.assertEqual(declared[instance["data_directory"]]["mode"], "0700")
-        self.assertEqual(declared[instance["wal_directory"]]["mode"], "0700")
-        self.assertEqual(declared[instance["temp_directory"]]["mode"], "0700")
+                self.assertNotIn(path, declared)
+
+        # product_host owns only bounded parents in its legacy/customer path. The
+        # top-level /pgtemp prerequisite belongs to scripts/setup-host.sh and is not
+        # duplicated into this contract merely to satisfy the DEV/BAT host layout.
+        expected_parents = {
+            instance["data_directory"]: "/opt/laplace/pgdata/refactor",
+            instance["perfcache_directory"]: "/opt/laplace/pgdata/refactor",
+            instance["wal_directory"]: "/var/lib/pgwal",
+            instance["config_directory"]: "/etc/laplace/instances",
+            instance["log_directory"]: "/var/log/laplace/postgresql",
+        }
+        for leaf, parent in expected_parents.items():
+            with self.subTest(leaf=leaf, parent=parent):
+                self.assertIn(parent, declared)
+        self.assertNotIn("/pgtemp", declared)
+
+        self.assertIn(instance["receipt_directory"], declared)
+        receipt = declared[instance["receipt_directory"]]
+        self.assertEqual(receipt["owner"], "laplace-runner")
+        self.assertEqual(receipt["group"], "laplace-runner")
+        self.assertIn(receipt["mode"], {"0750", "2750"})
 
     def test_fixture_convergence_is_persistent_exact_and_repairable(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-product-host-") as temporary:
@@ -90,6 +106,27 @@ class ProductHostTests(unittest.TestCase):
                 self.assertEqual(
                     stat.S_IMODE(target.stat().st_mode), int(item["mode"], 8)
                 )
+
+            cluster = host.load_json(
+                REPOSITORY / self.contract["modules"]["cluster_contract"]
+            )
+            instance = cluster["instance"]
+            for path in (
+                instance["data_directory"],
+                instance["wal_directory"],
+                instance["temp_directory"],
+                instance["perfcache_directory"],
+                instance["config_directory"],
+                instance["log_directory"],
+            ):
+                target = root.joinpath(*Path(path).parts[1:])
+                self.assertFalse(
+                    target.exists() or target.is_symlink(),
+                    f"host bootstrap stole cluster-owned candidate state: {path}",
+                )
+            receipt_root = root.joinpath(*Path(instance["receipt_directory"]).parts[1:])
+            self.assertTrue(receipt_root.is_dir())
+            self.assertFalse(receipt_root.is_symlink())
 
     def test_fixture_repair_restores_mode_without_touching_contents(self) -> None:
         with tempfile.TemporaryDirectory(
@@ -209,6 +246,66 @@ class ProductHostTests(unittest.TestCase):
         self.assertIn("--accepted-state", source)
         self.assertIn("state/product-publication-selection.json", source)
         self.assertNotIn("/opt/laplace/receipts/postgresql/", source)
+
+    def test_setup_host_installs_only_static_envelope_then_hands_control_to_cicd(self) -> None:
+        entrypoint = REPOSITORY / "scripts/setup-host.sh"
+        unit = REPOSITORY / "packaging/systemd/laplace-refactor-postgresql.service"
+        self.assertTrue(entrypoint.is_file())
+        self.assertTrue(unit.is_file())
+        source = entrypoint.read_text(encoding="utf-8")
+        service = unit.read_text(encoding="utf-8")
+
+        # One-time host envelope: identity, parent roots, static unit, enablement, and
+        # exact service-control sudo. It must stop before any product semantics.
+        self.assertIn("laplace-runner", source)
+        self.assertIn("resolve_command", source)
+        self.assertIn('SERVICE_SOURCE="$REPOSITORY/packaging/systemd/$SERVICE"', source)
+        self.assertIn('SERVICE_TARGET="/etc/systemd/system/$SERVICE"', source)
+        self.assertIn('"$SYSTEMCTL_BIN" daemon-reload', source)
+        self.assertIn('"$SYSTEMCTL_BIN" enable "$SERVICE"', source)
+        self.assertIn('"$SYSTEMCTL_BIN" is-enabled --quiet "$SERVICE"', source)
+        self.assertIn('"started_by_bootstrap": false', source)
+        self.assertIn("/opt/laplace/runtime", source)
+        self.assertIn("/pgtemp", source)
+        self.assertIn("/etc/sudoers.d/laplace-refactor-postgresql-service", source)
+        for action in ("start", "stop", "restart"):
+            self.assertIn(
+                f"$RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN {action} $SERVICE",
+                source,
+            )
+        self.assertIn('"product_activated": false', source)
+        self.assertIn('"postgresql_initialized": false', source)
+        self.assertIn('"activation_gateway_installed": false', source)
+        self.assertNotIn("runuser", source)
+
+        self.assertIn("User=laplace-runner", service)
+        self.assertIn("Group=laplace-runner", service)
+        self.assertIn(
+            "ExecStart=/opt/laplace/runtime/refactor/pgsql-18/bin/postgres",
+            service,
+        )
+        self.assertNotIn("ExecStart=/opt/laplace/current/", service)
+        self.assertNotIn("/opt/laplace/releases/", service)
+        self.assertNotIn("AllowedCPUs=", service)
+        self.assertNotIn("MemoryHigh=", service)
+        self.assertNotIn("MemoryMax=", service)
+
+        # Bootstrap must never become package/database/semantic execution again.
+        for forbidden in (
+            "product_host.py",
+            "--generate-key",
+            "laplace-product-activate",
+            "execute-request",
+            "LAPLACE_ACTIVATION_HMAC_KEY_B64",
+            "build-package.py",
+            "clusterctl.py activate-product",
+            "unicodectl.py",
+            "highwayctl.py",
+            "--accepted-state",
+            " initdb",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
 
 
 if __name__ == "__main__":

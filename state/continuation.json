@@ -1,5 +1,19 @@
 {
   "schema": "laplace.continuation-checkpoint/v1",
+  "reconciliation_20260905": {
+    "authoritative_base_head": "5282a52079c9ecaa1ece6260a706c3fcb292c0bf",
+    "owning_issue_pr": 215,
+    "product_behavior_advanced": "Reconcile local progress and restore runner-owned delivery with hosted merge gates and explicitly selected physical acceptance",
+    "requirement_or_contract": "contracts/product-path.json; contracts/postgresql-cluster.json",
+    "exact_changes": "Published a5cfe746249d51a1c1b2fb78f92129bbec9bdfa2 at preserve/local-reconciliation-20260905; verified both original dirty worktrees against published snapshot digests; repaired controller/core provider calls and stale delivery checks",
+    "tests_or_acceptance_run": "Focused Python cluster, gateway, runner, authority, product-path and status suites; hosted CI remains required before merge",
+    "deliberate_defect_status_when_applicable": "Package, plan, peer-map digest, restart and merge-profile failure controls executed locally",
+    "remaining_open_or_failed_predicates": "PR merge and hosted CI; persistent product activation and successor readback remain unproved",
+    "blocker_when_blocked": null,
+    "immediate_next_action": "Complete PR 215 hosted checks and merge; verify resulting persistent deployment",
+    "prior_checkpoint_status": "The older repository, active_work and runtime observations below are historical and invalid as current branch or runtime selection",
+    "runtime_observation": "Bootstrap receipt proves static service installed and enabled; systemctl reports inactive/dead; bootstrap product_activated and postgresql_initialized are false"
+  },
   "classification": "observed-development-state-not-product-law",
   "observed_at_utc": "2026-08-31T06:05:30Z",
   "validity": {

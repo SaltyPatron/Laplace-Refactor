@@ -1,10 +1,15 @@
 # Laplace machine roadmap
 
-This document is the current execution projection of the stable product law and the
+This document is the **current execution projection** of the stable product law and the
 machine-readable capability graph in `contracts/operation-model.json`. It is not a
 substitute for implementation, acceptance, an installed product, seeded world state,
-or release. GitHub records work status; product requirements and executable contracts
-define meaning.
+or release. Stable meaning lives in the Constitution, Invention Model, architecture
+contracts, requirements, and owning issues. This roadmap reports the currently observed
+execution boundary and must move forward when that boundary moves.
+
+GitHub issues and executable receipts are the live work-status system. Historical
+failures remain evidence, but a prerequisite that has been repaired, merged, and
+verified does not remain a current blocker merely because an older run failed there.
 
 ## Reading the roadmap honestly
 
@@ -23,72 +28,129 @@ Laplace uses the following proof states. They are intentionally not synonyms.
 | Released | The exact accepted package, receipts, manual, and provenance were published. |
 
 An issue, document, schema, Gherkin scenario, green authority test, or populated roadmap
-does not advance a mechanism to an implementation proof state. One corpus, grammar,
-modality, model, platform, or product surface cannot certify the universal machine.
+does not advance a mechanism to an implementation proof state. Conversely, a proven
+implementation boundary must not continue to be described as absent because an older
+roadmap snapshot predates it.
 
-## Present boundary — 2026-09-01
+## Present boundary — 2026-09-04
+
+Observation boundary:
+
+```text
+main = 145a226be471c9a8c3b406e8fbb790e772a1d295
+       Fix setup-host command discovery on main
+
+product-path run      = 33929292743
+product-activation run = 33930237685
+```
+
+### Delivery progress that is already cleared
+
+The current delivery path has advanced materially beyond the prior bootstrap and
+integration-branch state:
+
+- the one-time DEV/BAT host bootstrap succeeds on the real host;
+- `/opt/laplace/receipts/bootstrap/host.json` exists;
+- recurring product delivery belongs to CI as `laplace-runner`;
+- the administrator boundary is narrowed to the declared systemd service-control
+  capability rather than whole-product root execution;
+- exact-main hosted requirements/authority proof passes;
+- exact-main native `linux-dev` passes;
+- exact-main native `linux-sanitize` passes;
+- exact-main selected custom-stack PostgreSQL-native proof passes;
+- aggregate `product-path` passes;
+- persistent DEV/BAT deployment dispatch is reached;
+- the persistent activation workflow passes `runner-authority` and `compose-product`.
+
+None of those are current roadblocks unless later evidence proves an actual regression.
+
+### Current failed delivery acceptance
+
+The persistent activation run currently stops in `activate-product` at:
+
+```text
+Verify protected deployment context and reconcile installed gateway generation
+```
+
+Actual persistent activation steps after that check were not reached in that run.
+Therefore the active delivery tail is now:
+
+```text
+reconcile installed gateway generation / privilege boundary
+-> activate persistent product as laplace-runner
+-> PostgreSQL initialize / repair / exact readback
+-> Unicode activation
+-> Highway activation
+-> durable product receipts
+-> service restart / later-host-boot readback
+-> repeat verification
+```
+
+The owning implementation path is PR #215 with #12/#120. This is the real current
+execution boundary; `setup-host`, PR #128, and the old disposable custom-stack failures
+are historical evidence, not prerequisites still waiting to happen.
+
+### Current repository-integrity state
+
+PR #128 is merged. The original 124-branch / five-open-PR / 13-live-tip audit is a
+historical baseline that motivated #183; it is not the current branch-estate count.
+The current open-PR observation at this boundary is:
+
+- #215 — persistent DEV/BAT delivery / service ownership;
+- #219 — task-scoped habits, safety, and audience-admissibility documentation.
+
+#183 still owns reconciliation of every **actually unique required behavior** to
+`main`, and #22 still requires zero unaccounted branch-only required behavior before
+release. That integrity work proceeds in parallel with dependency-unblocked product
+implementation. Archive/preserve refs and stale historical branch names are not, by
+themselves, runtime blockers.
+
+## Current capability snapshot
 
 | Capability | Current fact |
 | --- | --- |
-| Clean product authority and executable requirement topology | Merged on `main` by PR #55; later authority integration remains on PR #128 until merged |
-| Selected execution-framework slices | Partial and published |
-| Unicode root calculation and PostgreSQL/Tier-0 sibling activation | Integration proven |
-| Unicode root in the selected PostgreSQL 18.6 product cluster | Not product activated |
+| Clean product authority and executable requirement topology | On `main`; #117 post-merge authority/traceability integration verified and closed completed |
+| Finish-line program / anti-substitution governance | Implemented on `main`: contract, explanatory document, BDD and validator exist; #180 remains open for live branch-ledger/mutable-status reconciliation |
+| Host prerequisite/bootstrap boundary | **Completed on the real DEV/BAT host** for `main@145a226`; recurring delivery handed to `laplace-runner` |
+| Change-sensitive product-path execution | Exact-main hosted, both native lanes, selected custom-stack PostgreSQL-native proof, and aggregate product-path **passed**; #54 remains open for required-check authority/durable receipt tail |
+| Persistent PostgreSQL product activation | Current failed acceptance is installed gateway-generation reconciliation; persistent activation/readback/restart remain open under #12/#120/#215 |
+| Unicode root calculation and PostgreSQL/Tier-0 sibling activation | Integration proven; selected persistent product activation/readback still not complete |
 | Direct and reverse Unicode hot planes | Integration proven and measured under their declared boundary |
-| General whole-working-set composition and presence | Integration proven and merged by PR #73; product not activated |
-| Canonical decomposition identity / occurrence separation | Implemented on integration PR #128 with explicit-occurrence, witness-identity, Tier-0 reuse, terminal-UAX and resource-accounting deliberate defects; real CILI cardinality/resource acceptance remains open under #102 and the branch has not landed on `main` |
-| Sparse addressability and storage-compute economics | One representative composition deposition receipt exists; paired acceleration removal storage-class and bloat acceptance remain open under #72 |
-| Cross-domain whole-route cohesion | Unimplemented; tracked by #70 |
-| Typed machine exception registry and recovery planner | Partial on integration PR #128: generated native descriptors, exact descriptor validation, PostgreSQL projection and route-drift mutants exist; executable retry/reroute/replay, WHY_NOT and physical fault behavior remain incomplete under #56 |
-| Universal AST grammar registry and general recipe compiler | Unimplemented |
-| Whole-machine typed numerical highway | Partial: exact generated registry and scoped coordinates, ISA materialization, canonical Unicode-backed AST admission, shared presence/deposition, controlled numeric-epoch activation, epoch-pinned active readback, and protected product-controller/gateway composition implemented; protected product activation and whole-seed topology remain incomplete |
-| Exact non-Unicode source profiles | Partial: the real ISO 639-3 2026-04-15 release profile and generic tabular compiler are controlled-integration proven; no profile is world-admitted in the activated product |
-| Source-estate discovery, provider qualification, and reusable template inference | Required and operationally separated under #112/#115; integration PR #128 contains the exact-profile resolver and generic discovery-catalog slices, while physical catalog receipts, provider qualification, and template/correction execution remain incomplete |
-| Heterogeneous world admission and foundational knowledge seed | Partial mechanism: synthetic and ISO 639-3 whole routes are controlled-integration proven; no activated-product world admission or configured foundational seed exists |
-| Typed Glicko-2 matchup onboarding and trust return legs | Partial on integration PR #128: typed standing recipes/state/events/period receipts, corrected real-opponent Glicko-2, native/ISA/C#/PostgreSQL parity, authority/evidence-epoch admission, replay and dependence-root non-amplification are controlled-integration proven; stock recipe activation, testimony lowering, independent return legs, contradiction/consensus/referential epochs and product readback remain incomplete under #110 |
-| Unicode-native token tiers and witnessed language realization | Required contract and tagged acceptance are integrated on PR #128; tier selection, complete cognition, readiness, and realization engines remain incomplete |
-| Clean-seed indirect inference before production-user admission | Release-blocking requirement under #116; configured seed, public-route derivation/trust/realization, restart, replay, and deliberate defects are unimplemented |
-| Typed filtered indexed search, answerability, cognition, and realization | Stable architecture, machine-readable execution contract, authority loading and deliberate-defect gate are integrated on PR #128; the complete native/PostgreSQL mechanism remains unimplemented under #17/#60/#132/#18 |
-| General model decomposition and target compiler | Unimplemented; trajectory-search/model-compilation architecture is integrated on PR #128 but does not constitute the compiler |
-| Typed model-behavior admission and measured effective support | Unimplemented; tracked by #71 |
-| Entity worlds, personal webs, entitlement policy, and product surfaces | Unimplemented |
-| Federation, distributed placement, ARM, and Raspberry Pi product support | Unimplemented |
-| Accepted installed product, GitHub deployment, and release | None |
-
-The accepted composition boundary is merged by PR #73 and fingerprinted by
-`state/continuation.json`. Controlled Unicode integration must continue to be described
-as **when the product has Unicode**, not as activated product state. PR #128 is branch
-state until it lands on `main`; none of its partial implementations are release claims.
+| General whole-working-set composition and presence | Integration proven; product activation/world admission remain later states |
+| Canonical decomposition identity / occurrence separation | Substantial implementation is on `main`; #96 remains open for real-source boundary proof and #102 exact locked-CILI resource/cardinality/replay receipt |
+| Sparse addressability and storage-compute economics | Representative composition evidence exists; paired acceleration/removal/storage-class/bloat acceptance remains under #72 |
+| Cross-domain whole-route cohesion | Still open under #70; lower component success does not establish the universal machine |
+| Typed machine exception registry and recovery | Partial implementation is on `main`; descriptor registry/validation/PostgreSQL projection exist; executable retry/reroute/replay, WHY_NOT and physical fault behavior remain under #56 |
+| Universal AST grammar registry and general recipe compiler | Incomplete; owned by the common framework/recipe program rather than source-private decomposers |
+| Whole-machine typed numerical Highway | Partial; generated/scoped coordinates and activation/readback machinery exist, while persistent product activation and whole-seed topology remain incomplete |
+| Exact non-Unicode source profiles | Partial controlled proof exists for exact tabular/ISO-style profiles; activated-product world admission remains absent |
+| Source-estate discovery / provider qualification | Partial mechanism on `main`; exact configured source boundary is #195, provider/template tails are #112/#115 |
+| Heterogeneous world admission / foundational seed | Partial mechanism only; no activated-product configured foundational seed closure yet |
+| Typed Glicko-2 standing / onboarding | Partial implementation is on `main`: real-opponent calculation, immutable events/state/receipts and durable PostgreSQL path exist; stock recipe activation, testimony lowering, return legs and derived epochs remain under #110 |
+| Derived attestations / current-vs-as-of learned belief | Architectural/evidence owner #16 now explicitly treats derived state as usable learned belief with dependence and temporal applicability; executable completion remains with its consumers |
+| Unicode-native token tiers / witnessed language realization | Required contracts exist; complete discourse/cognition/readiness/realization path remains under #18/#17/#169/#218 |
+| Clean-seed indirect inference before production-user admission | Release-blocking requirement under #116; configured seed and installed public-route proof remain incomplete |
+| Typed filtered indexed search / answerability / cognition | Native guidance/operator/solver/search kernels are on `main`; real providers, PostgreSQL indexed path, guidance-loop integration, realization and public-route acceptance remain #17/#60/#132/#18 |
+| Gödel procedural learning / habits / muscle memory | Architecture/owners #19/#169 exist; complete executable discovery and activation remain open |
+| Software-development OODA | Clean executable owner #221; consumes admitted repo/build/tool state rather than a private coding intelligence |
+| Cross-repository defect-family generalization | Clean owner #222: `find one bug, fix 50,000`; consumes #221 + #168 + #19/#169 and must validate semantics/counterexamples |
+| Exact model source admission | #223 owns `/vault/models` artifact graphs/source profiles; exact checkpoint admission is separate from model behavior and target compilation |
+| General model behavior / AImaps / target compiler | Still incomplete under #20/#71/#129; source models are witnesses, not native cognition ontology |
+| Entity worlds, personal webs, entitlement policy, product surfaces | Unimplemented/incomplete under Phase 7 owners |
+| Federation, distributed placement, ARM/Raspberry Pi product support | Unimplemented/incomplete under placement/federation owners |
+| Accepted installed product / release | Not yet; #22 remains terminal acceptance |
 
 ### Historical operating evidence is not present product state
 
-At the read-only August 26, 2026 audit boundary, the deployed old iteration exposed
-52,649,911 entities and executed generic containment, ordered
-constituent recovery, and exact Japanese rendering. That same dated state returned no
-conversational reply for the reconstructed Japanese sentence and HTTP 500 for
-`e2e4`. The old iteration historically ingested chess games and played chess strongly;
-the observed chess failure is therefore a
-regression or broken deployment-state observation whose code, database, package, or
-dependency cause is unresolved.
+The deployed old iteration remains valuable behavioral evidence. Its historical data
+volumes, query demonstrations, chess behavior, model experiments and failure incidents
+may supply counterexamples and acceptance fixtures. They do not define clean-product
+implementation state or current blockers.
 
-This evidence establishes neither that old chess never worked nor the exact cause of
-the observed failure. It establishes that historical capability, current operability,
-whole-route reproducibility, and diagnosis are separate states. Issue #70 owns the
-clean, independently implemented cohesion proof; the archive is only a behavioral
-counterexample.
-
-A separately authorized read-only PostgreSQL census at `2026-08-26T21:59:13Z`
-measured 295,775,270,591 whole-database bytes, 109,191,495,680 selected user
-table/TOAST bytes, 186,482,507,776 user index bytes, and a 1.7078482771:1 allocated
-index/table ratio. Exact current counts across entities, physicalities, attestations,
-and consensus totaled 396,693,675 rows. The receipt and its limits are retained in
-`docs/audits/OLD_ITERATION_STORAGE_CENSUS_2026-08-26.md`.
-
-Those values prove neither clean-product efficiency nor a complete-world capacity.
-They do not establish unique relation pairs, live versus bloated bytes, index value,
-or old-layout authority. Issue #72 converts the underlying sparse-state and paid
-addressability thesis into paired representative workload, storage-class, bloat,
-removal, and semantic-parity acceptance.
+Likewise, a historical failed refactor run remains evidence of a defect that existed at
+that revision. Once the defect is corrected on a later authoritative revision and the
+same boundary is verified, the roadmap advances and the old run moves into the evidence
+history rather than continuing to block the program by prose.
 
 ## Machine traffic map
 
@@ -105,7 +167,7 @@ typed exceptions / traps / faults / recovery
 package activation + universal AST composition + PostgreSQL bulk presence/deposit
               |
               v
-product Unicode root + typed numerical highway
+product Unicode root + typed numerical Highway
               |
               v
 testimony / lineage + exact heterogeneous source profiles and world admission
@@ -139,158 +201,124 @@ compilation                entitlement/identity/surfaces
         complete-product acceptance + release
 ```
 
-This is an implementation dependency graph, not a runtime waterfall. Once active,
-Laplace repeatedly observes, calculates, persists, searches, realizes or effects, and
-observes consequences. Source families do not form a global order. Recipe dependency
-DAGs may interleave work across exact profiles and revisit the same profile through
-different structural, reference, evidence, and realization programs.
+This is a capability/dependency graph, not a global runtime waterfall. Once active,
+Laplace repeatedly observes, calculates, persists, searches, realizes/effects, and
+observes consequences. Source families do not form a global source waterfall; recipe
+DAGs may interleave exact work according to actual dependencies.
 
 ## Operational stages and owners
 
-| Stage | Primary outcome | Owners | Current proof state | Exit evidence |
-| --- | --- | --- | --- | --- |
-| `foundation.acquire-build` | Verified upstream, toolchain, package, and receipt foundation | #3, #8, #12, #54 | Partial | Repeatable clean acquisition/build/install and change-sensitive product-path gate |
-| `framework.execution` | One generated registry, context, batch spine, recipe compiler, providers, route bindings, and whole-route cohesion | #4, #5, #6, #10, #57, #58, #70 | Partial | Unrelated complete programs pass one lifecycle, provider-substitution, and private-route mutation suite |
-| `machine.handle-exceptions` | Generated exceptions, traps, faults, recovery, replay, and why-not | #56 | Partial on PR #128: native generated descriptor registry/validation plus PostgreSQL descriptor projection and route-drift mutants exist; recovery execution remains incomplete | Physical/program/authority/resource/semantic fault injection, retry/reroute/replay behavior, typed WHY_NOT and route parity |
-| `bootstrap.dependencies` | Framework-mediated package and runtime activation | #3, #12 | Partial | Exact package closure, loaded-object receipt, rollback and reactivation |
-| `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, and trajectory | #7, #13, #96 | Whole-working-set composition and exact provider parity integration-proven by merged PR #73; canonical decomposition/occurrence repairs are implemented on PR #128 but not yet main/real-CILI accepted | Complete generic grammar/recipe/testimony/reference closure plus #102 real-CILI unique-structure/resource receipt |
-| `substrate.bulk-deposit` | Whole-working-set presence, filtered production, transactional bulk persistence, and paid addressability | #15, #72 | Issue #15 mechanism integration-proven by merged PR #73 on PostgreSQL 18.3/18.4 | Complete-ingest performance gates and #72 paired acceleration/storage receipts |
-| `bootstrap.unicode-root` | Product-deposited and coherently activated Unicode atom floor | #13, #14 | Calculation, sibling deposition, public epoch-pinned access, and the complete restart/readback controller are integration-proven; not product activated | Successor package and PostgreSQL 18.6 cluster active with exact durable DB/cache/root receipt |
-| `substrate.highway` | Append-only typed coordinates for every machine namespace | #52 | Partial: generated registry, exact scoped coordinate operation, ISA 1.4 materialization, native/PostgreSQL/C# mirrors, canonical Unicode-backed AST admission, shared set-wise presence/deposition, controlled durable activation, restart replay, epoch-pinned active readback, and protected product-controller/gateway composition are implemented; product activation has not run | Activate the exact product package/cluster/Unicode/Highway chain, then implement whole-seed topology, append-only successor activation, and cross-language/cross-modality bubble-up/bubble-down proof |
-| `evidence.record-lineage` | Immutable occurrences, testimony, derivation, and dependence roots | #16 | Partial: typed lineage plus complete profile/recipe/trust/outcome/uncertainty testimony records execute through native, ISA, managed, PostgreSQL, and one real ISO source route; adjudication and cross-source dependence remain | Cross-source provenance, negative/unresolved real-source dispositions, standing, contradiction, referential and consensus epochs |
-| `world.discover-qualify-sources` | Deterministic discovery catalog and qualified Tree-sitter/codec/standards-provider receipts without source-authority promotion | #112 | Partial on integration PR #128: exact-profile resolver and generic discovery-catalog slices coexist with positive/mutant tests; full physical receipts, provider qualification, and main-branch acceptance remain incomplete | Relocation-invariant catalog plus bounded provider coverage/error/recovery/reconstruction receipts |
-| `world.infer-source-templates` | Reusable generic recipe/template proposals, source-specific academic deltas, explicit unresolved obligations, correction, and immutable accepted versions | #115 | Unimplemented | Cross-source reuse, correction carry-forward, reconstruction/loss, and auto-activation mutants |
-| `world.admit-witnesses` | Exact source profiles and heterogeneous AST world admission | #53, #59 | Partial: native stock-recipe catalog closure now covers recursive source/release/collection/object/region/construction hierarchy, one shared modality-agnostic semantic segmentation law, and recipe-owned perfcache declarations; generic tabular recipe plus synthetic and real ISO 639-3 source-to-PostgreSQL whole routes remain controlled-integration proven; product world admission is absent | Add stock-catalog ISA/C#/PostgreSQL lifecycle, manufacture exact recursive declarations for every configured source/object, implement unrelated grammars/modalities and cross-profile closure, then prove activated readback, performance, and seed receipt |
-| `evidence.adjudicate` | Immutable standing, typed matchup/onboarding, contradiction, and referential epochs | #16, #110 | Partial: content-identified authority-receipted standing recipes, corrected Glicko-2 over real priors, native/ISA/C#/PostgreSQL parity, immutable state/event/period receipts, durable authority-and-evidence-epoch admission enforcement, replay verification, and dependence-root non-amplification are controlled-integration proven; stock recipe manufacture/activation, testimony lowering, return legs, contradiction, consensus, referential epochs, and activated-product readback remain absent | Manufacture and activate the authority-selected per-source stock recipe catalog, lower admitted testimony without a private bypass, prove earned override and independent return legs, then publish contradiction/consensus/referential epochs with as-of replay |
-| `query.guidance-search` | Typed operators, finite guidance, filter-first indexed provider selection, bounded set-wise frontier generation, typed filtered indexed A-star/declared best-first search, answerability, and completion | #17, #60, #132 | Architecture/executable contract and mutation gate integrated on PR #128; complete mechanism remains unimplemented | Independent oracles, shortest-path certificates, typed incompleteness, native/PostgreSQL/SQL/C# route parity, representative index/plan/frontier/crossing/CPU/memory/I/O receipts, and RBAR/recursive/dynamic/scalar-fallback/giant-adjacency mutants |
-| `cognition.realize-effect` | Semantic-act selection, reversible realization, and authorized effects | #18 | Unimplemented | Goal completion, AST transformation, exact recomposition, effect and consequence receipts |
-| `learning.discovery-ooda` | Evidence learning, frayed-edge discovery, experiments, and calculus extension | #19 | Unimplemented | Disjoint evidence, counterexamples, OODA replay, non-self-corroboration |
-| `world.configure-foundational-seed` | Authority-selected configured seed closure across admitted profiles, references, dependence, evidence, and required publications | #53, #115 | Unimplemented | Exact selected manifest, cross-profile closure, denominators, active epoch, and why-not receipt |
-| `model.ingest-generate` | Model witnesses, behavior experiments, effective support, induced operators, AImaps, and named-invariant target compilation | #20, #61, #71 | Unimplemented; trajectory-search/model-compilation architecture is integrated on PR #128 | Typed behavior readback and target-runtime oracles reject arbitrary pruning, flattening, and shape-only exports |
-| `product.materialize-entity-world` | People/organizations as worlds; personal webs, entitlements, identity, and surfaces | #21, #62, #63, #64, #68 | Unimplemented | Audience/visibility/security and semantic parity across generated surfaces |
-| `runtime.federate-nodes` | Authenticated world exchange, placement, convergence, and one-machine portability | #21, #65, #66, #67 | Unimplemented | Partition/replay convergence, durability proof, x86/ARM semantic parity |
-| `delivery.activate-product` | Installed package, services, generated manual inputs, diagnostics, and activated product state | #21, #50, #69, #128 | Partial: package composition/revalidation, signed package selection, root installation, isolated cluster, Unicode/Highway activation workflow and durable service/cold-boot identity implementation exist across main + PR #128; protected product activation and cold-boot proof have not completed | Land #128, install the immutable root gateway trust anchor, execute protected activation, prove exact package/cluster/Unicode/Highway/service identity and a later host-boot readback, then prove Linux/Windows lifecycle |
-| `delivery.accept-seeded-inference` | Clean configured-seed indirect derivation, trust explanation, exact language realization, restart, replay, and deliberate-defect proof through the public product | #116 | Unimplemented | No direct target attestation or production-user state; arithmetic contradiction/modulo/missing-operator/corrupt-receipt controls pass |
-| `delivery.release-product` | Complete-product acceptance and exact release publication | #22 | Unimplemented | Every required state and complete-route receipt closes; exact package/manual/provenance are published |
+| Stage | Primary outcome | Owners | Current proof state / active tail |
+| --- | --- | --- | --- |
+| `foundation.acquire-build` | Verified upstream, toolchain, package, host prerequisites and receipt foundation | #3, #8, #12, #54 | Host prerequisites complete; exact-main build/product-path proof passes; persistent installation/readback remains |
+| `framework.execution` | One registry/context/batch/recipe/provider lifecycle and whole-route cohesion | #4, #5, #6, #10, #57, #58, #70 | Partial; common framework exists in slices, generic provider/recipe/cohesion closure remains |
+| `machine.handle-exceptions` | Generated exceptions, faults, recovery, replay, WHY_NOT | #56 | Partial on `main`; descriptors/projection proven, executable recovery/fault-injection tail remains |
+| `bootstrap.dependencies` | Framework-mediated package/runtime activation | #3, #12, #120 | Host bootstrap complete; persistent activation currently fails at installed gateway-generation reconciliation |
+| `substrate.compose-physicality` | Universal AST identity, Merkle composition, physicality, trajectory | #7, #13, #96 | Composition/decomposition repairs on `main`; real-source #102/#96 closure remains |
+| `substrate.bulk-deposit` | Whole-working-set presence and transactional persistence | #15, #72 | Integration proven in representative lanes; complete-ingest/economics tails remain |
+| `bootstrap.unicode-root` | Product-deposited coherently activated Unicode atom floor | #13, #14 | Integration proven; persistent selected-product activation/readback remains |
+| `substrate.highway` | Append-only typed coordinates for machine namespaces | #52 | Partial; current product activation blocks selected persistent-world activation, not host setup |
+| `evidence.record-lineage` | Occurrences, testimony, derivation, dependence roots | #16 | Partial; evidence structure exists, cross-source/adjudication/derived publication continue |
+| `world.discover-qualify-sources` | Deterministic discovery and qualified providers | #112, #195 | Partial; configured estate is explicit, full provider qualification/coverage remains |
+| `world.infer-source-templates` | Reusable source-template proposals/corrections | #115 | Incomplete |
+| `world.admit-witnesses` | Exact profiles and heterogeneous world admission | #53, #59, #195 | Partial mechanism; activated-product world admission absent |
+| `evidence.adjudicate` | Typed standing, return legs, contradiction/referential epochs | #16, #110 | Partial on `main`; stock recipe activation, testimony lowering, return legs and later epochs remain |
+| `query.guidance-search` | Typed guidance/operators/filter-first indexed search/completion | #17, #60, #132 | Native kernels on `main`; real indexed providers, PostgreSQL/public routes and complete guidance loop remain |
+| `cognition.realize-effect` | Semantic-act selection, reversible realization/effects | #18, #218 | Incomplete; task-scoped habits/safety/audience boundaries are documented separately from realization implementation |
+| `learning.discovery-ooda` | Evidence learning, Goedel discovery, proceduralization | #19, #169 | Incomplete executable closure; architecture and acceptance owners exist |
+| `development.ooda` | Repo/code edit, build/test/runtime observation and learned development procedure | #221 | Explicit clean owner; implementation open |
+| `development.defect-family` | Cross-repository structural defect-family discovery and generic-owner repair | #222 | Explicit clean owner; implementation open |
+| `world.configure-foundational-seed` | Configured heterogeneous foundation closure | #53, #115, #195 | Incomplete |
+| `model.admit-sources` | Exact checkpoint artifact graphs/source profiles | #223 | Open; prerequisite to model behavior/AImap/target work |
+| `model.ingest-generate` | Model behavior evidence, AImaps and target compilation | #20, #61, #71, #129 | Incomplete; source admission is no longer conflated with this lane |
+| `product.materialize-entity-world` | Entity worlds, personal webs, entitlements/surfaces | #21, #62, #63, #64, #68 | Incomplete |
+| `runtime.federate-nodes` | Placement, federation and portability | #21, #65, #66, #67 | Incomplete |
+| `delivery.activate-product` | Persistent installed package/services/state/readback | #12, #21, #50, #69, #120, PR #215 | **Active:** host bootstrap/product-path/package composition cleared; installed gateway-generation reconciliation is current failed acceptance |
+| `delivery.accept-seeded-inference` | Clean configured-seed indirect derivation through public product | #116 | Incomplete |
+| `delivery.release-product` | Complete-product acceptance and release publication | #22 | Incomplete terminal gate |
 
-## Critical path from the interrupted work
+## Current critical path
 
-The immediate sequence is governed by the machine's dependencies rather than by an
-interesting corpus:
+The current program is not waiting for PR #128 or setup-host. The immediate delivery
+vertical is:
 
-1. Land integration PR #128 only after its exact-head product-path checks pass. Then
-   establish the exact PostgreSQL 18.6 product cluster, install and verify the accepted
-   package, deposit the complete Unicode root through the accepted product boundary,
-   publish the direct/reverse siblings from the same retained stream, activate one
-   coherent epoch, restart, and prove public readback, durable service identity and
-   later-host-boot persistence.
-2. Execute the 500,000-records-per-second and qualifying-real-corpus 30-seconds-per-GB
-   complete-ingest gates. Complete #102 against repaired real CILI so unique canonical
-   structure, physicality, explicit witness counts, peak memory, DB crossings/work and
-   durable records are measured against the former recursive-request defect baseline.
-   Execute #72 against representative deposited state so every accepted index or
-   perfcache proves the addressability it purchases and a dense absence/noise-floor
-   mutant fails.
-3. Finish the universal framework obligations exposed by that work—especially the
-   grammar/recipe compiler, module admission, provider substitution, typed machine
-   exception lifecycle, and issue #70 whole-route cohesion across unrelated complete
-   programs—instead of allowing composition to grow a private framework. Complete #56
-   beyond descriptor exposure into typed WHY_NOT, retry/reroute/replay and physical
-   fault behavior.
-4. Run the protected product activation chain now that the registry traverses the
-   common Unicode-backed AST, recipe, whole-working-set, presence, canonical deposition,
-   framework activation, receipt, restart, replay, and application-readback lifecycle.
-   Then populate canonical authority, release, namespace, grammar, AST role, language,
-   script, relation, modality, representation, recipe, model, trust, operation, and
-   effect topology; implement append-only successor activation and witnessed
-   bubble-up/bubble-down routes. Equal local numbers never collapse across those
-   dimensions without witnessed mappings.
-5. Inventory only the authority-selected source estate, qualify every eligible pinned
-   Tree-sitter/codec/standards provider, infer reusable generic template parts, retain
-   source-specific academic semantic deltas and unresolved obligations, and publish
-   accepted corrections as immutable reusable versions. The observed contents of
-   `/vault/Data` and `/vault/models` cannot select the seed.
-6. Populate exact source profiles and schedule recipe DAGs across the configured
-   working set. Close artifact, syntax, reference, evidence, readback, denominator,
-   performance, and publication receipts. FIDE/FICS and academic behavior/language
-   sources require exact authority, release, license, construct, annotation, and
-   measurement profiles rather than source-name trust defaults.
-7. Admit and close the configured foundational world boundary. This—not WordNet, PGN,
-   one catalog, or any other exemplar—is the knowledge-seed outcome.
-8. Implement the common `docs/architecture/COGNITION_EXECUTION.md` path over admitted
-   state: exact resolve/orient, compiled typed guidance, admissible provider selection,
-   safe filter pushdown, bounded set-wise frontier generation, typed filtered indexed
-   A-star or the honestly declared best-first law, evidence fold, obligation update,
-   exact WHY_NOT or semantic completion, and realization. KNN, ANN, geometry,
-   perfcaches, and top-k may generate candidates only; none becomes universal
-   relevance, truth, or completion. Cursor/RBAR/per-frontier-state SQL/SPI,
-   recursive/dynamic SQL cognition, silent scalar fallback, giant pre-filter world or
-   adjacency scans, accelerator-miss-as-absence, and semantic maintenance drains must
-   fail the same acceptance lane even if they return a logically correct result.
-   Require representative plan/index/frontier/crossing/CPU/memory/I/O/timing receipts.
-9. Complete #110's remaining standing path—authority-selected stock recipe activation,
-   testimony lowering, independent return legs and immutable contradiction/consensus/
-   referential epochs—then use that exact lane-specific state only as a declared input
-   to cognition and realization, never universal importance or truth.
-10. Prove model witness/target compilation and entity-world product surfaces as sibling
-    programs over the same machine. Admit model behavior through typed experiment
-    coordinates and measured effective-support laws under #71. Do not flatten relation
-    families for model export or create social/profile-specific semantics for product
-    delivery.
-11. Prove federation and physical placement, then portability on actual selected ARM
-    hardware without creating a reduced edition.
-12. Before production-user admission, execute #116 through the installed public product
-    with the configured seed, no direct target attestation, and zero production-user
-    observations; prove derivation, typed trust, exact language realization, restart,
-    replay, and deliberate failures.
-13. Generate the architecture manual from the same registries and release only the
-    package whose complete-product receipts—including #116—the manual describes.
+1. **Finish the active #215 persistent-delivery repair** at the current failed boundary:
+   reconcile the installed activation gateway generation while preserving the
+   `laplace-runner` ownership law.
+2. Execute persistent product activation from the accepted package, then prove exact
+   PostgreSQL 18.6 identity, Unicode/Highway activation, receipts, application readback,
+   restart and later-host-boot persistence.
+3. Retain the exact current product-path evidence as cleared prerequisite proof; do not
+   re-run work merely to satisfy stale prose. Re-run only when a changed artifact or
+   acceptance boundary requires it.
+4. Close the exact #102 real-CILI resource/cardinality/replay receipt if it is not
+   already contained in retained passing evidence; broad custom-stack success is
+   progress but does not substitute for that exact fixture.
+5. Continue substrate execution correctness through #4/#10/#177/#179/#171 as its
+   dependency/evidence boundaries permit, rather than treating branch-estate history as
+   a reason to suspend independent valid work.
+6. Finish common framework obligations exposed by real execution: recipe/provider
+   lifecycle, #56 exception/recovery semantics, and #70 unrelated-program cohesion.
+7. Complete configured source admission (#195/#53/#112/#115), then close the
+   heterogeneous foundational world boundary rather than treating one corpus as the
+   seed.
+8. Finish #110 typed standing/return-leg publication and wire that exact lane into
+   cognition without turning it into global meaning/truth.
+9. Complete #17/#60/#132/#18 native cognition → semantic completion → realization and
+   the public installed route with exact WHY_NOT and measured physical-plan receipts.
+10. Complete Goedel procedural learning (#19/#169), including development consumers
+    #221/#222 where applicable.
+11. Admit model sources exactly under #223, then prove model behavior/AImaps/target
+    compilation under #20/#71/#129 without flattening native state.
+12. Build entity-world/product/federation/placement surfaces over the same machine.
+13. Before production-user admission, execute #116 against the installed configured
+    seed with required negative controls.
+14. Close #183's **actual** unique branch behavior ledger and all other Phase 0–7 exit
+    predicates, then execute #22 complete installed-product acceptance and release.
+
+This list is updated from evidence. If step 1 clears, the roadmap must move to the next
+real failed/open predicate instead of continuing to print step 1 forever.
 
 ## Parallel lanes that do not change the critical path
 
-- **Authority and acceptance:** maintain requirement trace, cognition-execution
-  authority/projection drift checks, deliberate-defect coverage, generated manual
-  inputs, and proof-state accuracy as mechanisms land.
-- **DevOps and receipts:** keep PR #128 as the single integration finish line until it
-  lands, repair exact-head CI failures on that branch instead of spawning siblings,
-  retain content-addressed receipts beyond transient Actions retention, retain exact
-  storage-class and paired acceleration receipts, and add deployments/releases only
-  when real installed product state exists.
+- **Repository integrity:** #183 reconciles current unique required branch behavior to
+  `main`; archive/preserve refs do not become blockers merely by existing.
+- **Semantic ownership:** #184 keeps direct corrections and cross-repo evidence bound to
+  one clean semantic owner rather than creating duplicate issues.
+- **Authority and acceptance:** maintain requirement/authority trace, deliberate-defect
+  coverage, generated-manual inputs and proof-state accuracy as mechanisms land.
+- **DevOps and receipts:** use the current owning PR/branch, repair its real failed
+  acceptance, and retain content-addressed evidence beyond transient Actions copies.
+  Do not resurrect PR #128 as an integration finish line.
 - **Source reconnaissance:** inventory exact releases, files, licenses, grammars,
-  identifiers, joins, denominators, errors, and negative controls without writing
-  one-off importers or claiming world admission.
-- **Portability preparation:** identify upstream ARM/toolchain/PostgreSQL constraints
-  and hardware fixtures without claiming Raspberry Pi support before package and
-  semantic acceptance.
-- **Product and funding communication:** publish transparent architecture, proofs,
-  failures, measurements, and open boundaries without selling unimplemented Patreon
-  benefits or presenting architecture coverage as finished software.
+  identifiers, joins, denominators, errors and negative controls without claiming world
+  admission or writing source-private engines.
+- **Portability preparation:** identify ARM/toolchain/PostgreSQL constraints and real
+  hardware fixtures without claiming support before package/semantic acceptance.
+- **Product/funding communication:** publish measured progress, failures and remaining
+  boundaries without presenting unimplemented benefits as delivered.
 
 ## DevOps control plane
 
-GitHub issue #23 owns the whole product. Phase milestones order capability exits.
-Issues #10, #15, #17, #20, #21, #50, #52, #53, #56, #96, #110, #112, #115, and #116
-own major capability or release-gate programs; focused subissues own independently
-acceptable outcomes. GitHub Project #2, `Laplace Refactor — Machine Roadmap`, tracks
-phase, proof state, priority, work class, and operational stage. Issue #72 owns sparse
-addressability and measured storage-compute economics as a Phase 4 subissue of #15.
+GitHub Project #2 tracks this dependency graph; it is not a runtime waterfall.
+The persistent product is not product activated yet: no activated-product world admission
+or configured foundational seed exists. The heterogeneous foundational knowledge seed
+and #72 paid addressability proofs remain separate outstanding acceptance boundaries.
 
-Until it lands, PR #128 / `codex/complete-laplace-20260831` is the single integration
-finish line for the accumulated branch estate. Redundant sibling PRs were closed or
-absorbed only after their work was verified in that branch. A CI failure is repaired
-there; CI runtime is used for independent safe documentation, issue reconciliation,
-deliberate-defect coverage, and nonconflicting implementation rather than creating a
-new parallel finish line.
+GitHub issue #23 owns the whole product. `contracts/finish-line-program.json` owns the
+machine-readable progress/closure law. #180 owns finish-line governance; #183 owns
+branch-estate reconciliation; #184 owns cross-repository semantic reconciliation; #22
+owns terminal acceptance.
 
-The former Project #1 contains historical old-iteration work and is not clean-product
-authority. It must not be used to infer this roadmap or reintroduce historical
-implementation language such as an unqualified model-export claim of “faithful.”
+The old rule that PR #128 was “the single integration finish line” is retired because
+PR #128 is merged. A current owning PR is an implementation vehicle, not the product
+finish line. Its red check is repaired at the actual failed boundary; a sibling branch
+is not created merely to avoid that failure.
 
-Required checks are evidence gates, not release state. The `product-path` gate must
-require exact custom-stack evidence when changed semantics need it without making
-documentation-only work depend unconditionally on a home runner. Performance receipts
-must be content-addressed and durably retained; a transient Actions summary is a
-convenience copy, not the evidence store.
+Required checks are evidence gates, not release state. The aggregate `product-path`
+mechanism has now passed on current `main`; #54 still owns making the aggregate
+change-sensitive authority and durable receipt semantics match merge policy rather than
+pretending the execution path does not exist.
 
 ## Funding and time
 

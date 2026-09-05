@@ -420,23 +420,21 @@ class ProductActivationGatewayTests(unittest.TestCase):
         )
         self.assertNotIn("/build/laplace/stage/product/$build_id/root", workflow)
         self.assertIn(
-            "plan_receipt_root=$(jq -er '.product.plan_receipt_root' contracts/product-activation-gateway.json)",
+            'resource_directory="$receipt_root/plan/$package_id"',
             workflow,
         )
         self.assertNotIn(
             'resource_directory="/opt/laplace/receipts/plans/$package_id"',
             workflow,
         )
-        self.assertIn(
-            "Verify the exact runner-readable PostgreSQL publication", workflow
-        )
         self.assertGreaterEqual(
-            workflow.count("postgresql_package_publication.py verify"), 2
+            workflow.count("postgresql_package_publication.py verify"), 1
         )
         self.assertIn("tools/postgresql/clusterctl.py observe-resources", workflow)
         self.assertIn("--product-receipt '${{ needs.compose-product.outputs.product_receipt }}'", workflow)
         self.assertIn("--resource-observation '${{ needs.compose-product.outputs.resource_observation }}'", workflow)
-        self.assertIn("execute-request < \"$LAPLACE_ACTIVATION_REQUEST\"", workflow)
+        self.assertIn("tools/delivery/product_activation_runner.py", workflow)
+        self.assertNotIn("execute-request", workflow)
 
     def test_pre_activation_receipts_use_the_declared_runner_owned_root(self) -> None:
         self.assertEqual(

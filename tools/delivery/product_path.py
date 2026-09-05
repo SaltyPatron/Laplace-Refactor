@@ -141,7 +141,9 @@ def rule_matches(path: str, rule: dict[str, Any]) -> bool:
     )
 
 
-def classify(contract: dict[str, Any], paths: Sequence[str]) -> dict[str, Any]:
+def classify(contract: dict[str, Any], paths: Sequence[str], proof_profile: str = "physical") -> dict[str, Any]:
+    if proof_profile not in {"merge", "physical"}:
+        raise ProductPathError("unknown proof profile")
     validate_contract(contract)
     normalized = sorted({normalize_path(path) for path in paths})
     if not normalized:
@@ -169,6 +171,11 @@ def classify(contract: dict[str, Any], paths: Sequence[str]) -> dict[str, Any]:
         if unmatched_semantic:
             classes.add(contract["default_class"])
 
+    selected_evidence = sorted(required_evidence)
+    deferred_evidence = []
+    if proof_profile == "merge":
+        deferred_evidence = sorted(required_evidence - {"hosted"})
+        required_evidence = {"hosted"}
     evidence_by_id = {row["id"]: row for row in contract["evidence"]}
     unimplemented = sorted(
         identifier
@@ -177,6 +184,9 @@ def classify(contract: dict[str, Any], paths: Sequence[str]) -> dict[str, Any]:
     )
     return {
         "schema": "laplace.product-path-classification/v1",
+        "proof_profile": proof_profile,
+        "selected_evidence": selected_evidence,
+        "deferred_evidence": deferred_evidence,
         "paths": normalized,
         "hosted_only": hosted_only,
         "classes": sorted(classes),
@@ -244,6 +254,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
     classify_parser = subparsers.add_parser("classify")
     classify_parser.add_argument("--contract", default="contracts/product-path.json")
+    classify_parser.add_argument("--proof-profile", choices=("merge", "physical"), default="physical")
     path_input = classify_parser.add_mutually_exclusive_group()
     path_input.add_argument("--paths-file", type=Path)
     path_input.add_argument("--git-name-status-z", type=Path)
@@ -261,7 +272,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         paths.extend(read_paths(arguments.paths_file))
     if arguments.git_name_status_z is not None:
         paths.extend(read_git_name_status_z(arguments.git_name_status_z))
-    result = classify(load_json(Path(arguments.contract)), paths)
+    result = classify(load_json(Path(arguments.contract)), paths, arguments.proof_profile)
     payload = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if arguments.output == "-":
         sys.stdout.write(payload)

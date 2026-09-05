@@ -17,8 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "contracts" / "sources" / "cili-pwn-mappings-20240611.json"
 GENERATOR = ROOT / "tools" / "contracts" / "generate-tabular-source-profile.py"
 SOURCE_SUITE = ROOT / "tests" / "postgres" / "source_admission_suite_contract.sql"
-SOURCE_METRICS_SQL = ROOT / "postgres" / "extension" / "source_admission_metrics.sql.in"
-SOURCE_METRICS_IMPL = ROOT / "postgres" / "extension" / "src" / "source_admission_pg.c"
+SOURCE_METRICS_SQL = ROOT / "integrations" / "postgresql" / "extension" / "source_admission_metrics.sql.in"
+SOURCE_METRICS_IMPL = ROOT / "integrations" / "postgresql" / "extension" / "src" / "source_admission_pg.c"
 SOURCE = Path(
     os.environ.get(
         "LAPLACE_CILI_SOURCE_ROOT",
