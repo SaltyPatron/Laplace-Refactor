@@ -8,7 +8,9 @@
 
 namespace {
 
+using laplace::composition::detail::BuildFrontierExecutionPlan;
 using laplace::composition::detail::BuildFrontierPlan;
+using laplace::composition::detail::FrontierExecutionPlan;
 using laplace::composition::detail::FrontierPlan;
 
 laplace_composition_request Request(
@@ -46,6 +48,17 @@ laplace_composition_working_set_input Input(
     input.request_count = requests.size();
     input.preferred_batch_bytes = 4096U;
     return input;
+}
+
+laplace_framework_context Context(
+    const std::uint64_t memory_bytes,
+    const std::uint32_t cpu_slots,
+    const std::uint32_t io_slots) {
+    laplace_framework_context context{};
+    context.resource_grant.memory_bytes = memory_bytes;
+    context.resource_grant.cpu_slots = cpu_slots;
+    context.resource_grant.io_slots = io_slots;
+    return context;
 }
 
 void ExpectSamePlan(const FrontierPlan& left, const FrontierPlan& right) {
@@ -156,6 +169,100 @@ TEST(CompositionFrontierPlan, PhysicalPlanKnobsCannotRedefineDependencyFrontiers
     ExpectSamePlan(scalar_shape, wide_shape);
     EXPECT_EQ(scalar_shape.frontier_count(), 2U);
     EXPECT_EQ(scalar_shape.maximum_frontier_width, 2U);
+}
+
+TEST(CompositionFrontierPlan, WideExecutionPreflightConsumesConservedWorkerGrant) {
+    const std::array<laplace_composition_known_entity, 4> known{};
+    const std::array<laplace_composition_operand, 4> operands{{
+        Known(0U), Known(1U), Known(2U), Known(3U)}};
+    const std::array<laplace_composition_request, 4> requests{{
+        Request(0U, 1U), Request(1U, 1U), Request(2U, 1U), Request(3U, 1U)}};
+    auto input = Input(known, operands, requests);
+    auto context = Context(UINT64_C(64) * 1024U * 1024U, 4U, 1U);
+    input.context = &context;
+
+    FrontierExecutionPlan plan;
+    ASSERT_EQ(BuildFrontierExecutionPlan(input, plan), LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(plan.work_plans.size(), 1U);
+    EXPECT_EQ(plan.dependency_plan.frontier_count(), 1U);
+    EXPECT_EQ(plan.dependency_plan.maximum_frontier_width, 4U);
+    EXPECT_EQ(plan.worker_grant, 4U);
+    EXPECT_EQ(plan.maximum_outer_workers, 4U);
+    EXPECT_EQ(plan.total_planned_items, 4U);
+    EXPECT_EQ(plan.total_chunk_count, 4U);
+    EXPECT_EQ(plan.work_plans[0].outer_workers, 4U);
+    EXPECT_EQ(plan.work_plans[0].chunk_items, 1U);
+    EXPECT_EQ(plan.work_plans[0].chunk_count, 4U);
+}
+
+TEST(CompositionFrontierPlan, DeepExecutionPreflightReportsLowAvailableParallelism) {
+    const std::array<laplace_composition_known_entity, 1> known{};
+    const std::array<laplace_composition_operand, 4> operands{{
+        Known(0U), Prior(0U), Prior(1U), Prior(2U)}};
+    const std::array<laplace_composition_request, 4> requests{{
+        Request(0U, 1U), Request(1U, 1U), Request(2U, 1U), Request(3U, 1U)}};
+    auto input = Input(known, operands, requests);
+    auto context = Context(UINT64_C(64) * 1024U * 1024U, 8U, 1U);
+    input.context = &context;
+
+    FrontierExecutionPlan plan;
+    ASSERT_EQ(BuildFrontierExecutionPlan(input, plan), LAPLACE_COMPOSITION_OK);
+    ASSERT_EQ(plan.work_plans.size(), 4U);
+    EXPECT_EQ(plan.worker_grant, 8U);
+    EXPECT_EQ(plan.maximum_outer_workers, 1U);
+    EXPECT_EQ(plan.total_planned_items, 4U);
+    EXPECT_EQ(plan.total_chunk_count, 4U);
+    for (const auto& frontier : plan.work_plans) {
+        EXPECT_EQ(frontier.outer_workers, 1U);
+        EXPECT_EQ(frontier.chunk_items, 1U);
+        EXPECT_EQ(frontier.chunk_count, 1U);
+    }
+}
+
+TEST(CompositionFrontierPlan, GrantChangesPhysicalChunksWithoutChangingSemanticDag) {
+    const std::array<laplace_composition_known_entity, 2> known{};
+    const std::array<laplace_composition_operand, 4> operands{{
+        Known(0U), Known(1U), Prior(0U), Prior(1U)}};
+    const std::array<laplace_composition_request, 3> requests{{
+        Request(0U, 1U), Request(1U, 1U), Request(2U, 2U)}};
+
+    auto scalar_input = Input(known, operands, requests);
+    auto scalar_context = Context(UINT64_C(64) * 1024U * 1024U, 1U, 1U);
+    scalar_input.context = &scalar_context;
+    FrontierExecutionPlan scalar;
+    ASSERT_EQ(BuildFrontierExecutionPlan(scalar_input, scalar), LAPLACE_COMPOSITION_OK);
+
+    auto parallel_input = Input(known, operands, requests);
+    auto parallel_context = Context(UINT64_C(64) * 1024U * 1024U, 4U, 1U);
+    parallel_input.context = &parallel_context;
+    FrontierExecutionPlan parallel;
+    ASSERT_EQ(BuildFrontierExecutionPlan(parallel_input, parallel), LAPLACE_COMPOSITION_OK);
+
+    ExpectSamePlan(scalar.dependency_plan, parallel.dependency_plan);
+    ASSERT_EQ(scalar.work_plans.size(), 2U);
+    ASSERT_EQ(parallel.work_plans.size(), 2U);
+    EXPECT_EQ(scalar.work_plans[0].outer_workers, 1U);
+    EXPECT_EQ(scalar.work_plans[0].chunk_items, 2U);
+    EXPECT_EQ(scalar.work_plans[0].chunk_count, 1U);
+    EXPECT_EQ(parallel.work_plans[0].outer_workers, 2U);
+    EXPECT_EQ(parallel.work_plans[0].chunk_items, 1U);
+    EXPECT_EQ(parallel.work_plans[0].chunk_count, 2U);
+    EXPECT_EQ(scalar.maximum_outer_workers, 1U);
+    EXPECT_EQ(parallel.maximum_outer_workers, 2U);
+    EXPECT_EQ(scalar.total_planned_items, parallel.total_planned_items);
+}
+
+TEST(CompositionFrontierPlan, ExecutionPreflightRequiresAdmittedContext) {
+    const std::array<laplace_composition_known_entity, 1> known{};
+    const std::array<laplace_composition_operand, 1> operands{{Known(0U)}};
+    const std::array<laplace_composition_request, 1> requests{{Request(0U, 1U)}};
+    const auto input = Input(known, operands, requests);
+
+    FrontierExecutionPlan plan;
+    EXPECT_EQ(BuildFrontierExecutionPlan(input, plan),
+              LAPLACE_COMPOSITION_CONTEXT_INVALID);
+    EXPECT_TRUE(plan.work_plans.empty());
+    EXPECT_EQ(plan.total_planned_items, 0U);
 }
 
 TEST(CompositionFrontierPlan, RejectsForwardSelfUnknownAndOutOfRangeReferences) {

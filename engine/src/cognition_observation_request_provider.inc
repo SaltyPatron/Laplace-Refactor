@@ -503,3 +503,43 @@ laplace_cognition_observation_request_provider_destroy(
     delete *provider_state;
     *provider_state = nullptr;
 }
+
+extern "C" laplace_cognition_observation_request_status
+laplace_cognition_observation_request_execute(
+    laplace_observation_query_index* const index,
+    const laplace_cognition_observation_request* const request,
+    laplace_cognition_forward_result** const result,
+    laplace_cognition_forward_receipt* const receipt) {
+    if (result != nullptr) *result = nullptr;
+    if (receipt != nullptr) *receipt = laplace_cognition_forward_receipt{};
+    if (index == nullptr || request == nullptr || result == nullptr ||
+        receipt == nullptr) {
+        return LAPLACE_COGNITION_OBSERVATION_REQUEST_INVALID_ARGUMENT;
+    }
+
+    laplace_cognition_observation_compiled_request compiled{};
+    auto status = laplace_cognition_observation_request_compile(request, &compiled);
+    if (status != LAPLACE_COGNITION_OBSERVATION_REQUEST_OK) return status;
+
+    laplace_cognition_observation_request_provider* provider_state = nullptr;
+    laplace_cognition_forward_provider_v1 provider{};
+    status = laplace_cognition_observation_request_cognition_provider(
+        index, &compiled, &provider_state, &provider);
+    if (status == LAPLACE_COGNITION_OBSERVATION_REQUEST_OK) {
+        const auto forward_status = laplace_cognition_forward_pass_execute(
+            &compiled.forward_program,
+            compiled.guidance_state,
+            &provider,
+            result,
+            receipt);
+        if (forward_status != LAPLACE_COGNITION_FORWARD_OK) {
+            laplace_cognition_forward_result_destroy(result);
+            *receipt = laplace_cognition_forward_receipt{};
+            status = LAPLACE_COGNITION_OBSERVATION_REQUEST_EXECUTION_FAILURE;
+        }
+    }
+
+    laplace_cognition_observation_request_provider_destroy(&provider_state);
+    laplace_cognition_observation_compiled_request_destroy(&compiled);
+    return status;
+}
