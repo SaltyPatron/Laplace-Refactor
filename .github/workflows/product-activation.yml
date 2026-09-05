@@ -134,7 +134,7 @@ jobs:
           resource_directory="$receipt_root/plan/$package_id"
           resource_observation="$resource_directory/resource-observation.json"
           install -d -m 0750 "$resource_directory"
-          python3 tools/postgresql/clusterctl.py observe-resources \
+          python3 tools/postgresql/resourcectl.py observe-resources \
             --contract contracts/postgresql-cluster.json \
             --package-manifest "$manifest" \
             --package-physical-root "$source_root" \
