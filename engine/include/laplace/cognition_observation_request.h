@@ -82,7 +82,8 @@ typedef enum laplace_cognition_observation_request_status {
     LAPLACE_COGNITION_OBSERVATION_REQUEST_GUIDANCE_FAILURE = 6,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_COORDINATE_FAILURE = 7,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_PROVIDER_FAILURE = 8,
-    LAPLACE_COGNITION_OBSERVATION_REQUEST_MEMORY_FAILURE = 9
+    LAPLACE_COGNITION_OBSERVATION_REQUEST_MEMORY_FAILURE = 9,
+    LAPLACE_COGNITION_OBSERVATION_REQUEST_EXECUTION_FAILURE = 10
 } laplace_cognition_observation_request_status;
 
 /*
@@ -136,6 +137,19 @@ laplace_cognition_observation_request_cognition_provider(
 LAPLACE_API void
 laplace_cognition_observation_request_provider_destroy(
     laplace_cognition_observation_request_provider** provider_state);
+
+/*
+ * Executes one complete typed request through the canonical compile, provider,
+ * and bounded forward-pass surfaces. This is the public native boundary for a
+ * caller that has an admitted immutable observation index; it does not expose
+ * hand-built guidance or private search state to transports.
+ */
+LAPLACE_API laplace_cognition_observation_request_status
+laplace_cognition_observation_request_execute(
+    laplace_observation_query_index* index,
+    const laplace_cognition_observation_request* request,
+    laplace_cognition_forward_result** result,
+    laplace_cognition_forward_receipt* receipt);
 
 #ifdef __cplusplus
 }
