@@ -47,7 +47,7 @@
     "admin_role": "laplace_admin",
     "app_role": "laplace_app",
     "port": 55433,
-    "socket_directory": "/run/laplace-refactor-postgresql",
+    "socket_directory": "/opt/laplace/runtime/postgresql/refactor",
     "data_directory": "/opt/laplace/pgdata/refactor/data",
     "wal_directory": "/var/lib/pgwal/refactor",
     "temp_directory": "/pgtemp/refactor",
