@@ -54,6 +54,26 @@
       "covered_dimensions": ["canonical target-job ordering", "input enumeration order cannot change target compilation receipt"]
     },
     {
+      "ctest_name": "TargetPackage.RoundTripsExactOperatorStateAndProvenance",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"],
+      "covered_dimensions": ["target-neutral package preserves compile and per-slot provenance", "exact matrix values survive bit-preserving serialization", "package decoding revalidates slot and matrix identities before publication"]
+    },
+    {
+      "ctest_name": "TargetPackage.EncodingIsCanonicalAcrossCallerJobOrder",
+      "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["canonical target compilation order survives packaging", "caller enumeration order cannot alter target-neutral package bytes or package identity"]
+    },
+    {
+      "ctest_name": "TargetPackage.MeasurementPreventsPartialSerialization",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["exact package byte preflight", "insufficient output capacity cannot publish a partial artifact or receipt"]
+    },
+    {
+      "ctest_name": "TargetPackage.DetectsBitCorruptionAndTrailingBytes",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
+      "covered_dimensions": ["embedded package integrity identity", "bit corruption fails before decoded target state publication", "trailing unreceipted bytes are rejected"]
+    },
+    {
       "ctest_name": "cognition-operator.mutation-relation-plane-flatten-detected",
       "evidence_targets": ["LP-TEST-RELATION-PLANE-TYPE-ERASURE"],
       "covered_dimensions": ["relation plane type erasure is detected"],
