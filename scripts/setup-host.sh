@@ -4,9 +4,10 @@
 # Human/operator boundary:
 #   sudo bash scripts/setup-host.sh
 #
-# This script does NOT build, package, install, initialize, migrate, seed, start,
-# or activate Laplace/PostgreSQL. It establishes the host prerequisites that CI and
-# laplace-runner need, then exits.
+# This script does NOT build or select a Laplace package, initialize/migrate/seed a
+# database, start PostgreSQL, activate Unicode/Highway, or execute product semantics.
+# It establishes the fixed host envelope and then exits. Recurring product delivery
+# belongs to CI as laplace-runner.
 
 set -euo pipefail
 
@@ -17,6 +18,8 @@ RUNNER_GROUP="laplace-runner"
 RUNNER_HOME="/var/lib/agents/laplace-runner"
 RUNNER_SHELL="/usr/sbin/nologin"
 SERVICE="laplace-refactor-postgresql.service"
+SERVICE_SOURCE="$REPOSITORY/packaging/systemd/$SERVICE"
+SERVICE_TARGET="/etc/systemd/system/$SERVICE"
 SUDOERS_TARGET="/etc/sudoers.d/laplace-refactor-postgresql-service"
 BOOTSTRAP_RECEIPT="/opt/laplace/receipts/bootstrap/host.json"
 
@@ -54,6 +57,11 @@ AWK_BIN="$(resolve_command awk)"
 RM_BIN="$(resolve_command rm)"
 
 cd "$REPOSITORY"
+
+if [[ ! -f "$SERVICE_SOURCE" || -L "$SERVICE_SOURCE" ]]; then
+    echo "static PostgreSQL service definition is absent or unsafe: $SERVICE_SOURCE" >&2
+    exit 1
+fi
 
 # Establish the service/runner identity only when absent. An already-running GitHub
 # runner account is not rewritten merely because its login metadata differs from a
@@ -93,6 +101,7 @@ for path in \
     /build/laplace/runner \
     /opt/laplace \
     /opt/laplace/releases \
+    /opt/laplace/runtime \
     /opt/laplace/pgdata \
     /opt/laplace/pgdata/refactor \
     /opt/laplace/receipts \
@@ -107,13 +116,15 @@ for path in \
 done
 
 # Product prefix is service-owned but traversable. CI can atomically manage
-# /opt/laplace/current and content-addressed releases without recurring sudo.
+# /opt/laplace/current, /opt/laplace/runtime/refactor and content-addressed releases
+# without recurring sudo.
 "$CHMOD_BIN" 0755 /opt/laplace
 "$CHMOD_BIN" 0755 /opt/laplace/releases
 
-# Host-owned parent only. CI/product lifecycle owns the refactor instance config leaf.
+# The host owns the /etc namespace; laplace-runner owns the product's instance
+# configuration content through this bounded group-writable parent.
 "$INSTALL_BIN" -d -o root -g root -m 0755 /etc/laplace
-"$INSTALL_BIN" -d -o root -g root -m 0755 /etc/laplace/instances
+"$INSTALL_BIN" -d -o root -g "$RUNNER_GROUP" -m 2770 /etc/laplace/instances
 
 # Older bootstrap generations created candidate leaves before activation. Remove only
 # exact EMPTY leaves. Never remove a symlink, file, nonempty PGDATA/WAL/config/log/
@@ -151,9 +162,17 @@ for name in (
         print(f"preserved existing nonempty candidate state: {path}")
 PY
 
-# Narrow recurring privilege only. The unit itself and product lifecycle are not
-# installed or executed here. This policy cannot invoke a shell, package installer,
-# database controller, Unicode/Highway operation, or whole-product gateway as root.
+# Install one static OS service envelope. It runs as laplace-runner and points only at
+# the runner-owned /opt/laplace/runtime/refactor link. No package generation, database
+# operation, or semantic action is encoded in this bootstrap step.
+"$INSTALL_BIN" -o root -g root -m 0644 "$SERVICE_SOURCE" "$SERVICE_TARGET"
+"$SYSTEMCTL_BIN" daemon-reload
+"$SYSTEMCTL_BIN" enable "$SERVICE" >/dev/null
+"$SYSTEMCTL_BIN" is-enabled --quiet "$SERVICE"
+
+# Narrow recurring privilege only. This policy cannot invoke a shell, package
+# installer, database controller, Unicode/Highway operation, or whole-product gateway
+# as root.
 cat > "$SUDOERS_TARGET" <<EOF
 $RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN start $SERVICE
 $RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN stop $SERVICE
@@ -163,18 +182,16 @@ EOF
 "$CHOWN_BIN" root:root "$SUDOERS_TARGET"
 "$VISUDO_BIN" -cf "$SUDOERS_TARGET" >/dev/null
 
-# Validate the exact recurring privilege as laplace-runner without depending on
-# util-linux runuser or any hard-coded runuser path. The outer sudo only switches
-# identity because setup-host is already root; the inner sudo proves the NOPASSWD rule.
 for action in start stop restart; do
     "$SUDO_BIN" -u "$RUNNER_USER" -- \
         "$SUDO_BIN" -n -l "$SYSTEMCTL_BIN" "$action" "$SERVICE" >/dev/null
 done
 
-# Durable bootstrap receipt: prerequisites only, explicitly not product state.
+# Durable bootstrap receipt: host envelope only, explicitly not product state.
 TMP_RECEIPT="$("$MKTEMP_BIN")"
 trap '"$RM_BIN" -f "$TMP_RECEIPT"' EXIT
 SUDOERS_SHA="$("$SHA256SUM_BIN" "$SUDOERS_TARGET" | "$AWK_BIN" '{print $1}')"
+SERVICE_SHA="$("$SHA256SUM_BIN" "$SERVICE_TARGET" | "$AWK_BIN" '{print $1}')"
 RUNNER_UID="$("$ID_BIN" -u "$RUNNER_USER")"
 RUNNER_GID="$("$ID_BIN" -g "$RUNNER_USER")"
 cat > "$TMP_RECEIPT" <<EOF
@@ -186,6 +203,12 @@ cat > "$TMP_RECEIPT" <<EOF
     "group": "$RUNNER_GROUP",
     "uid": $RUNNER_UID,
     "gid": $RUNNER_GID
+  },
+  "service_envelope": {
+    "path": "$SERVICE_TARGET",
+    "sha256": "$SERVICE_SHA",
+    "enabled": true,
+    "started_by_bootstrap": false
   },
   "sudo_policy": {
     "path": "$SUDOERS_TARGET",
@@ -206,10 +229,11 @@ EOF
 cat <<EOF
 Laplace host prerequisites are ready.
 
-setup-host stopped here by design. It did not build, install, initialize, start,
-seed, or activate the product. Recurring product delivery now belongs to CI as
-$RUNNER_USER.
+setup-host stopped here by design. It installed/enabled the static OS service envelope
+but did not select a package, initialize/start PostgreSQL, seed data, or activate
+Unicode/Highway. Recurring product delivery belongs to CI as $RUNNER_USER.
 
 Bootstrap receipt: $BOOTSTRAP_RECEIPT
+Service envelope:  $SERVICE_TARGET (enabled, not started)
 Sudo capability:   $SYSTEMCTL_BIN start|stop|restart $SERVICE only
 EOF
