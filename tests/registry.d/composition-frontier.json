@@ -9,11 +9,17 @@
         "wide independent requests expose parallel width while deep chains expose their real critical path",
         "canonical request order remains stable inside a frontier",
         "preferred persistence batch bytes and CPU memory IO resource grants cannot redefine the semantic dependency graph",
+        "the same dependency graph is preflighted through the common execution planner under the admitted conserved grant without calculating semantic results",
+        "wide frontiers consume only their available worker grant while deep width-one chains report low parallelism even when the grant is much larger",
+        "changing the worker grant may change physical chunking but cannot change dependency depth request order or semantic frontier membership",
+        "frontier preflight reports total planned items chunks maximum physical workers and per-frontier work plans without multiplying scalar throughput",
         "forward self unknown and out-of-range references fail before physical execution"
       ],
       "defect_controls": [
         "file or source object used as the composition scheduler atom",
         "physical worker or persistence batch settings redefine composition dependency depth",
+        "worker grant multiplied into a fabricated single-DAG speedup despite narrow dependency width",
+        "semantic request calculation replayed merely to discover the physical frontier plan",
         "parent request scheduled before an unresolved prior-result dependency"
       ]
     },
