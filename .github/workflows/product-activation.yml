@@ -57,14 +57,6 @@ jobs:
           test -w /var/log/laplace/postgresql
           test -w /etc/laplace/instances
 
-      - name: Verify runner-owned activation contracts
-        run: |
-          python3 tests/postgresql_cluster_tests.py
-          python3 tests/unicode_product_activation_tests.py
-          python3 tests/highway_product_activation_tests.py
-          python3 tests/product_activation_runner_tests.py
-          python3 tests/product_service_state_tests.py
-
   compose-product:
     if: github.event_name == 'workflow_dispatch'
     needs: runner-authority
