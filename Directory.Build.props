@@ -1,5 +1,6 @@
 <Project>
-  <PropertyGroup Condition="'$(LaplaceManagedBuildRoot)' != ''">
+  <PropertyGroup>
+    <LaplaceManagedBuildRoot Condition="'$(LaplaceManagedBuildRoot)' == ''">/opt/laplace/work/laplace-refactor/build/managed</LaplaceManagedBuildRoot>
     <BaseOutputPath>$(LaplaceManagedBuildRoot)/$(MSBuildProjectName)/bin/</BaseOutputPath>
     <BaseIntermediateOutputPath>$(LaplaceManagedBuildRoot)/$(MSBuildProjectName)/obj/</BaseIntermediateOutputPath>
   </PropertyGroup>

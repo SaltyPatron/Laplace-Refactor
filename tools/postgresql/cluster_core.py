@@ -25,7 +25,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 
 CONTRACT_SCHEMA = "laplace.postgresql-cluster-contract/v1"
@@ -443,10 +443,12 @@ def observe_resources(
     contract_path: Path,
     package_path: Path,
     package_physical_root: Path,
+    *,
+    contract_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     contract = load_json(contract_path)
     package = load_json(package_path)
-    validate_contract(contract)
+    (contract_validator or validate_contract)(contract)
     package_status = verify_package(package, contract, package_physical_root)
     if not package_status.verified:
         raise ClusterError(
@@ -2324,11 +2326,14 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: Sequence[str]) -> int:
+def main(argv: Sequence[str], *, lifecycle: Any = None) -> int:
+    """Dispatch through the selected lifecycle without changing module globals."""
+    if lifecycle is None:
+        lifecycle = sys.modules[__name__]
     arguments = parse_args(argv)
     if arguments.command == "plan":
         physical = Path(arguments.package_physical_root) if arguments.package_physical_root else None
-        result = build_plan(
+        result = lifecycle.build_plan(
             Path(arguments.contract),
             Path(arguments.package_manifest),
             Path(arguments.resource_observation),
@@ -2338,7 +2343,7 @@ def main(argv: Sequence[str]) -> int:
         write_json(Path(arguments.output), result)
         return 0
     if arguments.command == "install-package":
-        result = install_package(
+        result = lifecycle.install_package(
             load_json(Path(arguments.package_manifest)),
             load_json(Path(arguments.contract)),
             Path(arguments.package_physical_root),
@@ -2348,7 +2353,7 @@ def main(argv: Sequence[str]) -> int:
         write_json(Path(arguments.receipt), result)
         return 0
     if arguments.command == "observe-resources":
-        result = observe_resources(
+        result = lifecycle.observe_resources(
             Path(arguments.contract),
             Path(arguments.package_manifest),
             Path(arguments.package_physical_root),
@@ -2356,13 +2361,13 @@ def main(argv: Sequence[str]) -> int:
         write_json(Path(arguments.output), result)
         return 0
     if arguments.command == "inspect-collisions":
-        result = inspect_collisions(
+        result = lifecycle.inspect_collisions(
             load_json(Path(arguments.contract)), Path(arguments.root)
         )
         write_json(Path(arguments.output), result)
         return 0
     if arguments.command == "apply":
-        result = apply_plan(
+        result = lifecycle.apply_plan(
             load_json(Path(arguments.plan)),
             load_json(Path(arguments.contract)),
             Path(arguments.root),
@@ -2371,7 +2376,7 @@ def main(argv: Sequence[str]) -> int:
         write_json(Path(arguments.receipt), result)
         return 0
     if arguments.command == "commit":
-        result = commit_plan(
+        result = lifecycle.commit_plan(
             load_json(Path(arguments.plan)),
             load_json(Path(arguments.contract)),
             load_json(Path(arguments.receipt)),
@@ -2382,7 +2387,7 @@ def main(argv: Sequence[str]) -> int:
         write_json(Path(arguments.output), result)
         return 0
     if arguments.command == "verify-loaded":
-        verify_loaded(
+        lifecycle.verify_loaded(
             load_json(Path(arguments.plan)),
             load_json(Path(arguments.contract)),
             load_json(Path(arguments.loaded_observation)),
@@ -2390,7 +2395,7 @@ def main(argv: Sequence[str]) -> int:
         print("loaded PostgreSQL objects and configuration match the activation plan")
         return 0
     if arguments.command == "observe-loaded":
-        result = observe_loaded_live(
+        result = lifecycle.observe_loaded_live(
             load_json(Path(arguments.plan)),
             load_json(Path(arguments.contract)),
             Path("/"),
@@ -2398,7 +2403,7 @@ def main(argv: Sequence[str]) -> int:
         write_json(Path(arguments.output), result)
         return 0
     if arguments.command == "activate-product":
-        result = activate_product(
+        result = lifecycle.activate_product(
             Path(arguments.contract),
             Path(arguments.package_manifest),
             Path(arguments.resource_observation),
@@ -2408,7 +2413,7 @@ def main(argv: Sequence[str]) -> int:
         write_json(Path(arguments.output), result)
         return 0
     if arguments.command == "remove":
-        result = remove_activation(
+        result = lifecycle.remove_activation(
             load_json(Path(arguments.plan)),
             load_json(Path(arguments.contract)),
             load_json(Path(arguments.receipt)),
