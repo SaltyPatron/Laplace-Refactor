@@ -69,6 +69,14 @@ add_library(laplace_engine SHARED
 # detail from blocking the clean-room GCC build.
 set_source_files_properties(src/tabular_source.cpp PROPERTIES
     COMPILE_OPTIONS "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=subobject-linkage>")
+# composition.cpp now wraps the byte-preserved semantic implementation in the
+# same translation unit so runtime frontier receipts can be attached without a
+# second semantic engine. The opaque working-set contains private helper types,
+# making GCC emit the same non-ODR subobject-linkage diagnostic as tabular_source.
+# Scope the non-error treatment to this one implementation unit; all other
+# warnings and all global -Werror policy remain unchanged.
+set_source_files_properties(src/composition.cpp PROPERTIES
+    COMPILE_OPTIONS "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=subobject-linkage>")
 if(TARGET LaplaceOneApi::TBB AND TARGET LaplaceOneApi::MKLTbb)
     target_sources(laplace_engine PRIVATE src/execution_oneapi.cpp)
     target_link_libraries(laplace_engine PRIVATE
