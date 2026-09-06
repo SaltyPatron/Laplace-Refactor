@@ -47,9 +47,34 @@
       "covered_dimensions": ["candidate backend never constructs search transitions", "native A-star carries a provider target into the next frontier", "two-hop goal is resolved by compiled request search policy", "provider target identity is resolved back to the backend on the next expansion"]
     },
     {
+      "ctest_name": "CognitionObservationExternalProvider.NativeProviderSetCombinesIndependentEvidencePlanes",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["physicality and testimony remain independent candidate planes", "native cognition composes both planes under one request-owned search", "testimonial crossing retains one independent evidence root", "child providers do not acquire completion or semantic-act authority"]
+    },
+    {
+      "ctest_name": "CognitionObservationExternalProvider.ProviderSetIdentityIsOrderIndependentAndRejectsDuplicates",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["provider-set identity is independent of caller declaration order", "duplicate provider fingerprints fail closed", "provider composition cannot multiply one physical evidence plane by duplicate declaration"]
+    },
+    {
       "ctest_name": "CognitionObservationExternalProvider.RejectsCandidateProviderAbiDriftBeforeQueryingBackend",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
       "covered_dimensions": ["candidate provider ABI drift fails closed", "no backend candidate query executes under an incompatible ABI", "transport integration cannot silently bypass the canonical candidate contract"]
+    },
+    {
+      "ctest_name": "CognitionSemanticAct.CompletedRequestSelectsNativeTerminalActWithoutTextIntentLookup",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["semantic act is derived only after native completion", "terminal operation kind comes from the forward decision receipt rather than prompt keyword matching", "retained answer entity path and result contract remain bound into one act identity", "realization can consume the semantic result without rerunning search"]
+    },
+    {
+      "ctest_name": "CognitionSemanticAct.IncompleteReceiptCannotBePromotedToSemanticAct",
+      "evidence_targets": ["LP-TEST-PARTIAL-NONCOMPLETION", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["remaining required obligations block semantic-act publication", "incomplete cognition cannot become a fluent-looking terminal act", "failed selection returns no residual act identity"]
+    },
+    {
+      "ctest_name": "CognitionSemanticAct.ReceiptAndForwardResultMustDescribeSameFinalState",
+      "evidence_targets": ["LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["semantic-act handoff binds the exact completed forward result", "receipt/result final-state drift fails closed", "a transport cannot splice an unrelated completion receipt onto retained answers"]
     },
     {
       "ctest_name": "CognitionObservationRequest.RequestIdentityChangesWithTypedRelationIntent",

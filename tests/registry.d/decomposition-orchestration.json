@@ -53,7 +53,7 @@
     },
     {
       "ctest_name": "DecompositionStructuredProvider.PreservesParentFieldOrdinalAliasAndErrorState",
-      "evidence_targets": ["LP-TEST-AST-CROSS-MODAL", "LP-TEST-AST-OPAQUE-FLATTENING-REJECTION", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "evidence_targets": ["LP-TEST-UNIVERSAL-AST-CROSS-MODAL", "LP-TEST-AST-OPAQUE-FLATTENING-REJECTION", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
       "covered_dimensions": ["structured providers retain true parent-child CST topology rather than flattening descendants under the source span", "visible symbols grammar symbols fields sibling ordinals named missing error and has-error states survive provider execution", "explicit zero-width missing syntax remains witnessed without an invented content entity", "equal source bytes observed at multiple syntax levels reuse canonical content"]
     },
     {
