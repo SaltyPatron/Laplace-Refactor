@@ -33,8 +33,7 @@
     "standing_period_input_vector": 20,
     "standing_period_result_vector": 21,
     "stock_catalog_item_vector": 22,
-    "stock_catalog_receipt_vector": 23,
-    "universal_ast_packet_receipt_vector": 24
+    "stock_catalog_receipt_vector": 23
   },
   "opcodes": {
     "identity_codepoint_batch": 131073,
@@ -130,7 +129,7 @@
     "universal_ast_apply_packet": {
       "module": "ast",
       "input_type": "u32_vector",
-      "output_type": "universal_ast_packet_receipt_vector"
+      "output_type": "u32_vector"
     }
   },
   "instruction_versions": {
@@ -199,8 +198,7 @@
         "standing_period_input_vector": "global::Laplace.Managed.LaplaceStandingPeriodInput",
         "standing_period_result_vector": "global::Laplace.Managed.LaplaceStandingPeriodResult",
         "stock_catalog_item_vector": "global::Laplace.Managed.LaplaceStockCatalogItem",
-        "stock_catalog_receipt_vector": "global::Laplace.Managed.LaplaceStockCatalogReceipt",
-        "universal_ast_packet_receipt_vector": "global::Laplace.Managed.LaplaceUniversalAstPacketReceipt"
+        "stock_catalog_receipt_vector": "global::Laplace.Managed.LaplaceStockCatalogReceipt"
       },
       "operation_declarations": {
         "identity_codepoint_batch": "IdentityCodepointBatch",
