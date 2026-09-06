@@ -125,6 +125,16 @@ static laplace_isa_status validate_universal_ast_apply_packet(
 static laplace_isa_status execute_universal_ast_apply_packet(
     laplace_isa_program* program,
     const laplace_isa_instruction* instruction) {
+#if defined(LAPLACE_TEST_ISA_REJECT_RESULT_ALIAS) || \
+    defined(LAPLACE_TEST_ISA_STANDING_ORDER_BYPASS)
+    /* These mutation libraries recompile isa.c in isolation to prove unrelated
+     * ISA defects. They deliberately do not link the canonical engine. Keep the
+     * new AST opcode present in the generated registry but fail it closed rather
+     * than importing or duplicating AST semantics into those mutation binaries. */
+    (void)program;
+    (void)instruction;
+    return LAPLACE_ISA_INPUT_OUT_OF_RANGE;
+#else
     laplace_isa_value_view* input;
     laplace_isa_value_view* output;
     laplace_universal_ast_packet_receipt receipt;
@@ -148,6 +158,7 @@ static laplace_isa_status execute_universal_ast_apply_packet(
     laplace_isa_ast_encode_receipt(&receipt, (uint32_t*)output->data);
     output->count = LAPLACE_UNIVERSAL_AST_RECEIPT_WORDS;
     return LAPLACE_ISA_OK;
+#endif
 }
 
 #endif
