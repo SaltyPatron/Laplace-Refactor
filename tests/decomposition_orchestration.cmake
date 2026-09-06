@@ -1,5 +1,15 @@
 include(GoogleTest)
 
+# Two mutation targets in tests/CMakeLists intentionally recompile the canonical
+# isa.c directly instead of linking Laplace::Engine. Source properties from the
+# engine directory are directory-scoped, so bind the same generated AST handler
+# to that exact source in the tests directory. The mutation-specific handler
+# branch fails AST closed and therefore does not import a second AST engine.
+set_property(SOURCE "${PROJECT_SOURCE_DIR}/engine/src/isa.c"
+    DIRECTORY "${PROJECT_SOURCE_DIR}/tests"
+    APPEND PROPERTY COMPILE_OPTIONS
+    "$<$<COMPILE_LANG_AND_ID:C,GNU,Clang,IntelLLVM>:-include;${PROJECT_SOURCE_DIR}/engine/src/isa_universal_ast_handler.h>")
+
 add_executable(laplace_decomposition_orchestration_tests
     "${CMAKE_CURRENT_LIST_DIR}/decomposition_orchestration_tests.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/decomposition_leaf_redispatch_tests.cpp")
