@@ -1,0 +1,44 @@
+name: postgresql-recovery-readback
+
+on:
+  push:
+    branches: ['fix/start-stopped-selected-postgresql']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-activation-refs/heads/main
+  cancel-in-progress: false
+
+jobs:
+  recover-and-query:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Resume selected persistent database and query actual state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          python3 - <<'PY'
+          import runpy
+          from pathlib import Path
+          module = runpy.run_path('tools/delivery/product_predecessor_adoption.py')
+          module['ensure_current_predecessor_receipt'](Path('contracts/postgresql-cluster.json'))
+          PY
+          /opt/laplace/current/pgsql-18/bin/psql \
+            -X -w -h /opt/laplace/runtime/postgresql/refactor -p 55433 \
+            -U laplace_admin -d laplace_refactor -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN READ ONLY;
+          SET LOCAL statement_timeout = '60s';
+          SELECT current_database(), current_user, version();
+          SELECT extname, extversion FROM pg_extension;
+          SELECT count(*) AS canonical_entities FROM laplace.entity;
+          SELECT count(*) AS canonical_physicalities FROM laplace.physicality;
+          SELECT * FROM laplace.unicode_root_generation;
+          SELECT count(*) AS admitted_source_profiles FROM laplace.source_profile;
+          COMMIT;
+          SQL
