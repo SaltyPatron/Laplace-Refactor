@@ -203,7 +203,9 @@ jobs:
         run: |
           set -euo pipefail
           result="$RUNNER_TEMP/laplace-product-activation-result.json"
-          python3 tools/delivery/product_activation_runner.py \
+          # tools/delivery/product_activation_runner.py remains the canonical orchestrator;
+          # the reconciler selects only the fresh-vs-active PostgreSQL lifecycle provider.
+          python3 tools/delivery/product_activation_reconcile.py \
             --product-receipt '${{ needs.compose-product.outputs.product_receipt }}' \
             --resource-observation '${{ needs.compose-product.outputs.resource_observation }}' \
             --repository-commit "$GITHUB_SHA" \
