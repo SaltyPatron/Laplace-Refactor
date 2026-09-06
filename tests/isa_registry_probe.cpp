@@ -1,6 +1,7 @@
 #include "laplace/isa.h"
 #include "laplace/cognition_packet.h"
 #include "laplace/trajectory.h"
+#include "laplace/universal_ast.h"
 #include "context_fixture.h"
 
 #include <array>
@@ -9,10 +10,11 @@
 #include <cstdio>
 
 /*
- * This probe links a private generated-registry mutation of isa.c.  It exercises
- * trajectory dispatch only; cognition is intentionally outside this mutant's
- * test boundary.  Keep the private ISA self-contained rather than linking the
- * product cognition runtime, which would also reintroduce the production ISA.
+ * This probe links a private generated-registry mutation of isa.c. It exercises
+ * trajectory dispatch only; cognition and universal-AST packet execution are
+ * intentionally outside this mutant's test boundary. Keep the private ISA
+ * self-contained rather than linking production runtimes, which would also
+ * reintroduce the production ISA.
  */
 extern "C" laplace_cognition_packet_status
 laplace_cognition_packet_required_result_words(
@@ -31,6 +33,13 @@ laplace_cognition_packet_execute_words(
     const std::uint32_t*, const std::size_t,
     std::uint32_t*, const std::size_t, std::size_t*) {
     return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
+}
+
+extern "C" laplace_universal_ast_status
+laplace_universal_ast_packet_validate_words(
+    const std::uint32_t*, const std::size_t,
+    laplace_universal_ast_packet_receipt*) {
+    return LAPLACE_UNIVERSAL_AST_INVALID_ARGUMENT;
 }
 
 int main() {
