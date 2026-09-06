@@ -178,6 +178,26 @@ jobs:
           test -w /opt/laplace/runtime
           test -w /opt/laplace/pgdata/refactor
 
+      - name: Reconcile empty uncommitted PostgreSQL candidate leaves
+        shell: bash
+        run: |
+          set -euo pipefail
+          recovery="$RUNNER_TEMP/laplace-cluster-candidate-recovery.json"
+          python3 tools/delivery/cluster_candidate_recovery.py \
+            --contract contracts/postgresql-cluster.json \
+            --output "$recovery"
+          jq -e '
+            .schema == "laplace.cluster-candidate-empty-recovery/v1" and
+            .blocked_count == 0 and
+            (.receipt_sha256 | test("^[0-9a-f]{64}$"))
+          ' "$recovery" >/dev/null
+          {
+            echo '## Pre-activation candidate recovery'
+            echo '```json'
+            cat "$recovery"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Activate PostgreSQL, Unicode, and Highway as laplace-runner
         shell: bash
         run: |
