@@ -1,0 +1,43 @@
+-- Durable storage transport for native cognition discourse snapshots.
+-- PostgreSQL owns indexing, atomicity and readback only. The canonical state
+-- shape, identity, framing and checksum remain native engine contracts.
+CREATE TABLE @LAPLACE_COGNITION_DISCOURSE_SCHEMA@.cognition_discourse_state (
+    state_id bytea PRIMARY KEY CHECK (octet_length(state_id) = 32),
+    discourse_id bytea NOT NULL CHECK (octet_length(discourse_id) = 32),
+    previous_state_id bytea CHECK (
+        previous_state_id IS NULL OR octet_length(previous_state_id) = 32
+    ),
+    observation_entity_id bytea NOT NULL CHECK (octet_length(observation_entity_id) = 16),
+    observation_occurrence_id bytea NOT NULL CHECK (octet_length(observation_occurrence_id) = 32),
+    semantic_act_id bytea NOT NULL CHECK (octet_length(semantic_act_id) = 32),
+    turn_ordinal bigint NOT NULL CHECK (turn_ordinal >= 0),
+    state_flags integer NOT NULL CHECK (state_flags >= 0),
+    state_version integer NOT NULL CHECK (state_version > 0),
+    frame_fingerprint bytea NOT NULL CHECK (octet_length(frame_fingerprint) = 32),
+    frame bytea NOT NULL CHECK (octet_length(frame) = 652),
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    recorded_by name NOT NULL DEFAULT current_user,
+    UNIQUE (discourse_id, turn_ordinal)
+);
+
+CREATE INDEX cognition_discourse_state_latest_idx
+    ON @LAPLACE_COGNITION_DISCOURSE_SCHEMA@.cognition_discourse_state
+        (discourse_id, turn_ordinal DESC);
+
+CREATE FUNCTION @LAPLACE_COGNITION_DISCOURSE_SCHEMA@.cognition_discourse_deposit(
+    frame bytea)
+RETURNS bytea
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_discourse_deposit'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+CREATE FUNCTION @LAPLACE_COGNITION_DISCOURSE_SCHEMA@.cognition_discourse_read(
+    state_id bytea)
+RETURNS bytea
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_discourse_read'
+LANGUAGE C STABLE STRICT PARALLEL RESTRICTED;
+
+CREATE FUNCTION @LAPLACE_COGNITION_DISCOURSE_SCHEMA@.cognition_discourse_latest(
+    discourse_id bytea)
+RETURNS bytea
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_discourse_latest'
+LANGUAGE C STABLE STRICT PARALLEL RESTRICTED;

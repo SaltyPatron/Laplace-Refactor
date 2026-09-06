@@ -81,7 +81,23 @@ file(APPEND "${extension_sql}"
 ${LAPLACE_OBSERVATION_COGNITION_SQL}\
 ")
 
+set(LAPLACE_COGNITION_DISCOURSE_SCHEMA
+    "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
+set(cognition_discourse_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/cognition_discourse.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cognition_discourse.sql.in"
+    "${cognition_discourse_sql}"
+    @ONLY)
+file(READ "${cognition_discourse_sql}"
+    LAPLACE_COGNITION_DISCOURSE_SQL)
+file(APPEND "${extension_sql}"
+    "\
+${LAPLACE_COGNITION_DISCOURSE_SQL}\
+")
+
 set(laplace_postgresql_module_sources
+    src/cognition_discourse_pg.c
     src/cognition_isa_pg.c
     src/composition_pg.c
     src/evidence_lineage_pg.c
@@ -167,6 +183,8 @@ if(BUILD_TESTING)
         TIMEOUT 120
         ENVIRONMENT
             "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/observation-cognition;LAPLACE_POSTGRES_OBSERVATION_TEST_PORT=55442")
+
+    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_discourse.cmake")
 
     function(laplace_add_postgresql_mutant target definition)
         add_library(${target} MODULE ${laplace_postgresql_module_sources})

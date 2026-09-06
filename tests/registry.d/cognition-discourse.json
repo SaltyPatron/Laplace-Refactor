@@ -1,0 +1,41 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionDiscourse.LayeredStateRetainsCorrectionEllipsisAndCrossModalRoots",
+      "evidence_targets": ["LP-TEST-CONVERSATION-CORRECTION", "LP-TEST-CONVERSATION-CROSS-MODAL"],
+      "covered_dimensions": ["completed discourse state retains active entities propositions referents unresolved questions corrections ellipsis bindings and cross-modal artifacts as separate roots", "rejected interpretations prior programs and receipts remain separately addressable", "one recent topic or one flat memory vector cannot represent the accepted state"]
+    },
+    {
+      "ctest_name": "CognitionDiscourse.PreviousSnapshotChangesIdentityWithoutChangingCurrentObservation",
+      "evidence_targets": ["LP-TEST-CONVERSATION-WATER-CYCLE"],
+      "covered_dimensions": ["later discourse state binds the exact prior immutable snapshot", "the same current observation under a different discourse trajectory has a different state identity", "turn order is explicit rather than inferred from recency"]
+    },
+    {
+      "ctest_name": "CognitionDiscourse.CorrectionAndRejectedInterpretationRemainIndependentIdentityInputs",
+      "evidence_targets": ["LP-TEST-CONVERSATION-CORRECTION"],
+      "covered_dimensions": ["correction evidence and rejected interpretations are distinct persistent discourse channels", "changing either channel changes state identity without rewriting the other", "rejected interpretation history cannot be silently collapsed into correction state"]
+    },
+    {
+      "ctest_name": "CognitionDiscourse.InactiveOptionalPayloadCannotMasqueradeAsActiveState",
+      "evidence_targets": ["LP-TEST-CONVERSATION-CORRECTION"],
+      "covered_dimensions": ["optional discourse roots have explicit presence flags", "inactive payload bytes must be canonical zero", "stale correction state cannot survive after its presence flag is removed"]
+    },
+    {
+      "ctest_name": "CognitionDiscourseFrame.ExactRoundTripPreservesNativeDiscourseIdentity",
+      "evidence_targets": ["LP-TEST-CONVERSATION-WATER-CYCLE", "LP-TEST-CONVERSATION-CORRECTION"],
+      "covered_dimensions": ["immutable discourse state has one canonical replayable byte frame", "frame readback preserves the exact native state identity", "storage providers can persist discourse without acquiring cognition semantics"]
+    },
+    {
+      "ctest_name": "CognitionDiscourseFrame.CorruptionFailsBeforeStatePublication",
+      "evidence_targets": ["LP-TEST-CONVERSATION-WATER-CYCLE"],
+      "covered_dimensions": ["discourse persistence frame is checksum bound", "corruption fails before a decoded state is published", "readback cannot silently mutate conversation state"]
+    },
+    {
+      "ctest_name": "postgres.cognition-discourse-restart-readback",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-CONVERSATION-WATER-CYCLE"],
+      "covered_dimensions": ["root and successor discourse states deposit through the native frame contract", "successor publication requires the exact durable predecessor and contiguous turn ordinal", "PostgreSQL restart preserves exact native root and successor frame bytes", "latest discourse readback resolves the successor after restart", "corrupt frames and nonexistent predecessors fail before durable publication", "exact immutable replay is idempotent"]
+    }
+  ]
+}

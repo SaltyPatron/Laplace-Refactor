@@ -7,6 +7,23 @@
 
 #include "laplace/framework.h"
 
+#if defined(LAPLACE_TEST_STANDING_ISOLATED_MUTANT)
+#include "laplace/universal_ast.h"
+
+/*
+ * The standing-order ISA mutation probe links a private isa.c. It exercises only
+ * standing dispatch and intentionally does not link the production universal-AST
+ * packet runtime, because doing so would also risk resolving back through the
+ * production ISA path. Keep the unrelated packet opcode inert in this isolated
+ * mutant exactly as isa_tests.cpp already does for cognition packet dispatch.
+ */
+extern "C" laplace_universal_ast_status
+laplace_universal_ast_packet_validate_words(
+    const uint32_t*, size_t, laplace_universal_ast_packet_receipt*) {
+    return LAPLACE_UNIVERSAL_AST_INVALID_ARGUMENT;
+}
+#endif
+
 static inline laplace_framework_context laplace_test_context(uint8_t variant) {
     laplace_framework_context context;
     size_t epoch;
