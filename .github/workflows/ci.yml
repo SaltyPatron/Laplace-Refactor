@@ -35,6 +35,8 @@ jobs:
           python3 tests/product_activation_runner_tests.py
       - name: Prove durable product service and cold-boot contracts
         run: python3 tests/product_service_state_tests.py
+      - name: Prove hosted compiler-cache contract
+        run: python3 tests/hosted_ci_cache_contract_tests.py
 
   native:
     runs-on: ubuntu-24.04
@@ -48,7 +50,34 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install --yes jq ninja-build
+        run: sudo apt-get update && sudo apt-get install --yes ccache jq ninja-build
+      - name: Restore compiler object cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ runner.temp }}/laplace-ccache/${{ matrix.preset }}
+          key: laplace-ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.preset }}-${{ github.sha }}
+          restore-keys: |
+            laplace-ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.preset }}-
+      - name: Configure compiler object cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache_dir="$RUNNER_TEMP/laplace-ccache/${{ matrix.preset }}"
+          mkdir -p "$cache_dir"
+          export CCACHE_DIR="$cache_dir"
+          export CCACHE_BASEDIR="$GITHUB_WORKSPACE"
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_MAXSIZE=512M
+          ccache --set-config=max_size="$CCACHE_MAXSIZE"
+          ccache --set-config=compiler_check="$CCACHE_COMPILERCHECK"
+          ccache --set-config=base_dir="$CCACHE_BASEDIR"
+          ccache --set-config=hash_dir=false
+          ccache --zero-stats
+          ccache --show-config
+          printf 'CCACHE_DIR=%s\n' "$CCACHE_DIR" >> "$GITHUB_ENV"
+          printf 'CCACHE_BASEDIR=%s\n' "$CCACHE_BASEDIR" >> "$GITHUB_ENV"
+          printf 'CCACHE_COMPILERCHECK=%s\n' "$CCACHE_COMPILERCHECK" >> "$GITHUB_ENV"
+          printf 'CCACHE_MAXSIZE=%s\n' "$CCACHE_MAXSIZE" >> "$GITHUB_ENV"
       - name: Acquire pinned build dependencies
         shell: bash
         run: |
@@ -78,6 +107,8 @@ jobs:
           set -euo pipefail
           build_directory="$RUNNER_TEMP/laplace-output/build/${{ matrix.preset }}"
           cmake --preset "${{ matrix.preset }}" -B "$build_directory" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
             -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
             -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
@@ -88,6 +119,9 @@ jobs:
           printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
       - name: Build
         run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 2
+      - name: Report compiler object cache
+        if: always()
+        run: ccache --show-stats --verbose
       - name: Execute implementation tests
         run: ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" --output-on-failure
       - name: Verify test registry

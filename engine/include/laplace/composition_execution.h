@@ -1,6 +1,7 @@
 #ifndef LAPLACE_COMPOSITION_EXECUTION_H
 #define LAPLACE_COMPOSITION_EXECUTION_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "laplace/composition.h"
@@ -53,6 +54,21 @@ LAPLACE_API laplace_composition_status
 laplace_composition_frontier_execution_plan_build(
     const laplace_composition_working_set_input* input,
     laplace_composition_frontier_execution_plan* plan);
+
+/*
+ * Return the actual common-execution receipts produced while calculating each
+ * dependency frontier of a completed working set.  Receipt order is canonical
+ * frontier order.  Every request belongs to exactly one receipt, and the sum of
+ * completed_items therefore equals the working-set semantic calculation count on
+ * successful execution.
+ *
+ * These are postflight execution receipts, not estimates.  The returned storage is
+ * owned by the working set and remains valid until that working set is destroyed.
+ */
+LAPLACE_API const laplace_execution_work_receipt*
+laplace_composition_working_set_frontier_execution_receipts(
+    const laplace_composition_working_set* working_set,
+    size_t* receipt_count);
 
 #ifdef __cplusplus
 }

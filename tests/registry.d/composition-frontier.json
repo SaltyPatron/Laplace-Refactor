@@ -39,6 +39,33 @@
       ]
     },
     {
+      "ctest_name": "composition.frontier-runtime-receipts",
+      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": [
+        "runtime composition frontiers are checked against the same shared dependency planner used by preflight",
+        "one actual common-execution work receipt is retained per canonical dependency frontier",
+        "sum of completed postflight items equals the semantic calculation count without a second semantic execution",
+        "actual runtime chunk counts and worker widths agree with the preflight scheduling shape for wide and deep DAGs",
+        "frontier execution receipts remain attached to the opaque working-set lifetime and are removed on destruction"
+      ],
+      "defect_controls": [
+        "runtime independently changes frontier membership while preflight reports the canonical DAG",
+        "postflight work is reconstructed by replaying semantic composition",
+        "one aggregate worker count hides the actual per-frontier physical execution receipts"
+      ]
+    },
+    {
+      "ctest_name": "composition.mutation-runtime-frontier-divergence-detected",
+      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": [
+        "deliberate runtime dependency flattening cannot execute under a canonical deep frontier plan",
+        "shared-planner/runtime divergence fails before the mutated path can publish a successful working set"
+      ],
+      "defect_controls": [
+        "runtime frontier schedule silently diverges from the canonical dependency plan"
+      ]
+    },
+    {
       "ctest_name": "composition.mutation-flattened-frontier-dependencies-detected",
       "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
       "covered_dimensions": ["deliberate-defect sensitivity to a physical planner that erases prior-result dependency depth"],
