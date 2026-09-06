@@ -21,6 +21,16 @@ target_compile_options(laplace_decomposition_structured_provider_tests PRIVATE
 gtest_discover_tests(laplace_decomposition_structured_provider_tests
     PROPERTIES LABELS "implementation;decomposition;recipe;grammar;ast;structure;witness")
 
+add_executable(laplace_universal_ast_recipe_tests
+    "${CMAKE_CURRENT_LIST_DIR}/universal_ast_recipe_tests.cpp")
+target_link_libraries(laplace_universal_ast_recipe_tests PRIVATE
+    Laplace::UniversalAst
+    GTest::gtest_main)
+target_compile_options(laplace_universal_ast_recipe_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_universal_ast_recipe_tests
+    PROPERTIES LABELS "implementation;decomposition;grammar;recipe;ast;identity;highway")
+
 add_library(laplace_decomposition_witness_identity_mutant STATIC
     "${CMAKE_CURRENT_LIST_DIR}/../engine/src/decomposition_composition.cpp")
 target_include_directories(laplace_decomposition_witness_identity_mutant PRIVATE
