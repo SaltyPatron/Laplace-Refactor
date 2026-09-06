@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "laplace/cognition_observation_request.h"
 #include "laplace/cognition_turn.h"
 #include "laplace/composition.h"
 #include "laplace/decomposition.h"
@@ -36,7 +37,8 @@ typedef enum laplace_cognition_prompt_admission_status {
     LAPLACE_COGNITION_PROMPT_ADMISSION_PRESENCE_FAILURE = 8,
     LAPLACE_COGNITION_PROMPT_ADMISSION_ROOT_INVALID = 9,
     LAPLACE_COGNITION_PROMPT_ADMISSION_MEMORY_FAILURE = 10,
-    LAPLACE_COGNITION_PROMPT_ADMISSION_NO_PUBLICATION_REQUIRED = 11
+    LAPLACE_COGNITION_PROMPT_ADMISSION_NO_PUBLICATION_REQUIRED = 11,
+    LAPLACE_COGNITION_PROMPT_ADMISSION_STRUCTURAL_PROVIDER_FAILURE = 12
 } laplace_cognition_prompt_admission_status;
 
 /*
@@ -157,6 +159,25 @@ LAPLACE_API laplace_cognition_prompt_admission_status
 laplace_cognition_prompt_admission_producer(
     laplace_cognition_prompt_admission* admission,
     laplace_framework_producer_v1* producer);
+
+/*
+ * Expose the admitted prompt's exact composition/decomposition graph through the
+ * same candidate-only boundary used by persistent structural, semantic and
+ * evidence providers. Cognition therefore starts from the whole trunk and may
+ * descend through canonical constituents or rise through exact containers before
+ * any semantic provider is consulted. The provider emits only structural
+ * CONSTITUENT/CONTAINER crossings on the PHYSICALITY plane; it cannot synthesize
+ * semantic relations, guidance operations, completion decisions or attestations.
+ *
+ * The admission object owns the provider state and must outlive every request
+ * that uses the returned descriptor. `maximum_candidate_records_per_expansion`
+ * reports the exact maximum structural out-degree so an undersized search budget
+ * fails visibly instead of silently truncating the prompt structure.
+ */
+LAPLACE_API laplace_cognition_prompt_admission_status
+laplace_cognition_prompt_admission_structural_provider(
+    laplace_cognition_prompt_admission* admission,
+    laplace_cognition_observation_candidate_provider_v1* provider);
 
 LAPLACE_API void laplace_cognition_prompt_admission_destroy(
     laplace_cognition_prompt_admission** admission);

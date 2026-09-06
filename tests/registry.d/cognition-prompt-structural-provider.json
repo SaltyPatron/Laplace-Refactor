@@ -1,0 +1,15 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.EnumeratesExactSubtreeAndCodepointFallbackOnly",
+      "evidence_targets": ["LP-TEST-IDENTITY-PREIMAGE-GRAMMAR", "LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
+      "covered_dimensions": ["the exact whole prompt trunk exposes reusable exact subtrees and Unicode-floor constituents through the candidate-only cognition provider boundary", "the prompt structural provider remains on the physicality plane and emits no semantic relation even when the request also permits the semantic family", "native fallback stays on canonical content identities instead of tokenizer or selected-topic aliases"]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.TurnAndForwardReceiptBeginAtWholeTrunk",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-OCCURRENCE-PRESERVATION"],
+      "covered_dimensions": ["the admitted whole prompt trunk is the exact cognition request anchor", "native forward execution selects and receipts an operation beginning from the trunk without a preselected topic", "the exact constituent result retains its structural relation and physicality source-plane path evidence"]
+    }
+  ]
+}
