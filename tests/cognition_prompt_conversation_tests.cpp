@@ -388,9 +388,10 @@ laplace_cognition_prompt_conversation_request ConversationPolicy(
         LAPLACE_OBSERVATION_QUERY_CONSTITUENT |
         LAPLACE_OBSERVATION_QUERY_SEMANTIC;
     request.cognition_policy.maximum_results = 1U;
+    /* GOAL_PRESENT keeps intermediate structural states expandable; marking every
+     * candidate terminal here would stop at B/A before the semantic A -> C hop. */
     request.cognition_policy.request_flags =
         LAPLACE_COGNITION_OBSERVATION_REQUEST_GOAL_PRESENT |
-        LAPLACE_COGNITION_OBSERVATION_REQUEST_TERMINAL_RESULTS |
         LAPLACE_COGNITION_OBSERVATION_REQUEST_BOUNDARY_COMPLETE;
     request.cognition_policy.version = LAPLACE_COGNITION_TURN_POLICY_VERSION;
     request.cognition_policy.search_budget.max_expanded_states = 16U;
