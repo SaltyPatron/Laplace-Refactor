@@ -81,7 +81,23 @@ file(APPEND "${extension_sql}"
 ${LAPLACE_OBSERVATION_COGNITION_SQL}\
 ")
 
+set(LAPLACE_COGNITION_DISCOURSE_SCHEMA
+    "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
+set(cognition_discourse_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/cognition_discourse.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cognition_discourse.sql.in"
+    "${cognition_discourse_sql}"
+    @ONLY)
+file(READ "${cognition_discourse_sql}"
+    LAPLACE_COGNITION_DISCOURSE_SQL)
+file(APPEND "${extension_sql}"
+    "\
+${LAPLACE_COGNITION_DISCOURSE_SQL}\
+")
+
 set(laplace_postgresql_module_sources
+    src/cognition_discourse_pg.c
     src/cognition_isa_pg.c
     src/composition_pg.c
     src/evidence_lineage_pg.c
@@ -225,7 +241,7 @@ if(BUILD_TESTING)
         laplace_pg_composition_replay_receipt_mutant PRIVATE
         LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_replay_receipt_mutant
         LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_replay_receipt_mutant
-        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_replay_receipt_mutant
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_presence_replay_receipt_mutant
         LAPLACE_PG_COMPOSITION_PERSIST_RECEIPT_SYMBOL=laplace_pg_composition_persist_receipt_replay_receipt_mutant
         LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL=laplace_pg_persistence_run_producer_replay_receipt_mutant)
     laplace_add_postgresql_mutant(
