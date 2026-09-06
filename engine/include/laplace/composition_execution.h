@@ -70,6 +70,24 @@ laplace_composition_working_set_frontier_execution_receipts(
     const laplace_composition_working_set* working_set,
     size_t* receipt_count);
 
+/*
+ * Identify the canonical semantic state produced by a completed composition
+ * working set while deliberately excluding physical execution choices.  The
+ * identity covers canonical results, entities, physicalities/trajectories,
+ * explicit occurrence witnesses, source identity and calculation recipe.  It
+ * excludes execution-context/resource grants, worker/chunk/frontier receipts,
+ * presence probe identity, persistence batch boundaries and serialized stream
+ * partitioning.
+ *
+ * This is the comparison surface for physical-plan invariance: legal changes in
+ * workers, scheduling, presence/deposit batch sizes or another equivalent physical
+ * provider may change execution receipts but must not change this fingerprint.
+ */
+LAPLACE_API laplace_composition_status
+laplace_composition_working_set_semantic_fingerprint(
+    const laplace_composition_working_set* working_set,
+    laplace_digest256* semantic_fingerprint);
+
 #ifdef __cplusplus
 }
 #endif
