@@ -281,7 +281,7 @@ TEST(UniversalAstIsa, OutputCapacityAndIntroducedMinorFailBeforeExecution) {
     run.values[1].capacity = ReceiptWords;
     run.program.minor = 13u;
     EXPECT_EQ(laplace_isa_validate(&run.program, &error),
-              LAPLACE_ISA_UNKNOWN_OPCODE);
+              LAPLACE_ISA_UNSUPPORTED_INSTRUCTION_VERSION);
 }
 
 }  // namespace
