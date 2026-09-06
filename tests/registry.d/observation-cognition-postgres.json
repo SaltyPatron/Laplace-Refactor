@@ -7,10 +7,16 @@
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
       "covered_dimensions": [
         "PostgreSQL typed request transport into canonical native request lowering",
+        "PostgreSQL adapter delegates compile provider forward and result lifecycle to the public native observation-request execution owner rather than replaying a private cognition sequence",
         "canonical physicality and packed trajectory transport validation",
         "depth-two predecessor search through shared observation provider",
         "forward-pass completion and exact native receipt parity",
         "query intent excluded from immutable observation-index identity"
+      ],
+      "defect_controls": [
+        "route-local guidance or search program construction",
+        "PostgreSQL adapter manually replaying native compile-provider-forward semantic lifecycle",
+        "transport-specific request identity or completion semantics"
       ]
     }
   ]
