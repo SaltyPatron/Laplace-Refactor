@@ -221,11 +221,15 @@ TEST(CognitionSemanticAct, CompletedRequestSelectsNativeTerminalActWithoutTextIn
     EXPECT_FALSE(Zero(act.answer_set_fingerprint));
     EXPECT_TRUE(SameId(act.primary_answer.entity_id, fixture.backend.target));
     EXPECT_EQ(act.answer_count, 1U);
-    EXPECT_EQ(act.operation_kind, LAPLACE_COGNITION_OPERATION_ANSWER);
+    EXPECT_EQ(act.act_kind, LAPLACE_COGNITION_OPERATION_ANSWER);
+    EXPECT_EQ(
+        act.producer_operation_kind,
+        LAPLACE_COGNITION_OPERATION_INDEXED_SEARCH);
     EXPECT_EQ(
         act.flags,
         LAPLACE_COGNITION_SEMANTIC_ACT_PRIMARY_ANSWER_PRESENT |
-            LAPLACE_COGNITION_SEMANTIC_ACT_TERMINAL_OPERATION_PRESENT);
+            LAPLACE_COGNITION_SEMANTIC_ACT_PRODUCER_OPERATION_PRESENT |
+            LAPLACE_COGNITION_SEMANTIC_ACT_KIND_PRESENT);
     EXPECT_EQ(act.version, LAPLACE_COGNITION_SEMANTIC_ACT_VERSION);
 }
 
@@ -245,7 +249,8 @@ TEST(CognitionSemanticAct, IncompleteReceiptCannotBePromotedToSemanticAct) {
         LAPLACE_COGNITION_SEMANTIC_ACT_INCOMPLETE);
     EXPECT_TRUE(Zero(act.act_id));
     EXPECT_EQ(act.answer_count, 0U);
-    EXPECT_EQ(act.operation_kind, 0U);
+    EXPECT_EQ(act.act_kind, 0U);
+    EXPECT_EQ(act.producer_operation_kind, 0U);
 }
 
 TEST(CognitionSemanticAct, ReceiptAndForwardResultMustDescribeSameFinalState) {

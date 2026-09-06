@@ -64,7 +64,7 @@
     {
       "ctest_name": "CognitionSemanticAct.CompletedRequestSelectsNativeTerminalActWithoutTextIntentLookup",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["semantic act is derived only after native completion", "terminal operation kind comes from the forward decision receipt rather than prompt keyword matching", "retained answer entity path and result contract remain bound into one act identity", "realization can consume the semantic result without rerunning search"]
+      "covered_dimensions": ["semantic act is derived only after native completion", "producer operation comes from the final forward decision receipt", "completed retained observation results become a typed ANSWER semantic act without prompt keyword matching", "retained answer entity path and result contract remain bound into one act identity", "realization can consume the semantic result without rerunning search"]
     },
     {
       "ctest_name": "CognitionSemanticAct.IncompleteReceiptCannotBePromotedToSemanticAct",

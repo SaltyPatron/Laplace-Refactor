@@ -72,6 +72,11 @@ bool BetterPrimary(
                sizeof(candidate.entity_id.bytes)) < 0;
 }
 
+bool KnownProducerOperation(const std::uint32_t kind) {
+    return kind >= LAPLACE_COGNITION_OPERATION_STRUCTURAL_CALCULATION &&
+        kind <= LAPLACE_COGNITION_OPERATION_EXECUTE;
+}
+
 }  // namespace laplace_cognition_semantic_act_detail
 
 extern "C" laplace_cognition_semantic_act_status
@@ -99,7 +104,7 @@ laplace_cognition_observation_semantic_act_select(
     const std::size_t layer_count =
         laplace_cognition_forward_result_layer_count(forward_result);
     if (layer_count == 0U) {
-        return LAPLACE_COGNITION_SEMANTIC_ACT_NO_TERMINAL_OPERATION;
+        return LAPLACE_COGNITION_SEMANTIC_ACT_NO_PRODUCER_OPERATION;
     }
     if (forward_receipt->layer_count != static_cast<std::uint64_t>(layer_count)) {
         return LAPLACE_COGNITION_SEMANTIC_ACT_FORWARD_RESULT_FAILURE;
@@ -115,9 +120,8 @@ laplace_cognition_observation_semantic_act_select(
         !SameDigest(final_layer.next_state_id, forward_receipt->final_state_id)) {
         return LAPLACE_COGNITION_SEMANTIC_ACT_FORWARD_RESULT_FAILURE;
     }
-    if (final_layer.selected_kind < LAPLACE_COGNITION_OPERATION_ANSWER ||
-        final_layer.selected_kind > LAPLACE_COGNITION_OPERATION_EXECUTE) {
-        return LAPLACE_COGNITION_SEMANTIC_ACT_NO_TERMINAL_OPERATION;
+    if (!KnownProducerOperation(final_layer.selected_kind)) {
+        return LAPLACE_COGNITION_SEMANTIC_ACT_NO_PRODUCER_OPERATION;
     }
 
     const std::size_t answer_count =
@@ -170,9 +174,11 @@ laplace_cognition_observation_semantic_act_select(
     act->answer_set_fingerprint = answer_set_fingerprint;
     act->primary_answer = primary;
     act->answer_count = static_cast<std::uint64_t>(answer_count);
-    act->operation_kind = final_layer.selected_kind;
+    act->act_kind = LAPLACE_COGNITION_OPERATION_ANSWER;
+    act->producer_operation_kind = final_layer.selected_kind;
     act->flags = LAPLACE_COGNITION_SEMANTIC_ACT_PRIMARY_ANSWER_PRESENT |
-        LAPLACE_COGNITION_SEMANTIC_ACT_TERMINAL_OPERATION_PRESENT;
+        LAPLACE_COGNITION_SEMANTIC_ACT_PRODUCER_OPERATION_PRESENT |
+        LAPLACE_COGNITION_SEMANTIC_ACT_KIND_PRESENT;
     act->version = LAPLACE_COGNITION_SEMANTIC_ACT_VERSION;
 
     blake3_hasher act_hasher;
@@ -187,7 +193,8 @@ laplace_cognition_observation_semantic_act_select(
     HashDigest(&act_hasher, act->answer_set_fingerprint);
     HashAnswer(&act_hasher, act->primary_answer);
     HashU64(&act_hasher, act->answer_count);
-    HashU32(&act_hasher, act->operation_kind);
+    HashU32(&act_hasher, act->act_kind);
+    HashU32(&act_hasher, act->producer_operation_kind);
     HashU32(&act_hasher, act->flags);
     HashU32(&act_hasher, act->version);
     blake3_hasher_finalize(
