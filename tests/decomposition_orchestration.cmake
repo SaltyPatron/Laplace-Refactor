@@ -31,6 +31,19 @@ target_compile_options(laplace_universal_ast_recipe_tests PRIVATE
 gtest_discover_tests(laplace_universal_ast_recipe_tests
     PROPERTIES LABELS "implementation;decomposition;grammar;recipe;ast;identity;highway")
 
+add_executable(laplace_universal_ast_isa_tests
+    "${CMAKE_CURRENT_LIST_DIR}/universal_ast_isa_tests.cpp")
+target_include_directories(laplace_universal_ast_isa_tests PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}")
+target_link_libraries(laplace_universal_ast_isa_tests PRIVATE
+    Laplace::UniversalAst
+    Laplace::Isa
+    GTest::gtest_main)
+target_compile_options(laplace_universal_ast_isa_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_universal_ast_isa_tests
+    PROPERTIES LABELS "implementation;decomposition;grammar;recipe;ast;isa;replay;receipt")
+
 add_library(laplace_decomposition_witness_identity_mutant STATIC
     "${CMAKE_CURRENT_LIST_DIR}/../engine/src/decomposition_composition.cpp")
 target_include_directories(laplace_decomposition_witness_identity_mutant PRIVATE
