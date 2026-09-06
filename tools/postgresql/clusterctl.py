@@ -776,6 +776,75 @@ def compose_loaded_observation(
     return observation
 
 
+def ensure_selected_cluster_running(
+    plan: dict[str, Any],
+    contract: dict[str, Any],
+    system_identifier: str,
+) -> dict[str, Any]:
+    """Resume the exact committed cluster before replay or predecessor inspection."""
+    _require_runner()
+    validate_plan(plan, contract)
+    if not isinstance(system_identifier, str) or not system_identifier.isdecimal():
+        raise _core.ClusterError("cluster resume requires the recorded system identity")
+    package_id = plan["package_id"]
+    active = Path(contract["package"]["active_link"])
+    runtime = Path(RUNTIME_LINK)
+    if not active.is_symlink() or os.readlink(active) != f"releases/{package_id}":
+        raise _core.ClusterError("cluster resume requires the committed package selection")
+    if not runtime.is_symlink() or os.readlink(runtime) != f"../releases/{package_id}":
+        raise _core.ClusterError("cluster resume runtime differs from the committed package")
+
+    # Verify executable and configuration bytes before any stopped cluster is
+    # started. A stale receipt cannot authorize running changed package content.
+    for entry in [*plan["required_loaded_objects"], *plan["files"]]:
+        target = Path(entry["path"])
+        if target.is_symlink() or not target.is_file():
+            raise _core.ClusterError(f"cluster resume input is absent: {target}")
+        if sha256_file(target) != entry["sha256"]:
+            raise _core.ClusterError(f"cluster resume input differs from its plan: {target}")
+
+    status_command = _pg_ctl_command(plan, "status")
+    status = subprocess.run(
+        status_command, check=False, cwd="/", env=activation_environment(),
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30,
+    )
+    commands = [command_execution_receipt("resume-postmaster-status", status_command, status)]
+    if status.returncode == 3:
+        _stopped_live(plan)
+        commands.append(execute_activation_command(
+            "resume-committed-postmaster", plan["commands"]["start_candidate"], 300,
+        ))
+        commands.append(await_postgresql_ready(
+            "resumed-postmaster-readiness", plan["commands"]["probe_readiness"], 300,
+        ))
+    elif status.returncode != 0:
+        raise _core.ClusterError(
+            f"cluster resume status failed ({status.returncode}): "
+            f"{status.stderr.strip() or status.stdout.strip()}"
+        )
+
+    observed = observe_loaded_live(plan, contract, Path("/"))
+    verify_loaded(plan, contract, observed)
+    if observed.get("system_identifier") != system_identifier:
+        raise _core.ClusterError("resumed PostgreSQL system identity differs from its receipt")
+    receipt = {
+        "schema": "laplace.postgresql-cluster-resume/v1",
+        "package_id": package_id,
+        "plan_sha256": plan["plan_sha256"],
+        "system_identifier": system_identifier,
+        "started": status.returncode == 3,
+        "command_receipts": commands,
+        "loaded_observation_sha256": observed["observation_sha256"],
+    }
+    identity = sha256_bytes(canonical_bytes(receipt))
+    receipt["resume_receipt_sha256"] = identity
+    write_json(
+        Path(contract["instance"]["receipt_directory"])
+        / "cluster-resume" / package_id / f"{identity}.json", receipt,
+    )
+    return observed
+
+
 def observe_loaded_live(
     plan: dict[str, Any], contract: dict[str, Any], root: Path, proc_root: Path = Path("/proc")
 ) -> dict[str, Any]:

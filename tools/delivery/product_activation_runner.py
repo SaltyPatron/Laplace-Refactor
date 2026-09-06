@@ -305,28 +305,9 @@ def ensure_cluster_running(
     plan: dict[str, Any], cluster_contract: dict[str, Any], cluster_result: dict[str, Any]
 ) -> dict[str, Any]:
     """Reverify an existing exact package without turning replay into fresh install."""
-    status = subprocess.run(
-        plan["commands"]["status_candidate"],
-        check=False,
-        cwd="/",
-        env=clusterctl.activation_environment(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=30,
+    return clusterctl.ensure_selected_cluster_running(
+        plan, cluster_contract, cluster_result.get("system_identifier")
     )
-    if status.returncode != 0:
-        clusterctl.execute_activation_command(
-            "restart-existing-product", plan["commands"]["start_candidate"], 300
-        )
-        clusterctl.await_postgresql_ready(
-            "existing-product-readiness", plan["commands"]["probe_readiness"], 300
-        )
-    observed = clusterctl.observe_loaded_live(plan, cluster_contract, Path("/"))
-    clusterctl.verify_loaded(plan, cluster_contract, observed)
-    if observed.get("system_identifier") != cluster_result.get("system_identifier"):
-        raise RunnerActivationError("existing PostgreSQL system identity changed")
-    return observed
 
 
 def unicode_failure(

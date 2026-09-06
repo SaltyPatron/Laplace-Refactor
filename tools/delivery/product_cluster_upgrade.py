@@ -294,7 +294,9 @@ def _same_package_replay(
 ) -> dict[str, Any]:
     receipt, plan = _load_completed_activation(contract, package_id)
     _validate_runtime_target(package_id)
-    loaded = clusterctl.observe_loaded_live(plan, contract, Path("/"))
+    loaded = clusterctl.ensure_selected_cluster_running(
+        plan, contract, receipt.get("system_identifier")
+    )
     clusterctl.verify_loaded(plan, contract, loaded)
     if loaded.get("system_identifier") != receipt.get("system_identifier"):
         raise UpgradeError("same-package replay changed PostgreSQL system identity")
@@ -335,8 +337,8 @@ def upgrade_product(
         contract, predecessor_package_id
     )
     _validate_runtime_target(predecessor_package_id)
-    predecessor_loaded = clusterctl.observe_loaded_live(
-        predecessor_plan, contract, Path("/")
+    predecessor_loaded = clusterctl.ensure_selected_cluster_running(
+        predecessor_plan, contract, predecessor_receipt.get("system_identifier")
     )
     clusterctl.verify_loaded(predecessor_plan, contract, predecessor_loaded)
     if predecessor_loaded.get("system_identifier") != predecessor_receipt.get(

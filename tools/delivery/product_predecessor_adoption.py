@@ -213,7 +213,9 @@ def ensure_current_predecessor_receipt(contract_path: Path) -> dict[str, Any]:
 
     historical_digest = clusterctl.sha256_file(receipt_path)
     archive_path = _archive_original(receipt_path, historical_digest)
-    initial = _live_predecessor(plan, contract, package_id)
+    initial = clusterctl.ensure_selected_cluster_running(
+        plan, contract, receipt.get("system_identifier")
+    )
 
     lifecycle_mutation_started = False
     try:
