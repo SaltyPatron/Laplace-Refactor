@@ -80,12 +80,15 @@ typedef struct laplace_cognition_observation_request_provider
  * not construct search states, transitions, cognition operations, resolutions,
  * guidance, completion decisions, or forward receipts. `source_state_index`
  * identifies which source in the supplied frontier produced the candidate.
- * `evidence_root_fingerprint` identifies the durable observation/physicality
- * record that justifies the crossing; it is provider-owned evidence identity,
- * not a replacement for the target entity's canonical 128-bit content identity.
+ * `observation_fingerprint` identifies the durable structural/semantic record
+ * that justifies the crossing. `evidence_root_fingerprint` is independently
+ * optional: zero means the crossing is calculated from structure alone, while a
+ * nonzero value identifies an independent testimonial/evidence root. The source
+ * layer remains explicit so storage adapters do not flatten those two meanings.
  */
 typedef struct laplace_cognition_observation_candidate {
     laplace_id128 target_entity_id;
+    laplace_digest256 observation_fingerprint;
     laplace_digest256 evidence_root_fingerprint;
     uint64_t source_state_index;
     uint64_t source_logical_ordinal;
@@ -93,7 +96,9 @@ typedef struct laplace_cognition_observation_candidate {
     uint64_t multiplicity;
     uint64_t gap;
     uint32_t relation;
+    uint32_t source_layer;
     uint32_t flags;
+    uint32_t reserved;
 } laplace_cognition_observation_candidate;
 
 typedef struct laplace_cognition_observation_candidate_usage {
