@@ -3,3 +3,4 @@
 #include "observation_query_part01.inc"
 #include "cognition_observation_request.inc"
 #include "cognition_observation_request_provider.inc"
+#include "cognition_observation_candidate_provider.inc"
