@@ -1,0 +1,30 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionMaterialization.ExactCjkTrajectoryRoundTripsWithoutEnglishIntermediate",
+      "evidence_targets": ["LP-TEST-CJK-TRAJECTORY-RENDER", "LP-TEST-MULTILINGUAL-NON-ENGLISH-INTERMEDIATE", "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"],
+      "covered_dimensions": ["selected realization content reconstructs through its exact ordered trajectory to Unicode-position bytes", "CJK codepoints and punctuation materialize directly without an English token or text intermediate", "materialization emits provider readset and exact output receipts"]
+    },
+    {
+      "ctest_name": "CognitionMaterialization.NestedCompositionDescendsToAtomsAndPreservesRuns",
+      "evidence_targets": ["LP-TEST-CJK-TRAJECTORY-RENDER", "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"],
+      "covered_dimensions": ["nested canonical compositions recursively descend to the Unicode atom floor", "ordered child multiplicity reconstructs exact repeated output rather than flattening structure", "the final receipt counts resolved nodes trajectory carriers codepoints and observed depth"]
+    },
+    {
+      "ctest_name": "CognitionMaterialization.ValidTrajectoryWithWrongOrderFailsContentIdentity",
+      "evidence_targets": ["LP-TEST-CJK-TRAJECTORY-RENDER", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["trajectory order is content identity", "a structurally valid but reordered trajectory fails the root BLAKE3 content witness", "failed identity validation publishes zero output bytes"]
+    },
+    {
+      "ctest_name": "CognitionMaterialization.CapacityFailurePublishesNoPartialOutput",
+      "evidence_targets": ["LP-TEST-REALIZATION-PROVENANCE-CLOSURE"],
+      "covered_dimensions": ["exact materialization is atomic at the caller buffer boundary", "insufficient output capacity returns a typed failure after validation without leaking a partial response", "no success receipt is published on capacity failure"]
+    },
+    {
+      "ctest_name": "CognitionMaterialization.IncompleteRealizationCannotReachPersistenceProvider",
+      "evidence_targets": ["LP-TEST-LANGUAGE-READINESS-WHY-NOT", "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION"],
+      "covered_dimensions": ["typed unsupported or incomplete realization cannot be converted into surface bytes", "the persistence readback provider is not invoked for an incomplete semantic realization", "materialization cannot become a bypass around realization readiness"]
+    }
+  ]
+}

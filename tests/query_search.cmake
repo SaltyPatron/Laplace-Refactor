@@ -19,13 +19,14 @@ add_executable(laplace_observation_query_tests
     "${PROJECT_SOURCE_DIR}/tests/cognition_discourse_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_discourse_frame_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_turn_tests.cpp"
-    "${PROJECT_SOURCE_DIR}/tests/cognition_realization_tests.cpp")
+    "${PROJECT_SOURCE_DIR}/tests/cognition_realization_tests.cpp"
+    "${PROJECT_SOURCE_DIR}/tests/cognition_materialization_tests.cpp")
 target_link_libraries(laplace_observation_query_tests PRIVATE
     Laplace::QuerySearch GTest::gtest_main)
 target_compile_options(laplace_observation_query_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_observation_query_tests PROPERTIES
-    LABELS "implementation;query;cognition;observation;physicality;trajectory;request;forward-pass;semantic-act;discourse;turn;realization;language;why-not;persistence;receipt")
+    LABELS "implementation;query;cognition;observation;physicality;trajectory;request;forward-pass;semantic-act;discourse;turn;realization;materialization;unicode;language;why-not;persistence;receipt")
 
 function(laplace_add_query_search_mutation suffix definition test_name filter)
     set(library "laplace_query_search_${suffix}_mutant")
