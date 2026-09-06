@@ -20,12 +20,15 @@ struct laplace_decomposition_composition_plan {
     std::vector<laplace_composition_operand> operands;
     std::vector<laplace_composition_request> requests;
     std::vector<laplace_composition_operand> span_references;
+    std::vector<std::uint8_t> span_has_content;
 };
 
 namespace {
 
 constexpr std::uint32_t RecipeVersion = 1u;
 constexpr std::uint64_t NoResultIndex = std::numeric_limits<std::uint64_t>::max();
+constexpr std::uint32_t MissingSyntaxFlag =
+    static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_MISSING);
 
 bool DigestZero(const laplace_digest256& value) {
     for (const std::uint8_t byte : value.bytes) {
@@ -158,7 +161,7 @@ public:
         blake3_hasher trace_hasher;
         blake3_hasher_init(&trace_hasher);
         static constexpr std::string_view TraceDomain{
-            "laplace.decomposition.composition.trace/v1"};
+            "laplace.decomposition.composition.trace/v2"};
         HashBytes(trace_hasher, TraceDomain.data(), TraceDomain.size());
         HashBytes(
             trace_hasher,
@@ -166,13 +169,18 @@ public:
             static_cast<std::size_t>(input_.content->byte_count));
         HashU64(trace_hasher, static_cast<std::uint64_t>(span_count));
         plan_.span_references.reserve(span_count);
+        plan_.span_has_content.reserve(span_count);
 
         for (std::size_t span_index = 0u; span_index < span_count; ++span_index) {
             const laplace_decomposition_span& span = spans[span_index];
-            if (span.byte_start >= span.byte_end ||
+            const bool has_content = span.byte_start < span.byte_end;
+            const bool missing = (span.syntax_flags & MissingSyntaxFlag) != 0u;
+            if (span.byte_start > span.byte_end ||
+                (!has_content && !missing) ||
                 span.byte_end > input_.content->byte_count ||
+                span.reserved != 0u ||
                 (span_index == 0u &&
-                 (span.byte_start != 0u ||
+                 (!has_content || span.byte_start != 0u ||
                   span.byte_end != input_.content->byte_count ||
                   span.parent_span_index !=
                       std::numeric_limits<std::uint64_t>::max())) ||
@@ -196,9 +204,19 @@ public:
                 span.provider_fingerprint.bytes,
                 sizeof(span.provider_fingerprint.bytes));
             HashU64(trace_hasher, span.kind);
+            HashU64(trace_hasher, span.grammar_kind);
+            HashU64(trace_hasher, span.field_kind);
+            HashU64(trace_hasher, span.sibling_ordinal);
             HashU32(trace_hasher, span.depth);
             HashU32(trace_hasher, span.flags);
+            HashU32(trace_hasher, span.syntax_flags);
             HashBytes(trace_hasher, media_type, media_type_bytes);
+
+            if (!has_content) {
+                plan_.span_references.push_back(laplace_composition_operand{});
+                plan_.span_has_content.push_back(0u);
+                continue;
+            }
 
             const std::size_t byte_start =
                 static_cast<std::size_t>(span.byte_start);
@@ -213,8 +231,12 @@ public:
 #endif
             if (!span_reference.has_value()) return status_;
             plan_.span_references.push_back(*span_reference);
+            plan_.span_has_content.push_back(1u);
         }
 
+        if (plan_.span_has_content.empty() || plan_.span_has_content.front() != 1u) {
+            return LAPLACE_DECOMPOSITION_COMPOSITION_DECOMPOSITION_INVALID;
+        }
         auto root = std::optional<laplace_composition_operand>{
             plan_.span_references.front()};
 
@@ -351,6 +373,9 @@ private:
         plan_.view.span_references = plan_.span_references.empty()
             ? nullptr
             : plan_.span_references.data();
+        plan_.view.span_has_content = plan_.span_has_content.empty()
+            ? nullptr
+            : plan_.span_has_content.data();
         plan_.view.atom_count =
             static_cast<std::uint64_t>(plan_.atom_positions.size());
         plan_.view.operand_count =
@@ -394,6 +419,11 @@ bool CanonicalReferenceValid(
         return reference.reference_index < view.request_count;
     }
     return false;
+}
+
+bool ZeroReference(const laplace_composition_operand& reference) {
+    const laplace_composition_operand zero{};
+    return std::memcmp(&reference, &zero, sizeof(reference)) == 0;
 }
 
 bool RootReferenceValid(const laplace_decomposition_composition_plan_view& view) {
@@ -440,14 +470,20 @@ laplace_decomposition_composition_plan_view_get(
         (plan->view.operand_count != 0u && plan->view.operands == nullptr) ||
         (plan->view.request_count != 0u && plan->view.requests == nullptr) ||
         plan->view.span_count == 0u || plan->view.span_references == nullptr ||
+        plan->view.span_has_content == nullptr ||
+        plan->view.span_has_content[0] != 1u ||
         !RootReferenceValid(plan->view)) {
         return LAPLACE_DECOMPOSITION_COMPOSITION_INVALID_ARGUMENT;
     }
     for (std::uint64_t span_index = 0u;
          span_index < plan->view.span_count;
          ++span_index) {
-        if (!CanonicalReferenceValid(
-                plan->view, plan->view.span_references[span_index])) {
+        const std::uint8_t has_content = plan->view.span_has_content[span_index];
+        if (has_content > 1u ||
+            (has_content == 1u && !CanonicalReferenceValid(
+                plan->view, plan->view.span_references[span_index])) ||
+            (has_content == 0u && !ZeroReference(
+                plan->view.span_references[span_index]))) {
             return LAPLACE_DECOMPOSITION_COMPOSITION_INVALID_ARGUMENT;
         }
     }

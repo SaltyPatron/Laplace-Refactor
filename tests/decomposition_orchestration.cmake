@@ -1,5 +1,15 @@
 include(GoogleTest)
 
+# Two mutation targets in tests/CMakeLists intentionally recompile the canonical
+# isa.c directly instead of linking Laplace::Engine. Source properties from the
+# engine directory are directory-scoped, so bind the same generated AST handler
+# to that exact source in the tests directory. The mutation-specific handler
+# branch fails AST closed and therefore does not import a second AST engine.
+set_property(SOURCE "${PROJECT_SOURCE_DIR}/engine/src/isa.c"
+    DIRECTORY "${PROJECT_SOURCE_DIR}/tests"
+    APPEND PROPERTY COMPILE_OPTIONS
+    "$<$<COMPILE_LANG_AND_ID:C,GNU,Clang,IntelLLVM>:-include;${PROJECT_SOURCE_DIR}/engine/src/isa_universal_ast_handler.h>")
+
 add_executable(laplace_decomposition_orchestration_tests
     "${CMAKE_CURRENT_LIST_DIR}/decomposition_orchestration_tests.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/decomposition_leaf_redispatch_tests.cpp")
@@ -10,6 +20,39 @@ target_compile_options(laplace_decomposition_orchestration_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 gtest_discover_tests(laplace_decomposition_orchestration_tests
     PROPERTIES LABELS "implementation;decomposition;recipe;recursive;grammar")
+
+add_executable(laplace_decomposition_structured_provider_tests
+    "${CMAKE_CURRENT_LIST_DIR}/decomposition_structured_provider_tests.cpp")
+target_link_libraries(laplace_decomposition_structured_provider_tests PRIVATE
+    Laplace::Decomposition
+    GTest::gtest_main)
+target_compile_options(laplace_decomposition_structured_provider_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_decomposition_structured_provider_tests
+    PROPERTIES LABELS "implementation;decomposition;recipe;grammar;ast;structure;witness")
+
+add_executable(laplace_universal_ast_recipe_tests
+    "${CMAKE_CURRENT_LIST_DIR}/universal_ast_recipe_tests.cpp")
+target_link_libraries(laplace_universal_ast_recipe_tests PRIVATE
+    Laplace::UniversalAst
+    GTest::gtest_main)
+target_compile_options(laplace_universal_ast_recipe_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_universal_ast_recipe_tests
+    PROPERTIES LABELS "implementation;decomposition;grammar;recipe;ast;identity;highway")
+
+add_executable(laplace_universal_ast_isa_tests
+    "${CMAKE_CURRENT_LIST_DIR}/universal_ast_isa_tests.cpp")
+target_include_directories(laplace_universal_ast_isa_tests PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}")
+target_link_libraries(laplace_universal_ast_isa_tests PRIVATE
+    Laplace::UniversalAst
+    Laplace::Isa
+    GTest::gtest_main)
+target_compile_options(laplace_universal_ast_isa_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_universal_ast_isa_tests
+    PROPERTIES LABELS "implementation;decomposition;grammar;recipe;ast;isa;replay;receipt")
 
 add_library(laplace_decomposition_witness_identity_mutant STATIC
     "${CMAKE_CURRENT_LIST_DIR}/../engine/src/decomposition_composition.cpp")

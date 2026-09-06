@@ -57,6 +57,8 @@ add_library(laplace_engine SHARED
     src/decomposition_fixed_width.cpp
     src/decomposition_tree_sitter.cpp
     src/tree_sitter_grammar.cpp
+    src/universal_ast.cpp
+    src/universal_ast_packet.cpp
     src/cognition_forward_pass.cpp
     src/observation_query.cpp
     src/perfcache.c
@@ -77,6 +79,12 @@ set_source_files_properties(src/tabular_source.cpp PROPERTIES
 # warnings and all global -Werror policy remain unchanged.
 set_source_files_properties(src/composition.cpp PROPERTIES
     COMPILE_OPTIONS "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=subobject-linkage>")
+# The generated ISA registry declares operation handlers in isa.c. Force-include
+# the AST packet handler before that registry is instantiated so the new 1.14
+# opcode enters the same binary-search dispatcher without a second switch.
+set_source_files_properties(src/isa.c PROPERTIES
+    COMPILE_OPTIONS
+        "$<$<COMPILE_LANG_AND_ID:C,GNU,Clang,IntelLLVM>:-include;${CMAKE_CURRENT_SOURCE_DIR}/src/isa_universal_ast_handler.h>")
 if(TARGET LaplaceOneApi::TBB AND TARGET LaplaceOneApi::MKLTbb)
     target_sources(laplace_engine PRIVATE src/execution_oneapi.cpp)
     target_link_libraries(laplace_engine PRIVATE
@@ -114,6 +122,7 @@ add_library(Laplace::UnicodeRoot ALIAS laplace_engine)
 add_library(Laplace::Uax29 ALIAS laplace_engine)
 add_library(Laplace::TextDecomposition ALIAS laplace_engine)
 add_library(Laplace::Decomposition ALIAS laplace_engine)
+add_library(Laplace::UniversalAst ALIAS laplace_engine)
 add_library(Laplace::CognitionForwardPass ALIAS laplace_engine)
 
 if(TARGET LaplaceOneApi::MKLRuntime)
