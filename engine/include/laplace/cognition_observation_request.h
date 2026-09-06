@@ -139,6 +139,20 @@ laplace_cognition_observation_request_provider_destroy(
     laplace_cognition_observation_request_provider** provider_state);
 
 /*
+ * Executes one complete typed request through a caller-supplied typed cognition
+ * provider while retaining request compilation, guidance construction, bounded
+ * forward execution, operation selection, completion and receipt ownership in
+ * the native engine. Provider state may wrap an external persistence/query
+ * backend; it does not receive or construct private guidance or forward state.
+ */
+LAPLACE_API laplace_cognition_observation_request_status
+laplace_cognition_observation_request_execute_with_provider(
+    const laplace_cognition_observation_request* request,
+    const laplace_cognition_forward_provider_v1* provider,
+    laplace_cognition_forward_result** result,
+    laplace_cognition_forward_receipt* receipt);
+
+/*
  * Executes one complete typed request through the canonical compile, provider,
  * and bounded forward-pass surfaces. This is the public native boundary for a
  * caller that has an admitted immutable observation index; it does not expose
