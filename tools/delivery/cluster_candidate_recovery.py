@@ -12,6 +12,7 @@ This provider therefore has a deliberately narrow authority boundary:
 * an active product link disables recovery entirely;
 * symlinks and non-directories are never followed or removed;
 * non-empty directories are never modified;
+* all targets are inspected before any empty leaf is removed;
 * only empty direct candidate leaves are removed;
 * every observation/removal is receipted with the pre-removal owner identity.
 
@@ -85,23 +86,29 @@ def write_json(path: Path, value: dict[str, Any]) -> None:
         raise
 
 
-def _target_result(key: str, target: Path) -> dict[str, Any]:
-    result: dict[str, Any] = {"key": key, "path": str(target)}
+def _inspect_target(key: str, target: Path) -> dict[str, Any]:
+    result: dict[str, Any] = {"key": key, "path": str(target), "removed": False}
     try:
         metadata = target.lstat()
     except FileNotFoundError:
-        result.update({"state": "absent", "removed": False})
+        result["state"] = "absent"
         return result
     except OSError as error:
         raise RecoveryError(f"cannot inspect candidate target {target}: {error}") from error
 
-    result["owner_uid"] = metadata.st_uid
-    result["owner_gid"] = metadata.st_gid
+    result.update(
+        {
+            "owner_uid": metadata.st_uid,
+            "owner_gid": metadata.st_gid,
+            "device": metadata.st_dev,
+            "inode": metadata.st_ino,
+        }
+    )
     if stat.S_ISLNK(metadata.st_mode):
-        result.update({"state": "blocked-symlink", "removed": False})
+        result["state"] = "blocked-symlink"
         return result
     if not stat.S_ISDIR(metadata.st_mode):
-        result.update({"state": "blocked-non-directory", "removed": False})
+        result["state"] = "blocked-non-directory"
         return result
 
     try:
@@ -110,21 +117,40 @@ def _target_result(key: str, target: Path) -> dict[str, Any]:
     except OSError as error:
         raise RecoveryError(f"cannot enumerate candidate target {target}: {error}") from error
     if first is not None:
-        result.update(
-            {
-                "state": "blocked-nonempty",
-                "removed": False,
-                "first_entry": first.name,
-            }
-        )
+        result.update({"state": "blocked-nonempty", "first_entry": first.name})
         return result
 
+    result["state"] = "empty"
+    return result
+
+
+def _remove_inspected_empty(result: dict[str, Any], active_link: Path) -> None:
+    if result.get("state") != "empty":
+        return
+    if active_link.exists() or active_link.is_symlink():
+        raise RecoveryError("active product appeared during candidate recovery")
+    target = Path(str(result["path"]))
     try:
+        metadata = target.lstat()
+    except OSError as error:
+        raise RecoveryError(f"candidate target changed before cleanup {target}: {error}") from error
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or metadata.st_dev != result.get("device")
+        or metadata.st_ino != result.get("inode")
+    ):
+        raise RecoveryError(f"candidate target identity changed before cleanup: {target}")
+    try:
+        with os.scandir(target) as entries:
+            if next(entries, None) is not None:
+                raise RecoveryError(f"candidate target became non-empty before cleanup: {target}")
         target.rmdir()
+    except RecoveryError:
+        raise
     except OSError as error:
         raise RecoveryError(f"cannot remove empty candidate target {target}: {error}") from error
     result.update({"state": "removed-empty", "removed": True})
-    return result
 
 
 def recover(contract: dict[str, Any]) -> dict[str, Any]:
@@ -151,13 +177,31 @@ def recover(contract: dict[str, Any]) -> dict[str, Any]:
     active_present = active_link.exists() or active_link.is_symlink()
     if active_present:
         results = [
-            {"key": key, "path": str(target), "state": "active-product-present", "removed": False}
+            {
+                "key": key,
+                "path": str(target),
+                "state": "active-product-present",
+                "removed": False,
+            }
             for key, target in targets
         ]
     else:
-        results = [_target_result(key, target) for key, target in targets]
+        results = [_inspect_target(key, target) for key, target in targets]
+        blocked = [
+            result for result in results if str(result["state"]).startswith("blocked-")
+        ]
+        if blocked:
+            details = ", ".join(
+                f"{item['path']}:{item['state']}" for item in blocked
+            )
+            raise RecoveryError(
+                f"uncommitted candidate recovery refused occupied state: {details}"
+            )
+        if active_link.exists() or active_link.is_symlink():
+            raise RecoveryError("active product appeared after candidate preflight")
+        for result in results:
+            _remove_inspected_empty(result, active_link)
 
-    blocked = [result for result in results if str(result["state"]).startswith("blocked-")]
     receipt: dict[str, Any] = {
         "schema": SCHEMA,
         "cluster_contract_sha256": hashlib.sha256(canonical_bytes(contract)).hexdigest(),
@@ -167,13 +211,10 @@ def recover(contract: dict[str, Any]) -> dict[str, Any]:
         "effective_uid": os.geteuid(),
         "effective_gid": os.getegid(),
         "removed_count": sum(1 for result in results if result["removed"]),
-        "blocked_count": len(blocked),
+        "blocked_count": 0,
         "results": results,
     }
     receipt["receipt_sha256"] = document_identity(receipt, "receipt_sha256")
-    if blocked:
-        details = ", ".join(f"{item['path']}:{item['state']}" for item in blocked)
-        raise RecoveryError(f"uncommitted candidate recovery refused occupied state: {details}")
     return receipt
 
 
@@ -184,8 +225,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    args = parse_args([] if argv is None else argv)
+def main(argv: Sequence[str]) -> int:
+    args = parse_args(argv)
     receipt = recover(load_json(Path(args.contract)))
     if args.output:
         write_json(Path(args.output), receipt)
