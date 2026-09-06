@@ -34,18 +34,21 @@ jq -s '{schema: .[0].schema, tests: ([.[].tests[]])}' \
 
 duplicate_count=$(jq '[.tests | group_by(.ctest_name)[] | select(length != 1)] | length' "$merged_registry")
 if [[ "$duplicate_count" != "0" ]]; then
+    echo "::error title=Test registry duplicate names::registry contains $duplicate_count duplicate test-name groups" >&2
     echo "test registry contains duplicate names" >&2
     exit 65
 fi
 
 unmapped_count=$(jq '[.tests[] | select((.evidence_targets | length) == 0)] | length' "$merged_registry")
 if [[ "$unmapped_count" != "0" ]]; then
+    echo "::error title=Test registry missing evidence::$unmapped_count registry entries have no evidence targets" >&2
     echo "test registry contains entries without evidence targets" >&2
     exit 65
 fi
 
 while IFS= read -r evidence_id; do
     if ! grep -Fqx "      - ${evidence_id}" "$requirements"; then
+        echo "::error title=Test registry unknown evidence::unknown evidence target: $evidence_id" >&2
         echo "test registry references unknown evidence target: $evidence_id" >&2
         exit 65
     fi
@@ -59,6 +62,13 @@ differences=$(comm -3 \
 if [[ -n "$differences" ]]; then
     echo "CTest and registry names differ:" >&2
     echo "$differences" >&2
+    while IFS= read -r difference; do
+        if [[ "$difference" == $'\t'* ]]; then
+            printf '::error title=CTest registry mismatch::registry-only: %s\n' "${difference#$'\t'}" >&2
+        else
+            printf '::error title=CTest registry mismatch::ctest-only: %s\n' "$difference" >&2
+        fi
+    done <<< "$differences"
     exit 65
 fi
 
