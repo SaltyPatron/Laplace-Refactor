@@ -32,6 +32,21 @@
       "covered_dimensions": ["discourse persistence frame is checksum bound", "corruption fails before a decoded state is published", "readback cannot silently mutate conversation state"]
     },
     {
+      "ctest_name": "CognitionTurn.FirstTurnCompilesFiniteCanonicalRequestWithoutPromptInspection",
+      "evidence_targets": ["LP-TEST-CONVERSATION-ONE-OP-COMPILER", "LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["an admitted observation lowers directly into the finite canonical cognition request", "transport prompt bytes and keyword intent tables do not participate in request compilation", "turn receipt binds the exact compiled request"]
+    },
+    {
+      "ctest_name": "CognitionTurn.CompletedCognitionPersistsAndResumesAsNextFiniteRequest",
+      "evidence_targets": ["LP-TEST-CONVERSATION-WATER-CYCLE", "LP-TEST-CONVERSATION-DISCOURSE-STATE", "LP-TEST-CONVERSATION-SEMANTIC-COMPLETION", "LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["incoming turn executes through native cognition to a semantic act", "completed semantic act becomes an immutable discourse snapshot", "the exact persisted discourse frame is loaded into the next turn", "the successor finite cognition request binds the prior durable state and new admitted observation"]
+    },
+    {
+      "ctest_name": "CognitionTurn.CorruptOrOutOfSequenceDurableStateFailsClosed",
+      "evidence_targets": ["LP-TEST-CONVERSATION-DISCOURSE-STATE", "LP-TEST-CONVERSATION-WATER-CYCLE"],
+      "covered_dimensions": ["corrupt durable discourse cannot seed cognition", "noncontiguous turn ordinals cannot impersonate valid continuation", "failed continuation publishes neither request nor turn receipt identity"]
+    },
+    {
       "ctest_name": "postgres.cognition-discourse-restart-readback",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-CONVERSATION-WATER-CYCLE"],
