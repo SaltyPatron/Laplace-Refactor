@@ -27,7 +27,7 @@ class HostedCiCacheContractTests(unittest.TestCase):
         self.assertIn(CACHE_ACTION, self.workflow)
         self.assertNotIn("actions/cache@v", self.workflow)
         self.assertIn(
-            "CCACHE_DIR: ${{ runner.temp }}/laplace-ccache/${{ matrix.preset }}",
+            'cache_dir="$RUNNER_TEMP/laplace-ccache/${{ matrix.preset }}"',
             self.workflow,
         )
         self.assertIn(
@@ -39,9 +39,21 @@ class HostedCiCacheContractTests(unittest.TestCase):
             self.workflow,
         )
 
+    def test_cache_environment_is_initialized_after_runner_assignment(self) -> None:
+        self.assertNotIn(
+            "env:\n      CCACHE_DIR: ${{ runner.temp }}",
+            self.workflow,
+        )
+        self.assertIn('export CCACHE_DIR="$cache_dir"', self.workflow)
+        self.assertIn('export CCACHE_BASEDIR="$GITHUB_WORKSPACE"', self.workflow)
+        self.assertIn("export CCACHE_COMPILERCHECK=content", self.workflow)
+        self.assertIn("export CCACHE_MAXSIZE=512M", self.workflow)
+        self.assertIn(
+            "printf 'CCACHE_DIR=%s\\n' \"$CCACHE_DIR\" >> \"$GITHUB_ENV\"",
+            self.workflow,
+        )
+
     def test_cache_checks_compiler_content_and_stays_bounded(self) -> None:
-        self.assertIn("CCACHE_COMPILERCHECK: content", self.workflow)
-        self.assertIn("CCACHE_MAXSIZE: 512M", self.workflow)
         self.assertIn('ccache --set-config=max_size="$CCACHE_MAXSIZE"', self.workflow)
         self.assertIn(
             'ccache --set-config=compiler_check="$CCACHE_COMPILERCHECK"',
