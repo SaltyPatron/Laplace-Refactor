@@ -213,6 +213,23 @@ def cleanup(
             raise CleanupError(f"refusing symlink workspace root: {target}")
         if metadata.st_dev != root_device:
             raise CleanupError(f"refusing cross-device workspace root: {target}")
+        # A shared /tmp can contain a correctly named workspace created by a
+        # different authority (for example, residue from a root-run local proof).
+        # This runner must neither recurse into nor delete another uid's tree.
+        # Report the boundary and continue so foreign residue cannot DoS every
+        # subsequent self-hosted proof merely by matching our safe namespace.
+        effective_uid = os.geteuid()
+        if metadata.st_uid != effective_uid:
+            results.append(
+                {
+                    "name": name,
+                    "state": "foreign-owner",
+                    "owner_uid": metadata.st_uid,
+                    "effective_uid": effective_uid,
+                    "removed_entries": 0,
+                }
+            )
+            continue
         age_seconds = max(0.0, now - metadata.st_mtime)
         if age_seconds < minimum_age_seconds:
             raise CleanupError(
