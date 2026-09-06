@@ -184,6 +184,8 @@ if(BUILD_TESTING)
         ENVIRONMENT
             "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/observation-cognition;LAPLACE_POSTGRES_OBSERVATION_TEST_PORT=55442")
 
+    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_discourse.cmake")
+
     function(laplace_add_postgresql_mutant target definition)
         add_library(${target} MODULE ${laplace_postgresql_module_sources})
         laplace_configure_postgresql_module(${target})
