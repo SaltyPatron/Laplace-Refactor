@@ -14,3 +14,4 @@
 #include "cognition_conversation.inc"
 #include "cognition_prompt_admission.cpp"
 #include "cognition_prompt_structural_provider.inc"
+#include "cognition_prompt_conversation.inc"
