@@ -33,6 +33,8 @@ static int laplace_isa_ast_size_fits(uint64_t value) {
 #endif
 }
 
+#if !defined(LAPLACE_TEST_ISA_REJECT_RESULT_ALIAS) && \
+    !defined(LAPLACE_TEST_ISA_STANDING_ORDER_BYPASS)
 static void laplace_isa_ast_write_u64(uint32_t** cursor, uint64_t value) {
     *(*cursor)++ = (uint32_t)value;
     *(*cursor)++ = (uint32_t)(value >> 32u);
@@ -73,6 +75,7 @@ static void laplace_isa_ast_encode_receipt(
     *cursor++ = receipt->version;
     *cursor++ = receipt->status;
 }
+#endif
 
 static laplace_isa_status validate_universal_ast_apply_packet(
     const laplace_isa_program* program,
