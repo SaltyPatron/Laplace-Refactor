@@ -206,8 +206,6 @@ Datum laplace_pg_cognition_discourse_deposit(PG_FUNCTION_ARGS) {
     bytea* frame = PG_GETARG_BYTEA_PP(0);
     laplace_cognition_discourse_state state;
     laplace_cognition_discourse_frame_receipt receipt;
-    const int has_previous =
-        (state.flags & LAPLACE_COGNITION_DISCOURSE_HAS_PREVIOUS_STATE) != 0;
     static const char insert_sql[] =
         "INSERT INTO " LAPLACE_PG_SCHEMA ".cognition_discourse_state ("
         "state_id, discourse_id, previous_state_id, observation_entity_id, "
@@ -259,7 +257,6 @@ Datum laplace_pg_cognition_discourse_deposit(PG_FUNCTION_ARGS) {
         receipt.frame_fingerprint.bytes, sizeof(receipt.frame_fingerprint.bytes)));
     values[10] = PointerGetDatum(frame);
 
-    (void)has_previous;
     spi_status = SPI_execute_with_args(
         insert_sql, 11, types, values, nulls, false, 0);
     if (spi_status != SPI_OK_INSERT) {
