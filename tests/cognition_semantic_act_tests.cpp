@@ -131,8 +131,9 @@ int Enumerate(
             static_cast<std::uint64_t>(frontier_states[source_index].depth) + 1U;
         candidate.multiplicity = 1U;
         candidate.gap = 1U;
-        candidate.relation = LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
+        candidate.relation_family = LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
         candidate.source_layer = LAPLACE_OBSERVATION_QUERY_SOURCE_PHYSICALITY;
+        candidate.direction = LAPLACE_OBSERVATION_QUERY_DIRECTION_REVERSE;
         ++*candidate_count;
     }
     usage->crossing_count = static_cast<std::uint64_t>(*candidate_count);
