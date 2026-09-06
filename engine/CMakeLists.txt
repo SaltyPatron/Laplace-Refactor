@@ -40,6 +40,7 @@ add_library(laplace_engine SHARED
     src/tabular_source.cpp
     src/world_admission.c
     src/composition.cpp
+    src/composition_execution.cpp
     src/trajectory.c
     src/unicode_root.c
     src/unicode_root_builder.cpp

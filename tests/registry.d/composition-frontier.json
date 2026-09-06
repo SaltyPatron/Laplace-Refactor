@@ -24,6 +24,21 @@
       ]
     },
     {
+      "ctest_name": "composition.frontier-execution-preflight",
+      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "covered_dimensions": [
+        "public native preflight exposes a content-addressed physical scheduling receipt without executing semantic composition",
+        "wide independent frontier uses only the conserved CPU grant",
+        "deep dependency chain reports one usable worker per frontier despite a wider machine grant",
+        "changing only the grant changes physical scheduling fingerprint while preserving the dependency graph"
+      ],
+      "defect_controls": [
+        "worker count presented as available parallelism when dependency width is one",
+        "physical grant changes semantic dependency frontier membership",
+        "preflight executes or replays semantic composition merely to discover concurrency"
+      ]
+    },
+    {
       "ctest_name": "composition.mutation-flattened-frontier-dependencies-detected",
       "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
       "covered_dimensions": ["deliberate-defect sensitivity to a physical planner that erases prior-result dependency depth"],
