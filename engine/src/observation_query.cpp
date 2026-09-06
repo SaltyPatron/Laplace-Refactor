@@ -11,3 +11,4 @@
 #include "cognition_turn.inc"
 #include "cognition_realization.inc"
 #include "cognition_materialization.inc"
+#include "cognition_conversation.inc"
