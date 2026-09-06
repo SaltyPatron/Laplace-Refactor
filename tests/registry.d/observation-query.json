@@ -37,6 +37,21 @@
       "covered_dimensions": ["public native request execution owns compile/provider/result lifecycle", "transport callers do not construct private guidance or search state", "complete cognition disposition and zero remaining obligations", "nonzero output fingerprint receipts the public execution boundary"]
     },
     {
+      "ctest_name": "CognitionObservationExternalProvider.CandidateBackendCannotOwnSearchOrForwardLifecycle",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["external backend emits typed observation candidates only", "native engine constructs nonzero search state", "native engine owns operation selection and forward completion", "candidate backend cannot inject guidance or resolutions"]
+    },
+    {
+      "ctest_name": "CognitionObservationExternalProvider.NativeSearchCarriesProviderTargetsAcrossTwoHops",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["candidate backend never constructs search transitions", "native A-star carries a provider target into the next frontier", "two-hop goal is resolved by compiled request search policy", "provider target identity is resolved back to the backend on the next expansion"]
+    },
+    {
+      "ctest_name": "CognitionObservationExternalProvider.RejectsCandidateProviderAbiDriftBeforeQueryingBackend",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["candidate provider ABI drift fails closed", "no backend candidate query executes under an incompatible ABI", "transport integration cannot silently bypass the canonical candidate contract"]
+    },
+    {
       "ctest_name": "CognitionObservationRequest.RequestIdentityChangesWithTypedRelationIntent",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
       "covered_dimensions": ["relation family remains part of request identity", "predecessor and successor requests cannot flatten to one program"]
