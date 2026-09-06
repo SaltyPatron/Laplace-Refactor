@@ -135,6 +135,37 @@ typedef struct laplace_cognition_observation_candidate_provider_v1 {
 } laplace_cognition_observation_candidate_provider_v1;
 
 /*
+ * Native provider composition keeps physical candidate providers separate while
+ * presenting one bounded candidate surface to the canonical cognition engine.
+ * The set owns copies of provider descriptors, not their opaque states: every
+ * child provider state must remain alive until the set is destroyed. Child
+ * providers still enumerate candidates only; this composition layer does not
+ * acquire search, guidance, completion, realization, or receipt authority.
+ */
+typedef struct laplace_cognition_observation_candidate_provider_set
+    laplace_cognition_observation_candidate_provider_set;
+
+typedef enum laplace_cognition_observation_provider_set_status {
+    LAPLACE_COGNITION_OBSERVATION_PROVIDER_SET_OK = 0,
+    LAPLACE_COGNITION_OBSERVATION_PROVIDER_SET_INVALID_ARGUMENT = 1,
+    LAPLACE_COGNITION_OBSERVATION_PROVIDER_SET_INVALID_PROVIDER = 2,
+    LAPLACE_COGNITION_OBSERVATION_PROVIDER_SET_DUPLICATE_PROVIDER = 3,
+    LAPLACE_COGNITION_OBSERVATION_PROVIDER_SET_OVERFLOW = 4,
+    LAPLACE_COGNITION_OBSERVATION_PROVIDER_SET_MEMORY_FAILURE = 5
+} laplace_cognition_observation_provider_set_status;
+
+LAPLACE_API laplace_cognition_observation_provider_set_status
+laplace_cognition_observation_candidate_provider_set_create(
+    const laplace_cognition_observation_candidate_provider_v1* providers,
+    size_t provider_count,
+    laplace_cognition_observation_candidate_provider_set** provider_set,
+    laplace_cognition_observation_candidate_provider_v1* composite_provider);
+
+LAPLACE_API void
+laplace_cognition_observation_candidate_provider_set_destroy(
+    laplace_cognition_observation_candidate_provider_set** provider_set);
+
+/*
  * Terminal answer record retained from the canonical query-search result before
  * that internal result is destroyed.  `entity_id` is the actual selected target
  * entity and is therefore directly consumable by a realization transport.  Path
