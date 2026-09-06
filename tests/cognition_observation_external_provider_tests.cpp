@@ -26,6 +26,10 @@ bool SameId(const laplace_id128& left, const laplace_id128& right) {
     return std::memcmp(left.bytes, right.bytes, sizeof(left.bytes)) == 0;
 }
 
+bool SameDigest(const laplace_digest256& left, const laplace_digest256& right) {
+    return std::memcmp(left.bytes, right.bytes, sizeof(left.bytes)) == 0;
+}
+
 bool Zero(const laplace_digest256& value) {
     return std::all_of(
         std::begin(value.bytes), std::end(value.bytes),
@@ -159,8 +163,9 @@ int EnumerateCandidates(
             static_cast<std::uint64_t>(frontier_states[source_index].depth) + 1U;
         candidate.multiplicity = 1U;
         candidate.gap = 1U;
-        candidate.relation = LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
+        candidate.relation_family = LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
         candidate.source_layer = LAPLACE_OBSERVATION_QUERY_SOURCE_PHYSICALITY;
+        candidate.direction = LAPLACE_OBSERVATION_QUERY_DIRECTION_REVERSE;
         ++*candidate_count;
     }
     usage->crossing_count = static_cast<std::uint64_t>(*candidate_count);
@@ -234,8 +239,9 @@ int EnumeratePlaneCandidates(
             static_cast<std::uint64_t>(frontier_states[source_index].depth) + 1U;
         candidate.multiplicity = 1U;
         candidate.gap = 1U;
-        candidate.relation = LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
+        candidate.relation_family = LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
         candidate.source_layer = backend.source_layer;
+        candidate.direction = LAPLACE_OBSERVATION_QUERY_DIRECTION_REVERSE;
         ++*candidate_count;
     }
     usage->crossing_count = static_cast<std::uint64_t>(*candidate_count);
@@ -249,6 +255,79 @@ laplace_cognition_observation_candidate_provider_v1 PlaneProvider(
     provider.provider_fingerprint = Digest(backend->provider_seed);
     provider.maximum_candidate_records_per_expansion = 8U;
     provider.enumerate_candidates = EnumeratePlaneCandidates;
+    provider.abi_major =
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR;
+    provider.abi_minor =
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR;
+    return provider;
+}
+
+struct SemanticBackend final {
+    laplace_id128 source{};
+    laplace_id128 target{};
+    laplace_id128 relation_id{};
+    std::size_t calls{};
+};
+
+int EnumerateSemanticCandidate(
+    void* const opaque,
+    const laplace_observation_query_binding* const binding,
+    const laplace_id128* const source_entity_ids,
+    const laplace_query_search_state* const frontier_states,
+    const std::uint64_t* const accumulated_costs,
+    const std::size_t frontier_state_count,
+    laplace_cognition_observation_candidate* const candidates,
+    const std::size_t candidate_capacity,
+    std::size_t* const candidate_count,
+    laplace_cognition_observation_candidate_usage* const usage) {
+    if (opaque == nullptr || binding == nullptr || source_entity_ids == nullptr ||
+        frontier_states == nullptr || accumulated_costs == nullptr ||
+        frontier_state_count == 0U || candidates == nullptr ||
+        candidate_capacity == 0U || candidate_count == nullptr || usage == nullptr) {
+        return 1;
+    }
+    auto& backend = *static_cast<SemanticBackend*>(opaque);
+    ++backend.calls;
+    if (binding->relation_mask != LAPLACE_OBSERVATION_QUERY_SEMANTIC) return 2;
+    *candidate_count = 0U;
+    *usage = laplace_cognition_observation_candidate_usage{};
+    usage->rows_examined = static_cast<std::uint64_t>(frontier_state_count);
+    usage->index_plan_count = 1U;
+    (void)accumulated_costs;
+    for (std::size_t source_index = 0U;
+         source_index < frontier_state_count; ++source_index) {
+        if (!SameId(source_entity_ids[source_index], backend.source)) continue;
+        if (*candidate_count >= candidate_capacity) return 3;
+        auto& candidate = candidates[*candidate_count];
+        candidate = laplace_cognition_observation_candidate{};
+        candidate.target_entity_id = backend.target;
+        candidate.relation_id = backend.relation_id;
+        candidate.observation_fingerprint = Digest(170U);
+        candidate.evidence_root_fingerprint = Digest(171U);
+        candidate.source_state_index = static_cast<std::uint64_t>(source_index);
+        candidate.source_logical_ordinal = frontier_states[source_index].depth;
+        candidate.target_logical_ordinal =
+            static_cast<std::uint64_t>(frontier_states[source_index].depth) + 1U;
+        candidate.multiplicity = 1U;
+        candidate.gap = 1U;
+        candidate.relation_family = LAPLACE_OBSERVATION_QUERY_SEMANTIC;
+        candidate.source_layer = LAPLACE_OBSERVATION_QUERY_SOURCE_TESTIMONY;
+        candidate.direction = LAPLACE_OBSERVATION_QUERY_DIRECTION_FORWARD;
+        candidate.flags =
+            LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT;
+        ++*candidate_count;
+    }
+    usage->crossing_count = static_cast<std::uint64_t>(*candidate_count);
+    return 0;
+}
+
+laplace_cognition_observation_candidate_provider_v1 SemanticProvider(
+    SemanticBackend* const backend) {
+    laplace_cognition_observation_candidate_provider_v1 provider{};
+    provider.state = backend;
+    provider.provider_fingerprint = Digest(223U);
+    provider.maximum_candidate_records_per_expansion = 8U;
+    provider.enumerate_candidates = EnumerateSemanticCandidate;
     provider.abi_major =
         LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR;
     provider.abi_minor =
@@ -313,6 +392,7 @@ TEST(CognitionObservationExternalProvider, CandidateBackendCannotOwnSearchOrForw
     EXPECT_EQ(answer.relation_family, LAPLACE_OBSERVATION_QUERY_PREDECESSOR);
     EXPECT_EQ(answer.source_layer, LAPLACE_OBSERVATION_QUERY_SOURCE_PHYSICALITY);
     EXPECT_EQ(answer.direction, LAPLACE_OBSERVATION_QUERY_DIRECTION_REVERSE);
+    EXPECT_EQ(answer.flags, 0U);
 }
 
 TEST(CognitionObservationExternalProvider, NativeSearchCarriesProviderTargetsAcrossTwoHops) {
@@ -407,6 +487,61 @@ TEST(CognitionObservationExternalProvider, NativeProviderSetCombinesIndependentE
     EXPECT_EQ(answer.relation_family, LAPLACE_OBSERVATION_QUERY_PREDECESSOR);
     EXPECT_EQ(answer.source_layer, LAPLACE_OBSERVATION_QUERY_SOURCE_TESTIMONY);
     EXPECT_EQ(answer.direction, LAPLACE_OBSERVATION_QUERY_DIRECTION_REVERSE);
+}
+
+TEST(CognitionObservationExternalProvider, PreservesArbitraryTypedSemanticRelationIdentity) {
+    SemanticBackend backend{};
+    backend.source = Codepoint(0x41U);
+    backend.target = Codepoint(0x42U);
+    backend.relation_id = Codepoint(0x52U);
+    auto request = Request(backend.source, nullptr, true, 1U);
+    request.relation_mask = LAPLACE_OBSERVATION_QUERY_SEMANTIC;
+    const auto provider = SemanticProvider(&backend);
+
+    ObservationResultHandle first_observation;
+    ForwardResultHandle first_forward;
+    laplace_cognition_forward_receipt first_receipt{};
+    ASSERT_EQ(
+        laplace_cognition_observation_request_execute_with_candidate_provider(
+            &request, &provider, &first_observation.value, &first_forward.value,
+            &first_receipt),
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
+    ASSERT_EQ(
+        laplace_cognition_observation_result_answer_count(first_observation.value),
+        1U);
+    laplace_cognition_observation_answer first{};
+    ASSERT_EQ(
+        laplace_cognition_observation_result_answer(
+            first_observation.value, 0U, &first),
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
+    EXPECT_TRUE(SameId(first.entity_id, backend.target));
+    EXPECT_TRUE(SameId(first.relation_id, backend.relation_id));
+    EXPECT_EQ(first.relation_family, LAPLACE_OBSERVATION_QUERY_SEMANTIC);
+    EXPECT_EQ(first.source_layer, LAPLACE_OBSERVATION_QUERY_SOURCE_TESTIMONY);
+    EXPECT_EQ(first.direction, LAPLACE_OBSERVATION_QUERY_DIRECTION_FORWARD);
+    EXPECT_EQ(
+        first.flags,
+        LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT);
+
+    backend.relation_id = Codepoint(0x53U);
+    ObservationResultHandle second_observation;
+    ForwardResultHandle second_forward;
+    laplace_cognition_forward_receipt second_receipt{};
+    ASSERT_EQ(
+        laplace_cognition_observation_request_execute_with_candidate_provider(
+            &request, &provider, &second_observation.value, &second_forward.value,
+            &second_receipt),
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
+    laplace_cognition_observation_answer second{};
+    ASSERT_EQ(
+        laplace_cognition_observation_result_answer(
+            second_observation.value, 0U, &second),
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
+    EXPECT_TRUE(SameId(second.relation_id, backend.relation_id));
+    EXPECT_FALSE(SameDigest(first.path_id, second.path_id));
+    EXPECT_FALSE(SameDigest(first.terminal_state_id, second.terminal_state_id));
+    EXPECT_FALSE(SameDigest(first_receipt.output_fingerprint,
+                            second_receipt.output_fingerprint));
 }
 
 TEST(CognitionObservationExternalProvider, ProviderSetIdentityIsOrderIndependentAndRejectsDuplicates) {

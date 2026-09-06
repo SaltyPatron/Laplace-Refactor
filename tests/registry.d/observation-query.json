@@ -52,6 +52,11 @@
       "covered_dimensions": ["physicality and testimony remain independent candidate planes", "native cognition composes both planes under one request-owned search", "testimonial crossing retains one independent evidence root", "child providers do not acquire completion or semantic-act authority"]
     },
     {
+      "ctest_name": "CognitionObservationExternalProvider.PreservesArbitraryTypedSemanticRelationIdentity",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["semantic relation family carries a separate canonical relation identity", "relation identity is explicit-presence state and is not inferred from zero bytes", "arbitrary semantic identity is preserved through the terminal answer", "changing only relation identity changes path terminal state and forward receipt", "semantic direction is provider-declared without prompt keyword or hardcoded relation-name lookup"]
+    },
+    {
       "ctest_name": "CognitionObservationExternalProvider.ProviderSetIdentityIsOrderIndependentAndRejectsDuplicates",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
       "covered_dimensions": ["provider-set identity is independent of caller declaration order", "duplicate provider fingerprints fail closed", "provider composition cannot multiply one physical evidence plane by duplicate declaration"]

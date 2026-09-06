@@ -26,6 +26,13 @@ typedef struct laplace_query_search_state {
     uint32_t flags;
 } laplace_query_search_state;
 
+enum {
+    /* Presence is explicit because an all-zero laplace_id128 is a legal value. */
+    LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT = UINT32_C(1),
+    LAPLACE_QUERY_SEARCH_TRANSITION_KNOWN_FLAGS =
+        LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT
+};
+
 typedef struct laplace_query_search_transition {
     laplace_digest256 transition_id;
     laplace_digest256 source_state_id;
@@ -33,6 +40,8 @@ typedef struct laplace_query_search_transition {
     laplace_digest256 law_fingerprint;
     laplace_digest256 evidence_root_fingerprint;
     laplace_digest256 calculation_receipt;
+    /* Exact canonical relation identity, distinct from the finite family filter. */
+    laplace_id128 relation_id;
     uint64_t cost_components[LAPLACE_QUERY_SEARCH_COST_COMPONENT_COUNT];
     uint32_t relation_family;
     uint32_t source_layer;

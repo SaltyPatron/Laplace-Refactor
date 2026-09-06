@@ -66,16 +66,28 @@ std::uint32_t MergeProviderDisposition(
     return LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
 }
 
+bool RelationIdZero(const laplace_id128& value) {
+    std::uint8_t aggregate = 0U;
+    for (const auto byte : value.bytes) {
+        aggregate = static_cast<std::uint8_t>(aggregate | byte);
+    }
+    return aggregate == 0U;
+}
+
 bool TransitionValid(
     const laplace_query_search_program& program,
     const laplace_query_search_transition& transition) {
+    const bool relation_id_present =
+        (transition.flags & LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT) != 0U;
     return !Zero(transition.transition_id) &&
         !Zero(transition.source_state_id) &&
         StateValid(program, transition.target) &&
         !Zero(transition.law_fingerprint) &&
         !Zero(transition.calculation_receipt) &&
         transition.relation_family != 0U && transition.source_layer != 0U &&
-        transition.direction != 0U && transition.flags == 0U;
+        transition.direction != 0U &&
+        (transition.flags & ~LAPLACE_QUERY_SEARCH_TRANSITION_KNOWN_FLAGS) == 0U &&
+        (relation_id_present || RelationIdZero(transition.relation_id));
 }
 
 struct Node {

@@ -20,7 +20,13 @@ typedef enum laplace_observation_query_relation {
     LAPLACE_OBSERVATION_QUERY_CONSTITUENT = UINT32_C(2),
     LAPLACE_OBSERVATION_QUERY_PREDECESSOR = UINT32_C(4),
     LAPLACE_OBSERVATION_QUERY_SUCCESSOR = UINT32_C(8),
-    LAPLACE_OBSERVATION_QUERY_COOCCUR = UINT32_C(16)
+    LAPLACE_OBSERVATION_QUERY_COOCCUR = UINT32_C(16),
+    /*
+     * Broad family for source-declared semantic relations. The exact relation
+     * identity is carried separately as a canonical laplace_id128 by candidate
+     * providers; this bit is only the finite request/filter family.
+     */
+    LAPLACE_OBSERVATION_QUERY_SEMANTIC = UINT32_C(32)
 } laplace_observation_query_relation;
 
 enum {
@@ -29,7 +35,8 @@ enum {
         LAPLACE_OBSERVATION_QUERY_CONSTITUENT |
         LAPLACE_OBSERVATION_QUERY_PREDECESSOR |
         LAPLACE_OBSERVATION_QUERY_SUCCESSOR |
-        LAPLACE_OBSERVATION_QUERY_COOCCUR,
+        LAPLACE_OBSERVATION_QUERY_COOCCUR |
+        LAPLACE_OBSERVATION_QUERY_SEMANTIC,
     LAPLACE_OBSERVATION_QUERY_BINDING_GOAL_PRESENT = UINT32_C(1),
     LAPLACE_OBSERVATION_QUERY_BINDING_TERMINAL_RESULTS = UINT32_C(2),
     LAPLACE_OBSERVATION_QUERY_BINDING_KNOWN_FLAGS =

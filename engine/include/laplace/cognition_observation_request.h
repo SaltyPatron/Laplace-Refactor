@@ -26,8 +26,16 @@ enum {
         LAPLACE_COGNITION_OBSERVATION_REQUEST_ALLOW_TYPED_UNRESOLVED |
         LAPLACE_COGNITION_OBSERVATION_REQUEST_BOUNDARY_COMPLETE,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_VERSION = 1,
-    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR = 1,
-    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR = 0
+    /* Candidate payload grew an explicit canonical relation identity/direction. */
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR = 2,
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR = 0,
+    /* Presence is explicit because an all-zero canonical identity is legal. */
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT = UINT32_C(1),
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_KNOWN_FLAGS =
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT,
+    LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT = UINT32_C(1),
+    LAPLACE_COGNITION_OBSERVATION_ANSWER_KNOWN_FLAGS =
+        LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT
 };
 
 typedef struct laplace_cognition_observation_forward_limits {
@@ -85,9 +93,16 @@ typedef struct laplace_cognition_observation_request_provider
  * optional: zero means the crossing is calculated from structure alone, while a
  * nonzero value identifies an independent testimonial/evidence root. The source
  * layer remains explicit so storage adapters do not flatten those two meanings.
+ *
+ * `relation_family` is the finite request/filter family. `relation_id` is the
+ * exact canonical typed relation identity and is governed only by the explicit
+ * RELATION_ID_PRESENT flag; zero relation-id bytes never mean absence. Semantic
+ * relations require an exact relation identity and carry their declared
+ * direction directly instead of being translated through a prompt/text lookup.
  */
 typedef struct laplace_cognition_observation_candidate {
     laplace_id128 target_entity_id;
+    laplace_id128 relation_id;
     laplace_digest256 observation_fingerprint;
     laplace_digest256 evidence_root_fingerprint;
     uint64_t source_state_index;
@@ -95,8 +110,9 @@ typedef struct laplace_cognition_observation_candidate {
     uint64_t target_logical_ordinal;
     uint64_t multiplicity;
     uint64_t gap;
-    uint32_t relation;
+    uint32_t relation_family;
     uint32_t source_layer;
+    uint32_t direction;
     uint32_t flags;
     uint32_t reserved;
 } laplace_cognition_observation_candidate;
@@ -167,13 +183,15 @@ laplace_cognition_observation_candidate_provider_set_destroy(
 
 /*
  * Terminal answer record retained from the canonical query-search result before
- * that internal result is destroyed.  `entity_id` is the actual selected target
- * entity and is therefore directly consumable by a realization transport.  Path
+ * that internal result is destroyed. `entity_id` is the actual selected target
+ * entity and is therefore directly consumable by a realization transport. Path
  * identity/cost and the final crossing remain attached so realization does not
- * erase how the answer was obtained.
+ * erase how the answer was obtained. Exact relation identity remains separate
+ * from relation family and uses ANSWER_RELATION_ID_PRESENT for typed presence.
  */
 typedef struct laplace_cognition_observation_answer {
     laplace_id128 entity_id;
+    laplace_id128 relation_id;
     laplace_digest256 path_id;
     laplace_digest256 terminal_state_id;
     uint64_t total_cost;

@@ -42,6 +42,7 @@ void HashAnswer(
     blake3_hasher* const hasher,
     const laplace_cognition_observation_answer& answer) {
     HashId(hasher, answer.entity_id);
+    HashId(hasher, answer.relation_id);
     HashDigest(hasher, answer.path_id);
     HashDigest(hasher, answer.terminal_state_id);
     HashU64(hasher, answer.total_cost);

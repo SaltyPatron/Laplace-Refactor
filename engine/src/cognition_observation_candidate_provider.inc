@@ -86,20 +86,49 @@ bool ResolveEntity(
     return true;
 }
 
+bool IdZero(const laplace_id128& value) {
+    std::uint8_t aggregate = 0U;
+    for (const auto byte : value.bytes) {
+        aggregate = static_cast<std::uint8_t>(aggregate | byte);
+    }
+    return aggregate == 0U;
+}
+
+bool DirectionValid(const std::uint32_t direction) {
+    return direction == LAPLACE_OBSERVATION_QUERY_DIRECTION_FORWARD ||
+        direction == LAPLACE_OBSERVATION_QUERY_DIRECTION_REVERSE ||
+        direction == LAPLACE_OBSERVATION_QUERY_DIRECTION_SYMMETRIC;
+}
+
 bool CandidateValid(
     const ProviderState& state,
     const laplace_cognition_observation_candidate& candidate,
     const std::size_t source_count) {
+    const bool relation_id_present =
+        (candidate.flags &
+         LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT) != 0U;
     if (candidate.source_state_index >= static_cast<std::uint64_t>(source_count) ||
         DigestZero(candidate.observation_fingerprint) ||
-        candidate.multiplicity == 0U || candidate.relation == 0U ||
-        (candidate.relation & (candidate.relation - 1U)) != 0U ||
-        (candidate.relation & state.binding.relation_mask) == 0U ||
-        candidate.source_layer == 0U || candidate.flags != 0U ||
-        candidate.reserved != 0U) {
+        candidate.multiplicity == 0U || candidate.relation_family == 0U ||
+        (candidate.relation_family & (candidate.relation_family - 1U)) != 0U ||
+        (candidate.relation_family & state.binding.relation_mask) == 0U ||
+        candidate.source_layer == 0U ||
+        (candidate.source_layer & (candidate.source_layer - 1U)) != 0U ||
+        (candidate.source_layer & LAPLACE_OBSERVATION_QUERY_SOURCE_LAYER_MASK) == 0U ||
+        !DirectionValid(candidate.direction) ||
+        (candidate.flags &
+         ~LAPLACE_COGNITION_OBSERVATION_CANDIDATE_KNOWN_FLAGS) != 0U ||
+        candidate.reserved != 0U ||
+        (!relation_id_present && !IdZero(candidate.relation_id))) {
         return false;
     }
-    return DirectionForRelation(candidate.relation) != 0U;
+
+    if (candidate.relation_family == LAPLACE_OBSERVATION_QUERY_SEMANTIC) {
+        return relation_id_present;
+    }
+    const std::uint32_t structural_direction =
+        DirectionForRelation(candidate.relation_family);
+    return structural_direction != 0U && structural_direction == candidate.direction;
 }
 
 bool BuildTransition(
@@ -136,20 +165,26 @@ bool BuildTransition(
     StartDomain(&context_hasher, ContextDomain);
     HashDigest(&context_hasher, source.context_fingerprint);
     HashDigest(&context_hasher, candidate.observation_fingerprint);
+    HashId(&context_hasher, candidate.relation_id);
     HashU64(&context_hasher, candidate.source_logical_ordinal);
     HashU64(&context_hasher, candidate.target_logical_ordinal);
-    HashU32(&context_hasher, candidate.relation);
+    HashU32(&context_hasher, candidate.relation_family);
     HashU32(&context_hasher, candidate.source_layer);
+    HashU32(&context_hasher, candidate.direction);
+    HashU32(&context_hasher, candidate.flags);
     Finish(&context_hasher, &target.context_fingerprint);
 
     blake3_hasher dominance_hasher{};
     StartDomain(&dominance_hasher, DominanceDomain);
     HashDigest(&dominance_hasher, target_coordinate);
     HashDigest(&dominance_hasher, candidate.observation_fingerprint);
+    HashId(&dominance_hasher, candidate.relation_id);
     HashU64(&dominance_hasher, candidate.source_logical_ordinal);
     HashU64(&dominance_hasher, candidate.target_logical_ordinal);
-    HashU32(&dominance_hasher, candidate.relation);
+    HashU32(&dominance_hasher, candidate.relation_family);
     HashU32(&dominance_hasher, candidate.source_layer);
+    HashU32(&dominance_hasher, candidate.direction);
+    HashU32(&dominance_hasher, candidate.flags);
     Finish(&dominance_hasher, &target.dominance_key);
 
     blake3_hasher state_hasher{};
@@ -171,16 +206,24 @@ bool BuildTransition(
     transition->source_state_id = source.state_id;
     transition->target = target;
     transition->evidence_root_fingerprint = candidate.evidence_root_fingerprint;
-    transition->relation_family = candidate.relation;
+    transition->relation_id = candidate.relation_id;
+    transition->relation_family = candidate.relation_family;
     transition->source_layer = candidate.source_layer;
-    transition->direction = DirectionForRelation(candidate.relation);
+    transition->direction = candidate.direction;
+    if ((candidate.flags &
+         LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT) != 0U) {
+        transition->flags |= LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT;
+    }
     transition->cost_components[0] = 1U;
     transition->cost_components[1] = candidate.gap;
 
     blake3_hasher law_hasher{};
     StartDomain(&law_hasher, LawDomain);
-    HashU32(&law_hasher, candidate.relation);
+    HashId(&law_hasher, candidate.relation_id);
+    HashU32(&law_hasher, candidate.relation_family);
     HashU32(&law_hasher, candidate.source_layer);
+    HashU32(&law_hasher, candidate.direction);
+    HashU32(&law_hasher, transition->flags);
     Finish(&law_hasher, &transition->law_fingerprint);
 
     blake3_hasher calculation_hasher{};
@@ -189,14 +232,17 @@ bool BuildTransition(
     HashDigest(&calculation_hasher, state.request_fingerprint);
     HashId(&calculation_hasher, source_entity_id);
     HashId(&calculation_hasher, candidate.target_entity_id);
+    HashId(&calculation_hasher, candidate.relation_id);
     HashDigest(&calculation_hasher, candidate.observation_fingerprint);
     HashDigest(&calculation_hasher, candidate.evidence_root_fingerprint);
     HashU64(&calculation_hasher, candidate.source_logical_ordinal);
     HashU64(&calculation_hasher, candidate.target_logical_ordinal);
     HashU64(&calculation_hasher, candidate.multiplicity);
     HashU64(&calculation_hasher, candidate.gap);
-    HashU32(&calculation_hasher, candidate.relation);
+    HashU32(&calculation_hasher, candidate.relation_family);
     HashU32(&calculation_hasher, candidate.source_layer);
+    HashU32(&calculation_hasher, candidate.direction);
+    HashU32(&calculation_hasher, candidate.flags);
     Finish(&calculation_hasher, &transition->calculation_receipt);
 
     blake3_hasher transition_hasher{};
@@ -206,9 +252,11 @@ bool BuildTransition(
     HashDigest(&transition_hasher, transition->law_fingerprint);
     HashDigest(&transition_hasher, transition->evidence_root_fingerprint);
     HashDigest(&transition_hasher, transition->calculation_receipt);
+    HashId(&transition_hasher, transition->relation_id);
     HashU32(&transition_hasher, transition->relation_family);
     HashU32(&transition_hasher, transition->source_layer);
     HashU32(&transition_hasher, transition->direction);
+    HashU32(&transition_hasher, transition->flags);
     Finish(&transition_hasher, &transition->transition_id);
     return true;
 }
@@ -505,9 +553,13 @@ bool CaptureAnswers(
             }
             const auto& last = steps.back();
             terminal_coordinate = last.target.anchor_id;
+            answer.relation_id = last.relation_id;
             answer.relation_family = last.relation_family;
             answer.source_layer = last.source_layer;
             answer.direction = last.direction;
+            if ((last.flags & LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT) != 0U) {
+                answer.flags |= LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT;
+            }
         }
         if (!ResolveEntity(*state, terminal_coordinate, &answer.entity_id)) {
             return false;
