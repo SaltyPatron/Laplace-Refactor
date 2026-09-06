@@ -53,7 +53,14 @@ extern "C" laplace_execution_status composition_capture_run_work(
 #define laplace_composition_working_set_create composition_working_set_create_impl
 #define laplace_composition_working_set_destroy composition_working_set_destroy_impl
 #define laplace_execution_run_work composition_capture_run_work
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wsubobject-linkage"
+#endif
 #include "composition_legacy.inc"
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 #undef laplace_execution_run_work
 #undef laplace_composition_working_set_destroy
 #undef laplace_composition_working_set_create
