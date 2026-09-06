@@ -15,6 +15,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "tools/delivery/product_cluster_upgrade.py"
 WRAPPER = ROOT / "tools/delivery/product_activation_reconcile.py"
+ADOPTION_MODULE = ROOT / "tools/delivery/product_predecessor_adoption.py"
 
 
 def load(name: str, path: Path):
@@ -28,6 +29,7 @@ def load(name: str, path: Path):
 
 UPGRADE = load("laplace_product_cluster_upgrade_tests", MODULE)
 RECONCILE = load("laplace_product_activation_reconcile_tests", WRAPPER)
+ADOPTION = load("laplace_product_predecessor_adoption_tests", ADOPTION_MODULE)
 
 
 class ProductClusterUpgradeTests(unittest.TestCase):
@@ -157,6 +159,143 @@ class ProductClusterUpgradeTests(unittest.TestCase):
         self.assertNotIn("_initdb_command(", source)
         self.assertIn('"initdb_executed": False', source)
 
+    def _legacy_predecessor_fixture(self) -> tuple[Path, Path, dict, dict, dict]:
+        self.active.symlink_to(f"releases/{self.old_id}")
+        self.runtime.symlink_to(f"../releases/{self.old_id}")
+        directory = self.root / "receipts" / "cluster-activation" / self.old_id
+        directory.mkdir(parents=True)
+        plan_path = directory / "cluster-plan.json"
+        plan = {
+            "package_id": self.old_id,
+            "commands": {
+                "stop_candidate": ["pg_ctl", "stop"],
+                "start_candidate": ["pg_ctl", "start"],
+                "probe_readiness": ["pg_isready"],
+            },
+        }
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        legacy = {
+            "schema": ADOPTION.clusterctl.ACTIVATION_SCHEMA,
+            "phase": "activated",
+            "package_id": self.old_id,
+            "cluster_plan_path": str(plan_path),
+            "historical_field": "preserve-me",
+        }
+        receipt_path = directory / "activation-complete.json"
+        receipt_path.write_text(json.dumps(legacy), encoding="utf-8")
+        initial = {
+            "postmaster_pid": 101,
+            "system_identifier": "7000000000000000001",
+            "loaded_objects": [{"path": "/old/object", "sha256": "a" * 64}],
+            "config_files": [{"path": "/old/config", "sha256": "b" * 64}],
+            "observation_sha256": "c" * 64,
+        }
+        restarted = dict(initial)
+        restarted["postmaster_pid"] = 202
+        restarted["observation_sha256"] = "d" * 64
+        return receipt_path, plan_path, legacy, initial, restarted
+
+    def test_incomplete_active_predecessor_is_reproved_not_assumed(self) -> None:
+        receipt_path, _plan_path, legacy, initial, restarted = self._legacy_predecessor_fixture()
+        commands: list[str] = []
+
+        def execute(label, _command, _timeout):
+            commands.append(label)
+            return {"label": label, "exit_code": 0}
+
+        with mock.patch.object(ADOPTION.clusterctl, "RUNTIME_LINK", str(self.runtime)), mock.patch.object(
+            ADOPTION.clusterctl, "require_fixture_or_root"
+        ), mock.patch.object(ADOPTION.clusterctl, "validate_contract"), mock.patch.object(
+            ADOPTION.clusterctl, "validate_plan"
+        ), mock.patch.object(
+            ADOPTION.clusterctl,
+            "observe_loaded_live",
+            side_effect=[initial, restarted],
+        ) as observed, mock.patch.object(
+            ADOPTION.clusterctl, "verify_loaded"
+        ) as verified, mock.patch.object(
+            ADOPTION.clusterctl, "execute_activation_command", side_effect=execute
+        ), mock.patch.object(
+            ADOPTION.clusterctl,
+            "await_postgresql_ready",
+            return_value={"label": "ready", "exit_code": 0},
+        ), mock.patch.object(ADOPTION.clusterctl, "_stopped_live"):
+            normalized = ADOPTION.ensure_current_predecessor_receipt(
+                self.root / "contract.json"
+            )
+
+        self.assertTrue(normalized["restart_proven"])
+        self.assertEqual(normalized["lifecycle_provider"], ADOPTION.clusterctl.LIFECYCLE_PROVIDER)
+        self.assertTrue(normalized["predecessor_live_reproof"])
+        self.assertEqual(normalized["historical_field"], "preserve-me")
+        self.assertEqual(normalized["system_identifier"], initial["system_identifier"])
+        self.assertEqual(
+            normalized["activation_receipt_sha256"],
+            ADOPTION._activation_identity(normalized),
+        )
+        self.assertEqual(observed.call_count, 2)
+        self.assertEqual(verified.call_count, 2)
+        self.assertEqual(
+            commands,
+            [
+                "stop-predecessor-for-receipt-adoption",
+                "start-predecessor-for-receipt-adoption",
+            ],
+        )
+        persisted = json.loads(receipt_path.read_text(encoding="utf-8"))
+        self.assertEqual(persisted, normalized)
+        archive = Path(normalized["predecessor_historical_receipt_archive"])
+        self.assertTrue(archive.is_file())
+        self.assertEqual(json.loads(archive.read_text(encoding="utf-8")), legacy)
+
+    def test_current_predecessor_receipt_does_not_restart_again(self) -> None:
+        receipt_path, _plan_path, legacy, _initial, _restarted = self._legacy_predecessor_fixture()
+        current = dict(legacy)
+        current.update(
+            {
+                "restart_proven": True,
+                "lifecycle_provider": ADOPTION.clusterctl.LIFECYCLE_PROVIDER,
+            }
+        )
+        current["activation_receipt_sha256"] = ADOPTION._activation_identity(current)
+        receipt_path.write_text(json.dumps(current), encoding="utf-8")
+
+        with mock.patch.object(ADOPTION.clusterctl, "RUNTIME_LINK", str(self.runtime)), mock.patch.object(
+            ADOPTION.clusterctl, "require_fixture_or_root"
+        ), mock.patch.object(ADOPTION.clusterctl, "validate_contract"), mock.patch.object(
+            ADOPTION.clusterctl, "validate_plan"
+        ), mock.patch.object(
+            ADOPTION.clusterctl, "observe_loaded_live"
+        ) as observed:
+            result = ADOPTION.ensure_current_predecessor_receipt(
+                self.root / "contract.json"
+            )
+
+        self.assertEqual(result, current)
+        observed.assert_not_called()
+
+    def test_invalid_live_predecessor_is_never_promoted(self) -> None:
+        receipt_path, _plan_path, legacy, initial, _restarted = self._legacy_predecessor_fixture()
+        with mock.patch.object(ADOPTION.clusterctl, "RUNTIME_LINK", str(self.runtime)), mock.patch.object(
+            ADOPTION.clusterctl, "require_fixture_or_root"
+        ), mock.patch.object(ADOPTION.clusterctl, "validate_contract"), mock.patch.object(
+            ADOPTION.clusterctl, "validate_plan"
+        ), mock.patch.object(
+            ADOPTION.clusterctl, "observe_loaded_live", return_value=initial
+        ), mock.patch.object(
+            ADOPTION.clusterctl,
+            "verify_loaded",
+            side_effect=ADOPTION.clusterctl.ClusterError("deliberate live identity defect"),
+        ):
+            with self.assertRaisesRegex(
+                ADOPTION.clusterctl.ClusterError, "deliberate live identity defect"
+            ):
+                ADOPTION.ensure_current_predecessor_receipt(
+                    self.root / "contract.json"
+                )
+
+        self.assertEqual(json.loads(receipt_path.read_text(encoding="utf-8")), legacy)
+
     def test_reconciler_routes_active_and_fresh_state_to_distinct_lifecycles(self) -> None:
         contract_path = self.root / "contract.json"
         contract_path.write_text(json.dumps(self.contract), encoding="utf-8")
@@ -168,6 +307,10 @@ class ProductClusterUpgradeTests(unittest.TestCase):
 
         self.active.symlink_to(f"releases/{self.old_id}")
         with mock.patch.object(
+            RECONCILE.adoption,
+            "ensure_current_predecessor_receipt",
+            return_value={"phase": "activated"},
+        ) as adopted, mock.patch.object(
             RECONCILE.upgrade, "upgrade_product", return_value={"path": "upgrade"}
         ) as upgraded, mock.patch.object(
             RECONCILE, "fresh_activate_product", return_value={"path": "fresh"}
@@ -176,11 +319,16 @@ class ProductClusterUpgradeTests(unittest.TestCase):
                 contract_path, package, resource, evidence, False
             )
         self.assertEqual(result, {"path": "upgrade"})
+        adopted.assert_called_once_with(contract_path)
         upgraded.assert_called_once()
         fresh.assert_not_called()
 
         self.active.unlink()
         with mock.patch.object(
+            RECONCILE.adoption,
+            "ensure_current_predecessor_receipt",
+            return_value={"phase": "activated"},
+        ) as adopted, mock.patch.object(
             RECONCILE.upgrade, "upgrade_product", return_value={"path": "upgrade"}
         ) as upgraded, mock.patch.object(
             RECONCILE, "fresh_activate_product", return_value={"path": "fresh"}
@@ -189,6 +337,7 @@ class ProductClusterUpgradeTests(unittest.TestCase):
                 contract_path, package, resource, evidence, False
             )
         self.assertEqual(result, {"path": "fresh"})
+        adopted.assert_not_called()
         upgraded.assert_not_called()
         fresh.assert_called_once()
 
