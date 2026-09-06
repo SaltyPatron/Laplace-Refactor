@@ -82,7 +82,7 @@ struct RunResult {
     laplace_decomposition_composition_plan_view view{};
 };
 
-RunResult Run(const std::uint64_t first_field) {
+RunResult BuildStructured(const std::uint64_t first_field) {
     static constexpr std::array<std::uint8_t, 3> bytes{{'a', 'b', 'c'}};
     static constexpr char media[] = "text/plain";
     StructuredState* state = new StructuredState{first_field};
@@ -153,7 +153,7 @@ bool ZeroReference(const laplace_composition_operand& value) {
 }
 
 TEST(DecompositionStructuredProvider, PreservesParentFieldOrdinalAliasAndErrorState) {
-    auto run = Run(7u);
+    auto run = BuildStructured(7u);
     ASSERT_NE(run.decomposition, nullptr);
     ASSERT_NE(run.plan, nullptr);
 
@@ -203,8 +203,8 @@ TEST(DecompositionStructuredProvider, PreservesParentFieldOrdinalAliasAndErrorSt
 }
 
 TEST(DecompositionStructuredProvider, FieldWitnessChangesTraceButNotCanonicalContent) {
-    auto first = Run(7u);
-    auto second = Run(77u);
+    auto first = BuildStructured(7u);
+    auto second = BuildStructured(77u);
     ASSERT_NE(first.plan, nullptr);
     ASSERT_NE(second.plan, nullptr);
     EXPECT_NE(std::memcmp(
