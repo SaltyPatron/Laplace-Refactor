@@ -12,8 +12,13 @@ _Static_assert(sizeof(laplace_world_admission_record) == 472u,
                "world-admission record ABI must be exactly 472 bytes");
 _Static_assert(sizeof(laplace_world_admission_receipt) == 184u,
                "world-admission receipt ABI must be exactly 184 bytes");
+_Static_assert(sizeof(laplace_world_admission_semantic_projection) == 352u,
+               "world-admission semantic projection ABI must be exactly 352 bytes");
 _Static_assert(sizeof(laplace_world_admission_error) == 16u,
                "world-admission error ABI must be exactly 16 bytes");
+
+static const uint8_t world_admission_semantic_projection_domain[] =
+    "laplace-world-admission-semantic-projection-v1";
 
 enum world_admission_field {
     WORLD_ADMISSION_FIELD_NONE = 0u,
@@ -100,6 +105,46 @@ static void hash_record(
     hash_u64(hasher, record->closed_subject_count);
     hash_u32(hasher, record->reconstruction_class);
     hash_u32(hasher, record->flags);
+}
+
+static void hash_semantic_projection(
+    blake3_hasher* hasher,
+    const laplace_world_admission_record* record) {
+    const laplace_digest256* semantic_digests[] = {
+        &record->source_profile_id,
+        &record->selected_boundary_fingerprint,
+        &record->source_profile_receipt_id,
+        &record->recipe_receipt_id,
+        &record->evidence_lineage_receipt_id,
+        &record->evidence_testimony_receipt_id,
+        &record->readback_fingerprint};
+    size_t index;
+    for (index = 0u; index < 7u; ++index) {
+        blake3_hasher_update(hasher, semantic_digests[index]->bytes, 32u);
+    }
+    hash_u64(hasher, record->profile_occurrence_count);
+    hash_u64(hasher, record->composition_occurrence_count);
+    hash_u64(hasher, record->profile_claim_count);
+    hash_u64(hasher, record->evidence_node_count);
+    hash_u64(hasher, record->testimony_count);
+    hash_u64(hasher, record->profile_bound_testimony_count);
+    hash_u64(hasher, record->recipe_bound_testimony_count);
+    hash_u64(hasher, record->lineage_bound_testimony_count);
+    hash_u64(hasher, record->closure_subject_count);
+    hash_u64(hasher, record->closed_subject_count);
+    hash_u32(hasher, record->reconstruction_class);
+    hash_u32(hasher, record->flags);
+#if defined(LAPLACE_TEST_WORLD_ADMISSION_SEMANTIC_INCLUDES_PHYSICAL_RECEIPTS)
+    /* Deliberate #171 defect: physical execution receipts are not world meaning. */
+    blake3_hasher_update(
+        hasher, record->composition_working_set_receipt_id.bytes, 32u);
+    blake3_hasher_update(
+        hasher, record->composition_presence_receipt_id.bytes, 32u);
+    blake3_hasher_update(
+        hasher, record->composition_producer_receipt_id.bytes, 32u);
+    blake3_hasher_update(
+        hasher, record->composition_stream_receipt_id.bytes, 32u);
+#endif
 }
 
 static int add_u64(uint64_t* total, uint64_t value) {
@@ -191,6 +236,68 @@ laplace_world_admission_status laplace_world_admission_identify(
         sizeof(LAPLACE_WORLD_ADMISSION_ADMISSION_DOMAIN) - 1u);
     hash_record(&hasher, admission, 0);
     finish_digest(&hasher, admission_id);
+    return LAPLACE_WORLD_ADMISSION_OK;
+}
+
+laplace_world_admission_status laplace_world_admission_project_semantics(
+    const laplace_world_admission_record* admission,
+    laplace_world_admission_semantic_projection* projection) {
+    laplace_digest256 expected_identity;
+    blake3_hasher hasher;
+    uint32_t field = WORLD_ADMISSION_FIELD_NONE;
+    laplace_world_admission_status status;
+    if (projection != NULL) {
+        memset(projection, 0, sizeof(*projection));
+        projection->version = LAPLACE_WORLD_ADMISSION_VERSION;
+    }
+    if (admission == NULL || projection == NULL) {
+        return LAPLACE_WORLD_ADMISSION_INVALID_ARGUMENT;
+    }
+    status = validate_record(admission, &field);
+    if (status != LAPLACE_WORLD_ADMISSION_OK) {
+        return status;
+    }
+    status = laplace_world_admission_identify(admission, &expected_identity);
+    if (status != LAPLACE_WORLD_ADMISSION_OK ||
+        !digest_equal(&expected_identity, &admission->admission_id)) {
+        return LAPLACE_WORLD_ADMISSION_IDENTITY_MISMATCH;
+    }
+
+    projection->source_profile_id = admission->source_profile_id;
+    projection->selected_boundary_fingerprint =
+        admission->selected_boundary_fingerprint;
+    projection->source_profile_receipt_id = admission->source_profile_receipt_id;
+    projection->recipe_receipt_id = admission->recipe_receipt_id;
+    projection->evidence_lineage_receipt_id =
+        admission->evidence_lineage_receipt_id;
+    projection->evidence_testimony_receipt_id =
+        admission->evidence_testimony_receipt_id;
+    projection->readback_fingerprint = admission->readback_fingerprint;
+    projection->profile_occurrence_count = admission->profile_occurrence_count;
+    projection->composition_occurrence_count = admission->composition_occurrence_count;
+    projection->profile_claim_count = admission->profile_claim_count;
+    projection->evidence_node_count = admission->evidence_node_count;
+    projection->testimony_count = admission->testimony_count;
+    projection->profile_bound_testimony_count =
+        admission->profile_bound_testimony_count;
+    projection->recipe_bound_testimony_count =
+        admission->recipe_bound_testimony_count;
+    projection->lineage_bound_testimony_count =
+        admission->lineage_bound_testimony_count;
+    projection->closure_subject_count = admission->closure_subject_count;
+    projection->closed_subject_count = admission->closed_subject_count;
+    projection->reconstruction_class = admission->reconstruction_class;
+    projection->flags = admission->flags;
+    projection->status = LAPLACE_WORLD_ADMISSION_OK;
+
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(
+        &hasher, world_admission_semantic_projection_domain,
+        sizeof(world_admission_semantic_projection_domain) - 1u);
+    hash_semantic_projection(&hasher, admission);
+    hash_u32(&hasher, projection->version);
+    hash_u32(&hasher, projection->status);
+    finish_digest(&hasher, &projection->semantic_fingerprint);
     return LAPLACE_WORLD_ADMISSION_OK;
 }
 
