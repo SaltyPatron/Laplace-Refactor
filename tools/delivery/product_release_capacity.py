@@ -2,11 +2,11 @@
 """Prove product-release capacity and reclaim only never-activated residue.
 
 Persistent activation copies an immutable content-addressed product package into
-``/opt/laplace/releases`` before PostgreSQL generation transition begins.  The native
+``/opt/laplace/releases`` before PostgreSQL generation transition begins. The native
 resource observer measures PGDATA/WAL/temp capacity, but release-package storage has a
 separate lifecycle and must be measured separately.
 
-This provider is intentionally conservative.  It can remove a release only when all of
+This provider is intentionally conservative. It can remove a release only when all of
 these are true:
 
 * the direct child name is one canonical 64-hex package id;
@@ -19,7 +19,7 @@ these are true:
   follows symlinks.
 
 Unknown, activated, current, runtime-selected, or otherwise ambiguous releases are
-preserved.  Old interrupted ``.<package>.install.*`` staging directories may also be
+preserved. Old interrupted ``.<package>.install.*`` staging directories may also be
 removed after the minimum-age gate because they were never published release paths.
 """
 
@@ -81,7 +81,9 @@ def _package_id_from_link(link: Path, release_root: Path) -> str | None:
     except ValueError:
         raise CapacityError(f"product pointer escapes release root: {link} -> {raw}")
     if len(relative.parts) != 1 or PACKAGE_ID.fullmatch(relative.name) is None:
-        raise CapacityError(f"product pointer is not one canonical release: {link} -> {raw}")
+        raise CapacityError(
+            f"product pointer is not one canonical release: {link} -> {raw}"
+        )
     return relative.name
 
 
@@ -110,17 +112,25 @@ def _source_package_bytes(
         if not isinstance(entry, dict):
             raise CapacityError(f"product manifest file {index} is invalid")
         relative = entry.get("path")
-        if not isinstance(relative, str) or not relative or PurePosixPath(relative).is_absolute():
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or PurePosixPath(relative).is_absolute()
+        ):
             raise CapacityError(f"product manifest path {index} is invalid")
         path = PurePosixPath(relative)
         if ".." in path.parts or str(path) != relative or relative in seen:
-            raise CapacityError(f"product manifest path is unsafe or repeated: {relative}")
+            raise CapacityError(
+                f"product manifest path is unsafe or repeated: {relative}"
+            )
         seen.add(relative)
         candidate = physical_release.joinpath(*path.parts)
         kind = entry.get("kind", "file")
         if kind == "symlink":
             if not candidate.is_symlink():
-                raise CapacityError(f"source package symlink is absent: {relative}")
+                raise CapacityError(
+                    f"source package symlink is absent: {relative}"
+                )
             continue
         if kind != "file" or not candidate.is_file() or candidate.is_symlink():
             raise CapacityError(f"source package file is absent: {relative}")
@@ -186,7 +196,9 @@ def _runner_process_references(
         except (FileNotFoundError, PermissionError):
             payload = b""
         except OSError as error:
-            raise CapacityError(f"cannot inspect process maps {maps}: {error}") from error
+            raise CapacityError(
+                f"cannot inspect process maps {maps}: {error}"
+            ) from error
         if needle + b"/" in payload or payload.endswith(needle):
             references.add(f"{process.name}:maps")
     return sorted(references)
@@ -247,25 +259,51 @@ def _safe_release_candidates(
         if PACKAGE_ID.fullmatch(package_id) is None:
             continue
         if child.is_symlink() or not child.is_dir():
-            raise CapacityError(f"canonical release path is not one physical directory: {child}")
+            raise CapacityError(
+                f"canonical release path is not one physical directory: {child}"
+            )
         if package_id == successor_package_id:
-            preserved.append({"package_id": package_id, "reason": "requested-successor"})
+            preserved.append(
+                {"package_id": package_id, "reason": "requested-successor"}
+            )
             continue
         if package_id in protected:
-            preserved.append({"package_id": package_id, "reason": "selected-product-pointer"})
+            preserved.append(
+                {"package_id": package_id, "reason": "selected-product-pointer"}
+            )
             continue
         evidence = receipt_root / "cluster-activation" / package_id
         installation_path = evidence / "package-installation.json"
         if not installation_path.is_file() or installation_path.is_symlink():
-            preserved.append({"package_id": package_id, "reason": "no-verifiable-installation-receipt"})
+            preserved.append(
+                {
+                    "package_id": package_id,
+                    "reason": "no-verifiable-installation-receipt",
+                }
+            )
             continue
-        if (evidence / "activation-complete.json").exists() or (
-            evidence / "activation-result.json"
-        ).exists():
-            preserved.append({"package_id": package_id, "reason": "activation-evidence-exists"})
+        if (
+            (evidence / "activation-complete.json").exists()
+            or (evidence / "activation-complete.json").is_symlink()
+            or (evidence / "activation-result.json").exists()
+            or (evidence / "activation-result.json").is_symlink()
+        ):
+            preserved.append(
+                {"package_id": package_id, "reason": "activation-evidence-exists"}
+            )
             continue
         installation = load_json(installation_path)
-        _validate_installation_receipt(installation, package_id, child)
+        try:
+            _validate_installation_receipt(installation, package_id, child)
+        except CapacityError as error:
+            preserved.append(
+                {
+                    "package_id": package_id,
+                    "reason": "invalid-installation-receipt",
+                    "detail": str(error),
+                }
+            )
+            continue
         references = _runner_process_references(child, proc_root)
         if references:
             preserved.append(
@@ -311,7 +349,9 @@ def _remove_old_install_temporaries(
         if age < minimum_age_seconds:
             continue
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
-            raise CapacityError(f"install staging residue is not one directory: {child}")
+            raise CapacityError(
+                f"install staging residue is not one directory: {child}"
+            )
         references = _runner_process_references(child, proc_root)
         if references:
             continue
@@ -347,9 +387,10 @@ def reconcile_capacity(
     if not isinstance(package, dict) or not isinstance(instance, dict):
         raise CapacityError("cluster contract package/instance state is absent")
     successor_package_id = manifest.get("package_id")
-    if not isinstance(successor_package_id, str) or PACKAGE_ID.fullmatch(
-        successor_package_id
-    ) is None:
+    if (
+        not isinstance(successor_package_id, str)
+        or PACKAGE_ID.fullmatch(successor_package_id) is None
+    ):
         raise CapacityError("successor package identity is invalid")
     if product_receipt.get("package_id") != successor_package_id:
         raise CapacityError("product receipt and package identity differ")
@@ -379,7 +420,9 @@ def reconcile_capacity(
     }
     source_package_bytes = _source_package_bytes(product_receipt, manifest)
     successor_release = release_root / successor_package_id
-    copy_required = not (successor_release.exists() or successor_release.is_symlink())
+    if successor_release.is_symlink():
+        raise CapacityError("successor release path is a symlink")
+    copy_required = not successor_release.exists()
     required_copy_bytes = source_package_bytes if copy_required else 0
     required_available_bytes = required_copy_bytes + MIN_HEADROOM_BYTES
     free_before = _disk_free(release_root)
@@ -438,7 +481,9 @@ def reconcile_capacity(
         "removed_temporaries": removed_temporaries,
         "removed_releases": removed_releases,
         "preserved_releases": preserved,
-        "remaining_safe_candidate_count": max(0, len(candidates) - len(removed_releases)),
+        "remaining_safe_candidate_count": max(
+            0, len(candidates) - len(removed_releases)
+        ),
         "capacity_satisfied": free_after >= required_available_bytes,
     }
     result["receipt_sha256"] = document_identity(result, "receipt_sha256")
