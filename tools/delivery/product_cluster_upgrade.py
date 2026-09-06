@@ -2,7 +2,7 @@
 """Upgrade an already-active runner-owned PostgreSQL product generation in place.
 
 Fresh cluster activation and active-generation transition are deliberately distinct.
-The fresh path owns initdb and rejects any pre-existing product state.  This provider
+The fresh path owns initdb and rejects any pre-existing product state. This provider
 handles only a proved active generation and preserves its PGDATA/WAL identity while
 changing the immutable package/configuration generation.
 
@@ -11,8 +11,8 @@ The transition is fail-closed:
 * the current package comes from /opt/laplace/current and must have a durable completed
   cluster receipt and plan;
 * the live predecessor must verify against that plan before any mutation;
-* all existing generated configuration must match the predecessor receipt exactly;
-* every cluster state directory remains the same physical directory;
+* all generated configuration replaced by the successor must match predecessor receipts;
+* every persistent cluster state directory remains the same physical directory;
 * no initdb is executed on the upgrade path;
 * the predecessor is stopped before generated configuration/runtime selection changes;
 * the successor must load the exact new package, preserve PostgreSQL system_identifier,
@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import copy
 import importlib.util
-import json
 import os
 from pathlib import Path
 import stat
@@ -35,7 +34,9 @@ from typing import Any
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 CLUSTERCTL_PATH = REPOSITORY / "tools/postgresql/clusterctl.py"
-SPEC = importlib.util.spec_from_file_location("laplace_generation_upgrade_clusterctl", CLUSTERCTL_PATH)
+SPEC = importlib.util.spec_from_file_location(
+    "laplace_generation_upgrade_clusterctl", CLUSTERCTL_PATH
+)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError(f"cannot load {CLUSTERCTL_PATH}")
 clusterctl = importlib.util.module_from_spec(SPEC)
@@ -48,6 +49,12 @@ HEX = set("0123456789abcdef")
 
 class UpgradeError(RuntimeError):
     pass
+
+
+def _activation_identity(document: dict[str, Any]) -> str:
+    payload = dict(document)
+    payload.pop("activation_receipt_sha256", None)
+    return clusterctl.sha256_bytes(clusterctl.canonical_bytes(payload))
 
 
 def _package_id_from_target(target: str) -> str:
@@ -90,8 +97,7 @@ def _load_completed_activation(
         or receipt.get("package_id") != package_id
         or receipt.get("restart_proven") is not True
         or receipt.get("lifecycle_provider") != clusterctl.LIFECYCLE_PROVIDER
-        or receipt.get("activation_receipt_sha256")
-        != clusterctl.state_observation_identity(receipt)
+        or receipt.get("activation_receipt_sha256") != _activation_identity(receipt)
     ):
         raise UpgradeError("active predecessor cluster receipt is incomplete")
     plan_path = Path(str(receipt.get("cluster_plan_path", "")))
@@ -120,7 +126,9 @@ def _verify_existing_generated_files(plan: dict[str, Any]) -> dict[str, dict[str
         content = target.read_bytes()
         digest = clusterctl.sha256_bytes(content)
         if digest != entry["sha256"]:
-            raise UpgradeError(f"predecessor generated file changed outside its receipt: {target}")
+            raise UpgradeError(
+                f"predecessor generated file changed outside its receipt: {target}"
+            )
         backups[str(target)] = {
             "content": content,
             "mode": stat.S_IMODE(target.stat().st_mode),
@@ -134,7 +142,9 @@ def _verify_state_directories(plan: dict[str, Any]) -> dict[str, tuple[int, int]
     for logical in plan["state_directories"]:
         target = Path(logical)
         if target.is_symlink() or not target.is_dir():
-            raise UpgradeError(f"predecessor state directory is not one physical directory: {target}")
+            raise UpgradeError(
+                f"predecessor state directory is not one physical directory: {target}"
+            )
         metadata = target.stat()
         identities[str(target)] = (metadata.st_dev, metadata.st_ino)
     return identities
@@ -144,10 +154,14 @@ def _verify_state_identities(identities: dict[str, tuple[int, int]]) -> None:
     for name, expected in identities.items():
         target = Path(name)
         if target.is_symlink() or not target.is_dir():
-            raise UpgradeError(f"persistent state directory disappeared during upgrade: {target}")
+            raise UpgradeError(
+                f"persistent state directory disappeared during upgrade: {target}"
+            )
         metadata = target.stat()
         if (metadata.st_dev, metadata.st_ino) != expected:
-            raise UpgradeError(f"persistent state directory identity changed during upgrade: {target}")
+            raise UpgradeError(
+                f"persistent state directory identity changed during upgrade: {target}"
+            )
 
 
 def _validate_active_collisions(
@@ -155,11 +169,18 @@ def _validate_active_collisions(
 ) -> None:
     if observation.get("schema") != clusterctl.COLLISION_SCHEMA:
         raise UpgradeError("active collision observation schema is invalid")
-    if observation.get("source") != "laplace_clusterctl_live_probe" or observation.get("root") != "/":
+    if (
+        observation.get("source") != "laplace_clusterctl_live_probe"
+        or observation.get("root") != "/"
+    ):
         raise UpgradeError("active upgrade requires one live collision observation")
     if observation.get("target") != clusterctl.collision_target(contract):
-        raise UpgradeError("active collision observation target differs from the cluster contract")
-    if observation.get("observation_sha256") != clusterctl.collision_observation_identity(observation):
+        raise UpgradeError(
+            "active collision observation target differs from the cluster contract"
+        )
+    if observation.get("observation_sha256") != clusterctl.collision_observation_identity(
+        observation
+    ):
         raise UpgradeError("active collision observation identity differs")
     errors = observation.get("inspection_errors")
     if not isinstance(errors, list) or errors:
@@ -189,7 +210,9 @@ def _validate_active_collisions(
             and finding.get("owner_uid") == os.geteuid()
         ):
             continue
-        raise UpgradeError(f"unrelated collision blocks active-generation upgrade: {kind} {value}")
+        raise UpgradeError(
+            f"unrelated collision blocks active-generation upgrade: {kind} {value}"
+        )
 
 
 def _project_upgrade_collision(
@@ -198,9 +221,13 @@ def _project_upgrade_collision(
     projected = copy.deepcopy(observation)
     projected["collisions"] = []
     projected["upgrade_predecessor_package_id"] = predecessor_package_id
-    projected["upgrade_source_observation_sha256"] = observation["observation_sha256"]
+    projected["upgrade_source_observation_sha256"] = observation[
+        "observation_sha256"
+    ]
     projected.pop("observation_sha256", None)
-    projected["observation_sha256"] = clusterctl.collision_observation_identity(projected)
+    projected["observation_sha256"] = clusterctl.collision_observation_identity(
+        projected
+    )
     return projected
 
 
@@ -217,7 +244,9 @@ def _install_generated_files(plan: dict[str, Any]) -> None:
     for entry in plan["files"]:
         content = entry["content"].encode("utf-8")
         if clusterctl.sha256_bytes(content) != entry["sha256"]:
-            raise UpgradeError(f"successor rendered file digest differs: {entry['path']}")
+            raise UpgradeError(
+                f"successor rendered file digest differs: {entry['path']}"
+            )
         clusterctl.atomic_write(Path(entry["path"]), content, entry["mode"])
 
 
@@ -225,18 +254,24 @@ def _restore_generated_files(backups: dict[str, dict[str, Any]]) -> None:
     for name, backup in backups.items():
         clusterctl.atomic_write(Path(name), backup["content"], backup["mode"])
         if clusterctl.sha256_file(Path(name)) != backup["sha256"]:
-            raise UpgradeError(f"rollback could not restore predecessor file: {name}")
+            raise UpgradeError(
+                f"rollback could not restore predecessor file: {name}"
+            )
 
 
 def _command(label: str, command: list[str], timeout: int) -> dict[str, Any]:
     return clusterctl.execute_activation_command(label, command, timeout)
 
 
-def _ready(label: str, command: list[str], timeout: int = 300) -> dict[str, Any]:
+def _ready(
+    label: str, command: list[str], timeout: int = 300
+) -> dict[str, Any]:
     return clusterctl.await_postgresql_ready(label, command, timeout)
 
 
-def _staged_receipt(plan: dict[str, Any], predecessor_target: str) -> dict[str, Any]:
+def _staged_receipt(
+    plan: dict[str, Any], predecessor_target: str
+) -> dict[str, Any]:
     return {
         "schema": clusterctl.ACTIVATION_SCHEMA,
         "phase": "staged",
@@ -264,6 +299,17 @@ def _same_package_replay(
     if loaded.get("system_identifier") != receipt.get("system_identifier"):
         raise UpgradeError("same-package replay changed PostgreSQL system identity")
     return receipt
+
+
+def _persistent_state_set(
+    plan: dict[str, Any], contract: dict[str, Any]
+) -> set[str]:
+    receipt_directory = contract["instance"]["receipt_directory"]
+    return {
+        str(item)
+        for item in plan["state_directories"]
+        if str(item) != receipt_directory
+    }
 
 
 def upgrade_product(
@@ -296,18 +342,22 @@ def upgrade_product(
     if predecessor_loaded.get("system_identifier") != predecessor_receipt.get(
         "system_identifier"
     ):
-        raise UpgradeError("active predecessor PostgreSQL system identity differs from its receipt")
+        raise UpgradeError(
+            "active predecessor PostgreSQL system identity differs from its receipt"
+        )
 
-    backups = _verify_existing_generated_files(predecessor_plan)
-    state_identities = _verify_state_directories(predecessor_plan)
     raw_collision = clusterctl.inspect_collisions(contract, Path("/"))
     _validate_active_collisions(raw_collision, contract)
 
     expected_evidence = _activation_directory(contract, successor_package_id)
     if evidence_directory != expected_evidence:
-        raise UpgradeError("successor upgrade evidence directory must be package-addressed")
+        raise UpgradeError(
+            "successor upgrade evidence directory must be package-addressed"
+        )
     evidence_directory.mkdir(parents=True, exist_ok=True, mode=0o750)
-    clusterctl.write_json(evidence_directory / "upgrade-predecessor-collisions.json", raw_collision)
+    clusterctl.write_json(
+        evidence_directory / "upgrade-predecessor-collisions.json", raw_collision
+    )
     projected_collision = _project_upgrade_collision(
         raw_collision, predecessor_package_id
     )
@@ -321,15 +371,34 @@ def upgrade_product(
         projected_path,
         Path("/"),
     )
-    successor_plan_path = evidence_directory / f"cluster-plan-{successor_plan['plan_sha256']}.json"
+    successor_plan_path = (
+        evidence_directory / f"cluster-plan-{successor_plan['plan_sha256']}.json"
+    )
     clusterctl.write_json(successor_plan_path, successor_plan)
 
-    if set(successor_plan["state_directories"]) != set(
-        predecessor_plan["state_directories"]
+    if _persistent_state_set(successor_plan, contract) != _persistent_state_set(
+        predecessor_plan, contract
     ):
-        raise UpgradeError("successor changed the persistent state-directory contract")
+        raise UpgradeError(
+            "successor changed the persistent state-directory contract"
+        )
     if successor_plan["postgresql_major"] != predecessor_plan["postgresql_major"]:
-        raise UpgradeError("in-place product upgrade refuses a PostgreSQL major-version change")
+        raise UpgradeError(
+            "in-place product upgrade refuses a PostgreSQL major-version change"
+        )
+
+    successor_paths = {entry["path"] for entry in successor_plan["files"]}
+    predecessor_files = [
+        entry for entry in predecessor_plan["files"] if entry["path"] in successor_paths
+    ]
+    if {entry["path"] for entry in predecessor_files} != successor_paths:
+        raise UpgradeError(
+            "successor generated-file set is not covered by predecessor receipts"
+        )
+    backups = _verify_existing_generated_files({"files": predecessor_files})
+    state_identities = _verify_state_directories(
+        {"state_directories": sorted(_persistent_state_set(predecessor_plan, contract))}
+    )
 
     predecessor_target = f"releases/{predecessor_package_id}"
     active = Path(contract["package"]["active_link"])
@@ -371,7 +440,9 @@ def upgrade_product(
         successor_loaded_initial = clusterctl.observe_loaded_live(
             successor_plan, contract, Path("/")
         )
-        clusterctl.verify_loaded(successor_plan, contract, successor_loaded_initial)
+        clusterctl.verify_loaded(
+            successor_plan, contract, successor_loaded_initial
+        )
         if successor_loaded_initial["system_identifier"] != predecessor_loaded[
             "system_identifier"
         ]:
@@ -406,7 +477,9 @@ def upgrade_product(
         successor_loaded_restart = clusterctl.observe_loaded_live(
             successor_plan, contract, Path("/")
         )
-        clusterctl.verify_loaded(successor_plan, contract, successor_loaded_restart)
+        clusterctl.verify_loaded(
+            successor_plan, contract, successor_loaded_restart
+        )
         if successor_loaded_restart["system_identifier"] != predecessor_loaded[
             "system_identifier"
         ]:
@@ -414,7 +487,9 @@ def upgrade_product(
         if successor_loaded_restart.get("postmaster_pid") == successor_loaded_initial.get(
             "postmaster_pid"
         ):
-            raise UpgradeError("successor restart retained the original postmaster")
+            raise UpgradeError(
+                "successor restart retained the original postmaster"
+            )
         clusterctl.write_json(
             evidence_directory / "loaded-upgrade-restart.json",
             successor_loaded_restart,
@@ -442,7 +517,9 @@ def upgrade_product(
                 "lifecycle_provider": clusterctl.LIFECYCLE_PROVIDER,
                 "runtime_target": f"../releases/{successor_package_id}",
                 "cluster_plan_path": str(successor_plan_path),
-                "system_identifier": successor_loaded_restart["system_identifier"],
+                "system_identifier": successor_loaded_restart[
+                    "system_identifier"
+                ],
                 "loaded_initial_observation_sha256": successor_loaded_initial[
                     "observation_sha256"
                 ],
@@ -459,10 +536,10 @@ def upgrade_product(
                 "initdb_executed": False,
             }
         )
-        result["activation_receipt_sha256"] = clusterctl.state_observation_identity(
-            result
+        result["activation_receipt_sha256"] = _activation_identity(result)
+        clusterctl.write_json(
+            evidence_directory / "activation-complete.json", result
         )
-        clusterctl.write_json(evidence_directory / "activation-complete.json", result)
         return result
     except BaseException as error:
         rollback_error: BaseException | None = None
@@ -493,13 +570,22 @@ def upgrade_product(
                 rollback_loaded = clusterctl.observe_loaded_live(
                     predecessor_plan, contract, Path("/")
                 )
-                clusterctl.verify_loaded(predecessor_plan, contract, rollback_loaded)
+                clusterctl.verify_loaded(
+                    predecessor_plan, contract, rollback_loaded
+                )
                 if rollback_loaded["system_identifier"] != predecessor_loaded[
                     "system_identifier"
                 ]:
-                    raise UpgradeError("rollback changed PostgreSQL system identity")
-                if not active.is_symlink() or os.readlink(active) != predecessor_target:
-                    raise UpgradeError("rollback changed the committed predecessor pointer")
+                    raise UpgradeError(
+                        "rollback changed PostgreSQL system identity"
+                    )
+                if (
+                    not active.is_symlink()
+                    or os.readlink(active) != predecessor_target
+                ):
+                    raise UpgradeError(
+                        "rollback changed the committed predecessor pointer"
+                    )
             except BaseException as caught:
                 rollback_error = caught
 
@@ -512,7 +598,9 @@ def upgrade_product(
             "error": str(error),
             "committed": committed,
             "rollback_proven": rollback_error is None and not committed,
-            "rollback_error": None if rollback_error is None else str(rollback_error),
+            "rollback_error": (
+                None if rollback_error is None else str(rollback_error)
+            ),
             "initdb_executed": False,
             "persistent_state_identity_preserved": rollback_error is None,
         }
@@ -524,6 +612,7 @@ def upgrade_product(
         )
         if rollback_error is not None:
             raise UpgradeError(
-                f"generation upgrade failed and predecessor rollback could not be proven: {rollback_error}"
+                "generation upgrade failed and predecessor rollback could not be "
+                f"proven: {rollback_error}"
             ) from error
         raise
