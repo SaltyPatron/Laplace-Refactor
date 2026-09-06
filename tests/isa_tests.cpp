@@ -132,6 +132,7 @@ laplace_isa_value_view EvidenceOutputView(
     laplace_evidence_root_record* data,
     std::size_t capacity) {
     return {data, 0u, static_cast<std::uint64_t>(capacity),
+            static_cast<std::uint64_t>(capacity),
             static_cast<std::uint32_t>(sizeof(*data)),
             LAPLACE_ISA_VALUE_EVIDENCE_ROOT_RECORD_VECTOR,
             LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
@@ -717,7 +718,7 @@ laplace_isa_program Program(
 
 TEST(IsaAbi, ContractAssignmentsAreStable) {
     static_assert(LAPLACE_ISA_MAJOR == 1u);
-    static_assert(LAPLACE_ISA_MINOR == 13u);
+    static_assert(LAPLACE_ISA_MINOR == 14u);
     static_assert(LAPLACE_ISA_VALUE_U32_VECTOR != LAPLACE_ISA_VALUE_ID128_VECTOR);
     static_assert(sizeof(laplace_isa_digest256) == 32u);
     EXPECT_EQ(LAPLACE_ISA_OPCODE_IDENTITY_CODEPOINT_BATCH, 0x00020001u);
