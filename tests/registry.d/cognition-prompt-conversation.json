@@ -1,0 +1,21 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionPromptConversation.RawPromptTraversesStructureThenSemanticProviderToExactUtf8",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-PREIMAGE-GRAMMAR",
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER",
+        "LP-TEST-CONVERSATION-SEMANTIC-COMPLETION",
+        "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "one exact raw prompt admission supplies the whole canonical prompt trunk used as the conversation anchor",
+        "native provider composition traverses prompt physicality before a separately typed semantic crossing without tokenizer or topic selection",
+        "the completed semantic answer passes through the existing semantic-act realization and exact Unicode materialization chain to response bytes",
+        "the prompt admission receipt exact byte fingerprint and composite cognition provider fingerprint remain attached to the response result"
+      ]
+    }
+  ]
+}
