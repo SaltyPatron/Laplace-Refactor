@@ -3,116 +3,83 @@
   "tests": [
     {
       "ctest_name": "DecompositionOrchestration.RetypedRedispatchPreservesGrammarEligibility",
-      "evidence_targets": [
-        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
-      ],
-      "covered_dimensions": [
-        "recursive decomposition preserves grammar-input authority on exact child spans",
-        "recipe-owned media retyping redispatches the exact bytes under the nested grammar authority",
-        "nested provider execution remains typed and explicit rather than inferred from filenames or source identity"
-      ]
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
+      "covered_dimensions": ["recursive decomposition preserves grammar-input authority on exact child spans", "recipe-owned media retyping redispatches the exact bytes under the nested grammar authority", "nested provider execution remains typed and explicit rather than inferred from filenames or source identity"]
     },
     {
       "ctest_name": "DecompositionOrchestration.TextOnlyRedispatchCannotMasqueradeAsGrammarInput",
-      "evidence_targets": [
-        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
-      ],
-      "covered_dimensions": [
-        "text segmentation alone cannot silently promote a child span into grammar input",
-        "media-type retyping does not override the explicit grammar-input applicability flag"
-      ]
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
+      "covered_dimensions": ["text segmentation alone cannot silently promote a child span into grammar input", "media-type retyping does not override the explicit grammar-input applicability flag"]
     },
     {
       "ctest_name": "DecompositionOrchestration.DelimitedRowsStayTerminalAndFieldsRedispatch",
-      "evidence_targets": [
-        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
-      ],
-      "covered_dimensions": [
-        "delimited row structure remains a terminal witness while non-empty textual fields are explicitly redispatched",
-        "field leaves carry TEXT plus REDISPATCH while delimiters terminators and row structure do not manufacture recursive structural work",
-        "redispatch is bounded to semantic textual leaves so UAX29 language reference and domain providers can continue without overlapping whole-row expansion"
-      ]
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
+      "covered_dimensions": ["delimited row structure remains a terminal witness while non-empty textual fields are explicitly redispatched", "field leaves carry TEXT plus REDISPATCH while delimiters terminators and row structure do not manufacture recursive structural work", "redispatch is bounded to semantic textual leaves so UAX29 language reference and domain providers can continue without overlapping whole-row expansion"]
     },
     {
       "ctest_name": "DecompositionLeafRedispatch.DelimitedFieldsReachNextTextProviderExactlyOnceWhileRowsStayTerminal",
-      "evidence_targets": [
-        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
-      ],
-      "covered_dimensions": [
-        "each delimited semantic field is actually consumed by a downstream text provider exactly once",
-        "the structural row remains terminal and cannot create a second overlapping recursive text tree",
-        "downstream leaf work is parent-bound to the exact field span rather than inferred from the whole record"
-      ]
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
+      "covered_dimensions": ["each delimited semantic field is actually consumed by a downstream text provider exactly once", "the structural row remains terminal and cannot create a second overlapping recursive text tree", "downstream leaf work is parent-bound to the exact field span rather than inferred from the whole record"]
     },
     {
       "ctest_name": "DecompositionLeafRedispatch.FixedWidthTrimmedValuesReachNextTextProviderWithoutRedispatchingStructure",
-      "evidence_targets": [
-        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
-        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"
-      ],
-      "covered_dimensions": [
-        "every padding-trimmed fixed-width semantic value is consumed by the downstream text provider",
-        "physical fields records padding overflow witnesses and terminators remain terminal structural evidence",
-        "semantic redispatch cannot silently duplicate physical serialization structure"
-      ]
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"],
+      "covered_dimensions": ["every padding-trimmed fixed-width semantic value is consumed by the downstream text provider", "physical fields records padding overflow witnesses and terminators remain terminal structural evidence", "semantic redispatch cannot silently duplicate physical serialization structure"]
     },
     {
       "ctest_name": "DecompositionOrchestration.FixedWidthOverflowIsExplicitAndDoesNotShiftLaterFields",
-      "evidence_targets": [
-        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
-        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"
-      ],
-      "covered_dimensions": [
-        "fixed-width physical fields and padding-trimmed semantic values remain distinct exact spans",
-        "padding-trimmed textual values are redispatched while physical field padding overflow and record structure remain terminal",
-        "a bounded declared overflow belongs to its recipe-selected field and receives an explicit ambiguity witness",
-        "later field boundaries remain exact instead of silently shifting or truncating"
-      ]
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"],
+      "covered_dimensions": ["fixed-width physical fields and padding-trimmed semantic values remain distinct exact spans", "padding-trimmed textual values are redispatched while physical field padding overflow and record structure remain terminal", "a bounded declared overflow belongs to its recipe-selected field and receives an explicit ambiguity witness", "later field boundaries remain exact instead of silently shifting or truncating"]
     },
     {
       "ctest_name": "DecompositionOrchestration.FixedWidthOverflowDeclarationMutationIsObservable",
-      "evidence_targets": [
-        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
-        "LP-TEST-IDENTITY-NEGATIVE"
-      ],
-      "covered_dimensions": [
-        "a deliberate wrong overflow-field declaration changes exact downstream field boundaries",
-        "source recipe overflow policy is executable rather than documentary"
-      ]
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["a deliberate wrong overflow-field declaration changes exact downstream field boundaries", "source recipe overflow policy is executable rather than documentary"]
     },
     {
       "ctest_name": "DecompositionOrchestration.FixedWidthRejectsOverflowBeyondRecipeBound",
-      "evidence_targets": [
-        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
-        "LP-TEST-IDENTITY-NEGATIVE"
-      ],
-      "covered_dimensions": [
-        "record-width deviations beyond the recipe bound fail before publication",
-        "unknown malformed rows cannot be silently repaired"
-      ]
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["record-width deviations beyond the recipe bound fail before publication", "unknown malformed rows cannot be silently repaired"]
     },
     {
       "ctest_name": "DecompositionComposition.CanonicalRootExcludesTraceWitnessMetadata",
-      "evidence_targets": [
-        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
-        "LP-TEST-IDENTITY-CROSS-ROUTE",
-        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
-      ],
-      "covered_dimensions": [
-        "decomposition provider and syntax-kind changes alter the trace witness without becoming canonical Merkle children",
-        "the canonical root plan is the exact ordered Unicode content independent of parser trace shape and provider identity",
-        "canonical decomposition work is bounded by content rather than recursive witness metadata materialization"
-      ]
+      "evidence_targets": ["LP-TEST-AST-ROLE-IDENTITY-SEPARATION", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
+      "covered_dimensions": ["decomposition provider and syntax-kind changes alter the trace witness without becoming canonical Merkle children", "the canonical root plan is the exact ordered Unicode content independent of parser trace shape and provider identity", "canonical decomposition work is bounded by content rather than recursive witness metadata materialization"]
     },
     {
       "ctest_name": "decomposition.mutation-witness-metadata-identity-coupling-detected",
-      "evidence_targets": [
-        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
-        "LP-TEST-IDENTITY-NEGATIVE"
-      ],
-      "covered_dimensions": [
-        "a deliberate mutant that inserts decomposition witness kind metadata into canonical composition is rejected by executable acceptance"
-      ]
+      "evidence_targets": ["LP-TEST-AST-ROLE-IDENTITY-SEPARATION", "LP-TEST-IDENTITY-NEGATIVE"],
+      "covered_dimensions": ["a deliberate mutant that inserts decomposition witness kind metadata into canonical composition is rejected by executable acceptance"]
+    },
+    {
+      "ctest_name": "DecompositionStructuredProvider.PreservesParentFieldOrdinalAliasAndErrorState",
+      "evidence_targets": ["LP-TEST-AST-CROSS-MODAL", "LP-TEST-AST-OPAQUE-FLATTENING-REJECTION", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "covered_dimensions": ["structured providers retain true parent-child CST topology rather than flattening descendants under the source span", "visible symbols grammar symbols fields sibling ordinals named missing error and has-error states survive provider execution", "explicit zero-width missing syntax remains witnessed without an invented content entity", "equal source bytes observed at multiple syntax levels reuse canonical content"]
+    },
+    {
+      "ctest_name": "DecompositionStructuredProvider.FieldWitnessChangesTraceButNotCanonicalContent",
+      "evidence_targets": ["LP-TEST-AST-MERKLE-REUSE", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "covered_dimensions": ["changing a grammar field changes the syntax witness fingerprint", "grammar-field witness state does not remint equal canonical content", "parser metadata remains outside BLAKE3 content identity"]
+    },
+    {
+      "ctest_name": "UniversalAstRecipe.UnrelatedGrammarsShareContentButKeepDistinctTypedRoles",
+      "evidence_targets": ["LP-TEST-UNIVERSAL-AST-CROSS-MODAL", "LP-TEST-AST-MERKLE-REUSE", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "covered_dimensions": ["two unrelated registered grammar generations compile through one universal AST mechanism", "equal bytes reuse the same canonical composition references across grammar paths", "grammar identity and AST role identity remain full Highway coordinates rather than truncated trajectory metadata", "parentage and sibling order remain typed structural state"]
+    },
+    {
+      "ctest_name": "UniversalAstRecipe.UnmappedSyntaxFailsClosedInsteadOfBecomingOpaqueRecord",
+      "evidence_targets": ["LP-TEST-AST-OPAQUE-FLATTENING-REJECTION", "LP-TEST-RECIPE-UNKNOWN-FIELD", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "covered_dimensions": ["syntax lacking a declared recipe rule fails closed", "an opaque fallback record cannot replace an unmapped grammar symbol or field", "grammar providers do not invent application-private AST semantics"]
+    },
+    {
+      "ctest_name": "UniversalAstRecipe.OverlappingRoleRulesAreRejectedAtCompileAsAmbiguous",
+      "evidence_targets": ["LP-TEST-RECIPE-AMBIGUITY-FAIL", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"],
+      "covered_dimensions": ["two simultaneously applicable AST-role rules are an explicit compile error", "wildcard field rules cannot silently override an exact rule", "recipe ambiguity is rejected before persistence or effects"]
+    },
+    {
+      "ctest_name": "UniversalAstRecipe.GrammarRegistryRejectsProviderOrKindNamespaceCollision",
+      "evidence_targets": ["LP-TEST-GRAMMAR-REGISTRY-CONFORMANCE", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "covered_dimensions": ["provider generations are uniquely bound to immutable grammar coordinates", "grammar kind namespaces cannot collide", "the registry remains data authority rather than provider-owned semantic dispatch"]
     }
   ]
 }
