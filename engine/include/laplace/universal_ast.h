@@ -41,7 +41,8 @@ typedef enum laplace_ast_rule_disposition {
 enum {
     LAPLACE_AST_RECIPE_HAS_INVERSE = 1u,
     LAPLACE_AST_RECIPE_ALLOWS_DECLARED_LOSS = 2u,
-    LAPLACE_AST_RECIPE_KNOWN_FLAGS = 3u
+    LAPLACE_AST_RECIPE_KNOWN_FLAGS = 3u,
+    LAPLACE_UNIVERSAL_AST_PACKET_VERSION = 1u
 };
 
 typedef struct laplace_ast_recipe_rule {
@@ -122,6 +123,29 @@ typedef struct laplace_universal_ast_plan_view {
     uint32_t status;
 } laplace_universal_ast_plan_view;
 
+/* Fixed replay receipt for the pointer-free plan packet used by the ISA and
+ * external transports. The packet is not a second compiler: it is emitted only
+ * from a successfully compiled plan, and replay recomputes the same semantic
+ * and witness fingerprints before issuing this receipt. */
+typedef struct laplace_universal_ast_packet_receipt {
+    laplace_digest256 receipt_id;
+    laplace_digest256 grammar_registry_fingerprint;
+    laplace_digest256 recipe_fingerprint;
+    laplace_digest256 plan_fingerprint;
+    laplace_digest256 witness_fingerprint;
+    laplace_digest256 composition_trace_fingerprint;
+    uint64_t binding_count;
+    uint64_t preserved_count;
+    uint64_t declared_loss_count;
+    uint64_t content_binding_count;
+    uint64_t missing_binding_count;
+    uint64_t error_binding_count;
+    uint64_t atom_count;
+    uint64_t request_count;
+    uint32_t version;
+    uint32_t status;
+} laplace_universal_ast_packet_receipt;
+
 typedef enum laplace_universal_ast_status {
     LAPLACE_UNIVERSAL_AST_OK = 0,
     LAPLACE_UNIVERSAL_AST_INVALID_ARGUMENT = 1,
@@ -136,7 +160,9 @@ typedef enum laplace_universal_ast_status {
     LAPLACE_UNIVERSAL_AST_DECOMPOSITION_INVALID = 10,
     LAPLACE_UNIVERSAL_AST_CANONICAL_CONTENT_FAILURE = 11,
     LAPLACE_UNIVERSAL_AST_MEMORY_FAILURE = 12,
-    LAPLACE_UNIVERSAL_AST_OVERFLOW = 13
+    LAPLACE_UNIVERSAL_AST_OVERFLOW = 13,
+    LAPLACE_UNIVERSAL_AST_PACKET_INVALID = 14,
+    LAPLACE_UNIVERSAL_AST_PACKET_CAPACITY = 15
 } laplace_universal_ast_status;
 
 LAPLACE_API laplace_universal_ast_status laplace_grammar_registry_create(
@@ -178,6 +204,28 @@ LAPLACE_API laplace_universal_ast_status laplace_universal_ast_plan_create(
 LAPLACE_API laplace_universal_ast_status laplace_universal_ast_plan_view_get(
     const laplace_universal_ast_plan* plan,
     laplace_universal_ast_plan_view* view);
+
+/* Measure and encode the deterministic little-endian u32 replay packet for a
+ * compiled plan. The packet retains full Highway grammar/role coordinates and
+ * plan-local canonical content references; it does not truncate roles into
+ * trajectory metadata or claim those local references are durable entity ids. */
+LAPLACE_API laplace_universal_ast_status laplace_universal_ast_plan_packet_measure(
+    const laplace_universal_ast_plan* plan,
+    size_t* required_words);
+
+LAPLACE_API laplace_universal_ast_status laplace_universal_ast_plan_packet_encode(
+    const laplace_universal_ast_plan* plan,
+    uint32_t* output_words,
+    size_t output_capacity_words,
+    size_t* output_words_written);
+
+/* Revalidate one replay packet without access to compiler pointers/state and
+ * issue the canonical packet receipt. This is the semantic owner used by the
+ * universal_ast_apply_packet ISA operation and route-parity transports. */
+LAPLACE_API laplace_universal_ast_status laplace_universal_ast_packet_validate_words(
+    const uint32_t* words,
+    size_t word_count,
+    laplace_universal_ast_packet_receipt* receipt);
 
 LAPLACE_API void laplace_universal_ast_plan_destroy(
     laplace_universal_ast_plan** plan);
