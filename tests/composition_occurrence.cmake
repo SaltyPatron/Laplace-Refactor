@@ -132,6 +132,20 @@ set_tests_properties(
     composition.dependency-frontier-plan PROPERTIES
     LABELS "implementation;composition;execution;working-set;resource;determinism")
 
+add_executable(laplace_composition_frontier_execution_tests
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_frontier_execution_tests.cpp")
+target_link_libraries(laplace_composition_frontier_execution_tests PRIVATE
+    Laplace::Composition
+    GTest::gtest_main)
+target_compile_options(laplace_composition_frontier_execution_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME composition.frontier-execution-preflight
+    COMMAND "$<TARGET_FILE:laplace_composition_frontier_execution_tests>")
+set_tests_properties(
+    composition.frontier-execution-preflight PROPERTIES
+    LABELS "implementation;composition;execution;working-set;resource;billing;determinism")
+
 add_executable(laplace_composition_frontier_mutation_probe
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_frontier_tests.cpp")
 target_link_libraries(laplace_composition_frontier_mutation_probe PRIVATE
