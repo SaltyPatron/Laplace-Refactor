@@ -1,0 +1,53 @@
+CREATE TEMP TABLE discourse_expected AS
+SELECT
+    decode(:'root_frame','hex') AS root_frame,
+    decode(:'root_state_id','hex') AS root_state_id,
+    decode(:'successor_frame','hex') AS successor_frame,
+    decode(:'successor_state_id','hex') AS successor_state_id,
+    decode(:'discourse_id','hex') AS discourse_id;
+
+DO $contract$
+DECLARE
+    expected record;
+    actual bytea;
+    durable_count bigint;
+    successor_previous bytea;
+    successor_turn bigint;
+BEGIN
+    SELECT * INTO expected FROM discourse_expected;
+
+    actual := laplace.cognition_discourse_read(expected.root_state_id);
+    IF actual IS DISTINCT FROM expected.root_frame THEN
+        RAISE EXCEPTION 'root discourse frame changed across PostgreSQL restart';
+    END IF;
+
+    actual := laplace.cognition_discourse_read(expected.successor_state_id);
+    IF actual IS DISTINCT FROM expected.successor_frame THEN
+        RAISE EXCEPTION 'successor discourse frame changed across PostgreSQL restart';
+    END IF;
+
+    actual := laplace.cognition_discourse_latest(expected.discourse_id);
+    IF actual IS DISTINCT FROM expected.successor_frame THEN
+        RAISE EXCEPTION 'latest discourse state did not survive PostgreSQL restart';
+    END IF;
+
+    SELECT count(*) INTO durable_count
+    FROM laplace.cognition_discourse_state
+    WHERE discourse_id = expected.discourse_id;
+    IF durable_count <> 2 THEN
+        RAISE EXCEPTION 'durable discourse chain row count changed across restart';
+    END IF;
+
+    SELECT previous_state_id, turn_ordinal
+    INTO successor_previous, successor_turn
+    FROM laplace.cognition_discourse_state
+    WHERE state_id = expected.successor_state_id;
+    IF successor_previous IS DISTINCT FROM expected.root_state_id OR successor_turn <> 1 THEN
+        RAISE EXCEPTION 'durable discourse predecessor chain changed across restart';
+    END IF;
+
+    IF laplace.cognition_discourse_read(decode(repeat('ff',32),'hex')) IS NOT NULL THEN
+        RAISE EXCEPTION 'unknown discourse state lookup did not return null';
+    END IF;
+END
+$contract$;
