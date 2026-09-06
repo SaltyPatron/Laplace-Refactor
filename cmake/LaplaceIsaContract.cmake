@@ -62,8 +62,7 @@ function(laplace_configure_isa_contract contract_path output_path)
         "standing_period_input_vector|20"
         "standing_period_result_vector|21"
         "stock_catalog_item_vector|22"
-        "stock_catalog_receipt_vector|23"
-        "universal_ast_packet_receipt_vector|24")
+        "stock_catalog_receipt_vector|23")
     foreach(spec IN LISTS expected_value_types)
         string(REPLACE "|" ";" parts "${spec}")
         list(GET parts 0 value_name)
