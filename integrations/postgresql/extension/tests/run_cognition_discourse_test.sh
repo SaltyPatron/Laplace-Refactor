@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 9 ]]; then
-    echo "usage: $0 PG-BINDIR CONTROL-ROOT MODULE-DIRECTORY ENGINE-DIRECTORY NATIVE-PROBE DEPOSIT-SQL READBACK-SQL SANITIZER-PRELOAD" >&2
+    echo "usage: $0 PG-BINDIR CONTROL-ROOT MODULE-DIRECTORY ENGINE-DIRECTORY NATIVE-PROBE DEPOSIT-SQL READBACK-SQL SANITIZER-PRELOAD CONTRACT-VERSION" >&2
     exit 64
 fi
 
@@ -15,8 +15,6 @@ native_probe=$5
 deposit_sql=$6
 readback_sql=$7
 sanitizer_preload=$8
-# Keep the ninth positional slot reserved for future restart mode without changing
-# the CTest command shape. It must currently be the literal contract version.
 contract_version=$9
 if [[ "$contract_version" != "v1" ]]; then
     echo "unsupported discourse persistence contract version: $contract_version" >&2
