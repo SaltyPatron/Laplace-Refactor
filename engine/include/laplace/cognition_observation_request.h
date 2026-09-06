@@ -134,6 +134,31 @@ typedef struct laplace_cognition_observation_candidate_provider_v1 {
     uint32_t reserved;
 } laplace_cognition_observation_candidate_provider_v1;
 
+/*
+ * Terminal answer record retained from the canonical query-search result before
+ * that internal result is destroyed.  `entity_id` is the actual selected target
+ * entity and is therefore directly consumable by a realization transport.  Path
+ * identity/cost and the final crossing remain attached so realization does not
+ * erase how the answer was obtained.
+ */
+typedef struct laplace_cognition_observation_answer {
+    laplace_id128 entity_id;
+    laplace_digest256 path_id;
+    laplace_digest256 terminal_state_id;
+    uint64_t total_cost;
+    uint64_t transition_count;
+    uint64_t independent_evidence_root_count;
+    uint32_t relation_family;
+    uint32_t source_layer;
+    uint32_t direction;
+    uint32_t rank;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_cognition_observation_answer;
+
+typedef struct laplace_cognition_observation_result
+    laplace_cognition_observation_result;
+
 typedef enum laplace_cognition_observation_request_status {
     LAPLACE_COGNITION_OBSERVATION_REQUEST_OK = 0,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_INVALID_ARGUMENT = 1,
@@ -145,7 +170,8 @@ typedef enum laplace_cognition_observation_request_status {
     LAPLACE_COGNITION_OBSERVATION_REQUEST_COORDINATE_FAILURE = 7,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_PROVIDER_FAILURE = 8,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_MEMORY_FAILURE = 9,
-    LAPLACE_COGNITION_OBSERVATION_REQUEST_EXECUTION_FAILURE = 10
+    LAPLACE_COGNITION_OBSERVATION_REQUEST_EXECUTION_FAILURE = 10,
+    LAPLACE_COGNITION_OBSERVATION_REQUEST_RESULT_RANGE = 11
 } laplace_cognition_observation_request_status;
 
 /*
@@ -205,14 +231,31 @@ laplace_cognition_observation_request_provider_destroy(
  * retaining semantic ownership in the native engine. The backend enumerates only
  * typed observation candidates. Native code derives search transitions, executes
  * the compiled bounded search, constructs/selects cognition operations, applies
- * resolutions, decides completion, and receipts the full forward pass.
+ * resolutions, decides completion, and receipts the full forward pass. The
+ * terminal entity/path records are retained in `observation_result` for the
+ * realization layer; callers do not need to rerun or reverse a result hash.
  */
 LAPLACE_API laplace_cognition_observation_request_status
 laplace_cognition_observation_request_execute_with_candidate_provider(
     const laplace_cognition_observation_request* request,
     const laplace_cognition_observation_candidate_provider_v1* provider,
-    laplace_cognition_forward_result** result,
+    laplace_cognition_observation_result** observation_result,
+    laplace_cognition_forward_result** forward_result,
     laplace_cognition_forward_receipt* receipt);
+
+LAPLACE_API size_t
+laplace_cognition_observation_result_answer_count(
+    const laplace_cognition_observation_result* result);
+
+LAPLACE_API laplace_cognition_observation_request_status
+laplace_cognition_observation_result_answer(
+    const laplace_cognition_observation_result* result,
+    size_t answer_index,
+    laplace_cognition_observation_answer* answer);
+
+LAPLACE_API void
+laplace_cognition_observation_result_destroy(
+    laplace_cognition_observation_result** result);
 
 /*
  * Executes one complete typed request through the canonical compile, provider,
