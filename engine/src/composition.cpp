@@ -160,6 +160,62 @@ extern "C" laplace_execution_status composition_capture_run_work(
     return LAPLACE_EXECUTION_OK;
 }
 
+void HashCompositionResult(
+    blake3_hasher& hasher,
+    const laplace_composition_result& result) {
+    blake3_hasher_update(
+        &hasher, result.entity_id.bytes, sizeof(result.entity_id.bytes));
+    blake3_hasher_update(
+        &hasher, result.identity_witness.bytes,
+        sizeof(result.identity_witness.bytes));
+    blake3_hasher_update(
+        &hasher, result.physicality_id.bytes,
+        sizeof(result.physicality_id.bytes));
+    for (const double component : result.centroid.component) {
+        HashDouble(hasher, component);
+    }
+    HashDouble(hasher, result.radius);
+    HashU64(hasher, result.logical_count);
+    HashU64(hasher, result.trajectory_vertex_count);
+    HashU8(hasher, result.tier_floor);
+    HashU8(hasher, result.collapsed);
+}
+
+void HashEntityCandidate(
+    blake3_hasher& hasher,
+    const laplace_composition_entity_candidate& entity) {
+    blake3_hasher_update(
+        &hasher, entity.entity.entity_id.bytes,
+        sizeof(entity.entity.entity_id.bytes));
+    blake3_hasher_update(
+        &hasher, entity.entity.identity_witness.bytes,
+        sizeof(entity.entity.identity_witness.bytes));
+    HashU8(hasher, entity.tier_floor);
+}
+
+void HashAttestation(
+    blake3_hasher& hasher,
+    const laplace_persistence_attestation_record& occurrence) {
+    blake3_hasher_update(
+        &hasher, occurrence.attestation_id.bytes,
+        sizeof(occurrence.attestation_id.bytes));
+    blake3_hasher_update(
+        &hasher, occurrence.entity_id.bytes,
+        sizeof(occurrence.entity_id.bytes));
+    blake3_hasher_update(
+        &hasher, occurrence.physicality_id.bytes,
+        sizeof(occurrence.physicality_id.bytes));
+    blake3_hasher_update(
+        &hasher, occurrence.source_fingerprint.bytes,
+        sizeof(occurrence.source_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, occurrence.context_fingerprint.bytes,
+        sizeof(occurrence.context_fingerprint.bytes));
+    HashU64(hasher, occurrence.source_ordinal);
+    HashU32(hasher, occurrence.flags);
+    HashU32(hasher, occurrence.attestation_kind);
+}
+
 }  // namespace
 
 extern "C" laplace_composition_status laplace_composition_working_set_create(
@@ -228,6 +284,58 @@ laplace_composition_working_set_frontier_execution_receipts(
     }
     *receipt_count = found->second.size();
     return found->second.empty() ? nullptr : found->second.data();
+}
+
+extern "C" laplace_composition_status
+laplace_composition_working_set_semantic_fingerprint(
+    const laplace_composition_working_set* const working_set,
+    laplace_digest256* const semantic_fingerprint) {
+    if (working_set == nullptr || semantic_fingerprint == nullptr) {
+        return LAPLACE_COMPOSITION_INVALID_ARGUMENT;
+    }
+
+    blake3_hasher hasher{};
+    blake3_hasher_init(&hasher);
+    HashString(hasher, "laplace-composition-semantic-state-v1");
+    blake3_hasher_update(
+        &hasher, working_set->summary.source_fingerprint.bytes,
+        sizeof(working_set->summary.source_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, working_set->summary.calculation_recipe_fingerprint.bytes,
+        sizeof(working_set->summary.calculation_recipe_fingerprint.bytes));
+
+    HashU64(hasher, static_cast<std::uint64_t>(working_set->results.size()));
+    for (const auto& result : working_set->results) {
+        HashCompositionResult(hasher, result);
+    }
+
+    HashU64(hasher, static_cast<std::uint64_t>(working_set->entities.size()));
+    for (const auto& entity : working_set->entities) {
+        HashEntityCandidate(hasher, entity);
+    }
+
+    HashU64(hasher, static_cast<std::uint64_t>(working_set->physicalities.size()));
+    for (const auto& bundle : working_set->physicalities) {
+        HashPhysicality(hasher, bundle.physicality);
+        HashU64(hasher, static_cast<std::uint64_t>(bundle.carriers.size()));
+        for (const auto& carrier : bundle.carriers) {
+            blake3_hasher_update(&hasher, &carrier, sizeof(carrier));
+        }
+    }
+
+    HashU64(hasher, static_cast<std::uint64_t>(working_set->occurrences.size()));
+    for (const auto& occurrence : working_set->occurrences) {
+        HashAttestation(hasher, occurrence);
+    }
+
+#if defined(LAPLACE_TEST_COMPOSITION_SEMANTIC_FINGERPRINT_INCLUDES_PHYSICAL_PLAN)
+    /* Deliberate #171 defect: persistence batch choice is not semantic state. */
+    HashU64(hasher, working_set->preferred_batch_bytes);
+    HashU64(hasher, working_set->summary.batch_count);
+#endif
+
+    *semantic_fingerprint = Finish(hasher);
+    return LAPLACE_COMPOSITION_OK;
 }
 
 extern "C" void laplace_composition_working_set_destroy(
