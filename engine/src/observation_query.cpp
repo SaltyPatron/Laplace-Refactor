@@ -6,3 +6,4 @@
 #include "cognition_observation_candidate_provider.inc"
 #include "cognition_observation_provider_set.inc"
 #include "cognition_semantic_act.inc"
+#include "cognition_discourse.inc"
