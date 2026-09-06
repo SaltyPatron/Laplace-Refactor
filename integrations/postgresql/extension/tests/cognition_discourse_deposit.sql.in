@@ -1,0 +1,54 @@
+CREATE EXTENSION laplace;
+
+CREATE TEMP TABLE discourse_expected AS
+SELECT
+    decode(:'root_frame','hex') AS root_frame,
+    decode(:'root_state_id','hex') AS root_state_id,
+    decode(:'successor_frame','hex') AS successor_frame,
+    decode(:'successor_state_id','hex') AS successor_state_id,
+    decode(:'discourse_id','hex') AS discourse_id,
+    decode(:'missing_predecessor_frame','hex') AS missing_predecessor_frame,
+    decode(:'corrupt_frame','hex') AS corrupt_frame;
+
+DO $contract$
+DECLARE
+    expected record;
+    actual bytea;
+BEGIN
+    SELECT * INTO expected FROM discourse_expected;
+
+    actual := laplace.cognition_discourse_deposit(expected.root_frame);
+    IF actual IS DISTINCT FROM expected.root_state_id THEN
+        RAISE EXCEPTION 'root discourse state identity changed at deposit';
+    END IF;
+
+    actual := laplace.cognition_discourse_deposit(expected.successor_frame);
+    IF actual IS DISTINCT FROM expected.successor_state_id THEN
+        RAISE EXCEPTION 'successor discourse state identity changed at deposit';
+    END IF;
+
+    -- Exact immutable replay is idempotent and must read back the same state.
+    actual := laplace.cognition_discourse_deposit(expected.root_frame);
+    IF actual IS DISTINCT FROM expected.root_state_id THEN
+        RAISE EXCEPTION 'exact root replay changed discourse identity';
+    END IF;
+
+    BEGIN
+        PERFORM laplace.cognition_discourse_deposit(expected.corrupt_frame);
+        RAISE EXCEPTION 'corrupt native discourse frame was accepted';
+    EXCEPTION
+        WHEN invalid_binary_representation THEN NULL;
+    END;
+
+    BEGIN
+        PERFORM laplace.cognition_discourse_deposit(expected.missing_predecessor_frame);
+        RAISE EXCEPTION 'successor without a durable predecessor was accepted';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
+
+    IF (SELECT count(*) FROM laplace.cognition_discourse_state) <> 2 THEN
+        RAISE EXCEPTION 'unexpected durable discourse row count before restart';
+    END IF;
+END
+$contract$;
