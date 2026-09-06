@@ -29,9 +29,11 @@ std::uint64_t Metadata(const std::uint8_t tier, const std::uint32_t atom) {
         (static_cast<std::uint64_t>(atom) << LAPLACE_TRAJECTORY_ATOM_SHIFT);
 }
 
-bool Codepoint(const std::uint32_t codepoint, laplace_id128* entity) {
-    laplace_digest256 witness{};
-    return laplace_identity_codepoint_witness(codepoint, entity, &witness) ==
+bool Codepoint(
+    const std::uint32_t codepoint,
+    laplace_id128* entity,
+    laplace_digest256* witness) {
+    return laplace_identity_codepoint_witness(codepoint, entity, witness) ==
         LAPLACE_IDENTITY_OK;
 }
 
@@ -54,6 +56,10 @@ struct Fixture final {
     laplace_id128 b{};
     laplace_id128 c{};
     laplace_id128 root{};
+    laplace_digest256 a_witness{};
+    laplace_digest256 b_witness{};
+    laplace_digest256 c_witness{};
+    laplace_digest256 root_witness{};
     std::array<laplace_trajectory_carrier, 3> carriers{};
     laplace_persistence_physicality_record physicality{};
     std::array<laplace_persistence_trajectory_segment_record, 3> segments{};
@@ -63,10 +69,10 @@ struct Fixture final {
 
 bool BuildFixture(Fixture* fixture) {
     if (fixture == nullptr ||
-        !Codepoint(0x41U, &fixture->a) ||
-        !Codepoint(0x42U, &fixture->b) ||
-        !Codepoint(0x43U, &fixture->c) ||
-        !Codepoint(0x52U, &fixture->root)) {
+        !Codepoint(0x41U, &fixture->a, &fixture->a_witness) ||
+        !Codepoint(0x42U, &fixture->b, &fixture->b_witness) ||
+        !Codepoint(0x43U, &fixture->c, &fixture->c_witness) ||
+        !Codepoint(0x52U, &fixture->root, &fixture->root_witness)) {
         return false;
     }
     fixture->boundary = Digest(180U);
@@ -248,6 +254,10 @@ int main() {
     PrintHex("ENTITY_B", fixture.b);
     PrintHex("ENTITY_C", fixture.c);
     PrintHex("ENTITY_ROOT", fixture.root);
+    PrintHex("ENTITY_A_WITNESS", fixture.a_witness);
+    PrintHex("ENTITY_B_WITNESS", fixture.b_witness);
+    PrintHex("ENTITY_C_WITNESS", fixture.c_witness);
+    PrintHex("ENTITY_ROOT_WITNESS", fixture.root_witness);
     PrintHex("BOUNDARY", fixture.boundary);
     PrintHex("EVIDENCE_EPOCH", fixture.evidence_epoch);
     PrintHex("RECIPE_FINGERPRINT", fixture.physicality.recipe_fingerprint);
