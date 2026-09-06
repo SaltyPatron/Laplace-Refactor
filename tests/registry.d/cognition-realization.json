@@ -1,0 +1,30 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionRealization.ExactWholeReusePrecedesSmallerStructuralFallback",
+      "evidence_targets": ["LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION", "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"],
+      "covered_dimensions": ["realization consumes the completed semantic act downstream of cognition", "an exact compatible whole realization is preferred before smaller structural fallback", "the selected output remains an exact canonical content identity with a realization receipt"]
+    },
+    {
+      "ctest_name": "CognitionRealization.IncompleteLargerCandidateFallsBackWithoutDroppingObligations",
+      "evidence_targets": ["LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION", "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"],
+      "covered_dimensions": ["a larger realization with unresolved obligations is ineligible", "inverse structural-tier fallback may select a smaller exact realization only after obligations close", "fallback does not convert incomplete realization into fluent acceptance"]
+    },
+    {
+      "ctest_name": "CognitionRealization.MissingLanguageReadinessReturnsTypedWhyNotWithoutOutput",
+      "evidence_targets": ["LP-TEST-LANGUAGE-READINESS-WHY-NOT"],
+      "covered_dimensions": ["language scope does not imply realization readiness", "missing realization obligations return an exact typed unsupported disposition", "unsupported realization publishes no output content identity and retains the missing-obligation fingerprint"]
+    },
+    {
+      "ctest_name": "CognitionRealization.EqualBestDistinctOutputsRemainAmbiguous",
+      "evidence_targets": ["LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION", "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"],
+      "covered_dimensions": ["equal-ranked distinct exact outputs remain explicitly ambiguous", "the selector cannot choose arbitrary prose to break an unresolved realization tie", "ambiguity remains receipted without publishing a content identity"]
+    },
+    {
+      "ctest_name": "CognitionRealization.ProviderCannotSilentlySubstituteAnotherLanguage",
+      "evidence_targets": ["LP-TEST-MULTILINGUAL-NON-ENGLISH-INTERMEDIATE", "LP-TEST-LANGUAGE-READINESS-WHY-NOT"],
+      "covered_dimensions": ["requested language identity is an exact realization coordinate", "a provider cannot substitute a different language output", "language mismatch fails before output publication rather than silently falling back to another language"]
+    }
+  ]
+}
