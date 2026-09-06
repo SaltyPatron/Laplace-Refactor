@@ -53,32 +53,32 @@
     },
     {
       "ctest_name": "DecompositionStructuredProvider.PreservesParentFieldOrdinalAliasAndErrorState",
-      "evidence_targets": ["LP-TEST-UNIVERSAL-AST-CROSS-MODAL", "LP-TEST-AST-OPAQUE-FLATTENING-REJECTION", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "evidence_targets": ["LP-TEST-UNIVERSAL-AST-CROSS-MODAL", "LP-TEST-AST-OPAQUE-FLATTENING-REJECTION", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
       "covered_dimensions": ["structured providers retain true parent-child CST topology rather than flattening descendants under the source span", "visible symbols grammar symbols fields sibling ordinals named missing error and has-error states survive provider execution", "explicit zero-width missing syntax remains witnessed without an invented content entity", "equal source bytes observed at multiple syntax levels reuse canonical content"]
     },
     {
       "ctest_name": "DecompositionStructuredProvider.FieldWitnessChangesTraceButNotCanonicalContent",
-      "evidence_targets": ["LP-TEST-AST-MERKLE-REUSE", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "evidence_targets": ["LP-TEST-AST-MERKLE-REUSE", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
       "covered_dimensions": ["changing a grammar field changes the syntax witness fingerprint", "grammar-field witness state does not remint equal canonical content", "parser metadata remains outside BLAKE3 content identity"]
     },
     {
       "ctest_name": "UniversalAstRecipe.UnrelatedGrammarsShareContentButKeepDistinctTypedRoles",
-      "evidence_targets": ["LP-TEST-UNIVERSAL-AST-CROSS-MODAL", "LP-TEST-AST-MERKLE-REUSE", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "evidence_targets": ["LP-TEST-UNIVERSAL-AST-CROSS-MODAL", "LP-TEST-AST-MERKLE-REUSE", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
       "covered_dimensions": ["two unrelated registered grammar generations compile through one universal AST mechanism", "equal bytes reuse the same canonical composition references across grammar paths", "grammar identity and AST role identity remain full Highway coordinates rather than truncated trajectory metadata", "parentage and sibling order remain typed structural state"]
     },
     {
       "ctest_name": "UniversalAstRecipe.UnmappedSyntaxFailsClosedInsteadOfBecomingOpaqueRecord",
-      "evidence_targets": ["LP-TEST-AST-OPAQUE-FLATTENING-REJECTION", "LP-TEST-RECIPE-UNKNOWN-FIELD", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "evidence_targets": ["LP-TEST-AST-OPAQUE-FLATTENING-REJECTION", "LP-TEST-RECIPE-OPAQUE-CALLBACK-REJECTION", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
       "covered_dimensions": ["syntax lacking a declared recipe rule fails closed", "an opaque fallback record cannot replace an unmapped grammar symbol or field", "grammar providers do not invent application-private AST semantics"]
     },
     {
       "ctest_name": "UniversalAstRecipe.OverlappingRoleRulesAreRejectedAtCompileAsAmbiguous",
-      "evidence_targets": ["LP-TEST-RECIPE-AMBIGUITY-FAIL", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"],
+      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION"],
       "covered_dimensions": ["two simultaneously applicable AST-role rules are an explicit compile error", "wildcard field rules cannot silently override an exact rule", "recipe ambiguity is rejected before persistence or effects"]
     },
     {
       "ctest_name": "UniversalAstRecipe.GrammarRegistryRejectsProviderOrKindNamespaceCollision",
-      "evidence_targets": ["LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "evidence_targets": ["LP-TEST-UNIVERSAL-AST-CROSS-MODAL", "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"],
       "covered_dimensions": ["provider generations are uniquely bound to immutable grammar coordinates", "grammar kind namespaces cannot collide", "the registry remains data authority rather than provider-owned semantic dispatch"]
     },
     {
