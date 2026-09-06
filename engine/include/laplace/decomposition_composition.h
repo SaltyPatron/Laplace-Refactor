@@ -32,6 +32,11 @@ typedef struct laplace_decomposition_composition_plan_view {
     const laplace_composition_operand* operands;
     const laplace_composition_request* requests;
     const laplace_composition_operand* span_references;
+    /* Parallel to span_references. 1 means the syntax observation covers exact
+     * canonical bytes and the reference is active. 0 means a syntax-only
+     * observation such as an explicit zero-width MISSING node; its reference is
+     * canonical zero/inactive storage and must never be interpreted as content. */
+    const uint8_t* span_has_content;
     uint64_t atom_count;
     uint64_t operand_count;
     uint64_t request_count;
@@ -58,19 +63,19 @@ typedef enum laplace_decomposition_composition_status {
  * of byte offset, provider, source, syntax role, tier, or occurrence.
  *
  * Decomposition structure remains a separate witnessed trace. Provider identity,
- * kind, byte ranges, flags, depth, media type, parentage, source and occurrence
- * context belong to that witness/evidence path; they are not constituents of the
- * content entity and must not be wrapped around content merely to mint another
- * Merkle identity.
+ * visible and grammar kinds, field, sibling ordinal, syntax/error state, byte
+ * ranges, flags, depth, media type, parentage, source and occurrence context
+ * belong to that witness/evidence path; they are not constituents of the content
+ * entity and must not be wrapped around content merely to mint another Merkle
+ * identity.
  *
- * span_references is parallel to the decomposition span array. Every reference
- * names only the exact canonical content covered by that span. Equal span bytes
- * therefore reuse one canonical reference even when their provider, kind, range,
- * depth, media type, parentage, or other witness metadata differs. Structural
- * witnesses retain those distinctions through the decomposition result and bind
- * them to canonical content through this parallel reference array.
+ * span_references and span_has_content are parallel to the decomposition span
+ * array. Content-bearing spans name only the exact canonical content covered by
+ * that span. Equal span bytes therefore reuse one canonical reference even when
+ * syntax witness state differs. Explicit missing syntax nodes carry
+ * span_has_content=0 and no invented content identity.
  *
- * root_reference is the canonical root carrier and is identical to
+ * root_reference is the canonical root carrier and is identical to the active
  * span_references[0]. A single Unicode position is a KNOWN_ENTITY reference into
  * atom_positions and therefore requires no composition request. Composite
  * content is a PRIOR_RESULT reference into requests/results. root_result_index
