@@ -110,19 +110,25 @@ bool RealizationValid(const laplace_cognition_realization_result& realization) {
         (realization.flags & ~LAPLACE_COGNITION_REALIZATION_CANDIDATE_KNOWN_FLAGS) == 0U;
 }
 
+bool RequestValid(const laplace_cognition_materialization_request& request) {
+    return request.version == LAPLACE_COGNITION_MATERIALIZATION_VERSION &&
+        request.maximum_nodes > 0U &&
+        request.maximum_output_bytes > 0U &&
+        request.maximum_nodes <= static_cast<std::uint64_t>(
+            std::numeric_limits<std::size_t>::max()) &&
+        request.maximum_trajectory_carriers <= static_cast<std::uint64_t>(
+            std::numeric_limits<std::size_t>::max()) &&
+        request.maximum_output_bytes <= static_cast<std::uint64_t>(
+            std::numeric_limits<std::size_t>::max());
+}
+
 bool ProviderValid(const laplace_cognition_materialization_provider_v1& provider) {
     return provider.abi_major == LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_ABI_MAJOR &&
         provider.abi_minor <= LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_ABI_MINOR &&
-        provider.resolve_node != nullptr && provider.read_trajectory != nullptr &&
+        provider.resolve_node != nullptr &&
+        provider.read_trajectory != nullptr &&
         !DigestZero(provider.provider_fingerprint) &&
         provider.flags == 0U && provider.reserved == 0U;
-}
-
-bool RequestValid(const laplace_cognition_materialization_request& request) {
-    return request.version == LAPLACE_COGNITION_MATERIALIZATION_VERSION &&
-        request.maximum_nodes > 0U && request.maximum_output_bytes > 0U &&
-        request.maximum_output_bytes <= static_cast<std::uint64_t>(SIZE_MAX) &&
-        request.maximum_trajectory_carriers <= static_cast<std::uint64_t>(SIZE_MAX);
 }
 
 bool ReservedZero(const laplace_cognition_materialization_node& node) {
@@ -138,6 +144,7 @@ laplace_cognition_materialization_status ValidateNode(
         DigestZero(node.node_receipt_id) || !ReservedZero(node)) {
         return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
     }
+
     if (node.kind == LAPLACE_COGNITION_MATERIALIZATION_NODE_ATOM) {
         if (node.tier_floor != 0U || node.logical_count != 1U ||
             node.carrier_count != 0U ||
@@ -148,6 +155,7 @@ laplace_cognition_materialization_status ValidateNode(
         }
         return LAPLACE_COGNITION_MATERIALIZATION_OK;
     }
+
     if (node.kind == LAPLACE_COGNITION_MATERIALIZATION_NODE_COMPOSITION) {
         if (node.tier_floor == 0U || node.logical_count <= 1U ||
             node.carrier_count == 0U || node.atom != 0U ||
@@ -157,6 +165,7 @@ laplace_cognition_materialization_status ValidateNode(
         }
         return LAPLACE_COGNITION_MATERIALIZATION_OK;
     }
+
     return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
 }
 
@@ -186,7 +195,7 @@ struct Context final {
     const laplace_cognition_materialization_request* request{};
     const laplace_cognition_materialization_provider_v1* provider{};
     std::vector<std::uint8_t>* output{};
-    std::vector<laplace_id128> active;
+    std::vector<laplace_id128> active{};
     Counters counters{};
     blake3_hasher readset{};
 };
@@ -194,12 +203,12 @@ struct Context final {
 laplace_cognition_materialization_status ReserveOutput(
     Context& context,
     const std::uint64_t additional_bytes) {
-    const std::uint64_t current =
-        static_cast<std::uint64_t>(context.output->size());
+    const auto current = static_cast<std::uint64_t>(context.output->size());
     std::uint64_t next{};
     if (AddOverflow(current, additional_bytes, &next) ||
         next > context.request->maximum_output_bytes ||
-        next > static_cast<std::uint64_t>(SIZE_MAX)) {
+        next > static_cast<std::uint64_t>(
+            std::numeric_limits<std::size_t>::max())) {
         return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
     }
     try {
@@ -225,28 +234,34 @@ laplace_cognition_materialization_status AppendAtomRun(
     Context& context,
     const std::uint32_t atom,
     const std::uint64_t multiplicity) {
+    if (multiplicity == 0U) {
+        return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
+    }
+
     std::array<std::uint8_t, 4> encoded{};
     std::size_t encoded_bytes = 0U;
-    if (multiplicity == 0U ||
-        laplace_unicode_position_encode(
+    if (laplace_unicode_position_encode(
             atom, encoded.data(), &encoded_bytes) != LAPLACE_IDENTITY_OK ||
         encoded_bytes == 0U) {
         return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
     }
+
     std::uint64_t added{};
     if (MultiplyOverflow(
             static_cast<std::uint64_t>(encoded_bytes), multiplicity, &added)) {
         return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
     }
+
     const std::size_t first = context.output->size();
     const auto reserve_status = ReserveOutput(context, added);
     if (reserve_status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
         return reserve_status;
     }
+
     for (std::uint64_t repeat = 0U; repeat < multiplicity; ++repeat) {
+        const auto repeat_offset = static_cast<std::size_t>(repeat) * encoded_bytes;
         std::memcpy(
-            context.output->data() + first +
-                static_cast<std::size_t>(repeat) * encoded_bytes,
+            context.output->data() + first + repeat_offset,
             encoded.data(), encoded_bytes);
     }
     return AddCodepoints(context, multiplicity);
@@ -259,24 +274,28 @@ laplace_cognition_materialization_status RepeatMaterializedSlice(
     const std::uint64_t unit_codepoints,
     const std::uint64_t multiplicity) {
     if (multiplicity <= 1U) return LAPLACE_COGNITION_MATERIALIZATION_OK;
+
     const std::uint64_t extra_repetitions = multiplicity - 1U;
     std::uint64_t extra_bytes{};
     std::uint64_t extra_codepoints{};
     if (MultiplyOverflow(
             static_cast<std::uint64_t>(unit_bytes),
             extra_repetitions, &extra_bytes) ||
-        MultiplyOverflow(unit_codepoints, extra_repetitions, &extra_codepoints)) {
+        MultiplyOverflow(
+            unit_codepoints, extra_repetitions, &extra_codepoints)) {
         return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
     }
+
     const std::size_t prior_size = context.output->size();
     const auto reserve_status = ReserveOutput(context, extra_bytes);
     if (reserve_status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
         return reserve_status;
     }
+
     for (std::uint64_t repeat = 0U; repeat < extra_repetitions; ++repeat) {
+        const auto repeat_offset = static_cast<std::size_t>(repeat) * unit_bytes;
         std::memcpy(
-            context.output->data() + prior_size +
-                static_cast<std::size_t>(repeat) * unit_bytes,
+            context.output->data() + prior_size + repeat_offset,
             context.output->data() + first,
             unit_bytes);
     }
@@ -300,6 +319,7 @@ laplace_cognition_materialization_status MaterializeEntity(
     }
     context.counters.maximum_depth =
         std::max(context.counters.maximum_depth, depth);
+
     if (ActiveContains(context, entity)) {
         return LAPLACE_COGNITION_MATERIALIZATION_CYCLE;
     }
@@ -313,6 +333,7 @@ laplace_cognition_materialization_status MaterializeEntity(
         return LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_FAILURE;
     }
     ++context.counters.nodes;
+
     const auto node_status = ValidateNode(node, entity);
     if (node_status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
         return node_status;
@@ -334,17 +355,24 @@ laplace_cognition_materialization_status MaterializeEntity(
         return AppendAtomRun(context, node.atom, 1U);
     }
 
-    if (node.carrier_count > context.request->maximum_trajectory_carriers -
-            context.counters.carriers ||
-        node.carrier_count > static_cast<std::uint64_t>(SIZE_MAX)) {
+    if (context.counters.carriers >
+        context.request->maximum_trajectory_carriers) {
+        return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
+    }
+    const std::uint64_t remaining_carriers =
+        context.request->maximum_trajectory_carriers - context.counters.carriers;
+    if (node.carrier_count > remaining_carriers ||
+        node.carrier_count > static_cast<std::uint64_t>(
+            std::numeric_limits<std::size_t>::max())) {
         return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
     }
 
     std::vector<laplace_trajectory_carrier> carriers;
     std::vector<laplace_composition_occurrence> occurrences;
     try {
-        carriers.resize(static_cast<std::size_t>(node.carrier_count));
-        occurrences.resize(static_cast<std::size_t>(node.carrier_count));
+        const auto carrier_count = static_cast<std::size_t>(node.carrier_count);
+        carriers.resize(carrier_count);
+        occurrences.resize(carrier_count);
     } catch (const std::bad_alloc&) {
         return LAPLACE_COGNITION_MATERIALIZATION_MEMORY_FAILURE;
     }
@@ -381,22 +409,21 @@ laplace_cognition_materialization_status MaterializeEntity(
     } catch (const std::bad_alloc&) {
         return LAPLACE_COGNITION_MATERIALIZATION_MEMORY_FAILURE;
     }
+
     for (const auto& occurrence : occurrences) {
         if (occurrence.run_length == 0U || occurrence.tier >= node.tier_floor) {
             return LAPLACE_COGNITION_MATERIALIZATION_TRAJECTORY_INVALID;
         }
+        const auto occurrence_count =
+            static_cast<std::uint64_t>(occurrence.run_length);
         if (!runs.empty() && SameId(runs.back().id, occurrence.entity_id)) {
             std::uint64_t merged{};
-            if (AddOverflow(
-                    runs.back().multiplicity,
-                    static_cast<std::uint64_t>(occurrence.run_length), &merged)) {
+            if (AddOverflow(runs.back().count, occurrence_count, &merged)) {
                 return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
             }
-            runs.back().multiplicity = merged;
+            runs.back().count = merged;
         } else {
-            runs.push_back(laplace_id_run{
-                occurrence.entity_id,
-                static_cast<std::uint64_t>(occurrence.run_length)});
+            runs.push_back(laplace_id_run{occurrence.entity_id, occurrence_count});
         }
     }
 
@@ -421,6 +448,7 @@ laplace_cognition_materialization_status MaterializeEntity(
                 context.active.pop_back();
                 return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
             }
+
             laplace_id128 expected_id{};
             laplace_digest256 expected_witness{};
             if (laplace_identity_codepoint_witness(
@@ -430,6 +458,7 @@ laplace_cognition_materialization_status MaterializeEntity(
                 context.active.pop_back();
                 return LAPLACE_COGNITION_MATERIALIZATION_IDENTITY_MISMATCH;
             }
+
             context.counters.maximum_depth =
                 std::max(context.counters.maximum_depth, depth + 1U);
             const auto atom_status = AppendAtomRun(
@@ -446,6 +475,7 @@ laplace_cognition_materialization_status MaterializeEntity(
             context.active.pop_back();
             return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
         }
+
         const std::size_t first = context.output->size();
         const std::uint64_t codepoints_before = context.counters.codepoints;
         const auto child_status = MaterializeEntity(
@@ -454,6 +484,7 @@ laplace_cognition_materialization_status MaterializeEntity(
             context.active.pop_back();
             return child_status;
         }
+
         const std::size_t unit_bytes = context.output->size() - first;
         const std::uint64_t unit_codepoints =
             context.counters.codepoints - codepoints_before;
@@ -461,6 +492,7 @@ laplace_cognition_materialization_status MaterializeEntity(
             context.active.pop_back();
             return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
         }
+
         const auto repeat_status = RepeatMaterializedSlice(
             context, first, unit_bytes, unit_codepoints,
             static_cast<std::uint64_t>(occurrence.run_length));
@@ -537,7 +569,8 @@ laplace_cognition_realization_materialize_utf8(
     std::vector<std::uint8_t> materialized;
     try {
         materialized.reserve(static_cast<std::size_t>(
-            std::min<std::uint64_t>(request->maximum_output_bytes, UINT64_C(4096))));
+            std::min<std::uint64_t>(
+                request->maximum_output_bytes, UINT64_C(4096))));
     } catch (const std::bad_alloc&) {
         return LAPLACE_COGNITION_MATERIALIZATION_MEMORY_FAILURE;
     }
