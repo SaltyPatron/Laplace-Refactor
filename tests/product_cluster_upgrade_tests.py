@@ -160,6 +160,9 @@ class ProductClusterUpgradeTests(unittest.TestCase):
         self.assertIn('"initdb_executed": False', source)
 
     def _legacy_predecessor_fixture(self) -> tuple[Path, Path, dict, dict, dict]:
+        (self.root / "contract.json").write_text(
+            json.dumps(self.contract), encoding="utf-8"
+        )
         self.active.symlink_to(f"releases/{self.old_id}")
         self.runtime.symlink_to(f"../releases/{self.old_id}")
         directory = self.root / "receipts" / "cluster-activation" / self.old_id
