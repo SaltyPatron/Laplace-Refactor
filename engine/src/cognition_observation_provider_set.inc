@@ -32,7 +32,10 @@ bool AddChecked(
     const std::uint64_t left,
     const std::uint64_t right,
     std::uint64_t* const output) noexcept {
-    if (output == nullptr || right > UINT64_MAX - left) return false;
+    if (output == nullptr ||
+        right > std::numeric_limits<std::uint64_t>::max() - left) {
+        return false;
+    }
     *output = left + right;
     return true;
 }
@@ -47,6 +50,13 @@ bool ProviderDescriptorValid(
         provider.abi_minor <=
             LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR &&
         provider.flags == 0U && provider.reserved == 0U;
+}
+
+bool CandidateSourceLayerValid(const std::uint32_t source_layer) noexcept {
+    return source_layer != 0U &&
+        (source_layer & ~static_cast<std::uint32_t>(
+            LAPLACE_OBSERVATION_QUERY_SOURCE_LAYER_MASK)) == 0U &&
+        (source_layer & (source_layer - 1U)) == 0U;
 }
 
 bool LimitingDispositionValid(const std::uint32_t disposition) noexcept {
@@ -101,32 +111,40 @@ int EnumerateCompositeCandidates(
 
     for (const auto& provider : provider_set.providers) {
         if (*candidate_count >= candidate_capacity) return 2;
-        const std::size_t remaining = candidate_capacity - *candidate_count;
+        const std::size_t first_child_candidate = *candidate_count;
+        const std::size_t remaining = candidate_capacity - first_child_candidate;
         std::size_t child_count = 0U;
         laplace_cognition_observation_candidate_usage child_usage{};
         const int child_status = provider.enumerate_candidates(
             provider.state, binding, source_entity_ids, frontier_states,
             accumulated_costs, frontier_state_count,
-            candidates + *candidate_count, remaining, &child_count, &child_usage);
+            candidates + first_child_candidate, remaining, &child_count, &child_usage);
         if (child_status != 0) return 3;
         if (child_count > remaining || child_usage.flags != 0U ||
             !LimitingDispositionValid(child_usage.limiting_disposition) ||
             (child_usage.limiting_disposition != 0U && child_count != 0U)) {
             return 4;
         }
+        for (std::size_t offset = 0U; offset < child_count; ++offset) {
+            if (!CandidateSourceLayerValid(
+                    candidates[first_child_candidate + offset].source_layer)) {
+                return 5;
+            }
+        }
 
         if (provider.maximum_candidate_records_per_expansion >
-            UINT64_MAX / static_cast<std::uint64_t>(frontier_state_count)) {
-            return 5;
+            std::numeric_limits<std::uint64_t>::max() /
+                static_cast<std::uint64_t>(frontier_state_count)) {
+            return 6;
         }
         const std::uint64_t child_maximum =
             provider.maximum_candidate_records_per_expansion *
             static_cast<std::uint64_t>(frontier_state_count);
         if (child_usage.rows_examined > child_maximum ||
             static_cast<std::uint64_t>(child_count) > child_maximum) {
-            return 6;
+            return 7;
         }
-        if (!AddUsage(usage, child_usage)) return 7;
+        if (!AddUsage(usage, child_usage)) return 8;
         *candidate_count += child_count;
 
         if (child_usage.limiting_disposition != 0U) {
@@ -173,8 +191,9 @@ laplace_cognition_observation_candidate_provider_set_create(
         return LAPLACE_COGNITION_OBSERVATION_PROVIDER_SET_INVALID_ARGUMENT;
     }
 
+    laplace_cognition_observation_candidate_provider_set* state = nullptr;
     try {
-        auto* state = new laplace_cognition_observation_candidate_provider_set{};
+        state = new laplace_cognition_observation_candidate_provider_set{};
         state->providers.assign(providers, providers + provider_count);
         for (const auto& provider : state->providers) {
             if (!ProviderDescriptorValid(provider)) {
@@ -237,6 +256,7 @@ laplace_cognition_observation_candidate_provider_set_create(
         *provider_set = state;
         return LAPLACE_COGNITION_OBSERVATION_PROVIDER_SET_OK;
     } catch (const std::bad_alloc&) {
+        delete state;
         return LAPLACE_COGNITION_OBSERVATION_PROVIDER_SET_MEMORY_FAILURE;
     }
 }
