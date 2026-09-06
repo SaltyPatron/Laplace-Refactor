@@ -213,5 +213,59 @@ set_tests_properties(
     composition.mutation-flattened-frontier-dependencies-detected PROPERTIES
     LABELS "implementation;composition;execution;working-set;determinism;mutation")
 
+# #171: execute real source-plan semantics under distinct worker grants and
+# persistence batch shapes, then compare the normalized canonical state rather
+# than execution receipts. Delimited and fixed-width grammars are deliberately
+# separate source families exercising the same generic admission/composition path.
+add_executable(laplace_source_admission_invariance_tests
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/source_admission_invariance_tests.cpp")
+target_include_directories(laplace_source_admission_invariance_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/src")
+target_link_libraries(laplace_source_admission_invariance_tests PRIVATE
+    Laplace::Engine
+    GTest::gtest_main)
+target_compile_options(laplace_source_admission_invariance_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME source-admission.physical-plan-semantic-invariance
+    COMMAND "$<TARGET_FILE:laplace_source_admission_invariance_tests>")
+set_tests_properties(
+    source-admission.physical-plan-semantic-invariance PROPERTIES
+    LABELS "implementation;source-profile;admission;composition;execution;physical-plan;determinism")
+
+add_library(laplace_composition_semantic_physical_plan_mutant STATIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/src/composition.cpp")
+target_include_directories(laplace_composition_semantic_physical_plan_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_composition_semantic_physical_plan_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_composition_semantic_physical_plan_mutant PRIVATE
+    LAPLACE_TEST_COMPOSITION_SEMANTIC_FINGERPRINT_INCLUDES_PHYSICAL_PLAN=1)
+target_compile_options(laplace_composition_semantic_physical_plan_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+add_executable(laplace_source_admission_invariance_mutation_probe
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/source_admission_invariance_tests.cpp")
+target_include_directories(laplace_source_admission_invariance_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/src")
+target_link_libraries(laplace_source_admission_invariance_mutation_probe PRIVATE
+    laplace_composition_semantic_physical_plan_mutant
+    Laplace::Engine
+    GTest::gtest_main)
+target_compile_options(laplace_source_admission_invariance_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME source-admission.mutation-physical-plan-semantic-leak-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_source_admission_invariance_mutation_probe>"
+        "-DFILTER=SourceAdmissionInvariance.DelimitedSourceSurvivesWorkerAndDepositPlanChanges"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/expect_gtest_failure.cmake")
+set_tests_properties(
+    source-admission.mutation-physical-plan-semantic-leak-detected PROPERTIES
+    LABELS "implementation;source-profile;admission;composition;physical-plan;determinism;mutation")
+
 include("${CMAKE_CURRENT_SOURCE_DIR}/tests/source_structural_witness.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/tests/machine_exception.cmake")
