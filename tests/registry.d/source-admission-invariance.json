@@ -36,6 +36,26 @@
       "defect_controls": [
         "physical batch boundary promoted into canonical semantic state"
       ]
+    },
+    {
+      "ctest_name": "WorldAdmission.SemanticProjectionExcludesOnlyPhysicalExecutionReceipts",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-SOURCE-TOPOLOGY",
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-BULK-DETERMINISM"
+      ],
+      "covered_dimensions": [
+        "complete world admission remains fully identified by its physical execution receipts for audit",
+        "normalized semantic projection retains source profile recipe evidence readback denominators reconstruction and boundary identity",
+        "composition working-set presence producer and stream receipt changes do not redefine canonical world meaning",
+        "semantic readback changes do change the normalized projection",
+        "a stale full admission identity cannot be projected as valid semantics"
+      ],
+      "defect_controls": [
+        "physical execution receipt promoted into world semantic identity",
+        "readback omitted from semantic world identity",
+        "stale admission identity projected without validation"
+      ]
     }
   ]
 }
