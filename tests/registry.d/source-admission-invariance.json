@@ -1,0 +1,41 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "source-admission.physical-plan-semantic-invariance",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-SOURCE-TOPOLOGY",
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"
+      ],
+      "covered_dimensions": [
+        "delimited source admission executes through the real tabular plan and common composition runtime under materially different CPU grants and persistence batch sizes",
+        "fixed-width source admission executes through the same generic path under materially different CPU grants and persistence batch sizes",
+        "physical execution remains visible through distinct context and frontier grant receipts",
+        "persistence batch count may change while canonical stream and normalized semantic fingerprints remain identical",
+        "exact source reconstruction remains byte-identical across legal physical plans",
+        "semantic request calculation remains exactly once per request in every plan"
+      ],
+      "defect_controls": [
+        "worker grant enters canonical semantic identity",
+        "persistence batch size enters canonical semantic identity",
+        "batch partition changes canonical source state",
+        "physical execution receipt is mistaken for semantic identity",
+        "semantic fingerprint is manufactured by replaying source calculation"
+      ]
+    },
+    {
+      "ctest_name": "source-admission.mutation-physical-plan-semantic-leak-detected",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-SOURCE-TOPOLOGY",
+        "LP-TEST-BULK-DETERMINISM"
+      ],
+      "covered_dimensions": [
+        "deliberate defect sensitivity when preferred persistence batch size and batch count are salted into canonical composition semantic identity"
+      ],
+      "defect_controls": [
+        "physical batch boundary promoted into canonical semantic state"
+      ]
+    }
+  ]
+}
