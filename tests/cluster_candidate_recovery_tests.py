@@ -71,6 +71,20 @@ class ClusterCandidateRecoveryTests(unittest.TestCase):
 
         self.assertEqual(marker.read_text(encoding="utf-8"), "do not delete\n")
 
+    def test_blocked_target_prevents_removal_of_other_empty_targets(self) -> None:
+        config = Path(self.contract["instance"]["config_directory"])
+        wal = Path(self.contract["instance"]["wal_directory"])
+        config.mkdir()
+        wal.mkdir()
+        marker = wal / "state"
+        marker.write_text("occupied\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(RECOVERY.RecoveryError, "blocked-nonempty"):
+            RECOVERY.recover(self.contract)
+
+        self.assertTrue(config.is_dir())
+        self.assertEqual(marker.read_text(encoding="utf-8"), "occupied\n")
+
     def test_symlink_candidate_is_never_followed_or_removed(self) -> None:
         outside = self.root / "outside"
         outside.mkdir()
