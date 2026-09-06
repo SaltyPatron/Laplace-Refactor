@@ -1,0 +1,20 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionConversation.ComposesAdmittedTurnThroughExactUnicodeAndDurableNextState",
+      "evidence_targets": ["LP-TEST-CONVERSATION-ONE-OP-COMPILER", "LP-TEST-CONVERSATION-SEMANTIC-COMPLETION", "LP-TEST-CONVERSATION-DISCOURSE-STATE", "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION", "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"],
+      "covered_dimensions": ["one public native call composes admitted observation through finite turn compilation cognition semantic act realization exact Unicode materialization and durable discourse frame", "realization evidence epoch and context are derived from the exact cognition turn rather than transport-private state", "conversation receipt binds the turn forward semantic realization materialization and durable discourse identities"]
+    },
+    {
+      "ctest_name": "CognitionConversation.SuccessorConsumesExactPriorFrameWithoutTransportState",
+      "evidence_targets": ["LP-TEST-CONVERSATION-WATER-CYCLE", "LP-TEST-CONVERSATION-DISCOURSE-STATE", "LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["the successor public conversation call consumes the exact canonical predecessor frame", "previous native discourse state identity is carried into the successor without a last-topic cache or endpoint session object", "the next admitted observation becomes a distinct finite cognition turn with contiguous ordinal"]
+    },
+    {
+      "ctest_name": "CognitionConversation.FailedRealizationPublishesNeitherBytesNorNextState",
+      "evidence_targets": ["LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION", "LP-TEST-LANGUAGE-READINESS-WHY-NOT", "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"],
+      "covered_dimensions": ["unsupported realization cannot be bypassed by exact-content materialization", "failure after completed cognition publishes neither response bytes nor a successor discourse frame", "caller buffers remain unchanged and no materialization provider read occurs"]
+    }
+  ]
+}
