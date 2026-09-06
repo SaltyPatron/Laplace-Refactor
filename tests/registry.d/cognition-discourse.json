@@ -33,6 +33,7 @@
     },
     {
       "ctest_name": "postgres.cognition-discourse-restart-readback",
+      "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-CONVERSATION-WATER-CYCLE"],
       "covered_dimensions": ["root and successor discourse states deposit through the native frame contract", "successor publication requires the exact durable predecessor and contiguous turn ordinal", "PostgreSQL restart preserves exact native root and successor frame bytes", "latest discourse readback resolves the successor after restart", "corrupt frames and nonexistent predecessors fail before durable publication", "exact immutable replay is idempotent"]
     }
