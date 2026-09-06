@@ -1,0 +1,20 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionPromptAdmission.ReusesWholeTrunkAcrossIndependentOccurrences",
+      "evidence_targets": ["LP-TEST-IDENTITY-PREIMAGE-GRAMMAR", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["identical exact prompt content reuses one canonical whole-trunk identity across distinct source principal session time context and turn scope", "occurrence identity remains independently scoped and is the cognition turn occurrence while the turn root is the whole prompt trunk", "canonical publication contains entity physicality and trajectory records with zero semantic attestation or consensus records"]
+    },
+    {
+      "ctest_name": "CognitionPromptAdmission.PunctuationChangesTrunkAndNoConstituentIsPrivileged",
+      "evidence_targets": ["LP-TEST-IDENTITY-PREIMAGE-GRAMMAR", "LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["one punctuation change changes the ordered whole-content identity", "a reusable exact constituent is not promoted to the cognition root", "the emitted cognition turn observation entity equals the exact whole prompt trunk"]
+    },
+    {
+      "ctest_name": "CognitionPromptAdmission.RejectsAtomProviderThatRemintsUnicodeIdentity",
+      "evidence_targets": ["LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
+      "covered_dimensions": ["prompt admission validates supplied Tier-0 entity identity against the canonical Unicode-position identity law", "an atom provider cannot remint the Unicode floor while preserving the prompt admission path"]
+    }
+  ]
+}
