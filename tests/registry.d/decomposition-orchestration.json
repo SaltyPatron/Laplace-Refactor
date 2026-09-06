@@ -80,6 +80,21 @@
       "ctest_name": "UniversalAstRecipe.GrammarRegistryRejectsProviderOrKindNamespaceCollision",
       "evidence_targets": ["LP-TEST-GRAMMAR-REGISTRY-CONFORMANCE", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
       "covered_dimensions": ["provider generations are uniquely bound to immutable grammar coordinates", "grammar kind namespaces cannot collide", "the registry remains data authority rather than provider-owned semantic dispatch"]
+    },
+    {
+      "ctest_name": "UniversalAstIsa.CompiledPacketReplaysThroughSameIsaReceiptBoundary",
+      "evidence_targets": ["LP-TEST-RECIPE-ISA-COHESION", "LP-TEST-ISA-RECEIPT", "LP-TEST-ISA-ALL-OPERATIONS"],
+      "covered_dimensions": ["one compiled universal AST plan encodes as deterministic endian-stable u32 words", "native packet validation and generated ISA 1.14 execution produce the same AST receipt identity", "full grammar and AST-role Highway coordinates survive the transport without truncation", "the AST operation enters the same generated ISA registry and receipt lifecycle as existing machine operations"]
+    },
+    {
+      "ctest_name": "UniversalAstIsa.PacketCorruptionCannotReachSuccessfulIsaReceipt",
+      "evidence_targets": ["LP-TEST-RECIPE-INVALID-PRE-EFFECT", "LP-TEST-ISA-RECEIPT"],
+      "covered_dimensions": ["packet corruption may pass cheap physical preflight but fails exact semantic replay validation", "a modified role parent field syntax state or canonical reference cannot produce a successful ISA receipt"]
+    },
+    {
+      "ctest_name": "UniversalAstIsa.OutputCapacityAndIntroducedMinorFailBeforeExecution",
+      "evidence_targets": ["LP-TEST-ISA-ALL-OPERATIONS", "LP-TEST-FINITE-RESOURCE-BOUNDARY"],
+      "covered_dimensions": ["insufficient result capacity fails before execution", "the AST operation is unavailable to ISA programs declaring minor 1.13", "ISA 1.14 compatibility remains explicit rather than silently backporting a new semantic instruction"]
     }
   ]
 }
