@@ -2,7 +2,7 @@
   "schema": "laplace.isa-contract/v1",
   "version": {
     "major": 1,
-    "minor": 13
+    "minor": 14
   },
   "execution_context": {
     "required": true,
@@ -33,7 +33,8 @@
     "standing_period_input_vector": 20,
     "standing_period_result_vector": 21,
     "stock_catalog_item_vector": 22,
-    "stock_catalog_receipt_vector": 23
+    "stock_catalog_receipt_vector": 23,
+    "universal_ast_packet_receipt_vector": 24
   },
   "opcodes": {
     "identity_codepoint_batch": 131073,
@@ -48,7 +49,8 @@
     "reference_topology_resolve_batch": 393219,
     "reference_mapping_resolve_batch": 393220,
     "stock_recipe_compile_catalog_batch": 393221,
-    "cognition_solve_packet": 458753
+    "cognition_solve_packet": 458753,
+    "universal_ast_apply_packet": 524289
   },
   "modules": {
     "identity": 2,
@@ -56,7 +58,8 @@
     "highway": 4,
     "evidence": 5,
     "admission": 6,
-    "cognition": 7
+    "cognition": 7,
+    "ast": 8
   },
   "operation_contracts": {
     "identity_codepoint_batch": {
@@ -123,6 +126,11 @@
       "module": "cognition",
       "input_type": "u32_vector",
       "output_type": "u32_vector"
+    },
+    "universal_ast_apply_packet": {
+      "module": "ast",
+      "input_type": "u32_vector",
+      "output_type": "universal_ast_packet_receipt_vector"
     }
   },
   "instruction_versions": {
@@ -138,7 +146,8 @@
     "reference_topology_resolve_batch": 1,
     "reference_mapping_resolve_batch": 1,
     "stock_recipe_compile_catalog_batch": 1,
-    "cognition_solve_packet": 1
+    "cognition_solve_packet": 1,
+    "universal_ast_apply_packet": 1
   },
   "introduced_minor": {
     "identity_codepoint_batch": 0,
@@ -153,7 +162,8 @@
     "reference_topology_resolve_batch": 9,
     "reference_mapping_resolve_batch": 10,
     "stock_recipe_compile_catalog_batch": 13,
-    "cognition_solve_packet": 11
+    "cognition_solve_packet": 11,
+    "universal_ast_apply_packet": 14
   },
   "receipt": {
     "digest_algorithm": "BLAKE3-256",
@@ -189,7 +199,8 @@
         "standing_period_input_vector": "global::Laplace.Managed.LaplaceStandingPeriodInput",
         "standing_period_result_vector": "global::Laplace.Managed.LaplaceStandingPeriodResult",
         "stock_catalog_item_vector": "global::Laplace.Managed.LaplaceStockCatalogItem",
-        "stock_catalog_receipt_vector": "global::Laplace.Managed.LaplaceStockCatalogReceipt"
+        "stock_catalog_receipt_vector": "global::Laplace.Managed.LaplaceStockCatalogReceipt",
+        "universal_ast_packet_receipt_vector": "global::Laplace.Managed.LaplaceUniversalAstPacketReceipt"
       },
       "operation_declarations": {
         "identity_codepoint_batch": "IdentityCodepointBatch",
@@ -204,7 +215,8 @@
         "reference_topology_resolve_batch": "ReferenceTopologyResolveBatch",
         "reference_mapping_resolve_batch": "ReferenceMappingResolveBatch",
         "stock_recipe_compile_catalog_batch": "StockRecipeCompileCatalogBatch",
-        "cognition_solve_packet": "CognitionSolvePacket"
+        "cognition_solve_packet": "CognitionSolvePacket",
+        "universal_ast_apply_packet": "UniversalAstApplyPacket"
       }
     },
     "postgresql": {
