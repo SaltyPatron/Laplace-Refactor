@@ -132,7 +132,6 @@ laplace_isa_value_view EvidenceOutputView(
     laplace_evidence_root_record* data,
     std::size_t capacity) {
     return {data, 0u, static_cast<std::uint64_t>(capacity),
-            static_cast<std::uint64_t>(capacity),
             static_cast<std::uint32_t>(sizeof(*data)),
             LAPLACE_ISA_VALUE_EVIDENCE_ROOT_RECORD_VECTOR,
             LAPLACE_ISA_KNOWN_VALUE_FLAGS, 0u};
