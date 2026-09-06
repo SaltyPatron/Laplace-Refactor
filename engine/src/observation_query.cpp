@@ -4,3 +4,4 @@
 #include "cognition_observation_request.inc"
 #include "cognition_observation_request_provider.inc"
 #include "cognition_observation_candidate_provider.inc"
+#include "cognition_observation_provider_set.inc"
