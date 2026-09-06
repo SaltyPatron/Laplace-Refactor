@@ -10,6 +10,7 @@
 #include "fmgr.h"
 #include "funcapi.h"
 
+#include "laplace/contract/postgresql_bindings.h"
 #include "laplace/framework.h"
 #include "laplace/isa.h"
 

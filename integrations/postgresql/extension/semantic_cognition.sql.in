@@ -1,0 +1,35 @@
+CREATE TYPE @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.semantic_cognition_result AS (
+    request_fingerprint bytea,
+    provider_fingerprint bytea,
+    answer_entity_id bytea,
+    relation_id bytea,
+    path_id bytea,
+    terminal_state_id bytea,
+    forward_receipt_id bytea,
+    answer_count numeric(20, 0),
+    total_cost numeric(20, 0),
+    transition_count numeric(20, 0),
+    independent_evidence_root_count numeric(20, 0),
+    relation_family integer,
+    source_layer integer,
+    direction integer,
+    answer_rank integer,
+    provider_rows_examined numeric(20, 0),
+    provider_database_operations numeric(20, 0),
+    forward_database_operations numeric(20, 0),
+    final_completion integer,
+    disposition integer,
+    status integer
+);
+
+CREATE FUNCTION @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.cognition_semantic_execute(
+    @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.execution_context,
+    @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.cognition_observation_request)
+RETURNS @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.semantic_cognition_result
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_semantic_execute'
+LANGUAGE C STABLE STRICT PARALLEL RESTRICTED;
+
+REVOKE EXECUTE ON FUNCTION @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.cognition_semantic_execute(
+    @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.execution_context,
+    @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.cognition_observation_request)
+FROM PUBLIC;

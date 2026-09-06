@@ -1,0 +1,23 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "postgres.semantic-cognition-live-mapping-provider",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": [
+        "durable PostgreSQL reference-mapping propositions and occurrences enumerate native semantic cognition candidates",
+        "exact canonical relation identity and direction survive the PostgreSQL candidate-provider boundary",
+        "duplicate source occurrences are collapsed at proposition identity before native search",
+        "semantic candidates remain on the testimony evidence plane rather than being flattened into structural physicality",
+        "native cognition owns search completion answer selection and forward receipts while PostgreSQL owns durable candidate enumeration only"
+      ],
+      "defect_controls": [
+        "synthetic in-process candidate fixtures presented as durable knowledge",
+        "prompt keyword or topic-specific routing",
+        "one candidate emitted per duplicate source occurrence as independent support",
+        "PostgreSQL adapter manufacturing native search transitions or completion"
+      ]
+    }
+  ]
+}
