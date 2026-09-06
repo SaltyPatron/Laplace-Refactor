@@ -37,14 +37,19 @@
       "covered_dimensions": ["public native request execution owns compile/provider/result lifecycle", "transport callers do not construct private guidance or search state", "complete cognition disposition and zero remaining obligations", "nonzero output fingerprint receipts the public execution boundary"]
     },
     {
-      "ctest_name": "CognitionObservationExternalProvider.NativeBoundaryOwnsCompileGuidanceAndForwardLifecycle",
+      "ctest_name": "CognitionObservationExternalProvider.CandidateBackendCannotOwnSearchOrForwardLifecycle",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["external persistence/query providers do not construct guidance state", "native request boundary retains compile and bounded forward lifecycle ownership", "typed provider receives only projected queries and operation execution calls", "completion and receipt remain native-engine outputs"]
+      "covered_dimensions": ["external backend emits typed observation candidates only", "native engine constructs nonzero search state", "native engine owns operation selection and forward completion", "candidate backend cannot inject guidance or resolutions"]
     },
     {
-      "ctest_name": "CognitionObservationExternalProvider.RejectsProviderAbiDriftBeforeExecution",
+      "ctest_name": "CognitionObservationExternalProvider.NativeSearchCarriesProviderTargetsAcrossTwoHops",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["candidate backend never constructs search transitions", "native A-star carries a provider target into the next frontier", "two-hop goal is resolved by compiled request search policy", "provider target identity is resolved back to the backend on the next expansion"]
+    },
+    {
+      "ctest_name": "CognitionObservationExternalProvider.RejectsCandidateProviderAbiDriftBeforeQueryingBackend",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["external provider ABI drift fails closed", "no provider callback executes under an incompatible ABI", "transport integration cannot silently bypass the canonical provider contract"]
+      "covered_dimensions": ["candidate provider ABI drift fails closed", "no backend candidate query executes under an incompatible ABI", "transport integration cannot silently bypass the canonical candidate contract"]
     },
     {
       "ctest_name": "CognitionObservationRequest.RequestIdentityChangesWithTypedRelationIntent",
