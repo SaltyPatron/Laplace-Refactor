@@ -131,7 +131,6 @@ int EnumerateCandidates(
     *usage = laplace_cognition_observation_candidate_usage{};
     usage->rows_examined = static_cast<std::uint64_t>(frontier_state_count);
     usage->index_plan_count = 1U;
-    usage->crossing_count = 1U;
 
     for (std::size_t source_index = 0U;
          source_index < frontier_state_count; ++source_index) {
@@ -181,10 +180,18 @@ laplace_cognition_observation_candidate_provider_v1 Provider(
     return provider;
 }
 
-class ResultHandle final {
+class ForwardResultHandle final {
 public:
-    ~ResultHandle() { laplace_cognition_forward_result_destroy(&value); }
+    ~ForwardResultHandle() { laplace_cognition_forward_result_destroy(&value); }
     laplace_cognition_forward_result* value{};
+};
+
+class ObservationResultHandle final {
+public:
+    ~ObservationResultHandle() {
+        laplace_cognition_observation_result_destroy(&value);
+    }
+    laplace_cognition_observation_result* value{};
 };
 
 TEST(CognitionObservationExternalProvider, CandidateBackendCannotOwnSearchOrForwardLifecycle) {
@@ -193,14 +200,16 @@ TEST(CognitionObservationExternalProvider, CandidateBackendCannotOwnSearchOrForw
     backend.b = Codepoint(0x42U);
     const auto request = Request(backend.b, nullptr, true, 1U);
     const auto provider = Provider(&backend);
-    ResultHandle result;
+    ObservationResultHandle observation;
+    ForwardResultHandle forward;
     laplace_cognition_forward_receipt receipt{};
 
     ASSERT_EQ(
         laplace_cognition_observation_request_execute_with_candidate_provider(
-            &request, &provider, &result.value, &receipt),
+            &request, &provider, &observation.value, &forward.value, &receipt),
         LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
-    ASSERT_NE(result.value, nullptr);
+    ASSERT_NE(observation.value, nullptr);
+    ASSERT_NE(forward.value, nullptr);
     EXPECT_EQ(backend.calls, 1U);
     EXPECT_TRUE(backend.saw_expected_binding);
     EXPECT_TRUE(backend.saw_nonzero_native_state);
@@ -209,6 +218,17 @@ TEST(CognitionObservationExternalProvider, CandidateBackendCannotOwnSearchOrForw
     EXPECT_EQ(receipt.final_completion, LAPLACE_COGNITION_COMPLETION_COMPLETE);
     EXPECT_EQ(receipt.layer_count, 1U);
     EXPECT_FALSE(Zero(receipt.output_fingerprint));
+
+    ASSERT_EQ(laplace_cognition_observation_result_answer_count(observation.value), 1U);
+    laplace_cognition_observation_answer answer{};
+    ASSERT_EQ(
+        laplace_cognition_observation_result_answer(observation.value, 0U, &answer),
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
+    EXPECT_TRUE(SameId(answer.entity_id, backend.a));
+    EXPECT_EQ(answer.transition_count, 1U);
+    EXPECT_EQ(answer.relation_family, LAPLACE_OBSERVATION_QUERY_PREDECESSOR);
+    EXPECT_EQ(answer.source_layer, LAPLACE_OBSERVATION_QUERY_SOURCE_PHYSICALITY);
+    EXPECT_EQ(answer.direction, LAPLACE_OBSERVATION_QUERY_DIRECTION_REVERSE);
 }
 
 TEST(CognitionObservationExternalProvider, NativeSearchCarriesProviderTargetsAcrossTwoHops) {
@@ -219,19 +239,31 @@ TEST(CognitionObservationExternalProvider, NativeSearchCarriesProviderTargetsAcr
     backend.two_hop = true;
     const auto request = Request(backend.c, &backend.a, false, 2U);
     const auto provider = Provider(&backend);
-    ResultHandle result;
+    ObservationResultHandle observation;
+    ForwardResultHandle forward;
     laplace_cognition_forward_receipt receipt{};
 
     ASSERT_EQ(
         laplace_cognition_observation_request_execute_with_candidate_provider(
-            &request, &provider, &result.value, &receipt),
+            &request, &provider, &observation.value, &forward.value, &receipt),
         LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
-    ASSERT_NE(result.value, nullptr);
+    ASSERT_NE(observation.value, nullptr);
+    ASSERT_NE(forward.value, nullptr);
     EXPECT_EQ(backend.calls, 2U);
     EXPECT_TRUE(backend.saw_nonzero_native_state);
     EXPECT_EQ(receipt.disposition, LAPLACE_COGNITION_FORWARD_COMPLETE);
     EXPECT_EQ(receipt.final_completion, LAPLACE_COGNITION_COMPLETION_COMPLETE);
     EXPECT_EQ(receipt.final_remaining_required_count, 0U);
+
+    ASSERT_EQ(laplace_cognition_observation_result_answer_count(observation.value), 1U);
+    laplace_cognition_observation_answer answer{};
+    ASSERT_EQ(
+        laplace_cognition_observation_result_answer(observation.value, 0U, &answer),
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
+    EXPECT_TRUE(SameId(answer.entity_id, backend.a));
+    EXPECT_EQ(answer.transition_count, 2U);
+    EXPECT_EQ(answer.relation_family, LAPLACE_OBSERVATION_QUERY_PREDECESSOR);
+    EXPECT_EQ(answer.source_layer, LAPLACE_OBSERVATION_QUERY_SOURCE_PHYSICALITY);
 }
 
 TEST(CognitionObservationExternalProvider, RejectsCandidateProviderAbiDriftBeforeQueryingBackend) {
@@ -242,14 +274,16 @@ TEST(CognitionObservationExternalProvider, RejectsCandidateProviderAbiDriftBefor
     auto provider = Provider(&backend);
     provider.abi_major = static_cast<std::uint16_t>(
         LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR + 1U);
-    ResultHandle result;
+    ObservationResultHandle observation;
+    ForwardResultHandle forward;
     laplace_cognition_forward_receipt receipt{};
 
     EXPECT_EQ(
         laplace_cognition_observation_request_execute_with_candidate_provider(
-            &request, &provider, &result.value, &receipt),
+            &request, &provider, &observation.value, &forward.value, &receipt),
         LAPLACE_COGNITION_OBSERVATION_REQUEST_PROVIDER_FAILURE);
-    EXPECT_EQ(result.value, nullptr);
+    EXPECT_EQ(observation.value, nullptr);
+    EXPECT_EQ(forward.value, nullptr);
     EXPECT_EQ(backend.calls, 0U);
 }
 
