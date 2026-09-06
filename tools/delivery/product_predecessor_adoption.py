@@ -3,11 +3,13 @@
 
 A durable active package can predate the current runner-owned activation receipt shape.
 That historical receipt is evidence, but missing current proof fields must never be filled
-by assumption.  This provider preserves the historical receipt, verifies its exact plan
-and the live package/configuration state, performs a real pg_ctl restart proof, and only
-then publishes a current canonical activation-complete receipt for the same package.
+by assumption. This provider preserves the historical receipt byte-for-byte, verifies its
+exact plan and live package/configuration state, performs a real pg_ctl restart proof, and
+only then publishes a current canonical activation-complete receipt for the same package.
 
-No active state is deleted and no receipt-validation requirement is relaxed.
+No active state is deleted and no receipt-validation requirement is relaxed. If re-proof
+fails after lifecycle mutation begins, the provider must re-establish and reverify the
+predecessor before returning failure.
 """
 
 from __future__ import annotations
@@ -112,19 +114,76 @@ def _same_loaded_state(left: dict[str, Any], right: dict[str, Any]) -> bool:
     )
 
 
-def _archive_original(
-    directory: Path, receipt: dict[str, Any], receipt_digest: str
-) -> Path:
+def _archive_original(receipt_path: Path, receipt_digest: str) -> Path:
+    directory = receipt_path.parent
     archive = directory / f"activation-complete.pre-adoption-{receipt_digest}.json"
+    original = receipt_path.read_bytes()
+    if clusterctl.sha256_bytes(original) != receipt_digest:
+        raise AdoptionError("historical predecessor receipt changed while archiving")
     if archive.exists() or archive.is_symlink():
         if archive.is_symlink() or not archive.is_file():
             raise AdoptionError("predecessor receipt archive target is unsafe")
-        existing = clusterctl.load_json(archive)
-        if clusterctl.sha256_bytes(clusterctl.canonical_bytes(existing)) != receipt_digest:
-            raise AdoptionError("predecessor receipt archive does not match historical bytes")
+        if clusterctl.sha256_file(archive) != receipt_digest:
+            raise AdoptionError("predecessor receipt archive differs from historical bytes")
         return archive
-    clusterctl.write_json(archive, receipt)
+    clusterctl.atomic_write(
+        archive,
+        original,
+        receipt_path.stat().st_mode & 0o777,
+    )
     return archive
+
+
+def _live_predecessor(
+    plan: dict[str, Any], contract: dict[str, Any], package_id: str
+) -> dict[str, Any]:
+    loaded = clusterctl.observe_loaded_live(plan, contract, Path("/"))
+    clusterctl.verify_loaded(plan, contract, loaded)
+    _require_selection(contract, package_id)
+    return loaded
+
+
+def _restore_predecessor_after_failure(
+    plan: dict[str, Any],
+    contract: dict[str, Any],
+    package_id: str,
+    initial: dict[str, Any],
+) -> dict[str, Any]:
+    """Leave failure only after the selected predecessor is live and exact again."""
+
+    try:
+        current = _live_predecessor(plan, contract, package_id)
+        if current.get("system_identifier") == initial.get("system_identifier"):
+            return current
+    except BaseException:
+        pass
+
+    # It is either stopped or not verifiably healthy. Force one bounded stopped/start
+    # cycle. A failed stop may simply mean it was already stopped, so stopped-state
+    # observation remains the authority before the restore start.
+    try:
+        clusterctl.execute_activation_command(
+            "stop-predecessor-for-adoption-restore",
+            plan["commands"]["stop_candidate"],
+            300,
+        )
+    except BaseException:
+        pass
+    clusterctl._stopped_live(plan)
+    clusterctl.execute_activation_command(
+        "restore-predecessor-after-adoption-failure",
+        plan["commands"]["start_candidate"],
+        300,
+    )
+    clusterctl.await_postgresql_ready(
+        "restored-predecessor-readiness",
+        plan["commands"]["probe_readiness"],
+        300,
+    )
+    restored = _live_predecessor(plan, contract, package_id)
+    if restored.get("system_identifier") != initial.get("system_identifier"):
+        raise AdoptionError("adoption rollback changed PostgreSQL system identity")
+    return restored
 
 
 def ensure_current_predecessor_receipt(contract_path: Path) -> dict[str, Any]:
@@ -152,62 +211,41 @@ def ensure_current_predecessor_receipt(contract_path: Path) -> dict[str, Any]:
     if _receipt_is_current(receipt, package_id):
         return receipt
 
-    historical_digest = clusterctl.sha256_bytes(clusterctl.canonical_bytes(receipt))
-    archive_path = _archive_original(directory, receipt, historical_digest)
+    historical_digest = clusterctl.sha256_file(receipt_path)
+    archive_path = _archive_original(receipt_path, historical_digest)
+    initial = _live_predecessor(plan, contract, package_id)
 
-    initial = clusterctl.observe_loaded_live(plan, contract, Path("/"))
-    clusterctl.verify_loaded(plan, contract, initial)
-    _require_selection(contract, package_id)
-
-    stop_receipt: dict[str, Any] | None = None
-    start_receipt: dict[str, Any] | None = None
-    ready_receipt: dict[str, Any] | None = None
-    predecessor_stopped = False
+    lifecycle_mutation_started = False
     try:
+        lifecycle_mutation_started = True
         stop_receipt = clusterctl.execute_activation_command(
             "stop-predecessor-for-receipt-adoption",
             plan["commands"]["stop_candidate"],
             300,
         )
         clusterctl._stopped_live(plan)
-        predecessor_stopped = True
         start_receipt = clusterctl.execute_activation_command(
             "start-predecessor-for-receipt-adoption",
             plan["commands"]["start_candidate"],
             300,
         )
-        predecessor_stopped = False
         ready_receipt = clusterctl.await_postgresql_ready(
             "predecessor-receipt-adoption-readiness",
             plan["commands"]["probe_readiness"],
             300,
         )
-        restarted = clusterctl.observe_loaded_live(plan, contract, Path("/"))
-        clusterctl.verify_loaded(plan, contract, restarted)
-        _require_selection(contract, package_id)
+        restarted = _live_predecessor(plan, contract, package_id)
         if restarted.get("postmaster_pid") == initial.get("postmaster_pid"):
             raise AdoptionError("predecessor restart proof retained the original postmaster")
         if not _same_loaded_state(initial, restarted):
             raise AdoptionError("predecessor restart proof changed durable or loaded identity")
     except BaseException as error:
         rollback_error: BaseException | None = None
-        if predecessor_stopped:
+        if lifecycle_mutation_started:
             try:
-                clusterctl.execute_activation_command(
-                    "restore-predecessor-after-adoption-failure",
-                    plan["commands"]["start_candidate"],
-                    300,
+                _restore_predecessor_after_failure(
+                    plan, contract, package_id, initial
                 )
-                clusterctl.await_postgresql_ready(
-                    "restored-predecessor-readiness",
-                    plan["commands"]["probe_readiness"],
-                    300,
-                )
-                restored = clusterctl.observe_loaded_live(plan, contract, Path("/"))
-                clusterctl.verify_loaded(plan, contract, restored)
-                _require_selection(contract, package_id)
-                if restored.get("system_identifier") != initial.get("system_identifier"):
-                    raise AdoptionError("adoption rollback changed PostgreSQL system identity")
             except BaseException as caught:
                 rollback_error = caught
         if rollback_error is not None:
