@@ -78,7 +78,7 @@
     },
     {
       "ctest_name": "UniversalAstRecipe.GrammarRegistryRejectsProviderOrKindNamespaceCollision",
-      "evidence_targets": ["LP-TEST-GRAMMAR-REGISTRY-CONFORMANCE", "LP-TEST-RECIPE-GRAMMAR-BINDING"],
+      "evidence_targets": ["LP-TEST-RECIPE-GRAMMAR-BINDING"],
       "covered_dimensions": ["provider generations are uniquely bound to immutable grammar coordinates", "grammar kind namespaces cannot collide", "the registry remains data authority rather than provider-owned semantic dispatch"]
     },
     {
