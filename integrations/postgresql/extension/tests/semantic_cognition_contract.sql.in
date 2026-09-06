@@ -1,0 +1,114 @@
+CREATE EXTENSION laplace;
+
+CREATE FUNCTION pg_temp.execution_context()
+RETURNS laplace.execution_context
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $context$
+    SELECT ROW(
+        ARRAY[
+            decode(repeat('01',32),'hex'), decode(repeat('02',32),'hex'),
+            decode(repeat('03',32),'hex'), decode(repeat('04',32),'hex'),
+            decode(repeat('05',32),'hex'), decode(repeat('06',32),'hex'),
+            decode(repeat('07',32),'hex'), decode(repeat('08',32),'hex'),
+            decode(repeat('09',32),'hex'), decode(repeat('0a',32),'hex')
+        ],
+        decode(repeat('a0',32),'hex'), 1048576::bigint, 4, 1,
+        1023::bigint, @LAPLACE_FRAMEWORK_MAJOR@::smallint,
+        @LAPLACE_FRAMEWORK_MINOR@::smallint,
+        @LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY@::integer
+    )::laplace.execution_context
+$context$;
+
+-- This fixture targets the live durable provider boundary.  The rows are placed in
+-- the canonical mapping tables and are then discovered by SPI during native search;
+-- no candidate callback or answer is supplied by the test process.
+SET session_replication_role = replica;
+INSERT INTO laplace.reference_mapping_proposition(
+    proposition_id,left_coordinate,right_coordinate,relation_id,
+    relation_kind,relation_version,flags)
+VALUES(
+    decode(repeat('31',32),'hex'),
+    decode(repeat('41',16),'hex'),
+    decode(repeat('42',16),'hex'),
+    decode(repeat('51',16),'hex'),
+    1,1::numeric,1);
+INSERT INTO laplace.reference_mapping_occurrence(
+    mapping_id,occurrence_id,proposition_id,boundary_id,source_profile_id,
+    left_reference_id,right_reference_id,row_entity_id,
+    left_field_entity_id,left_value_entity_id,right_field_entity_id,right_value_entity_id,
+    source_ordinal,artifact_ordinal,row_ordinal,left_disposition,right_disposition,disposition)
+VALUES(
+    decode(repeat('61',32),'hex'),
+    decode(repeat('62',32),'hex'),
+    decode(repeat('31',32),'hex'),
+    decode(repeat('71',32),'hex'),
+    decode(repeat('72',32),'hex'),
+    decode(repeat('73',32),'hex'),
+    decode(repeat('74',32),'hex'),
+    decode(repeat('11',16),'hex'),
+    decode(repeat('75',16),'hex'),
+    decode(repeat('11',16),'hex'),
+    decode(repeat('76',16),'hex'),
+    decode(repeat('12',16),'hex'),
+    1::numeric,1::numeric,1::numeric,1,1,1);
+SET session_replication_role = origin;
+
+CREATE TEMP TABLE semantic_cognition_fixture AS
+SELECT ROW(
+    decode(repeat('11',16),'hex'),
+    decode(repeat('12',16),'hex'),
+    decode(repeat('81',32),'hex'),
+    decode(repeat('82',32),'hex'),
+    decode(repeat('83',32),'hex'),
+    decode(repeat('71',32),'hex'),
+    decode(repeat('84',32),'hex'),
+    decode(repeat('85',32),'hex'),
+    decode(repeat('86',32),'hex'),
+    ROW(
+        4::numeric,8::numeric,8::numeric,8::numeric,
+        1048576::numeric,8::numeric,8::numeric,4::numeric,
+        2,1,4,8
+    )::laplace.cognition_observation_search_budget,
+    ROW(
+        2::numeric,4::numeric,4::numeric,4::numeric,
+        2::numeric,128::numeric,8::numeric,8::numeric,
+        4,2
+    )::laplace.cognition_observation_forward_limits,
+    32,1,9,1
+)::laplace.cognition_observation_request AS request;
+
+CREATE TEMP TABLE semantic_cognition_actual AS
+SELECT (laplace.cognition_semantic_execute(
+    pg_temp.execution_context(), request)).*
+FROM semantic_cognition_fixture;
+
+DO $contract$
+DECLARE
+    actual semantic_cognition_actual%ROWTYPE;
+BEGIN
+    SELECT * INTO STRICT actual FROM semantic_cognition_actual;
+
+    IF actual.answer_entity_id <> decode(repeat('12',16),'hex') THEN
+        RAISE EXCEPTION 'live PostgreSQL semantic provider did not return the durable mapping target: %', actual;
+    END IF;
+    IF actual.relation_id <> decode(repeat('51',16),'hex') OR
+       actual.relation_family <> 32 OR
+       actual.source_layer <> 2 OR
+       actual.direction <> 1 THEN
+        RAISE EXCEPTION 'live PostgreSQL semantic provider erased typed relation identity or evidence plane: %', actual;
+    END IF;
+    IF actual.answer_count <> 1 OR actual.transition_count <> 1 OR
+       actual.provider_rows_examined <> 1 OR
+       actual.provider_database_operations < 1 OR
+       actual.forward_database_operations < 1 OR
+       actual.status <> 0 THEN
+        RAISE EXCEPTION 'live PostgreSQL semantic cognition did not execute and receipt the durable provider read: %', actual;
+    END IF;
+    IF actual.provider_fingerprint IS NULL OR octet_length(actual.provider_fingerprint) <> 32 OR
+       actual.request_fingerprint IS NULL OR octet_length(actual.request_fingerprint) <> 32 OR
+       actual.path_id IS NULL OR octet_length(actual.path_id) <> 32 OR
+       actual.forward_receipt_id IS NULL OR octet_length(actual.forward_receipt_id) <> 32 THEN
+        RAISE EXCEPTION 'live PostgreSQL semantic cognition did not publish exact identities/receipts: %', actual;
+    END IF;
+END
+$contract$;

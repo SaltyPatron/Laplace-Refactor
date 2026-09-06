@@ -333,11 +333,12 @@ def prepare_sandbox(work_root: Path, installed_release: Path) -> dict[str, Path]
     temp_root = sandbox / "tmp"
     current_mount = laplace_root / "current"
     data = laplace_root / "pgdata" / "refactor" / "data"
-    socket = run_root / "laplace-refactor-postgresql"
+    socket = laplace_root / "runtime" / "postgresql" / "refactor"
     for path, mode in (
         (current_mount, 0o700),
         (data, 0o700),
         (socket, 0o770),
+        (run_root, 0o700),
         (temp_root, 0o700),
     ):
         path.mkdir(parents=True, mode=mode, exist_ok=False)
@@ -461,6 +462,7 @@ def wait_ready(
     prefix: Sequence[str],
     cluster_contract: Mapping[str, Any],
     *,
+    server: subprocess.Popen[str] | None = None,
     timeout_seconds: float = 60.0,
 ) -> dict[str, Any]:
     instance = cluster_contract["instance"]
@@ -483,6 +485,15 @@ def wait_ready(
     last: subprocess.CompletedProcess[str] | None = None
     started = time.monotonic_ns()
     while time.monotonic() < deadline:
+        if server is not None and server.poll() is not None:
+            server_stdout, server_stderr = server.communicate()
+            detail = server_stderr.strip() or server_stdout.strip()
+            if len(detail) > 2000:
+                detail = detail[-2000:]
+            raise PostgreSQLProductProofError(
+                "isolated PostgreSQL exited before readiness "
+                f"with {server.returncode}: {detail or 'no diagnostic'}"
+            )
         attempts += 1
         last = subprocess.run(
             command,
@@ -956,7 +967,7 @@ def prove(
     hold: subprocess.Popen[str] | None = None
     server_receipt: dict[str, Any] | None = None
     try:
-        command_receipts.append(wait_ready(prefix, cluster_contract))
+        command_receipts.append(wait_ready(prefix, cluster_contract, server=server))
         instance = cluster_contract["instance"]
         for label, database, sql in (
             (

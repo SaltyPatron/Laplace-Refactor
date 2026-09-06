@@ -81,6 +81,21 @@ file(APPEND "${extension_sql}"
 ${LAPLACE_OBSERVATION_COGNITION_SQL}\
 ")
 
+set(LAPLACE_SEMANTIC_COGNITION_SCHEMA
+    "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
+set(semantic_cognition_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/semantic_cognition.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/semantic_cognition.sql.in"
+    "${semantic_cognition_sql}"
+    @ONLY)
+file(READ "${semantic_cognition_sql}"
+    LAPLACE_SEMANTIC_COGNITION_SQL)
+file(APPEND "${extension_sql}"
+    "\
+${LAPLACE_SEMANTIC_COGNITION_SQL}\
+")
+
 set(LAPLACE_COGNITION_DISCOURSE_SCHEMA
     "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
 set(cognition_discourse_sql
@@ -107,6 +122,7 @@ set(laplace_postgresql_module_sources
     src/laplace_pg.c
     src/machine_exception_pg.c
     src/observation_cognition_pg.c
+    src/semantic_cognition_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c
     src/perfcache_pg.c
@@ -183,6 +199,29 @@ if(BUILD_TESTING)
         TIMEOUT 120
         ENVIRONMENT
             "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/observation-cognition;LAPLACE_POSTGRES_OBSERVATION_TEST_PORT=55442")
+
+    set(semantic_cognition_contract_sql
+        "${CMAKE_CURRENT_BINARY_DIR}/semantic_cognition_contract.sql")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/semantic_cognition_contract.sql.in"
+        "${semantic_cognition_contract_sql}"
+        @ONLY)
+    add_test(
+        NAME postgres.semantic-cognition-live-mapping-provider
+        COMMAND "${LAPLACE_OBSERVATION_COGNITION_BASH}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_semantic_cognition_test.sh"
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "${semantic_cognition_contract_sql}"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(postgres.semantic-cognition-live-mapping-provider PROPERTIES
+        LABELS "implementation;postgresql;cognition;semantic;reference-mapping;receipt"
+        RUN_SERIAL TRUE
+        TIMEOUT 120
+        ENVIRONMENT
+            "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/semantic-cognition;LAPLACE_POSTGRES_SEMANTIC_TEST_PORT=55443")
 
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_discourse.cmake")
 
