@@ -43,11 +43,50 @@ laplace_decomposition_status Applicable(
     return LAPLACE_DECOMPOSITION_OK;
 }
 
-laplace_decomposition_status Apply(
+std::uint32_t SyntaxFlags(const TSNode node) {
+    std::uint32_t flags = 0u;
+    if (ts_node_is_named(node)) {
+        flags |= static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_NAMED);
+    }
+    if (ts_node_is_missing(node)) {
+        flags |= static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_MISSING);
+    }
+    if (ts_node_is_error(node)) {
+        flags |= static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_ERROR);
+    }
+    if (ts_node_is_extra(node)) {
+        flags |= static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_EXTRA);
+    }
+    if (ts_node_has_error(node)) {
+        flags |= static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_HAS_ERROR);
+    }
+    return flags;
+}
+
+struct PendingNode final {
+    TSNode node{};
+    std::uint64_t parent_event_index{UINT64_MAX};
+    std::uint64_t field_kind{};
+    std::uint64_t sibling_ordinal{};
+};
+
+std::uint64_t FieldKind(
+    const TSLanguage* const language,
+    const TSNode parent,
+    const std::uint32_t child_index) {
+    const char* const field_name = ts_node_field_name_for_child(parent, child_index);
+    if (field_name == nullptr) return 0u;
+    const std::size_t length = std::strlen(field_name);
+    if (length > std::numeric_limits<std::uint32_t>::max()) return UINT64_MAX;
+    return static_cast<std::uint64_t>(ts_language_field_id_for_name(
+        language, field_name, static_cast<std::uint32_t>(length)));
+}
+
+laplace_decomposition_status ApplyEvents(
     void* provider_state,
     const laplace_decomposition_content* content,
     const laplace_decomposition_span* span,
-    laplace_decomposition_emit_fn emit,
+    laplace_decomposition_emit_event_fn emit,
     void* emit_state) {
     if (provider_state == nullptr || content == nullptr || span == nullptr ||
         emit == nullptr || span->byte_start >= span->byte_end ||
@@ -81,41 +120,76 @@ laplace_decomposition_status Apply(
 
     laplace_decomposition_status status = LAPLACE_DECOMPOSITION_OK;
     try {
-        std::vector<TSNode> stack;
-        const TSNode root = ts_tree_root_node(tree);
-        const std::uint32_t root_children = ts_node_child_count(root);
-        stack.reserve(static_cast<std::size_t>(root_children));
-        for (std::uint32_t index = root_children; index > 0u; --index) {
-            stack.push_back(ts_node_child(root, index - 1u));
-        }
+        std::vector<PendingNode> stack;
+        stack.push_back(PendingNode{ts_tree_root_node(tree), UINT64_MAX, 0u, 0u});
+        std::uint64_t emitted_event_count = 0u;
+
         while (!stack.empty()) {
-            const TSNode node = stack.back();
+            const PendingNode pending = stack.back();
             stack.pop_back();
+            const TSNode node = pending.node;
+            if (ts_node_is_null(node)) {
+                status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
+                break;
+            }
+
             const std::uint32_t start = ts_node_start_byte(node);
             const std::uint32_t end = ts_node_end_byte(node);
-            if (!ts_node_is_null(node) && !ts_node_is_missing(node) && start < end) {
-                const std::uint64_t absolute_start = span->byte_start + start;
-                const std::uint64_t absolute_end = span->byte_start + end;
-                const std::uint64_t kind = storage.kind_base |
-                    static_cast<std::uint64_t>(ts_node_symbol(node));
-                if (emit(
-                        emit_state,
-                        absolute_start,
-                        absolute_end,
-                        kind,
-                        static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_TEXT) |
-                            static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT)) != 0) {
+            const std::uint32_t syntax_flags = SyntaxFlags(node);
+            const bool missing =
+                (syntax_flags & static_cast<std::uint32_t>(
+                    LAPLACE_DECOMPOSITION_SYNTAX_MISSING)) != 0u;
+            if ((!missing && start >= end) ||
+                static_cast<std::uint64_t>(end) > span_bytes) {
+                status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
+                break;
+            }
+
+            laplace_decomposition_event event{};
+            event.byte_start = span->byte_start + start;
+            event.byte_end = span->byte_start + end;
+            event.parent_event_index = pending.parent_event_index;
+            event.kind = storage.kind_base |
+                static_cast<std::uint64_t>(ts_node_symbol(node));
+            event.grammar_kind = storage.kind_base |
+                static_cast<std::uint64_t>(ts_node_grammar_symbol(node));
+            event.field_kind = pending.field_kind;
+            event.sibling_ordinal = pending.sibling_ordinal;
+            event.syntax_flags = syntax_flags;
+            if (!missing) {
+                event.flags =
+                    static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_TEXT) |
+                    static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT);
+            }
+            const std::uint64_t local_event_index = emitted_event_count;
+            if (emitted_event_count == UINT64_MAX || emit(emit_state, &event) != 0) {
+                status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
+                break;
+            }
+            ++emitted_event_count;
+
+            const std::uint32_t child_count = ts_node_child_count(node);
+            for (std::uint32_t index = child_count; index > 0u; --index) {
+                const std::uint32_t child_index = index - 1u;
+                const TSNode child = ts_node_child(node, child_index);
+                const std::uint64_t field_kind =
+                    FieldKind(storage.language, node, child_index);
+                if (field_kind == UINT64_MAX) {
                     status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
                     break;
                 }
+                stack.push_back(PendingNode{
+                    child,
+                    local_event_index,
+                    field_kind,
+                    static_cast<std::uint64_t>(child_index) + 1u});
             }
-            const std::uint32_t child_count = ts_node_child_count(node);
-            for (std::uint32_t index = child_count; index > 0u; --index) {
-                stack.push_back(ts_node_child(node, index - 1u));
-            }
+            if (status != LAPLACE_DECOMPOSITION_OK) break;
         }
-    } catch (...) {
+    } catch (const std::bad_alloc&) {
         status = LAPLACE_DECOMPOSITION_MEMORY_FAILURE;
+    } catch (...) {
+        status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
     }
 
     ts_tree_delete(tree);
@@ -148,8 +222,9 @@ extern "C" laplace_decomposition_status laplace_decomposition_tree_sitter_provid
     storage->provider.state = storage;
     storage->provider.provider_fingerprint = *provider_fingerprint;
     storage->provider.applicable = Applicable;
-    storage->provider.apply = Apply;
+    storage->provider.apply = nullptr;
     storage->provider.abi_major = LAPLACE_DECOMPOSITION_PROVIDER_ABI_MAJOR;
     storage->provider.abi_minor = LAPLACE_DECOMPOSITION_PROVIDER_ABI_MINOR;
+    storage->provider.apply_events = ApplyEvents;
     return LAPLACE_DECOMPOSITION_OK;
 }
