@@ -47,12 +47,6 @@ jobs:
         preset:
           - linux-dev
           - linux-sanitize
-    env:
-      CCACHE_DIR: ${{ runner.temp }}/laplace-ccache/${{ matrix.preset }}
-      CCACHE_BASEDIR: ${{ github.workspace }}
-      CCACHE_COMPILERCHECK: content
-      CCACHE_NOHASHDIR: "true"
-      CCACHE_MAXSIZE: 512M
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install build tools
@@ -68,13 +62,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$CCACHE_DIR"
+          cache_dir="$RUNNER_TEMP/laplace-ccache/${{ matrix.preset }}"
+          mkdir -p "$cache_dir"
+          export CCACHE_DIR="$cache_dir"
+          export CCACHE_BASEDIR="$GITHUB_WORKSPACE"
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_MAXSIZE=512M
           ccache --set-config=max_size="$CCACHE_MAXSIZE"
           ccache --set-config=compiler_check="$CCACHE_COMPILERCHECK"
           ccache --set-config=base_dir="$CCACHE_BASEDIR"
           ccache --set-config=hash_dir=false
           ccache --zero-stats
           ccache --show-config
+          printf 'CCACHE_DIR=%s\n' "$CCACHE_DIR" >> "$GITHUB_ENV"
+          printf 'CCACHE_BASEDIR=%s\n' "$CCACHE_BASEDIR" >> "$GITHUB_ENV"
+          printf 'CCACHE_COMPILERCHECK=%s\n' "$CCACHE_COMPILERCHECK" >> "$GITHUB_ENV"
+          printf 'CCACHE_MAXSIZE=%s\n' "$CCACHE_MAXSIZE" >> "$GITHUB_ENV"
       - name: Acquire pinned build dependencies
         shell: bash
         run: |
