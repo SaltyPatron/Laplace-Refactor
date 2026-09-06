@@ -14,6 +14,7 @@ SETUP = ROOT / "scripts/setup-host.sh"
 SERVICE = ROOT / "packaging/systemd/laplace-refactor-postgresql.service"
 CLUSTER = ROOT / "contracts/postgresql-cluster.json"
 RUNNER = ROOT / "tools/delivery/product_activation_runner.py"
+RECONCILER = ROOT / "tools/delivery/product_activation_reconcile.py"
 CLUSTERCTL = ROOT / "tools/postgresql/clusterctl.py"
 RESOURCECTL = ROOT / "tools/postgresql/resourcectl.py"
 UNICODECTL = ROOT / "tools/postgresql/unicodectl.py"
@@ -23,7 +24,10 @@ HIGHWAYCTL = ROOT / "tools/postgresql/highwayctl.py"
 class ProductActivationRunnerTests(unittest.TestCase):
     def test_workflow_selects_runner_provider_not_root_or_systemd(self) -> None:
         source = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("product_activation_runner.py", source)
+        self.assertIn("product_activation_reconcile.py", source)
+        reconciler = RECONCILER.read_text(encoding="utf-8")
+        self.assertIn("product_activation_runner.py", reconciler)
+        self.assertIn("product_cluster_upgrade.py", reconciler)
         self.assertIn("tools/postgresql/resourcectl.py observe-resources", source)
         self.assertNotIn("tools/postgresql/clusterctl.py observe-resources", source)
         self.assertIn('execution_owner == "laplace-runner"', source)
