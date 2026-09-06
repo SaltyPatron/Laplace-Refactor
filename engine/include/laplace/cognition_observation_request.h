@@ -1,6 +1,7 @@
 #ifndef LAPLACE_COGNITION_OBSERVATION_REQUEST_H
 #define LAPLACE_COGNITION_OBSERVATION_REQUEST_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "laplace/cognition_forward_pass.h"
@@ -24,7 +25,9 @@ enum {
         LAPLACE_COGNITION_OBSERVATION_REQUEST_TERMINAL_RESULTS |
         LAPLACE_COGNITION_OBSERVATION_REQUEST_ALLOW_TYPED_UNRESOLVED |
         LAPLACE_COGNITION_OBSERVATION_REQUEST_BOUNDARY_COMPLETE,
-    LAPLACE_COGNITION_OBSERVATION_REQUEST_VERSION = 1
+    LAPLACE_COGNITION_OBSERVATION_REQUEST_VERSION = 1,
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR = 1,
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR = 0
 };
 
 typedef struct laplace_cognition_observation_forward_limits {
@@ -71,6 +74,60 @@ typedef struct laplace_cognition_observation_compiled_request {
 
 typedef struct laplace_cognition_observation_request_provider
     laplace_cognition_observation_request_provider;
+
+/*
+ * A persistence/query backend returns only typed observation candidates. It does
+ * not construct search states, transitions, cognition operations, resolutions,
+ * guidance, completion decisions, or forward receipts. `source_state_index`
+ * identifies which source in the supplied frontier produced the candidate.
+ * `evidence_root_fingerprint` identifies the durable observation/physicality
+ * record that justifies the crossing; it is provider-owned evidence identity,
+ * not a replacement for the target entity's canonical 128-bit content identity.
+ */
+typedef struct laplace_cognition_observation_candidate {
+    laplace_id128 target_entity_id;
+    laplace_digest256 evidence_root_fingerprint;
+    uint64_t source_state_index;
+    uint64_t source_logical_ordinal;
+    uint64_t target_logical_ordinal;
+    uint64_t multiplicity;
+    uint64_t gap;
+    uint32_t relation;
+    uint32_t flags;
+} laplace_cognition_observation_candidate;
+
+typedef struct laplace_cognition_observation_candidate_usage {
+    uint64_t rows_examined;
+    uint64_t index_plan_count;
+    uint64_t crossing_count;
+    uint64_t io_operations;
+    uint64_t database_operations;
+    uint32_t limiting_disposition;
+    uint32_t flags;
+} laplace_cognition_observation_candidate_usage;
+
+typedef int (*laplace_cognition_observation_enumerate_candidates_fn)(
+    void* provider_state,
+    const laplace_observation_query_binding* binding,
+    const laplace_id128* source_entity_ids,
+    const laplace_query_search_state* frontier_states,
+    const uint64_t* accumulated_costs,
+    size_t frontier_state_count,
+    laplace_cognition_observation_candidate* candidates,
+    size_t candidate_capacity,
+    size_t* candidate_count,
+    laplace_cognition_observation_candidate_usage* usage);
+
+typedef struct laplace_cognition_observation_candidate_provider_v1 {
+    void* state;
+    laplace_digest256 provider_fingerprint;
+    uint64_t maximum_candidate_records_per_expansion;
+    laplace_cognition_observation_enumerate_candidates_fn enumerate_candidates;
+    uint16_t abi_major;
+    uint16_t abi_minor;
+    uint32_t flags;
+    uint32_t reserved;
+} laplace_cognition_observation_candidate_provider_v1;
 
 typedef enum laplace_cognition_observation_request_status {
     LAPLACE_COGNITION_OBSERVATION_REQUEST_OK = 0,
@@ -139,16 +196,16 @@ laplace_cognition_observation_request_provider_destroy(
     laplace_cognition_observation_request_provider** provider_state);
 
 /*
- * Executes one complete typed request through a caller-supplied typed cognition
- * provider while retaining request compilation, guidance construction, bounded
- * forward execution, operation selection, completion and receipt ownership in
- * the native engine. Provider state may wrap an external persistence/query
- * backend; it does not receive or construct private guidance or forward state.
+ * Executes one complete typed request over an external observation estate while
+ * retaining semantic ownership in the native engine. The backend enumerates only
+ * typed observation candidates. Native code derives search transitions, executes
+ * the compiled bounded search, constructs/selects cognition operations, applies
+ * resolutions, decides completion, and receipts the full forward pass.
  */
 LAPLACE_API laplace_cognition_observation_request_status
-laplace_cognition_observation_request_execute_with_provider(
+laplace_cognition_observation_request_execute_with_candidate_provider(
     const laplace_cognition_observation_request* request,
-    const laplace_cognition_forward_provider_v1* provider,
+    const laplace_cognition_observation_candidate_provider_v1* provider,
     laplace_cognition_forward_result** result,
     laplace_cognition_forward_receipt* receipt);
 
