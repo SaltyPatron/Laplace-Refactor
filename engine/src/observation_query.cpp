@@ -10,3 +10,4 @@
 #include "cognition_discourse_frame.inc"
 #include "cognition_turn.inc"
 #include "cognition_realization.inc"
+#include "cognition_materialization.inc"
