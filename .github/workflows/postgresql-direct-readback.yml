@@ -1,0 +1,52 @@
+name: postgresql-direct-readback
+
+on:
+  push:
+    branches: ['fix/start-stopped-selected-postgresql']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-activation-refs/heads/main
+  cancel-in-progress: false
+
+jobs:
+  direct-readback:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Start selected PostgreSQL if needed and query live product state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+
+          PGROOT=/opt/laplace/current/pgsql-18
+          PGDATA=/opt/laplace/pgdata/refactor/data
+          PGSOCKET=/opt/laplace/runtime/postgresql/refactor
+          PGPORT=55433
+
+          if ! "$PGROOT/bin/pg_ctl" -D "$PGDATA" status >/dev/null 2>&1; then
+            "$PGROOT/bin/pg_ctl" -D "$PGDATA" start -w -t 120
+          fi
+
+          "$PGROOT/bin/pg_isready" -h "$PGSOCKET" -p "$PGPORT" -d laplace_refactor -U laplace_admin
+
+          "$PGROOT/bin/psql" \
+            -X -w -h "$PGSOCKET" -p "$PGPORT" \
+            -U laplace_admin -d laplace_refactor -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN READ ONLY;
+          SET LOCAL statement_timeout = '60s';
+          SELECT current_database(), current_user, version();
+          SELECT pg_backend_pid() AS backend_pid,
+                 (pg_control_system()).system_identifier AS system_identifier;
+          SELECT extname, extversion FROM pg_extension ORDER BY extname;
+          SELECT count(*) AS canonical_entities FROM laplace.entity;
+          SELECT count(*) AS canonical_physicalities FROM laplace.physicality;
+          SELECT * FROM laplace.unicode_root_generation;
+          SELECT count(*) AS admitted_source_profiles FROM laplace.source_profile;
+          COMMIT;
+          SQL
