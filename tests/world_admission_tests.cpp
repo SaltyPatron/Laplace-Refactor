@@ -124,6 +124,70 @@ TEST(WorldAdmission, IdentityBindsEveryComponentCountAndReadback) {
     }
 }
 
+TEST(WorldAdmission, SemanticProjectionExcludesOnlyPhysicalExecutionReceipts) {
+    const auto first = MakeAdmission(0x24u);
+    auto second = first;
+    second.composition_working_set_receipt_id.bytes[0] ^= 1u;
+    second.composition_presence_receipt_id.bytes[1] ^= 1u;
+    second.composition_producer_receipt_id.bytes[2] ^= 1u;
+    second.composition_stream_receipt_id.bytes[3] ^= 1u;
+    ASSERT_EQ(
+        laplace_world_admission_identify(&second, &second.admission_id),
+        LAPLACE_WORLD_ADMISSION_OK);
+    ASSERT_NE(
+        std::memcmp(first.admission_id.bytes, second.admission_id.bytes, 32u), 0);
+
+    laplace_world_admission_semantic_projection first_projection{};
+    laplace_world_admission_semantic_projection second_projection{};
+    ASSERT_EQ(
+        laplace_world_admission_project_semantics(&first, &first_projection),
+        LAPLACE_WORLD_ADMISSION_OK);
+    ASSERT_EQ(
+        laplace_world_admission_project_semantics(&second, &second_projection),
+        LAPLACE_WORLD_ADMISSION_OK);
+    EXPECT_EQ(
+        std::memcmp(
+            first_projection.semantic_fingerprint.bytes,
+            second_projection.semantic_fingerprint.bytes, 32u),
+        0);
+    EXPECT_EQ(
+        std::memcmp(
+            first_projection.readback_fingerprint.bytes,
+            second_projection.readback_fingerprint.bytes, 32u),
+        0);
+    EXPECT_EQ(first_projection.profile_occurrence_count,
+              second_projection.profile_occurrence_count);
+    EXPECT_EQ(first_projection.testimony_count,
+              second_projection.testimony_count);
+    EXPECT_EQ(first_projection.version, LAPLACE_WORLD_ADMISSION_VERSION);
+    EXPECT_EQ(first_projection.status, LAPLACE_WORLD_ADMISSION_OK);
+
+    auto semantic_change = second;
+    semantic_change.readback_fingerprint.bytes[0] ^= 1u;
+    ASSERT_EQ(
+        laplace_world_admission_identify(
+            &semantic_change, &semantic_change.admission_id),
+        LAPLACE_WORLD_ADMISSION_OK);
+    laplace_world_admission_semantic_projection changed_projection{};
+    ASSERT_EQ(
+        laplace_world_admission_project_semantics(
+            &semantic_change, &changed_projection),
+        LAPLACE_WORLD_ADMISSION_OK);
+    EXPECT_NE(
+        std::memcmp(
+            first_projection.semantic_fingerprint.bytes,
+            changed_projection.semantic_fingerprint.bytes, 32u),
+        0);
+
+    auto stale_identity = first;
+    stale_identity.composition_stream_receipt_id.bytes[0] ^= 1u;
+    laplace_world_admission_semantic_projection rejected{};
+    EXPECT_EQ(
+        laplace_world_admission_project_semantics(
+            &stale_identity, &rejected),
+        LAPLACE_WORLD_ADMISSION_IDENTITY_MISMATCH);
+}
+
 TEST(WorldAdmission, RejectsMissingComponentsAndIncompleteClosure) {
     auto value = MakeAdmission(0x30u);
     std::memset(value.composition_stream_receipt_id.bytes, 0, 32u);
