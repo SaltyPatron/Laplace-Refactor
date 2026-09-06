@@ -37,6 +37,16 @@
       "covered_dimensions": ["public native request execution owns compile/provider/result lifecycle", "transport callers do not construct private guidance or search state", "complete cognition disposition and zero remaining obligations", "nonzero output fingerprint receipts the public execution boundary"]
     },
     {
+      "ctest_name": "CognitionObservationExternalProvider.NativeBoundaryOwnsCompileGuidanceAndForwardLifecycle",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
+      "covered_dimensions": ["external persistence/query providers do not construct guidance state", "native request boundary retains compile and bounded forward lifecycle ownership", "typed provider receives only projected queries and operation execution calls", "completion and receipt remain native-engine outputs"]
+    },
+    {
+      "ctest_name": "CognitionObservationExternalProvider.RejectsProviderAbiDriftBeforeExecution",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["external provider ABI drift fails closed", "no provider callback executes under an incompatible ABI", "transport integration cannot silently bypass the canonical provider contract"]
+    },
+    {
       "ctest_name": "CognitionObservationRequest.RequestIdentityChangesWithTypedRelationIntent",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
       "covered_dimensions": ["relation family remains part of request identity", "predecessor and successor requests cannot flatten to one program"]
