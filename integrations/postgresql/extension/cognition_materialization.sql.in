@@ -1,0 +1,60 @@
+-- PostgreSQL transport for exact native realization materialization.
+-- PostgreSQL owns durable indexed lookup only. Content identity, trajectory
+-- validation, recursive ordering, Unicode encoding and receipts remain native.
+
+CREATE TYPE @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.cognition_realization_result AS (
+    content_id bytea,
+    language_id bytea,
+    candidate_receipt_id bytea,
+    realization_recipe_id bytea,
+    missing_obligation_fingerprint bytea,
+    preference_rank numeric(20, 0),
+    reused_subtree_count numeric(20, 0),
+    generated_composition_count numeric(20, 0),
+    structural_tier integer,
+    match_class integer,
+    missing_obligation_count integer,
+    disposition integer,
+    flags integer,
+    version integer
+);
+
+CREATE TYPE @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.cognition_materialization_request AS (
+    maximum_nodes numeric(20, 0),
+    maximum_trajectory_carriers numeric(20, 0),
+    maximum_output_bytes numeric(20, 0),
+    maximum_depth integer,
+    version integer
+);
+
+CREATE TYPE @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.cognition_materialization_result AS (
+    output bytea,
+    materialization_id bytea,
+    source_candidate_receipt_id bytea,
+    source_recipe_id bytea,
+    provider_fingerprint bytea,
+    readset_fingerprint bytea,
+    output_fingerprint bytea,
+    root_content_id bytea,
+    resolved_node_count numeric(20, 0),
+    trajectory_carrier_count numeric(20, 0),
+    codepoint_count numeric(20, 0),
+    output_bytes numeric(20, 0),
+    maximum_depth_observed integer,
+    status integer,
+    version integer
+);
+
+CREATE FUNCTION @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.cognition_realization_materialize_utf8(
+    @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.execution_context,
+    @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.cognition_realization_result,
+    @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.cognition_materialization_request)
+RETURNS @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.cognition_materialization_result
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_realization_materialize_utf8'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE EXECUTE ON FUNCTION @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.cognition_realization_materialize_utf8(
+    @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.execution_context,
+    @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.cognition_realization_result,
+    @LAPLACE_COGNITION_MATERIALIZATION_SCHEMA@.cognition_materialization_request)
+FROM PUBLIC;
