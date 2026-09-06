@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import subprocess
 from pathlib import Path
 import sys
 from typing import Any
@@ -143,6 +144,47 @@ def _live_predecessor(
     return loaded
 
 
+def _ensure_predecessor_running(
+    plan: dict[str, Any], contract: dict[str, Any], package_id: str
+) -> None:
+    """Resume the selected durable cluster when pg_ctl proves it is stopped."""
+    _require_selection(contract, package_id)
+    status = subprocess.run(
+        clusterctl._pg_ctl_command(plan, "status"),
+        check=False, cwd="/", env=clusterctl.activation_environment(),
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30,
+    )
+    if status.returncode == 0:
+        return
+    # pg_ctl uses 3 specifically for an existing, stopped cluster. Other errors
+    # (including inaccessible state) must never be interpreted as permission to start.
+    if status.returncode != 3:
+        raise AdoptionError(
+            "cannot establish selected predecessor lifecycle state: "
+            + (status.stderr.strip() or status.stdout.strip())
+        )
+    clusterctl._stopped_live(plan)
+    for entry in plan["files"]:
+        path = Path(entry["path"])
+        if (path.is_symlink() or not path.is_file()
+                or clusterctl.sha256_file(path) != entry["sha256"]):
+            raise AdoptionError(f"stopped predecessor configuration differs: {path}")
+    _require_selection(contract, package_id)
+    started = clusterctl.execute_activation_command(
+        "resume-stopped-selected-predecessor", plan["commands"]["start_candidate"], 300
+    )
+    ready = clusterctl.await_postgresql_ready(
+        "resumed-selected-predecessor-readiness", plan["commands"]["probe_readiness"], 300
+    )
+    loaded = _live_predecessor(plan, contract, package_id)
+    clusterctl.write_json(
+        _activation_directory(contract, package_id) / "predecessor-resume.json",
+        {"schema": "laplace.postgresql-predecessor-resume/v1",
+         "package_id": package_id, "command_receipts": [started, ready],
+         "loaded_observation": loaded},
+    )
+
+
 def _restore_predecessor_after_failure(
     plan: dict[str, Any],
     contract: dict[str, Any],
@@ -208,6 +250,7 @@ def ensure_current_predecessor_receipt(contract_path: Path) -> dict[str, Any]:
         raise AdoptionError("active predecessor historical receipt identity is invalid")
     plan_path, plan = _load_plan(receipt, contract, package_id)
     _require_selection(contract, package_id)
+    _ensure_predecessor_running(plan, contract, package_id)
     if _receipt_is_current(receipt, package_id):
         return receipt
 
