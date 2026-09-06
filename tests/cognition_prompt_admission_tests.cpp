@@ -245,8 +245,8 @@ laplace_cognition_prompt_admission_input Input(
         static_cast<std::uint8_t>(0x80U + scope_seed));
     input.occurrence.turn_ordinal = successor ? 1U : 0U;
     input.occurrence.turn_flags = successor
-        ? LAPLACE_COGNITION_TURN_HAS_PREVIOUS_DISCOURSE
-        : 0U;
+        ? static_cast<std::uint32_t>(LAPLACE_COGNITION_TURN_HAS_PREVIOUS_DISCOURSE)
+        : UINT32_C(0);
     input.version = LAPLACE_COGNITION_PROMPT_ADMISSION_VERSION;
     return input;
 }
