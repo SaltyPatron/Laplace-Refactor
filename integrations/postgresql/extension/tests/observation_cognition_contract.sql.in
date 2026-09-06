@@ -84,6 +84,38 @@ SELECT
         4, 1, 9, 1
     )::laplace.cognition_observation_request AS request;
 
+-- Deposit the same canonical fixture into the actual durable product tables.
+-- The persisted cognition route below receives none of the fixture arrays.
+INSERT INTO laplace.entity(entity_id, identity_witness)
+VALUES
+    (decode(:'entity_a','hex'), decode(:'entity_a_witness','hex')),
+    (decode(:'entity_b','hex'), decode(:'entity_b_witness','hex')),
+    (decode(:'entity_c','hex'), decode(:'entity_c_witness','hex')),
+    (decode(:'entity_root','hex'), decode(:'entity_root_witness','hex'));
+
+INSERT INTO laplace.physicality(
+    physicality_id, entity_id, physicality_type, vertex_class,
+    recipe_version, structural_form, dimension_count, flags,
+    recipe_fingerprint, geometry_epoch, trajectory_fingerprint,
+    centroid_x, centroid_y, centroid_z, centroid_m, radius,
+    logical_count, vertex_count, trajectory)
+VALUES (
+    decode(:'physicality_id','hex'), decode(:'entity_root','hex'),
+    1, 1, 1, 1, 4, 0,
+    decode(:'recipe_fingerprint','hex'),
+    decode(:'geometry_epoch','hex'),
+    decode(:'trajectory_fingerprint','hex'),
+    0.125::double precision,
+    -0.25::double precision,
+    0.5::double precision,
+    -0.75::double precision,
+    0.875::double precision,
+    3::numeric,
+    3::numeric,
+    decode(:'carrier_0','hex') ||
+    decode(:'carrier_1','hex') ||
+    decode(:'carrier_2','hex'));
+
 CREATE TEMP TABLE observation_cognition_expected AS
 SELECT
     decode(:'request_fingerprint','hex') AS request_fingerprint,
@@ -117,12 +149,19 @@ SELECT (laplace.cognition_observation_execute(
     pg_temp.execution_context(), physicalities, segments, request)).*
 FROM observation_cognition_fixture;
 
+CREATE TEMP TABLE observation_cognition_persisted_actual AS
+SELECT (laplace.cognition_observation_execute_persisted(
+    pg_temp.execution_context(), request)).*
+FROM observation_cognition_fixture;
+
 DO $contract$
 DECLARE
     actual observation_cognition_actual%ROWTYPE;
+    persisted observation_cognition_persisted_actual%ROWTYPE;
     expected observation_cognition_expected%ROWTYPE;
 BEGIN
     SELECT * INTO STRICT actual FROM observation_cognition_actual;
+    SELECT * INTO STRICT persisted FROM observation_cognition_persisted_actual;
     SELECT * INTO STRICT expected FROM observation_cognition_expected;
 
     IF actual.request_fingerprint <> expected.request_fingerprint OR
@@ -166,6 +205,39 @@ BEGIN
 
     IF actual.final_remaining_required_count <> 0 OR actual.resolution_count <> 1 THEN
         RAISE EXCEPTION 'PostgreSQL observation cognition did not resolve the required C -> A depth-2 predecessor request: %', actual;
+    END IF;
+
+    IF persisted.request_fingerprint IS DISTINCT FROM actual.request_fingerprint OR
+       persisted.index_fingerprint IS DISTINCT FROM actual.index_fingerprint OR
+       persisted.result_fingerprint IS DISTINCT FROM actual.result_fingerprint OR
+       persisted.resolution_receipt_id IS DISTINCT FROM actual.resolution_receipt_id OR
+       persisted.forward_receipt_id IS DISTINCT FROM actual.forward_receipt_id OR
+       persisted.forward_program_fingerprint IS DISTINCT FROM actual.forward_program_fingerprint OR
+       persisted.initial_state_id IS DISTINCT FROM actual.initial_state_id OR
+       persisted.final_state_id IS DISTINCT FROM actual.final_state_id OR
+       persisted.layer_trace_fingerprint IS DISTINCT FROM actual.layer_trace_fingerprint OR
+       persisted.output_fingerprint IS DISTINCT FROM actual.output_fingerprint OR
+       persisted.physicality_count IS DISTINCT FROM actual.physicality_count OR
+       persisted.trajectory_segment_count IS DISTINCT FROM actual.trajectory_segment_count OR
+       persisted.occurrence_run_count IS DISTINCT FROM actual.occurrence_run_count OR
+       persisted.logical_occurrence_count IS DISTINCT FROM actual.logical_occurrence_count OR
+       persisted.indexed_entity_count IS DISTINCT FROM actual.indexed_entity_count OR
+       persisted.layer_count IS DISTINCT FROM actual.layer_count OR
+       persisted.provider_call_count IS DISTINCT FROM actual.provider_call_count OR
+       persisted.projected_query_count IS DISTINCT FROM actual.projected_query_count OR
+       persisted.candidate_operation_count IS DISTINCT FROM actual.candidate_operation_count OR
+       persisted.resolution_count IS DISTINCT FROM actual.resolution_count OR
+       persisted.resource_cost IS DISTINCT FROM actual.resource_cost OR
+       persisted.io_operations IS DISTINCT FROM actual.io_operations OR
+       persisted.database_operations IS DISTINCT FROM actual.database_operations OR
+       persisted.final_remaining_required_count IS DISTINCT FROM actual.final_remaining_required_count OR
+       persisted.final_completion IS DISTINCT FROM actual.final_completion OR
+       persisted.disposition IS DISTINCT FROM actual.disposition OR
+       persisted.obligation_disposition IS DISTINCT FROM actual.obligation_disposition OR
+       persisted.status IS DISTINCT FROM actual.status OR
+       persisted.version IS DISTINCT FROM actual.version OR
+       persisted.flags IS DISTINCT FROM actual.flags THEN
+        RAISE EXCEPTION 'Persisted cognition route diverged from canonical array/native route: persisted=% actual=%', persisted, actual;
     END IF;
 END
 $contract$;
