@@ -197,7 +197,7 @@ int WriteUnrelatedEstate(const char* path) {
     out << "BEGIN;\n";
     for (std::uint32_t i = 1U; i <= 4096U; ++i) {
         Fixture f{};
-        if (!BuildFixture(&f, i * 16U)) return 65;
+        if (!BuildFixture(&f, 0x1000U + i * 16U)) return 65;
         const std::array<laplace_id128,4> ids{{f.a,f.b,f.c,f.root}};
         const std::array<laplace_digest256,4> witnesses{{f.a_witness,f.b_witness,f.c_witness,f.root_witness}};
         out << "INSERT INTO laplace.entity(entity_id,identity_witness) VALUES ";
