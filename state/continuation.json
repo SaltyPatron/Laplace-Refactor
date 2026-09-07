@@ -1,4 +1,14 @@
 {
+  "public_cold_readback_repair_20260907": {
+    "classification": "observed-development-state-not-product-law",
+    "base_commit": "d151a80176c57eb8662bfaaf5ef82b6e3767999b",
+    "owning_branch": "fix/public-cold-readback",
+    "failed_activation_run": 34158401397,
+    "defect": "Cold laplace_app Unicode/Highway readers accessed private registry tables under INVOKER; a package change also misclassified the existing source admission as a new empty-world build.",
+    "repair": "Shared generated owner-executed read-only C bindings with fixed search_path and PUBLIC revoke; packaged metadata reconciliation; retain and natively reverify the exact original Unicode admission across deployment changes without rewriting artifacts or evidence.",
+    "verification_boundary": "Local required tests pass. Rollback-only live application-role readback, ordinary branch checks, merge and main deployment are still required.",
+    "supersedes": "Earlier pending Unicode artifact-verifier work was merged in PR260; its main deployment now reached application-role readback. Broader cognition and firmware/product obligations remain unchanged."
+  },
   "unicode_activation_repair_20260907": {
     "classification": "observed-development-state-not-product-law",
     "base_commit": "8bcc3c918a6dcf890ce1f1422597be5f76e75c18",

@@ -557,8 +557,16 @@ def render_inspection_sql() -> str:
   'activation_epoch_fingerprint', encode(active.epoch_fingerprint, 'hex'),
   'generation_count', (SELECT count(*) FROM laplace.unicode_root_generation),
   'deposit_count', (SELECT count(*) FROM laplace.unicode_root_deposit_receipt),
-  'entity_count', (SELECT count(*) FROM laplace.entity),
-  'physicality_count', (SELECT count(*) FROM laplace.physicality),
+  'entity_count', (SELECT count(*) FROM laplace.entity AS owned
+    WHERE NOT EXISTS (SELECT 1 FROM laplace.unicode_root_generation)
+       OR EXISTS (SELECT 1 FROM laplace.attestation AS witness
+          JOIN laplace.unicode_root_generation AS root ON root.root_receipt=witness.source_fingerprint
+          WHERE witness.attestation_kind=3 AND witness.entity_id=owned.entity_id)),
+  'physicality_count', (SELECT count(*) FROM laplace.physicality AS owned
+    WHERE NOT EXISTS (SELECT 1 FROM laplace.unicode_root_generation)
+       OR EXISTS (SELECT 1 FROM laplace.attestation AS witness
+          JOIN laplace.unicode_root_generation AS root ON root.root_receipt=witness.source_fingerprint
+          WHERE witness.attestation_kind=3 AND witness.physicality_id=owned.physicality_id)),
   'atom_count', (SELECT count(*) FROM laplace.attestation
                  WHERE source_fingerprint =
                        (SELECT root_receipt FROM laplace.unicode_root_generation)
@@ -990,6 +998,69 @@ def create_work_directories(
             os.chown(path, user.pw_uid, user.pw_gid)
 
 
+def retained_root_identities(
+    receipt_root: Path, inspection: dict[str, Any], request: dict[str, Any],
+    contract: dict[str, Any], identity_executable: Path, identity_runner: Callable[..., Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Re-prove the original admission, never relabel it as the new deployment.
+
+    Software/package changes need a new deployment proof, not a second copy of the
+    same canonical Unicode root. A bounded search of retained admission evidence
+    locates the exact active epoch; the packaged native identity provider hashes
+    its original canonical request again. Source, database and semantic contracts
+    must agree, then normal artifact, deposition, restart and app readback checks
+    still execute. No catalog, artifact or historical evidence is modified here.
+    """
+    directory = receipt_root / contract["receipt"]["directory_name"]
+    if directory.is_symlink() or not directory.is_dir():
+        raise UnicodeActivationError("committed Unicode root lacks retained admission evidence")
+    matches = []
+    examined = 0
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            examined += 1
+            if examined > 1024:
+                raise UnicodeActivationError("Unicode admission evidence search limit exceeded")
+            if HEX_256.fullmatch(entry.name) is None:
+                continue
+            if entry.is_symlink() or not entry.is_dir(follow_symlinks=False):
+                raise UnicodeActivationError("unsafe retained Unicode admission directory")
+            folder = Path(entry.path)
+            identity_path = folder / "identities.json"
+            if not identity_path.exists():
+                continue
+            if identity_path.is_symlink() or identity_path.stat().st_size > 65536:
+                raise UnicodeActivationError("unsafe retained Unicode identities")
+            candidate = load_json(identity_path)
+            if (candidate.get("activation_epoch_id") != inspection.get("activation_epoch_id")
+                    or candidate.get("activation_epoch_fingerprint") != inspection.get("activation_epoch_fingerprint")):
+                continue
+            validate_identities(candidate, contract)
+            if candidate["request_fingerprint"] != entry.name:
+                raise UnicodeActivationError("retained Unicode admission directory identity differs")
+            request_path = folder / "request.json"
+            if (request_path.is_symlink() or not request_path.is_file()
+                    or request_path.stat().st_size > contract["identity_provider"]["maximum_request_bytes"]):
+                raise UnicodeActivationError("unsafe retained Unicode admission request")
+            original = load_json(request_path)
+            if request_path.read_bytes() != canonical_bytes(original):
+                raise UnicodeActivationError("retained Unicode admission request is not canonical")
+            for field in ("schema", "activation_contract_sha256", "cluster_contract_sha256",
+                          "cluster_system_identifier", "source_contract_sha256", "source_evidence_sha256",
+                          "source_root", "unicode_postgresql_contract_sha256", "operation",
+                          "execution_context", "expected_result"):
+                if field not in original or original[field] != request[field]:
+                    raise UnicodeActivationError(f"retained Unicode admission differs: {field}")
+            verified, command = identity_runner(identity_executable, request_path, contract)
+            validate_identities(verified, contract)
+            if verified != candidate:
+                raise UnicodeActivationError("retained Unicode admission fails native identity verification")
+            matches.append((candidate, original, command))
+    if len(matches) != 1:
+        raise UnicodeActivationError("committed Unicode root requires one exact retained admission")
+    return matches[0]
+
+
 def execute_unicode_activation(
     activation_contract: dict[str, Any],
     cluster_contract: dict[str, Any],
@@ -1092,16 +1163,6 @@ def execute_unicode_activation(
     write_immutable(evidence_directory / "source-evidence.json", source_evidence)
 
     instance = cluster_contract["instance"]
-    epoch = identities["activation_epoch_id"]
-    spool_logical = f"{instance['temp_directory']}/{activation_contract['operation']['spool_directory_prefix']}{epoch}"
-    generation_logical = f"{instance['perfcache_directory']}/{activation_contract['operation']['generation_directory_prefix']}{epoch}"
-    tier0_logical = f"{generation_logical}/{activation_contract['operation']['tier0_filename']}"
-    reverse_logical = f"{generation_logical}/{activation_contract['operation']['reverse_filename']}"
-    spool_path = prefixed(root, spool_logical)
-    generation_path = prefixed(root, generation_logical)
-    tier0_path = prefixed(root, tier0_logical)
-    reverse_path = prefixed(root, reverse_logical)
-
     command_receipts: list[dict[str, Any]] = [identity_command]
     inspection, inspection_receipt = sql_runner(
         plan,
@@ -1115,7 +1176,27 @@ def execute_unicode_activation(
     command_receipts.append(inspection_receipt)
     validate_perfcache_root(
         inspection, str(prefixed(root, instance["perfcache_directory"])))
+    deployment_request_sha = request_sha
+    deployment_request_fingerprint = identities["request_fingerprint"]
+    retained_request = None
+    if (inspection.get("active_present") is True
+            and (inspection.get("activation_epoch_id") != identities["activation_epoch_id"]
+                 or inspection.get("activation_epoch_fingerprint") != identities["activation_epoch_fingerprint"])):
+        identities, retained_request, retained_command = retained_root_identities(
+            receipt_root, inspection, request, activation_contract, identity_executable, identity_runner)
+        command_receipts.append(retained_command)
+        request_sha = sha256_bytes(canonical_bytes(retained_request))
     mode = validate_inspection(inspection, activation_contract, identities)
+    epoch = identities["activation_epoch_id"]
+    spool_logical = f"{instance['temp_directory']}/{activation_contract['operation']['spool_directory_prefix']}{epoch}"
+    generation_logical = f"{instance['perfcache_directory']}/{activation_contract['operation']['generation_directory_prefix']}{epoch}"
+    tier0_logical = f"{generation_logical}/{activation_contract['operation']['tier0_filename']}"
+    reverse_logical = f"{generation_logical}/{activation_contract['operation']['reverse_filename']}"
+    spool_path = prefixed(root, spool_logical)
+    generation_path = prefixed(root, generation_logical)
+    tier0_path = prefixed(root, tier0_logical)
+    reverse_path = prefixed(root, reverse_logical)
+
     build_result: dict[str, Any]
     if mode == "fresh":
         create_work_directories((spool_path, generation_path), cluster_contract, root)
@@ -1218,7 +1299,10 @@ def execute_unicode_activation(
         ],
         "system_identifier": loaded_after["system_identifier"],
         "source_evidence_sha256": source_evidence["source_evidence_sha256"],
-        "mode": mode,
+        "mode": "reuse-committed-root" if retained_request is not None else mode,
+        "deployment_request_sha256": deployment_request_sha,
+        "deployment_request_fingerprint": deployment_request_fingerprint,
+        "source_admission_reused": retained_request is not None,
         "build_result": build_result,
         "artifact_verification": artifact_verified,
         "artifacts": artifacts_after,
