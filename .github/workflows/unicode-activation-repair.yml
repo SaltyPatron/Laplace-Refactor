@@ -4,22 +4,23 @@ on:
     branches: ['fix/unicode-activation-contract']
 permissions:
   contents: read
+concurrency:
+  group: product-activation-refs/heads/main
+  cancel-in-progress: false
 jobs:
-  source:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  diagnose:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Retain exact source for deployment repair
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/unicode-repair"
-          git archive --format=tar.gz HEAD -o "$RUNNER_TEMP/unicode-repair/source.tar.gz"
-          git rev-parse HEAD HEAD^{tree} > "$RUNNER_TEMP/unicode-repair/identity.txt"
+      - name: Execute installed Unicode operation without committing diagnostic state
+        run: python3 tools/postgresql/diagnose_unicode_activation.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          name: unicode-repair-source-${{ github.sha }}
-          path: ${{ runner.temp }}/unicode-repair/
+          name: unicode-native-diagnosis-${{ github.sha }}
+          path: ${{ runner.temp }}/unicode-native-diagnosis/
           retention-days: 7
+          if-no-files-found: error
