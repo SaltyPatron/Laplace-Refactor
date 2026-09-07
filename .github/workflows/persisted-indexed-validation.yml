@@ -7,7 +7,7 @@ permissions:
 jobs:
   integrate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: write
     outputs:
@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - name: Verify patch and preserve both existing and main ancestry
+      - name: Publish the exact diagnosed native-provider capacity correction
         id: source
         shell: bash
         run: |
@@ -25,38 +25,18 @@ jobs:
           git config user.email thesaltypatron@gmail.com
           git checkout -B fix/persisted-cognition-provider "$GITHUB_SHA"
           python3 - <<'PY'
-          import base64,hashlib,lzma,os
+          import hashlib
           from pathlib import Path
-          data=''.join(Path(f'.github/indexed-transfer/part{i}.b64').read_text() for i in range(1,5))
-          patch=lzma.decompress(base64.b64decode(data,validate=True))
-          assert len(patch)==95246 and hashlib.sha256(patch).hexdigest()=='22fe6acd360021ecfbee81b9a8d0ef41522718026df3ccd71b2bbd75adaa7da0'
-          Path(os.environ['RUNNER_TEMP'],'indexed.patch').write_bytes(patch)
+          p=Path('integrations/postgresql/extension/src/observation_cognition_persisted_pg.c')
+          old='    provider.maximum_candidate_records_per_expansion = state.memory_limit / 64u;'
+          new='    provider.maximum_candidate_records_per_expansion =\n        request.search_budget.transition_batch_capacity;\n    if (provider.maximum_candidate_records_per_expansion > state.memory_limit / 64u)\n        provider.maximum_candidate_records_per_expansion = state.memory_limit / 64u;'
+          text=p.read_text();assert text.count(old)==1;p.write_text(text.replace(old,new))
+          data=p.read_bytes();assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()=='d6677cb4d6e83170607b619add2d24cbeb3cdc58'
           PY
-          git merge --no-edit d47ff2d7898db2b15fcce703628545ea15224f27
-          git apply --check "$RUNNER_TEMP/indexed.patch"
-          git apply --index "$RUNNER_TEMP/indexed.patch"
+          git rm .github/indexed-transfer/part{1,2,3,4}.b64
+          git add integrations/postgresql/extension/src/observation_cognition_persisted_pg.c
           ./tools/tests/verify-requirements.sh
-          git commit -m 'Replace full-estate cognition loading with indexed native frontier batches and additive extension migration'
-          if ! git merge --no-edit origin/main; then
-            python3 - <<'PY'
-          from pathlib import Path
-          import subprocess
-          conflicts=subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],text=True).splitlines()
-          assert conflicts==['tools/tests/verify-requirements.sh'],conflicts
-          p=Path(conflicts[0]); out=[];inside=False
-          for line in p.read_text().splitlines(keepends=True):
-              if line.startswith('<<<<<<< '):assert not inside;inside=True
-              elif line.startswith('======='):assert inside
-              elif line.startswith('>>>>>>> '):assert inside;inside=False
-              else:out.append(line)
-          assert not inside
-          p.write_text(''.join(out))
-          PY
-            git add tools/tests/verify-requirements.sh
-            git commit -m 'Preserve indexed-cognition and Highway verification hooks'
-          fi
-          ./tools/tests/verify-requirements.sh
-          git diff --check
+          git commit -m 'Respect the admitted native candidate batch capacity in the PostgreSQL provider'
           git push origin HEAD:refs/heads/fix/persisted-cognition-provider
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           git bundle create "$RUNNER_TEMP/indexed-source.bundle" --all
