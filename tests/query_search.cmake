@@ -24,7 +24,8 @@ add_executable(laplace_observation_query_tests
     "${PROJECT_SOURCE_DIR}/tests/cognition_output_serialization_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_conversation_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_admission_tests.cpp"
-    "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_structural_provider_tests.cpp")
+    "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_structural_provider_tests.cpp"
+    "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_conversation_tests.cpp")
 target_link_libraries(laplace_observation_query_tests PRIVATE
     Laplace::QuerySearch GTest::gtest_main)
 target_compile_options(laplace_observation_query_tests PRIVATE
