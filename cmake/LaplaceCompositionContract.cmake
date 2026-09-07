@@ -19,6 +19,8 @@ function(laplace_configure_composition_contract contract_path output_path)
         "${contract_json}" trajectory maximum_run_per_carrier)
     string(JSON LAPLACE_COMPOSITION_STREAM_RECORD_TYPE GET
         "${contract_json}" producer record_type)
+    string(JSON LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE GET
+        "${contract_json}" occurrence_emission request_flag)
     string(JSON LAPLACE_COMPOSITION_PRESENCE_PROVIDER_ABI GET
         "${contract_json}" presence provider_abi)
     string(JSON LAPLACE_COMPOSITION_PRESENCE_SEMANTIC_RECEIPT_DOMAIN GET
@@ -35,6 +37,7 @@ function(laplace_configure_composition_contract contract_path output_path)
        OR NOT LAPLACE_COMPOSITION_TIER_MINIMUM EQUAL 0
        OR NOT LAPLACE_COMPOSITION_TIER_MAXIMUM EQUAL 31
        OR NOT LAPLACE_COMPOSITION_MAXIMUM_RUN_PER_CARRIER EQUAL 65535
+       OR NOT LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE EQUAL 1
        OR NOT LAPLACE_COMPOSITION_PRESENCE_PROVIDER_ABI EQUAL 1
        OR NOT LAPLACE_COMPOSITION_PRESENCE_SEMANTIC_RECEIPT_DOMAIN STREQUAL
             "laplace-composition-presence-semantic-receipt-v1"

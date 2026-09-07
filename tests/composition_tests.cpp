@@ -44,6 +44,7 @@ laplace_composition_request Request(
     result.operand_count = count;
     result.source_ordinal = source_ordinal;
     result.recipe_version = 1U;
+    result.flags = LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE;
     Fill(result.recipe_fingerprint, seed);
     Fill(result.geometry_epoch, static_cast<std::uint8_t>(seed + 0x20U));
     Fill(result.occurrence_context_fingerprint,
@@ -444,6 +445,79 @@ TEST(CompositionWorkingSet, BuildsDeduplicatedTopologicalDagAndProducer) {
 
     laplace_composition_working_set_destroy(&working_set);
     EXPECT_EQ(working_set, nullptr);
+}
+
+TEST(CompositionWorkingSet, CanonicalCalculationDoesNotImplicitlyEmitOccurrence) {
+    auto context = laplace_test_context(3U);
+    context.resource_grant.memory_bytes = UINT64_C(4) * 1024U * 1024U;
+    laplace_digest256 source{};
+    laplace_digest256 calculation_recipe{};
+    Fill(source, 0x11U);
+    Fill(calculation_recipe, 0x31U);
+    const std::array<laplace_composition_known_entity, 2> known{{
+        Atom('a', laplace_point4d{{1.0, 0.0, 0.0, 0.0}}, 0x51U),
+        Atom('b', laplace_point4d{{0.0, 1.0, 0.0, 0.0}}, 0x71U)}};
+    const std::array<laplace_composition_operand, 2> operands{{
+        {0U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U},
+        {1U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U}}};
+    auto request = Request(0U, operands.size(), 1U, 0x21U);
+    request.flags = 0U;
+    const laplace_composition_working_set_input input{
+        &context,
+        &source,
+        &calculation_recipe,
+        known.data(),
+        known.size(),
+        operands.data(),
+        operands.size(),
+        &request,
+        1U,
+        256U,
+        0U};
+    laplace_composition_working_set* working_set = nullptr;
+    ASSERT_EQ(laplace_composition_working_set_create(&input, &working_set),
+              LAPLACE_COMPOSITION_OK);
+    laplace_composition_working_set_summary summary{};
+    ASSERT_EQ(laplace_composition_working_set_summary_get(working_set, &summary),
+              LAPLACE_COMPOSITION_OK);
+    EXPECT_EQ(summary.occurrence_count, 0U);
+
+    PresenceFixture presence{
+        std::vector<std::uint8_t>(
+            static_cast<std::size_t>(summary.unique_entity_count),
+            LAPLACE_COMPOSITION_NOVEL),
+        std::vector<std::uint8_t>(
+            static_cast<std::size_t>(summary.unique_physicality_count),
+            LAPLACE_COMPOSITION_NOVEL),
+        2U,
+        1U,
+        false};
+    auto provider = Provider(presence);
+    laplace_composition_presence_receipt presence_receipt{};
+    ASSERT_EQ(laplace_composition_working_set_resolve_presence(
+                  working_set, &provider, &presence_receipt),
+              LAPLACE_COMPOSITION_OK);
+    laplace_framework_producer_v1 producer{};
+    ASSERT_EQ(laplace_composition_working_set_producer(working_set, &producer),
+              LAPLACE_COMPOSITION_OK);
+    laplace_framework_producer_plan plan{};
+    ASSERT_EQ(producer.prepare(
+                  producer.state, &context, &source, &calculation_recipe, &plan),
+              LAPLACE_FRAMEWORK_OK);
+    std::vector<laplace_framework_canonical_batch> batches;
+    for (std::uint64_t index = 0U; index < plan.batch_count; ++index) {
+        laplace_framework_canonical_batch batch{};
+        laplace_digest256 cursor{};
+        ASSERT_EQ(producer.next(producer.state, index, &batch, &cursor),
+                  LAPLACE_FRAMEWORK_OK);
+        batches.push_back(batch);
+    }
+    laplace_persistence_summary persisted{};
+    ASSERT_EQ(laplace_persistence_validate_stream(
+                  batches.data(), batches.size(), &persisted),
+              LAPLACE_PERSISTENCE_OK);
+    EXPECT_EQ(persisted.attestation_count, 0U);
+    laplace_composition_working_set_destroy(&working_set);
 }
 
 TEST(CompositionWorkingSet, PresenceFiltersExactStateBeforePublication) {

@@ -106,7 +106,7 @@ AS $fixture$
         ],
         ARRAY[
             ROW(
-                0::numeric, 2::numeric, source_ordinal, 1, 0,
+                0::numeric, 2::numeric, source_ordinal, 1, 1,
                 decode(repeat('b1', 32), 'hex'),
                 decode(repeat('c1', 32), 'hex'),
                 decode(repeat('d1', 32), 'hex')
@@ -180,13 +180,13 @@ AS $fixture$
         ],
         ARRAY[
             ROW(
-                0::numeric, 2::numeric, source_ordinal, 1, 0,
+                0::numeric, 2::numeric, source_ordinal, 1, 1,
                 decode(repeat('b1', 32), 'hex'),
                 decode(repeat('c1', 32), 'hex'),
                 decode(repeat('d1', 32), 'hex')
             )::laplace.composition_request_record,
             ROW(
-                2::numeric, 2::numeric, source_ordinal + 1::numeric, 1, 0,
+                2::numeric, 2::numeric, source_ordinal + 1::numeric, 1, 1,
                 decode(repeat('b1', 32), 'hex'),
                 decode(repeat('c1', 32), 'hex'),
                 decode(repeat('d2', 32), 'hex')

@@ -828,7 +828,7 @@ private:
             static_cast<std::uint64_t>(plan_.requests.size());
         plan_.requests.push_back(laplace_composition_request{
             first, static_cast<std::uint64_t>(count), index + 1u,
-            RecipeVersion, 0u,
+            RecipeVersion, 0U,
             input_.profile_declaration.recipe_program_fingerprint,
             input_.geometry_epoch, context});
         return index;
