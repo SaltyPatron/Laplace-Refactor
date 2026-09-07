@@ -608,7 +608,10 @@ Datum laplace_pg_cognition_observation_execute_persisted(PG_FUNCTION_ARGS) {
     memset(&provider, 0, sizeof(provider));
     provider.state = &state;
     provider.provider_fingerprint = state.provider_fingerprint;
-    provider.maximum_candidate_records_per_expansion = state.memory_limit / 64u;
+    provider.maximum_candidate_records_per_expansion =
+        request.search_budget.transition_batch_capacity;
+    if (provider.maximum_candidate_records_per_expansion > state.memory_limit / 64u)
+        provider.maximum_candidate_records_per_expansion = state.memory_limit / 64u;
     provider.enumerate_candidates = persisted_enumerate;
     provider.abi_major = LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR;
     provider.abi_minor = LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR;
