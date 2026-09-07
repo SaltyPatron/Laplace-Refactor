@@ -63,7 +63,11 @@ probe_output=$(
     "$native_probe"
 )
 
+estate="$test_root/unrelated-estate.sql"
+LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+    "$native_probe" --unrelated-estate "$estate"
 psql_arguments=(
+    -v "unrelated_estate=$estate"
     -X
     -h "$socket_directory"
     -p "$port"

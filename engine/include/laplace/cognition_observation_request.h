@@ -150,6 +150,25 @@ typedef struct laplace_cognition_observation_candidate_provider_v1 {
     uint32_t reserved;
 } laplace_cognition_observation_candidate_provider_v1;
 
+/* Read-only structural candidate projection over an already validated native
+ * physicality index. Persistence providers may supply only the exact records
+ * selected by indexed frontier predicates; all five structural relation laws
+ * remain owned by the same native generator as the in-memory search route.
+ * No search state, completion decision or testimony is manufactured here.
+ * Output is atomic: insufficient candidate/work capacity returns OVERFLOW with
+ * zero published candidates. Empty source arrays are valid no-op batches.
+ */
+LAPLACE_API laplace_observation_query_status
+laplace_observation_query_index_candidates_batch(
+    const laplace_observation_query_index* index,
+    const laplace_observation_query_binding* binding,
+    const laplace_id128* source_entity_ids,
+    size_t source_count,
+    laplace_cognition_observation_candidate* candidates,
+    size_t candidate_capacity,
+    size_t* candidate_count,
+    laplace_cognition_observation_candidate_usage* usage);
+
 /*
  * Native provider composition keeps physical candidate providers separate while
  * presenting one bounded candidate surface to the canonical cognition engine.

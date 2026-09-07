@@ -96,22 +96,3 @@ REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_obse
     @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality_trajectory_segment_record[],
     @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_request)
 FROM PUBLIC;
-
--- Durable-state route. The caller supplies only the execution context and typed
--- cognition request. Canonical physicality and packed trajectories are read from
--- the product tables, decoded and validated by the native trajectory/index code,
--- and the same native cognition engine executes the request. This route is
--- intentionally fail-closed when the complete persisted physicality boundary
--- cannot fit inside the declared memory grant; it never silently converts a
--- partial world scan into a complete cognition result.
-CREATE FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_execute_persisted(
-    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
-    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_request)
-RETURNS @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_result
-AS 'MODULE_PATHNAME', 'laplace_pg_cognition_observation_execute_persisted'
-LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
-
-REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_execute_persisted(
-    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
-    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_request)
-FROM PUBLIC;

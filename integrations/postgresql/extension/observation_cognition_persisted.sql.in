@@ -1,0 +1,32 @@
+-- Sparse structural acceleration. PostgreSQL maintains these indexes atomically
+-- with canonical writes; no interactive rebuild or all-pairs relation state.
+CREATE FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.trajectory_entity_ids(bytea)
+RETURNS bytea[] AS 'MODULE_PATHNAME', 'laplace_pg_trajectory_entity_ids'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.trajectory_entity_ids(bytea) FROM PUBLIC;
+CREATE INDEX physicality_entity_lookup_idx ON @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality(entity_id, physicality_id);
+CREATE INDEX physicality_constituent_lookup_idx ON @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality
+USING gin (@LAPLACE_OBSERVATION_COGNITION_SCHEMA@.trajectory_entity_ids(trajectory))
+WHERE physicality_type = 1;
+
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_answer AS (
+    entity_id bytea, relation_id bytea, path_id bytea, terminal_state_id bytea,
+    total_cost numeric(20,0), transition_count numeric(20,0),
+    independent_evidence_root_count numeric(20,0), relation_family integer,
+    source_layer integer, direction integer, rank integer, flags integer
+);
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_persisted_result AS (
+    execution @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_result,
+    answers @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_answer[],
+    provider_rows_fetched numeric(20,0), provider_trajectory_bytes numeric(20,0),
+    provider_batch_count numeric(20,0), provider_readset_id bytea
+);
+CREATE FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_execute_persisted(
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_request)
+RETURNS @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_persisted_result
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_observation_execute_persisted'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_execute_persisted(
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_request) FROM PUBLIC;

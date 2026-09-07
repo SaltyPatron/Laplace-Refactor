@@ -15,3 +15,5 @@ python3 "$repo_root/tests/postgresql_perfcache_configuration_tests.py"
 python3 "$repo_root/tests/product_release_capacity_tests.py"
 python3 "$repo_root/tests/postgresql_public_readback_tests.py"
 python3 "$repo_root/tests/unicode_retained_admission_tests.py"
+
+python3 "$repo_root/tests/indexed_cognition_upgrade_tests.py"

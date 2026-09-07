@@ -1,4 +1,5 @@
 #include "laplace/observation_query.h"
+#include "laplace/cognition_observation_request.h"
 
 #include <algorithm>
 #include <array>
@@ -531,6 +532,121 @@ TEST(ObservationQuery, PartialRequestedResultSetCannotSatisfyCognition) {
     EXPECT_EQ(resolved.disposition, LAPLACE_COGNITION_OBLIGATION_UNKNOWN);
     EXPECT_TRUE(Zero(resolved.value_id));
     EXPECT_FALSE(Zero(resolved.resolution_receipt_id));
+}
+
+
+TEST(ObservationCandidateBatch, ReusesAllFiveCanonicalStructuralRelations) {
+    const auto fixture = BuildFixture();
+    for (const auto relation : {LAPLACE_OBSERVATION_QUERY_CONTAINER,
+            LAPLACE_OBSERVATION_QUERY_CONSTITUENT, LAPLACE_OBSERVATION_QUERY_PREDECESSOR,
+            LAPLACE_OBSERVATION_QUERY_SUCCESSOR, LAPLACE_OBSERVATION_QUERY_COOCCUR}) {
+        const auto source = relation == LAPLACE_OBSERVATION_QUERY_CONSTITUENT ? fixture.root : fixture.b;
+        const auto binding = Binding(source, static_cast<std::uint32_t>(relation));
+        auto index = CreateIndex(fixture, {binding});
+        std::array<laplace_cognition_observation_candidate, 16> candidates{};
+        std::size_t count = 0;
+        laplace_cognition_observation_candidate_usage usage{};
+        ASSERT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+            &source, 1U, candidates.data(), candidates.size(), &count, &usage), LAPLACE_OBSERVATION_QUERY_OK);
+        ASSERT_GT(count, 0U);
+        for (std::size_t i = 0; i < count; ++i) {
+            const auto& candidate = candidates[i];
+            EXPECT_EQ(candidate.source_state_index, 0U);
+            EXPECT_EQ(candidate.relation_family, static_cast<std::uint32_t>(relation));
+            EXPECT_EQ(candidate.source_layer, static_cast<std::uint32_t>(LAPLACE_OBSERVATION_QUERY_SOURCE_PHYSICALITY));
+            EXPECT_TRUE(Same(candidate.observation_fingerprint, fixture.physicality.physicality_id));
+            EXPECT_TRUE(Zero(candidate.evidence_root_fingerprint));
+        }
+        EXPECT_EQ(usage.database_operations, 0U);
+        EXPECT_EQ(usage.crossing_count, count);
+    }
+}
+
+TEST(ObservationCandidateBatch, OrderedPredecessorPreservesRunEndAndDirection) {
+    const auto fixture = BuildFixture();
+    const auto binding = Binding(fixture.b, LAPLACE_OBSERVATION_QUERY_PREDECESSOR);
+    auto index = CreateIndex(fixture, {binding});
+    laplace_cognition_observation_candidate candidate{};
+    laplace_cognition_observation_candidate_usage usage{};
+    std::size_t count = 0;
+    ASSERT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+        &fixture.b, 1U, &candidate, 1U, &count, &usage), LAPLACE_OBSERVATION_QUERY_OK);
+    ASSERT_EQ(count, 1U);
+    EXPECT_EQ(std::memcmp(candidate.target_entity_id.bytes, fixture.a.bytes, 16), 0);
+    EXPECT_EQ(candidate.source_logical_ordinal, 3U);
+    EXPECT_EQ(candidate.target_logical_ordinal, 2U);
+    EXPECT_EQ(candidate.multiplicity, 1U);
+    EXPECT_EQ(candidate.direction, static_cast<std::uint32_t>(LAPLACE_OBSERVATION_QUERY_DIRECTION_REVERSE));
+}
+
+TEST(ObservationCandidateBatch, FrontierBatchPreservesRepeatedSourceOccurrences) {
+    const auto fixture = BuildFixture();
+    const auto binding = Binding(fixture.a, LAPLACE_OBSERVATION_QUERY_SUCCESSOR);
+    auto index = CreateIndex(fixture, {binding});
+    const std::array<laplace_id128, 3> sources{fixture.a, fixture.b, fixture.a};
+    std::array<laplace_cognition_observation_candidate, 16> combined{};
+    laplace_cognition_observation_candidate_usage usage{};
+    std::size_t count = 0, cursor = 0;
+    ASSERT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+        sources.data(), sources.size(), combined.data(), combined.size(), &count, &usage), LAPLACE_OBSERVATION_QUERY_OK);
+    for (std::size_t source = 0; source < sources.size(); ++source) {
+        std::array<laplace_cognition_observation_candidate, 8> single{};
+        std::size_t single_count = 0;
+        ASSERT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+            &sources[source], 1U, single.data(), single.size(), &single_count, &usage), LAPLACE_OBSERVATION_QUERY_OK);
+        for (std::size_t i = 0; i < single_count; ++i) {
+            ASSERT_LT(cursor, count);
+            single[i].source_state_index = static_cast<std::uint64_t>(source);
+            EXPECT_EQ(std::memcmp(&single[i], &combined[cursor], sizeof(single[i])), 0);
+            ++cursor;
+        }
+    }
+    EXPECT_EQ(cursor, count);
+}
+
+TEST(ObservationCandidateBatch, CapacityFailureDoesNotPublishAPrefix) {
+    const auto fixture = BuildFixture();
+    const auto binding = Binding(fixture.root, LAPLACE_OBSERVATION_QUERY_CONSTITUENT);
+    auto index = CreateIndex(fixture, {binding});
+    laplace_cognition_observation_candidate sentinel;
+    std::memset(&sentinel, 0xa5, sizeof(sentinel));
+    auto output = sentinel;
+    std::size_t count = 99;
+    laplace_cognition_observation_candidate_usage usage{};
+    ASSERT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+        &fixture.root, 1U, &output, 1U, &count, &usage), LAPLACE_OBSERVATION_QUERY_OVERFLOW);
+    EXPECT_EQ(count, 0U);
+    EXPECT_EQ(std::memcmp(&output, &sentinel, sizeof(output)), 0);
+    EXPECT_EQ(usage.crossing_count, 0U);
+}
+
+TEST(ObservationCandidateBatch, InvalidBindingAndImpossibleInputCountsAreRejected) {
+    const auto fixture = BuildFixture();
+    auto binding = Binding(fixture.a, LAPLACE_OBSERVATION_QUERY_CONTAINER);
+    auto index = CreateIndex(fixture, {binding});
+    std::size_t count = 99;
+    laplace_cognition_observation_candidate output{};
+    laplace_cognition_observation_candidate_usage usage{};
+    binding.binding_fingerprint.bytes[0] ^= 1U;
+    EXPECT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+        &fixture.a, 1U, &output, 1U, &count, &usage), LAPLACE_OBSERVATION_QUERY_BINDING_INVALID);
+    EXPECT_EQ(count, 0U);
+    EXPECT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+        &fixture.a, SIZE_MAX, &output, 1U, &count, &usage), LAPLACE_OBSERVATION_QUERY_OVERFLOW);
+    EXPECT_EQ(count, 0U);
+}
+
+TEST(ObservationCandidateBatch, EmptyBatchDoesNotInventCandidatesOrWork) {
+    const auto fixture = BuildFixture();
+    const auto binding = Binding(fixture.a, LAPLACE_OBSERVATION_QUERY_CONTAINER);
+    auto index = CreateIndex(fixture, {binding});
+    std::size_t count = 99;
+    laplace_cognition_observation_candidate_usage usage{};
+    EXPECT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+        nullptr, 0U, nullptr, 0U, &count, &usage), LAPLACE_OBSERVATION_QUERY_OK);
+    EXPECT_EQ(count, 0U);
+    EXPECT_EQ(usage.rows_examined, 0U);
+    EXPECT_EQ(usage.index_plan_count, 0U);
 }
 
 }  // namespace

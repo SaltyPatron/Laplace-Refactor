@@ -245,6 +245,74 @@ def runner_sql(
     return unicodectl.parse_single_json(completed.stdout, label), receipt
 
 
+def reconcile_indexed_cognition(
+    plan: dict[str, Any], cluster_contract: dict[str, Any], package: dict[str, Any]
+) -> dict[str, Any]:
+    """Apply the packaged additive extension update, preserving existing state."""
+    relative = f"pgsql-{plan['postgresql_major']}/share/extension/laplace--1.0.0--1.0.1.sql"
+    path = Path(plan["package_root"]) / relative
+    entries = [item for item in package["files"] if item.get("path") == relative]
+    if (len(entries) != 1 or entries[0].get("kind") != "file"
+            or path.is_symlink() or not path.is_file() or path.stat().st_size > 65536
+            or entries[0].get("sha256") != clusterctl.sha256_file(path)):
+        raise RunnerActivationError("packaged indexed cognition migration bytes differ")
+    sql = """BEGIN;
+SET LOCAL lock_timeout = '30s';
+SET LOCAL statement_timeout = '300s';
+DO $migration$
+DECLARE version text; owner name; target record;
+BEGIN
+    SELECT e.extversion, pg_catalog.pg_get_userbyid(e.extowner) INTO STRICT version, owner
+      FROM pg_catalog.pg_extension e WHERE e.extname='laplace';
+    IF owner <> current_user THEN RAISE EXCEPTION 'extension update requires its actual owner'; END IF;
+    IF version = '1.0.0' THEN
+        ALTER EXTENSION laplace UPDATE TO '1.0.1';
+    ELSIF version <> '1.0.1' THEN
+        RAISE EXCEPTION 'unsupported indexed cognition predecessor version: %', version;
+    END IF;
+    FOR target IN SELECT * FROM (VALUES
+        ('laplace.trajectory_entity_ids(bytea)', 'laplace_pg_trajectory_entity_ids'),
+        ('laplace.cognition_observation_execute_persisted(laplace.execution_context,laplace.cognition_observation_request)',
+         'laplace_pg_cognition_observation_execute_persisted')) AS t(signature,symbol)
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_catalog.pg_proc p
+            JOIN pg_catalog.pg_language l ON l.oid=p.prolang
+            JOIN pg_catalog.pg_depend d ON d.classid='pg_catalog.pg_proc'::regclass AND d.objid=p.oid
+              AND d.refclassid='pg_catalog.pg_extension'::regclass AND d.deptype='e'
+            JOIN pg_catalog.pg_extension e ON e.oid=d.refobjid
+            WHERE p.oid=pg_catalog.to_regprocedure(target.signature) AND e.extname='laplace'
+              AND p.proowner=e.extowner AND l.lanname='c' AND p.probin='laplace_pg'
+              AND p.prosrc=target.symbol AND NOT p.prosecdef AND p.proisstrict
+        ) THEN RAISE EXCEPTION 'indexed cognition binding is not owned native extension code: %',target.signature;
+        END IF;
+    END LOOP;
+    IF (SELECT count(*) FROM pg_catalog.pg_index i
+        WHERE i.indexrelid IN ('laplace.physicality_constituent_lookup_idx'::regclass,
+                              'laplace.physicality_entity_lookup_idx'::regclass)
+          AND i.indisvalid AND i.indisready) <> 2 THEN
+        RAISE EXCEPTION 'indexed cognition indexes are not ready';
+    END IF;
+END $migration$;
+SELECT pg_catalog.json_build_object('schema','laplace.indexed-cognition-upgrade/v1',
+    'version',extversion,'owner',current_user,'native_bindings',2,'ready_indexes',2)::text
+  FROM pg_catalog.pg_extension WHERE extname='laplace';
+COMMIT;
+"""
+    result, command = runner_sql(plan, cluster_contract, sql,
+        "upgrade-indexed-cognition", RUNNER_USER,
+        cluster_contract["instance"]["admin_role"], 360)
+    expected = {"schema": "laplace.indexed-cognition-upgrade/v1", "version": "1.0.1",
+                "owner": cluster_contract["instance"]["admin_role"],
+                "native_bindings": 2, "ready_indexes": 2}
+    if result != expected:
+        raise RunnerActivationError("indexed cognition upgrade result differs")
+    receipt = dict(result, package_id=package["package_id"], script_sha256=entries[0]["sha256"],
+                   command_receipt=command)
+    receipt["receipt_sha256"] = document_identity(receipt, "receipt_sha256")
+    return receipt
+
+
 def reconcile_public_readback(
     plan: dict[str, Any], cluster_contract: dict[str, Any], package: dict[str, Any]
 ) -> dict[str, Any]:
@@ -449,6 +517,8 @@ def execute(
     plan_path = validate_cluster_result(cluster_result, package_id)
     plan = load_json(plan_path)
     ensure_cluster_running(plan, cluster_contract, cluster_result)
+    indexed_cognition = reconcile_indexed_cognition(plan, cluster_contract, package)
+    write_json(cluster_evidence / "indexed-cognition-upgrade.json", indexed_cognition)
     public_readback = reconcile_public_readback(plan, cluster_contract, package)
     write_json(cluster_evidence / "public-readback-bindings.json", public_readback)
 
@@ -536,6 +606,7 @@ def execute(
             "activation_receipt_sha256"
         ],
         "public_readback_receipt_sha256": public_readback["receipt_sha256"],
+        "indexed_cognition_receipt_sha256": indexed_cognition["receipt_sha256"],
         "unicode_activation_receipt_sha256": unicode_result["receipt_sha256"],
         "highway_activation_receipt_sha256": highway_result["receipt_sha256"],
         "cluster_result": str(cluster_result_path),

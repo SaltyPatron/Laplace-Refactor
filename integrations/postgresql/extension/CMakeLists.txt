@@ -330,12 +330,25 @@ if(BUILD_TESTING)
         LAPLACE_TEST_PG_MACHINE_EXCEPTION_CAPABILITY_DRIFT)
 endif()
 
+# Retain the original install script for historical package validation. Version
+# 1.0.1 adds this operation through the identical delta on fresh and existing nodes.
+set(persisted_cognition_upgrade_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.0--1.0.1.sql")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/observation_cognition_persisted.sql.in"
+    "${persisted_cognition_upgrade_sql}" @ONLY)
+set(current_extension_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.1.sql")
+file(READ "${extension_sql}" previous_schema)
+file(READ "${persisted_cognition_upgrade_sql}" persisted_cognition_delta)
+file(WRITE "${current_extension_sql}" "${previous_schema}\n${persisted_cognition_delta}")
+
 install(TARGETS laplace_pg
     LIBRARY DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/lib")
 install(FILES "${extension_control}" "${extension_sql}"
+    "${current_extension_sql}" "${persisted_cognition_upgrade_sql}"
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace-public-readback.sql"
     DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/share/extension")
 
 set(LAPLACE_POSTGRES_EXTENSION_TARGET laplace_pg PARENT_SCOPE)
-set(LAPLACE_POSTGRES_EXTENSION_SQL "${extension_sql}" PARENT_SCOPE)
+set(LAPLACE_POSTGRES_EXTENSION_SQL "${current_extension_sql}" PARENT_SCOPE)
 set(LAPLACE_POSTGRES_EXTENSION_CONTROL "${extension_control}" PARENT_SCOPE)
