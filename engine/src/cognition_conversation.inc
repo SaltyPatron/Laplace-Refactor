@@ -2,11 +2,13 @@
 
 #include "blake3.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <new>
+#include <stdexcept>
 #include <vector>
 
 namespace laplace_cognition_conversation_detail {
@@ -144,8 +146,9 @@ struct NativeResultOwner final {
 }  // namespace laplace_cognition_conversation_detail
 
 extern "C" laplace_cognition_conversation_status
-laplace_cognition_conversation_execute(
+laplace_cognition_conversation_execute_encoded(
     const laplace_cognition_conversation_request* const request,
+    const std::uint32_t output_encoding,
     const std::uint8_t* const previous_frame,
     const std::size_t previous_frame_bytes,
     const laplace_cognition_observation_candidate_provider_v1* const cognition_provider,
@@ -171,6 +174,10 @@ laplace_cognition_conversation_execute(
         result == nullptr) {
         return LAPLACE_COGNITION_CONVERSATION_INVALID_ARGUMENT;
     }
+    if (output_encoding != LAPLACE_COGNITION_OUTPUT_UTF8 &&
+        output_encoding != LAPLACE_COGNITION_OUTPUT_OCTETS) {
+        return LAPLACE_COGNITION_CONVERSATION_ENCODING_INVALID;
+    }
     if (!RequestVersionValid(*request)) {
         return LAPLACE_COGNITION_CONVERSATION_INVALID_VERSION;
     }
@@ -183,7 +190,13 @@ laplace_cognition_conversation_execute(
 
     std::vector<std::uint8_t> staged_output;
     try {
-        staged_output.resize(output_capacity);
+        const auto staging_capacity = static_cast<std::size_t>(
+            std::min<std::uint64_t>(
+                static_cast<std::uint64_t>(output_capacity),
+                request->materialization.maximum_output_bytes));
+        staged_output.resize(staging_capacity);
+    } catch (const std::length_error&) {
+        return LAPLACE_COGNITION_CONVERSATION_CAPACITY;
     } catch (const std::bad_alloc&) {
         return LAPLACE_COGNITION_CONVERSATION_MEMORY_FAILURE;
     }
@@ -227,9 +240,10 @@ laplace_cognition_conversation_execute(
     }
 
     std::size_t staged_output_bytes = 0U;
-    if (laplace_cognition_realization_materialize_utf8(
+    if (laplace_cognition_realization_materialize_encoded(
             &resolved.realization, &request->materialization,
-            materialization_provider, staged_output.data(), staged_output.size(),
+            materialization_provider, output_encoding,
+            staged_output.data(), staged_output.size(),
             &staged_output_bytes, &resolved.materialization_receipt) !=
         LAPLACE_COGNITION_MATERIALIZATION_OK) {
         return LAPLACE_COGNITION_CONVERSATION_MATERIALIZATION_FAILURE;
@@ -268,4 +282,28 @@ laplace_cognition_conversation_execute(
     *next_discourse_frame_bytes = staged_frame_bytes;
     *result = resolved;
     return LAPLACE_COGNITION_CONVERSATION_OK;
+}
+
+extern "C" laplace_cognition_conversation_status
+laplace_cognition_conversation_execute(
+    const laplace_cognition_conversation_request* const request,
+    const std::uint8_t* const previous_frame,
+    const std::size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* const cognition_provider,
+    const laplace_cognition_realization_provider_v1* const realization_provider,
+    const laplace_cognition_materialization_provider_v1* const materialization_provider,
+    std::uint8_t* const output,
+    const std::size_t output_capacity,
+    std::size_t* const output_bytes,
+    std::uint8_t* const next_discourse_frame,
+    const std::size_t next_discourse_frame_capacity,
+    std::size_t* const next_discourse_frame_bytes,
+    laplace_cognition_conversation_result* const result) {
+    return laplace_cognition_conversation_execute_encoded(
+        request, LAPLACE_COGNITION_OUTPUT_UTF8,
+        previous_frame, previous_frame_bytes,
+        cognition_provider, realization_provider, materialization_provider,
+        output, output_capacity, output_bytes,
+        next_discourse_frame, next_discourse_frame_capacity,
+        next_discourse_frame_bytes, result);
 }
