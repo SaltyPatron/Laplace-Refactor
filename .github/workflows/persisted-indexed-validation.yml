@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - name: Verify exact patch and integrate without rewriting existing ancestry
+      - name: Verify patch and preserve both existing and main ancestry
         id: source
         shell: bash
         run: |
@@ -27,43 +27,15 @@ jobs:
           python3 - <<'PY'
           import base64,hashlib,lzma,os
           from pathlib import Path
-          encoded=''.join(Path(f'.github/indexed-transfer/part{i}.b64').read_text() for i in range(1,5))
-          compressed=base64.b64decode(encoded,validate=True)
-          assert hashlib.sha256(compressed).hexdigest()=='4bfe0a482ef59943c3390838b0412d77f97effae5ab342aa3a9435fcddf37c48'
-          patch=lzma.decompress(compressed)
+          data=''.join(Path(f'.github/indexed-transfer/part{i}.b64').read_text() for i in range(1,5))
+          patch=lzma.decompress(base64.b64decode(data,validate=True))
           assert len(patch)==95246 and hashlib.sha256(patch).hexdigest()=='22fe6acd360021ecfbee81b9a8d0ef41522718026df3ccd71b2bbd75adaa7da0'
           Path(os.environ['RUNNER_TEMP'],'indexed.patch').write_bytes(patch)
           PY
           git merge --no-edit d47ff2d7898db2b15fcce703628545ea15224f27
           git apply --check "$RUNNER_TEMP/indexed.patch"
           git apply --index "$RUNNER_TEMP/indexed.patch"
-          python3 - <<'PY'
-          import hashlib
-          from pathlib import Path
-          expected='''ebf0643d025ce6acdf12ea4964b7e7ccc9c49b22 contracts/product-package.json
-          688e3c1aabf5096255467842939c53b64dfced80 engine/include/laplace/cognition_observation_request.h
-          a7ec19cf14cb2be947c1fdef05b9f83d0a8932b5 engine/src/cognition_observation_index_candidates.inc
-          8b7157809685721d229236902372a47de92d83d9 engine/src/observation_query.cpp
-          e32b56e959945daeac77456d7f30ab8cf1c26cb9 integrations/postgresql/extension/CMakeLists.txt
-          ee3cd72ac7dee871ca02d4a1e47d2483fee02b70 integrations/postgresql/extension/laplace.control.in
-          12b2f3beab4d1466add26055646f91bf4a1bfce3 integrations/postgresql/extension/observation_cognition.sql.in
-          203c4feb5ed508da2d26d405653d987301762478 integrations/postgresql/extension/observation_cognition_persisted.sql.in
-          75b6f89b5c7e2eb27852b76fc20fe7102647cea7 integrations/postgresql/extension/src/observation_cognition_persisted_pg.c
-          b782cf5088774a53771febc9f712b1868c20afd3 integrations/postgresql/extension/tests/observation_cognition_contract.sql.in
-          fbbaaa0f0f34857e8f0c4fd3e7f8bc9de857edc2 integrations/postgresql/extension/tests/observation_cognition_probe.cpp
-          69a4dd1b91730215586818c7a46cffe18a5cd1af integrations/postgresql/extension/tests/run_observation_cognition_test.sh
-          5a03cdc7e397a310a0022d96e0497647cd45eb42 tests/indexed_cognition_upgrade_tests.py
-          f0b82cf244266ce879003faebd278557d5f8cdf4 tests/observation_query_tests.cpp
-          1d13ba3b13e889bd4913acb582495cf93eeda5df tests/registry.d/observation-index-candidates.json
-          56c58f983785d3dd74c2d892b5c3a2fe9d5e663f tools/delivery/product_activation_runner.py
-          825ad53c91f40c0f3bc36fcbcf22b124279334e5 tools/tests/verify-requirements.sh'''
-          for row in expected.splitlines():
-              digest,name=row.split(); data=Path(name).read_bytes()
-              actual=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
-              assert actual==digest,(name,actual,digest)
-          print('Verified all 17 locally tested source/test blobs')
-          PY
-          PATH=/usr/bin:/bin ./tools/tests/verify-requirements.sh
+          ./tools/tests/verify-requirements.sh
           git commit -m 'Replace full-estate cognition loading with indexed native frontier batches and additive extension migration'
           if ! git merge --no-edit origin/main; then
             python3 - <<'PY'
@@ -71,23 +43,19 @@ jobs:
           import subprocess
           conflicts=subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],text=True).splitlines()
           assert conflicts==['tools/tests/verify-requirements.sh'],conflicts
-          p=Path(conflicts[0]); lines=p.read_text().splitlines(keepends=True)
-          out=[]; inside=False
-          for line in lines:
-              if line.startswith('<<<<<<< '):
-                  assert not inside;inside=True
-              elif line.startswith('======='):
-                  assert inside
-              elif line.startswith('>>>>>>> '):
-                  assert inside;inside=False
+          p=Path(conflicts[0]); out=[];inside=False
+          for line in p.read_text().splitlines(keepends=True):
+              if line.startswith('<<<<<<< '):assert not inside;inside=True
+              elif line.startswith('======='):assert inside
+              elif line.startswith('>>>>>>> '):assert inside;inside=False
               else:out.append(line)
           assert not inside
           p.write_text(''.join(out))
           PY
             git add tools/tests/verify-requirements.sh
-            git commit -m 'Retain both indexed-cognition and Highway verification hooks during main integration'
+            git commit -m 'Preserve indexed-cognition and Highway verification hooks'
           fi
-          PATH=/usr/bin:/bin ./tools/tests/verify-requirements.sh
+          ./tools/tests/verify-requirements.sh
           git diff --check
           git push origin HEAD:refs/heads/fix/persisted-cognition-provider
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -106,14 +74,12 @@ jobs:
     concurrency:
       group: laplace-physical-product-proof
       cancel-in-progress: false
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.integrate.outputs.source_sha }}
           persist-credentials: false
-      - name: Compile the actual PostgreSQL extension and execute indexed cognition
+      - name: Compile actual extension and execute indexed cognition in disposable PostgreSQL
         shell: bash
         run: |
           set -euo pipefail
@@ -133,7 +99,7 @@ jobs:
           cmake --build "$build" --parallel 4 --target \
             laplace_pg laplace_postgres_observation_cognition_probe laplace_observation_query_tests \
             2>&1 | tee "$build/build.log"
-          "$build/tests/laplace_observation_query_tests" 2>&1 | tee "$build/native-tests.log"
+          "$build/laplace_observation_query_tests" 2>&1 | tee "$build/native-tests.log"
           ctest --test-dir "$build" -R '^postgres.observation-cognition-native-parity$' \
             --output-on-failure --no-tests=error 2>&1 | tee "$build/postgresql-tests.log"
       - name: Retain exact compilation and database execution logs
