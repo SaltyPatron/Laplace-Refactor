@@ -125,7 +125,7 @@ def validate_activation_contract(
     source_contract: dict[str, Any],
     postgresql_contract: dict[str, Any],
 ) -> None:
-    if contract.get("schema") != CONTRACT_SCHEMA or contract.get("version") != "1.0.0":
+    if contract.get("schema") != CONTRACT_SCHEMA or contract.get("version") != "1.1.0":
         raise UnicodeActivationError("Unicode product activation contract is invalid")
     authority = contract.get("authority")
     if not isinstance(authority, dict):
@@ -247,8 +247,7 @@ def validate_activation_contract(
         "normalization_composition_count": 961,
         "tier0_artifact_bytes": 762586574,
         "reverse_artifact_bytes": 117440896,
-        "tier0_artifact_digest": "8950d9867428fd660f8a49377b0c4a693b57ef0a9807ea189e425d0bb847c291",
-        "reverse_artifact_digest": "6f33df84440a8f4bb19afa608befac11f17ad68123d06e043c2be7451f6ab7b1",
+        "root_receipt": "1f3b0ddf7283401bcf91e9a8ed70f00e1bd317eff5c78dcebca22d5ad6b9c75e",
         "plan_manifest_fingerprint": "3a546d581afc1c4caf78c1c235aafd41b283984325d5717b188211d1091cb9e5",
         "perfcache_artifact_count": 2,
         "perfcache_dependency_count": 1,
@@ -256,6 +255,16 @@ def validate_activation_contract(
     }
     if expected != exact:
         raise UnicodeActivationError("Unicode product result boundary differs")
+    reference = contract.get("artifact_reference", {})
+    if not isinstance(reference, dict) or any(reference.get(key) != value for key, value in {
+        "schema": "laplace.unicode-artifact-reference/v1",
+        "package_path": "bin/laplace_unicode_artifact_verify",
+        "activation_epoch_id": "42" * 16,
+        "activation_epoch_fingerprint": "43" * 32,
+        "tier0_artifact_digest": "8950d9867428fd660f8a49377b0c4a693b57ef0a9807ea189e425d0bb847c291",
+        "reverse_artifact_digest": "6f33df84440a8f4bb19afa608befac11f17ad68123d06e043c2be7451f6ab7b1",
+    }.items()):
+        raise UnicodeActivationError("Unicode artifact reference boundary differs")
     receipt = contract.get("receipt", {})
     if (
         receipt.get("schema") != RECEIPT_SCHEMA
@@ -548,8 +557,16 @@ def render_inspection_sql() -> str:
   'activation_epoch_fingerprint', encode(active.epoch_fingerprint, 'hex'),
   'generation_count', (SELECT count(*) FROM laplace.unicode_root_generation),
   'deposit_count', (SELECT count(*) FROM laplace.unicode_root_deposit_receipt),
-  'entity_count', (SELECT count(*) FROM laplace.entity),
-  'physicality_count', (SELECT count(*) FROM laplace.physicality),
+  'entity_count', (SELECT count(*) FROM laplace.entity AS owned
+    WHERE NOT EXISTS (SELECT 1 FROM laplace.unicode_root_generation)
+       OR EXISTS (SELECT 1 FROM laplace.attestation AS witness
+          JOIN laplace.unicode_root_generation AS root ON root.root_receipt=witness.source_fingerprint
+          WHERE witness.attestation_kind=3 AND witness.entity_id=owned.entity_id)),
+  'physicality_count', (SELECT count(*) FROM laplace.physicality AS owned
+    WHERE NOT EXISTS (SELECT 1 FROM laplace.unicode_root_generation)
+       OR EXISTS (SELECT 1 FROM laplace.attestation AS witness
+          JOIN laplace.unicode_root_generation AS root ON root.root_receipt=witness.source_fingerprint
+          WHERE witness.attestation_kind=3 AND witness.physicality_id=owned.physicality_id)),
   'atom_count', (SELECT count(*) FROM laplace.attestation
                  WHERE source_fingerprint =
                        (SELECT root_receipt FROM laplace.unicode_root_generation)
@@ -631,35 +648,36 @@ DECLARE active laplace.perfcache_active_control%ROWTYPE;
 BEGIN
   SELECT * INTO STRICT build FROM unicode_product_build;
   SELECT * INTO STRICT active FROM laplace.perfcache_active_control WHERE singleton;
-  IF build.activation_epoch_id <> decode('{identities['activation_epoch_id']}','hex')
-     OR build.activation_epoch_fingerprint <> decode('{identities['activation_epoch_fingerprint']}','hex')
-     OR build.total_frame_count <> {expected['total_frame_count']}
-     OR build.entity_count <> {expected['entity_count']}
-     OR build.physicality_count <> {expected['physicality_count']}
-     OR build.atom_count <> {expected['atom_count']}
-     OR build.ducet_position_count <> {expected['ducet_position_count']}
-     OR build.ducet_contraction_count <> {expected['ducet_contraction_count']}
-     OR build.normalization_composition_count <> {expected['normalization_composition_count']}
-     OR build.tier0_artifact_bytes <> {expected['tier0_artifact_bytes']}
-     OR build.reverse_artifact_bytes <> {expected['reverse_artifact_bytes']}
-     OR build.tier0_artifact_digest <> decode('{expected['tier0_artifact_digest']}','hex')
-     OR build.reverse_artifact_digest <> decode('{expected['reverse_artifact_digest']}','hex')
-     OR build.plan_manifest_fingerprint <> decode('{expected['plan_manifest_fingerprint']}','hex')
-     OR build.perfcache_artifact_count <> {expected['perfcache_artifact_count']}
-     OR build.perfcache_dependency_count <> {expected['perfcache_dependency_count']}
-     OR build.reverse_dependency_module_id <> decode('{expected['reverse_dependency_module_id']}','hex')
-     OR build.reverse_dependency_artifact_digest <> build.tier0_artifact_digest
-     OR active.sequence <> 1 OR NOT active.active_present
-     OR active.activation_epoch_id <> build.activation_epoch_id
-     OR active.epoch_fingerprint <> build.activation_epoch_fingerprint
-     OR (SELECT count(*) FROM laplace.entity) <> {expected['entity_count']}
-     OR (SELECT count(*) FROM laplace.physicality) <> {expected['physicality_count']}
+  IF build.activation_epoch_id IS DISTINCT FROM decode('{identities['activation_epoch_id']}','hex')
+     OR build.activation_epoch_fingerprint IS DISTINCT FROM decode('{identities['activation_epoch_fingerprint']}','hex')
+     OR build.total_frame_count IS DISTINCT FROM {expected['total_frame_count']}
+     OR build.entity_count IS DISTINCT FROM {expected['entity_count']}
+     OR build.physicality_count IS DISTINCT FROM {expected['physicality_count']}
+     OR build.atom_count IS DISTINCT FROM {expected['atom_count']}
+     OR build.ducet_position_count IS DISTINCT FROM {expected['ducet_position_count']}
+     OR build.ducet_contraction_count IS DISTINCT FROM {expected['ducet_contraction_count']}
+     OR build.normalization_composition_count IS DISTINCT FROM {expected['normalization_composition_count']}
+     OR build.tier0_artifact_bytes IS DISTINCT FROM {expected['tier0_artifact_bytes']}
+     OR build.reverse_artifact_bytes IS DISTINCT FROM {expected['reverse_artifact_bytes']}
+     OR build.root_receipt IS DISTINCT FROM decode('{expected['root_receipt']}','hex')
+     OR octet_length(build.tier0_artifact_digest) IS DISTINCT FROM 32
+     OR octet_length(build.reverse_artifact_digest) IS DISTINCT FROM 32
+     OR build.plan_manifest_fingerprint IS DISTINCT FROM decode('{expected['plan_manifest_fingerprint']}','hex')
+     OR build.perfcache_artifact_count IS DISTINCT FROM {expected['perfcache_artifact_count']}
+     OR build.perfcache_dependency_count IS DISTINCT FROM {expected['perfcache_dependency_count']}
+     OR build.reverse_dependency_module_id IS DISTINCT FROM decode('{expected['reverse_dependency_module_id']}','hex')
+     OR build.reverse_dependency_artifact_digest IS DISTINCT FROM build.tier0_artifact_digest
+     OR active.sequence IS DISTINCT FROM 1 OR active.active_present IS NOT TRUE
+     OR active.activation_epoch_id IS DISTINCT FROM build.activation_epoch_id
+     OR active.epoch_fingerprint IS DISTINCT FROM build.activation_epoch_fingerprint
+     OR (SELECT count(*) FROM laplace.entity) IS DISTINCT FROM {expected['entity_count']}
+     OR (SELECT count(*) FROM laplace.physicality) IS DISTINCT FROM {expected['physicality_count']}
      OR (SELECT count(*) FROM laplace.attestation
          WHERE source_fingerprint = build.root_receipt
-           AND attestation_kind = 3) <> {expected['atom_count']}
-     OR (SELECT count(*) FROM laplace.unicode_ducet_position) <> {expected['ducet_position_count']}
-     OR (SELECT count(*) FROM laplace.unicode_ducet_contraction) <> {expected['ducet_contraction_count']}
-     OR (SELECT count(*) FROM laplace.unicode_normalization_composition) <> {expected['normalization_composition_count']}
+           AND attestation_kind = 3) IS DISTINCT FROM {expected['atom_count']}
+     OR (SELECT count(*) FROM laplace.unicode_ducet_position) IS DISTINCT FROM {expected['ducet_position_count']}
+     OR (SELECT count(*) FROM laplace.unicode_ducet_contraction) IS DISTINCT FROM {expected['ducet_contraction_count']}
+     OR (SELECT count(*) FROM laplace.unicode_normalization_composition) IS DISTINCT FROM {expected['normalization_composition_count']}
      OR NOT EXISTS (
        SELECT 1 FROM laplace.unicode_root_generation AS generation
        WHERE generation.root_receipt = build.root_receipt
@@ -671,7 +689,8 @@ BEGIN
          AND deposit.producer_receipt = build.producer_receipt
          AND deposit.staged_stream_receipt = build.staged_stream_receipt
          AND deposit.admission_receipt = build.admission_receipt) THEN
-    RAISE EXCEPTION 'Unicode product activation result violates its exact contract';
+    RAISE EXCEPTION 'Unicode product activation result violates its exact contract'
+      USING DETAIL = json_build_object('build',to_jsonb(build),'active',to_jsonb(active))::text;
   END IF;
 END
 $verify$;
@@ -702,7 +721,11 @@ SELECT json_build_object(
   'tier0_artifact_digest', encode(tier0_artifact_digest,'hex'),
   'reverse_artifact_digest', encode(reverse_artifact_digest,'hex'),
   'tier0_artifact_bytes', tier0_artifact_bytes,
-  'reverse_artifact_bytes', reverse_artifact_bytes
+  'reverse_artifact_bytes', reverse_artifact_bytes,
+  'perfcache_artifact_count', perfcache_artifact_count,
+  'perfcache_dependency_count', perfcache_dependency_count,
+  'reverse_dependency_module_id', encode(reverse_dependency_module_id,'hex'),
+  'reverse_dependency_artifact_digest', encode(reverse_dependency_artifact_digest,'hex')
 )::text FROM unicode_product_build;
 COMMIT;
 """
@@ -786,17 +809,18 @@ def validate_inspection(
 
 
 def recover_build_result(
-    inspection: dict[str, Any], contract: dict[str, Any], identities: dict[str, Any]
+    inspection: dict[str, Any], contract: dict[str, Any], identities: dict[str, Any],
+    artifact_verification: dict[str, Any],
 ) -> dict[str, Any]:
     """Reconstitute the committed operation receipt after a client-side interruption."""
-    expected = contract["expected_result"]
+    validate_artifact_verification(artifact_verification, contract, identities)
     result = {
         "activation_epoch_id": identities["activation_epoch_id"],
         "activation_epoch_fingerprint": identities["activation_epoch_fingerprint"],
-        "tier0_artifact_digest": expected["tier0_artifact_digest"],
-        "reverse_artifact_digest": expected["reverse_artifact_digest"],
-        "tier0_artifact_bytes": expected["tier0_artifact_bytes"],
-        "reverse_artifact_bytes": expected["reverse_artifact_bytes"],
+        **{field: artifact_verification[field] for field in (
+            "tier0_artifact_digest", "reverse_artifact_digest", "tier0_artifact_bytes",
+            "reverse_artifact_bytes", "perfcache_artifact_count", "perfcache_dependency_count",
+            "reverse_dependency_module_id", "reverse_dependency_artifact_digest")},
         "recovered_from_exact_committed_state": True,
     }
     for field in (
@@ -864,27 +888,64 @@ def validate_build_result(
         or plan_count >= expected["total_frame_count"]
     ):
         raise UnicodeActivationError("committed Unicode result differs: plan_count")
-    for field in (
-        "tier0_artifact_digest",
-        "reverse_artifact_digest",
-        "plan_manifest_fingerprint",
-    ):
+    for field in ("root_receipt", "plan_manifest_fingerprint", "perfcache_artifact_count",
+                  "perfcache_dependency_count", "reverse_dependency_module_id"):
         if result.get(field) != expected[field]:
             raise UnicodeActivationError(f"committed Unicode digest differs: {field}")
+    if result.get("reverse_dependency_artifact_digest") != result.get("tier0_artifact_digest"):
+        raise UnicodeActivationError("committed Unicode reverse dependency differs")
     for field in (
-        "root_receipt",
-        "producer_receipt",
-        "staged_stream_receipt",
-        "sink_artifacts_fingerprint",
-        "postgresql_artifact_fingerprint",
-        "perfcache_artifact_set_fingerprint",
-        "perfcache_manifest_fingerprint",
-        "perfcache_encoded_manifest_fingerprint",
-        "admission_receipt",
-        "plan_sequence_fingerprint",
+        "tier0_artifact_digest", "reverse_artifact_digest", "root_receipt",
+        "producer_receipt", "staged_stream_receipt", "sink_artifacts_fingerprint",
+        "postgresql_artifact_fingerprint", "perfcache_artifact_set_fingerprint",
+        "perfcache_manifest_fingerprint", "perfcache_encoded_manifest_fingerprint",
+        "admission_receipt", "plan_sequence_fingerprint",
     ):
         if HEX_256.fullmatch(str(result.get(field, ""))) is None:
             raise UnicodeActivationError(f"committed Unicode receipt is invalid: {field}")
+
+
+def validate_artifact_verification(
+    value: dict[str, Any], contract: dict[str, Any], identities: dict[str, Any]
+) -> None:
+    reference = contract["artifact_reference"]
+    expected = contract["expected_result"]
+    if (value.get("schema") != "laplace.unicode-artifact-verification/v1"
+            or value.get("artifact_bytes_modified") is not False):
+        raise UnicodeActivationError("native artifact verification outcome differs")
+    for field in ("activation_epoch_id", "activation_epoch_fingerprint"):
+        if value.get(field) != identities[field]:
+            raise UnicodeActivationError(f"native artifact epoch differs: {field}")
+    for prefix in ("tier0", "reverse"):
+        if (value.get(f"{prefix}_reference_digest") != reference[f"{prefix}_artifact_digest"]
+                or value.get(f"{prefix}_artifact_bytes") != expected[f"{prefix}_artifact_bytes"]
+                or HEX_256.fullmatch(str(value.get(f"{prefix}_artifact_digest", ""))) is None):
+            raise UnicodeActivationError(f"native artifact reference differs: {prefix}")
+    for field in ("perfcache_artifact_count", "perfcache_dependency_count", "reverse_dependency_module_id"):
+        if value.get(field) != expected[field]:
+            raise UnicodeActivationError(f"native artifact dependency differs: {field}")
+    if value.get("reverse_dependency_artifact_digest") != value.get("tier0_artifact_digest"):
+        raise UnicodeActivationError("native artifact reverse dependency differs")
+
+
+def run_artifact_verifier(
+    executable: Path, cache_root: Path, tier0: Path, reverse: Path, source_root: Path,
+    contract: dict[str, Any], identities: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not executable.is_file() or executable.is_symlink() or not os.access(executable, os.X_OK):
+        raise UnicodeActivationError("packaged native artifact verifier is unavailable")
+    reference = contract["artifact_reference"]
+    command = [str(executable), str(cache_root), str(tier0), str(reverse),
+               identities["activation_epoch_id"], identities["activation_epoch_fingerprint"],
+               reference["activation_epoch_id"], reference["activation_epoch_fingerprint"],
+               reference["tier0_artifact_digest"], reference["reverse_artifact_digest"], str(source_root)]
+    completed = subprocess.run(command, check=False, cwd="/", env=clusterctl.activation_environment(),
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=300)
+    if completed.returncode != 0:
+        raise UnicodeActivationError(f"native Unicode artifact verifier failed: {completed.stderr.strip()}")
+    value = parse_single_json(completed.stdout, "native Unicode artifact verifier")
+    validate_artifact_verification(value, contract, identities)
+    return value, clusterctl.command_execution_receipt("verify-unicode-native-artifacts", command, completed)
 
 
 def validate_readback(
@@ -937,6 +998,69 @@ def create_work_directories(
             os.chown(path, user.pw_uid, user.pw_gid)
 
 
+def retained_root_identities(
+    receipt_root: Path, inspection: dict[str, Any], request: dict[str, Any],
+    contract: dict[str, Any], identity_executable: Path, identity_runner: Callable[..., Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Re-prove the original admission, never relabel it as the new deployment.
+
+    Software/package changes need a new deployment proof, not a second copy of the
+    same canonical Unicode root. A bounded search of retained admission evidence
+    locates the exact active epoch; the packaged native identity provider hashes
+    its original canonical request again. Source, database and semantic contracts
+    must agree, then normal artifact, deposition, restart and app readback checks
+    still execute. No catalog, artifact or historical evidence is modified here.
+    """
+    directory = receipt_root / contract["receipt"]["directory_name"]
+    if directory.is_symlink() or not directory.is_dir():
+        raise UnicodeActivationError("committed Unicode root lacks retained admission evidence")
+    matches = []
+    examined = 0
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            examined += 1
+            if examined > 1024:
+                raise UnicodeActivationError("Unicode admission evidence search limit exceeded")
+            if HEX_256.fullmatch(entry.name) is None:
+                continue
+            if entry.is_symlink() or not entry.is_dir(follow_symlinks=False):
+                raise UnicodeActivationError("unsafe retained Unicode admission directory")
+            folder = Path(entry.path)
+            identity_path = folder / "identities.json"
+            if not identity_path.exists():
+                continue
+            if identity_path.is_symlink() or identity_path.stat().st_size > 65536:
+                raise UnicodeActivationError("unsafe retained Unicode identities")
+            candidate = load_json(identity_path)
+            if (candidate.get("activation_epoch_id") != inspection.get("activation_epoch_id")
+                    or candidate.get("activation_epoch_fingerprint") != inspection.get("activation_epoch_fingerprint")):
+                continue
+            validate_identities(candidate, contract)
+            if candidate["request_fingerprint"] != entry.name:
+                raise UnicodeActivationError("retained Unicode admission directory identity differs")
+            request_path = folder / "request.json"
+            if (request_path.is_symlink() or not request_path.is_file()
+                    or request_path.stat().st_size > contract["identity_provider"]["maximum_request_bytes"]):
+                raise UnicodeActivationError("unsafe retained Unicode admission request")
+            original = load_json(request_path)
+            if request_path.read_bytes() != canonical_bytes(original):
+                raise UnicodeActivationError("retained Unicode admission request is not canonical")
+            for field in ("schema", "activation_contract_sha256", "cluster_contract_sha256",
+                          "cluster_system_identifier", "source_contract_sha256", "source_evidence_sha256",
+                          "source_root", "unicode_postgresql_contract_sha256", "operation",
+                          "execution_context", "expected_result"):
+                if field not in original or original[field] != request[field]:
+                    raise UnicodeActivationError(f"retained Unicode admission differs: {field}")
+            verified, command = identity_runner(identity_executable, request_path, contract)
+            validate_identities(verified, contract)
+            if verified != candidate:
+                raise UnicodeActivationError("retained Unicode admission fails native identity verification")
+            matches.append((candidate, original, command))
+    if len(matches) != 1:
+        raise UnicodeActivationError("committed Unicode root requires one exact retained admission")
+    return matches[0]
+
+
 def execute_unicode_activation(
     activation_contract: dict[str, Any],
     cluster_contract: dict[str, Any],
@@ -952,6 +1076,7 @@ def execute_unicode_activation(
     source_verifier: Callable[[dict[str, Any], Path], dict[str, Any]] = verify_source_bundle,
     identity_runner: Callable[[Path, Path, dict[str, Any]], tuple[dict[str, Any], dict[str, Any]]] = run_identity_provider,
     sql_runner: Callable[..., tuple[dict[str, Any], dict[str, Any]]] = run_psql,
+    artifact_verifier: Callable[..., tuple[dict[str, Any], dict[str, Any]]] = run_artifact_verifier,
     loaded_observer: Callable[[dict[str, Any], dict[str, Any], Path], dict[str, Any]] = clusterctl.observe_loaded_live,
     command_runner: Callable[[str, Sequence[str], int], dict[str, Any]] = clusterctl.execute_activation_command,
     readiness_runner: Callable[[str, Sequence[str], int], dict[str, Any]] = clusterctl.await_postgresql_ready,
@@ -1017,6 +1142,12 @@ def execute_unicode_activation(
         or identity_entry.get("sha256") != sha256_file(identity_executable)
     ):
         raise UnicodeActivationError("packaged activation identity bytes differ")
+    verifier_relative = activation_contract["artifact_reference"]["package_path"]
+    verifier_executable = prefixed(root, f"{package['root']}/{verifier_relative}")
+    verifier_entry = next((item for item in package["files"] if item.get("path") == verifier_relative), None)
+    if (not isinstance(verifier_entry, dict) or verifier_entry.get("kind") != "file"
+            or verifier_entry.get("sha256") != sha256_file(verifier_executable)):
+        raise UnicodeActivationError("packaged artifact verifier bytes differ")
     identities, identity_command = identity_runner(
         identity_executable, request_path, activation_contract
     )
@@ -1032,16 +1163,6 @@ def execute_unicode_activation(
     write_immutable(evidence_directory / "source-evidence.json", source_evidence)
 
     instance = cluster_contract["instance"]
-    epoch = identities["activation_epoch_id"]
-    spool_logical = f"{instance['temp_directory']}/{activation_contract['operation']['spool_directory_prefix']}{epoch}"
-    generation_logical = f"{instance['perfcache_directory']}/{activation_contract['operation']['generation_directory_prefix']}{epoch}"
-    tier0_logical = f"{generation_logical}/{activation_contract['operation']['tier0_filename']}"
-    reverse_logical = f"{generation_logical}/{activation_contract['operation']['reverse_filename']}"
-    spool_path = prefixed(root, spool_logical)
-    generation_path = prefixed(root, generation_logical)
-    tier0_path = prefixed(root, tier0_logical)
-    reverse_path = prefixed(root, reverse_logical)
-
     command_receipts: list[dict[str, Any]] = [identity_command]
     inspection, inspection_receipt = sql_runner(
         plan,
@@ -1055,7 +1176,27 @@ def execute_unicode_activation(
     command_receipts.append(inspection_receipt)
     validate_perfcache_root(
         inspection, str(prefixed(root, instance["perfcache_directory"])))
+    deployment_request_sha = request_sha
+    deployment_request_fingerprint = identities["request_fingerprint"]
+    retained_request = None
+    if (inspection.get("active_present") is True
+            and (inspection.get("activation_epoch_id") != identities["activation_epoch_id"]
+                 or inspection.get("activation_epoch_fingerprint") != identities["activation_epoch_fingerprint"])):
+        identities, retained_request, retained_command = retained_root_identities(
+            receipt_root, inspection, request, activation_contract, identity_executable, identity_runner)
+        command_receipts.append(retained_command)
+        request_sha = sha256_bytes(canonical_bytes(retained_request))
     mode = validate_inspection(inspection, activation_contract, identities)
+    epoch = identities["activation_epoch_id"]
+    spool_logical = f"{instance['temp_directory']}/{activation_contract['operation']['spool_directory_prefix']}{epoch}"
+    generation_logical = f"{instance['perfcache_directory']}/{activation_contract['operation']['generation_directory_prefix']}{epoch}"
+    tier0_logical = f"{generation_logical}/{activation_contract['operation']['tier0_filename']}"
+    reverse_logical = f"{generation_logical}/{activation_contract['operation']['reverse_filename']}"
+    spool_path = prefixed(root, spool_logical)
+    generation_path = prefixed(root, generation_logical)
+    tier0_path = prefixed(root, tier0_logical)
+    reverse_path = prefixed(root, reverse_logical)
+
     build_result: dict[str, Any]
     if mode == "fresh":
         create_work_directories((spool_path, generation_path), cluster_contract, root)
@@ -1081,9 +1222,18 @@ def execute_unicode_activation(
     else:
         if not generation_path.is_dir() or generation_path.is_symlink():
             raise UnicodeActivationError("committed Unicode recovery lacks its generation directory")
-        build_result = recover_build_result(
-            inspection, activation_contract, identities
-        )
+        build_result = {}
+    artifact_verified, artifact_command = artifact_verifier(
+        verifier_executable, prefixed(root, instance["perfcache_directory"]), tier0_path,
+        reverse_path, source_root, activation_contract, identities)
+    validate_artifact_verification(artifact_verified, activation_contract, identities)
+    command_receipts.append(artifact_command)
+    if mode == "recover-post-commit":
+        build_result = recover_build_result(inspection, activation_contract, identities, artifact_verified)
+    for field in ("tier0_artifact_digest", "reverse_artifact_digest", "tier0_artifact_bytes",
+                  "reverse_artifact_bytes", "reverse_dependency_module_id", "reverse_dependency_artifact_digest"):
+        if build_result[field] != artifact_verified[field]:
+            raise UnicodeActivationError(f"native artifact differs from committed result: {field}")
 
     expected = activation_contract["expected_result"]
     artifacts_before = {
@@ -1149,8 +1299,12 @@ def execute_unicode_activation(
         ],
         "system_identifier": loaded_after["system_identifier"],
         "source_evidence_sha256": source_evidence["source_evidence_sha256"],
-        "mode": mode,
+        "mode": "reuse-committed-root" if retained_request is not None else mode,
+        "deployment_request_sha256": deployment_request_sha,
+        "deployment_request_fingerprint": deployment_request_fingerprint,
+        "source_admission_reused": retained_request is not None,
         "build_result": build_result,
+        "artifact_verification": artifact_verified,
         "artifacts": artifacts_after,
         "readback": readback,
         "loaded_before_observation_sha256": loaded_before["observation_sha256"],
