@@ -1,0 +1,35 @@
+name: postgresql-direct-readback
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Release Refactor's unallocated huge pages and restore 5432 startup
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-activation-refs/heads/main
+  cancel-in-progress: false
+
+jobs:
+  co-resident-startup:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Inspect or repair the existing PostgreSQL services
+        shell: bash
+        env:
+          RECOVERY_APPLY: ${{ inputs.apply }}
+        run: |
+          set -euo pipefail
+          if [[ "$RECOVERY_APPLY" == true ]]; then
+            bash tools/postgresql/restore-co-resident-startup.sh --apply
+          else
+            bash tools/postgresql/restore-co-resident-startup.sh --inspect
+          fi

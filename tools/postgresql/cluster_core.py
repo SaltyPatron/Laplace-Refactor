@@ -255,6 +255,11 @@ def validate_contract(document: dict[str, Any]) -> None:
     if preload != ["pg_stat_statements"]:
         raise ClusterError("first product preload set must contain only pg_stat_statements")
 
+    # This grant covers ordinary memory, not a reservation in the host's
+    # separately allocated huge-page pool. Opportunistic use can prevent a
+    # co-resident cluster with huge_pages=on from starting after a reboot.
+    if resources.get("huge_pages") != "off":
+        raise ClusterError("co-resident memory grant does not allocate huge pages")
     for field in (
         "minimum_cpu_slots",
         "maximum_cpu_slots",
@@ -1012,7 +1017,7 @@ def generate_settings(
         "effective_cache_size": memory_setting(effective_cache),
         "fsync": "on",
         "full_page_writes": "on",
-        "huge_pages": "try",
+        "huge_pages": policy["huge_pages"],
         "io_method": "io_uring",
         "io_workers": str(min(io_slots, cpu_slots)),
         "jit": "off",
