@@ -248,15 +248,20 @@ def ensure_current_predecessor_receipt(contract_path: Path) -> dict[str, Any]:
         or receipt.get("package_id") != package_id
     ):
         raise AdoptionError("active predecessor historical receipt identity is invalid")
-    plan_path, plan = _load_plan(receipt, contract, package_id)
+    plan_path, original_plan = _load_plan(receipt, contract, package_id)
     _require_selection(contract, package_id)
+    plan = clusterctl.reconcile_existing_physical_settings(original_plan, contract)
+    configuration_replanned = plan is not original_plan
     _ensure_predecessor_running(plan, contract, package_id)
-    if _receipt_is_current(receipt, package_id):
+    if not configuration_replanned and _receipt_is_current(receipt, package_id):
         return receipt
 
     historical_digest = clusterctl.sha256_file(receipt_path)
     archive_path = _archive_original(receipt_path, historical_digest)
     initial = _live_predecessor(plan, contract, package_id)
+    if (receipt.get("system_identifier") is not None
+            and str(receipt["system_identifier"]) != str(initial.get("system_identifier"))):
+        raise AdoptionError("live predecessor PostgreSQL system identity differs from its receipt")
 
     lifecycle_mutation_started = False
     try:
@@ -298,6 +303,17 @@ def ensure_current_predecessor_receipt(contract_path: Path) -> dict[str, Any]:
             ) from error
         raise
 
+    # A supported physical selection is published as a new immutable plan only
+    # after live/restart proof. Preserve the old plan and receipt as history;
+    # never edit their digests to make an unverified installation appear exact.
+    if configuration_replanned:
+        plan_path = directory / f"cluster-plan-{plan['plan_sha256']}.json"
+        if plan_path.is_symlink():
+            raise AdoptionError("replanned predecessor path is a symlink")
+        if plan_path.exists() and clusterctl.load_json(plan_path) != plan:
+            raise AdoptionError("replanned predecessor path already contains different bytes")
+        if not plan_path.exists():
+            clusterctl.write_json(plan_path, plan)
     clusterctl.write_json(directory / "adoption-loaded-initial.json", initial)
     clusterctl.write_json(directory / "adoption-loaded-restart.json", restarted)
     normalized = dict(receipt)
@@ -323,6 +339,15 @@ def ensure_current_predecessor_receipt(contract_path: Path) -> dict[str, Any]:
             "predecessor_live_reproof": True,
         }
     )
+    if configuration_replanned:
+        normalized.update({
+            "plan_sha256": plan["plan_sha256"],
+            "installed_files": [{"path": item["path"], "sha256": item["sha256"]}
+                                for item in plan["files"]],
+            "predecessor_original_plan_sha256": original_plan["plan_sha256"],
+            "physical_settings": plan["physical_settings"],
+            "configuration_replanned_without_file_mutation": True,
+        })
     normalized.pop("activation_receipt_sha256", None)
     normalized["activation_receipt_sha256"] = _activation_identity(normalized)
     clusterctl.write_json(receipt_path, normalized)
