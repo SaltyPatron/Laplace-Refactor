@@ -4,6 +4,7 @@
 #include "laplace/persistence.h"
 
 #include "blake3.h"
+#include "cognition_output_encoding.h"
 
 #include <algorithm>
 #include <array>
@@ -12,12 +13,14 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <stdexcept>
 #include <vector>
 
 namespace laplace_cognition_materialization_detail {
 
 constexpr char ReadsetDomain[] = "laplace-cognition-materialization-readset-v1";
 constexpr char OutputDomain[] = "laplace-cognition-materialization-output-v1";
+constexpr char OctetOutputDomain[] = "laplace-cognition-materialization-octet-output-v1";
 constexpr char ReceiptDomain[] = "laplace-cognition-materialization-receipt-v1";
 
 bool BytesZero(const std::uint8_t* const bytes, const std::size_t count) {
@@ -196,6 +199,7 @@ struct Context final {
     const laplace_cognition_materialization_provider_v1* provider{};
     std::vector<std::uint8_t>* output{};
     std::vector<laplace_id128> active{};
+    std::uint32_t output_encoding{LAPLACE_COGNITION_OUTPUT_UTF8};
     Counters counters{};
     blake3_hasher readset{};
 };
@@ -240,9 +244,14 @@ laplace_cognition_materialization_status AppendAtomRun(
 
     std::array<std::uint8_t, 4> encoded{};
     std::size_t encoded_bytes = 0U;
-    if (laplace_unicode_position_encode(
-            atom, encoded.data(), &encoded_bytes) != LAPLACE_IDENTITY_OK ||
-        encoded_bytes == 0U) {
+    if (context.output_encoding == LAPLACE_COGNITION_OUTPUT_OCTETS) {
+        if (!laplace_cognition_encode_octet_position(
+                atom, encoded.data(), &encoded_bytes)) {
+            return LAPLACE_COGNITION_MATERIALIZATION_ENCODING_RANGE;
+        }
+    } else if (laplace_unicode_position_encode(
+                   atom, encoded.data(), &encoded_bytes) != LAPLACE_IDENTITY_OK ||
+               encoded_bytes == 0U) {
         return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
     }
 
@@ -507,10 +516,16 @@ laplace_cognition_materialization_status MaterializeEntity(
 
 void OutputFingerprint(
     const std::vector<std::uint8_t>& output,
+    const std::uint32_t output_encoding,
     laplace_digest256* const fingerprint) {
     blake3_hasher hasher{};
     blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, OutputDomain, sizeof(OutputDomain) - 1U);
+    if (output_encoding == LAPLACE_COGNITION_OUTPUT_OCTETS) {
+        blake3_hasher_update(
+            &hasher, OctetOutputDomain, sizeof(OctetOutputDomain) - 1U);
+    } else {
+        blake3_hasher_update(&hasher, OutputDomain, sizeof(OutputDomain) - 1U);
+    }
     if (!output.empty()) {
         blake3_hasher_update(&hasher, output.data(), output.size());
     }
@@ -540,10 +555,11 @@ void ReceiptIdentity(
 }  // namespace laplace_cognition_materialization_detail
 
 extern "C" laplace_cognition_materialization_status
-laplace_cognition_realization_materialize_utf8(
+laplace_cognition_realization_materialize_encoded(
     const laplace_cognition_realization_result* const realization,
     const laplace_cognition_materialization_request* const request,
     const laplace_cognition_materialization_provider_v1* const provider,
+    const std::uint32_t output_encoding,
     std::uint8_t* const output,
     const std::size_t output_capacity,
     std::size_t* const output_bytes,
@@ -555,6 +571,10 @@ laplace_cognition_realization_materialize_utf8(
     if (realization == nullptr || request == nullptr || provider == nullptr ||
         output == nullptr || output_bytes == nullptr || receipt == nullptr) {
         return LAPLACE_COGNITION_MATERIALIZATION_INVALID_ARGUMENT;
+    }
+    if (output_encoding != LAPLACE_COGNITION_OUTPUT_UTF8 &&
+        output_encoding != LAPLACE_COGNITION_OUTPUT_OCTETS) {
+        return LAPLACE_COGNITION_MATERIALIZATION_ENCODING_INVALID;
     }
     if (!RealizationValid(*realization)) {
         return LAPLACE_COGNITION_MATERIALIZATION_INVALID_REALIZATION;
@@ -579,12 +599,20 @@ laplace_cognition_realization_materialize_utf8(
     context.request = request;
     context.provider = provider;
     context.output = &materialized;
+    context.output_encoding = output_encoding;
     blake3_hasher_init(&context.readset);
     blake3_hasher_update(
         &context.readset, ReadsetDomain, sizeof(ReadsetDomain) - 1U);
 
-    const auto status = MaterializeEntity(
-        context, realization->content_id, 0U, false, 0U);
+    laplace_cognition_materialization_status status;
+    try {
+        status = MaterializeEntity(
+            context, realization->content_id, 0U, false, 0U);
+    } catch (const std::length_error&) {
+        return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_COGNITION_MATERIALIZATION_MEMORY_FAILURE;
+    }
     if (status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
         return status;
     }
@@ -600,7 +628,7 @@ laplace_cognition_realization_materialize_utf8(
     resolved.source_recipe_id = realization->realization_recipe_id;
     resolved.provider_fingerprint = provider->provider_fingerprint;
     Finish(&context.readset, &resolved.readset_fingerprint);
-    OutputFingerprint(materialized, &resolved.output_fingerprint);
+    OutputFingerprint(materialized, output_encoding, &resolved.output_fingerprint);
     resolved.root_content_id = realization->content_id;
     resolved.resolved_node_count = context.counters.nodes;
     resolved.trajectory_carrier_count = context.counters.carriers;
@@ -614,4 +642,19 @@ laplace_cognition_realization_materialize_utf8(
     *output_bytes = materialized.size();
     *receipt = resolved;
     return LAPLACE_COGNITION_MATERIALIZATION_OK;
+}
+
+// Compatibility route: one canonical implementation, not a second text engine.
+extern "C" laplace_cognition_materialization_status
+laplace_cognition_realization_materialize_utf8(
+    const laplace_cognition_realization_result* const realization,
+    const laplace_cognition_materialization_request* const request,
+    const laplace_cognition_materialization_provider_v1* const provider,
+    std::uint8_t* const output,
+    const std::size_t output_capacity,
+    std::size_t* const output_bytes,
+    laplace_cognition_materialization_receipt* const receipt) {
+    return laplace_cognition_realization_materialize_encoded(
+        realization, request, provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output, output_capacity, output_bytes, receipt);
 }
