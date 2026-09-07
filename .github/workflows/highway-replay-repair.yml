@@ -1,0 +1,62 @@
+name: highway-replay-repair
+on:
+  push:
+    branches: ['fix/retained-highway-context']
+permissions:
+  contents: read
+concurrency:
+  group: product-activation-refs/heads/main
+  cancel-in-progress: false
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.publish.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify exact implementation and execute lifecycle tests
+        run: |
+          set -euo pipefail
+          git apply --index tools/delivery/highway-replay-transfer.patch
+          python3 - <<'PY'
+          import subprocess
+          expected={'state/continuation.json':'d4dd2eb46ba5b875c0c6cd94edc8b51c7495abda','tools/postgresql/highwayctl.py':'0fedb4ddffe5bc7358b94295fac051fc8d29956a','tools/tests/verify-requirements.sh':'de885b5c26c917c7979dac85b176482b0fb52453','tests/highway_retained_context_live.py':'7bd7aff582b01507d0c44ef12b49617ad3b5e0f6','tests/highway_retained_context_tests.py':'09e1c76088d875c4f38a14f74f272eeb2d6036c0'}
+          for path,wanted in expected.items():
+              actual=subprocess.check_output(['git','hash-object',path],text=True).strip()
+              if actual!=wanted:raise SystemExit(f'{path}: {actual} != {wanted}')
+          print('All five locally tested source identities verified')
+          PY
+          ./tools/tests/verify-requirements.sh
+          python3 tests/product_activation_runner_tests.py
+          python3 tests/product_activation_runtime_adapter_tests.py
+          git diff --cached --check
+      - name: Publish the verified implementation
+        id: publish
+        run: |
+          set -euo pipefail
+          git rm tools/delivery/highway-replay-transfer.patch
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Replay the retained Highway admission context through the native owner'
+          git push origin HEAD:refs/heads/fix/retained-highway-context
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  live-replay:
+    needs: integrate
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.integrate.outputs.commit }}
+          persist-credentials: false
+      - name: Prove repeated native replay and active-to-active negative control
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          python3 tests/highway_retained_context_live.py --output "$RUNNER_TEMP/highway-replay-proof/live-proof.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: highway-replay-live-${{ needs.integrate.outputs.commit }}
+          path: ${{ runner.temp }}/highway-replay-proof/live-proof.json
+          retention-days: 7
