@@ -253,10 +253,18 @@ BEGIN
     IF octet_length(q.anchor_entity_id) <> 16 THEN
         RAISE EXCEPTION 'index-plan probe lost the exact request binding';
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE oid='laplace.physicality_constituent_lookup_idx'::regclass
+                   AND 'fastupdate=off'=ANY(reloptions)) THEN
+        RAISE EXCEPTION 'interactive membership lookup can still scan deferred index writes';
+    END IF;
+    -- Use the same batched relation-mask predicate as the real persistence provider,
+    -- immediately after bulk admission, without ANALYZE, VACUUM or planner hints.
     EXECUTE 'EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT physicality_id FROM laplace.physicality p '
-            'WHERE p.physicality_type=1 AND laplace.trajectory_entity_ids(p.trajectory) && $1 '
-            'ORDER BY p.physicality_id LIMIT 16'
-       INTO plan USING ARRAY[q.anchor_entity_id];
+            'WHERE p.physicality_type=1 AND '
+            '((($2 & 2)<>0 AND p.entity_id=ANY($1)) OR '
+            '(($2 & 29)<>0 AND laplace.trajectory_entity_ids(p.trajectory) && $1)) '
+            'ORDER BY p.physicality_id LIMIT $3'
+       INTO plan USING ARRAY[q.anchor_entity_id], q.relation_mask, 16;
     IF position('physicality_constituent_lookup_idx' in plan::text)=0 THEN
         RAISE EXCEPTION 'constituent membership did not use the maintained GIN index: %', plan;
     END IF;

@@ -6,7 +6,10 @@ LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.trajectory_entity_ids(bytea) FROM PUBLIC;
 CREATE INDEX physicality_entity_lookup_idx ON @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality(entity_id, physicality_id);
 CREATE INDEX physicality_constituent_lookup_idx ON @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality
+-- Maintain the sparse posting tree during writes: interactive readers must not
+-- scan a pending list or depend on a vacuum/cleanup before using this index.
 USING gin (@LAPLACE_OBSERVATION_COGNITION_SCHEMA@.trajectory_entity_ids(trajectory))
+WITH (fastupdate = off)
 WHERE physicality_type = 1;
 
 CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_answer AS (

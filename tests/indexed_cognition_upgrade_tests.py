@@ -73,6 +73,7 @@ class IndexedCognitionUpgrade(unittest.TestCase):
         delta=(extension/'observation_cognition_persisted.sql.in').read_text()
         self.assertIn('${previous_schema}\\n${persisted_cognition_delta}',cmake)
         self.assertIn('WHERE physicality_type = 1;',delta)
+        self.assertIn('WITH (fastupdate = off)',delta)
         for forbidden in ('TRUNCATE ','DROP TABLE ','CREATE TABLE ','GRANT ','SECURITY DEFINER'):
             self.assertNotIn(forbidden,delta)
         required=json.loads((ROOT/'contracts/product-package.json').read_text())['package']['required_files']
