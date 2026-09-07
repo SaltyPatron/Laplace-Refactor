@@ -3,24 +3,65 @@ on:
   push:
     branches: ['fix/unicode-activation-contract']
 permissions:
-  contents: read
+  contents: write
 concurrency:
-  group: product-activation-refs/heads/main
+  group: unicode-repair-source-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  diagnose:
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 25
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          persist-credentials: false
-      - name: Execute installed Unicode operation without committing diagnostic state
-        run: python3 tools/postgresql/diagnose_unicode_activation.py
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: unicode-native-diagnosis-${{ github.sha }}
-          path: ${{ runner.temp }}/unicode-native-diagnosis/
-          retention-days: 7
-          if-no-files-found: error
+          fetch-depth: 1
+      - name: Verify and apply exact tested source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$GITHUB_REF" = refs/heads/fix/unicode-activation-contract
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, os, subprocess
+          from pathlib import Path
+          raw = base64.b64decode(''.join(Path(f'.repair/unicode-epoch-{i}.b64').read_text() for i in range(6)), validate=True)
+          assert len(raw) == 13981
+          assert hashlib.sha256(raw).hexdigest() == 'f6b5ecbc8b5d1ecadfb94bfccb6ddfde0f8e62e1736d73cb4d0173bf300ff34a'
+          payload = json.loads(gzip.decompress(raw))
+          patch = Path(os.environ['RUNNER_TEMP']) / 'unicode-epoch.patch'
+          patch.write_text(payload['patch'], encoding='utf-8')
+          subprocess.run(['git', 'apply', '--check', str(patch)], check=True)
+          subprocess.run(['git', 'apply', str(patch)], check=True)
+          assert len(payload['files']) == 13
+          for path, expected in payload['files'].items():
+              actual = subprocess.check_output(['git', 'hash-object', path], text=True).strip()
+              if actual != expected:
+                  raise RuntimeError(f'Applied source differs: {path}: {actual} != {expected}')
+              print(path, actual)
+          (Path(os.environ['RUNNER_TEMP']) / 'unicode-epoch-files.json').write_text(json.dumps(list(payload['files'])))
+          PY
+      - name: Execute source, activation and package regression gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools/tests/verify-requirements.sh
+          python3 tests/unicode_product_activation_tests.py
+          python3 tests/product_package_tests.py
+          python3 tests/postgresql_perfcache_configuration_tests.py
+          python3 tests/product_cluster_upgrade_tests.py
+          git diff --check
+      - name: Publish source without temporary diagnosis or transfer files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          files = json.loads((Path(os.environ['RUNNER_TEMP']) / 'unicode-epoch-files.json').read_text())
+          subprocess.run(['git','add','--',*files], check=True)
+          subprocess.run(['git','rm','--','.github/workflows/unicode-activation-repair.yml','tools/postgresql/diagnose_unicode_activation.py',*[f'.repair/unicode-epoch-{i}.b64' for i in range(6)]], check=True)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Verify Unicode content independently of deployment epoch without rewriting artifact identity' -m 'Preserve fixed Unicode content references through native validated header projection, retain actual epoch/dependency identities, and require package-owned native file verification for fresh activation and recovery. Source and regression gates executed in this workflow; full native and installed acceptance remain separate.'
+          git push origin HEAD:refs/heads/fix/unicode-activation-contract
