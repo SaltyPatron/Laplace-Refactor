@@ -17,3 +17,5 @@ python3 "$repo_root/tests/postgresql_public_readback_tests.py"
 python3 "$repo_root/tests/unicode_retained_admission_tests.py"
 
 python3 "$repo_root/tests/indexed_cognition_upgrade_tests.py"
+python3 "$repo_root/tests/highway_product_activation_tests.py"
+python3 "$repo_root/tests/highway_retained_context_tests.py"
