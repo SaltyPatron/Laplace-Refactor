@@ -63,7 +63,9 @@
     "stage_root": "/build/laplace/runner/product/stage",
     "configuration": "Release",
     "testing": false,
-    "dotnet_bindings": false,
+    "dotnet_bindings": true,
+    "dotnet_root": "/usr/lib/dotnet",
+    "dotnet_runtime_version": "10.0.10",
     "c_compiler": "/opt/intel/oneapi/compiler/2026.1/bin/icx",
     "cxx_compiler": "/opt/intel/oneapi/compiler/2026.1/bin/icpx",
     "install_libdir": "lib",
@@ -91,6 +93,16 @@
       "lib/liblaplace_engine.so.2.0.0"
     ],
     "required_files": [
+      "bin/laplace-source-admit",
+      "share/laplace/source-admission/laplace-source-admit.dll",
+      "share/laplace/source-admission/laplace-source-admit.runtimeconfig.json",
+      "share/laplace/source-admission/Laplace.Managed.dll",
+      "share/laplace/source-admission/sql/unicode-activate.sql",
+      "share/laplace/source-admission/sql/source-admit.sql",
+      "share/laplace/source-admission/contracts/unicode-product-activation.json",
+      "share/laplace/source-admission/runtime/dotnet",
+      "share/laplace/source-admission/runtime/shared/Microsoft.NETCore.App/10.0.10/libcoreclr.so",
+      "share/laplace/source-admission/runtime/host/fxr/10.0.10/libhostfxr.so",
       "bin/laplace_resource_observe",
       "bin/laplace_unicode_activation_identify",
       "pgsql-18/bin/initdb",
@@ -111,6 +123,8 @@
     "schema": "laplace.elf-closure/v1",
     "tool_version": "1.0.0",
     "search_subdirectories": [
+      "share/laplace/source-admission/runtime/shared/Microsoft.NETCore.App/10.0.10",
+      "share/laplace/source-admission/runtime/host/fxr/10.0.10",
       "pgsql-18/lib",
       "lib"
     ],

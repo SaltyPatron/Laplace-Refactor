@@ -4,12 +4,26 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <vector>
 
 #include "laplace/decomposition_composition.h"
 #include "laplace/tabular_source.h"
 
 namespace laplace::internal {
+
+using RecursiveAtomIndex = std::map<std::uint32_t, std::uint64_t>;
+
+inline RecursiveAtomIndex IndexRecursiveAtoms(
+    const std::vector<std::uint32_t>& atoms) {
+    RecursiveAtomIndex index;
+    for (std::size_t ordinal = 0u; ordinal < atoms.size(); ++ordinal) {
+        /* Preserve the first existing ordinal even if a caller supplied a
+         * repeated position. Lookup acceleration never reorders the atoms. */
+        index.emplace(atoms[ordinal], static_cast<std::uint64_t>(ordinal));
+    }
+    return index;
+}
 
 struct RecursiveDecompositionWitnessInput final {
     laplace_digest256 provider_fingerprint{};
@@ -21,6 +35,10 @@ struct RecursiveDecompositionWitnessInput final {
     std::uint64_t media_type_byte_count{};
     std::uint32_t depth{};
     std::uint32_t flags{};
+    std::uint64_t grammar_kind{};
+    std::uint64_t field_kind{};
+    std::uint64_t sibling_ordinal{};
+    std::uint32_t syntax_flags{};
 };
 
 inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
@@ -130,21 +148,14 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
 
     std::vector<std::uint64_t> atom_indexes;
     atom_indexes.reserve(source_atom_count);
+    auto destination_index_by_position = IndexRecursiveAtoms(destination_atoms);
     for (std::size_t source_index = 0u;
          source_index < source_atom_count;
          ++source_index) {
         const std::uint32_t position = source.atom_positions[source_index];
-        std::uint64_t destination_index =
-            std::numeric_limits<std::uint64_t>::max();
-        for (std::size_t candidate = 0u;
-             candidate < destination_atoms.size();
-             ++candidate) {
-            if (destination_atoms[candidate] == position) {
-                destination_index = static_cast<std::uint64_t>(candidate);
-                break;
-            }
-        }
-        if (destination_index == std::numeric_limits<std::uint64_t>::max()) {
+        const auto found = destination_index_by_position.find(position);
+        std::uint64_t destination_index;
+        if (found == destination_index_by_position.end()) {
             if (destination_atoms.size() >=
                 static_cast<std::size_t>(
                     std::numeric_limits<std::uint64_t>::max())) {
@@ -153,6 +164,9 @@ inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
             destination_index =
                 static_cast<std::uint64_t>(destination_atoms.size());
             destination_atoms.push_back(position);
+            destination_index_by_position.emplace(position, destination_index);
+        } else {
+            destination_index = found->second;
         }
         atom_indexes.push_back(destination_index);
     }
@@ -227,10 +241,19 @@ inline laplace_tabular_source_status AppendRecursiveDecompositionWitnesses(
     std::vector<laplace_tabular_decomposition_witness> pending_witnesses;
     std::vector<std::uint8_t> pending_media_types;
     pending_witnesses.reserve(count);
+    const auto destination_index_by_position = IndexRecursiveAtoms(destination_atoms);
 
     for (std::size_t index = 0u; index < count; ++index) {
         const RecursiveDecompositionWitnessInput& span = spans[index];
-        if (span.byte_start >= span.byte_end ||
+        const bool has_content = source.span_has_content == nullptr
+            ? span.byte_start < span.byte_end
+            : source.span_has_content[index] != 0u;
+        if ((source.span_has_content != nullptr && source.span_has_content[index] > 1u) ||
+            span.byte_start > span.byte_end ||
+            (has_content && span.byte_start == span.byte_end) ||
+            (!has_content && (span.byte_start != span.byte_end ||
+                (span.syntax_flags & LAPLACE_DECOMPOSITION_SYNTAX_MISSING) == 0u)) ||
+            (span.syntax_flags & ~LAPLACE_DECOMPOSITION_KNOWN_SYNTAX_FLAGS) != 0u ||
             (index == 0u && span.parent_span_index !=
                                 std::numeric_limits<std::uint64_t>::max()) ||
             (index != 0u &&
@@ -241,41 +264,40 @@ inline laplace_tabular_source_status AppendRecursiveDecompositionWitnesses(
         }
 
         laplace_composition_operand canonical = source.span_references[index];
-        if (canonical.multiplicity != 1u ||
-            canonical.relationship_metadata != 0u || canonical.flags != 0u) {
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-        }
-        if (canonical.reference_kind ==
-            LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
-            if (canonical.reference_index >= source.atom_count) {
+        if (!has_content) {
+            if (canonical.reference_index != 0u || canonical.multiplicity != 0u ||
+                canonical.relationship_metadata != 0u ||
+                canonical.reference_kind != 0u || canonical.flags != 0u) {
                 return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
             }
-            const std::uint32_t position = source.atom_positions[
-                static_cast<std::size_t>(canonical.reference_index)];
-            std::uint64_t destination_index =
-                std::numeric_limits<std::uint64_t>::max();
-            for (std::size_t candidate = 0u;
-                 candidate < destination_atoms.size();
-                 ++candidate) {
-                if (destination_atoms[candidate] == position) {
-                    destination_index = static_cast<std::uint64_t>(candidate);
-                    break;
-                }
-            }
-            if (destination_index == std::numeric_limits<std::uint64_t>::max()) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
-            canonical.reference_index = destination_index;
-        } else if (canonical.reference_kind ==
-                   LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
-            if (canonical.reference_index >= source.request_count ||
-                canonical.reference_index >
-                    std::numeric_limits<std::uint64_t>::max() - request_base) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
-            canonical.reference_index += request_base;
         } else {
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            if (canonical.multiplicity != 1u ||
+                canonical.relationship_metadata != 0u || canonical.flags != 0u) {
+                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            }
+            if (canonical.reference_kind ==
+                LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
+                if (canonical.reference_index >= source.atom_count) {
+                    return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                }
+                const std::uint32_t position = source.atom_positions[
+                    static_cast<std::size_t>(canonical.reference_index)];
+                const auto found = destination_index_by_position.find(position);
+                if (found == destination_index_by_position.end()) {
+                    return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                }
+                canonical.reference_index = found->second;
+            } else if (canonical.reference_kind ==
+                       LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
+                if (canonical.reference_index >= source.request_count ||
+                    canonical.reference_index >
+                        std::numeric_limits<std::uint64_t>::max() - request_base) {
+                    return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                }
+                canonical.reference_index += request_base;
+            } else {
+                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            }
         }
 
         const std::size_t media_count =
@@ -309,6 +331,11 @@ inline laplace_tabular_source_status AppendRecursiveDecompositionWitnesses(
         witness.media_type_byte_count = span.media_type_byte_count;
         witness.depth = span.depth;
         witness.flags = span.flags;
+        witness.grammar_kind = span.grammar_kind;
+        witness.field_kind = span.field_kind;
+        witness.sibling_ordinal = span.sibling_ordinal;
+        witness.syntax_flags = span.syntax_flags;
+        witness.has_content = has_content ? 1u : 0u;
         pending_witnesses.push_back(witness);
         if (media_count != 0u) {
             const auto* bytes =

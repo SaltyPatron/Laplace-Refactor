@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import selectors
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Sequence
@@ -255,6 +256,11 @@ def validate_contract(document: dict[str, Any]) -> None:
     if preload != ["pg_stat_statements"]:
         raise ClusterError("first product preload set must contain only pg_stat_statements")
 
+    # This grant covers ordinary memory, not a reservation in the host's
+    # separately allocated huge-page pool. Opportunistic use can prevent a
+    # co-resident cluster with huge_pages=on from starting after a reboot.
+    if resources.get("huge_pages") != "off":
+        raise ClusterError("co-resident memory grant does not allocate huge pages")
     for field in (
         "minimum_cpu_slots",
         "maximum_cpu_slots",
@@ -1012,7 +1018,7 @@ def generate_settings(
         "effective_cache_size": memory_setting(effective_cache),
         "fsync": "on",
         "full_page_writes": "on",
-        "huge_pages": "try",
+        "huge_pages": policy["huge_pages"],
         "io_method": "io_uring",
         "io_workers": str(min(io_slots, cpu_slots)),
         "jit": "off",
@@ -1706,12 +1712,48 @@ def compose_loaded_observation(
     return observation
 
 
+def start_loaded_object_probe(base: list[str]) -> tuple[subprocess.Popen[str], int, str, str]:
+    """Read the identity from the very backend whose loaded objects are inspected."""
+    load_sql = "LOAD '$libdir/laplace_pg'; LOAD '$libdir/pg_stat_statements';"
+    identity_sql = (
+        "SELECT pg_catalog.pg_backend_pid()::text || '|' || "
+        "system_identifier::text FROM pg_catalog.pg_control_system();"
+    )
+    hold_sql = "SELECT pg_catalog.pg_sleep(120);"
+    probe = subprocess.Popen(
+        [*base, "--tuples-only", "--no-align", "--quiet",
+         "--command", load_sql, "--command", identity_sql, "--command", hold_sql],
+        cwd="/", env=activation_environment(), stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True, start_new_session=True,
+    )
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(probe.stdout, selectors.EVENT_READ)
+            if not selector.select(timeout=30):
+                raise ClusterError("loaded-object backend did not return its identity")
+            row = probe.stdout.readline().strip()
+        fields = row.split("|")
+        if (len(fields) != 2 or not all(value.isdecimal() for value in fields)
+                or int(fields[0]) <= 0 or int(fields[1]) <= 0):
+            detail = row
+            if probe.poll() is not None:
+                _, stderr = probe.communicate()
+                detail = stderr.strip() or row
+            raise ClusterError(f"loaded-object backend identity is invalid: {detail}")
+        return probe, int(fields[0]), fields[1], load_sql + identity_sql + hold_sql
+    except BaseException:
+        terminate_probe(probe)
+        raise
+
+
 def terminate_probe(process: subprocess.Popen[str]) -> None:
     if process.poll() is not None:
         process.communicate()
         return
     try:
-        os.killpg(process.pid, signal.SIGTERM)
+        # psql forwards SIGINT as a PostgreSQL cancellation request. SIGTERM
+        # alone can leave the backend executing pg_sleep after its client exits.
+        os.killpg(process.pid, signal.SIGINT)
         process.communicate(timeout=10)
     except (ProcessLookupError, subprocess.TimeoutExpired):
         try:
@@ -1738,13 +1780,6 @@ def observe_loaded_live(
         raise ClusterError("candidate service is not executing the planned package postmaster")
 
     instance = plan["instance"]
-    application_name = f"laplace_loaded_{plan['plan_sha256'][:24]}"
-    probe_sql = (
-        f"SET application_name = '{application_name}'; "
-        "LOAD '$libdir/laplace_pg'; "
-        "LOAD '$libdir/pg_stat_statements'; "
-        "SELECT pg_sleep(120);"
-    )
     psql = f"{plan['package_root']}/pgsql-{contract['package']['postgresql_major']}/bin/psql"
     base = [
         "/usr/sbin/runuser",
@@ -1764,52 +1799,8 @@ def observe_loaded_live(
         "--set",
         "ON_ERROR_STOP=1",
     ]
-    probe = subprocess.Popen(
-        [*base, "--command", probe_sql],
-        cwd="/",
-        env=activation_environment(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    lookup_sql = (
-        "SELECT a.pid::text || '|' || c.system_identifier::text "
-        "FROM pg_catalog.pg_stat_activity AS a "
-        "CROSS JOIN pg_catalog.pg_control_system() AS c "
-        f"WHERE a.application_name = '{application_name}' "
-        "AND a.pid <> pg_catalog.pg_backend_pid() AND a.state = 'active';"
-    )
-    backend_pid: int | None = None
-    system_identifier: str | None = None
+    probe, backend_pid, system_identifier, probe_sql = start_loaded_object_probe(base)
     try:
-        deadline = time.monotonic() + 30.0
-        while time.monotonic() < deadline:
-            if probe.poll() is not None:
-                stdout, stderr = probe.communicate()
-                detail = stderr.strip() or stdout.strip() or f"exit {probe.returncode}"
-                raise ClusterError(f"loaded-object probe exited before observation: {detail}")
-            completed = subprocess.run(
-                [*base, "--tuples-only", "--no-align", "--quiet", "--command", lookup_sql],
-                check=False,
-                cwd="/",
-                env=activation_environment(),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=10,
-            )
-            if completed.returncode == 0:
-                rows = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
-                if len(rows) == 1 and "|" in rows[0]:
-                    pid_text, identifier = rows[0].split("|", 1)
-                    if pid_text.isdecimal() and identifier.isdecimal():
-                        backend_pid = int(pid_text)
-                        system_identifier = identifier
-                        break
-            time.sleep(0.1)
-        if backend_pid is None or system_identifier is None:
-            raise ClusterError("timed out locating the active loaded-object probe backend")
         process_paths = process_loaded_paths(proc_root, backend_pid) | postmaster_paths
         return compose_loaded_observation(
             plan,

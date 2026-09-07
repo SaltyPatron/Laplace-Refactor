@@ -1,0 +1,11 @@
+-- Endpoint access belongs to the persistent physical provider. Build these at
+-- installation/upgrade, never as repair work on an interactive cognition call.
+CREATE INDEX IF NOT EXISTS reference_mapping_occurrence_left_endpoint_idx
+    ON @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.reference_mapping_occurrence
+    (boundary_id, left_value_entity_id, proposition_id, right_value_entity_id)
+    WHERE disposition = 1;
+
+CREATE INDEX IF NOT EXISTS reference_mapping_occurrence_right_endpoint_idx
+    ON @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.reference_mapping_occurrence
+    (boundary_id, right_value_entity_id, proposition_id, left_value_entity_id)
+    WHERE disposition = 1;

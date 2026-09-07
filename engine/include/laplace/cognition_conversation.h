@@ -112,6 +112,21 @@ typedef struct laplace_cognition_conversation_result {
     uint32_t reserved;
 } laplace_cognition_conversation_result;
 
+/* A failed turn retains its native cause and completed-stage receipts without
+ * publishing output or a successor discourse frame. In particular, unsupported
+ * language, incomplete cognition, provider failure and memory exhaustion remain
+ * distinguishable at the public conversation boundary. */
+typedef struct laplace_cognition_conversation_diagnostics {
+    laplace_cognition_turn_receipt turn_receipt;
+    laplace_cognition_forward_receipt forward_receipt;
+    laplace_cognition_realization_result realization;
+    laplace_cognition_realization_receipt realization_receipt;
+    uint32_t conversation_status;
+    uint32_t native_status;
+    uint32_t version;
+    uint32_t reserved;
+} laplace_cognition_conversation_diagnostics;
+
 /*
  * Executes one admitted observation through the complete public native response
  * chain:
@@ -145,6 +160,25 @@ laplace_cognition_conversation_execute(
     size_t next_discourse_frame_capacity,
     size_t* next_discourse_frame_bytes,
     laplace_cognition_conversation_result* result);
+
+/* Same execution and publication law, with exact native failure diagnostics.
+ * The original entry point delegates to this implementation. */
+LAPLACE_API laplace_cognition_conversation_status
+laplace_cognition_conversation_execute_with_diagnostics(
+    const laplace_cognition_conversation_request* request,
+    const uint8_t* previous_frame,
+    size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* cognition_provider,
+    const laplace_cognition_realization_provider_v1* realization_provider,
+    const laplace_cognition_materialization_provider_v1* materialization_provider,
+    uint8_t* output,
+    size_t output_capacity,
+    size_t* output_bytes,
+    uint8_t* next_discourse_frame,
+    size_t next_discourse_frame_capacity,
+    size_t* next_discourse_frame_bytes,
+    laplace_cognition_conversation_result* result,
+    laplace_cognition_conversation_diagnostics* diagnostics);
 
 #ifdef __cplusplus
 }

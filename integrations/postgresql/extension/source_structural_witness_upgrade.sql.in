@@ -1,0 +1,62 @@
+-- Preserve v1 witnesses as historical evidence. Syntax fields absent from those
+-- receipts remain NULL; only a new decomposition can supply a v2 witness.
+-- The package installer executes this file in one transaction before activation.
+DO $migration$
+DECLARE
+    old_unique name;
+BEGIN
+    IF NOT EXISTS (
+        SELECT FROM pg_catalog.pg_attribute
+        WHERE attrelid = '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness'::regclass
+          AND attname = 'witness_version' AND NOT attisdropped
+    ) THEN
+        ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness
+            ADD COLUMN witness_version integer NOT NULL DEFAULT 1,
+            ADD COLUMN grammar_kind numeric(20, 0),
+            ADD COLUMN field_kind numeric(20, 0),
+            ADD COLUMN sibling_ordinal numeric(20, 0),
+            ADD COLUMN syntax_flags integer,
+            ADD COLUMN has_content integer,
+            ALTER COLUMN canonical_entity_id DROP NOT NULL,
+            DROP CONSTRAINT source_structural_witness_byte_end_check,
+            DROP CONSTRAINT source_structural_witness_check,
+            DROP CONSTRAINT source_structural_witness_pkey,
+            ADD CONSTRAINT source_structural_witness_pkey
+                PRIMARY KEY (source_profile_id, artifact_index, span_index, witness_version),
+            ADD CONSTRAINT source_structural_witness_byte_end_check
+                CHECK (byte_end BETWEEN 0 AND 18446744073709551615),
+            ADD CONSTRAINT source_structural_witness_syntax_check CHECK (
+                (witness_version = 1 AND canonical_entity_id IS NOT NULL
+                    AND byte_start < byte_end
+                    AND grammar_kind IS NULL AND field_kind IS NULL
+                    AND sibling_ordinal IS NULL AND syntax_flags IS NULL
+                    AND has_content IS NULL)
+                OR
+                (witness_version = 2
+                    AND grammar_kind IS NOT NULL
+                    AND grammar_kind BETWEEN 0 AND 18446744073709551615
+                    AND field_kind IS NOT NULL
+                    AND field_kind BETWEEN 0 AND 18446744073709551615
+                    AND sibling_ordinal IS NOT NULL
+                    AND sibling_ordinal BETWEEN 0 AND 18446744073709551615
+                    AND syntax_flags IS NOT NULL AND syntax_flags BETWEEN 0 AND 31
+                    AND has_content IS NOT NULL
+                    AND ((has_content = 1 AND canonical_entity_id IS NOT NULL
+                            AND byte_start < byte_end)
+                        OR (has_content = 0 AND canonical_entity_id IS NULL
+                            AND byte_start = byte_end AND (syntax_flags & 2) = 2)))
+            );
+
+        SELECT conname INTO STRICT old_unique FROM pg_catalog.pg_constraint
+        WHERE conrelid = '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt'::regclass
+            AND contype = 'u';
+        EXECUTE format('ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt DROP CONSTRAINT %I', old_unique);
+        ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt
+            DROP CONSTRAINT source_structural_witness_receipt_version_check,
+            ADD CONSTRAINT source_structural_witness_receipt_version_check
+                CHECK (version IN (1, 2)),
+            ADD CONSTRAINT source_structural_witness_receipt_version_key
+                UNIQUE (source_profile_id, composition_working_set_receipt, version);
+    END IF;
+END
+$migration$;

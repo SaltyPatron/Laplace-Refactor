@@ -18,20 +18,12 @@
 #include "laplace/framework.h"
 #include "laplace/observation_query.h"
 #include "laplace_pg_internal.h"
+#include "semantic_cognition_pg.h"
 
 PG_FUNCTION_INFO_V1(laplace_pg_cognition_semantic_execute);
 
 #define LAPLACE_PG_SEMANTIC_PROVIDER_DOMAIN \
-    "laplace-postgresql-reference-mapping-candidate-provider-v1"
-
-typedef struct laplace_pg_semantic_provider_state {
-    laplace_digest256 boundary_id;
-    laplace_digest256 evidence_epoch;
-    laplace_digest256 provider_fingerprint;
-    uint64_t rows_examined;
-    uint64_t database_operations;
-    uint64_t provider_calls;
-} laplace_pg_semantic_provider_state;
+    "laplace-postgresql-reference-mapping-candidate-provider-v2"
 
 static void semantic_read_digest_attribute(
     HeapTupleHeader tuple,
@@ -237,7 +229,7 @@ static bool semantic_add_u64(uint64_t* total, uint64_t value) {
     return true;
 }
 
-static int semantic_enumerate_candidates(
+static int semantic_enumerate_candidates_impl(
     void* provider_state,
     const laplace_observation_query_binding* binding,
     const laplace_id128* source_entity_ids,
@@ -267,13 +259,15 @@ static int semantic_enumerate_candidates(
         " JOIN " LAPLACE_PG_SCHEMA ".reference_mapping_proposition p"
         "   ON p.proposition_id=o.proposition_id"
         " WHERE p.flags IN (1,2)"
+        " LIMIT $3"
         "), dedup AS ("
         " SELECT DISTINCT ON (source_state_index, proposition_id, target_entity_id)"
         " source_state_index,target_entity_id,proposition_id,relation_id,direction"
         " FROM edges"
         " ORDER BY source_state_index,proposition_id,target_entity_id"
         ")"
-        " SELECT source_state_index,target_entity_id,proposition_id,relation_id,direction"
+        " SELECT source_state_index,target_entity_id,proposition_id,relation_id,direction,"
+        " (SELECT count(*) FROM edges) AS occurrence_count"
         " FROM dedup"
         " ORDER BY source_state_index,proposition_id,target_entity_id";
     laplace_pg_semantic_provider_state* state =
@@ -281,10 +275,11 @@ static int semantic_enumerate_candidates(
     Datum* source_values;
     ArrayType* source_array;
     bytea* boundary;
-    Oid argument_types[2];
-    Datum argument_values[2];
+    Oid argument_types[3];
+    Datum argument_values[3];
     size_t source_index;
     uint64_t processed;
+    uint64_t occurrence_count = 0u;
     int result;
 
     if (state == NULL || binding == NULL || source_entity_ids == NULL ||
@@ -302,46 +297,89 @@ static int semantic_enumerate_candidates(
     if (frontier_state_count > (size_t)INT_MAX) {
         return 2;
     }
+    if (candidate_capacity >= (size_t)LONG_MAX ||
+        frontier_state_count > MaxAllocSize / sizeof(*source_values)) {
+        return 3;
+    }
 
-    source_values = (Datum*)palloc(sizeof(*source_values) * frontier_state_count);
+    if (state->batch_context == NULL) {
+        state->batch_context = AllocSetContextCreate(
+            CurrentMemoryContext, "Laplace semantic frontier batch",
+            ALLOCSET_DEFAULT_SIZES);
+    }
+    MemoryContextReset(state->batch_context);
+
+    source_values = (Datum*)MemoryContextAlloc(
+        state->batch_context, sizeof(*source_values) * frontier_state_count);
     for (source_index = 0u; source_index < frontier_state_count; ++source_index) {
-        source_values[source_index] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            source_entity_ids[source_index].bytes,
-            sizeof(source_entity_ids[source_index].bytes)));
+        bytea* source = (bytea*)MemoryContextAlloc(
+            state->batch_context, VARHDRSZ + sizeof(source_entity_ids[source_index].bytes));
+        SET_VARSIZE(source, VARHDRSZ + sizeof(source_entity_ids[source_index].bytes));
+        memcpy(VARDATA(source), source_entity_ids[source_index].bytes,
+            sizeof(source_entity_ids[source_index].bytes));
+        source_values[source_index] = PointerGetDatum(source);
         (void)frontier_states[source_index];
         (void)accumulated_costs[source_index];
     }
-    source_array = construct_array(
-        source_values, (int)frontier_state_count, BYTEAOID, -1, false, TYPALIGN_INT);
-    boundary = laplace_pg_bytes_to_bytea(
-        state->boundary_id.bytes, sizeof(state->boundary_id.bytes));
+    {
+        MemoryContext previous = MemoryContextSwitchTo(state->batch_context);
+        source_array = construct_array(
+            source_values, (int)frontier_state_count, BYTEAOID, -1, false, TYPALIGN_INT);
+        boundary = laplace_pg_bytes_to_bytea(
+            state->boundary_id.bytes, sizeof(state->boundary_id.bytes));
+        MemoryContextSwitchTo(previous);
+    }
 
     argument_types[0] = get_array_type(BYTEAOID);
     argument_types[1] = BYTEAOID;
+    argument_types[2] = INT8OID;
     if (argument_types[0] == InvalidOid) {
         return 3;
     }
     argument_values[0] = PointerGetDatum(source_array);
     argument_values[1] = PointerGetDatum(boundary);
+    argument_values[2] = Int64GetDatum((int64)candidate_capacity);
 
-    result = SPI_execute_with_args(
-        query, 2, argument_types, argument_values, NULL, true,
-        (long)candidate_capacity + 1L);
+    if (state->candidate_plan == NULL) {
+        state->candidate_plan = SPI_prepare(query, 3, argument_types);
+        if (state->candidate_plan == NULL) return 4;
+    }
+    result = SPI_execute_plan(
+        state->candidate_plan, argument_values, NULL, true,
+        (long)candidate_capacity);
     if (result != SPI_OK_SELECT || SPI_tuptable == NULL) {
         return 4;
     }
     processed = (uint64_t)SPI_processed;
-    if (!semantic_add_u64(&state->rows_examined, processed) ||
+    if (processed != 0u) {
+        bool is_null = false;
+        Datum value = SPI_getbinval(
+            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 6, &is_null);
+        int64 count;
+        if (is_null) return 5;
+        count = DatumGetInt64(value);
+        if (count < 0 || (uint64_t)count < processed ||
+            (uint64_t)count > (uint64_t)candidate_capacity) return 5;
+        occurrence_count = (uint64_t)count;
+    }
+    if (!semantic_add_u64(&state->rows_examined, occurrence_count) ||
         !semantic_add_u64(&state->database_operations, 1u) ||
         !semantic_add_u64(&state->provider_calls, 1u)) {
         return 5;
     }
 
-    usage->rows_examined = processed;
-    usage->index_plan_count = 1u;
+    /* Count admitted occurrence rows before deduplication. This is not a claim
+     * about heap/index pages visited by the PostgreSQL executor. */
+    usage->rows_examined = occurrence_count;
     usage->database_operations = 1u;
-    if (SPI_processed > candidate_capacity) {
+    /* Bound the input to DISTINCT/ORDER BY, not merely SPI's returned tuples.
+     * An incomplete occurrence set cannot certify a complete candidate set,
+     * even when repeated witnesses deduplicate below the output capacity. */
+    /* Reaching the boundary is inconclusive: an extra lookahead row would
+     * exceed this provider's declared read capacity. */
+    if (occurrence_count == candidate_capacity) {
         usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+        SPI_freetuptable(SPI_tuptable);
         return 0;
     }
 
@@ -397,7 +435,86 @@ static int semantic_enumerate_candidates(
 
     *candidate_count = (size_t)SPI_processed;
     usage->crossing_count = processed;
+    SPI_freetuptable(SPI_tuptable);
     return 0;
+}
+
+/* PostgreSQL ERROR uses longjmp. Catch it inside the C provider boundary so
+ * native search can release its C++ owners before the SQL entry point rethrows
+ * the original database error. */
+static int semantic_enumerate_candidates(
+    void* provider_state,
+    const laplace_observation_query_binding* binding,
+    const laplace_id128* source_entity_ids,
+    const laplace_query_search_state* frontier_states,
+    const uint64_t* accumulated_costs,
+    size_t frontier_state_count,
+    laplace_cognition_observation_candidate* candidates,
+    size_t candidate_capacity,
+    size_t* candidate_count,
+    laplace_cognition_observation_candidate_usage* usage) {
+    laplace_pg_semantic_provider_state* state =
+        (laplace_pg_semantic_provider_state*)provider_state;
+    MemoryContext previous = CurrentMemoryContext;
+    volatile int status = 0;
+    if (state == NULL || state->deferred_error != NULL) return 13;
+    PG_TRY();
+    {
+        status = semantic_enumerate_candidates_impl(
+            provider_state, binding, source_entity_ids, frontier_states,
+            accumulated_costs, frontier_state_count, candidates,
+            candidate_capacity, candidate_count, usage);
+    }
+    PG_CATCH();
+    {
+        MemoryContextSwitchTo(state->error_context);
+        state->deferred_error = CopyErrorData();
+        FlushErrorState();
+        MemoryContextSwitchTo(previous);
+        if (candidate_count != NULL) *candidate_count = 0u;
+        status = 13;
+    }
+    PG_END_TRY();
+    return status;
+}
+
+void laplace_pg_semantic_provider_initialize(
+    const laplace_cognition_observation_request* request,
+    laplace_pg_semantic_provider_state* state,
+    laplace_cognition_observation_candidate_provider_v1* provider) {
+    memset(state, 0, sizeof(*state));
+    state->error_context = CurrentMemoryContext;
+    state->boundary_id = request->evidence_boundary;
+    state->evidence_epoch = request->evidence_epoch;
+    semantic_provider_identify(
+        &state->boundary_id, &state->evidence_epoch,
+        &state->provider_fingerprint);
+    memset(provider, 0, sizeof(*provider));
+    provider->state = state;
+    provider->provider_fingerprint = state->provider_fingerprint;
+    provider->maximum_candidate_records_per_expansion =
+        (uint64_t)request->search_budget.transition_batch_capacity;
+    provider->enumerate_candidates = semantic_enumerate_candidates;
+    provider->abi_major =
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR;
+    provider->abi_minor =
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR;
+}
+
+void laplace_pg_semantic_provider_release(
+    laplace_pg_semantic_provider_state* state) {
+    if (state->candidate_plan != NULL) {
+        SPI_freeplan(state->candidate_plan);
+        state->candidate_plan = NULL;
+    }
+    if (state->batch_context != NULL) {
+        MemoryContextDelete(state->batch_context);
+        state->batch_context = NULL;
+    }
+    if (state->deferred_error != NULL) {
+        FreeErrorData(state->deferred_error);
+        state->deferred_error = NULL;
+    }
 }
 
 Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
@@ -442,24 +559,7 @@ Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
                  errdetail("request_status=%d", (int)request_status)));
     }
 
-    memset(&provider_state, 0, sizeof(provider_state));
-    provider_state.boundary_id = request.evidence_boundary;
-    provider_state.evidence_epoch = request.evidence_epoch;
-    semantic_provider_identify(
-        &provider_state.boundary_id,
-        &provider_state.evidence_epoch,
-        &provider_state.provider_fingerprint);
-
-    memset(&provider, 0, sizeof(provider));
-    provider.state = &provider_state;
-    provider.provider_fingerprint = provider_state.provider_fingerprint;
-    provider.maximum_candidate_records_per_expansion =
-        (uint64_t)request.search_budget.transition_batch_capacity;
-    provider.enumerate_candidates = semantic_enumerate_candidates;
-    provider.abi_major =
-        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR;
-    provider.abi_minor =
-        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR;
+    laplace_pg_semantic_provider_initialize(&request, &provider_state, &provider);
 
     if (SPI_connect() != SPI_OK_CONNECT) {
         ereport(ERROR,
@@ -471,6 +571,16 @@ Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
     request_status = laplace_cognition_observation_request_execute_with_candidate_provider(
         &request, &provider, &observation_result, &forward_result, &forward_receipt);
 
+    if (provider_state.deferred_error != NULL) {
+        ErrorData* error = provider_state.deferred_error;
+        provider_state.deferred_error = NULL;
+        laplace_cognition_observation_result_destroy(&observation_result);
+        laplace_cognition_forward_result_destroy(&forward_result);
+        laplace_pg_semantic_provider_release(&provider_state);
+        SPI_finish();
+        ReThrowError(error);
+    }
+    laplace_pg_semantic_provider_release(&provider_state);
     if (SPI_finish() != SPI_OK_FINISH) {
         laplace_cognition_observation_result_destroy(&observation_result);
         laplace_cognition_forward_result_destroy(&forward_result);
@@ -492,7 +602,7 @@ Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
     answer_count = laplace_cognition_observation_result_answer_count(
         observation_result);
     memset(&primary_answer, 0, sizeof(primary_answer));
-    if (answer_count == 0u ||
+    if (answer_count != 0u &&
         laplace_cognition_observation_result_answer(
             observation_result, 0u, &primary_answer) !=
             LAPLACE_COGNITION_OBSERVATION_REQUEST_OK) {
@@ -500,7 +610,18 @@ Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
         laplace_cognition_forward_result_destroy(&forward_result);
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace live semantic cognition produced no readable terminal answer")));
+                 errmsg("Laplace live semantic cognition terminal answer could not be read")));
+    }
+
+    /* Empty/limited/unknown search remains the native typed outcome. No answer
+     * is represented by SQL NULL, never an invented all-zero content identity. */
+    if (answer_count == 0u) {
+        size_t index;
+        for (index = 2u; index <= 5u; ++index) result_nulls[index] = true;
+        for (index = 8u; index <= 14u; ++index) result_nulls[index] = true;
+    } else if ((primary_answer.flags &
+                LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT) == 0u) {
+        result_nulls[3] = true;
     }
 
     result_values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(

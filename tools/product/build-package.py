@@ -247,8 +247,11 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ProductPackageError("product package must use the Release configuration")
     if build.get("install_libdir") != "lib":
         raise ProductPackageError("product package must use the canonical lib directory")
-    if build.get("testing") is not False or build.get("dotnet_bindings") is not False:
-        raise ProductPackageError("runtime product package cannot include test or SDK builds")
+    if build.get("testing") is not False or build.get("dotnet_bindings") is not True:
+        raise ProductPackageError("runtime product package requires native-backed managed transport and excludes tests")
+    if not re.fullmatch(r"10\.[0-9]+\.[0-9]+", str(build.get("dotnet_runtime_version", ""))):
+        raise ProductPackageError("product package must pin its .NET 10 transport runtime")
+    require_absolute(build.get("dotnet_root"), "build.dotnet_root")
     if not isinstance(build.get("parallel_jobs"), int) or not 1 <= build["parallel_jobs"] <= 64:
         raise ProductPackageError("build.parallel_jobs is invalid")
     if host_provider.get("receipt_schema") != "laplace.postgresql-host-build-provider/v1":
@@ -274,6 +277,21 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ProductPackageError("loaded objects must be required package files")
     if "bin/laplace_resource_observe" not in package["required_files"]:
         raise ProductPackageError("package must contain the native resource observer")
+    transport_runtime = "share/laplace/source-admission/runtime"
+    transport_required = {
+        "bin/laplace-source-admit",
+        "share/laplace/source-admission/laplace-source-admit.dll",
+        "share/laplace/source-admission/laplace-source-admit.runtimeconfig.json",
+        "share/laplace/source-admission/Laplace.Managed.dll",
+        "share/laplace/source-admission/sql/unicode-activate.sql",
+        "share/laplace/source-admission/sql/source-admit.sql",
+        "share/laplace/source-admission/contracts/unicode-product-activation.json",
+        f"{transport_runtime}/dotnet",
+        f"{transport_runtime}/shared/Microsoft.NETCore.App/{build['dotnet_runtime_version']}/libcoreclr.so",
+        f"{transport_runtime}/host/fxr/{build['dotnet_runtime_version']}/libhostfxr.so",
+    }
+    if not transport_required.issubset(package["required_files"]):
+        raise ProductPackageError("package omits the native-backed source transport or its selected runtime")
     if "bin/laplace_unicode_activation_identify" not in package["required_files"]:
         raise ProductPackageError(
             "package must contain the native Unicode activation identity provider"
@@ -929,6 +947,7 @@ def create_plan(
         contract["build"]["tree_sitter_root"], "build.tree_sitter_root"
     )
     build_input_roots = {
+        "dotnet": exact_tree_receipt(require_absolute(contract["build"]["dotnet_root"], "build.dotnet_root")),
         "blake3": exact_tree_receipt(blake3_root),
         "tree-sitter": exact_tree_receipt(tree_sitter_root),
         **provider_roots,
@@ -1512,6 +1531,8 @@ def execute_plan(
         f"-DCMAKE_INSTALL_LIBDIR={build['install_libdir']}",
         f"-DBUILD_TESTING={'ON' if build['testing'] else 'OFF'}",
         f"-DLAPLACE_ENABLE_DOTNET_BINDINGS={'ON' if build['dotnet_bindings'] else 'OFF'}",
+        f"-DLAPLACE_DOTNET_RUNTIME_VERSION={build['dotnet_runtime_version']}",
+        f"-DLAPLACE_DOTNET_EXECUTABLE={Path(build['dotnet_root']) / 'dotnet'}",
         f"-DLAPLACE_BLAKE3_SOURCE={build['blake3_source']}",
         f"-DLAPLACE_TREE_SITTER_SOURCE={plan['build_input_roots']['tree-sitter']['path']}",
         f"-DLAPLACE_DEPENDENCY_LOCK={repository / 'dependencies/lock.json'}",

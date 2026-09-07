@@ -76,6 +76,7 @@
   },
   "resource_policy": {
     "id": "co-resident-v1",
+    "huge_pages": "off",
     "minimum_cpu_slots": 2,
     "maximum_cpu_slots": 6,
     "minimum_memory_bytes": 4294967296,

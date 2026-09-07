@@ -269,6 +269,46 @@ def _ready(
     return clusterctl.await_postgresql_ready(label, command, timeout)
 
 
+def _upgrade_persistent_schema(plan: dict[str, Any]) -> dict[str, Any]:
+    """Apply the packaged durable schema changes in one transaction."""
+    package_root = Path(plan["package_root"])
+    postgresql_root = package_root / f"pgsql-{plan['postgresql_major']}"
+    migrations = (
+        postgresql_root / "share/extension" / name
+        for name in (
+            "laplace-source-structural-witness-upgrade.sql",
+            "laplace-source-admission-upgrade.sql",
+            "laplace-semantic-cognition-upgrade.sql",
+        )
+    )
+    migration_arguments: list[str] = []
+    migration_receipts: list[dict[str, str]] = []
+    for migration in migrations:
+        if not migration.is_file() or migration.is_symlink():
+            raise UpgradeError(f"successor package lacks migration: {migration.name}")
+        migration_arguments.extend(("--file", str(migration)))
+        migration_receipts.append({
+            "path": str(migration),
+            "sha256": clusterctl.sha256_file(migration),
+        })
+    instance = plan["instance"]
+    receipt = _command(
+        "upgrade-persistent-schema",
+        [
+            str(postgresql_root / "bin/psql"),
+            "--no-psqlrc", "--no-password", "--set", "ON_ERROR_STOP=1",
+            "--host", instance["socket_directory"],
+            "--port", str(instance["port"]),
+            "--username", instance["admin_role"],
+            "--dbname", instance["database"],
+            "--single-transaction", *migration_arguments,
+        ],
+        300,
+    )
+    receipt["migrations"] = migration_receipts
+    return receipt
+
+
 def _staged_receipt(
     plan: dict[str, Any], predecessor_target: str
 ) -> dict[str, Any]:
@@ -453,6 +493,8 @@ def upgrade_product(
             evidence_directory / "loaded-upgrade-initial.json",
             successor_loaded_initial,
         )
+
+        command_receipts.append(_upgrade_persistent_schema(successor_plan))
 
         command_receipts.append(
             _command(

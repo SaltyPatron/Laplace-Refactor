@@ -181,6 +181,7 @@ bool ReceiptCostFits(
 struct laplace_cognition_forward_result {
     laplace_cognition_guidance_state* final_state{};
     std::vector<laplace_cognition_forward_layer_receipt> layers;
+    laplace_cognition_forward_receipt receipt{};
 
     ~laplace_cognition_forward_result() {
         laplace_cognition_guidance_state_destroy(&final_state);

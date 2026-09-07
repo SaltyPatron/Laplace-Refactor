@@ -1,4 +1,5 @@
 #include "laplace/cognition_prompt_conversation.h"
+#include "laplace/cognition_interpretation.h"
 
 #include <new>
 #include <stdexcept>
@@ -16,10 +17,12 @@ laplace_cognition_prompt_conversation_status ProviderSetStatus(
 
 }  // namespace laplace_cognition_prompt_conversation_detail
 
-extern "C" laplace_cognition_prompt_conversation_status
-laplace_cognition_prompt_conversation_execute(
+static laplace_cognition_prompt_conversation_status
+ExecutePromptConversation(
     laplace_cognition_prompt_admission* const admission,
     const laplace_cognition_prompt_conversation_request* const request,
+    const laplace_cognition_interpretation_result* const interpretation,
+    const laplace_digest256* const goal_slot_id,
     const std::uint8_t* const previous_frame,
     const std::size_t previous_frame_bytes,
     const laplace_cognition_observation_candidate_provider_v1* const additional_cognition_providers,
@@ -50,6 +53,13 @@ laplace_cognition_prompt_conversation_execute(
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_INVALID_VERSION;
     }
 
+    std::vector<laplace_cognition_observation_candidate_provider_v1> providers;
+    // Include the admission's structural provider without overflowing the
+    // caller-supplied count or touching an unrepresentable descriptor range.
+    if (additional_cognition_provider_count >= providers.max_size()) {
+        return LAPLACE_COGNITION_PROMPT_CONVERSATION_INVALID_ARGUMENT;
+    }
+
     laplace_cognition_prompt_admission_view admission_view{};
     if (laplace_cognition_prompt_admission_view_get(admission, &admission_view) !=
         LAPLACE_COGNITION_PROMPT_ADMISSION_OK) {
@@ -62,7 +72,6 @@ laplace_cognition_prompt_conversation_execute(
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_STRUCTURAL_PROVIDER_FAILURE;
     }
 
-    std::vector<laplace_cognition_observation_candidate_provider_v1> providers;
     try {
         providers.reserve(additional_cognition_provider_count + 1U);
         providers.push_back(structural_provider);
@@ -94,6 +103,20 @@ laplace_cognition_prompt_conversation_execute(
     conversation_request.discourse_roots = request->discourse_roots;
     conversation_request.version = LAPLACE_COGNITION_CONVERSATION_VERSION;
 
+    if (interpretation != nullptr) {
+        laplace_cognition_turn_input inferred_turn{};
+        laplace_cognition_turn_policy inferred_policy{};
+        const auto interpretation_status = laplace_cognition_interpretation_prepare_turn(
+            interpretation, goal_slot_id, &conversation_request.turn,
+            &conversation_request.cognition_policy, &inferred_turn, &inferred_policy);
+        if (interpretation_status != LAPLACE_COGNITION_INTERPRETATION_OK) {
+            laplace_cognition_observation_candidate_provider_set_destroy(&provider_set);
+            return LAPLACE_COGNITION_PROMPT_CONVERSATION_INTERPRETATION_FAILURE;
+        }
+        conversation_request.turn = inferred_turn;
+        conversation_request.cognition_policy = inferred_policy;
+    }
+
     laplace_cognition_conversation_result conversation_result{};
     const auto conversation_status = laplace_cognition_conversation_execute(
         &conversation_request,
@@ -124,4 +147,46 @@ laplace_cognition_prompt_conversation_execute(
     result->conversation = conversation_result;
     result->version = LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION;
     return LAPLACE_COGNITION_PROMPT_CONVERSATION_OK;
+}
+
+extern "C" laplace_cognition_prompt_conversation_status
+laplace_cognition_prompt_conversation_execute(
+    laplace_cognition_prompt_admission* admission,
+    const laplace_cognition_prompt_conversation_request* request,
+    const uint8_t* previous_frame, size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* providers, size_t provider_count,
+    const laplace_cognition_realization_provider_v1* realization,
+    const laplace_cognition_materialization_provider_v1* materialization,
+    uint8_t* output, size_t output_capacity, size_t* output_bytes,
+    uint8_t* next_frame, size_t next_frame_capacity, size_t* next_frame_bytes,
+    laplace_cognition_prompt_conversation_result* result) {
+    return ExecutePromptConversation(admission, request, nullptr, nullptr,
+        previous_frame, previous_frame_bytes, providers, provider_count,
+        realization, materialization, output, output_capacity, output_bytes,
+        next_frame, next_frame_capacity, next_frame_bytes, result);
+}
+
+extern "C" laplace_cognition_prompt_conversation_status
+laplace_cognition_prompt_conversation_execute_interpreted(
+    laplace_cognition_prompt_admission* admission,
+    const laplace_cognition_prompt_conversation_request* request,
+    const laplace_cognition_interpretation_result* interpretation,
+    const laplace_digest256* goal_slot_id,
+    const uint8_t* previous_frame, size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* providers, size_t provider_count,
+    const laplace_cognition_realization_provider_v1* realization,
+    const laplace_cognition_materialization_provider_v1* materialization,
+    uint8_t* output, size_t output_capacity, size_t* output_bytes,
+    uint8_t* next_frame, size_t next_frame_capacity, size_t* next_frame_bytes,
+    laplace_cognition_prompt_conversation_result* result) {
+    if (interpretation == nullptr || goal_slot_id == nullptr) {
+        if (output_bytes != nullptr) *output_bytes = 0;
+        if (next_frame_bytes != nullptr) *next_frame_bytes = 0;
+        if (result != nullptr) *result = {};
+        return LAPLACE_COGNITION_PROMPT_CONVERSATION_INTERPRETATION_FAILURE;
+    }
+    return ExecutePromptConversation(admission, request, interpretation, goal_slot_id,
+        previous_frame, previous_frame_bytes, providers, provider_count,
+        realization, materialization, output, output_capacity, output_bytes,
+        next_frame, next_frame_capacity, next_frame_bytes, result);
 }

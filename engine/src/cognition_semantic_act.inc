@@ -85,7 +85,7 @@ laplace_cognition_observation_semantic_act_select(
     const laplace_cognition_observation_request* const request,
     const laplace_cognition_observation_result* const observation_result,
     const laplace_cognition_forward_result* const forward_result,
-    const laplace_cognition_forward_receipt* const forward_receipt,
+    const laplace_cognition_forward_receipt* forward_receipt,
     laplace_cognition_semantic_act* const act) {
     using namespace laplace_cognition_semantic_act_detail;
 
@@ -94,6 +94,24 @@ laplace_cognition_observation_semantic_act_select(
         forward_result == nullptr || forward_receipt == nullptr || act == nullptr) {
         return LAPLACE_COGNITION_SEMANTIC_ACT_INVALID_ARGUMENT;
     }
+
+    laplace_cognition_forward_receipt executed{};
+    laplace_digest256 retained_request{}, retained_forward{}, request_fingerprint{};
+    if (laplace_cognition_observation_request_identify(request, &request_fingerprint) !=
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK)
+        return LAPLACE_COGNITION_SEMANTIC_ACT_REQUEST_FAILURE;
+    if (laplace_cognition_forward_result_receipt(forward_result, &executed) !=
+            LAPLACE_COGNITION_FORWARD_OK ||
+        laplace_cognition_observation_result_execution(
+            observation_result, &retained_request, &retained_forward) !=
+            LAPLACE_COGNITION_OBSERVATION_REQUEST_OK ||
+        !SameDigest(executed.receipt_id, forward_receipt->receipt_id) ||
+        !SameDigest(retained_forward, executed.receipt_id) ||
+        !SameDigest(retained_request, request_fingerprint))
+        return LAPLACE_COGNITION_SEMANTIC_ACT_FORWARD_RESULT_FAILURE;
+    // Completion and provenance come from the retained native execution. The
+    // supplied receipt is an identifier, not an editable completion authority.
+    forward_receipt = &executed;
 
     if (forward_receipt->status != LAPLACE_COGNITION_FORWARD_OK ||
         forward_receipt->disposition != LAPLACE_COGNITION_FORWARD_COMPLETE ||
@@ -153,13 +171,6 @@ laplace_cognition_observation_semantic_act_select(
             primary = answer;
             primary_present = true;
         }
-    }
-
-    laplace_digest256 request_fingerprint{};
-    if (laplace_cognition_observation_request_identify(
-            request, &request_fingerprint) !=
-        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK) {
-        return LAPLACE_COGNITION_SEMANTIC_ACT_REQUEST_FAILURE;
     }
 
     laplace_digest256 answer_set_fingerprint{};

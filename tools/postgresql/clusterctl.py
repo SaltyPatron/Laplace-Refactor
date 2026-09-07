@@ -887,13 +887,6 @@ def observe_loaded_live(
         raise _core.ClusterError("running postmaster is not the planned package binary")
 
     instance = plan["instance"]
-    application_name = f"laplace_loaded_{plan['plan_sha256'][:24]}"
-    probe_sql = (
-        f"SET application_name = '{application_name}'; "
-        "LOAD '$libdir/laplace_pg'; "
-        "LOAD '$libdir/pg_stat_statements'; "
-        "SELECT pg_sleep(120);"
-    )
     psql = f"{plan['package_root']}/pgsql-{plan['postgresql_major']}/bin/psql"
     base = [
         psql,
@@ -909,52 +902,8 @@ def observe_loaded_live(
         "--set",
         "ON_ERROR_STOP=1",
     ]
-    probe = subprocess.Popen(
-        [*base, "--command", probe_sql],
-        cwd="/",
-        env=activation_environment(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    lookup_sql = (
-        "SELECT a.pid::text || '|' || c.system_identifier::text "
-        "FROM pg_catalog.pg_stat_activity AS a "
-        "CROSS JOIN pg_catalog.pg_control_system() AS c "
-        f"WHERE a.application_name = '{application_name}' "
-        "AND a.pid <> pg_catalog.pg_backend_pid() AND a.state = 'active';"
-    )
-    backend_pid: int | None = None
-    system_identifier: str | None = None
+    probe, backend_pid, system_identifier, probe_sql = start_loaded_object_probe(base)
     try:
-        deadline = time.monotonic() + 30.0
-        while time.monotonic() < deadline:
-            if probe.poll() is not None:
-                stdout, stderr = probe.communicate()
-                detail = stderr.strip() or stdout.strip() or f"exit {probe.returncode}"
-                raise _core.ClusterError(f"loaded-object probe exited early: {detail}")
-            lookup = subprocess.run(
-                [*base, "--tuples-only", "--no-align", "--quiet", "--command", lookup_sql],
-                check=False,
-                cwd="/",
-                env=activation_environment(),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=10,
-            )
-            if lookup.returncode == 0:
-                rows = [line.strip() for line in lookup.stdout.splitlines() if line.strip()]
-                if len(rows) == 1 and "|" in rows[0]:
-                    candidate_pid, candidate_identifier = rows[0].split("|", 1)
-                    if candidate_pid.isdecimal() and candidate_identifier.isdecimal():
-                        backend_pid = int(candidate_pid)
-                        system_identifier = candidate_identifier
-                        break
-            time.sleep(0.1)
-        if backend_pid is None or system_identifier is None:
-            raise _core.ClusterError("timed out locating loaded-object probe backend")
         paths = process_loaded_paths(proc_root, backend_pid) | postmaster_paths
         return compose_loaded_observation(
             plan,

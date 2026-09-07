@@ -550,9 +550,11 @@ TEST(TabularSource, GeneratedPlanExecutesThroughCanonicalComposition) {
     ASSERT_EQ(laplace_tabular_source_profile_finalize(
                   plan, &summary, &closed_profile),
               LAPLACE_TABULAR_SOURCE_OK);
-    EXPECT_EQ(closed_profile.occurrence_count, summary.occurrence_count);
-    EXPECT_NE(closed_profile.occurrence_count,
+    // World admission closes the represented composition count, while sparse
+    // occurrence-member deposition above still emits exactly twelve witnesses.
+    EXPECT_EQ(closed_profile.occurrence_count,
               summary.logical_occurrence_count);
+    EXPECT_GT(closed_profile.occurrence_count, summary.occurrence_count);
     EXPECT_FALSE(std::all_of(
         closed_profile.profile_id.bytes,
         closed_profile.profile_id.bytes + 32u,
@@ -678,7 +680,10 @@ TEST(TabularSource, RejectsDigestGrammarUtf8AndDenominatorDefects) {
               LAPLACE_TABULAR_SOURCE_UTF8_INVALID);
 
     Fixture denominator;
-    denominator.artifacts[1].expected_field_count = 5u;
+    // Internally consistent declarations can still disagree with the exact
+    // source bytes. Graph validation must not replace parsing this denominator.
+    denominator.artifacts[1].expected_record_count = 4u;
+    denominator.artifacts[1].expected_field_count = 8u;
     laplace_digest256 graph{};
     ASSERT_EQ(laplace_tabular_source_graph_identify(
                   denominator.artifacts.data(), denominator.artifacts.size(),
@@ -693,6 +698,24 @@ TEST(TabularSource, RejectsDigestGrammarUtf8AndDenominatorDefects) {
     denominator.input.profile_declaration.artifact_graph_fingerprint = graph;
     EXPECT_EQ(laplace_tabular_source_plan_create(&denominator.input, &plan),
               LAPLACE_TABULAR_SOURCE_DENOMINATOR_MISMATCH);
+}
+
+TEST(TabularSource, GraphAndAdmissionRejectInconsistentFieldDeclarations) {
+    Fixture fixture;
+    fixture.artifacts[1].expected_field_count = 5u;
+    laplace_digest256 graph{};
+    EXPECT_EQ(laplace_tabular_source_graph_identify(
+                  fixture.artifacts.data(), fixture.artifacts.size(),
+                  fixture.input.reference_rules,
+                  static_cast<std::size_t>(fixture.input.reference_rule_count),
+                  fixture.input.mapping_rules,
+                  static_cast<std::size_t>(fixture.input.mapping_rule_count),
+                  &graph),
+              LAPLACE_TABULAR_SOURCE_ARTIFACT_INVALID);
+    laplace_tabular_source_plan* plan = nullptr;
+    EXPECT_EQ(laplace_tabular_source_plan_create(&fixture.input, &plan),
+              LAPLACE_TABULAR_SOURCE_ARTIFACT_INVALID);
+    EXPECT_EQ(plan, nullptr);
 }
 
 TEST(TabularSource, RejectsMissingUnknownAndDuplicateArtifactGraphEdges) {

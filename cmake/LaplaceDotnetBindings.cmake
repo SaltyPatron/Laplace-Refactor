@@ -49,6 +49,8 @@ function(laplace_configure_dotnet_bindings
             "${CMAKE_CURRENT_SOURCE_DIR}/Directory.Build.props"
             "${CMAKE_CURRENT_SOURCE_DIR}/managed/Laplace.Managed/Abi.cs"
             "${CMAKE_CURRENT_SOURCE_DIR}/managed/Laplace.Managed/Transport.cs"
+            "${CMAKE_CURRENT_SOURCE_DIR}/managed/Laplace.Managed/TabularSource.cs"
+            "${CMAKE_CURRENT_SOURCE_DIR}/managed/Laplace.Managed/SourceEvidence.cs"
             "${nuget_config}"
         COMMENT "Building dependency-free .NET 10 ISA bindings"
         VERBATIM)

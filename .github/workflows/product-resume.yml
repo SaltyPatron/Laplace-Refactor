@@ -1,0 +1,48 @@
+name: product-resume
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-activation-refs/heads/main
+  cancel-in-progress: false
+
+jobs:
+  resume-installed-product:
+    environment: product
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Complete installed PostgreSQL, Unicode, and Highway activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          python3 tools/delivery/product_resume.py \
+            --repository-commit "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/laplace-product-resume.json"
+          cat "$RUNNER_TEMP/laplace-product-resume.json"
+      - name: Read persisted ingestion state
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          /opt/laplace/current/pgsql-18/bin/psql \
+            -X -w -h /opt/laplace/runtime/postgresql/refactor -p 55433 \
+            -U laplace_admin -d laplace_refactor -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN READ ONLY;
+          SET LOCAL statement_timeout = '60s';
+          SELECT current_database(), current_user, version();
+          SELECT count(*) AS canonical_entities FROM laplace.entity;
+          SELECT count(*) AS canonical_physicalities FROM laplace.physicality;
+          SELECT encode(root_receipt, 'hex') AS root_receipt,
+                 atom_count, ducet_position_count, ducet_contraction_count,
+                 normalization_composition_count
+          FROM laplace.unicode_root_generation;
+          SELECT count(*) AS admitted_source_profiles FROM laplace.source_profile;
+          COMMIT;
+          SQL

@@ -110,6 +110,11 @@ typedef struct laplace_cognition_materialization_receipt {
  * trajectories before descent; atom identities are recalculated from codepoint
  * positions. No token vocabulary, English pivot, punctuation rule, or generated
  * surface text participates in this readback.
+ * Within one immutable provider execution, a fully verified canonical subtree
+ * is read once and subsequent occurrences reuse its exact output slice. Node
+ * and carrier limits/counts measure distinct provider reads; output and depth
+ * limits still apply to every occurrence, including reused subtrees. Reuse does
+ * not persist across calls or replace occurrence tier validation.
  *
  * The caller buffer is written only after the complete root has validated. A
  * corrupt trajectory, identity mismatch, cycle, provider defect, or finite-limit

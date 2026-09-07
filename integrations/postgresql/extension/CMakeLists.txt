@@ -36,6 +36,31 @@ file(APPEND "${extension_sql}"
 ${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SQL}\
 ")
 
+# Fresh clusters and retained clusters execute the same versioned witness change.
+set(source_structural_witness_upgrade_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace-source-structural-witness-upgrade.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/source_structural_witness_upgrade.sql.in"
+    "${source_structural_witness_upgrade_sql}" @ONLY)
+file(READ "${source_structural_witness_upgrade_sql}"
+    LAPLACE_SOURCE_STRUCTURAL_WITNESS_UPGRADE_SQL)
+file(APPEND "${extension_sql}"
+    "\n${LAPLACE_SOURCE_STRUCTURAL_WITNESS_UPGRADE_SQL}\n")
+
+string(JSON LAPLACE_SOURCE_ADMISSION_SQL GET
+    "${laplace_source_structural_witness_contract}" bindings postgresql source_admit_tabular admit_sql_name)
+string(JSON LAPLACE_SOURCE_ADMISSION_SYMBOL GET
+    "${laplace_source_structural_witness_contract}" bindings postgresql source_admit_tabular admit_c_symbol)
+string(JSON LAPLACE_SOURCE_ADMISSION_MODULE GET
+    "${laplace_source_structural_witness_contract}" bindings postgresql module)
+set(source_admission_upgrade_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace-source-admission-upgrade.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/source_admission_upgrade.sql.in"
+    "${source_admission_upgrade_sql}" @ONLY)
+file(READ "${source_admission_upgrade_sql}" LAPLACE_SOURCE_ADMISSION_UPGRADE_SQL)
+file(APPEND "${extension_sql}" "\n${LAPLACE_SOURCE_ADMISSION_UPGRADE_SQL}\n")
+
 set(LAPLACE_MACHINE_EXCEPTION_SCHEMA
     "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
 set(machine_exception_sql
@@ -83,6 +108,15 @@ ${LAPLACE_OBSERVATION_COGNITION_SQL}\
 
 set(LAPLACE_SEMANTIC_COGNITION_SCHEMA
     "${LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA}")
+set(semantic_cognition_upgrade_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace-semantic-cognition-upgrade.sql")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/semantic_cognition_upgrade.sql.in"
+    "${semantic_cognition_upgrade_sql}" @ONLY)
+file(READ "${semantic_cognition_upgrade_sql}"
+    LAPLACE_SEMANTIC_COGNITION_UPGRADE_SQL)
+file(APPEND "${extension_sql}"
+    "\n${LAPLACE_SEMANTIC_COGNITION_UPGRADE_SQL}\n")
 set(semantic_cognition_sql
     "${CMAKE_CURRENT_BINARY_DIR}/semantic_cognition.sql")
 configure_file(
@@ -332,6 +366,9 @@ endif()
 install(TARGETS laplace_pg
     LIBRARY DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/lib")
 install(FILES "${extension_control}" "${extension_sql}"
+    "${source_structural_witness_upgrade_sql}"
+    "${source_admission_upgrade_sql}"
+    "${semantic_cognition_upgrade_sql}"
     DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/share/extension")
 
 set(LAPLACE_POSTGRES_EXTENSION_TARGET laplace_pg PARENT_SCOPE)

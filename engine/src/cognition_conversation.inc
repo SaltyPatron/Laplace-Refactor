@@ -2,6 +2,7 @@
 
 #include "blake3.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -143,8 +144,7 @@ struct NativeResultOwner final {
 
 }  // namespace laplace_cognition_conversation_detail
 
-extern "C" laplace_cognition_conversation_status
-laplace_cognition_conversation_execute(
+static laplace_cognition_conversation_status ExecuteConversation(
     const laplace_cognition_conversation_request* const request,
     const std::uint8_t* const previous_frame,
     const std::size_t previous_frame_bytes,
@@ -157,7 +157,8 @@ laplace_cognition_conversation_execute(
     std::uint8_t* const next_discourse_frame,
     const std::size_t next_discourse_frame_capacity,
     std::size_t* const next_discourse_frame_bytes,
-    laplace_cognition_conversation_result* const result) {
+    laplace_cognition_conversation_result* const result,
+    laplace_cognition_conversation_diagnostics* const diagnostics) {
     using namespace laplace_cognition_conversation_detail;
 
     if (output_bytes != nullptr) *output_bytes = 0U;
@@ -182,8 +183,13 @@ laplace_cognition_conversation_execute(
     }
 
     std::vector<std::uint8_t> staged_output;
+    const auto staged_capacity = std::min<std::uint64_t>(
+        output_capacity, request->materialization.maximum_output_bytes);
+    if (staged_capacity == 0U || staged_capacity > staged_output.max_size()) {
+        return LAPLACE_COGNITION_CONVERSATION_INVALID_ARGUMENT;
+    }
     try {
-        staged_output.resize(output_capacity);
+        staged_output.resize(static_cast<std::size_t>(staged_capacity));
     } catch (const std::bad_alloc&) {
         return LAPLACE_COGNITION_CONVERSATION_MEMORY_FAILURE;
     }
@@ -193,45 +199,51 @@ laplace_cognition_conversation_execute(
     laplace_cognition_conversation_result resolved{};
     resolved.version = LAPLACE_COGNITION_CONVERSATION_VERSION;
 
-    if (laplace_cognition_turn_compile(
+    diagnostics->native_status = laplace_cognition_turn_compile(
             &request->turn, &request->cognition_policy,
             previous_frame, previous_frame_bytes,
-            &resolved.cognition_request, &resolved.turn_receipt) !=
-        LAPLACE_COGNITION_TURN_OK) {
+            &resolved.cognition_request, &resolved.turn_receipt);
+    diagnostics->turn_receipt = resolved.turn_receipt;
+    if (diagnostics->native_status != LAPLACE_COGNITION_TURN_OK) {
         return LAPLACE_COGNITION_CONVERSATION_TURN_FAILURE;
     }
 
     NativeResultOwner native_results{};
-    if (laplace_cognition_observation_request_execute_with_candidate_provider(
+    diagnostics->native_status = laplace_cognition_observation_request_execute_with_candidate_provider(
             &resolved.cognition_request, cognition_provider,
             &native_results.observation, &native_results.forward,
-            &resolved.forward_receipt) !=
-        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK) {
+            &resolved.forward_receipt);
+    diagnostics->forward_receipt = resolved.forward_receipt;
+    if (diagnostics->native_status != LAPLACE_COGNITION_OBSERVATION_REQUEST_OK) {
         return LAPLACE_COGNITION_CONVERSATION_COGNITION_FAILURE;
     }
 
-    if (laplace_cognition_observation_semantic_act_select(
+    diagnostics->native_status = laplace_cognition_observation_semantic_act_select(
             &resolved.cognition_request, native_results.observation,
             native_results.forward, &resolved.forward_receipt,
-            &resolved.semantic_act) != LAPLACE_COGNITION_SEMANTIC_ACT_OK) {
+            &resolved.semantic_act);
+    if (diagnostics->native_status != LAPLACE_COGNITION_SEMANTIC_ACT_OK) {
         return LAPLACE_COGNITION_CONVERSATION_SEMANTIC_ACT_FAILURE;
     }
 
     resolved.realization_request =
         BindRealizationRequest(*request, resolved.cognition_request);
-    if (laplace_cognition_semantic_act_realize(
+    diagnostics->native_status = laplace_cognition_semantic_act_realize(
             &resolved.semantic_act, &resolved.realization_request,
             realization_provider, &resolved.realization,
-            &resolved.realization_receipt) != LAPLACE_COGNITION_REALIZATION_OK) {
+            &resolved.realization_receipt);
+    diagnostics->realization = resolved.realization;
+    diagnostics->realization_receipt = resolved.realization_receipt;
+    if (diagnostics->native_status != LAPLACE_COGNITION_REALIZATION_OK) {
         return LAPLACE_COGNITION_CONVERSATION_REALIZATION_FAILURE;
     }
 
     std::size_t staged_output_bytes = 0U;
-    if (laplace_cognition_realization_materialize_utf8(
+    diagnostics->native_status = laplace_cognition_realization_materialize_utf8(
             &resolved.realization, &request->materialization,
             materialization_provider, staged_output.data(), staged_output.size(),
-            &staged_output_bytes, &resolved.materialization_receipt) !=
-        LAPLACE_COGNITION_MATERIALIZATION_OK) {
+            &staged_output_bytes, &resolved.materialization_receipt);
+    if (diagnostics->native_status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
         return LAPLACE_COGNITION_CONVERSATION_MATERIALIZATION_FAILURE;
     }
 
@@ -239,18 +251,19 @@ laplace_cognition_conversation_execute(
     BindDiscourseRoots(
         *request, resolved.cognition_request, resolved.turn_receipt,
         &discourse_input);
-    if (laplace_cognition_discourse_state_create(
+    diagnostics->native_status = laplace_cognition_discourse_state_create(
             &discourse_input, &resolved.semantic_act,
-            &resolved.discourse_state) != LAPLACE_COGNITION_DISCOURSE_OK) {
+            &resolved.discourse_state);
+    if (diagnostics->native_status != LAPLACE_COGNITION_DISCOURSE_OK) {
         return LAPLACE_COGNITION_CONVERSATION_DISCOURSE_FAILURE;
     }
 
     std::size_t staged_frame_bytes = 0U;
-    if (laplace_cognition_discourse_frame_encode(
+    diagnostics->native_status = laplace_cognition_discourse_frame_encode(
             &resolved.discourse_state, staged_discourse_frame.data(),
             staged_discourse_frame.size(), &staged_frame_bytes,
-            &resolved.discourse_frame_receipt) !=
-        LAPLACE_COGNITION_DISCOURSE_FRAME_OK) {
+            &resolved.discourse_frame_receipt);
+    if (diagnostics->native_status != LAPLACE_COGNITION_DISCOURSE_FRAME_OK) {
         return LAPLACE_COGNITION_CONVERSATION_FRAME_FAILURE;
     }
     if (staged_frame_bytes != LAPLACE_COGNITION_DISCOURSE_FRAME_BYTES) {
@@ -268,4 +281,48 @@ laplace_cognition_conversation_execute(
     *next_discourse_frame_bytes = staged_frame_bytes;
     *result = resolved;
     return LAPLACE_COGNITION_CONVERSATION_OK;
+}
+
+extern "C" laplace_cognition_conversation_status
+laplace_cognition_conversation_execute_with_diagnostics(
+    const laplace_cognition_conversation_request* request,
+    const std::uint8_t* previous_frame, std::size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* cognition_provider,
+    const laplace_cognition_realization_provider_v1* realization_provider,
+    const laplace_cognition_materialization_provider_v1* materialization_provider,
+    std::uint8_t* output, std::size_t output_capacity, std::size_t* output_bytes,
+    std::uint8_t* next_discourse_frame, std::size_t next_discourse_frame_capacity,
+    std::size_t* next_discourse_frame_bytes,
+    laplace_cognition_conversation_result* result,
+    laplace_cognition_conversation_diagnostics* diagnostics) {
+    laplace_cognition_conversation_diagnostics local{};
+    local.version = LAPLACE_COGNITION_CONVERSATION_VERSION;
+    const auto status = ExecuteConversation(
+        request, previous_frame, previous_frame_bytes, cognition_provider,
+        realization_provider, materialization_provider,
+        output, output_capacity, output_bytes,
+        next_discourse_frame, next_discourse_frame_capacity,
+        next_discourse_frame_bytes, result, &local);
+    local.conversation_status = status;
+    if (diagnostics != nullptr) *diagnostics = local;
+    return status;
+}
+
+extern "C" laplace_cognition_conversation_status
+laplace_cognition_conversation_execute(
+    const laplace_cognition_conversation_request* request,
+    const std::uint8_t* previous_frame, std::size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* cognition_provider,
+    const laplace_cognition_realization_provider_v1* realization_provider,
+    const laplace_cognition_materialization_provider_v1* materialization_provider,
+    std::uint8_t* output, std::size_t output_capacity, std::size_t* output_bytes,
+    std::uint8_t* next_discourse_frame, std::size_t next_discourse_frame_capacity,
+    std::size_t* next_discourse_frame_bytes,
+    laplace_cognition_conversation_result* result) {
+    return laplace_cognition_conversation_execute_with_diagnostics(
+        request, previous_frame, previous_frame_bytes, cognition_provider,
+        realization_provider, materialization_provider,
+        output, output_capacity, output_bytes,
+        next_discourse_frame, next_discourse_frame_capacity,
+        next_discourse_frame_bytes, result, nullptr);
 }

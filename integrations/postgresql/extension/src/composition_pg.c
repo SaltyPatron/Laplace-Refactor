@@ -13,6 +13,7 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/memutils.h"
 
 #include "blake3.h"
 #include "laplace/composition.h"
@@ -31,6 +32,12 @@ PG_FUNCTION_INFO_V1(LAPLACE_PG_COMPOSITION_ENTRYPOINT);
 
 static SPIPlanPtr entity_presence_plan = NULL;
 static SPIPlanPtr physicality_presence_plan = NULL;
+
+typedef struct laplace_pg_presence_state {
+    MemoryContext error_context;
+    ErrorData* deferred_error;
+    bool spi_connected;
+} laplace_pg_presence_state;
 
 static bool composition_query_boolean(void) {
     bool is_null = false;
@@ -366,7 +373,7 @@ static ArrayType* physicality_array(
     return result;
 }
 
-static laplace_composition_status resolve_presence(
+static laplace_composition_status resolve_presence_impl(
     void* state,
     const laplace_composition_entity_candidate* entity_candidates,
     size_t entity_candidate_count,
@@ -381,7 +388,7 @@ static laplace_composition_status resolve_presence(
     Oid physicality_types[1];
     blake3_hasher receipt_hasher;
     size_t tier;
-    (void)state;
+    laplace_pg_presence_state* provider_state = (laplace_pg_presence_state*)state;
     if (entity_candidates == NULL || entity_candidate_count == 0u ||
         entity_dispositions == NULL || result == NULL ||
         (physicality_candidate_count != 0u &&
@@ -415,6 +422,7 @@ static laplace_composition_status resolve_presence(
     if (SPI_connect() != SPI_OK_CONNECT) {
         return LAPLACE_COMPOSITION_PRESENCE_INVALID;
     }
+    provider_state->spi_connected = true;
     entity_types[0] = laplace_pg_composite_array_oid("entity_record");
     physicality_types[0] = laplace_pg_composite_array_oid("physicality_record");
     laplace_pg_keep_plan(
@@ -507,6 +515,7 @@ static laplace_composition_status resolve_presence(
                 (errcode(ERRCODE_INTERNAL_ERROR),
                  errmsg("Laplace presence provider could not close SPI")));
     }
+    provider_state->spi_connected = false;
     result->returned_entity_count = entity_candidate_count;
     result->returned_physicality_count = physicality_candidate_count;
     hash_u64(&receipt_hasher, result->entity_round_count);
@@ -515,14 +524,52 @@ static laplace_composition_status resolve_presence(
     return LAPLACE_COMPOSITION_OK;
 }
 
+/* ERROR must not longjmp across the native working-set resolver. Preserve it
+ * here, return through native cleanup, then rethrow at the C execution owner. */
+static laplace_composition_status resolve_presence(
+    void* opaque,
+    const laplace_composition_entity_candidate* entity_candidates,
+    size_t entity_candidate_count,
+    const laplace_persistence_physicality_record* physicality_candidates,
+    size_t physicality_candidate_count,
+    uint8_t* entity_dispositions,
+    uint8_t* physicality_dispositions,
+    laplace_composition_presence_provider_result* result) {
+    laplace_pg_presence_state* state = (laplace_pg_presence_state*)opaque;
+    MemoryContext previous = CurrentMemoryContext;
+    volatile laplace_composition_status status = LAPLACE_COMPOSITION_PRESENCE_INVALID;
+    if (state == NULL || state->deferred_error != NULL) return status;
+    PG_TRY();
+    {
+        status = resolve_presence_impl(
+            state, entity_candidates, entity_candidate_count,
+            physicality_candidates, physicality_candidate_count,
+            entity_dispositions, physicality_dispositions, result);
+    }
+    PG_CATCH();
+    {
+        MemoryContextSwitchTo(state->error_context);
+        state->deferred_error = CopyErrorData();
+        FlushErrorState();
+        MemoryContextSwitchTo(previous);
+        status = LAPLACE_COMPOSITION_PRESENCE_INVALID;
+    }
+    PG_END_TRY();
+    return status;
+}
+
 static void laplace_pg_composition_presence_provider(
+    laplace_pg_presence_state* state,
     laplace_composition_presence_provider_v1* provider) {
     if (provider == NULL) {
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("Laplace composition presence provider output is null")));
     }
+    memset(state, 0, sizeof(*state));
+    state->error_context = CurrentMemoryContext;
     memset(provider, 0, sizeof(*provider));
+    provider->state = state;
     provider->resolve = resolve_presence;
     provider->abi_major = LAPLACE_COMPOSITION_PRESENCE_PROVIDER_ABI;
     provider->abi_minor = LAPLACE_COMPOSITION_ABI_MINOR;
@@ -796,6 +843,7 @@ void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
     const laplace_composition_working_set_input* input,
     laplace_pg_composition_execution* execution) {
     laplace_composition_presence_provider_v1 presence_provider;
+    laplace_pg_presence_state presence_state;
     laplace_framework_producer_v1 producer;
     laplace_composition_status status;
     if (input == NULL || execution == NULL || input->context == NULL ||
@@ -816,9 +864,18 @@ void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
     }
     PG_TRY();
     {
-        laplace_pg_composition_presence_provider(&presence_provider);
+        laplace_pg_composition_presence_provider(&presence_state, &presence_provider);
         status = laplace_composition_working_set_resolve_presence(
             execution->working_set, &presence_provider, &execution->presence);
+        if (presence_state.deferred_error != NULL) {
+            ErrorData* error = presence_state.deferred_error;
+            presence_state.deferred_error = NULL;
+            if (presence_state.spi_connected) {
+                SPI_finish();
+                presence_state.spi_connected = false;
+            }
+            ReThrowError(error);
+        }
         if (status != LAPLACE_COMPOSITION_OK) {
             ereport(ERROR,
                     (errcode(ERRCODE_DATA_EXCEPTION),

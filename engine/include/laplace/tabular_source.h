@@ -119,6 +119,9 @@ typedef struct laplace_tabular_mapping_occurrence {
  * remaining fields describe the parser/provider observation and therefore never
  * participate in entity or physicality identity.  media_type bytes live in the
  * plan view's decomposition_witness_media_types buffer at the declared offset.
+ * A zero-width missing-syntax node has has_content=0 and an inactive all-zero
+ * canonical_content reference; its parser observation remains independently
+ * recordable without manufacturing a Unicode atom or content identity.
  */
 typedef struct laplace_tabular_decomposition_witness {
     laplace_digest256 trace_fingerprint;
@@ -134,6 +137,11 @@ typedef struct laplace_tabular_decomposition_witness {
     uint64_t media_type_byte_count;
     uint32_t depth;
     uint32_t flags;
+    uint64_t grammar_kind;
+    uint64_t field_kind;
+    uint64_t sibling_ordinal;
+    uint32_t syntax_flags;
+    uint32_t has_content;
 } laplace_tabular_decomposition_witness;
 
 typedef struct laplace_tabular_source_input {

@@ -1,5 +1,7 @@
 struct laplace_cognition_observation_result {
     std::vector<laplace_cognition_observation_answer> answers;
+    laplace_digest256 request_fingerprint{};
+    laplace_digest256 forward_receipt_id{};
 };
 
 namespace laplace_cognition_observation_candidate_provider_detail {
@@ -771,6 +773,8 @@ laplace_cognition_observation_request_execute_with_candidate_provider(
         } else {
             auto* retained = new laplace_cognition_observation_result{};
             retained->answers = std::move(state.answers);
+            retained->request_fingerprint = compiled.request_fingerprint;
+            retained->forward_receipt_id = receipt->receipt_id;
             *observation_result = retained;
         }
     } catch (const std::bad_alloc&) {
@@ -811,4 +815,19 @@ extern "C" void laplace_cognition_observation_result_destroy(
         delete *result;
         *result = nullptr;
     }
+}
+
+extern "C" laplace_cognition_observation_request_status
+laplace_cognition_observation_result_execution(
+    const laplace_cognition_observation_result* const result,
+    laplace_digest256* const request_fingerprint,
+    laplace_digest256* const forward_receipt_id) {
+    if (request_fingerprint != nullptr) *request_fingerprint = {};
+    if (forward_receipt_id != nullptr) *forward_receipt_id = {};
+    if (result == nullptr || request_fingerprint == nullptr || forward_receipt_id == nullptr ||
+        request_fingerprint == forward_receipt_id)
+        return LAPLACE_COGNITION_OBSERVATION_REQUEST_INVALID_ARGUMENT;
+    *request_fingerprint = result->request_fingerprint;
+    *forward_receipt_id = result->forward_receipt_id;
+    return LAPLACE_COGNITION_OBSERVATION_REQUEST_OK;
 }

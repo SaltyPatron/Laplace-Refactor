@@ -1,0 +1,157 @@
+-- Every artifact transport calls the same native admission implementation.
+-- The original composite remains unchanged for existing declared profiles.
+DO $migration$
+BEGIN
+    IF to_regtype('@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_fixed_width_field') IS NULL THEN
+        CREATE TYPE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_fixed_width_field AS (
+            width integer,
+            flags integer
+        );
+    END IF;
+    IF to_regtype('@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_v2') IS NULL THEN
+        CREATE TYPE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_v2 AS (
+            artifact_id bytea,
+            parent_artifact_id bytea,
+            expected_sha256 bytea,
+            content bytea,
+            name bytea,
+            media_type bytea,
+            expected_record_count numeric(20, 0),
+            expected_field_count numeric(20, 0),
+            reference_column_mask numeric(20, 0),
+            mode integer,
+            delimiter integer,
+            line_terminator integer,
+            expected_column_count integer,
+            outcome_type integer,
+            flags integer,
+            column_names bytea[],
+            header_record_count integer,
+            fixed_width_fields @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_fixed_width_field[],
+            padding_byte integer,
+            overflow_field_index numeric(20, 0),
+            maximum_overflow_bytes integer,
+            expected_overflow_record_count numeric(20, 0)
+        );
+    END IF;
+    IF to_regtype('@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_file') IS NULL THEN
+        CREATE TYPE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_file AS (
+            artifact_id bytea,
+            parent_artifact_id bytea,
+            expected_sha256 bytea,
+            source_path text,
+            name bytea,
+            media_type bytea,
+            expected_record_count numeric(20, 0),
+            expected_field_count numeric(20, 0),
+            reference_column_mask numeric(20, 0),
+            mode integer,
+            delimiter integer,
+            line_terminator integer,
+            expected_column_count integer,
+            outcome_type integer,
+            flags integer,
+            column_names bytea[],
+            header_record_count integer,
+            fixed_width_fields @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_fixed_width_field[],
+            padding_byte integer,
+            overflow_field_index numeric(20, 0),
+            maximum_overflow_bytes integer,
+            expected_overflow_record_count numeric(20, 0),
+            byte_count numeric(20, 0)
+        );
+    END IF;
+END
+$migration$;
+
+CREATE OR REPLACE FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.@LAPLACE_SOURCE_ADMISSION_SQL@(
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_profile_manifest,
+    bytea, bytea,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_v2[],
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_reference_rule[],
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_mapping_rule[], numeric)
+RETURNS @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_admission_result
+AS '@LAPLACE_SOURCE_ADMISSION_MODULE@', '@LAPLACE_SOURCE_ADMISSION_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE ALL ON FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.@LAPLACE_SOURCE_ADMISSION_SQL@(
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_profile_manifest,
+    bytea, bytea,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_v2[],
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_reference_rule[],
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_mapping_rule[], numeric)
+FROM PUBLIC;
+
+
+
+CREATE OR REPLACE FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.@LAPLACE_SOURCE_ADMISSION_SQL@(
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_profile_manifest,
+    bytea, bytea,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_file[],
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_reference_rule[],
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_mapping_rule[], numeric)
+RETURNS @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_admission_result
+AS '@LAPLACE_SOURCE_ADMISSION_MODULE@', '@LAPLACE_SOURCE_ADMISSION_SYMBOL@'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE ALL ON FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.@LAPLACE_SOURCE_ADMISSION_SQL@(
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_profile_manifest,
+    bytea, bytea,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_file[],
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_reference_rule[],
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_mapping_rule[], numeric)
+FROM PUBLIC;
+
+-- Standalone upgrades must give new public transports the same extension
+-- ownership they receive during CREATE EXTENSION, including dump/restore.
+DO $membership$
+DECLARE
+    extension_oid oid := (SELECT oid FROM pg_extension WHERE extname = 'laplace');
+    object_kind text;
+    object_identity text;
+    object_oid oid;
+    object_class oid;
+    owner_oid oid;
+BEGIN
+    IF extension_oid IS NULL THEN
+        RAISE EXCEPTION 'Laplace source transport upgrade requires the laplace extension';
+    END IF;
+    FOR object_kind, object_identity IN
+        SELECT 'TYPE', value FROM unnest(ARRAY[
+            '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_fixed_width_field',
+            '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_v2',
+            '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_file'
+        ]) AS names(value)
+        UNION ALL
+        SELECT 'FUNCTION', p.oid::regprocedure::text
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@'
+          AND p.proname = '@LAPLACE_SOURCE_ADMISSION_SQL@'
+          AND p.pronargs = 8
+          AND p.proargtypes[4] IN (
+              '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_v2[]'::regtype,
+              '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.tabular_source_artifact_file[]'::regtype)
+    LOOP
+        IF object_kind = 'TYPE' THEN
+            object_oid := object_identity::regtype;
+            object_class := 'pg_type'::regclass;
+        ELSE
+            object_oid := object_identity::regprocedure;
+            object_class := 'pg_proc'::regclass;
+        END IF;
+        SELECT refobjid INTO owner_oid FROM pg_depend
+        WHERE classid = object_class AND objid = object_oid AND objsubid = 0
+          AND refclassid = 'pg_extension'::regclass AND deptype = 'e';
+        IF owner_oid IS NULL THEN
+            EXECUTE format('ALTER EXTENSION laplace ADD %s %s', object_kind, object_identity);
+        ELSIF owner_oid <> extension_oid THEN
+            RAISE EXCEPTION 'Laplace source transport % belongs to another extension', object_identity;
+        END IF;
+    END LOOP;
+END
+$membership$;

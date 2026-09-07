@@ -40,6 +40,8 @@ set(LAPLACE_CILI_SOURCE_ROOT
     CACHE PATH "Locked CILI PWN mapping source-profile artifact root")
 option(LAPLACE_ENABLE_DOTNET_BINDINGS
     "Generate and build the .NET 10 typed ISA orchestration surface" OFF)
+set(LAPLACE_DOTNET_RUNTIME_VERSION "10.0.10" CACHE STRING
+    "Exact .NET runtime shipped with the native-backed source transport")
 set(LAPLACE_DEPENDENCY_LOCK
     "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/lock.json"
     CACHE FILEPATH "Laplace dependency lock")
@@ -199,6 +201,7 @@ target_sources(laplace_engine PRIVATE
     engine/src/query_search.cpp
     engine/src/cognition_guidance.cpp
     engine/src/cognition_operator.cpp
+    engine/src/cognition_interpretation.cpp
     engine/src/cognition_solver.cpp
     engine/src/cognition_runtime.cpp
     engine/src/cognition_packet.cpp
@@ -222,6 +225,8 @@ if(LAPLACE_ENABLE_DOTNET_BINDINGS)
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/bindings/generate-dotnet.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/managed/Laplace.Managed/Laplace.Managed.csproj"
         "${LAPLACE_HIGHWAY_GENERATED_CSHARP}")
+    include(cmake/LaplaceSourceAdmission.cmake)
+    laplace_configure_source_admission()
 endif()
 
 if(LAPLACE_PG_CONFIG)

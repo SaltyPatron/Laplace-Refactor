@@ -32,6 +32,7 @@ add_library(laplace_engine SHARED
     src/persistence.c
     src/evidence_lineage.c
     src/evidence_testimony.c
+    src/source_evidence.c
     src/standing_calculation.c
     src/stock_recipe.c
     src/reference_topology.c

@@ -11,7 +11,9 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <map>
 #include <new>
+#include <stdexcept>
 #include <vector>
 
 namespace laplace_cognition_materialization_detail {
@@ -196,6 +198,14 @@ struct Context final {
     const laplace_cognition_materialization_provider_v1* provider{};
     std::vector<std::uint8_t>* output{};
     std::vector<laplace_id128> active{};
+    struct ValidatedSlice final {
+        std::size_t first{};
+        std::size_t bytes{};
+        std::uint64_t codepoints{};
+        std::uint32_t height{};
+        std::uint8_t tier{};
+    };
+    std::map<std::array<std::uint8_t, 16>, ValidatedSlice> validated;
     Counters counters{};
     blake3_hasher readset{};
 };
@@ -212,6 +222,9 @@ laplace_cognition_materialization_status ReserveOutput(
         return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
     }
     try {
+        if (next > context.output->max_size()) {
+            return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
+        }
         context.output->resize(static_cast<std::size_t>(next));
     } catch (const std::bad_alloc&) {
         return LAPLACE_COGNITION_MATERIALIZATION_MEMORY_FAILURE;
@@ -313,7 +326,9 @@ laplace_cognition_materialization_status MaterializeEntity(
     const laplace_id128& entity,
     const std::uint32_t depth,
     const bool has_expected_tier,
-    const std::uint8_t expected_tier) {
+    const std::uint8_t expected_tier,
+    std::uint32_t* const height) {
+    *height = 0U;
     if (depth > context.request->maximum_depth) {
         return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
     }
@@ -322,6 +337,23 @@ laplace_cognition_materialization_status MaterializeEntity(
 
     if (ActiveContains(context, entity)) {
         return LAPLACE_COGNITION_MATERIALIZATION_CYCLE;
+    }
+    std::array<std::uint8_t, 16> key{};
+    std::copy(std::begin(entity.bytes), std::end(entity.bytes), key.begin());
+    const auto cached = context.validated.find(key);
+    if (cached != context.validated.end()) {
+        const auto& slice = cached->second;
+        if (has_expected_tier && slice.tier != expected_tier) {
+            return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
+        }
+        if (slice.height > context.request->maximum_depth - depth) {
+            return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
+        }
+        *height = slice.height;
+        context.counters.maximum_depth = std::max(
+            context.counters.maximum_depth, depth + slice.height);
+        return RepeatMaterializedSlice(
+            context, slice.first, slice.bytes, slice.codepoints, 2U);
     }
     if (context.counters.nodes >= context.request->maximum_nodes) {
         return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
@@ -342,6 +374,8 @@ laplace_cognition_materialization_status MaterializeEntity(
         return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
     }
     HashNodeRead(&context.readset, node);
+    const std::size_t subtree_first = context.output->size();
+    const std::uint64_t subtree_codepoints = context.counters.codepoints;
 
     if (node.kind == LAPLACE_COGNITION_MATERIALIZATION_NODE_ATOM) {
         laplace_id128 expected_id{};
@@ -352,7 +386,12 @@ laplace_cognition_materialization_status MaterializeEntity(
             !SameDigest(expected_witness, node.identity_witness)) {
             return LAPLACE_COGNITION_MATERIALIZATION_IDENTITY_MISMATCH;
         }
-        return AppendAtomRun(context, node.atom, 1U);
+        const auto status = AppendAtomRun(context, node.atom, 1U);
+        if (status == LAPLACE_COGNITION_MATERIALIZATION_OK) {
+            context.validated.emplace(key, Context::ValidatedSlice{
+                subtree_first, context.output->size() - subtree_first, 1U, 0U, 0U});
+        }
+        return status;
     }
 
     if (context.counters.carriers >
@@ -369,6 +408,10 @@ laplace_cognition_materialization_status MaterializeEntity(
 
     std::vector<laplace_trajectory_carrier> carriers;
     std::vector<laplace_composition_occurrence> occurrences;
+    if (node.carrier_count > carriers.max_size() ||
+        node.carrier_count > occurrences.max_size()) {
+        return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
+    }
     try {
         const auto carrier_count = static_cast<std::size_t>(node.carrier_count);
         carriers.resize(carrier_count);
@@ -461,6 +504,7 @@ laplace_cognition_materialization_status MaterializeEntity(
 
             context.counters.maximum_depth =
                 std::max(context.counters.maximum_depth, depth + 1U);
+            *height = std::max(*height, 1U);
             const auto atom_status = AppendAtomRun(
                 context, occurrence.atom,
                 static_cast<std::uint64_t>(occurrence.run_length));
@@ -478,12 +522,15 @@ laplace_cognition_materialization_status MaterializeEntity(
 
         const std::size_t first = context.output->size();
         const std::uint64_t codepoints_before = context.counters.codepoints;
+        std::uint32_t child_height = 0U;
         const auto child_status = MaterializeEntity(
-            context, occurrence.entity_id, depth + 1U, true, occurrence.tier);
+            context, occurrence.entity_id, depth + 1U, true, occurrence.tier,
+            &child_height);
         if (child_status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
             context.active.pop_back();
             return child_status;
         }
+        *height = std::max(*height, child_height + 1U);
 
         const std::size_t unit_bytes = context.output->size() - first;
         const std::uint64_t unit_codepoints =
@@ -502,6 +549,9 @@ laplace_cognition_materialization_status MaterializeEntity(
         }
     }
     context.active.pop_back();
+    context.validated.emplace(key, Context::ValidatedSlice{
+        subtree_first, context.output->size() - subtree_first,
+        context.counters.codepoints - subtree_codepoints, *height, node.tier_floor});
     return LAPLACE_COGNITION_MATERIALIZATION_OK;
 }
 
@@ -583,8 +633,16 @@ laplace_cognition_realization_materialize_utf8(
     blake3_hasher_update(
         &context.readset, ReadsetDomain, sizeof(ReadsetDomain) - 1U);
 
-    const auto status = MaterializeEntity(
-        context, realization->content_id, 0U, false, 0U);
+    std::uint32_t height = 0U;
+    laplace_cognition_materialization_status status;
+    try {
+        status = MaterializeEntity(
+            context, realization->content_id, 0U, false, 0U, &height);
+    } catch (const std::length_error&) {
+        return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_COGNITION_MATERIALIZATION_MEMORY_FAILURE;
+    }
     if (status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
         return status;
     }
