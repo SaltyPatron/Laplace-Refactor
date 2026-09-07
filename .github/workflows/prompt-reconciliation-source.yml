@@ -1,4 +1,4 @@
-name: prompt-reconciliation-source
+name: prompt-reconciliation-dependencies
 on:
   push:
     branches: [delivery/prompt-conversation-composition-20260906]
@@ -7,22 +7,23 @@ permissions:
 jobs:
   snapshot:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - name: Preserve source ancestry for exact local reconciliation
+      - name: Acquire only the locked native dependencies and fixtures
         run: |
           set -euo pipefail
-          git bundle create "$RUNNER_TEMP/laplace-reconciliation.bundle" --all
-          git bundle verify "$RUNNER_TEMP/laplace-reconciliation.bundle"
-          sha256sum "$RUNNER_TEMP/laplace-reconciliation.bundle" > "$RUNNER_TEMP/laplace-reconciliation.sha256"
+          root="$RUNNER_TEMP/reconciliation-inputs"
+          ./tools/dependencies/acquire-locked-git.sh dependencies/lock.json "$root/dependencies" blake3 eigen googletest spectra tree-sitter
+          python3 tools/sources/acquire-tabular-source.py --profile contracts/sources/iso-639-3-20260415.json --destination "$root/sources/iso-639-3-20260415"
+          python3 tools/sources/acquire-tabular-source.py --profile contracts/sources/cili-pwn-mappings-20240611.json --destination "$root/sources/cili-pwn-mappings-20240611"
+          tar -C "$root" -czf "$RUNNER_TEMP/reconciliation-inputs.tar.gz" dependencies sources
+          sha256sum "$RUNNER_TEMP/reconciliation-inputs.tar.gz"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: laplace-reconciliation-source
-          path: |
-            ${{ runner.temp }}/laplace-reconciliation.bundle
-            ${{ runner.temp }}/laplace-reconciliation.sha256
+          name: laplace-reconciliation-inputs
+          path: ${{ runner.temp }}/reconciliation-inputs.tar.gz
           retention-days: 7
           if-no-files-found: error
