@@ -1,0 +1,63 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "ObservationCandidateBatch.ReusesAllFiveCanonicalStructuralRelations",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "Indexed physicality providers reuse native ordered structural candidate laws without inventing testimony or publishing partial batches"
+      ]
+    },
+    {
+      "ctest_name": "ObservationCandidateBatch.OrderedPredecessorPreservesRunEndAndDirection",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "Indexed physicality providers reuse native ordered structural candidate laws without inventing testimony or publishing partial batches"
+      ]
+    },
+    {
+      "ctest_name": "ObservationCandidateBatch.FrontierBatchPreservesRepeatedSourceOccurrences",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "Indexed physicality providers reuse native ordered structural candidate laws without inventing testimony or publishing partial batches"
+      ]
+    },
+    {
+      "ctest_name": "ObservationCandidateBatch.CapacityFailureDoesNotPublishAPrefix",
+      "evidence_targets": [
+        "LP-TEST-PARTIAL-NONCOMPLETION"
+      ],
+      "covered_dimensions": [
+        "Indexed physicality providers reuse native ordered structural candidate laws without inventing testimony or publishing partial batches"
+      ]
+    },
+    {
+      "ctest_name": "ObservationCandidateBatch.InvalidBindingAndImpossibleInputCountsAreRejected",
+      "evidence_targets": [
+        "LP-TEST-PARTIAL-NONCOMPLETION"
+      ],
+      "covered_dimensions": [
+        "Indexed physicality providers reuse native ordered structural candidate laws without inventing testimony or publishing partial batches"
+      ]
+    },
+    {
+      "ctest_name": "ObservationCandidateBatch.EmptyBatchDoesNotInventCandidatesOrWork",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "Indexed physicality providers reuse native ordered structural candidate laws without inventing testimony or publishing partial batches"
+      ]
+    }
+  ]
+}

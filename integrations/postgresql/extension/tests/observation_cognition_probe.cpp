@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <string>
 
 namespace {
 
@@ -29,9 +31,11 @@ std::uint64_t Metadata(const std::uint8_t tier, const std::uint32_t atom) {
         (static_cast<std::uint64_t>(atom) << LAPLACE_TRAJECTORY_ATOM_SHIFT);
 }
 
-bool Codepoint(const std::uint32_t codepoint, laplace_id128* entity) {
-    laplace_digest256 witness{};
-    return laplace_identity_codepoint_witness(codepoint, entity, &witness) ==
+bool Codepoint(
+    const std::uint32_t codepoint,
+    laplace_id128* entity,
+    laplace_digest256* witness) {
+    return laplace_identity_codepoint_witness(codepoint, entity, witness) ==
         LAPLACE_IDENTITY_OK;
 }
 
@@ -54,6 +58,10 @@ struct Fixture final {
     laplace_id128 b{};
     laplace_id128 c{};
     laplace_id128 root{};
+    laplace_digest256 a_witness{};
+    laplace_digest256 b_witness{};
+    laplace_digest256 c_witness{};
+    laplace_digest256 root_witness{};
     std::array<laplace_trajectory_carrier, 3> carriers{};
     laplace_persistence_physicality_record physicality{};
     std::array<laplace_persistence_trajectory_segment_record, 3> segments{};
@@ -61,12 +69,12 @@ struct Fixture final {
     laplace_digest256 evidence_epoch{};
 };
 
-bool BuildFixture(Fixture* fixture) {
+bool BuildFixture(Fixture* fixture, const std::uint32_t offset = 0U) {
     if (fixture == nullptr ||
-        !Codepoint(0x41U, &fixture->a) ||
-        !Codepoint(0x42U, &fixture->b) ||
-        !Codepoint(0x43U, &fixture->c) ||
-        !Codepoint(0x52U, &fixture->root)) {
+        !Codepoint(0x41U + offset, &fixture->a, &fixture->a_witness) ||
+        !Codepoint(0x42U + offset, &fixture->b, &fixture->b_witness) ||
+        !Codepoint(0x43U + offset, &fixture->c, &fixture->c_witness) ||
+        !Codepoint(0x52U + offset, &fixture->root, &fixture->root_witness)) {
         return false;
     }
     fixture->boundary = Digest(180U);
@@ -74,7 +82,7 @@ bool BuildFixture(Fixture* fixture) {
 
     const std::array<laplace_id128, 3> entities{{
         fixture->a, fixture->b, fixture->c}};
-    const std::array<std::uint32_t, 3> atoms{{0x41U, 0x42U, 0x43U}};
+    const std::array<std::uint32_t, 3> atoms{{0x41U + offset, 0x42U + offset, 0x43U + offset}};
     for (std::size_t index = 0U; index < entities.size(); ++index) {
         if (laplace_trajectory_composition_encode(
                 &entities[index], static_cast<std::uint64_t>(index + 1U), 1U,
@@ -84,6 +92,9 @@ bool BuildFixture(Fixture* fixture) {
         }
     }
 
+    if (laplace_identity_composite_witness(
+            entities.data(), entities.size(), nullptr,
+            &fixture->root, &fixture->root_witness) != LAPLACE_IDENTITY_OK) return false;
     fixture->physicality.entity_id = fixture->root;
     fixture->physicality.physicality_type =
         LAPLACE_PERSISTENCE_PHYSICALITY_COMPOSITION;
@@ -168,9 +179,52 @@ laplace_cognition_observation_request Request(const Fixture& fixture) {
     return request;
 }
 
+template <typename T>
+std::string Hex(const T& value) {
+    const auto* bytes = reinterpret_cast<const unsigned char*>(&value);
+    const char digits[] = "0123456789abcdef";
+    std::string text(sizeof(T) * 2U, '0');
+    for (std::size_t i = 0U; i < sizeof(T); ++i) {
+        text[i*2U] = digits[bytes[i] >> 4U];
+        text[i*2U+1U] = digits[bytes[i] & 15U];
+    }
+    return text;
+}
+
+int WriteUnrelatedEstate(const char* path) {
+    std::ofstream out(path);
+    if (!out) return 64;
+    out << "BEGIN;\n";
+    for (std::uint32_t i = 1U; i <= 4096U; ++i) {
+        Fixture f{};
+        if (!BuildFixture(&f, 0x1000U + i * 16U)) return 65;
+        const std::array<laplace_id128,4> ids{{f.a,f.b,f.c,f.root}};
+        const std::array<laplace_digest256,4> witnesses{{f.a_witness,f.b_witness,f.c_witness,f.root_witness}};
+        out << "INSERT INTO laplace.entity(entity_id,identity_witness) VALUES ";
+        for (std::size_t j=0U; j<ids.size(); ++j) {
+            if (j != 0U) out << ',';
+            out << "(decode('" << Hex(ids[j]) << "','hex'),decode('" << Hex(witnesses[j]) << "','hex'))";
+        }
+        out << ";\nINSERT INTO laplace.physicality(physicality_id,entity_id,physicality_type,vertex_class,"
+            "recipe_version,structural_form,dimension_count,flags,recipe_fingerprint,geometry_epoch,"
+            "trajectory_fingerprint,centroid_x,centroid_y,centroid_z,centroid_m,radius,logical_count,vertex_count,trajectory) VALUES ("
+            "decode('" << Hex(f.physicality.physicality_id) << "','hex'),decode('" << Hex(f.root) << "','hex'),1,1,1,1,4,0,decode('"
+            << Hex(f.physicality.recipe_fingerprint) << "','hex'),decode('" << Hex(f.physicality.geometry_epoch)
+            << "','hex'),decode('" << Hex(f.physicality.trajectory_fingerprint)
+            << "','hex'),0.125,-0.25,0.5,-0.75,0.875,3,3,decode('"
+            << Hex(f.carriers) << "','hex'));\n";
+    }
+    out << "COMMIT;\nANALYZE laplace.physicality;\n";
+    out.close();
+    return out ? 0 : 66;
+}
+
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc == 3 && std::strcmp(argv[1], "--unrelated-estate") == 0)
+        return WriteUnrelatedEstate(argv[2]);
+    if (argc != 1) return 64;
     Fixture fixture{};
     if (!BuildFixture(&fixture)) {
         return 1;
@@ -248,6 +302,10 @@ int main() {
     PrintHex("ENTITY_B", fixture.b);
     PrintHex("ENTITY_C", fixture.c);
     PrintHex("ENTITY_ROOT", fixture.root);
+    PrintHex("ENTITY_A_WITNESS", fixture.a_witness);
+    PrintHex("ENTITY_B_WITNESS", fixture.b_witness);
+    PrintHex("ENTITY_C_WITNESS", fixture.c_witness);
+    PrintHex("ENTITY_ROOT_WITNESS", fixture.root_witness);
     PrintHex("BOUNDARY", fixture.boundary);
     PrintHex("EVIDENCE_EPOCH", fixture.evidence_epoch);
     PrintHex("RECIPE_FINGERPRINT", fixture.physicality.recipe_fingerprint);
@@ -271,13 +329,13 @@ int main() {
     PrintHex("OUTPUT_FINGERPRINT", receipt.output_fingerprint);
 
     for (std::size_t index_value = 0U; index_value < fixture.segments.size(); ++index_value) {
-        char carrier_key[32];
-        char metadata_key[32];
-        char atom_key[32];
-        char ordinal_key[32];
-        char run_key[32];
-        char tier_key[32];
-        char logical_key[32];
+        char carrier_key[64];
+        char metadata_key[64];
+        char atom_key[64];
+        char ordinal_key[64];
+        char run_key[64];
+        char tier_key[64];
+        char logical_key[64];
         std::snprintf(carrier_key, sizeof(carrier_key), "CARRIER_%zu", index_value);
         std::snprintf(metadata_key, sizeof(metadata_key), "METADATA_%zu", index_value);
         std::snprintf(atom_key, sizeof(atom_key), "ATOM_%zu", index_value);
