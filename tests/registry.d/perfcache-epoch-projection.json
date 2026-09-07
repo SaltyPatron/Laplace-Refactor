@@ -1,0 +1,96 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "PerfcacheEpochProjection.MatchesIndependentSerializationWithoutMutation",
+      "evidence_targets": [
+        "LP-TEST-PERFCACHE-TYPED-REGISTRY",
+        "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"
+      ],
+      "covered_dimensions": [
+        "reference-epoch projection retains exact payload and actual-epoch validation"
+      ],
+      "defect_controls": [
+        "wrong epoch",
+        "wrong dependency",
+        "corrupted and rehashed payload",
+        "changed source recipe or metadata"
+      ]
+    },
+    {
+      "ctest_name": "PerfcacheEpochProjection.WrongActualEpochOrDependencyCannotBeHidden",
+      "evidence_targets": [
+        "LP-TEST-PERFCACHE-TYPED-REGISTRY",
+        "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"
+      ],
+      "covered_dimensions": [
+        "reference-epoch projection retains exact payload and actual-epoch validation"
+      ],
+      "defect_controls": [
+        "wrong epoch",
+        "wrong dependency",
+        "corrupted and rehashed payload",
+        "changed source recipe or metadata"
+      ]
+    },
+    {
+      "ctest_name": "PerfcacheEpochProjection.CorruptedAndRehashedPayloadsRemainDistinct",
+      "evidence_targets": [
+        "LP-TEST-PERFCACHE-TYPED-REGISTRY",
+        "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"
+      ],
+      "covered_dimensions": [
+        "reference-epoch projection retains exact payload and actual-epoch validation"
+      ],
+      "defect_controls": [
+        "wrong epoch",
+        "wrong dependency",
+        "corrupted and rehashed payload",
+        "changed source recipe or metadata"
+      ]
+    },
+    {
+      "ctest_name": "PerfcacheEpochProjection.OtherHeaderAndMetadataBytesAreNotProjectedAway",
+      "evidence_targets": [
+        "LP-TEST-PERFCACHE-TYPED-REGISTRY",
+        "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"
+      ],
+      "covered_dimensions": [
+        "reference-epoch projection retains exact payload and actual-epoch validation"
+      ],
+      "defect_controls": [
+        "wrong epoch",
+        "wrong dependency",
+        "corrupted and rehashed payload",
+        "changed source recipe or metadata"
+      ]
+    },
+    {
+      "ctest_name": "PerfcacheEpochProjection.InvalidArgumentsPublishNoDigest",
+      "evidence_targets": [
+        "LP-TEST-PERFCACHE-TYPED-REGISTRY",
+        "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY"
+      ],
+      "covered_dimensions": [
+        "reference-epoch projection retains exact payload and actual-epoch validation"
+      ],
+      "defect_controls": [
+        "wrong epoch",
+        "wrong dependency",
+        "corrupted and rehashed payload",
+        "changed source recipe or metadata"
+      ]
+    },
+    {
+      "ctest_name": "perfcache.mutation-reference-payload-omission-detected",
+      "evidence_targets": [
+        "LP-TEST-PERFCACHE-ARTIFACT-IDENTITY",
+        "LP-TEST-PERFCACHE-DELIBERATE-CORRUPTION"
+      ],
+      "covered_dimensions": [
+        "deliberate omission of payload hashing is detected by independent serialization parity"
+      ],
+      "controls": "PerfcacheEpochProjection.MatchesIndependentSerializationWithoutMutation"
+    }
+  ]
+}

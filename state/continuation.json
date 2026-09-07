@@ -1,4 +1,19 @@
 {
+  "unicode_activation_repair_20260907": {
+    "classification": "observed-development-state-not-product-law",
+    "base_commit": "8bcc3c918a6dcf890ce1f1422597be5f76e75c18",
+    "owning_branch": "fix/unicode-activation-contract",
+    "failed_activation_run": 34154404306,
+    "rollback_diagnosis_run": 34155883640,
+    "observed_system_identifier": "7682119102860556519",
+    "observed_native_root_receipt": "1f3b0ddf7283401bcf91e9a8ed70f00e1bd317eff5c78dcebca22d5ad6b9c75e",
+    "diagnostic_database_committed": false,
+    "diagnostic_rollback_verified": true,
+    "defect": "Deployed epoch-bound cache digests were compared with the fixed 42/43 test epoch; post-commit recovery copied the same fixture digests rather than observing actual artifacts.",
+    "repair": "Retain fixed canonical root and complete reference-content checks; verify real epoch and native dependency before reference comparison; recover actual native-verified artifact hashes; reject NULL contract fields.",
+    "verification_boundary": "Local orchestration regressions passed; native build, ordinary CI, deployment, restart and live readback remain required. Supersedes older runtime checkpoint selections below, not complete product law.",
+    "remaining_obligations": "Unicode activation and Highway deployment; installed user-facing cognition, firmware, source admission and complete product acceptance remain independent."
+  },
   "schema": "laplace.continuation-checkpoint/v1",
   "reconciliation_20260905": {
     "authoritative_base_head": "5282a52079c9ecaa1ece6260a706c3fcb292c0bf",

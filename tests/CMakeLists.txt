@@ -2552,6 +2552,22 @@ target_compile_options(laplace_perfcache_tests PRIVATE
 gtest_discover_tests(laplace_perfcache_tests
     PROPERTIES LABELS "implementation;perfcache")
 
+add_library(laplace_perfcache_epoch_payload_mutant STATIC ../engine/src/perfcache.c)
+target_include_directories(laplace_perfcache_epoch_payload_mutant PUBLIC
+    "${PROJECT_SOURCE_DIR}/engine/include" "${CMAKE_BINARY_DIR}/generated")
+target_compile_definitions(laplace_perfcache_epoch_payload_mutant PRIVATE LAPLACE_TEST_REFERENCE_OMIT_PAYLOAD=1)
+target_link_libraries(laplace_perfcache_epoch_payload_mutant PRIVATE BLAKE3::blake3)
+add_executable(laplace_perfcache_epoch_payload_probe perfcache_tests.cpp)
+target_link_libraries(laplace_perfcache_epoch_payload_probe PRIVATE
+    laplace_perfcache_epoch_payload_mutant BLAKE3::blake3 GTest::gtest_main)
+add_test(NAME perfcache.mutation-reference-payload-omission-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_perfcache_epoch_payload_probe>"
+        "-DFILTER=PerfcacheEpochProjection.MatchesIndependentSerializationWithoutMutation"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(perfcache.mutation-reference-payload-omission-detected PROPERTIES
+    LABELS "implementation;perfcache;artifact;mutation")
+
 add_executable(laplace_perfcache_zero_value_probe
     perfcache_zero_value_probe.cpp)
 target_link_libraries(laplace_perfcache_zero_value_probe PRIVATE Laplace::Perfcache)

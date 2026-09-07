@@ -47,7 +47,7 @@ def identities() -> dict[str, Any]:
 def build_result(contract: dict[str, Any], identity: dict[str, Any]) -> dict[str, Any]:
     expected = contract["expected_result"]
     result = {
-        "root_receipt": "61" * 32,
+        "root_receipt": expected["root_receipt"],
         "producer_receipt": "62" * 32,
         "staged_stream_receipt": "63" * 32,
         "sink_artifacts_fingerprint": "64" * 32,
@@ -62,6 +62,9 @@ def build_result(contract: dict[str, Any], identity: dict[str, Any]) -> dict[str
         "batch_count": 68,
         "plan_sequence_fingerprint": "6a" * 32,
         "plan_count": 821,
+        "tier0_artifact_digest": "a1" * 32,
+        "reverse_artifact_digest": "b1" * 32,
+        "reverse_dependency_artifact_digest": "a1" * 32,
     }
     for key in (
         "total_frame_count",
@@ -73,12 +76,26 @@ def build_result(contract: dict[str, Any], identity: dict[str, Any]) -> dict[str
         "normalization_composition_count",
         "tier0_artifact_bytes",
         "reverse_artifact_bytes",
-        "tier0_artifact_digest",
-        "reverse_artifact_digest",
         "plan_manifest_fingerprint",
+        "perfcache_artifact_count", "perfcache_dependency_count", "reverse_dependency_module_id",
     ):
         result[key] = expected[key]
     return result
+
+
+def artifact_verified(contract: dict[str, Any], identity: dict[str, Any]) -> dict[str, Any]:
+    build = build_result(contract, identity)
+    return {
+        "schema": "laplace.unicode-artifact-verification/v1",
+        **{key: build[key] for key in (
+            "activation_epoch_id", "activation_epoch_fingerprint", "tier0_artifact_digest",
+            "reverse_artifact_digest", "tier0_artifact_bytes", "reverse_artifact_bytes",
+            "perfcache_artifact_count", "perfcache_dependency_count", "reverse_dependency_module_id",
+            "reverse_dependency_artifact_digest")},
+        "tier0_reference_digest": contract["artifact_reference"]["tier0_artifact_digest"],
+        "reverse_reference_digest": contract["artifact_reference"]["reverse_artifact_digest"],
+        "artifact_bytes_modified": False,
+    }
 
 
 def readback(contract: dict[str, Any], identity: dict[str, Any]) -> dict[str, Any]:
@@ -228,16 +245,16 @@ class UnicodeProductActivationTests(unittest.TestCase):
             unicode.validate_inspection(recovered, self.contract, identity),
             "recover-post-commit",
         )
-        replay = unicode.recover_build_result(recovered, self.contract, identity)
+        replay = unicode.recover_build_result(recovered, self.contract, identity, artifact_verified(self.contract, identity))
         self.assertTrue(replay["recovered_from_exact_committed_state"])
         self.assertEqual(replay["root_receipt"], committed["root_receipt"])
         damaged_receipt = copy.deepcopy(recovered)
         damaged_receipt["root_receipt"] = "not-a-receipt"
         with self.assertRaisesRegex(
-            unicode.UnicodeActivationError, "committed Unicode receipt is invalid"
+            unicode.UnicodeActivationError, "committed Unicode digest differs: root_receipt"
         ):
             unicode.recover_build_result(
-                damaged_receipt, self.contract, identity
+                damaged_receipt, self.contract, identity, artifact_verified(self.contract, identity)
             )
         recovered["atom_count"] -= 1
         with self.assertRaisesRegex(unicode.UnicodeActivationError, "neither empty nor exact recovery"):
@@ -255,11 +272,58 @@ class UnicodeProductActivationTests(unittest.TestCase):
             "2230150",
             "1114112",
             "762586574",
-            self.contract["expected_result"]["tier0_artifact_digest"],
+            self.contract["expected_result"]["root_receipt"],
             self.contract["expected_result"]["plan_manifest_fingerprint"],
             identity["activation_epoch_id"],
         ):
             self.assertIn(required, sql)
+
+    def test_deployment_epoch_keeps_its_own_digests_and_validates_pinned_content(self) -> None:
+        identity = identities()
+        built = build_result(self.contract, identity)
+        unicode.validate_build_result(built, self.contract, identity)
+        self.assertNotEqual(built["tier0_artifact_digest"], self.contract["artifact_reference"]["tier0_artifact_digest"])
+        verified = artifact_verified(self.contract, identity)
+        unicode.validate_artifact_verification(verified, self.contract, identity)
+        for key in ("tier0_reference_digest", "reverse_reference_digest", "activation_epoch_id",
+                    "activation_epoch_fingerprint", "reverse_dependency_module_id",
+                    "reverse_dependency_artifact_digest", "tier0_artifact_bytes"):
+            with self.subTest(key=key):
+                damaged = dict(verified, **{key: None})
+                with self.assertRaises(unicode.UnicodeActivationError):
+                    unicode.validate_artifact_verification(damaged, self.contract, identity)
+
+    def test_recovery_never_substitutes_fixture_hashes_for_missing_actual_artifacts(self) -> None:
+        identity = identities()
+        built = build_result(self.contract, identity)
+        verified = artifact_verified(self.contract, identity)
+        recovered = unicode.recover_build_result(built, self.contract, identity, verified)
+        self.assertEqual(recovered["tier0_artifact_digest"], verified["tier0_artifact_digest"])
+        self.assertNotEqual(recovered["tier0_artifact_digest"], self.contract["artifact_reference"]["tier0_artifact_digest"])
+        for field in ("tier0_artifact_digest", "reverse_artifact_digest", "artifact_bytes_modified"):
+            damaged = dict(verified, **{field: None})
+            with self.assertRaises(unicode.UnicodeActivationError):
+                unicode.recover_build_result(built, self.contract, identity, damaged)
+
+    def test_root_receipt_and_dependency_are_required_not_only_row_counts(self) -> None:
+        identity = identities()
+        built = build_result(self.contract, identity)
+        for field in ("root_receipt", "perfcache_artifact_count", "perfcache_dependency_count",
+                      "reverse_dependency_module_id", "reverse_dependency_artifact_digest",
+                      "tier0_artifact_digest", "reverse_artifact_digest"):
+            with self.subTest(field=field):
+                with self.assertRaises(unicode.UnicodeActivationError):
+                    unicode.validate_build_result(dict(built, **{field: None}), self.contract, identity)
+
+    def test_sql_verification_is_null_safe_and_does_not_compare_fixture_epoch_digests(self) -> None:
+        sql = unicode.render_activation_sql(self.contract, identities(), "/source", "/spool", "/cache/tier0", "/cache/reverse")
+        guard = sql.split("DO $verify$", 1)[1].split("$verify$;", 1)[0]
+        self.assertNotIn(" <> ", guard)
+        self.assertIn("active.active_present IS NOT TRUE", guard)
+        self.assertIn("build.root_receipt IS DISTINCT FROM", guard)
+        self.assertIn("build.reverse_dependency_artifact_digest IS DISTINCT FROM build.tier0_artifact_digest", guard)
+        self.assertNotIn(self.contract["artifact_reference"]["tier0_artifact_digest"], guard)
+        self.assertNotIn(self.contract["artifact_reference"]["reverse_artifact_digest"], guard)
 
     def test_reverse_readback_mutation_is_detected(self) -> None:
         identity = identities()
@@ -287,6 +351,11 @@ class UnicodeProductActivationTests(unittest.TestCase):
                 "root": package_root,
                 "files": [{"path": "bin/laplace_unicode_activation_identify", "kind": "file", "sha256": unicode.sha256_file(executable)}],
             }
+            verifier = executable.with_name("laplace_unicode_artifact_verify")
+            verifier.write_bytes(b"fixture artifact verifier\n")
+            verifier.chmod(0o755)
+            package["files"].append({"path": "bin/laplace_unicode_artifact_verify", "kind": "file",
+                                     "sha256": unicode.sha256_file(verifier)})
             plan = {
                 "package_root": package_root,
                 "package_id": package_id,
@@ -387,6 +456,8 @@ class UnicodeProductActivationTests(unittest.TestCase):
                         {"label": "identify-unicode-activation", "argv": ["fixture"], "exit_code": 0, "stdout_sha256": "09" * 32, "stderr_sha256": "0a" * 32},
                     ),
                     sql_runner=sql_runner,
+                    artifact_verifier=lambda *_args: (artifact_verified(self.contract, identity),
+                        {"label": "verify-unicode-native-artifacts", "exit_code": 0}),
                     loaded_observer=observe,
                     command_runner=lambda label, command, timeout: {"label": label, "argv": list(command), "exit_code": 0, "stdout_sha256": "0b" * 32, "stderr_sha256": "0c" * 32},
                     readiness_runner=lambda label, command, timeout: {"label": label, "argv": list(command), "exit_code": 0, "stdout_sha256": "0d" * 32, "stderr_sha256": "0e" * 32},
