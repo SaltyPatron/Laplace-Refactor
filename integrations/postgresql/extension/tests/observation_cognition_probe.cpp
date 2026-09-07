@@ -92,7 +92,7 @@ bool BuildFixture(Fixture* fixture, const std::uint32_t offset = 0U) {
         }
     }
 
-    if (offset != 0U && laplace_identity_composite_witness(
+    if (laplace_identity_composite_witness(
             entities.data(), entities.size(), nullptr,
             &fixture->root, &fixture->root_witness) != LAPLACE_IDENTITY_OK) return false;
     fixture->physicality.entity_id = fixture->root;

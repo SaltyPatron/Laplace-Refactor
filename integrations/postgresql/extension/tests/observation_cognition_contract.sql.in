@@ -249,7 +249,10 @@ BEGIN
     IF to_jsonb(before) IS DISTINCT FROM to_jsonb(after) THEN
         RAISE EXCEPTION 'unrelated estate changed request-relative execution: % / %', before, after;
     END IF;
-    SELECT request INTO q FROM observation_cognition_fixture;
+    SELECT (request).* INTO STRICT q FROM observation_cognition_fixture;
+    IF octet_length(q.anchor_entity_id) <> 16 THEN
+        RAISE EXCEPTION 'index-plan probe lost the exact request binding';
+    END IF;
     EXECUTE 'EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT physicality_id FROM laplace.physicality p '
             'WHERE p.physicality_type=1 AND laplace.trajectory_entity_ids(p.trajectory) && $1 '
             'ORDER BY p.physicality_id LIMIT 16'
@@ -262,11 +265,15 @@ END $isolation$;
 
 DO $failures$
 DECLARE q laplace.cognition_observation_request; changed laplace.cognition_observation_request;
+        search_limits laplace.cognition_observation_search_budget;
+        forward_limits laplace.cognition_observation_forward_limits;
         observed laplace.cognition_observation_persisted_result; bad boolean;
 BEGIN
-    SELECT request INTO STRICT q FROM observation_cognition_fixture;
+    SELECT (request).* INTO STRICT q FROM observation_cognition_fixture;
     changed := q;
-    changed.search_budget.max_memory_bytes := 16777216;
+    search_limits := q.search_budget;
+    search_limits.max_memory_bytes := 16777216;
+    changed.search_budget := search_limits;
     bad := false;
     BEGIN
         PERFORM laplace.cognition_observation_execute_persisted(pg_temp.execution_context(),changed);
@@ -275,7 +282,9 @@ BEGIN
     END;
     IF bad THEN RAISE EXCEPTION 'missing provider workspace was accepted'; END IF;
     changed := q;
-    changed.forward_limits.max_database_operations := 1;
+    forward_limits := q.forward_limits;
+    forward_limits.max_database_operations := 1;
+    changed.forward_limits := forward_limits;
     bad := false;
     BEGIN
         PERFORM laplace.cognition_observation_execute_persisted(pg_temp.execution_context(),changed);
