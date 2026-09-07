@@ -131,6 +131,27 @@ LAPLACE_API laplace_perfcache_status laplace_perfcache_validate(
     const laplace_perfcache_contract* expected_contract,
     laplace_perfcache_view* view);
 
+/*
+ * Calculate a reference-epoch digest without rewriting an artifact. Validate the
+ * actual complete artifact against expected_contract first, then substitute only
+ * the epoch id/fingerprint and the explicitly supplied dependency fingerprint in
+ * a bounded header copy. Every other header, record and metadata byte remains in
+ * the digest. This is a named comparison projection, NOT the artifact's identity,
+ * an admission receipt, or permission to relabel an installed generation.
+ *
+ * The caller separately verifies the real dependency graph. A dependent reference
+ * projection must refer to the dependency's reference digest, not its live digest.
+ * Failure publishes a zero digest. Memory overhead is independent of file size.
+ */
+LAPLACE_API laplace_perfcache_status laplace_perfcache_reference_epoch_digest(
+    const uint8_t* artifact,
+    size_t artifact_bytes,
+    const laplace_perfcache_contract* expected_contract,
+    const laplace_id128* reference_epoch_id,
+    const laplace_digest256* reference_epoch_fingerprint,
+    const laplace_digest256* reference_dependency_fingerprint,
+    laplace_digest256* reference_digest);
+
 LAPLACE_API laplace_perfcache_status laplace_perfcache_lookup_batch(
     const laplace_perfcache_view* view,
     const uint8_t* keys,

@@ -611,6 +611,46 @@ laplace_perfcache_status laplace_perfcache_validate(
     return LAPLACE_PERFCACHE_OK;
 }
 
+laplace_perfcache_status laplace_perfcache_reference_epoch_digest(
+    const uint8_t* artifact,
+    size_t artifact_bytes,
+    const laplace_perfcache_contract* expected_contract,
+    const laplace_id128* reference_epoch_id,
+    const laplace_digest256* reference_epoch_fingerprint,
+    const laplace_digest256* reference_dependency_fingerprint,
+    laplace_digest256* reference_digest) {
+    laplace_perfcache_view view;
+    laplace_perfcache_status status;
+    uint8_t header[LAPLACE_PERFCACHE_HEADER_BYTES];
+    blake3_hasher hasher;
+    size_t body_bytes;
+    if (reference_digest != NULL) memset(reference_digest, 0, sizeof(*reference_digest));
+    if (artifact == NULL || expected_contract == NULL || reference_epoch_id == NULL ||
+        reference_epoch_fingerprint == NULL || reference_dependency_fingerprint == NULL ||
+        reference_digest == NULL) {
+        return LAPLACE_PERFCACHE_INVALID_ARGUMENT;
+    }
+    status = laplace_perfcache_validate(artifact, artifact_bytes, expected_contract, &view);
+    if (status != LAPLACE_PERFCACHE_OK) return status;
+    memcpy(header, artifact, sizeof(header));
+    memcpy(header + LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_ID,
+           reference_epoch_id->bytes, sizeof(reference_epoch_id->bytes));
+    memcpy(header + LAPLACE_PERFCACHE_OFFSET_ACTIVATION_EPOCH_FINGERPRINT,
+           reference_epoch_fingerprint->bytes, sizeof(reference_epoch_fingerprint->bytes));
+    memcpy(header + LAPLACE_PERFCACHE_OFFSET_DEPENDENCY_FINGERPRINT,
+           reference_dependency_fingerprint->bytes,
+           sizeof(reference_dependency_fingerprint->bytes));
+    body_bytes = artifact_bytes - sizeof(header) - LAPLACE_PERFCACHE_DIGEST_BYTES;
+#if defined(LAPLACE_TEST_REFERENCE_OMIT_PAYLOAD)
+    body_bytes = 0u;
+#endif
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(&hasher, header, sizeof(header));
+    blake3_hasher_update(&hasher, artifact + sizeof(header), body_bytes);
+    blake3_hasher_finalize(&hasher, reference_digest->bytes, sizeof(reference_digest->bytes));
+    return LAPLACE_PERFCACHE_OK;
+}
+
 laplace_perfcache_status laplace_perfcache_lookup_batch(
     const laplace_perfcache_view* view,
     const uint8_t* keys,

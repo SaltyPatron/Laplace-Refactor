@@ -351,4 +351,109 @@ TEST(PerfcacheLookup, ModuleDefinedPlaneRequiresItsTypedLookup) {
               LAPLACE_PERFCACHE_LOOKUP_UNSUPPORTED);
 }
 
+TEST(PerfcacheEpochProjection, MatchesIndependentSerializationWithoutMutation) {
+    const auto records = Records();
+    const auto live = Spec(records);
+    const auto artifact = Build(live);
+    const auto original = artifact;
+    auto reference = live;
+    Fill(reference.contract.activation_epoch_id.bytes, 16U, 0x81U);
+    Fill(reference.contract.activation_epoch_fingerprint.bytes, 32U, 0x91U);
+    Fill(reference.contract.dependency_fingerprint.bytes, 32U, 0xa1U);
+    const auto reference_artifact = Build(reference);
+    const auto expected = Validate(reference_artifact, reference.contract);
+    laplace_digest256 projected{};
+    ASSERT_EQ(laplace_perfcache_reference_epoch_digest(
+        artifact.data(), artifact.size(), &live.contract,
+        &reference.contract.activation_epoch_id, &reference.contract.activation_epoch_fingerprint,
+        &reference.contract.dependency_fingerprint, &projected), LAPLACE_PERFCACHE_OK);
+    EXPECT_EQ(std::memcmp(projected.bytes, expected.artifact_digest.bytes, 32U), 0);
+    EXPECT_EQ(artifact, original);
+    const auto actual = Validate(artifact, live.contract);
+    EXPECT_NE(std::memcmp(projected.bytes, actual.artifact_digest.bytes, 32U), 0);
+}
+
+TEST(PerfcacheEpochProjection, WrongActualEpochOrDependencyCannotBeHidden) {
+    const auto records = Records();
+    const auto live = Spec(records);
+    const auto artifact = Build(live);
+    for (const int change : {0, 1, 2}) {
+        auto wrong = live.contract;
+        if (change == 0) wrong.activation_epoch_id.bytes[0] ^= 1U;
+        if (change == 1) wrong.activation_epoch_fingerprint.bytes[0] ^= 1U;
+        if (change == 2) wrong.dependency_fingerprint.bytes[0] ^= 1U;
+        laplace_digest256 projected{};
+        projected.bytes[0] = 1U;
+        EXPECT_EQ(laplace_perfcache_reference_epoch_digest(
+            artifact.data(), artifact.size(), &wrong, &live.contract.activation_epoch_id,
+            &live.contract.activation_epoch_fingerprint, &live.contract.dependency_fingerprint,
+            &projected), LAPLACE_PERFCACHE_CONTRACT_MISMATCH);
+        const laplace_digest256 zero{};
+        EXPECT_EQ(std::memcmp(projected.bytes, zero.bytes, 32U), 0);
+    }
+}
+
+TEST(PerfcacheEpochProjection, CorruptedAndRehashedPayloadsRemainDistinct) {
+    const auto records = Records();
+    const auto live = Spec(records);
+    const auto original = Build(live);
+    const auto original_view = Validate(original, live.contract);
+    auto corrupted = original;
+    corrupted[LAPLACE_PERFCACHE_HEADER_BYTES + 4U] ^= 1U;
+    laplace_digest256 projected{};
+    EXPECT_EQ(laplace_perfcache_reference_epoch_digest(
+        corrupted.data(), corrupted.size(), &live.contract, &live.contract.activation_epoch_id,
+        &live.contract.activation_epoch_fingerprint, &live.contract.dependency_fingerprint,
+        &projected), LAPLACE_PERFCACHE_DIGEST_MISMATCH);
+    RecomputeDigest(&corrupted);
+    ASSERT_EQ(laplace_perfcache_reference_epoch_digest(
+        corrupted.data(), corrupted.size(), &live.contract, &live.contract.activation_epoch_id,
+        &live.contract.activation_epoch_fingerprint, &live.contract.dependency_fingerprint,
+        &projected), LAPLACE_PERFCACHE_OK);
+    EXPECT_NE(std::memcmp(projected.bytes, original_view.artifact_digest.bytes, 32U), 0);
+}
+
+TEST(PerfcacheEpochProjection, OtherHeaderAndMetadataBytesAreNotProjectedAway) {
+    const auto records = Records();
+    const auto original_spec = Spec(records);
+    const auto original = Build(original_spec);
+    const auto original_view = Validate(original, original_spec.contract);
+    for (const int change : {0, 1, 2}) {
+        auto changed_spec = original_spec;
+        auto metadata = Metadata;
+        if (change == 0) changed_spec.contract.source_fingerprint.bytes[0] ^= 1U;
+        if (change == 1) changed_spec.contract.recipe_fingerprint.bytes[0] ^= 1U;
+        if (change == 2) {
+            metadata[0] ^= 1U;
+            changed_spec.metadata = metadata.data();
+        }
+        const auto changed = Build(changed_spec);
+        laplace_digest256 projected{};
+        ASSERT_EQ(laplace_perfcache_reference_epoch_digest(
+            changed.data(), changed.size(), &changed_spec.contract,
+            &original_spec.contract.activation_epoch_id, &original_spec.contract.activation_epoch_fingerprint,
+            &original_spec.contract.dependency_fingerprint, &projected), LAPLACE_PERFCACHE_OK);
+        EXPECT_NE(std::memcmp(projected.bytes, original_view.artifact_digest.bytes, 32U), 0);
+    }
+}
+
+TEST(PerfcacheEpochProjection, InvalidArgumentsPublishNoDigest) {
+    const auto records = Records();
+    const auto live = Spec(records);
+    const auto artifact = Build(live);
+    laplace_digest256 digest{};
+    digest.bytes[0] = 99U;
+    EXPECT_EQ(laplace_perfcache_reference_epoch_digest(
+        artifact.data(), 1U, &live.contract, &live.contract.activation_epoch_id,
+        &live.contract.activation_epoch_fingerprint, &live.contract.dependency_fingerprint, &digest),
+        LAPLACE_PERFCACHE_SECTION_INVALID);
+    const laplace_digest256 zero{};
+    EXPECT_EQ(std::memcmp(digest.bytes, zero.bytes, 32U), 0);
+    EXPECT_EQ(laplace_perfcache_reference_epoch_digest(
+        nullptr, 0U, &live.contract, &live.contract.activation_epoch_id,
+        &live.contract.activation_epoch_fingerprint, &live.contract.dependency_fingerprint, &digest),
+        LAPLACE_PERFCACHE_INVALID_ARGUMENT);
+    EXPECT_EQ(std::memcmp(digest.bytes, zero.bytes, 32U), 0);
+}
+
 }  // namespace
