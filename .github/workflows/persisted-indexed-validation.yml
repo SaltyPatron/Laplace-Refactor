@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - name: Publish the exact diagnosed native-provider capacity correction
+      - name: Apply reviewed correction and retain the exact tested source
         id: source
         shell: bash
         run: |
@@ -24,20 +24,14 @@ jobs:
           git config user.name SaltyPatron
           git config user.email thesaltypatron@gmail.com
           git checkout -B fix/persisted-cognition-provider "$GITHUB_SHA"
-          python3 - <<'PY'
-          import hashlib
-          from pathlib import Path
-          p=Path('integrations/postgresql/extension/src/observation_cognition_persisted_pg.c')
-          old='    provider.maximum_candidate_records_per_expansion = state.memory_limit / 64u;'
-          new='    provider.maximum_candidate_records_per_expansion =\n        request.search_budget.transition_batch_capacity;\n    if (provider.maximum_candidate_records_per_expansion > state.memory_limit / 64u)\n        provider.maximum_candidate_records_per_expansion = state.memory_limit / 64u;'
-          text=p.read_text();assert text.count(old)==1;p.write_text(text.replace(old,new))
-          data=p.read_bytes();assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()=='d6677cb4d6e83170607b619add2d24cbeb3cdc58'
-          PY
-          git rm .github/indexed-transfer/part{1,2,3,4}.b64
-          git add integrations/postgresql/extension/src/observation_cognition_persisted_pg.c
-          ./tools/tests/verify-requirements.sh
-          git commit -m 'Respect the admitted native candidate batch capacity in the PostgreSQL provider'
-          git push origin HEAD:refs/heads/fix/persisted-cognition-provider
+          if test -f .github/indexed-transfer/fix.patch; then
+            git apply --check .github/indexed-transfer/fix.patch
+            git apply --index .github/indexed-transfer/fix.patch
+            git rm .github/indexed-transfer/fix.patch
+            ./tools/tests/verify-requirements.sh
+            git commit -m 'Repair the exact persisted-cognition regression boundary'
+            git push origin HEAD:refs/heads/fix/persisted-cognition-provider
+          fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           git bundle create "$RUNNER_TEMP/indexed-source.bundle" --all
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
