@@ -34,7 +34,9 @@ typedef enum laplace_cognition_materialization_status {
     LAPLACE_COGNITION_MATERIALIZATION_CYCLE = 8,
     LAPLACE_COGNITION_MATERIALIZATION_LIMIT = 9,
     LAPLACE_COGNITION_MATERIALIZATION_CAPACITY = 10,
-    LAPLACE_COGNITION_MATERIALIZATION_MEMORY_FAILURE = 11
+    LAPLACE_COGNITION_MATERIALIZATION_MEMORY_FAILURE = 11,
+    LAPLACE_COGNITION_MATERIALIZATION_ENCODING_INVALID = 12,
+    LAPLACE_COGNITION_MATERIALIZATION_ENCODING_RANGE = 13
 } laplace_cognition_materialization_status;
 
 /*
@@ -120,6 +122,32 @@ laplace_cognition_realization_materialize_utf8(
     const laplace_cognition_realization_result* realization,
     const laplace_cognition_materialization_request* request,
     const laplace_cognition_materialization_provider_v1* provider,
+    uint8_t* output,
+    size_t output_capacity,
+    size_t* output_bytes,
+    laplace_cognition_materialization_receipt* receipt);
+
+/* Explicit output serialization chosen by the admitted realization recipe.
+ * OCTETS requires byte-valued Unicode positions (0..255); it neither invents a
+ * byte identity law nor selects a modality from prompt text. Unsupported values
+ * are rejected rather than truncated or silently re-encoded as UTF-8.
+ *
+ * Both encodings use the same identity, trajectory, provider and atomic-publication
+ * implementation. UTF8 retains its existing output and receipt fingerprints.
+ * OCTETS uses a distinct output-fingerprint domain, so even identical ASCII
+ * outputs cannot conceal a change of serialization selection in the receipt.
+ */
+enum {
+    LAPLACE_COGNITION_OUTPUT_UTF8 = UINT32_C(0),
+    LAPLACE_COGNITION_OUTPUT_OCTETS = UINT32_C(1)
+};
+
+LAPLACE_API laplace_cognition_materialization_status
+laplace_cognition_realization_materialize_encoded(
+    const laplace_cognition_realization_result* realization,
+    const laplace_cognition_materialization_request* request,
+    const laplace_cognition_materialization_provider_v1* provider,
+    uint32_t output_encoding,
     uint8_t* output,
     size_t output_capacity,
     size_t* output_bytes,
