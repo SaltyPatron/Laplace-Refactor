@@ -1,4 +1,12 @@
 {
+  "highway_replay_repair_20260907": {
+    "classification": "observed-development-state-not-product-law",
+    "base_commit": "d47ff2d7898db2b15fcce703628545ea15224f27",
+    "failed_activation_run": 34161742423,
+    "defect": "The replay controller supplied the already-active numeric epoch, changing the ISA input receipt and requesting active-to-active activation instead of exact original request replay.",
+    "repair": "Retain and reselect the original source admission context, re-execute and validate it through the unchanged native replay owner, and preserve current active output expectations.",
+    "acceptance": "Exact native live replay, hosted checks and successor product deployment required; no data reset or relaxed activation check."
+  },
   "public_cold_readback_repair_20260907": {
     "classification": "observed-development-state-not-product-law",
     "base_commit": "d151a80176c57eb8662bfaaf5ef82b6e3767999b",

@@ -382,9 +382,9 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM laplace.entity WHERE entity_id=activated.root_entity_id)
      OR NOT EXISTS (SELECT 1 FROM laplace.physicality WHERE physicality_id=activated.root_physicality_id AND entity_id=activated.root_entity_id)
      OR NOT EXISTS (SELECT 1 FROM laplace.highway_registry_active_control WHERE singleton AND active_present AND sequence=activated.activation_sequence AND activation_receipt=activated.activation_receipt)
-     OR (SELECT count(*) FROM laplace.highway_registry_kind_projection) <> {expected['kind_count']}
-     OR (SELECT count(*) FROM laplace.highway_registry_alias_projection) <> {expected['alias_count']}
-     OR (SELECT count(*) FROM laplace.highway_registry_disposition_projection) <> {expected['disposition_count']} THEN
+     OR (SELECT count(*) FROM laplace.highway_registry_kind_projection WHERE activation_epoch_id=activated.registry_epoch_id AND activation_epoch_fingerprint=activated.registry_epoch_fingerprint) <> {expected['kind_count']}
+     OR (SELECT count(*) FROM laplace.highway_registry_alias_projection WHERE activation_epoch_id=activated.registry_epoch_id AND activation_epoch_fingerprint=activated.registry_epoch_fingerprint) <> {expected['alias_count']}
+     OR (SELECT count(*) FROM laplace.highway_registry_disposition_projection WHERE activation_epoch_id=activated.registry_epoch_id AND activation_epoch_fingerprint=activated.registry_epoch_fingerprint) <> {expected['disposition_count']} THEN
     RAISE EXCEPTION 'Highway product activation violates its exact contract';
   END IF;
 END
@@ -547,6 +547,86 @@ def validate_readback(
             raise HighwayActivationError(f"application-role Highway readback differs: {field}")
 
 
+def retained_activation_state(
+    root: Path, cluster_contract: dict[str, Any], inspection: dict[str, Any],
+    request: dict[str, Any],
+) -> tuple[dict[str, Any], str]:
+    """Replay the original admitted context, not active -> active as a mutation.
+
+    The native owner still re-executes and validates the exact ISA receipt, root
+    identity and active generation. This only selects the retained input context;
+    it never changes a framework epoch or substitutes a stored result for native
+    execution. The live active state remains the expected output boundary.
+    """
+    directory = unicodectl.prefixed(
+        root, cluster_contract["instance"]["receipt_directory"]) / "highway"
+    if directory.is_symlink() or not directory.is_dir():
+        raise HighwayActivationError("active Highway registry lacks retained admission")
+    semantic_fields = ("schema", "activation_contract_sha256", "registry_contract_sha256",
+        "predecessor_registry_contract_sha256", "unicode_request_fingerprint",
+        "operation", "execution_context", "expected_result")
+    contexts: dict[str, str] = {}
+    examined = 0
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            examined += 1
+            if examined > 1024:
+                raise HighwayActivationError("Highway admission search limit exceeded")
+            if unicodectl.HEX_256.fullmatch(entry.name) is None:
+                continue
+            if entry.is_symlink() or not entry.is_dir(follow_symlinks=False):
+                raise HighwayActivationError("unsafe Highway admission directory")
+            path = Path(entry.path) / "request.json"
+            if (path.is_symlink() or not path.is_file()
+                    or path.stat().st_size > 262144):
+                raise HighwayActivationError("unsafe retained Highway request")
+            original = load_json(path)
+            content = unicodectl.canonical_bytes(original)
+            if path.read_bytes() != content or unicodectl.sha256_bytes(content) != entry.name:
+                raise HighwayActivationError("retained Highway request identity differs")
+            admitted = original.get("inspected_state", {})
+            if not isinstance(admitted, dict) or admitted.get("mode") not in {"fresh", "successor"}:
+                continue
+            if any(original.get(field) != request[field] for field in semantic_fields):
+                continue
+            if admitted.get("expected_activation_sequence") != inspection["highway_sequence"]:
+                continue
+            # Older completed requests stored the system identity in their receipt.
+            # New requests pin it before execution, including interrupted activations.
+            system_identifier = original.get("system_identifier")
+            if system_identifier is None:
+                receipt_path = Path(entry.path) / "receipt.json"
+                if (receipt_path.is_symlink() or not receipt_path.is_file()
+                        or receipt_path.stat().st_size > 1048576):
+                    raise HighwayActivationError("legacy Highway admission lacks exact completed receipt")
+                receipt = load_json(receipt_path)
+                if (receipt.get("schema") != RECEIPT_SCHEMA
+                        or receipt.get("phase") != "product-activated"
+                        or receipt.get("request_sha256") != entry.name
+                        or receipt.get("package_id") != original.get("package_id")
+                        or receipt.get("receipt_sha256") != unicodectl.document_identity(receipt, "receipt_sha256")
+                        or receipt.get("activation", {}).get("registry_epoch_id") != inspection["highway_epoch_id"]
+                        or receipt.get("activation", {}).get("registry_epoch_fingerprint") != inspection["highway_epoch_fingerprint"]):
+                    raise HighwayActivationError("legacy Highway admission receipt differs")
+                system_identifier = receipt.get("system_identifier")
+            if system_identifier != request["system_identifier"]:
+                raise HighwayActivationError("retained Highway database identity differs")
+            numeric = admitted.get("numeric_epoch")
+            if (not isinstance(numeric, str) or unicodectl.HEX_256.fullmatch(numeric) is None
+                    or numeric == inspection["highway_epoch_fingerprint"]
+                    or (admitted["mode"] == "fresh" and numeric != ZERO_256)
+                    or (admitted["mode"] == "successor" and numeric == ZERO_256)):
+                raise HighwayActivationError("retained Highway predecessor epoch is invalid")
+            # Repeated interrupted requests can carry the same exact native input;
+            # only one distinct predecessor context is admissible, never guess one.
+            contexts[numeric] = min(contexts.get(numeric, entry.name), entry.name)
+    if len(contexts) != 1:
+        raise HighwayActivationError("active Highway registry requires one exact retained context")
+    numeric, admission_request_sha = next(iter(contexts.items()))
+    replay = dict(request["inspected_state"], numeric_epoch=numeric)
+    return replay, admission_request_sha
+
+
 def execute_highway_activation(
     contract: dict[str, Any], cluster_contract: dict[str, Any],
     unicode_contract: dict[str, Any], registry_contract: dict[str, Any],
@@ -585,15 +665,46 @@ def execute_highway_activation(
     )
     command_receipts.append(inspection_receipt)
     state = validate_inspection(inspection, unicode_receipt, contract)
+    request = {
+        "schema": "laplace.highway-product-activation-request/v1",
+        "orchestrator_sha256": unicodectl.sha256_file(Path(__file__).resolve()),
+        "activation_contract_sha256": unicodectl.sha256_bytes(unicodectl.canonical_bytes(contract)),
+        "registry_contract_sha256": unicodectl.sha256_bytes(unicodectl.canonical_bytes(registry_contract)),
+        "predecessor_registry_contract_sha256": unicodectl.sha256_bytes(
+            unicodectl.canonical_bytes(previous_registry_contract)
+        ),
+        "package_id": package["package_id"],
+        "cluster_plan_sha256": plan["plan_sha256"],
+        "cluster_activation_receipt_sha256": cluster_receipt["activation_receipt_sha256"],
+        "unicode_activation_receipt_sha256": unicode_receipt["receipt_sha256"],
+        "unicode_request_fingerprint": unicode_receipt["request_fingerprint"],
+        "operation": contract["operation"],
+        "execution_context": contract["execution_context"],
+        "expected_result": contract["expected_result"],
+        "inspected_state": state,
+        "system_identifier": loaded_before["system_identifier"],
+    }
+    replay_state = state
+    if state["mode"] == "replay":
+        replay_state, admission_request_sha = retained_activation_state(
+            root, cluster_contract, inspection, request)
+        request["replayed_admission_request_sha256"] = admission_request_sha
+    request_sha = unicodectl.sha256_bytes(unicodectl.canonical_bytes(request))
+    evidence_root = unicodectl.prefixed(root, instance["receipt_directory"])
+    evidence = evidence_root / contract["receipt"]["directory_name"] / request_sha
+    # Retain the exact request before the native transaction: a committed native
+    # activation remains replayable even if later restart/readback proof fails.
+    unicodectl.write_immutable(evidence / "request.json", request)
     activation, activation_command = sql_runner(
         plan, cluster_contract,
-        render_activation_sql(contract, identities, unicode_receipt, state),
+        render_activation_sql(contract, identities, unicode_receipt, replay_state),
         "admit-and-activate-highway-product-registry",
         cluster_contract["security"]["admin_os_user"], instance["admin_role"],
         contract["operation"]["statement_timeout_seconds"] + 120,
     )
     command_receipts.append(activation_command)
     validate_activation_result(activation, contract, unicode_receipt, state)
+    unicodectl.write_immutable(evidence / "activation-result.json", activation)
     restart = command_runner(
         "restart-after-highway-activation",
         ["/usr/bin/systemctl", "restart", instance["service"]],
@@ -621,25 +732,6 @@ def execute_highway_activation(
         or loaded_after["config_files"] != loaded_before["config_files"]
     ):
         raise HighwayActivationError("product restart changed identity or retained the old postmaster")
-    request = {
-        "schema": "laplace.highway-product-activation-request/v1",
-        "orchestrator_sha256": unicodectl.sha256_file(Path(__file__).resolve()),
-        "activation_contract_sha256": unicodectl.sha256_bytes(unicodectl.canonical_bytes(contract)),
-        "registry_contract_sha256": unicodectl.sha256_bytes(unicodectl.canonical_bytes(registry_contract)),
-        "predecessor_registry_contract_sha256": unicodectl.sha256_bytes(
-            unicodectl.canonical_bytes(previous_registry_contract)
-        ),
-        "package_id": package["package_id"],
-        "cluster_plan_sha256": plan["plan_sha256"],
-        "cluster_activation_receipt_sha256": cluster_receipt["activation_receipt_sha256"],
-        "unicode_activation_receipt_sha256": unicode_receipt["receipt_sha256"],
-        "unicode_request_fingerprint": unicode_receipt["request_fingerprint"],
-        "operation": contract["operation"],
-        "execution_context": contract["execution_context"],
-        "expected_result": contract["expected_result"],
-        "inspected_state": state,
-    }
-    request_sha = unicodectl.sha256_bytes(unicodectl.canonical_bytes(request))
     receipt = {
         "schema": RECEIPT_SCHEMA,
         "phase": "product-activated",
