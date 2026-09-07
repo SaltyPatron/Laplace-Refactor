@@ -293,6 +293,14 @@ BEGIN
           AND i.indisvalid AND i.indisready) <> 2 THEN
         RAISE EXCEPTION 'indexed cognition indexes are not ready';
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class c
+                   JOIN pg_catalog.pg_index i ON i.indexrelid=c.oid
+                   JOIN pg_catalog.pg_am a ON a.oid=c.relam
+                   WHERE c.oid='laplace.physicality_constituent_lookup_idx'::regclass
+                     AND i.indrelid='laplace.physicality'::regclass
+                     AND a.amname='gin' AND 'fastupdate=off'=ANY(c.reloptions)) THEN
+        RAISE EXCEPTION 'indexed cognition membership requires its maintained GIN posting tree';
+    END IF;
 END $migration$;
 SELECT pg_catalog.json_build_object('schema','laplace.indexed-cognition-upgrade/v1',
     'version',extversion,'owner',current_user,'native_bindings',2,'ready_indexes',2)::text

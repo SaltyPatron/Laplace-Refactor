@@ -35,7 +35,8 @@ class IndexedCognitionUpgrade(unittest.TestCase):
         for part in ("BEGIN;", "COMMIT;", "version = '1.0.0'", "version <> '1.0.1'",
                      "ALTER EXTENSION laplace UPDATE TO '1.0.1'", "owner <> current_user",
                      "d.deptype='e'", "p.probin='laplace_pg'", "p.prosrc=target.symbol",
-                     "NOT p.prosecdef", "i.indisvalid AND i.indisready"):
+                     "NOT p.prosecdef", "i.indisvalid AND i.indisready",
+                     "a.amname='gin'", "'fastupdate=off'=ANY(c.reloptions)"):
             self.assertIn(part,program)
         self.assertEqual(receipt['package_id'],self.package['package_id'])
         self.assertEqual(receipt['receipt_sha256'],runner.document_identity(receipt,'receipt_sha256'))

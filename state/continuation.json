@@ -1,4 +1,18 @@
 {
+  "indexed_cognition_repair_20260907": {
+    "classification": "observed-development-state-not-product-law",
+    "owning_pull_request": 253,
+    "base_commit": "84d246ebac62a0ed52d0cec2410bb309be756c7a",
+    "tested_source": "e2517e9de3b30989b7196678adbccc799038b130",
+    "physical_acceptance_run": 34165296097,
+    "observed_behavior": "Native C-to-B-to-A structural cognition executes over persisted physicalities in two frontier batches and four database calls. Adding 4096 unrelated native-built physicalities leaves its answer, receipts, two fetched records and 192 trajectory bytes unchanged.",
+    "observed_index_plan": "Bitmap GIN lookup returns one matching row with four shared-buffer hits immediately after ingestion, without ANALYZE, VACUUM or planner overrides. The earlier default-pending-list plan scanned all 4097 rows.",
+    "negative_controls": "Corrupt matched trajectories, missing provider workspace, exhausted database budget and attempts to label physicality as semantic testimony are rejected; exact execution succeeds again after error cleanup.",
+    "native_tests": "71 tests across 15 suites passed, including all prompt-composition and candidate-batch cases.",
+    "deployment_baseline": "Main 84d246ebac62a0ed52d0cec2410bb309be756c7a completed persistent product activation and readback in run 34163089636. PR254, PR261 and PR262 are merged; their older pending checkpoints below are historical.",
+    "remaining_acceptance": "Current PR253 hosted native/sanitizer/requirements checks and ordinary main deployment must still pass before installed indexed cognition is claimed.",
+    "product_scope": "This structural persistence provider and additive 1.0.1 upgrade do not close testimony, general prompt-goal compilation, firmware/Godel execution, configured seed or public multimodal product requirements."
+  },
   "highway_replay_repair_20260907": {
     "classification": "observed-development-state-not-product-law",
     "base_commit": "d47ff2d7898db2b15fcce703628545ea15224f27",
