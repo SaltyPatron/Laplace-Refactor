@@ -1,104 +1,86 @@
-name: postgresql-direct-readback
+name: recovery-256-integration-validation
 
 on:
   push:
     branches: ['fix/start-stopped-selected-postgresql']
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: product-activation-refs/heads/main
+  group: recovery-256-integration-validation
   cancel-in-progress: false
 
 jobs:
-  direct-readback:
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 5
+  integrate-tested-repair:
+    if: github.repository == 'SaltyPatron/Laplace-Refactor'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Inspect selected predecessor without lifecycle or configuration mutation
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - name: Apply exactly the offline-tested recovery change
         shell: bash
         run: |
           set -euo pipefail
-          test "$(id -un)" = laplace-runner
-          export PROBE_OUTPUT="$RUNNER_TEMP/predecessor-readback.json"
+          test "$GITHUB_REF" = refs/heads/fix/start-stopped-selected-postgresql
+          test "$(git rev-parse HEAD^)" = 951c88621e069ec309e172d585abe75e6aa99b44
+          printf '%s  %s\n' 6aa00a847c1e61a1b0b397d84fac5e4f7f2c5dc26f780c3433c90c7497965d53 .github/recovery-256.patch | sha256sum --check
+          git apply --check --index .github/recovery-256.patch
+          git apply --index .github/recovery-256.patch
+          git diff --cached --check
           python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-          import re
-          import runpy
           import subprocess
-
-          module = runpy.run_path('tools/delivery/product_predecessor_adoption.py')
-          ctl = module['clusterctl']
-          contract = ctl.load_json(Path('contracts/postgresql-cluster.json'))
-          ctl.validate_contract(contract)
-          package_id = module['_active_package_id'](contract)
-          directory = module['_activation_directory'](contract, package_id)
-          receipt = ctl.load_json(directory / 'activation-complete.json')
-          plan_path, plan = module['_load_plan'](receipt, contract, package_id)
-          module['_require_selection'](contract, package_id)
-          status = subprocess.run(ctl._pg_ctl_command(plan, 'status'),
-              cwd='/', env=ctl.activation_environment(), text=True,
-              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
-          safe = {'data_directory', 'hba_file', 'ident_file', 'port',
-              'unix_socket_directories', 'shared_preload_libraries',
-              'dynamic_library_path', 'include', 'include_if_exists',
-              'include_dir', 'shared_buffers', 'max_connections',
-              'effective_cache_size', 'work_mem', 'maintenance_work_mem',
-              'max_worker_processes', 'max_parallel_workers',
-              'max_parallel_workers_per_gather', 'huge_pages',
-              'listen_addresses', 'temp_tablespaces', 'logging_collector',
-              'log_directory', 'log_filename'}
-          def visible_lines(data):
-              result = []
-              for line in data.decode('utf-8', errors='replace').splitlines():
-                  if not line.strip() or line.lstrip().startswith('#'):
-                      continue
-                  match = re.match(r'\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*(?:=|\s)', line)
-                  key = match.group(1) if match else None
-                  if key in safe:
-                      result.append(line)
-                  else:
-                      result.append({'setting': key, 'line_sha256': hashlib.sha256(line.encode()).hexdigest()})
-              return result
-          files = []
-          for entry in plan['files']:
-              path = Path(entry['path'])
-              item = {'path': str(path), 'expected_sha256': entry['sha256'],
-                      'present': path.is_file(), 'symlink': path.is_symlink()}
-              if path.is_file() and not path.is_symlink():
-                  actual = path.read_bytes()
-                  item['actual_sha256'] = hashlib.sha256(actual).hexdigest()
-                  item['matches'] = item['actual_sha256'] == entry['sha256']
-                  if not item['matches'] and path.name == 'postgresql.conf':
-                      item['expected_settings'] = visible_lines(entry['content'].encode())
-                      item['actual_settings'] = visible_lines(actual)
-              files.append(item)
-          result = {'schema': 'laplace.predecessor-read-only-inspection/v1',
-              'repository_commit': os.environ['GITHUB_SHA'], 'package_id': package_id,
-              'plan_path': str(plan_path), 'plan_sha256': plan['plan_sha256'],
-              'pg_ctl_status': status.returncode, 'files': files,
-              'database_mutations': 0, 'configuration_mutations': 0}
-          Path(os.environ['PROBE_OUTPUT']).write_text(json.dumps(result, indent=2) + '\n')
-          print(json.dumps(result, indent=2))
+          expected = {
+              'tests/postgresql_cluster_tests.py': '958d2f5c48cbcef5189bb14093177f8bb5cf8913',
+              'tests/product_cluster_upgrade_tests.py': '88a7c7b4a6c7b806a03d290210f41887c187cd80',
+              'tools/delivery/product_cluster_upgrade.py': 'eda55210058b0280b00152e6f3733d7c7ac2ad36',
+              'tools/delivery/product_predecessor_adoption.py': '4f0732fa94f08010d18a2ad75615f1775a001ad5',
+              'tools/postgresql/clusterctl.py': '1bbc28bd541e612495731d86ac103b38e68f6f14',
+          }
+          changed = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines()
+          if set(changed) != set(expected):
+              raise SystemExit('unexpected integration file set')
+          for path, digest in expected.items():
+              actual = subprocess.check_output(['git', 'hash-object', path], text=True).strip()
+              if actual != digest:
+                  raise SystemExit('offline/runner source mismatch: ' + path)
+          print('All five implementation/test files match their offline-tested bytes')
           PY
-      - name: Retain exact tracked source for reproducible offline repair testing
+      - name: Execute the previously failing gate and recovery regressions
         shell: bash
         run: |
           set -euo pipefail
-          git archive --format=tar HEAD | gzip -n > "$RUNNER_TEMP/repair-source.tar.gz"
-          sha256sum "$RUNNER_TEMP/repair-source.tar.gz"
+          mkdir -p "$RUNNER_TEMP/recovery-256"
+          bash tools/tests/verify-requirements.sh 2>&1 | tee "$RUNNER_TEMP/recovery-256/requirements.log"
+          python3 tests/product_cluster_upgrade_tests.py 2>&1 | tee "$RUNNER_TEMP/recovery-256/upgrade.log"
+          python3 tests/postgresql_cluster_tests.py 2>&1 | tee "$RUNNER_TEMP/recovery-256/cluster.log"
+          python3 tests/product_activation_runtime_adapter_tests.py
+          python3 tests/product_activation_runner_tests.py
+          python3 tests/product_service_state_tests.py
+          python3 tests/product_activation_preflight_tests.py
+          python3 tests/postgresql_host_provider_tests.py
+      - name: Publish only the validated source changes to the existing PR branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=fix/start-stopped-selected-postgresql
+          test "$(git ls-remote origin "refs/heads/$branch" | cut -f1)" = "$GITHUB_SHA"
+          git rm -- .github/recovery-256.patch
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Repair exact predecessor page-policy reconciliation and restart proofs' \
+            -m 'Apply the five byte-verified recovery files after the requirements gate, cluster/adoption tests, and related lifecycle suites execute successfully. Preserve disabled optional huge pages through a separately validated physical plan and real restart proof; keep arbitrary configuration drift rejected. This commit makes no installed-product acceptance claim.'
+          git push origin "HEAD:refs/heads/$branch"
+          git rev-parse HEAD | tee "$RUNNER_TEMP/recovery-256/commit.txt"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: predecessor-readback-${{ github.sha }}
-          path: |
-            ${{ runner.temp }}/predecessor-readback.json
-            ${{ runner.temp }}/repair-source.tar.gz
-          if-no-files-found: error
+          name: recovery-256-integration-${{ github.sha }}
+          path: ${{ runner.temp }}/recovery-256/
+          if-no-files-found: warn
           retention-days: 7
