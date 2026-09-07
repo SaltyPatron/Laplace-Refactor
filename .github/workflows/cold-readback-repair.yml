@@ -4,22 +4,67 @@ on:
     branches: ['fix/public-cold-readback']
 permissions:
   contents: read
+concurrency:
+  group: product-activation-refs/heads/main
+  cancel-in-progress: false
 jobs:
-  source:
+  integrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.publish.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Apply the reviewed source patch and verify all local source identities
+        run: |
+          set -euo pipefail
+          git apply --index tools/delivery/cold-readback-transfer.patch
+          python3 - <<'PY'
+          import subprocess
+          expected = {'cmake/LaplacePostgreSQLBindings.cmake': 'e7ae92eb443ec9a83fc0d9f64065686f512550f1', 'contracts/product-package.json': 'a46b23a6ed3e659d73fd731818c3b647233a82f6', 'integrations/postgresql/extension/CMakeLists.txt': '18adf7bc15b4f9255beb1e30f086bf26f8b3bc39', 'integrations/postgresql/extension/public_readback.sql.in': '5fc7ed92c396e5516fc4550c715a5ae77f3c5585', 'state/continuation.json': '32ab8a3658fe40b98e1100646fe3589526aa8524', 'tests/postgresql_public_readback_live.py': '92521220dcf3b1b0159454173b9047efba2d7120', 'tests/postgresql_public_readback_tests.py': '9050bcfcf77b6a39bf0b3bcb32b97d35619b8b4d', 'tests/unicode_retained_admission_tests.py': '0f323f896dfdb3c609b92aa3c9a86800d1164936', 'tools/delivery/product_activation_runner.py': 'cb8ce5711652229ef8fdd957f59e43a34af1d5af', 'tools/postgresql/unicodectl.py': 'ef3230ea83daa895661d51c21b2b5aa3744d16f4', 'tools/tests/verify-requirements.sh': 'd64a9922dac060d92980a4fdfa9f6dae3b30feb3'}
+          for path, wanted in expected.items():
+              actual = subprocess.check_output(['git','hash-object',path],text=True).strip()
+              if actual != wanted: raise SystemExit(f'{path}: {actual} != {wanted}')
+          print('Verified all 11 locally tested source identities')
+          PY
+          ./tools/tests/verify-requirements.sh
+          python3 tests/unicode_product_activation_tests.py
+          python3 tests/product_activation_runner_tests.py
+          python3 tests/product_activation_runtime_adapter_tests.py
+          git diff --cached --check
+      - name: Publish only the tested source changes
+        id: publish
+        run: |
+          set -euo pipefail
+          git rm tools/delivery/cold-readback-transfer.patch
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Repair native cold readback and retain original Unicode admission across deployment changes'
+          git push origin HEAD:refs/heads/fix/public-cold-readback
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  live-readback:
+    needs: integrate
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ needs.integrate.outputs.commit }}
           persist-credentials: false
-      - name: Retain exact source for cold-readback repair
+      - name: Prove cold app readback and deliberate defect with all metadata rolled back
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/cold-readback"
-          git archive --format=tar.gz HEAD -o "$RUNNER_TEMP/cold-readback/source.tar.gz"
-          git rev-parse HEAD HEAD^{tree} > "$RUNNER_TEMP/cold-readback/identity.txt"
+          test "$(id -un)" = laplace-runner
+          mkdir -p "$RUNNER_TEMP/public-readback-proof"
+          python3 - <<'PY'
+          import os, runpy
+          from pathlib import Path
+          module=runpy.run_path('tests/postgresql_public_readback_tests.py')
+          module['render'](Path(os.environ['RUNNER_TEMP'])/'public-readback-proof')
+          PY
+          python3 tests/postgresql_public_readback_live.py --bindings "$RUNNER_TEMP/public-readback-proof/laplace-public-readback.sql" --output "$RUNNER_TEMP/public-readback-proof/live-proof.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: cold-readback-source-${{ github.sha }}
-          path: ${{ runner.temp }}/cold-readback/
+          name: public-readback-live-${{ needs.integrate.outputs.commit }}
+          path: ${{ runner.temp }}/public-readback-proof/live-proof.json
           retention-days: 7
