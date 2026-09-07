@@ -321,6 +321,8 @@ class UnicodeProductActivationTests(unittest.TestCase):
                 }
 
             fresh = {
+                "perfcache_root": str(unicode.prefixed(
+                    root, self.cluster["instance"]["perfcache_directory"])),
                 "sequence": 0,
                 "active_present": False,
                 "activation_epoch_id": "0" * 32,

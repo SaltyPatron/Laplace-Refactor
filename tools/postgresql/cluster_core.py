@@ -1045,7 +1045,23 @@ def sql_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def render_postgresql_conf(contract: dict[str, Any], package_root: str, settings: dict[str, str]) -> str:
+def configuration_version(plan: dict[str, Any]) -> int:
+    # Missing version denotes the retained pre-perfcache configuration format.
+    # Historical plans remain verifiable; all newly built plans select version 2.
+    value = plan.get("configuration_version", 1)
+    if type(value) is not int or value not in (1, 2):
+        raise ClusterError("unsupported PostgreSQL configuration version")
+    return value
+
+
+def render_postgresql_conf(
+    contract: dict[str, Any], package_root: str, settings: dict[str, str],
+    *, configuration_version: int = 2,
+) -> str:
+    if type(configuration_version) is not int or configuration_version not in (1, 2):
+        raise ClusterError("unsupported PostgreSQL configuration version")
+    if "laplace.perfcache_root" in settings:
+        raise ClusterError("perfcache root belongs to the cluster path contract")
     instance = contract["instance"]
     security = contract["security"]
     config = {
@@ -1063,7 +1079,11 @@ def render_postgresql_conf(contract: dict[str, Any], package_root: str, settings
         "unix_socket_permissions": security["socket_mode"],
     }
     config.update(settings)
+    if configuration_version >= 2:
+        config["laplace.perfcache_root"] = require_absolute_path(
+            instance["perfcache_directory"], "instance.perfcache_directory")
     quoted = {
+        "laplace.perfcache_root",
         "data_directory",
         "dynamic_library_path",
         "extension_control_path",
@@ -1239,6 +1259,7 @@ def build_plan(
     ]
     plan_core = {
         "schema": PLAN_SCHEMA,
+        "configuration_version": 2,
         "contract_sha256": sha256_bytes(canonical_bytes(contract)),
         "package_manifest_sha256": status.manifest_sha256,
         "package_id": package["package_id"],
@@ -1354,6 +1375,7 @@ def validate_plan(plan: dict[str, Any], contract: dict[str, Any] | None = None) 
         validate_contract(contract)
         if plan.get("contract_sha256") != sha256_bytes(canonical_bytes(contract)):
             raise ClusterError("plan was not generated from the supplied cluster contract")
+    configuration_version(plan)
     files = plan.get("files")
     if not isinstance(files, list):
         raise ClusterError("plan rendered files are required")

@@ -203,7 +203,9 @@ def validate_plan(plan: dict[str, Any], contract: dict[str, Any] | None = None) 
     if plan.get("settings") != settings:
         raise _core.ClusterError("PostgreSQL settings differ from the conserved resource plan")
     config = _rendered_entry(plan, f"{plan['instance']['config_directory']}/postgresql.conf")
-    expected_config = render_postgresql_conf(contract, plan["package_root"], settings)
+    expected_config = render_postgresql_conf(
+        contract, plan["package_root"], settings,
+        configuration_version=configuration_version(plan))
     if config.get("content") != expected_config:
         raise _core.ClusterError("generated PostgreSQL configuration differs from its physical plan")
     if config.get("sha256") != sha256_bytes(expected_config.encode("utf-8")):
@@ -235,7 +237,9 @@ def plan_with_physical_settings(
     path = f"{selected['instance']['config_directory']}/postgresql.conf"
     entry = _rendered_entry(selected, path)
     _replace_rendered(selected, path,
-                      render_postgresql_conf(contract, selected["package_root"], settings),
+                      render_postgresql_conf(
+                          contract, selected["package_root"], settings,
+                          configuration_version=configuration_version(selected)),
                       entry["mode"])
     selected.pop("plan_sha256", None)
     selected["plan_sha256"] = sha256_bytes(canonical_bytes(selected))
