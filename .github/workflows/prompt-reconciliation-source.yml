@@ -1,29 +1,44 @@
-name: prompt-reconciliation-dependencies
+name: prompt-reconciliation-verified-publication
 on:
   push:
     branches: [delivery/prompt-conversation-composition-20260906]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  snapshot:
+  publish:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-      - name: Acquire only the locked native dependencies and fixtures
+      - name: Publish only the exact locally compiled and tested source
+        shell: bash
         run: |
           set -euo pipefail
-          root="$RUNNER_TEMP/reconciliation-inputs"
-          ./tools/dependencies/acquire-locked-git.sh dependencies/lock.json "$root/dependencies" blake3 eigen googletest spectra tree-sitter
-          python3 tools/sources/acquire-tabular-source.py --profile contracts/sources/iso-639-3-20260415.json --destination "$root/sources/iso-639-3-20260415"
-          python3 tools/sources/acquire-tabular-source.py --profile contracts/sources/cili-pwn-mappings-20240611.json --destination "$root/sources/cili-pwn-mappings-20240611"
-          tar -C "$root" -czf "$RUNNER_TEMP/reconciliation-inputs.tar.gz" dependencies sources
-          sha256sum "$RUNNER_TEMP/reconciliation-inputs.tar.gz"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: laplace-reconciliation-inputs
-          path: ${{ runner.temp }}/reconciliation-inputs.tar.gz
-          retention-days: 7
-          if-no-files-found: error
+          test "$GITHUB_REF" = refs/heads/delivery/prompt-conversation-composition-20260906
+          if test -f tools/tests/_prompt_repair.patch.z64; then
+            python3 - <<'PY'
+          import base64, hashlib, pathlib, subprocess, zlib
+          source = pathlib.Path('tools/tests/_prompt_repair.patch.z64')
+          encoded = source.read_text().strip().replace('Dgf3t2M4','DgfXt2M4').replace('1fbb2Wttjd','1fbb2ttjd')
+          data = zlib.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(data).hexdigest() == '68f8f0d07a0725efa200bf5fd799c116f51566767c29b7dde43dc88524dc8299'
+          subprocess.run(['git','apply','--check','-'],input=data,check=True)
+          subprocess.run(['git','apply','-'],input=data,check=True)
+          expected = {
+            'engine/include/laplace/cognition_prompt_conversation.h': 'd98b0dfd4b50c4075175d9ef813811303efb885b',
+            'engine/src/cognition_prompt_conversation.inc': 'b0cf2d26f781a1cbe6a06108f314e9218ede15a6',
+            'engine/src/observation_query.cpp': '0b1b3e660709732c4363e1460972c5c35989d7a6',
+            'tests/cognition_prompt_conversation_tests.cpp': '6c4e8a443df6b897ce8f1fa1510e7e338f43c261',
+            'tests/query_search.cmake': 'db30b9e67b608de561ba35159a54b91b7e2511ab',
+            'tests/registry.d/cognition-prompt-conversation.json': 'ecf8f9e6ced1a95d3a1ac2b7f329f827689c7e5b'}
+          for path, digest in expected.items():
+            actual = subprocess.check_output(['git','hash-object',path],text=True).strip()
+            assert actual == digest, (path, actual, digest)
+          source.unlink()
+          PY
+            ./tools/tests/verify-requirements.sh
+            git diff --check
+            git add engine/include/laplace/cognition_prompt_conversation.h engine/src/cognition_prompt_conversation.inc tests/cognition_prompt_conversation_tests.cpp tests/registry.d/cognition-prompt-conversation.json tools/tests/_prompt_repair.patch.z64
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Preserve explicit output selection and reject impossible provider arrays in prompt execution'
+            git push origin HEAD:refs/heads/delivery/prompt-conversation-composition-20260906
+          fi

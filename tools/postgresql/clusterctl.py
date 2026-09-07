@@ -192,8 +192,92 @@ def validate_plan(plan: dict[str, Any], contract: dict[str, Any] | None = None) 
         raise _core.ClusterError("durable receipt namespace cannot be fresh candidate state")
     if live and plan["instance"]["socket_directory"] not in plan.get("state_directories", []):
         raise _core.ClusterError("runner-owned socket directory must be candidate state")
+    # Page-size selection is a physical provider choice, not a license to accept
+    # arbitrary edited settings. Recalculate the complete configuration from the
+    # conserved grant plus the explicitly identified optional selection.
+    settings = generate_settings(contract, plan["resource_grant"])
+    physical = plan.get("physical_settings", {})
+    if not isinstance(physical, dict) or physical not in ({}, {"huge_pages": "off"}):
+        raise _core.ClusterError("unsupported PostgreSQL physical settings selection")
+    settings.update(physical)
+    if plan.get("settings") != settings:
+        raise _core.ClusterError("PostgreSQL settings differ from the conserved resource plan")
+    config = _rendered_entry(plan, f"{plan['instance']['config_directory']}/postgresql.conf")
+    expected_config = render_postgresql_conf(
+        contract, plan["package_root"], settings,
+        configuration_version=configuration_version(plan))
+    if config.get("content") != expected_config:
+        raise _core.ClusterError("generated PostgreSQL configuration differs from its physical plan")
+    if config.get("sha256") != sha256_bytes(expected_config.encode("utf-8")):
+        raise _core.ClusterError("rendered file digest differs: postgresql.conf")
     projected, projected_contract = _project_plan_for_core_validation(plan, contract)
     _ORIGINAL_VALIDATE_PLAN(projected, projected_contract)
+
+
+def plan_with_physical_settings(
+    plan: dict[str, Any], contract: dict[str, Any], selection: dict[str, str]
+) -> dict[str, Any]:
+    """Re-render one identified physical plan; never modify installed files.
+
+    The supported conservative choice disables optional huge pages without
+    altering the memory grant, canonical data, authentication, or package.
+    Other settings require their own validated planning law, not an override map.
+    """
+    validate_plan(plan, contract)
+    if not isinstance(selection, dict) or selection not in ({}, {"huge_pages": "off"}):
+        raise _core.ClusterError("unsupported PostgreSQL physical settings selection")
+    selected = copy.deepcopy(plan)
+    if selection:
+        selected["physical_settings"] = dict(selection)
+    else:
+        selected.pop("physical_settings", None)
+    settings = generate_settings(contract, selected["resource_grant"])
+    settings.update(selection)
+    selected["settings"] = settings
+    path = f"{selected['instance']['config_directory']}/postgresql.conf"
+    entry = _rendered_entry(selected, path)
+    _replace_rendered(selected, path,
+                      render_postgresql_conf(
+                          contract, selected["package_root"], settings,
+                          configuration_version=configuration_version(selected)),
+                      entry["mode"])
+    selected.pop("plan_sha256", None)
+    selected["plan_sha256"] = sha256_bytes(canonical_bytes(selected))
+    validate_plan(selected, contract)
+    return selected
+
+
+def reconcile_existing_physical_settings(
+    plan: dict[str, Any], contract: dict[str, Any], root: Path = Path("/")
+) -> dict[str, Any]:
+    """Identify an exact supported installed plan without approving arbitrary drift.
+
+    Byte-for-byte agreement is required for every generated file. Only a complete
+    re-render with optional huge pages disabled can explain the one admitted
+    configuration difference. The caller must still prove the live package,
+    PostgreSQL identity and a restart before publishing the successor receipt.
+    No configuration or database bytes are changed here.
+    """
+    validate_plan(plan, contract)
+    if not root.is_absolute():
+        raise _core.ClusterError("configuration inspection root must be absolute")
+    selected = plan
+    for entry in plan["files"]:
+        path = prefixed(root, entry["path"])
+        if path.is_symlink() or not path.is_file():
+            raise _core.ClusterError(f"generated configuration is absent or unsafe: {path}")
+        actual = path.read_bytes()
+        if sha256_bytes(actual) == entry["sha256"]:
+            continue
+        expected_path = f"{plan['instance']['config_directory']}/postgresql.conf"
+        if entry["path"] != expected_path or plan.get("physical_settings"):
+            raise _core.ClusterError(f"generated configuration bytes differ: {path}")
+        candidate = plan_with_physical_settings(plan, contract, {"huge_pages": "off"})
+        generated = _rendered_entry(candidate, expected_path)
+        if actual != generated["content"].encode("utf-8"):
+            raise _core.ClusterError(f"generated configuration bytes differ: {path}")
+        selected = candidate
+    return selected
 
 
 def collision_target(contract: dict[str, Any]) -> dict[str, Any]:
@@ -818,13 +902,6 @@ def observe_loaded_live(
         raise _core.ClusterError("running postmaster is not the planned package binary")
 
     instance = plan["instance"]
-    application_name = f"laplace_loaded_{plan['plan_sha256'][:24]}"
-    probe_sql = (
-        f"SET application_name = '{application_name}'; "
-        "LOAD '$libdir/laplace_pg'; "
-        "LOAD '$libdir/pg_stat_statements'; "
-        "SELECT pg_sleep(120);"
-    )
     psql = f"{plan['package_root']}/pgsql-{plan['postgresql_major']}/bin/psql"
     base = [
         psql,
@@ -840,66 +917,13 @@ def observe_loaded_live(
         "--set",
         "ON_ERROR_STOP=1",
     ]
-    probe = subprocess.Popen(
-        [*base, "--command", probe_sql],
-        cwd="/",
-        env=activation_environment(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    lookup_sql = (
-        "SELECT a.pid::text || '|' || c.system_identifier::text "
-        "FROM pg_catalog.pg_stat_activity AS a "
-        "CROSS JOIN pg_catalog.pg_control_system() AS c "
-        f"WHERE a.application_name = '{application_name}' "
-        "AND a.pid <> pg_catalog.pg_backend_pid() AND a.state = 'active';"
-    )
-    backend_pid: int | None = None
-    system_identifier: str | None = None
-    try:
-        deadline = time.monotonic() + 30.0
-        while time.monotonic() < deadline:
-            if probe.poll() is not None:
-                stdout, stderr = probe.communicate()
-                detail = stderr.strip() or stdout.strip() or f"exit {probe.returncode}"
-                raise _core.ClusterError(f"loaded-object probe exited early: {detail}")
-            lookup = subprocess.run(
-                [*base, "--tuples-only", "--no-align", "--quiet", "--command", lookup_sql],
-                check=False,
-                cwd="/",
-                env=activation_environment(),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=10,
-            )
-            if lookup.returncode == 0:
-                rows = [line.strip() for line in lookup.stdout.splitlines() if line.strip()]
-                if len(rows) == 1 and "|" in rows[0]:
-                    candidate_pid, candidate_identifier = rows[0].split("|", 1)
-                    if candidate_pid.isdecimal() and candidate_identifier.isdecimal():
-                        backend_pid = int(candidate_pid)
-                        system_identifier = candidate_identifier
-                        break
-            time.sleep(0.1)
-        if backend_pid is None or system_identifier is None:
-            raise _core.ClusterError("timed out locating loaded-object probe backend")
+    with loaded_object_backend(base) as (backend_pid, system_identifier, probe_sql):
         paths = process_loaded_paths(proc_root, backend_pid) | postmaster_paths
         return compose_loaded_observation(
-            plan,
-            contract,
-            root,
-            postmaster_pid,
-            backend_pid,
-            system_identifier,
-            paths,
-            sha256_bytes(probe_sql.encode("utf-8")),
-            lifecycle_receipt,
+            plan, contract, root, postmaster_pid, backend_pid,
+            system_identifier, paths,
+            sha256_bytes(probe_sql.encode("utf-8")), lifecycle_receipt,
         )
-    finally:
-        terminate_probe(probe)
 
 
 def commit_plan(

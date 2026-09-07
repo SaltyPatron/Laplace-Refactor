@@ -530,8 +530,18 @@ def render_context(identities: dict[str, Any], contract: dict[str, Any]) -> str:
     )
 
 
+def validate_perfcache_root(inspection: dict[str, Any], expected_root: str) -> None:
+    # Check the effective server setting, not a session-local override. The
+    # generated cluster configuration owns it for every backend and after restart.
+    if inspection.get("perfcache_root") != expected_root:
+        raise UnicodeActivationError(
+            "installed PostgreSQL perfcache root differs from the cluster contract; "
+            "activate the generated cluster configuration before Unicode production")
+
+
 def render_inspection_sql() -> str:
     return """SELECT json_build_object(
+  'perfcache_root', current_setting('laplace.perfcache_root', true),
   'sequence', active.sequence,
   'active_present', active.active_present,
   'activation_epoch_id', encode(active.activation_epoch_id, 'hex'),
@@ -1043,6 +1053,8 @@ def execute_unicode_activation(
         120,
     )
     command_receipts.append(inspection_receipt)
+    validate_perfcache_root(
+        inspection, str(prefixed(root, instance["perfcache_directory"])))
     mode = validate_inspection(inspection, activation_contract, identities)
     build_result: dict[str, Any]
     if mode == "fresh":
