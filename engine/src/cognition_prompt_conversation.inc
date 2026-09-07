@@ -17,9 +17,10 @@ laplace_cognition_prompt_conversation_status ProviderSetStatus(
 }  // namespace laplace_cognition_prompt_conversation_detail
 
 extern "C" laplace_cognition_prompt_conversation_status
-laplace_cognition_prompt_conversation_execute(
+laplace_cognition_prompt_conversation_execute_encoded(
     laplace_cognition_prompt_admission* const admission,
     const laplace_cognition_prompt_conversation_request* const request,
+    const std::uint32_t output_encoding,
     const std::uint8_t* const previous_frame,
     const std::size_t previous_frame_bytes,
     const laplace_cognition_observation_candidate_provider_v1* const additional_cognition_providers,
@@ -50,6 +51,18 @@ laplace_cognition_prompt_conversation_execute(
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_INVALID_VERSION;
     }
 
+    if (output_encoding != LAPLACE_COGNITION_OUTPUT_UTF8 &&
+        output_encoding != LAPLACE_COGNITION_OUTPUT_OCTETS) {
+        return LAPLACE_COGNITION_PROMPT_CONVERSATION_ENCODING_INVALID;
+    }
+
+    std::vector<laplace_cognition_observation_candidate_provider_v1> providers;
+    // One descriptor is reserved for the prompt's structural provider. Check
+    // before +1 or indexing a caller buffer, including SIZE_MAX-sized requests.
+    if (additional_cognition_provider_count >= providers.max_size()) {
+        return LAPLACE_COGNITION_PROMPT_CONVERSATION_MEMORY_FAILURE;
+    }
+
     laplace_cognition_prompt_admission_view admission_view{};
     if (laplace_cognition_prompt_admission_view_get(admission, &admission_view) !=
         LAPLACE_COGNITION_PROMPT_ADMISSION_OK) {
@@ -62,7 +75,6 @@ laplace_cognition_prompt_conversation_execute(
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_STRUCTURAL_PROVIDER_FAILURE;
     }
 
-    std::vector<laplace_cognition_observation_candidate_provider_v1> providers;
     try {
         providers.reserve(additional_cognition_provider_count + 1U);
         providers.push_back(structural_provider);
@@ -95,8 +107,8 @@ laplace_cognition_prompt_conversation_execute(
     conversation_request.version = LAPLACE_COGNITION_CONVERSATION_VERSION;
 
     laplace_cognition_conversation_result conversation_result{};
-    const auto conversation_status = laplace_cognition_conversation_execute(
-        &conversation_request,
+    const auto conversation_status = laplace_cognition_conversation_execute_encoded(
+        &conversation_request, output_encoding,
         previous_frame,
         previous_frame_bytes,
         &composite_provider,
@@ -124,4 +136,32 @@ laplace_cognition_prompt_conversation_execute(
     result->conversation = conversation_result;
     result->version = LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION;
     return LAPLACE_COGNITION_PROMPT_CONVERSATION_OK;
+}
+
+
+extern "C" laplace_cognition_prompt_conversation_status
+laplace_cognition_prompt_conversation_execute(
+    laplace_cognition_prompt_admission* const admission,
+    const laplace_cognition_prompt_conversation_request* const request,
+    const std::uint8_t* const previous_frame,
+    const std::size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* const additional_cognition_providers,
+    const std::size_t additional_cognition_provider_count,
+    const laplace_cognition_realization_provider_v1* const realization_provider,
+    const laplace_cognition_materialization_provider_v1* const materialization_provider,
+    std::uint8_t* const output,
+    const std::size_t output_capacity,
+    std::size_t* const output_bytes,
+    std::uint8_t* const next_discourse_frame,
+    const std::size_t next_discourse_frame_capacity,
+    std::size_t* const next_discourse_frame_bytes,
+    laplace_cognition_prompt_conversation_result* const result) {
+    return laplace_cognition_prompt_conversation_execute_encoded(
+        admission, request, LAPLACE_COGNITION_OUTPUT_UTF8,
+        previous_frame, previous_frame_bytes,
+        additional_cognition_providers, additional_cognition_provider_count,
+        realization_provider, materialization_provider,
+        output, output_capacity, output_bytes,
+        next_discourse_frame, next_discourse_frame_capacity,
+        next_discourse_frame_bytes, result);
 }

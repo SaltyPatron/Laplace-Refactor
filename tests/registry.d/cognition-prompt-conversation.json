@@ -16,6 +16,66 @@
         "the completed semantic answer passes through the existing semantic-act realization and exact Unicode materialization chain to response bytes",
         "the prompt admission receipt exact byte fingerprint and composite cognition provider fingerprint remain attached to the response result"
       ]
+    },
+    {
+      "ctest_name": "CognitionPromptConversation.ExplicitUtf8PreservesCompatibilityBytesFramesAndReceipts",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER",
+        "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "explicit UTF8 and legacy prompt calls share exact bytes discourse frames and receipt identities"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptConversation.OctetSelectionSurvivesWholePromptExecutionWithoutSemanticDrift",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER",
+        "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "selected octet realization follows prompt admission cognition and semantic completion while preserving canonical identity"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptConversation.UnknownEncodingRejectsBeforeProviderExecution",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER",
+        "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "unknown serialization is rejected before provider execution with no published output"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptConversation.ProviderCountOverflowRejectsWithoutCallerBufferAccess",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER",
+        "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "an impossible provider count cannot wrap allocation arithmetic or dereference a too-small caller buffer"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptConversation.FailedOctetMaterializationPublishesNeitherResponseNorDiscourse",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER",
+        "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "serialization failure leaves response and next-discourse buffers unpublished"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptConversation.StructuralPromptRemainsUsableWithoutAdditionalProviders",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER",
+        "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "the exact structural prompt provider remains executable without an external semantic provider"
+      ]
     }
   ]
 }

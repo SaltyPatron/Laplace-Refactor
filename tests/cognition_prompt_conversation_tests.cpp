@@ -525,4 +525,179 @@ TEST(CognitionPromptConversation, RawPromptTraversesStructureThenSemanticProvide
     EXPECT_EQ(result.version, LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION);
 }
 
+
+// One admitted prompt fixture crosses the actual public response chain. The
+// providers below are test witnesses, not a language model or product seed.
+struct PromptResponseFixture final {
+    const std::string prompt{"BA"};
+    laplace_framework_context context{laplace_test_context(3U)};
+    StructureFixture structure{};
+    AtomFixture atoms{};
+    PresenceFixture presence{};
+    laplace_decomposition_provider_v1 structure_provider{};
+    laplace_cognition_prompt_atom_provider_v1 atom_provider{};
+    laplace_composition_presence_provider_v1 presence_provider{};
+    AdmissionOwner admission{};
+    SemanticFixture semantic{};
+    RealizationFixture realization{};
+    MaterializationFixture materialization{};
+    laplace_cognition_observation_candidate_provider_v1 semantic_provider{};
+    laplace_cognition_realization_provider_v1 realization_provider{};
+    laplace_cognition_materialization_provider_v1 materialization_provider{};
+    laplace_cognition_prompt_conversation_request request{};
+    std::array<std::uint8_t, 64> output{};
+    std::array<std::uint8_t, LAPLACE_COGNITION_DISCOURSE_FRAME_BYTES> frame{};
+    std::size_t output_bytes{};
+    std::size_t frame_bytes{};
+    laplace_cognition_prompt_conversation_result result{};
+
+    void Initialize(const std::uint32_t codepoint) {
+        context.resource_grant.memory_bytes = UINT64_C(64) * 1024U * 1024U;
+        structure_provider = StructureProvider(&structure);
+        atom_provider = AtomProvider(&atoms);
+        presence_provider = PresenceProvider(&presence);
+        auto input = PromptInput(prompt, &context, &structure_provider);
+        ASSERT_EQ(laplace_cognition_prompt_admission_create(
+                      &input, &atom_provider, &presence_provider, &admission.value),
+                  LAPLACE_COGNITION_PROMPT_ADMISSION_OK);
+        semantic.source = Codepoint(static_cast<std::uint32_t>('A'));
+        semantic.target = Codepoint(codepoint);
+        semantic_provider = SemanticProvider(&semantic);
+        realization.content = semantic.target;
+        realization_provider = RealizationProvider(&realization);
+        ASSERT_EQ(laplace_identity_codepoint_witness(
+                      codepoint, &materialization.node.entity_id,
+                      &materialization.node.identity_witness), LAPLACE_IDENTITY_OK);
+        materialization.node.node_receipt_id = Digest(0xC1U);
+        materialization.node.logical_count = 1U;
+        materialization.node.atom = codepoint;
+        materialization.node.kind = LAPLACE_COGNITION_MATERIALIZATION_NODE_ATOM;
+        materialization_provider = MaterializationProvider(&materialization);
+        request = ConversationPolicy(semantic.target);
+        output.fill(0xA5U);
+        frame.fill(0xA5U);
+    }
+
+    laplace_cognition_prompt_conversation_status Execute(
+        const std::uint32_t encoding, const std::size_t count = 1U) {
+        return laplace_cognition_prompt_conversation_execute_encoded(
+            admission.value, &request, encoding, nullptr, 0U,
+            count == 0U ? nullptr : &semantic_provider, count,
+            &realization_provider, &materialization_provider,
+            output.data(), output.size(), &output_bytes,
+            frame.data(), frame.size(), &frame_bytes, &result);
+    }
+
+    void ExpectUnpublished() const {
+        EXPECT_EQ(output_bytes, 0U);
+        EXPECT_EQ(frame_bytes, 0U);
+        EXPECT_TRUE(std::all_of(output.begin(), output.end(),
+            [](std::uint8_t value) { return value == 0xA5U; }));
+        EXPECT_TRUE(std::all_of(frame.begin(), frame.end(),
+            [](std::uint8_t value) { return value == 0xA5U; }));
+        EXPECT_TRUE(ZeroDigest(result.conversation.conversation_id));
+        EXPECT_EQ(result.version, 0U);
+    }
+};
+
+TEST(CognitionPromptConversation, ExplicitUtf8PreservesCompatibilityBytesFramesAndReceipts) {
+    PromptResponseFixture fixture;
+    fixture.Initialize(0x80U);
+    ASSERT_NE(fixture.admission.value, nullptr);
+    ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_UTF8),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+    const auto encoded = fixture.result;
+    const auto bytes = fixture.output;
+    const auto frame = fixture.frame;
+    ASSERT_EQ(laplace_cognition_prompt_conversation_execute(
+                  fixture.admission.value, &fixture.request, nullptr, 0U,
+                  &fixture.semantic_provider, 1U, &fixture.realization_provider,
+                  &fixture.materialization_provider, fixture.output.data(),
+                  fixture.output.size(), &fixture.output_bytes, fixture.frame.data(),
+                  fixture.frame.size(), &fixture.frame_bytes, &fixture.result),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+    EXPECT_EQ(fixture.output_bytes, 2U);
+    EXPECT_EQ(fixture.output, bytes);
+    EXPECT_EQ(fixture.frame, frame);
+    EXPECT_TRUE(SameDigest(encoded.conversation.conversation_id,
+                           fixture.result.conversation.conversation_id));
+    EXPECT_TRUE(SameDigest(encoded.prompt_admission_receipt_id,
+                           fixture.result.prompt_admission_receipt_id));
+}
+
+TEST(CognitionPromptConversation, OctetSelectionSurvivesWholePromptExecutionWithoutSemanticDrift) {
+    for (const std::uint32_t codepoint : {0U, 0x41U, 0x80U, 0xFFU}) {
+        PromptResponseFixture fixture;
+        fixture.Initialize(codepoint);
+        ASSERT_NE(fixture.admission.value, nullptr);
+        ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_UTF8),
+                  LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+        const auto text = fixture.result;
+        const auto text_frame = fixture.frame;
+        fixture.semantic.calls = 0U;
+        fixture.realization.calls = 0U;
+        fixture.materialization.calls = 0U;
+        ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_OCTETS),
+                  LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+        EXPECT_EQ(fixture.output_bytes, 1U);
+        EXPECT_EQ(fixture.output[0], static_cast<std::uint8_t>(codepoint));
+        EXPECT_EQ(fixture.frame_bytes, fixture.frame.size());
+        EXPECT_EQ(fixture.frame, text_frame);
+        EXPECT_EQ(fixture.realization.calls, 1U);
+        EXPECT_EQ(fixture.materialization.calls, 1U);
+        EXPECT_TRUE(SameDigest(text.prompt_admission_receipt_id,
+                               fixture.result.prompt_admission_receipt_id));
+        EXPECT_TRUE(SameDigest(text.conversation.semantic_act.act_id,
+                               fixture.result.conversation.semantic_act.act_id));
+        EXPECT_TRUE(SameId(text.conversation.realization.content_id,
+                           fixture.result.conversation.realization.content_id));
+        EXPECT_FALSE(SameDigest(text.conversation.conversation_id,
+                                fixture.result.conversation.conversation_id));
+    }
+}
+
+TEST(CognitionPromptConversation, UnknownEncodingRejectsBeforeProviderExecution) {
+    PromptResponseFixture fixture;
+    fixture.Initialize(0x80U);
+    ASSERT_EQ(fixture.Execute(UINT32_MAX),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_ENCODING_INVALID);
+    EXPECT_EQ(fixture.semantic.calls, 0U);
+    EXPECT_EQ(fixture.realization.calls, 0U);
+    EXPECT_EQ(fixture.materialization.calls, 0U);
+    fixture.ExpectUnpublished();
+}
+
+TEST(CognitionPromptConversation, ProviderCountOverflowRejectsWithoutCallerBufferAccess) {
+    PromptResponseFixture fixture;
+    fixture.Initialize(0x80U);
+    ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_UTF8, SIZE_MAX),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_MEMORY_FAILURE);
+    EXPECT_EQ(fixture.semantic.calls, 0U);
+    EXPECT_EQ(fixture.realization.calls, 0U);
+    EXPECT_EQ(fixture.materialization.calls, 0U);
+    fixture.ExpectUnpublished();
+}
+
+TEST(CognitionPromptConversation, FailedOctetMaterializationPublishesNeitherResponseNorDiscourse) {
+    PromptResponseFixture fixture;
+    fixture.Initialize(0x4E8BU);
+    ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_OCTETS),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_CONVERSATION_FAILURE);
+    EXPECT_EQ(fixture.realization.calls, 1U);
+    EXPECT_EQ(fixture.materialization.calls, 1U);
+    fixture.ExpectUnpublished();
+}
+
+TEST(CognitionPromptConversation, StructuralPromptRemainsUsableWithoutAdditionalProviders) {
+    PromptResponseFixture fixture;
+    fixture.Initialize(static_cast<std::uint32_t>('A'));
+    ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_UTF8, 0U),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+    EXPECT_EQ(fixture.semantic.calls, 0U);
+    EXPECT_EQ(fixture.realization.calls, 1U);
+    EXPECT_EQ(fixture.materialization.calls, 1U);
+    EXPECT_EQ(fixture.output_bytes, 1U);
+    EXPECT_EQ(fixture.output[0], static_cast<std::uint8_t>('A'));
+}
+
 }  // namespace
