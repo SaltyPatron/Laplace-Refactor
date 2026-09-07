@@ -1,0 +1,85 @@
+name: loaded-probe-readback
+on:
+  push:
+    branches: ['fix/loaded-object-probe-handshake']
+permissions:
+  contents: read
+concurrency:
+  group: product-activation-refs/heads/main
+  cancel-in-progress: false
+jobs:
+  probe:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Read actual PostgreSQL connection and probe dispositions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          python3 - <<'PY'
+          import json, os, runpy, subprocess, time, uuid
+          from pathlib import Path
+          adoption = runpy.run_path('tools/delivery/product_predecessor_adoption.py')
+          ctl = adoption['clusterctl']
+          contract = ctl.load_json(Path('contracts/postgresql-cluster.json'))
+          ctl.validate_contract(contract)
+          package = adoption['_active_package_id'](contract)
+          directory = adoption['_activation_directory'](contract, package)
+          receipt = ctl.load_json(directory / 'activation-complete.json')
+          _, original = adoption['_load_plan'](receipt, contract, package)
+          plan = ctl.reconcile_existing_physical_settings(original, contract)
+          adoption['_require_selection'](contract, package)
+          instance = plan['instance']
+          base = [f"{plan['package_root']}/pgsql-18/bin/psql", '-h', instance['socket_directory'],
+              '-p', str(instance['port']), '-U', instance['admin_role'], '-d', instance['database'],
+              '-X', '-v', 'ON_ERROR_STOP=1', '-Atq']
+          env = dict(ctl.activation_environment(), PGCONNECT_TIMEOUT='5')
+          def sql(query):
+              completed = subprocess.run(base + ['-c', query], env=env, cwd='/', text=True,
+                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=8)
+              return {'exit': completed.returncode, 'stdout': completed.stdout[:6000],
+                      'stderr': completed.stderr[:3000]}
+          report = {'schema': 'laplace.loaded-probe-readback/v1', 'package': package,
+              'commit': os.environ['GITHUB_SHA'], 'database_mutations': 0, 'configuration_mutations': 0,
+              'health': sql("SELECT current_user,current_database(),current_setting('is_superuser'),current_setting('track_activities'),current_setting('server_version_num')"),
+              'control': sql('SELECT system_identifier FROM pg_catalog.pg_control_system()'), 'probes': []}
+          for mode in ['in-query-name', 'startup-name']:
+              name = 'laplace_diag_' + uuid.uuid4().hex
+              query = "LOAD '$libdir/laplace_pg'; LOAD '$libdir/pg_stat_statements'; SELECT pg_sleep(8);"
+              probe_env = dict(env)
+              if mode == 'in-query-name':
+                  query = f"SET application_name = '{name}'; " + query
+              else:
+                  probe_env['PGAPPNAME'] = name
+              probe = subprocess.Popen(base + ['-c', query], cwd='/', env=probe_env,
+                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+              entry = {'mode': mode, 'observations': []}
+              owned = f"a.datname=current_database() AND a.usename=current_user AND (a.application_name='{name}' OR a.query LIKE 'SET application_name = ''{name}'';%')"
+              try:
+                  for _ in range(4):
+                      time.sleep(0.3)
+                      entry['observations'].append(sql("SELECT a.pid,a.application_name,a.state,a.wait_event_type,a.wait_event FROM pg_catalog.pg_stat_activity a WHERE " + owned))
+                      entry['original_lookup'] = sql("SELECT a.pid::text || '|' || c.system_identifier::text FROM pg_catalog.pg_stat_activity a CROSS JOIN pg_catalog.pg_control_system() c WHERE a.application_name='" + name + "' AND a.pid<>pg_backend_pid() AND a.state='active'")
+                      if probe.poll() is not None:
+                          out, err = probe.communicate()
+                          entry['probe_exit'] = probe.returncode
+                          entry['probe_stdout'] = out[:3000]
+                          entry['probe_stderr'] = err[:3000]
+                          break
+              finally:
+                  entry['cleanup'] = sql('SELECT pg_catalog.pg_cancel_backend(a.pid) FROM pg_catalog.pg_stat_activity a WHERE ' + owned)
+                  ctl.terminate_probe(probe)
+              report['probes'].append(entry)
+          output = Path(os.environ['RUNNER_TEMP']) / 'loaded-probe-readback.json'
+          output.write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: loaded-probe-readback-${{ github.sha }}
+          path: ${{ runner.temp }}/loaded-probe-readback.json
+          if-no-files-found: error
+          retention-days: 7
