@@ -1,0 +1,53 @@
+diff --git a/integrations/postgresql/extension/observation_cognition_persisted.sql.in b/integrations/postgresql/extension/observation_cognition_persisted.sql.in
+index 203c4fe..f6199e7 100644
+--- a/integrations/postgresql/extension/observation_cognition_persisted.sql.in
++++ b/integrations/postgresql/extension/observation_cognition_persisted.sql.in
+@@ -6,7 +6,10 @@ LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+ REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.trajectory_entity_ids(bytea) FROM PUBLIC;
+ CREATE INDEX physicality_entity_lookup_idx ON @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality(entity_id, physicality_id);
+ CREATE INDEX physicality_constituent_lookup_idx ON @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.physicality
++-- Maintain the sparse posting tree during writes: interactive readers must not
++-- scan a pending list or depend on a vacuum/cleanup before using this index.
+ USING gin (@LAPLACE_OBSERVATION_COGNITION_SCHEMA@.trajectory_entity_ids(trajectory))
++WITH (fastupdate = off)
+ WHERE physicality_type = 1;
+ 
+ CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_answer AS (
+diff --git a/integrations/postgresql/extension/tests/observation_cognition_contract.sql.in b/integrations/postgresql/extension/tests/observation_cognition_contract.sql.in
+index cf28b7f..1110444 100644
+--- a/integrations/postgresql/extension/tests/observation_cognition_contract.sql.in
++++ b/integrations/postgresql/extension/tests/observation_cognition_contract.sql.in
+@@ -253,10 +253,18 @@ BEGIN
+     IF octet_length(q.anchor_entity_id) <> 16 THEN
+         RAISE EXCEPTION 'index-plan probe lost the exact request binding';
+     END IF;
++    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE oid='laplace.physicality_constituent_lookup_idx'::regclass
++                   AND 'fastupdate=off'=ANY(reloptions)) THEN
++        RAISE EXCEPTION 'interactive membership lookup can still scan deferred index writes';
++    END IF;
++    -- Use the same batched relation-mask predicate as the real persistence provider,
++    -- immediately after bulk admission, without ANALYZE, VACUUM or planner hints.
+     EXECUTE 'EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT physicality_id FROM laplace.physicality p '
+-            'WHERE p.physicality_type=1 AND laplace.trajectory_entity_ids(p.trajectory) && $1 '
+-            'ORDER BY p.physicality_id LIMIT 16'
+-       INTO plan USING ARRAY[q.anchor_entity_id];
++            'WHERE p.physicality_type=1 AND '
++            '((($2 & 2)<>0 AND p.entity_id=ANY($1)) OR '
++            '(($2 & 29)<>0 AND laplace.trajectory_entity_ids(p.trajectory) && $1)) '
++            'ORDER BY p.physicality_id LIMIT $3'
++       INTO plan USING ARRAY[q.anchor_entity_id], q.relation_mask, 16;
+     IF position('physicality_constituent_lookup_idx' in plan::text)=0 THEN
+         RAISE EXCEPTION 'constituent membership did not use the maintained GIN index: %', plan;
+     END IF;
+diff --git a/tests/indexed_cognition_upgrade_tests.py b/tests/indexed_cognition_upgrade_tests.py
+index 5a03cdc..c0169ff 100644
+--- a/tests/indexed_cognition_upgrade_tests.py
++++ b/tests/indexed_cognition_upgrade_tests.py
+@@ -73,6 +73,7 @@ class IndexedCognitionUpgrade(unittest.TestCase):
+         delta=(extension/'observation_cognition_persisted.sql.in').read_text()
+         self.assertIn('${previous_schema}\\n${persisted_cognition_delta}',cmake)
+         self.assertIn('WHERE physicality_type = 1;',delta)
++        self.assertIn('WITH (fastupdate = off)',delta)
+         for forbidden in ('TRUNCATE ','DROP TABLE ','CREATE TABLE ','GRANT ','SECURITY DEFINER'):
+             self.assertNotIn(forbidden,delta)
+         required=json.loads((ROOT/'contracts/product-package.json').read_text())['package']['required_files']
