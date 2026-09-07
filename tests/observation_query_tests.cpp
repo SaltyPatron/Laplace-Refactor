@@ -618,6 +618,15 @@ TEST(ObservationCandidateBatch, CapacityFailureDoesNotPublishAPrefix) {
     EXPECT_EQ(count, 0U);
     EXPECT_EQ(std::memcmp(&output, &sentinel, sizeof(output)), 0);
     EXPECT_EQ(usage.crossing_count, 0U);
+    std::array<laplace_cognition_observation_candidate, 16> complete{};
+    ASSERT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+        &fixture.root, 1U, complete.data(), complete.size(), &count, &usage),
+        LAPLACE_OBSERVATION_QUERY_OK);
+    EXPECT_GT(count, 1U);
+    EXPECT_EQ(usage.crossing_count, count);
+    EXPECT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+        &fixture.root, 1U, nullptr, 0U, &count, &usage), LAPLACE_OBSERVATION_QUERY_OVERFLOW);
+    EXPECT_EQ(count, 0U);
 }
 
 TEST(ObservationCandidateBatch, InvalidBindingAndImpossibleInputCountsAreRejected) {
@@ -627,6 +636,13 @@ TEST(ObservationCandidateBatch, InvalidBindingAndImpossibleInputCountsAreRejecte
     std::size_t count = 99;
     laplace_cognition_observation_candidate output{};
     laplace_cognition_observation_candidate_usage usage{};
+    const auto overflowing_workspace = SIZE_MAX /
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_WORKSPACE_MULTIPLIER /
+        sizeof(laplace_cognition_observation_candidate) + 1U;
+    EXPECT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
+        &fixture.a, 1U, &output, overflowing_workspace, &count, &usage),
+        LAPLACE_OBSERVATION_QUERY_OVERFLOW);
+    EXPECT_EQ(count, 0U);
     binding.binding_fingerprint.bytes[0] ^= 1U;
     EXPECT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
         &fixture.a, 1U, &output, 1U, &count, &usage), LAPLACE_OBSERVATION_QUERY_BINDING_INVALID);

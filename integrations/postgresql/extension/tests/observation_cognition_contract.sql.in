@@ -276,6 +276,7 @@ DECLARE q laplace.cognition_observation_request; changed laplace.cognition_obser
         search_limits laplace.cognition_observation_search_budget;
         forward_limits laplace.cognition_observation_forward_limits;
         observed laplace.cognition_observation_persisted_result; bad boolean;
+        small_context laplace.execution_context;
 BEGIN
     SELECT (request).* INTO STRICT q FROM observation_cognition_fixture;
     changed := q;
@@ -289,6 +290,17 @@ BEGIN
     EXCEPTION WHEN program_limit_exceeded THEN NULL;
     END;
     IF bad THEN RAISE EXCEPTION 'missing provider workspace was accepted'; END IF;
+    -- Metadata/decoded records alone fit here, but candidate staging does not.
+    -- That extra storage must be reserved before payload/index construction.
+    small_context := pg_temp.execution_context();
+    small_context.memory_bytes := (q.search_budget).max_memory_bytes + 6000;
+    bad := false;
+    BEGIN
+        PERFORM laplace.cognition_observation_execute_persisted(small_context, q);
+        bad := true;
+    EXCEPTION WHEN program_limit_exceeded THEN NULL;
+    END;
+    IF bad THEN RAISE EXCEPTION 'candidate staging escaped the provider memory grant'; END IF;
     changed := q;
     forward_limits := q.forward_limits;
     forward_limits.max_database_operations := 1;

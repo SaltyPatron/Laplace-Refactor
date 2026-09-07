@@ -356,7 +356,7 @@ static int persisted_enumerate_impl(
     Datum args[3];
     Datum* source_values;
     Datum* physicality_values;
-    uint64_t max_rows = state->memory_limit / UINT64_C(2048);
+    uint64_t max_rows, candidate_workspace, frontier_workspace;
     uint64_t rows, row, vertices = 0u, encoded_bytes = 0u;
     uint64_t reserved;
     uint64_t before_operations = state->database_operations;
@@ -371,6 +371,18 @@ static int persisted_enumerate_impl(
         source_count > MaxAllocSize / sizeof(Datum) ||
         (uint64_t)source_count > state->memory_limit / UINT64_C(128))
         persisted_limit("frontier argument budget exhausted");
+    if (capacity > UINT64_MAX /
+            LAPLACE_COGNITION_OBSERVATION_CANDIDATE_WORKSPACE_MULTIPLIER /
+            sizeof(laplace_cognition_observation_candidate))
+        persisted_limit("candidate workspace overflow");
+    candidate_workspace = (uint64_t)capacity *
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_WORKSPACE_MULTIPLIER *
+        sizeof(laplace_cognition_observation_candidate);
+    frontier_workspace = (uint64_t)source_count * UINT64_C(128);
+    reserved = persisted_add(candidate_workspace, frontier_workspace);
+    if (reserved >= state->memory_limit)
+        persisted_limit("candidate and frontier workspace exceeds provider grant");
+    max_rows = (state->memory_limit - reserved) / UINT64_C(2048);
     if (max_rows == 0u) persisted_limit("no physicality workspace");
     if (max_rows >= (uint64_t)LONG_MAX) max_rows = (uint64_t)LONG_MAX - 1u;
     source_values = palloc(source_count * sizeof(Datum));
@@ -415,8 +427,8 @@ static int persisted_enumerate_impl(
      * maps/vectors and result staging before detoasting trajectory bytes. The
      * caller separately reserves the native search's declared memory budget. */
     if (vertices > UINT64_MAX / UINT64_C(1024)) persisted_limit("vertex budget overflow");
-    reserved = persisted_add(rows * UINT64_C(2048), vertices * UINT64_C(1024));
-    reserved = persisted_add(reserved, (uint64_t)source_count * UINT64_C(128));
+    reserved = persisted_add(reserved, rows * UINT64_C(2048));
+    reserved = persisted_add(reserved, vertices * UINT64_C(1024));
     if (reserved > state->memory_limit || vertices > MaxAllocSize / sizeof(*segments))
         persisted_limit("selected trajectories exceed physical-provider workspace");
     segments = palloc0((size_t)vertices * sizeof(*segments));

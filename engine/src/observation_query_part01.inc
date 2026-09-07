@@ -31,9 +31,10 @@ bool ChargeWork(
     return true;
 }
 
+template<class CandidateSequence>
 bool AppendCandidate(
     const laplace_observation_query_index& index,
-    std::vector<Candidate>* const candidates,
+    CandidateSequence* const candidates,
     const Candidate& candidate,
     bool* const limited) {
     if (candidates->size() >=
@@ -68,14 +69,16 @@ bool ImmediatePrecedes(
         right.logical_ordinal;
 }
 
+template<class CandidateSequence>
 bool GenerateCandidates(
     const laplace_observation_query_index& index,
     const laplace_observation_query_binding& binding,
     const laplace_id128& entity_id,
-    std::vector<Candidate>* const candidates,
+    CandidateSequence* const candidates,
     std::uint64_t* const rows_examined,
     std::uint64_t* const index_plan_count,
-    bool* const limited) {
+    bool* const limited,
+    const std::size_t maximum_output_records = std::numeric_limits<std::size_t>::max()) {
     candidates->clear();
     *rows_examined = 0U;
     *index_plan_count = 0U;
@@ -88,6 +91,10 @@ bool GenerateCandidates(
         return ChargeWork(index, rows_examined, limited);
     };
     const auto append = [&](const Candidate& candidate) -> bool {
+        if (candidates->size() >= maximum_output_records) {
+            *limited = true;
+            return false;
+        }
         return AppendCandidate(index, candidates, candidate, limited);
     };
 
@@ -265,7 +272,9 @@ bool GenerateCandidates(
         candidates->clear();
         return true;
     }
-    std::sort(candidates->begin(), candidates->end(), CandidateLess);
+    if (candidates->size() > 1U) {
+        std::sort(candidates->begin(), candidates->end(), CandidateLess);
+    }
     return true;
 }
 

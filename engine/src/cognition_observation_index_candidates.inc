@@ -1,5 +1,25 @@
 #include "laplace/cognition_observation_request.h"
 #include <stdexcept>
+#include <memory>
+
+namespace laplace_observation_query_detail {
+
+// Fixed storage for the same canonical generator. No growth occurs before an
+// output-capacity failure, and no caller buffer is written before whole success.
+struct CandidateSpan final {
+    Candidate* storage{};
+    std::size_t used{};
+    void clear() { used = 0U; }
+    std::size_t size() const { return used; }
+    void push_back(const Candidate& value) { storage[used++] = value; }
+    Candidate* begin() { return storage; }
+    Candidate* end() { return used == 0U ? storage : storage + used; }
+};
+
+static_assert(sizeof(Candidate) <= sizeof(laplace_cognition_observation_candidate),
+              "candidate projection exceeds its published workspace law");
+
+}  // namespace laplace_observation_query_detail
 
 /* Shared projection, not a second structural/semantic engine. GenerateCandidates
  * owns ordered occurrence/run, containment, direction and co-occurrence laws. */
@@ -23,6 +43,7 @@ laplace_observation_query_index_candidates_batch(
     }
     if (source_count > std::numeric_limits<std::size_t>::max() / sizeof(laplace_id128) ||
         candidate_capacity > std::numeric_limits<std::size_t>::max() /
+            LAPLACE_COGNITION_OBSERVATION_CANDIDATE_WORKSPACE_MULTIPLIER /
             sizeof(laplace_cognition_observation_candidate)) {
         return LAPLACE_OBSERVATION_QUERY_OVERFLOW;
     }
@@ -31,18 +52,26 @@ laplace_observation_query_index_candidates_batch(
         !SameDigest(identified, binding->binding_fingerprint)) {
         return LAPLACE_OBSERVATION_QUERY_BINDING_INVALID;
     }
-    std::vector<laplace_cognition_observation_candidate> staged;
+    if (source_count == 0U) return LAPLACE_OBSERVATION_QUERY_OK;
+    std::unique_ptr<laplace_cognition_observation_candidate[]> staged;
+    std::unique_ptr<Candidate[]> generated_storage;
+    std::size_t staged_count = 0U;
     laplace_cognition_observation_candidate_usage measured{};
     try {
+        if (candidate_capacity != 0U) {
+            staged.reset(new laplace_cognition_observation_candidate[candidate_capacity]);
+            generated_storage.reset(new Candidate[candidate_capacity]);
+        }
         for (std::size_t source_index = 0U; source_index < source_count; ++source_index) {
-            std::vector<Candidate> generated;
+            CandidateSpan generated{generated_storage.get(), 0U};
             std::uint64_t examined = 0U, plans = 0U;
             bool limited = false;
             if (!GenerateCandidates(*index, *binding, source_entity_ids[source_index],
-                                    &generated, &examined, &plans, &limited)) {
+                                    &generated, &examined, &plans, &limited,
+                                    candidate_capacity - staged_count)) {
                 return LAPLACE_OBSERVATION_QUERY_TRAJECTORY_INVALID;
             }
-            if (limited || generated.size() > candidate_capacity - staged.size() ||
+            if (limited || generated.size() > candidate_capacity - staged_count ||
                 !Add(measured.rows_examined, examined, &measured.rows_examined) ||
                 !Add(measured.index_plan_count, plans, &measured.index_plan_count)) {
                 return LAPLACE_OBSERVATION_QUERY_OVERFLOW;
@@ -75,7 +104,7 @@ laplace_observation_query_index_candidates_batch(
                     default:
                         return LAPLACE_OBSERVATION_QUERY_BINDING_INVALID;
                 }
-                staged.push_back(projected);
+                staged[staged_count++] = projected;
             }
         }
     } catch (const std::bad_alloc&) {
@@ -83,11 +112,11 @@ laplace_observation_query_index_candidates_batch(
     } catch (const std::length_error&) {
         return LAPLACE_OBSERVATION_QUERY_OVERFLOW;
     }
-    measured.crossing_count = static_cast<std::uint64_t>(staged.size());
-    if (!staged.empty()) {
-        std::copy(staged.begin(), staged.end(), candidates);
+    measured.crossing_count = static_cast<std::uint64_t>(staged_count);
+    if (staged_count != 0U) {
+        std::copy_n(staged.get(), staged_count, candidates);
     }
-    *candidate_count = staged.size();
+    *candidate_count = staged_count;
     *usage = measured;
     return LAPLACE_OBSERVATION_QUERY_OK;
 }
