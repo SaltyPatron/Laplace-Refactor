@@ -333,6 +333,7 @@ endif()
 install(TARGETS laplace_pg
     LIBRARY DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/lib")
 install(FILES "${extension_control}" "${extension_sql}"
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace-public-readback.sql"
     DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/share/extension")
 
 set(LAPLACE_POSTGRES_EXTENSION_TARGET laplace_pg PARENT_SCOPE)

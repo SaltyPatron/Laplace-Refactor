@@ -1063,5 +1063,234 @@ class PostgreSQLClusterContract(unittest.TestCase):
             )
 
 
+
+    def test_optional_physical_plan_is_exact_and_does_not_change_resource_grant(self) -> None:
+        original = self.plan()
+        saved = copy.deepcopy(original)
+        selected = clusterctl.plan_with_physical_settings(
+            original, self.contract, {"huge_pages": "off"})
+        self.assertEqual(original, saved)
+        self.assertNotEqual(selected["plan_sha256"], original["plan_sha256"])
+        self.assertEqual(selected["resource_grant"], original["resource_grant"])
+        self.assertEqual(selected["package_id"], original["package_id"])
+        self.assertEqual(selected["required_loaded_objects"], original["required_loaded_objects"])
+        self.assertEqual(selected["settings"]["huge_pages"], "off")
+        clusterctl.validate_plan(selected, self.contract)
+        self.assertEqual(clusterctl.plan_with_physical_settings(selected, self.contract, {}), original)
+
+    def test_optional_physical_plan_rejects_unrelated_or_mandatory_settings(self) -> None:
+        for selection in ({"huge_pages": "on"}, {"fsync": "off"},
+                          {"shared_buffers": "999999MB"}, {"port": "5432"}, []):
+            with self.subTest(selection=selection):
+                with self.assertRaisesRegex(clusterctl.ClusterError, "unsupported.*physical settings"):
+                    clusterctl.plan_with_physical_settings(self.plan(), self.contract, selection)
+
+    def test_rehashed_settings_cannot_escape_the_conserved_plan(self) -> None:
+        plan = self.plan()
+        plan["settings"]["shared_buffers"] = "999999MB"
+        content = clusterctl.render_postgresql_conf(
+            self.contract, plan["package_root"], plan["settings"])
+        self.replace_rendered(plan, "postgresql.conf", content)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "conserved resource plan"):
+            clusterctl.validate_plan(plan, self.contract)
+
+    def test_rehashed_configuration_cannot_hide_unplanned_startup_parameters(self) -> None:
+        plan = self.plan()
+        entry = next(row for row in plan["files"] if row["path"].endswith("postgresql.conf"))
+        self.replace_rendered(plan, "postgresql.conf", entry["content"] + "fsync = off\n")
+        with self.assertRaisesRegex(clusterctl.ClusterError, "physical plan"):
+            clusterctl.validate_plan(plan, self.contract)
+
+    def _install_generated_fixture(self, plan: dict[str, Any]) -> dict[str, bytes]:
+        written = {}
+        for entry in plan["files"]:
+            path = clusterctl.prefixed(self.activation_root, entry["path"])
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(entry["content"], encoding="utf-8")
+            written[str(path)] = path.read_bytes()
+        return written
+
+    def test_existing_disabled_huge_pages_replans_without_writing_configuration(self) -> None:
+        plan = self.plan()
+        selected = clusterctl.plan_with_physical_settings(plan, self.contract, {"huge_pages": "off"})
+        original_bytes = self._install_generated_fixture(selected)
+        actual = clusterctl.reconcile_existing_physical_settings(plan, self.contract, self.activation_root)
+        self.assertEqual(actual, selected)
+        self.assertEqual(original_bytes, {name: Path(name).read_bytes() for name in original_bytes})
+        self.assertIs(clusterctl.reconcile_existing_physical_settings(
+            selected, self.contract, self.activation_root), selected)
+
+    def test_existing_configuration_cannot_adopt_unrelated_drift(self) -> None:
+        plan = self.plan()
+        self._install_generated_fixture(plan)
+        entry = next(row for row in plan["files"] if row["path"].endswith("postgresql.conf"))
+        path = clusterctl.prefixed(self.activation_root, entry["path"])
+        for extra in ("port = 5432\n", "fsync = off\n", "# unaccounted edit\n"):
+            with self.subTest(extra=extra):
+                changed = entry["content"].replace("huge_pages = try", "huge_pages = off") + extra
+                path.write_text(changed, encoding="utf-8")
+                with self.assertRaisesRegex(clusterctl.ClusterError, "configuration bytes differ"):
+                    clusterctl.reconcile_existing_physical_settings(plan, self.contract, self.activation_root)
+                self.assertEqual(path.read_text(), changed)
+
+    def test_optional_configuration_change_does_not_hide_an_authentication_change(self) -> None:
+        plan = self.plan()
+        selected = clusterctl.plan_with_physical_settings(plan, self.contract, {"huge_pages": "off"})
+        self._install_generated_fixture(selected)
+        path = clusterctl.prefixed(self.activation_root,
+            f"{plan['instance']['config_directory']}/pg_hba.conf")
+        path.write_text("local all all trust\n")
+        with self.assertRaisesRegex(clusterctl.ClusterError, "configuration bytes differ"):
+            clusterctl.reconcile_existing_physical_settings(plan, self.contract, self.activation_root)
+
+    def test_physical_configuration_inspection_rejects_symlinks_and_relative_roots(self) -> None:
+        plan = self.plan()
+        self._install_generated_fixture(plan)
+        path = clusterctl.prefixed(self.activation_root, plan["files"][0]["path"])
+        saved = path.with_suffix(".saved")
+        path.rename(saved)
+        path.symlink_to(saved)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "unsafe"):
+            clusterctl.reconcile_existing_physical_settings(plan, self.contract, self.activation_root)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "absolute"):
+            clusterctl.reconcile_existing_physical_settings(plan, self.contract, Path("relative"))
+
+
+class LoadedObjectProbeContract(unittest.TestCase):
+    def setUp(self) -> None:
+        self.core = clusterctl._core
+        self.base = ["/verified/psql", "--host", "/private/socket", "--port", "55433",
+                     "--username", "laplace_admin", "--dbname", "laplace_refactor", "--no-psqlrc"]
+        self.process = mock.Mock()
+        self.process.pid = 456
+        self.process.poll.return_value = None
+        self.popen = mock.patch.object(self.core.subprocess, "Popen", return_value=self.process).start()
+        self.cleanup = mock.patch.object(self.core, "terminate_probe").start()
+        self.run = mock.patch.object(self.core.subprocess, "run",
+            return_value=subprocess.CompletedProcess([], 0, "123|7682119102860556519\n", "")).start()
+        self.sleep = mock.patch.object(self.core.time, "sleep").start()
+        self.addCleanup(mock.patch.stopall)
+
+    def test_one_handshake_owner_binds_unique_startup_identity_and_load_completion(self) -> None:
+        self.assertIs(clusterctl.loaded_object_backend, self.core.loaded_object_backend)
+        original_environment = self.core.activation_environment()
+        with self.core.loaded_object_backend(self.base) as (pid, identity, sql):
+            self.assertEqual(pid, 123)
+            self.assertEqual(identity, "7682119102860556519")
+            self.assertNotIn("SET application_name", sql)
+            self.assertIn("LOAD '$libdir/laplace_pg'", sql)
+            self.assertIn("LOAD '$libdir/pg_stat_statements'", sql)
+            self.cleanup.assert_not_called()
+        self.cleanup.assert_called_once_with(self.process)
+        launched = self.popen.call_args.kwargs
+        name = launched["env"]["PGAPPNAME"]
+        self.assertRegex(name, r"^laplace_loaded_[0-9a-f]{32}$")
+        self.assertLess(len(name), 64)
+        self.assertTrue(launched["start_new_session"])
+        lookup = self.run.call_args.args[0][-1]
+        self.assertIn(name, lookup)
+        for predicate in ("a.wait_event = 'PgSleep'", "a.wait_event_type = 'Timeout'",
+                          "a.backend_type = 'client backend'", "a.usename = current_user",
+                          "a.datname = pg_catalog.current_database()"):
+            self.assertIn(predicate, lookup)
+        self.assertEqual(self.run.call_args.kwargs["env"], original_environment)
+        self.assertNotIn("PGAPPNAME", self.core.activation_environment())
+
+    def test_repeated_observations_do_not_reuse_a_plan_scoped_connection_name(self) -> None:
+        names = []
+        for _ in range(3):
+            with self.core.loaded_object_backend(self.base):
+                names.append(self.popen.call_args.kwargs["env"]["PGAPPNAME"])
+        self.assertEqual(len(set(names)), 3)
+        self.assertEqual(self.cleanup.call_count, 3)
+
+    def test_query_error_is_immediate_and_retains_database_diagnostic(self) -> None:
+        self.run.return_value = subprocess.CompletedProcess([], 1, "", "permission denied for pg_control_system")
+        with self.assertRaisesRegex(clusterctl.ClusterError, "lookup failed: permission denied for pg_control_system"):
+            with self.core.loaded_object_backend(self.base):
+                self.fail("failed SQL cannot become a loaded-state observation")
+        self.run.assert_called_once()
+        self.sleep.assert_not_called()
+        self.cleanup.assert_called_once_with(self.process)
+
+    def test_ambiguous_or_malformed_identity_cannot_select_an_arbitrary_backend(self) -> None:
+        for value in ("12|345\n13|345\n", "not a row\n", "0|345\n", "12|0\n", "12|not-a-system-id\n"):
+            with self.subTest(value=value):
+                self.run.return_value = subprocess.CompletedProcess([], 0, value, "")
+                with self.assertRaisesRegex(clusterctl.ClusterError, "backend identity"):
+                    with self.core.loaded_object_backend(self.base):
+                        self.fail("invalid identity was accepted")
+        self.sleep.assert_not_called()
+
+    def test_empty_lookup_retries_until_the_loaded_backend_is_ready(self) -> None:
+        self.run.side_effect = [subprocess.CompletedProcess([], 0, "", ""),
+                               subprocess.CompletedProcess([], 0, "123|345\n", "")]
+        with self.core.loaded_object_backend(self.base) as result:
+            self.assertEqual(result[:2], (123, "345"))
+        self.assertEqual(self.run.call_count, 2)
+        self.sleep.assert_called_once_with(0.1)
+
+    def test_missing_backend_exhausts_deadline_and_always_cleans_up(self) -> None:
+        self.run.return_value = subprocess.CompletedProcess([], 0, "", "")
+        with mock.patch.object(self.core.time, "monotonic", side_effect=[0.0, 1.0, 31.0]):
+            with self.assertRaisesRegex(clusterctl.ClusterError, "uniquely identified"):
+                with self.core.loaded_object_backend(self.base):
+                    self.fail("absent backend was accepted")
+        self.cleanup.assert_called_once_with(self.process)
+
+    def test_lookup_transport_timeout_is_not_relabelled_as_epistemic_absence(self) -> None:
+        self.run.side_effect = subprocess.TimeoutExpired(self.base, 10)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "lookup query timed out"):
+            with self.core.loaded_object_backend(self.base):
+                self.fail("transport failure was accepted")
+        self.cleanup.assert_called_once_with(self.process)
+
+    def test_probe_load_failure_reports_original_error_and_cleans_up(self) -> None:
+        self.process.poll.return_value = 1
+        self.process.returncode = 1
+        self.process.communicate.return_value = ("", "could not load library laplace_pg")
+        with self.assertRaisesRegex(clusterctl.ClusterError, "exited early: could not load library"):
+            with self.core.loaded_object_backend(self.base):
+                self.fail("load failure was accepted")
+        self.run.assert_not_called()
+        self.cleanup.assert_called_once_with(self.process)
+
+    def test_inspection_failure_still_cleans_up_the_held_backend(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "deliberate object mismatch"):
+            with self.core.loaded_object_backend(self.base):
+                raise RuntimeError("deliberate object mismatch")
+        self.cleanup.assert_called_once_with(self.process)
+
+
+class LoadedObjectProbeCleanup(unittest.TestCase):
+    def test_psql_receives_cancellation_before_termination(self) -> None:
+        process = mock.Mock(pid=123)
+        process.poll.return_value = None
+        process.communicate.side_effect = [subprocess.TimeoutExpired("psql", 10), ("", "")]
+        with mock.patch.object(clusterctl._core.os, "killpg") as signal:
+            clusterctl._core.terminate_probe(process)
+        self.assertEqual(signal.call_args_list,
+            [mock.call(123, clusterctl._core.signal.SIGINT), mock.call(123, clusterctl._core.signal.SIGTERM)])
+        self.assertEqual(process.communicate.call_args_list, [mock.call(timeout=10), mock.call(timeout=10)])
+
+    def test_completed_probe_is_reaped_without_signalling_reused_pid(self) -> None:
+        process = mock.Mock(pid=123)
+        process.poll.return_value = 1
+        with mock.patch.object(clusterctl._core.os, "killpg") as signal:
+            clusterctl._core.terminate_probe(process)
+        signal.assert_not_called()
+        process.communicate.assert_called_once_with()
+
+    def test_unresponsive_group_has_finite_escalation(self) -> None:
+        process = mock.Mock(pid=123)
+        process.poll.return_value = None
+        process.communicate.side_effect = subprocess.TimeoutExpired("psql", 10)
+        with mock.patch.object(clusterctl._core.os, "killpg") as signal:
+            with self.assertRaisesRegex(clusterctl.ClusterError, "did not terminate"):
+                clusterctl._core.terminate_probe(process)
+        self.assertEqual(signal.call_count, 3)
+        self.assertEqual(process.communicate.call_count, 3)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

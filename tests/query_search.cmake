@@ -21,9 +21,11 @@ add_executable(laplace_observation_query_tests
     "${PROJECT_SOURCE_DIR}/tests/cognition_turn_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_realization_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_materialization_tests.cpp"
+    "${PROJECT_SOURCE_DIR}/tests/cognition_output_serialization_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_conversation_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_admission_tests.cpp"
-    "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_structural_provider_tests.cpp")
+    "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_structural_provider_tests.cpp"
+    "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_conversation_tests.cpp")
 target_link_libraries(laplace_observation_query_tests PRIVATE
     Laplace::QuerySearch GTest::gtest_main)
 target_compile_options(laplace_observation_query_tests PRIVATE
@@ -75,3 +77,23 @@ laplace_add_query_search_mutation(
     path_count_omission LAPLACE_TEST_QUERY_SEARCH_IGNORE_REQUESTED_PATH_COUNT
     query-search.mutation-path-count-omission-detected
     QuerySearch.ExecutesRequestedPathMultiplicity)
+
+add_executable(laplace_cognition_output_encoding_test
+    "${PROJECT_SOURCE_DIR}/tests/cognition_output_encoding_test.c")
+target_compile_options(laplace_cognition_output_encoding_test PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion>)
+add_test(NAME cognition-output.encoding-octet-exhaustive
+    COMMAND laplace_cognition_output_encoding_test)
+set_tests_properties(cognition-output.encoding-octet-exhaustive PROPERTIES
+    LABELS "implementation;cognition;materialization;serialization;unicode")
+
+add_executable(laplace_cognition_output_encoding_mutant
+    "${PROJECT_SOURCE_DIR}/tests/cognition_output_encoding_test.c")
+target_compile_definitions(laplace_cognition_output_encoding_mutant PRIVATE
+    LAPLACE_TEST_OUTPUT_TRUNCATE=1)
+add_test(NAME cognition-output.mutation-truncation-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_cognition_output_encoding_mutant>"
+        -P "${PROJECT_SOURCE_DIR}/tests/expect_octet_mutation.cmake")
+set_tests_properties(cognition-output.mutation-truncation-detected PROPERTIES
+    LABELS "implementation;cognition;materialization;serialization;mutation")

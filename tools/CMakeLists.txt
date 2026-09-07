@@ -74,3 +74,13 @@ if(BUILD_TESTING)
     set_tests_properties(delivery.receipt-store-contract PROPERTIES
         LABELS "delivery;receipt;blake3;package;mutation")
 endif()
+
+add_executable(laplace_unicode_artifact_verify unicode_artifact_verify.cpp)
+target_link_libraries(laplace_unicode_artifact_verify PRIVATE Laplace::Perfcache)
+target_compile_options(laplace_unicode_artifact_verify PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+set_target_properties(laplace_unicode_artifact_verify PROPERTIES
+    INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
+    INSTALL_RPATH_USE_LINK_PATH FALSE)
+install(TARGETS laplace_unicode_artifact_verify
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")

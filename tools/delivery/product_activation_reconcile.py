@@ -30,6 +30,10 @@ upgrade = _load(
     "laplace_product_cluster_generation_upgrade",
     REPOSITORY / "tools/delivery/product_cluster_upgrade.py",
 )
+adoption = _load(
+    "laplace_product_predecessor_adoption",
+    REPOSITORY / "tools/delivery/product_predecessor_adoption.py",
+)
 release_capacity = _load(
     "laplace_product_release_capacity",
     REPOSITORY / "tools/delivery/product_release_capacity.py",
@@ -84,6 +88,11 @@ def reconcile_cluster_activation(
     contract = runner.clusterctl.load_json(contract_path)
     active = Path(contract["package"]["active_link"])
     if active.exists() or active.is_symlink():
+        # A predecessor produced before the current receipt schema is not promoted by
+        # assumption and is not deleted as disposable state.  Re-prove its plan,
+        # loaded bytes, PostgreSQL identity, and a real restart first.  Current-format
+        # receipts are a no-op here.
+        adoption.ensure_current_predecessor_receipt(contract_path)
         return upgrade.upgrade_product(
             contract_path,
             package_path,

@@ -1,6 +1,6 @@
 {
   "schema": "laplace.unicode-product-activation-contract/v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "authority": {
     "cluster_contract_schema": "laplace.postgresql-cluster-contract/v1",
     "cluster_activation_receipt_schema": "laplace.postgresql-activation-receipt/v1",
@@ -74,12 +74,20 @@
     "normalization_composition_count": 961,
     "tier0_artifact_bytes": 762586574,
     "reverse_artifact_bytes": 117440896,
-    "tier0_artifact_digest": "8950d9867428fd660f8a49377b0c4a693b57ef0a9807ea189e425d0bb847c291",
-    "reverse_artifact_digest": "6f33df84440a8f4bb19afa608befac11f17ad68123d06e043c2be7451f6ab7b1",
+    "root_receipt": "1f3b0ddf7283401bcf91e9a8ed70f00e1bd317eff5c78dcebca22d5ad6b9c75e",
     "plan_manifest_fingerprint": "3a546d581afc1c4caf78c1c235aafd41b283984325d5717b188211d1091cb9e5",
     "perfcache_artifact_count": 2,
     "perfcache_dependency_count": 1,
     "reverse_dependency_module_id": "cb4d73fe1c7ad3784bdd69f9e22f5b3f"
+  },
+  "artifact_reference": {
+    "schema": "laplace.unicode-artifact-reference/v1",
+    "package_path": "bin/laplace_unicode_artifact_verify",
+    "activation_epoch_id": "42424242424242424242424242424242",
+    "activation_epoch_fingerprint": "4343434343434343434343434343434343434343434343434343434343434343",
+    "tier0_artifact_digest": "8950d9867428fd660f8a49377b0c4a693b57ef0a9807ea189e425d0bb847c291",
+    "reverse_artifact_digest": "6f33df84440a8f4bb19afa608befac11f17ad68123d06e043c2be7451f6ab7b1",
+    "rule": "Validate actual epoch, full artifact checksums and real dependency first; compare pinned full content by native reference-epoch projection without changing stored bytes or actual identities."
   },
   "receipt": {
     "schema": "laplace.unicode-product-activation-receipt/v1",

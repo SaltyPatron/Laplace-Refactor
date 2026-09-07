@@ -245,6 +245,35 @@ def runner_sql(
     return unicodectl.parse_single_json(completed.stdout, label), receipt
 
 
+def reconcile_public_readback(
+    plan: dict[str, Any], cluster_contract: dict[str, Any], package: dict[str, Any]
+) -> dict[str, Any]:
+    """Apply the packaged read-only function boundary to existing extensions too."""
+    relative = f"pgsql-{plan['postgresql_major']}/share/extension/laplace-public-readback.sql"
+    path = Path(plan["package_root"]) / relative
+    entries = [item for item in package["files"] if item.get("path") == relative]
+    if (len(entries) != 1 or entries[0].get("kind") != "file"
+            or path.is_symlink() or not path.is_file()
+            or path.stat().st_size > 65536
+            or entries[0].get("sha256") != clusterctl.sha256_file(path)):
+        raise RunnerActivationError("packaged public readback binding bytes differ")
+    sql = ("BEGIN;\nSET LOCAL lock_timeout = '30s';\n"
+           + path.read_text(encoding="utf-8")
+           + "\nSELECT pg_catalog.json_build_object('schema',"
+             "'laplace.public-readback-bindings/v1','functions',3,'owner',current_user)::text;\nCOMMIT;\n")
+    result, command = runner_sql(plan, cluster_contract, sql,
+        "reconcile-public-readback-bindings", RUNNER_USER,
+        cluster_contract["instance"]["admin_role"], 120)
+    expected = {"schema": "laplace.public-readback-bindings/v1", "functions": 3,
+                "owner": cluster_contract["instance"]["admin_role"]}
+    if result != expected:
+        raise RunnerActivationError("public readback reconciliation result differs")
+    receipt = dict(result, package_id=package["package_id"],
+                   script_sha256=entries[0]["sha256"], command_receipt=command)
+    receipt["receipt_sha256"] = document_identity(receipt, "receipt_sha256")
+    return receipt
+
+
 def runner_work_directories(
     paths: Sequence[Path], cluster_contract: dict[str, Any], root: Path
 ) -> None:
@@ -420,6 +449,8 @@ def execute(
     plan_path = validate_cluster_result(cluster_result, package_id)
     plan = load_json(plan_path)
     ensure_cluster_running(plan, cluster_contract, cluster_result)
+    public_readback = reconcile_public_readback(plan, cluster_contract, package)
+    write_json(cluster_evidence / "public-readback-bindings.json", public_readback)
 
     def command_runner(label: str, command: Sequence[str], timeout: int) -> dict[str, Any]:
         return runner_command(plan, label, command, timeout)
@@ -504,6 +535,7 @@ def execute(
         "cluster_activation_receipt_sha256": cluster_result[
             "activation_receipt_sha256"
         ],
+        "public_readback_receipt_sha256": public_readback["receipt_sha256"],
         "unicode_activation_receipt_sha256": unicode_result["receipt_sha256"],
         "highway_activation_receipt_sha256": highway_result["receipt_sha256"],
         "cluster_result": str(cluster_result_path),

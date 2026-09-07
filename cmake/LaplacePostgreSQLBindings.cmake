@@ -333,4 +333,11 @@ function(laplace_configure_postgresql_bindings
     configure_file("${header_template}" "${header_output}" @ONLY)
     configure_file("${sql_template}" "${sql_output}" @ONLY)
     configure_file("${control_template}" "${control_output}" @ONLY)
+    get_filename_component(extension_source_directory "${sql_template}" DIRECTORY)
+    get_filename_component(extension_output_directory "${sql_output}" DIRECTORY)
+    set(public_readback_sql "${extension_output_directory}/laplace-public-readback.sql")
+    configure_file("${extension_source_directory}/public_readback.sql.in"
+        "${public_readback_sql}" @ONLY)
+    file(READ "${public_readback_sql}" public_readback_bindings)
+    file(APPEND "${sql_output}" "\n${public_readback_bindings}")
 endfunction()
