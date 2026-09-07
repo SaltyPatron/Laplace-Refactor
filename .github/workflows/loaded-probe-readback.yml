@@ -1,85 +1,116 @@
-name: loaded-probe-readback
+name: loaded-probe-integration
 on:
   push:
     branches: ['fix/loaded-object-probe-handshake']
 permissions:
   contents: read
 concurrency:
-  group: product-activation-refs/heads/main
+  group: loaded-probe-integration
   cancel-in-progress: false
 jobs:
-  probe:
+  integrate:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 10
+    outputs:
+      tested_sha: ${{ steps.publish.outputs.tested_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - name: Apply and verify the exact tested source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/fix/loaded-object-probe-handshake
+          test "$(git rev-parse HEAD^)" = 4e7f2e16c8bd1993973bbecc712dc3b83d5585b2
+          python3 - <<'PY'
+          import base64,gzip,hashlib,subprocess
+          from pathlib import Path
+          raw=gzip.decompress(base64.b64decode(Path('.github/probe-fix.patch.gz.b64').read_text()))
+          if hashlib.sha256(raw).hexdigest() != '8bfc4bcdb3f10d33a11ae273fc81242eee5b62a31682f140cdda8b4030272c70':
+              raise SystemExit('patch digest mismatch')
+          subprocess.run(['git','apply','--check','--index','-'],input=raw,check=True)
+          subprocess.run(['git','apply','--index','-'],input=raw,check=True)
+          expected={'tools/postgresql/cluster_core.py':'f02b70b712168c91cf39c35de3c56e292ea780bc','tools/postgresql/clusterctl.py':'98141597ccf25636599f52ba14d5faa6470e2ac4','tests/postgresql_cluster_tests.py':'4ac26e69531ec0842aec79bb3040abb9e8138ea6'}
+          if set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()) != set(expected):
+              raise SystemExit('unexpected file set')
+          for path,digest in expected.items():
+              if subprocess.check_output(['git','hash-object',path],text=True).strip() != digest:
+                  raise SystemExit('tested blob mismatch: '+path)
+          PY
+          git diff --cached --check
+          bash tools/tests/verify-requirements.sh
+          python3 tests/postgresql_cluster_tests.py
+          python3 tests/product_activation_runtime_adapter_tests.py
+          python3 tests/product_activation_runner_tests.py
+          python3 tests/product_service_state_tests.py
+      - name: Publish validated source to the same branch
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=fix/loaded-object-probe-handshake
+          test "$(git ls-remote origin "refs/heads/$branch" | cut -f1)" = "$GITHUB_SHA"
+          git rm .github/probe-fix.patch.gz.b64
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Share unique loaded-object handshake and cancel owned probes before termination'
+          git push origin "HEAD:refs/heads/$branch"
+          printf 'tested_sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  live-readback:
+    needs: integrate
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    concurrency:
+      group: product-activation-refs/heads/main
+      cancel-in-progress: false
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Read actual PostgreSQL connection and probe dispositions
+        with:
+          ref: ${{ needs.integrate.outputs.tested_sha }}
+      - name: Execute repeated exact loaded-object observation on the existing server
         shell: bash
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
+          test "$(git rev-parse HEAD)" = '${{ needs.integrate.outputs.tested_sha }}'
           python3 - <<'PY'
-          import json, os, runpy, subprocess, time, uuid
+          import json,os,runpy,subprocess,time
           from pathlib import Path
-          adoption = runpy.run_path('tools/delivery/product_predecessor_adoption.py')
-          ctl = adoption['clusterctl']
-          contract = ctl.load_json(Path('contracts/postgresql-cluster.json'))
-          ctl.validate_contract(contract)
-          package = adoption['_active_package_id'](contract)
-          directory = adoption['_activation_directory'](contract, package)
-          receipt = ctl.load_json(directory / 'activation-complete.json')
-          _, original = adoption['_load_plan'](receipt, contract, package)
-          plan = ctl.reconcile_existing_physical_settings(original, contract)
-          adoption['_require_selection'](contract, package)
-          instance = plan['instance']
-          base = [f"{plan['package_root']}/pgsql-18/bin/psql", '-h', instance['socket_directory'],
-              '-p', str(instance['port']), '-U', instance['admin_role'], '-d', instance['database'],
-              '-X', '-v', 'ON_ERROR_STOP=1', '-Atq']
-          env = dict(ctl.activation_environment(), PGCONNECT_TIMEOUT='5')
-          def sql(query):
-              completed = subprocess.run(base + ['-c', query], env=env, cwd='/', text=True,
-                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=8)
-              return {'exit': completed.returncode, 'stdout': completed.stdout[:6000],
-                      'stderr': completed.stderr[:3000]}
-          report = {'schema': 'laplace.loaded-probe-readback/v1', 'package': package,
-              'commit': os.environ['GITHUB_SHA'], 'database_mutations': 0, 'configuration_mutations': 0,
-              'health': sql("SELECT current_user,current_database(),current_setting('is_superuser'),current_setting('track_activities'),current_setting('server_version_num')"),
-              'control': sql('SELECT system_identifier FROM pg_catalog.pg_control_system()'), 'probes': []}
-          for mode in ['in-query-name', 'startup-name']:
-              name = 'laplace_diag_' + uuid.uuid4().hex
-              query = "LOAD '$libdir/laplace_pg'; LOAD '$libdir/pg_stat_statements'; SELECT pg_sleep(8);"
-              probe_env = dict(env)
-              if mode == 'in-query-name':
-                  query = f"SET application_name = '{name}'; " + query
-              else:
-                  probe_env['PGAPPNAME'] = name
-              probe = subprocess.Popen(base + ['-c', query], cwd='/', env=probe_env,
-                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
-              entry = {'mode': mode, 'observations': []}
-              owned = f"a.datname=current_database() AND a.usename=current_user AND (a.application_name='{name}' OR a.query LIKE 'SET application_name = ''{name}'';%')"
-              try:
-                  for _ in range(4):
-                      time.sleep(0.3)
-                      entry['observations'].append(sql("SELECT a.pid,a.application_name,a.state,a.wait_event_type,a.wait_event FROM pg_catalog.pg_stat_activity a WHERE " + owned))
-                      entry['original_lookup'] = sql("SELECT a.pid::text || '|' || c.system_identifier::text FROM pg_catalog.pg_stat_activity a CROSS JOIN pg_catalog.pg_control_system() c WHERE a.application_name='" + name + "' AND a.pid<>pg_backend_pid() AND a.state='active'")
-                      if probe.poll() is not None:
-                          out, err = probe.communicate()
-                          entry['probe_exit'] = probe.returncode
-                          entry['probe_stdout'] = out[:3000]
-                          entry['probe_stderr'] = err[:3000]
-                          break
-              finally:
-                  entry['cleanup'] = sql('SELECT pg_catalog.pg_cancel_backend(a.pid) FROM pg_catalog.pg_stat_activity a WHERE ' + owned)
-                  ctl.terminate_probe(probe)
-              report['probes'].append(entry)
-          output = Path(os.environ['RUNNER_TEMP']) / 'loaded-probe-readback.json'
-          output.write_text(json.dumps(report, indent=2) + '\n')
-          print(json.dumps(report, indent=2))
+          module=runpy.run_path('tools/delivery/product_predecessor_adoption.py')
+          ctl=module['clusterctl']
+          contract=ctl.load_json(Path('contracts/postgresql-cluster.json'))
+          package=module['_active_package_id'](contract)
+          directory=module['_activation_directory'](contract,package)
+          receipt=ctl.load_json(directory/'activation-complete.json')
+          _,original=module['_load_plan'](receipt,contract,package)
+          plan=ctl.reconcile_existing_physical_settings(original,contract)
+          module['_require_selection'](contract,package)
+          started=time.monotonic()
+          observations=[ctl.observe_loaded_live(plan,contract,Path('/')) for _ in range(2)]
+          if observations[0]['system_identifier'] != observations[1]['system_identifier'] or observations[0]['postmaster_pid'] != observations[1]['postmaster_pid']:
+              raise SystemExit('loaded observation changed the selected server identity')
+          if observations[0]['backend_pid'] == observations[1]['backend_pid']:
+              raise SystemExit('independent observations reused a backend')
+          instance=plan['instance']
+          pids=','.join(str(row['backend_pid']) for row in observations)
+          query=f"SELECT count(*) FROM pg_stat_activity WHERE pid IN ({pids}) AND usename=current_user AND wait_event='PgSleep'"
+          command=[f"{plan['package_root']}/pgsql-18/bin/psql",'-X','-Atq','-h',instance['socket_directory'],'-p',str(instance['port']),'-U',instance['admin_role'],'-d',instance['database'],'-v','ON_ERROR_STOP=1','-c',query]
+          checked=subprocess.run(command,cwd='/',env=ctl.activation_environment(),stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=10,check=True)
+          if checked.stdout.strip() != '0':
+              raise SystemExit('owned sleeping probe remains after observation')
+          result={'schema':'laplace.loaded-probe-live-proof/v1','source_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'package_id':package,'observations':observations,'elapsed_seconds':time.monotonic()-started,'sleeping_owned_backends_after_cleanup':0,'database_mutations':0,'configuration_mutations':0,'server_restarts':0}
+          path=Path(os.environ['RUNNER_TEMP'])/'loaded-probe-live-proof.json'
+          path.write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
           PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: loaded-probe-readback-${{ github.sha }}
-          path: ${{ runner.temp }}/loaded-probe-readback.json
+          name: loaded-probe-live-proof-${{ needs.integrate.outputs.tested_sha }}
+          path: ${{ runner.temp }}/loaded-probe-live-proof.json
           if-no-files-found: error
           retention-days: 7
