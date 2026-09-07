@@ -1,9 +1,12 @@
 #include "laplace/tabular_source.h"
+#include "laplace/tabular_source_recursive.h"
+#include "laplace/unicode_root.h"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <string_view>
 #include <vector>
@@ -253,6 +256,82 @@ TEST(TabularSource, CompilesRawAndDelimitedArtifactsIntoOneExactAstPlan) {
     EXPECT_EQ(std::memcmp(text.data(), fixture.text.data(), text.size()), 0);
     laplace_tabular_source_plan_destroy(&plan);
     EXPECT_EQ(plan, nullptr);
+}
+
+TEST(TabularSource, RecursiveAdmissionPreservesExactProfileAndAddsDecomposition) {
+    const char* source_root = std::getenv("LAPLACE_UNICODE_SOURCE_ROOT");
+    ASSERT_NE(source_root, nullptr);
+    laplace_unicode_source_bundle* unicode_bundle = nullptr;
+    laplace_unicode_source_receipt unicode_receipt{};
+    ASSERT_EQ(laplace_unicode_source_bundle_open(
+                  source_root, &unicode_bundle, &unicode_receipt),
+              LAPLACE_UNICODE_OK);
+    ASSERT_NE(unicode_bundle, nullptr);
+
+    Fixture fixture;
+    static constexpr std::string_view ArchiveMediaType{"application/zip"};
+    static constexpr std::string_view TabularMediaType{
+        "text/tab-separated-values; charset=utf-8"};
+    fixture.artifacts[0].media_type = ArchiveMediaType.data();
+    fixture.artifacts[0].media_type_byte_count = ArchiveMediaType.size();
+    fixture.artifacts[1].media_type = TabularMediaType.data();
+    fixture.artifacts[1].media_type_byte_count = TabularMediaType.size();
+    fixture.artifacts[1].reference_column_mask = 3u;
+    fixture.input.profile_declaration.reconstruction_class =
+        LAPLACE_SOURCE_PROFILE_RECONSTRUCTION_SEMANTIC;
+    fixture.input.profile_declaration.flags = LAPLACE_SOURCE_PROFILE_MAKE_FLAGS(
+        LAPLACE_SOURCE_PROFILE_EPISTEMIC_FOUNDATIONAL_SEED,
+        LAPLACE_SOURCE_PROFILE_EVIDENCE_CURATED_DATASET);
+    Fill(fixture.reference_rules[1].name_space, 0x65u);
+    fixture.reference_rules[1].artifact_index = 1u;
+    fixture.reference_rules[1].column_index = 1u;
+    fixture.reference_rules[1].kind = LAPLACE_HIGHWAY_KIND_EXTERNAL_REFERENCE;
+    fixture.reference_rules[1].flags = LAPLACE_REFERENCE_RULE_ENDPOINT |
+        LAPLACE_REFERENCE_RULE_PRESENT_DECLARATION;
+    fixture.input.reference_rule_count = fixture.reference_rules.size();
+    static constexpr std::string_view Relation{"="};
+    fixture.mapping_rules[0].relation_content =
+        reinterpret_cast<const std::uint8_t*>(Relation.data());
+    fixture.mapping_rules[0].relation_content_byte_count = Relation.size();
+    fixture.mapping_rules[0].artifact_index = 1u;
+    fixture.mapping_rules[0].left_column_index = 0u;
+    fixture.mapping_rules[0].right_column_index = 1u;
+    fixture.mapping_rules[0].relation_version = 1u;
+    fixture.mapping_rules[0].relation_kind = LAPLACE_HIGHWAY_KIND_RELATION;
+    fixture.mapping_rules[0].flags = LAPLACE_REFERENCE_MAPPING_FLAG_DIRECTED;
+    fixture.input.mapping_rules = fixture.mapping_rules.data();
+    fixture.input.mapping_rule_count = fixture.mapping_rules.size();
+    RefreshGraph(fixture);
+    laplace_tabular_source_plan* legacy = nullptr;
+    ASSERT_EQ(laplace_tabular_source_plan_create(&fixture.input, &legacy),
+              LAPLACE_TABULAR_SOURCE_OK);
+    laplace_tabular_source_plan_view legacy_view{};
+    ASSERT_EQ(laplace_tabular_source_plan_view_get(legacy, &legacy_view),
+              LAPLACE_TABULAR_SOURCE_OK);
+    const std::uint64_t legacy_request_count = legacy_view.request_count;
+    const std::uint64_t legacy_span_count = legacy_view.profile.span_count;
+
+    laplace_tabular_source_plan* recursive = nullptr;
+    EXPECT_EQ(laplace_tabular_source_plan_create_recursive(
+                  &fixture.input, unicode_bundle, &recursive),
+              LAPLACE_TABULAR_SOURCE_OK);
+    ASSERT_NE(recursive, nullptr);
+    laplace_tabular_source_plan_view recursive_view{};
+    ASSERT_EQ(laplace_tabular_source_plan_view_get(recursive, &recursive_view),
+              LAPLACE_TABULAR_SOURCE_OK);
+    EXPECT_GT(recursive_view.request_count, legacy_request_count);
+    EXPECT_GT(recursive_view.profile.span_count, legacy_span_count);
+    EXPECT_EQ(recursive_view.root_result_index + 1u,
+              recursive_view.request_count);
+    EXPECT_EQ(recursive_view.profile.output_count,
+              recursive_view.request_count);
+    EXPECT_EQ(recursive_view.claim_count, legacy_view.claim_count);
+    EXPECT_EQ(recursive_view.reference_occurrence_count,
+              legacy_view.reference_occurrence_count);
+
+    laplace_tabular_source_plan_destroy(&recursive);
+    laplace_tabular_source_plan_destroy(&legacy);
+    laplace_unicode_source_bundle_close(&unicode_bundle);
 }
 
 TEST(TabularSource, CompilesDeclaredReferencePairsIntoGenericMappingOccurrences) {

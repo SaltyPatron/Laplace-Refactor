@@ -40,6 +40,8 @@ set(laplace_postgresql_module_sources
     src/world_admission_pg.c)
 
 function(laplace_configure_postgresql_module target)
+    target_compile_definitions(${target} PRIVATE
+        LAPLACE_UNICODE_SOURCE_ROOT="${LAPLACE_UNICODE_SOURCE_ROOT}")
     target_include_directories(${target} SYSTEM PRIVATE
         "${LAPLACE_POSTGRES_INCLUDE_SERVER}"
         "${LAPLACE_POSTGRES_INCLUDE_CLIENT}")

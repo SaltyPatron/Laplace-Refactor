@@ -23,6 +23,8 @@
 #include "laplace/evidence_testimony.h"
 #include "laplace/persistence.h"
 #include "laplace/tabular_source.h"
+#include "laplace/tabular_source_recursive.h"
+#include "laplace/unicode_root.h"
 #include "composition_pg.h"
 #include "laplace_pg_internal.h"
 #include "set_pg.h"
@@ -30,6 +32,32 @@
 #include "unicode_atoms_pg.h"
 
 PG_FUNCTION_INFO_V1(LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL);
+
+#ifndef LAPLACE_UNICODE_SOURCE_ROOT
+#error "LAPLACE_UNICODE_SOURCE_ROOT is required for recursive source admission"
+#endif
+
+static laplace_tabular_source_status
+laplace_pg_tabular_source_plan_create_recursive(
+    const laplace_tabular_source_input* input,
+    laplace_tabular_source_plan** plan) {
+    laplace_unicode_source_bundle* unicode_bundle = NULL;
+    laplace_unicode_source_receipt unicode_receipt;
+    laplace_tabular_source_status status;
+    memset(&unicode_receipt, 0, sizeof(unicode_receipt));
+    if (laplace_unicode_source_bundle_open(
+            LAPLACE_UNICODE_SOURCE_ROOT,
+            &unicode_bundle,
+            &unicode_receipt) != LAPLACE_UNICODE_OK ||
+        unicode_bundle == NULL) {
+        laplace_unicode_source_bundle_close(&unicode_bundle);
+        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+    }
+    status = laplace_tabular_source_plan_create_recursive(
+        input, unicode_bundle, plan);
+    laplace_unicode_source_bundle_close(&unicode_bundle);
+    return status;
+}
 
 _Static_assert(LAPLACE_SOURCE_PROFILE_EVIDENCE_STANDARD == LAPLACE_EVIDENCE_SOURCE_STANDARD,
                "standard provenance constants diverged");
@@ -1428,7 +1456,7 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
     source_input.mapping_rules = mapping_rules;
     source_input.mapping_rule_count = (uint64_t)mapping_rule_count;
     source_input.preferred_batch_bytes = preferred_batch_bytes;
-    source_status = laplace_tabular_source_plan_create(
+    source_status = laplace_pg_tabular_source_plan_create_recursive(
         &source_input, &source_plan);
     if (source_status != LAPLACE_TABULAR_SOURCE_OK || source_plan == NULL ||
         laplace_tabular_source_plan_view_get(source_plan, &plan) !=

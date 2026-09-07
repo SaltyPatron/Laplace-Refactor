@@ -76,7 +76,7 @@ AS $profile$
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         2,
-        0
+        33
     )::laplace.source_profile_manifest
 $profile$;
 

@@ -1112,7 +1112,7 @@ BEGIN
        OR result.instruction_count <> 1
        OR result.executed_instruction_count <> 1
        OR result.isa_major <> 1
-       OR result.isa_minor <> 10
+       OR result.isa_minor <> 11
        OR result.status <> 0
        OR result.item_count <> 3 THEN
         RAISE EXCEPTION USING MESSAGE = format(
@@ -1253,7 +1253,7 @@ BEGIN
        OR result.instruction_count <> 1
        OR result.executed_instruction_count <> 1
        OR result.isa_major <> 1
-       OR result.isa_minor <> 10
+       OR result.isa_minor <> 11
        OR result.status <> 0
        OR result.item_count <> 2 THEN
         RAISE EXCEPTION 'PostgreSQL highway result differs from direct native ISA';
