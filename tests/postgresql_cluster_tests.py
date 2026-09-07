@@ -1063,5 +1063,97 @@ class PostgreSQLClusterContract(unittest.TestCase):
             )
 
 
+
+    def test_optional_physical_plan_is_exact_and_does_not_change_resource_grant(self) -> None:
+        original = self.plan()
+        saved = copy.deepcopy(original)
+        selected = clusterctl.plan_with_physical_settings(
+            original, self.contract, {"huge_pages": "off"})
+        self.assertEqual(original, saved)
+        self.assertNotEqual(selected["plan_sha256"], original["plan_sha256"])
+        self.assertEqual(selected["resource_grant"], original["resource_grant"])
+        self.assertEqual(selected["package_id"], original["package_id"])
+        self.assertEqual(selected["required_loaded_objects"], original["required_loaded_objects"])
+        self.assertEqual(selected["settings"]["huge_pages"], "off")
+        clusterctl.validate_plan(selected, self.contract)
+        self.assertEqual(clusterctl.plan_with_physical_settings(selected, self.contract, {}), original)
+
+    def test_optional_physical_plan_rejects_unrelated_or_mandatory_settings(self) -> None:
+        for selection in ({"huge_pages": "on"}, {"fsync": "off"},
+                          {"shared_buffers": "999999MB"}, {"port": "5432"}, []):
+            with self.subTest(selection=selection):
+                with self.assertRaisesRegex(clusterctl.ClusterError, "unsupported.*physical settings"):
+                    clusterctl.plan_with_physical_settings(self.plan(), self.contract, selection)
+
+    def test_rehashed_settings_cannot_escape_the_conserved_plan(self) -> None:
+        plan = self.plan()
+        plan["settings"]["shared_buffers"] = "999999MB"
+        content = clusterctl.render_postgresql_conf(
+            self.contract, plan["package_root"], plan["settings"])
+        self.replace_rendered(plan, "postgresql.conf", content)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "conserved resource plan"):
+            clusterctl.validate_plan(plan, self.contract)
+
+    def test_rehashed_configuration_cannot_hide_unplanned_startup_parameters(self) -> None:
+        plan = self.plan()
+        entry = next(row for row in plan["files"] if row["path"].endswith("postgresql.conf"))
+        self.replace_rendered(plan, "postgresql.conf", entry["content"] + "fsync = off\n")
+        with self.assertRaisesRegex(clusterctl.ClusterError, "physical plan"):
+            clusterctl.validate_plan(plan, self.contract)
+
+    def _install_generated_fixture(self, plan: dict[str, Any]) -> dict[str, bytes]:
+        written = {}
+        for entry in plan["files"]:
+            path = clusterctl.prefixed(self.activation_root, entry["path"])
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(entry["content"], encoding="utf-8")
+            written[str(path)] = path.read_bytes()
+        return written
+
+    def test_existing_disabled_huge_pages_replans_without_writing_configuration(self) -> None:
+        plan = self.plan()
+        selected = clusterctl.plan_with_physical_settings(plan, self.contract, {"huge_pages": "off"})
+        original_bytes = self._install_generated_fixture(selected)
+        actual = clusterctl.reconcile_existing_physical_settings(plan, self.contract, self.activation_root)
+        self.assertEqual(actual, selected)
+        self.assertEqual(original_bytes, {name: Path(name).read_bytes() for name in original_bytes})
+        self.assertIs(clusterctl.reconcile_existing_physical_settings(
+            selected, self.contract, self.activation_root), selected)
+
+    def test_existing_configuration_cannot_adopt_unrelated_drift(self) -> None:
+        plan = self.plan()
+        self._install_generated_fixture(plan)
+        entry = next(row for row in plan["files"] if row["path"].endswith("postgresql.conf"))
+        path = clusterctl.prefixed(self.activation_root, entry["path"])
+        for extra in ("port = 5432\n", "fsync = off\n", "# unaccounted edit\n"):
+            with self.subTest(extra=extra):
+                changed = entry["content"].replace("huge_pages = try", "huge_pages = off") + extra
+                path.write_text(changed, encoding="utf-8")
+                with self.assertRaisesRegex(clusterctl.ClusterError, "configuration bytes differ"):
+                    clusterctl.reconcile_existing_physical_settings(plan, self.contract, self.activation_root)
+                self.assertEqual(path.read_text(), changed)
+
+    def test_optional_configuration_change_does_not_hide_an_authentication_change(self) -> None:
+        plan = self.plan()
+        selected = clusterctl.plan_with_physical_settings(plan, self.contract, {"huge_pages": "off"})
+        self._install_generated_fixture(selected)
+        path = clusterctl.prefixed(self.activation_root,
+            f"{plan['instance']['config_directory']}/pg_hba.conf")
+        path.write_text("local all all trust\n")
+        with self.assertRaisesRegex(clusterctl.ClusterError, "configuration bytes differ"):
+            clusterctl.reconcile_existing_physical_settings(plan, self.contract, self.activation_root)
+
+    def test_physical_configuration_inspection_rejects_symlinks_and_relative_roots(self) -> None:
+        plan = self.plan()
+        self._install_generated_fixture(plan)
+        path = clusterctl.prefixed(self.activation_root, plan["files"][0]["path"])
+        saved = path.with_suffix(".saved")
+        path.rename(saved)
+        path.symlink_to(saved)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "unsafe"):
+            clusterctl.reconcile_existing_physical_settings(plan, self.contract, self.activation_root)
+        with self.assertRaisesRegex(clusterctl.ClusterError, "absolute"):
+            clusterctl.reconcile_existing_physical_settings(plan, self.contract, Path("relative"))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

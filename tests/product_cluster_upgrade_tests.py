@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import importlib.util
+from contextlib import ExitStack
 import json
 import os
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -170,6 +172,10 @@ class ProductClusterUpgradeTests(unittest.TestCase):
         plan_path = directory / "cluster-plan.json"
         plan = {
             "package_id": self.old_id,
+            "package_root": str(self.root / "releases" / self.old_id),
+            "postgresql_major": 18,
+            "instance": {"data_directory": str(self.root / "data")},
+            "files": [],
             "commands": {
                 "stop_candidate": ["pg_ctl", "stop"],
                 "start_candidate": ["pg_ctl", "start"],
@@ -177,6 +183,14 @@ class ProductClusterUpgradeTests(unittest.TestCase):
             },
         }
         plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        # Mock only the OS status boundary. The production resume decision and
+        # command construction still execute; no real database is started here.
+        status = mock.patch.object(
+            ADOPTION.subprocess, "run",
+            return_value=subprocess.CompletedProcess([], 0, "running", ""),
+        )
+        status.start()
+        self.addCleanup(status.stop)
         legacy = {
             "schema": ADOPTION.clusterctl.ACTIVATION_SCHEMA,
             "phase": "activated",
@@ -344,6 +358,150 @@ class ProductClusterUpgradeTests(unittest.TestCase):
         upgraded.assert_not_called()
         fresh.assert_called_once()
 
+    def _resume_fixture(self) -> tuple[dict, dict]:
+        _receipt, path, _legacy, initial, _restarted = self._legacy_predecessor_fixture()
+        plan = json.loads(path.read_text())
+        config = self.root / "postgresql.conf"
+        config.write_text("expected configuration\n")
+        plan["files"] = [{"path": str(config), "sha256": ADOPTION.clusterctl.sha256_file(config)}]
+        return plan, initial
+
+    def test_stopped_predecessor_resumes_only_after_exact_configuration_and_pid_proof(self) -> None:
+        plan, loaded = self._resume_fixture()
+        calls = []
+        def command(label, argv, timeout):
+            calls.append(label)
+            return {"label": label, "exit_code": 0}
+        with mock.patch.object(ADOPTION.clusterctl, "RUNTIME_LINK", str(self.runtime)), \
+             mock.patch.object(ADOPTION.subprocess, "run", return_value=subprocess.CompletedProcess([], 3, "stopped", "")), \
+             mock.patch.object(ADOPTION.clusterctl, "_stopped_live") as stopped, \
+             mock.patch.object(ADOPTION.clusterctl, "execute_activation_command", side_effect=command), \
+             mock.patch.object(ADOPTION.clusterctl, "await_postgresql_ready", return_value={"exit_code": 0}), \
+             mock.patch.object(ADOPTION, "_live_predecessor", return_value=loaded):
+            ADOPTION._ensure_predecessor_running(plan, self.contract, self.old_id)
+        stopped.assert_called_once_with(plan)
+        self.assertEqual(calls, ["resume-stopped-selected-predecessor"])
+        receipt = self.root / "receipts" / "cluster-activation" / self.old_id / "predecessor-resume.json"
+        self.assertEqual(json.loads(receipt.read_text())["loaded_observation"], loaded)
+
+    def test_unavailable_status_never_grants_permission_to_start(self) -> None:
+        plan, _loaded = self._resume_fixture()
+        for code in (1, 4, -9):
+            with self.subTest(code=code), \
+                 mock.patch.object(ADOPTION.clusterctl, "RUNTIME_LINK", str(self.runtime)), \
+                 mock.patch.object(ADOPTION.subprocess, "run", return_value=subprocess.CompletedProcess([], code, "", "unavailable")), \
+                 mock.patch.object(ADOPTION.clusterctl, "execute_activation_command") as start, \
+                 mock.patch.object(ADOPTION.clusterctl, "_stopped_live") as stopped:
+                with self.assertRaisesRegex(ADOPTION.AdoptionError, "lifecycle state"):
+                    ADOPTION._ensure_predecessor_running(plan, self.contract, self.old_id)
+                start.assert_not_called()
+                stopped.assert_not_called()
+
+    def test_stopped_configuration_drift_prevents_start(self) -> None:
+        plan, _loaded = self._resume_fixture()
+        Path(plan["files"][0]["path"]).write_text("changed\n")
+        with mock.patch.object(ADOPTION.clusterctl, "RUNTIME_LINK", str(self.runtime)), \
+             mock.patch.object(ADOPTION.subprocess, "run", return_value=subprocess.CompletedProcess([], 3, "", "")), \
+             mock.patch.object(ADOPTION.clusterctl, "_stopped_live"), \
+             mock.patch.object(ADOPTION.clusterctl, "execute_activation_command") as start:
+            with self.assertRaisesRegex(ADOPTION.AdoptionError, "configuration differs"):
+                ADOPTION._ensure_predecessor_running(plan, self.contract, self.old_id)
+            start.assert_not_called()
+
+    def test_selected_package_change_prevents_resume(self) -> None:
+        plan, _loaded = self._resume_fixture()
+        def change_selection(_plan):
+            self.active.unlink()
+            self.active.symlink_to(f"releases/{self.new_id}")
+        with mock.patch.object(ADOPTION.clusterctl, "RUNTIME_LINK", str(self.runtime)), \
+             mock.patch.object(ADOPTION.subprocess, "run", return_value=subprocess.CompletedProcess([], 3, "", "")), \
+             mock.patch.object(ADOPTION.clusterctl, "_stopped_live", side_effect=change_selection), \
+             mock.patch.object(ADOPTION.clusterctl, "execute_activation_command") as start:
+            with self.assertRaisesRegex(ADOPTION.AdoptionError, "selection changed"):
+                ADOPTION._ensure_predecessor_running(plan, self.contract, self.old_id)
+            start.assert_not_called()
+
+    def test_historical_system_identity_cannot_be_replaced_by_a_new_cluster(self) -> None:
+        receipt_path, _path, legacy, initial, _restarted = self._legacy_predecessor_fixture()
+        legacy["system_identifier"] = "7000000000000000002"
+        receipt_path.write_text(json.dumps(legacy))
+        before = receipt_path.read_bytes()
+        with mock.patch.object(ADOPTION.clusterctl, "RUNTIME_LINK", str(self.runtime)), \
+             mock.patch.object(ADOPTION.clusterctl, "require_fixture_or_root"), \
+             mock.patch.object(ADOPTION.clusterctl, "validate_contract"), \
+             mock.patch.object(ADOPTION.clusterctl, "validate_plan"), \
+             mock.patch.object(ADOPTION, "_live_predecessor", return_value=initial), \
+             mock.patch.object(ADOPTION.clusterctl, "execute_activation_command") as execute:
+            with self.assertRaisesRegex(ADOPTION.AdoptionError, "system identity differs"):
+                ADOPTION.ensure_current_predecessor_receipt(self.root / "contract.json")
+        execute.assert_not_called()
+        self.assertEqual(receipt_path.read_bytes(), before)
+
+
+    def _replanned_receipt_fixture(self):
+        receipt_path, plan_path, legacy, initial, restarted = self._legacy_predecessor_fixture()
+        original = json.loads(plan_path.read_text())
+        original["plan_sha256"] = "a" * 64
+        plan_path.write_text(json.dumps(original))
+        current = dict(legacy, restart_proven=True,
+                       lifecycle_provider=ADOPTION.clusterctl.LIFECYCLE_PROVIDER,
+                       system_identifier=initial["system_identifier"])
+        current["activation_receipt_sha256"] = ADOPTION._activation_identity(current)
+        receipt_path.write_text(json.dumps(current))
+        replanned = dict(original, plan_sha256="b" * 64,
+                         physical_settings={"huge_pages": "off"})
+        return receipt_path, plan_path, current, original, replanned, initial, restarted
+
+    def test_replanned_current_receipt_requires_restart_before_new_plan_publication(self) -> None:
+        receipt_path, old_path, current, original, plan, initial, restarted = self._replanned_receipt_fixture()
+        original_bytes = receipt_path.read_bytes()
+        old_plan_bytes = old_path.read_bytes()
+        new_path = receipt_path.parent / f"cluster-plan-{plan['plan_sha256']}.json"
+        executed = []
+        def command(label, _argv, _timeout):
+            self.assertFalse(new_path.exists())
+            self.assertEqual(receipt_path.read_bytes(), original_bytes)
+            executed.append(label)
+            return {"label": label, "exit_code": 0}
+        with ExitStack() as stack:
+            for name in ("require_fixture_or_root", "validate_contract", "validate_plan", "_stopped_live"):
+                stack.enter_context(mock.patch.object(ADOPTION.clusterctl, name))
+            stack.enter_context(mock.patch.object(ADOPTION.clusterctl, "RUNTIME_LINK", str(self.runtime)))
+            stack.enter_context(mock.patch.object(ADOPTION.clusterctl, "reconcile_existing_physical_settings", return_value=plan))
+            observed = stack.enter_context(mock.patch.object(ADOPTION, "_live_predecessor", side_effect=[initial, restarted]))
+            stack.enter_context(mock.patch.object(ADOPTION.clusterctl, "execute_activation_command", side_effect=command))
+            stack.enter_context(mock.patch.object(ADOPTION.clusterctl, "await_postgresql_ready", return_value={"exit_code": 0}))
+            result = ADOPTION.ensure_current_predecessor_receipt(self.root / "contract.json")
+        self.assertEqual(len(executed), 2)
+        self.assertEqual(observed.call_count, 2)
+        self.assertEqual(json.loads(new_path.read_text()), plan)
+        self.assertEqual(old_path.read_bytes(), old_plan_bytes)
+        self.assertEqual(Path(result["predecessor_historical_receipt_archive"]).read_bytes(), original_bytes)
+        self.assertEqual(result["cluster_plan_path"], str(new_path))
+        self.assertEqual(result["predecessor_original_plan_sha256"], original["plan_sha256"])
+        self.assertTrue(result["configuration_replanned_without_file_mutation"])
+        self.assertEqual(result["physical_settings"], {"huge_pages": "off"})
+        self.assertEqual(result["activation_receipt_sha256"], ADOPTION._activation_identity(result))
+        self.assertEqual(json.loads(receipt_path.read_text()), result)
+
+    def test_failed_replanned_restart_preserves_old_plan_and_receipt(self) -> None:
+        receipt_path, old_path, _current, _original, plan, initial, _restarted = self._replanned_receipt_fixture()
+        receipt_before, plan_before = receipt_path.read_bytes(), old_path.read_bytes()
+        new_path = receipt_path.parent / f"cluster-plan-{plan['plan_sha256']}.json"
+        with ExitStack() as stack:
+            for name in ("require_fixture_or_root", "validate_contract", "validate_plan", "_stopped_live"):
+                stack.enter_context(mock.patch.object(ADOPTION.clusterctl, name))
+            stack.enter_context(mock.patch.object(ADOPTION.clusterctl, "RUNTIME_LINK", str(self.runtime)))
+            stack.enter_context(mock.patch.object(ADOPTION.clusterctl, "reconcile_existing_physical_settings", return_value=plan))
+            stack.enter_context(mock.patch.object(ADOPTION, "_live_predecessor", return_value=initial))
+            stack.enter_context(mock.patch.object(ADOPTION.clusterctl, "execute_activation_command", side_effect=ADOPTION.AdoptionError("deliberate restart failure")))
+            restored = stack.enter_context(mock.patch.object(ADOPTION, "_restore_predecessor_after_failure", return_value=initial))
+            with self.assertRaisesRegex(ADOPTION.AdoptionError, "deliberate restart failure"):
+                ADOPTION.ensure_current_predecessor_receipt(self.root / "contract.json")
+        restored.assert_called_once_with(plan, self.contract, self.old_id, initial)
+        self.assertFalse(new_path.exists())
+        self.assertEqual(receipt_path.read_bytes(), receipt_before)
+        self.assertEqual(old_path.read_bytes(), plan_before)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

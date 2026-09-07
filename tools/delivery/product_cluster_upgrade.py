@@ -371,6 +371,12 @@ def upgrade_product(
         projected_path,
         Path("/"),
     )
+    # Preserve the predecessor's accepted physical page policy across package
+    # upgrades. A fresh default must not silently re-enable a disabled provider.
+    if predecessor_plan.get("physical_settings"):
+        successor_plan = clusterctl.plan_with_physical_settings(
+            successor_plan, contract, predecessor_plan["physical_settings"]
+        )
     successor_plan_path = (
         evidence_directory / f"cluster-plan-{successor_plan['plan_sha256']}.json"
     )

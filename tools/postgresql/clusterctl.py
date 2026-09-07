@@ -192,8 +192,88 @@ def validate_plan(plan: dict[str, Any], contract: dict[str, Any] | None = None) 
         raise _core.ClusterError("durable receipt namespace cannot be fresh candidate state")
     if live and plan["instance"]["socket_directory"] not in plan.get("state_directories", []):
         raise _core.ClusterError("runner-owned socket directory must be candidate state")
+    # Page-size selection is a physical provider choice, not a license to accept
+    # arbitrary edited settings. Recalculate the complete configuration from the
+    # conserved grant plus the explicitly identified optional selection.
+    settings = generate_settings(contract, plan["resource_grant"])
+    physical = plan.get("physical_settings", {})
+    if not isinstance(physical, dict) or physical not in ({}, {"huge_pages": "off"}):
+        raise _core.ClusterError("unsupported PostgreSQL physical settings selection")
+    settings.update(physical)
+    if plan.get("settings") != settings:
+        raise _core.ClusterError("PostgreSQL settings differ from the conserved resource plan")
+    config = _rendered_entry(plan, f"{plan['instance']['config_directory']}/postgresql.conf")
+    expected_config = render_postgresql_conf(contract, plan["package_root"], settings)
+    if config.get("content") != expected_config:
+        raise _core.ClusterError("generated PostgreSQL configuration differs from its physical plan")
+    if config.get("sha256") != sha256_bytes(expected_config.encode("utf-8")):
+        raise _core.ClusterError("rendered file digest differs: postgresql.conf")
     projected, projected_contract = _project_plan_for_core_validation(plan, contract)
     _ORIGINAL_VALIDATE_PLAN(projected, projected_contract)
+
+
+def plan_with_physical_settings(
+    plan: dict[str, Any], contract: dict[str, Any], selection: dict[str, str]
+) -> dict[str, Any]:
+    """Re-render one identified physical plan; never modify installed files.
+
+    The supported conservative choice disables optional huge pages without
+    altering the memory grant, canonical data, authentication, or package.
+    Other settings require their own validated planning law, not an override map.
+    """
+    validate_plan(plan, contract)
+    if not isinstance(selection, dict) or selection not in ({}, {"huge_pages": "off"}):
+        raise _core.ClusterError("unsupported PostgreSQL physical settings selection")
+    selected = copy.deepcopy(plan)
+    if selection:
+        selected["physical_settings"] = dict(selection)
+    else:
+        selected.pop("physical_settings", None)
+    settings = generate_settings(contract, selected["resource_grant"])
+    settings.update(selection)
+    selected["settings"] = settings
+    path = f"{selected['instance']['config_directory']}/postgresql.conf"
+    entry = _rendered_entry(selected, path)
+    _replace_rendered(selected, path,
+                      render_postgresql_conf(contract, selected["package_root"], settings),
+                      entry["mode"])
+    selected.pop("plan_sha256", None)
+    selected["plan_sha256"] = sha256_bytes(canonical_bytes(selected))
+    validate_plan(selected, contract)
+    return selected
+
+
+def reconcile_existing_physical_settings(
+    plan: dict[str, Any], contract: dict[str, Any], root: Path = Path("/")
+) -> dict[str, Any]:
+    """Identify an exact supported installed plan without approving arbitrary drift.
+
+    Byte-for-byte agreement is required for every generated file. Only a complete
+    re-render with optional huge pages disabled can explain the one admitted
+    configuration difference. The caller must still prove the live package,
+    PostgreSQL identity and a restart before publishing the successor receipt.
+    No configuration or database bytes are changed here.
+    """
+    validate_plan(plan, contract)
+    if not root.is_absolute():
+        raise _core.ClusterError("configuration inspection root must be absolute")
+    selected = plan
+    for entry in plan["files"]:
+        path = prefixed(root, entry["path"])
+        if path.is_symlink() or not path.is_file():
+            raise _core.ClusterError(f"generated configuration is absent or unsafe: {path}")
+        actual = path.read_bytes()
+        if sha256_bytes(actual) == entry["sha256"]:
+            continue
+        expected_path = f"{plan['instance']['config_directory']}/postgresql.conf"
+        if entry["path"] != expected_path or plan.get("physical_settings"):
+            raise _core.ClusterError(f"generated configuration bytes differ: {path}")
+        candidate = plan_with_physical_settings(plan, contract, {"huge_pages": "off"})
+        generated = _rendered_entry(candidate, expected_path)
+        if actual != generated["content"].encode("utf-8"):
+            raise _core.ClusterError(f"generated configuration bytes differ: {path}")
+        selected = candidate
+    return selected
 
 
 def collision_target(contract: dict[str, Any]) -> dict[str, Any]:
