@@ -1,8 +1,22 @@
 # Laplace UI and control-plane design review
 
-Status: **DRAFT FOR INVENTOR REVIEW — NOT APPROVED FOR IMPLEMENTATION**. Discussion date: 2026-09-07. Repository baseline inspected: `f02d78730aa6312885784a3a986ebb243810756f`.
+Status: **DRAFT FOR INVENTOR REVIEW — NOT APPROVED FOR IMPLEMENTATION**. Discussion began: 2026-09-07. Repository baseline inspected: `f02d78730aa6312885784a3a986ebb243810756f`.
 
 This packet records the requested design work. It does not implement an application, configure an identity provider, activate an endpoint, certify a capability, or authorize deployment. No proposed layout, role name, protocol profile, numeric target, or technology choice becomes inventor-approved merely by appearing here.
+
+## Start here: consolidated native workspace build map
+
+[NATIVE_WORKSPACE_BUILD_MAP.md](NATIVE_WORKSPACE_BUILD_MAP.md) combines the discussion into an implementation-oriented breakdown: shared contracts; runtime services; reusable controls and arguments; native client/server placement; targeted ID/dependency exchange; durable user-owned local data versus replicas and perfcaches; changing knowledge; domain-package integration; and granular work packages under existing GitHub owners.
+
+The latest direct corrections are part of that map:
+
+- A task only happens to be chess, LaTeX, DNA or another domain. All applicable data and operations share the same workspace and execution machinery.
+- The user's device performs legitimate operations for that user through the same native C/C++ engine. C#, SQL, PostgreSQL and browser/native bindings marshal and orchestrate; no private managed or UI semantic engine is introduced.
+- Retain exact acquired substrate objects and the user's own authored state locally. Current answers change with the substrate: stale query-response caching is not the primary design.
+- Resolve local presence and reconstruct locally; ask servers/peers for bounded missing IDs, ranges, newer heads or operations requiring remote data, rather than repeatedly asking for whole reconstructed objects.
+- Client hardware is not recruited for unrelated provider work. Local execution benefits the user directly; reduced service load follows from eliminating redundant work.
+
+The build map consolidates rather than deletes the detailed requirements below. Implementation authorization remains ungranted.
 
 ## Direct instructions and their consequence
 
@@ -22,12 +36,16 @@ These establish: design and review before implementation; repository documentati
 
 The subsequent direct request requires starting from Entity/other data collections, selecting top-N with filters/sorting, clicking master-list records and inspecting their interconnected data through reusable controls. This is first-class **product exploration**, not an admin-only test/receipt dashboard. The detailed [entity-first data browser and source-link contract](DATA_BROWSER_AND_SOURCE_LINKS.md) defines raw versus enriched views, actual schema distinctions, master-detail navigation, reusable inspectors, Unicode/physicality/trajectory readback, source-release mappings, unresolved connections and local DBR-01..30 acceptance cases. It accounts for the supplied `/vault/Data` and `.refresh-20260903` listing without claiming those directories have been admitted to the database. The requested feature is required; specific layout and mechanism proposals remain reviewable.
 
-## Read this packet in order
+## Review map and detailed references
 
-1. [Screen contracts](SCREEN_CONTRACTS.md): navigation, layouts, user journeys, fields, actions, and error/recovery states.
-2. [Entity-first data browser and cross-source inspection](DATA_BROWSER_AND_SOURCE_LINKS.md): filter/sort/top-N, clickable records, shared detail controls and the source-to-substrate connection map.
-3. [Authentication and transports](AUTH_AND_TRANSPORTS.md): identity/claims, authorization, proposed endpoints, protocol profiles, and developer experience.
-4. [Acceptance matrix](ACCEPTANCE.md): stable review IDs, positive scenarios, deliberate failures, evidence, and release boundaries. The data-browser document's DBR IDs refine these existing criteria; they are not additional passed tests.
+1. [Consolidated native workspace build map](NATIVE_WORKSPACE_BUILD_MAP.md): common types, service boundaries, controls/arguments, local substrate, targeted exchange, domain snap-ins and implementation ownership.
+2. [Screen contracts](SCREEN_CONTRACTS.md): navigation, task layouts, all-data collection/selection/compare, rich viewers and administrator journeys.
+3. [Entity-first data browser and cross-source inspection](DATA_BROWSER_AND_SOURCE_LINKS.md): filter/sort/top-N, clickable records, shared detail controls and source-to-substrate connections.
+4. [SpecEditor and CIEDigital engineering references](SCHEMA_DRIVEN_INTERFACE_REFERENCES.md): inspected schema discovery, generic filters/templates/query expressions and protected parameter handling.
+5. [Workspace behavior and response](WORKSPACE_BEHAVIOR_AND_RESPONSE.md): useful task composition, aggregate-to-contributor navigation, labels, first useful result and delay/failure behavior.
+6. [Authentication and transports](AUTH_AND_TRANSPORTS.md): identity/claims, authorization, proposed endpoints, protocol profiles and developer experience.
+7. [Operator recovery and observability](../OPERATOR_RECOVERY_AND_OBSERVABILITY_REVIEW.md): database-independent administration, exact recreation/seed/restore, durable work, logs and alerts; [focused case specifications](../OPERATOR_RECOVERY_REVIEW_CASES.json).
+8. [Acceptance matrix](ACCEPTANCE.md) and [earlier issue traceability](ISSUE_TRACEABILITY.md): stable review IDs, deliberate failures, evidence and release boundaries. The other documents refine these existing criteria, not add passed tests or independent completion scores.
 
 The existing [Constitution](../CONSTITUTION.md), [architecture boundaries](../../architecture/BOUNDARIES.md), [complete capability map](../LAPLACE_COMPLETE_CAPABILITY_AND_FLOW_MAP.md), and [authority stack](../../../contracts/authority-stack.json) remain governing context. This draft does not create another semantic engine or replace their accepted requirements.
 
@@ -39,7 +57,7 @@ The initial inspection also found a sequencing inconsistency: issue #21 listed a
 
 ## One product, not a dashboard beside Laplace
 
-The UI is an operator and user interface to the same canonical machine. C# handles protocol, credential, session, and service orchestration. Native C/C++ and PostgreSQL-server execution remain the semantic owners. UI code does not recalculate identity, geometry, relevance, entitlement, standing, admission, pricing, or completion.
+The UI is an operator and user interface to the same canonical machine. C# handles protocol, credential, session, and service orchestration. Native C/C++ and PostgreSQL-server execution remain the semantic owners. UI code does not recalculate identity, geometry, relevance, entitlement, standing, admission, pricing, or completion. Local clients invoke that same native implementation through their accepted host bindings, not a separate browser or managed algorithm.
 
 A shared operation description is proposed to supply operation/version identity, typed input/output schemas, effect class, required authority, readiness, resource/preflight contract, job/progress/cancellation behavior, receipt schema, and supported transports. It can generate clients, schema validation, capability catalogs, API reference, and basic form controls. It does **not** automatically generate good navigation or operator workflows; those require the reviewed screen contracts.
 
@@ -64,36 +82,40 @@ Current status: D0-D3 are proposed review material; D4 is **not granted**. Do no
 | Decision | Proposed starting point | Status |
 |---|---|---|
 | Primary interaction | Browse, inspect, act; search is an accelerator, not the only entrance | Required table-first browsing clarified above; detailed interaction proposed |
-| Home | Operational cockpit showing real readiness and resumable work | Proposed |
-| First complete journey | Sign in as an explicitly authorized administrator, inspect sources, select a release, preflight, run admission, inspect durable output and receipt | Proposed |
+| Home | Task-led workspace with actual readiness and resumable work; operator cockpit when that is the selected task | Detailed defaults proposed |
+| First complete journey | Sign in, browse real data, retain/inspect locally; operate selected sources through exact plan and durable readback | Detailed slices in the build map |
 | Visual direction | Coherent readable blue identity; avoid both unreadable near-black surfaces and a glaring white canvas; exact tokens and visual mockups still required | Proposed, not a final palette |
-| Frontend framework | Select after reviewing data-grid, streaming, workbench, accessibility, deployment, and generated-client needs | Not selected |
+| Frontend framework | Select after reviewing data-grid, streaming, workbench, accessibility, deployment and generated-client needs | Not selected |
+| Native client target/storage | Qualified native/Wasm host plus versioned local record/index providers; separate durable owned data from replicas | Direct behavior required; exact first host/provider not selected |
 | Browser authentication | Server-managed OIDC code flow with PKCE and an HttpOnly session cookie | Proposed |
 | Identity-provider hosting | Standards-compliant issuer/broker with Microsoft and additional configured providers; no hand-written OAuth server | Vendor/deployment not selected |
 | Enrollment | Configurable open sign-in or invitation-only enrollment; first sign-in never implies administrator status | Default not approved |
 | Anonymous reads | Only explicitly public worlds/views; no operator credential for public browsing | Exposure policy not approved |
-| Workspace data | Private by default, explicit sharing, separately scoped administration | Proposed |
+| Workspace data | Private local authorship by default, explicit publication/sharing and separately scoped administration | User-owned local state required; detailed recovery/sync policy proposed |
 | Owner enrollment and recovery | Explicit installer-bound identity enrollment and audited recovery, never first-login-wins | Exact experience to review |
-| API compatibility | Versioned support matrix for Chat Completions, Responses, MCP, and additional families | Exact initial compatibility floor to approve |
-| Lifetime/retention/performance | Measurable proposed budgets in acceptance; token/session lifetime and retained-data schedules separately selected | Not approved |
+| API compatibility | Versioned support matrix for Chat Completions, Responses, MCP and additional families | Exact initial compatibility floor to approve |
+| Lifetime/retention/performance | Measurable proposed budgets in acceptance; token/session lifetime, local durability, resource and retained-data schedules separately selected | Not approved |
 
 ## Existing GitHub ownership, not another backlog
 
-The following owners already exist. Amend their local acceptance and cross-link this packet; do not duplicate their semantic work into a new epic.
+The following owners already exist. Amend their local acceptance and cross-link this packet; do not duplicate their semantic work into a new epic. Work packages W01-W11 in the build map make the implementation breakdown more granular without creating parallel owners.
 
-| Owner | Responsibility in this packet | Acceptance IDs |
+| Owner | Responsibility in this packet | Acceptance linkage |
 |---|---|---|
-| [#68](https://github.com/SaltyPatron/Laplace-Refactor/issues/68) | UI review coordination, shell, navigation, capability coverage, public surfaces | UX-01..08, INT-01..09, EVO-01..03; DBR cases assigned in the data-browser document |
-| [#64](https://github.com/SaltyPatron/Laplace-Refactor/issues/64) | Login, provider identity, claims, sessions, authority and isolation | AUTH-01..10, DATA-01..03; DBR-24 |
-| [#21](https://github.com/SaltyPatron/Laplace-Refactor/issues/21) | Application/control-plane management and operation-level sequencing | OPS-01..06 |
-| [#53](https://github.com/SaltyPatron/Laplace-Refactor/issues/53), [#195](https://github.com/SaltyPatron/Laplace-Refactor/issues/195) | Shared source admission and the configured estate; UI consumes those owners | ING-01..08; DBR-20 source-link coverage |
-| [#112](https://github.com/SaltyPatron/Laplace-Refactor/issues/112), [#115](https://github.com/SaltyPatron/Laplace-Refactor/issues/115) | Source discovery, qualification and recipe/profile review | ING-01..03 |
-| [#5](https://github.com/SaltyPatron/Laplace-Refactor/issues/5), [#10](https://github.com/SaltyPatron/Laplace-Refactor/issues/10), [#58](https://github.com/SaltyPatron/Laplace-Refactor/issues/58) | Generated contracts and the common lifecycle | INT-01..09, EVO-01..03; #268 owns public browse/query descriptor integration |
-| [#62](https://github.com/SaltyPatron/Laplace-Refactor/issues/62) | Entity worlds, audience-authorized materializations and user/data views | DATA-01..06 |
+| [#68](https://github.com/SaltyPatron/Laplace-Refactor/issues/68) | UI review, shell, reusable controls, task layouts, capability coverage and public surfaces | UX/DBR/EVO criteria; build-map W06-W10 |
+| [#268](https://github.com/SaltyPatron/Laplace-Refactor/issues/268) | Typed public descriptors, query/result orchestration and generated client integration | INT/DBR/EVO criteria; W01/W05/W11 |
+| [#64](https://github.com/SaltyPatron/Laplace-Refactor/issues/64) | Login, provider identity, scoped grants, protected state and local/remote disclosure | AUTH/DATA/DBR criteria; local ownership and offline policy in build map |
+| [#65](https://github.com/SaltyPatron/Laplace-Refactor/issues/65) | Content-addressed exchange, scoped changes/checkpoints, publication and convergence | W04; current knowledge and exact-state exchange, not frozen answer caching |
+| [#66](https://github.com/SaltyPatron/Laplace-Refactor/issues/66), [#67](https://github.com/SaltyPatron/Laplace-Refactor/issues/67) | Qualified native client targets, local storage/perfcache and execution placement | W02/W03/W11; same semantics and explicit actual execution host |
+| [#21](https://github.com/SaltyPatron/Laplace-Refactor/issues/21) | Application delivery and operation-level sequencing | OPS criteria; #264/#265/#266 specific operator consumers |
+| [#53](https://github.com/SaltyPatron/Laplace-Refactor/issues/53), [#195](https://github.com/SaltyPatron/Laplace-Refactor/issues/195) | Shared source admission and configured estate | ING criteria and DBR-20 bridge coverage |
+| [#112](https://github.com/SaltyPatron/Laplace-Refactor/issues/112), [#115](https://github.com/SaltyPatron/Laplace-Refactor/issues/115) | Source discovery, qualification and recipe/profile preparation | ING-01..03 |
+| [#5](https://github.com/SaltyPatron/Laplace-Refactor/issues/5), [#10](https://github.com/SaltyPatron/Laplace-Refactor/issues/10), [#58](https://github.com/SaltyPatron/Laplace-Refactor/issues/58) | Generated contracts and common recipe/provider lifecycle | Shared bindings and domain packages; no UI/managed semantic engine |
+| [#62](https://github.com/SaltyPatron/Laplace-Refactor/issues/62) | Entity worlds and audience-authorized materializations | DATA-01..06 |
 | [#145](https://github.com/SaltyPatron/Laplace-Refactor/issues/145) | Preflight/actual-cost and entitlement visibility | COST-01..03 |
-| [#172](https://github.com/SaltyPatron/Laplace-Refactor/issues/172), [#174](https://github.com/SaltyPatron/Laplace-Refactor/issues/174), [#176](https://github.com/SaltyPatron/Laplace-Refactor/issues/176) | Bounded panels, correct geometry, context-preserving inspection | UX-05..08, DATA-05 |
-| [#22](https://github.com/SaltyPatron/Laplace-Refactor/issues/22), [#54](https://github.com/SaltyPatron/Laplace-Refactor/issues/54) | Installed acceptance and change-sensitive evidence | QA-01..05 |
+| [#172](https://github.com/SaltyPatron/Laplace-Refactor/issues/172), [#174](https://github.com/SaltyPatron/Laplace-Refactor/issues/174), [#176](https://github.com/SaltyPatron/Laplace-Refactor/issues/176) | Bounded panels, typed geometry and context-preserving inspection | UX/DATA/DBR; W07 |
+| [#22](https://github.com/SaltyPatron/Laplace-Refactor/issues/22), [#54](https://github.com/SaltyPatron/Laplace-Refactor/issues/54) | Installed acceptance and change-sensitive evidence | QA criteria and actual user journeys in build map |
 
-Historical counterexamples remain evidence, not source templates: old Laplace [#1012](https://github.com/SaltyPatron/Laplace/issues/1012) (free-text tenant and missing account/operator controls), [#609](https://github.com/SaltyPatron/Laplace/issues/609) (one inspection plus retries saturating other views), and [#660](https://github.com/SaltyPatron/Laplace/issues/660) (missing structural document count). Preserve clean-room boundaries and avoid copying the old implementation.
+Historical counterexamples remain evidence, not source templates: old Laplace [#1012](https://github.com/SaltyPatron/Laplace/issues/1012) (free-text tenant and missing account/operator controls), [#609](https://github.com/SaltyPatron/Laplace/issues/609) (one inspection plus retries saturating other views), and [#660](https://github.com/SaltyPatron/Laplace/issues/660) (missing structural document count). The inventor-selected SpecEditor/CIEDigital mechanisms and liked rich views are positive design references as described in the packet. Preserve clean-room semantic ownership without discarding the user's requested behavior.
 
 Branch `docs/68-ui-admin-acceptance-review` is the explicit documentation/reconciliation vehicle for #68/#21. Its scope is this review packet and issue linkage, not application implementation. A draft PR is its route to main; merging documentation does not grant D4.
