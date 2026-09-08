@@ -172,6 +172,9 @@ if(BUILD_TESTING)
         LAPLACE_POSTGRES_TESTING=1)
     target_sources(laplace_pg PRIVATE tests/cognition_firmware_provider_pg.c)
 
+    if(NOT DEFINED LAPLACE_FRAMEWORK_EPOCH_FIRMWARE)
+        message(FATAL_ERROR "Firmware SQL context binding lacks its generated epoch slot")
+    endif()
     set(observation_cognition_contract_sql
         "${CMAKE_CURRENT_BINARY_DIR}/observation_cognition_contract.sql")
     configure_file(
