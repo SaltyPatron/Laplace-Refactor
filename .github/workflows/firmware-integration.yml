@@ -1,0 +1,29 @@
+name: firmware-integration
+on:
+  push:
+    branches: ['feat/firmware-request-execution']
+permissions:
+  contents: read
+jobs:
+  build-inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Acquire and retain only pinned public native build sources
+        run: |
+          set -euo pipefail
+          destination="$RUNNER_TEMP/firmware-build-inputs"
+          mkdir -p "$destination"
+          ./tools/dependencies/acquire-locked-git.sh dependencies/lock.json "$destination/dependencies" blake3 eigen googletest spectra tree-sitter
+          tar --exclude='.git/config' -C "$destination" -czf "$RUNNER_TEMP/firmware-build-inputs.tar.gz" dependencies
+          sha256sum "$RUNNER_TEMP/firmware-build-inputs.tar.gz"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: firmware-build-inputs
+          path: ${{ runner.temp }}/firmware-build-inputs.tar.gz
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 0
