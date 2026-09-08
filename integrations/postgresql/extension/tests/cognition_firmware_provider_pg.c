@@ -137,6 +137,7 @@ Datum laplace_pg_test_firmware_indexed(PG_FUNCTION_ARGS) {
     bytea* previous=PG_GETARG_BYTEA_PP(4);
     bytea* previous_id=PG_GETARG_BYTEA_PP(5);
     int64 workspace=PG_GETARG_INT64(6);
+    int32 transition_capacity=PG_GETARG_INT32(7);
     const uint8_t* image_bytes;size_t image_size;
     laplace_digest256 image_id;
     const uint8_t* output=NULL;size_t output_size=0;
@@ -144,7 +145,7 @@ Datum laplace_pg_test_firmware_indexed(PG_FUNCTION_ARGS) {
     StringInfoData result;
     owners->cleanup.func=release_owners;owners->cleanup.arg=owners;
     MemoryContextRegisterResetCallback(CurrentMemoryContext,&owners->cleanup);
-    if(VARSIZE_ANY_EXHDR(expected)!=32||workspace<0||
+    if(VARSIZE_ANY_EXHDR(expected)!=32||workspace<0||transition_capacity<=0||
         (VARSIZE_ANY_EXHDR(previous)!=0 && VARSIZE_ANY_EXHDR(previous_id)!=32))
         ereport(ERROR,(errmsg("invalid firmware integration fixture")));
     laplace_pg_read_execution_context(PG_GETARG_DATUM(0),&context);
@@ -180,6 +181,7 @@ Datum laplace_pg_test_firmware_indexed(PG_FUNCTION_ARGS) {
     }
     request.evidence_boundary=fixture_digest(0x40);request.result_contract_fingerprint=fixture_digest(0x41);
     request.search_budget=(laplace_query_search_budget){64,256,128,64,1048576,64,64,64,8,1,8,64};
+    request.search_budget.transition_batch_capacity=(uint32_t)transition_capacity;
     request.forward_limits=(laplace_cognition_observation_forward_limits){16,32,32,32,16,8192,128,128,4,4};
     request.materialization=(laplace_cognition_materialization_request){8,8,64,8,LAPLACE_COGNITION_MATERIALIZATION_VERSION};
     request.maximum_output_bytes=128u;request.maximum_checkpoint_bytes=4096u;

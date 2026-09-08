@@ -34,6 +34,7 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     laplace_cognition_prompt_admission_view input;
     laplace_cognition_observation_request scope;
     laplace_cognition_observation_candidate_provider_v1 provider;
+    laplace_cognition_observation_candidate_provider_v1 structural;
     laplace_pg_cognition_provider* owner = NULL;
     laplace_digest256 program_id;
     laplace_cognition_firmware_status status;
@@ -74,6 +75,15 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     if (laplace_cognition_prompt_admission_view_get(admission, &input) !=
         LAPLACE_COGNITION_PROMPT_ADMISSION_OK)
         return firmware_host_error(error, LAPLACE_COGNITION_FIRMWARE_ADMISSION_FAILURE, UINT32_MAX, 0u);
+    /* The native program also composes the admitted prompt structure. Reserve
+     * its advertised candidate bound before granting the remainder to storage;
+     * two providers cannot each claim the entire shared transition capacity. */
+    if (laplace_cognition_prompt_admission_structural_provider(admission, &structural) !=
+        LAPLACE_COGNITION_PROMPT_ADMISSION_OK)
+        return firmware_host_error(error, LAPLACE_COGNITION_FIRMWARE_ADMISSION_FAILURE, UINT32_MAX, 0u);
+    if (structural.maximum_candidate_records_per_expansion >=
+        request->search_budget.transition_batch_capacity)
+        return firmware_host_error(error, LAPLACE_COGNITION_FIRMWARE_LIMIT, UINT32_MAX, 0u);
     /* This descriptor scopes the physical reader. It does not execute or choose
      * a goal; each actual step request comes from the native firmware owner. */
     memset(&scope, 0, sizeof(scope));
@@ -86,6 +96,8 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     scope.authority_id = context->authority_fingerprint;
     scope.result_contract_fingerprint = request->result_contract_fingerprint;
     scope.search_budget = request->search_budget;
+    scope.search_budget.transition_batch_capacity -=
+        (uint32_t)structural.maximum_candidate_records_per_expansion;
     scope.forward_limits = request->forward_limits;
     scope.relation_mask = program->steps[0].relation_mask;
     scope.maximum_results = 1u;

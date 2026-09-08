@@ -506,6 +506,10 @@ static int persisted_enumerate_impl(
     state->trajectory_bytes = persisted_add(state->trajectory_bytes, encoded_bytes);
     usage->rows_examined = persisted_add(usage->rows_examined, rows);
     usage->database_operations = state->database_operations - before_operations;
+    if ((uint64_t)source_count > UINT64_MAX / state->request->search_budget.transition_batch_capacity ||
+        usage->rows_examined > (uint64_t)source_count * state->request->search_budget.transition_batch_capacity ||
+        (uint64_t)*count > (uint64_t)source_count * state->request->search_budget.transition_batch_capacity)
+        persisted_limit("selected candidates exceed the declared provider bound");
     laplace_observation_query_index_destroy(&state->index);
     return 0;
 }

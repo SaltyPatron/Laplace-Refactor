@@ -353,7 +353,7 @@ SELECT json_build_object('schema','laplace.indexed-persisted-cognition-proof/v1'
 -- as bytes. Only the admission/realization alphabet is a test fixture; search
 -- uses the same concrete PostgreSQL provider as the standalone route above.
 CREATE FUNCTION pg_temp.firmware_indexed(
-    laplace.execution_context, bytea, bytea, text, bytea, bytea, bigint)
+    laplace.execution_context, bytea, bytea, text, bytea, bytea, bigint, integer DEFAULT 64)
 RETURNS text AS 'laplace_pg', 'laplace_pg_test_firmware_indexed'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 CREATE FUNCTION pg_temp.firmware_context(selected bytea)
@@ -368,16 +368,23 @@ CREATE TEMP TABLE firmware_stored_programs AS SELECT
     decode(:'firmware_image','hex') AS image, decode(:'firmware_id','hex') AS id,
     decode(:'firmware_resume_image','hex') AS resume_image,
     decode(:'firmware_resume_id','hex') AS resume_id;
+CREATE TEMP TABLE firmware_changed_content AS SELECT
+    decode(:'changed_root','hex') AS entity_id,
+    decode(:'changed_root_witness','hex') AS identity_witness,
+    decode(:'changed_physicality','hex') AS physicality_id,
+    decode(:'changed_trajectory_fingerprint','hex') AS trajectory_fingerprint,
+    decode(:'changed_trajectory','hex') AS trajectory;
 CREATE TEMP TABLE firmware_first_result AS SELECT
     pg_temp.firmware_indexed(pg_temp.firmware_context(id),image,id,'C',''::bytea,''::bytea,1048576)::jsonb AS result
     FROM firmware_stored_programs;
 DO $firmware$
 DECLARE p firmware_stored_programs%ROWTYPE; first jsonb; again jsonb; resumed jsonb; missing jsonb;
+        changed laplace.physicality%ROWTYPE; alternative firmware_changed_content%ROWTYPE;
 BEGIN
     SELECT * INTO STRICT p FROM firmware_stored_programs;
     SELECT result INTO STRICT first FROM firmware_first_result;
     RAISE NOTICE 'actual stored-provider firmware result: %',first;
-    IF first->>'status' <> '0' OR first->>'output_hex' <> '41' OR
+    IF first->>'status' <> '0' OR first->>'output_hex' <> '41' OR first->>'completed_steps'<>'3' OR
        (first->>'database_operations')::integer <= 0 OR
        (first->>'rows_fetched')::integer <= 0 THEN
         RAISE EXCEPTION 'firmware did not execute persisted predecessor evidence: %',first;
@@ -391,10 +398,39 @@ BEGIN
        resumed->>'completed_steps' <> '3' OR resumed->>'checkpoint_id'=first->>'checkpoint_id' THEN
         RAISE EXCEPTION 'firmware did not restore and use retained result registers: %',resumed;
     END IF;
+    -- Change only the stored source composition, not firmware, prompt or expected
+    -- goal. The alternative physicality was independently encoded by the native
+    -- probe. Restore the original database state through subtransaction rollback.
+    BEGIN
+        SELECT * INTO STRICT changed FROM laplace.physicality WHERE physicality_id=
+            (SELECT (physicalities[1]).physicality_id FROM observation_cognition_fixture);
+        SELECT * INTO STRICT alternative FROM firmware_changed_content;
+        DELETE FROM laplace.physicality WHERE physicality_id=changed.physicality_id;
+        INSERT INTO laplace.entity VALUES (alternative.entity_id,alternative.identity_witness);
+        changed.entity_id := alternative.entity_id;
+        changed.physicality_id := alternative.physicality_id;
+        changed.trajectory_fingerprint := alternative.trajectory_fingerprint;
+        changed.trajectory := alternative.trajectory;
+        INSERT INTO laplace.physicality SELECT changed.*;
+        missing := pg_temp.firmware_indexed(pg_temp.firmware_context(p.id),p.image,p.id,
+            'C',''::bytea,''::bytea,1048576)::jsonb;
+        IF missing->>'status'<>'0' OR missing->>'output_hex'<>'42' OR
+           missing->>'receipt_id'=first->>'receipt_id' THEN
+            RAISE EXCEPTION 'firmware ignored changed persisted source structure: %',missing;
+        END IF;
+        RAISE NOTICE 'same firmware and prompt, changed persisted composition: output=%',missing->>'output_hex';
+        RAISE SQLSTATE 'ZFW02' USING MESSAGE='rollback changed-source execution';
+    EXCEPTION WHEN SQLSTATE 'ZFW02' THEN NULL;
+    END;
     missing := pg_temp.firmware_indexed(pg_temp.firmware_context(p.id),p.image,p.id,
         'C',''::bytea,''::bytea,16777216)::jsonb;
     IF missing->>'status'<>'13' OR missing->>'database_operations'<>'0' OR missing->>'output_hex'<>'' THEN
         RAISE EXCEPTION 'firmware exceeded its whole-request provider memory grant: %',missing;
+    END IF;
+    missing := pg_temp.firmware_indexed(pg_temp.firmware_context(p.id),p.image,p.id,
+        'C',''::bytea,''::bytea,1048576,1)::jsonb;
+    IF missing->>'status'<>'13' OR missing->>'database_operations'<>'0' OR missing->>'output_hex'<>'' THEN
+        RAISE EXCEPTION 'firmware granted the same transition slot twice: %',missing;
     END IF;
     BEGIN
         DELETE FROM laplace.physicality WHERE physicality_id=
