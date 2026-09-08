@@ -3,88 +3,37 @@ on:
   push:
     branches: ['feat/firmware-request-execution']
 permissions:
-  contents: read
+  contents: write
 jobs:
-  integrate:
+  finalize:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    outputs:
-      source_sha: ${{ steps.source.outputs.sha }}
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Verify and apply the reviewed provider composition changes
+      - name: Replace the obsolete pending checkpoint with executed acceptance
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import base64,hashlib,os,subprocess,zlib
           from pathlib import Path
-          encoded=Path('.github/firmware-provider-transfer/fix.b64').read_bytes()
-          assert hashlib.sha1(b'blob '+str(len(encoded)).encode()+b'\0'+encoded).hexdigest()=='d1f02dc0824ceac153b6531edb47e062be610cce'
-          assert encoded.count(b'I7LXDroHbIt98')==1
-          encoded=encoded.replace(b'I7LXDroHbIt98',b'I7LXDroIt98')
-          assert hashlib.sha1(b'blob '+str(len(encoded)).encode()+b'\0'+encoded).hexdigest()=='94496332afefbb29b4db4caa23bc0c411167f1ef'
-          patch=zlib.decompress(base64.b64decode(encoded,validate=True))
-          assert hashlib.sha256(patch).hexdigest()=='7940d4a59a7b33377420d09c942574682321ba83c970f928c30fc4875c5e19e1'
-          path=Path(os.environ['RUNNER_TEMP'])/'provider-composition.patch';path.write_bytes(patch)
-          subprocess.run(['git','apply','--check',str(path)],check=True)
-          subprocess.run(['git','apply','--index',str(path)],check=True)
-          expected={'integrations/postgresql/extension/src/cognition_firmware_pg.c':'cf3d7ebc953e3a82f142be493d7e2c5f98872a01','integrations/postgresql/extension/src/observation_cognition_persisted_pg.c':'26fd379aa00edac73224152992d807c5aff3a94f','integrations/postgresql/extension/tests/cognition_firmware_provider_pg.c':'66bd7b8dfea537836b24b77c69784f7378485d85','integrations/postgresql/extension/tests/observation_cognition_contract.sql.in':'57ddb371eb7e95d9f64fbc8b9e299434d3b9e416','integrations/postgresql/extension/tests/observation_cognition_probe.cpp':'868cf672078f9a09b422f6bc98d2af2c85be0b5c'}
-          for path,wanted in expected.items():
-              assert subprocess.check_output(['git','hash-object',path],text=True).strip()==wanted,path
+          import hashlib,json
+          p=Path('state/continuation.json')
+          source=p.read_bytes()
+          assert hashlib.sha1(b'blob '+str(len(source)).encode()+b'\0'+source).hexdigest()=='400543e8e957f16ad1f59c5445aa5b9096524d05'
+          old='Local native build, 95 tests and requirements passed. Actual PostgreSQL compilation, shared-provider parity and stored-firmware replay/missing-data/corruption acceptance are submitted next.'
+          new='Source edcc46a1255eadd3c5ec8a31dfa6f666bee061be passed actual PostgreSQL/native run 34187301079 on hart-server: 95 native tests, indexed-provider parity, the same stored firmware and prompt producing A or B from changed persisted compositions, exact replay, checkpoint restoration, and missing-data/corruption/joint-capacity rejection. Artifact 10040962245 retains generated SQL and complete logs. Ordinary full native/sanitizer/requirements checks on the finalized source remain required; this was disposable PostgreSQL acceptance, not production deployment. This supersedes the pending concrete-candidate-provider status below, not the remaining admission, semantic evidence, realization, publication and public-request obligations.'
+          text=source.decode('utf-8')
+          assert text.count(old)==1
+          output=text.replace(old,new).encode('utf-8')
+          assert hashlib.sha1(b'blob '+str(len(output)).encode()+b'\0'+output).hexdigest()=='2c40eefd60631d3cf9792778795e36310a1197d2'
+          json.loads(output)
+          p.write_bytes(output)
           PY
           ./tools/tests/verify-requirements.sh
-          git diff --cached --check
-      - name: Publish source on the same integration branch
-        id: source
+          git diff --check
+      - name: Publish only the verified checkpoint
         run: |
           set -euo pipefail
-          git rm -r .github/firmware-provider-transfer
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Conserve candidate capacity across prompt and persisted firmware providers'
+          test "$GITHUB_REF" = refs/heads/feat/firmware-request-execution
+          git add state/continuation.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Record the executed PostgreSQL firmware-provider boundary and remaining public integration'
           git push origin HEAD:refs/heads/feat/firmware-request-execution
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-  postgresql:
-    needs: integrate
-    runs-on: [self-hosted, Linux, X64, laplace-refactor, postgres-18]
-    timeout-minutes: 30
-    concurrency:
-      group: laplace-physical-product-proof
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.integrate.outputs.source_sha }}
-          persist-credentials: false
-      - name: Execute stored programs and changed-data acceptance in PostgreSQL
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(id -un)" = laplace-runner
-          build="$RUNNER_TEMP/laplace-firmware-provider-$GITHUB_RUN_ID"
-          inputs="$RUNNER_TEMP/laplace-firmware-provider-inputs-$GITHUB_RUN_ID"
-          mkdir -p "$build"
-          ./tools/dependencies/acquire-locked-git.sh dependencies/lock.json "$inputs" blake3 eigen googletest spectra tree-sitter
-          cmake -S . -B "$build" -G Ninja \
-            -DPython3_EXECUTABLE=/usr/bin/python3 -DCMAKE_BUILD_TYPE=Debug \
-            -DLAPLACE_PG_CONFIG=/opt/laplace/current/pgsql-18/bin/pg_config \
-            -DLAPLACE_BLAKE3_SOURCE="$inputs/blake3/c" -DLAPLACE_GTEST_SOURCE="$inputs/googletest" \
-            -DLAPLACE_EIGEN_SOURCE="$inputs/eigen" -DLAPLACE_SPECTRA_SOURCE="$inputs/spectra" \
-            -DLAPLACE_TREE_SITTER_SOURCE="$inputs/tree-sitter" 2>&1 | tee "$build/configure.log"
-          cmake --build "$build" --parallel 4 --target laplace_pg \
-            laplace_postgres_observation_cognition_probe laplace_observation_query_tests \
-            2>&1 | tee "$build/build.log"
-          "$build/laplace_observation_query_tests" 2>&1 | tee "$build/native-tests.log"
-          ctest --test-dir "$build" -R '^postgres.observation-cognition-native-parity$' \
-            --output-on-failure --no-tests=error 2>&1 | tee "$build/postgresql-tests.log"
-      - name: Retain exact database and build evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: firmware-provider-postgresql-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/laplace-firmware-provider-${{ github.run_id }}/*.log
-            ${{ runner.temp }}/laplace-firmware-provider-${{ github.run_id }}/Testing/Temporary/LastTest.log
-            ${{ runner.temp }}/laplace-firmware-provider-${{ github.run_id }}/integrations/postgresql/extension/observation_cognition_contract.sql
-          if-no-files-found: error
-          retention-days: 7
