@@ -18,11 +18,16 @@ The current discussion supplies these direct instructions:
 
 These establish: design and review before implementation; repository documentation and GitHub tracking now; a UI developed alongside the application; common authenticated UI/API/MCP/OpenAI-compatible access; and an admin-first review of seed ingestion, application management, and user/data control. They do not select a frontend framework, identity-hosting vendor, exact visual palette, or production permission policy.
 
+### Granular data-browser correction
+
+The subsequent direct request requires starting from Entity/other data collections, selecting top-N with filters/sorting, clicking master-list records and inspecting their interconnected data through reusable controls. This is first-class **product exploration**, not an admin-only test/receipt dashboard. The detailed [entity-first data browser and source-link contract](DATA_BROWSER_AND_SOURCE_LINKS.md) defines raw versus enriched views, actual schema distinctions, master-detail navigation, reusable inspectors, Unicode/physicality/trajectory readback, source-release mappings, unresolved connections and local DBR-01..30 acceptance cases. It accounts for the supplied `/vault/Data` and `.refresh-20260903` listing without claiming those directories have been admitted to the database. The requested feature is required; specific layout and mechanism proposals remain reviewable.
+
 ## Read this packet in order
 
 1. [Screen contracts](SCREEN_CONTRACTS.md): navigation, layouts, user journeys, fields, actions, and error/recovery states.
-2. [Authentication and transports](AUTH_AND_TRANSPORTS.md): identity/claims, authorization, proposed endpoints, protocol profiles, and developer experience.
-3. [Acceptance matrix](ACCEPTANCE.md): stable review IDs, positive scenarios, deliberate failures, evidence, and release boundaries.
+2. [Entity-first data browser and cross-source inspection](DATA_BROWSER_AND_SOURCE_LINKS.md): filter/sort/top-N, clickable records, shared detail controls and the source-to-substrate connection map.
+3. [Authentication and transports](AUTH_AND_TRANSPORTS.md): identity/claims, authorization, proposed endpoints, protocol profiles, and developer experience.
+4. [Acceptance matrix](ACCEPTANCE.md): stable review IDs, positive scenarios, deliberate failures, evidence, and release boundaries. The data-browser document's DBR IDs refine these existing criteria; they are not additional passed tests.
 
 The existing [Constitution](../CONSTITUTION.md), [architecture boundaries](../../architecture/BOUNDARIES.md), [complete capability map](../LAPLACE_COMPLETE_CAPABILITY_AND_FLOW_MAP.md), and [authority stack](../../../contracts/authority-stack.json) remain governing context. This draft does not create another semantic engine or replace their accepted requirements.
 
@@ -30,7 +35,7 @@ The existing [Constitution](../CONSTITUTION.md), [architecture boundaries](../..
 
 At the inspected baseline, `managed/Laplace.Managed` contains ABI and native transport bindings, not a managed web application. The README names an `orchestrator/` product-service area that is not present at that baseline. These are repository observations, not an assertion about every historical branch or a live server that was not inspected.
 
-There is also a sequencing inconsistency: issue #21 lists all operational engine stages as dependencies, while #23 explicitly says phase order is not permission to defer useful vertical progress until Phase 8. Complete-product closure needs the complete engine; designing and delivering an authenticated administrator journey should depend on that journey's actual operations, not unrelated future capabilities. The issue refinement must preserve this distinction.
+The initial inspection also found a sequencing inconsistency: issue #21 listed all operational engine stages as dependencies, while #23 explicitly said phase order is not permission to defer useful vertical progress until Phase 8. The review's #21 refinement now distinguishes complete-product closure from individual workflow prerequisites. Complete-product closure needs the complete engine; designing and delivering an authenticated administrator journey depends on that journey's actual operations, not unrelated future capabilities.
 
 ## One product, not a dashboard beside Laplace
 
@@ -58,7 +63,7 @@ Current status: D0-D3 are proposed review material; D4 is **not granted**. Do no
 
 | Decision | Proposed starting point | Status |
 |---|---|---|
-| Primary interaction | Browse, inspect, act; search is an accelerator, not the only entrance | Proposed |
+| Primary interaction | Browse, inspect, act; search is an accelerator, not the only entrance | Required table-first browsing clarified above; detailed interaction proposed |
 | Home | Operational cockpit showing real readiness and resumable work | Proposed |
 | First complete journey | Sign in as an explicitly authorized administrator, inspect sources, select a release, preflight, run admission, inspect durable output and receipt | Proposed |
 | Visual direction | Coherent readable blue identity; avoid both unreadable near-black surfaces and a glaring white canvas; exact tokens and visual mockups still required | Proposed, not a final palette |
@@ -78,12 +83,12 @@ The following owners already exist. Amend their local acceptance and cross-link 
 
 | Owner | Responsibility in this packet | Acceptance IDs |
 |---|---|---|
-| [#68](https://github.com/SaltyPatron/Laplace-Refactor/issues/68) | UI review coordination, shell, navigation, capability coverage, public surfaces | UX-01..08, INT-01..09, EVO-01..03 |
-| [#64](https://github.com/SaltyPatron/Laplace-Refactor/issues/64) | Login, provider identity, claims, sessions, authority and isolation | AUTH-01..10, DATA-01..03 |
+| [#68](https://github.com/SaltyPatron/Laplace-Refactor/issues/68) | UI review coordination, shell, navigation, capability coverage, public surfaces | UX-01..08, INT-01..09, EVO-01..03; DBR cases assigned in the data-browser document |
+| [#64](https://github.com/SaltyPatron/Laplace-Refactor/issues/64) | Login, provider identity, claims, sessions, authority and isolation | AUTH-01..10, DATA-01..03; DBR-24 |
 | [#21](https://github.com/SaltyPatron/Laplace-Refactor/issues/21) | Application/control-plane management and operation-level sequencing | OPS-01..06 |
-| [#53](https://github.com/SaltyPatron/Laplace-Refactor/issues/53), [#195](https://github.com/SaltyPatron/Laplace-Refactor/issues/195) | Shared source admission and the configured estate; UI consumes those owners | ING-01..08 |
+| [#53](https://github.com/SaltyPatron/Laplace-Refactor/issues/53), [#195](https://github.com/SaltyPatron/Laplace-Refactor/issues/195) | Shared source admission and the configured estate; UI consumes those owners | ING-01..08; DBR-20 source-link coverage |
 | [#112](https://github.com/SaltyPatron/Laplace-Refactor/issues/112), [#115](https://github.com/SaltyPatron/Laplace-Refactor/issues/115) | Source discovery, qualification and recipe/profile review | ING-01..03 |
-| [#5](https://github.com/SaltyPatron/Laplace-Refactor/issues/5), [#10](https://github.com/SaltyPatron/Laplace-Refactor/issues/10), [#58](https://github.com/SaltyPatron/Laplace-Refactor/issues/58) | Generated contracts and the common lifecycle | INT-01..09, EVO-01..03 |
+| [#5](https://github.com/SaltyPatron/Laplace-Refactor/issues/5), [#10](https://github.com/SaltyPatron/Laplace-Refactor/issues/10), [#58](https://github.com/SaltyPatron/Laplace-Refactor/issues/58) | Generated contracts and the common lifecycle | INT-01..09, EVO-01..03; #268 owns public browse/query descriptor integration |
 | [#62](https://github.com/SaltyPatron/Laplace-Refactor/issues/62) | Entity worlds, audience-authorized materializations and user/data views | DATA-01..06 |
 | [#145](https://github.com/SaltyPatron/Laplace-Refactor/issues/145) | Preflight/actual-cost and entitlement visibility | COST-01..03 |
 | [#172](https://github.com/SaltyPatron/Laplace-Refactor/issues/172), [#174](https://github.com/SaltyPatron/Laplace-Refactor/issues/174), [#176](https://github.com/SaltyPatron/Laplace-Refactor/issues/176) | Bounded panels, correct geometry, context-preserving inspection | UX-05..08, DATA-05 |
