@@ -66,14 +66,24 @@ laplace_observation_query_index_candidates_batch(
             CandidateSpan generated{generated_storage.get(), 0U};
             std::uint64_t examined = 0U, plans = 0U;
             bool limited = false;
-            if (!GenerateCandidates(*index, *binding, source_entity_ids[source_index],
-                                    &generated, &examined, &plans, &limited,
-                                    candidate_capacity - staged_count)) {
+            const bool valid = GenerateCandidates(
+                *index, *binding, source_entity_ids[source_index],
+                &generated, &examined, &plans, &limited,
+                candidate_capacity - staged_count);
+            if (!Add(measured.rows_examined, examined, &measured.rows_examined) ||
+                !Add(measured.index_plan_count, plans, &measured.index_plan_count)) {
+                *usage = measured;
+                usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+                return LAPLACE_OBSERVATION_QUERY_OVERFLOW;
+            }
+            if (!valid) {
+                *usage = measured;
                 return LAPLACE_OBSERVATION_QUERY_TRAJECTORY_INVALID;
             }
-            if (limited || generated.size() > candidate_capacity - staged_count ||
-                !Add(measured.rows_examined, examined, &measured.rows_examined) ||
-                !Add(measured.index_plan_count, plans, &measured.index_plan_count)) {
+            if (limited || generated.size() > candidate_capacity - staged_count) {
+                // Output is atomic, physical work is not erased on exhaustion.
+                *usage = measured;
+                usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
                 return LAPLACE_OBSERVATION_QUERY_OVERFLOW;
             }
             for (const auto& item : generated) {
