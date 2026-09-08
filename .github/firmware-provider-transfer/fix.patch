@@ -1,0 +1,24 @@
+diff --git a/cmake/LaplaceFrameworkContract.cmake b/cmake/LaplaceFrameworkContract.cmake
+--- a/cmake/LaplaceFrameworkContract.cmake
++++ b/cmake/LaplaceFrameworkContract.cmake
+@@ -266,6 +266,7 @@
+     set(LAPLACE_FRAMEWORK_MINOR "${minor}" PARENT_SCOPE)
+     set(LAPLACE_FRAMEWORK_CONTEXT_BOOTSTRAP "${context_bootstrap}" PARENT_SCOPE)
+     set(LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY "${context_read_only}" PARENT_SCOPE)
++    set(LAPLACE_FRAMEWORK_EPOCH_FIRMWARE "${epoch_firmware}" PARENT_SCOPE)
+     get_filename_component(output_directory "${output_path}" DIRECTORY)
+     file(MAKE_DIRECTORY "${output_directory}")
+     configure_file(
+diff --git a/integrations/postgresql/extension/CMakeLists.txt b/integrations/postgresql/extension/CMakeLists.txt
+--- a/integrations/postgresql/extension/CMakeLists.txt
++++ b/integrations/postgresql/extension/CMakeLists.txt
+@@ -172,6 +172,9 @@
+         LAPLACE_POSTGRES_TESTING=1)
+     target_sources(laplace_pg PRIVATE tests/cognition_firmware_provider_pg.c)
+ 
++    if(NOT DEFINED LAPLACE_FRAMEWORK_EPOCH_FIRMWARE)
++        message(FATAL_ERROR "Firmware SQL context binding lacks its generated epoch slot")
++    endif()
+     set(observation_cognition_contract_sql
+         "${CMAKE_CURRENT_BINARY_DIR}/observation_cognition_contract.sql")
+     configure_file(

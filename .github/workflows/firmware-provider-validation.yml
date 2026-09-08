@@ -14,48 +14,22 @@ jobs:
       source_sha: ${{ steps.source.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Apply exact reviewed implementation and check source identities
+      - name: Apply exact generated-binding repair
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import base64,hashlib,os,subprocess,zlib
-          from pathlib import Path
-          encoded=b''.join(Path(f'.github/firmware-provider-transfer/part{i}').read_bytes() for i in range(3))
-          patch=zlib.decompress(base64.b64decode(encoded,validate=True))
-          if hashlib.sha256(patch).hexdigest()!='d79be9b98156cf76e7e61146b3af75111af8c9e3af9b69cb98313eb283bbdab9':
-              raise SystemExit('source patch digest mismatch')
-          path=Path(os.environ['RUNNER_TEMP'])/'firmware-provider.patch'
-          path.write_bytes(patch)
-          subprocess.run(['git','apply','--check',str(path)],check=True)
-          subprocess.run(['git','apply','--index',str(path)],check=True)
-          expected={
-              'engine/include/laplace/cognition_firmware.h':'f0ededdfbb0314d3a5ffa09cbf8015737c69d079',
-              'engine/src/cognition_firmware.cpp':'8f16c3cd4fdf93109a1c5abce4a4cf193ef39fdf',
-              'integrations/postgresql/extension/CMakeLists.txt':'dfee51630f13a4913ab307c42e5bdadbe58f5556',
-              'integrations/postgresql/extension/src/cognition_firmware_pg.c':'d501fdbfc679140269a8313600fb13dcd57faa85',
-              'integrations/postgresql/extension/src/cognition_firmware_pg.h':'3701da6e41df6455abc241165e9a889c1c38a716',
-              'integrations/postgresql/extension/src/cognition_provider_pg.h':'a174c9a88bc9ff38565c6e0796a60279b9ba795f',
-              'integrations/postgresql/extension/src/observation_cognition_persisted_pg.c':'d7908fac04564d8b2a950fcd66e4d372637a9374',
-              'integrations/postgresql/extension/tests/cognition_firmware_provider_pg.c':'a3983e02b154ca4a016b8fa9f564df2fcb29a946',
-              'integrations/postgresql/extension/tests/observation_cognition_contract.sql.in':'b9aeefca2cab19b2489c7241ff716e9fb9a5c517',
-              'integrations/postgresql/extension/tests/observation_cognition_probe.cpp':'52ce27cb82dda28a91b75b13c07bcb421397c27e',
-              'state/continuation.json':'400543e8e957f16ad1f59c5445aa5b9096524d05',
-              'tests/cognition_firmware_tests.cpp':'e98d6444bbeed7466683b4f60a7c67dd40a9dceb',
-              'tests/registry.d/cognition-firmware.json':'0e6f1aad393ad658229b1efbb04bdfd713a37042'}
-          for path,wanted in expected.items():
-              actual=subprocess.check_output(['git','hash-object',path],text=True).strip()
-              if actual!=wanted:raise SystemExit(f'{path}: {actual} != {wanted}')
-          print('All 13 implementation/test files match locally tested source')
-          PY
+          git apply --check .github/firmware-provider-transfer/fix.patch
+          git apply --index .github/firmware-provider-transfer/fix.patch
+          test "$(git hash-object cmake/LaplaceFrameworkContract.cmake)" = 6880b44bec788469a42ae0b2debca57ee15166e2
+          test "$(git hash-object integrations/postgresql/extension/CMakeLists.txt)" = aa07e58a35b04542983bcdf86934566a0dd60815
           ./tools/tests/verify-requirements.sh
           git diff --cached --check
-      - name: Publish implementation on the same integration branch
+      - name: Publish source on the same integration branch
         id: source
         run: |
           set -euo pipefail
           git rm -r .github/firmware-provider-transfer
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Connect firmware to the shared concrete PostgreSQL candidate provider'
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Bind PostgreSQL firmware context to the generated native epoch slot'
           git push origin HEAD:refs/heads/feat/firmware-request-execution
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   postgresql:
@@ -70,7 +44,7 @@ jobs:
         with:
           ref: ${{ needs.integrate.outputs.source_sha }}
           persist-credentials: false
-      - name: Compile firmware and execute against disposable PostgreSQL persisted state
+      - name: Compile and execute firmware against real disposable PostgreSQL
         shell: bash
         run: |
           set -euo pipefail
@@ -82,18 +56,16 @@ jobs:
           cmake -S . -B "$build" -G Ninja \
             -DPython3_EXECUTABLE=/usr/bin/python3 -DCMAKE_BUILD_TYPE=Debug \
             -DLAPLACE_PG_CONFIG=/opt/laplace/current/pgsql-18/bin/pg_config \
-            -DLAPLACE_BLAKE3_SOURCE="$inputs/blake3/c" \
-            -DLAPLACE_GTEST_SOURCE="$inputs/googletest" \
-            -DLAPLACE_EIGEN_SOURCE="$inputs/eigen" \
-            -DLAPLACE_SPECTRA_SOURCE="$inputs/spectra" \
+            -DLAPLACE_BLAKE3_SOURCE="$inputs/blake3/c" -DLAPLACE_GTEST_SOURCE="$inputs/googletest" \
+            -DLAPLACE_EIGEN_SOURCE="$inputs/eigen" -DLAPLACE_SPECTRA_SOURCE="$inputs/spectra" \
             -DLAPLACE_TREE_SITTER_SOURCE="$inputs/tree-sitter" 2>&1 | tee "$build/configure.log"
-          cmake --build "$build" --parallel 4 --target \
-            laplace_pg laplace_postgres_observation_cognition_probe laplace_observation_query_tests \
+          cmake --build "$build" --parallel 4 --target laplace_pg \
+            laplace_postgres_observation_cognition_probe laplace_observation_query_tests \
             2>&1 | tee "$build/build.log"
           "$build/laplace_observation_query_tests" 2>&1 | tee "$build/native-tests.log"
           ctest --test-dir "$build" -R '^postgres.observation-cognition-native-parity$' \
             --output-on-failure --no-tests=error 2>&1 | tee "$build/postgresql-tests.log"
-      - name: Retain compilation and actual database-execution evidence
+      - name: Retain exact database and build evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -101,5 +73,6 @@ jobs:
           path: |
             ${{ runner.temp }}/laplace-firmware-provider-${{ github.run_id }}/*.log
             ${{ runner.temp }}/laplace-firmware-provider-${{ github.run_id }}/Testing/Temporary/LastTest.log
+            ${{ runner.temp }}/laplace-firmware-provider-${{ github.run_id }}/integrations/postgresql/extension/observation_cognition_contract.sql
           if-no-files-found: error
           retention-days: 7
