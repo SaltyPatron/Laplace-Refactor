@@ -4,6 +4,14 @@ Status: **DRAFT FOR INVENTOR REVIEW — NOT APPROVED FOR IMPLEMENTATION**. Discu
 
 This packet records the requested design work. It does not implement an application, configure an identity provider, activate an endpoint, certify a capability, or authorize deployment. No proposed layout, role name, protocol profile, numeric target, or technology choice becomes inventor-approved merely by appearing here.
 
+## Research-backed HOW — 2026-09-08
+
+[INFRASTRUCTURE_FOUNDATION.md](INFRASTRUCTURE_FOUNDATION.md) supplies the researched implementation profile: current stable release choices, native/presentation boundaries, process and trust layout, product-versus-control persistence, BFF/SSO, proxy and protocol behavior, exact wire contracts, native browser execution, local transactions, journal ordering, resource pools, backups, updates, security and observability. Its primary-source ledger distinguishes upstream facts from Laplace recommendations and records failed lookups and remaining qualification.
+
+[INFRASTRUCTURE_DECISIONS.json](INFRASTRUCTURE_DECISIONS.json) gives IF-01..IF-20 recommendations, existing issue owners, rejected shortcuts, F01..F08 implementation-specification packets and explicit outstanding decisions. It is a review register, **not a dependency lock, runtime configuration, approved policy or executed test**.
+
+Recommended profiles now include React/TypeScript/Vite, .NET 10 LTS, the existing PostgreSQL 18.6 product package, a separately operated control PostgreSQL cluster, Keycloak, Caddy, native/Wasm worker execution, and IndexedDB/OPFS under separate ownership/publication rules. They remain recommendations pending review; exact artifact and compatibility locks are not invented. Existing requirements and the native engine are not replaced. No new application stack is required on every personal device.
+
 ## Start here: consolidated native workspace build map
 
 [NATIVE_WORKSPACE_BUILD_MAP.md](NATIVE_WORKSPACE_BUILD_MAP.md) combines the discussion into an implementation-oriented breakdown: shared contracts; runtime services; reusable controls and arguments; native client/server placement; targeted ID/dependency exchange; durable user-owned local data versus replicas and perfcaches; changing knowledge; domain-package integration; and granular work packages under existing GitHub owners.
@@ -24,7 +32,7 @@ The current discussion supplies these direct instructions:
 
 > Why does Laplace-Refactor not have a UI that grows and implements with the app itself?
 
-> We can set up a UI, api endpoints, the mcp, openai compatable endpoint, etc all with auth that lets anyone with a microsoft or even any SSO account log in and give us JWT/claims/etc so we can start fleshing everything out, starting with the admin panel for ingestions of seed sources, app management, user/data/etc control, etc...
+> We can set up a UI, api endpoints, the mcp, openai compatable endpoint, etc all with auth that lets anyone with a microsoft or even any SSO account log in and give us JWT/claims/etc so we can start fleshing everything out, starting with the admin panel for ingestions of seed sources, app management, and user/data control, etc...
 
 > We're gonna flesh out the UI and acceptance criteria before you dive in so you have ZERO excuse
 
@@ -46,6 +54,7 @@ The subsequent direct request requires starting from Entity/other data collectio
 6. [Authentication and transports](AUTH_AND_TRANSPORTS.md): identity/claims, authorization, proposed endpoints, protocol profiles and developer experience.
 7. [Operator recovery and observability](../OPERATOR_RECOVERY_AND_OBSERVABILITY_REVIEW.md): database-independent administration, exact recreation/seed/restore, durable work, logs and alerts; [focused case specifications](../OPERATOR_RECOVERY_REVIEW_CASES.json).
 8. [Acceptance matrix](ACCEPTANCE.md) and [earlier issue traceability](ISSUE_TRACEABILITY.md): stable review IDs, deliberate failures, evidence and release boundaries. The other documents refine these existing criteria, not add passed tests or independent completion scores.
+9. [Researched infrastructure foundation](INFRASTRUCTURE_FOUNDATION.md) and [decision register](INFRASTRUCTURE_DECISIONS.json): current technology recommendations, concrete integration/failure boundaries, source ledger and remaining HOW decisions. [Interface issue map](INTERFACE_ISSUE_MAP.md) links all granular owners.
 
 The existing [Constitution](../CONSTITUTION.md), [architecture boundaries](../../architecture/BOUNDARIES.md), [complete capability map](../LAPLACE_COMPLETE_CAPABILITY_AND_FLOW_MAP.md), and [authority stack](../../../contracts/authority-stack.json) remain governing context. This draft does not create another semantic engine or replace their accepted requirements.
 
@@ -85,15 +94,15 @@ Current status: D0-D3 are proposed review material; D4 is **not granted**. Do no
 | Home | Task-led workspace with actual readiness and resumable work; operator cockpit when that is the selected task | Detailed defaults proposed |
 | First complete journey | Sign in, browse real data, retain/inspect locally; operate selected sources through exact plan and durable readback | Detailed slices in the build map |
 | Visual direction | Coherent readable blue identity; avoid both unreadable near-black surfaces and a glaring white canvas; exact tokens and visual mockups still required | Proposed, not a final palette |
-| Frontend framework | Select after reviewing data-grid, streaming, workbench, accessibility, deployment and generated-client needs | Not selected |
-| Native client target/storage | Qualified native/Wasm host plus versioned local record/index providers; separate durable owned data from replicas | Direct behavior required; exact first host/provider not selected |
-| Browser authentication | Server-managed OIDC code flow with PKCE and an HttpOnly session cookie | Proposed |
-| Identity-provider hosting | Standards-compliant issuer/broker with Microsoft and additional configured providers; no hand-written OAuth server | Vendor/deployment not selected |
+| Frontend framework | React/TypeScript/Vite static client, Aria primitives and Table9 native-result adapter (IF-02/03) | Researched recommendation; not approved or artifact-locked |
+| Native client target/storage | Qualified native/Wasm worker; IndexedDB transactional ownership and initially derived/recoverable OPFS packs (IF-11/12/13) | Direct behavior required; proposed provider profile not yet qualified |
+| Browser authentication | Server-managed OIDC code flow with PKCE and an HttpOnly session cookie | Proposed; researched BFF/key integration in IF-07 |
+| Identity-provider hosting | Keycloak proposed broker with configured Microsoft and other OIDC/SAML providers (IF-06) | Recommended, not approved; experimental CIMD client support remains explicit qualification |
 | Enrollment | Configurable open sign-in or invitation-only enrollment; first sign-in never implies administrator status | Default not approved |
 | Anonymous reads | Only explicitly public worlds/views; no operator credential for public browsing | Exposure policy not approved |
 | Workspace data | Private local authorship by default, explicit publication/sharing and separately scoped administration | User-owned local state required; detailed recovery/sync policy proposed |
-| Owner enrollment and recovery | Explicit installer-bound identity enrollment and audited recovery, never first-login-wins | Exact experience to review |
-| API compatibility | Versioned support matrix for Chat Completions, Responses, MCP and additional families | Exact initial compatibility floor to approve |
+| Owner enrollment and recovery | Explicit installer-bound identity enrollment and audited recovery, never first-login-wins | Exact experience to review; independent control-store proposal in IF-05 |
+| API compatibility | Versioned support matrix for Chat Completions, Responses, MCP and additional families | Exact initial compatibility floor to approve; researched wire/gateway profiles in IF-08/09/10 |
 | Lifetime/retention/performance | Measurable proposed budgets in acceptance; token/session lifetime, local durability, resource and retained-data schedules separately selected | Not approved |
 
 ## Existing GitHub ownership, not another backlog
