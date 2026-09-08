@@ -1,4 +1,13 @@
 {
+  "firmware_execution_20260907": {
+    "classification": "observed-development-state-not-product-law",
+    "base_commit": "f02d78730aa6312885784a3a986ebb243810756f",
+    "owning_branch": "feat/firmware-request-execution",
+    "implemented": "Native stored firmware image validation, observation/result-bound execution, act realization feedback, predecessor restoration, and shared framework input/result staging and activation. No caller-supplied goal or topic field.",
+    "local_verification": "22 native tests passed in the existing observation-query executable before publication; tests use synthetic providers.",
+    "remaining_acceptance": "Independent CI builds, full regression suites and deliberately broken implementations; concrete installed persistence adapters, ordinary user-facing route and witnessed source-backed behavior. No general chat, coding, image/video generation, or Godel synthesis completion is claimed.",
+    "publication": "Source is being published on the existing feature branch for full CI; main and installed state remain unchanged."
+  },
   "indexed_cognition_repair_20260907": {
     "classification": "observed-development-state-not-product-law",
     "owning_pull_request": 253,

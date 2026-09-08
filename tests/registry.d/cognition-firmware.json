@@ -1,0 +1,203 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionFirmware.WholeObservationBindsNativeGoalEmitsAndFeedsBack",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "whole observation binds native goal emits and feeds back through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.DataChangesGoalAndEmissionWithoutChangingFirmwareOrTransport",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "data changes goal and emission without changing firmware or transport through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.SelectedModalityChangesActualBytesAndSubsequentOperation",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "selected modality changes actual bytes and subsequent operation through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.AmbiguousBindingDoesNotSilentlyChooseFirstCandidate",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "ambiguous binding does not silently choose first candidate through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.DistinctPathsToSameEntityDoNotInventAmbiguityOrEvidence",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "distinct paths to same entity do not invent ambiguity or evidence through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.IncompleteCandidateBoundaryNeverBecomesCompletedAnswer",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "incomplete candidate boundary never becomes completed answer through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.CheckpointRestoresPriorEmittedValueAfterResultDestruction",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-DISCOURSE-STATE"
+      ],
+      "covered_dimensions": [
+        "checkpoint restores prior emitted value after result destruction through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.InvalidCheckpointWorldSequenceAndBytesFailBeforeQuery",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-DISCOURSE-STATE"
+      ],
+      "covered_dimensions": [
+        "invalid checkpoint world sequence and bytes fail before query through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.ProgramEpochMismatchAndForwardReferencesRejectBeforeProviders",
+      "evidence_targets": [
+        "LP-TEST-FIRMWARE-NO-PRIVILEGE-ESCALATION"
+      ],
+      "covered_dimensions": [
+        "program epoch mismatch and forward references reject before providers through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.LaterFailureWithholdsEarlierOutputAndCheckpoint",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "later failure withholds earlier output and checkpoint through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.WholeProgramGrantIsNotResetBetweenSteps",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "whole program grant is not reset between steps through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.CancellationAfterFirstEmissionPublishesNothing",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "cancellation after first emission publishes nothing through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.DeterministicReplayRetainsExactOutputTraceAndCheckpoint",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "deterministic replay retains exact output trace and checkpoint through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.OutputAndMemoryBoundsRejectWithoutPublishedPrefix",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "output and memory bounds reject without published prefix through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.StoredProgramRoundTripsAndExecutesWithoutCallerGoal",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "stored program round trips and executes without caller goal through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.ProgramImageRejectsTamperingLengthAndMemoryBeforeAllocation",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "program image rejects tampering length and memory before allocation through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "FirmwareRuntime.RawObservationPublishesCanonicalInputStateAndOutputThroughSharedLifecycle",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "raw observation publishes canonical input state and output through shared lifecycle through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "FirmwareRuntime.FailureAfterInputStagingCannotPublishAnswerOrAdvanceGeneration",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "failure after input staging cannot publish answer or advance generation through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "FirmwareRuntime.FailedCompareAndSwapLeavesOnlyInertArtifactsAndNoSuccessResult",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "failed compare and swap leaves only inert artifacts and no success result through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "FirmwareRuntime.ReadOnlyAuthorityCannotBeEscalatedByProgramOrPrompt",
+      "evidence_targets": [
+        "LP-TEST-FIRMWARE-NO-PRIVILEGE-ESCALATION"
+      ],
+      "covered_dimensions": [
+        "read only authority cannot be escalated by program or prompt through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "FirmwareRuntime.ForeignProgramOrMalformedSinkRejectsBeforeAnyAdmission",
+      "evidence_targets": [
+        "LP-TEST-FIRMWARE-NO-PRIVILEGE-ESCALATION"
+      ],
+      "covered_dimensions": [
+        "foreign program or malformed sink rejects before any admission through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    },
+    {
+      "ctest_name": "FirmwareRuntime.ComputationFailureDoesNotEvenBeginStaging",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "computation failure does not even begin staging through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
+      ]
+    }
+  ]
+}
