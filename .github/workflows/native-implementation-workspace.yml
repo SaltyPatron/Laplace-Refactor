@@ -1,0 +1,48 @@
+name: native-implementation-workspace
+
+on:
+  push:
+    branches: [implement/native-prompt-execution]
+    paths: [.github/workflows/native-implementation-workspace.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  workspace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Acquire locked native dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./tools/dependencies/acquire-locked-git.sh \
+            dependencies/lock.json "$RUNNER_TEMP/native-dependencies" \
+            blake3 eigen googletest spectra tree-sitter
+      - name: Package exact tracked source and dependency worktrees
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/native-workspace/source"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/native-workspace/source"
+          mkdir -p "$RUNNER_TEMP/native-workspace/dependencies"
+          for dependency in blake3 eigen googletest spectra tree-sitter; do
+            mkdir -p "$RUNNER_TEMP/native-workspace/dependencies/$dependency"
+            git -C "$RUNNER_TEMP/native-dependencies/$dependency" archive HEAD \
+              | tar -x -C "$RUNNER_TEMP/native-workspace/dependencies/$dependency"
+          done
+          printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/native-workspace/source-commit.txt"
+          tar -czf "$RUNNER_TEMP/native-workspace.tar.gz" \
+            -C "$RUNNER_TEMP/native-workspace" .
+      - name: Retain compilation input
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: laplace-native-workspace-${{ github.sha }}
+          path: ${{ runner.temp }}/native-workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
