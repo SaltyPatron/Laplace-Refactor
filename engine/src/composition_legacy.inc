@@ -887,10 +887,12 @@ laplace_composition_status CalculateRequest(
     }
     result.centroid = geometry_summary.centroid;
     result.radius = geometry_summary.radius;
-    std::uint64_t logical_ordinal = 1U;
-    for (const auto& [child, operand] : resolved) {
-        std::uint64_t remaining = operand.multiplicity;
-        const std::uint64_t structural_metadata =
+    // Input operand boundaries are not physical run boundaries. Coalesce
+    // adjacent equal identities only when every packed metadata bit agrees;
+    // ordinal and multiplicity still describe the original exact sequence.
+    const auto metadata_for = [](const auto& value) {
+        const auto& child = value.first;
+        return value.second.relationship_metadata |
             (static_cast<std::uint64_t>(child.tier_floor)
              << LAPLACE_TRAJECTORY_TIER_SHIFT) |
             (child.has_atom ? HasAtomMask : 0U) |
@@ -898,13 +900,30 @@ laplace_composition_status CalculateRequest(
                  ? static_cast<std::uint64_t>(child.atom)
                        << LAPLACE_TRAJECTORY_ATOM_SHIFT
                  : 0U);
-        const std::uint64_t metadata =
-            operand.relationship_metadata | structural_metadata;
+    };
+    std::uint64_t logical_ordinal = 1U;
+    for (std::size_t first = 0U; first < resolved.size();) {
+        const auto& child = resolved[first].first;
+        const std::uint64_t metadata = metadata_for(resolved[first]);
+        std::uint64_t remaining = resolved[first].second.multiplicity;
+        std::size_t next = first + 1U;
+        while (
+#if defined(LAPLACE_TEST_COMPOSITION_OPERAND_BOUNDARIES)
+               false &&
+#endif
+               next < resolved.size() &&
+               std::memcmp(child.entity_id.bytes, resolved[next].first.entity_id.bytes,
+                           sizeof(child.entity_id.bytes)) == 0 &&
+               metadata == metadata_for(resolved[next])) {
+            if (AddOverflow(remaining, resolved[next].second.multiplicity, remaining)) {
+                return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
+            }
+            ++next;
+        }
         while (remaining != 0U) {
             const auto run = static_cast<std::uint16_t>(
                 std::min<std::uint64_t>(
-                    remaining,
-                    LAPLACE_COMPOSITION_MAXIMUM_RUN_PER_CARRIER));
+                    remaining, LAPLACE_COMPOSITION_MAXIMUM_RUN_PER_CARRIER));
             laplace_trajectory_carrier carrier{};
             if (laplace_trajectory_composition_encode(
                     &child.entity_id, logical_ordinal, run,
@@ -915,6 +934,7 @@ laplace_composition_status CalculateRequest(
             logical_ordinal += run;
             remaining -= run;
         }
+        first = next;
     }
     result.trajectory_vertex_count =
         static_cast<std::uint64_t>(carriers.size());
@@ -1571,6 +1591,24 @@ laplace_composition_working_set_physicality_candidate_get(
         return LAPLACE_COMPOSITION_INVALID_ARGUMENT;
     }
     *candidate = working_set->physicalities[candidate_index].physicality;
+    return LAPLACE_COMPOSITION_OK;
+}
+
+extern "C" laplace_composition_status
+laplace_composition_working_set_trajectory_candidate_view_get(
+    const laplace_composition_working_set* working_set,
+    size_t candidate_index,
+    const laplace_trajectory_carrier** carriers,
+    size_t* carrier_count) {
+    if (carriers != nullptr) *carriers = nullptr;
+    if (carrier_count != nullptr) *carrier_count = 0U;
+    if (working_set == nullptr || carriers == nullptr || carrier_count == nullptr ||
+        candidate_index >= working_set->physicalities.size()) {
+        return LAPLACE_COMPOSITION_INVALID_ARGUMENT;
+    }
+    const auto& trajectory = working_set->physicalities[candidate_index].carriers;
+    *carriers = trajectory.data();
+    *carrier_count = trajectory.size();
     return LAPLACE_COMPOSITION_OK;
 }
 

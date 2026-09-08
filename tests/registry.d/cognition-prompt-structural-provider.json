@@ -3,13 +3,164 @@
   "tests": [
     {
       "ctest_name": "CognitionPromptStructuralProvider.EnumeratesExactSubtreeAndCodepointFallbackOnly",
-      "evidence_targets": ["LP-TEST-IDENTITY-PREIMAGE-GRAMMAR", "LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
-      "covered_dimensions": ["the exact whole prompt trunk exposes reusable exact subtrees and Unicode-floor constituents through the candidate-only cognition provider boundary", "the prompt structural provider remains on the physicality plane and emits no semantic relation even when the request also permits the semantic family", "native fallback stays on canonical content identities instead of tokenizer or selected-topic aliases"]
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-PREIMAGE-GRAMMAR",
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "the exact whole prompt trunk exposes reusable exact subtrees and Unicode-floor constituents through the candidate-only cognition provider boundary",
+        "the prompt structural provider remains on the physicality plane and emits no semantic relation even when the request also permits the semantic family",
+        "native fallback stays on canonical content identities instead of tokenizer or selected-topic aliases"
+      ]
     },
     {
       "ctest_name": "CognitionPromptStructuralProvider.TurnAndForwardReceiptBeginAtWholeTrunk",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-OCCURRENCE-PRESERVATION"],
-      "covered_dimensions": ["the admitted whole prompt trunk is the exact cognition request anchor", "native forward execution selects and receipts an operation beginning from the trunk without a preselected topic", "the exact constituent result retains its structural relation and physicality source-plane path evidence"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "the admitted whole prompt trunk is the exact cognition request anchor",
+        "native forward execution selects and receipts an operation beginning from the trunk without a preselected topic",
+        "the exact constituent result retains its structural relation and physicality source-plane path evidence"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.OccurrenceCoordinatesDoNotDependOnSearchDepth",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "exact source and target ordinals are physical occurrence coordinates, not cognition search depth"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.PackedOrderSuppliesPredecessorSuccessorAndCooccurrence",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "prompt structural candidates use the common packed-trajectory predecessor, successor and cooccurrence laws with no semantic attestation"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.NonadjacentRepeatedConstituentsRetainEveryOrdinal",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "equal constituent identities at different ordinals retain separate exact occurrences instead of endpoint-only deduplication"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.PackedRunsRetainInternalTransitionsWithoutExpansion",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "compressed repeated runs retain multiplicity and ordered internal transitions without expanded-character work"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.PublishedAndAlreadyPresentStructuresHaveTheSameCandidates",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "presence subtracts publication writes but cannot remove already-admitted structures from cognition"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.CapacityFailurePublishesNoPrefixOrFalseAbsence",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "bounded candidate projection publishes no partial output on exhaustion and marks the incomplete boundary unknown"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.BindingIdentityAndEmptyBatchesAreValidated",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "changed binding fields cannot execute under a stale fingerprint, while empty batches have no candidate work"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.RetainedIndexSupportsConcurrentReplayWithoutRecomposition",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "provider descriptors reuse one immutable index and concurrent queries preserve exact results without invoking admission providers again"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.BatchAndScalarProjectionKeepTheSameOccurrences",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "single-source and set-wise frontier calls retain exactly the same occurrence candidates and measured examined rows"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptStructuralProvider.UnicodeOrderUsesTheSamePackedCandidateGenerator",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "non-ASCII codepoints use the same exact ordinal generator without bytes-as-codepoints or an English structural route"
+      ]
+    },
+    {
+      "ctest_name": "prompt-structure.mutation-depth-as-ordinal-detected",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "runtime mutation sensitivity for exact packed prompt structure"
+      ],
+      "defect_controls": [
+        "production provider deliberately reports search depth instead of physical occurrence ordinals"
+      ]
+    },
+    {
+      "ctest_name": "composition.mutation-operand-boundary-run-splitting-detected",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "runtime mutation sensitivity for exact packed prompt structure"
+      ],
+      "defect_controls": [
+        "production composition deliberately preserves input operand divisions instead of coalescing equal adjacent runs"
+      ]
     }
   ]
 }

@@ -225,6 +225,19 @@ laplace_composition_working_set_physicality_candidate_get(
     size_t candidate_index,
     laplace_persistence_physicality_record* candidate);
 
+/* Borrow the exact packed trajectory of a canonical physicality candidate.
+ * Presence filtering is deliberately irrelevant: already-present structures
+ * remain usable for cognition. The view is immutable and remains valid until
+ * working-set compaction or destruction. candidate_index has the same order as
+ * physicality_candidate_get; no stream cursor or semantic calculation occurs.
+ */
+LAPLACE_API laplace_composition_status
+laplace_composition_working_set_trajectory_candidate_view_get(
+    const laplace_composition_working_set* working_set,
+    size_t candidate_index,
+    const laplace_trajectory_carrier** carriers,
+    size_t* carrier_count);
+
 LAPLACE_API laplace_composition_status
 laplace_composition_working_set_resolve_presence(
     laplace_composition_working_set* working_set,
