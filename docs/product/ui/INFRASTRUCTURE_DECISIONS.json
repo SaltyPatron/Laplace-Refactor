@@ -1,238 +1,567 @@
 {
   "schema": "laplace.interface-infrastructure-review/v1",
   "research_date": "2026-09-08",
-  "status": "recommended_for_inventor_review",
-  "implementation_authorized": false,
+  "status": "reconciled_checkpoint_for_requested_framework_setup",
+  "framework_setup_requested": true,
+  "current_task": "finish_documentation_issue_reconciliation_and_preservation",
+  "application_changes_in_this_checkpoint": false,
   "deployment_authorized": false,
   "acceptance_executed": false,
   "is_runtime_configuration": false,
   "is_dependency_lock": false,
-  "repository_baseline": "d03002a8cbea56243a78c817193b6e1c5f55dd5d",
+  "repository_baseline": "a4aeb952a4f30bcbc7faaefa300842bccd9b6c7d",
   "review_pr": 272,
   "document": "docs/product/ui/INFRASTRUCTURE_FOUNDATION.md",
-  "source_ledger": "INFRASTRUCTURE_FOUNDATION.md#16-primary-source-research-ledger",
-  "authority": "Direct inventor requirements and existing native contracts govern. Recommendations are not approved choices, new semantic law, supported-target claims or completed implementations.",
+  "source_ledger": "INFRASTRUCTURE_RESEARCH_BASELINE.md#16-primary-source-research-ledger",
+  "additional_source_ledger": "INFRASTRUCTURE_FOUNDATION.md#16-primary-source-research-ledger",
+  "authority": "The later direct framework-setup request supersedes earlier blanket design-only labels for that scope. Current finalization makes documentation/tracking changes only. Specific library/policy acceptance and live effects are not inferred.",
+  "historical_baseline": {
+    "path": "INFRASTRUCTURE_DECISIONS_BASELINE.json",
+    "original_commit": "a4aeb952a4f30bcbc7faaefa300842bccd9b6c7d",
+    "blob": "5a034c5951910431e8160af308fa9113c717b406",
+    "role": "byte-identical historical provenance; not active configuration"
+  },
+  "supersession": {
+    "affected": [
+      "IF-05",
+      "IF-06",
+      "IF-07",
+      "IF-20",
+      "OPEN-01",
+      "OPEN-05"
+    ],
+    "mandatory_broker": false,
+    "b2c_required": false,
+    "customer_directory_required": false,
+    "source_program_owners": [
+      64,
+      141
+    ],
+    "legacy_implementation_authorized_false": "historical phase, not current blanket authority"
+  },
   "decisions": [
     {
       "id": "IF-01",
       "area": "architecture_and_execution",
-      "recommendation": "One native C/C++ semantic engine and modular application, with WebHost, ControlHost, restricted native workers and a narrow lifecycle helper as necessary process boundaries.",
-      "existing_invariant": true,
-      "proposed_physical_profile": true,
-      "owners": [68, 67, 268, 278, 289],
+      "owners": [
+        68,
+        67,
+        268,
+        278,
+        289
+      ],
       "sources": [],
-      "repo_sources": ["docs/architecture/BOUNDARIES.md", "docs/architecture/COGNITION_EXECUTION.md", "contracts/authority-stack.json"],
-      "reject": ["second JS/C#/SQL semantic engine", "one microservice per widget or modality", "public unrestricted shell or database owner"],
-      "qualification": "Audit actual native dependencies and separately pin process grants, paths, sockets and execution locations. No runtime audit or build was performed."
+      "recommendation": "One native C/C++ application machine; orchestration hosts and narrow lifecycle/physical providers, not private user/billing/knowledge services.",
+      "qualification": "Actual program closure and process/host grants; account and billing data follow native source/reference/effect laws.",
+      "status": "direct_requirement_with_physical_qualification"
     },
     {
       "id": "IF-02",
       "area": "browser_build",
-      "recommendation": "React 19.2 patched family, TypeScript 6, Vite 8.1 static PWA build and Node 24 LTS build tooling.",
-      "owners": [68, 277, 296, 290],
-      "sources": ["S03", "S04", "S05", "S06"],
-      "observed_version_precision": "release_family_not_complete_artifact_lock",
-      "reject": ["production Vite development server", "unneeded second Node/RSC application backend", "preview runtime selected merely because newest"],
-      "qualification": "Resolve actual patched packages, license inventory and browser compatibility together; frontend choice awaits approval."
+      "owners": [
+        68,
+        277,
+        296,
+        290
+      ],
+      "sources": [
+        "S03",
+        "S04",
+        "S05",
+        "S06"
+      ],
+      "recommendation": "Retain researched React/TypeScript/Vite and Node-LTS build candidates; static client workspace, not a second semantic Node backend.",
+      "qualification": "Exact patched/transitive artifacts, licenses and approved frontend profile; historical release observations are not locks.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-03",
       "area": "generic_controls",
-      "recommendation": "React Aria interaction primitives and TanStack Table 9 in manual/native-result mode; one Laplace selection and typed-query adapter.",
-      "owners": [274, 275, 276, 277, 280, 296],
-      "sources": ["S07", "S08", "S09", "S31"],
-      "observed_table_release": {"family": "9", "stable_date": "2026-08-04"},
-      "reject": ["v8 API examples passed off as v9", "table-library semantic filtering/ranking/aggregation", "second component-suite row and selection model", "primitive-library choice claimed as WCAG certification"],
-      "qualification": "Native local and native server results both feed the manual grid. Validate exact IDs, virtualized keyboard interaction, plural selection and reviewed layouts."
+      "owners": [
+        274,
+        275,
+        276,
+        277,
+        280,
+        296
+      ],
+      "sources": [
+        "S07",
+        "S08",
+        "S09",
+        "S31"
+      ],
+      "recommendation": "React Aria/headless table candidates render native-selected results through one schema/query/selection model.",
+      "qualification": "Current adapter APIs, exact values, virtualized keyboard behavior, compatible renderers and visual layouts.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-04",
       "area": "managed_orchestration",
-      "recommendation": "ASP.NET Core on .NET 10 LTS with same-origin BFF and generated native/API adapters.",
-      "owners": [268, 274, 287, 289, 293],
-      "sources": ["S01", "S10", "S22"],
-      "observed_release": "10.0.11",
-      "observed_support_end": "2028-11-14",
-      "reject": ["new .NET 8/9 foundation without near-term support migration", "EF/managed domain model replacing canonical native state", "blind AOT requirement without library compatibility"],
-      "qualification": "Exact SDK/runtime/Npgsql versions and native ABI ownership need a locked tested profile; no endpoint is implemented by this decision."
+      "owners": [
+        268,
+        274,
+        287,
+        289,
+        293
+      ],
+      "sources": [
+        "S01",
+        "S10",
+        "S22"
+      ],
+      "recommendation": "ASP.NET Core/.NET10 BFF with reviewed external-protocol handlers and generated native/API marshaling.",
+      "qualification": "Exact SDK/Npgsql/native ABI profile; no CLR/ORM person or entitlement semantics.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-05",
       "area": "product_and_control_persistence",
-      "recommendation": "Retain product PostgreSQL 18.6; add an independently operated PostgreSQL control cluster for operational durability, with separate control and broker databases/roles.",
-      "owners": [64, 67, 264, 266, 279, 289],
-      "sources": ["S02", "S11"],
-      "repo_sources": ["contracts/postgresql-cluster.json"],
-      "existing_product": {"database": "laplace_refactor", "service": "laplace-refactor-postgresql.service", "postgresql": "18.6", "tcp_listening": false, "declared_port": 55433, "declared_max_connections": 24, "os_identity": "laplace-runner"},
-      "reject": ["recovery state only in the product database", "second database in the same postmaster described as process-independent recovery", "new control store as private knowledge/person/authority engine", "unannounced current service ownership migration"],
-      "qualification": "Pin independent control paths/process identity/capacity and native installation recovery grants. Same-host separation does not survive whole-host loss."
+      "owners": [
+        64,
+        67,
+        264,
+        266,
+        279,
+        289
+      ],
+      "sources": [
+        "S02",
+        "S11"
+      ],
+      "recommendation": "Retain repository product PostgreSQL/native package; independent operational durability, with control PostgreSQL as a candidate. Broker storage exists only if a broker is actually selected.",
+      "qualification": "Account/path/capacity migration, native recovery grant and revocation behavior; same-host separation does not survive host loss.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-06",
-      "area": "identity_broker",
-      "recommendation": "Keycloak 26.7.3 hosted broker using established OIDC/SAML profiles and standard .NET OIDC; native Laplace authority remains separate.",
-      "owners": [64, 288, 289, 270, 293],
-      "sources": ["S10", "S11", "S12", "S13", "S15"],
-      "observed_release": "26.7.3",
-      "known_feature_constraints": {"SCIM": "preview", "Admin_API_v2": "experimental", "MCP_Client_ID_Metadata_Documents": "experimental"},
-      "reject": ["email as person identity", "login as administrator grant", "any signed JWT accepted", "experimental CIMD enabled silently", "identity stack required for private local authorship"],
-      "qualification": "Approve broker and configured IdPs. Pin real client registration profiles; CIMD-only clients require explicit qualified support or another qualified authorization provider."
+      "area": "direct_identity_providers",
+      "owners": [
+        64,
+        141,
+        288,
+        289,
+        270,
+        293
+      ],
+      "sources": [
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S15",
+        "A01",
+        "A02",
+        "A03"
+      ],
+      "recommendation": "Direct configured Microsoft/Google login through standard handlers; no B2C/customer directory or mandatory Keycloak. Provider assertions feed native source/reference/authority programs. Optional broker/authorization server is selected only for an actual protocol need.",
+      "qualification": "Operator application registration/redirects/protected credentials; account audience and linking; distinct qualified API/MCP resource-token issuer profile. Missing credentials do not block framework setup.",
+      "status": "direct_requirement_with_physical_qualification"
     },
     {
       "id": "IF-07",
       "area": "sessions_and_keys",
-      "recommendation": "Server-held OIDC credentials, secure host-scoped session cookies, explicit CSRF/Origin checks and separately persisted encrypted purpose-bound protection keys.",
-      "owners": [64, 288, 293],
-      "sources": ["S10", "S14", "S15"],
-      "reject": ["bearer or refresh tokens in localStorage", "custom key repository assumed encrypted automatically", "decryption treated as authority", "proprietary encryption required for ordinary compatible SDKs", "offline copied plaintext guaranteed remotely erasable"],
-      "qualification": "Choose session lifetimes, grant revocation boundary, recovery credentials and local content-key backup policy; qualify top-level OIDC redirect with isolation headers."
+      "owners": [
+        64,
+        288,
+        293
+      ],
+      "sources": [
+        "S10",
+        "S14",
+        "S15",
+        "A02"
+      ],
+      "recommendation": "Protected server-held credentials/session tickets and purpose-bound keys outside product-reset scope, with native grants and current revocation.",
+      "qualification": "Session lifetime, CSRF/issuer/audience/callback profile, recovery and offline policy; decryption or login alone grants no permission.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-08",
       "area": "gateway_and_https",
-      "recommendation": "Maintained Caddy 2 release for HTTPS/static assets and explicit proxy routes; route-specific streaming/cancellation behavior.",
-      "owners": [289, 270, 268, 278, 280],
-      "sources": ["S16", "S17", "S21", "S33"],
-      "exact_patch": null,
-      "reject": ["global flush_interval -1 for MCP", "database exposed as browser API", "untrusted forwarded headers", "disable certificate validation for LAN", "automatic proxy replay of ambiguous mutations"],
-      "qualification": "Pin gateway binary and real origin/certificate trust. Prove downstream disconnect cancels request through proxy to native execution while durable jobs remain distinct."
+      "owners": [
+        289,
+        270,
+        268,
+        278,
+        280
+      ],
+      "sources": [
+        "S16",
+        "S17",
+        "S21",
+        "S33"
+      ],
+      "recommendation": "Retain maintained Caddy candidate with explicit HTTPS, static assets, trusted forwarded headers and route-specific streaming/cancellation.",
+      "qualification": "Actual origin/certificates, exact proxy artifact and end-to-end cancellation; no implicit broker route and no blind mutation replay.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-09",
       "area": "wire_and_descriptor_contracts",
-      "recommendation": "Native-registry-generated OpenAPI 3.1 and JSON Schema 2020-12 for initial .NET 10 APIs, with exact typed bulk record framing tied to the existing native codec.",
-      "owners": [274, 275, 268, 270, 271, 293],
-      "sources": ["S34", "S35", "S36"],
-      "published_newer_standard": "OpenAPI 3.2.0",
-      "reject": ["independently inferred DTO schema as semantic authority", "raw C struct/pointers over network", "wide IDs/ordinals coerced through JS Number", "new duplicate codec for convenience", "all failures collapsed into empty success"],
-      "qualification": "Approve actual route/field/error/binary profiles and client generation matrix. OpenAPI 3.2 requires explicit full-toolchain qualification, not an assumed default."
+      "owners": [
+        274,
+        275,
+        268,
+        270,
+        271,
+        293
+      ],
+      "sources": [
+        "S34",
+        "S35",
+        "S36"
+      ],
+      "recommendation": "Native-registry-generated API schemas and typed bulk codec; preserve researched OpenAPI3.1/JSON-Schema2020-12 candidate profile.",
+      "qualification": "Exact fields/route/error/binary/version map, numeric fidelity, caller scope and variable output ownership; no pointer serialization or duplicate canonical codec.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-10",
       "area": "jobs_events_protocol_lifetimes",
-      "recommendation": "Native lifecycle with durable control journal/outbox and commit-ordered event checkpoints; resumable application SSE, distinct current MCP request SSE; NOTIFY only as wakeup.",
-      "owners": [266, 287, 65, 268, 270, 275],
-      "sources": ["S23", "S33", "S16"],
-      "mcp_profile": "2026-07-28",
-      "reject": ["NOTIFY as durable queue", "MAX allocated ID as guaranteed commit frontier", "generic exactly-once external effect promise", "MCP Last-Event-ID resumption in current profile", "separate workflow engine overriding native retries"],
-      "qualification": "Specify per-stream sequencing/native publication frontier, cross-store effect reconciliation, bounded slow-consumer recovery and client/proxy cancellation fixtures."
+      "owners": [
+        266,
+        287,
+        65,
+        268,
+        270,
+        275
+      ],
+      "sources": [
+        "S23",
+        "S33",
+        "S16"
+      ],
+      "recommendation": "Native durable operation lifecycle, journal/outbox and commit-ordered publication; notification is a wakeup, request streams and durable jobs are distinct.",
+      "qualification": "Per-stream frontier, cross-store effects, bounded slow-consumer recovery, pinned MCP profile and cancellation; no generic exactly-once promise.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-11",
       "area": "native_browser_host",
-      "recommendation": "Qualified C/C++ Wasm worker with generated batch/handle/buffer/need-resume bindings and separate threaded/nonthreaded profiles.",
-      "owners": [66, 67, 278, 274, 280],
-      "sources": ["S21"],
-      "emsdk_release": null,
-      "reject": ["PostgreSQL extension compiled unchanged into browser", "main-thread blocking native calls", "JS fallback semantic engine", "dev documentation header used as stable release lock", "private data uploaded silently on capability miss"],
-      "qualification": "Inventory actual native libraries, instruction/numeric profiles, host memory limits, isolation and safe cancellation. No native build/parity test ran in this research."
+      "owners": [
+        66,
+        67,
+        278,
+        274,
+        280
+      ],
+      "sources": [
+        "S21"
+      ],
+      "recommendation": "Qualified shared C/C++ worker/Wasm target with generated batch/handle/buffer/need-resume bridge; server-only PG work remains on the PG host.",
+      "qualification": "Actual libraries, compiler, numeric profile, worker lifetime/resources and threaded/nonthreaded bundles; no JS replacement or silent private-input upload.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-12",
       "area": "local_durable_state",
-      "recommendation": "IndexedDB authoritative transactional record/owned-draft/commit/outbox provider; OPFS initially for reproducible perfcaches and recoverable packs; coordinated writer ownership.",
-      "owners": [279, 278, 288, 64, 67],
-      "sources": ["S18", "S19", "S20", "S37"],
-      "reject": ["cross-IDB/OPFS ACID assumed", "owned data erased as cache", "memory fallback described as saved", "unsafe concurrent writers", "SQLite-Wasm dependency adopted without current backend qualification"],
-      "qualification": "Define local native record encoding, expected-revision publication, multi-tab fencing, persistence denial, export/restore and account isolation. SQLite persistence source fetch failed this pass."
+      "owners": [
+        279,
+        278,
+        288,
+        64,
+        67
+      ],
+      "sources": [
+        "S18",
+        "S19",
+        "S20",
+        "S37"
+      ],
+      "recommendation": "IndexedDB transactional record/owned-state/outbox candidate; OPFS initially rebuildable or recoverable packs; explicit coordinated writers.",
+      "qualification": "Atomic publication boundaries, quota/persistence failure, account isolation and export/recovery; no IDB/OPFS joint ACID assumption.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-13",
       "area": "local_reuse_and_activation",
-      "recommendation": "Retain immutable content/physicalities/label bodies; separately synchronize active heads and collection membership; stage compatible runtime/descriptor/perfcache packages atomically.",
-      "owners": [65, 279, 280, 275, 290],
-      "sources": ["S18", "S19", "S20"],
-      "reject": ["permanent answers keyed only by query string", "known-ID refresh misses new matches", "local miss means global absence", "whole corpus preload", "service-worker activation kills unsaved drafts"],
-      "qualification": "Pin manifest/read-boundary/coverage law and native generation handoff. Measure cold/repeat/missing-subtree traffic without claiming savings from theory."
+      "owners": [
+        65,
+        279,
+        280,
+        275,
+        290
+      ],
+      "sources": [
+        "S18",
+        "S19",
+        "S20"
+      ],
+      "recommendation": "Retain exact content/physicality/label bodies, separately synchronize active heads and collection membership, stage compatible runtime/descriptor/perfcache generations.",
+      "qualification": "Newly matching records and preferred labels update; owned state survives upgrades; exact body reuse does not make query answers permanent.",
+      "status": "direct_requirement_with_physical_qualification"
     },
     {
       "id": "IF-14",
       "area": "resource_and_database_access",
-      "recommendation": "Npgsql bounded data sources and native set-wise bindings; pool/worker allocation summed across all processes from the existing topology grant.",
-      "owners": [67, 268, 275, 266, 289],
-      "sources": ["S22", "S23"],
-      "repo_sources": ["contracts/postgresql-cluster.json", "docs/architecture/COGNITION_EXECUTION.md"],
-      "reject": ["each process assumes all 24 product connections", "ORM canonical semantic model", "SPI query per row/constituent", "Kafka/Redis/PgBouncer required without a concrete need", "ingestion starves status/cancel"],
-      "qualification": "Observe actual host resources and reserve admin/control capacity; choose specific pool/queue/deadline budgets under load before claiming response targets."
+      "owners": [
+        67,
+        268,
+        275,
+        266,
+        289
+      ],
+      "sources": [
+        "S22",
+        "S23"
+      ],
+      "recommendation": "Bounded Npgsql/set-wise native access with summed pool/worker allocation from the existing resource grant.",
+      "qualification": "Measure actual host capacity and status/cancel reserve; repository maximum24 is not a separate entitlement for each process.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-15",
       "area": "runtime_security",
-      "recommendation": "ASVS 5.0 L2 requirements mapping plus applicable stronger admin/key controls; restricted process/egress/import boundaries and explicit current native authority.",
-      "owners": [64, 264, 278, 289, 290, 295],
-      "sources": ["S27", "S28", "S15", "S26"],
-      "reject": ["LAN or device ownership as permanent remote authority", "Docker socket or root shell in public host", "data packages inject arbitrary same-origin code", "Wasm/native plugin assumed safe solely from signature", "security certification from architecture prose"],
-      "qualification": "Pin threat models and relevant control IDs, approved code versus data package classes, actual sandbox/process profiles and security fixtures."
+      "owners": [
+        64,
+        264,
+        278,
+        289,
+        290,
+        295
+      ],
+      "sources": [
+        "S27",
+        "S28",
+        "S15",
+        "S26"
+      ],
+      "recommendation": "Retain researched ASVS mapping and restricted host/import/egress boundaries under current native authority.",
+      "qualification": "Actual threats/control IDs/sandbox profiles and fixtures; signatures, LAN location and content hashes alone confer neither safety nor authority.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-16",
       "area": "backup_and_recovery",
-      "recommendation": "Separate product/control backup plans using qualified pgBackRest/WAL/PITR and off-host storage, with exact native binaries/manifests and protected key recovery.",
-      "owners": [264, 289, 279, 64, 295],
-      "sources": ["S24", "S02", "S14"],
-      "reject": ["backup file existence means restore verified", "same host separation means host disaster survival", "restore revives revoked access", "unmeasured RPO/RTO claim", "source originals inside reset scope"],
-      "qualification": "Select schedules, off-host destination, bandwidth/capacity and RPO/RTO per failure class; restore to isolated generation and verify real native state."
+      "owners": [
+        264,
+        289,
+        279,
+        64,
+        295
+      ],
+      "sources": [
+        "S24",
+        "S02",
+        "S14"
+      ],
+      "recommendation": "Separate product/control/keys/local-owned-state recovery, qualified off-host backup/WAL/PITR profile, actual isolated restore/readback.",
+      "qualification": "Provider, schedules/capacity and measured RPO/RTO; optional broker backup only if deployed; old backups cannot revive surviving revoked authority.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-17",
       "area": "deployment_lifecycle",
-      "recommendation": "Preserve immutable native package/service deployment first; optional qualified Compose profile; explicit staged activation/rollback and upgrade compatibility.",
-      "owners": [289, 264, 66, 67, 290, 295],
-      "sources": ["S32", "S02"],
-      "reject": ["Kubernetes required merely to appear enterprise", "stock PG image replaces qualified native package", "unapproved service or path migration", "forced client update drops drafts", "single-host profile sold as HA"],
-      "qualification": "Define accounts, permissions, exact package contents, current versus desired generation, migration/rollback bounds and separate future HA topology."
+      "owners": [
+        289,
+        264,
+        66,
+        67,
+        290,
+        295
+      ],
+      "sources": [
+        "S32",
+        "S02"
+      ],
+      "recommendation": "Retain immutable native/service delivery and explicitly qualified optional container profiles with staged activation/rollback.",
+      "qualification": "Actual account/path/package/schema/reader/draft handoff; framework setup does not authorize a live deployment or reset.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-18",
       "area": "observability",
-      "recommendation": "OpenTelemetry integration with protected structured logs and native measurements; optional replaceable collector/backend, not a prerequisite for built-in admin job/log access.",
-      "owners": [266, 280, 285, 289, 295],
-      "sources": ["S25", "S26"],
-      "reject": ["metrics use private IDs as high-cardinality labels", "sampled traces substitute for durable effect audit", "collector receives secrets and private source by default", "spinner or high cache-hit rate proves useful response"],
-      "qualification": "Pin native/browser/BFF/PG trace boundaries, collector allowlist and redaction; measure cold/warm first useful labelled result against reviewed budgets."
+      "owners": [
+        266,
+        280,
+        285,
+        289,
+        295
+      ],
+      "sources": [
+        "S25",
+        "S26"
+      ],
+      "recommendation": "Native measurements plus protected structured logs and optional OpenTelemetry; built-in admin history does not depend on an external dashboard.",
+      "qualification": "Actual native/client/BFF/PG trace chain and first usable labelled response; no secret/high-cardinality metric leakage or sampled-trace-as-audit.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-19",
       "area": "supply_chain",
-      "recommendation": "Locked dependencies, checksums, license inventory/SBOM, immutable artifacts, SLSA 1.2-aligned provenance, isolated build identities and explicit verified release promotion.",
-      "owners": [3, 22, 54, 289, 290, 295],
-      "sources": ["S29", "S30"],
-      "reject": ["signature alone means safe software", "untrusted PR executes with deployment secrets/data-host access", "mutable action tags as immutable provenance", "documentation task triggers deployment", "SLSA level claimed without builder proof"],
-      "qualification": "Audit actual workflows/runner access separately, pin full action and dependency artifact hashes, define release trust roots and revocation/rollback. No workflow or runner was changed."
+      "owners": [
+        3,
+        22,
+        54,
+        289,
+        290,
+        295
+      ],
+      "sources": [
+        "S29",
+        "S30"
+      ],
+      "recommendation": "Locked artifacts, license/SBOM and provenance, isolated build identities, reviewed promotion and rollback.",
+      "qualification": "Exact workflow/dependency hashes, builder/trust roots and deployed evidence; no untrusted PR with live secrets and no certification from prose.",
+      "status": "physical_recommendation_not_final_lock"
     },
     {
       "id": "IF-20",
       "area": "domain_and_platform_extension",
-      "recommendation": "Typed data/grammar/native operation/renderer/ViewRecipe packages over the selected shared workspace and host interfaces; browser first, actual native client qualification rather than a second UI engine.",
-      "owners": [290, 282, 283, 284, 66, 278, 295, 296],
-      "sources": ["S31"],
-      "reject": ["chess-specific query/store/account infrastructure", "file extension supplies new scientific/game rules", "one-day integration claim without prerequisites and measured effort", "browser emulation equals actual ARM/mobile qualification"],
-      "qualification": "Approve renderer profiles and visual layouts, qualify native dependencies, exercise unrelated and held-out packages; native desktop/mobile UI toolkit remains an explicit later selection."
+      "owners": [
+        290,
+        282,
+        283,
+        284,
+        66,
+        278,
+        295,
+        296
+      ],
+      "sources": [
+        "S31"
+      ],
+      "recommendation": "Typed source/native-operation/renderer/layout packages over the common workspace. OAuth, billing, games and other application data use the same native model.",
+      "qualification": "Actual unfamiliar-domain and target fixtures; one-day integration is prerequisite-bound and unmeasured; no provider/domain-specific application engine.",
+      "status": "direct_requirement_with_physical_qualification"
     }
   ],
   "implementation_packets": [
-    {"id": "F01", "output": "locked release and target profile matrix", "issues": [274, 278, 289, 290, 295]},
-    {"id": "F02", "output": "process, account, path, socket, capacity and recovery specification", "issues": [64, 67, 264, 266, 289]},
-    {"id": "F03", "output": "generated ABI/wire/route/error/idempotency/profile contract", "issues": [274, 275, 268, 270, 271, 293]},
-    {"id": "F04", "output": "native worker and local publication/sync/recovery specification", "issues": [278, 279, 65, 280]},
-    {"id": "F05", "output": "reviewed control and task-layout assembly", "issues": [276, 277, 176, 280, 281, 282, 283, 284, 285, 286, 296]},
-    {"id": "F06", "output": "identity registration, authority, key recovery and MCP client matrix", "issues": [64, 288, 270, 293]},
-    {"id": "F07", "output": "native journal/events/capacity/backup/cutover specification", "issues": [264, 265, 266, 287, 289]},
-    {"id": "F08", "output": "artifact promotion and actual installed evidence plan", "issues": [3, 22, 54, 289, 290, 295]}
+    {
+      "id": "F01",
+      "output": "locked release/target profile and actual native dependency map",
+      "issues": [
+        274,
+        278,
+        289,
+        290,
+        295
+      ]
+    },
+    {
+      "id": "F02",
+      "output": "process/account/path/socket/capacity and recovery specification without mandatory broker",
+      "issues": [
+        64,
+        67,
+        264,
+        266,
+        289
+      ]
+    },
+    {
+      "id": "F03",
+      "output": "generated ABI/wire/route/error/idempotency and variable-result contract",
+      "issues": [
+        274,
+        275,
+        268,
+        270,
+        271,
+        293
+      ]
+    },
+    {
+      "id": "F04",
+      "output": "native worker, local commit/publication/sync/recovery contract",
+      "issues": [
+        278,
+        279,
+        65,
+        280
+      ]
+    },
+    {
+      "id": "F05",
+      "output": "shared control bindings, annotated task layouts and meaningful response fixtures",
+      "issues": [
+        276,
+        277,
+        176,
+        280,
+        281,
+        282,
+        283,
+        284,
+        285,
+        286,
+        296
+      ]
+    },
+    {
+      "id": "F06",
+      "output": "direct provider account assertions, native linking/grants, credential recovery and API/MCP issuer profile",
+      "issues": [
+        64,
+        141,
+        288,
+        289,
+        270,
+        293
+      ]
+    },
+    {
+      "id": "F07",
+      "output": "native intake/journal/effect reconciliation, exact event ordering and backup/cutover",
+      "issues": [
+        141,
+        264,
+        265,
+        266,
+        287,
+        289
+      ]
+    },
+    {
+      "id": "F08",
+      "output": "artifact promotion and complete installed browser/provider/native evidence",
+      "issues": [
+        3,
+        22,
+        54,
+        289,
+        290,
+        295
+      ]
+    }
   ],
   "open_decisions": [
-    {"id": "OPEN-01", "decision": "Inventor approval or replacement of recommended technology and process profile", "owner": 68},
-    {"id": "OPEN-02", "decision": "Exact patched transitive artifacts, compiler/ABI and native dependency compatibility", "owner": 274},
-    {"id": "OPEN-03", "decision": "Actual hostname/trust, IdP registrations, installation accounts/paths and host capacity", "owner": 289},
-    {"id": "OPEN-04", "decision": "Resource, retention, local-key recovery, backup RPO/RTO and offline policy", "owner": 64},
-    {"id": "OPEN-05", "decision": "Exact MCP clients including experimental-CIMD qualification or alternate provider", "owner": 270},
-    {"id": "OPEN-06", "decision": "Annotated layouts, unfamiliar-domain fixture, actual device/provider numerical and latency qualification", "owner": 296}
+    {
+      "id": "OPEN-01",
+      "owner": 68,
+      "decision": "Ratify specific physical technology and visual choices; framework setup itself has already been requested."
+    },
+    {
+      "id": "OPEN-02",
+      "owner": 274,
+      "decision": "Exact patched/transitive artifacts, compiler/ABI and variable-result/native program closure."
+    },
+    {
+      "id": "OPEN-03",
+      "owner": 289,
+      "decision": "Actual hostname/trust, provider app registrations, protected credential destination, host accounts and capacity."
+    },
+    {
+      "id": "OPEN-04",
+      "owner": 64,
+      "decision": "Role/enrollment, resource/retention, local-key recovery, RPO/RTO and offline disclosure policy."
+    },
+    {
+      "id": "OPEN-05",
+      "owner": 270,
+      "decision": "Qualified resource-token issuer and exact API/MCP client profile, separate from direct login; optional broker only where selected."
+    },
+    {
+      "id": "OPEN-06",
+      "owner": 296,
+      "decision": "Annotated visual layouts, unfamiliar-domain fixtures, actual platform/numerical/latency qualification."
+    }
   ],
   "research_limitations": [
-    "No installed runtime or live database inspected by this research task.",
-    "No application/native build, tests, benchmark, dependency installation, provider registration or deployment performed.",
-    "SQLite-Wasm official persistence guide returned service errors; its current backend details are not revalidated.",
-    "systemd execution man page retrieval failed; no specific new hardening flags are represented as source-verified.",
-    "Source release facts are dated observations, not a complete package lock or ongoing security update service."
+    "Prior dated version observations were not requalified as a complete artifact set during finalization.",
+    "No application/native build or runtime test, live database query, provider registration, payment or deployment performed.",
+    "Prior SQLite-Wasm persistence and systemd man-page retrieval limitations remain in the original research ledger.",
+    "Container public-GitHub download failed DNS during finalization; GitHub connector reads/writes are the preservation path. No full local clone or hart-server worktree audit is claimed."
   ]
 }
