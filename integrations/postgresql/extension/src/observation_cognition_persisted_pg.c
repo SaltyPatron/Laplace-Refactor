@@ -26,6 +26,7 @@
 #include "laplace/trajectory.h"
 #include "laplace_pg_internal.h"
 #include "set_pg.h"
+#include "cognition_provider_pg.h"
 
 PG_FUNCTION_INFO_V1(laplace_pg_cognition_observation_execute_persisted);
 PG_FUNCTION_INFO_V1(laplace_pg_trajectory_entity_ids);
@@ -290,7 +291,8 @@ Datum laplace_pg_trajectory_entity_ids(PG_FUNCTION_ARGS) {
     PG_RETURN_ARRAYTYPE_P(result);
 }
 
-typedef struct persisted_provider_state {
+struct laplace_pg_cognition_provider {
+    laplace_cognition_observation_request request_storage;
     const laplace_cognition_observation_request* request;
     uint64_t memory_limit;
     uint64_t rows_fetched;
@@ -306,7 +308,9 @@ typedef struct persisted_provider_state {
     MemoryContext scratch_context;
     ErrorData* error;
     laplace_observation_query_index* index;
-} persisted_provider_state;
+    MemoryContextCallback cleanup;
+};
+typedef struct laplace_pg_cognition_provider persisted_provider_state;
 
 StaticAssertDecl(LAPLACE_PERSISTENCE_PHYSICALITY_COMPOSITION == 1, "SQL physicality kind drift");
 StaticAssertDecl(LAPLACE_OBSERVATION_QUERY_CONSTITUENT == 2, "SQL constituent mask drift");
@@ -519,6 +523,7 @@ static int persisted_enumerate(
     (void)costs;
     *count = 0u;
     memset(usage, 0, sizeof(*usage));
+    if (state->error != NULL || state->scratch_context == NULL) return 1;
     previous = MemoryContextSwitchTo(state->scratch_context);
     /* PostgreSQL ERROR uses longjmp. Catch it inside the C callback, release the
      * native index and return normally through C++ destructors before rethrowing
@@ -544,6 +549,102 @@ static int persisted_enumerate(
     return (int)status;
 }
 
+static void persisted_provider_release(void* opaque) {
+    persisted_provider_state* state = (persisted_provider_state*)opaque;
+    laplace_observation_query_index_destroy(&state->index);
+    /* Parent reset/delete has already released its children. This callback
+     * owns only external native resources, never a child MemoryContext. */
+    state->scratch_context = NULL;
+    if (state->error != NULL) {
+        FreeErrorData(state->error);
+        state->error = NULL;
+    }
+}
+
+void laplace_pg_cognition_provider_create(
+    const laplace_cognition_observation_request* request,
+    uint64_t provider_memory_bytes,
+    laplace_pg_cognition_provider** owner,
+    laplace_cognition_observation_candidate_provider_v1* provider) {
+    static const char domain[] = "laplace-postgresql-indexed-physicality-provider-v1";
+    laplace_digest256 request_fingerprint;
+    blake3_hasher identifier;
+    persisted_provider_state* state;
+    if (owner != NULL) *owner = NULL;
+    if (provider != NULL) memset(provider, 0, sizeof(*provider));
+    if (request == NULL || owner == NULL || provider == NULL ||
+        laplace_cognition_observation_request_identify(request, &request_fingerprint) !=
+            LAPLACE_COGNITION_OBSERVATION_REQUEST_OK)
+        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+            errmsg("Laplace persisted candidate provider request is invalid")));
+    if (request->search_budget.max_database_operations == 0u ||
+        request->forward_limits.max_database_operations == 0u)
+        persisted_limit("database-operation budget is absent");
+    if (provider_memory_bytes < 2048u)
+        persisted_limit("insufficient physical-provider workspace");
+    state = palloc0(sizeof(*state));
+    state->request_storage = *request;
+    state->request = &state->request_storage;
+    state->memory_limit = provider_memory_bytes > MaxAllocSize ? MaxAllocSize : provider_memory_bytes;
+    state->caller_context = CurrentMemoryContext;
+    state->scratch_context = AllocSetContextCreate(CurrentMemoryContext,
+                            "Laplace indexed cognition batch", ALLOCSET_DEFAULT_SIZES);
+    state->cleanup.func = persisted_provider_release;
+    state->cleanup.arg = state;
+    MemoryContextRegisterResetCallback(CurrentMemoryContext, &state->cleanup);
+    blake3_hasher_init(&identifier);
+    blake3_hasher_update(&identifier, domain, sizeof(domain)-1u);
+    blake3_hasher_update(&identifier, request_fingerprint.bytes, 32u);
+    blake3_hasher_finalize(&identifier, state->provider_fingerprint.bytes, 32u);
+    blake3_hasher_init(&state->readset);
+    blake3_hasher_update(&state->readset, state->provider_fingerprint.bytes, 32u);
+    provider->state = state;
+    provider->provider_fingerprint = state->provider_fingerprint;
+    provider->maximum_candidate_records_per_expansion = request->search_budget.transition_batch_capacity;
+    if (provider->maximum_candidate_records_per_expansion > state->memory_limit / 64u)
+        provider->maximum_candidate_records_per_expansion = state->memory_limit / 64u;
+    provider->enumerate_candidates = persisted_enumerate;
+    provider->abi_major = LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR;
+    provider->abi_minor = LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR;
+    *owner = state;
+}
+
+void laplace_pg_cognition_provider_summary(
+    const laplace_pg_cognition_provider* owner,
+    laplace_pg_cognition_provider_report* report) {
+    if (report == NULL) return;
+    memset(report, 0, sizeof(*report));
+    if (owner == NULL) return;
+    report->provider_fingerprint = owner->provider_fingerprint;
+    blake3_hasher_finalize(&owner->readset, report->readset_fingerprint.bytes, 32u);
+    report->rows_fetched = owner->rows_fetched;
+    report->carriers_decoded = owner->carriers_decoded;
+    report->logical_occurrences = owner->logical_occurrences;
+    report->indexed_entities = owner->indexed_entities;
+    report->trajectory_bytes = owner->trajectory_bytes;
+    report->database_operations = owner->database_operations;
+    report->batch_count = owner->batch_count;
+}
+
+ErrorData* laplace_pg_cognition_provider_take_error(laplace_pg_cognition_provider* owner) {
+    ErrorData* error;
+    if (owner == NULL) return NULL;
+    error = owner->error;
+    owner->error = NULL;
+    return error;
+}
+
+void laplace_pg_cognition_provider_destroy(laplace_pg_cognition_provider** owner) {
+    if (owner == NULL || *owner == NULL) return;
+    if ((*owner)->scratch_context != NULL) {
+        MemoryContextDelete((*owner)->scratch_context);
+        (*owner)->scratch_context = NULL;
+    }
+    persisted_provider_release(*owner);
+    /* The reset-callback target itself remains caller-context-owned. */
+    *owner = NULL;
+}
+
 static void persisted_cleanup(
     laplace_cognition_guidance_state** final_state,
     laplace_cognition_forward_result** forward_result,
@@ -566,11 +667,12 @@ static void persisted_native_release(void* opaque) {
 }
 
 Datum laplace_pg_cognition_observation_execute_persisted(PG_FUNCTION_ARGS) {
-    static const char domain[] = "laplace-postgresql-indexed-physicality-provider-v1";
     laplace_framework_context context;
     laplace_cognition_observation_request request;
     laplace_cognition_observation_candidate_provider_v1 provider;
-    persisted_provider_state state;
+    laplace_pg_cognition_provider* stored_provider = NULL;
+    laplace_pg_cognition_provider_report state;
+    ErrorData* provider_error;
     laplace_cognition_forward_receipt forward_receipt;
     laplace_cognition_obligation final_obligation;
     laplace_digest256 request_fingerprint, final_state_id, readset;
@@ -583,7 +685,6 @@ Datum laplace_pg_cognition_observation_execute_persisted(PG_FUNCTION_ARGS) {
     Oid execution_oid, answer_oid;
     size_t answer_count, i;
     Datum* answers;
-    blake3_hasher identifier;
     persisted_native_owner* owner = palloc0(sizeof(*owner));
     owner->cleanup.func = persisted_native_release;
     owner->cleanup.arg = owner;
@@ -603,40 +704,21 @@ Datum laplace_pg_cognition_observation_execute_persisted(PG_FUNCTION_ARGS) {
     if (request_status != LAPLACE_COGNITION_OBSERVATION_REQUEST_OK)
         ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
             errmsg("Laplace persisted cognition request is invalid: %d", (int)request_status)));
-    memset(&state, 0, sizeof(state));
-    state.request = &request;
-    state.memory_limit = context.resource_grant.memory_bytes - request.search_budget.max_memory_bytes;
-    if (state.memory_limit > MaxAllocSize) state.memory_limit = MaxAllocSize;
-    if (state.memory_limit < 2048u) persisted_limit("insufficient physical-provider workspace");
-    state.caller_context = CurrentMemoryContext;
-    state.scratch_context = AllocSetContextCreate(CurrentMemoryContext,
-                            "Laplace indexed cognition batch", ALLOCSET_DEFAULT_SIZES);
-    blake3_hasher_init(&identifier);
-    blake3_hasher_update(&identifier, domain, sizeof(domain)-1u);
-    blake3_hasher_update(&identifier, request_fingerprint.bytes, 32u);
-    blake3_hasher_finalize(&identifier, state.provider_fingerprint.bytes, 32u);
-    blake3_hasher_init(&state.readset);
-    blake3_hasher_update(&state.readset, state.provider_fingerprint.bytes, 32u);
-    memset(&provider, 0, sizeof(provider));
-    provider.state = &state;
-    provider.provider_fingerprint = state.provider_fingerprint;
-    provider.maximum_candidate_records_per_expansion =
-        request.search_budget.transition_batch_capacity;
-    if (provider.maximum_candidate_records_per_expansion > state.memory_limit / 64u)
-        provider.maximum_candidate_records_per_expansion = state.memory_limit / 64u;
-    provider.enumerate_candidates = persisted_enumerate;
-    provider.abi_major = LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR;
-    provider.abi_minor = LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR;
+    laplace_pg_cognition_provider_create(&request,
+        context.resource_grant.memory_bytes - request.search_budget.max_memory_bytes,
+        &stored_provider, &provider);
     if (SPI_connect() != SPI_OK_CONNECT)
         ereport(ERROR, (errmsg("Laplace persisted cognition could not connect to PostgreSQL")));
     memset(&forward_receipt, 0, sizeof(forward_receipt));
     request_status = laplace_cognition_observation_request_execute_with_candidate_provider(
         &request, &provider, &owner->observation, &owner->forward_result, &forward_receipt);
     SPI_finish();
-    MemoryContextDelete(state.scratch_context);
-    if (state.error != NULL) {
+    laplace_pg_cognition_provider_summary(stored_provider, &state);
+    provider_error = laplace_pg_cognition_provider_take_error(stored_provider);
+    laplace_pg_cognition_provider_destroy(&stored_provider);
+    if (provider_error != NULL) {
         persisted_cleanup(&owner->final_state, &owner->forward_result, &owner->observation);
-        ReThrowError(state.error);
+        ReThrowError(provider_error);
     }
     if (request_status != LAPLACE_COGNITION_OBSERVATION_REQUEST_OK || owner->forward_result == NULL) {
         persisted_cleanup(&owner->final_state, &owner->forward_result, &owner->observation);
@@ -758,7 +840,7 @@ Datum laplace_pg_cognition_observation_execute_persisted(PG_FUNCTION_ARGS) {
     wrapper_values[2] = laplace_pg_numeric_from_uint64(state.rows_fetched);
     wrapper_values[3] = laplace_pg_numeric_from_uint64(state.trajectory_bytes);
     wrapper_values[4] = laplace_pg_numeric_from_uint64(state.batch_count);
-    blake3_hasher_finalize(&state.readset, readset.bytes, sizeof(readset.bytes));
+    readset = state.readset_fingerprint;
     wrapper_values[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(readset.bytes, 32u));
     persisted_cleanup(&owner->final_state, &owner->forward_result, &owner->observation);
     result_tuple = laplace_pg_form_result_tuple(fcinfo, wrapper_values, wrapper_nulls, 6);

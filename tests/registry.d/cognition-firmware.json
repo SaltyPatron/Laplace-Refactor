@@ -198,6 +198,24 @@
       "covered_dimensions": [
         "computation failure does not even begin staging through the existing native cognition and framework lifecycle; synthetic provider fixtures do not establish deployed general AI"
       ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.ExternalProviderWorkspaceIsReservedBeforeExecution",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "Concrete provider workspace is reserved with native state before any provider executes; overflow cannot authorize work."
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.ProviderWorkspaceOverflowCannotWrapIntoAvailableMemory",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "Concrete provider workspace is reserved with native state before any provider executes; overflow cannot authorize work."
+      ]
     }
   ]
 }

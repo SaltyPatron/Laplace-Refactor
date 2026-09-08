@@ -1,4 +1,14 @@
 {
+  "firmware_provider_integration_20260907": {
+    "classification": "observed-development-state-not-product-law",
+    "base_commit": "4b9e021b2e4bd8f65b29e5862919a6251945c751",
+    "owning_pull_request": 263,
+    "owning_branch": "feat/firmware-request-execution",
+    "product_behavior_advanced": "Stored firmware can consume the same concrete indexed PostgreSQL physicality provider as standalone persisted cognition, with per-program database accounting and reserved provider workspace.",
+    "native_owner": "laplace_cognition_firmware_execute_with_provider_workspace delegates all search, act and realization to existing native owners; PostgreSQL supplies candidates, never goals.",
+    "verification": "Local native build, 95 tests and requirements passed. Actual PostgreSQL compilation, shared-provider parity and stored-firmware replay/missing-data/corruption acceptance are submitted next.",
+    "remaining": "This is an internal structural provider adapter, not a deployed whole-prompt semantic system. Concrete raw admission, semantic/evidence and realization providers, framework publication, ordinary user-facing request execution and configured-source acceptance remain on this same dependency chain. No component result closes that whole route."
+  },
   "firmware_execution_20260907": {
     "classification": "observed-development-state-not-product-law",
     "base_commit": "f02d78730aa6312885784a3a986ebb243810756f",

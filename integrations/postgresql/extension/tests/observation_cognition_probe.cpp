@@ -1,4 +1,5 @@
 #include "laplace/cognition_forward_pass.h"
+#include "laplace/cognition_firmware.h"
 #include "laplace/cognition_observation_request.h"
 #include "laplace/identity.h"
 #include "laplace/observation_query.h"
@@ -221,10 +222,52 @@ int WriteUnrelatedEstate(const char* path) {
 
 }  // namespace
 
+bool FirmwareImages() {
+    std::array<laplace_cognition_firmware_step,4> steps{};
+    steps[0].kind=LAPLACE_COGNITION_FIRMWARE_INTERPRET;
+    steps[0].anchor.source=LAPLACE_COGNITION_FIRMWARE_OBSERVATION;
+    steps[0].relation_mask=LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
+    steps[1].kind=LAPLACE_COGNITION_FIRMWARE_EMIT;
+    steps[1].anchor.source=LAPLACE_COGNITION_FIRMWARE_ANSWER;
+    steps[1].realization.modality_id.bytes[0]=1;
+    steps[1].realization.realization_recipe_epoch.bytes[0]=1;
+    steps[1].realization.maximum_candidates=4;
+    steps[1].realization.version=LAPLACE_COGNITION_REALIZATION_VERSION;
+    for (unsigned variant=0;variant<2;++variant) {
+        if (variant!=0) {
+            steps[1].kind=LAPLACE_COGNITION_FIRMWARE_EXECUTE;
+            steps[1].anchor={LAPLACE_COGNITION_FIRMWARE_OBSERVATION,0};
+            steps[1].goal={LAPLACE_COGNITION_FIRMWARE_PREVIOUS_ANSWER,0};
+            steps[1].relation_mask=LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
+            steps[1].realization={};
+            steps[2].kind=LAPLACE_COGNITION_FIRMWARE_EMIT;
+            steps[2].anchor={LAPLACE_COGNITION_FIRMWARE_ANSWER,1};
+            steps[2].realization.modality_id.bytes[0]=1;
+            steps[2].realization.realization_recipe_epoch.bytes[0]=1;
+            steps[2].realization.maximum_candidates=4;
+            steps[2].realization.version=LAPLACE_COGNITION_REALIZATION_VERSION;
+        }
+        laplace_cognition_firmware_program p{steps.data(),variant==0?2u:3u,LAPLACE_COGNITION_FIRMWARE_VERSION};
+        laplace_cognition_firmware_image* image=nullptr;
+        if(laplace_cognition_firmware_image_create(&p,65536,&image)!=LAPLACE_COGNITION_FIRMWARE_OK)return false;
+        laplace_cognition_firmware_program view{};const std::uint8_t* bytes=nullptr;std::size_t count=0;
+        laplace_digest256 identity{};
+        if(laplace_cognition_firmware_image_view(image,&view,&bytes,&count,&identity)!=LAPLACE_COGNITION_FIRMWARE_OK) {
+            laplace_cognition_firmware_image_destroy(&image);return false;
+        }
+        PrintHex(variant==0?"FIRMWARE_ID":"FIRMWARE_RESUME_ID",identity);
+        std::printf("%s=",variant==0?"FIRMWARE_IMAGE":"FIRMWARE_RESUME_IMAGE");
+        for(std::size_t i=0;i<count;++i)std::printf("%02x",static_cast<unsigned>(bytes[i]));
+        std::printf("\n");laplace_cognition_firmware_image_destroy(&image);
+    }
+    return true;
+}
+
 int main(int argc, char** argv) {
     if (argc == 3 && std::strcmp(argv[1], "--unrelated-estate") == 0)
         return WriteUnrelatedEstate(argv[2]);
     if (argc != 1) return 64;
+    if (!FirmwareImages()) return 2;
     Fixture fixture{};
     if (!BuildFixture(&fixture)) {
         return 1;

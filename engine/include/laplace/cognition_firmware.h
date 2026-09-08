@@ -175,6 +175,25 @@ LAPLACE_API laplace_cognition_firmware_status laplace_cognition_firmware_execute
     laplace_cognition_firmware_result** result,
     laplace_cognition_firmware_error* error);
 
+/* A concrete provider's workspace is reserved alongside native storage before
+ * provider execution. The host must enforce this same bound on its provider.
+ * This is the same execution owner; the compatibility entry reserves zero
+ * additional provider workspace. Neither entry manufactures provider results. */
+LAPLACE_API laplace_cognition_firmware_status laplace_cognition_firmware_execute_with_provider_workspace(
+    const laplace_cognition_firmware_program* program,
+    const laplace_cognition_firmware_request* request,
+    const laplace_framework_context* context,
+    laplace_cognition_prompt_admission* admission,
+    const uint8_t* previous_checkpoint, size_t previous_checkpoint_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* providers,
+    size_t provider_count,
+    const laplace_cognition_realization_provider_v1* realization_provider,
+    const laplace_cognition_materialization_provider_v1* materialization_provider,
+    laplace_framework_cancel_requested_fn cancel_requested, void* cancel_state,
+    uint64_t provider_workspace_bytes,
+    laplace_cognition_firmware_result** result,
+    laplace_cognition_firmware_error* error);
+
 LAPLACE_API void laplace_cognition_firmware_result_destroy(
     laplace_cognition_firmware_result** result);
 LAPLACE_API laplace_cognition_firmware_status laplace_cognition_firmware_result_receipt(

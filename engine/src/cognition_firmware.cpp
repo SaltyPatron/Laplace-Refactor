@@ -301,6 +301,22 @@ extern "C" laplace_cognition_firmware_status laplace_cognition_firmware_execute(
     const laplace_cognition_materialization_provider_v1* materialization_provider,
     laplace_framework_cancel_requested_fn cancelled,void* cancel_state,
     laplace_cognition_firmware_result** result,laplace_cognition_firmware_error* error) {
+    return laplace_cognition_firmware_execute_with_provider_workspace(
+        p,r,context,admission,previous_bytes,previous_count,providers,provider_count,
+        realization_provider,materialization_provider,cancelled,cancel_state,
+        0U,result,error);
+}
+
+extern "C" laplace_cognition_firmware_status laplace_cognition_firmware_execute_with_provider_workspace(
+    const laplace_cognition_firmware_program* p,const laplace_cognition_firmware_request* r,
+    const laplace_framework_context* context,laplace_cognition_prompt_admission* admission,
+    const std::uint8_t* previous_bytes,std::size_t previous_count,
+    const laplace_cognition_observation_candidate_provider_v1* providers,std::size_t provider_count,
+    const laplace_cognition_realization_provider_v1* realization_provider,
+    const laplace_cognition_materialization_provider_v1* materialization_provider,
+    laplace_framework_cancel_requested_fn cancelled,void* cancel_state,
+    std::uint64_t provider_workspace_bytes,
+    laplace_cognition_firmware_result** result,laplace_cognition_firmware_error* error) {
     using namespace firmware;
     if(result!=nullptr)*result=nullptr;
     if(error!=nullptr)*error={0U,NoStep,0U,0U};
@@ -336,6 +352,7 @@ extern "C" laplace_cognition_firmware_status laplace_cognition_firmware_execute(
         working=Add(working,Mul(r->maximum_checkpoint_bytes,2U));
         working=Add(working,Mul(provider_count+1U,sizeof(*providers)*2U));
         working=Add(working,r->search_budget.max_memory_bytes);
+        working=Add(working,provider_workspace_bytes);
         working=Add(working,r->materialization.maximum_output_bytes);
         if(working>context->resource_grant.memory_bytes)Fail(LAPLACE_COGNITION_FIRMWARE_LIMIT);
         if(Add(FrameHeaderBytes,Mul(p->step_count,RegisterBytes))>r->maximum_checkpoint_bytes)

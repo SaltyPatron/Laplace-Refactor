@@ -353,6 +353,25 @@ TEST_F(CognitionFirmware, OutputAndMemoryBoundsRejectWithoutPublishedPrefix) {
     request.maximum_output_bytes=1;
     EXPECT_EQ(Run(result),LAPLACE_COGNITION_FIRMWARE_LIMIT);EXPECT_EQ(result.value,nullptr);
 }
+TEST_F(CognitionFirmware, ExternalProviderWorkspaceIsReservedBeforeExecution) {
+    Result exhausted, accepted;
+    EXPECT_EQ(laplace_cognition_firmware_execute_with_provider_workspace(
+        &program,&request,&context,admission,nullptr,0,&provider,1,&realizer,&materializer,
+        nullptr,nullptr,context.resource_grant.memory_bytes,&exhausted.value,&error),
+        LAPLACE_COGNITION_FIRMWARE_LIMIT);
+    EXPECT_EQ(world.calls,0U); EXPECT_EQ(exhausted.value,nullptr);
+    ASSERT_EQ(laplace_cognition_firmware_execute_with_provider_workspace(
+        &program,&request,&context,admission,nullptr,0,&provider,1,&realizer,&materializer,
+        nullptr,nullptr,4096U,&accepted.value,&error), LAPLACE_COGNITION_FIRMWARE_OK);
+    EXPECT_EQ(accepted.output(),"AB");
+}
+TEST_F(CognitionFirmware, ProviderWorkspaceOverflowCannotWrapIntoAvailableMemory) {
+    Result result;
+    EXPECT_EQ(laplace_cognition_firmware_execute_with_provider_workspace(
+        &program,&request,&context,admission,nullptr,0,&provider,1,&realizer,&materializer,
+        nullptr,nullptr,UINT64_MAX,&result.value,&error),LAPLACE_COGNITION_FIRMWARE_LIMIT);
+    EXPECT_EQ(world.calls,0U); EXPECT_EQ(result.value,nullptr);
+}
 struct Image {
     laplace_cognition_firmware_image* value{};
     ~Image(){laplace_cognition_firmware_image_destroy(&value);}

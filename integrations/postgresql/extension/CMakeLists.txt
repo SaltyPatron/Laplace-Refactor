@@ -114,6 +114,7 @@ ${LAPLACE_COGNITION_DISCOURSE_SQL}\
 set(laplace_postgresql_module_sources
     src/cognition_discourse_pg.c
     src/cognition_isa_pg.c
+    src/cognition_firmware_pg.c
     src/composition_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
@@ -169,6 +170,7 @@ set_target_properties(laplace_pg PROPERTIES
 if(BUILD_TESTING)
     target_compile_definitions(laplace_pg PRIVATE
         LAPLACE_POSTGRES_TESTING=1)
+    target_sources(laplace_pg PRIVATE tests/cognition_firmware_provider_pg.c)
 
     set(observation_cognition_contract_sql
         "${CMAKE_CURRENT_BINARY_DIR}/observation_cognition_contract.sql")
