@@ -32,7 +32,7 @@ The current discussion supplies these direct instructions:
 
 > Why does Laplace-Refactor not have a UI that grows and implements with the app itself?
 
-> We can set up a UI, api endpoints, the mcp, openai compatable endpoint, etc all with auth that lets anyone with a microsoft or even any SSO account log in and give us JWT/claims/etc so we can start fleshing everything out, starting with the admin panel for ingestions of seed sources, app management, and user/data control, etc...
+> We can set up a UI, api endpoints, the mcp, openai compatable endpoint, etc all with auth that lets anyone with a microsoft or even any SSO account log in and give us JWT/claims/etc so we can start fleshing everything out, starting with the admin panel for ingestions of seed sources, app management, user/data/etc control, etc...
 
 > We're gonna flesh out the UI and acceptance criteria before you dive in so you have ZERO excuse
 
