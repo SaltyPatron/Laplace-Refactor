@@ -12,6 +12,8 @@ Converse retains durable conversations and multimodal artifacts. Explore retains
 
 The default interaction is **browse -> inspect -> act -> verify**. A person must be able to discover available sources, worlds, jobs and capabilities without guessing a search term, identifier, filename, SQL query, or route. Search, filters, saved views and command search accelerate that path.
 
+**Direct scope clarification: this applies to everything in Laplace, not just Unicode.** Section 10 makes collection-first browsing, schema/result-driven controls, multiple selection, comparison and linked inspection cross-cutting product behavior. Unicode is one example; it is not the completeness boundary. Rich graph, glome, board, document, media and other viewers plug into that workspace rather than becoming single-item search islands. See [data-browser contracts](DATA_BROWSER_AND_SOURCE_LINKS.md) and the user's [SpecEditor/CIEDigital engineering references](SCHEMA_DRIVEN_INTERFACE_REFERENCES.md).
+
 Every screen specifies its authorized query, actions, empty/loading/denied/error/stale states, deep-link behavior and post-action receipt. A visible label does not confer authority. Do not expose private object names merely to explain that a caller cannot access them.
 
 ## 2. Home: an operational cockpit
@@ -131,13 +133,13 @@ An integration page exposes actual base URLs, auth instructions, protocol versio
 
 Authentication/provider setup is an administrator installation task with a guided path. After setup an ordinary user signs in and works without SSH, SQL, environment-variable rituals, hand-edited configuration or a special debug route. Copyable developer examples use only the documented endpoint, normal credentials and standard client options.
 
-Acceptance: INT-01..09, AUTH-01..10, QA-03.
+Acceptance: INT-01..09, AUTH-01..10.
 
 ## 8. Inspection and the real Laplace state
 
 Explore and job outputs must support drill-through to canonical identity, exact structural content, occurrence/source, testimony, dependence, typed standing, selected calculus/recipe, world/epoch and receipt. A human label may change without reminting identity; unresolved labels have an explicit fallback and inspectable full ID.
 
-For Unicode and geometry inspection, distinguish real four-component `physicality.coord`, packed address/ordinal/RLE trajectory payloads and realized coordinate curves. Display exact machine-readable values alongside human presentation and declare projection/loss. Composite centroid/radius semantics must not be falsely presented as every composite lying on the Tier-0 unit sphere.
+For every applicable content type, distinguish real four-component `physicality.coord`, packed address/ordinal/RLE trajectory payloads and realized coordinate curves. Display exact machine-readable values alongside human presentation and declare projection/loss. Composite centroid/radius semantics must not be falsely presented as every composite lying on the Tier-0 unit sphere. Unicode is an entry example, not the only consumer of these controls. Words, documents, code, game trajectories, media structure and other admitted compositions use the same typed physicality inspection.
 
 An expanded workbench preserves entity/result/receipt/epoch identity, selected ordinal, filters, loaded neighbors, camera and 4D rotation state. Expansion alone neither runs cognition again nor changes the selected world. A user-requested expansion of semantic scope is a different, explicitly receipted operation.
 
@@ -151,4 +153,114 @@ Every dense table/log supports bounded rendering and an accessible nonvisual equ
 
 Target WCAG 2.2 AA with manual keyboard and assistive-technology review as well as automated checks. Reference: https://www.w3.org/TR/WCAG22/ . Detailed budgets and browser fixtures are proposals in acceptance, not measurements.
 
-Required visual-review deliverables before D4: annotated Home, source catalog/detail, running/interrupted job, runtime/configuration, users/grants and data-impact views, including narrow/wide layouts and at least denied, empty and failed states. The textual layouts above do not substitute for that visual review.
+Required visual-review deliverables before D4: annotated Home, source catalog/detail, running/interrupted job, runtime/configuration, users/grants and data-impact views, including narrow/wide layouts and at least denied, empty and failed states. Add the collection/selection/compare workspace and its graph, glome and chess integrations from section 10. The textual layouts above do not substitute for visual approval.
+
+## 10. Universal collection workspace: every data type and capability
+
+### 10.1 Scope and the reusable unit
+
+The inventor explicitly corrected the scope to **everything**, not just Unicode. Preserve the liked graph/glome interactions shown in the two supplied legacy screenshots and the existing chess capabilities, while removing dependence on isolated single-item searches. This is a functional scope requirement, not an instruction to copy the old implementation, hide everything behind a generic JSON viewer, or make every domain look identical.
+
+The reusable unit is:
+
+    collection or typed result
+      -> data/schema-driven fields, filters and ordering
+      -> result set and persistent selection
+      -> detail / compare / compatible visualization / applicable action
+      -> linked collection or result
+      -> the same workspace again
+
+Individual record pages are one useful state of that workspace, not its only entrance. Lists, related lists, joined projections, grouped results and calculation outputs all describe their own available fields. A zero-row result retains its schema; a heterogeneous result exposes its union/variants and explicit not-applicable fields rather than guessing its schema from the first row.
+
+The effective descriptor combines authorized installed storage metadata, generated native record/operation/type metadata and the selected result schema. A supported new field must not require a new page, endpoint, handwritten DTO or custom filter. A genuinely new semantic type needs one reusable provider/renderer integration, not separate integrations for each source. Discovery is automatic where metadata already supplies meaning; ordinary users configure views, not the backend's semantic registry.
+
+SpecEditor demonstrates physical schema discovery and dependent controls. CIEDigital demonstrates reflected model-property filters, polymorphic editor templates and generic query expressions; these are complementary, positive references selected by the inventor. Their precise source paths and protection mechanisms are recorded in [SCHEMA_DRIVEN_INTERFACE_REFERENCES.md](SCHEMA_DRIVEN_INTERFACE_REFERENCES.md). The public repositories were inspected as source, not built or launched here.
+
+### 10.2 Workspace behavior
+
+A persistent collection selector and filter/sort/field bar stays available beside the active viewer. The working selection is independent of the focused record: one record may be open while many records stay selected for comparison or an operation. Selection explicitly distinguishes selected IDs, a page, the requested top-N and the full matching query at its declared read boundary.
+
+Single, multiple and batch are declared operation cardinalities. A multi-input comparison is not a hidden loop of unrelated single-item requests. It receives the selected set, comparison basis, versions and resource boundary through the common native operation. Batch effects preserve per-item outcome and shared admission semantics. Mixed or ineligible selections receive a clear per-item disposition, not silent omission.
+
+Users can pin records, open two or more compatible items in comparison panes, and switch among list, details, graph, structure, geometry, timeline, board or media views without rebuilding their query. Multi-object views identify each displayed item and expose which selected items are outside the current render window. Filtering data, narrowing a view, hiding labels and changing camera are different actions with different effects.
+
+Selection is linked across views: choose a grid row, node, curve vertex, move or source span and highlight the corresponding typed record/occurrence in the other open panels. The selection key includes the necessary occurrence, ordinal and version; one canonical entity appearing repeatedly must not make every occurrence indistinguishable. Navigation never silently widens world/source/authority scope.
+
+Table preferences, query and selected IDs/ranges, pin/comparison state, history, camera/rotation, active move/time position and disclosure scope survive expansion and return navigation. Each viewer has local loading/error/cancellation. Page resize, label decluttering and opening an already loaded panel do not trigger ingestion or rerun cognition.
+
+### 10.3 Whole-product coverage, not a Unicode checklist
+
+This matrix groups existing scope; it is not an exhaustive fixed list of future types. New registered families inherit the same interaction contract. Missing required operators/viewers stay tracked as implementation gaps rather than making the family disappear.
+
+| Data/capability family | Collection and query entrance | Rich views composed with the shared controls |
+|---|---|---|
+| Atoms, n-ary compositions, physicalities and structural paths | Type, exact content, shape/size, constituent, ordinal, recipe and selected epoch | Raw values, structure, packed address view, real placement, realized curves and typed metrics |
+| Lexical entries, senses, frames, roles, references and mappings | Language/source/release, relation/role, endpoint, mapping status and exact occurrence | Related grids, aligned comparisons, frame/role layout, graph and source passage |
+| Evidence, testimony, dependence, standing and consensus | Proposition, source, context/time/world, arena/recipe/epoch and disposition | Evidence/dependence graph, uncertainty/history, comparable ratings and original observations |
+| Documents, datasets, code and repository history | Work/revision/artifact, structural role, source span, language/grammar and linked symbol | Document/code viewer, diff, AST/structure, source mapping, diagnostics and execution links |
+| Images, audio, video and other admitted modalities | Artifact/type, source, time/segment, declared annotation and observation | Thumbnails, image/region viewer, audio/video player, timeline/alignment and structural inspection |
+| Games/chess, players, events, positions, moves and openings | Player/source/date/time control, result, role, position/line and witnessed or calculated attributes | Board replay, move list, clocks, career/head-to-head comparisons, graph, timeline and related documents |
+| Places, people, organizations and referential worlds | Typed references, affiliations, time/source/world and allowed relationships | Profile/world views, geographic map where appropriate, hierarchy and linked occurrences |
+| Conversations, observations, goals and semantic acts | Session/source, participants, time, parent/result and selected firmware | Conversation, multimodal attachments, goal/result inspection, provenance and related state |
+| Recipes, firmware, calculus, models and Foundry artifacts | Program/type/revision, inputs/outputs, dependencies and deployment/readiness | Program/recipe editor where permitted, diff, dependency views, model/shard/tensor inspection and compile results |
+| Experiments, calculations, measurements and execution results | Operation, dataset/cohort, provider, configuration, measured unit and outcome | Comparable tables, plots, timelines, exact inputs/outputs and links to the affected content |
+| Sources, manifests, ingestions, jobs, workers, logs and alerts | State, source/release, installation, actor, dependency, time and resource use | Plan/stage graph, correlated logs, progress, artifact inspector and recovery actions |
+| Users, memberships, grants, sessions, entitlements and usage | Authorized principal/workspace/resource, role/scope, expiry and activity | Account/grant relationships, policy/usage history and scoped management; secrets remain protected |
+| Installations, nodes, providers, storage, configuration and federation | Location/provider, loaded version, readiness, dependency and permitted placement | Topology, configuration diff, health/history, capacity and typed management operations |
+
+A board remains a board, a document remains readable, and a waveform remains a media control. Generic behavior is shared discovery/query/selection/navigation/effect handling, not forcing specialized content into a table forever. Raw structure and exact identities remain reachable from every rich view.
+
+### 10.4 Screenshot-derived graph/glome preservation and repairs
+
+The two user-supplied images show the same `transformer` record with (1) a dense labelled 2D/3D graph and (2) separate packed and placement panels with four-dimensional rotation controls. They are positive visual/interaction references. Static screenshots establish visible layout only, not correctness of counters, graph relations, coordinates, operation effects or the current deployed version. No browser chrome or screenshot file is republished by this document.
+
+Preserve labelled navigable graphs, recentering, adjustable expansion, multiple coordinated representations, four-dimensional inspection and the ability to see the same object as graph, structure, links and provenance. Extend these to selected sets and comparison workspaces; do not discard the rich views to deliver a table-only administrator app.
+
+Concrete visible problems to address: many graph labels overlap or are truncated; content reaches/crosses viewport edges; tiny instruction text competes with the graph; the wide `Unlock (m)` control overlays both geometric panels; the two panels' controls and viewport tops are not aligned; decorative graphics overlap the content area; the presented detail leaves no master list or selection workspace alongside it.
+
+Required repair behavior:
+
+- Graph labels have zoom/focus-aware density, stable hover/selection labels, explicit pinning and readable contrast. Suppressing a label changes presentation only; actual result truncation remains separately disclosed. The selected node and edge are inspectable in the linked table even when their label cannot fit on canvas.
+- Each graph edge exposes its type, direction/roles and context on selection. Effective source/relation/expansion settings and the currently rendered subset are readable in one place. Domain clustering is labelled presentation or a named calculation, never an implicit merge of meaning.
+- Packed hash/address geometry, real placement and realized coordinate curves remain distinctly labelled with their proper units/types. Shared selection can link corresponding constituents; it does not declare their numerical coordinates interchangeable. Optional synchronized cameras have explicit on/off and per-panel reset.
+- Graph/glome panes support bounded sizes, resizable splits, expand/fullscreen and stacking on narrow displays. Controls occupy their own toolbar rather than obscure data. Keyboard help is discoverable and shortcuts are scoped to the focused viewer, so opening two boards or graphs does not control both at once.
+- A selection can overlay multiple compatible trajectories with a clear legend or use small-multiple panes. A metric comparison names the selected objects, coordinate class, metric/variant and units. Exact equality remains separate: `King` and `king` retain different content and a shared suffix even when a comparison groups them.
+- Decorations must not cover controls, observations or selected objects. Existing accessibility and layout requirements (#172/#174/#176, UX-05..08) apply to every viewer, not only a Unicode demo.
+
+### 10.5 Chess as an end-to-end example of the universal workflow
+
+Read-only source inspection at legacy commit `4336f709606c4d4517db4eb81ac6c3b495bde0d5` found useful existing pieces, not a claim that every old page is single-item-only:
+
+- [`PlayersIndex.tsx`](https://github.com/SaltyPatron/Laplace/blob/4336f709606c4d4517db4eb81ac6c3b495bde0d5/web/src/chess/db/PlayersIndex.tsx) already has paged player lists, URL-persisted filters, sortable game/rating/RD columns and clickable careers.
+- [`PlayerPage.tsx`](https://github.com/SaltyPatron/Laplace/blob/4336f709606c4d4517db4eb81ac6c3b495bde0d5/web/src/chess/db/PlayerPage.tsx) exposes provider profiles/aliases, overall and colour-split records, games/opponents, a replay and a link to the substrate entity.
+- [`GameBoard.tsx`](https://github.com/SaltyPatron/Laplace/blob/4336f709606c4d4517db4eb81ac6c3b495bde0d5/web/src/chess/db/GameBoard.tsx) supplies replay, move stepping/scrubbing, flip and clock/speed handling with exact-position links. These are inspected source mechanisms, not freshly tested live behavior.
+- [The legacy chess integration guide](https://github.com/SaltyPatron/Laplace/blob/4336f709606c4d4517db4eb81ac6c3b495bde0d5/docs/guides/chess-graph-integration.md) records the intended player -> playing/line -> position/move -> other playing/player/source connections. Its particular old identity canonicalizers and schemas do not define the clean implementation.
+
+Preserve those capabilities and generalize their infrastructure. Required journey: browse players -> filter by a declared source/time/rating scope -> select multiple careers -> compare on the same basis -> open their shared or filtered game collection -> open one or several games -> step to a position -> show other games reaching that exact position -> open its permitted continuations, calculation or grounded source passage -> return to the selected careers without losing state.
+
+The same board control must work on a game page, player detail, experiment result and comparison pane. Move/position selection synchronizes the board, move list, occurrence/provenance and graph. A replayed occurrence, a hypothetical variation and an executed move are distinct; inspecting or scrubbing must not play a move, launch an engine or publish testimony. Existing chess-native owners supply rules/calculations; the UI neither duplicates them nor takes away legitimate game-specific interaction.
+
+This is one cross-domain acceptance example, not a chess-specific replacement for the all-data requirement.
+
+### 10.6 Developer experience and shared action protection
+
+The same field/operator/relation descriptors serve UI rendering, typed API clients and documentation. Native HTTP and applicable MCP/compatibility operations use the same semantic query/effect owners; compatibility protocols expose only their declared appropriate operations. A developer adds one supported type/operation integration rather than separately maintaining a browser version, a source-specific controller and several incompatible endpoint implementations.
+
+Preserve CIEDigital's centralized protected-parameter abstraction, not its historical DES/embedded-key implementation. Selected route/cursor/intent state uses purpose-scoped authenticated protection with managed keys and declared expiry where appropriate; TLS and current per-request authority are separate obligations. Client-posted runtime type names never determine allowed types. Protected state retains exact query/cardinality/context and is reusable through shared link/binding controls, not custom cryptography per page. Public permanent identity links and ordinary SDK requests need not acquire a proprietary encrypted request format. Details and primary references are in [SCHEMA_DRIVEN_INTERFACE_REFERENCES.md](SCHEMA_DRIVEN_INTERFACE_REFERENCES.md).
+
+### 10.7 Feature acceptance additions to existing owners
+
+These refine existing DBR/UX/DATA/AUTH/INT/EVO criteria; they are not implemented tests or a new numbered completion score.
+
+| Feature proof | Existing ownership and acceptance |
+|---|---|
+| An ordinary supported field added to an authorized source/result schema acquires suitable filter, sort, grid and detail behavior without new screen-specific code; empty and mixed results retain correct schema | #268/#68; DBR-08/30, EVO-01/02 |
+| The same select/filter/compare/drill-back journey works for lexical content, a chess cohort, documents/code, a media collection and operational jobs; missing providers remain explicit unfinished acceptance, not a substitute mock | #68 with existing domain owners; UX-01/03, DBR-05/17/18/30, QA-01 |
+| A selected set survives changes of viewer and record focus; explicit all-matching/top-N/page/IDs scopes produce the correct plural or batch operation and per-item outcome | #268; DBR-02/06/27, INT-01 |
+| Table selection, graph node/edge, curve ordinal, board ply and source/media span synchronize by exact typed occurrence/version, without matching labels as identity | #68/#174/#176; DBR-09/10/13/14/17, DATA-04/05 |
+| Two simultaneous rich viewers have independent focused keyboard controls; expand/resize/recenter-display preserves query and does not silently execute a new semantic operation | #68/#176; UX-05..08, DBR-05/28 |
+| Dense graph and dual-glome fixtures reproduce the visible overlaps and fail until readable labels, unobscured controls, proper typed views and accessible linked rows work at the reviewed sizes | #172/#174/#176; UX-05..08, DBR-17/28 |
+| A selected plural comparison is bounded set-wise work; high-cardinality selections cannot become N per-item SQL/API calls or unbounded pairwise work hidden behind a button | #268/native query owner; DBR-29, QA-05 |
+| Schema/field/relationship discovery, protected navigation and action execution apply the same current access scope to every family, including admin and raw views | #64/#268; AUTH-04/06/08, DBR-24/25 |
+
+The delivery condition is usable, interconnected product functionality. Generating a schema, writing these criteria, or displaying a test receipt does not deliver it. The current work remains design review, with application implementation awaiting the user's review of the workflows.
