@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
 typedef struct laplace_uax29_tables laplace_uax29_tables;
+typedef struct laplace_uax29_atom_table_builder laplace_uax29_atom_table_builder;
 
 typedef enum laplace_uax29_status {
     LAPLACE_UAX29_OK = 0,
@@ -56,10 +57,41 @@ typedef int (*laplace_uax29_emit_fn)(
  * performed here: exact source bytes remain exact source bytes ("King" is not
  * "king"). The tables consume GraphemeBreakProperty, WordBreakProperty,
  * SentenceBreakProperty, DerivedCoreProperties/InCB, and Extended_Pictographic.
+ *
+ * This constructor is retained for source-authority/bootstrap tooling. Installed
+ * product execution should consume the canonical Unicode atom stream below so
+ * a source filesystem is not a second runtime semantic authority.
  */
 LAPLACE_API laplace_uax29_status laplace_uax29_tables_create(
     const laplace_unicode_source_bundle* bundle,
     laplace_uax29_tables** tables);
+
+/*
+ * Incrementally derives the identical UAX property plane from canonical Unicode
+ * atom records. The builder requires the complete canonical stream in strict
+ * codepoint-position order, exactly once from 0 through 1,114,111. Only atom
+ * fields 21..25 participate: grapheme_cluster_break, word_break,
+ * sentence_break, indic_conjunct_break, and extended_pictographic. Geometry,
+ * placement, source path, persistence layout, and occurrence metadata cannot
+ * change segmentation semantics.
+ *
+ * This is the installed-product boundary for constructing a UAX provider from
+ * an activated Unicode root/perfcache without reparsing the source estate.
+ */
+LAPLACE_API laplace_uax29_status laplace_uax29_atom_table_builder_create(
+    laplace_uax29_atom_table_builder** builder);
+
+LAPLACE_API laplace_uax29_status laplace_uax29_atom_table_builder_consume(
+    laplace_uax29_atom_table_builder* builder,
+    const laplace_unicode_atom_record_view* records,
+    size_t record_count);
+
+LAPLACE_API laplace_uax29_status laplace_uax29_atom_table_builder_finish(
+    laplace_uax29_atom_table_builder** builder,
+    laplace_uax29_tables** tables);
+
+LAPLACE_API void laplace_uax29_atom_table_builder_destroy(
+    laplace_uax29_atom_table_builder** builder);
 
 LAPLACE_API void laplace_uax29_tables_destroy(
     laplace_uax29_tables** tables);
