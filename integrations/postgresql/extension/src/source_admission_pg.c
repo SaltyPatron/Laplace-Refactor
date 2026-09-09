@@ -1,6 +1,6 @@
 /*
  * Product source admission crosses one source-agnostic recursive decomposition
- * boundary. The PostgreSQL host selects the currently available grammar/codec
+ * boundary. The PostgreSQL host selects the currently activated grammar/codec
  * authorities and passes them as ordinary decomposition providers; the generic
  * engine does not select a Unicode/corpus/source-family path.
  *
@@ -24,13 +24,9 @@
 #include "laplace/source_decomposition.h"
 #include "laplace/source_profile.h"
 #include "laplace/uax29.h"
-#include "laplace/unicode_root.h"
 #include "composition_pg.h"
 #include "source_structural_witness_pg.h"
-
-#ifndef LAPLACE_UNICODE_SOURCE_ROOT
-#error "LAPLACE_UNICODE_SOURCE_ROOT is required until UAX authority is activated from admitted source state"
-#endif
+#include "uax29_active_pg.h"
 
 PG_FUNCTION_INFO_V1(laplace_source_admission_last_execution_metrics);
 
@@ -52,6 +48,8 @@ static const laplace_pg_composition_execution*
     laplace_pg_active_source_execution = NULL;
 static const laplace_composition_working_set_input*
     laplace_pg_active_source_composition_input = NULL;
+static laplace_pg_active_uax_authority laplace_pg_source_uax_authority;
+static uint8_t laplace_pg_source_uax_authority_valid = 0u;
 static laplace_pg_source_execution_metrics laplace_pg_source_metrics_previous;
 static laplace_pg_source_execution_metrics laplace_pg_source_metrics_active;
 static uint64_t laplace_pg_source_metrics_sequence = 0u;
@@ -155,7 +153,7 @@ static void laplace_pg_source_hash_bytes(
 }
 
 static laplace_digest256 laplace_pg_source_uax_provider_fingerprint(
-    const laplace_unicode_source_receipt* receipt) {
+    const laplace_pg_active_uax_authority* authority) {
     static const char domain[] = "laplace.decomposition.provider.uax29/v1";
     laplace_digest256 result;
     blake3_hasher hasher;
@@ -163,11 +161,11 @@ static laplace_digest256 laplace_pg_source_uax_provider_fingerprint(
     blake3_hasher_init(&hasher);
     laplace_pg_source_hash_bytes(&hasher, domain, sizeof(domain) - 1u);
     laplace_pg_source_hash_bytes(
-        &hasher, receipt->source_fingerprint.bytes,
-        sizeof(receipt->source_fingerprint.bytes));
+        &hasher, authority->source_fingerprint.bytes,
+        sizeof(authority->source_fingerprint.bytes));
     laplace_pg_source_hash_bytes(
-        &hasher, receipt->recipe_fingerprint.bytes,
-        sizeof(receipt->recipe_fingerprint.bytes));
+        &hasher, authority->recipe_fingerprint.bytes,
+        sizeof(authority->recipe_fingerprint.bytes));
     blake3_hasher_finalize(&hasher, result.bytes, sizeof(result.bytes));
     return result;
 }
@@ -176,60 +174,72 @@ static laplace_tabular_source_status
 laplace_pg_source_decomposition_plan_create(
     const laplace_tabular_source_input* input,
     laplace_tabular_source_plan** plan) {
-    laplace_unicode_source_bundle* unicode_bundle = NULL;
-    laplace_unicode_source_receipt unicode_receipt;
     laplace_uax29_tables* uax_tables = NULL;
     laplace_decomposition_uax29_provider uax_provider;
+    laplace_pg_active_uax_authority uax_authority;
     laplace_digest256 uax_fingerprint;
     laplace_tabular_source_status status;
 
     laplace_pg_active_source_plan = NULL;
     laplace_pg_active_source_execution = NULL;
     laplace_pg_active_source_composition_input = NULL;
+    laplace_pg_source_uax_authority_valid = 0u;
+    memset(&laplace_pg_source_uax_authority, 0,
+           sizeof(laplace_pg_source_uax_authority));
     laplace_pg_source_metrics_begin();
-    memset(&unicode_receipt, 0, sizeof(unicode_receipt));
     memset(&uax_provider, 0, sizeof(uax_provider));
+    memset(&uax_authority, 0, sizeof(uax_authority));
 
-    /* Transitional host-side authority selection: source admission now invokes
-     * the generic decomposition boundary directly.  UAX tables still come from
-     * the verified Unicode source bundle until that authority is generated from
-     * admitted Unicode source state and activated as a normal provider plane. */
-    if (laplace_unicode_source_bundle_open(
-            LAPLACE_UNICODE_SOURCE_ROOT,
-            &unicode_bundle,
-            &unicode_receipt) != LAPLACE_UNICODE_OK ||
-        unicode_bundle == NULL ||
-        laplace_uax29_tables_create(unicode_bundle, &uax_tables) !=
-            LAPLACE_UAX29_OK ||
-        uax_tables == NULL) {
-        laplace_uax29_tables_destroy(&uax_tables);
-        laplace_unicode_source_bundle_close(&unicode_bundle);
+    /* Product UAX authority is derived from the active canonical Unicode atom
+     * stream. No Unicode source directory is consulted on this execution path.
+     * The provider fingerprint remains bound to the canonical root's retained
+     * source+recipe identity, so replacing the physical provider does not change
+     * the logical UAX authority. */
+    laplace_pg_uax29_tables_from_active_unicode(&uax_tables, &uax_authority);
+    if (uax_tables == NULL) {
         return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
     }
 
     uax_fingerprint =
-        laplace_pg_source_uax_provider_fingerprint(&unicode_receipt);
+        laplace_pg_source_uax_provider_fingerprint(&uax_authority);
     if (laplace_decomposition_uax29_provider_init(
             &uax_provider, uax_tables, &uax_fingerprint) !=
         LAPLACE_DECOMPOSITION_OK) {
         laplace_uax29_tables_destroy(&uax_tables);
-        laplace_unicode_source_bundle_close(&unicode_bundle);
         return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
     }
 
     status = laplace_source_decomposition_plan_create(
         input, &uax_provider.provider, 1u, plan);
     laplace_uax29_tables_destroy(&uax_tables);
-    laplace_unicode_source_bundle_close(&unicode_bundle);
     if (status == LAPLACE_TABULAR_SOURCE_OK && plan != NULL && *plan != NULL) {
         laplace_pg_active_source_plan = *plan;
+        laplace_pg_source_uax_authority = uax_authority;
+        laplace_pg_source_uax_authority_valid = 1u;
     }
     return status;
+}
+
+static void laplace_pg_source_require_uax_epoch(
+    const laplace_composition_working_set_input* input) {
+    if (laplace_pg_source_uax_authority_valid == 0u || input == NULL ||
+        input->context == NULL ||
+        (input->context->epoch_mask &
+         (UINT64_C(1) << LAPLACE_FRAMEWORK_EPOCH_PERFCACHE)) == 0u ||
+        memcmp(
+            input->context->epochs[LAPLACE_FRAMEWORK_EPOCH_PERFCACHE].bytes,
+            laplace_pg_source_uax_authority.activation_epoch_fingerprint.bytes,
+            sizeof(laplace_pg_source_uax_authority.activation_epoch_fingerprint.bytes)) != 0) {
+        ereport(ERROR,
+                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                 errmsg("Laplace source execution changed Unicode authority between decomposition and composition")));
+    }
 }
 
 static void laplace_pg_source_composition_execute(
     const laplace_composition_working_set_input* input,
     laplace_pg_composition_execution* execution) {
+    laplace_pg_source_require_uax_epoch(input);
     LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(input, execution);
     laplace_pg_source_metrics_capture_composition(execution);
     laplace_pg_active_source_execution = execution;
