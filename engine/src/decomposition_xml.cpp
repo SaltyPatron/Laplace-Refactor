@@ -98,7 +98,10 @@ public:
         const laplace_decomposition_xml_provider& provider,
         const laplace_decomposition_content& content,
         const laplace_decomposition_span& span)
-        : provider_(provider), content_(content), begin_(span.byte_start), end_(span.byte_end) {}
+        : provider_(provider),
+          content_(content),
+          begin_(span.byte_start),
+          end_(span.byte_end) {}
 
     bool Parse() {
         std::uint64_t document = 0u;
@@ -106,7 +109,8 @@ public:
                 UINT64_MAX, begin_, end_, provider_.document_kind, 0u,
                 static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SPAN_TEXT),
                 static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_NAMED),
-                &document) || document != 0u) {
+                &document) ||
+            document != 0u) {
             return false;
         }
         document_index_ = document;
@@ -164,11 +168,8 @@ private:
     }
 
     bool Starts(const std::uint64_t offset, const std::string_view literal) const {
-        if (literal.size() > static_cast<std::size_t>(
-                std::numeric_limits<std::uint64_t>::max()) ||
-            !Has(offset, static_cast<std::uint64_t>(literal.size()))) {
-            return false;
-        }
+        const std::uint64_t literal_size = static_cast<std::uint64_t>(literal.size());
+        if (!Has(offset, literal_size)) return false;
         return std::memcmp(
                    content_.bytes + static_cast<std::size_t>(offset),
                    literal.data(), literal.size()) == 0;
@@ -226,8 +227,7 @@ private:
         const std::uint32_t syntax_flags,
         std::uint64_t* const index) {
         if (first >= last || first < begin_ || last > end_ || kind == 0u ||
-            nodes_.size() >= static_cast<std::size_t>(
-                std::numeric_limits<std::uint64_t>::max())) {
+            nodes_.size() == nodes_.max_size()) {
             return false;
         }
         std::uint64_t sibling = 0u;
@@ -435,8 +435,7 @@ private:
                 return false;
             }
             SkipSpace(&offset);
-            if (offset >= end_ ||
-                Byte(offset) != static_cast<std::uint8_t>('=')) {
+            if (offset >= end_ || Byte(offset) != static_cast<std::uint8_t>('=')) {
                 return false;
             }
             ++offset;
