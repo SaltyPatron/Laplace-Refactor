@@ -11,6 +11,10 @@
 #include "laplace/source_bundle.h"
 #if defined(LAPLACE_UNICODE_SOURCE_MANIFEST_HEADER)
 #include LAPLACE_UNICODE_SOURCE_MANIFEST_HEADER
+/* The fixture/mutation targets compile this adapter directly rather than link the
+ * product engine. Compile the exact same generic source owner into that test TU;
+ * production builds own it once through engine/src/source_bundle.cpp. */
+#include "source_bundle.cpp"
 #else
 #include "laplace/contract/unicode-source-manifest.h"
 #endif
