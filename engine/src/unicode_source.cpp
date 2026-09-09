@@ -13,8 +13,16 @@
 #include LAPLACE_UNICODE_SOURCE_MANIFEST_HEADER
 /* The fixture/mutation targets compile this adapter directly rather than link the
  * product engine. Compile the exact same generic source owner into that test TU;
- * production builds own it once through engine/src/source_bundle.cpp. */
+ * production builds own it once through engine/src/source_bundle.cpp. Rename the
+ * three file-local hash helpers only so the included implementation and this
+ * compatibility adapter do not collide inside one translation unit. */
+#define HashU64 SourceBundleFixtureHashU64
+#define HashString SourceBundleFixtureHashString
+#define Finish SourceBundleFixtureFinish
 #include "source_bundle.cpp"
+#undef Finish
+#undef HashString
+#undef HashU64
 #else
 #include "laplace/contract/unicode-source-manifest.h"
 #endif
