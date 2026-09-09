@@ -68,14 +68,6 @@ laplace_decomposition_composition_plan_view_get(
     const laplace_decomposition_composition_plan* plan,
     laplace_decomposition_composition_plan_view* view);
 
-/*
- * Evaluate the exact canonical identity side of a composition plan without
- * requiring geometry or persistence. This is not a second composition law: it
- * uses the same atom identities, ordered references, multiplicities, and
- * laplace_identity_composite_runs_witness contract consumed by the full
- * composition engine. It exists so bootstrap source/evidence paths can bind
- * propositions before a geometry epoch is active.
- */
 LAPLACE_API laplace_decomposition_composition_status
 laplace_decomposition_composition_identity_evaluate(
     const laplace_decomposition_composition_plan* plan,
@@ -83,10 +75,24 @@ laplace_decomposition_composition_identity_evaluate(
     size_t result_capacity,
     size_t* result_count);
 
-/* Resolve one plan reference through the same evaluated identity set. */
+LAPLACE_API laplace_decomposition_composition_status
+laplace_decomposition_composition_identity_evaluate_view(
+    const laplace_decomposition_composition_plan_view* view,
+    laplace_decomposition_composition_identity* results,
+    size_t result_capacity,
+    size_t* result_count);
+
 LAPLACE_API laplace_decomposition_composition_status
 laplace_decomposition_composition_identity_resolve(
     const laplace_decomposition_composition_plan* plan,
+    const laplace_decomposition_composition_identity* results,
+    size_t result_count,
+    const laplace_composition_operand* reference,
+    laplace_decomposition_composition_identity* identity);
+
+LAPLACE_API laplace_decomposition_composition_status
+laplace_decomposition_composition_identity_resolve_view(
+    const laplace_decomposition_composition_plan_view* view,
     const laplace_decomposition_composition_identity* results,
     size_t result_count,
     const laplace_composition_operand* reference,
