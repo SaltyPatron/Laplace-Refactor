@@ -179,7 +179,6 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     laplace_cognition_observation_candidate_provider_v1 provider;
     laplace_cognition_observation_candidate_provider_v1 physical_provider;
     laplace_cognition_observation_candidate_provider_v1 semantic_provider;
-    laplace_cognition_observation_candidate_provider_v1 structural;
     laplace_pg_firmware_provider_router router;
     laplace_pg_cognition_provider* physical_owner = NULL;
     laplace_pg_semantic_provider_state* semantic_owner = NULL;
@@ -258,17 +257,12 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     if (laplace_cognition_prompt_admission_view_get(admission, &input) !=
         LAPLACE_COGNITION_PROMPT_ADMISSION_OK)
         return firmware_host_error(error, LAPLACE_COGNITION_FIRMWARE_ADMISSION_FAILURE, UINT32_MAX, 0u);
-    /* The native program also composes the admitted prompt structure. Reserve
-     * its advertised candidate bound before granting the remainder to durable
-     * providers. The router invokes at most one durable provider for each step,
-     * so structural and semantic routes reuse one conserved candidate budget. */
-    if (laplace_cognition_prompt_admission_structural_provider(admission, &structural) !=
-        LAPLACE_COGNITION_PROMPT_ADMISSION_OK)
-        return firmware_host_error(error, LAPLACE_COGNITION_FIRMWARE_ADMISSION_FAILURE, UINT32_MAX, 0u);
-    if (structural.maximum_candidate_records_per_expansion >=
-        request->search_budget.transition_batch_capacity)
-        return firmware_host_error(error, LAPLACE_COGNITION_FIRMWARE_LIMIT, UINT32_MAX, 0u);
 
+    /* The native firmware owner composes the admitted prompt-structure provider
+     * with this durable PostgreSQL provider at execution time. Do not subtract a
+     * global worst-case prompt bound from the database request before any query
+     * runs. The supplied transition batch is the finite capacity for the actual
+     * combined query; an over-capacity query remains a typed runtime limit. */
     memset(&scope, 0, sizeof(scope));
     scope.anchor_entity_id = input.trunk_entity_id;
     scope.world_id = input.turn.world_id;
@@ -279,8 +273,6 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     scope.authority_id = context->authority_fingerprint;
     scope.result_contract_fingerprint = request->result_contract_fingerprint;
     scope.search_budget = request->search_budget;
-    scope.search_budget.transition_batch_capacity -=
-        (uint32_t)structural.maximum_candidate_records_per_expansion;
     scope.forward_limits = request->forward_limits;
     scope.maximum_results = 1u;
     scope.flags = request->boundary_flags |
