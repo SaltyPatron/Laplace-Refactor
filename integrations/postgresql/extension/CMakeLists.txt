@@ -124,6 +124,7 @@ set(laplace_postgresql_module_sources
     src/machine_exception_pg.c
     src/observation_cognition_pg.c
     src/observation_cognition_persisted_pg.c
+    src/prompt_admission_pg.c
     src/semantic_cognition_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c
