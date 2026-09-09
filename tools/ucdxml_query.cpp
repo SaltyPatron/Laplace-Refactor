@@ -13,6 +13,10 @@
 #include "laplace/decomposition.h"
 #include "laplace/decomposition_xml.h"
 #include "laplace/decomposition_xml_ast.h"
+#include "laplace/evidence_testimony.h"
+#include "laplace/source_profile.h"
+#include "laplace/text_identity.h"
+#include "laplace/ucdxml_evidence.h"
 #include "laplace/ucdxml_projection.h"
 #include "laplace/universal_ast.h"
 
@@ -23,6 +27,9 @@ constexpr std::string_view SourceDomain{"laplace-ucdxml-exact-source-v1"};
 constexpr std::string_view ProjectionRecipeDomain{"laplace-uax42-ucdxml-projection-v1"};
 constexpr std::string_view GeometryDomain{"laplace-ucdxml-bootstrap-geometry-context-v1"};
 constexpr std::string_view OccurrenceDomain{"laplace-ucdxml-source-occurrence-context-v1"};
+constexpr std::string_view EvidenceRecipeDomain{"laplace-ucdxml-evidence-recipe-v1"};
+constexpr std::string_view EvidenceContextDomain{"laplace-ucdxml-evidence-context-v1"};
+constexpr std::string_view StandardTrustDomain{"laplace-standard-source-prior-v1"};
 constexpr std::uint64_t XmlKindBase = UINT64_C(0x584d4c0000000000);
 
 struct DecompositionOwner final {
@@ -49,6 +56,15 @@ struct ProjectionOwner final {
     laplace_ucdxml_projection* value{};
     ~ProjectionOwner() { laplace_ucdxml_projection_destroy(&value); }
 };
+
+void HashU32(blake3_hasher& hasher, const std::uint32_t value) {
+    const std::array<std::uint8_t, 4> bytes{{
+        static_cast<std::uint8_t>(value),
+        static_cast<std::uint8_t>(value >> 8u),
+        static_cast<std::uint8_t>(value >> 16u),
+        static_cast<std::uint8_t>(value >> 24u)}};
+    blake3_hasher_update(&hasher, bytes.data(), bytes.size());
+}
 
 void HashU64(blake3_hasher& hasher, const std::uint64_t value) {
     std::array<std::uint8_t, 8> bytes{};
@@ -81,6 +97,21 @@ laplace_digest256 Fingerprint(
     const std::string_view domain,
     const laplace_digest256& digest) {
     return Fingerprint(domain, digest.bytes, sizeof(digest.bytes));
+}
+
+laplace_digest256 FingerprintPair(
+    const std::string_view domain,
+    const laplace_digest256& first,
+    const laplace_digest256& second) {
+    blake3_hasher hasher{};
+    blake3_hasher_init(&hasher);
+    HashU64(hasher, static_cast<std::uint64_t>(domain.size()));
+    blake3_hasher_update(&hasher, domain.data(), domain.size());
+    blake3_hasher_update(&hasher, first.bytes, sizeof(first.bytes));
+    blake3_hasher_update(&hasher, second.bytes, sizeof(second.bytes));
+    laplace_digest256 result{};
+    blake3_hasher_finalize(&hasher, result.bytes, sizeof(result.bytes));
+    return result;
 }
 
 bool ReadFile(const char* const path, std::vector<std::uint8_t>* const output) {
@@ -133,6 +164,18 @@ bool ParsePosition(const char* const text, std::uint32_t* const position) {
     return true;
 }
 
+bool TextId(const std::string_view text, laplace_id128* const identity) {
+    if (identity == nullptr || text.empty()) return false;
+    laplace_text_identity value{};
+    if (laplace_text_identity_utf8(
+            reinterpret_cast<const std::uint8_t*>(text.data()), text.size(), &value) !=
+        LAPLACE_TEXT_IDENTITY_OK) {
+        return false;
+    }
+    *identity = value.entity_id;
+    return true;
+}
+
 void PrintJsonBytes(const std::uint8_t* const bytes, const std::size_t count) {
     std::putchar('"');
     for (std::size_t index = 0u; index < count; ++index) {
@@ -167,6 +210,16 @@ void PrintDigest(const laplace_digest256& digest) {
     std::putchar('"');
 }
 
+void PrintId(const laplace_id128& identity) {
+    static constexpr char Hex[] = "0123456789abcdef";
+    std::putchar('"');
+    for (const std::uint8_t byte : identity.bytes) {
+        std::putchar(Hex[byte >> 4u]);
+        std::putchar(Hex[byte & 0x0fu]);
+    }
+    std::putchar('"');
+}
+
 void PrintDigestStderr(const laplace_digest256& digest) {
     static constexpr char Hex[] = "0123456789abcdef";
     for (const std::uint8_t byte : digest.bytes) {
@@ -175,10 +228,115 @@ void PrintDigestStderr(const laplace_digest256& digest) {
     }
 }
 
+bool BuildSourceProfile(
+    const std::uint64_t source_byte_count,
+    const laplace_digest256& source_fingerprint,
+    const laplace_digest256& xml_fingerprint,
+    const laplace_digest256& ast_recipe_fingerprint,
+    const laplace_universal_ast_plan_view& ast,
+    const laplace_decomposition_summary& decomposition,
+    const laplace_ucdxml_projection_summary& projection,
+    const laplace_digest256& evidence_recipe,
+    laplace_source_profile_manifest* const profile,
+    laplace_source_profile_receipt* const receipt) {
+    if (profile == nullptr || receipt == nullptr || source_byte_count == 0u ||
+        projection.source_attribute_count == 0u ||
+        projection.codepoint_declaration_count == 0u || decomposition.span_count == 0u ||
+        ast.binding_count == 0u || ast.composition.request_count == 0u) {
+        return false;
+    }
+    *profile = laplace_source_profile_manifest{};
+    *receipt = laplace_source_profile_receipt{};
+    profile->coordinate.kind = 17u;
+    profile->coordinate.version = 1u;
+    if (!TextId("Unicode Consortium", &profile->coordinate.authority) ||
+        !TextId("Unicode 17.0.0", &profile->coordinate.release) ||
+        !TextId("https://www.unicode.org/Public/17.0.0/ucdxml/",
+                &profile->coordinate.name_space) ||
+        !TextId("ucd.all.grouped.xml", &profile->coordinate.local_identifier)) {
+        return false;
+    }
+    profile->authority_release_fingerprint = Fingerprint(
+        "laplace-unicode-17-ucdxml-authority-release-v1", source_fingerprint);
+    profile->license_fingerprint = Fingerprint("unicode-license-3.0");
+    profile->artifact_graph_fingerprint = source_fingerprint;
+    profile->syntax_authority_fingerprint = xml_fingerprint;
+    profile->recipe_program_fingerprint = ast_recipe_fingerprint;
+    profile->universal_ast_mapping_fingerprint = ast.witness_fingerprint;
+    profile->highway_references_fingerprint = Fingerprint(
+        "laplace-ucdxml-property-addressing-v1", projection.projection_fingerprint);
+    profile->epistemic_witnessing_fingerprint = evidence_recipe;
+
+    blake3_hasher denominator{};
+    blake3_hasher_init(&denominator);
+    static constexpr std::string_view DenominatorDomain{
+        "laplace-ucdxml-source-denominators-v1"};
+    blake3_hasher_update(
+        &denominator, DenominatorDomain.data(), DenominatorDomain.size());
+    HashU64(denominator, source_byte_count);
+    HashU64(denominator, ast.composition.atom_count);
+    HashU64(denominator, ast.composition.request_count);
+    HashU64(denominator, ast.binding_count);
+    HashU64(denominator, decomposition.span_count);
+    HashU64(denominator, projection.codepoint_declaration_count);
+    HashU64(denominator, projection.source_attribute_count);
+    HashU32(denominator, projection.covered_position_count);
+    blake3_hasher_finalize(
+        &denominator, profile->denominator_declaration_fingerprint.bytes,
+        sizeof(profile->denominator_declaration_fingerprint.bytes));
+    profile->conformance_fingerprint = FingerprintPair(
+        "laplace-uax42-r38-ucdxml-conformance-v1",
+        projection.projection_fingerprint, ast.plan_fingerprint);
+    profile->completion_law_fingerprint = Fingerprint(
+        "laplace-ucdxml-complete-source-boundary-v1",
+        projection.projection_fingerprint);
+    profile->selected_boundary_fingerprint = source_fingerprint;
+
+    profile->byte_count = source_byte_count;
+    profile->container_count = 1u;
+    profile->member_count = 0u;
+    profile->file_count = 1u;
+    profile->record_count = projection.codepoint_declaration_count;
+    profile->field_count = projection.source_attribute_count;
+    profile->syntax_node_count = decomposition.span_count;
+    profile->span_count = ast.binding_count;
+    profile->edge_count = ast.binding_count > 0u ? ast.binding_count - 1u : 0u;
+    profile->reference_count = 0u;
+    profile->occurrence_count = projection.source_attribute_count;
+    profile->claim_count = projection.source_attribute_count;
+    profile->mapping_count = 0u;
+    profile->error_count = 0u;
+    profile->unknown_count = 0u;
+    profile->transformation_count = 0u;
+    profile->output_count = ast.composition.request_count;
+    profile->closure_subject_count = projection.source_attribute_count;
+    profile->persisted_count = profile->closure_subject_count;
+    profile->reconstruction_class = LAPLACE_SOURCE_PROFILE_RECONSTRUCTION_EXACT;
+    profile->flags = LAPLACE_SOURCE_PROFILE_MAKE_FLAGS(
+        LAPLACE_SOURCE_PROFILE_EPISTEMIC_FOUNDATIONAL_SEED,
+        LAPLACE_SOURCE_PROFILE_EVIDENCE_STANDARD);
+    if (laplace_source_profile_identify(profile, &profile->profile_id) !=
+        LAPLACE_SOURCE_PROFILE_OK) {
+        return false;
+    }
+    laplace_source_profile_error error{};
+    return laplace_source_profile_validate_batch(
+        profile, 1u, receipt, &error) == LAPLACE_SOURCE_PROFILE_OK;
+}
+
+struct EvidenceContext final {
+    laplace_digest256 source_fingerprint{};
+    laplace_digest256 source_profile_id{};
+    laplace_digest256 recipe_receipt_id{};
+    laplace_digest256 trust_input_id{};
+    laplace_digest256 context_fingerprint{};
+};
+
 bool PrintProperty(
     const std::vector<std::uint8_t>& source,
     const laplace_ucdxml_projection* const projection,
-    const laplace_ucdxml_property_view& property) {
+    const laplace_ucdxml_property_view& property,
+    const EvidenceContext& evidence) {
     if (property.property_name_byte_end < property.property_name_byte_start ||
         property.property_name_byte_end > source.size()) {
         return false;
@@ -203,6 +361,29 @@ bool PrintProperty(
         static_cast<std::size_t>(property.property_name_byte_start);
     const std::size_t name_bytes = static_cast<std::size_t>(
         property.property_name_byte_end - property.property_name_byte_start);
+
+    laplace_decomposition_content evidence_source{};
+    evidence_source.bytes = source.data();
+    evidence_source.byte_count = static_cast<std::uint64_t>(source.size());
+    laplace_ucdxml_evidence_input evidence_input{};
+    evidence_input.projection = projection;
+    evidence_input.source_content = &evidence_source;
+    evidence_input.property = &property;
+    evidence_input.source_fingerprint = evidence.source_fingerprint;
+    evidence_input.source_profile_id = evidence.source_profile_id;
+    evidence_input.evidence_recipe_receipt_id = evidence.recipe_receipt_id;
+    evidence_input.trust_input_id = evidence.trust_input_id;
+    evidence_input.context_fingerprint = evidence.context_fingerprint;
+    if (property.declaration_element_span_index == UINT64_MAX) return false;
+    evidence_input.source_ordinal = property.declaration_element_span_index + 1u;
+    evidence_input.lineage_memory_limit_bytes = UINT64_C(1048576);
+    evidence_input.source_type = LAPLACE_EVIDENCE_SOURCE_STANDARD;
+    laplace_ucdxml_evidence_result evidence_result{};
+    if (laplace_ucdxml_evidence_emit(&evidence_input, &evidence_result) !=
+        LAPLACE_UCDXML_EVIDENCE_OK) {
+        return false;
+    }
+
     std::printf(
         "{\"codepoint\":\"U+%04X\",\"property\":",
         static_cast<unsigned int>(property.codepoint_position));
@@ -222,7 +403,31 @@ bool PrintProperty(
         (property.flags & LAPLACE_UCDXML_PROPERTY_HASH_SUBSTITUTION) != 0u
             ? "true" : "false");
     PrintDigest(property.observation_fingerprint);
-    std::fputs("}\n", stdout);
+    std::fputs(",\"codepoint_entity_id\":", stdout);
+    PrintId(evidence_result.codepoint_entity_id);
+    std::fputs(",\"property_name_entity_id\":", stdout);
+    PrintId(evidence_result.property_name_identity.entity_id);
+    std::fputs(",\"property_value_entity_id\":", stdout);
+    PrintId(evidence_result.property_value_identity.entity_id);
+    std::fputs(",\"proposition_entity_id\":", stdout);
+    PrintId(evidence_result.proposition_entity_id);
+    std::fputs(",\"source_profile_id\":", stdout);
+    PrintDigest(evidence.source_profile_id);
+    std::fputs(",\"occurrence_id\":", stdout);
+    PrintDigest(evidence_result.occurrence.attestation_id);
+    std::fputs(",\"evidence_node_id\":", stdout);
+    PrintDigest(evidence_result.lineage.node_id);
+    std::fputs(",\"evidence_root_id\":", stdout);
+    PrintDigest(evidence_result.root.root_node_id);
+    std::fputs(",\"testimony_id\":", stdout);
+    PrintDigest(evidence_result.testimony.testimony_id);
+    std::fputs(",\"lineage_receipt_id\":", stdout);
+    PrintDigest(evidence_result.lineage_receipt.receipt_id);
+    std::fputs(",\"testimony_receipt_id\":", stdout);
+    PrintDigest(evidence_result.testimony_receipt.receipt_id);
+    std::printf(
+        ",\"evidence_source_type\":%u,\"uncertainty\":\"0/1\"}\n",
+        static_cast<unsigned int>(evidence_result.testimony.source_type));
     return true;
 }
 
@@ -291,6 +496,12 @@ int main(int argc, char** argv) {
             static_cast<unsigned int>(decomposition_status));
         return 1;
     }
+    laplace_decomposition_summary decomposition_summary{};
+    if (laplace_decomposition_summary_get(
+            decomposition.value, &decomposition_summary) != LAPLACE_DECOMPOSITION_OK) {
+        std::fputs("generic XML decomposition summary failed\n", stderr);
+        return 1;
+    }
 
     RegistryOwner registry;
     RecipeOwner recipe;
@@ -354,6 +565,29 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    const laplace_digest256 evidence_recipe = FingerprintPair(
+        EvidenceRecipeDomain,
+        projection_input.recipe_fingerprint, ast_recipe_fingerprint);
+    laplace_source_profile_manifest source_profile{};
+    laplace_source_profile_receipt source_profile_receipt{};
+    if (!BuildSourceProfile(
+            static_cast<std::uint64_t>(source.size()),
+            source_fingerprint, xml_fingerprint, ast_recipe_fingerprint,
+            ast_view, decomposition_summary, summary, evidence_recipe,
+            &source_profile, &source_profile_receipt)) {
+        std::fputs("UCDXML source profile validation failed\n", stderr);
+        return 1;
+    }
+    EvidenceContext evidence{};
+    evidence.source_fingerprint = source_fingerprint;
+    evidence.source_profile_id = source_profile.profile_id;
+    evidence.recipe_receipt_id = evidence_recipe;
+    evidence.trust_input_id = Fingerprint(
+        StandardTrustDomain, source_profile.profile_id);
+    evidence.context_fingerprint = FingerprintPair(
+        EvidenceContextDomain,
+        projection_input.recipe_fingerprint, source_profile.profile_id);
+
     if (argc == 3) {
         std::size_t property_count = 0u;
         if (laplace_ucdxml_property_count(
@@ -368,8 +602,8 @@ int main(int argc, char** argv) {
             if (laplace_ucdxml_property(
                     projection.value, position, index, &property) !=
                     LAPLACE_UCDXML_OK ||
-                !PrintProperty(source, projection.value, property)) {
-                std::fprintf(stderr, "cannot materialize property %zu\n", index);
+                !PrintProperty(source, projection.value, property, evidence)) {
+                std::fprintf(stderr, "cannot materialize/evidence property %zu\n", index);
                 return 1;
             }
         }
@@ -391,18 +625,24 @@ int main(int argc, char** argv) {
                 continue;
             }
             if (status != LAPLACE_UCDXML_OK ||
-                !PrintProperty(source, projection.value, property)) {
-                std::fprintf(stderr, "cannot query UCDXML property: %s\n", argv[index]);
+                !PrintProperty(source, projection.value, property, evidence)) {
+                std::fprintf(stderr, "cannot query/evidence UCDXML property: %s\n", argv[index]);
                 return 1;
             }
         }
     }
 
+    std::fputs("source_profile=", stderr);
+    PrintDigestStderr(source_profile.profile_id);
+    std::fputs(" source_profile_receipt=", stderr);
+    PrintDigestStderr(source_profile_receipt.receipt_id);
     std::fprintf(
         stderr,
-        "ast_bindings=%llu ast_content_bindings=%llu canonical_atoms=%llu "
-        "canonical_requests=%llu declarations=%llu groups=%llu "
-        "source_attributes=%llu covered_positions=%u ast_plan=",
+        " epistemic_class=%u evidence_source_type=%u ast_bindings=%llu "
+        "ast_content_bindings=%llu canonical_atoms=%llu canonical_requests=%llu "
+        "declarations=%llu groups=%llu source_attributes=%llu covered_positions=%u ast_plan=",
+        static_cast<unsigned int>(laplace_source_profile_epistemic_class(&source_profile)),
+        static_cast<unsigned int>(laplace_source_profile_evidence_source_type(&source_profile)),
         static_cast<unsigned long long>(ast_view.binding_count),
         static_cast<unsigned long long>(ast_view.content_binding_count),
         static_cast<unsigned long long>(ast_view.composition.atom_count),
