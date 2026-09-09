@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "blake3.h"
+#include "composition_pg.h"
 #include "prompt_admission_pg.h"
 #include "unicode_atoms_pg.h"
 
@@ -141,4 +142,18 @@ void laplace_pg_prompt_atom_provider_create(
     provider->resolve = prompt_resolve_atoms;
     provider->abi_major = LAPLACE_COGNITION_PROMPT_ATOM_PROVIDER_ABI_MAJOR;
     provider->abi_minor = LAPLACE_COGNITION_PROMPT_ATOM_PROVIDER_ABI_MINOR;
+}
+
+void laplace_pg_prompt_admission_providers_create(
+    const laplace_framework_context* context,
+    laplace_pg_prompt_atom_provider_state* atom_state,
+    laplace_cognition_prompt_atom_provider_v1* atom_provider,
+    laplace_composition_presence_provider_v1* presence_provider) {
+    if (presence_provider == NULL) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace prompt admission presence provider output is null")));
+    }
+    laplace_pg_prompt_atom_provider_create(context, atom_state, atom_provider);
+    laplace_pg_composition_presence_provider(presence_provider);
 }
