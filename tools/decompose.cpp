@@ -8,7 +8,6 @@
 #include <fstream>
 #include <limits>
 #include <memory>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -18,6 +17,7 @@
 #include "laplace/decomposition_delimited.h"
 #include "laplace/decomposition_tree_sitter.h"
 #include "laplace/decomposition_uax29.h"
+#include "laplace/decomposition_xml.h"
 #include "laplace/tree_sitter_grammar.h"
 #include "laplace/uax29.h"
 #include "laplace/unicode_root.h"
@@ -34,7 +34,25 @@ struct GrammarHandleDeleter {
     }
 };
 
+struct UnicodeBundleDeleter {
+    void operator()(laplace_unicode_source_bundle* value) const noexcept {
+        if (value == nullptr) return;
+        laplace_unicode_source_bundle* mutable_value = value;
+        laplace_unicode_source_bundle_close(&mutable_value);
+    }
+};
+
+struct UaxTablesDeleter {
+    void operator()(laplace_uax29_tables* value) const noexcept {
+        if (value == nullptr) return;
+        laplace_uax29_tables* mutable_value = value;
+        laplace_uax29_tables_destroy(&mutable_value);
+    }
+};
+
 using GrammarHandle = std::unique_ptr<laplace_tree_sitter_grammar, GrammarHandleDeleter>;
+using UnicodeBundle = std::unique_ptr<laplace_unicode_source_bundle, UnicodeBundleDeleter>;
+using UaxTables = std::unique_ptr<laplace_uax29_tables, UaxTablesDeleter>;
 
 void HashU64(blake3_hasher& hasher, const std::uint64_t value) {
     std::array<std::uint8_t, 8> encoded{};
@@ -48,11 +66,16 @@ laplace_digest256 Uax29Fingerprint(const laplace_unicode_source_receipt& receipt
     blake3_hasher hasher{};
     blake3_hasher_init(&hasher);
     HashU64(hasher, static_cast<std::uint64_t>(Uax29ProviderDomain.size()));
-    blake3_hasher_update(&hasher, Uax29ProviderDomain.data(), Uax29ProviderDomain.size());
-    blake3_hasher_update(&hasher, receipt.receipt_id.bytes, sizeof(receipt.receipt_id.bytes));
-    blake3_hasher_update(&hasher, receipt.source_fingerprint.bytes, sizeof(receipt.source_fingerprint.bytes));
-    blake3_hasher_update(&hasher, receipt.verified_file_set_fingerprint.bytes,
-                         sizeof(receipt.verified_file_set_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, Uax29ProviderDomain.data(), Uax29ProviderDomain.size());
+    blake3_hasher_update(
+        &hasher, receipt.receipt_id.bytes, sizeof(receipt.receipt_id.bytes));
+    blake3_hasher_update(
+        &hasher, receipt.source_fingerprint.bytes,
+        sizeof(receipt.source_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, receipt.verified_file_set_fingerprint.bytes,
+        sizeof(receipt.verified_file_set_fingerprint.bytes));
     laplace_digest256 result{};
     blake3_hasher_finalize(&hasher, result.bytes, sizeof(result.bytes));
     return result;
@@ -63,9 +86,11 @@ bool ReadFile(const char* path, std::vector<std::uint8_t>& output) {
     if (!input) return false;
     input.seekg(0, std::ios::end);
     const std::streamoff size = input.tellg();
-    if (size <= 0 || static_cast<std::uint64_t>(size) >
-                         static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max()) ||
-        size > static_cast<std::streamoff>(std::numeric_limits<std::streamsize>::max())) {
+    if (size <= 0 ||
+        static_cast<std::uint64_t>(size) >
+            static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max()) ||
+        size > static_cast<std::streamoff>(
+            std::numeric_limits<std::streamsize>::max())) {
         return false;
     }
     input.seekg(0, std::ios::beg);
@@ -74,7 +99,9 @@ bool ReadFile(const char* path, std::vector<std::uint8_t>& output) {
     } catch (...) {
         return false;
     }
-    input.read(reinterpret_cast<char*>(output.data()), static_cast<std::streamsize>(size));
+    input.read(
+        reinterpret_cast<char*>(output.data()),
+        static_cast<std::streamsize>(size));
     return input.good() || input.eof();
 }
 
@@ -107,7 +134,8 @@ bool ParseU64(const char* text, std::uint64_t& output) {
 
 bool ParseU32(const char* text, std::uint32_t& output) {
     std::uint64_t parsed = 0u;
-    if (!ParseU64(text, parsed) || parsed > std::numeric_limits<std::uint32_t>::max()) {
+    if (!ParseU64(text, parsed) ||
+        parsed > std::numeric_limits<std::uint32_t>::max()) {
         return false;
     }
     output = static_cast<std::uint32_t>(parsed);
@@ -149,9 +177,11 @@ void PrintJsonString(const std::uint8_t* bytes, const std::size_t count) {
 void Usage(const char* executable) {
     std::fprintf(
         stderr,
-        "usage: %s <verified-unicode-source-root> <media-type> <input-file> "
+        "usage: %s <verified-unicode-source-root|-> <media-type> <input-file> "
+        "[--xml <kind-base> <provider-fingerprint>] "
         "[--grammar <shared-object> <tree_sitter_symbol> <kind-base> <provider-fingerprint>] "
-        "[--delimited <delimiter-byte> <lf|crlf> <columns> <header-rows> <kind-base> <provider-fingerprint>]...\n",
+        "[--delimited <delimiter-byte> <lf|crlf> <columns> <header-rows> <kind-base> <provider-fingerprint>]...\n"
+        "Use '-' as the first argument for bootstrap decomposition that must not depend on an already active Unicode source estate.\n",
         executable);
 }
 
@@ -171,42 +201,75 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    laplace_unicode_source_bundle* bundle = nullptr;
-    laplace_unicode_source_receipt unicode_receipt{};
-    const laplace_unicode_status source_status =
-        laplace_unicode_source_bundle_open(argv[1], &bundle, &unicode_receipt);
-    if (source_status != LAPLACE_UNICODE_OK) {
-        std::fprintf(stderr, "verified Unicode source open failed: %u\n",
-                     static_cast<unsigned int>(source_status));
-        return 1;
-    }
-
-    laplace_uax29_tables* uax29 = nullptr;
-    const laplace_uax29_status table_status = laplace_uax29_tables_create(bundle, &uax29);
-    if (table_status != LAPLACE_UAX29_OK) {
-        std::fprintf(stderr, "UAX29 table build failed: %u\n",
-                     static_cast<unsigned int>(table_status));
-        laplace_unicode_source_bundle_close(&bundle);
-        return 1;
-    }
-
+    UnicodeBundle bundle;
+    UaxTables uax29;
     laplace_decomposition_uax29_provider uax_provider{};
-    const laplace_digest256 uax_fingerprint = Uax29Fingerprint(unicode_receipt);
-    if (laplace_decomposition_uax29_provider_init(
-            &uax_provider, uax29, &uax_fingerprint) != LAPLACE_DECOMPOSITION_OK) {
-        std::fputs("cannot initialize UAX29 decomposition provider\n", stderr);
-        laplace_uax29_tables_destroy(&uax29);
-        laplace_unicode_source_bundle_close(&bundle);
-        return 1;
+    std::vector<laplace_decomposition_provider_v1> providers;
+
+    if (std::string_view(argv[1]) != "-") {
+        laplace_unicode_source_bundle* raw_bundle = nullptr;
+        laplace_unicode_source_receipt unicode_receipt{};
+        const laplace_unicode_status source_status =
+            laplace_unicode_source_bundle_open(argv[1], &raw_bundle, &unicode_receipt);
+        bundle.reset(raw_bundle);
+        if (source_status != LAPLACE_UNICODE_OK || bundle == nullptr) {
+            std::fprintf(
+                stderr, "verified Unicode source open failed: %u\n",
+                static_cast<unsigned int>(source_status));
+            return 1;
+        }
+
+        laplace_uax29_tables* raw_uax29 = nullptr;
+        const laplace_uax29_status table_status =
+            laplace_uax29_tables_create(bundle.get(), &raw_uax29);
+        uax29.reset(raw_uax29);
+        if (table_status != LAPLACE_UAX29_OK || uax29 == nullptr) {
+            std::fprintf(
+                stderr, "UAX29 table build failed: %u\n",
+                static_cast<unsigned int>(table_status));
+            return 1;
+        }
+
+        const laplace_digest256 uax_fingerprint = Uax29Fingerprint(unicode_receipt);
+        if (laplace_decomposition_uax29_provider_init(
+                &uax_provider, uax29.get(), &uax_fingerprint) !=
+            LAPLACE_DECOMPOSITION_OK) {
+            std::fputs("cannot initialize UAX29 decomposition provider\n", stderr);
+            return 1;
+        }
+        providers.push_back(uax_provider.provider);
     }
 
     std::vector<GrammarHandle> grammars;
     std::vector<std::unique_ptr<laplace_decomposition_delimited_provider>> delimited;
-    std::vector<laplace_decomposition_provider_v1> providers;
-    providers.push_back(uax_provider.provider);
+    std::vector<std::unique_ptr<laplace_decomposition_xml_provider>> xml;
 
     for (int index = 4; index < argc;) {
         const std::string_view option(argv[index]);
+        if (option == "--xml") {
+            if (index + 2 >= argc) {
+                Usage(argv[0]);
+                return 2;
+            }
+            std::uint64_t kind_base = 0u;
+            laplace_digest256 fingerprint{};
+            if (!ParseU64(argv[index + 1], kind_base) ||
+                !ParseDigest(argv[index + 2], fingerprint)) {
+                std::fputs("invalid XML kind-base or provider fingerprint\n", stderr);
+                return 2;
+            }
+            auto storage = std::make_unique<laplace_decomposition_xml_provider>();
+            if (laplace_decomposition_xml_provider_init(
+                    storage.get(), kind_base, &fingerprint) !=
+                LAPLACE_DECOMPOSITION_OK) {
+                std::fputs("cannot initialize XML decomposition provider\n", stderr);
+                return 2;
+            }
+            providers.push_back(storage->provider);
+            xml.push_back(std::move(storage));
+            index += 3;
+            continue;
+        }
         if (option == "--grammar") {
             if (index + 4 >= argc) {
                 Usage(argv[0]);
@@ -222,16 +285,13 @@ int main(int argc, char** argv) {
             laplace_tree_sitter_grammar* raw = nullptr;
             const laplace_tree_sitter_grammar_status grammar_status =
                 laplace_tree_sitter_grammar_open(
-                    argv[index + 1],
-                    argv[index + 2],
-                    media_type.data(),
-                    static_cast<std::uint64_t>(media_type.size()),
-                    kind_base,
-                    &fingerprint,
-                    &raw);
+                    argv[index + 1], argv[index + 2], media_type.data(),
+                    static_cast<std::uint64_t>(media_type.size()), kind_base,
+                    &fingerprint, &raw);
             if (grammar_status != LAPLACE_TREE_SITTER_GRAMMAR_OK) {
-                std::fprintf(stderr, "grammar provider load failed for %s: %u\n",
-                             argv[index + 1], static_cast<unsigned int>(grammar_status));
+                std::fprintf(
+                    stderr, "grammar provider load failed for %s: %u\n",
+                    argv[index + 1], static_cast<unsigned int>(grammar_status));
                 return 1;
             }
             GrammarHandle handle(raw);
@@ -286,6 +346,11 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    if (providers.empty()) {
+        std::fputs("no decomposition provider was selected\n", stderr);
+        return 2;
+    }
+
     laplace_decomposition_input input{};
     input.content.bytes = bytes.data();
     input.content.byte_count = static_cast<std::uint64_t>(bytes.size());
@@ -302,33 +367,49 @@ int main(int argc, char** argv) {
     }
     input.maximum_spans = std::max<std::uint64_t>(
         UINT64_C(4096), static_cast<std::uint64_t>(bytes.size()) * UINT64_C(16));
-    input.maximum_depth = 32u;
+    input.maximum_depth = 256u;
 
     laplace_decomposition_result* result = nullptr;
-    const laplace_decomposition_status status = laplace_decomposition_run(&input, &result);
-    if (status != LAPLACE_DECOMPOSITION_OK) {
-        std::fprintf(stderr, "recursive decomposition failed: %u\n",
-                     static_cast<unsigned int>(status));
-        laplace_uax29_tables_destroy(&uax29);
-        laplace_unicode_source_bundle_close(&bundle);
+    const laplace_decomposition_status status =
+        laplace_decomposition_run(&input, &result);
+    if (status != LAPLACE_DECOMPOSITION_OK || result == nullptr) {
+        std::fprintf(
+            stderr, "recursive decomposition failed: %u\n",
+            static_cast<unsigned int>(status));
+        laplace_decomposition_result_destroy(&result);
         return 1;
     }
 
     laplace_decomposition_summary summary{};
-    (void)laplace_decomposition_summary_get(result, &summary);
+    if (laplace_decomposition_summary_get(result, &summary) !=
+        LAPLACE_DECOMPOSITION_OK) {
+        laplace_decomposition_result_destroy(&result);
+        return 1;
+    }
     std::size_t span_count = 0u;
     const laplace_decomposition_span* spans =
         laplace_decomposition_spans(result, &span_count);
+    if (spans == nullptr || span_count == 0u) {
+        laplace_decomposition_result_destroy(&result);
+        return 1;
+    }
+
     for (std::size_t index = 0u; index < span_count; ++index) {
         const laplace_decomposition_span& span = spans[index];
         std::printf(
             "{\"index\":%llu,\"parent\":%llu,\"depth\":%u,\"kind\":%llu,"
-            "\"flags\":%u,\"byte_start\":%llu,\"byte_end\":%llu,\"provider\":\"",
+            "\"grammar_kind\":%llu,\"field_kind\":%llu,\"sibling\":%llu,"
+            "\"flags\":%u,\"syntax_flags\":%u,\"byte_start\":%llu,"
+            "\"byte_end\":%llu,\"provider\":\"",
             static_cast<unsigned long long>(index),
             static_cast<unsigned long long>(span.parent_span_index),
             static_cast<unsigned int>(span.depth),
             static_cast<unsigned long long>(span.kind),
+            static_cast<unsigned long long>(span.grammar_kind),
+            static_cast<unsigned long long>(span.field_kind),
+            static_cast<unsigned long long>(span.sibling_ordinal),
             static_cast<unsigned int>(span.flags),
+            static_cast<unsigned int>(span.syntax_flags),
             static_cast<unsigned long long>(span.byte_start),
             static_cast<unsigned long long>(span.byte_end));
         PrintDigest(span.provider_fingerprint);
@@ -348,7 +429,5 @@ int main(int argc, char** argv) {
         static_cast<unsigned int>(summary.maximum_depth_reached));
 
     laplace_decomposition_result_destroy(&result);
-    laplace_uax29_tables_destroy(&uax29);
-    laplace_unicode_source_bundle_close(&bundle);
     return 0;
 }
