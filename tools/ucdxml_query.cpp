@@ -12,18 +12,37 @@
 #include "blake3.h"
 #include "laplace/decomposition.h"
 #include "laplace/decomposition_xml.h"
+#include "laplace/decomposition_xml_ast.h"
 #include "laplace/ucdxml_projection.h"
+#include "laplace/universal_ast.h"
 
 namespace {
 
 constexpr std::string_view XmlProviderDomain{"laplace-decomposition-xml-v1"};
 constexpr std::string_view SourceDomain{"laplace-ucdxml-exact-source-v1"};
-constexpr std::string_view RecipeDomain{"laplace-uax42-ucdxml-projection-v1"};
+constexpr std::string_view ProjectionRecipeDomain{"laplace-uax42-ucdxml-projection-v1"};
+constexpr std::string_view GeometryDomain{"laplace-ucdxml-bootstrap-geometry-context-v1"};
+constexpr std::string_view OccurrenceDomain{"laplace-ucdxml-source-occurrence-context-v1"};
 constexpr std::uint64_t XmlKindBase = UINT64_C(0x584d4c0000000000);
 
 struct DecompositionOwner final {
     laplace_decomposition_result* value{};
     ~DecompositionOwner() { laplace_decomposition_result_destroy(&value); }
+};
+
+struct RegistryOwner final {
+    laplace_grammar_registry* value{};
+    ~RegistryOwner() { laplace_grammar_registry_destroy(&value); }
+};
+
+struct RecipeOwner final {
+    laplace_ast_recipe* value{};
+    ~RecipeOwner() { laplace_ast_recipe_destroy(&value); }
+};
+
+struct AstOwner final {
+    laplace_universal_ast_plan* value{};
+    ~AstOwner() { laplace_universal_ast_plan_destroy(&value); }
 };
 
 struct ProjectionOwner final {
@@ -56,6 +75,12 @@ laplace_digest256 Fingerprint(
 
 laplace_digest256 Fingerprint(const std::string_view domain) {
     return Fingerprint(domain, nullptr, 0u);
+}
+
+laplace_digest256 Fingerprint(
+    const std::string_view domain,
+    const laplace_digest256& digest) {
+    return Fingerprint(domain, digest.bytes, sizeof(digest.bytes));
 }
 
 bool ReadFile(const char* const path, std::vector<std::uint8_t>* const output) {
@@ -97,7 +122,10 @@ bool ParsePosition(const char* const text, std::uint32_t* const position) {
         } else if (byte >= 'a' && byte <= 'f') {
             digit = static_cast<std::uint32_t>(byte - 'a') + 10u;
         }
-        if (digit == UINT32_MAX) return false;
+        if (digit == UINT32_MAX ||
+            result > (UINT32_C(0x10ffff) - digit) / 16u) {
+            return false;
+        }
         result = result * 16u + digit;
     }
     if (result >= UINT32_C(0x110000)) return false;
@@ -137,6 +165,14 @@ void PrintDigest(const laplace_digest256& digest) {
         std::putchar(Hex[byte & 0x0fu]);
     }
     std::putchar('"');
+}
+
+void PrintDigestStderr(const laplace_digest256& digest) {
+    static constexpr char Hex[] = "0123456789abcdef";
+    for (const std::uint8_t byte : digest.bytes) {
+        std::fputc(Hex[byte >> 4u], stderr);
+        std::fputc(Hex[byte & 0x0fu], stderr);
+    }
 }
 
 bool PrintProperty(
@@ -215,6 +251,8 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    const laplace_digest256 source_fingerprint = Fingerprint(
+        SourceDomain, source.data(), source.size());
     const laplace_digest256 xml_fingerprint = Fingerprint(XmlProviderDomain);
     laplace_decomposition_xml_provider xml{};
     if (laplace_decomposition_xml_provider_init(
@@ -238,9 +276,9 @@ int main(int argc, char** argv) {
         std::fputs("UCDXML source is too large for decomposition bounds\n", stderr);
         return 1;
     }
-    decomposition_input.maximum_spans =
-        std::max<std::uint64_t>(
-            UINT64_C(4096), static_cast<std::uint64_t>(source.size()) + UINT64_C(4096));
+    decomposition_input.maximum_spans = std::max<std::uint64_t>(
+        UINT64_C(4096),
+        static_cast<std::uint64_t>(source.size()) + UINT64_C(4096));
     decomposition_input.maximum_depth = 32u;
 
     DecompositionOwner decomposition;
@@ -254,13 +292,56 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    RegistryOwner registry;
+    RecipeOwner recipe;
+    const auto recipe_status = laplace_decomposition_xml_ast_recipe_create(
+        &xml, &registry.value, &recipe.value);
+    if (recipe_status != LAPLACE_UNIVERSAL_AST_OK || registry.value == nullptr ||
+        recipe.value == nullptr) {
+        std::fprintf(
+            stderr, "generic XML AST recipe creation failed: %u\n",
+            static_cast<unsigned int>(recipe_status));
+        return 1;
+    }
+    laplace_digest256 ast_recipe_fingerprint{};
+    if (laplace_ast_recipe_fingerprint(
+            recipe.value, &ast_recipe_fingerprint) != LAPLACE_UNIVERSAL_AST_OK) {
+        std::fputs("generic XML AST recipe identity failed\n", stderr);
+        return 1;
+    }
+
+    laplace_universal_ast_compile_input ast_input{};
+    ast_input.grammar_registry = registry.value;
+    ast_input.recipe = recipe.value;
+    ast_input.content = &decomposition_input.content;
+    ast_input.decomposition = decomposition.value;
+    ast_input.geometry_epoch = Fingerprint(GeometryDomain);
+    ast_input.occurrence_context_fingerprint = Fingerprint(
+        OccurrenceDomain, source_fingerprint);
+    ast_input.source_ordinal_base = 1u;
+    AstOwner ast;
+    const auto ast_status = laplace_universal_ast_plan_create(
+        &ast_input, &ast.value);
+    if (ast_status != LAPLACE_UNIVERSAL_AST_OK || ast.value == nullptr) {
+        std::fprintf(
+            stderr, "universal AST compilation failed: %u\n",
+            static_cast<unsigned int>(ast_status));
+        return 1;
+    }
+    laplace_universal_ast_plan_view ast_view{};
+    if (laplace_universal_ast_plan_view_get(ast.value, &ast_view) !=
+        LAPLACE_UNIVERSAL_AST_OK) {
+        std::fputs("universal AST plan view failed\n", stderr);
+        return 1;
+    }
+
     laplace_ucdxml_projection_input projection_input{};
     projection_input.content = &decomposition_input.content;
     projection_input.decomposition = decomposition.value;
     projection_input.xml_provider = &xml;
-    projection_input.source_fingerprint = Fingerprint(
-        SourceDomain, source.data(), source.size());
-    projection_input.recipe_fingerprint = Fingerprint(RecipeDomain);
+    projection_input.source_fingerprint = source_fingerprint;
+    projection_input.recipe_fingerprint = Fingerprint(
+        ProjectionRecipeDomain, ast_recipe_fingerprint);
 
     ProjectionOwner projection;
     laplace_ucdxml_projection_summary summary{};
@@ -277,8 +358,9 @@ int main(int argc, char** argv) {
         std::size_t property_count = 0u;
         if (laplace_ucdxml_property_count(
                 projection.value, position, &property_count) != LAPLACE_UCDXML_OK) {
-            std::fprintf(stderr, "no UCDXML declaration for U+%04X\n",
-                         static_cast<unsigned int>(position));
+            std::fprintf(
+                stderr, "no UCDXML declaration for U+%04X\n",
+                static_cast<unsigned int>(position));
             return 1;
         }
         for (std::size_t index = 0u; index < property_count; ++index) {
@@ -318,16 +400,22 @@ int main(int argc, char** argv) {
 
     std::fprintf(
         stderr,
-        "declarations=%llu groups=%llu source_attributes=%llu covered_positions=%u projection=",
+        "ast_bindings=%llu ast_content_bindings=%llu canonical_atoms=%llu "
+        "canonical_requests=%llu declarations=%llu groups=%llu "
+        "source_attributes=%llu covered_positions=%u ast_plan=",
+        static_cast<unsigned long long>(ast_view.binding_count),
+        static_cast<unsigned long long>(ast_view.content_binding_count),
+        static_cast<unsigned long long>(ast_view.composition.atom_count),
+        static_cast<unsigned long long>(ast_view.composition.request_count),
         static_cast<unsigned long long>(summary.codepoint_declaration_count),
         static_cast<unsigned long long>(summary.group_count),
         static_cast<unsigned long long>(summary.source_attribute_count),
         static_cast<unsigned int>(summary.covered_position_count));
-    static constexpr char Hex[] = "0123456789abcdef";
-    for (const std::uint8_t byte : summary.projection_fingerprint.bytes) {
-        std::fputc(Hex[byte >> 4u], stderr);
-        std::fputc(Hex[byte & 0x0fu], stderr);
-    }
+    PrintDigestStderr(ast_view.plan_fingerprint);
+    std::fputs(" ast_witness=", stderr);
+    PrintDigestStderr(ast_view.witness_fingerprint);
+    std::fputs(" projection=", stderr);
+    PrintDigestStderr(summary.projection_fingerprint);
     std::fputc('\n', stderr);
     return 0;
 }
