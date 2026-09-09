@@ -144,3 +144,29 @@ BEGIN
     END IF;
 END
 $contract$;
+
+-- Mutation control: remove the only root projection while leaving the relation
+-- and testimony rows intact. The semantic execution must no longer succeed. This
+-- prevents the old failure mode where an unrooted relation row was labeled
+-- TESTIMONY and still produced a green product-path result.
+DELETE FROM laplace.evidence_root_projection
+WHERE node_id = decode(repeat('91',32),'hex')
+  AND root_node_id = decode(repeat('91',32),'hex');
+
+DO $missing_root$
+DECLARE
+    rejected boolean := false;
+    fixture laplace.cognition_observation_request;
+BEGIN
+    SELECT request INTO STRICT fixture FROM semantic_cognition_fixture;
+    BEGIN
+        PERFORM laplace.cognition_semantic_execute(
+            pg_temp.execution_context(), fixture);
+    EXCEPTION WHEN OTHERS THEN
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'unrooted semantic testimony was accepted as cognition evidence';
+    END IF;
+END
+$missing_root$;
