@@ -19,9 +19,10 @@ AS $context$
     )::laplace.execution_context
 $context$;
 
--- This fixture targets the live durable provider boundary.  The rows are placed in
--- the canonical mapping tables and are then discovered by SPI during native search;
--- no candidate callback or answer is supplied by the test process.
+-- This fixture targets the live durable provider boundary. The relation crossing
+-- is backed by a real testimonial evidence root: the provider must bind the exact
+-- mapping occurrence and preserve that root through native search. A bare mapping
+-- row is deliberately insufficient to claim a TESTIMONY source layer.
 SET session_replication_role = replica;
 INSERT INTO laplace.reference_mapping_proposition(
     proposition_id,left_coordinate,right_coordinate,relation_id,
@@ -51,6 +52,36 @@ VALUES(
     decode(repeat('76',16),'hex'),
     decode(repeat('12',16),'hex'),
     1::numeric,1::numeric,1::numeric,1,1,1);
+INSERT INTO laplace.evidence_node(
+    node_id,proposition_id,occurrence_id,source_id,context_id,
+    source_ordinal,epistemic_kind,flags)
+VALUES(
+    decode(repeat('91',32),'hex'),
+    decode(repeat('11',16),'hex'),
+    decode(repeat('92',32),'hex'),
+    decode(repeat('93',32),'hex'),
+    decode(repeat('94',32),'hex'),
+    1::numeric,2,0);
+INSERT INTO laplace.evidence_root_projection(
+    node_id,root_node_id,proposition_id,path_depth,root_epistemic_kind,flags)
+VALUES(
+    decode(repeat('91',32),'hex'),
+    decode(repeat('91',32),'hex'),
+    decode(repeat('11',16),'hex'),
+    0::numeric,2,0);
+INSERT INTO laplace.evidence_testimony(
+    testimony_id,evidence_node_id,source_profile_id,recipe_receipt_id,
+    trust_input_id,outcome_detail_id,uncertainty_numerator,
+    uncertainty_denominator,sample_count,source_type,outcome_type,
+    disposition,flags)
+VALUES(
+    decode(repeat('95',32),'hex'),
+    decode(repeat('91',32),'hex'),
+    decode(repeat('72',32),'hex'),
+    decode(repeat('96',32),'hex'),
+    decode(repeat('97',32),'hex'),
+    decode(repeat('98',32),'hex'),
+    0::numeric,1::numeric,1::numeric,1,1,1,0);
 SET session_replication_role = origin;
 
 CREATE TEMP TABLE semantic_cognition_fixture AS
@@ -98,11 +129,12 @@ BEGIN
         RAISE EXCEPTION 'live PostgreSQL semantic provider erased typed relation identity or evidence plane: %', actual;
     END IF;
     IF actual.answer_count <> 1 OR actual.transition_count <> 1 OR
+       actual.independent_evidence_root_count <> 1 OR
        actual.provider_rows_examined <> 1 OR
        actual.provider_database_operations < 1 OR
        actual.forward_database_operations < 1 OR
        actual.status <> 0 THEN
-        RAISE EXCEPTION 'live PostgreSQL semantic cognition did not execute and receipt the durable provider read: %', actual;
+        RAISE EXCEPTION 'live PostgreSQL semantic cognition did not execute rooted durable evidence: %', actual;
     END IF;
     IF actual.provider_fingerprint IS NULL OR octet_length(actual.provider_fingerprint) <> 32 OR
        actual.request_fingerprint IS NULL OR octet_length(actual.request_fingerprint) <> 32 OR
