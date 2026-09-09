@@ -52,6 +52,7 @@ add_library(laplace_engine SHARED
     src/text_decomposition.cpp
     src/decomposition.cpp
     src/decomposition_composition.cpp
+    src/decomposition_composition_identity.cpp
     src/decomposition_uax29.cpp
     src/decomposition_delimited.cpp
     src/decomposition_fixed_width.cpp
