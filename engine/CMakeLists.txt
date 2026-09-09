@@ -55,6 +55,7 @@ add_library(laplace_engine SHARED
     src/decomposition_uax29.cpp
     src/decomposition_delimited.cpp
     src/decomposition_fixed_width.cpp
+    src/decomposition_xml.cpp
     src/decomposition_tree_sitter.cpp
     src/tree_sitter_grammar.cpp
     src/universal_ast.cpp
