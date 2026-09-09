@@ -37,6 +37,7 @@ add_library(laplace_engine SHARED
     src/reference_topology.c
     src/reference_mapping.c
     src/source_profile.c
+    src/source_bundle.cpp
     src/tabular_source.cpp
     src/world_admission.c
     src/composition.cpp
@@ -115,6 +116,7 @@ add_library(Laplace::StockRecipe ALIAS laplace_engine)
 add_library(Laplace::ReferenceTopology ALIAS laplace_engine)
 add_library(Laplace::ReferenceMapping ALIAS laplace_engine)
 add_library(Laplace::SourceProfile ALIAS laplace_engine)
+add_library(Laplace::SourceBundle ALIAS laplace_engine)
 add_library(Laplace::TabularSource ALIAS laplace_engine)
 add_library(Laplace::WorldAdmission ALIAS laplace_engine)
 add_library(Laplace::Composition ALIAS laplace_engine)
