@@ -36,6 +36,12 @@ typedef struct laplace_pg_composition_execution {
     laplace_pg_persist_composition_execution_receipt
 #endif
 
+/* Shared durable presence provider used by composition deposit and raw prompt
+ * admission. It performs the same set-oriented canonical entity/physicality
+ * conflict check; prompt admission does not own a second SQL presence engine. */
+void laplace_pg_composition_presence_provider(
+    laplace_composition_presence_provider_v1* provider);
+
 void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
     const laplace_composition_working_set_input* input,
     laplace_pg_composition_execution* execution);

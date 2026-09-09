@@ -50,13 +50,16 @@ struct ProviderState final {
 };
 
 bool ProviderValid(
-    const laplace_cognition_observation_request& request,
+    const laplace_cognition_observation_request&,
     const laplace_cognition_observation_candidate_provider_v1& provider) {
+    /* The provider maximum is a global accounting bound, not a demand that every
+     * finite request allocate its worst-case output. Enumeration is explicitly
+     * capacity-bounded and must report a typed limiting disposition when the
+     * actual query cannot fit the supplied batch. The execution path below still
+     * validates emitted/examined work against the provider's declared maximum. */
     return provider.enumerate_candidates != nullptr &&
         !DigestZero(provider.provider_fingerprint) &&
         provider.maximum_candidate_records_per_expansion != 0U &&
-        provider.maximum_candidate_records_per_expansion <=
-            request.search_budget.transition_batch_capacity &&
         provider.abi_major ==
             LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR &&
         provider.abi_minor <=

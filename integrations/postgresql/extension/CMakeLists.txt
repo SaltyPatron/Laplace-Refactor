@@ -114,6 +114,7 @@ ${LAPLACE_COGNITION_DISCOURSE_SQL}\
 set(laplace_postgresql_module_sources
     src/cognition_discourse_pg.c
     src/cognition_isa_pg.c
+    src/cognition_firmware_pg.c
     src/composition_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
@@ -121,8 +122,10 @@ set(laplace_postgresql_module_sources
     src/highway_registry_pg.c
     src/laplace_pg.c
     src/machine_exception_pg.c
+    src/materialization_pg.c
     src/observation_cognition_pg.c
     src/observation_cognition_persisted_pg.c
+    src/prompt_admission_pg.c
     src/semantic_cognition_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c
@@ -169,7 +172,11 @@ set_target_properties(laplace_pg PROPERTIES
 if(BUILD_TESTING)
     target_compile_definitions(laplace_pg PRIVATE
         LAPLACE_POSTGRES_TESTING=1)
+    target_sources(laplace_pg PRIVATE tests/cognition_firmware_provider_pg.c)
 
+    if(NOT DEFINED LAPLACE_FRAMEWORK_EPOCH_FIRMWARE)
+        message(FATAL_ERROR "Firmware SQL context binding lacks its generated epoch slot")
+    endif()
     set(observation_cognition_contract_sql
         "${CMAKE_CURRENT_BINARY_DIR}/observation_cognition_contract.sql")
     configure_file(

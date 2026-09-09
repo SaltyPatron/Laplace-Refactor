@@ -23,6 +23,7 @@ add_executable(laplace_observation_query_tests
     "${PROJECT_SOURCE_DIR}/tests/cognition_materialization_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_output_serialization_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_conversation_tests.cpp"
+    "${PROJECT_SOURCE_DIR}/tests/cognition_firmware_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_admission_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_structural_provider_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_prompt_conversation_tests.cpp")
