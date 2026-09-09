@@ -1,7 +1,8 @@
 /*
- * Product source admission must not stop at the tabular envelope. Route the
- * existing admission call through the recursive engine path using the same
- * verified Unicode source estate that builds the active Unicode product.
+ * Product source admission crosses one source-agnostic recursive decomposition
+ * boundary. The PostgreSQL host selects the currently available grammar/codec
+ * authorities and passes them as ordinary decomposition providers; the generic
+ * engine does not select a Unicode/corpus/source-family path.
  *
  * The backend-local metrics below are execution evidence, not semantic state.
  * They retain the two most recent source-admission executions in one backend so
@@ -18,14 +19,17 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include "blake3.h"
+#include "laplace/decomposition_uax29.h"
+#include "laplace/source_decomposition.h"
 #include "laplace/source_profile.h"
-#include "laplace/tabular_source_recursive.h"
+#include "laplace/uax29.h"
 #include "laplace/unicode_root.h"
 #include "composition_pg.h"
 #include "source_structural_witness_pg.h"
 
 #ifndef LAPLACE_UNICODE_SOURCE_ROOT
-#error "LAPLACE_UNICODE_SOURCE_ROOT is required for recursive source admission"
+#error "LAPLACE_UNICODE_SOURCE_ROOT is required until UAX authority is activated from admitted source state"
 #endif
 
 PG_FUNCTION_INFO_V1(laplace_source_admission_last_execution_metrics);
@@ -133,28 +137,89 @@ Datum laplace_source_admission_last_execution_metrics(PG_FUNCTION_ARGS) {
     PG_RETURN_TEXT_P(cstring_to_text(output.data));
 }
 
+static void laplace_pg_source_hash_u64(blake3_hasher* hasher, uint64_t value) {
+    uint8_t bytes[8];
+    size_t index;
+    for (index = 0u; index < sizeof(bytes); ++index) {
+        bytes[index] = (uint8_t)(value >> (index * 8u));
+    }
+    blake3_hasher_update(hasher, bytes, sizeof(bytes));
+}
+
+static void laplace_pg_source_hash_bytes(
+    blake3_hasher* hasher, const void* bytes, size_t count) {
+    laplace_pg_source_hash_u64(hasher, (uint64_t)count);
+    if (count != 0u) {
+        blake3_hasher_update(hasher, bytes, count);
+    }
+}
+
+static laplace_digest256 laplace_pg_source_uax_provider_fingerprint(
+    const laplace_unicode_source_receipt* receipt) {
+    static const char domain[] = "laplace.decomposition.provider.uax29/v1";
+    laplace_digest256 result;
+    blake3_hasher hasher;
+    memset(&result, 0, sizeof(result));
+    blake3_hasher_init(&hasher);
+    laplace_pg_source_hash_bytes(&hasher, domain, sizeof(domain) - 1u);
+    laplace_pg_source_hash_bytes(
+        &hasher, receipt->source_fingerprint.bytes,
+        sizeof(receipt->source_fingerprint.bytes));
+    laplace_pg_source_hash_bytes(
+        &hasher, receipt->recipe_fingerprint.bytes,
+        sizeof(receipt->recipe_fingerprint.bytes));
+    blake3_hasher_finalize(&hasher, result.bytes, sizeof(result.bytes));
+    return result;
+}
+
 static laplace_tabular_source_status
-laplace_pg_tabular_source_plan_create_recursive(
+laplace_pg_source_decomposition_plan_create(
     const laplace_tabular_source_input* input,
     laplace_tabular_source_plan** plan) {
     laplace_unicode_source_bundle* unicode_bundle = NULL;
     laplace_unicode_source_receipt unicode_receipt;
+    laplace_uax29_tables* uax_tables = NULL;
+    laplace_decomposition_uax29_provider uax_provider;
+    laplace_digest256 uax_fingerprint;
     laplace_tabular_source_status status;
+
     laplace_pg_active_source_plan = NULL;
     laplace_pg_active_source_execution = NULL;
     laplace_pg_active_source_composition_input = NULL;
     laplace_pg_source_metrics_begin();
     memset(&unicode_receipt, 0, sizeof(unicode_receipt));
+    memset(&uax_provider, 0, sizeof(uax_provider));
+
+    /* Transitional host-side authority selection: source admission now invokes
+     * the generic decomposition boundary directly.  UAX tables still come from
+     * the verified Unicode source bundle until that authority is generated from
+     * admitted Unicode source state and activated as a normal provider plane. */
     if (laplace_unicode_source_bundle_open(
             LAPLACE_UNICODE_SOURCE_ROOT,
             &unicode_bundle,
             &unicode_receipt) != LAPLACE_UNICODE_OK ||
-        unicode_bundle == NULL) {
+        unicode_bundle == NULL ||
+        laplace_uax29_tables_create(unicode_bundle, &uax_tables) !=
+            LAPLACE_UAX29_OK ||
+        uax_tables == NULL) {
+        laplace_uax29_tables_destroy(&uax_tables);
         laplace_unicode_source_bundle_close(&unicode_bundle);
         return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
     }
-    status = laplace_tabular_source_plan_create_recursive(
-        input, unicode_bundle, plan);
+
+    uax_fingerprint =
+        laplace_pg_source_uax_provider_fingerprint(&unicode_receipt);
+    if (laplace_decomposition_uax29_provider_init(
+            &uax_provider, uax_tables, &uax_fingerprint) !=
+        LAPLACE_DECOMPOSITION_OK) {
+        laplace_uax29_tables_destroy(&uax_tables);
+        laplace_unicode_source_bundle_close(&unicode_bundle);
+        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+    }
+
+    status = laplace_source_decomposition_plan_create(
+        input, &uax_provider.provider, 1u, plan);
+    laplace_uax29_tables_destroy(&uax_tables);
     laplace_unicode_source_bundle_close(&unicode_bundle);
     if (status == LAPLACE_TABULAR_SOURCE_OK && plan != NULL && *plan != NULL) {
         laplace_pg_active_source_plan = *plan;
@@ -235,7 +300,7 @@ laplace_pg_source_profile_finalize_with_witnesses(
 #define laplace_tabular_source_profile_finalize(plan, summary, profile) \
     laplace_pg_source_profile_finalize_with_witnesses((plan), (summary), (profile))
 #define laplace_tabular_source_plan_create(input, plan) \
-    laplace_pg_tabular_source_plan_create_recursive((input), (plan))
+    laplace_pg_source_decomposition_plan_create((input), (plan))
 #define SPI_execute_with_args(...) \
     (++laplace_pg_source_metrics_active.source_stage_spi_execute_with_args_count, \
      SPI_execute_with_args(__VA_ARGS__))
