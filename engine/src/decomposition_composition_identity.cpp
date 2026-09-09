@@ -44,23 +44,15 @@ laplace_decomposition_composition_status Resolve(
     return LAPLACE_DECOMPOSITION_COMPOSITION_DECOMPOSITION_INVALID;
 }
 
-}  // namespace
-
-extern "C" laplace_decomposition_composition_status
-laplace_decomposition_composition_identity_evaluate(
-    const laplace_decomposition_composition_plan* const plan,
+laplace_decomposition_composition_status EvaluateView(
+    const laplace_decomposition_composition_plan_view& view,
     laplace_decomposition_composition_identity* const results,
-    const size_t result_capacity,
-    size_t* const result_count) {
-    if (result_count != nullptr) *result_count = 0u;
-    if (plan == nullptr || result_count == nullptr) {
+    const std::size_t result_capacity,
+    std::size_t* const result_count) {
+    if (result_count == nullptr) {
         return LAPLACE_DECOMPOSITION_COMPOSITION_INVALID_ARGUMENT;
     }
-    laplace_decomposition_composition_plan_view view{};
-    if (laplace_decomposition_composition_plan_view_get(plan, &view) !=
-        LAPLACE_DECOMPOSITION_COMPOSITION_OK) {
-        return LAPLACE_DECOMPOSITION_COMPOSITION_DECOMPOSITION_INVALID;
-    }
+    *result_count = 0u;
     if (view.request_count > static_cast<std::uint64_t>(SIZE_MAX)) {
         return LAPLACE_DECOMPOSITION_COMPOSITION_OVERFLOW;
     }
@@ -68,7 +60,8 @@ laplace_decomposition_composition_identity_evaluate(
     *result_count = required;
     if (required == 0u) return LAPLACE_DECOMPOSITION_COMPOSITION_OK;
     if (results == nullptr || result_capacity < required || view.requests == nullptr ||
-        view.operands == nullptr) {
+        view.operands == nullptr ||
+        (view.atom_count != 0u && view.atom_positions == nullptr)) {
         return LAPLACE_DECOMPOSITION_COMPOSITION_INVALID_ARGUMENT;
     }
 
@@ -128,6 +121,39 @@ laplace_decomposition_composition_identity_evaluate(
     }
 }
 
+}  // namespace
+
+extern "C" laplace_decomposition_composition_status
+laplace_decomposition_composition_identity_evaluate(
+    const laplace_decomposition_composition_plan* const plan,
+    laplace_decomposition_composition_identity* const results,
+    const size_t result_capacity,
+    size_t* const result_count) {
+    if (result_count != nullptr) *result_count = 0u;
+    if (plan == nullptr || result_count == nullptr) {
+        return LAPLACE_DECOMPOSITION_COMPOSITION_INVALID_ARGUMENT;
+    }
+    laplace_decomposition_composition_plan_view view{};
+    if (laplace_decomposition_composition_plan_view_get(plan, &view) !=
+        LAPLACE_DECOMPOSITION_COMPOSITION_OK) {
+        return LAPLACE_DECOMPOSITION_COMPOSITION_DECOMPOSITION_INVALID;
+    }
+    return EvaluateView(view, results, result_capacity, result_count);
+}
+
+extern "C" laplace_decomposition_composition_status
+laplace_decomposition_composition_identity_evaluate_view(
+    const laplace_decomposition_composition_plan_view* const view,
+    laplace_decomposition_composition_identity* const results,
+    const size_t result_capacity,
+    size_t* const result_count) {
+    if (result_count != nullptr) *result_count = 0u;
+    if (view == nullptr || result_count == nullptr) {
+        return LAPLACE_DECOMPOSITION_COMPOSITION_INVALID_ARGUMENT;
+    }
+    return EvaluateView(*view, results, result_capacity, result_count);
+}
+
 extern "C" laplace_decomposition_composition_status
 laplace_decomposition_composition_identity_resolve(
     const laplace_decomposition_composition_plan* const plan,
@@ -144,4 +170,17 @@ laplace_decomposition_composition_identity_resolve(
         return LAPLACE_DECOMPOSITION_COMPOSITION_DECOMPOSITION_INVALID;
     }
     return Resolve(view, results, result_count, *reference, identity);
+}
+
+extern "C" laplace_decomposition_composition_status
+laplace_decomposition_composition_identity_resolve_view(
+    const laplace_decomposition_composition_plan_view* const view,
+    const laplace_decomposition_composition_identity* const results,
+    const size_t result_count,
+    const laplace_composition_operand* const reference,
+    laplace_decomposition_composition_identity* const identity) {
+    if (view == nullptr || reference == nullptr || identity == nullptr) {
+        return LAPLACE_DECOMPOSITION_COMPOSITION_INVALID_ARGUMENT;
+    }
+    return Resolve(*view, results, result_count, *reference, identity);
 }
