@@ -263,7 +263,8 @@ static int semantic_enumerate_impl(
         " SELECT (s.source_state_index)::bigint AS source_state_index,"
         " CASE WHEN o.left_value_entity_id=s.entity_id"
         "      THEN o.right_value_entity_id ELSE o.left_value_entity_id END AS target_entity_id,"
-        " p.proposition_id, p.relation_id,"
+        " o.occurrence_id AS observation_fingerprint,"
+        " p.proposition_id, p.relation_id, er.root_node_id AS evidence_root_id,"
         " CASE WHEN p.flags=2 THEN 3"
         "      WHEN o.left_value_entity_id=s.entity_id THEN 1 ELSE 2 END AS direction"
         " FROM src s"
@@ -273,16 +274,24 @@ static int semantic_enumerate_impl(
         "  AND (o.left_value_entity_id=s.entity_id OR o.right_value_entity_id=s.entity_id)"
         " JOIN " LAPLACE_PG_SCHEMA ".reference_mapping_proposition p"
         "   ON p.proposition_id=o.proposition_id"
+        " JOIN " LAPLACE_PG_SCHEMA ".evidence_testimony et"
+        "   ON et.source_profile_id=o.source_profile_id"
+        " JOIN " LAPLACE_PG_SCHEMA ".evidence_node en"
+        "   ON en.node_id=et.evidence_node_id"
+        "  AND en.proposition_id=o.row_entity_id"
+        " JOIN " LAPLACE_PG_SCHEMA ".evidence_root_projection er"
+        "   ON er.node_id=en.node_id"
+        "  AND er.proposition_id=en.proposition_id"
         " WHERE p.flags IN (1,2)"
         "), dedup AS ("
-        " SELECT DISTINCT ON (source_state_index, proposition_id, target_entity_id)"
-        " source_state_index,target_entity_id,proposition_id,relation_id,direction"
+        " SELECT DISTINCT ON (source_state_index, proposition_id, target_entity_id, evidence_root_id)"
+        " source_state_index,target_entity_id,observation_fingerprint,relation_id,evidence_root_id,direction"
         " FROM edges"
-        " ORDER BY source_state_index,proposition_id,target_entity_id"
+        " ORDER BY source_state_index,proposition_id,target_entity_id,evidence_root_id,observation_fingerprint"
         ")"
-        " SELECT source_state_index,target_entity_id,proposition_id,relation_id,direction"
+        " SELECT source_state_index,target_entity_id,observation_fingerprint,relation_id,evidence_root_id,direction"
         " FROM dedup"
-        " ORDER BY source_state_index,proposition_id,target_entity_id";
+        " ORDER BY source_state_index,observation_fingerprint,target_entity_id,evidence_root_id";
     Datum* source_values;
     ArrayType* source_array;
     bytea* boundary;
@@ -395,7 +404,7 @@ static int semantic_enumerate_impl(
         if (is_null) return 9;
         semantic_read_digest_datum(
             value, &candidate->observation_fingerprint,
-            "semantic proposition_id");
+            "semantic observation_fingerprint");
 
         value = SPI_getbinval(tuple, tuple_desc, 4, &is_null);
         if (is_null) return 10;
@@ -404,8 +413,14 @@ static int semantic_enumerate_impl(
 
         value = SPI_getbinval(tuple, tuple_desc, 5, &is_null);
         if (is_null) return 11;
+        semantic_read_digest_datum(
+            value, &candidate->evidence_root_fingerprint,
+            "semantic evidence_root_id");
+
+        value = SPI_getbinval(tuple, tuple_desc, 6, &is_null);
+        if (is_null) return 12;
         direction = DatumGetInt32(value);
-        if (direction < 0) return 12;
+        if (direction < 0) return 13;
 
         candidate->source_logical_ordinal = 0u;
         candidate->target_logical_ordinal = 0u;
