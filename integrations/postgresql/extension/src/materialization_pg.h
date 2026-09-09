@@ -3,6 +3,7 @@
 
 #include "postgres.h"
 #include "laplace/cognition_materialization.h"
+#include "laplace/composition.h"
 #include "laplace/framework.h"
 
 /* Exact PostgreSQL-backed content readback for cognition realization. Unicode
