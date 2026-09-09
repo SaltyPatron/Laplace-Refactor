@@ -1,7 +1,7 @@
 {
   "schema": "laplace.unicode-source-contract/v1",
   "unicode_version": "17.0.0",
-  "file_count": 34,
+  "file_count": 33,
   "population": {
     "minimum_position": 0,
     "maximum_position": 1114111,
@@ -20,7 +20,6 @@
     {"id": "uax14", "version": "17.0.0", "revision": 55, "url": "https://www.unicode.org/reports/tr14/tr14-55.html"},
     {"id": "uax15", "version": "17.0.0", "revision": 57, "url": "https://www.unicode.org/reports/tr15/tr15-57.html"},
     {"id": "uax29", "version": "17.0.0", "revision": 47, "url": "https://www.unicode.org/reports/tr29/tr29-47.html"},
-    {"id": "uax42", "version": "17.0.0", "revision": 38, "url": "https://www.unicode.org/reports/tr42/tr42-38.html"},
     {"id": "uax44", "version": "17.0.0", "revision": 36, "url": "https://www.unicode.org/reports/tr44/tr44-36.html"}
   ],
   "files": [
@@ -45,7 +44,7 @@
     {"path": "ucd/PropertyValueAliases.txt", "bytes": 81858, "sha256": "64e9a5f76f7a1e8b5a47d6a1f9a26522a251208f5276bdfa1559dac7cf2e827a", "role": "canonical-property-values"},
     {"path": "ucd/emoji/emoji-data.txt", "bytes": 107324, "sha256": "2cb2bb9455cda83e8481541ecf5b6dfda66a3bb89efa3fa7c5297eccf607b72b", "role": "extended-pictographic-property"},
     {"path": "ucd/auxiliary/GraphemeBreakProperty.txt", "bytes": 99377, "sha256": "d6b51d1d2ae5c33b451b7ed994b48f1f4dc62b2272a5831e7fd418514a6bae89", "role": "uax29-grapheme-property"},
-    {"path": "ucd/auxiliary/WordBreakProperty.txt", "bytes": 114445, "sha256": "72274cac1e6b919507db35655c3e175aa27274668a1ece95c28d206239ee8d34f8fdf0fb4ab32a7174dfbabbde25419b2", "role": "uax29-word-property"},
+    {"path": "ucd/auxiliary/WordBreakProperty.txt", "bytes": 114445, "sha256": "72274cac1e6b919507db35655c3e175aa27274668a1ece95c28d2069f2ad9852", "role": "uax29-word-property"},
     {"path": "ucd/auxiliary/SentenceBreakProperty.txt", "bytes": 221233, "sha256": "871c0c985ad95125e25b302414065a10839d068970bceb383ecec138f22a0a18", "role": "uax29-sentence-property"},
     {"path": "ucd/LineBreak.txt", "bytes": 263180, "sha256": "e6a18fa91f8f6a6f8e534b1d3f128c21ada45bfe152eb6b1bcc5e15fd8ac92e6", "role": "uax14-line-break-property"},
     {"path": "ucd/NormalizationTest.txt", "bytes": 2827429, "sha256": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db", "role": "uax15-conformance"},
@@ -56,8 +55,7 @@
     {"path": "uca/ReadMe.txt", "bytes": 886, "sha256": "79b778c37de3d989d6fa21e27c058b587731037024b2eaaa158036ef9ffc6088", "role": "uca-version"},
     {"path": "uca/allkeys.txt", "bytes": 2304434, "sha256": "2503d09367c2639a4fb8fd55e81aaacb0d9fb4ea26600333329bd12456b99ecd", "role": "ducet-explicit-and-implicit-collation-elements"},
     {"path": "uca/decomps.txt", "bytes": 633213, "sha256": "a5056d31b6e3f08a8756f205682bd0b0d2f9ea1fb64af83a326425b89a3ea0db", "role": "uca-decomposition-reference"},
-    {"path": "uca/CollationTest.zip", "bytes": 4953980, "sha256": "9ba92cb7627c2d09ba537dc2035d006f44f0cafb4e2198f147897fdd9d71bb10", "role": "uca-conformance"},
-    {"path": "ucdxml/ucd.all.grouped.zip", "bytes": 7682060, "sha256": "0466e880488c08f7f5373ada4da5746f2223b654c622d98fae7fb9edb7c5fd01", "role": "complete-uax42-ucd-property-authority-with-unihan"}
+    {"path": "uca/CollationTest.zip", "bytes": 4953980, "sha256": "9ba92cb7627c2d09ba537dc2035d006f44f0cafb4e2198f147897fdd9d71bb10", "role": "uca-conformance"}
   ],
   "version_markers": [
     {"path": "ReadMe.txt", "contains": "Version 17.0.0"},
@@ -67,6 +65,7 @@
     {"path": "uca/allkeys.txt", "contains": "@version 17.0.0"}
   ],
   "excluded_from_tier0_v1": [
+    {"data": "character display names and annotations", "disposition": "label-realization-plane-not-atom-authority"},
     {"data": "locale tailoring and CLDR", "disposition": "language-realization-testimony-not-DUCET-placement"},
     {"data": "ucd/VerticalOrientation.txt", "disposition": "vertical-text-realization-plane-v1-not-atom-authority"},
     {"data": "ucd/ArabicShaping.txt", "disposition": "script-shaping-realization-plane-v1-not-atom-authority"},
