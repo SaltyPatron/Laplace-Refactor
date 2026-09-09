@@ -21,6 +21,7 @@ add_subdirectory(
 
 add_library(laplace_engine SHARED
     src/identity.c
+    src/text_identity.cpp
     src/geometry.c
     src/execution.cpp
     src/framework.c
@@ -59,6 +60,7 @@ add_library(laplace_engine SHARED
     src/decomposition_xml.cpp
     src/decomposition_xml_ast.cpp
     src/ucdxml_projection.cpp
+    src/ucdxml_evidence.cpp
     src/decomposition_tree_sitter.cpp
     src/tree_sitter_grammar.cpp
     src/universal_ast.cpp
