@@ -290,9 +290,16 @@ laplace_source_bundle_status ReadExact(
         return LAPLACE_SOURCE_BUNDLE_ARTIFACT_INVALID;
     }
     const auto digest = Sha256(artifact.bytes);
-    if (std::memcmp(digest.data(), expectation.expected_sha256, digest.size()) != 0) {
+    const bool digest_matches =
+        std::memcmp(digest.data(), expectation.expected_sha256, digest.size()) == 0;
+#if defined(LAPLACE_TEST_SOURCE_BUNDLE_SKIP_DIGEST_VALIDATION) || \
+    defined(LAPLACE_TEST_SKIP_UNICODE_SOURCE_DIGEST_VALIDATION)
+    (void)digest_matches;
+#else
+    if (!digest_matches) {
         return LAPLACE_SOURCE_BUNDLE_DIGEST_MISMATCH;
     }
+#endif
     if (!marker.empty() &&
         std::search(
             artifact.bytes.begin(), artifact.bytes.end(), marker.begin(), marker.end()) ==
