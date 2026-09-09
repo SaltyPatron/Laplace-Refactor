@@ -122,6 +122,7 @@ set(laplace_postgresql_module_sources
     src/highway_registry_pg.c
     src/laplace_pg.c
     src/machine_exception_pg.c
+    src/materialization_pg.c
     src/observation_cognition_pg.c
     src/observation_cognition_persisted_pg.c
     src/prompt_admission_pg.c
