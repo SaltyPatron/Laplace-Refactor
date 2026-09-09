@@ -23,6 +23,10 @@ typedef struct laplace_pg_cognition_provider laplace_pg_cognition_provider;
 typedef struct laplace_pg_cognition_provider_report {
     laplace_digest256 provider_fingerprint;
     laplace_digest256 readset_fingerprint;
+    /* A firmware host may compose the structural reader with the separate
+     * semantic/reference-mapping provider. Keep its identity/work counters in
+     * distinct fields so testimony work never impersonates physicality work. */
+    laplace_digest256 semantic_provider_fingerprint;
     uint64_t rows_fetched;
     uint64_t carriers_decoded;
     uint64_t logical_occurrences;
@@ -30,6 +34,9 @@ typedef struct laplace_pg_cognition_provider_report {
     uint64_t trajectory_bytes;
     uint64_t database_operations;
     uint64_t batch_count;
+    uint64_t semantic_rows_examined;
+    uint64_t semantic_database_operations;
+    uint64_t semantic_provider_calls;
 } laplace_pg_cognition_provider_report;
 
 void laplace_pg_cognition_provider_create(
