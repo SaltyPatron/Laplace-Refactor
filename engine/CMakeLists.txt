@@ -56,6 +56,7 @@ add_library(laplace_engine SHARED
     src/decomposition_delimited.cpp
     src/decomposition_fixed_width.cpp
     src/decomposition_xml.cpp
+    src/decomposition_xml_ast.cpp
     src/ucdxml_projection.cpp
     src/decomposition_tree_sitter.cpp
     src/tree_sitter_grammar.cpp
@@ -67,24 +68,10 @@ add_library(laplace_engine SHARED
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)
-# The opaque tabular plan is intentionally defined in one translation unit and
-# retains a private ParsedArtifact implementation type. GCC's subobject-linkage
-# diagnostic is therefore not an ODR boundary, but it is promoted by -Werror.
-# Keep the diagnostic visible while preventing this private implementation
-# detail from blocking the clean-room GCC build.
 set_source_files_properties(src/tabular_source.cpp PROPERTIES
     COMPILE_OPTIONS "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=subobject-linkage>")
-# composition.cpp now wraps the byte-preserved semantic implementation in the
-# same translation unit so runtime frontier receipts can be attached without a
-# second semantic engine. The opaque working-set contains private helper types,
-# making GCC emit the same non-ODR subobject-linkage diagnostic as tabular_source.
-# Scope the non-error treatment to this one implementation unit; all other
-# warnings and all global -Werror policy remain unchanged.
 set_source_files_properties(src/composition.cpp PROPERTIES
     COMPILE_OPTIONS "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=subobject-linkage>")
-# The generated ISA registry declares operation handlers in isa.c. Force-include
-# the AST packet handler before that registry is instantiated so the new 1.14
-# opcode enters the same binary-search dispatcher without a second switch.
 set_source_files_properties(src/isa.c PROPERTIES
     COMPILE_OPTIONS
         "$<$<COMPILE_LANG_AND_ID:C,GNU,Clang,IntelLLVM>:-include;${CMAKE_CURRENT_SOURCE_DIR}/src/isa_universal_ast_handler.h>")
