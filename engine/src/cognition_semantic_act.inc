@@ -109,8 +109,35 @@ laplace_cognition_observation_semantic_act_select(
         !SameDigest(retained_forward, executed.receipt_id) ||
         !SameDigest(retained_request, request_fingerprint))
         return LAPLACE_COGNITION_SEMANTIC_ACT_FORWARD_RESULT_FAILURE;
-    // Completion and provenance come from the retained native execution. The
-    // supplied receipt is an identifier, not an editable completion authority.
+    // Reject incomplete caller evidence, and require every supplied field to
+    // match the retained native receipt before publishing a semantic act.
+    if (forward_receipt->status != LAPLACE_COGNITION_FORWARD_OK ||
+        forward_receipt->disposition != LAPLACE_COGNITION_FORWARD_COMPLETE ||
+        forward_receipt->final_completion != LAPLACE_COGNITION_COMPLETION_COMPLETE ||
+        forward_receipt->final_remaining_required_count != 0U) {
+        return LAPLACE_COGNITION_SEMANTIC_ACT_INCOMPLETE;
+    }
+    if (!SameDigest(executed.program_fingerprint, forward_receipt->program_fingerprint) ||
+        !SameDigest(executed.initial_state_id, forward_receipt->initial_state_id) ||
+        !SameDigest(executed.final_state_id, forward_receipt->final_state_id) ||
+        !SameDigest(executed.layer_trace_fingerprint, forward_receipt->layer_trace_fingerprint) ||
+        !SameDigest(executed.output_fingerprint, forward_receipt->output_fingerprint) ||
+        executed.layer_count != forward_receipt->layer_count ||
+        executed.provider_call_count != forward_receipt->provider_call_count ||
+        executed.projected_query_count != forward_receipt->projected_query_count ||
+        executed.candidate_operation_count != forward_receipt->candidate_operation_count ||
+        executed.resolution_count != forward_receipt->resolution_count ||
+        executed.resource_cost != forward_receipt->resource_cost ||
+        executed.io_operations != forward_receipt->io_operations ||
+        executed.database_operations != forward_receipt->database_operations ||
+        executed.final_remaining_required_count != forward_receipt->final_remaining_required_count ||
+        executed.final_completion != forward_receipt->final_completion ||
+        executed.disposition != forward_receipt->disposition ||
+        executed.status != forward_receipt->status ||
+        executed.version != forward_receipt->version ||
+        executed.flags != forward_receipt->flags ) {
+        return LAPLACE_COGNITION_SEMANTIC_ACT_FORWARD_RESULT_FAILURE;
+    }
     forward_receipt = &executed;
 
     if (forward_receipt->status != LAPLACE_COGNITION_FORWARD_OK ||

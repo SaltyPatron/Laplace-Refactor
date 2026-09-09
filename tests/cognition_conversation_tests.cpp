@@ -471,6 +471,20 @@ TEST(CognitionConversation, FailedRealizationPublishesNeitherBytesNorNextState) 
     EXPECT_EQ(frame, original_frame);
     EXPECT_EQ(materialization.resolve_calls, 0U);
     EXPECT_TRUE(ZeroDigest(result.conversation_id));
+
+    laplace_cognition_conversation_diagnostics diagnostics{};
+    EXPECT_EQ(laplace_cognition_conversation_execute_with_diagnostics(
+        &request, nullptr, 0U, &cognition_provider, &realization_provider,
+        &materialization_provider, output.data(), output.size(), &output_bytes,
+        frame.data(), frame.size(), &frame_bytes, &result, &diagnostics),
+        LAPLACE_COGNITION_CONVERSATION_REALIZATION_FAILURE);
+    EXPECT_EQ(diagnostics.version, LAPLACE_COGNITION_CONVERSATION_VERSION);
+    EXPECT_EQ(diagnostics.conversation_status, LAPLACE_COGNITION_CONVERSATION_REALIZATION_FAILURE);
+    EXPECT_EQ(diagnostics.native_status, LAPLACE_COGNITION_REALIZATION_UNSUPPORTED);
+    EXPECT_EQ(output_bytes, 0U);
+    EXPECT_EQ(frame_bytes, 0U);
+    EXPECT_EQ(output, original_output);
+    EXPECT_EQ(frame, original_frame);
 }
 
 }  // namespace

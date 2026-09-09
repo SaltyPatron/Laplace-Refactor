@@ -32,7 +32,7 @@ internal static class Program
         Require(LaplaceIsaContract.ReceiptDigestAlgorithm == "BLAKE3-256" &&
             LaplaceIsaContract.ReceiptDigestBytes == 32,
             "generated receipt descriptor differs");
-        Require(LaplaceIsaContract.Minor == 13,
+        Require(LaplaceIsaContract.Minor == 14,
             "generated ISA minor version differs");
         Require(LaplaceIsaContract.ValueTypes.Length == 23,
             "generated value type inventory differs");

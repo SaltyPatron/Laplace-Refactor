@@ -1,0 +1,43 @@
+-- Generated from the typed PostgreSQL bindings. Shared by fresh installation and
+-- installed-product reconciliation. Only these read-only native functions receive
+-- owner execution; control tables and all mutation functions remain private.
+DO $laplace_public_readback$
+DECLARE
+    target record;
+    function_oid oid;
+BEGIN
+    FOR target IN SELECT * FROM (VALUES
+        ('@LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_TIER0_ACCESS_SQL@(bytea,bytea,integer[])',
+         '@LAPLACE_PG_UNICODE_TIER0_ACCESS_SYMBOL@', '@LAPLACE_PG_SCHEMA@.unicode_tier0_batch_result'),
+        ('@LAPLACE_PG_SCHEMA@.@LAPLACE_PG_UNICODE_REVERSE_ACCESS_SQL@(bytea,bytea,bytea[],bytea[])',
+         '@LAPLACE_PG_UNICODE_REVERSE_ACCESS_SYMBOL@', '@LAPLACE_PG_SCHEMA@.unicode_identity_reverse_batch_result'),
+        ('@LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SQL@(@LAPLACE_PG_SCHEMA@.execution_context)',
+         '@LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SYMBOL@', '@LAPLACE_PG_SCHEMA@.highway_registry_active_result')
+    ) AS bindings(signature, symbol, result_type)
+    LOOP
+        function_oid := pg_catalog.to_regprocedure(target.signature);
+        IF function_oid IS NULL OR NOT EXISTS (
+            SELECT 1 FROM pg_catalog.pg_proc AS p
+            JOIN pg_catalog.pg_language AS l ON l.oid = p.prolang
+            JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+            JOIN pg_catalog.pg_depend AS d ON d.classid = 'pg_catalog.pg_proc'::pg_catalog.regclass
+                AND d.objid = p.oid AND d.deptype = 'e'
+                AND d.refclassid = 'pg_catalog.pg_extension'::pg_catalog.regclass
+            JOIN pg_catalog.pg_extension AS e ON e.oid = d.refobjid
+            WHERE p.oid = function_oid AND e.extname = 'laplace'
+              AND p.proowner = e.extowner AND n.nspowner = e.extowner
+              AND pg_catalog.pg_get_userbyid(e.extowner) = current_user
+              AND n.nspname = '@LAPLACE_PG_SCHEMA@' AND l.lanname = 'c'
+              AND p.probin = '@LAPLACE_PG_MODULE@' AND p.prosrc = target.symbol
+              AND p.prorettype = pg_catalog.to_regtype(target.result_type)
+              AND p.prokind = 'f' AND p.provolatile = 's' AND p.proisstrict
+              AND p.proparallel = 'u' AND NOT p.proretset AND NOT p.proleakproof
+        ) THEN
+            RAISE EXCEPTION 'public readback target is not the owned native extension function: %', target.signature;
+        END IF;
+        EXECUTE pg_catalog.format('ALTER FUNCTION %s SECURITY DEFINER', function_oid::pg_catalog.regprocedure);
+        EXECUTE pg_catalog.format('ALTER FUNCTION %s SET search_path TO pg_catalog, pg_temp', function_oid::pg_catalog.regprocedure);
+        EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_oid::pg_catalog.regprocedure);
+    END LOOP;
+END
+$laplace_public_readback$;

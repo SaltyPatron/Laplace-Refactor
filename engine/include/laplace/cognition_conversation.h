@@ -45,7 +45,8 @@ typedef enum laplace_cognition_conversation_status {
     LAPLACE_COGNITION_CONVERSATION_DISCOURSE_FAILURE = 9,
     LAPLACE_COGNITION_CONVERSATION_FRAME_FAILURE = 10,
     LAPLACE_COGNITION_CONVERSATION_CAPACITY = 11,
-    LAPLACE_COGNITION_CONVERSATION_MEMORY_FAILURE = 12
+    LAPLACE_COGNITION_CONVERSATION_MEMORY_FAILURE = 12,
+    LAPLACE_COGNITION_CONVERSATION_ENCODING_INVALID = 13
 } laplace_cognition_conversation_status;
 
 /*
@@ -179,6 +180,23 @@ laplace_cognition_conversation_execute_with_diagnostics(
     size_t* next_discourse_frame_bytes,
     laplace_cognition_conversation_result* result,
     laplace_cognition_conversation_diagnostics* diagnostics);
+
+LAPLACE_API laplace_cognition_conversation_status
+laplace_cognition_conversation_execute_encoded(
+    const laplace_cognition_conversation_request* request,
+    uint32_t output_encoding,
+    const uint8_t* previous_frame,
+    size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* cognition_provider,
+    const laplace_cognition_realization_provider_v1* realization_provider,
+    const laplace_cognition_materialization_provider_v1* materialization_provider,
+    uint8_t* output,
+    size_t output_capacity,
+    size_t* output_bytes,
+    uint8_t* next_discourse_frame,
+    size_t next_discourse_frame_capacity,
+    size_t* next_discourse_frame_bytes,
+    laplace_cognition_conversation_result* result);
 
 #ifdef __cplusplus
 }

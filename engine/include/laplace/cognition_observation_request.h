@@ -26,6 +26,8 @@ enum {
         LAPLACE_COGNITION_OBSERVATION_REQUEST_ALLOW_TYPED_UNRESOLVED |
         LAPLACE_COGNITION_OBSERVATION_REQUEST_BOUNDARY_COMPLETE,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_VERSION = 1,
+    /* Candidate projection owns at most two candidate-sized arrays per slot. */
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_WORKSPACE_MULTIPLIER = 2,
     /* Candidate payload grew an explicit canonical relation identity/direction. */
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR = 2,
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR = 0,
@@ -149,6 +151,28 @@ typedef struct laplace_cognition_observation_candidate_provider_v1 {
     uint32_t flags;
     uint32_t reserved;
 } laplace_cognition_observation_candidate_provider_v1;
+
+/* Read-only structural candidate projection over an already validated native
+ * physicality index. Persistence providers may supply only the exact records
+ * selected by indexed frontier predicates; all five structural relation laws
+ * remain owned by the same native generator as the in-memory search route.
+ * No search state, completion decision or testimony is manufactured here.
+ * Output is atomic: insufficient candidate/work capacity returns OVERFLOW with
+ * zero published candidates. Empty source arrays are valid no-op batches.
+ * Transient candidate storage is bounded by WORKSPACE_MULTIPLIER times
+ * candidate_capacity times sizeof(laplace_cognition_observation_candidate),
+ * separately from the immutable index and caller-owned output storage.
+ */
+LAPLACE_API laplace_observation_query_status
+laplace_observation_query_index_candidates_batch(
+    const laplace_observation_query_index* index,
+    const laplace_observation_query_binding* binding,
+    const laplace_id128* source_entity_ids,
+    size_t source_count,
+    laplace_cognition_observation_candidate* candidates,
+    size_t candidate_capacity,
+    size_t* candidate_count,
+    laplace_cognition_observation_candidate_usage* usage);
 
 /*
  * Native provider composition keeps physical candidate providers separate while

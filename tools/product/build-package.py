@@ -296,6 +296,8 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ProductPackageError(
             "package must contain the native Unicode activation identity provider"
         )
+    if "bin/laplace_unicode_artifact_verify" not in package["required_files"]:
+        raise ProductPackageError("package must contain the native Unicode artifact verifier")
     if closure.get("schema") != "laplace.elf-closure/v1" or closure.get(
         "tool_version"
     ) != "1.0.0":

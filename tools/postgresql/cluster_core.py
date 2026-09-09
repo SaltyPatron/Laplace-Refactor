@@ -23,8 +23,9 @@ import subprocess
 import sys
 import tempfile
 import time
-import selectors
+from contextlib import contextmanager
 from dataclasses import dataclass
+import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Sequence
 
@@ -1049,7 +1050,23 @@ def sql_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def render_postgresql_conf(contract: dict[str, Any], package_root: str, settings: dict[str, str]) -> str:
+def configuration_version(plan: dict[str, Any]) -> int:
+    # Missing version denotes the retained pre-perfcache configuration format.
+    # Historical plans remain verifiable; all newly built plans select version 2.
+    value = plan.get("configuration_version", 1)
+    if type(value) is not int or value not in (1, 2):
+        raise ClusterError("unsupported PostgreSQL configuration version")
+    return value
+
+
+def render_postgresql_conf(
+    contract: dict[str, Any], package_root: str, settings: dict[str, str],
+    *, configuration_version: int = 2,
+) -> str:
+    if type(configuration_version) is not int or configuration_version not in (1, 2):
+        raise ClusterError("unsupported PostgreSQL configuration version")
+    if "laplace.perfcache_root" in settings:
+        raise ClusterError("perfcache root belongs to the cluster path contract")
     instance = contract["instance"]
     security = contract["security"]
     config = {
@@ -1067,7 +1084,11 @@ def render_postgresql_conf(contract: dict[str, Any], package_root: str, settings
         "unix_socket_permissions": security["socket_mode"],
     }
     config.update(settings)
+    if configuration_version >= 2:
+        config["laplace.perfcache_root"] = require_absolute_path(
+            instance["perfcache_directory"], "instance.perfcache_directory")
     quoted = {
+        "laplace.perfcache_root",
         "data_directory",
         "dynamic_library_path",
         "extension_control_path",
@@ -1243,6 +1264,7 @@ def build_plan(
     ]
     plan_core = {
         "schema": PLAN_SCHEMA,
+        "configuration_version": 2,
         "contract_sha256": sha256_bytes(canonical_bytes(contract)),
         "package_manifest_sha256": status.manifest_sha256,
         "package_id": package["package_id"],
@@ -1358,6 +1380,7 @@ def validate_plan(plan: dict[str, Any], contract: dict[str, Any] | None = None) 
         validate_contract(contract)
         if plan.get("contract_sha256") != sha256_bytes(canonical_bytes(contract)):
             raise ClusterError("plan was not generated from the supplied cluster contract")
+    configuration_version(plan)
     files = plan.get("files")
     if not isinstance(files, list):
         raise ClusterError("plan rendered files are required")
@@ -1712,55 +1735,96 @@ def compose_loaded_observation(
     return observation
 
 
-def start_loaded_object_probe(base: list[str]) -> tuple[subprocess.Popen[str], int, str, str]:
-    """Read the identity from the very backend whose loaded objects are inspected."""
-    load_sql = "LOAD '$libdir/laplace_pg'; LOAD '$libdir/pg_stat_statements';"
-    identity_sql = (
-        "SELECT pg_catalog.pg_backend_pid()::text || '|' || "
-        "system_identifier::text FROM pg_catalog.pg_control_system();"
-    )
-    hold_sql = "SELECT pg_catalog.pg_sleep(120);"
-    probe = subprocess.Popen(
-        [*base, "--tuples-only", "--no-align", "--quiet",
-         "--command", load_sql, "--command", identity_sql, "--command", hold_sql],
-        cwd="/", env=activation_environment(), stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, text=True, start_new_session=True,
-    )
-    try:
-        with selectors.DefaultSelector() as selector:
-            selector.register(probe.stdout, selectors.EVENT_READ)
-            if not selector.select(timeout=30):
-                raise ClusterError("loaded-object backend did not return its identity")
-            row = probe.stdout.readline().strip()
-        fields = row.split("|")
-        if (len(fields) != 2 or not all(value.isdecimal() for value in fields)
-                or int(fields[0]) <= 0 or int(fields[1]) <= 0):
-            detail = row
-            if probe.poll() is not None:
-                _, stderr = probe.communicate()
-                detail = stderr.strip() or row
-            raise ClusterError(f"loaded-object backend identity is invalid: {detail}")
-        return probe, int(fields[0]), fields[1], load_sql + identity_sql + hold_sql
-    except BaseException:
-        terminate_probe(probe)
-        raise
-
-
 def terminate_probe(process: subprocess.Popen[str]) -> None:
+    """Ask psql to cancel its own query before terminating its process group.
+
+    SIGTERM alone can leave the server's pg_sleep running after the client dies.
+    psql handles SIGINT by sending a PostgreSQL cancellation request. Escalation
+    remains bounded and addresses only the session group created for this probe.
+    """
     if process.poll() is not None:
         process.communicate()
         return
-    try:
-        # psql forwards SIGINT as a PostgreSQL cancellation request. SIGTERM
-        # alone can leave the backend executing pg_sleep after its client exits.
-        os.killpg(process.pid, signal.SIGINT)
-        process.communicate(timeout=10)
-    except (ProcessLookupError, subprocess.TimeoutExpired):
+    for signal_number in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
         try:
-            os.killpg(process.pid, signal.SIGKILL)
+            os.killpg(process.pid, signal_number)
         except ProcessLookupError:
-            pass
-        process.communicate()
+            process.communicate(timeout=10)
+            return
+        try:
+            process.communicate(timeout=10)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+    raise ClusterError("loaded-object probe process group did not terminate")
+
+
+@contextmanager
+def loaded_object_backend(base: Sequence[str]):
+    """Hold one uniquely identified backend until exact object inspection ends.
+
+    Both runner-owned and reference lifecycle providers use this handshake.
+    The connection name is physical correlation, not a semantic identity. Only
+    the probe environment receives it; it never comes from ambient user state.
+    A PgSleep wait proves both preceding LOAD commands completed successfully.
+    """
+    application_name = "laplace_loaded_" + uuid.uuid4().hex
+    probe_sql = (
+        "LOAD '$libdir/laplace_pg'; "
+        "LOAD '$libdir/pg_stat_statements'; "
+        "SELECT pg_sleep(120);"
+    )
+    environment = activation_environment()
+    probe_environment = dict(environment, PGAPPNAME=application_name,
+                             PGCONNECT_TIMEOUT="10")
+    probe = subprocess.Popen(
+        [*base, "--command", probe_sql], cwd="/", env=probe_environment,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        start_new_session=True,
+    )
+    lookup_sql = (
+        "SELECT a.pid::text || '|' || c.system_identifier::text "
+        "FROM pg_catalog.pg_stat_activity AS a "
+        "CROSS JOIN pg_catalog.pg_control_system() AS c "
+        f"WHERE a.application_name = '{application_name}' "
+        "AND a.pid <> pg_catalog.pg_backend_pid() "
+        "AND a.datname = pg_catalog.current_database() "
+        "AND a.usename = current_user AND a.backend_type = 'client backend' "
+        "AND a.state = 'active' AND a.wait_event_type = 'Timeout' "
+        "AND a.wait_event = 'PgSleep';"
+    )
+    try:
+        deadline = time.monotonic() + 30.0
+        while time.monotonic() < deadline:
+            if probe.poll() is not None:
+                stdout, stderr = probe.communicate()
+                detail = stderr.strip() or stdout.strip() or f"exit {probe.returncode}"
+                raise ClusterError(f"loaded-object probe exited early: {detail}")
+            try:
+                lookup = subprocess.run(
+                    [*base, "--tuples-only", "--no-align", "--quiet", "--command", lookup_sql],
+                    check=False, cwd="/", env=environment, stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE, text=True, timeout=10,
+                )
+            except subprocess.TimeoutExpired as error:
+                raise ClusterError("loaded-object lookup query timed out") from error
+            if lookup.returncode != 0:
+                detail = lookup.stderr.strip() or lookup.stdout.strip() or f"exit {lookup.returncode}"
+                raise ClusterError(f"loaded-object lookup failed: {detail}")
+            rows = [line.strip() for line in lookup.stdout.splitlines() if line.strip()]
+            if rows:
+                if len(rows) != 1 or rows[0].count("|") != 1:
+                    raise ClusterError("loaded-object lookup returned ambiguous or malformed backend identity")
+                pid_text, identifier = rows[0].split("|", 1)
+                if (not pid_text.isdecimal() or int(pid_text) <= 0
+                        or not identifier.isdecimal() or int(identifier) <= 0):
+                    raise ClusterError("loaded-object lookup returned invalid backend identity")
+                yield int(pid_text), identifier, probe_sql
+                return
+            time.sleep(0.1)
+        raise ClusterError("timed out waiting for the uniquely identified loaded-object backend")
+    finally:
+        terminate_probe(probe)
 
 
 def observe_loaded_live(
@@ -1799,23 +1863,13 @@ def observe_loaded_live(
         "--set",
         "ON_ERROR_STOP=1",
     ]
-    probe, backend_pid, system_identifier, probe_sql = start_loaded_object_probe(base)
-    try:
+    with loaded_object_backend(base) as (backend_pid, system_identifier, probe_sql):
         process_paths = process_loaded_paths(proc_root, backend_pid) | postmaster_paths
         return compose_loaded_observation(
-            plan,
-            contract,
-            root,
-            state,
-            postmaster_pid,
-            backend_pid,
-            system_identifier,
-            process_paths,
-            sha256_bytes(probe_sql.encode("utf-8")),
-            service_receipt,
+            plan, contract, root, state, postmaster_pid, backend_pid,
+            system_identifier, process_paths,
+            sha256_bytes(probe_sql.encode("utf-8")), service_receipt,
         )
-    finally:
-        terminate_probe(probe)
 
 
 def qualify_package_ownership(

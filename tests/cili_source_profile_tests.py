@@ -139,7 +139,10 @@ class CiliSourceProfileContract(unittest.TestCase):
             "execution->presence.physicality_round_count", implementation
         )
         self.assertIn("execution->persistence.plan_count", implementation)
-        self.assertIn("#define SPI_execute_with_args(...)", implementation)
+        self.assertIn("++laplace_pg_source_metrics_active.source_stage_spi_execute_with_args_count", implementation)
+        self.assertIn("static int laplace_pg_source_execute_with_args(", implementation)
+        self.assertEqual(implementation.count("return SPI_execute_with_args("), 1)
+        self.assertNotIn("#define SPI_execute_with_args", implementation)
         self.assertNotIn(
             "source_stage_spi_execute_with_args_count = plan.request_count",
             implementation,

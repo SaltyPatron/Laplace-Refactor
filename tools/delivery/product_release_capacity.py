@@ -398,7 +398,7 @@ def reconcile_capacity(
     release_root = Path(str(package.get("release_root", "")))
     active_link = Path(str(package.get("active_link", "")))
     receipt_root = Path(str(instance.get("receipt_directory", "")))
-    runtime_link = Path("/opt/laplace/runtime/refactor")
+    runtime_link = active_link.parent / "runtime" / str(instance.get("id", "refactor"))
     for value, label in (
         (release_root, "release root"),
         (active_link, "active link"),

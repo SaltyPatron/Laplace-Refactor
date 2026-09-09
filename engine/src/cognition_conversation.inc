@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
+#include <stdexcept>
 #include <vector>
 
 namespace laplace_cognition_conversation_detail {
@@ -146,6 +147,7 @@ struct NativeResultOwner final {
 
 static laplace_cognition_conversation_status ExecuteConversation(
     const laplace_cognition_conversation_request* const request,
+    const std::uint32_t output_encoding,
     const std::uint8_t* const previous_frame,
     const std::size_t previous_frame_bytes,
     const laplace_cognition_observation_candidate_provider_v1* const cognition_provider,
@@ -171,6 +173,10 @@ static laplace_cognition_conversation_status ExecuteConversation(
         next_discourse_frame == nullptr || next_discourse_frame_bytes == nullptr ||
         result == nullptr) {
         return LAPLACE_COGNITION_CONVERSATION_INVALID_ARGUMENT;
+    }
+    if (output_encoding != LAPLACE_COGNITION_OUTPUT_UTF8 &&
+        output_encoding != LAPLACE_COGNITION_OUTPUT_OCTETS) {
+        return LAPLACE_COGNITION_CONVERSATION_ENCODING_INVALID;
     }
     if (!RequestVersionValid(*request)) {
         return LAPLACE_COGNITION_CONVERSATION_INVALID_VERSION;
@@ -239,9 +245,9 @@ static laplace_cognition_conversation_status ExecuteConversation(
     }
 
     std::size_t staged_output_bytes = 0U;
-    diagnostics->native_status = laplace_cognition_realization_materialize_utf8(
+    diagnostics->native_status = laplace_cognition_realization_materialize_encoded(
             &resolved.realization, &request->materialization,
-            materialization_provider, staged_output.data(), staged_output.size(),
+            materialization_provider, output_encoding, staged_output.data(), staged_output.size(),
             &staged_output_bytes, &resolved.materialization_receipt);
     if (diagnostics->native_status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
         return LAPLACE_COGNITION_CONVERSATION_MATERIALIZATION_FAILURE;
@@ -298,7 +304,7 @@ laplace_cognition_conversation_execute_with_diagnostics(
     laplace_cognition_conversation_diagnostics local{};
     local.version = LAPLACE_COGNITION_CONVERSATION_VERSION;
     const auto status = ExecuteConversation(
-        request, previous_frame, previous_frame_bytes, cognition_provider,
+        request, LAPLACE_COGNITION_OUTPUT_UTF8, previous_frame, previous_frame_bytes, cognition_provider,
         realization_provider, materialization_provider,
         output, output_capacity, output_bytes,
         next_discourse_frame, next_discourse_frame_capacity,
@@ -325,4 +331,28 @@ laplace_cognition_conversation_execute(
         output, output_capacity, output_bytes,
         next_discourse_frame, next_discourse_frame_capacity,
         next_discourse_frame_bytes, result, nullptr);
+}
+
+extern "C" laplace_cognition_conversation_status
+laplace_cognition_conversation_execute_encoded(
+    const laplace_cognition_conversation_request* request,
+    uint32_t output_encoding,
+    const std::uint8_t* previous_frame, std::size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* cognition_provider,
+    const laplace_cognition_realization_provider_v1* realization_provider,
+    const laplace_cognition_materialization_provider_v1* materialization_provider,
+    std::uint8_t* output, std::size_t output_capacity, std::size_t* output_bytes,
+    std::uint8_t* next_discourse_frame, std::size_t next_discourse_frame_capacity,
+    std::size_t* next_discourse_frame_bytes,
+    laplace_cognition_conversation_result* result) {
+    laplace_cognition_conversation_diagnostics local{};
+    local.version = LAPLACE_COGNITION_CONVERSATION_VERSION;
+    const auto status = ExecuteConversation(
+        request, output_encoding, previous_frame, previous_frame_bytes, cognition_provider,
+        realization_provider, materialization_provider,
+        output, output_capacity, output_bytes,
+        next_discourse_frame, next_discourse_frame_capacity,
+        next_discourse_frame_bytes, result, &local);
+    local.conversation_status = status;
+    return status;
 }

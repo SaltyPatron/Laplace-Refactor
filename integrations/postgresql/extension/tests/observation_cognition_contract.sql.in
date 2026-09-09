@@ -1,4 +1,12 @@
-CREATE EXTENSION laplace;
+-- Exercise both fresh schema and the genuine installed-extension update route.
+CREATE EXTENSION laplace VERSION '1.0.0';
+ALTER EXTENSION laplace UPDATE TO '1.0.1';
+DO $upgrade$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname='laplace' AND extversion='1.0.1') THEN
+        RAISE EXCEPTION 'installed extension version did not advance';
+    END IF;
+END $upgrade$;
 
 CREATE FUNCTION pg_temp.execution_context()
 RETURNS laplace.execution_context
@@ -12,7 +20,7 @@ AS $context$
             decode(repeat('07',32),'hex'), decode(repeat('08',32),'hex'),
             decode(repeat('09',32),'hex'), decode(repeat('0a',32),'hex')
         ],
-        decode(repeat('a0',32),'hex'), 1048576::bigint, 4, 1,
+        decode(repeat('a0',32),'hex'), 16777216::bigint, 4, 1,
         1023::bigint, @LAPLACE_FRAMEWORK_MAJOR@::smallint,
         @LAPLACE_FRAMEWORK_MINOR@::smallint,
         @LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY@::integer
@@ -84,6 +92,38 @@ SELECT
         4, 1, 9, 1
     )::laplace.cognition_observation_request AS request;
 
+-- Deposit the same canonical fixture into the actual durable product tables.
+-- The persisted cognition route below receives none of the fixture arrays.
+INSERT INTO laplace.entity(entity_id, identity_witness)
+VALUES
+    (decode(:'entity_a','hex'), decode(:'entity_a_witness','hex')),
+    (decode(:'entity_b','hex'), decode(:'entity_b_witness','hex')),
+    (decode(:'entity_c','hex'), decode(:'entity_c_witness','hex')),
+    (decode(:'entity_root','hex'), decode(:'entity_root_witness','hex'));
+
+INSERT INTO laplace.physicality(
+    physicality_id, entity_id, physicality_type, vertex_class,
+    recipe_version, structural_form, dimension_count, flags,
+    recipe_fingerprint, geometry_epoch, trajectory_fingerprint,
+    centroid_x, centroid_y, centroid_z, centroid_m, radius,
+    logical_count, vertex_count, trajectory)
+VALUES (
+    decode(:'physicality_id','hex'), decode(:'entity_root','hex'),
+    1, 1, 1, 1, 4, 0,
+    decode(:'recipe_fingerprint','hex'),
+    decode(:'geometry_epoch','hex'),
+    decode(:'trajectory_fingerprint','hex'),
+    0.125::double precision,
+    -0.25::double precision,
+    0.5::double precision,
+    -0.75::double precision,
+    0.875::double precision,
+    3::numeric,
+    3::numeric,
+    decode(:'carrier_0','hex') ||
+    decode(:'carrier_1','hex') ||
+    decode(:'carrier_2','hex'));
+
 CREATE TEMP TABLE observation_cognition_expected AS
 SELECT
     decode(:'request_fingerprint','hex') AS request_fingerprint,
@@ -117,12 +157,19 @@ SELECT (laplace.cognition_observation_execute(
     pg_temp.execution_context(), physicalities, segments, request)).*
 FROM observation_cognition_fixture;
 
+CREATE TEMP TABLE observation_cognition_persisted_actual AS
+SELECT (laplace.cognition_observation_execute_persisted(
+    pg_temp.execution_context(), request)).*
+FROM observation_cognition_fixture;
+
 DO $contract$
 DECLARE
     actual observation_cognition_actual%ROWTYPE;
+    persisted observation_cognition_persisted_actual%ROWTYPE;
     expected observation_cognition_expected%ROWTYPE;
 BEGIN
     SELECT * INTO STRICT actual FROM observation_cognition_actual;
+    SELECT * INTO STRICT persisted FROM observation_cognition_persisted_actual;
     SELECT * INTO STRICT expected FROM observation_cognition_expected;
 
     IF actual.request_fingerprint <> expected.request_fingerprint OR
@@ -167,5 +214,137 @@ BEGIN
     IF actual.final_remaining_required_count <> 0 OR actual.resolution_count <> 1 THEN
         RAISE EXCEPTION 'PostgreSQL observation cognition did not resolve the required C -> A depth-2 predecessor request: %', actual;
     END IF;
+
+    IF (persisted.execution).request_fingerprint IS DISTINCT FROM actual.request_fingerprint
+       OR (persisted.execution).final_remaining_required_count <> 0
+       OR (persisted.execution).resolution_count <> 1
+       OR cardinality(persisted.answers) <> 1
+       OR (persisted.answers[1]).entity_id IS DISTINCT FROM
+             (SELECT (request).goal_entity_id FROM observation_cognition_fixture)
+       OR (persisted.answers[1]).transition_count <> 2
+       OR (persisted.answers[1]).independent_evidence_root_count <> 0
+       OR (persisted.answers[1]).source_layer <> 1
+       OR (persisted.answers[1]).direction <> 2
+       OR octet_length((persisted.answers[1]).path_id) <> 32
+       OR persisted.provider_rows_fetched <> 2
+       OR persisted.provider_trajectory_bytes <> 192
+       OR persisted.provider_batch_count <> 2
+       OR (persisted.execution).database_operations <> 4 THEN
+        RAISE EXCEPTION 'indexed persisted route did not execute exact C -> B -> A: %', persisted;
+    END IF;
 END
 $contract$;
+
+-- Independent native-built records outside this frontier must not increase its
+-- fetched estate, affect its answer/receipts, or consume its workspace grant.
+\i :unrelated_estate
+CREATE TEMP TABLE observation_cognition_large_actual AS
+SELECT (laplace.cognition_observation_execute_persisted(
+    pg_temp.execution_context(), request)).* FROM observation_cognition_fixture;
+DO $isolation$
+DECLARE before record; after record; plan json; q laplace.cognition_observation_request;
+BEGIN
+    SELECT * INTO STRICT before FROM observation_cognition_persisted_actual;
+    SELECT * INTO STRICT after FROM observation_cognition_large_actual;
+    IF to_jsonb(before) IS DISTINCT FROM to_jsonb(after) THEN
+        RAISE EXCEPTION 'unrelated estate changed request-relative execution: % / %', before, after;
+    END IF;
+    SELECT (request).* INTO STRICT q FROM observation_cognition_fixture;
+    IF octet_length(q.anchor_entity_id) <> 16 THEN
+        RAISE EXCEPTION 'index-plan probe lost the exact request binding';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE oid='laplace.physicality_constituent_lookup_idx'::regclass
+                   AND 'fastupdate=off'=ANY(reloptions)) THEN
+        RAISE EXCEPTION 'interactive membership lookup can still scan deferred index writes';
+    END IF;
+    -- Use the same batched relation-mask predicate as the real persistence provider,
+    -- immediately after bulk admission, without ANALYZE, VACUUM or planner hints.
+    EXECUTE 'EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT physicality_id FROM laplace.physicality p '
+            'WHERE p.physicality_type=1 AND '
+            '((($2 & 2)<>0 AND p.entity_id=ANY($1)) OR '
+            '(($2 & 29)<>0 AND laplace.trajectory_entity_ids(p.trajectory) && $1)) '
+            'ORDER BY p.physicality_id LIMIT $3'
+       INTO plan USING ARRAY[q.anchor_entity_id], q.relation_mask, 16;
+    IF position('physicality_constituent_lookup_idx' in plan::text)=0 THEN
+        RAISE EXCEPTION 'constituent membership did not use the maintained GIN index: %', plan;
+    END IF;
+    RAISE NOTICE 'indexed query plan: %', plan;
+END $isolation$;
+
+DO $failures$
+DECLARE q laplace.cognition_observation_request; changed laplace.cognition_observation_request;
+        search_limits laplace.cognition_observation_search_budget;
+        forward_limits laplace.cognition_observation_forward_limits;
+        observed laplace.cognition_observation_persisted_result; bad boolean;
+        small_context laplace.execution_context;
+BEGIN
+    SELECT (request).* INTO STRICT q FROM observation_cognition_fixture;
+    changed := q;
+    search_limits := q.search_budget;
+    search_limits.max_memory_bytes := 16777216;
+    changed.search_budget := search_limits;
+    bad := false;
+    BEGIN
+        PERFORM laplace.cognition_observation_execute_persisted(pg_temp.execution_context(),changed);
+        bad := true;
+    EXCEPTION WHEN program_limit_exceeded THEN NULL;
+    END;
+    IF bad THEN RAISE EXCEPTION 'missing provider workspace was accepted'; END IF;
+    -- Metadata/decoded records alone fit here, but candidate staging does not.
+    -- That extra storage must be reserved before payload/index construction.
+    small_context := pg_temp.execution_context();
+    small_context.memory_bytes := (q.search_budget).max_memory_bytes + 6000;
+    bad := false;
+    BEGIN
+        PERFORM laplace.cognition_observation_execute_persisted(small_context, q);
+        bad := true;
+    EXCEPTION WHEN program_limit_exceeded THEN NULL;
+    END;
+    IF bad THEN RAISE EXCEPTION 'candidate staging escaped the provider memory grant'; END IF;
+    changed := q;
+    forward_limits := q.forward_limits;
+    forward_limits.max_database_operations := 1;
+    changed.forward_limits := forward_limits;
+    bad := false;
+    BEGIN
+        PERFORM laplace.cognition_observation_execute_persisted(pg_temp.execution_context(),changed);
+        bad := true;
+    EXCEPTION WHEN program_limit_exceeded THEN NULL;
+    END;
+    IF bad THEN RAISE EXCEPTION 'exhausted database budget was accepted'; END IF;
+    changed := q;
+    changed.relation_mask := 32;
+    bad := false;
+    BEGIN
+        PERFORM laplace.cognition_observation_execute_persisted(pg_temp.execution_context(),changed);
+        bad := true;
+    EXCEPTION WHEN feature_not_supported THEN NULL;
+    END;
+    IF bad THEN RAISE EXCEPTION 'physicality was promoted to testimony'; END IF;
+
+    -- Same relevant physicality id with corrupt payload must fail native witness
+    -- verification, not turn an index hit into unverified cognition evidence.
+    bad := false;
+    BEGIN
+        UPDATE laplace.physicality SET trajectory=set_byte(trajectory,0,get_byte(trajectory,0)#1)
+          WHERE physicality_id=(SELECT (physicalities[1]).physicality_id FROM observation_cognition_fixture);
+        PERFORM laplace.cognition_observation_execute_persisted(pg_temp.execution_context(),q);
+        bad := true;
+    EXCEPTION WHEN data_corrupted THEN NULL;
+    END;
+    IF bad THEN RAISE EXCEPTION 'corrupt matched trajectory was accepted'; END IF;
+    -- PL/pgSQL exception subtransaction must restore the data and allow the exact
+    -- request to execute again; native owners must not survive error unwinding.
+    observed := laplace.cognition_observation_execute_persisted(pg_temp.execution_context(),q);
+    IF cardinality(observed.answers) <> 1 OR (observed.answers[1]).entity_id <> q.goal_entity_id THEN
+        RAISE EXCEPTION 'database error cleanup prevented subsequent exact execution';
+    END IF;
+END $failures$;
+
+SELECT json_build_object('schema','laplace.indexed-persisted-cognition-proof/v1',
+ 'unrelated_physicalities',4096,'goal_entity',encode((answers[1]).entity_id,'hex'),
+ 'transition_count',(answers[1]).transition_count,
+ 'independent_evidence_roots',(answers[1]).independent_evidence_root_count,
+ 'provider_rows',provider_rows_fetched,'provider_batches',provider_batch_count,
+ 'database_operations',(execution).database_operations,
+ 'complete',(execution).final_remaining_required_count=0) FROM observation_cognition_large_actual;

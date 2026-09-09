@@ -1,5 +1,6 @@
 #include "laplace/target_package.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>

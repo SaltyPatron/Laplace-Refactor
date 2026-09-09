@@ -1,0 +1,100 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionOutputSerialization.AllOctetsRoundTripThroughValidatedNativeRoots",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "all 256 octets including NUL and high-bit values materialize through native identity validation",
+        "serialization does not alter root identity or recipe provenance"
+      ]
+    },
+    {
+      "ctest_name": "CognitionOutputSerialization.ExplicitEncodingChangesBytesWithoutChangingIdentity",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "the caller-selected encoding changes bytes without changing canonical source identity",
+        "UTF8 and octet output share the same validated native readset"
+      ]
+    },
+    {
+      "ctest_name": "CognitionOutputSerialization.IdenticalAsciiOutputsStillReceiptTheSelectedEncoding",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "equal ASCII output bytes do not hide a change in the selected output encoding",
+        "the compatibility UTF8 entry retains deterministic receipt parity"
+      ]
+    },
+    {
+      "ctest_name": "CognitionOutputSerialization.WidePositionsAreRejectedWithoutTruncationOrPublication",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "valid Unicode positions outside the octet output domain receive an encoding-range disposition",
+        "failed serialization publishes zero output bytes and no success receipt"
+      ]
+    },
+    {
+      "ctest_name": "CognitionOutputSerialization.UnknownEncodingIsRejectedBeforeProviderAccess",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "unknown output selections are rejected before persistence-provider access"
+      ]
+    },
+    {
+      "ctest_name": "CognitionOutputSerialization.OctetSelectionCannotBypassIdentityValidation",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "binary output selection cannot bypass complete native content-witness validation"
+      ]
+    },
+    {
+      "ctest_name": "CognitionOutputSerialization.CapacityFailurePublishesNoOctetsOrReceipt",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "insufficient output capacity publishes neither partial binary output nor a success receipt"
+      ]
+    },
+    {
+      "ctest_name": "CognitionOutputSerialization.ConversationRejectsUnknownEncodingBeforeExecution",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "the conversation route rejects unsupported output encodings before cognition or realization execution"
+      ]
+    },
+    {
+      "ctest_name": "cognition-output.encoding-octet-exhaustive",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "all 1114112 Unicode positions are checked at the explicit octet-encoding boundary",
+        "exact byte preservation and zero publication for every rejected position"
+      ]
+    },
+    {
+      "ctest_name": "cognition-output.mutation-truncation-detected",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "a deliberate modulo-256 truncation defect must fail for the exact first invalid position 256"
+      ]
+    }
+  ]
+}

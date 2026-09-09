@@ -23,6 +23,7 @@ ExecutePromptConversation(
     const laplace_cognition_prompt_conversation_request* const request,
     const laplace_cognition_interpretation_result* const interpretation,
     const laplace_digest256* const goal_slot_id,
+    const std::uint32_t output_encoding,
     const std::uint8_t* const previous_frame,
     const std::size_t previous_frame_bytes,
     const laplace_cognition_observation_candidate_provider_v1* const additional_cognition_providers,
@@ -53,11 +54,16 @@ ExecutePromptConversation(
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_INVALID_VERSION;
     }
 
+    if (output_encoding != LAPLACE_COGNITION_OUTPUT_UTF8 &&
+        output_encoding != LAPLACE_COGNITION_OUTPUT_OCTETS) {
+        return LAPLACE_COGNITION_PROMPT_CONVERSATION_ENCODING_INVALID;
+    }
+
     std::vector<laplace_cognition_observation_candidate_provider_v1> providers;
-    // Include the admission's structural provider without overflowing the
-    // caller-supplied count or touching an unrepresentable descriptor range.
+    // One descriptor is reserved for the prompt's structural provider. Check
+    // before +1 or indexing a caller buffer, including SIZE_MAX-sized requests.
     if (additional_cognition_provider_count >= providers.max_size()) {
-        return LAPLACE_COGNITION_PROMPT_CONVERSATION_INVALID_ARGUMENT;
+        return LAPLACE_COGNITION_PROMPT_CONVERSATION_MEMORY_FAILURE;
     }
 
     laplace_cognition_prompt_admission_view admission_view{};
@@ -118,8 +124,8 @@ ExecutePromptConversation(
     }
 
     laplace_cognition_conversation_result conversation_result{};
-    const auto conversation_status = laplace_cognition_conversation_execute(
-        &conversation_request,
+    const auto conversation_status = laplace_cognition_conversation_execute_encoded(
+        &conversation_request, output_encoding,
         previous_frame,
         previous_frame_bytes,
         &composite_provider,
@@ -160,7 +166,7 @@ laplace_cognition_prompt_conversation_execute(
     uint8_t* output, size_t output_capacity, size_t* output_bytes,
     uint8_t* next_frame, size_t next_frame_capacity, size_t* next_frame_bytes,
     laplace_cognition_prompt_conversation_result* result) {
-    return ExecutePromptConversation(admission, request, nullptr, nullptr,
+    return ExecutePromptConversation(admission, request, nullptr, nullptr, LAPLACE_COGNITION_OUTPUT_UTF8,
         previous_frame, previous_frame_bytes, providers, provider_count,
         realization, materialization, output, output_capacity, output_bytes,
         next_frame, next_frame_capacity, next_frame_bytes, result);
@@ -185,7 +191,25 @@ laplace_cognition_prompt_conversation_execute_interpreted(
         if (result != nullptr) *result = {};
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_INTERPRETATION_FAILURE;
     }
-    return ExecutePromptConversation(admission, request, interpretation, goal_slot_id,
+    return ExecutePromptConversation(admission, request, interpretation, goal_slot_id, LAPLACE_COGNITION_OUTPUT_UTF8,
+        previous_frame, previous_frame_bytes, providers, provider_count,
+        realization, materialization, output, output_capacity, output_bytes,
+        next_frame, next_frame_capacity, next_frame_bytes, result);
+}
+
+extern "C" laplace_cognition_prompt_conversation_status
+laplace_cognition_prompt_conversation_execute_encoded(
+    laplace_cognition_prompt_admission* admission,
+    const laplace_cognition_prompt_conversation_request* request,
+    uint32_t output_encoding,
+    const uint8_t* previous_frame, size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* providers, size_t provider_count,
+    const laplace_cognition_realization_provider_v1* realization,
+    const laplace_cognition_materialization_provider_v1* materialization,
+    uint8_t* output, size_t output_capacity, size_t* output_bytes,
+    uint8_t* next_frame, size_t next_frame_capacity, size_t* next_frame_bytes,
+    laplace_cognition_prompt_conversation_result* result) {
+    return ExecutePromptConversation(admission, request, nullptr, nullptr, output_encoding,
         previous_frame, previous_frame_bytes, providers, provider_count,
         realization, materialization, output, output_capacity, output_bytes,
         next_frame, next_frame_capacity, next_frame_bytes, result);

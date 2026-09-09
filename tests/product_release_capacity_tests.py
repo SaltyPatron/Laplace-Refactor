@@ -43,6 +43,8 @@ class ProductReleaseCapacityTests(unittest.TestCase):
         self.proc_root.mkdir()
         self.active = self.root / "opt/laplace/current"
         self.active.parent.mkdir(parents=True, exist_ok=True)
+        self.runtime = self.active.parent / "runtime/refactor"
+        self.runtime.parent.mkdir(parents=True)
         self.successor = "f" * 64
         self.contract = {
             "schema": "laplace.postgresql-cluster-contract/v1",
@@ -84,6 +86,19 @@ class ProductReleaseCapacityTests(unittest.TestCase):
         release.mkdir()
         (release / "payload").write_bytes(payload)
         return release
+
+    def test_runtime_selected_release_is_preserved_inside_selected_root(self) -> None:
+        package_id = "a" * 64
+        release = self.make_release(package_id)
+        self.write_installation_receipt(package_id, release)
+        self.runtime.symlink_to("../releases/" + package_id)
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=0):
+            with self.assertRaisesRegex(CAPACITY.CapacityError, "capacity remains insufficient"):
+                CAPACITY.reconcile_capacity(
+                    self.contract, self.product_receipt, self.manifest,
+                    proc_root=self.proc_root,
+                )
+        self.assertTrue(release.is_dir())
 
     def write_installation_receipt(self, package_id: str, release: Path) -> Path:
         evidence = self.receipt_root / "cluster-activation" / package_id

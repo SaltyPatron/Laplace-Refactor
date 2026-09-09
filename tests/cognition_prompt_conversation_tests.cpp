@@ -1,4 +1,5 @@
 #include "laplace/cognition_prompt_conversation.h"
+#include "laplace/cognition_interpretation.h"
 
 #include "laplace/identity.h"
 
@@ -523,6 +524,257 @@ TEST(CognitionPromptConversation, RawPromptTraversesStructureThenSemanticProvide
         result.conversation.semantic_act.primary_answer.transition_count,
         UINT64_C(2));
     EXPECT_EQ(result.version, LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION);
+}
+
+
+// One admitted prompt fixture crosses the actual public response chain. The
+// providers below are test witnesses, not a language model or product seed.
+struct PromptResponseFixture final {
+    const std::string prompt{"BA"};
+    laplace_framework_context context{laplace_test_context(3U)};
+    StructureFixture structure{};
+    AtomFixture atoms{};
+    PresenceFixture presence{};
+    laplace_decomposition_provider_v1 structure_provider{};
+    laplace_cognition_prompt_atom_provider_v1 atom_provider{};
+    laplace_composition_presence_provider_v1 presence_provider{};
+    AdmissionOwner admission{};
+    SemanticFixture semantic{};
+    RealizationFixture realization{};
+    MaterializationFixture materialization{};
+    laplace_cognition_observation_candidate_provider_v1 semantic_provider{};
+    laplace_cognition_realization_provider_v1 realization_provider{};
+    laplace_cognition_materialization_provider_v1 materialization_provider{};
+    laplace_cognition_prompt_conversation_request request{};
+    std::array<std::uint8_t, 64> output{};
+    std::array<std::uint8_t, LAPLACE_COGNITION_DISCOURSE_FRAME_BYTES> frame{};
+    std::size_t output_bytes{};
+    std::size_t frame_bytes{};
+    laplace_cognition_prompt_conversation_result result{};
+
+    void Initialize(const std::uint32_t codepoint) {
+        context.resource_grant.memory_bytes = UINT64_C(64) * 1024U * 1024U;
+        structure_provider = StructureProvider(&structure);
+        atom_provider = AtomProvider(&atoms);
+        presence_provider = PresenceProvider(&presence);
+        auto input = PromptInput(prompt, &context, &structure_provider);
+        ASSERT_EQ(laplace_cognition_prompt_admission_create(
+                      &input, &atom_provider, &presence_provider, &admission.value),
+                  LAPLACE_COGNITION_PROMPT_ADMISSION_OK);
+        semantic.source = Codepoint(static_cast<std::uint32_t>('A'));
+        semantic.target = Codepoint(codepoint);
+        semantic_provider = SemanticProvider(&semantic);
+        realization.content = semantic.target;
+        realization_provider = RealizationProvider(&realization);
+        ASSERT_EQ(laplace_identity_codepoint_witness(
+                      codepoint, &materialization.node.entity_id,
+                      &materialization.node.identity_witness), LAPLACE_IDENTITY_OK);
+        materialization.node.node_receipt_id = Digest(0xC1U);
+        materialization.node.logical_count = 1U;
+        materialization.node.atom = codepoint;
+        materialization.node.kind = LAPLACE_COGNITION_MATERIALIZATION_NODE_ATOM;
+        materialization_provider = MaterializationProvider(&materialization);
+        request = ConversationPolicy(semantic.target);
+        output.fill(0xA5U);
+        frame.fill(0xA5U);
+    }
+
+    laplace_cognition_prompt_conversation_status Execute(
+        const std::uint32_t encoding, const std::size_t count = 1U) {
+        return laplace_cognition_prompt_conversation_execute_encoded(
+            admission.value, &request, encoding, nullptr, 0U,
+            count == 0U ? nullptr : &semantic_provider, count,
+            &realization_provider, &materialization_provider,
+            output.data(), output.size(), &output_bytes,
+            frame.data(), frame.size(), &frame_bytes, &result);
+    }
+
+    void ExpectUnpublished() const {
+        EXPECT_EQ(output_bytes, 0U);
+        EXPECT_EQ(frame_bytes, 0U);
+        EXPECT_TRUE(std::all_of(output.begin(), output.end(),
+            [](std::uint8_t value) { return value == 0xA5U; }));
+        EXPECT_TRUE(std::all_of(frame.begin(), frame.end(),
+            [](std::uint8_t value) { return value == 0xA5U; }));
+        EXPECT_TRUE(ZeroDigest(result.conversation.conversation_id));
+        EXPECT_EQ(result.version, 0U);
+    }
+};
+
+TEST(CognitionPromptConversation, ExplicitUtf8PreservesCompatibilityBytesFramesAndReceipts) {
+    PromptResponseFixture fixture;
+    fixture.Initialize(0x80U);
+    ASSERT_NE(fixture.admission.value, nullptr);
+    ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_UTF8),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+    const auto encoded = fixture.result;
+    const auto bytes = fixture.output;
+    const auto frame = fixture.frame;
+    ASSERT_EQ(laplace_cognition_prompt_conversation_execute(
+                  fixture.admission.value, &fixture.request, nullptr, 0U,
+                  &fixture.semantic_provider, 1U, &fixture.realization_provider,
+                  &fixture.materialization_provider, fixture.output.data(),
+                  fixture.output.size(), &fixture.output_bytes, fixture.frame.data(),
+                  fixture.frame.size(), &fixture.frame_bytes, &fixture.result),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+    EXPECT_EQ(fixture.output_bytes, 2U);
+    EXPECT_EQ(fixture.output, bytes);
+    EXPECT_EQ(fixture.frame, frame);
+    EXPECT_TRUE(SameDigest(encoded.conversation.conversation_id,
+                           fixture.result.conversation.conversation_id));
+    EXPECT_TRUE(SameDigest(encoded.prompt_admission_receipt_id,
+                           fixture.result.prompt_admission_receipt_id));
+}
+
+TEST(CognitionPromptConversation, OctetSelectionSurvivesWholePromptExecutionWithoutSemanticDrift) {
+    for (const std::uint32_t codepoint : {0U, 0x41U, 0x80U, 0xFFU}) {
+        PromptResponseFixture fixture;
+        fixture.Initialize(codepoint);
+        ASSERT_NE(fixture.admission.value, nullptr);
+        ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_UTF8),
+                  LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+        const auto text = fixture.result;
+        const auto text_frame = fixture.frame;
+        fixture.semantic.calls = 0U;
+        fixture.realization.calls = 0U;
+        fixture.materialization.calls = 0U;
+        ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_OCTETS),
+                  LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+        EXPECT_EQ(fixture.output_bytes, 1U);
+        EXPECT_EQ(fixture.output[0], static_cast<std::uint8_t>(codepoint));
+        EXPECT_EQ(fixture.frame_bytes, fixture.frame.size());
+        EXPECT_EQ(fixture.frame, text_frame);
+        EXPECT_EQ(fixture.realization.calls, 1U);
+        EXPECT_EQ(fixture.materialization.calls, 1U);
+        EXPECT_TRUE(SameDigest(text.prompt_admission_receipt_id,
+                               fixture.result.prompt_admission_receipt_id));
+        EXPECT_TRUE(SameDigest(text.conversation.semantic_act.act_id,
+                               fixture.result.conversation.semantic_act.act_id));
+        EXPECT_TRUE(SameId(text.conversation.realization.content_id,
+                           fixture.result.conversation.realization.content_id));
+        EXPECT_FALSE(SameDigest(text.conversation.conversation_id,
+                                fixture.result.conversation.conversation_id));
+    }
+}
+
+TEST(CognitionPromptConversation, UnknownEncodingRejectsBeforeProviderExecution) {
+    PromptResponseFixture fixture;
+    fixture.Initialize(0x80U);
+    ASSERT_EQ(fixture.Execute(UINT32_MAX),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_ENCODING_INVALID);
+    EXPECT_EQ(fixture.semantic.calls, 0U);
+    EXPECT_EQ(fixture.realization.calls, 0U);
+    EXPECT_EQ(fixture.materialization.calls, 0U);
+    fixture.ExpectUnpublished();
+}
+
+TEST(CognitionPromptConversation, ProviderCountOverflowRejectsWithoutCallerBufferAccess) {
+    PromptResponseFixture fixture;
+    fixture.Initialize(0x80U);
+    ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_UTF8, SIZE_MAX),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_MEMORY_FAILURE);
+    EXPECT_EQ(fixture.semantic.calls, 0U);
+    EXPECT_EQ(fixture.realization.calls, 0U);
+    EXPECT_EQ(fixture.materialization.calls, 0U);
+    fixture.ExpectUnpublished();
+}
+
+TEST(CognitionPromptConversation, FailedOctetMaterializationPublishesNeitherResponseNorDiscourse) {
+    PromptResponseFixture fixture;
+    fixture.Initialize(0x4E8BU);
+    ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_OCTETS),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_CONVERSATION_FAILURE);
+    EXPECT_EQ(fixture.realization.calls, 1U);
+    EXPECT_EQ(fixture.materialization.calls, 1U);
+    fixture.ExpectUnpublished();
+}
+
+TEST(CognitionPromptConversation, StructuralPromptRemainsUsableWithoutAdditionalProviders) {
+    PromptResponseFixture fixture;
+    fixture.Initialize(static_cast<std::uint32_t>('A'));
+    ASSERT_EQ(fixture.Execute(LAPLACE_COGNITION_OUTPUT_UTF8, 0U),
+              LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+    EXPECT_EQ(fixture.semantic.calls, 0U);
+    EXPECT_EQ(fixture.realization.calls, 1U);
+    EXPECT_EQ(fixture.materialization.calls, 1U);
+    EXPECT_EQ(fixture.output_bytes, 1U);
+    EXPECT_EQ(fixture.output[0], static_cast<std::uint8_t>('A'));
+}
+
+TEST(CognitionPromptConversation, InterpretedGoalRequiresUniqueBindingInExactPromptScope) {
+    for (const auto scenario : {0U, 1U, 2U}) {
+        SCOPED_TRACE(scenario);
+        PromptResponseFixture fixture;
+        fixture.Initialize(0x80U);
+        laplace_cognition_prompt_admission_view view{};
+        ASSERT_EQ(laplace_cognition_prompt_admission_view_get(fixture.admission.value, &view),
+                  LAPLACE_COGNITION_PROMPT_ADMISSION_OK);
+        const auto slot_id = Digest(0xA0U);
+        const std::uint32_t slot = 0U;
+        const std::array<laplace_id128, 2> values{fixture.semantic.target, fixture.semantic.source};
+        std::array<laplace_cognition_interpretation_row, 2> rows{};
+        for (std::size_t index = 0U; index < rows.size(); ++index) {
+            rows[index].values = &values[index];
+            rows[index].observation_id = Digest(static_cast<std::uint8_t>(0xB0U + index));
+            rows[index].evidence_root_id = Digest(static_cast<std::uint8_t>(0xC0U + index));
+        }
+        laplace_cognition_interpretation_factor factor{};
+        factor.factor_id = Digest(0xD0U);
+        factor.law_id = Digest(0xD1U);
+        factor.slots = &slot;
+        factor.slot_count = 1U;
+        factor.rows = rows.data();
+        factor.row_count = scenario == 1U ? 2U : 1U;
+        laplace_cognition_interpretation_program program{};
+        program.observation_root = view.turn.observation_entity_id;
+        program.occurrence_id = view.turn.observation_occurrence_id;
+        program.world_id = view.turn.world_id;
+        program.time_fingerprint = view.turn.time_fingerprint;
+        program.context_id = view.turn.context_fingerprint;
+        if (scenario == 2U) program.context_id.bytes[0] ^= 1U;
+        program.evidence_epoch = fixture.request.cognition_policy.evidence_epoch;
+        program.boundary_id = fixture.request.cognition_policy.evidence_boundary;
+        program.authority_id = fixture.request.cognition_policy.authority_id;
+        program.slot_ids = &slot_id;
+        program.slot_count = 1U;
+        program.maximum_comparisons = 1000U;
+        program.maximum_states = 64U;
+        program.maximum_memory_bytes = 1024U * 1024U;
+        program.version = LAPLACE_COGNITION_INTERPRETATION_VERSION;
+        struct Owner {
+            laplace_cognition_interpretation_result* value{};
+            ~Owner() { laplace_cognition_interpretation_destroy(&value); }
+        } interpretation;
+        laplace_cognition_interpretation_receipt receipt{};
+        ASSERT_EQ(laplace_cognition_interpretation_execute(
+                      &program, &factor, 1U, &interpretation.value, &receipt),
+                  LAPLACE_COGNITION_INTERPRETATION_OK);
+        EXPECT_EQ(receipt.disposition, scenario == 1U
+            ? LAPLACE_COGNITION_INTERPRETATION_AMBIGUOUS : LAPLACE_COGNITION_INTERPRETATION_UNIQUE);
+        fixture.request.cognition_policy.goal_entity_id = {};
+        fixture.request.cognition_policy.request_flags &=
+            ~static_cast<std::uint32_t>(LAPLACE_COGNITION_OBSERVATION_REQUEST_GOAL_PRESENT);
+        const auto status = laplace_cognition_prompt_conversation_execute_interpreted(
+            fixture.admission.value, &fixture.request, interpretation.value, &slot_id,
+            nullptr, 0U, &fixture.semantic_provider, 1U,
+            &fixture.realization_provider, &fixture.materialization_provider,
+            fixture.output.data(), fixture.output.size(), &fixture.output_bytes,
+            fixture.frame.data(), fixture.frame.size(), &fixture.frame_bytes, &fixture.result);
+        if (scenario == 0U) {
+            EXPECT_EQ(status, LAPLACE_COGNITION_PROMPT_CONVERSATION_OK);
+            EXPECT_EQ(fixture.output_bytes, 2U);
+            EXPECT_EQ(fixture.output[0], 0xC2U);
+            EXPECT_EQ(fixture.output[1], 0x80U);
+            EXPECT_TRUE(SameId(fixture.result.conversation.semantic_act.primary_answer.entity_id,
+                               fixture.semantic.target));
+        } else {
+            EXPECT_EQ(status, LAPLACE_COGNITION_PROMPT_CONVERSATION_INTERPRETATION_FAILURE);
+            EXPECT_EQ(fixture.semantic.calls, 0U);
+            EXPECT_EQ(fixture.realization.calls, 0U);
+            EXPECT_EQ(fixture.materialization.calls, 0U);
+            fixture.ExpectUnpublished();
+        }
+    }
 }
 
 }  // namespace

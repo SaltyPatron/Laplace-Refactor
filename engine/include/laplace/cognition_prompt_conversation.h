@@ -25,7 +25,8 @@ typedef enum laplace_cognition_prompt_conversation_status {
     LAPLACE_COGNITION_PROMPT_CONVERSATION_PROVIDER_SET_FAILURE = 5,
     LAPLACE_COGNITION_PROMPT_CONVERSATION_CONVERSATION_FAILURE = 6,
     LAPLACE_COGNITION_PROMPT_CONVERSATION_MEMORY_FAILURE = 7,
-    LAPLACE_COGNITION_PROMPT_CONVERSATION_INTERPRETATION_FAILURE = 8
+    LAPLACE_COGNITION_PROMPT_CONVERSATION_ENCODING_INVALID = 8,
+    LAPLACE_COGNITION_PROMPT_CONVERSATION_INTERPRETATION_FAILURE = 9
 } laplace_cognition_prompt_conversation_status;
 
 /*
@@ -104,6 +105,25 @@ laplace_cognition_prompt_conversation_execute_interpreted(
     const laplace_cognition_materialization_provider_v1* materialization_provider,
     uint8_t* output, size_t output_capacity, size_t* output_bytes,
     uint8_t* next_discourse_frame, size_t next_discourse_frame_capacity,
+    size_t* next_discourse_frame_bytes,
+    laplace_cognition_prompt_conversation_result* result);
+
+LAPLACE_API laplace_cognition_prompt_conversation_status
+laplace_cognition_prompt_conversation_execute_encoded(
+    laplace_cognition_prompt_admission* admission,
+    const laplace_cognition_prompt_conversation_request* request,
+    uint32_t output_encoding,
+    const uint8_t* previous_frame,
+    size_t previous_frame_bytes,
+    const laplace_cognition_observation_candidate_provider_v1* additional_cognition_providers,
+    size_t additional_cognition_provider_count,
+    const laplace_cognition_realization_provider_v1* realization_provider,
+    const laplace_cognition_materialization_provider_v1* materialization_provider,
+    uint8_t* output,
+    size_t output_capacity,
+    size_t* output_bytes,
+    uint8_t* next_discourse_frame,
+    size_t next_discourse_frame_capacity,
     size_t* next_discourse_frame_bytes,
     laplace_cognition_prompt_conversation_result* result);
 

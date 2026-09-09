@@ -166,7 +166,8 @@ static void verify_exact_stored_frame(
     laplace_cognition_discourse_frame_receipt stored_receipt;
 
     values[0] = PointerGetDatum(state_id);
-    spi_status = SPI_execute_with_args(sql, 1, types, values, NULL, true, 1);
+    /* Refresh the command snapshot to include this call's preceding insert. */
+    spi_status = SPI_execute_with_args(sql, 1, types, values, NULL, false, 1);
     if (spi_status != SPI_OK_SELECT || SPI_processed != 1u) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
