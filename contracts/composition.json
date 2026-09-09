@@ -2,7 +2,7 @@
   "schema": "laplace.composition-contract/v1",
   "abi": {
     "major": 1,
-    "minor": 3
+    "minor": 4
   },
   "references": {
     "known_entity": 1,
@@ -32,7 +32,8 @@
   "trajectory": {
     "maximum_run_per_carrier": 65535,
     "relationship_metadata_may_not_set": ["has_atom", "tier", "atom"],
-    "large_run_rule": "split-into-consecutive-carriers-with-identical-structural-and-relationship-metadata"
+    "large_run_rule": "split-into-consecutive-carriers-with-identical-structural-and-relationship-metadata",
+    "adjacent_run_rule": "coalesce adjacent equal identities with identical complete metadata across operand boundaries; preserve exact logical ordinals"
   },
   "working_set": {
     "deduplication_scope": "all-known-and-calculated-entities-and-physicalities",

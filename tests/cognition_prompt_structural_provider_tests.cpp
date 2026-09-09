@@ -8,6 +8,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <future>
+#include <limits>
+#include <tuple>
 #include <string>
 #include <vector>
 
@@ -154,6 +157,7 @@ laplace_cognition_prompt_atom_provider_v1 AtomProvider(AtomFixture* const fixtur
 
 struct PresenceFixture final {
     std::size_t calls{};
+    std::uint8_t disposition{LAPLACE_COMPOSITION_NOVEL};
 };
 
 laplace_composition_status ResolvePresence(
@@ -173,11 +177,11 @@ laplace_composition_status ResolvePresence(
     ++fixture.calls;
     std::fill_n(
         entity_dispositions, entity_count,
-        static_cast<std::uint8_t>(LAPLACE_COMPOSITION_NOVEL));
+        fixture.disposition);
     if (physicality_count != 0U) {
         std::fill_n(
             physicality_dispositions, physicality_count,
-            static_cast<std::uint8_t>(LAPLACE_COMPOSITION_NOVEL));
+            fixture.disposition);
     }
     result->provider_fingerprint = Digest(0x61U);
     result->provider_receipt_id = Digest(0x62U);
@@ -334,6 +338,8 @@ TEST(CognitionPromptStructuralProvider, EnumeratesExactSubtreeAndCodepointFallba
         LAPLACE_OBSERVATION_QUERY_CONSTITUENT |
         LAPLACE_OBSERVATION_QUERY_SEMANTIC;
     binding.maximum_results = 16U;
+    ASSERT_EQ(laplace_observation_query_binding_identify(
+                  &binding, &binding.binding_fingerprint), LAPLACE_OBSERVATION_QUERY_OK);
     laplace_query_search_state frontier{};
     frontier.depth = 0U;
     const std::uint64_t cost = 0U;
@@ -440,6 +446,335 @@ TEST(CognitionPromptStructuralProvider, TurnAndForwardReceiptBeginAtWholeTrunk) 
     EXPECT_FALSE(ZeroDigest(layer.execution_receipt_id));
     EXPECT_FALSE(ZeroDigest(forward_receipt.program_fingerprint));
     EXPECT_EQ(forward_receipt.final_completion, LAPLACE_COGNITION_COMPLETION_COMPLETE);
+}
+
+
+// These tests execute admitted compositions and packed trajectories, not an
+// endpoint-edge fixture or a text-to-operation dispatcher.
+struct PromptIndexFixture final {
+    laplace_framework_context context{laplace_test_context(3U)};
+    StructureFixture structure{};
+    AtomFixture atoms{};
+    PresenceFixture presence{};
+    AdmissionOwner admission{};
+    laplace_cognition_prompt_admission_view view{};
+    laplace_cognition_observation_candidate_provider_v1 provider{};
+
+    explicit PromptIndexFixture(
+        const std::string& prompt, const bool already_present = false) {
+        context.resource_grant.memory_bytes = UINT64_C(64) * 1024U * 1024U;
+        if (already_present) presence.disposition = LAPLACE_COMPOSITION_EXACT_PRESENT;
+        auto structure_provider = StructureProvider(&structure);
+        auto atom_provider = AtomProvider(&atoms);
+        auto presence_provider = PresenceProvider(&presence);
+        auto input = Input(prompt, &context, &structure_provider);
+        input.decomposition.maximum_spans =
+            static_cast<std::uint64_t>(prompt.size()) * 2U + 8U;
+        view = Admit(input, atom_provider, presence_provider, admission);
+        if (admission.value != nullptr) {
+            EXPECT_EQ(laplace_cognition_prompt_admission_structural_provider(
+                          admission.value, &provider),
+                      LAPLACE_COGNITION_PROMPT_ADMISSION_OK);
+        }
+    }
+};
+
+laplace_observation_query_binding Binding(
+    const laplace_id128& anchor, const std::uint32_t relations) {
+    laplace_observation_query_binding binding{};
+    binding.anchor_entity_id = anchor;
+    binding.relation_mask = relations;
+    binding.maximum_results = 64U;
+    EXPECT_EQ(laplace_observation_query_binding_identify(
+                  &binding, &binding.binding_fingerprint), LAPLACE_OBSERVATION_QUERY_OK);
+    return binding;
+}
+
+struct CandidateBatch final {
+    std::vector<laplace_cognition_observation_candidate> values;
+    laplace_cognition_observation_candidate_usage usage{};
+    int status{};
+};
+
+CandidateBatch Query(
+    const laplace_cognition_observation_candidate_provider_v1& provider,
+    const laplace_observation_query_binding& binding,
+    const std::vector<laplace_id128>& sources,
+    const std::uint32_t depth = 0U,
+    const std::size_t capacity = 1024U) {
+    CandidateBatch batch{};
+    batch.values.resize(capacity);
+    std::vector<laplace_query_search_state> states(sources.size());
+    std::vector<std::uint64_t> costs(sources.size(), depth);
+    for (auto& state : states) state.depth = depth;
+    std::size_t count = 0U;
+    if (provider.enumerate_candidates == nullptr) {
+        ADD_FAILURE() << "admission did not produce a structural provider";
+        batch.status = -1;
+        batch.values.clear();
+        return batch;
+    }
+    batch.status = provider.enumerate_candidates(
+        provider.state, &binding, sources.data(), states.data(), costs.data(),
+        sources.size(), batch.values.data(), batch.values.size(), &count, &batch.usage);
+    EXPECT_LE(count, capacity);
+    batch.values.resize(std::min(count, capacity));
+    return batch;
+}
+
+template<std::size_t Size>
+std::array<std::uint8_t, Size> Bytes(const std::uint8_t (&value)[Size]) {
+    std::array<std::uint8_t, Size> bytes{};
+    std::copy_n(value, Size, bytes.data());
+    return bytes;
+}
+
+auto CandidateFields(const laplace_cognition_observation_candidate& candidate) {
+    return std::make_tuple(
+        Bytes(candidate.target_entity_id.bytes), Bytes(candidate.relation_id.bytes),
+        Bytes(candidate.observation_fingerprint.bytes),
+        Bytes(candidate.evidence_root_fingerprint.bytes), candidate.source_state_index,
+        candidate.source_logical_ordinal, candidate.target_logical_ordinal,
+        candidate.multiplicity, candidate.gap, candidate.relation_family,
+        candidate.source_layer, candidate.direction, candidate.flags, candidate.reserved);
+}
+
+void ExpectEqualCandidates(const CandidateBatch& left, const CandidateBatch& right) {
+    ASSERT_EQ(left.status, 0);
+    ASSERT_EQ(right.status, 0);
+    ASSERT_EQ(left.usage.limiting_disposition, 0U);
+    ASSERT_EQ(right.usage.limiting_disposition, 0U);
+    ASSERT_EQ(left.values.size(), right.values.size());
+    for (std::size_t i = 0U; i < left.values.size(); ++i) {
+        EXPECT_EQ(CandidateFields(left.values[i]), CandidateFields(right.values[i]));
+    }
+}
+
+TEST(CognitionPromptStructuralProvider, OccurrenceCoordinatesDoNotDependOnSearchDepth) {
+    PromptIndexFixture fixture("abc");
+    ASSERT_NE(fixture.provider.state, nullptr);
+    const auto binding = Binding(fixture.view.trunk_entity_id,
+        LAPLACE_OBSERVATION_QUERY_CONTAINER | LAPLACE_OBSERVATION_QUERY_CONSTITUENT);
+    const std::vector<laplace_id128> sources{fixture.view.trunk_entity_id, Codepoint('b')};
+    const auto shallow = Query(fixture.provider, binding, sources);
+    const auto deep = Query(fixture.provider, binding, sources, 123U);
+    ASSERT_FALSE(shallow.values.empty());
+    ExpectEqualCandidates(shallow, deep);
+    EXPECT_EQ(shallow.usage.rows_examined, deep.usage.rows_examined);
+}
+
+TEST(CognitionPromptStructuralProvider, PackedOrderSuppliesPredecessorSuccessorAndCooccurrence) {
+    PromptIndexFixture fixture("ab");
+    ASSERT_NE(fixture.provider.state, nullptr);
+    const auto a = Codepoint('a'), b = Codepoint('b');
+    const auto binding = Binding(fixture.view.trunk_entity_id,
+        LAPLACE_OBSERVATION_QUERY_PREDECESSOR | LAPLACE_OBSERVATION_QUERY_SUCCESSOR |
+        LAPLACE_OBSERVATION_QUERY_COOCCUR);
+    const auto batch = Query(fixture.provider, binding, {a, b});
+    ASSERT_EQ(batch.status, 0);
+    ASSERT_EQ(batch.usage.limiting_disposition, 0U);
+    ASSERT_EQ(batch.values.size(), 4U);
+    bool successor = false, predecessor = false, forward_cooccurs = false, reverse_cooccurs = false;
+    for (const auto& candidate : batch.values) {
+        EXPECT_EQ(candidate.source_layer, LAPLACE_OBSERVATION_QUERY_SOURCE_PHYSICALITY);
+        EXPECT_TRUE(ZeroDigest(candidate.evidence_root_fingerprint));
+        EXPECT_EQ(Bytes(candidate.observation_fingerprint.bytes),
+                  Bytes(fixture.view.trunk_physicality_id.bytes));
+        EXPECT_EQ(candidate.multiplicity, UINT64_C(1));
+        if (candidate.source_state_index == 0U) {
+            EXPECT_TRUE(SameId(candidate.target_entity_id, b));
+            EXPECT_EQ(candidate.source_logical_ordinal, UINT64_C(1));
+            EXPECT_EQ(candidate.target_logical_ordinal, UINT64_C(2));
+            successor |= candidate.relation_family == LAPLACE_OBSERVATION_QUERY_SUCCESSOR;
+            forward_cooccurs |= candidate.relation_family == LAPLACE_OBSERVATION_QUERY_COOCCUR;
+        } else {
+            EXPECT_EQ(candidate.source_state_index, UINT64_C(1));
+            EXPECT_TRUE(SameId(candidate.target_entity_id, a));
+            EXPECT_EQ(candidate.source_logical_ordinal, UINT64_C(2));
+            EXPECT_EQ(candidate.target_logical_ordinal, UINT64_C(1));
+            predecessor |= candidate.relation_family == LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
+            reverse_cooccurs |= candidate.relation_family == LAPLACE_OBSERVATION_QUERY_COOCCUR;
+        }
+        if (candidate.relation_family == LAPLACE_OBSERVATION_QUERY_COOCCUR) {
+            EXPECT_EQ(candidate.gap, UINT64_C(1));
+            EXPECT_EQ(candidate.direction, LAPLACE_OBSERVATION_QUERY_DIRECTION_SYMMETRIC);
+        }
+    }
+    EXPECT_TRUE(successor);
+    EXPECT_TRUE(predecessor);
+    EXPECT_TRUE(forward_cooccurs);
+    EXPECT_TRUE(reverse_cooccurs);
+}
+
+TEST(CognitionPromptStructuralProvider, NonadjacentRepeatedConstituentsRetainEveryOrdinal) {
+    PromptIndexFixture fixture("ababa");
+    ASSERT_NE(fixture.provider.state, nullptr);
+    const auto binding = Binding(fixture.view.trunk_entity_id, LAPLACE_OBSERVATION_QUERY_CONSTITUENT);
+    const auto batch = Query(fixture.provider, binding, {fixture.view.trunk_entity_id});
+    ASSERT_EQ(batch.status, 0);
+    std::vector<std::uint64_t> ordinals;
+    for (const auto& candidate : batch.values) {
+        if (SameId(candidate.target_entity_id, Codepoint('a')) &&
+            Bytes(candidate.observation_fingerprint.bytes) == Bytes(fixture.view.trunk_physicality_id.bytes)) {
+            ordinals.push_back(candidate.target_logical_ordinal);
+            EXPECT_EQ(candidate.multiplicity, UINT64_C(1));
+        }
+    }
+    std::sort(ordinals.begin(), ordinals.end());
+    EXPECT_EQ(ordinals, (std::vector<std::uint64_t>{1U, 3U, 5U}));
+    EXPECT_EQ(fixture.view.semantic_attestation_count, UINT64_C(0));
+}
+
+TEST(CognitionPromptStructuralProvider, PackedRunsRetainInternalTransitionsWithoutExpansion) {
+    PromptIndexFixture fixture("aaaa");
+    ASSERT_NE(fixture.provider.state, nullptr);
+    const auto binding = Binding(fixture.view.trunk_entity_id,
+        LAPLACE_OBSERVATION_QUERY_PREDECESSOR | LAPLACE_OBSERVATION_QUERY_SUCCESSOR |
+        LAPLACE_OBSERVATION_QUERY_COOCCUR);
+    const auto batch = Query(fixture.provider, binding, {Codepoint('a')});
+    ASSERT_EQ(batch.status, 0);
+    ASSERT_EQ(batch.usage.limiting_disposition, 0U);
+    ASSERT_EQ(batch.values.size(), 3U);
+    for (const auto& candidate : batch.values) {
+        EXPECT_TRUE(SameId(candidate.target_entity_id, Codepoint('a')));
+        EXPECT_EQ(candidate.multiplicity, UINT64_C(3));
+        EXPECT_TRUE(ZeroDigest(candidate.evidence_root_fingerprint));
+        const bool reverse = candidate.relation_family == LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
+        EXPECT_EQ(candidate.source_logical_ordinal, reverse ? UINT64_C(2) : UINT64_C(1));
+        EXPECT_EQ(candidate.target_logical_ordinal, reverse ? UINT64_C(1) : UINT64_C(2));
+    }
+    EXPECT_EQ(batch.usage.rows_examined, UINT64_C(3));
+    EXPECT_EQ(fixture.view.composition_summary.trajectory_vertex_count, UINT64_C(1));
+}
+
+TEST(CognitionPromptStructuralProvider, PublishedAndAlreadyPresentStructuresHaveTheSameCandidates) {
+    PromptIndexFixture novel("ababa");
+    PromptIndexFixture present("ababa", true);
+    ASSERT_NE(novel.provider.state, nullptr);
+    ASSERT_NE(present.provider.state, nullptr);
+    EXPECT_EQ(Bytes(novel.view.trunk_entity_id.bytes), Bytes(present.view.trunk_entity_id.bytes));
+    const auto binding = Binding(novel.view.trunk_entity_id,
+        LAPLACE_OBSERVATION_QUERY_CONTAINER | LAPLACE_OBSERVATION_QUERY_CONSTITUENT |
+        LAPLACE_OBSERVATION_QUERY_PREDECESSOR | LAPLACE_OBSERVATION_QUERY_SUCCESSOR |
+        LAPLACE_OBSERVATION_QUERY_COOCCUR);
+    const std::vector<laplace_id128> sources{novel.view.trunk_entity_id, Codepoint('a'), Codepoint('b')};
+    ExpectEqualCandidates(Query(novel.provider, binding, sources), Query(present.provider, binding, sources));
+    EXPECT_EQ(Bytes(novel.provider.provider_fingerprint.bytes), Bytes(present.provider.provider_fingerprint.bytes));
+    EXPECT_EQ(present.view.composition_summary.novel_physicality_count, UINT64_C(0));
+    EXPECT_EQ(present.view.semantic_attestation_count, UINT64_C(0));
+}
+
+TEST(CognitionPromptStructuralProvider, CapacityFailurePublishesNoPrefixOrFalseAbsence) {
+    PromptIndexFixture fixture("ababa");
+    ASSERT_NE(fixture.provider.state, nullptr);
+    const auto binding = Binding(fixture.view.trunk_entity_id, LAPLACE_OBSERVATION_QUERY_CONSTITUENT);
+    std::array<laplace_cognition_observation_candidate, 1> buffer{};
+    buffer[0].multiplicity = 9876U;
+    buffer[0].target_entity_id = Codepoint('z');
+    const auto before = CandidateFields(buffer[0]);
+    laplace_query_search_state state{};
+    std::uint64_t cost = 0U;
+    std::size_t count = 999U;
+    laplace_cognition_observation_candidate_usage usage{};
+    EXPECT_EQ(fixture.provider.enumerate_candidates(
+        fixture.provider.state, &binding, &fixture.view.trunk_entity_id, &state, &cost,
+        1U, buffer.data(), buffer.size(), &count, &usage), 0);
+    EXPECT_EQ(count, 0U);
+    EXPECT_EQ(usage.limiting_disposition, LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN);
+    EXPECT_EQ(CandidateFields(buffer[0]), before);
+    EXPECT_GT(usage.rows_examined, UINT64_C(0));
+    EXPECT_GT(usage.index_plan_count, UINT64_C(0));
+    EXPECT_EQ(usage.crossing_count, UINT64_C(0));
+    const auto empty = Query(fixture.provider, binding, {fixture.view.trunk_entity_id}, 0U, 0U);
+    EXPECT_EQ(empty.status, 0);
+    EXPECT_TRUE(empty.values.empty());
+    EXPECT_EQ(empty.usage.limiting_disposition, LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN);
+}
+
+TEST(CognitionPromptStructuralProvider, BindingIdentityAndEmptyBatchesAreValidated) {
+    PromptIndexFixture fixture("abc");
+    ASSERT_NE(fixture.provider.state, nullptr);
+    auto binding = Binding(fixture.view.trunk_entity_id, LAPLACE_OBSERVATION_QUERY_CONSTITUENT);
+    auto empty = Query(fixture.provider, binding, {}, 0U, 0U);
+    EXPECT_EQ(empty.status, 0);
+    EXPECT_TRUE(empty.values.empty());
+    EXPECT_EQ(empty.usage.limiting_disposition, 0U);
+    EXPECT_EQ(empty.usage.rows_examined, UINT64_C(0));
+    binding.relation_mask = LAPLACE_OBSERVATION_QUERY_CONTAINER;
+    auto invalid = Query(fixture.provider, binding, {fixture.view.trunk_entity_id});
+    EXPECT_NE(invalid.status, 0);
+    EXPECT_TRUE(invalid.values.empty());
+    EXPECT_EQ(invalid.usage.rows_examined, UINT64_C(0));
+}
+
+TEST(CognitionPromptStructuralProvider, RetainedIndexSupportsConcurrentReplayWithoutRecomposition) {
+    PromptIndexFixture fixture("ababa");
+    ASSERT_NE(fixture.provider.state, nullptr);
+    const auto binding = Binding(fixture.view.trunk_entity_id,
+        LAPLACE_OBSERVATION_QUERY_CONTAINER | LAPLACE_OBSERVATION_QUERY_CONSTITUENT |
+        LAPLACE_OBSERVATION_QUERY_PREDECESSOR | LAPLACE_OBSERVATION_QUERY_SUCCESSOR |
+        LAPLACE_OBSERVATION_QUERY_COOCCUR);
+    const std::vector<laplace_id128> sources{fixture.view.trunk_entity_id, Codepoint('a')};
+    const auto baseline = Query(fixture.provider, binding, sources);
+    const auto structure_calls = fixture.structure.calls;
+    const auto atom_calls = fixture.atoms.calls;
+    const auto presence_calls = fixture.presence.calls;
+    std::vector<std::future<CandidateBatch>> workers;
+    for (unsigned i = 0U; i < 8U; ++i) {
+        workers.push_back(std::async(std::launch::async, [&] {
+            laplace_cognition_observation_candidate_provider_v1 provider{};
+            EXPECT_EQ(laplace_cognition_prompt_admission_structural_provider(
+                          fixture.admission.value, &provider), LAPLACE_COGNITION_PROMPT_ADMISSION_OK);
+            EXPECT_EQ(provider.state, fixture.provider.state);
+            EXPECT_EQ(Bytes(provider.provider_fingerprint.bytes), Bytes(fixture.provider.provider_fingerprint.bytes));
+            return Query(provider, binding, sources, 37U);
+        }));
+    }
+    for (auto& worker : workers) ExpectEqualCandidates(baseline, worker.get());
+    EXPECT_EQ(fixture.structure.calls, structure_calls);
+    EXPECT_EQ(fixture.atoms.calls, atom_calls);
+    EXPECT_EQ(fixture.presence.calls, presence_calls);
+}
+
+TEST(CognitionPromptStructuralProvider, BatchAndScalarProjectionKeepTheSameOccurrences) {
+    PromptIndexFixture fixture("ababa");
+    ASSERT_NE(fixture.provider.state, nullptr);
+    const auto binding = Binding(fixture.view.trunk_entity_id,
+        LAPLACE_OBSERVATION_QUERY_CONTAINER | LAPLACE_OBSERVATION_QUERY_CONSTITUENT |
+        LAPLACE_OBSERVATION_QUERY_PREDECESSOR | LAPLACE_OBSERVATION_QUERY_SUCCESSOR |
+        LAPLACE_OBSERVATION_QUERY_COOCCUR);
+    const std::vector<laplace_id128> sources{fixture.view.trunk_entity_id, Codepoint('a'), Codepoint('b')};
+    auto batched = Query(fixture.provider, binding, sources);
+    CandidateBatch scalar{};
+    for (std::size_t i = 0U; i < sources.size(); ++i) {
+        auto one = Query(fixture.provider, binding, {sources[i]});
+        ASSERT_EQ(one.status, 0);
+        ASSERT_EQ(one.usage.limiting_disposition, 0U);
+        for (auto candidate : one.values) {
+            candidate.source_state_index = static_cast<std::uint64_t>(i);
+            scalar.values.push_back(candidate);
+        }
+        scalar.usage.rows_examined += one.usage.rows_examined;
+    }
+    const auto less = [](const auto& a, const auto& b) { return CandidateFields(a) < CandidateFields(b); };
+    std::sort(batched.values.begin(), batched.values.end(), less);
+    std::sort(scalar.values.begin(), scalar.values.end(), less);
+    ExpectEqualCandidates(batched, scalar);
+    EXPECT_EQ(batched.usage.rows_examined, scalar.usage.rows_examined);
+}
+
+TEST(CognitionPromptStructuralProvider, UnicodeOrderUsesTheSamePackedCandidateGenerator) {
+    // U+0061 followed by U+3042: one ASCII codepoint and one three-byte codepoint.
+    PromptIndexFixture fixture("a\xe3\x81\x82");
+    ASSERT_NE(fixture.provider.state, nullptr);
+    const auto binding = Binding(fixture.view.trunk_entity_id, LAPLACE_OBSERVATION_QUERY_SUCCESSOR);
+    const auto batch = Query(fixture.provider, binding, {Codepoint('a')});
+    ASSERT_EQ(batch.status, 0);
+    ASSERT_EQ(batch.values.size(), 1U);
+    EXPECT_TRUE(SameId(batch.values[0].target_entity_id, Codepoint(0x3042U)));
+    EXPECT_EQ(batch.values[0].source_logical_ordinal, UINT64_C(1));
+    EXPECT_EQ(batch.values[0].target_logical_ordinal, UINT64_C(2));
+    EXPECT_EQ(fixture.view.semantic_attestation_count, UINT64_C(0));
 }
 
 }  // namespace

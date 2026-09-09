@@ -98,3 +98,34 @@ add_test(NAME cognition-output.mutation-truncation-detected
         -P "${PROJECT_SOURCE_DIR}/tests/expect_octet_mutation.cmake")
 set_tests_properties(cognition-output.mutation-truncation-detected PROPERTIES
     LABELS "implementation;cognition;materialization;serialization;mutation")
+
+# Mutation probes compile the same production owners with one deliberate defect;
+# no replacement provider or source-text assertion stands in for execution.
+function(laplace_add_prompt_structure_mutation target source definition test_source test_name filter)
+    add_library(${target}_library STATIC "${PROJECT_SOURCE_DIR}/${source}")
+    target_include_directories(${target}_library PRIVATE
+        "${PROJECT_SOURCE_DIR}/engine/include" "${CMAKE_BINARY_DIR}/generated")
+    target_link_libraries(${target}_library PRIVATE Laplace::Engine BLAKE3::blake3)
+    target_compile_definitions(${target}_library PRIVATE "${definition}=1")
+    add_executable(${target} "${PROJECT_SOURCE_DIR}/${test_source}")
+    target_include_directories(${target} PRIVATE "${PROJECT_SOURCE_DIR}/tests")
+    target_link_libraries(${target} PRIVATE ${target}_library Laplace::Engine GTest::gtest_main)
+    target_compile_options(${target} PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    add_test(NAME ${test_name} COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:${target}>" "-DFILTER=${filter}"
+        -P "${PROJECT_SOURCE_DIR}/tests/expect_gtest_failure.cmake")
+    set_tests_properties(${test_name} PROPERTIES
+        LABELS "implementation;composition;cognition;prompt;trajectory;mutation")
+endfunction()
+
+laplace_add_prompt_structure_mutation(
+    laplace_prompt_depth_ordinal_mutation_probe engine/src/observation_query.cpp
+    LAPLACE_TEST_PROMPT_DEPTH_ORDINAL tests/cognition_prompt_structural_provider_tests.cpp
+    prompt-structure.mutation-depth-as-ordinal-detected
+    CognitionPromptStructuralProvider.OccurrenceCoordinatesDoNotDependOnSearchDepth)
+laplace_add_prompt_structure_mutation(
+    laplace_operand_run_boundary_mutation_probe engine/src/composition.cpp
+    LAPLACE_TEST_COMPOSITION_OPERAND_BOUNDARIES tests/composition_tests.cpp
+    composition.mutation-operand-boundary-run-splitting-detected
+    CompositionWorkingSet.AdjacentOperandPartitionsPackIntoTheSameExactTrajectory)

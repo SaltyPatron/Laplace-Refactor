@@ -995,3 +995,113 @@ TEST(CompositionWorkingSet, RejectsPartialPresenceProviderBeforePublication) {
               LAPLACE_COMPOSITION_PRESENCE_REQUIRED);
     laplace_composition_working_set_destroy(&working_set);
 }
+
+namespace {
+struct PackedCompositionSnapshot final {
+    laplace_composition_result result{};
+    std::vector<laplace_trajectory_carrier> carriers;
+    std::vector<laplace_composition_occurrence> occurrences;
+};
+
+PackedCompositionSnapshot PackAdjacent(const std::vector<laplace_composition_operand>& operands) {
+    auto context = laplace_test_context(3U);
+    context.resource_grant.memory_bytes = UINT64_C(16) * 1024U * 1024U;
+    laplace_digest256 source{}, recipe{};
+    Fill(source, 0x15U);
+    Fill(recipe, 0x35U);
+    const std::array<laplace_composition_known_entity, 2> known{{
+        Atom('a', laplace_point4d{{1.0, 0.0, 0.0, 0.0}}, 0x55U),
+        Atom('b', laplace_point4d{{0.0, 1.0, 0.0, 0.0}}, 0x75U)}};
+    const auto request = Request(0U, operands.size(), 1U, 0x25U, false);
+    const laplace_composition_working_set_input input{
+        &context, &source, &recipe, known.data(), known.size(),
+        operands.data(), operands.size(), &request, 1U, 256U, 0U};
+    struct Owner final {
+        laplace_composition_working_set* value{};
+        ~Owner() { laplace_composition_working_set_destroy(&value); }
+    } owner;
+    PackedCompositionSnapshot snapshot{};
+    EXPECT_EQ(laplace_composition_working_set_create(&input, &owner.value), LAPLACE_COMPOSITION_OK);
+    if (owner.value == nullptr) return snapshot;
+    std::size_t result_count = 0U;
+    const auto* results = laplace_composition_working_set_results(owner.value, &result_count);
+    EXPECT_EQ(result_count, 1U);
+    if (results == nullptr || result_count != 1U) return snapshot;
+    snapshot.result = results[0];
+    const laplace_trajectory_carrier* view = nullptr;
+    std::size_t count = 0U;
+    EXPECT_EQ(laplace_composition_working_set_trajectory_candidate_view_get(
+                  owner.value, 0U, &view, &count), LAPLACE_COMPOSITION_OK);
+    if (view == nullptr) return snapshot;
+    snapshot.carriers.assign(view, view + count);
+    std::uint64_t ordinal = 1U;
+    for (const auto& carrier : snapshot.carriers) {
+        laplace_composition_occurrence occurrence{};
+        EXPECT_EQ(laplace_trajectory_composition_decode_one(&carrier, ordinal, &occurrence),
+                  LAPLACE_TRAJECTORY_OK);
+        snapshot.occurrences.push_back(occurrence);
+        ordinal += occurrence.run_length;
+    }
+    EXPECT_EQ(ordinal - 1U, snapshot.result.logical_count);
+    // An invalid candidate cannot return the previous caller's borrowed view.
+    EXPECT_EQ(laplace_composition_working_set_trajectory_candidate_view_get(
+                  owner.value, static_cast<std::size_t>(-1), &view, &count),
+              LAPLACE_COMPOSITION_INVALID_ARGUMENT);
+    EXPECT_EQ(view, nullptr);
+    EXPECT_EQ(count, 0U);
+    return snapshot;
+}
+
+TEST(CompositionWorkingSet, AdjacentOperandPartitionsPackIntoTheSameExactTrajectory) {
+    const auto unit = laplace_composition_operand{
+        0U, 1U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U};
+    const auto expanded = PackAdjacent(std::vector<laplace_composition_operand>(4U, unit));
+    auto whole = unit;
+    whole.multiplicity = 4U;
+    const auto grouped = PackAdjacent({whole});
+    ASSERT_EQ(expanded.carriers.size(), 1U);
+    ASSERT_EQ(grouped.carriers.size(), 1U);
+    EXPECT_EQ(std::memcmp(&expanded.carriers[0], &grouped.carriers[0], sizeof(laplace_trajectory_carrier)), 0);
+    EXPECT_EQ(std::memcmp(expanded.result.entity_id.bytes, grouped.result.entity_id.bytes, 16U), 0);
+    EXPECT_EQ(std::memcmp(expanded.result.physicality_id.bytes, grouped.result.physicality_id.bytes, 32U), 0);
+    EXPECT_EQ(expanded.occurrences[0].run_length, 4U);
+    EXPECT_EQ(expanded.occurrences[0].logical_ordinal, UINT64_C(1));
+}
+
+TEST(CompositionWorkingSet, AdjacentRunsSplitAtCarrierLimitRatherThanOperandBoundaries) {
+    const auto packed = PackAdjacent({
+        {0U, 20000U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U},
+        {0U, 50000U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U}});
+    ASSERT_EQ(packed.carriers.size(), 2U);
+    EXPECT_EQ(packed.result.logical_count, UINT64_C(70000));
+    EXPECT_EQ(packed.occurrences[0].run_length, 65535U);
+    EXPECT_EQ(packed.occurrences[1].run_length, 4465U);
+    EXPECT_EQ(packed.occurrences[0].logical_ordinal, UINT64_C(1));
+    EXPECT_EQ(packed.occurrences[1].logical_ordinal, UINT64_C(65536));
+    const auto grouped = PackAdjacent({
+        {0U, 70000U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U}});
+    ASSERT_EQ(grouped.carriers.size(), packed.carriers.size());
+    for (std::size_t i = 0U; i < packed.carriers.size(); ++i) {
+        EXPECT_EQ(std::memcmp(&packed.carriers[i], &grouped.carriers[i], sizeof(laplace_trajectory_carrier)), 0);
+    }
+}
+
+TEST(CompositionWorkingSet, RunCoalescingPreservesMetadataAndDifferentIdentityBoundaries) {
+    const auto packed = PackAdjacent({
+        {0U, 2U, 0U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U},
+        {0U, 3U, UINT64_C(1) << 8U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U},
+        {1U, 4U, UINT64_C(1) << 8U, LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U}});
+    ASSERT_EQ(packed.carriers.size(), 3U);
+    EXPECT_EQ(packed.occurrences[0].run_length, 2U);
+    EXPECT_EQ(packed.occurrences[1].run_length, 3U);
+    EXPECT_EQ(packed.occurrences[2].run_length, 4U);
+    EXPECT_EQ(packed.occurrences[0].logical_ordinal, UINT64_C(1));
+    EXPECT_EQ(packed.occurrences[1].logical_ordinal, UINT64_C(3));
+    EXPECT_EQ(packed.occurrences[2].logical_ordinal, UINT64_C(6));
+    EXPECT_EQ(packed.occurrences[0].metadata & (UINT64_C(1) << 8U), UINT64_C(0));
+    EXPECT_EQ(packed.occurrences[1].metadata & (UINT64_C(1) << 8U), UINT64_C(1) << 8U);
+    EXPECT_NE(std::memcmp(packed.occurrences[1].entity_id.bytes,
+                          packed.occurrences[2].entity_id.bytes, 16U), 0);
+}
+
+}  // namespace

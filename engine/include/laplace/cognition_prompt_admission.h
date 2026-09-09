@@ -166,13 +166,24 @@ laplace_cognition_prompt_admission_producer(
  * evidence providers. Cognition therefore starts from the whole trunk and may
  * descend through canonical constituents or rise through exact containers before
  * any semantic provider is consulted. The provider emits only structural
- * CONSTITUENT/CONTAINER crossings on the PHYSICALITY plane; it cannot synthesize
- * semantic relations, guidance operations, completion decisions or attestations.
+ * CONSTITUENT/CONTAINER, PREDECESSOR/SUCCESSOR and COOCCUR crossings on the
+ * PHYSICALITY plane through the common packed-trajectory candidate generator.
+ * Exact parser-span constituents remain a separately witnessed structural view.
+ * Neither view synthesizes semantic relations, guidance, completion or testimony.
  *
- * The admission object owns the provider state and must outlive every request
- * that uses the returned descriptor. `maximum_candidate_records_per_expansion`
- * reports the exact maximum structural out-degree so an undersized search budget
- * fails visibly instead of silently truncating the prompt structure.
+ * One immutable index is retained by the admission, independent of publication
+ * presence. Repeated descriptor requests and concurrent read batches reuse it;
+ * the admission must outlive all its readers. No composition or complete-edge
+ * rebuilding occurs on expansion. Canonical candidates retain packed logical
+ * ordinals and run multiplicities; parser candidates retain sibling ordinals in
+ * their exact parent/child span witness, never search depths.
+ *
+ * `maximum_candidate_records_per_expansion` is a conservative finite bound on
+ * examined/output records per frontier source across all five families, not a
+ * promise to allocate that many records. Transient projection is bounded by three
+ * candidate-capacity-sized arrays, plus the caller-owned output. Capacity failure
+ * publishes no candidate prefix and returns an explicit UNKNOWN boundary. Binding
+ * fingerprints are validated and an empty source batch performs no indexed work.
  */
 LAPLACE_API laplace_cognition_prompt_admission_status
 laplace_cognition_prompt_admission_structural_provider(
