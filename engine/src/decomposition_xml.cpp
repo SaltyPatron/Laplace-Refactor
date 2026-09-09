@@ -305,7 +305,7 @@ private:
         const std::uint64_t first = cursor_;
         std::uint64_t search = cursor_ + UINT64_C(9);
         while (search < end_) {
-            if (Starts(search, "]]>") ) {
+            if (Starts(search, "]]>")) {
                 const std::uint64_t last = search + 3u;
                 std::uint64_t cdata = 0u;
                 if (!AddNode(
