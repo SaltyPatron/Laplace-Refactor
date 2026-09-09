@@ -71,14 +71,6 @@ typedef enum laplace_ucdxml_status {
     LAPLACE_UCDXML_MEMORY_FAILURE = 9
 } laplace_ucdxml_status;
 
-/*
- * Project the UAX #42 grouped UCD representation from the generic XML
- * decomposition tree. The projector does not parse an independent XML copy and
- * owns no fixed list of Unicode properties: every non-coordinate attribute on
- * char/reserved/surrogate/noncharacter declarations is retained. Group
- * attributes are inherited exactly as specified by UAX #42, with local
- * code-point attributes overriding the group declaration.
- */
 LAPLACE_API laplace_ucdxml_status laplace_ucdxml_projection_create(
     const laplace_ucdxml_projection_input* input,
     laplace_ucdxml_projection** projection,
@@ -105,11 +97,12 @@ LAPLACE_API laplace_ucdxml_status laplace_ucdxml_property_find(
     size_t property_name_bytes,
     laplace_ucdxml_property_view* property);
 
-/*
- * Decode the exact XML attribute value and apply UAX #42's code-point '#'
- * substitution. output may be NULL only when output_capacity is zero; in that
- * case required_bytes receives the exact decoded size without publication.
- */
+LAPLACE_API laplace_ucdxml_status laplace_ucdxml_property_name_source(
+    const laplace_ucdxml_projection* projection,
+    const laplace_ucdxml_property_view* property,
+    const uint8_t** bytes,
+    size_t* byte_count);
+
 LAPLACE_API laplace_ucdxml_status laplace_ucdxml_property_value(
     const laplace_ucdxml_projection* projection,
     const laplace_ucdxml_property_view* property,
