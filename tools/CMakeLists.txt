@@ -77,6 +77,10 @@ target_compile_options(laplace_receipt_store PRIVATE
 install(TARGETS laplace_receipt_store
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/model_export.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-model-export)
+
 if(BUILD_TESTING)
     add_test(
         NAME delivery.receipt-store-contract
