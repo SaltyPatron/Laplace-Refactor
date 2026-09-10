@@ -160,7 +160,7 @@ jobs:
             any(.[]; .property == "na" and .value == "LATIN CAPITAL LETTER A") and
             any(.[]; .property == "sc" and .value == "Latn") and
             any(.[]; .property == "gc" and .value == "Lu") and
-            all(.;
+            all(.[];
               (.proposition_entity_id | length) == 32 and
               (.occurrence_id | length) == 64 and
               (.evidence_node_id | length) == 64 and
@@ -173,7 +173,7 @@ jobs:
             length == 2 and
             any(.[]; .property == "sc" and .value == "Hani") and
             any(.[]; .property == "kTotalStrokes" and .value == "1") and
-            all(.;
+            all(.[];
               (.proposition_entity_id | length) == 32 and
               (.occurrence_id | length) == 64 and
               (.evidence_root_id | length) == 64 and
