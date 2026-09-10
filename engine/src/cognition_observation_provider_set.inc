@@ -63,6 +63,7 @@ bool LimitingDispositionValid(const std::uint32_t disposition) noexcept {
     return disposition == 0U ||
         disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_UNSUPPORTED ||
         disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_DENIED ||
+        disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED ||
         disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_CONTRADICTED ||
         disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
 }
@@ -146,6 +147,16 @@ int EnumerateCompositeCandidates(
         }
         if (!AddUsage(usage, child_usage)) return 8;
         *candidate_count += child_count;
+
+        /* Capacity exhaustion means this provider could not enumerate its exact
+         * finite contribution. Preserve atomicity for the composite instead of
+         * letting candidates from another child disguise an incomplete frontier. */
+        if (child_usage.limiting_disposition ==
+            LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED) {
+            *candidate_count = 0U;
+            usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;
+            return 0;
+        }
 
         if (child_usage.limiting_disposition != 0U) {
             if (!saw_limiting_disposition) {
