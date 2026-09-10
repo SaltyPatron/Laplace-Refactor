@@ -33,6 +33,7 @@ add_library(laplace_engine SHARED
     src/persistence.c
     src/evidence_lineage.c
     src/evidence_testimony.c
+    src/source_evidence.cpp
     src/standing_calculation.c
     src/stock_recipe.c
     src/reference_topology.c
@@ -103,6 +104,7 @@ add_library(Laplace::MachineException ALIAS laplace_engine)
 add_library(Laplace::Persistence ALIAS laplace_engine)
 add_library(Laplace::EvidenceLineage ALIAS laplace_engine)
 add_library(Laplace::EvidenceTestimony ALIAS laplace_engine)
+add_library(Laplace::SourceEvidence ALIAS laplace_engine)
 add_library(Laplace::StandingCalculation ALIAS laplace_engine)
 add_library(Laplace::StockRecipe ALIAS laplace_engine)
 add_library(Laplace::ReferenceTopology ALIAS laplace_engine)
