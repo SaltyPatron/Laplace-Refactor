@@ -42,6 +42,8 @@ typedef struct laplace_target_attention_head_receipt {
     laplace_digest256 vo_slot_id;
     laplace_digest256 qk_operator_id;
     laplace_digest256 vo_operator_id;
+    laplace_digest256 qk_factorization_id;
+    laplace_digest256 vo_factorization_id;
     laplace_digest256 q_tensor_fingerprint;
     laplace_digest256 k_tensor_fingerprint;
     laplace_digest256 v_tensor_fingerprint;
