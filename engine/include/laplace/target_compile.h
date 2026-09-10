@@ -15,10 +15,8 @@ extern "C" {
 enum {
     LAPLACE_TARGET_COMPILE_VERSION = 1,
     LAPLACE_TARGET_COMPILE_REQUIRE_DISTINCT_QK_VO = UINT32_C(1),
-    LAPLACE_TARGET_COMPILE_REQUIRE_DISTINCT_QK_KV_VO = UINT32_C(2),
     LAPLACE_TARGET_COMPILE_KNOWN_FLAGS =
-        LAPLACE_TARGET_COMPILE_REQUIRE_DISTINCT_QK_VO |
-        LAPLACE_TARGET_COMPILE_REQUIRE_DISTINCT_QK_KV_VO,
+        LAPLACE_TARGET_COMPILE_REQUIRE_DISTINCT_QK_VO,
 
     LAPLACE_TARGET_ROLE_COMPATIBILITY_QK = 1,
     LAPLACE_TARGET_ROLE_CONTRIBUTION_VO = 2,
@@ -26,8 +24,7 @@ enum {
     LAPLACE_TARGET_ROLE_ROUTING = 4,
     LAPLACE_TARGET_ROLE_POSITION = 5,
     LAPLACE_TARGET_ROLE_EMBEDDING = 6,
-    LAPLACE_TARGET_ROLE_OUTPUT = 7,
-    LAPLACE_TARGET_ROLE_TRANSPORT_KV = 8
+    LAPLACE_TARGET_ROLE_OUTPUT = 7
 };
 
 typedef struct laplace_target_compile_job {
@@ -112,8 +109,8 @@ typedef enum laplace_target_compile_status {
 
 /*
  * Compile selected, typed substrate operator jobs into a deterministic
- * target-neutral materialization. QK/KV/VO are target consumer roles over
- * separately selected substrate operators; codecs and tensor layouts come later.
+ * target-neutral materialization. This is the operator-first boundary: codecs and
+ * consumer tensor layouts come later and may not invent semantics absent here.
  */
 LAPLACE_API laplace_target_compile_status laplace_target_compile_execute(
     const laplace_target_compile_request* request,
