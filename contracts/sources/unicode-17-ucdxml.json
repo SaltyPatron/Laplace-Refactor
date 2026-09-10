@@ -44,7 +44,7 @@
   "selected_member": {
     "name": "ucd.all.grouped.xml",
     "media_type": "application/xml",
-    "sha256": "b40907541f68f6cee76d2f2631f6371fb2f16c7496ea8bfbac30ad6ea9fdc117",
+    "sha256": "018b6271d707fc21eed71f60851ad035449b38a0647a3bbdb2a37ca2ef648b92",
     "selection": "exact ZIP member name; duplicate member names are rejected",
     "reconstruction": "exact member bytes"
   },
