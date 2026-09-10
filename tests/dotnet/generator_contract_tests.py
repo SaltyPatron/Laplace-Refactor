@@ -50,6 +50,19 @@ def main() -> int:
             return 1
 
         source = first.read_text(encoding="utf-8")
+        required_transport_constants = (
+            'public const string PostgreSqlSchema = "laplace";',
+            'public const string PostgreSqlExecuteBatchFunction = "isa_execute_batch";',
+            'public const string PostgreSqlExecuteBatchResultType = "isa_batch_transport_result";',
+        )
+        for declaration in required_transport_constants:
+            if source.count(declaration) != 1:
+                print(
+                    f"generated PostgreSQL transport declaration differs: {declaration}",
+                    file=sys.stderr,
+                )
+                return 1
+
         declaration = "public readonly struct IdentityCodepointBatch :"
         if source.count(declaration) != 1:
             print("generated identity declaration is not unique", file=sys.stderr)

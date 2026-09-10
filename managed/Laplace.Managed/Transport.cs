@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Runtime.InteropServices;
 
 namespace Laplace.Managed;
@@ -138,7 +139,8 @@ public sealed unsafe class NativeIsaTransport : ILaplaceIsaTransport
             status = ExecuteNative(&program, &receipt, &error);
             if (values[1].Count > checked((ulong)output.Length))
             {
-                throw new InvalidDataException("Native ISA published an output count beyond capacity.");
+                throw new InvalidDataException(
+                    "Native ISA published an output count beyond capacity.");
             }
 
             return new LaplaceIsaExecution<TOutput>(
@@ -151,4 +153,204 @@ public sealed unsafe class NativeIsaTransport : ILaplaceIsaTransport
     }
 
     public void Dispose() => Interlocked.Exchange(ref disposed, 1);
+}
+
+public sealed class PostgreSqlIsaTransport : ILaplaceIsaTransport
+{
+    private readonly DbDataSource dataSource;
+    private readonly bool publishReceipts;
+    private readonly bool ownsDataSource;
+    private int disposed;
+
+    public PostgreSqlIsaTransport(
+        DbDataSource dataSource,
+        bool publishReceipts = true,
+        bool ownsDataSource = false)
+    {
+        this.dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        this.publishReceipts = publishReceipts;
+        this.ownsDataSource = ownsDataSource;
+    }
+
+    public LaplaceIsaExecution<TOutput> ExecuteBatch<TOperation, TInput, TOutput>(
+        ReadOnlySpan<TInput> input,
+        LaplaceExecutionContext context)
+        where TOperation : struct, ILaplaceOperation<TInput, TOutput>
+        where TInput : unmanaged
+        where TOutput : unmanaged
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+        ArgumentNullException.ThrowIfNull(context);
+
+        LaplaceOperationDescriptor descriptor = TOperation.Descriptor;
+        byte[] inputBytes = MemoryMarshal.AsBytes(input).ToArray();
+
+        using DbConnection connection = dataSource.OpenConnection();
+        using DbCommand command = connection.CreateCommand();
+        command.CommandText =
+            $"SELECT output_bytes, output_count, receipt_id, context_fingerprint, " +
+            $"program_fingerprint, input_fingerprint, output_fingerprint, " +
+            $"instruction_count, executed_instruction_count, isa_major, isa_minor, " +
+            $"receipt_detail, status, error_status, error_instruction_index, " +
+            $"error_value_index FROM {LaplaceIsaContract.PostgreSqlSchema}." +
+            $"{LaplaceIsaContract.PostgreSqlExecuteBatchFunction}(" +
+            $"@context::bytea, @opcode::bigint, @input_type::bigint, " +
+            $"@output_type::bigint, @instruction_version::bigint, " +
+            $"@input_stride::bigint, @output_stride::bigint, @input_count::bigint, " +
+            $"@output_capacity::bigint, @input_bytes::bytea, @isa_major::bigint, " +
+            $"@isa_minor::bigint, @publish_receipt::boolean)";
+
+        AddParameter(command, "context", context.AbiBytes);
+        AddParameter(command, "opcode", checked((long)descriptor.Opcode));
+        AddParameter(command, "input_type", checked((long)descriptor.InputType));
+        AddParameter(command, "output_type", checked((long)descriptor.OutputType));
+        AddParameter(command, "instruction_version",
+            checked((long)descriptor.InstructionVersion));
+        AddParameter(command, "input_stride", checked((long)sizeof(TInput)));
+        AddParameter(command, "output_stride", checked((long)sizeof(TOutput)));
+        AddParameter(command, "input_count", checked((long)input.Length));
+        AddParameter(command, "output_capacity", checked((long)input.Length));
+        AddParameter(command, "input_bytes", inputBytes);
+        AddParameter(command, "isa_major", checked((long)LaplaceIsaContract.Major));
+        AddParameter(command, "isa_minor", checked((long)LaplaceIsaContract.Minor));
+        AddParameter(command, "publish_receipt", publishReceipts);
+
+        using DbDataReader reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            throw new InvalidDataException(
+                "PostgreSQL ISA transport returned no result row.");
+        }
+
+        byte[] outputBytes = reader.GetFieldValue<byte[]>(0);
+        ulong outputCount = ReadUInt64BigInt(reader, 1, "output_count");
+        if (outputCount > checked((ulong)input.Length))
+        {
+            throw new InvalidDataException(
+                "PostgreSQL ISA transport published an output count beyond capacity.");
+        }
+
+        ulong expectedOutputBytes = checked(outputCount * (ulong)sizeof(TOutput));
+        if (expectedOutputBytes != checked((ulong)outputBytes.Length))
+        {
+            throw new InvalidDataException(
+                "PostgreSQL ISA transport output byte count differs from the native stride.");
+        }
+
+        TOutput[] output = new TOutput[input.Length];
+        outputBytes.AsSpan().CopyTo(MemoryMarshal.AsBytes(output.AsSpan()));
+
+        LaplaceIsaReceipt receipt = new()
+        {
+            ReceiptId = ReadDigest(reader, 2, "receipt_id"),
+            ContextFingerprint = ReadDigest(reader, 3, "context_fingerprint"),
+            ProgramFingerprint = ReadDigest(reader, 4, "program_fingerprint"),
+            InputFingerprint = ReadDigest(reader, 5, "input_fingerprint"),
+            OutputFingerprint = ReadDigest(reader, 6, "output_fingerprint"),
+            InstructionCount = ReadUInt64BigInt(reader, 7, "instruction_count"),
+            ExecutedInstructionCount =
+                ReadUInt64BigInt(reader, 8, "executed_instruction_count"),
+            Major = checked((ushort)reader.GetInt32(9)),
+            Minor = checked((ushort)reader.GetInt32(10)),
+            ReceiptDetail = checked((uint)reader.GetInt64(11)),
+            Status = ReadStatus(reader, 12, "status"),
+        };
+        LaplaceIsaStatus status = receipt.Status;
+        LaplaceIsaError error = new()
+        {
+            Status = ReadStatus(reader, 13, "error_status"),
+            InstructionIndex = ReadUInt64Numeric(
+                reader, 14, "error_instruction_index"),
+            ValueIndex = checked((uint)reader.GetInt64(15)),
+        };
+
+        if (reader.Read())
+        {
+            throw new InvalidDataException(
+                "PostgreSQL ISA transport returned more than one result row.");
+        }
+
+        return new LaplaceIsaExecution<TOutput>(
+            output,
+            outputCount,
+            status,
+            receipt,
+            error);
+    }
+
+    private static void AddParameter(
+        DbCommand command,
+        string name,
+        object value)
+    {
+        DbParameter parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
+
+    private static LaplaceDigest256 ReadDigest(
+        DbDataReader reader,
+        int ordinal,
+        string field)
+    {
+        byte[] bytes = reader.GetFieldValue<byte[]>(ordinal);
+        if (bytes.Length != checked((int)LaplaceIsaContract.ReceiptDigestBytes))
+        {
+            throw new InvalidDataException(
+                $"PostgreSQL ISA transport {field} has {bytes.Length} bytes, " +
+                $"expected {LaplaceIsaContract.ReceiptDigestBytes}.");
+        }
+        return MemoryMarshal.Read<LaplaceDigest256>(bytes);
+    }
+
+    private static ulong ReadUInt64BigInt(
+        DbDataReader reader,
+        int ordinal,
+        string field)
+    {
+        long value = reader.GetInt64(ordinal);
+        if (value < 0)
+        {
+            throw new InvalidDataException(
+                $"PostgreSQL ISA transport {field} cannot be negative.");
+        }
+        return checked((ulong)value);
+    }
+
+    private static ulong ReadUInt64Numeric(
+        DbDataReader reader,
+        int ordinal,
+        string field)
+    {
+        decimal value = reader.GetDecimal(ordinal);
+        if (value < 0 || value > ulong.MaxValue || decimal.Truncate(value) != value)
+        {
+            throw new InvalidDataException(
+                $"PostgreSQL ISA transport {field} is not an unsigned 64-bit integer.");
+        }
+        return decimal.ToUInt64(value);
+    }
+
+    private static LaplaceIsaStatus ReadStatus(
+        DbDataReader reader,
+        int ordinal,
+        string field)
+    {
+        int value = reader.GetInt32(ordinal);
+        if (value < 0 || value > (int)LaplaceIsaStatus.ResourceInsufficient)
+        {
+            throw new InvalidDataException(
+                $"PostgreSQL ISA transport {field} is outside the ISA status range.");
+        }
+        return (LaplaceIsaStatus)value;
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref disposed, 1) == 0 && ownsDataSource)
+        {
+            dataSource.Dispose();
+        }
+    }
 }
