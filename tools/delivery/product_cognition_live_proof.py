@@ -86,24 +86,71 @@ def compile_firmware(executable: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     }
 
 
-def context_sql(identities: dict[str, Any], program_id: str) -> str:
-    epoch_names = [
-        "source_epoch",
-        "identity_epoch",
-        "geometry_epoch",
-        "evidence_epoch",
-        None,
-        "dependency_epoch",
-        "database_epoch",
-        "perfcache_epoch",
-        "numeric_epoch",
-        "package_epoch",
+def active_epoch_state(
+    plan: dict[str, Any],
+    cluster: dict[str, Any],
+    unicode_receipt: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    sql = """
+SELECT pg_catalog.json_build_object(
+    'unicode_present', u.active_present,
+    'perfcache_epoch', pg_catalog.encode(u.epoch_fingerprint,'hex'),
+    'highway_present', h.active_present,
+    'numeric_epoch', pg_catalog.encode(h.activation_epoch_fingerprint,'hex')
+)::text
+FROM laplace.perfcache_active_control AS u
+CROSS JOIN laplace.highway_registry_active_control AS h
+WHERE u.singleton AND h.singleton;
+"""
+    state, command = r.runner_sql(
+        plan,
+        cluster,
+        sql,
+        "observe-installed-cognition-active-epochs",
+        "laplace-runner",
+        cluster["instance"]["admin_role"],
+        60,
+    )
+    if not isinstance(state, dict):
+        raise RuntimeError("installed cognition active epoch state is not one JSON object")
+    perfcache_epoch = state.get("perfcache_epoch")
+    numeric_epoch = state.get("numeric_epoch")
+    if (
+        state.get("unicode_present") is not True
+        or state.get("highway_present") is not True
+        or not isinstance(perfcache_epoch, str)
+        or HEX256.fullmatch(perfcache_epoch) is None
+        or not isinstance(numeric_epoch, str)
+        or HEX256.fullmatch(numeric_epoch) is None
+    ):
+        raise RuntimeError("installed cognition requires active Unicode and Highway epochs")
+    if perfcache_epoch != unicode_receipt.get("activation_epoch_fingerprint"):
+        raise RuntimeError("live Unicode perfcache epoch differs from its activation receipt")
+    return state, command
+
+
+def context_sql(
+    identities: dict[str, Any],
+    program_id: str,
+    perfcache_epoch: str,
+    numeric_epoch: str,
+) -> str:
+    epoch_values = [
+        ("source_epoch", identities["source_epoch"]),
+        ("identity_epoch", identities["identity_epoch"]),
+        ("geometry_epoch", identities["geometry_epoch"]),
+        ("evidence_epoch", identities["evidence_epoch"]),
+        ("firmware_epoch", program_id),
+        ("dependency_epoch", identities["dependency_epoch"]),
+        ("database_epoch", identities["database_epoch"]),
+        ("perfcache_epoch", perfcache_epoch),
+        ("numeric_epoch", numeric_epoch),
+        ("package_epoch", identities["package_epoch"]),
     ]
     epochs: list[str] = []
-    for name in epoch_names:
-        value = program_id if name is None else identities[name]
+    for name, value in epoch_values:
         if not isinstance(value, str) or HEX256.fullmatch(value) is None:
-            raise RuntimeError(f"invalid execution epoch: {name or 'firmware_epoch'}")
+            raise RuntimeError(f"invalid execution epoch: {name}")
         epochs.append(bytea_literal(value))
     authority = identities["authority_fingerprint"]
     if not isinstance(authority, str) or HEX256.fullmatch(authority) is None:
@@ -200,6 +247,9 @@ def prove(output: Path) -> None:
         cluster, unicode_contract, unicode_receipt, Path("/")
     )
     h.validate_unicode_receipt(unicode_receipt, {"package_id": package_id}, identities)
+    runtime_epochs, epoch_command_receipt = active_epoch_state(
+        plan, cluster, unicode_receipt
+    )
 
     firmware, compiler_receipt = compile_firmware(
         active / "bin/laplace_cognition_firmware_compile"
@@ -210,7 +260,7 @@ def prove(output: Path) -> None:
     sql = f"""
 SELECT pg_catalog.row_to_json(result)::text
 FROM laplace.cognition_firmware_execute_product(
-    {context_sql(identities, program_id)},
+    {context_sql(identities, program_id, runtime_epochs['perfcache_epoch'], runtime_epochs['numeric_epoch'])},
     {bytea_literal(firmware['image_hex'])},
     pg_catalog.convert_from({bytea_literal(prompt_hex)}, 'UTF8'),
     {prompt_scope_sql(identities)},
@@ -231,7 +281,14 @@ FROM laplace.cognition_firmware_execute_product(
     if not isinstance(result, dict):
         raise RuntimeError("installed cognition route did not return one JSON result")
 
+    print(
+        json.dumps({"installed_cognition_raw_result": result}, sort_keys=True),
+        flush=True,
+    )
     status = result.get("status")
+    if status != 0:
+        raise RuntimeError(f"installed cognition returned status {status}: {result}")
+
     output_hex = bytea_hex(result.get("output"), "output")
     returned_program = bytea_hex(result.get("program_id"), "program_id")
     receipt_hex = bytea_hex(result.get("execution_receipt_id"), "execution_receipt_id")
@@ -245,8 +302,6 @@ FROM laplace.cognition_firmware_execute_product(
     trunk = bytea_hex(result.get("trunk_entity_id"), "trunk_entity_id")
 
     observed_output = bytes.fromhex(output_hex)
-    if status != 0:
-        raise RuntimeError(f"installed cognition returned status {status}: {result}")
     if returned_program != program_id:
         raise RuntimeError("executed program does not match installed compiled firmware")
     if observed_output != b"A":
@@ -277,6 +332,8 @@ FROM laplace.cognition_firmware_execute_product(
         "package_id": package_id,
         "system_identifier": loaded["system_identifier"],
         "postmaster_pid": loaded["postmaster_pid"],
+        "runtime_epochs": runtime_epochs,
+        "runtime_epoch_command_receipt": epoch_command_receipt,
         "program": firmware,
         "compiler_receipt": compiler_receipt,
         "prompt_utf8": prompt,
