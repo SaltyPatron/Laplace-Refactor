@@ -1,5 +1,6 @@
 -- Public PostgreSQL runtime surface for native cognition operator construction and solve.
--- Typed target compilation accepts whole QK/VO job sets and returns generated consumer weights.
+-- Typed target compilation accepts whole QK/VO job sets, derives consumer weights,
+-- and can emit the exact projected E/Q/K/V/O SafeTensors artifact.
 
 CREATE TYPE laplace.cognition_operator_program AS (
     program_id bytea,
@@ -136,6 +137,29 @@ CREATE TYPE laplace.target_attention_compile_result AS (
     projection_status integer
 );
 
+CREATE TYPE laplace.target_attention_export_result AS (
+    artifact bytea,
+    artifact_id bytea,
+    compile_receipt_id bytea,
+    compile_request_fingerprint bytea,
+    projection_id bytea,
+    embedding_fingerprint bytea,
+    head_set_fingerprint bytea,
+    byte_count numeric(20, 0),
+    header_byte_count numeric(20, 0),
+    data_byte_count numeric(20, 0),
+    tensor_count numeric(20, 0),
+    head_count numeric(20, 0),
+    field_count numeric(20, 0),
+    hidden_width numeric(20, 0),
+    semantic_basis_rank numeric(20, 0),
+    null_basis_rank numeric(20, 0),
+    max_relative_residual double precision,
+    compile_status integer,
+    projection_status integer,
+    codec_status integer
+);
+
 CREATE FUNCTION laplace.cognition_solve(
     laplace.execution_context,
     laplace.cognition_operator_program,
@@ -168,6 +192,20 @@ RETURNS laplace.target_attention_compile_result
 AS 'MODULE_PATHNAME', 'laplace_pg_target_attention_compile'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION laplace.target_attention_export(
+    laplace.execution_context,
+    bytea,
+    bytea,
+    bytea,
+    bytea,
+    laplace.target_operator_job[],
+    numeric(20, 0),
+    double precision,
+    boolean)
+RETURNS laplace.target_attention_export_result
+AS 'MODULE_PATHNAME', 'laplace_pg_target_attention_export'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 REVOKE EXECUTE ON FUNCTION laplace.cognition_solve(
     laplace.execution_context,
     laplace.cognition_operator_program,
@@ -183,6 +221,18 @@ REVOKE EXECUTE ON FUNCTION laplace.cognition_execute_packet(
 FROM PUBLIC;
 
 REVOKE EXECUTE ON FUNCTION laplace.target_attention_compile(
+    laplace.execution_context,
+    bytea,
+    bytea,
+    bytea,
+    bytea,
+    laplace.target_operator_job[],
+    numeric(20, 0),
+    double precision,
+    boolean)
+FROM PUBLIC;
+
+REVOKE EXECUTE ON FUNCTION laplace.target_attention_export(
     laplace.execution_context,
     bytea,
     bytea,
