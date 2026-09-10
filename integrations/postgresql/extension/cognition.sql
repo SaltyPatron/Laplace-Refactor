@@ -95,6 +95,28 @@ CREATE TYPE laplace.cognition_packet_result AS (
     request_word_count bigint
 );
 
+-- Universal managed/PostgreSQL transport.  This carries one generated typed ISA
+-- operation as native bytes and metadata; PostgreSQL does not select or
+-- reimplement operation semantics.
+CREATE TYPE laplace.isa_batch_transport_result AS (
+    output_bytes bytea,
+    output_count bigint,
+    receipt_id bytea,
+    context_fingerprint bytea,
+    program_fingerprint bytea,
+    input_fingerprint bytea,
+    output_fingerprint bytea,
+    instruction_count bigint,
+    executed_instruction_count bigint,
+    isa_major integer,
+    isa_minor integer,
+    receipt_detail bigint,
+    status integer,
+    error_status integer,
+    error_instruction_index numeric(20, 0),
+    error_value_index bigint
+);
+
 CREATE TYPE laplace.target_operator_job AS (
     target_role integer,
     layer_index integer,
@@ -166,6 +188,24 @@ RETURNS bytea
 AS 'MODULE_PATHNAME', 'laplace_pg_execution_context_fingerprint'
 LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+CREATE FUNCTION laplace.isa_execute_batch(
+    bytea,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bytea,
+    bigint,
+    bigint,
+    boolean)
+RETURNS laplace.isa_batch_transport_result
+AS 'MODULE_PATHNAME', 'laplace_pg_isa_execute_batch'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 CREATE FUNCTION laplace.cognition_solve(
     laplace.execution_context,
     laplace.cognition_operator_program,
@@ -216,6 +256,22 @@ REVOKE EXECUTE ON FUNCTION laplace.execution_context_fingerprint(
     laplace.execution_context)
 FROM PUBLIC;
 
+REVOKE EXECUTE ON FUNCTION laplace.isa_execute_batch(
+    bytea,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bytea,
+    bigint,
+    bigint,
+    boolean)
+FROM PUBLIC;
+
 REVOKE EXECUTE ON FUNCTION laplace.cognition_solve(
     laplace.execution_context,
     laplace.cognition_operator_program,
@@ -261,6 +317,7 @@ DO $laplace_model_export_application_grant$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'laplace_app') THEN
         EXECUTE 'GRANT EXECUTE ON FUNCTION laplace.execution_context_fingerprint(laplace.execution_context) TO laplace_app';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION laplace.isa_execute_batch(bytea, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bytea, bigint, bigint, boolean) TO laplace_app';
         EXECUTE 'GRANT EXECUTE ON FUNCTION laplace.target_attention_export(laplace.execution_context, bytea, bytea, bytea, bytea, laplace.target_operator_job[], numeric, double precision, boolean) TO laplace_app';
     END IF;
 END

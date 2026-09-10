@@ -220,6 +220,11 @@
     "postgresql": {
       "schema": "laplace",
       "module": "laplace_pg",
+      "isa_execute_batch": {
+        "execute_sql_name": "isa_execute_batch",
+        "execute_c_symbol": "laplace_pg_isa_execute_batch",
+        "result_type": "isa_batch_transport_result"
+      },
       "identity_codepoint_batch": {
         "calculate_sql_name": "identity_codepoint_calculate_batch",
         "calculate_c_symbol": "laplace_pg_identity_codepoint_calculate_batch",

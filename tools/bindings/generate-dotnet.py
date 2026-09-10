@@ -68,6 +68,10 @@ def render(contract_bytes: bytes) -> bytes:
     receipt = require_mapping(contract.get("receipt"), "receipt")
     bindings = require_mapping(contract.get("bindings"), "bindings")
     dotnet = require_mapping(bindings.get("dotnet"), "bindings.dotnet")
+    postgresql = require_mapping(bindings.get("postgresql"), "bindings.postgresql")
+    postgresql_isa_execute = require_mapping(
+        postgresql.get("isa_execute_batch"), "bindings.postgresql.isa_execute_batch"
+    )
     managed_types = require_mapping(dotnet.get("value_types"), "bindings.dotnet.value_types")
     declarations = require_mapping(
         dotnet.get("operation_declarations"),
@@ -78,6 +82,21 @@ def render(contract_bytes: bytes) -> bytes:
     target_framework = dotnet.get("target_framework")
     native_library = dotnet.get("native_library")
     execute_symbol = dotnet.get("execute_symbol")
+    postgresql_schema = require_identifier(
+        postgresql.get("schema"), "bindings.postgresql.schema"
+    )
+    postgresql_execute_sql = require_identifier(
+        postgresql_isa_execute.get("execute_sql_name"),
+        "bindings.postgresql.isa_execute_batch.execute_sql_name",
+    )
+    require_identifier(
+        postgresql_isa_execute.get("execute_c_symbol"),
+        "bindings.postgresql.isa_execute_batch.execute_c_symbol",
+    )
+    postgresql_result_type = require_identifier(
+        postgresql_isa_execute.get("result_type"),
+        "bindings.postgresql.isa_execute_batch.result_type",
+    )
     if target_framework != "net10.0":
         fail("bindings.dotnet.target_framework must be net10.0")
     for value, name in (
@@ -199,6 +218,13 @@ def render(contract_bytes: bytes) -> bytes:
         f"    public const string NativeLibrary = {csharp_string(native_library)};",
         f"    public const string ExecuteSymbol = {csharp_string(execute_symbol)};",
         f"    public const string TargetFramework = {csharp_string(target_framework)};",
+        f"    public const string PostgreSqlSchema = {csharp_string(postgresql_schema)};",
+        "    public const string PostgreSqlExecuteBatchFunction = "
+        + csharp_string(postgresql_execute_sql)
+        + ";",
+        "    public const string PostgreSqlExecuteBatchResultType = "
+        + csharp_string(postgresql_result_type)
+        + ";",
         "",
         "    private static readonly LaplaceValueTypeDescriptor[] ValueTypeStorage =",
         "    [",
