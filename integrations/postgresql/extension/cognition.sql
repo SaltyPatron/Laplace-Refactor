@@ -160,6 +160,12 @@ CREATE TYPE laplace.target_attention_export_result AS (
     codec_status integer
 );
 
+CREATE FUNCTION laplace.execution_context_fingerprint(
+    laplace.execution_context)
+RETURNS bytea
+AS 'MODULE_PATHNAME', 'laplace_pg_execution_context_fingerprint'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
 CREATE FUNCTION laplace.cognition_solve(
     laplace.execution_context,
     laplace.cognition_operator_program,
@@ -205,6 +211,10 @@ CREATE FUNCTION laplace.target_attention_export(
 RETURNS laplace.target_attention_export_result
 AS 'MODULE_PATHNAME', 'laplace_pg_target_attention_export'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE EXECUTE ON FUNCTION laplace.execution_context_fingerprint(
+    laplace.execution_context)
+FROM PUBLIC;
 
 REVOKE EXECUTE ON FUNCTION laplace.cognition_solve(
     laplace.execution_context,
