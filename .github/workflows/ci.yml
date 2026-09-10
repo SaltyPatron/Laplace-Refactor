@@ -133,12 +133,13 @@ jobs:
             --output "$extracted" \
             --receipt "$receipt" \
             --acquire
-          jq -e '
+          expected_selected_sha="$(jq -r '.selected_member.sha256' contracts/sources/unicode-17-ucdxml.json)"
+          jq -e --arg expected_selected_sha "$expected_selected_sha" '
             .schema == "laplace.source-artifact-admission-receipt/v1" and
             .source_class == "foundational_seed" and
             .evidence_source_type == "standard" and
             .selected_member.name == "ucd.all.grouped.xml" and
-            .selected_member.sha256 == "b40907541f68f6cee76d2f2631f6371fb2f16c7496ea8bfbac30ad6ea9fdc117"
+            .selected_member.sha256 == $expected_selected_sha
           ' "$receipt"
           printf 'LAPLACE_UCDXML_SOURCE=%s\n' "$extracted" >> "$GITHUB_ENV"
           printf 'LAPLACE_UCDXML_ADMISSION_RECEIPT=%s\n' "$receipt" >> "$GITHUB_ENV"
