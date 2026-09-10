@@ -218,6 +218,110 @@ static ArrayType* profile_ids(
         values, (int)profile_count, BYTEAOID, -1, false, TYPALIGN_INT);
 }
 
+static void source_profile_binding_open(laplace_pg_composite_binding* binding) {
+    Oid types[51];
+    int32 typmods[51];
+    int index;
+    for (index = 0; index < 51; ++index) {
+        types[index] = BYTEAOID;
+        typmods[index] = LAPLACE_PG_TYPMOD_NONE;
+    }
+    types[1] = INT4OID;
+    types[6] = NUMERICOID;
+    typmods[6] = LAPLACE_PG_NUMERIC_TYPMOD(20, 0);
+    for (index = 19; index <= 48; ++index) {
+        types[index] = NUMERICOID;
+        typmods[index] = LAPLACE_PG_NUMERIC_TYPMOD(20, 0);
+    }
+    types[49] = INT4OID;
+    types[50] = INT4OID;
+    laplace_pg_composite_binding_open(
+        "source_profile_manifest", types, typmods, 51, binding);
+}
+
+static Datum source_profile_record(
+    const laplace_pg_composite_binding* binding,
+    const laplace_source_profile_manifest* profile) {
+    Datum fields[51];
+    bool nulls[51] = {false};
+    const laplace_digest256* fingerprints[12] = {
+        &profile->authority_release_fingerprint,
+        &profile->license_fingerprint,
+        &profile->artifact_graph_fingerprint,
+        &profile->syntax_authority_fingerprint,
+        &profile->recipe_program_fingerprint,
+        &profile->universal_ast_mapping_fingerprint,
+        &profile->highway_references_fingerprint,
+        &profile->epistemic_witnessing_fingerprint,
+        &profile->denominator_declaration_fingerprint,
+        &profile->conformance_fingerprint,
+        &profile->completion_law_fingerprint,
+        &profile->selected_boundary_fingerprint};
+    const uint64_t counts[30] = {
+        profile->byte_count, profile->container_count, profile->member_count,
+        profile->file_count, profile->record_count, profile->field_count,
+        profile->syntax_node_count, profile->span_count, profile->edge_count,
+        profile->reference_count, profile->occurrence_count,
+        profile->claim_count, profile->mapping_count, profile->error_count,
+        profile->unknown_count, profile->transformation_count,
+        profile->output_count, profile->closure_subject_count,
+        profile->accepted_count, profile->rejected_count,
+        profile->duplicate_count, profile->reused_count,
+        profile->transformed_count, profile->lossy_count,
+        profile->unsupported_count, profile->malformed_count,
+        profile->unresolved_count, profile->persisted_count,
+        profile->derived_count, profile->not_applicable_mask};
+    size_t index;
+    fields[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        profile->profile_id.bytes, 32u));
+    fields[1] = Int32GetDatum((int32)profile->coordinate.kind);
+    fields[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        profile->coordinate.authority.bytes, 16u));
+    fields[3] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        profile->coordinate.release.bytes, 16u));
+    fields[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        profile->coordinate.name_space.bytes, 16u));
+    fields[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        profile->coordinate.local_identifier.bytes, 16u));
+    fields[6] = laplace_pg_numeric_from_uint64(profile->coordinate.version);
+    for (index = 0u; index < 12u; ++index) {
+        fields[7u + index] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            fingerprints[index]->bytes, 32u));
+    }
+    for (index = 0u; index < 30u; ++index) {
+        fields[19u + index] = laplace_pg_numeric_from_uint64(counts[index]);
+    }
+    fields[49] = Int32GetDatum((int32)profile->reconstruction_class);
+    fields[50] = Int32GetDatum((int32)profile->flags);
+    return laplace_pg_composite_record(binding, fields, nulls);
+}
+
+static ArrayType* profile_records_array(
+    const laplace_source_profile_manifest* profiles,
+    size_t profile_count,
+    Oid* array_oid) {
+    laplace_pg_composite_binding binding;
+    Datum* rows;
+    ArrayType* result;
+    size_t index;
+    if (profiles == NULL || profile_count == 0u || array_oid == NULL ||
+        profile_count > (size_t)INT_MAX) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace source-profile native batch is invalid")));
+    }
+    rows = (Datum*)palloc(sizeof(*rows) * profile_count);
+    source_profile_binding_open(&binding);
+    for (index = 0u; index < profile_count; ++index) {
+        rows[index] = source_profile_record(&binding, &profiles[index]);
+    }
+    result = laplace_pg_composite_array(
+        &binding, rows, (uint64_t)profile_count);
+    *array_oid = binding.array_oid;
+    laplace_pg_composite_binding_close(&binding);
+    return result;
+}
+
 static void persist_source_profiles(
     Oid input_array_type,
     Datum input_array,
@@ -313,28 +417,33 @@ static void persist_source_profiles(
     }
 }
 
-Datum LAPLACE_PG_SOURCE_PROFILE_ENTRYPOINT(PG_FUNCTION_ARGS) {
-    laplace_framework_context context;
-    ArrayType* input_array = PG_GETARG_ARRAYTYPE_P(1);
-    const Oid input_array_type = get_array_type(ARR_ELEMTYPE(input_array));
-    laplace_source_profile_manifest* profiles;
-    size_t profile_count = 0u;
+void laplace_pg_source_profile_execute_and_persist(
+    const laplace_framework_context* context,
+    const laplace_source_profile_manifest* profiles,
+    size_t profile_count,
+    laplace_pg_source_profile_execution* result) {
     laplace_source_profile_receipt semantic_receipt;
     laplace_source_profile_receipt output_receipt;
     laplace_source_profile_error semantic_error;
     laplace_isa_value_view values[2];
     laplace_isa_instruction instruction;
     laplace_isa_program program;
-    laplace_isa_receipt isa_receipt;
     laplace_isa_error isa_error;
-    Datum result_values[13];
-    bool result_nulls[13] = {false};
-    HeapTuple result_tuple;
-    laplace_pg_read_execution_context(PG_GETARG_DATUM(0), &context);
-    profiles = read_profiles(input_array, &profile_count);
+    ArrayType* durable_profiles;
+    Oid durable_array_oid;
+
+    if (context == NULL || profiles == NULL || profile_count == 0u ||
+        result == NULL ||
+        laplace_framework_context_validate(context) != LAPLACE_FRAMEWORK_OK) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace native source-profile execution input is invalid")));
+    }
+
+    memset(result, 0, sizeof(*result));
     memset(&output_receipt, 0, sizeof(output_receipt));
     memset(values, 0, sizeof(values));
-    values[0].data = profiles;
+    values[0].data = (void*)profiles;
     values[0].count = (uint64_t)profile_count;
     values[0].capacity = (uint64_t)profile_count;
     values[0].stride_bytes = sizeof(*profiles);
@@ -350,15 +459,16 @@ Datum LAPLACE_PG_SOURCE_PROFILE_ENTRYPOINT(PG_FUNCTION_ARGS) {
     memset(&program, 0, sizeof(program));
     program.instructions = &instruction;
     program.values = values;
-    program.context = &context;
+    program.context = context;
     program.instruction_count = 1u;
     program.value_count = 2u;
     program.major = LAPLACE_ISA_MAJOR;
     program.minor = LAPLACE_ISA_MINOR;
     program.receipt_detail = LAPLACE_ISA_RECEIPT_DETAIL_FULL;
-    memset(&isa_receipt, 0, sizeof(isa_receipt));
+    memset(&result->isa_receipt, 0, sizeof(result->isa_receipt));
     memset(&isa_error, 0, sizeof(isa_error));
-    if (laplace_isa_execute(&program, &isa_receipt, &isa_error) != LAPLACE_ISA_OK) {
+    if (laplace_isa_execute(
+            &program, &result->isa_receipt, &isa_error) != LAPLACE_ISA_OK) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
                  errmsg("Laplace source-profile ISA execution failed"),
@@ -366,6 +476,7 @@ Datum LAPLACE_PG_SOURCE_PROFILE_ENTRYPOINT(PG_FUNCTION_ARGS) {
                            (int)isa_error.status,
                            (unsigned long long)isa_error.instruction_index)));
     }
+
     memset(&semantic_receipt, 0, sizeof(semantic_receipt));
     memset(&semantic_error, 0, sizeof(semantic_error));
     if (laplace_source_profile_validate_batch(
@@ -376,33 +487,58 @@ Datum LAPLACE_PG_SOURCE_PROFILE_ENTRYPOINT(PG_FUNCTION_ARGS) {
                 (errcode(ERRCODE_DATA_EXCEPTION),
                  errmsg("Laplace source-profile semantic receipt reconstruction failed")));
     }
+    result->semantic_receipt = semantic_receipt;
+
     laplace_pg_persist_execution_receipt(
-        &isa_receipt, profile_count, instruction.opcode);
+        &result->isa_receipt, profile_count, instruction.opcode);
+    durable_profiles = profile_records_array(
+        profiles, profile_count, &durable_array_oid);
     persist_source_profiles(
-        input_array_type, PointerGetDatum(input_array),
-        &semantic_receipt, &isa_receipt);
+        durable_array_oid, PointerGetDatum(durable_profiles),
+        &result->semantic_receipt, &result->isa_receipt);
+}
+
+Datum LAPLACE_PG_SOURCE_PROFILE_ENTRYPOINT(PG_FUNCTION_ARGS) {
+    laplace_framework_context context;
+    ArrayType* input_array = PG_GETARG_ARRAYTYPE_P(1);
+    laplace_source_profile_manifest* profiles;
+    size_t profile_count = 0u;
+    laplace_pg_source_profile_execution execution;
+    Datum result_values[13];
+    bool result_nulls[13] = {false};
+    HeapTuple result_tuple;
+
+    laplace_pg_read_execution_context(PG_GETARG_DATUM(0), &context);
+    profiles = read_profiles(input_array, &profile_count);
+    memset(&execution, 0, sizeof(execution));
+    laplace_pg_source_profile_execute_and_persist(
+        &context, profiles, profile_count, &execution);
+
     result_values[0] = PointerGetDatum(profile_ids(profiles, profile_count));
     result_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        semantic_receipt.receipt_id.bytes, 32u));
+        execution.semantic_receipt.receipt_id.bytes, 32u));
     result_values[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        semantic_receipt.selected_boundary_fingerprint.bytes, 32u));
+        execution.semantic_receipt.selected_boundary_fingerprint.bytes, 32u));
     result_values[3] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        semantic_receipt.input_fingerprint.bytes, 32u));
+        execution.semantic_receipt.input_fingerprint.bytes, 32u));
     result_values[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        semantic_receipt.output_fingerprint.bytes, 32u));
+        execution.semantic_receipt.output_fingerprint.bytes, 32u));
     result_values[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        isa_receipt.receipt_id.bytes, 32u));
-    result_values[6] = laplace_pg_numeric_from_uint64(semantic_receipt.profile_count);
+        execution.isa_receipt.receipt_id.bytes, 32u));
+    result_values[6] = laplace_pg_numeric_from_uint64(
+        execution.semantic_receipt.profile_count);
     result_values[7] = laplace_pg_numeric_from_uint64(
-        semantic_receipt.closure_subject_count);
-    result_values[8] = laplace_pg_numeric_from_uint64(semantic_receipt.persisted_count);
-    result_values[9] = laplace_pg_numeric_from_uint64(semantic_receipt.negative_count);
+        execution.semantic_receipt.closure_subject_count);
+    result_values[8] = laplace_pg_numeric_from_uint64(
+        execution.semantic_receipt.persisted_count);
+    result_values[9] = laplace_pg_numeric_from_uint64(
+        execution.semantic_receipt.negative_count);
     result_values[10] = laplace_pg_numeric_from_uint64(
-        semantic_receipt.exact_reconstruction_count);
+        execution.semantic_receipt.exact_reconstruction_count);
     result_values[11] = laplace_pg_numeric_from_uint64(
-        semantic_receipt.semantic_reconstruction_count);
+        execution.semantic_receipt.semantic_reconstruction_count);
     result_values[12] = laplace_pg_numeric_from_uint64(
-        semantic_receipt.no_reconstruction_count);
+        execution.semantic_receipt.no_reconstruction_count);
     result_tuple = laplace_pg_form_result_tuple(
         fcinfo, result_values, result_nulls, 13);
     PG_RETURN_DATUM(HeapTupleGetDatum(result_tuple));
