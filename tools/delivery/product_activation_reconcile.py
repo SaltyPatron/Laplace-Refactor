@@ -41,6 +41,7 @@ release_capacity = _load(
 
 fresh_activate_product = runner.clusterctl.activate_product
 fresh_install_package = runner.clusterctl.install_package
+fresh_reconcile_indexed_cognition = runner.reconcile_indexed_cognition
 
 
 def install_package_with_capacity(
@@ -78,6 +79,133 @@ def install_package_with_capacity(
     )
 
 
+def reconcile_indexed_cognition_after_generation_upgrade(
+    plan: dict[str, Any], cluster_contract: dict[str, Any], package: dict[str, Any]
+) -> dict[str, Any]:
+    """Accept the indexed-cognition predecessor or its proved 1.0.2 successor.
+
+    ``upgrade_product`` may advance an existing persistent extension through 1.0.1
+    to 1.0.2 before the legacy runner reaches its indexed-cognition reconciliation
+    step. Re-entering that step must verify the inherited native bindings/indexes,
+    not reject the already-upgraded product or attempt a downgrade.
+    """
+
+    version_sql = """
+SELECT pg_catalog.json_build_object('version', extversion, 'owner', current_user)::text
+  FROM pg_catalog.pg_extension
+ WHERE extname = 'laplace';
+"""
+    current, _ = runner.runner_sql(
+        plan,
+        cluster_contract,
+        version_sql,
+        "observe-indexed-cognition-version",
+        runner.RUNNER_USER,
+        cluster_contract["instance"]["admin_role"],
+        60,
+    )
+    if current.get("version") != "1.0.2":
+        return fresh_reconcile_indexed_cognition(plan, cluster_contract, package)
+
+    relative = (
+        f"pgsql-{plan['postgresql_major']}/share/extension/"
+        "laplace--1.0.0--1.0.1.sql"
+    )
+    path = Path(plan["package_root"]) / relative
+    entries = [item for item in package["files"] if item.get("path") == relative]
+    if (
+        len(entries) != 1
+        or entries[0].get("kind") != "file"
+        or path.is_symlink()
+        or not path.is_file()
+        or path.stat().st_size > 65536
+        or entries[0].get("sha256") != runner.clusterctl.sha256_file(path)
+    ):
+        raise runner.RunnerActivationError(
+            "packaged indexed cognition migration bytes differ"
+        )
+
+    sql = """BEGIN;
+SET LOCAL lock_timeout = '30s';
+SET LOCAL statement_timeout = '300s';
+DO $reconcile$
+DECLARE version text; owner name; target record;
+BEGIN
+    SELECT e.extversion, pg_catalog.pg_get_userbyid(e.extowner) INTO STRICT version, owner
+      FROM pg_catalog.pg_extension e WHERE e.extname='laplace';
+    IF owner <> current_user THEN RAISE EXCEPTION 'extension reconciliation requires its actual owner'; END IF;
+    IF version <> '1.0.2' THEN
+        RAISE EXCEPTION 'product cognition successor changed during reconciliation: %', version;
+    END IF;
+    FOR target IN SELECT * FROM (VALUES
+        ('laplace.trajectory_entity_ids(bytea)', 'laplace_pg_trajectory_entity_ids'),
+        ('laplace.cognition_observation_execute_persisted(laplace.execution_context,laplace.cognition_observation_request)',
+         'laplace_pg_cognition_observation_execute_persisted')) AS t(signature,symbol)
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_catalog.pg_proc p
+            JOIN pg_catalog.pg_language l ON l.oid=p.prolang
+            JOIN pg_catalog.pg_depend d ON d.classid='pg_catalog.pg_proc'::regclass AND d.objid=p.oid
+              AND d.refclassid='pg_catalog.pg_extension'::regclass AND d.deptype='e'
+            JOIN pg_catalog.pg_extension e ON e.oid=d.refobjid
+            WHERE p.oid=pg_catalog.to_regprocedure(target.signature) AND e.extname='laplace'
+              AND p.proowner=e.extowner AND l.lanname='c' AND p.probin='laplace_pg'
+              AND p.prosrc=target.symbol AND NOT p.prosecdef AND p.proisstrict
+        ) THEN RAISE EXCEPTION 'indexed cognition binding is not owned native extension code: %',target.signature;
+        END IF;
+    END LOOP;
+    IF (SELECT count(*) FROM pg_catalog.pg_index i
+        WHERE i.indexrelid IN ('laplace.physicality_constituent_lookup_idx'::regclass,
+                              'laplace.physicality_entity_lookup_idx'::regclass)
+          AND i.indisvalid AND i.indisready) <> 2 THEN
+        RAISE EXCEPTION 'indexed cognition indexes are not ready';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class c
+                   JOIN pg_catalog.pg_index i ON i.indexrelid=c.oid
+                   JOIN pg_catalog.pg_am a ON a.oid=c.relam
+                   WHERE c.oid='laplace.physicality_constituent_lookup_idx'::regclass
+                     AND i.indrelid='laplace.physicality'::regclass
+                     AND a.amname='gin' AND 'fastupdate=off'=ANY(c.reloptions)) THEN
+        RAISE EXCEPTION 'indexed cognition membership requires its maintained GIN posting tree';
+    END IF;
+END $reconcile$;
+SELECT pg_catalog.json_build_object('schema','laplace.indexed-cognition-upgrade/v1',
+    'version',extversion,'owner',current_user,'native_bindings',2,'ready_indexes',2)::text
+  FROM pg_catalog.pg_extension WHERE extname='laplace';
+COMMIT;
+"""
+    result, command = runner.runner_sql(
+        plan,
+        cluster_contract,
+        sql,
+        "reconcile-indexed-cognition-successor",
+        runner.RUNNER_USER,
+        cluster_contract["instance"]["admin_role"],
+        360,
+    )
+    expected = {
+        "schema": "laplace.indexed-cognition-upgrade/v1",
+        "version": "1.0.2",
+        "owner": cluster_contract["instance"]["admin_role"],
+        "native_bindings": 2,
+        "ready_indexes": 2,
+    }
+    if result != expected:
+        raise runner.RunnerActivationError(
+            "indexed cognition successor reconciliation result differs"
+        )
+    receipt = dict(
+        result,
+        package_id=package["package_id"],
+        script_sha256=entries[0]["sha256"],
+        command_receipt=command,
+    )
+    receipt["receipt_sha256"] = runner.document_identity(
+        receipt, "receipt_sha256"
+    )
+    return receipt
+
+
 def reconcile_cluster_activation(
     contract_path: Path,
     package_path: Path,
@@ -111,6 +239,7 @@ def reconcile_cluster_activation(
 
 runner.clusterctl.install_package = install_package_with_capacity
 runner.clusterctl.activate_product = reconcile_cluster_activation
+runner.reconcile_indexed_cognition = reconcile_indexed_cognition_after_generation_upgrade
 
 
 def main(argv: list[str] | None = None) -> int:
