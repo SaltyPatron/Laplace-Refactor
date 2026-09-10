@@ -214,7 +214,8 @@ def main() -> int:
             f"artifact byte count mismatch: expected={artifact['byte_count']} "
             f"actual={archive_bytes}")
     require(archive_sha == artifact["sha256"],
-            "artifact SHA-256 mismatch")
+            f"artifact SHA-256 mismatch: expected={artifact['sha256']} "
+            f"actual={archive_sha}")
 
     if selected is None:
         selected_bytes = source_path.read_bytes()
@@ -225,7 +226,8 @@ def main() -> int:
         selected_bytes = extract_exact_member(source_path, selected_name)
         selected_sha = sha256_bytes(selected_bytes)
         require(selected_sha == selected["sha256"],
-                "selected member SHA-256 mismatch")
+                f"selected member SHA-256 mismatch: expected={selected['sha256']} "
+                f"actual={selected_sha}")
 
     atomic_write(arguments.output, selected_bytes)
     recipe_sha = sha256_bytes(canonical_json(document))
