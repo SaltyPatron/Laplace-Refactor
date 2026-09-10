@@ -253,3 +253,15 @@ REVOKE EXECUTE ON FUNCTION laplace.target_attention_export(
     double precision,
     boolean)
 FROM PUBLIC;
+
+-- The installed product contract currently names laplace_app as the sole runtime
+-- application role.  Fresh product clusters create that role before CREATE EXTENSION.
+-- Disposable/test clusters intentionally omit it and retain owner-only execution.
+DO $laplace_model_export_application_grant$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'laplace_app') THEN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION laplace.execution_context_fingerprint(laplace.execution_context) TO laplace_app';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION laplace.target_attention_export(laplace.execution_context, bytea, bytea, bytea, bytea, laplace.target_operator_job[], numeric, double precision, boolean) TO laplace_app';
+    END IF;
+END
+$laplace_model_export_application_grant$;
