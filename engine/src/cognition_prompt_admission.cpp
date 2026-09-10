@@ -1,7 +1,5 @@
 #include "laplace/cognition_prompt_admission.h"
-#include <mutex>
-
-#include "laplace/identity.h"
+#include "laplace/content_admission.h"
 
 #include "blake3.h"
 
@@ -9,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <new>
 #include <vector>
 
@@ -79,7 +78,9 @@ laplace_digest256 ExactBytesFingerprint(
     blake3_hasher_update(
         &hasher, ExactBytesDomain, sizeof(ExactBytesDomain) - 1U);
     HashU64(&hasher, static_cast<std::uint64_t>(byte_count));
-    blake3_hasher_update(&hasher, bytes, byte_count);
+    if (byte_count != 0U) {
+        blake3_hasher_update(&hasher, bytes, byte_count);
+    }
     Finish(&hasher, &output);
     return output;
 }
@@ -115,20 +116,6 @@ bool InputValid(const laplace_cognition_prompt_admission_input& input) {
         !DigestZero(input.geometry_epoch) &&
         !DigestZero(input.occurrence_context_fingerprint) &&
         ScopeValid(input.occurrence);
-}
-
-bool KnownAtomValid(
-    const std::uint32_t position,
-    const laplace_composition_known_entity& known) {
-    laplace_id128 expected_id{};
-    laplace_digest256 expected_witness{};
-    return known.atom == position && known.has_atom == 1U &&
-        known.tier_floor == 0U && known.reserved == 0U &&
-        !DigestZero(known.physicality_id) &&
-        laplace_identity_codepoint_witness(
-            position, &expected_id, &expected_witness) == LAPLACE_IDENTITY_OK &&
-        SameId(known.entity_id, expected_id) &&
-        SameDigest(known.identity_witness, expected_witness);
 }
 
 laplace_digest256 OccurrenceId(
@@ -186,6 +173,36 @@ laplace_digest256 AdmissionReceipt(
     return output;
 }
 
+laplace_cognition_prompt_admission_status MapContentStatus(
+    const laplace_content_admission_status status) {
+    switch (status) {
+        case LAPLACE_CONTENT_ADMISSION_OK:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_OK;
+        case LAPLACE_CONTENT_ADMISSION_INVALID_VERSION:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_INVALID_VERSION;
+        case LAPLACE_CONTENT_ADMISSION_DECOMPOSITION_FAILURE:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_DECOMPOSITION_FAILURE;
+        case LAPLACE_CONTENT_ADMISSION_COMPOSITION_PLAN_FAILURE:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_PLAN_FAILURE;
+        case LAPLACE_CONTENT_ADMISSION_ATOM_PROVIDER_FAILURE:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_ATOM_PROVIDER_FAILURE;
+        case LAPLACE_CONTENT_ADMISSION_ATOM_PROVIDER_INVALID:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_ATOM_PROVIDER_INVALID;
+        case LAPLACE_CONTENT_ADMISSION_COMPOSITION_FAILURE:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_FAILURE;
+        case LAPLACE_CONTENT_ADMISSION_PRESENCE_FAILURE:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_PRESENCE_FAILURE;
+        case LAPLACE_CONTENT_ADMISSION_ROOT_INVALID:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_ROOT_INVALID;
+        case LAPLACE_CONTENT_ADMISSION_MEMORY_FAILURE:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_MEMORY_FAILURE;
+        case LAPLACE_CONTENT_ADMISSION_NO_PUBLICATION_REQUIRED:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_NO_PUBLICATION_REQUIRED;
+        default:
+            return LAPLACE_COGNITION_PROMPT_ADMISSION_INVALID_ARGUMENT;
+    }
+}
+
 }  // namespace
 
 namespace laplace_cognition_prompt_structural_detail {
@@ -194,9 +211,10 @@ void DestroyIndex(RetainedIndex* index);
 }
 
 struct laplace_cognition_prompt_admission {
-    laplace_decomposition_result* decomposition{};
-    laplace_decomposition_composition_plan* composition_plan{};
-    laplace_composition_working_set* working_set{};
+    laplace_content_admission* content{};
+    const laplace_decomposition_result* decomposition{};
+    const laplace_decomposition_composition_plan* composition_plan{};
+    const laplace_composition_working_set* working_set{};
     std::vector<laplace_composition_known_entity> known_entities;
     laplace_cognition_prompt_admission_view view{};
     std::mutex structural_index_mutex;
@@ -225,158 +243,71 @@ laplace_cognition_prompt_admission_create(
         return LAPLACE_COGNITION_PROMPT_ADMISSION_MEMORY_FAILURE;
     }
 
-    const auto decomposition_status = input->media_resolver == nullptr
-        ? laplace_decomposition_run(&input->decomposition, &admission->decomposition)
-        : laplace_decomposition_run_with_media_resolver(
-              &input->decomposition, input->media_resolver,
-              input->media_resolver_state, &admission->decomposition);
-    if (decomposition_status != LAPLACE_DECOMPOSITION_OK ||
-        admission->decomposition == nullptr ||
-        laplace_decomposition_summary_get(
-            admission->decomposition, &admission->view.decomposition_summary) !=
-            LAPLACE_DECOMPOSITION_OK) {
+    laplace_content_admission_input content_input{};
+    content_input.decomposition = input->decomposition;
+    content_input.media_resolver = input->media_resolver;
+    content_input.media_resolver_state = input->media_resolver_state;
+    content_input.framework_context = input->framework_context;
+    content_input.source_fingerprint = input->source_fingerprint;
+    content_input.content_recipe_fingerprint = input->content_recipe_fingerprint;
+    content_input.calculation_recipe_fingerprint = input->calculation_recipe_fingerprint;
+    content_input.geometry_epoch = input->geometry_epoch;
+    content_input.occurrence_context_fingerprint = input->occurrence_context_fingerprint;
+    content_input.source_ordinal_base = input->source_ordinal_base;
+    content_input.preferred_batch_bytes = input->preferred_batch_bytes;
+    content_input.version = LAPLACE_CONTENT_ADMISSION_VERSION;
+
+    laplace_content_atom_provider_v1 content_atom_provider{};
+    content_atom_provider.state = atom_provider->state;
+    content_atom_provider.provider_fingerprint = atom_provider->provider_fingerprint;
+    content_atom_provider.resolve = atom_provider->resolve;
+    content_atom_provider.abi_major = LAPLACE_CONTENT_ATOM_PROVIDER_ABI_MAJOR;
+    content_atom_provider.abi_minor = LAPLACE_CONTENT_ATOM_PROVIDER_ABI_MINOR;
+
+    const auto content_status = laplace_content_admission_create(
+        &content_input, &content_atom_provider, presence_provider, &admission->content);
+    if (content_status != LAPLACE_CONTENT_ADMISSION_OK || admission->content == nullptr) {
+        const auto mapped = MapContentStatus(content_status);
         laplace_cognition_prompt_admission_destroy(&admission);
-        return LAPLACE_COGNITION_PROMPT_ADMISSION_DECOMPOSITION_FAILURE;
+        return mapped;
     }
 
-    laplace_decomposition_composition_input composition_input{};
-    composition_input.content = &input->decomposition.content;
-    composition_input.decomposition = admission->decomposition;
-    composition_input.recipe_fingerprint = input->content_recipe_fingerprint;
-    composition_input.geometry_epoch = input->geometry_epoch;
-    composition_input.occurrence_context_fingerprint =
-        input->occurrence_context_fingerprint;
-    composition_input.source_ordinal_base = input->source_ordinal_base;
-    if (laplace_decomposition_composition_plan_create(
-            &composition_input, &admission->composition_plan) !=
-            LAPLACE_DECOMPOSITION_COMPOSITION_OK ||
-        admission->composition_plan == nullptr) {
+    laplace_content_admission_view content_view{};
+    if (laplace_content_admission_view_get(admission->content, &content_view) !=
+        LAPLACE_CONTENT_ADMISSION_OK) {
         laplace_cognition_prompt_admission_destroy(&admission);
-        return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_PLAN_FAILURE;
+        return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_FAILURE;
     }
 
-    laplace_decomposition_composition_plan_view plan_view{};
-    if (laplace_decomposition_composition_plan_view_get(
-            admission->composition_plan, &plan_view) !=
-        LAPLACE_DECOMPOSITION_COMPOSITION_OK) {
+    admission->decomposition = laplace_content_admission_decomposition(admission->content);
+    admission->composition_plan = laplace_content_admission_composition_plan(admission->content);
+    admission->working_set = laplace_content_admission_working_set(admission->content);
+    std::size_t known_count = 0U;
+    const auto* known = laplace_content_admission_known_entities(
+        admission->content, &known_count);
+    if (known_count != 0U && known == nullptr) {
         laplace_cognition_prompt_admission_destroy(&admission);
-        return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_PLAN_FAILURE;
+        return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_FAILURE;
     }
-    admission->view.decomposition_trace_fingerprint = plan_view.trace_fingerprint;
-    admission->view.atom_count = plan_view.atom_count;
-    admission->view.request_count = plan_view.request_count;
-
     try {
-        admission->known_entities.resize(
-            static_cast<std::size_t>(plan_view.atom_count));
+        admission->known_entities.assign(known, known + known_count);
     } catch (const std::bad_alloc&) {
         laplace_cognition_prompt_admission_destroy(&admission);
         return LAPLACE_COGNITION_PROMPT_ADMISSION_MEMORY_FAILURE;
     }
 
-    laplace_digest256 atom_receipt{};
-    if (atom_provider->resolve(
-            atom_provider->state, plan_view.atom_positions,
-            static_cast<std::size_t>(plan_view.atom_count),
-            admission->known_entities.data(), &atom_receipt) != 0 ||
-        DigestZero(atom_receipt)) {
-        laplace_cognition_prompt_admission_destroy(&admission);
-        return LAPLACE_COGNITION_PROMPT_ADMISSION_ATOM_PROVIDER_FAILURE;
-    }
-    for (std::size_t index = 0U; index < admission->known_entities.size(); ++index) {
-        if (!KnownAtomValid(
-                plan_view.atom_positions[index], admission->known_entities[index])) {
-            laplace_cognition_prompt_admission_destroy(&admission);
-            return LAPLACE_COGNITION_PROMPT_ADMISSION_ATOM_PROVIDER_INVALID;
-        }
-    }
-    admission->view.atom_provider_fingerprint = atom_provider->provider_fingerprint;
-    admission->view.atom_provider_receipt_id = atom_receipt;
-
-    if (plan_view.request_count != 0U) {
-        if (presence_provider == nullptr) {
-            laplace_cognition_prompt_admission_destroy(&admission);
-            return LAPLACE_COGNITION_PROMPT_ADMISSION_INVALID_ARGUMENT;
-        }
-        for (std::uint64_t index = 0U; index < plan_view.request_count; ++index) {
-            if (plan_view.requests[index].flags != 0U) {
-                laplace_cognition_prompt_admission_destroy(&admission);
-                return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_PLAN_FAILURE;
-            }
-        }
-        const laplace_composition_working_set_input working_input{
-            input->framework_context,
-            &input->source_fingerprint,
-            &input->calculation_recipe_fingerprint,
-            admission->known_entities.data(),
-            plan_view.atom_count,
-            plan_view.operands,
-            plan_view.operand_count,
-            plan_view.requests,
-            plan_view.request_count,
-            input->preferred_batch_bytes,
-            0U};
-        if (laplace_composition_working_set_create(
-                &working_input, &admission->working_set) != LAPLACE_COMPOSITION_OK ||
-            admission->working_set == nullptr) {
-            laplace_cognition_prompt_admission_destroy(&admission);
-            return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_FAILURE;
-        }
-        laplace_composition_presence_receipt presence_receipt{};
-        if (laplace_composition_working_set_resolve_presence(
-                admission->working_set, presence_provider,
-                &presence_receipt) != LAPLACE_COMPOSITION_OK) {
-            laplace_cognition_prompt_admission_destroy(&admission);
-            return LAPLACE_COGNITION_PROMPT_ADMISSION_PRESENCE_FAILURE;
-        }
-        admission->view.presence_receipt_id = presence_receipt.semantic_receipt_id;
-        if (laplace_composition_working_set_summary_get(
-                admission->working_set,
-                &admission->view.composition_summary) != LAPLACE_COMPOSITION_OK ||
-            admission->view.composition_summary.occurrence_count != 0U) {
-            laplace_cognition_prompt_admission_destroy(&admission);
-            return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_FAILURE;
-        }
-    }
-
-    if (plan_view.root_reference.reference_kind ==
-        LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
-        if (plan_view.root_reference.reference_index >=
-            admission->known_entities.size()) {
-            laplace_cognition_prompt_admission_destroy(&admission);
-            return LAPLACE_COGNITION_PROMPT_ADMISSION_ROOT_INVALID;
-        }
-        const auto& root = admission->known_entities[
-            static_cast<std::size_t>(plan_view.root_reference.reference_index)];
-        admission->view.trunk_entity_id = root.entity_id;
-        admission->view.trunk_identity_witness = root.identity_witness;
-        admission->view.trunk_physicality_id = root.physicality_id;
-    } else if (plan_view.root_reference.reference_kind ==
-        LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
-        std::size_t result_count = 0U;
-        const auto* results = laplace_composition_working_set_results(
-            admission->working_set, &result_count);
-        if (results == nullptr ||
-            plan_view.root_reference.reference_index >= result_count) {
-            laplace_cognition_prompt_admission_destroy(&admission);
-            return LAPLACE_COGNITION_PROMPT_ADMISSION_ROOT_INVALID;
-        }
-        const auto& root = results[
-            static_cast<std::size_t>(plan_view.root_reference.reference_index)];
-        admission->view.trunk_entity_id = root.entity_id;
-        admission->view.trunk_identity_witness = root.identity_witness;
-        admission->view.trunk_physicality_id = root.physicality_id;
-    } else {
-        laplace_cognition_prompt_admission_destroy(&admission);
-        return LAPLACE_COGNITION_PROMPT_ADMISSION_ROOT_INVALID;
-    }
-    if (IdZero(admission->view.trunk_entity_id) ||
-        DigestZero(admission->view.trunk_identity_witness) ||
-        DigestZero(admission->view.trunk_physicality_id)) {
-        laplace_cognition_prompt_admission_destroy(&admission);
-        return LAPLACE_COGNITION_PROMPT_ADMISSION_ROOT_INVALID;
-    }
-
+    admission->view.decomposition_summary = content_view.decomposition_summary;
+    admission->view.composition_summary = content_view.composition_summary;
+    admission->view.decomposition_trace_fingerprint =
+        content_view.decomposition_trace_fingerprint;
+    admission->view.atom_provider_fingerprint = content_view.atom_provider_fingerprint;
+    admission->view.atom_provider_receipt_id = content_view.atom_provider_receipt_id;
+    admission->view.presence_receipt_id = content_view.presence_receipt_id;
+    admission->view.trunk_entity_id = content_view.root_entity_id;
+    admission->view.trunk_identity_witness = content_view.root_identity_witness;
+    admission->view.trunk_physicality_id = content_view.root_physicality_id;
+    admission->view.atom_count = content_view.atom_count;
+    admission->view.request_count = content_view.request_count;
     admission->view.exact_bytes_fingerprint = ExactBytesFingerprint(
         input->decomposition.content.bytes,
         static_cast<std::size_t>(input->decomposition.content.byte_count));
@@ -415,28 +346,18 @@ extern "C" laplace_cognition_prompt_admission_status
 laplace_cognition_prompt_admission_producer(
     laplace_cognition_prompt_admission* const admission,
     laplace_framework_producer_v1* const producer) {
-    if (admission == nullptr || producer == nullptr) {
+    if (admission == nullptr || producer == nullptr || admission->content == nullptr) {
         return LAPLACE_COGNITION_PROMPT_ADMISSION_INVALID_ARGUMENT;
     }
-    *producer = laplace_framework_producer_v1{};
-    if (admission->working_set == nullptr) {
-        return LAPLACE_COGNITION_PROMPT_ADMISSION_NO_PUBLICATION_REQUIRED;
-    }
-    if (laplace_composition_working_set_producer(
-            admission->working_set, producer) != LAPLACE_COMPOSITION_OK) {
-        *producer = laplace_framework_producer_v1{};
-        return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_FAILURE;
-    }
-    return LAPLACE_COGNITION_PROMPT_ADMISSION_OK;
+    return MapContentStatus(
+        laplace_content_admission_producer(admission->content, producer));
 }
 
 extern "C" void laplace_cognition_prompt_admission_destroy(
     laplace_cognition_prompt_admission** const admission) {
     if (admission == nullptr || *admission == nullptr) return;
     laplace_cognition_prompt_structural_detail::DestroyIndex((*admission)->structural_index);
-    laplace_composition_working_set_destroy(&(*admission)->working_set);
-    laplace_decomposition_composition_plan_destroy(&(*admission)->composition_plan);
-    laplace_decomposition_result_destroy(&(*admission)->decomposition);
+    laplace_content_admission_destroy(&(*admission)->content);
     delete *admission;
     *admission = nullptr;
 }
