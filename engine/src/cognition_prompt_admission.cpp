@@ -422,6 +422,17 @@ laplace_cognition_prompt_admission_producer(
     if (admission->working_set == nullptr) {
         return LAPLACE_COGNITION_PROMPT_ADMISSION_NO_PUBLICATION_REQUIRED;
     }
+    std::uint32_t effect_disposition = LAPLACE_FRAMEWORK_EFFECT_NONE;
+    if (laplace_composition_working_set_effect_disposition_get(
+            admission->working_set, &effect_disposition) != LAPLACE_COMPOSITION_OK) {
+        return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_FAILURE;
+    }
+    if (effect_disposition == LAPLACE_FRAMEWORK_EFFECT_NONE) {
+        return LAPLACE_COGNITION_PROMPT_ADMISSION_NO_PUBLICATION_REQUIRED;
+    }
+    if (effect_disposition != LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT) {
+        return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_FAILURE;
+    }
     if (laplace_composition_working_set_producer(
             admission->working_set, producer) != LAPLACE_COMPOSITION_OK) {
         *producer = laplace_framework_producer_v1{};
