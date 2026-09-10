@@ -9,11 +9,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <new>
+#include <set>
 #include <vector>
 
 namespace {
+
+using DigestKey = std::array<std::uint8_t, 32>;
 
 bool Zero(const laplace_digest256& value) {
     std::uint8_t aggregate = 0U;
@@ -25,6 +27,12 @@ bool Zero(const laplace_digest256& value) {
 
 bool Same(const laplace_digest256& left, const laplace_digest256& right) {
     return std::equal(std::begin(left.bytes), std::end(left.bytes), std::begin(right.bytes));
+}
+
+DigestKey Key(const laplace_digest256& value) {
+    DigestKey result{};
+    std::copy(std::begin(value.bytes), std::end(value.bytes), result.begin());
+    return result;
 }
 
 void HashU32(blake3_hasher* const hasher, const std::uint32_t value) {
@@ -75,6 +83,28 @@ bool ProgramValid(const laplace_cognition_solver_program& program) {
     return true;
 }
 
+bool BoundariesValid(
+    const laplace_cognition_solver_boundary* const boundaries,
+    const std::size_t boundary_count,
+    const std::size_t field_count) {
+    if (boundary_count == 0U) return boundaries == nullptr;
+    if (boundaries == nullptr) return false;
+    std::set<DigestKey> receipts;
+    for (std::size_t index = 0U; index < boundary_count; ++index) {
+        const auto& boundary = boundaries[index];
+        if (Zero(boundary.receipt_id) || boundary.field_index >= field_count ||
+            !std::isfinite(boundary.target_value) ||
+            !std::isfinite(boundary.precision) || boundary.precision <= 0.0 ||
+            (boundary.kind != LAPLACE_COGNITION_SOLVER_BOUNDARY_GOAL &&
+             boundary.kind != LAPLACE_COGNITION_SOLVER_BOUNDARY_PRIOR) ||
+            boundary.flags != 0U || boundary.reserved != 0U ||
+            !receipts.insert(Key(boundary.receipt_id)).second) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void HashProgram(
     const laplace_cognition_solver_program& program,
     laplace_digest256* const output) {
@@ -96,6 +126,28 @@ void HashProgram(
     Finish(&hasher, output);
 }
 
+laplace_digest256 BoundaryFingerprint(
+    const laplace_cognition_solver_boundary* const boundaries,
+    const std::size_t boundary_count) {
+    static constexpr char Domain[] = "laplace-cognition-solver-boundaries-v1";
+    laplace_digest256 output{};
+    blake3_hasher hasher{};
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(&hasher, Domain, sizeof(Domain) - 1U);
+    HashU64(&hasher, static_cast<std::uint64_t>(boundary_count));
+    for (std::size_t index = 0U; index < boundary_count; ++index) {
+        const auto& boundary = boundaries[index];
+        HashDigest(&hasher, boundary.receipt_id);
+        HashU64(&hasher, boundary.field_index);
+        HashF64(&hasher, boundary.target_value);
+        HashF64(&hasher, boundary.precision);
+        HashU32(&hasher, boundary.kind);
+        HashU32(&hasher, boundary.flags);
+    }
+    Finish(&hasher, &output);
+    return output;
+}
+
 double Dot(const std::vector<double>& left, const std::vector<double>& right) {
     double total = 0.0;
     for (std::size_t index = 0U; index < left.size(); ++index) {
@@ -110,9 +162,51 @@ bool Finite(const std::vector<double>& values) {
     });
 }
 
+void ApplyBoundaryGradient(
+    const laplace_cognition_solver_boundary* const boundaries,
+    const std::size_t boundary_count,
+    const std::vector<double>& state,
+    std::vector<double>* const gradient) {
+    for (std::size_t index = 0U; index < boundary_count; ++index) {
+        const auto& boundary = boundaries[index];
+        const auto field = static_cast<std::size_t>(boundary.field_index);
+        (*gradient)[field] +=
+            boundary.precision * (state[field] - boundary.target_value);
+    }
+}
+
+void ApplyBoundaryLinear(
+    const laplace_cognition_solver_boundary* const boundaries,
+    const std::size_t boundary_count,
+    const std::vector<double>& input,
+    std::vector<double>* const output) {
+    for (std::size_t index = 0U; index < boundary_count; ++index) {
+        const auto& boundary = boundaries[index];
+        const auto field = static_cast<std::size_t>(boundary.field_index);
+        (*output)[field] += boundary.precision * input[field];
+    }
+}
+
+double BoundaryEnergy(
+    const laplace_cognition_solver_boundary* const boundaries,
+    const std::size_t boundary_count,
+    const std::vector<double>& state) {
+    double total = 0.0;
+    for (std::size_t index = 0U; index < boundary_count; ++index) {
+        const auto& boundary = boundaries[index];
+        const double residual =
+            state[static_cast<std::size_t>(boundary.field_index)] -
+            boundary.target_value;
+        total += 0.5 * boundary.precision * residual * residual;
+    }
+    return total;
+}
+
 laplace_cognition_solver_status ApplyLinearRegularized(
     const laplace_cognition_operator* const operator_value,
     const laplace_cognition_solver_program& program,
+    const laplace_cognition_solver_boundary* const boundaries,
+    const std::size_t boundary_count,
     const std::vector<double>& input,
     std::vector<double>* const output) {
     const auto status = laplace_cognition_operator_apply_linear(
@@ -120,6 +214,7 @@ laplace_cognition_solver_status ApplyLinearRegularized(
     if (status != LAPLACE_COGNITION_OPERATOR_OK) {
         return LAPLACE_COGNITION_SOLVER_OPERATOR_FAILURE;
     }
+    ApplyBoundaryLinear(boundaries, boundary_count, input, output);
 #if defined(LAPLACE_TEST_COGNITION_SOLVER_IGNORE_REGULARIZATION)
     (void)program;
 #else
@@ -159,15 +254,15 @@ void FinalizeReceipt(laplace_cognition_solver_receipt* const receipt) {
     Finish(&hasher, &receipt->receipt_id);
 }
 
-}  // namespace
-
-extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
+laplace_cognition_solver_status Execute(
     const laplace_cognition_operator* const operator_value,
     const laplace_cognition_solver_program* const program,
+    const laplace_cognition_solver_boundary* const boundaries,
+    const std::size_t boundary_count,
     const double* const initial_state,
-    const size_t initial_state_count,
+    const std::size_t initial_state_count,
     double* const solution,
-    const size_t solution_capacity,
+    const std::size_t solution_capacity,
     laplace_cognition_solver_receipt* const receipt) {
     if (receipt != nullptr) {
         *receipt = laplace_cognition_solver_receipt{};
@@ -186,6 +281,10 @@ extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
         receipt->status = LAPLACE_COGNITION_SOLVER_RANGE;
         return LAPLACE_COGNITION_SOLVER_RANGE;
     }
+    if (!BoundariesValid(boundaries, boundary_count, field_count)) {
+        receipt->status = LAPLACE_COGNITION_SOLVER_BOUNDARY_INVALID;
+        return LAPLACE_COGNITION_SOLVER_BOUNDARY_INVALID;
+    }
     laplace_cognition_operator_receipt operator_receipt{};
     if (laplace_cognition_operator_receipt_get(operator_value, &operator_receipt) !=
         LAPLACE_COGNITION_OPERATOR_OK) {
@@ -196,6 +295,7 @@ extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
         receipt->status = LAPLACE_COGNITION_SOLVER_OPERATOR_MISMATCH;
         return LAPLACE_COGNITION_SOLVER_OPERATOR_MISMATCH;
     }
+
     try {
         std::vector<double> x(initial_state, initial_state + field_count);
         if (!Finite(x)) {
@@ -213,6 +313,7 @@ extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
             receipt->status = LAPLACE_COGNITION_SOLVER_OPERATOR_FAILURE;
             return LAPLACE_COGNITION_SOLVER_OPERATOR_FAILURE;
         }
+        ApplyBoundaryGradient(boundaries, boundary_count, x, &gradient);
         for (std::size_t index = 0U; index < field_count; ++index) {
             gradient[index] += program->regularization * x[index];
             residual[index] = -gradient[index];
@@ -227,14 +328,26 @@ extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
         const double threshold = std::max(
             program->absolute_residual_tolerance,
             program->relative_residual_tolerance * initial_l2);
-        receipt->program_fingerprint = laplace_digest256{};
         HashProgram(*program, &receipt->program_fingerprint);
         receipt->operator_id = operator_receipt.operator_id;
         receipt->operator_receipt_id = operator_receipt.receipt_id;
+
+        const laplace_digest256 boundary_fingerprint =
+            BoundaryFingerprint(boundaries, boundary_count);
 #if defined(LAPLACE_TEST_COGNITION_SOLVER_RESIDUAL_AS_PRECISION)
         receipt->evidence_precision_fingerprint = application.output_fingerprint;
 #else
-        receipt->evidence_precision_fingerprint = operator_receipt.constraint_set_fingerprint;
+        {
+            static constexpr char PrecisionDomain[] =
+                "laplace-cognition-solver-evidence-precision-v2";
+            blake3_hasher precision_hasher{};
+            blake3_hasher_init(&precision_hasher);
+            blake3_hasher_update(
+                &precision_hasher, PrecisionDomain, sizeof(PrecisionDomain) - 1U);
+            HashDigest(&precision_hasher, operator_receipt.constraint_set_fingerprint);
+            HashDigest(&precision_hasher, boundary_fingerprint);
+            Finish(&precision_hasher, &receipt->evidence_precision_fingerprint);
+        }
 #endif
         receipt->field_count = field_count;
         receipt->initial_residual_l2 = initial_l2;
@@ -249,6 +362,7 @@ extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
             sizeof(LAPLACE_COGNITION_SOLVER_INPUT_DOMAIN) - 1U);
         HashDigest(&input_hasher, receipt->program_fingerprint);
         HashDigest(&input_hasher, receipt->operator_id);
+        HashDigest(&input_hasher, boundary_fingerprint);
         for (const auto value : x) HashF64(&input_hasher, value);
         Finish(&input_hasher, &receipt->input_fingerprint);
 
@@ -264,7 +378,8 @@ extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
             disposition = LAPLACE_COGNITION_SOLVER_ITERATION_LIMIT;
             for (std::uint64_t iteration = 0U; iteration < program->max_iterations; ++iteration) {
                 const auto apply_status = ApplyLinearRegularized(
-                    operator_value, *program, direction, &product);
+                    operator_value, *program, boundaries, boundary_count,
+                    direction, &product);
                 if (apply_status != LAPLACE_COGNITION_SOLVER_OK) {
                     receipt->status = apply_status;
                     receipt->disposition = LAPLACE_COGNITION_SOLVER_NUMERIC_FAILURE;
@@ -324,6 +439,7 @@ extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
         receipt->final_residual_l2 = std::sqrt(residual_squared);
         Finish(&trace_hasher, &receipt->iteration_trace_fingerprint);
         std::copy(x.begin(), x.end(), solution);
+
         double operator_energy = 0.0;
         if (laplace_cognition_operator_energy(
                 operator_value, x.data(), x.size(), &operator_energy) !=
@@ -331,20 +447,23 @@ extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
             receipt->status = LAPLACE_COGNITION_SOLVER_OPERATOR_FAILURE;
             return LAPLACE_COGNITION_SOLVER_OPERATOR_FAILURE;
         }
-        double norm_squared = Dot(x, x);
-        receipt->final_energy =
-            operator_energy + 0.5 * program->regularization * norm_squared;
+        const double norm_squared = Dot(x, x);
+        receipt->final_energy = operator_energy +
+            BoundaryEnergy(boundaries, boundary_count, x) +
+            0.5 * program->regularization * norm_squared;
         if (!std::isfinite(receipt->final_energy)) {
             receipt->status = LAPLACE_COGNITION_SOLVER_NUMERIC_FAILURE_STATUS;
             receipt->disposition = LAPLACE_COGNITION_SOLVER_NUMERIC_FAILURE;
             return LAPLACE_COGNITION_SOLVER_NUMERIC_FAILURE_STATUS;
         }
+
         blake3_hasher output_hasher{};
         blake3_hasher_init(&output_hasher);
         blake3_hasher_update(
             &output_hasher, LAPLACE_COGNITION_SOLVER_OUTPUT_DOMAIN,
             sizeof(LAPLACE_COGNITION_SOLVER_OUTPUT_DOMAIN) - 1U);
         HashDigest(&output_hasher, receipt->operator_id);
+        HashDigest(&output_hasher, boundary_fingerprint);
         for (const auto value : x) HashF64(&output_hasher, value);
         HashF64(&output_hasher, receipt->final_residual_l2);
         HashF64(&output_hasher, receipt->final_energy);
@@ -357,4 +476,35 @@ extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
         receipt->status = LAPLACE_COGNITION_SOLVER_MEMORY_FAILURE;
         return LAPLACE_COGNITION_SOLVER_MEMORY_FAILURE;
     }
+}
+
+}  // namespace
+
+extern "C" laplace_cognition_solver_status laplace_cognition_solver_execute(
+    const laplace_cognition_operator* const operator_value,
+    const laplace_cognition_solver_program* const program,
+    const double* const initial_state,
+    const size_t initial_state_count,
+    double* const solution,
+    const size_t solution_capacity,
+    laplace_cognition_solver_receipt* const receipt) {
+    return Execute(
+        operator_value, program, nullptr, 0U, initial_state, initial_state_count,
+        solution, solution_capacity, receipt);
+}
+
+extern "C" laplace_cognition_solver_status
+laplace_cognition_solver_execute_with_boundaries(
+    const laplace_cognition_operator* const operator_value,
+    const laplace_cognition_solver_program* const program,
+    const laplace_cognition_solver_boundary* const boundaries,
+    const size_t boundary_count,
+    const double* const initial_state,
+    const size_t initial_state_count,
+    double* const solution,
+    const size_t solution_capacity,
+    laplace_cognition_solver_receipt* const receipt) {
+    return Execute(
+        operator_value, program, boundaries, boundary_count,
+        initial_state, initial_state_count, solution, solution_capacity, receipt);
 }
