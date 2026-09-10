@@ -1,0 +1,82 @@
+-- Installed product cognition route. The caller supplies exact firmware bytes plus
+-- independent execution/resource/provenance scope. The route admits and persists the
+-- complete prompt trunk, executes indexed physical/semantic providers, selects only
+-- exact witnessed realization when no language/register obligation is present, and
+-- materializes canonical output through the production PostgreSQL readback provider.
+
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_materialization_limits AS (
+    maximum_nodes numeric(20,0),
+    maximum_trajectory_carriers numeric(20,0),
+    maximum_output_bytes numeric(20,0),
+    maximum_depth integer,
+    version integer
+);
+
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_product_request AS (
+    selected_program bytea,
+    evidence_boundary bytea,
+    result_contract_fingerprint bytea,
+    expected_previous_checkpoint bytea,
+    previous_checkpoint_present boolean,
+    search_budget @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_search_budget,
+    forward_limits @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_forward_limits,
+    materialization @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_materialization_limits,
+    maximum_output_bytes numeric(20,0),
+    maximum_checkpoint_bytes numeric(20,0),
+    boundary_flags integer,
+    version integer
+);
+
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_product_result AS (
+    trunk_entity_id bytea,
+    occurrence_id bytea,
+    prompt_admission_receipt_id bytea,
+    prompt_persistence_receipt_id bytea,
+    program_id bytea,
+    output bytea,
+    output_fingerprint bytea,
+    checkpoint bytea,
+    next_checkpoint_fingerprint bytea,
+    execution_receipt_id bytea,
+    trace_fingerprint bytea,
+    completed_steps integer,
+    emitted_parts integer,
+    layer_count numeric(20,0),
+    provider_call_count numeric(20,0),
+    resource_cost numeric(20,0),
+    io_operations numeric(20,0),
+    database_operations numeric(20,0),
+    physical_provider_rows numeric(20,0),
+    physical_provider_batches numeric(20,0),
+    semantic_rows_examined numeric(20,0),
+    semantic_database_operations numeric(20,0),
+    materialization_resolved_nodes numeric(20,0),
+    materialization_trajectory_reads numeric(20,0),
+    materialization_trajectory_bytes numeric(20,0),
+    materialization_database_operations numeric(20,0),
+    status integer,
+    failed_step integer,
+    native_status integer,
+    version integer
+);
+
+CREATE FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_execute_product(
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
+    bytea,
+    text,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_scope,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_product_request,
+    bytea,
+    bigint)
+RETURNS @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_product_result
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_product_execute'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_execute_product(
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
+    bytea,
+    text,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_scope,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_product_request,
+    bytea,
+    bigint) FROM PUBLIC;
