@@ -220,8 +220,8 @@ TEST(TargetAttentionSafeTensors, EmitsEmbeddingAndActualQkvoWeights) {
     EXPECT_NE(header.find("\"laplace.k.layer_2.head_5.expert_0\""), std::string::npos);
     EXPECT_NE(header.find("\"laplace.v.layer_2.head_5.expert_0\""), std::string::npos);
     EXPECT_NE(header.find("\"laplace.o.layer_2.head_5.expert_0\""), std::string::npos);
-    EXPECT_NE(header.find("laplace_qk_factorization_id"), std::string::npos);
-    EXPECT_NE(header.find("laplace_vo_factorization_id"), std::string::npos);
+    EXPECT_NE(header.find("laplace_head_0_qk_factorization_id"), std::string::npos);
+    EXPECT_NE(header.find("laplace_head_0_vo_factorization_id"), std::string::npos);
 }
 
 TEST(TargetAttentionSafeTensors, CanonicalValidationRejectsArtifactDrift) {
