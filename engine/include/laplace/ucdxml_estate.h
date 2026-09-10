@@ -11,6 +11,13 @@
 extern "C" {
 #endif
 
+#define LAPLACE_UCDXML_ESTATE_RECEIPT_DOMAIN \
+    "laplace-ucdxml-estate-receipt-v1"
+#define LAPLACE_UCDXML_ESTATE_LINEAGE_BATCH_DOMAIN \
+    "laplace-ucdxml-estate-lineage-batches-v1"
+#define LAPLACE_UCDXML_ESTATE_TESTIMONY_BATCH_DOMAIN \
+    "laplace-ucdxml-estate-testimony-batches-v1"
+
 enum {
     LAPLACE_UCDXML_ESTATE_VERSION = 1
 };
