@@ -155,7 +155,7 @@ public sealed unsafe class NativeIsaTransport : ILaplaceIsaTransport
     public void Dispose() => Interlocked.Exchange(ref disposed, 1);
 }
 
-public sealed class PostgreSqlIsaTransport : ILaplaceIsaTransport
+public sealed unsafe class PostgreSqlIsaTransport : ILaplaceIsaTransport
 {
     private readonly DbDataSource dataSource;
     private readonly bool publishReceipts;
