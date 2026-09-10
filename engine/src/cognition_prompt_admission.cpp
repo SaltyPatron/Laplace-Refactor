@@ -29,10 +29,6 @@ bool DigestZero(const laplace_digest256& value) {
     return BytesZero(value.bytes, sizeof(value.bytes));
 }
 
-bool IdZero(const laplace_id128& value) {
-    return BytesZero(value.bytes, sizeof(value.bytes));
-}
-
 bool SameDigest(const laplace_digest256& left, const laplace_digest256& right) {
     return std::memcmp(left.bytes, right.bytes, sizeof(left.bytes)) == 0;
 }
