@@ -193,22 +193,19 @@ thread_local std::size_t WitnessCacheNext = 0u;
 
 laplace_digest256 WitnessCacheKey(
     const laplace_decomposition_content& content,
-    const laplace_digest256& uax_fingerprint,
-    const laplace_digest256* grammar_fingerprint) {
+    const laplace_decomposition_provider_v1* providers,
+    const std::size_t provider_count) {
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
     static constexpr std::string_view Domain{
-        "laplace.tabular-source.decomposition-witness-cache/v1"};
+        "laplace.tabular-source.decomposition-witness-cache/v2"};
     RecursiveHashBytes(hasher, Domain.data(), Domain.size());
-    RecursiveHashBytes(
-        hasher, uax_fingerprint.bytes, sizeof(uax_fingerprint.bytes));
-    if (grammar_fingerprint == nullptr) {
-        RecursiveHashU32(hasher, 0u);
-    } else {
-        RecursiveHashU32(hasher, 1u);
+    RecursiveHashU64(hasher, static_cast<std::uint64_t>(provider_count));
+    for (std::size_t index = 0u; index < provider_count; ++index) {
         RecursiveHashBytes(
-            hasher, grammar_fingerprint->bytes,
-            sizeof(grammar_fingerprint->bytes));
+            hasher,
+            providers[index].provider_fingerprint.bytes,
+            sizeof(providers[index].provider_fingerprint.bytes));
     }
     RecursiveHashBytes(
         hasher, content.media_type,
@@ -399,12 +396,15 @@ laplace_tabular_source_status UpdateProfileCounts(
     return LAPLACE_TABULAR_SOURCE_OK;
 }
 
-laplace_tabular_source_status BuildRecursive(
+laplace_tabular_source_status BuildRecursiveWithProviders(
     const laplace_tabular_source_input* input,
-    const laplace_unicode_source_bundle* unicode_bundle,
+    const laplace_decomposition_provider_v1* common_providers,
+    const std::uint64_t common_provider_count,
     laplace_tabular_source_plan** plan) {
-    if (input == nullptr || unicode_bundle == nullptr || plan == nullptr ||
-        *plan != nullptr) {
+    if (input == nullptr || plan == nullptr || *plan != nullptr ||
+        (common_provider_count != 0u && common_providers == nullptr) ||
+        common_provider_count >=
+            static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
         return LAPLACE_TABULAR_SOURCE_INVALID_ARGUMENT;
     }
 
@@ -413,28 +413,6 @@ laplace_tabular_source_status BuildRecursive(
         laplace_tabular_source_plan_create_legacy(input, &created);
     if (status != LAPLACE_TABULAR_SOURCE_OK || created == nullptr) {
         return status;
-    }
-    laplace_unicode_source_receipt unicode_receipt{};
-    laplace_uax29_tables* uax_tables = nullptr;
-    if (laplace_unicode_source_bundle_receipt(
-            unicode_bundle, &unicode_receipt) != LAPLACE_UNICODE_OK ||
-        laplace_uax29_tables_create(unicode_bundle, &uax_tables) !=
-            LAPLACE_UAX29_OK ||
-        uax_tables == nullptr) {
-        laplace_uax29_tables_destroy(&uax_tables);
-        laplace_tabular_source_plan_destroy(&created);
-        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
-    }
-
-    const laplace_digest256 uax_fingerprint =
-        UaxProviderFingerprint(unicode_receipt);
-    laplace_decomposition_uax29_provider uax_provider{};
-    if (laplace_decomposition_uax29_provider_init(
-            &uax_provider, uax_tables, &uax_fingerprint) !=
-        LAPLACE_DECOMPOSITION_OK) {
-        laplace_uax29_tables_destroy(&uax_tables);
-        laplace_tabular_source_plan_destroy(&created);
-        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
     }
 
     const std::uint64_t legacy_output_count =
@@ -454,15 +432,19 @@ laplace_tabular_source_status BuildRecursive(
         laplace_decomposition_fixed_width_provider fixed_width_provider{};
         std::vector<laplace_decomposition_fixed_width_field> fixed_width_fields;
         laplace_digest256 grammar_fingerprint{};
-        bool has_grammar_fingerprint = false;
-        std::array<laplace_decomposition_provider_v1, 2> providers{};
-        providers[0] = uax_provider.provider;
-        std::uint64_t provider_count = 1u;
+        std::vector<laplace_decomposition_provider_v1> providers;
+        providers.reserve(
+            static_cast<std::size_t>(common_provider_count) + 1u);
+        if (common_provider_count != 0u) {
+            providers.insert(
+                providers.end(),
+                common_providers,
+                common_providers + static_cast<std::size_t>(common_provider_count));
+        }
 
         if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_DELIMITED) {
             grammar_fingerprint =
                 DelimitedProviderFingerprint(*input, artifact, artifact_index);
-            has_grammar_fingerprint = true;
             const std::uint32_t terminator =
                 artifact.line_terminator == LAPLACE_TABULAR_TERMINATOR_CRLF
                     ? LAPLACE_DECOMPOSITION_DELIMITED_CRLF
@@ -480,12 +462,10 @@ laplace_tabular_source_status BuildRecursive(
                 status = DecompositionStatus(provider_status);
                 goto recursive_failure;
             }
-            providers[1] = delimited_provider.provider;
-            provider_count = 2u;
+            providers.push_back(delimited_provider.provider);
         } else if (artifact.mode == LAPLACE_TABULAR_ARTIFACT_FIXED_WIDTH) {
             grammar_fingerprint =
                 FixedWidthProviderFingerprint(*input, artifact, artifact_index);
-            has_grammar_fingerprint = true;
             fixed_width_fields.reserve(artifact.expected_column_count);
             for (std::uint32_t index = 0u;
                  index < artifact.expected_column_count; ++index) {
@@ -514,8 +494,11 @@ laplace_tabular_source_status BuildRecursive(
                 status = DecompositionStatus(provider_status);
                 goto recursive_failure;
             }
-            providers[1] = fixed_width_provider.provider;
-            provider_count = 2u;
+            providers.push_back(fixed_width_provider.provider);
+        }
+        if (providers.empty()) {
+            status = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            goto recursive_failure;
         }
 
         static constexpr char FallbackDelimitedMediaType[] =
@@ -541,9 +524,7 @@ laplace_tabular_source_status BuildRecursive(
         }
 
         const laplace_digest256 cache_key = WitnessCacheKey(
-            content,
-            uax_fingerprint,
-            has_grammar_fingerprint ? &grammar_fingerprint : nullptr);
+            content, providers.data(), providers.size());
         laplace_digest256 trace_fingerprint{};
         std::uint64_t artifact_span_count = 0u;
         const bool witness_cached = WitnessCacheLookup(
@@ -558,7 +539,8 @@ laplace_tabular_source_status BuildRecursive(
         laplace_decomposition_input decomposition_input{};
         decomposition_input.content = content;
         decomposition_input.providers = providers.data();
-        decomposition_input.provider_count = provider_count;
+        decomposition_input.provider_count =
+            static_cast<std::uint64_t>(providers.size());
         decomposition_input.maximum_spans = maximum_spans;
         decomposition_input.maximum_depth = 8u;
 
@@ -769,13 +751,47 @@ laplace_tabular_source_status BuildRecursive(
 
     MarkSourceOccurrenceRequests(*created);
     BindView(*created);
-    laplace_uax29_tables_destroy(&uax_tables);
     *plan = created;
     return LAPLACE_TABULAR_SOURCE_OK;
 
 recursive_failure:
-    laplace_uax29_tables_destroy(&uax_tables);
     laplace_tabular_source_plan_destroy(&created);
+    return status;
+}
+
+laplace_tabular_source_status BuildRecursiveFromUnicode(
+    const laplace_tabular_source_input* input,
+    const laplace_unicode_source_bundle* unicode_bundle,
+    laplace_tabular_source_plan** plan) {
+    if (input == nullptr || unicode_bundle == nullptr || plan == nullptr ||
+        *plan != nullptr) {
+        return LAPLACE_TABULAR_SOURCE_INVALID_ARGUMENT;
+    }
+
+    laplace_unicode_source_receipt unicode_receipt{};
+    laplace_uax29_tables* uax_tables = nullptr;
+    if (laplace_unicode_source_bundle_receipt(
+            unicode_bundle, &unicode_receipt) != LAPLACE_UNICODE_OK ||
+        laplace_uax29_tables_create(unicode_bundle, &uax_tables) !=
+            LAPLACE_UAX29_OK ||
+        uax_tables == nullptr) {
+        laplace_uax29_tables_destroy(&uax_tables);
+        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+    }
+
+    const laplace_digest256 uax_fingerprint =
+        UaxProviderFingerprint(unicode_receipt);
+    laplace_decomposition_uax29_provider uax_provider{};
+    if (laplace_decomposition_uax29_provider_init(
+            &uax_provider, uax_tables, &uax_fingerprint) !=
+        LAPLACE_DECOMPOSITION_OK) {
+        laplace_uax29_tables_destroy(&uax_tables);
+        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+    }
+
+    const laplace_tabular_source_status status = BuildRecursiveWithProviders(
+        input, &uax_provider.provider, 1u, plan);
+    laplace_uax29_tables_destroy(&uax_tables);
     return status;
 }
 
@@ -808,12 +824,27 @@ extern "C" void laplace_tabular_source_plan_destroy(
 }
 
 extern "C" laplace_tabular_source_status
+laplace_tabular_source_plan_create_recursive_with_providers(
+    const laplace_tabular_source_input* input,
+    const laplace_decomposition_provider_v1* common_providers,
+    const uint64_t common_provider_count,
+    laplace_tabular_source_plan** plan) {
+    try {
+        return recursive_admission::BuildRecursiveWithProviders(
+            input, common_providers, common_provider_count, plan);
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_TABULAR_SOURCE_MEMORY_FAILURE;
+    }
+}
+
+extern "C" laplace_tabular_source_status
 laplace_tabular_source_plan_create_recursive(
     const laplace_tabular_source_input* input,
     const laplace_unicode_source_bundle* unicode_bundle,
     laplace_tabular_source_plan** plan) {
     try {
-        return recursive_admission::BuildRecursive(input, unicode_bundle, plan);
+        return recursive_admission::BuildRecursiveFromUnicode(
+            input, unicode_bundle, plan);
     } catch (const std::bad_alloc&) {
         return LAPLACE_TABULAR_SOURCE_MEMORY_FAILURE;
     }
