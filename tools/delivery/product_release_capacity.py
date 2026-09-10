@@ -6,8 +6,15 @@ Persistent activation copies an immutable content-addressed product package into
 resource observer measures PGDATA/WAL/temp capacity, but release-package storage has a
 separate lifecycle and must be measured separately.
 
-This provider is intentionally conservative. It can remove a release only when all of
-these are true:
+The capacity proof follows the physical install implementation. ``install_package``
+creates one temporary tree on the release filesystem, copies each manifest file once,
+verifies that tree, and atomically renames it into the final content-addressed path. A
+fixed unrelated free-space reserve is therefore not part of the copy law. This module
+measures the target filesystem allocation unit, rounds every copied regular file to
+that unit, accounts conservatively for directories/symlinks, and checks available
+inodes. If the exact successor already exists, no copy capacity is required.
+
+This provider can remove a release only when all of these are true:
 
 * the direct child name is one canonical 64-hex package id;
 * it is not the requested successor and is not selected by the current/runtime links;
@@ -41,6 +48,9 @@ SCHEMA = "laplace.product-release-capacity/v1"
 INSTALLATION_SCHEMA = "laplace.product-package-installation-receipt/v1"
 PACKAGE_ID = re.compile(r"^[0-9a-f]{64}$")
 INSTALL_TEMP = re.compile(r"^\.([0-9a-f]{64})\.install\.[A-Za-z0-9._-]+$")
+# Retained only for compatibility with older tests/importers. It is deliberately not
+# used by the physical capacity law: package installation does not allocate a second
+# arbitrary 512 MiB object after the exact successor tree has been copied.
 MIN_HEADROOM_BYTES = 512 * 1024 * 1024
 DEFAULT_MINIMUM_TEMP_AGE_SECONDS = 300
 
@@ -92,9 +102,22 @@ def _disk_free(path: Path) -> int:
     return observation.f_frsize * observation.f_bavail
 
 
-def _source_package_bytes(
+def _disk_free_inodes(path: Path) -> int:
+    observation = os.statvfs(path)
+    return int(observation.f_favail)
+
+
+def _allocation_unit(path: Path) -> int:
+    observation = os.statvfs(path)
+    unit = int(observation.f_frsize or observation.f_bsize)
+    if unit <= 0:
+        raise CapacityError("release filesystem reports no allocation unit")
+    return unit
+
+
+def _manifest_source(
     product_receipt: dict[str, Any], manifest: dict[str, Any]
-) -> int:
+) -> tuple[Path, str, list[dict[str, Any]]]:
     physical_release = Path(str(product_receipt.get("physical_root", "")))
     logical_release = str(manifest.get("root", ""))
     if not physical_release.is_absolute() or not logical_release.startswith("/"):
@@ -106,7 +129,7 @@ def _source_package_bytes(
     files = manifest.get("files")
     if not isinstance(files, list) or not files:
         raise CapacityError("product manifest file set is absent")
-    total = 0
+    typed: list[dict[str, Any]] = []
     seen: set[str] = set()
     for index, entry in enumerate(files):
         if not isinstance(entry, dict):
@@ -131,13 +154,80 @@ def _source_package_bytes(
                 raise CapacityError(
                     f"source package symlink is absent: {relative}"
                 )
-            continue
-        if kind != "file" or not candidate.is_file() or candidate.is_symlink():
+        elif kind != "file" or not candidate.is_file() or candidate.is_symlink():
             raise CapacityError(f"source package file is absent: {relative}")
-        total += candidate.stat().st_size
+        typed.append(entry)
+    return physical_release, logical_release, typed
+
+
+def _source_package_bytes(
+    product_receipt: dict[str, Any], manifest: dict[str, Any]
+) -> int:
+    physical_release, _logical_release, files = _manifest_source(
+        product_receipt, manifest
+    )
+    total = 0
+    for entry in files:
+        if entry.get("kind", "file") == "symlink":
+            continue
+        path = PurePosixPath(entry["path"])
+        total += physical_release.joinpath(*path.parts).stat().st_size
     if total <= 0:
         raise CapacityError("source product package has no regular-file bytes")
     return total
+
+
+def _target_copy_footprint(
+    product_receipt: dict[str, Any],
+    manifest: dict[str, Any],
+    release_root: Path,
+) -> dict[str, int]:
+    """Bound the allocation made by ``cluster_core.install_package``.
+
+    Regular files are rounded to the target filesystem fragment size. One fragment is
+    conservatively reserved for every directory/symlink created in the temporary tree.
+    The inode bound includes each manifest entry plus every created directory. The
+    source package is validated again here so a footprint cannot be calculated over a
+    different tree than the copy will consume.
+    """
+
+    physical_release, logical_release, files = _manifest_source(
+        product_receipt, manifest
+    )
+    unit = _allocation_unit(release_root)
+    regular_allocation = 0
+    relative_directories: set[str] = set()
+    symlinks = 0
+    for entry in files:
+        relative = PurePosixPath(entry["path"])
+        for parent in relative.parents:
+            if str(parent) == ".":
+                break
+            relative_directories.add(str(parent))
+        if entry.get("kind", "file") == "symlink":
+            symlinks += 1
+            continue
+        size = physical_release.joinpath(*relative.parts).stat().st_size
+        regular_allocation += ((size + unit - 1) // unit) * unit
+
+    # tempfile.mkdtemp contributes one directory. prefixed(temporary_root,
+    # manifest['root']) recreates the non-root components of the absolute logical
+    # package path before relative manifest directories are created below it.
+    logical_components = sum(
+        1 for part in PurePosixPath(logical_release).parts if part != "/"
+    )
+    directory_count = 1 + logical_components + len(relative_directories)
+    metadata_allocation = (directory_count + symlinks) * unit
+    required_inodes = directory_count + len(files)
+    return {
+        "allocation_unit_bytes": unit,
+        "regular_file_allocation_bytes": regular_allocation,
+        "metadata_allocation_bytes": metadata_allocation,
+        "required_allocation_bytes": regular_allocation + metadata_allocation,
+        "required_inodes": required_inodes,
+        "directory_count": directory_count,
+        "symlink_count": symlinks,
+    }
 
 
 def _validate_installation_receipt(
@@ -371,6 +461,15 @@ def _remove_old_install_temporaries(
     return removed
 
 
+def _capacity_satisfied(
+    release_root: Path, required_bytes: int, required_inodes: int
+) -> bool:
+    return (
+        _disk_free(release_root) >= required_bytes
+        and _disk_free_inodes(release_root) >= required_inodes
+    )
+
+
 def reconcile_capacity(
     contract: dict[str, Any],
     product_receipt: dict[str, Any],
@@ -423,9 +522,14 @@ def reconcile_capacity(
     if successor_release.is_symlink():
         raise CapacityError("successor release path is a symlink")
     copy_required = not successor_release.exists()
+    footprint = _target_copy_footprint(product_receipt, manifest, release_root)
     required_copy_bytes = source_package_bytes if copy_required else 0
-    required_available_bytes = required_copy_bytes + MIN_HEADROOM_BYTES
+    required_allocation_bytes = (
+        footprint["required_allocation_bytes"] if copy_required else 0
+    )
+    required_inodes = footprint["required_inodes"] if copy_required else 0
     free_before = _disk_free(release_root)
+    inodes_before = _disk_free_inodes(release_root)
 
     now_value = time.time() if now is None else now
     removed_temporaries = _remove_old_install_temporaries(
@@ -437,6 +541,7 @@ def reconcile_capacity(
         proc_root,
     )
     free_after_temporaries = _disk_free(release_root)
+    inodes_after_temporaries = _disk_free_inodes(release_root)
 
     candidates, preserved = _safe_release_candidates(
         release_root,
@@ -448,7 +553,9 @@ def reconcile_capacity(
     removed_releases: list[dict[str, Any]] = []
     root_device = release_root.lstat().st_dev
     for candidate in candidates:
-        if _disk_free(release_root) >= required_available_bytes:
+        if _capacity_satisfied(
+            release_root, required_allocation_bytes, required_inodes
+        ):
             break
         path = Path(candidate["path"])
         allocated = _tree_allocated_bytes(path, root_device)
@@ -465,6 +572,10 @@ def reconcile_capacity(
         _fsync_directory(release_root)
 
     free_after = _disk_free(release_root)
+    inodes_after = _disk_free_inodes(release_root)
+    satisfied = (
+        free_after >= required_allocation_bytes and inodes_after >= required_inodes
+    )
     result: dict[str, Any] = {
         "schema": SCHEMA,
         "successor_package_id": successor_package_id,
@@ -473,24 +584,35 @@ def reconcile_capacity(
         "source_package_bytes": source_package_bytes,
         "copy_required": copy_required,
         "required_copy_bytes": required_copy_bytes,
-        "minimum_headroom_bytes": MIN_HEADROOM_BYTES,
-        "required_available_bytes": required_available_bytes,
+        "allocation_unit_bytes": footprint["allocation_unit_bytes"],
+        "regular_file_allocation_bytes": (
+            footprint["regular_file_allocation_bytes"] if copy_required else 0
+        ),
+        "minimum_headroom_bytes": (
+            footprint["metadata_allocation_bytes"] if copy_required else 0
+        ),
+        "required_available_bytes": required_allocation_bytes,
+        "required_available_inodes": required_inodes,
         "free_bytes_before": free_before,
+        "free_inodes_before": inodes_before,
         "free_bytes_after_staging_cleanup": free_after_temporaries,
+        "free_inodes_after_staging_cleanup": inodes_after_temporaries,
         "free_bytes_after": free_after,
+        "free_inodes_after": inodes_after,
         "removed_temporaries": removed_temporaries,
         "removed_releases": removed_releases,
         "preserved_releases": preserved,
         "remaining_safe_candidate_count": max(
             0, len(candidates) - len(removed_releases)
         ),
-        "capacity_satisfied": free_after >= required_available_bytes,
+        "capacity_satisfied": satisfied,
     }
     result["receipt_sha256"] = document_identity(result, "receipt_sha256")
     if not result["capacity_satisfied"]:
         raise CapacityError(
             "product release capacity remains insufficient after safe residue cleanup: "
-            f"required={required_available_bytes} available={free_after}"
+            f"required_bytes={required_allocation_bytes} available_bytes={free_after} "
+            f"required_inodes={required_inodes} available_inodes={inodes_after}"
         )
     return result
 
