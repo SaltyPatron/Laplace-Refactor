@@ -42,6 +42,7 @@ add_library(laplace_engine SHARED
     src/world_admission.c
     src/composition.cpp
     src/composition_execution.cpp
+    src/content_admission.cpp
     src/trajectory.c
     src/unicode_root.c
     src/unicode_root_builder.cpp
@@ -110,6 +111,7 @@ add_library(Laplace::SourceProfile ALIAS laplace_engine)
 add_library(Laplace::TabularSource ALIAS laplace_engine)
 add_library(Laplace::WorldAdmission ALIAS laplace_engine)
 add_library(Laplace::Composition ALIAS laplace_engine)
+add_library(Laplace::ContentAdmission ALIAS laplace_engine)
 add_library(Laplace::Highway ALIAS laplace_engine)
 add_library(Laplace::UnicodeRoot ALIAS laplace_engine)
 add_library(Laplace::Uax29 ALIAS laplace_engine)
