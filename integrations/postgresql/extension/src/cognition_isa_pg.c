@@ -210,3 +210,4 @@ Datum laplace_pg_cognition_execute_packet(PG_FUNCTION_ARGS) {
 }
 
 #include "target_attention_pg.inc"
+#include "target_attention_export_pg.inc"
