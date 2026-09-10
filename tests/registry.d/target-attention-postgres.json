@@ -15,6 +15,21 @@
         "PostgreSQL and native target compilation produce identical compile projection embedding and head receipts",
         "insufficient target hidden width fails closed instead of cycling or random filling semantic capacity"
       ]
+    },
+    {
+      "ctest_name": "postgres.target-attention-safetensors-export",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": [
+        "LP-TEST-TYPED-INCIDENCE-OPERATOR",
+        "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY",
+        "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "PostgreSQL performs operator compilation projection and SafeTensors materialization in one user-callable server operation",
+        "the returned artifact contains the derived shared embedding plus actual Q K V and O tensors",
+        "artifact metadata retains compile projection operator factorization head and closed-epoch provenance",
+        "identical closed state produces byte-identical artifacts and insufficient hidden width fails before publication"
+      ]
     }
   ]
 }
