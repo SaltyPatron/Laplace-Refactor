@@ -37,6 +37,8 @@ struct AttentionFactorizedHead {
     std::vector<double> o_factor;
 };
 
+}  // namespace
+
 struct AttentionProjectedHead {
     laplace_target_attention_head_receipt receipt{};
     std::vector<double> q;
@@ -44,8 +46,6 @@ struct AttentionProjectedHead {
     std::vector<double> v;
     std::vector<double> o;
 };
-
-}  // namespace
 
 struct laplace_target_attention_projection_result {
     std::vector<double> embedding;
@@ -660,13 +660,17 @@ laplace_target_attention_project(
 
             const std::size_t head_value_count =
                 target.q.size() + target.k.size() + target.v.size() + target.o.size();
-            if (head_value_count >
-                    static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max()) ||
-                tensor_values > std::numeric_limits<std::uint64_t>::max() -
-                    static_cast<std::uint64_t>(head_value_count)) {
+            if constexpr (sizeof(std::size_t) > sizeof(std::uint64_t)) {
+                if (head_value_count >
+                    static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max())) {
+                    return LAPLACE_TARGET_ATTENTION_PROJECTION_INVALID_REQUEST;
+                }
+            }
+            const auto head_values = static_cast<std::uint64_t>(head_value_count);
+            if (tensor_values > std::numeric_limits<std::uint64_t>::max() - head_values) {
                 return LAPLACE_TARGET_ATTENTION_PROJECTION_INVALID_REQUEST;
             }
-            tensor_values += static_cast<std::uint64_t>(head_value_count);
+            tensor_values += head_values;
         } catch (const std::bad_alloc&) {
             return LAPLACE_TARGET_ATTENTION_PROJECTION_MEMORY_FAILURE;
         }
