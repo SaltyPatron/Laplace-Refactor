@@ -115,6 +115,7 @@ set(laplace_postgresql_module_sources
     src/cognition_discourse_pg.c
     src/cognition_isa_pg.c
     src/cognition_firmware_pg.c
+    src/cognition_product_pg.c
     src/composition_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
@@ -264,9 +265,9 @@ if(BUILD_TESTING)
         LAPLACE_TEST_COMPOSITION_PRESENCE_PER_ROW)
     target_compile_definitions(
         laplace_pg_composition_presence_per_row_mutant PRIVATE
-        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_per_row_mutant
-        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_presence_per_row_mutant
-        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_presence_per_row_mutant)
+        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_order_mutant
+        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_presence_order_mutant
+        LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_presence_order_mutant)
     laplace_add_postgresql_mutant(
         laplace_pg_composition_presence_partial_mutant
         LAPLACE_TEST_COMPOSITION_PRESENCE_PARTIAL)
@@ -337,22 +338,34 @@ if(BUILD_TESTING)
         LAPLACE_TEST_PG_MACHINE_EXCEPTION_CAPABILITY_DRIFT)
 endif()
 
-# Retain the original install script for historical package validation. Version
-# 1.0.1 adds this operation through the identical delta on fresh and existing nodes.
+# Retain the original install script and the 1.0.1 cognition upgrade for historical
+# package validation. The product cognition route is a new 1.0.2 delta so an
+# already-active 1.0.1 cluster receives the same objects as a fresh installation.
 set(persisted_cognition_upgrade_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.0--1.0.1.sql")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/observation_cognition_persisted.sql.in"
     "${persisted_cognition_upgrade_sql}" @ONLY)
-set(current_extension_sql
+set(extension_101_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.1.sql")
 file(READ "${extension_sql}" previous_schema)
 file(READ "${persisted_cognition_upgrade_sql}" persisted_cognition_delta)
-file(WRITE "${current_extension_sql}" "${previous_schema}\n${persisted_cognition_delta}")
+file(WRITE "${extension_101_sql}" "${previous_schema}\n${persisted_cognition_delta}")
+
+set(product_cognition_upgrade_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.1--1.0.2.sql")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cognition_product_route.sql.in"
+    "${product_cognition_upgrade_sql}" @ONLY)
+set(current_extension_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.2.sql")
+file(READ "${product_cognition_upgrade_sql}" product_cognition_delta)
+file(WRITE "${current_extension_sql}"
+    "${previous_schema}\n${persisted_cognition_delta}\n${product_cognition_delta}")
 
 install(TARGETS laplace_pg
     LIBRARY DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/lib")
 install(FILES "${extension_control}" "${extension_sql}"
-    "${current_extension_sql}" "${persisted_cognition_upgrade_sql}"
+    "${extension_101_sql}" "${current_extension_sql}"
+    "${persisted_cognition_upgrade_sql}" "${product_cognition_upgrade_sql}"
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace-public-readback.sql"
     DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/share/extension")
 
