@@ -37,3 +37,5 @@ set_tests_properties(postgres.cognition-discourse-restart-readback PROPERTIES
     TIMEOUT 120
     ENVIRONMENT
         "RUNNER_TEMP=${CMAKE_CURRENT_BINARY_DIR}/cognition-discourse;LAPLACE_POSTGRES_DISCOURSE_TEST_PORT=55443")
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/tests/target_attention.cmake")
