@@ -281,7 +281,14 @@ FROM laplace.cognition_firmware_execute_product(
     if not isinstance(result, dict):
         raise RuntimeError("installed cognition route did not return one JSON result")
 
+    print(
+        json.dumps({"installed_cognition_raw_result": result}, sort_keys=True),
+        flush=True,
+    )
     status = result.get("status")
+    if status != 0:
+        raise RuntimeError(f"installed cognition returned status {status}: {result}")
+
     output_hex = bytea_hex(result.get("output"), "output")
     returned_program = bytea_hex(result.get("program_id"), "program_id")
     receipt_hex = bytea_hex(result.get("execution_receipt_id"), "execution_receipt_id")
@@ -295,8 +302,6 @@ FROM laplace.cognition_firmware_execute_product(
     trunk = bytea_hex(result.get("trunk_entity_id"), "trunk_entity_id")
 
     observed_output = bytes.fromhex(output_hex)
-    if status != 0:
-        raise RuntimeError(f"installed cognition returned status {status}: {result}")
     if returned_program != program_id:
         raise RuntimeError("executed program does not match installed compiled firmware")
     if observed_output != b"A":
