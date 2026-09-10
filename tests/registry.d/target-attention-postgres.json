@@ -1,0 +1,20 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "postgres.target-attention-native-parity",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": [
+        "LP-TEST-TYPED-INCIDENCE-OPERATOR",
+        "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY",
+        "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "PostgreSQL submits the complete paired QK/VO target job set in one native call",
+        "SQL receives the generated shared embedding and Q/K/V/O tensors rather than application-side filler",
+        "PostgreSQL and native target compilation produce identical compile projection embedding and head receipts",
+        "insufficient target hidden width fails closed instead of cycling or random filling semantic capacity"
+      ]
+    }
+  ]
+}
