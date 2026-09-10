@@ -63,6 +63,7 @@ add_library(laplace_engine SHARED
     src/decomposition_xml_ast.cpp
     src/ucdxml_projection.cpp
     src/ucdxml_evidence.cpp
+    src/ucdxml_estate.cpp
     src/decomposition_tree_sitter.cpp
     src/tree_sitter_grammar.cpp
     src/universal_ast.cpp
