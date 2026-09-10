@@ -53,7 +53,7 @@
           "class": "license",
           "path": "/opt/intel/oneapi/tcm/1.5/share/doc/tcm/licensing/third-party-programs.txt",
           "bytes": 14689,
-          "sha256": "0c359ebe1a1c58c3bb42eb28b6c3310361fe75d99ddb2fa29c536bf2a290955"
+          "sha256": "0c359ebe1a1c58c3bb42eb228b6c3310361fe75d99ddb2fa29c536bf2a290955"
         }
       ]
     }
