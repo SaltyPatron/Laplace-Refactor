@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 10 ]]; then
-    echo "usage: $0 PG-BINDIR CONTROL-ROOT MODULE-DIRECTORY ENGINE-DIRECTORY NATIVE-PROBE PYTHON CLI FRAMEWORK-MAJOR FRAMEWORK-MINOR READ-ONLY-FLAG" >&2
+if [[ $# -ne 11 ]]; then
+    echo "usage: $0 PG-BINDIR CONTROL-ROOT MODULE-DIRECTORY ENGINE-DIRECTORY NATIVE-PROBE PYTHON CLI FRAMEWORK-MAJOR FRAMEWORK-MINOR READ-ONLY-FLAG SANITIZER-PRELOAD" >&2
     exit 64
 fi
 
@@ -17,6 +17,7 @@ cli=$7
 framework_major=$8
 framework_minor=$9
 read_only_flag=${10}
+sanitizer_preload=${11}
 temporary_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
 mkdir -p -- "$temporary_parent"
 test_root=$(mktemp -d "$temporary_parent/laplace-model-export-cli.XXXXXX")
@@ -30,6 +31,10 @@ artifact_two="$test_root/model-two.safetensors"
 receipt_two="$test_root/model-two.receipt.json"
 port=${LAPLACE_POSTGRES_TARGET_ATTENTION_CLI_TEST_PORT:-55446}
 server_started=0
+server_asan_options=${ASAN_OPTIONS:-}
+if [[ -n "$sanitizer_preload" ]]; then
+    server_asan_options="${server_asan_options}${server_asan_options:+:}detect_leaks=0"
+fi
 
 cleanup() {
     exit_code=$?
@@ -51,10 +56,13 @@ trap cleanup EXIT
 "$pg_bindir/initdb" -D "$data_directory" \
     --no-locale --encoding=UTF8 --auth=trust >/dev/null
 postgres_options="-F -k $socket_directory -p $port -c listen_addresses= -c extension_control_path=$control_root -c dynamic_library_path=$module_directory:$postgres_library_directory:$engine_directory"
+ASAN_OPTIONS="$server_asan_options" \
+LD_PRELOAD="${sanitizer_preload}${sanitizer_preload:+${LD_PRELOAD:+:}}${LD_PRELOAD:-}" \
 "$pg_bindir/pg_ctl" -D "$data_directory" -l "$server_log" \
     -o "$postgres_options" -w start >/dev/null
 server_started=1
 
+LD_PRELOAD="${sanitizer_preload}${sanitizer_preload:+${LD_PRELOAD:+:}}${LD_PRELOAD:-}" \
 "$pg_bindir/psql" -X -h "$socket_directory" -p "$port" -d postgres \
     -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION laplace;' >/dev/null
 
