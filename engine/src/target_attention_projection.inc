@@ -45,6 +45,15 @@ struct AttentionProjectedHead {
     std::vector<double> o;
 };
 
+}  // namespace
+
+struct laplace_target_attention_projection_result {
+    std::vector<double> embedding;
+    std::vector<AttentionProjectedHead> heads;
+};
+
+namespace {
+
 bool AttentionRequestValid(
     const laplace_target_attention_projection_request& request) {
     return request.heads != nullptr && request.head_count > 0U &&
@@ -59,6 +68,13 @@ bool AttentionHeadSpecValid(const laplace_target_attention_head_spec& spec) {
     return spec.head_rank > 0U && spec.flags == 0U && spec.reserved == 0U;
 }
 
+bool AttentionSameDomain(
+    const laplace_target_compile_slot_receipt& left,
+    const laplace_target_compile_slot_receipt& right) {
+    return left.field_count == right.field_count &&
+        Same(left.field_set_fingerprint, right.field_set_fingerprint);
+}
+
 void AttentionValuesFingerprint(
     const char* const domain,
     const std::size_t domain_size,
@@ -70,20 +86,6 @@ void AttentionValuesFingerprint(
     HashU64(&hasher, static_cast<std::uint64_t>(values.size()));
     for (const double value : values) HashF64(&hasher, value);
     Finish(&hasher, output);
-}
-
-bool AttentionFinite(const std::vector<double>& values) {
-    for (const double value : values) {
-        if (!std::isfinite(value)) return false;
-    }
-    return true;
-}
-
-bool AttentionSameDomain(
-    const laplace_target_compile_slot_receipt& left,
-    const laplace_target_compile_slot_receipt& right) {
-    return left.field_count == right.field_count &&
-        Same(left.field_set_fingerprint, right.field_set_fingerprint);
 }
 
 bool AttentionHeadLess(
@@ -121,24 +123,24 @@ laplace_target_attention_projection_status AttentionFactorizeHead(
     }
 
     const std::size_t field_count = static_cast<std::size_t>(qk.field_count);
-    const std::size_t head_rank = static_cast<std::size_t>(spec.head_rank);
-    if (field_count == 0U || field_count > std::numeric_limits<std::size_t>::max() / head_rank) {
+    const std::size_t rank = static_cast<std::size_t>(spec.head_rank);
+    if (field_count == 0U || rank == 0U ||
+        field_count > std::numeric_limits<std::size_t>::max() / rank) {
         return LAPLACE_TARGET_ATTENTION_PROJECTION_INVALID_HEAD;
     }
-    const std::size_t factor_values = field_count * head_rank;
+    const std::size_t factor_values = field_count * rank;
 
-    AttentionFactorizedHead result{};
-    result.spec = spec;
-    result.qk_slot = qk;
-    result.vo_slot = vo;
+    AttentionFactorizedHead value{};
+    value.spec = spec;
+    value.qk_slot = qk;
+    value.vo_slot = vo;
     try {
-        result.q_factor.resize(factor_values);
-        result.k_factor.resize(factor_values);
-        result.v_factor.resize(factor_values);
-        result.o_factor.resize(factor_values);
-        std::vector<double> qk_sigma(head_rank);
-        std::vector<double> vo_sigma(head_rank);
-
+        value.q_factor.resize(factor_values);
+        value.k_factor.resize(factor_values);
+        value.v_factor.resize(factor_values);
+        value.o_factor.resize(factor_values);
+        std::vector<double> qk_sigma(rank);
+        std::vector<double> vo_sigma(rank);
         laplace_target_factorization_request factor_request{};
         factor_request.requested_rank = spec.head_rank;
         factor_request.relative_tolerance = relative_tolerance;
@@ -147,94 +149,91 @@ laplace_target_attention_projection_status AttentionFactorizeHead(
         std::size_t required_sigma = 0U;
 
         factor_request.slot_index = spec.qk_slot_index;
-        const auto qk_status = laplace_target_factorize_slot(
-            &compiled, &factor_request,
-            result.q_factor.data(), result.q_factor.size(),
-            result.k_factor.data(), result.k_factor.size(),
-            qk_sigma.data(), qk_sigma.size(),
-            &required_factors, &required_sigma, &result.qk_factorization);
-        if (qk_status != LAPLACE_TARGET_FACTORIZATION_OK ||
-            required_factors != factor_values || required_sigma != head_rank) {
+        if (laplace_target_factorize_slot(
+                &compiled, &factor_request,
+                value.q_factor.data(), value.q_factor.size(),
+                value.k_factor.data(), value.k_factor.size(),
+                qk_sigma.data(), qk_sigma.size(),
+                &required_factors, &required_sigma,
+                &value.qk_factorization) != LAPLACE_TARGET_FACTORIZATION_OK ||
+            required_factors != factor_values || required_sigma != rank) {
             return LAPLACE_TARGET_ATTENTION_PROJECTION_NUMERIC_FAILURE;
         }
 
         factor_request.slot_index = spec.vo_slot_index;
-        const auto vo_status = laplace_target_factorize_slot(
-            &compiled, &factor_request,
-            result.v_factor.data(), result.v_factor.size(),
-            result.o_factor.data(), result.o_factor.size(),
-            vo_sigma.data(), vo_sigma.size(),
-            &required_factors, &required_sigma, &result.vo_factorization);
-        if (vo_status != LAPLACE_TARGET_FACTORIZATION_OK ||
-            required_factors != factor_values || required_sigma != head_rank) {
+        if (laplace_target_factorize_slot(
+                &compiled, &factor_request,
+                value.v_factor.data(), value.v_factor.size(),
+                value.o_factor.data(), value.o_factor.size(),
+                vo_sigma.data(), vo_sigma.size(),
+                &required_factors, &required_sigma,
+                &value.vo_factorization) != LAPLACE_TARGET_FACTORIZATION_OK ||
+            required_factors != factor_values || required_sigma != rank) {
             return LAPLACE_TARGET_ATTENTION_PROJECTION_NUMERIC_FAILURE;
         }
     } catch (const std::bad_alloc&) {
         return LAPLACE_TARGET_ATTENTION_PROJECTION_MEMORY_FAILURE;
     }
-    *output = std::move(result);
+    *output = std::move(value);
     return LAPLACE_TARGET_ATTENTION_PROJECTION_OK;
 }
 
-double AttentionDot(
-    const std::vector<double>& basis,
-    const std::size_t field_count,
-    const std::size_t hidden_width,
-    const std::size_t basis_column,
-    const std::vector<double>& vector) {
+double AttentionNorm(const std::vector<double>& values) {
     double sum = 0.0;
     double correction = 0.0;
-    for (std::size_t row = 0U; row < field_count; ++row) {
-        const double term = basis[row * hidden_width + basis_column] * vector[row];
-        const double next = sum + term;
-        if (std::abs(sum) >= std::abs(term)) {
-            correction += (sum - next) + term;
-        } else {
-            correction += (term - next) + sum;
-        }
-        sum = next;
-    }
-    return sum + correction;
-}
-
-double AttentionNorm(const std::vector<double>& vector) {
-    double sum = 0.0;
-    double correction = 0.0;
-    for (const double value : vector) {
+    for (const double value : values) {
         const double term = value * value;
         const double next = sum + term;
-        if (std::abs(sum) >= std::abs(term)) {
-            correction += (sum - next) + term;
-        } else {
-            correction += (term - next) + sum;
-        }
+        correction += std::abs(sum) >= std::abs(term)
+            ? (sum - next) + term
+            : (term - next) + sum;
         sum = next;
     }
     const double squared = sum + correction;
     return squared > 0.0 ? std::sqrt(squared) : 0.0;
 }
 
-bool AttentionCandidateColumn(
+double AttentionBasisDot(
+    const std::vector<double>& basis,
+    const std::size_t field_count,
+    const std::size_t hidden_width,
+    const std::size_t column,
+    const std::vector<double>& values) {
+    double sum = 0.0;
+    double correction = 0.0;
+    for (std::size_t row = 0U; row < field_count; ++row) {
+        const double term = basis[row * hidden_width + column] * values[row];
+        const double next = sum + term;
+        correction += std::abs(sum) >= std::abs(term)
+            ? (sum - next) + term
+            : (term - next) + sum;
+        sum = next;
+    }
+    return sum + correction;
+}
+
+bool AttentionExtractColumn(
     const std::vector<double>& factor,
     const std::size_t field_count,
     const std::size_t rank,
     const std::size_t column,
-    std::vector<double>* const output) {
+    std::vector<double>* const values) {
     if (factor.size() != field_count * rank || column >= rank) return false;
-    output->resize(field_count);
+    values->resize(field_count);
     for (std::size_t row = 0U; row < field_count; ++row) {
-        (*output)[row] = factor[row * rank + column];
+        const double value = factor[row * rank + column];
+        if (!std::isfinite(value)) return false;
+        (*values)[row] = value;
     }
-    return AttentionFinite(*output);
+    return true;
 }
 
-bool AttentionTryAppendBasis(
+bool AttentionAppendIndependentColumn(
     const std::vector<double>& candidate,
     const double relative_tolerance,
     const std::size_t hidden_width,
     std::vector<double>* const basis,
-    std::size_t* const basis_count,
-    double* const unresolved_ratio) {
+    std::size_t* const basis_count) {
     const std::size_t field_count = candidate.size();
     if (basis->size() != field_count * hidden_width || *basis_count > hidden_width) {
         return false;
@@ -242,15 +241,12 @@ bool AttentionTryAppendBasis(
     std::vector<double> work(candidate);
     const double original_norm = AttentionNorm(work);
     if (!std::isfinite(original_norm)) return false;
-    if (original_norm == 0.0) {
-        *unresolved_ratio = 0.0;
-        return true;
-    }
+    if (original_norm == 0.0) return true;
 
     for (std::size_t pass = 0U; pass < 2U; ++pass) {
         for (std::size_t column = 0U; column < *basis_count; ++column) {
             const double coefficient =
-                AttentionDot(*basis, field_count, hidden_width, column, work);
+                AttentionBasisDot(*basis, field_count, hidden_width, column, work);
             for (std::size_t row = 0U; row < field_count; ++row) {
                 work[row] -= coefficient * (*basis)[row * hidden_width + column];
             }
@@ -258,12 +254,12 @@ bool AttentionTryAppendBasis(
     }
     const double residual_norm = AttentionNorm(work);
     if (!std::isfinite(residual_norm)) return false;
-    *unresolved_ratio = residual_norm / original_norm;
     const double threshold = std::max(
         relative_tolerance,
         std::numeric_limits<double>::epsilon() * 128.0);
-    if (*unresolved_ratio <= threshold) return true;
-    if (*basis_count >= hidden_width) return true;
+    if (residual_norm / original_norm <= threshold || *basis_count >= hidden_width) {
+        return true;
+    }
 
     for (double& value : work) value /= residual_norm;
     std::size_t pivot = 0U;
@@ -292,15 +288,13 @@ bool AttentionBuildBasis(
     const std::size_t hidden_width,
     const double relative_tolerance,
     std::vector<double>* const basis,
-    std::size_t* const semantic_rank,
-    double* const max_unresolved_ratio) {
+    std::size_t* const semantic_rank) {
     if (field_count == 0U || hidden_width == 0U || hidden_width > field_count ||
         field_count > std::numeric_limits<std::size_t>::max() / hidden_width) {
         return false;
     }
     basis->assign(field_count * hidden_width, 0.0);
     *semantic_rank = 0U;
-    *max_unresolved_ratio = 0.0;
     std::vector<double> candidate;
 
     for (const auto& head : heads) {
@@ -309,17 +303,13 @@ bool AttentionBuildBasis(
             &head.q_factor, &head.k_factor, &head.v_factor, &head.o_factor}};
         for (const auto* const factor : factors) {
             for (std::size_t column = 0U; column < rank; ++column) {
-                if (!AttentionCandidateColumn(
-                        *factor, field_count, rank, column, &candidate)) {
+                if (!AttentionExtractColumn(
+                        *factor, field_count, rank, column, &candidate) ||
+                    !AttentionAppendIndependentColumn(
+                        candidate, relative_tolerance, hidden_width,
+                        basis, semantic_rank)) {
                     return false;
                 }
-                double unresolved = 0.0;
-                if (!AttentionTryAppendBasis(
-                        candidate, relative_tolerance, hidden_width, basis,
-                        semantic_rank, &unresolved)) {
-                    return false;
-                }
-                *max_unresolved_ratio = std::max(*max_unresolved_ratio, unresolved);
             }
         }
     }
@@ -328,10 +318,8 @@ bool AttentionBuildBasis(
     for (std::size_t axis = 0U; axis < field_count && *semantic_rank < hidden_width; ++axis) {
         candidate.assign(field_count, 0.0);
         candidate[axis] = 1.0;
-        double unresolved = 0.0;
-        if (!AttentionTryAppendBasis(
-                candidate, relative_tolerance, hidden_width, basis,
-                semantic_rank, &unresolved)) {
+        if (!AttentionAppendIndependentColumn(
+                candidate, relative_tolerance, hidden_width, basis, semantic_rank)) {
             return false;
         }
     }
@@ -340,72 +328,54 @@ bool AttentionBuildBasis(
     return true;
 }
 
-void AttentionProjectInputFactor(
+void AttentionProjectInput(
     const std::vector<double>& factor,
     const std::size_t field_count,
     const std::size_t rank,
     const std::vector<double>& basis,
     const std::size_t hidden_width,
-    std::vector<double>* const output) {
-    output->assign(rank * hidden_width, 0.0);
+    std::vector<double>* const weight) {
+    weight->assign(rank * hidden_width, 0.0);
     for (std::size_t component = 0U; component < rank; ++component) {
         for (std::size_t hidden = 0U; hidden < hidden_width; ++hidden) {
             double sum = 0.0;
-            double correction = 0.0;
             for (std::size_t row = 0U; row < field_count; ++row) {
-                const double term =
-                    factor[row * rank + component] *
+                sum += factor[row * rank + component] *
                     basis[row * hidden_width + hidden];
-                const double next = sum + term;
-                if (std::abs(sum) >= std::abs(term)) {
-                    correction += (sum - next) + term;
-                } else {
-                    correction += (term - next) + sum;
-                }
-                sum = next;
             }
-            (*output)[component * hidden_width + hidden] = sum + correction;
+            (*weight)[component * hidden_width + hidden] = sum;
         }
     }
 }
 
-void AttentionProjectOutputFactor(
+void AttentionProjectOutput(
     const std::vector<double>& factor,
     const std::size_t field_count,
     const std::size_t rank,
     const std::vector<double>& basis,
     const std::size_t hidden_width,
-    std::vector<double>* const output) {
-    output->assign(hidden_width * rank, 0.0);
+    std::vector<double>* const weight) {
+    weight->assign(hidden_width * rank, 0.0);
     for (std::size_t hidden = 0U; hidden < hidden_width; ++hidden) {
         for (std::size_t component = 0U; component < rank; ++component) {
             double sum = 0.0;
-            double correction = 0.0;
             for (std::size_t row = 0U; row < field_count; ++row) {
-                const double term =
-                    basis[row * hidden_width + hidden] *
+                sum += basis[row * hidden_width + hidden] *
                     factor[row * rank + component];
-                const double next = sum + term;
-                if (std::abs(sum) >= std::abs(term)) {
-                    correction += (sum - next) + term;
-                } else {
-                    correction += (term - next) + sum;
-                }
-                sum = next;
             }
-            (*output)[hidden * rank + component] = sum + correction;
+            (*weight)[hidden * rank + component] = sum;
         }
     }
 }
 
-void AttentionReconstructInputFactor(
+void AttentionRecoverInput(
     const std::vector<double>& basis,
     const std::size_t field_count,
     const std::size_t hidden_width,
     const std::vector<double>& weight,
     const std::size_t rank,
-    std::vector<double>* const output) {
-    output->assign(field_count * rank, 0.0);
+    std::vector<double>* const factor) {
+    factor->assign(field_count * rank, 0.0);
     for (std::size_t row = 0U; row < field_count; ++row) {
         for (std::size_t component = 0U; component < rank; ++component) {
             double sum = 0.0;
@@ -413,19 +383,19 @@ void AttentionReconstructInputFactor(
                 sum += basis[row * hidden_width + hidden] *
                     weight[component * hidden_width + hidden];
             }
-            (*output)[row * rank + component] = sum;
+            (*factor)[row * rank + component] = sum;
         }
     }
 }
 
-void AttentionReconstructOutputFactor(
+void AttentionRecoverOutput(
     const std::vector<double>& basis,
     const std::size_t field_count,
     const std::size_t hidden_width,
     const std::vector<double>& weight,
     const std::size_t rank,
-    std::vector<double>* const output) {
-    output->assign(field_count * rank, 0.0);
+    std::vector<double>* const factor) {
+    factor->assign(field_count * rank, 0.0);
     for (std::size_t row = 0U; row < field_count; ++row) {
         for (std::size_t component = 0U; component < rank; ++component) {
             double sum = 0.0;
@@ -433,7 +403,7 @@ void AttentionReconstructOutputFactor(
                 sum += basis[row * hidden_width + hidden] *
                     weight[hidden * rank + component];
             }
-            (*output)[row * rank + component] = sum;
+            (*factor)[row * rank + component] = sum;
         }
     }
 }
@@ -529,7 +499,7 @@ void AttentionIdentifyProjection(
     Finish(&hasher, &receipt->projection_id);
 }
 
-laplace_target_attention_projection_status AttentionCopyVector(
+laplace_target_attention_projection_status AttentionCopy(
     const std::vector<double>& values,
     double* const output,
     const std::size_t output_capacity,
@@ -546,11 +516,6 @@ laplace_target_attention_projection_status AttentionCopyVector(
 }
 
 }  // namespace
-
-struct laplace_target_attention_projection_result {
-    std::vector<double> embedding;
-    std::vector<AttentionProjectedHead> heads;
-};
 
 extern "C" laplace_target_attention_projection_status
 laplace_target_attention_project(
@@ -580,8 +545,8 @@ laplace_target_attention_project(
     }
     std::sort(factors.begin(), factors.end(), AttentionHeadLess);
 
-    std::set<std::tuple<std::uint32_t, std::uint32_t, std::uint32_t>> coordinates;
     const auto& first_slot = factors.front().qk_slot;
+    std::set<std::tuple<std::uint32_t, std::uint32_t, std::uint32_t>> coordinates;
     for (const auto& head : factors) {
         if (!AttentionSameDomain(first_slot, head.qk_slot)) {
             return LAPLACE_TARGET_ATTENTION_PROJECTION_DOMAIN_MISMATCH;
@@ -595,8 +560,7 @@ laplace_target_attention_project(
 
     const std::size_t field_count = static_cast<std::size_t>(first_slot.field_count);
     const std::size_t hidden_width = static_cast<std::size_t>(request->hidden_width);
-    if (request->hidden_width > first_slot.field_count ||
-        field_count == 0U || hidden_width == 0U || hidden_width > field_count) {
+    if (request->hidden_width > first_slot.field_count || hidden_width == 0U) {
         return LAPLACE_TARGET_ATTENTION_PROJECTION_INVALID_REQUEST;
     }
 
@@ -605,11 +569,10 @@ laplace_target_attention_project(
     if (!projected) return LAPLACE_TARGET_ATTENTION_PROJECTION_MEMORY_FAILURE;
 
     std::size_t semantic_rank = 0U;
-    double max_basis_unresolved = 0.0;
     try {
         if (!AttentionBuildBasis(
                 factors, field_count, hidden_width, request->relative_tolerance,
-                &projected->embedding, &semantic_rank, &max_basis_unresolved)) {
+                &projected->embedding, &semantic_rank)) {
             return LAPLACE_TARGET_ATTENTION_PROJECTION_NUMERIC_FAILURE;
         }
         projected->heads.resize(factors.size());
@@ -618,48 +581,48 @@ laplace_target_attention_project(
     }
 
     double max_relative_residual = 0.0;
-    std::uint64_t tensor_value_count = static_cast<std::uint64_t>(projected->embedding.size());
+    std::uint64_t tensor_values = static_cast<std::uint64_t>(projected->embedding.size());
     for (std::size_t index = 0U; index < factors.size(); ++index) {
         const auto& source = factors[index];
         auto& target = projected->heads[index];
         const std::size_t rank = static_cast<std::size_t>(source.spec.head_rank);
         try {
-            AttentionProjectInputFactor(
-                source.q_factor, field_count, rank, projected->embedding,
-                hidden_width, &target.q);
-            AttentionProjectInputFactor(
-                source.k_factor, field_count, rank, projected->embedding,
-                hidden_width, &target.k);
-            AttentionProjectInputFactor(
-                source.v_factor, field_count, rank, projected->embedding,
-                hidden_width, &target.v);
-            AttentionProjectOutputFactor(
-                source.o_factor, field_count, rank, projected->embedding,
-                hidden_width, &target.o);
+            AttentionProjectInput(
+                source.q_factor, field_count, rank,
+                projected->embedding, hidden_width, &target.q);
+            AttentionProjectInput(
+                source.k_factor, field_count, rank,
+                projected->embedding, hidden_width, &target.k);
+            AttentionProjectInput(
+                source.v_factor, field_count, rank,
+                projected->embedding, hidden_width, &target.v);
+            AttentionProjectOutput(
+                source.o_factor, field_count, rank,
+                projected->embedding, hidden_width, &target.o);
 
-            std::vector<double> q_reconstructed;
-            std::vector<double> k_reconstructed;
-            std::vector<double> v_reconstructed;
-            std::vector<double> o_reconstructed;
-            AttentionReconstructInputFactor(
+            std::vector<double> q_factor;
+            std::vector<double> k_factor;
+            std::vector<double> v_factor;
+            std::vector<double> o_factor;
+            AttentionRecoverInput(
                 projected->embedding, field_count, hidden_width,
-                target.q, rank, &q_reconstructed);
-            AttentionReconstructInputFactor(
+                target.q, rank, &q_factor);
+            AttentionRecoverInput(
                 projected->embedding, field_count, hidden_width,
-                target.k, rank, &k_reconstructed);
-            AttentionReconstructInputFactor(
+                target.k, rank, &k_factor);
+            AttentionRecoverInput(
                 projected->embedding, field_count, hidden_width,
-                target.v, rank, &v_reconstructed);
-            AttentionReconstructOutputFactor(
+                target.v, rank, &v_factor);
+            AttentionRecoverOutput(
                 projected->embedding, field_count, hidden_width,
-                target.o, rank, &o_reconstructed);
+                target.o, rank, &o_factor);
 
             const double qk_residual = AttentionPairResidual(
                 compiled->matrices[source.spec.qk_slot_index],
-                q_reconstructed, k_reconstructed, field_count, rank);
+                q_factor, k_factor, field_count, rank);
             const double vo_residual = AttentionPairResidual(
                 compiled->matrices[source.spec.vo_slot_index],
-                v_reconstructed, o_reconstructed, field_count, rank);
+                v_factor, o_factor, field_count, rank);
             if (!std::isfinite(qk_residual) || !std::isfinite(vo_residual)) {
                 return LAPLACE_TARGET_ATTENTION_PROJECTION_NUMERIC_FAILURE;
             }
@@ -670,7 +633,7 @@ laplace_target_attention_project(
             target.receipt.vo_operator_id = source.vo_slot.operator_id;
             target.receipt.qk_factorization_id = source.qk_factorization.factorization_id;
             target.receipt.vo_factorization_id = source.vo_factorization.factorization_id;
-            target.receipt.field_count = source.qk_slot.field_count;
+            target.receipt.field_count = first_slot.field_count;
             target.receipt.hidden_width = request->hidden_width;
             target.receipt.head_rank = source.spec.head_rank;
             target.receipt.qk_relative_residual = qk_residual;
@@ -695,24 +658,22 @@ laplace_target_attention_project(
             max_relative_residual = std::max(
                 max_relative_residual, std::max(qk_residual, vo_residual));
 
-            const std::uint64_t head_values =
-                static_cast<std::uint64_t>(target.q.size() + target.k.size() +
-                                           target.v.size() + target.o.size());
-            if (tensor_value_count > std::numeric_limits<std::uint64_t>::max() - head_values) {
+            const std::size_t head_value_count =
+                target.q.size() + target.k.size() + target.v.size() + target.o.size();
+            if (head_value_count >
+                    static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max()) ||
+                tensor_values > std::numeric_limits<std::uint64_t>::max() -
+                    static_cast<std::uint64_t>(head_value_count)) {
                 return LAPLACE_TARGET_ATTENTION_PROJECTION_INVALID_REQUEST;
             }
-            tensor_value_count += head_values;
+            tensor_values += static_cast<std::uint64_t>(head_value_count);
         } catch (const std::bad_alloc&) {
             return LAPLACE_TARGET_ATTENTION_PROJECTION_MEMORY_FAILURE;
         }
     }
 
-    const bool exact_required =
-        (request->flags & LAPLACE_TARGET_ATTENTION_PROJECTION_REQUIRE_EXACT) != 0U;
-    const bool insufficient = exact_required &&
-        (max_basis_unresolved > request->relative_tolerance ||
-         max_relative_residual > request->relative_tolerance);
-    if (insufficient) {
+    if ((request->flags & LAPLACE_TARGET_ATTENTION_PROJECTION_REQUIRE_EXACT) != 0U &&
+        max_relative_residual > request->relative_tolerance) {
         return LAPLACE_TARGET_ATTENTION_PROJECTION_HIDDEN_WIDTH_INSUFFICIENT;
     }
 
@@ -721,7 +682,7 @@ laplace_target_attention_project(
     receipt->semantic_basis_rank = static_cast<std::uint64_t>(semantic_rank);
     receipt->null_basis_rank = request->hidden_width - receipt->semantic_basis_rank;
     receipt->head_count = static_cast<std::uint64_t>(projected->heads.size());
-    receipt->tensor_value_count = tensor_value_count;
+    receipt->tensor_value_count = tensor_values;
     receipt->max_relative_residual = max_relative_residual;
     receipt->flags = request->flags;
     receipt->status = LAPLACE_TARGET_ATTENTION_PROJECTION_OK;
@@ -766,7 +727,7 @@ laplace_target_attention_projection_embedding(
     const size_t output_capacity,
     size_t* const required_count) {
     if (result == nullptr) return LAPLACE_TARGET_ATTENTION_PROJECTION_INVALID_ARGUMENT;
-    return AttentionCopyVector(result->embedding, output, output_capacity, required_count);
+    return AttentionCopy(result->embedding, output, output_capacity, required_count);
 }
 
 extern "C" laplace_target_attention_projection_status
@@ -779,8 +740,7 @@ laplace_target_attention_projection_q(
     if (result == nullptr || head_index >= result->heads.size()) {
         return LAPLACE_TARGET_ATTENTION_PROJECTION_INVALID_ARGUMENT;
     }
-    return AttentionCopyVector(
-        result->heads[head_index].q, output, output_capacity, required_count);
+    return AttentionCopy(result->heads[head_index].q, output, output_capacity, required_count);
 }
 
 extern "C" laplace_target_attention_projection_status
@@ -793,8 +753,7 @@ laplace_target_attention_projection_k(
     if (result == nullptr || head_index >= result->heads.size()) {
         return LAPLACE_TARGET_ATTENTION_PROJECTION_INVALID_ARGUMENT;
     }
-    return AttentionCopyVector(
-        result->heads[head_index].k, output, output_capacity, required_count);
+    return AttentionCopy(result->heads[head_index].k, output, output_capacity, required_count);
 }
 
 extern "C" laplace_target_attention_projection_status
@@ -807,8 +766,7 @@ laplace_target_attention_projection_v(
     if (result == nullptr || head_index >= result->heads.size()) {
         return LAPLACE_TARGET_ATTENTION_PROJECTION_INVALID_ARGUMENT;
     }
-    return AttentionCopyVector(
-        result->heads[head_index].v, output, output_capacity, required_count);
+    return AttentionCopy(result->heads[head_index].v, output, output_capacity, required_count);
 }
 
 extern "C" laplace_target_attention_projection_status
@@ -821,6 +779,5 @@ laplace_target_attention_projection_o(
     if (result == nullptr || head_index >= result->heads.size()) {
         return LAPLACE_TARGET_ATTENTION_PROJECTION_INVALID_ARGUMENT;
     }
-    return AttentionCopyVector(
-        result->heads[head_index].o, output, output_capacity, required_count);
+    return AttentionCopy(result->heads[head_index].o, output, output_capacity, required_count);
 }
