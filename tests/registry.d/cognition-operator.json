@@ -114,6 +114,21 @@
       "covered_dimensions": ["codec consumes only an independently validated target-neutral package", "corrupt target state cannot be serialized into a plausible consumer artifact"]
     },
     {
+      "ctest_name": "TargetAttentionSafeTensors.EmitsEmbeddingAndActualQkvoWeights",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"],
+      "covered_dimensions": ["actual projected shared embedding and Q K V O weights are emitted as one consumer artifact", "head coordinate rank operator and factorization provenance remain in artifact metadata", "codec consumes deterministic projection output without training or random filler"]
+    },
+    {
+      "ctest_name": "TargetAttentionSafeTensors.CanonicalValidationRejectsArtifactDrift",
+      "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["projected-weight artifact is byte deterministic", "any payload or metadata drift fails exact validation"]
+    },
+    {
+      "ctest_name": "TargetAttentionSafeTensors.RejectsMismatchedProjectionReceipt",
+      "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["codec cannot serialize a projection under mismatched target width or receipt state", "consumer artifact metadata cannot claim a different projection contract"]
+    },
+    {
       "ctest_name": "cognition-operator.mutation-relation-plane-flatten-detected",
       "evidence_targets": ["LP-TEST-RELATION-PLANE-TYPE-ERASURE"],
       "covered_dimensions": ["relation plane type erasure is detected"],
