@@ -308,3 +308,30 @@ jobs:
             echo '- Highway activation receipt: readable'
             echo '- systemd unit: optional boot integration only'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Execute installed product cognition proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_id='${{ needs.compose-product.outputs.package_id }}'
+          receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
+          proof="$receipt_root/product-cognition/$package_id/installed-proof.json"
+          python3 tools/delivery/product_cognition_live_proof.py --output "$proof"
+          jq -e \
+            --arg package_id "$package_id" '
+            .schema == "laplace.installed-product-cognition-proof/v1" and
+            .package_id == $package_id and
+            .prompt_utf8 == "AA" and
+            .observed_output_utf8 == "A" and
+            .execution.status == 0 and
+            .execution.completed_steps == 2 and
+            .execution.emitted_parts == 1 and
+            (.execution.execution_receipt_id | test("^\\\\x[0-9a-f]{64}$")) and
+            (.proof_sha256 | test("^[0-9a-f]{64}$"))
+          ' "$proof" >/dev/null
+          {
+            echo '## Installed product cognition output'
+            echo '```json'
+            jq '{schema,package_id,program:.program.program_id,prompt_utf8,observed_output_utf8,execution:{status:.execution.status,completed_steps:.execution.completed_steps,emitted_parts:.execution.emitted_parts,provider_call_count:.execution.provider_call_count,materialization_resolved_nodes:.execution.materialization_resolved_nodes,materialization_database_operations:.execution.materialization_database_operations,execution_receipt_id:.execution.execution_receipt_id},proof_sha256}' "$proof"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
