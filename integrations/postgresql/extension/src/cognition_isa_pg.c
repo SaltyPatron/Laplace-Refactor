@@ -208,3 +208,5 @@ Datum laplace_pg_cognition_execute_packet(PG_FUNCTION_ARGS) {
         fcinfo, result_values, result_nulls, 13);
     PG_RETURN_DATUM(HeapTupleGetDatum(result_tuple));
 }
+
+#include "target_attention_pg.inc"

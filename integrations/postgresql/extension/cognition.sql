@@ -1,5 +1,5 @@
 -- Public PostgreSQL runtime surface for native cognition operator construction and solve.
--- Both the typed and canonical-packet entrypoints execute through the generated ISA.
+-- Typed target compilation accepts whole QK/VO job sets and returns generated consumer weights.
 
 CREATE TYPE laplace.cognition_operator_program AS (
     program_id bytea,
@@ -94,6 +94,48 @@ CREATE TYPE laplace.cognition_packet_result AS (
     request_word_count bigint
 );
 
+CREATE TYPE laplace.target_operator_job AS (
+    target_role integer,
+    layer_index integer,
+    head_index integer,
+    expert_index integer,
+    role_fingerprint bytea,
+    operator_program laplace.cognition_operator_program,
+    fields laplace.cognition_operator_field[],
+    constraints laplace.cognition_operator_constraint[],
+    head_rank numeric(20, 0)
+);
+
+CREATE TYPE laplace.target_attention_compile_result AS (
+    embedding double precision[],
+    q double precision[],
+    k double precision[],
+    v double precision[],
+    o double precision[],
+    head_offsets numeric(20, 0)[],
+    head_ranks numeric(20, 0)[],
+    layer_indices integer[],
+    head_indices integer[],
+    expert_indices integer[],
+    head_receipt_ids bytea[],
+    qk_factorization_ids bytea[],
+    vo_factorization_ids bytea[],
+    qk_relative_residuals double precision[],
+    vo_relative_residuals double precision[],
+    compile_receipt_id bytea,
+    compile_request_fingerprint bytea,
+    projection_id bytea,
+    embedding_fingerprint bytea,
+    head_set_fingerprint bytea,
+    field_count numeric(20, 0),
+    hidden_width numeric(20, 0),
+    semantic_basis_rank numeric(20, 0),
+    null_basis_rank numeric(20, 0),
+    max_relative_residual double precision,
+    compile_status integer,
+    projection_status integer
+);
+
 CREATE FUNCTION laplace.cognition_solve(
     laplace.execution_context,
     laplace.cognition_operator_program,
@@ -112,6 +154,20 @@ RETURNS laplace.cognition_packet_result
 AS 'MODULE_PATHNAME', 'laplace_pg_cognition_execute_packet'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION laplace.target_attention_compile(
+    laplace.execution_context,
+    bytea,
+    bytea,
+    bytea,
+    bytea,
+    laplace.target_operator_job[],
+    numeric(20, 0),
+    double precision,
+    boolean)
+RETURNS laplace.target_attention_compile_result
+AS 'MODULE_PATHNAME', 'laplace_pg_target_attention_compile'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 REVOKE EXECUTE ON FUNCTION laplace.cognition_solve(
     laplace.execution_context,
     laplace.cognition_operator_program,
@@ -124,4 +180,16 @@ FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION laplace.cognition_execute_packet(
     laplace.execution_context,
     bytea)
+FROM PUBLIC;
+
+REVOKE EXECUTE ON FUNCTION laplace.target_attention_compile(
+    laplace.execution_context,
+    bytea,
+    bytea,
+    bytea,
+    bytea,
+    laplace.target_operator_job[],
+    numeric(20, 0),
+    double precision,
+    boolean)
 FROM PUBLIC;

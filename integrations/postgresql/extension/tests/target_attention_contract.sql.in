@@ -1,0 +1,245 @@
+CREATE EXTENSION laplace;
+
+CREATE FUNCTION pg_temp.execution_context()
+RETURNS laplace.execution_context
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $context$
+    SELECT ROW(
+        ARRAY[
+            decode(repeat('01',32),'hex'), decode(repeat('02',32),'hex'),
+            decode(repeat('03',32),'hex'), decode(repeat('04',32),'hex'),
+            decode(repeat('05',32),'hex'), decode(repeat('06',32),'hex'),
+            decode(repeat('07',32),'hex'), decode(repeat('08',32),'hex'),
+            decode(repeat('09',32),'hex'), decode(repeat('0a',32),'hex')
+        ],
+        decode(repeat('a0',32),'hex'), 1048576::bigint, 4, 1,
+        1023::bigint, @LAPLACE_FRAMEWORK_MAJOR@::smallint,
+        @LAPLACE_FRAMEWORK_MINOR@::smallint,
+        @LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY@::integer
+    )::laplace.execution_context
+$context$;
+
+CREATE FUNCTION pg_temp.digest(byte_value integer)
+RETURNS bytea
+LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE
+AS $digest$
+    SELECT decode(repeat(lpad(to_hex(byte_value), 2, '0'), 32), 'hex')
+$digest$;
+
+CREATE FUNCTION pg_temp.id128(byte_value integer)
+RETURNS bytea
+LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE
+AS $id$
+    SELECT decode(repeat(lpad(to_hex(byte_value), 2, '0'), 16), 'hex')
+$id$;
+
+CREATE FUNCTION pg_temp.operator_program(seed integer)
+RETURNS laplace.cognition_operator_program
+LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE
+AS $program$
+    SELECT ROW(
+        pg_temp.digest(seed),
+        pg_temp.digest(176),
+        decode(:'context_fingerprint', 'hex'),
+        pg_temp.digest(177),
+        pg_temp.digest(seed + 2),
+        ARRAY[11, 12]::integer[],
+        7,
+        7,
+        1e-12::double precision,
+        1
+    )::laplace.cognition_operator_program
+$program$;
+
+CREATE FUNCTION pg_temp.field(seed integer, ordinal_value numeric)
+RETURNS laplace.cognition_operator_field
+LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE
+AS $field$
+    SELECT ROW(
+        pg_temp.digest(seed),
+        pg_temp.id128(seed + 40),
+        pg_temp.digest(0),
+        pg_temp.digest(0),
+        pg_temp.digest(seed + 80),
+        ordinal_value,
+        1,
+        0
+    )::laplace.cognition_operator_field
+$field$;
+
+CREATE FUNCTION pg_temp.constraint_row(
+    seed integer,
+    family integer,
+    source_index numeric,
+    target_index numeric,
+    precision_value double precision)
+RETURNS laplace.cognition_operator_constraint
+LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE
+AS $constraint$
+    SELECT ROW(
+        pg_temp.digest(seed),
+        pg_temp.digest(seed + 20),
+        pg_temp.digest(seed + 40),
+        pg_temp.digest(seed + 60),
+        pg_temp.digest(seed + 70),
+        pg_temp.digest(seed + 80),
+        source_index,
+        target_index,
+        1.0::double precision,
+        0.0::double precision,
+        0.0::double precision,
+        precision_value,
+        family,
+        1,
+        1,
+        1,
+        0
+    )::laplace.cognition_operator_constraint
+$constraint$;
+
+CREATE FUNCTION pg_temp.jobs()
+RETURNS laplace.target_operator_job[]
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $jobs$
+    SELECT ARRAY[
+        ROW(
+            1, 2, 5, 0, pg_temp.digest(70), pg_temp.operator_program(20),
+            ARRAY[
+                pg_temp.field(40, 0), pg_temp.field(41, 1),
+                pg_temp.field(42, 2), pg_temp.field(43, 3)
+            ]::laplace.cognition_operator_field[],
+            ARRAY[pg_temp.constraint_row(50, 11, 0, 1, 2.0)]::laplace.cognition_operator_constraint[],
+            1::numeric
+        )::laplace.target_operator_job,
+        ROW(
+            2, 2, 5, 0, pg_temp.digest(71), pg_temp.operator_program(30),
+            ARRAY[
+                pg_temp.field(40, 0), pg_temp.field(41, 1),
+                pg_temp.field(42, 2), pg_temp.field(43, 3)
+            ]::laplace.cognition_operator_field[],
+            ARRAY[pg_temp.constraint_row(60, 12, 2, 3, 3.0)]::laplace.cognition_operator_constraint[],
+            1::numeric
+        )::laplace.target_operator_job
+    ]::laplace.target_operator_job[]
+$jobs$;
+
+CREATE TEMP TABLE first_projection AS
+SELECT (laplace.target_attention_compile(
+    pg_temp.execution_context(),
+    pg_temp.digest(176),
+    pg_temp.digest(177),
+    pg_temp.digest(80),
+    pg_temp.digest(81),
+    pg_temp.jobs(),
+    2::numeric,
+    1e-10::double precision,
+    true
+)).*;
+
+DO $verify$
+DECLARE
+    result laplace.target_attention_compile_result;
+BEGIN
+    SELECT ROW(t.*)::laplace.target_attention_compile_result
+      INTO result
+      FROM first_projection t;
+
+    IF result.compile_status <> 0 OR result.projection_status <> 0 THEN
+        RAISE EXCEPTION 'target attention status mismatch compile=% projection=%',
+            result.compile_status, result.projection_status;
+    END IF;
+    IF result.field_count <> 4 OR result.hidden_width <> 2 THEN
+        RAISE EXCEPTION 'target attention shape mismatch fields=% hidden=%',
+            result.field_count, result.hidden_width;
+    END IF;
+    IF result.semantic_basis_rank <> 2 OR result.null_basis_rank <> 0 THEN
+        RAISE EXCEPTION 'target attention basis rank mismatch semantic=% null=%',
+            result.semantic_basis_rank, result.null_basis_rank;
+    END IF;
+    IF array_length(result.embedding, 1) <> 8 OR
+       array_length(result.q, 1) <> 2 OR
+       array_length(result.k, 1) <> 2 OR
+       array_length(result.v, 1) <> 2 OR
+       array_length(result.o, 1) <> 2 THEN
+        RAISE EXCEPTION 'target attention tensor cardinality mismatch';
+    END IF;
+    IF result.head_offsets <> ARRAY[0::numeric, 2::numeric] OR
+       result.head_ranks <> ARRAY[1::numeric] OR
+       result.layer_indices <> ARRAY[2] OR
+       result.head_indices <> ARRAY[5] OR
+       result.expert_indices <> ARRAY[0] THEN
+        RAISE EXCEPTION 'target attention head metadata mismatch';
+    END IF;
+    IF result.max_relative_residual > 1e-10 OR
+       result.qk_relative_residuals[1] > 1e-10 OR
+       result.vo_relative_residuals[1] > 1e-10 THEN
+        RAISE EXCEPTION 'target attention residual exceeded bound max=% qk=% vo=%',
+            result.max_relative_residual,
+            result.qk_relative_residuals[1],
+            result.vo_relative_residuals[1];
+    END IF;
+    IF encode(result.compile_receipt_id, 'hex') <> :'compile_receipt_id' OR
+       encode(result.projection_id, 'hex') <> :'projection_id' OR
+       encode(result.embedding_fingerprint, 'hex') <> :'embedding_fingerprint' OR
+       encode(result.head_receipt_ids[1], 'hex') <> :'head_receipt_id' THEN
+        RAISE EXCEPTION 'PostgreSQL target attention output diverged from native oracle';
+    END IF;
+END
+$verify$;
+
+CREATE TEMP TABLE second_projection AS
+SELECT (laplace.target_attention_compile(
+    pg_temp.execution_context(),
+    pg_temp.digest(176),
+    pg_temp.digest(177),
+    pg_temp.digest(80),
+    pg_temp.digest(81),
+    pg_temp.jobs(),
+    2::numeric,
+    1e-10::double precision,
+    true
+)).*;
+
+DO $deterministic$
+DECLARE
+    first_row record;
+    second_row record;
+BEGIN
+    SELECT * INTO first_row FROM first_projection;
+    SELECT * INTO second_row FROM second_projection;
+    IF first_row.projection_id <> second_row.projection_id OR
+       first_row.embedding <> second_row.embedding OR
+       first_row.q <> second_row.q OR
+       first_row.k <> second_row.k OR
+       first_row.v <> second_row.v OR
+       first_row.o <> second_row.o THEN
+        RAISE EXCEPTION 'target attention compile is not deterministic';
+    END IF;
+END
+$deterministic$;
+
+DO $insufficient_width$
+DECLARE
+    message_text text;
+BEGIN
+    BEGIN
+        PERFORM laplace.target_attention_compile(
+            pg_temp.execution_context(),
+            pg_temp.digest(176),
+            pg_temp.digest(177),
+            pg_temp.digest(80),
+            pg_temp.digest(81),
+            pg_temp.jobs(),
+            1::numeric,
+            1e-12::double precision,
+            true
+        );
+        RAISE EXCEPTION 'insufficient hidden width was accepted';
+    EXCEPTION WHEN data_exception THEN
+        GET STACKED DIAGNOSTICS message_text = MESSAGE_TEXT;
+        IF message_text <> 'Laplace target attention projection failed' THEN
+            RAISE;
+        END IF;
+    END;
+END
+$insufficient_width$;
