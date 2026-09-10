@@ -33,6 +33,12 @@ static void content_hash_double(blake3_hasher* hasher, double value) {
     content_hash_u64(hasher, bits);
 }
 
+static int digest_equal(
+    const laplace_digest256* left,
+    const laplace_digest256* right) {
+    return memcmp(left->bytes, right->bytes, sizeof(left->bytes)) == 0;
+}
+
 static int content_resolve_atoms(
     void* opaque,
     const uint32_t* atom_positions,
@@ -156,4 +162,68 @@ void laplace_pg_content_admission_providers_create(
     }
     laplace_pg_content_atom_provider_create(context, atom_state, atom_provider);
     laplace_pg_composition_presence_provider(presence_provider);
+}
+
+void laplace_pg_content_admission_persist(
+    const laplace_framework_context* context,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* calculation_recipe_fingerprint,
+    laplace_content_admission* admission,
+    laplace_pg_content_admission_persistence* result) {
+    laplace_framework_producer_v1 producer;
+    laplace_content_admission_status admission_status;
+
+    if (context == NULL || source_fingerprint == NULL ||
+        calculation_recipe_fingerprint == NULL || admission == NULL ||
+        result == NULL ||
+        laplace_framework_context_validate(context) != LAPLACE_FRAMEWORK_OK) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace generic content persistence input is invalid")));
+    }
+
+    memset(result, 0, sizeof(*result));
+    memset(&producer, 0, sizeof(producer));
+    if (laplace_content_admission_view_get(admission, &result->admission) !=
+        LAPLACE_CONTENT_ADMISSION_OK) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace generic content admission view is unavailable")));
+    }
+
+    admission_status = laplace_content_admission_producer(admission, &producer);
+    if (admission_status == LAPLACE_CONTENT_ADMISSION_NO_PUBLICATION_REQUIRED) {
+        if (result->admission.request_count != 0u) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace content admission suppressed a non-atomic publication")));
+        }
+        return;
+    }
+    if (admission_status != LAPLACE_CONTENT_ADMISSION_OK) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace generic content publication stream failed"),
+                 errdetail("status=%u", (unsigned int)admission_status)));
+    }
+
+    LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
+        context,
+        source_fingerprint,
+        calculation_recipe_fingerprint,
+        &producer,
+        &result->persistence);
+    result->persistence_executed = 1u;
+
+    if (result->persistence.producer.status != LAPLACE_FRAMEWORK_OK ||
+        !digest_equal(
+            &result->persistence.producer.stream.source_fingerprint,
+            source_fingerprint) ||
+        !digest_equal(
+            &result->persistence.producer.stream.recipe_fingerprint,
+            calculation_recipe_fingerprint)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace generic content persistence receipt is not bound to its admission")));
+    }
 }
