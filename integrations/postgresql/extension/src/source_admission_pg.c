@@ -1,7 +1,9 @@
 /*
  * Product source admission must not stop at the tabular envelope. Route the
- * existing admission call through the recursive engine path using the same
- * verified Unicode source estate that builds the active Unicode product.
+ * existing tabular adapter through the provider-neutral recursive engine path.
+ * Source admission no longer opens a private Unicode source bundle or depends on
+ * LAPLACE_UNICODE_SOURCE_ROOT; optional Unicode/language/media authorities are
+ * ordinary decomposition providers selected by a recipe above this boundary.
  *
  * The backend-local metrics below are execution evidence, not semantic state.
  * They retain the two most recent source-admission executions in one backend so
@@ -20,13 +22,8 @@
 
 #include "laplace/source_profile.h"
 #include "laplace/tabular_source_recursive.h"
-#include "laplace/unicode_root.h"
 #include "composition_pg.h"
 #include "source_structural_witness_pg.h"
-
-#ifndef LAPLACE_UNICODE_SOURCE_ROOT
-#error "LAPLACE_UNICODE_SOURCE_ROOT is required for recursive source admission"
-#endif
 
 PG_FUNCTION_INFO_V1(laplace_source_admission_last_execution_metrics);
 
@@ -137,25 +134,18 @@ static laplace_tabular_source_status
 laplace_pg_tabular_source_plan_create_recursive(
     const laplace_tabular_source_input* input,
     laplace_tabular_source_plan** plan) {
-    laplace_unicode_source_bundle* unicode_bundle = NULL;
-    laplace_unicode_source_receipt unicode_receipt;
     laplace_tabular_source_status status;
     laplace_pg_active_source_plan = NULL;
     laplace_pg_active_source_execution = NULL;
     laplace_pg_active_source_composition_input = NULL;
     laplace_pg_source_metrics_begin();
-    memset(&unicode_receipt, 0, sizeof(unicode_receipt));
-    if (laplace_unicode_source_bundle_open(
-            LAPLACE_UNICODE_SOURCE_ROOT,
-            &unicode_bundle,
-            &unicode_receipt) != LAPLACE_UNICODE_OK ||
-        unicode_bundle == NULL) {
-        laplace_unicode_source_bundle_close(&unicode_bundle);
-        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
-    }
-    status = laplace_tabular_source_plan_create_recursive(
-        input, unicode_bundle, plan);
-    laplace_unicode_source_bundle_close(&unicode_bundle);
+
+    /* The artifact's tabular grammar provider is derived from its exact source
+     * recipe inside the engine. No unrelated Unicode source estate is opened as
+     * a hidden prerequisite. Additional recursive authorities are supplied via
+     * the provider-neutral API when the selected source recipe declares them. */
+    status = laplace_tabular_source_plan_create_recursive_with_providers(
+        input, NULL, 0u, plan);
     if (status == LAPLACE_TABULAR_SOURCE_OK && plan != NULL && *plan != NULL) {
         laplace_pg_active_source_plan = *plan;
     }
@@ -189,14 +179,14 @@ laplace_pg_source_profile_finalize_with_witnesses(
 
     /*
      * The source-profile occurrence denominator describes the canonical
-     * logical composition represented by this admission.  Explicit source
+     * logical composition represented by this admission. Explicit source
      * occurrence attestations are intentionally a separate execution fact:
      * recursive canonical subtrees are not allowed to manufacture source
      * sightings merely because they were lowered into the Merkle DAG.
      *
      * The generic tabular finalizer predates that separation and still closes
      * the profile on summary.occurrence_count (the explicitly emitted
-     * attestation count).  Product source admission must use the contract-owned
+     * attestation count). Product source admission uses the contract-owned
      * logical denominator consumed by world_admission_close_batch while leaving
      * summary.occurrence_count untouched in the composition execution receipt.
      */
