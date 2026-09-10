@@ -1,0 +1,125 @@
+\ir @LAPLACE_TARGET_ATTENTION_CONTRACT_SQL@
+
+CREATE TEMP TABLE first_export AS
+SELECT (laplace.target_attention_export(
+    pg_temp.execution_context(),
+    pg_temp.digest(176),
+    pg_temp.digest(177),
+    pg_temp.digest(80),
+    pg_temp.digest(81),
+    pg_temp.jobs(),
+    2::numeric,
+    1e-10::double precision,
+    true
+)).*;
+
+DO $verify_export$
+DECLARE
+    result laplace.target_attention_export_result;
+    projected laplace.target_attention_compile_result;
+    header text;
+BEGIN
+    SELECT ROW(t.*)::laplace.target_attention_export_result
+      INTO result
+      FROM first_export t;
+    SELECT ROW(t.*)::laplace.target_attention_compile_result
+      INTO projected
+      FROM first_projection t;
+
+    IF result.compile_status <> 0 OR result.projection_status <> 0 OR
+       result.codec_status <> 0 THEN
+        RAISE EXCEPTION 'target export status mismatch compile=% projection=% codec=%',
+            result.compile_status, result.projection_status, result.codec_status;
+    END IF;
+    IF result.byte_count <> octet_length(result.artifact)::numeric OR
+       result.header_byte_count <= 0 OR result.data_byte_count <= 0 THEN
+        RAISE EXCEPTION 'target export byte accounting mismatch bytes=% actual=% header=% data=%',
+            result.byte_count, octet_length(result.artifact),
+            result.header_byte_count, result.data_byte_count;
+    END IF;
+    IF result.tensor_count <> 5 OR result.head_count <> 1 OR
+       result.field_count <> 4 OR result.hidden_width <> 2 OR
+       result.semantic_basis_rank <> 2 OR result.null_basis_rank <> 0 THEN
+        RAISE EXCEPTION 'target export tensor/shape metadata mismatch';
+    END IF;
+    IF result.max_relative_residual > 1e-10 THEN
+        RAISE EXCEPTION 'target export residual exceeded bound: %',
+            result.max_relative_residual;
+    END IF;
+    IF result.compile_receipt_id <> projected.compile_receipt_id OR
+       result.compile_request_fingerprint <> projected.compile_request_fingerprint OR
+       result.projection_id <> projected.projection_id OR
+       result.embedding_fingerprint <> projected.embedding_fingerprint OR
+       result.head_set_fingerprint <> projected.head_set_fingerprint THEN
+        RAISE EXCEPTION 'target export receipt/projection diverged from PostgreSQL compile readback';
+    END IF;
+
+    header := convert_from(
+        substring(result.artifact FROM 9 FOR result.header_byte_count::integer),
+        'UTF8');
+    IF position('"laplace.embedding"' in header) = 0 OR
+       position('"laplace.q.layer_2.head_5.expert_0"' in header) = 0 OR
+       position('"laplace.k.layer_2.head_5.expert_0"' in header) = 0 OR
+       position('"laplace.v.layer_2.head_5.expert_0"' in header) = 0 OR
+       position('"laplace.o.layer_2.head_5.expert_0"' in header) = 0 OR
+       position('laplace_head_0_qk_factorization_id' in header) = 0 OR
+       position('laplace_head_0_vo_factorization_id' in header) = 0 THEN
+        RAISE EXCEPTION 'target export SafeTensors header omits projected tensor/provenance state';
+    END IF;
+END
+$verify_export$;
+
+CREATE TEMP TABLE second_export AS
+SELECT (laplace.target_attention_export(
+    pg_temp.execution_context(),
+    pg_temp.digest(176),
+    pg_temp.digest(177),
+    pg_temp.digest(80),
+    pg_temp.digest(81),
+    pg_temp.jobs(),
+    2::numeric,
+    1e-10::double precision,
+    true
+)).*;
+
+DO $deterministic_export$
+DECLARE
+    first_row record;
+    second_row record;
+BEGIN
+    SELECT * INTO first_row FROM first_export;
+    SELECT * INTO second_row FROM second_export;
+    IF first_row.artifact_id <> second_row.artifact_id OR
+       first_row.artifact <> second_row.artifact OR
+       first_row.compile_receipt_id <> second_row.compile_receipt_id OR
+       first_row.projection_id <> second_row.projection_id THEN
+        RAISE EXCEPTION 'target SafeTensors export is not byte deterministic';
+    END IF;
+END
+$deterministic_export$;
+
+DO $export_insufficient_width$
+DECLARE
+    message_text text;
+BEGIN
+    BEGIN
+        PERFORM laplace.target_attention_export(
+            pg_temp.execution_context(),
+            pg_temp.digest(176),
+            pg_temp.digest(177),
+            pg_temp.digest(80),
+            pg_temp.digest(81),
+            pg_temp.jobs(),
+            1::numeric,
+            1e-12::double precision,
+            true
+        );
+        RAISE EXCEPTION 'target export accepted insufficient hidden width';
+    EXCEPTION WHEN data_exception THEN
+        GET STACKED DIAGNOSTICS message_text = MESSAGE_TEXT;
+        IF message_text <> 'Laplace target export attention projection failed' THEN
+            RAISE;
+        END IF;
+    END;
+END
+$export_insufficient_width$;

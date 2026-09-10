@@ -8,3 +8,4 @@
 #include "target_attention_projection.inc"
 #include "target_package.inc"
 #include "target_safetensors.inc"
+#include "target_attention_safetensors.inc"
