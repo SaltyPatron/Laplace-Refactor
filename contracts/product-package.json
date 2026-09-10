@@ -107,7 +107,9 @@
       "lib/liblaplace_engine.so.2.0.0",
       "pgsql-18/share/extension/laplace-public-readback.sql",
       "pgsql-18/share/extension/laplace--1.0.1.sql",
-      "pgsql-18/share/extension/laplace--1.0.0--1.0.1.sql"
+      "pgsql-18/share/extension/laplace--1.0.0--1.0.1.sql",
+      "pgsql-18/share/extension/laplace--1.0.2.sql",
+      "pgsql-18/share/extension/laplace--1.0.1--1.0.2.sql"
     ]
   },
   "runtime_closure": {
