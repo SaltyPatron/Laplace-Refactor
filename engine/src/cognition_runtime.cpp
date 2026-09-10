@@ -31,9 +31,11 @@ laplace_cognition_runtime_execute(
         request->fields == nullptr || request->constraints == nullptr ||
         request->initial_state == nullptr || request->field_count == 0U ||
         request->constraint_count == 0U ||
+        (request->boundary_count != 0U && request->boundaries == nullptr) ||
         request->initial_state_count != request->field_count ||
         !FitsSize(request->field_count) ||
         !FitsSize(request->constraint_count) ||
+        !FitsSize(request->boundary_count) ||
         !FitsSize(request->initial_state_count) ||
         !FitsSize(result->solution_capacity) ||
         result->solution == nullptr ||
@@ -60,9 +62,11 @@ laplace_cognition_runtime_execute(
 
     laplace_cognition_solver_program solver_program = request->solver_program;
     solver_program.operator_id = result->operator_receipt.operator_id;
-    const auto solver_status = laplace_cognition_solver_execute(
+    const auto solver_status = laplace_cognition_solver_execute_with_boundaries(
         operator_value,
         &solver_program,
+        request->boundaries,
+        static_cast<std::size_t>(request->boundary_count),
         request->initial_state,
         static_cast<std::size_t>(request->initial_state_count),
         result->solution,
