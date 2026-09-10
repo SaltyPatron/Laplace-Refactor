@@ -206,12 +206,13 @@ def prove(output: Path) -> None:
     )
     program_id = firmware["program_id"]
     prompt = "AA"
+    prompt_hex = prompt.encode("utf-8").hex()
     sql = f"""
 SELECT pg_catalog.row_to_json(result)::text
 FROM laplace.cognition_firmware_execute_product(
     {context_sql(identities, program_id)},
     {bytea_literal(firmware['image_hex'])},
-    {json.dumps(prompt)}::text,
+    pg_catalog.convert_from({bytea_literal(prompt_hex)}, 'UTF8'),
     {prompt_scope_sql(identities)},
     {request_sql(identities, program_id)},
     decode('','hex'),
