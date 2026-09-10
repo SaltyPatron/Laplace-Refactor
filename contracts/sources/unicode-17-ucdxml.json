@@ -34,7 +34,7 @@
     "local_discovery_path": "ucdxml/ucd.all.grouped.zip",
     "media_type": "application/zip",
     "byte_count": 7682060,
-    "sha256": "0466e880488c08f7f5373ada4da5746f2223b654c622d98fae7fb9edb7c5fd01",
+    "sha256": "e91cd3b5888f6ec6b0031b467d6140a78c35b3e610a3080932f45c8d00c80069",
     "acquisition": {
       "transport": "https",
       "url": "https://www.unicode.org/Public/17.0.0/ucdxml/ucd.all.grouped.zip",
