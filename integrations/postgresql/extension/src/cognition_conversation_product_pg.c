@@ -1,5 +1,6 @@
 #include "postgres.h"
 
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -13,6 +14,7 @@
 
 #include "cognition_provider_pg.h"
 #include "laplace/cognition_discourse_frame.h"
+#include "laplace/cognition_firmware.h"
 #include "laplace/cognition_prompt_admission.h"
 #include "laplace/cognition_prompt_conversation.h"
 #include "laplace/cognition_realization.h"
