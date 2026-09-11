@@ -238,3 +238,17 @@ gtest_discover_tests(laplace_tabular_fixed_width_media_tests
     PROPERTIES
         LABELS "implementation;source-profile;decomposition;fixed-width;media-type;recursive"
         ENVIRONMENT "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}")
+
+add_executable(laplace_decomposition_uax29_plaintext_tests
+    "${CMAKE_CURRENT_LIST_DIR}/decomposition_uax29_plaintext_tests.cpp")
+target_link_libraries(laplace_decomposition_uax29_plaintext_tests PRIVATE
+    Laplace::Decomposition
+    Laplace::Uax29
+    Laplace::UnicodeRoot
+    GTest::gtest_main)
+target_compile_options(laplace_decomposition_uax29_plaintext_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_decomposition_uax29_plaintext_tests
+    PROPERTIES
+        LABELS "implementation;decomposition;unicode;uax29;prompt;observation"
+        ENVIRONMENT "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}")
