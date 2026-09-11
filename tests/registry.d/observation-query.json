@@ -67,6 +67,16 @@
       "covered_dimensions": ["candidate provider ABI drift fails closed", "no backend candidate query executes under an incompatible ABI", "transport integration cannot silently bypass the canonical candidate contract"]
     },
     {
+      "ctest_name": "CognitionObservationOperatorView.ReusesExactLiveOperatorEstate",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"],
+      "covered_dimensions": ["the retained observation result exposes the exact typed field and constraint estate already executed by live cognition", "reconstructing the operator from the borrowed estate reproduces the live operator receipt exactly", "changing an operator-bearing constraint changes the operator receipt instead of being hidden by a target adapter"]
+    },
+    {
+      "ctest_name": "CognitionObservationOperatorView.RejectsOutOfRangeAnswer",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
+      "covered_dimensions": ["operator-estate readback fails closed on invalid result/index state", "transport callers cannot fabricate a borrowed operator view"]
+    },
+    {
       "ctest_name": "CognitionSemanticAct.CompletedRequestSelectsNativeTerminalActWithoutTextIntentLookup",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
       "covered_dimensions": ["semantic act is derived only after native completion", "producer operation comes from the final forward decision receipt", "completed retained observation results become a typed ANSWER semantic act without prompt keyword matching", "retained answer entity path and result contract remain bound into one act identity", "realization can consume the semantic result without rerunning search"]
