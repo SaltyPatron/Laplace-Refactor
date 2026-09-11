@@ -89,7 +89,25 @@ jobs:
                 fi
                 git commit --no-edit
               else
-                echo '::error title=Final convergence merge conflict::Unregistered semantic conflict requires explicit reconciliation'
+                echo '::error title=Final convergence merge conflict::Unregistered semantic conflicts follow with diff3 base/ours/theirs context'
+                while IFS= read -r conflict; do
+                  [[ -n "$conflict" ]] || continue
+                  git checkout --conflict=diff3 -- "$conflict"
+                  python3 - "$conflict" <<'PY'
+          import sys
+          from pathlib import Path
+          path = Path(sys.argv[1])
+          lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+          marker_indexes = [i for i, line in enumerate(lines) if line.startswith('<<<<<<< ')]
+          print(f'===== DIFF3 CONFLICT {path} ({len(marker_indexes)} hunk(s)) =====', file=sys.stderr)
+          for number, index in enumerate(marker_indexes, 1):
+              start = max(0, index - 18)
+              end = min(len(lines), index + 120)
+              print(f'--- HUNK {number} lines {start + 1}-{end} ---', file=sys.stderr)
+              for lineno in range(start, end):
+                  print(f'{lineno + 1:06d}: {lines[lineno]}', file=sys.stderr)
+          PY
+                done <<< "$conflicts"
                 git merge --abort || true
                 exit 2
               fi
