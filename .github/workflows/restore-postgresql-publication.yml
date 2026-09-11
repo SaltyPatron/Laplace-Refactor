@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: laplace-physical-product-proof
-  cancel-in-progress: false
+  group: laplace-postgresql-recovery-discovery
+  cancel-in-progress: true
 
 jobs:
   discover-retained-build-inputs:
