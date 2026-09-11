@@ -17,6 +17,20 @@
         "tools/tests/cognition_execution_trace.py",
         "tests/cognition_execution_trace_tests.py"
       ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "preservation/20260907-all-local/repair/cognition-request-execute",
+      "tip": "99b2bcf1137f774c0d2910948585057ab3e0f9db",
+      "disposition": "SUPERSEDED_BY_MERGED_PR_234_AND_CURRENT_EXECUTION_API",
+      "rationale": "This preservation ref contains the earlier one-commit public typed request execution boundary. The current main/convergence tree already retains that behavior: the public laplace_cognition_observation_request_execute declaration, its compile/provider/forward lifecycle implementation, execution-failure disposition, and the PublicExecuteOwnsCompileProviderAndForwardLifecycle regression are present in the current engine. The later repair/cognition-request-execute vehicle is already recorded as superseded by merged PR #234. Replaying this older preserved patch would duplicate behavior already retained by the authoritative implementation rather than restore missing cognition functionality.",
+      "evidence": [
+        "99b2bcf1137f774c0d2910948585057ab3e0f9db",
+        "SaltyPatron/Laplace-Refactor#234",
+        "engine/include/laplace/cognition_observation_request.h",
+        "engine/src/cognition_observation_request_provider.inc",
+        "tests/cognition_observation_request_tests.cpp"
+      ]
     }
   ]
 }
