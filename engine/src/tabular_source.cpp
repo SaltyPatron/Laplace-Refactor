@@ -836,7 +836,7 @@ laplace_source_decomposition_plan_create(
     const std::uint64_t provider_count,
     laplace_tabular_source_plan** plan) {
     try {
-        return recursive_admission::BuildRecursive(
+        return recursive_admission::BuildRecursiveWithProviders(
             input, providers, provider_count, plan);
     } catch (const std::bad_alloc&) {
         return LAPLACE_TABULAR_SOURCE_MEMORY_FAILURE;
