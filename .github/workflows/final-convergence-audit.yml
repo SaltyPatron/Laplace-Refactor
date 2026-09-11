@@ -75,14 +75,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/branch_estate_apply_dispositions.py \
-            --ledger "$RUNNER_TEMP/branch-estate-live.maximal.json" \
-            --dispositions .github/branch-estate-semantic-dispositions.json \
-            --dispositions .github/branch-estate-semantic-dispositions.runner-lifecycle.json \
-            --dispositions .github/branch-estate-semantic-dispositions.cognition-contract.json \
-            --dispositions .github/branch-estate-semantic-dispositions.absorbed-contracts.json \
-            --dispositions .github/branch-estate-semantic-dispositions.governance-preservation.json \
-            --output "$RUNNER_TEMP/branch-estate-live.json"
+          mapfile -t disposition_files < <(
+            python3 - <<'PY'
+          import glob
+          import json
+          from pathlib import Path
+
+          for raw in sorted(glob.glob('.github/branch-estate-semantic-dispositions*.json')):
+              path = Path(raw)
+              document = json.loads(path.read_text(encoding='utf-8'))
+              entries = document.get('entries')
+              if not isinstance(entries, list):
+                  raise SystemExit(f'{path}: entries must be a JSON array')
+              if entries:
+                  print(path)
+          PY
+          )
+
+          if ((${#disposition_files[@]} == 0)); then
+            cp "$RUNNER_TEMP/branch-estate-live.maximal.json" "$RUNNER_TEMP/branch-estate-live.json"
+          else
+            disposition_args=()
+            for path in "${disposition_files[@]}"; do
+              disposition_args+=(--dispositions "$path")
+            done
+            python3 tools/branch_estate_apply_dispositions.py \
+              --ledger "$RUNNER_TEMP/branch-estate-live.maximal.json" \
+              "${disposition_args[@]}" \
+              --output "$RUNNER_TEMP/branch-estate-live.json"
+          fi
           cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
 
       - name: Upload live reconciliation ledger
