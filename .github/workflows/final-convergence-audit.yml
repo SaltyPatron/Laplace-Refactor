@@ -1,0 +1,58 @@
+name: final-convergence-audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/branch_estate_live_audit.py'
+      - '.github/workflows/final-convergence-audit.yml'
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: final-convergence-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  branch-estate:
+    name: branch-estate-live
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Laplace-Refactor with all history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch every Refactor branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Clone every Laplace branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --no-checkout https://github.com/SaltyPatron/Laplace.git "$RUNNER_TEMP/Laplace"
+          git -C "$RUNNER_TEMP/Laplace" fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Audit both live branch estates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/branch_estate_live_audit.py \
+            "Laplace-Refactor=$GITHUB_WORKSPACE" \
+            "Laplace=$RUNNER_TEMP/Laplace" \
+            --output "$RUNNER_TEMP/branch-estate-live.json"
+          cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
+
+      - name: Upload live reconciliation ledger
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-estate-live
+          path: branch-estate-live.json
+          if-no-files-found: error
