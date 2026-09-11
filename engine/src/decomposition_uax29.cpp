@@ -13,25 +13,42 @@ bool DigestZero(const laplace_digest256& value) {
     return true;
 }
 
+bool PlainTextRoot(
+    const laplace_decomposition_content& content,
+    const laplace_decomposition_span& span) {
+    static constexpr char media_type[] = "text/plain";
+    static constexpr std::size_t media_type_bytes = sizeof(media_type) - 1U;
+    if (span.depth != 0U || content.media_type == nullptr ||
+        content.media_type_byte_count < media_type_bytes ||
+        std::memcmp(content.media_type, media_type, media_type_bytes) != 0) {
+        return false;
+    }
+    return content.media_type_byte_count == media_type_bytes ||
+        content.media_type[media_type_bytes] == ';';
+}
+
 laplace_decomposition_status Applicable(
     void*,
-    const laplace_decomposition_content*,
+    const laplace_decomposition_content* content,
     const laplace_decomposition_span* span,
     int* applicable) {
-    if (span == nullptr || applicable == nullptr) {
+    if (content == nullptr || span == nullptr || applicable == nullptr) {
         return LAPLACE_DECOMPOSITION_INVALID_ARGUMENT;
     }
     /*
-     * A grammar-bearing container must be decomposed by its selected grammar
-     * first.  Running UAX 29 over the same container in parallel creates an
-     * overlapping second tree (rows, fields, words, graphemes and sentences
-     * all as siblings) and turns source bytes into duplicate canonical work.
-     * Text selected by a recipe can be redispatched without GRAMMAR_INPUT and
-     * reaches this provider through the same generic interface.
+     * Structured grammar inputs are normally decomposed by their selected
+     * grammar before UAX29 sees redispatched text leaves. text/plain has no
+     * stronger container grammar, so its exact root is itself a valid UAX29
+     * input even though the generic decomposition root marks any declared media
+     * type as GRAMMAR_INPUT. This keeps ordinary text immediately useful as
+     * grapheme/word/sentence observation structure without inventing a wrapper
+     * span with the same canonical content identity as its parent.
      */
-    *applicable =
-        (span->flags & LAPLACE_DECOMPOSITION_SPAN_TEXT) != 0u &&
-        (span->flags & LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT) == 0u
+    const bool text =
+        (span->flags & LAPLACE_DECOMPOSITION_SPAN_TEXT) != 0u;
+    const bool grammar_input =
+        (span->flags & LAPLACE_DECOMPOSITION_SPAN_GRAMMAR_INPUT) != 0u;
+    *applicable = text && (!grammar_input || PlainTextRoot(*content, *span))
         ? 1
         : 0;
     return LAPLACE_DECOMPOSITION_OK;
