@@ -1,4 +1,5 @@
 #include "laplace/cognition_observation_request.h"
+#include "laplace/target_observation_compile.h"
 
 #include "laplace/identity.h"
 
@@ -167,6 +168,11 @@ struct OperatorHandle {
     ~OperatorHandle() { laplace_cognition_operator_destroy(&value); }
 };
 
+struct ObservationTargetHandle {
+    laplace_target_compile_result* value{};
+    ~ObservationTargetHandle() { laplace_target_compile_result_destroy(&value); }
+};
+
 TEST(CognitionObservationOperatorView, ReusesExactLiveOperatorEstate) {
     OperatorViewBackend backend{};
     backend.source = OperatorViewCodepoint(0x42U);
@@ -241,6 +247,106 @@ TEST(CognitionObservationOperatorView, ReusesExactLiveOperatorEstate) {
         LAPLACE_COGNITION_OPERATOR_OK);
     EXPECT_FALSE(
         OperatorViewSameDigest(altered_receipt.receipt_id, answer.operator_receipt_id));
+}
+
+TEST(CognitionObservationOperatorView, TargetCompilationUsesSameLiveMaterializedOperator) {
+    OperatorViewBackend backend{};
+    backend.source = OperatorViewCodepoint(0x42U);
+    backend.target = OperatorViewCodepoint(0x41U);
+    const auto request = OperatorViewRequest(backend.source);
+    const auto provider = OperatorViewProvider(&backend);
+    OperatorViewObservationHandle observation;
+    OperatorViewForwardHandle forward;
+    laplace_cognition_forward_receipt forward_receipt{};
+    ASSERT_EQ(
+        laplace_cognition_observation_request_execute_with_candidate_provider(
+            &request, &provider, &observation.value, &forward.value, &forward_receipt),
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
+
+    laplace_cognition_observation_operator_view view{};
+    ASSERT_EQ(
+        laplace_cognition_observation_result_operator_view(
+            observation.value, 0U, &view),
+        LAPLACE_COGNITION_OBSERVATION_REQUEST_OK);
+
+    const std::uint32_t family = LAPLACE_OBSERVATION_QUERY_PREDECESSOR;
+    laplace_target_scope_slot_spec slot{};
+    slot.target_role = LAPLACE_TARGET_ROLE_POSITION;
+    slot.layer_index = 0U;
+    slot.head_index = 0U;
+    slot.expert_index = 0U;
+    slot.eligible_relation_families = &family;
+    slot.eligible_relation_family_count = 1U;
+    slot.eligible_source_mask = 1U;
+    slot.head_rank = 0U;
+
+    laplace_target_observation_compile_request target_request{};
+    target_request.observation_result = observation.value;
+    target_request.answer_index = 0U;
+    target_request.recipe_fingerprint = OperatorViewDigest(230U);
+    target_request.target_contract_fingerprint = OperatorViewDigest(231U);
+    target_request.slots = &slot;
+    target_request.slot_count = 1U;
+    target_request.target_compile_flags = 0U;
+    target_request.version = LAPLACE_TARGET_OBSERVATION_COMPILE_VERSION;
+
+    ObservationTargetHandle target;
+    laplace_target_compile_receipt compile_receipt{};
+    laplace_target_scope_plan_receipt scope_receipt{};
+    ASSERT_EQ(
+        laplace_target_observation_compile(
+            &target_request, &target.value, &compile_receipt, &scope_receipt),
+        LAPLACE_TARGET_SCOPE_PLAN_OK);
+    ASSERT_NE(target.value, nullptr);
+    EXPECT_EQ(scope_receipt.field_count, view.field_count);
+    EXPECT_EQ(scope_receipt.selected_constraint_count, view.constraint_count);
+    EXPECT_EQ(compile_receipt.slot_count, 1U);
+
+    laplace_target_compile_slot_receipt target_slot{};
+    ASSERT_EQ(
+        laplace_target_compile_result_slot_receipt(
+            target.value, 0U, &target_slot),
+        LAPLACE_TARGET_COMPILE_OK);
+    EXPECT_EQ(target_slot.target_role, LAPLACE_TARGET_ROLE_POSITION);
+    EXPECT_EQ(target_slot.selected_constraint_count, view.constraint_count);
+
+    OperatorHandle live_operator;
+    laplace_cognition_operator_receipt live_receipt{};
+    ASSERT_EQ(
+        laplace_cognition_operator_create(
+            &view.program, view.fields, view.field_count,
+            view.constraints, view.constraint_count,
+            &live_operator.value, &live_receipt),
+        LAPLACE_COGNITION_OPERATOR_OK);
+
+    std::vector<double> live_matrix(view.field_count * view.field_count, 0.0);
+    std::vector<double> live_rhs(view.field_count, 0.0);
+    laplace_digest256 materialization_receipt{};
+    ASSERT_EQ(
+        laplace_cognition_operator_materialize_dense(
+            live_operator.value,
+            live_matrix.data(), live_matrix.size(),
+            live_rhs.data(), live_rhs.size(),
+            &materialization_receipt),
+        LAPLACE_COGNITION_OPERATOR_OK);
+
+    std::vector<double> target_matrix(
+        static_cast<std::size_t>(target_slot.matrix_value_count), 0.0);
+    std::vector<double> target_rhs(
+        static_cast<std::size_t>(target_slot.rhs_value_count), 0.0);
+    std::size_t required = 0U;
+    ASSERT_EQ(
+        laplace_target_compile_result_matrix(
+            target.value, 0U, target_matrix.data(), target_matrix.size(), &required),
+        LAPLACE_TARGET_COMPILE_OK);
+    EXPECT_EQ(required, target_matrix.size());
+    ASSERT_EQ(
+        laplace_target_compile_result_rhs(
+            target.value, 0U, target_rhs.data(), target_rhs.size(), &required),
+        LAPLACE_TARGET_COMPILE_OK);
+    EXPECT_EQ(required, target_rhs.size());
+    EXPECT_EQ(target_matrix, live_matrix);
+    EXPECT_EQ(target_rhs, live_rhs);
 }
 
 TEST(CognitionObservationOperatorView, RejectsOutOfRangeAnswer) {
