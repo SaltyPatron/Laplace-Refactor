@@ -51,6 +51,22 @@
         "contracts/trust-matchup-realization.json branch blob afd54f25dd41cdc548c0ccd77faaf6e5cc25d514",
         "contracts/trust-matchup-realization.json convergence blob 2489bc3a80491716cbdb49658a22cd5eeabef7ba"
       ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "phase2/unicode-source-slice",
+      "tip": "bc8fbcaabc1cc005c24b17322c239ac2c949a3ce",
+      "disposition": "ABSORBED_AND_EXTENDED_BY_CURRENT_ONEAPI_PROVIDER_SELECTION",
+      "rationale": "This one-commit branch introduced exact installed Intel oneAPI provider selection, file verification, imported CMake targets, and custom-stack activation of LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER. Current main retains the installed-provider lock verifier and LaplaceOneApiProvider.cmake selection boundary, still enables it in the self-hosted custom-stack lane, and additionally consumes the verified provider in product package construction and provider-dependent tests. The older branch explicitly stopped before product-runtime activation, while current code carries the same verified selection forward into later package/runtime proof. Replaying the old patch would regress that stronger current provider lifecycle.",
+      "evidence": [
+        "bc8fbcaabc1cc005c24b17322c239ac2c949a3ce",
+        "CMakeLists.txt",
+        "cmake/LaplaceOneApiProvider.cmake",
+        "tools/dependencies/verify-installed-lock.py",
+        "dependencies/installed-lock.json",
+        ".github/workflows/custom-stack.yml",
+        "tools/product/build-package.py"
+      ]
     }
   ]
 }
