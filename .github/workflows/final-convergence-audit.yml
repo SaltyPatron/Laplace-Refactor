@@ -79,6 +79,7 @@ jobs:
           python3 tools/branch_estate_apply_dispositions.py \
             --ledger "$RUNNER_TEMP/branch-estate-live.maximal.json" \
             --dispositions .github/branch-estate-semantic-dispositions.json \
+            --dispositions .github/branch-estate-semantic-dispositions.runner-lifecycle.json \
             --output "$RUNNER_TEMP/branch-estate-live.json"
           cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
 
