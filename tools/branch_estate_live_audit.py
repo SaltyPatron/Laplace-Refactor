@@ -1,37 +1,36 @@
 #!/usr/bin/env python3
-"""Audit live remote branches against authoritative main without trusting stale ledgers.
+"""Audit live remote branches against authoritative main.
 
 This is a reconciliation inventory, not a deletion tool. It never mutates refs.
-It classifies mechanically provable cases and leaves every other branch as a
-candidate requiring behavior-level reconciliation before retirement.
+It proves mechanically absorbed refs, then groups everything else by the exact
+non-merge patch set that is still absent from current main. Whole-tree divergence
+is retained as context but is not treated as proof of missing product behavior.
 """
 
 from __future__ import annotations
 
 import argparse
 import collections
-import hashlib
 import json
 import pathlib
 import subprocess
 import sys
-from dataclasses import dataclass, asdict
-from typing import Iterable
+from dataclasses import asdict, dataclass
 
 
-def git(repo: pathlib.Path, *args: str, check: bool = True, text: bool = True) -> str:
+def git(repo: pathlib.Path, *args: str, check: bool = True) -> str:
     proc = subprocess.run(
         ["git", "-C", str(repo), *args],
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=text,
+        text=True,
     )
     if check and proc.returncode != 0:
         raise RuntimeError(
             f"git {' '.join(args)} failed in {repo}: {proc.stderr.strip()}"
         )
-    return proc.stdout if text else proc.stdout.decode("utf-8", errors="replace")
+    return proc.stdout
 
 
 def run(repo: pathlib.Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -51,15 +50,11 @@ def list_remote_branches(repo: pathlib.Path) -> list[str]:
         "--format=%(refname:short)",
         "refs/remotes/origin",
     )
-    refs: list[str] = []
-    for line in raw.splitlines():
-        ref = line.strip()
-        if not ref or ref == "origin/HEAD" or ref == "origin/main":
-            continue
-        if not ref.startswith("origin/"):
-            continue
-        refs.append(ref)
-    return sorted(refs)
+    return sorted(
+        ref
+        for ref in (line.strip() for line in raw.splitlines())
+        if ref.startswith("origin/") and ref not in {"origin/HEAD", "origin/main"}
+    )
 
 
 def rev(repo: pathlib.Path, ref: str) -> str:
@@ -85,9 +80,25 @@ def unique_commits(repo: pathlib.Path, main: str, ref: str) -> list[str]:
     return [line.strip() for line in raw.splitlines() if line.strip()]
 
 
+def commit_parents(repo: pathlib.Path, commit: str) -> list[str]:
+    return git(repo, "show", "-s", "--format=%P", commit).strip().split()
+
+
 def is_merge(repo: pathlib.Path, commit: str) -> bool:
-    parents = git(repo, "show", "-s", "--format=%P", commit).strip().split()
-    return len(parents) > 1
+    return len(commit_parents(repo, commit)) > 1
+
+
+def commit_subject(repo: pathlib.Path, commit: str) -> str:
+    return git(repo, "show", "-s", "--format=%s", commit).strip()
+
+
+def commit_changed_files(repo: pathlib.Path, commit: str) -> list[str]:
+    parents = commit_parents(repo, commit)
+    if parents:
+        raw = git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", parents[0], commit)
+    else:
+        raw = git(repo, "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", commit)
+    return [line.strip() for line in raw.splitlines() if line.strip()]
 
 
 def patch_id(repo: pathlib.Path, commit: str) -> str | None:
@@ -109,30 +120,46 @@ def patch_id(repo: pathlib.Path, commit: str) -> str | None:
     show.wait()
     if show.returncode != 0 or patch.returncode != 0:
         return None
-    line = patch.stdout.strip().splitlines()
-    if not line:
+    lines = patch.stdout.strip().splitlines()
+    if not lines:
         return None
-    return line[0].split()[0]
+    return lines[0].split()[0]
 
 
-def main_patch_ids(repo: pathlib.Path, main: str) -> set[str]:
-    # Compute once per repository. This deliberately excludes merge commits;
-    # merge conflict resolutions are handled conservatively by tree/content checks.
+def main_patch_ids(repo: pathlib.Path, main: str, cache: dict[str, str | None]) -> set[str]:
     ids: set[str] = set()
-    raw = git(repo, "rev-list", "--no-merges", main)
-    commits = [line.strip() for line in raw.splitlines() if line.strip()]
-    for idx, commit in enumerate(commits, 1):
-        pid = patch_id(repo, commit)
+    commits = [
+        line.strip()
+        for line in git(repo, "rev-list", "--no-merges", main).splitlines()
+        if line.strip()
+    ]
+    for index, commit in enumerate(commits, 1):
+        pid = cache.get(commit)
+        if commit not in cache:
+            pid = patch_id(repo, commit)
+            cache[commit] = pid
         if pid:
             ids.add(pid)
-        if idx % 500 == 0:
-            print(f"patch-id baseline: {idx}/{len(commits)} commits", file=sys.stderr)
+        if index % 500 == 0:
+            print(f"patch-id baseline: {index}/{len(commits)} commits", file=sys.stderr)
     return ids
 
 
 def changed_files(repo: pathlib.Path, main: str, ref: str) -> list[str]:
-    raw = git(repo, "diff", "--name-only", main, ref, "--")
-    return [line.strip() for line in raw.splitlines() if line.strip()]
+    return [
+        line.strip()
+        for line in git(repo, "diff", "--name-only", main, ref, "--").splitlines()
+        if line.strip()
+    ]
+
+
+@dataclass(frozen=True)
+class MissingPatch:
+    key: str
+    patch_id: str | None
+    commit: str
+    subject: str
+    changed_files: tuple[str, ...]
 
 
 @dataclass
@@ -145,7 +172,9 @@ class BranchRecord:
     behind: int
     unique_commits: int
     unique_nonmerge_commits: int
-    missing_patch_ids: int
+    missing_patch_count: int
+    missing_patch_keys: list[str]
+    missing_patches: list[dict]
     classification: str
     changed_files: list[str]
 
@@ -157,8 +186,13 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
     refs = list_remote_branches(repo)
     print(f"{label}: {len(refs) + 1} branch refs including main", file=sys.stderr)
 
-    baseline_patch_ids = main_patch_ids(repo, main)
+    patch_cache: dict[str, str | None] = {}
+    subject_cache: dict[str, str] = {}
+    changed_cache: dict[str, tuple[str, ...]] = {}
+    baseline_patch_ids = main_patch_ids(repo, main, patch_cache)
     records: list[BranchRecord] = []
+    patch_to_branches: dict[str, set[str]] = collections.defaultdict(set)
+    patch_details: dict[str, MissingPatch] = {}
 
     for index, ref in enumerate(refs, 1):
         name = ref.removeprefix("origin/")
@@ -167,11 +201,39 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
         ahead, behind = ahead_behind(repo, main, ref)
         uniques = unique_commits(repo, main, ref)
         nonmerges = [commit for commit in uniques if not is_merge(repo, commit)]
-        missing = 0
+        missing_records: list[MissingPatch] = []
+
         for commit in nonmerges:
-            pid = patch_id(repo, commit)
-            if pid is None or pid not in baseline_patch_ids:
-                missing += 1
+            if commit not in changed_cache:
+                changed_cache[commit] = tuple(commit_changed_files(repo, commit))
+            commit_files = changed_cache[commit]
+            if not commit_files:
+                # Empty metadata/checkpoint commits are not missing behavior.
+                continue
+            if commit not in patch_cache:
+                patch_cache[commit] = patch_id(repo, commit)
+            pid = patch_cache[commit]
+            if pid is not None and pid in baseline_patch_ids:
+                continue
+            if commit not in subject_cache:
+                subject_cache[commit] = commit_subject(repo, commit)
+            # A patch-id failure with real changed files remains fail-closed and is
+            # keyed by commit SHA rather than silently treated as absorbed.
+            key = f"patch:{pid}" if pid else f"commit:{commit}"
+            record = MissingPatch(
+                key=key,
+                patch_id=pid,
+                commit=commit,
+                subject=subject_cache[commit],
+                changed_files=commit_files,
+            )
+            missing_records.append(record)
+            patch_to_branches[key].add(name)
+            patch_details.setdefault(key, record)
+
+        # Preserve order for readability but group branches by the de-duplicated set.
+        unique_missing = {record.key: record for record in missing_records}
+        ordered_missing = [unique_missing[key] for key in sorted(unique_missing)]
 
         if tip_sha == main_sha:
             classification = "SAME_TIP_AS_MAIN"
@@ -186,7 +248,7 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
             files = changed_files(repo, main, ref)
             if not files:
                 classification = "SAME_CONTENT_AS_MAIN"
-            elif nonmerges and missing == 0:
+            elif nonmerges and not ordered_missing:
                 classification = "PATCH_EQUIVALENT_BUT_TREE_DIVERGED"
             elif not uniques:
                 classification = "NO_UNIQUE_COMMITS_BUT_TREE_DIVERGED"
@@ -203,7 +265,9 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
                 behind=behind,
                 unique_commits=len(uniques),
                 unique_nonmerge_commits=len(nonmerges),
-                missing_patch_ids=missing,
+                missing_patch_count=len(ordered_missing),
+                missing_patch_keys=[record.key for record in ordered_missing],
+                missing_patches=[asdict(record) for record in ordered_missing],
                 classification=classification,
                 changed_files=files,
             )
@@ -213,9 +277,12 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
 
     by_tip: dict[str, list[str]] = collections.defaultdict(list)
     by_tree: dict[str, list[str]] = collections.defaultdict(list)
+    by_missing_signature: dict[tuple[str, ...], list[str]] = collections.defaultdict(list)
     for record in records:
         by_tip[record.tip].append(record.branch)
         by_tree[record.tree].append(record.branch)
+        if record.missing_patch_keys:
+            by_missing_signature[tuple(record.missing_patch_keys)].append(record.branch)
 
     duplicate_tip_groups = [
         {"tip": sha, "branches": sorted(names)}
@@ -227,19 +294,37 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
         for sha, names in sorted(by_tree.items())
         if len(names) > 1
     ]
+    missing_patch_groups = [
+        {
+            "missing_patch_keys": list(signature),
+            "branches": sorted(names),
+            "patch_count": len(signature),
+        }
+        for signature, names in sorted(
+            by_missing_signature.items(),
+            key=lambda item: (-len(item[1]), len(item[0]), item[1][0]),
+        )
+    ]
+    missing_patches = [
+        {
+            **asdict(patch_details[key]),
+            "branches": sorted(patch_to_branches[key]),
+            "branch_count": len(patch_to_branches[key]),
+        }
+        for key in sorted(patch_details)
+    ]
 
     counts = collections.Counter(record.classification for record in records)
     candidate_records = [
-        record for record in records
-        if record.classification in {
+        record
+        for record in records
+        if record.classification
+        in {
             "UNIQUE_BEHAVIOR_CANDIDATE",
             "PATCH_EQUIVALENT_BUT_TREE_DIVERGED",
             "NO_UNIQUE_COMMITS_BUT_TREE_DIVERGED",
         }
     ]
-    candidate_trees: dict[str, list[str]] = collections.defaultdict(list)
-    for record in candidate_records:
-        candidate_trees[record.tree].append(record.branch)
 
     return {
         "repository": label,
@@ -248,13 +333,12 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
         "branch_count_including_main": len(refs) + 1,
         "classification_counts": dict(sorted(counts.items())),
         "candidate_branch_count": len(candidate_records),
-        "candidate_tree_group_count": len(candidate_trees),
+        "unique_missing_patch_count": len(missing_patches),
+        "missing_patch_signature_group_count": len(missing_patch_groups),
         "duplicate_tip_groups": duplicate_tip_groups,
         "duplicate_tree_groups": duplicate_tree_groups,
-        "candidate_tree_groups": [
-            {"tree": sha, "branches": sorted(names)}
-            for sha, names in sorted(candidate_trees.items())
-        ],
+        "missing_patch_signature_groups": missing_patch_groups,
+        "missing_patches": missing_patches,
         "branches": [asdict(record) for record in records],
     }
 
@@ -266,10 +350,20 @@ def print_summary(report: dict) -> None:
         print(f"  main: {repo['main']}")
         print(f"  branches including main: {repo['branch_count_including_main']}")
         print(f"  candidate branches: {repo['candidate_branch_count']}")
-        print(f"  candidate tree groups: {repo['candidate_tree_group_count']}")
+        print(f"  unique missing patches: {repo['unique_missing_patch_count']}")
+        print(
+            "  missing-patch signature groups: "
+            f"{repo['missing_patch_signature_group_count']}"
+        )
         for key, value in repo["classification_counts"].items():
             print(f"  {key}: {value}")
         print(f"  duplicate tip groups: {len(repo['duplicate_tip_groups'])}")
+        print("  largest shared missing-patch groups:")
+        for group in repo["missing_patch_signature_groups"][:10]:
+            print(
+                f"    branches={len(group['branches'])} patches={group['patch_count']} "
+                f"example={group['branches'][0]}"
+            )
 
 
 def main() -> int:
@@ -287,19 +381,21 @@ def main() -> int:
         if "=" not in spec:
             parser.error(f"repository spec must be LABEL=PATH: {spec}")
         label, raw_path = spec.split("=", 1)
-        path = pathlib.Path(raw_path).resolve()
-        repositories.append(audit_repo(path, label))
+        repositories.append(audit_repo(pathlib.Path(raw_path).resolve(), label))
 
     report = {
-        "schema": "laplace.branch-estate-live-audit/v1",
+        "schema": "laplace.branch-estate-live-audit/v2",
         "reconciliation_rule": (
-            "Only SAME_TIP/ANCESTOR/SAME_TREE/SAME_CONTENT are mechanically safe. "
-            "All other branches require behavior-level reconciliation before retirement."
+            "Only exact main ancestry/content or proven patch equivalence is mechanically "
+            "absorbed. Missing patch groups require behavior-level reconciliation before "
+            "retirement; tree divergence alone is not counted as missing behavior."
         ),
         "repositories": repositories,
     }
     output = pathlib.Path(args.output)
-    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print_summary(report)
     return 0
 
