@@ -116,6 +116,40 @@ jobs:
             --output "$RUNNER_TEMP/branch-estate-live.json"
           cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
 
+      - name: Report unresolved candidates and block incomplete convergence
+        shell: bash
+        env:
+          REQUIRE_ZERO: ${{ github.event.pull_request.head.ref == 'delivery/final-convergence-20260911' && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          ledger = json.loads(Path("branch-estate-live.json").read_text(encoding="utf-8"))
+          unresolved = []
+          for repository in ledger["repositories"]:
+              label = repository["repository"]
+              for branch in repository["branches"]:
+                  if branch.get("classification") != "UNIQUE_BEHAVIOR_CANDIDATE":
+                      continue
+                  unresolved.append((label, branch))
+
+          print(f"UNRESOLVED_UNIQUE_BEHAVIOR_CANDIDATES={len(unresolved)}")
+          for label, branch in unresolved:
+              print(
+                  f"{label}:{branch['branch']} "
+                  f"tip={branch['tip']} "
+                  f"missing_patches={branch.get('missing_patch_count', 0)}"
+              )
+
+          if os.environ.get("REQUIRE_ZERO") == "1" and unresolved:
+              raise SystemExit(
+                  f"final convergence is blocked by {len(unresolved)} unresolved unique-behavior branches"
+              )
+          PY
+
       - name: Upload live reconciliation ledger
         uses: actions/upload-artifact@v4
         with:
