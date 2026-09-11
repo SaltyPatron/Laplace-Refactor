@@ -1,0 +1,56 @@
+{
+  "schema": "laplace.branch-estate-semantic-dispositions/v1",
+  "rule": "Every entry is pinned to an exact live branch tip and is terminal only when current convergence preserves or strengthens the branch's valid behavior.",
+  "entries": [
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "docs/source-admission-invariance",
+      "tip": "37fb742cc7a07ef026a4e7ad567e2321220cfe7c",
+      "disposition": "ABSORBED_BY_STRONGER_CURRENT_SOURCE_PROFILE_LAW",
+      "rationale": "PR #175 established physical-plan semantic invariance for source admission. Its SOURCE_ADMISSION_INVARIANCE.md is byte-identical on convergence, and every source-profile physical grain distinction, equivalence vector, semantic fingerprint field and deliberate negative control remains in current contracts/source-profile-model.json. The current contract further adds authority-manufactured stock-recipe tiers, explicit derived perfcache declarations, and a stricter authority-selected recursive seed manifest, so replaying the older branch would only remove later law.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#175",
+        "docs/architecture/SOURCE_ADMISSION_INVARIANCE.md blob b1c055cea616a6fd51a13b6564c180cf96c3ea47 on branch and convergence",
+        "contracts/source-profile-model.json branch blob 7d16eec2b70e4b8dd17786a5699bf9c27ec322a1",
+        "contracts/source-profile-model.json convergence blob 21831b1ac43b188d0dca985f89120e85c6166483"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "feat/composition-frontier-plan",
+      "tip": "65fce4630bcc6a86f1eb105273370ca9541f6166",
+      "disposition": "ABSORBED_AND_EXTENDED_BY_CURRENT_FRONTIER_EXECUTION_PLAN",
+      "rationale": "PR #178 introduced the deterministic dependency-frontier planner and explicitly left common execution-provider/resource binding as the next slice. Current engine/include/laplace/detail/composition_frontier.hpp retains that planner and adds FrontierExecutionPlan plus BuildFrontierExecutionPlan, which plans every ready frontier through laplace_execution_plan_work under the execution-context resource grant. Current state therefore contains the branch behavior and the continuation it said was still missing.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#178",
+        "engine/include/laplace/detail/composition_frontier.hpp branch blob 781a4395e10c15f63570b0b9402c8e9ee5d111a8",
+        "engine/include/laplace/detail/composition_frontier.hpp convergence blob 9fdf7e9c13ad70e56b48d346cfefe1eeeb1db7e9"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "feat/machine-exception-route-views",
+      "tip": "65bca4417fd7e6d33ce846fa368185f6bc3acaf9",
+      "disposition": "ABSORBED_BY_CURRENT_POSTGRESQL_MACHINE_EXCEPTION_ROUTE",
+      "rationale": "PR #126 exposed the generated native machine-condition registry through PostgreSQL without semantic translation. The current integration has the same machine_exception_registry SQL type/function and the same descriptor-validation projection under integrations/postgresql/extension, with an additional deliberate capability-drift mutant. The old postgres/extension path is therefore a superseded package layout, not unique behavior.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#126",
+        "postgres/extension/src/machine_exception_pg.c@65bca4417fd7e6d33ce846fa368185f6bc3acaf9 blob 85910ae5bb409e1f13fac84b7a929d114fe654d7",
+        "integrations/postgresql/extension/src/machine_exception_pg.c convergence blob 6dba5a13d0788bb8c86c5c4fb71947657aceff0f",
+        "integrations/postgresql/extension/machine_exception.sql.in convergence blob ce44bd19a390abe224d9690454bdf1f18b9e0d00"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "docs/trust-matchup-realization",
+      "tip": "9a03bb673bec52ebe271bfd293f1a9cb4949549e",
+      "disposition": "ABSORBED_BY_STRONGER_CURRENT_TRUST_MATCHUP_REALIZATION_LAW",
+      "rationale": "PR #111 bound Unicode-native tokens, typed Glicko matchup/return-leg state, contextual importance and witnessed language realization into executable authority. Current contracts/trust-matchup-realization.json retains those laws and extends them with zero-attestation prompt/observation boundaries, exact-first structural and tier fallback, projection-collision safeguards, stronger user-standing return-leg distinctions and expanded deliberate-defect acceptance. Replaying the old requirement branch would lose later corrections.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#111",
+        "contracts/trust-matchup-realization.json branch blob afd54f25dd41cdc548c0ccd77faaf6e5cc25d514",
+        "contracts/trust-matchup-realization.json convergence blob 2489bc3a80491716cbdb49658a22cd5eeabef7ba"
+      ]
+    }
+  ]
+}
