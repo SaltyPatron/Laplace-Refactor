@@ -19,11 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout Laplace-Refactor with all history
+      - name: Checkout audit tooling from main with all history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: delivery/final-convergence-20260911
+          ref: main
 
       - name: Fetch every Refactor branch and use convergence as provisional main
         shell: bash
