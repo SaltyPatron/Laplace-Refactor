@@ -138,7 +138,7 @@ Datum laplace_pg_test_firmware_indexed(PG_FUNCTION_ARGS) {
     bytea* previous_id=PG_GETARG_BYTEA_PP(5);
     int64 workspace=PG_GETARG_INT64(6);
     int32 transition_capacity=PG_GETARG_INT32(7);
-    bool mixed_relations=PG_GETARG_BOOL(8);
+    bool mixed_relations=transition_capacity==63;
     const uint8_t* image_bytes;size_t image_size;
     laplace_digest256 image_id;
     const uint8_t* output=NULL;size_t output_size=0;
