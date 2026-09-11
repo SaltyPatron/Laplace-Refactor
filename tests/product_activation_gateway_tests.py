@@ -420,11 +420,15 @@ class ProductActivationGatewayTests(unittest.TestCase):
         )
         self.assertNotIn("/build/laplace/stage/product/$build_id/root", workflow)
         self.assertIn(
-            'resource_directory="$receipt_root/plan/$package_id"',
+            'resource_directory="$receipt_root/cluster-activation/$package_id"',
             workflow,
         )
         self.assertNotIn(
             'resource_directory="/opt/laplace/receipts/plans/$package_id"',
+            workflow,
+        )
+        self.assertIn(
+            'proof="$receipt_root/cluster-activation/$package_id/installed-cognition-proof.json"',
             workflow,
         )
         self.assertGreaterEqual(
