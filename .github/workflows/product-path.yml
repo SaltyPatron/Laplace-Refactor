@@ -128,16 +128,20 @@ jobs:
           python3 tools/delivery/postgresql_package_publication.py verify \
             --receipt "$publication" >/dev/null
 
-  # The physical proof implementations are independent consumers of the exact
-  # PR head after hosted proof and exact publication recovery. The reusable
-  # workflows still serialize their own physical-host ownership.
+  # Every selected physical proof shares mutable self-hosted product resources.
+  # Serialize recovery -> custom-stack -> PostgreSQL-product -> package-product so
+  # reusable-workflow concurrency cannot replace an older pending proof.
   custom-stack-proof:
     needs:
       - classify
       - hosted-proof
+      - publication-recovery
     if: >-
+      always() &&
       needs.classify.outputs.requires_custom_stack == 'true' &&
-      needs.hosted-proof.result == 'success'
+      needs.hosted-proof.result == 'success' &&
+      (needs.publication-recovery.result == 'success' ||
+       needs.publication-recovery.result == 'skipped')
     uses: ./.github/workflows/custom-stack.yml
 
   postgresql-product-proof:
@@ -145,10 +149,14 @@ jobs:
       - classify
       - hosted-proof
       - publication-recovery
+      - custom-stack-proof
     if: >-
+      always() &&
       needs.classify.outputs.requires_postgresql_product == 'true' &&
       needs.hosted-proof.result == 'success' &&
-      needs.publication-recovery.result == 'success'
+      needs.publication-recovery.result == 'success' &&
+      (needs.classify.outputs.requires_custom_stack != 'true' ||
+       needs.custom-stack-proof.result == 'success')
     uses: ./.github/workflows/postgresql-product.yml
 
   package-product-proof:
@@ -156,10 +164,17 @@ jobs:
       - classify
       - hosted-proof
       - publication-recovery
+      - custom-stack-proof
+      - postgresql-product-proof
     if: >-
+      always() &&
       needs.classify.outputs.requires_package_product == 'true' &&
       needs.hosted-proof.result == 'success' &&
-      needs.publication-recovery.result == 'success'
+      needs.publication-recovery.result == 'success' &&
+      (needs.classify.outputs.requires_custom_stack != 'true' ||
+       needs.custom-stack-proof.result == 'success') &&
+      (needs.classify.outputs.requires_postgresql_product != 'true' ||
+       needs.postgresql-product-proof.result == 'success')
     uses: ./.github/workflows/package-product.yml
 
   product-path:
