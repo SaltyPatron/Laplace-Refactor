@@ -1,6 +1,7 @@
 {
   "schema": "laplace.final-convergence-merge-plan/v1",
   "target": "delivery/final-convergence-20260911",
+  "resolution_revision": 2,
   "heads": [
     {
       "owner_pr": 302,
