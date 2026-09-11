@@ -123,10 +123,6 @@ if(EXISTS "${LAPLACE_CILI_CURRENT_SOURCE_ROOT}/cili-current-a895d7ecb18019dda344
     set_tests_properties(cili-source.current-recipe-reconstruction-and-mutation
         PROPERTIES LABELS "implementation;source-profile;cili;recipe;reconstruction;mutation")
 endif()
-add_test(NAME source-profile.verified-local-provenance
-    COMMAND "${Python3_EXECUTABLE}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verified_local_source_profile_tests.py")
-
 add_library(laplace_tabular_parent_edge_mutant STATIC
     ../engine/src/tabular_source.cpp)
 target_include_directories(laplace_tabular_parent_edge_mutant PRIVATE
@@ -359,6 +355,9 @@ if(UNIX)
 endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME source-profile.verified-local-provenance
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verified_local_source_profile_tests.py")
 add_test(
     NAME unicode-root.contract-and-mutation
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/unicode_root_contract_tests.py")
