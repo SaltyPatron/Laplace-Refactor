@@ -85,13 +85,14 @@ jobs:
             test ! -L "$stage_root"
             python3 tools/product/build_workspace_retention.py \
               --contract contracts/product-package.json \
-              --receipt-root /opt/laplace/receipts/product-build-retention \
+              --retention-root /build/laplace/runner/product/retention \
               --preserve-plan "$current_plan" \
               --minimum-age-seconds 300 \
               --output "$retention"
             jq -e \
               --arg plan "$current_plan" '
                 .schema == "laplace.product-build-workspace-retention/v1" and
+                .retention_root == "/build/laplace/runner/product/retention" and
                 (.preserved_plan_ids | index($plan)) != null and
                 (.allocated_bytes_reclaimed | type) == "number"
               ' "$retention" >/dev/null
