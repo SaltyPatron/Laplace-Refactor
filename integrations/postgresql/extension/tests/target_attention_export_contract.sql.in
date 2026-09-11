@@ -254,3 +254,129 @@ BEGIN
     END IF;
 END
 $deterministic_scoped_export$;
+
+CREATE FUNCTION pg_temp.generic_constraints()
+RETURNS laplace.cognition_operator_constraint[]
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $constraints$
+    SELECT ARRAY[
+        pg_temp.constraint_row(70, 21, 0, 1, 2.0),
+        pg_temp.constraint_row(71, 22, 2, 3, 3.0),
+        pg_temp.constraint_row(72, 23, 0, 2, 4.0),
+        pg_temp.constraint_row(73, 24, 1, 3, 5.0),
+        pg_temp.constraint_row(74, 25, 0, 3, 6.0),
+        pg_temp.constraint_row(75, 26, 1, 2, 7.0),
+        pg_temp.constraint_row(76, 27, 3, 0, 8.0)
+    ]::laplace.cognition_operator_constraint[]
+$constraints$;
+
+CREATE FUNCTION pg_temp.generic_slots()
+RETURNS laplace.target_scope_slot[]
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $slots$
+    SELECT ARRAY[
+        ROW(1, 2, 5, 0, ARRAY[21]::integer[], 1, 1::numeric, 0)::laplace.target_scope_slot,
+        ROW(2, 2, 5, 0, ARRAY[22]::integer[], 1, 1::numeric, 0)::laplace.target_scope_slot,
+        ROW(3, 3, 0, 0, ARRAY[23]::integer[], 1, 0::numeric, 0)::laplace.target_scope_slot,
+        ROW(4, 3, 1, 0, ARRAY[24]::integer[], 1, 0::numeric, 0)::laplace.target_scope_slot,
+        ROW(5, 0, 0, 0, ARRAY[25]::integer[], 1, 0::numeric, 0)::laplace.target_scope_slot,
+        ROW(6, 0, 0, 0, ARRAY[26]::integer[], 1, 0::numeric, 0)::laplace.target_scope_slot,
+        ROW(7, 4, 0, 0, ARRAY[27]::integer[], 1, 0::numeric, 0)::laplace.target_scope_slot
+    ]::laplace.target_scope_slot[]
+$slots$;
+
+CREATE TEMP TABLE first_generic_export AS
+SELECT (laplace.target_safetensors_export_scoped(
+    pg_temp.execution_context(),
+    pg_temp.digest(176),
+    pg_temp.digest(177),
+    pg_temp.digest(80),
+    pg_temp.digest(81),
+    pg_temp.scope_fields(),
+    pg_temp.generic_constraints(),
+    pg_temp.generic_slots(),
+    1e-12::double precision,
+    7,
+    1
+)).*;
+
+DO $verify_generic_export$
+DECLARE
+    result laplace.target_safetensors_scoped_export_result;
+    header text;
+BEGIN
+    SELECT ROW(t.*)::laplace.target_safetensors_scoped_export_result
+      INTO result
+      FROM first_generic_export t;
+
+    IF result.scope_status <> 0 OR result.compile_status <> 0 OR
+       result.package_status <> 0 OR result.codec_status <> 0 THEN
+        RAISE EXCEPTION 'generic target export status mismatch scope=% compile=% package=% codec=%',
+            result.scope_status, result.compile_status,
+            result.package_status, result.codec_status;
+    END IF;
+    IF result.selected_constraint_count <> 7 OR result.source_mask_union <> 1 OR
+       result.slot_count <> 7 OR result.tensor_count <> 14 OR result.field_count <> 4 THEN
+        RAISE EXCEPTION 'generic target export inventory mismatch selected=% slots=% tensors=% fields=% source_mask=%',
+            result.selected_constraint_count, result.slot_count,
+            result.tensor_count, result.field_count, result.source_mask_union;
+    END IF;
+    IF result.byte_count <> octet_length(result.artifact)::numeric OR
+       result.header_byte_count <= 0 OR result.data_byte_count <= 0 THEN
+        RAISE EXCEPTION 'generic target export byte accounting mismatch';
+    END IF;
+    IF octet_length(result.artifact_id) <> 32 OR
+       octet_length(result.target_package_id) <> 32 OR
+       octet_length(result.compile_receipt_id) <> 32 OR
+       octet_length(result.scope_receipt_id) <> 32 THEN
+        RAISE EXCEPTION 'generic target export omitted content/provenance identities';
+    END IF;
+
+    header := convert_from(
+        substring(result.artifact FROM 9 FOR result.header_byte_count::integer),
+        'UTF8');
+    IF position('laplace.target-neutral-safetensors/v1' in header) = 0 OR
+       position('"laplace.qk.layer_2.head_5.expert_0.matrix"' in header) = 0 OR
+       position('"laplace.vo.layer_2.head_5.expert_0.matrix"' in header) = 0 OR
+       position('"laplace.ffn.layer_3.head_0.expert_0.matrix"' in header) = 0 OR
+       position('"laplace.routing.layer_3.head_1.expert_0.matrix"' in header) = 0 OR
+       position('"laplace.position.layer_0.head_0.expert_0.matrix"' in header) = 0 OR
+       position('"laplace.embedding.layer_0.head_0.expert_0.matrix"' in header) = 0 OR
+       position('"laplace.output.layer_4.head_0.expert_0.matrix"' in header) = 0 OR
+       position('"laplace.output.layer_4.head_0.expert_0.rhs"' in header) = 0 THEN
+        RAISE EXCEPTION 'generic target SafeTensors omitted one or more declared target roles';
+    END IF;
+END
+$verify_generic_export$;
+
+CREATE TEMP TABLE second_generic_export AS
+SELECT (laplace.target_safetensors_export_scoped(
+    pg_temp.execution_context(),
+    pg_temp.digest(176),
+    pg_temp.digest(177),
+    pg_temp.digest(80),
+    pg_temp.digest(81),
+    pg_temp.scope_fields(),
+    pg_temp.generic_constraints(),
+    pg_temp.generic_slots(),
+    1e-12::double precision,
+    7,
+    1
+)).*;
+
+DO $deterministic_generic_export$
+DECLARE
+    first_row record;
+    second_row record;
+BEGIN
+    SELECT * INTO first_row FROM first_generic_export;
+    SELECT * INTO second_row FROM second_generic_export;
+    IF first_row.artifact_id <> second_row.artifact_id OR
+       first_row.artifact <> second_row.artifact OR
+       first_row.target_package_id <> second_row.target_package_id OR
+       first_row.scope_receipt_id <> second_row.scope_receipt_id OR
+       first_row.compile_receipt_id <> second_row.compile_receipt_id THEN
+        RAISE EXCEPTION 'generic scoped target export is not byte deterministic';
+    END IF;
+END
+$deterministic_generic_export$;
