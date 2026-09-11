@@ -49,6 +49,7 @@ add_library(laplace_engine SHARED
     src/unicode_properties.cpp
     src/unicode_ducet.cpp
     src/uax29.cpp
+    src/uax29_atom_tables.cpp
     src/text_decomposition.cpp
     src/decomposition.cpp
     src/decomposition_composition.cpp
