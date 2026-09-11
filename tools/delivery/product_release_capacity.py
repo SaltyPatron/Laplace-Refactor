@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove product-release capacity and reclaim safely unselected generations.
+"""Prove product-release capacity and enforce bounded immutable-release retention.
 
 Persistent activation copies an immutable content-addressed product package into
 ``/opt/laplace/releases`` before PostgreSQL generation transition begins. The native
@@ -8,26 +8,26 @@ separate lifecycle and must be bounded independently.
 
 The release store is an execution cache, not the durable evidence store. Durable
 package/activation receipts live beneath the receipt root and remain available after
-an unselected package payload is reclaimed. A completed activation therefore does not
-lease package bytes forever.
+an old package payload is reclaimed. A completed activation therefore does not lease
+package bytes forever.
 
-This provider may remove a release only when all of these are true:
+Release retention is deliberately bounded. The current/runtime-selected generations
+are always protected. Among other successfully activated generations, only the newest
+rollback window is retained. Older activated generations are verified against their
+package-addressed installation receipts, checked for live runner process references,
+and reclaimed even when the filesystem still has enough space for the next copy.
+Never-activated verified residue remains capacity-driven cleanup.
 
-* the direct child name is one canonical 64-hex package id;
-* it is not the requested successor and is not selected by current/runtime pointers;
-* a package-addressed, content-valid installation receipt proves that exact release;
-* activation evidence, when present, is represented by ordinary receipt files rather
-  than symlinks or other unsafe filesystem objects;
-* no live process owned by the runner references that release;
-* the release is one physical directory and recursive removal never crosses devices or
-  follows symlinks.
+The recovery path also handles the exact host state created when the release cache was
+removed manually: a missing physical release root can be recreated beneath its physical
+parent, and a pair of canonical ``current``/``runtime/refactor`` links that both dangle
+to the same deleted package can be removed so a fresh activation can establish a new
+selected generation. A single dangling pointer or disagreeing pair fails closed.
 
-Every safely reclaimable unselected generation is collected on each activation. This
-keeps one selected generation plus the incoming successor instead of allowing every
-historical successful deployment to accumulate until the release filesystem is full.
-Unknown, selected, live-referenced, or otherwise ambiguous releases are preserved.
-Old interrupted ``.<package>.install.*`` staging directories are also removed after a
-minimum-age gate because they were never published release paths.
+Unknown, selected, live-referenced, symlinked, cross-device, or otherwise ambiguous
+releases are preserved. Old interrupted ``.<package>.install.*`` staging directories
+may also be removed after the minimum-age gate because they were never published
+release paths.
 """
 
 from __future__ import annotations
@@ -52,6 +52,7 @@ INSTALL_TEMP = re.compile(r"^\.([0-9a-f]{64})\.install\.[A-Za-z0-9._-]+$")
 # exact target allocation rather than an unrelated fixed reserve.
 MIN_HEADROOM_BYTES = 512 * 1024 * 1024
 DEFAULT_MINIMUM_TEMP_AGE_SECONDS = 300
+DEFAULT_ROLLBACK_RELEASES = 2
 
 
 class CapacityError(RuntimeError):
@@ -364,8 +365,6 @@ def _reconcile_dangling_product_pointers(
                 f"selected package path is not a directory: {release_root / package_id}"
             )
 
-    # A valid selected generation remains authoritative. A single dangling pointer or
-    # disagreeing pair is ambiguous and must fail closed instead of being guessed away.
     if any(target.exists() for _package_id, target in present):
         return []
     if active is None or runtime is None:
@@ -388,19 +387,32 @@ def _reconcile_dangling_product_pointers(
     ]
 
 
+def _activation_files(evidence: Path) -> list[Path]:
+    return [
+        evidence / "activation-complete.json",
+        evidence / "activation-result.json",
+    ]
+
+
 def _safe_release_candidates(
     release_root: Path,
     receipt_root: Path,
     protected: set[str],
     successor_package_id: str,
     proc_root: Path,
+    rollback_releases: int,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    candidates: list[dict[str, Any]] = []
+    if rollback_releases < 0:
+        raise CapacityError("rollback release count cannot be negative")
+
+    never_activated: list[dict[str, Any]] = []
+    activated: list[dict[str, Any]] = []
     preserved: list[dict[str, Any]] = []
     try:
         children = sorted(release_root.iterdir(), key=lambda item: item.name)
     except OSError as error:
         raise CapacityError(f"cannot enumerate product releases: {error}") from error
+
     for child in children:
         package_id = child.name
         if PACKAGE_ID.fullmatch(package_id) is None:
@@ -443,27 +455,6 @@ def _safe_release_candidates(
             )
             continue
 
-        activation_files: list[str] = []
-        unsafe_activation_evidence = False
-        for name in ("activation-complete.json", "activation-result.json"):
-            receipt_path = evidence / name
-            if receipt_path.is_symlink():
-                unsafe_activation_evidence = True
-                break
-            if receipt_path.exists():
-                if not receipt_path.is_file():
-                    unsafe_activation_evidence = True
-                    break
-                activation_files.append(name)
-        if unsafe_activation_evidence:
-            preserved.append(
-                {
-                    "package_id": package_id,
-                    "reason": "unsafe-activation-evidence",
-                }
-            )
-            continue
-
         references = _runner_process_references(child, proc_root)
         if references:
             preserved.append(
@@ -474,18 +465,58 @@ def _safe_release_candidates(
                 }
             )
             continue
-        candidates.append(
+
+        base = {
+            "package_id": package_id,
+            "path": str(child),
+            "installation_receipt_sha256": installation[
+                "installation_receipt_sha256"
+            ],
+            "installed_file_bytes": installation.get("total_file_bytes"),
+        }
+        activation_paths = [
+            path for path in _activation_files(evidence) if path.exists() or path.is_symlink()
+        ]
+        if any(path.is_symlink() or not path.is_file() for path in activation_paths):
+            preserved.append(
+                {
+                    "package_id": package_id,
+                    "reason": "unsafe-activation-evidence",
+                }
+            )
+            continue
+        if activation_paths:
+            activated.append(
+                {
+                    **base,
+                    "activation_evidence": [path.name for path in activation_paths],
+                    "activation_time_ns": max(path.stat().st_mtime_ns for path in activation_paths),
+                    "cleanup_class": "activated",
+                }
+            )
+        else:
+            never_activated.append(
+                {**base, "activation_evidence": [], "cleanup_class": "never-activated", "mandatory_reclaim": False}
+            )
+
+    activated.sort(
+        key=lambda item: (int(item["activation_time_ns"]), str(item["package_id"])),
+        reverse=True,
+    )
+    for item in activated[:rollback_releases]:
+        preserved.append(
             {
-                "package_id": package_id,
-                "path": str(child),
-                "installation_receipt_sha256": installation[
-                    "installation_receipt_sha256"
-                ],
-                "installed_file_bytes": installation.get("total_file_bytes"),
-                "activation_evidence": activation_files,
+                "package_id": item["package_id"],
+                "reason": "rollback-window-retained",
+                "activation_time_ns": item["activation_time_ns"],
             }
         )
-    return candidates, preserved
+
+    expired_rollback = [
+        {**item, "mandatory_reclaim": True}
+        for item in reversed(activated[rollback_releases:])
+    ]
+    return expired_rollback + never_activated, preserved
 
 
 def _remove_old_install_temporaries(
@@ -548,6 +579,7 @@ def reconcile_capacity(
     *,
     proc_root: Path = Path("/proc"),
     minimum_temp_age_seconds: int = DEFAULT_MINIMUM_TEMP_AGE_SECONDS,
+    rollback_releases: int = DEFAULT_ROLLBACK_RELEASES,
     now: float | None = None,
 ) -> dict[str, Any]:
     if contract.get("schema") != "laplace.postgresql-cluster-contract/v1":
@@ -623,26 +655,29 @@ def reconcile_capacity(
         protected,
         successor_package_id,
         proc_root,
+        rollback_releases,
     )
     removed_releases: list[dict[str, Any]] = []
     root_device = release_root.lstat().st_dev
-
-    # Reclaim every mechanically safe historical generation, not merely enough to
-    # squeeze in the next copy. The selected generation remains protected, so after a
-    # successful activation the store naturally contains the new current generation
-    # plus at most the immediately previous selected generation until the next run.
     for candidate in candidates:
+        mandatory = bool(candidate.get("mandatory_reclaim"))
+        if not mandatory and _capacity_satisfied(
+            release_root, required_allocation_bytes, required_inodes
+        ):
+            break
         path = Path(candidate["path"])
         allocated = _tree_allocated_bytes(path, root_device)
         entries = _remove_tree(path, root_device)
         removed = dict(candidate)
+        removed.pop("mandatory_reclaim", None)
+        cleanup_class = removed.pop("cleanup_class", "never-activated")
         removed.update(
             {
                 "allocated_bytes_before": allocated,
                 "removed_entries": entries,
                 "reason": (
-                    "verified-unselected-activated-release"
-                    if candidate["activation_evidence"]
+                    "verified-activated-release-outside-rollback-window"
+                    if cleanup_class == "activated"
                     else "verified-installed-never-activated-release"
                 ),
             }
@@ -662,6 +697,7 @@ def reconcile_capacity(
         "release_root_created": release_root_created,
         "recovered_dangling_pointers": recovered_dangling_pointers,
         "protected_package_ids": sorted(protected),
+        "rollback_release_count": rollback_releases,
         "source_package_bytes": source_package_bytes,
         "copy_required": copy_required,
         "required_copy_bytes": required_copy_bytes,
@@ -683,7 +719,9 @@ def reconcile_capacity(
         "removed_temporaries": removed_temporaries,
         "removed_releases": removed_releases,
         "preserved_releases": preserved,
-        "remaining_safe_candidate_count": 0,
+        "remaining_safe_candidate_count": max(
+            0, len(candidates) - len(removed_releases)
+        ),
         "capacity_satisfied": satisfied,
     }
     result["receipt_sha256"] = document_identity(result, "receipt_sha256")
@@ -701,6 +739,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--contract", required=True)
     parser.add_argument("--product-receipt", required=True)
     parser.add_argument("--minimum-temp-age-seconds", type=int, default=300)
+    parser.add_argument(
+        "--rollback-releases", type=int, default=DEFAULT_ROLLBACK_RELEASES
+    )
     return parser.parse_args(argv)
 
 
@@ -714,6 +755,7 @@ def main(argv: Sequence[str]) -> int:
         product_receipt,
         manifest,
         minimum_temp_age_seconds=args.minimum_temp_age_seconds,
+        rollback_releases=args.rollback_releases,
     )
     print(json.dumps(result, sort_keys=True))
     return 0
