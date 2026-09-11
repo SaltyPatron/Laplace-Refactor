@@ -54,11 +54,45 @@ jobs:
             fi
             echo "Merging $branch@$sha (PR #$owner_pr)"
             if ! git merge --no-ff --no-edit "$sha"; then
-              echo '::error title=Final convergence merge conflict::Conflicts while merging registered head'
-              git diff --name-only --diff-filter=U | sed 's/^/CONFLICT: /' >&2
+              conflicts="$(git diff --name-only --diff-filter=U)"
+              printf '%s\n' "$conflicts" | sed '/^$/d;s/^/CONFLICT: /' >&2
               git status --short >&2
-              git merge --abort || true
-              exit 2
+
+              # #302 and current main independently repaired different capacity
+              # failure modes in the provider-set combiner. Preserve both: keep
+              # current main's order-independent full-set staging, and add #302's
+              # explicit EXHAUSTED propagation so one truncated child cannot be
+              # hidden by candidates from another provider.
+              if [[ "$branch" == "implementation/53-generic-source-decomposition" && \
+                    "$conflicts" == "engine/src/cognition_observation_provider_set.inc" ]]; then
+                git checkout --ours -- engine/src/cognition_observation_provider_set.inc
+                python3 - <<'PY'
+          from pathlib import Path
+          path = Path('engine/src/cognition_observation_provider_set.inc')
+          text = path.read_text(encoding='utf-8')
+          old_disposition = '''        disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_DENIED ||\n        disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_CONTRADICTED ||'''
+          new_disposition = '''        disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_DENIED ||\n        disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED ||\n        disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_CONTRADICTED ||'''
+          old_usage = '''            if (!AddUsage(usage, child_usage)) return 7;\n\n            if (child_count > candidate_capacity - *candidate_count) {'''
+          new_usage = '''            if (!AddUsage(usage, child_usage)) return 7;\n\n            /* One child reported that its exact finite contribution did not fit.\n             * Do not let candidates from another provider disguise that missing\n             * typed plane as a complete composite frontier. */\n            if (child_usage.limiting_disposition ==\n                LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED) {\n                *candidate_count = 0U;\n                usage->limiting_disposition =\n                    LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;\n                return 0;\n            }\n\n            if (child_count > candidate_capacity - *candidate_count) {'''
+          assert text.count(old_disposition) == 1, 'unexpected disposition merge shape'
+          assert text.count(old_usage) == 1, 'unexpected usage merge shape'
+          text = text.replace(old_disposition, new_disposition, 1)
+          text = text.replace(old_usage, new_usage, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+                git add engine/src/cognition_observation_provider_set.inc
+                if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
+                  echo '::error title=Final convergence resolution incomplete::Unexpected unresolved conflict remains'
+                  git diff --name-only --diff-filter=U >&2
+                  git merge --abort || true
+                  exit 3
+                fi
+                git commit --no-edit
+              else
+                echo '::error title=Final convergence merge conflict::Unregistered semantic conflict requires explicit reconciliation'
+                git merge --abort || true
+                exit 2
+              fi
             fi
             git push origin "HEAD:$TARGET_BRANCH"
           done < "$RUNNER_TEMP/convergence-heads.tsv"
