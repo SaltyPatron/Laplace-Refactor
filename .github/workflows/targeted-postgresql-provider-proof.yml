@@ -1,0 +1,13 @@
+name: targeted-postgresql-provider-proof
+
+on:
+  push:
+    branches:
+      - proof/firmware-provider-capacity-direct
+
+permissions:
+  contents: read
+
+jobs:
+  custom-stack-proof:
+    uses: ./.github/workflows/custom-stack.yml

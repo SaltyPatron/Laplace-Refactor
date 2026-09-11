@@ -395,6 +395,14 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
         LAPLACE_COGNITION_OBSERVATION_REQUEST_TERMINAL_RESULTS;
     scope.version = LAPLACE_COGNITION_OBSERVATION_REQUEST_VERSION;
 
+    /* Native firmware always composes the admitted prompt-structure provider
+     * with this durable provider router. Reserve at least one transition slot
+     * for each plane before creating or touching a PostgreSQL provider. */
+    if ((need_physical || need_semantic) &&
+        scope.search_budget.transition_batch_capacity < 2u)
+        return firmware_host_error(
+            error, LAPLACE_COGNITION_FIRMWARE_LIMIT, UINT32_MAX, 0u);
+
     if (need_physical) {
         scope.relation_mask = physical_relation_mask;
         laplace_pg_cognition_provider_create(
