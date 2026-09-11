@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Apply reviewed exact-tip semantic dispositions to a v5 branch-estate ledger.
 
-The disposition file is intentionally not a wildcard ignore list. Every entry names:
+Disposition files are intentionally not wildcard ignore lists. Every entry names:
 - repository label,
 - exact branch name,
 - exact 40-hex live tip,
@@ -68,6 +68,17 @@ def validate_dispositions(document: dict[str, Any]) -> list[dict[str, Any]]:
         seen.add(key)
         result.append(entry)
     return result
+
+
+def validate_global_uniqueness(entries: list[dict[str, Any]]) -> None:
+    seen: set[tuple[str, str]] = set()
+    for entry in entries:
+        key = (entry["repository"], entry["branch"])
+        if key in seen:
+            raise RuntimeError(
+                f"duplicate semantic disposition across ledgers for {key[0]}:{key[1]}"
+            )
+        seen.add(key)
 
 
 def clear_missing(branch: dict[str, Any]) -> None:
@@ -186,11 +197,11 @@ def apply(
 
     report["schema"] = "laplace.branch-estate-live-audit/v6"
     report["semantic_disposition_rule"] = (
-        "Manual semantic dispositions apply only to the exact repository/branch/tip SHA "
-        "recorded in .github/branch-estate-semantic-dispositions.json. A moved tip fails "
-        "the audit. A mechanically resolved unchanged branch keeps the stronger mechanical "
-        "classification and records the manual review as redundant. Every unlisted maximal "
-        "candidate remains unresolved."
+        "Manual semantic dispositions apply only to exact repository/branch/tip SHA entries "
+        "from the supplied semantic-disposition ledgers. A moved tip fails the audit. A "
+        "mechanically resolved unchanged branch keeps the stronger mechanical classification "
+        "and records manual review as redundant. Every unlisted maximal candidate remains "
+        "unresolved."
     )
     report["semantic_dispositions_applied"] = applied
     report["semantic_dispositions_redundant"] = redundant
@@ -214,13 +225,15 @@ def print_summary(report: dict[str, Any]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ledger", required=True)
-    parser.add_argument("--dispositions", required=True)
+    parser.add_argument("--dispositions", action="append", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
     report = load(args.ledger)
-    dispositions = load(args.dispositions)
-    entries = validate_dispositions(dispositions)
+    entries: list[dict[str, Any]] = []
+    for path in args.dispositions:
+        entries.extend(validate_dispositions(load(path)))
+    validate_global_uniqueness(entries)
     result = apply(report, entries)
     Path(args.output).write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
