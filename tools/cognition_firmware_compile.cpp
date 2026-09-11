@@ -4,11 +4,11 @@
 #include "laplace/identity.h"
 #include "laplace/observation_query.h"
 
-#include <array>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
+#include <fstream>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -28,6 +28,24 @@ std::uint32_t Relation(std::string_view name) {
     if (name == "cooccur") return LAPLACE_OBSERVATION_QUERY_COOCCUR;
     if (name == "semantic") return LAPLACE_OBSERVATION_QUERY_SEMANTIC;
     return 0U;
+}
+
+std::vector<std::string> ParseRelations(std::string_view value) {
+    std::vector<std::string> relations;
+    std::size_t start = 0U;
+    while (start <= value.size()) {
+        const std::size_t comma = value.find(',', start);
+        const std::size_t end = comma == std::string_view::npos ? value.size() : comma;
+        const std::string_view item = value.substr(start, end - start);
+        if (item.empty() || Relation(item) == 0U) {
+            std::cerr << "unknown or empty relation family: " << item << '\n';
+            std::exit(64);
+        }
+        relations.emplace_back(item);
+        if (comma == std::string_view::npos) break;
+        start = comma + 1U;
+    }
+    return relations;
 }
 
 laplace_id128 ContentIdentity(std::string_view ascii) {
@@ -82,34 +100,70 @@ std::string HexBytes(const std::uint8_t* bytes, std::size_t count) {
     return result;
 }
 
+void Usage() {
+    std::cerr
+        << "usage: laplace_cognition_firmware_compile "
+           "(--relation NAME | --relations NAME[,NAME...]) [--output IMAGE]\n"
+        << "relations: container constituent predecessor successor cooccur semantic\n";
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 3 || std::string_view(argv[1]) != "--relation") {
-        std::cerr << "usage: laplace_cognition_firmware_compile --relation "
-                     "container|constituent|predecessor|successor|cooccur|semantic\n";
-        return 64;
+    std::vector<std::string> relations;
+    std::string output_path;
+    for (int index = 1; index < argc; ++index) {
+        const std::string_view argument(argv[index]);
+        if (argument == "--relation" || argument == "--relations") {
+            if (!relations.empty() || index + 1 >= argc) {
+                Usage();
+                return 64;
+            }
+            ++index;
+            relations = ParseRelations(argv[index]);
+        } else if (argument == "--output") {
+            if (!output_path.empty() || index + 1 >= argc) {
+                Usage();
+                return 64;
+            }
+            ++index;
+            output_path = argv[index];
+        } else if (argument == "--help") {
+            Usage();
+            return 0;
+        } else {
+            Usage();
+            return 64;
+        }
     }
-    const std::string_view relation_name(argv[2]);
-    const std::uint32_t relation = Relation(relation_name);
-    if (relation == 0U) {
-        std::cerr << "unknown relation family: " << relation_name << '\n';
+    if (relations.empty() ||
+        relations.size() >= static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+        Usage();
         return 64;
     }
 
-    std::array<laplace_cognition_firmware_step, 2> steps{};
-    steps[0].kind = LAPLACE_COGNITION_FIRMWARE_INTERPRET;
-    steps[0].anchor.source = LAPLACE_COGNITION_FIRMWARE_OBSERVATION;
-    steps[0].relation_mask = relation;
+    std::vector<laplace_cognition_firmware_step> steps(relations.size() + 1U);
+    for (std::size_t index = 0U; index < relations.size(); ++index) {
+        auto& step = steps[index];
+        step.kind = index == 0U
+            ? LAPLACE_COGNITION_FIRMWARE_INTERPRET
+            : LAPLACE_COGNITION_FIRMWARE_EXECUTE;
+        step.anchor.source = index == 0U
+            ? LAPLACE_COGNITION_FIRMWARE_OBSERVATION
+            : LAPLACE_COGNITION_FIRMWARE_ANSWER;
+        step.anchor.step_index = index == 0U ? 0U : static_cast<std::uint32_t>(index - 1U);
+        step.relation_mask = Relation(relations[index]);
+    }
 
-    steps[1].kind = LAPLACE_COGNITION_FIRMWARE_EMIT;
-    steps[1].anchor.source = LAPLACE_COGNITION_FIRMWARE_ANSWER;
-    steps[1].anchor.step_index = 0U;
-    steps[1].realization.modality_id = ContentIdentity("text/plain");
-    steps[1].realization.realization_recipe_epoch = RecipeEpoch();
-    steps[1].realization.maximum_candidates = 1U;
-    steps[1].realization.version = LAPLACE_COGNITION_REALIZATION_VERSION;
-    steps[1].output_encoding = LAPLACE_COGNITION_OUTPUT_UTF8;
+    auto& emit = steps.back();
+    emit.kind = LAPLACE_COGNITION_FIRMWARE_EMIT;
+    emit.anchor.source = LAPLACE_COGNITION_FIRMWARE_ANSWER;
+    emit.anchor.step_index = static_cast<std::uint32_t>(relations.size() - 1U);
+    emit.realization.modality_id = ContentIdentity("text/plain");
+    emit.realization.realization_recipe_epoch = RecipeEpoch();
+    emit.realization.maximum_candidates = 1U;
+    emit.realization.version = LAPLACE_COGNITION_REALIZATION_VERSION;
+    emit.output_encoding = LAPLACE_COGNITION_OUTPUT_UTF8;
 
     const laplace_cognition_firmware_program program{
         steps.data(), static_cast<std::uint32_t>(steps.size()),
@@ -135,11 +189,36 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    if (!output_path.empty()) {
+        std::ofstream output(output_path, std::ios::binary | std::ios::trunc);
+        if (!output) {
+            std::cerr << "cannot open firmware output: " << output_path << '\n';
+            return 73;
+        }
+        output.write(reinterpret_cast<const char*>(bytes), static_cast<std::streamsize>(byte_count));
+        if (!output) {
+            std::cerr << "cannot write firmware output: " << output_path << '\n';
+            return 74;
+        }
+    }
+
     std::cout << "{\"schema\":\"laplace.cognition-firmware-image/v1\","
-              << "\"program\":\"one-hop-exact-witnessed-output\","
-              << "\"relation\":\"" << relation_name << "\","
-              << "\"program_id\":\"" << Hex(identity) << "\","
+              << "\"program\":\"relation-chain-exact-witnessed-output\","
+              << "\"step_count\":" << steps.size() << ',';
+    if (relations.size() == 1U) {
+        std::cout << "\"relation\":\"" << relations.front() << "\",";
+    }
+    std::cout << "\"relations\":[";
+    for (std::size_t index = 0U; index < relations.size(); ++index) {
+        if (index != 0U) std::cout << ',';
+        std::cout << '"' << relations[index] << '"';
+    }
+    std::cout << "],\"program_id\":\"" << Hex(identity) << "\","
               << "\"image_bytes\":" << byte_count << ','
-              << "\"image_hex\":\"" << HexBytes(bytes, byte_count) << "\"}\n";
+              << "\"image_hex\":\"" << HexBytes(bytes, byte_count) << "\"";
+    if (!output_path.empty()) {
+        std::cout << ",\"output\":\"" << output_path << "\"";
+    }
+    std::cout << "}\n";
     return 0;
 }
