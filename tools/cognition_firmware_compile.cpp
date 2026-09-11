@@ -100,22 +100,56 @@ std::string HexBytes(const std::uint8_t* bytes, std::size_t count) {
     return result;
 }
 
+std::string JsonEscape(std::string_view value) {
+    static constexpr char digits[] = "0123456789abcdef";
+    std::string result;
+    result.reserve(value.size());
+    for (const unsigned char byte : value) {
+        switch (byte) {
+            case '"': result += "\\\""; break;
+            case '\\': result += "\\\\"; break;
+            case '\b': result += "\\b"; break;
+            case '\f': result += "\\f"; break;
+            case '\n': result += "\\n"; break;
+            case '\r': result += "\\r"; break;
+            case '\t': result += "\\t"; break;
+            default:
+                if (byte < 0x20U) {
+                    result += "\\u00";
+                    result.push_back(digits[byte >> 4U]);
+                    result.push_back(digits[byte & 0x0fU]);
+                } else {
+                    result.push_back(static_cast<char>(byte));
+                }
+                break;
+        }
+    }
+    return result;
+}
+
 void Usage() {
     std::cerr
         << "usage: laplace_cognition_firmware_compile "
-           "(--relation NAME | --relations NAME[,NAME...]) [--output IMAGE]\n"
+           "(--auto | --relation NAME | --relations NAME[,NAME...]) [--output IMAGE]\n"
         << "relations: container constituent predecessor successor cooccur semantic\n";
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
+    bool automatic = false;
     std::vector<std::string> relations;
     std::string output_path;
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument(argv[index]);
-        if (argument == "--relation" || argument == "--relations") {
-            if (!relations.empty() || index + 1 >= argc) {
+        if (argument == "--auto") {
+            if (automatic || !relations.empty()) {
+                Usage();
+                return 64;
+            }
+            automatic = true;
+        } else if (argument == "--relation" || argument == "--relations") {
+            if (automatic || !relations.empty() || index + 1 >= argc) {
                 Usage();
                 return 64;
             }
@@ -136,29 +170,43 @@ int main(int argc, char** argv) {
             return 64;
         }
     }
-    if (relations.empty() ||
+    if ((!automatic && relations.empty()) ||
+        (automatic && !relations.empty()) ||
         relations.size() >= static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
         Usage();
         return 64;
     }
 
-    std::vector<laplace_cognition_firmware_step> steps(relations.size() + 1U);
-    for (std::size_t index = 0U; index < relations.size(); ++index) {
-        auto& step = steps[index];
-        step.kind = index == 0U
-            ? LAPLACE_COGNITION_FIRMWARE_INTERPRET
-            : LAPLACE_COGNITION_FIRMWARE_EXECUTE;
-        step.anchor.source = index == 0U
-            ? LAPLACE_COGNITION_FIRMWARE_OBSERVATION
-            : LAPLACE_COGNITION_FIRMWARE_ANSWER;
-        step.anchor.step_index = index == 0U ? 0U : static_cast<std::uint32_t>(index - 1U);
-        step.relation_mask = Relation(relations[index]);
+    std::vector<laplace_cognition_firmware_step> steps(
+        automatic ? 2U : relations.size() + 1U);
+    if (automatic) {
+        auto& interpret = steps.front();
+        interpret.kind = LAPLACE_COGNITION_FIRMWARE_INTERPRET;
+        interpret.anchor.source = LAPLACE_COGNITION_FIRMWARE_OBSERVATION;
+        interpret.anchor.step_index = 0U;
+        interpret.relation_mask = LAPLACE_OBSERVATION_QUERY_RELATION_MASK;
+    } else {
+        for (std::size_t index = 0U; index < relations.size(); ++index) {
+            auto& step = steps[index];
+            step.kind = index == 0U
+                ? LAPLACE_COGNITION_FIRMWARE_INTERPRET
+                : LAPLACE_COGNITION_FIRMWARE_EXECUTE;
+            step.anchor.source = index == 0U
+                ? LAPLACE_COGNITION_FIRMWARE_OBSERVATION
+                : LAPLACE_COGNITION_FIRMWARE_ANSWER;
+            step.anchor.step_index = index == 0U
+                ? 0U
+                : static_cast<std::uint32_t>(index - 1U);
+            step.relation_mask = Relation(relations[index]);
+        }
     }
 
     auto& emit = steps.back();
     emit.kind = LAPLACE_COGNITION_FIRMWARE_EMIT;
     emit.anchor.source = LAPLACE_COGNITION_FIRMWARE_ANSWER;
-    emit.anchor.step_index = static_cast<std::uint32_t>(relations.size() - 1U);
+    emit.anchor.step_index = automatic
+        ? 0U
+        : static_cast<std::uint32_t>(relations.size() - 1U);
     emit.realization.modality_id = ContentIdentity("text/plain");
     emit.realization.realization_recipe_epoch = RecipeEpoch();
     emit.realization.maximum_candidates = 1U;
@@ -202,22 +250,35 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::cout << "{\"schema\":\"laplace.cognition-firmware-image/v1\","
-              << "\"program\":\"relation-chain-exact-witnessed-output\","
-              << "\"step_count\":" << steps.size() << ',';
-    if (relations.size() == 1U) {
-        std::cout << "\"relation\":\"" << relations.front() << "\",";
+    std::cout << "{\"schema\":\"laplace.cognition-firmware-image/v1\",";
+    if (automatic) {
+        std::cout
+            << "\"program\":\"adaptive-active-relation-microcycle\","
+            << "\"mode\":\"auto\","
+            << "\"step_count\":" << steps.size() << ','
+            << "\"relation_mask\":" << LAPLACE_OBSERVATION_QUERY_RELATION_MASK << ','
+            << "\"eligible_relations\":[\"container\",\"constituent\","
+               "\"predecessor\",\"successor\",\"cooccur\",\"semantic\"],";
+    } else {
+        std::cout
+            << "\"program\":\"relation-chain-exact-witnessed-output\","
+            << "\"mode\":\"explicit\","
+            << "\"step_count\":" << steps.size() << ',';
+        if (relations.size() == 1U) {
+            std::cout << "\"relation\":\"" << relations.front() << "\",";
+        }
+        std::cout << "\"relations\":[";
+        for (std::size_t index = 0U; index < relations.size(); ++index) {
+            if (index != 0U) std::cout << ',';
+            std::cout << '"' << relations[index] << '"';
+        }
+        std::cout << "],";
     }
-    std::cout << "\"relations\":[";
-    for (std::size_t index = 0U; index < relations.size(); ++index) {
-        if (index != 0U) std::cout << ',';
-        std::cout << '"' << relations[index] << '"';
-    }
-    std::cout << "],\"program_id\":\"" << Hex(identity) << "\","
+    std::cout << "\"program_id\":\"" << Hex(identity) << "\","
               << "\"image_bytes\":" << byte_count << ','
               << "\"image_hex\":\"" << HexBytes(bytes, byte_count) << "\"";
     if (!output_path.empty()) {
-        std::cout << ",\"output\":\"" << output_path << "\"";
+        std::cout << ",\"output\":\"" << JsonEscape(output_path) << "\"";
     }
     std::cout << "}\n";
     return 0;
