@@ -28,7 +28,8 @@ from typing import Sequence
 
 
 SAFE_NAME = re.compile(
-    r"^(?:laplace-postgres-test\.[A-Za-z0-9]+|"
+    r"^(?:(?:laplace-postgres-(?:test|semantic-cognition|target-attention|"
+    r"observation-cognition|discourse)|laplace-model-export-cli)\.[A-Za-z0-9]+|"
     r"laplace-[a-z0-9][a-z0-9._-]*|"
     r"lp-(?:pg|sc-pg|ta-pg|oc-pg|discourse-pg|mx-pg)\.[A-Za-z0-9]+)$"
 )
