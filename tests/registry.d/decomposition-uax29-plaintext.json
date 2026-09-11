@@ -4,8 +4,8 @@
     {
       "ctest_name": "DecompositionUax29PlainText.CanonicalTextPlainRootProducesGraphemeWordAndSentenceObservations",
       "evidence_targets": [
-        "LP-TEST-PROMPT-ADMISSION",
-        "LP-TEST-OBSERVATION-COGNITION"
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
+        "LP-TEST-OODA-OBSERVE-STRUCTURE-CLAIM-SEPARATION"
       ],
       "covered_dimensions": [
         "Ordinary text/plain content immediately produces exact UAX29 grapheme, word and sentence structural observations without semantic extraction"
@@ -14,7 +14,7 @@
     {
       "ctest_name": "DecompositionUax29PlainText.StructuredGrammarMediaStillRequiresRedispatchedTextInsteadOfRootUax29",
       "evidence_targets": [
-        "LP-TEST-PROMPT-ADMISSION"
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
       ],
       "covered_dimensions": [
         "UAX29 root admission does not bypass stronger structured grammar media contracts"
