@@ -627,8 +627,7 @@ std::uint32_t OperatorSourceClass(
             ? LAPLACE_COGNITION_OPERATOR_SOURCE_TESTIMONY : 0U;
     }
     if (transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_CALCULATION) {
-        return !DigestZero(transition.evidence_root_fingerprint)
-            ? LAPLACE_COGNITION_OPERATOR_SOURCE_DERIVED : 0U;
+        return LAPLACE_COGNITION_OPERATOR_SOURCE_DERIVED;
     }
     return 0U;
 }

@@ -392,7 +392,9 @@ TEST(CognitionObservationExternalProvider, CandidateBackendCannotOwnSearchOrForw
     EXPECT_EQ(answer.relation_family, LAPLACE_OBSERVATION_QUERY_PREDECESSOR);
     EXPECT_EQ(answer.source_layer, LAPLACE_OBSERVATION_QUERY_SOURCE_PHYSICALITY);
     EXPECT_EQ(answer.direction, LAPLACE_OBSERVATION_QUERY_DIRECTION_REVERSE);
-    EXPECT_EQ(answer.flags, 0U);
+    EXPECT_EQ(
+        answer.flags,
+        LAPLACE_COGNITION_OBSERVATION_ANSWER_OPERATOR_EXECUTED);
 }
 
 TEST(CognitionObservationExternalProvider, NativeSearchCarriesProviderTargetsAcrossTwoHops) {
@@ -521,7 +523,8 @@ TEST(CognitionObservationExternalProvider, PreservesArbitraryTypedSemanticRelati
     EXPECT_EQ(first.direction, LAPLACE_OBSERVATION_QUERY_DIRECTION_FORWARD);
     EXPECT_EQ(
         first.flags,
-        LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT);
+        LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT |
+            LAPLACE_COGNITION_OBSERVATION_ANSWER_OPERATOR_EXECUTED);
 
     backend.relation_id = Codepoint(0x53U);
     ObservationResultHandle second_observation;

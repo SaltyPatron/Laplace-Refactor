@@ -31,6 +31,13 @@ bool Same(const laplace_digest256& left, const laplace_digest256& right) {
     return std::memcmp(left.bytes, right.bytes, sizeof(left.bytes)) == 0;
 }
 
+bool Zero(const laplace_digest256& value) {
+    for (const auto byte : value.bytes) {
+        if (byte != 0U) return false;
+    }
+    return true;
+}
+
 laplace_cognition_operator_field Field(std::uint8_t seed) {
     laplace_cognition_operator_field field{};
     field.field_id = Digest(seed);
@@ -138,7 +145,8 @@ TEST(CognitionSolver, ConvergesMatrixFreeWithoutRewritingEvidencePrecision) {
     EXPECT_LE(receipt.final_residual_l2,
               std::max(program.absolute_residual_tolerance,
                        program.relative_residual_tolerance * receipt.initial_residual_l2));
-    EXPECT_TRUE(Same(
+    EXPECT_FALSE(Zero(receipt.evidence_precision_fingerprint));
+    EXPECT_FALSE(Same(
         receipt.evidence_precision_fingerprint,
         operator_value.receipt.constraint_set_fingerprint));
     EXPECT_TRUE(std::isfinite(receipt.final_energy));
@@ -159,10 +167,22 @@ TEST(CognitionSolver, NumericalRegularizationIsSolverStateNotEvidenceWeight) {
     EXPECT_EQ(receipt.disposition, LAPLACE_COGNITION_SOLVER_CONVERGED);
     EXPECT_NEAR(solution[0], 0.0, 1e-9);
     EXPECT_NEAR(solution[1], 0.0, 1e-9);
-    EXPECT_TRUE(Same(
+    EXPECT_FALSE(Zero(receipt.evidence_precision_fingerprint));
+    EXPECT_FALSE(Same(
         receipt.evidence_precision_fingerprint,
         operator_value.receipt.constraint_set_fingerprint));
     EXPECT_DOUBLE_EQ(receipt.regularization, 0.5);
+
+    auto alternate_program = SolverProgram(operator_value.receipt, 0.25);
+    std::array<double, 2> alternate_solution{};
+    laplace_cognition_solver_receipt alternate_receipt{};
+    ASSERT_EQ(laplace_cognition_solver_execute(
+                  operator_value.value, &alternate_program, initial.data(), initial.size(),
+                  alternate_solution.data(), alternate_solution.size(), &alternate_receipt),
+              LAPLACE_COGNITION_SOLVER_OK);
+    EXPECT_TRUE(Same(
+        receipt.evidence_precision_fingerprint,
+        alternate_receipt.evidence_precision_fingerprint));
 }
 
 TEST(CognitionSolver, IterationBoundProducesTypedDisposition) {

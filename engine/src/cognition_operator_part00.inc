@@ -163,7 +163,7 @@ bool ConstraintValid(
         constraint.target_value != 0.0) {
         return false;
     }
-    if (constraint.source_class != LAPLACE_COGNITION_OPERATOR_SOURCE_PHYSICALITY &&
+    if (constraint.source_class == LAPLACE_COGNITION_OPERATOR_SOURCE_TESTIMONY &&
         Zero(constraint.evidence_root_id)) {
         return false;
     }

@@ -268,6 +268,35 @@ TEST(CognitionOperator, ProgramScopeFiltersUnselectedRelationsAndSources) {
     EXPECT_EQ(receipt.testimony_constraint_count, 0U);
 }
 
+TEST(CognitionOperator, DerivedCalculationUsesReceiptWithoutManufacturingEvidenceRoot) {
+    ProgramFixture program;
+    const std::vector fields{Field(20U, 0U), Field(21U, 1U)};
+    auto derived = Constraint(
+        30U, 11U, 0U, 1U, LAPLACE_COGNITION_OPERATOR_SOURCE_DERIVED, 80U);
+    derived.evidence_root_id = {};
+    laplace_cognition_operator_receipt receipt{};
+    auto value = Build(&program, fields, {derived}, &receipt);
+    EXPECT_NE(value.value, nullptr);
+    EXPECT_EQ(receipt.selected_constraint_count, 1U);
+    EXPECT_EQ(receipt.derived_constraint_count, 1U);
+    EXPECT_EQ(receipt.testimony_constraint_count, 0U);
+}
+
+TEST(CognitionOperator, TestimonyStillRequiresIndependentEvidenceRoot) {
+    ProgramFixture program;
+    const std::vector fields{Field(20U, 0U), Field(21U, 1U)};
+    auto testimony = Constraint(
+        30U, 11U, 0U, 1U, LAPLACE_COGNITION_OPERATOR_SOURCE_TESTIMONY, 80U);
+    testimony.evidence_root_id = {};
+    laplace_cognition_operator* value = nullptr;
+    laplace_cognition_operator_receipt receipt{};
+    EXPECT_EQ(laplace_cognition_operator_create(
+                  &program.value, fields.data(), fields.size(), &testimony, 1U,
+                  &value, &receipt),
+              LAPLACE_COGNITION_OPERATOR_CONSTRAINT_INVALID);
+    EXPECT_EQ(value, nullptr);
+}
+
 TEST(CognitionOperator, RejectsNegativePrecisionRatherThanEncodingContradiction) {
     ProgramFixture program;
     const std::vector fields{Field(20U, 0U), Field(21U, 1U)};
