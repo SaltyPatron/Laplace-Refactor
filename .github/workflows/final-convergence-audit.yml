@@ -80,6 +80,7 @@ jobs:
             --ledger "$RUNNER_TEMP/branch-estate-live.maximal.json" \
             --dispositions .github/branch-estate-semantic-dispositions.json \
             --dispositions .github/branch-estate-semantic-dispositions.runner-lifecycle.json \
+            --dispositions .github/branch-estate-semantic-dispositions.cognition-contract.json \
             --output "$RUNNER_TEMP/branch-estate-live.json"
           cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
 
