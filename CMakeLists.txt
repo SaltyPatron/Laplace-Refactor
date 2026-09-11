@@ -175,6 +175,10 @@ laplace_compile_tabular_source_profile(
     "${CMAKE_CURRENT_SOURCE_DIR}/contracts/sources/cili-pwn-mappings-20240611.json"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-tabular-source-profile.py"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/source/cili_pwn_mappings_20240611_profile.h")
+laplace_compile_tabular_source_profile(
+    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/sources/cili-pwn-mappings-20260903.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-tabular-source-profile.py"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/source/cili_pwn_mappings_20260903_profile.h")
 
 include(cmake/LaplaceCompositionContract.cmake)
 laplace_configure_composition_contract(

@@ -1,4 +1,16 @@
 {
+  "temporary_corpus_integration_20260911": {
+    "classification": "observed-development-state-not-product-law",
+    "source_worktree": "/tmp/laplace-corpus-recipes",
+    "source_base": "b80e453a0e050e2054252f98306ec1901c01a53e",
+    "integrated_commit": "6c98465",
+    "owning_pull_request": 327,
+    "local_branch": "main",
+    "publication": "All six original changed files committed locally and pushed to integrate/temp-corpus-recipes. Remote main merge pending required checks. Original temporary checkout remains intact.",
+    "verification": "All six files matched original bytes at integration. IntelLLVM native build passed after reconfiguration against refreshed main. Eleven generic tabular tests, historical CILI plan test, and current CILI exact reconstruction/mutated-byte rejection passed. Python provenance CTest passed after moving registration below interpreter discovery; it checks actual archive/member/receipt hashes. Hosted requirements passed on 6c98465.",
+    "integration_repairs": "Register Python provenance test after interpreter discovery. Align the three existing GitHub required-check names with their actual reusable-workflow job names; remove redundant wrapper jobs. Required tests, GitHub app binding and strict up-to-date protection remain enabled.",
+    "remaining": "Merge PR327 after required proof; whole-product delivery and activation are not established by this integration."
+  },
   "firmware_provider_integration_20260907": {
     "classification": "observed-development-state-not-product-law",
     "base_commit": "4b9e021b2e4bd8f65b29e5862919a6251945c751",
