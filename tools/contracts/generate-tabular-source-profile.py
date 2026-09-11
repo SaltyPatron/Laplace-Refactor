@@ -140,12 +140,29 @@ def validate(document: dict[str, Any]) -> None:
             require("container" in artifact["roles"],
                     f"root artifact is not a container: {name}")
             acquisition = artifact.get("acquisition", {})
-            require(
-                acquisition.get("transport") == "https"
-                and acquisition.get("url", "").startswith("https://")
-                and acquisition.get("retry_attempts") in range(1, 6),
-                f"root artifact lacks bounded locked HTTPS acquisition: {name}",
-            )
+            if acquisition.get("transport") == "verified-local":
+                # Locally preserved archives are exact source artifacts too.
+                # Their location is supplied at execution, never source identity.
+                # Do not pretend a locally generated Git archive is the byte
+                # stream returned by an upstream archive download endpoint.
+                provenance = acquisition.get("provenance", {})
+                require(
+                    isinstance(provenance.get("source_uri"), str)
+                    and bool(provenance["source_uri"])
+                    and isinstance(provenance.get("receipt_sha256"), str)
+                    and re.fullmatch(r"[0-9a-f]{64}", provenance["receipt_sha256"])
+                    is not None,
+                    f"local root artifact lacks exact provenance receipt: {name}",
+                )
+                require("url" not in acquisition and "retry_attempts" not in acquisition,
+                        f"local root must not claim network acquisition: {name}")
+            else:
+                require(
+                    acquisition.get("transport") == "https"
+                    and acquisition.get("url", "").startswith("https://")
+                    and acquisition.get("retry_attempts") in range(1, 6),
+                    f"root artifact lacks bounded locked HTTPS acquisition: {name}",
+                )
         else:
             require(parent in by_name, f"parent must precede member: {name}")
             require("container" in by_name[parent]["roles"],
@@ -153,8 +170,8 @@ def validate(document: dict[str, Any]) -> None:
             require("member" in artifact["roles"],
                     f"child is not marked as a member: {name}")
         if artifact["mode"] == "raw_octets":
-            require(parent is None and not artifact["exact_distribution"],
-                    "profile must not promote its distribution wrapper to selected content")
+            require(not artifact["exact_distribution"],
+                    "profile must not promote raw provenance artifacts to selected content")
             require(not artifact.get("columns") and
                     artifact.get("header_record_count", 0) == 0,
                     f"raw artifact declares tabular syntax: {name}")

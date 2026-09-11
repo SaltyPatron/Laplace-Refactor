@@ -108,6 +108,25 @@ gtest_discover_tests(laplace_cili_source_tests PROPERTIES
     LABELS "implementation;source-profile;cili;grammar;recipe;ast;reconstruction;mapping"
     ENVIRONMENT "LAPLACE_CILI_SOURCE_ROOT=${LAPLACE_CILI_SOURCE_ROOT}")
 
+add_executable(laplace_cili_current_recipe_probe cili_current_recipe_probe.cpp)
+target_link_libraries(laplace_cili_current_recipe_probe PRIVATE Laplace::TabularSource)
+target_include_directories(laplace_cili_current_recipe_probe PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_compile_options(laplace_cili_current_recipe_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+set(LAPLACE_CILI_CURRENT_SOURCE_ROOT
+    "${LAPLACE_SOURCE_ESTATE_ROOT}/.refresh-20260903/CILI" CACHE PATH
+    "Exact preserved CILI September 2026 snapshot and selected mapping members")
+if(EXISTS "${LAPLACE_CILI_CURRENT_SOURCE_ROOT}/cili-current-a895d7ecb18019dda3443f98901e59d81ce8722b.tar.gz")
+    add_test(NAME cili-source.current-recipe-reconstruction-and-mutation
+        COMMAND laplace_cili_current_recipe_probe "${LAPLACE_CILI_CURRENT_SOURCE_ROOT}")
+    set_tests_properties(cili-source.current-recipe-reconstruction-and-mutation
+        PROPERTIES LABELS "implementation;source-profile;cili;recipe;reconstruction;mutation")
+endif()
+add_test(NAME source-profile.verified-local-provenance
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verified_local_source_profile_tests.py")
+
 add_library(laplace_tabular_parent_edge_mutant STATIC
     ../engine/src/tabular_source.cpp)
 target_include_directories(laplace_tabular_parent_edge_mutant PRIVATE
