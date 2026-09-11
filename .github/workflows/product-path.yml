@@ -316,11 +316,7 @@ jobs:
 
   dev-bat-live-substrate:
     needs: dev-bat-deployment
-    if: >-
-      always() &&
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      needs.dev-bat-deployment.result == 'success'
+    if: always() && needs.dev-bat-deployment.result == 'success'
     runs-on:
       - self-hosted
       - Linux
