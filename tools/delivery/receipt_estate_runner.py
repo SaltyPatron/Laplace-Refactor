@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Converge runner-owned package evidence after recurring product activation.
 
-Root bootstrap owns migration of historical root-level `packages`, `plans`, and the
-obsolete root-owned `deployments` directory. Recurring activation owns only the
-runner-writable PostgreSQL instance receipt tree. This controller collapses the
-remaining package-specific runner outputs into the existing
-`cluster-activation/<package-id>` generation after activation finishes.
+Recurring activation collapses package-specific evidence into the existing
+`cluster-activation/<package-id>` generation. It also absorbs historical root-level
+`packages` and `plans` when those roots are actually readable/writable by the runner.
+The obsolete `deployments` directory is removed with atomic `rmdir` only when it is a
+physical empty child of the writable receipt parent. Inaccessible, nonempty, unknown,
+or unsafe legacy state is preserved for root bootstrap reconciliation.
 """
 
 from __future__ import annotations
@@ -44,6 +45,15 @@ class RunnerReceiptEstateError(RuntimeError):
     pass
 
 
+def accessible_directory(path: Path) -> bool:
+    return (
+        path.exists()
+        and not path.is_symlink()
+        and path.is_dir()
+        and os.access(path, os.R_OK | os.W_OK | os.X_OK)
+    )
+
+
 def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
     expected = pwd.getpwnam(RUNNER_USER)
     if os.geteuid() != expected.pw_uid:
@@ -57,6 +67,9 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
     instance_root = Path(str(instance.get("receipt_directory", "")))
     if not instance_root.is_absolute():
         raise RunnerReceiptEstateError("PostgreSQL receipt directory is not absolute")
+    receipt_root = instance_root.parent.parent
+    if receipt_root.name != "receipts":
+        raise RunnerReceiptEstateError("PostgreSQL receipt directory escaped the product receipt estate")
     canonical_root = instance_root / "cluster-activation"
     estate.ensure_directory(
         instance_root, expected.pw_uid, expected.pw_gid, False
@@ -68,6 +81,40 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
     migrated: list[dict[str, str]] = []
     preserved: list[str] = []
     removed: list[str] = []
+
+    packages = receipt_root / "packages"
+    if packages.exists() or packages.is_symlink():
+        if accessible_directory(packages):
+            estate.migrate_packages(
+                receipt_root,
+                canonical_root,
+                expected.pw_uid,
+                expected.pw_gid,
+                False,
+                migrated,
+                preserved,
+                removed,
+            )
+        else:
+            preserved.append(str(packages))
+
+    plans = receipt_root / "plans"
+    if plans.exists() or plans.is_symlink():
+        if accessible_directory(plans):
+            estate.migrate_package_directory_tree(
+                plans,
+                canonical_root,
+                {"host-inventory.json", "host-selection.json", "resource-observation.json"},
+                expected.pw_uid,
+                expected.pw_gid,
+                False,
+                migrated,
+                preserved,
+                removed,
+            )
+        else:
+            preserved.append(str(plans))
+
     estate.migrate_package_directory_tree(
         instance_root / "plan",
         canonical_root,
@@ -121,6 +168,20 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
         False,
         migrated,
     )
+
+    deployments = receipt_root / "deployments"
+    if deployments.exists() or deployments.is_symlink():
+        if deployments.is_symlink() or not deployments.is_dir():
+            preserved.append(str(deployments))
+        else:
+            try:
+                deployments.rmdir()
+            except OSError:
+                preserved.append(str(deployments))
+            else:
+                estate.fsync_directory(receipt_root)
+                removed.append(str(deployments))
+
     result: dict[str, Any] = {
         "schema": "laplace.runner-receipt-estate-convergence/v1",
         "canonical_package_evidence_root": str(canonical_root),
