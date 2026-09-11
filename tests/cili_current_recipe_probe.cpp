@@ -2,6 +2,7 @@
 #include "tabular_profile_fixture.hpp"
 
 #include <cstdio>
+#include <filesystem>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -22,6 +23,10 @@ void Require(bool value, const char* message) {
 int main(int argc, char** argv) {
     try {
         Require(argc == 2, "expected exact source-root argument");
+        if (!std::filesystem::is_directory(argv[1])) {
+            std::fprintf(stderr, "exact preserved CILI source root is not mounted\n");
+            return 77;
+        }
         Fixture fixture;
         Require(fixture.Load(argv[1]), fixture.error.c_str());
         laplace_tabular_source_plan* raw = nullptr;
