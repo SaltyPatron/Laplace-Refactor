@@ -1,0 +1,18 @@
+{
+  "schema": "laplace.final-convergence-merge-plan/v1",
+  "target": "delivery/final-convergence-20260911",
+  "heads": [
+    {
+      "owner_pr": 302,
+      "branch": "implementation/53-generic-source-decomposition",
+      "sha": "b1b3d3537394b616d65b18e697346039f17d0021",
+      "purpose": "generic source acquisition, provider composition, atom-stream UAX authority, and active-source PostgreSQL admission"
+    },
+    {
+      "owner_pr": 301,
+      "branch": "fix/native-cognition-execution",
+      "sha": "342abb7c76727dcc6b61d96d04521e1bd46b13ee",
+      "purpose": "UCDXML generic decomposition, canonical identity, source evidence, estate execution, and cognition evidence routing"
+    }
+  ]
+}
