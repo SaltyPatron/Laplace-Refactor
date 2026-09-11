@@ -203,10 +203,9 @@ static void product_realization_provider(
     provider->abi_minor = LAPLACE_COGNITION_REALIZATION_PROVIDER_ABI_MINOR;
 }
 
-/* The canonical prompt trunk remains the exact whole byte sequence. The product
- * root provider only redispatches that exact range as text so the shared UAX29
- * provider can add grapheme/word/sentence structural witnesses underneath it.
- * No semantic assertion is created by this edge operation. */
+/* The product prompt root remains exact bytes. This root provider intentionally
+ * contributes no private token/topic semantics; the shared UAX29 provider below
+ * independently adds exact grapheme/word/sentence structural observations. */
 static laplace_decomposition_status product_prompt_applicable(
     void* state,
     const laplace_decomposition_content* content,
@@ -228,24 +227,15 @@ static laplace_decomposition_status product_prompt_apply(
     laplace_decomposition_emit_fn emit,
     void* emit_state) {
     (void)state;
-    if (content == NULL || span == NULL || emit == NULL ||
-        span->byte_start >= span->byte_end ||
-        span->byte_end > content->byte_count) {
-        return LAPLACE_DECOMPOSITION_INVALID_ARGUMENT;
-    }
-    return emit(
-               emit_state,
-               span->byte_start,
-               span->byte_end,
-               UINT64_C(0x50524F4D50540001),
-               LAPLACE_DECOMPOSITION_SPAN_TEXT |
-                   LAPLACE_DECOMPOSITION_SPAN_REDISPATCH) == 0
-        ? LAPLACE_DECOMPOSITION_OK
-        : LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
+    (void)content;
+    (void)span;
+    (void)emit;
+    (void)emit_state;
+    return LAPLACE_DECOMPOSITION_OK;
 }
 
 static laplace_decomposition_provider_v1 product_prompt_provider(void) {
-    static const char domain[] = "laplace-postgresql-product-prompt-root-v2";
+    static const char domain[] = "laplace-postgresql-product-prompt-root-v1";
     laplace_decomposition_provider_v1 provider;
     blake3_hasher hasher;
     memset(&provider, 0, sizeof(provider));
@@ -564,13 +554,13 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
     prompt_providers[0] = prompt_provider;
     prompt_providers[1] = uax29_provider.provider;
     prompt_bytes = (uint64_t)VARSIZE_ANY_EXHDR(prompt);
-    if (prompt_bytes > (UINT64_MAX - UINT64_C(2)) / UINT64_C(3)) {
+    if (prompt_bytes > (UINT64_MAX - UINT64_C(1)) / UINT64_C(3)) {
         product_release(owners);
         ereport(ERROR,
                 (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                  errmsg("Laplace product prompt exceeds the structural span bound")));
     }
-    prompt_span_capacity = prompt_bytes * UINT64_C(3) + UINT64_C(2);
+    prompt_span_capacity = prompt_bytes * UINT64_C(3) + UINT64_C(1);
     prompt_input.decomposition.content.bytes = (const uint8_t*)VARDATA_ANY(prompt);
     prompt_input.decomposition.content.byte_count = prompt_bytes;
     prompt_input.decomposition.content.media_type = media_type;
@@ -578,7 +568,7 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
     prompt_input.decomposition.providers = prompt_providers;
     prompt_input.decomposition.provider_count = 2u;
     prompt_input.decomposition.maximum_spans = prompt_span_capacity;
-    prompt_input.decomposition.maximum_depth = 2u;
+    prompt_input.decomposition.maximum_depth = 1u;
     prompt_input.framework_context = &context;
     prompt_input.version = LAPLACE_COGNITION_PROMPT_ADMISSION_VERSION;
 
