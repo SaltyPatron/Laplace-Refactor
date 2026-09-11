@@ -23,7 +23,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: delivery/final-convergence-20260911
 
       - name: Fetch every Refactor branch and use convergence as provisional main
         shell: bash
