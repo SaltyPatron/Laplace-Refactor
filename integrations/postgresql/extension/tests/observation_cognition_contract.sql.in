@@ -378,7 +378,7 @@ CREATE TEMP TABLE firmware_first_result AS SELECT
     pg_temp.firmware_indexed(pg_temp.firmware_context(id),image,id,'C',''::bytea,''::bytea,1048576)::jsonb AS result
     FROM firmware_stored_programs;
 DO $firmware$
-DECLARE p firmware_stored_programs%ROWTYPE; first jsonb; again jsonb; resumed jsonb; missing jsonb;
+DECLARE p firmware_stored_programs%ROWTYPE; first jsonb; again jsonb; resumed jsonb; missing jsonb; mixed jsonb;
         changed laplace.physicality%ROWTYPE; alternative firmware_changed_content%ROWTYPE;
 BEGIN
     SELECT * INTO STRICT p FROM firmware_stored_programs;
@@ -388,6 +388,13 @@ BEGIN
        (first->>'database_operations')::integer <= 0 OR
        (first->>'rows_fetched')::integer <= 0 THEN
         RAISE EXCEPTION 'firmware did not execute persisted predecessor evidence: %',first;
+    END IF;
+    mixed := pg_temp.firmware_indexed(pg_temp.firmware_context(p.id),p.image,p.id,
+        'C',''::bytea,''::bytea,1048576,63)::jsonb;
+    IF mixed->>'status' <> '0' OR mixed->>'output_hex' <> '41' OR
+       (mixed->>'semantic_provider_calls')::integer <= 0 OR
+       (mixed->>'database_operations')::integer <= 0 THEN
+        RAISE EXCEPTION 'mixed structural+semantic provider step did not execute both durable planes: %',mixed;
     END IF;
     again := pg_temp.firmware_indexed(pg_temp.firmware_context(p.id),p.image,p.id,
         'C',''::bytea,''::bytea,1048576)::jsonb;
