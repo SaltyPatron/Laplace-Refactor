@@ -472,16 +472,50 @@ jobs:
 
           test -S "$service_socket"
           test "$(stat -c '%a' "$service_socket")" = 666
+
           observed="$($client --relations constituent 'AA')"
           test "$observed" = A
           structured="$($client --relations constituent --json 'AA')"
           test "$(jq -r '.status' <<<"$structured")" = 0
           test "$(jq -r '.output_utf8' <<<"$structured")" = A
           test "$(jq -r '.relations | join(",")' <<<"$structured")" = constituent
+          test "$(jq -r '.execution_route' <<<"$structured")" = explicit-firmware
+
+          state_root="$RUNNER_TEMP/laplace-cognition-state"
+          rm -rf "$state_root"
+          first="$($client --session activation-native --state-root "$state_root" --reset-session --json 'AA')"
+          jq -e '
+            .status == 0 and
+            .mode == "auto" and
+            .execution_route == "native-conversation" and
+            .turn_ordinal == 0 and
+            .continued == false and
+            (.checkpoint_hex | type == "string" and length > 0) and
+            (.next_checkpoint_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.execution.execution_receipt_id | test("^\\\\x[0-9a-f]{64}$"))
+          ' <<<"$first" >/dev/null
+          first_checkpoint=$(jq -er '.next_checkpoint_fingerprint' <<<"$first")
+
+          second="$($client --session activation-native --state-root "$state_root" --json 'AA')"
+          jq -e '
+            .status == 0 and
+            .mode == "auto" and
+            .execution_route == "native-conversation" and
+            .turn_ordinal == 1 and
+            .continued == true and
+            (.checkpoint_hex | type == "string" and length > 0) and
+            (.next_checkpoint_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.execution.execution_receipt_id | test("^\\\\x[0-9a-f]{64}$"))
+          ' <<<"$second" >/dev/null
+          second_checkpoint=$(jq -er '.next_checkpoint_fingerprint' <<<"$second")
+          test "$second_checkpoint" != "$first_checkpoint"
+
           {
             echo '## Installed usable cognition surface'
             echo '- command: `/opt/laplace/current/bin/laplace-cognition`'
             echo '- transport: local Unix socket `/opt/laplace/runtime/laplace-cognition.sock`; no TCP listener'
             echo '- no database role, sudo, environment variable, receipt path, or SQL is required by the caller'
-            echo '- `laplace-cognition --relations constituent AA` returned `A` through prompt admission, indexed cognition, realization, and materialization'
+            echo '- explicit compatibility: `laplace-cognition --relations constituent AA` returned `A` through installed firmware execution'
+            echo '- default caller: two sequential `laplace-cognition AA` turns executed the native prompt-conversation route'
+            echo '- continuation: turn 1 consumed the durably deposited discourse frame from turn 0 and emitted a distinct successor frame'
           } >> "$GITHUB_STEP_SUMMARY"
