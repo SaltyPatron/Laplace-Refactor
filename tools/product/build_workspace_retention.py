@@ -187,7 +187,7 @@ def _publish_metadata(
     summary: dict[str, Any],
 ) -> Path:
     destination = receipt_root / plan_id
-    destination.mkdir(mode=0o750)
+    destination.mkdir(mode=0o750, exist_ok=True)
     if destination.is_symlink() or not destination.is_dir():
         raise RetentionError(f"retention receipt destination is unsafe: {destination}")
     documents = {
