@@ -349,3 +349,43 @@ jobs:
             jq '{schema,package_id,program:.program.program_id,prompt_utf8,observed_output_utf8,execution:{status:.execution.status,completed_steps:.execution.completed_steps,emitted_parts:.execution.emitted_parts,provider_call_count:.execution.provider_call_count,materialization_resolved_nodes:.execution.materialization_resolved_nodes,materialization_database_operations:.execution.materialization_database_operations,execution_receipt_id:.execution.execution_receipt_id},proof_sha256}' "$proof"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Converge runner-owned package receipt estate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/receipt_estate_runner_tests.py
+          result="$RUNNER_TEMP/laplace-runner-receipt-estate.json"
+          python3 tools/delivery/receipt_estate_runner.py \
+            --cluster-contract contracts/postgresql-cluster.json \
+            --output "$result"
+          package_id='${{ needs.compose-product.outputs.package_id }}'
+          receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
+          generation="$receipt_root/cluster-activation/$package_id"
+          jq -e '
+            .schema == "laplace.runner-receipt-estate-convergence/v1" and
+            (.migration_count | type) == "number" and
+            (.preserved_unknown_or_conflicting | type) == "array" and
+            (.receipt_sha256 | test("^[0-9a-f]{64}$"))
+          ' "$result" >/dev/null
+          for required in \
+            resource-observation.json \
+            package-installation.json \
+            activation-result.json \
+            indexed-cognition-upgrade.json \
+            public-readback-bindings.json \
+            release-capacity.json \
+            unicode-product-activation.json \
+            highway-product-activation.json \
+            installed-cognition-proof.json; do
+            test -f "$generation/$required"
+            test ! -L "$generation/$required"
+          done
+          test ! -e "$receipt_root/unicode-product-activation.json"
+          test ! -e "$receipt_root/highway-product-activation.json"
+          {
+            echo '## Package-addressed receipt estate'
+            echo "- canonical generation: \`$generation\`"
+            echo "- migrated legacy runner receipts: $(jq -r '.migration_count' "$result")"
+            echo "- preserved unknown/conflicting entries: $(jq -r '.preserved_unknown_or_conflicting | length' "$result")"
+          } >> "$GITHUB_STEP_SUMMARY"
