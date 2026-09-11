@@ -68,6 +68,20 @@
         "contracts/product-activation-gateway.json",
         ".github/workflows/product-path.yml"
       ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "preserve/pr124-pre-main-800db2f-20260831",
+      "tip": "2f807038c09b692a4c806926ace7a0c678fbd9b8",
+      "disposition": "ABSORBED_AND_HARDENED_BY_CURRENT_PROOF_CLEANUP_AND_DEPLOYMENT_REACHABILITY",
+      "rationale": "This preserved one-commit branch combined bounded proof-workspace cleanup with the GitHub skipped-job reachability fix for accepted DEV/BAT deployment and legacy protection aliases. Current main retains the bounded cleanup in all product proof lanes and strengthens stale PostgreSQL residue handling; it also retains the dev-bat-deployment always() condition in product-path.yml and now asserts that condition in product_path_status_tests.py. The dedicated historical reachability test file was folded into the broader current status test, so absence of that old filename is not missing behavior. Replaying the older patch would duplicate both behaviors on a stale workflow layout.",
+      "evidence": [
+        "2f807038c09b692a4c806926ace7a0c678fbd9b8",
+        "tools/delivery/proof_workspace_cleanup.py",
+        "tests/proof_workspace_cleanup_tests.py",
+        ".github/workflows/product-path.yml",
+        "tests/product_path_status_tests.py"
+      ]
     }
   ]
 }
