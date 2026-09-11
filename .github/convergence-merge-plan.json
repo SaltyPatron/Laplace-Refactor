@@ -1,13 +1,7 @@
 {
   "schema": "laplace.final-convergence-merge-plan/v1",
   "target": "delivery/final-convergence-20260911",
-  "resolution_revision": 4,
-  "heads": [
-    {
-      "owner_pr": 301,
-      "branch": "fix/native-cognition-execution",
-      "sha": "342abb7c76727dcc6b61d96d04521e1bd46b13ee",
-      "purpose": "UCDXML generic decomposition, canonical identity, source evidence, estate execution, and cognition evidence routing"
-    }
-  ]
+  "resolution_revision": 5,
+  "maintenance_revision": 1,
+  "heads": []
 }
