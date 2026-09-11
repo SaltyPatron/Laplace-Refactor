@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "access/xact.h"
 #include "catalog/pg_type.h"
 #include "executor/spi.h"
 #include "fmgr.h"
@@ -167,7 +166,7 @@ static void verify_exact_stored_frame(
     laplace_cognition_discourse_frame_receipt stored_receipt;
 
     values[0] = PointerGetDatum(state_id);
-    spi_status = SPI_execute_with_args(sql, 1, types, values, NULL, true, 1);
+    spi_status = SPI_execute_with_args(sql, 1, types, values, NULL, false, 1);
     if (spi_status != SPI_OK_SELECT || SPI_processed != 1u) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
@@ -265,7 +264,6 @@ Datum laplace_pg_cognition_discourse_deposit(PG_FUNCTION_ARGS) {
                 (errcode(ERRCODE_DATA_EXCEPTION),
                  errmsg("Laplace discourse persistence insert failed")));
     }
-    CommandCounterIncrement();
 
     verify_exact_stored_frame(&state, &receipt, frame);
     state_id_result = (bytea*)SPI_palloc(VARHDRSZ + sizeof(state.state_id.bytes));
