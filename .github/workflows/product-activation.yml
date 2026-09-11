@@ -48,8 +48,18 @@ jobs:
             .activation_gateway_installed == false
           ' "$bootstrap" >/dev/null
 
+          # The release root is a runner-owned cache boundary. Recreate only that exact
+          # missing physical directory; never follow or replace a symlink or other node.
+          release_root=/opt/laplace/releases
+          if [[ ! -e "$release_root" && ! -L "$release_root" ]]; then
+            install -d -m 0755 "$release_root"
+          fi
+          test -d "$release_root"
+          test ! -L "$release_root"
+          test "$(stat -c '%U:%G' "$release_root")" = laplace-runner:laplace-runner
+
           test -w /build/laplace/runner
-          test -w /opt/laplace/releases
+          test -w "$release_root"
           test -w /opt/laplace/runtime
           test -w /opt/laplace/pgdata/refactor
           test -w /var/lib/pgwal
@@ -174,7 +184,11 @@ jobs:
           test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
           git diff --quiet
           git diff --cached --quiet
-          test -w /opt/laplace/releases
+          release_root=/opt/laplace/releases
+          test -d "$release_root"
+          test ! -L "$release_root"
+          test "$(stat -c '%U:%G' "$release_root")" = laplace-runner:laplace-runner
+          test -w "$release_root"
           test -w /opt/laplace/runtime
           test -w /opt/laplace/pgdata/refactor
 

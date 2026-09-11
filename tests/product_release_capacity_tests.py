@@ -43,6 +43,8 @@ class ProductReleaseCapacityTests(unittest.TestCase):
         self.proc_root.mkdir()
         self.active = self.root / "opt/laplace/current"
         self.active.parent.mkdir(parents=True, exist_ok=True)
+        self.runtime = self.root / "opt/laplace/runtime/refactor"
+        self.runtime.parent.mkdir(parents=True, exist_ok=True)
         self.successor = "f" * 64
         self.contract = {
             "schema": "laplace.postgresql-cluster-contract/v1",
@@ -128,6 +130,10 @@ class ProductReleaseCapacityTests(unittest.TestCase):
         self.assertTrue(receipt["capacity_satisfied"])
         self.assertEqual(receipt["removed_releases"][0]["package_id"], old_id)
         self.assertEqual(
+            receipt["removed_releases"][0]["reason"],
+            "verified-installed-never-activated-release",
+        )
+        self.assertEqual(
             receipt["receipt_sha256"],
             CAPACITY.document_identity(receipt, "receipt_sha256"),
         )
@@ -149,22 +155,38 @@ class ProductReleaseCapacityTests(unittest.TestCase):
                 )
         self.assertTrue(active_release.is_dir())
 
-    def test_activated_release_is_never_reclaimed(self) -> None:
+    def test_unselected_activated_release_is_reclaimed_without_deleting_evidence(self) -> None:
         old_id = "3" * 64
         old = self.make_release(old_id)
         evidence = self.write_installation_receipt(old_id, old)
-        (evidence / "activation-complete.json").write_text("{}\n", encoding="utf-8")
-        with mock.patch.object(CAPACITY, "_disk_free", return_value=0):
-            with self.assertRaisesRegex(
-                CAPACITY.CapacityError, "capacity remains insufficient"
-            ):
-                CAPACITY.reconcile_capacity(
-                    self.contract,
-                    self.product_receipt,
-                    self.manifest,
-                    proc_root=self.proc_root,
-                )
-        self.assertTrue(old.is_dir())
+        complete = evidence / "activation-complete.json"
+        result = evidence / "activation-result.json"
+        complete.write_text("{}\n", encoding="utf-8")
+        result.write_text("{}\n", encoding="utf-8")
+
+        # This is deliberately not a disk-pressure test. Historical generations must
+        # not form an append-only archive simply because free space is still available.
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=10**12), mock.patch.object(
+            CAPACITY, "_disk_free_inodes", return_value=10**6
+        ):
+            receipt = CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+            )
+
+        self.assertFalse(old.exists())
+        self.assertTrue(complete.is_file())
+        self.assertTrue(result.is_file())
+        removed = receipt["removed_releases"][0]
+        self.assertEqual(removed["package_id"], old_id)
+        self.assertEqual(removed["reason"], "verified-unselected-activated-release")
+        self.assertEqual(
+            removed["activation_evidence"],
+            ["activation-complete.json", "activation-result.json"],
+        )
+        self.assertEqual(receipt["remaining_safe_candidate_count"], 0)
 
     def test_unknown_release_without_installation_receipt_is_preserved(self) -> None:
         unknown = self.make_release("4" * 64)
@@ -232,6 +254,25 @@ class ProductReleaseCapacityTests(unittest.TestCase):
                 )
         self.assertTrue(old.is_dir())
 
+    def test_live_runner_reference_preserves_activated_release(self) -> None:
+        old_id = "a" * 64
+        old = self.make_release(old_id)
+        evidence = self.write_installation_receipt(old_id, old)
+        (evidence / "activation-complete.json").write_text("{}\n", encoding="utf-8")
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=0), mock.patch.object(
+            CAPACITY, "_runner_process_references", return_value=["321:exe"]
+        ):
+            with self.assertRaisesRegex(
+                CAPACITY.CapacityError, "capacity remains insufficient"
+            ):
+                CAPACITY.reconcile_capacity(
+                    self.contract,
+                    self.product_receipt,
+                    self.manifest,
+                    proc_root=self.proc_root,
+                )
+        self.assertTrue(old.is_dir())
+
     def test_old_unpublished_install_staging_can_be_removed(self) -> None:
         old_id = "7" * 64
         staging = self.release_root / f".{old_id}.install.interrupted"
@@ -284,6 +325,60 @@ class ProductReleaseCapacityTests(unittest.TestCase):
                 self.manifest,
                 proc_root=self.proc_root,
             )
+
+    def test_dangling_current_and_runtime_pair_is_removed_for_fresh_activation(self) -> None:
+        deleted_id = "b" * 64
+        self.active.symlink_to(Path("releases") / deleted_id, target_is_directory=True)
+        self.runtime.symlink_to(
+            Path("../releases") / deleted_id, target_is_directory=True
+        )
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=10**12), mock.patch.object(
+            CAPACITY, "_disk_free_inodes", return_value=10**6
+        ):
+            receipt = CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+            )
+        self.assertFalse(self.active.exists() or self.active.is_symlink())
+        self.assertFalse(self.runtime.exists() or self.runtime.is_symlink())
+        self.assertEqual(
+            receipt["recovered_dangling_pointers"],
+            [
+                {
+                    "package_id": deleted_id,
+                    "reason": "canonical-selected-generation-was-deleted",
+                    "removed_links": [str(self.active), str(self.runtime)],
+                }
+            ],
+        )
+
+    def test_single_dangling_pointer_fails_closed(self) -> None:
+        deleted_id = "c" * 64
+        self.active.symlink_to(Path("releases") / deleted_id, target_is_directory=True)
+        with self.assertRaisesRegex(CAPACITY.CapacityError, "only one product pointer is dangling"):
+            CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+            )
+        self.assertTrue(self.active.is_symlink())
+
+    def test_missing_release_root_is_recreated_under_physical_parent(self) -> None:
+        self.release_root.rmdir()
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=10**12), mock.patch.object(
+            CAPACITY, "_disk_free_inodes", return_value=10**6
+        ):
+            receipt = CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+            )
+        self.assertTrue(self.release_root.is_dir())
+        self.assertTrue(receipt["release_root_created"])
 
     def test_successor_release_symlink_is_rejected(self) -> None:
         outside = self.root / "successor-outside"
