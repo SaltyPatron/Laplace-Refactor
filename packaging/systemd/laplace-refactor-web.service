@@ -1,0 +1,35 @@
+# Installed once by scripts/setup-host.sh. The unit follows the runner-owned
+# /opt/laplace/runtime/refactor pointer, so activation changes product generations
+# without rewriting system configuration.
+[Unit]
+Description=Laplace Refactor collection browser
+After=network.target
+ConditionPathExists=/opt/laplace/runtime/refactor/bin/laplace-web
+ConditionPathExists=/opt/laplace/runtime/postgresql/refactor/.s.PGSQL.55433
+
+[Service]
+Type=simple
+User=laplace-runner
+Group=laplace-runner
+ExecStart=/opt/laplace/runtime/refactor/bin/laplace-web --listen 0.0.0.0 --port 8080 --socket /opt/laplace/runtime/postgresql/refactor --database laplace_refactor --role laplace_admin
+KillSignal=SIGTERM
+TimeoutStartSec=30
+TimeoutStopSec=15
+Restart=on-failure
+RestartSec=2
+UMask=0027
+LimitNOFILE=8192
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=multi-user.target
