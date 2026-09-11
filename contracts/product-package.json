@@ -85,12 +85,14 @@
     "manifest_schema": "laplace.package-manifest/v1",
     "release_root": "/opt/laplace/releases",
     "required_loaded_objects": [
+      "bin/laplace-web",
       "pgsql-18/bin/postgres",
       "pgsql-18/lib/laplace_pg.so",
       "pgsql-18/lib/pg_stat_statements.so",
       "lib/liblaplace_engine.so.2.0.0"
     ],
     "required_files": [
+      "bin/laplace-web",
       "bin/laplace_resource_observe",
       "bin/laplace_cognition_firmware_compile",
       "bin/laplace_unicode_activation_identify",
