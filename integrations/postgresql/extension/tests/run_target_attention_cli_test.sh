@@ -74,13 +74,13 @@ probe_output=$(
     LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
     "$native_probe"
 )
-context_fingerprint=$(awk -F= '$1=="CONTEXT_FINGERPRINT" {print $2}' <<<"$probe_output")
-compile_receipt=$(awk -F= '$1=="COMPILE_RECEIPT_ID" {print $2}' <<<"$probe_output")
-projection_id=$(awk -F= '$1=="PROJECTION_ID" {print $2}' <<<"$probe_output")
-if [[ ! "$context_fingerprint" =~ ^[0-9a-f]{64}$ ||
+scope_receipt=$(awk -F= '$1=="SCOPED_SCOPE_RECEIPT_ID" {print $2}' <<<"$probe_output")
+compile_receipt=$(awk -F= '$1=="SCOPED_COMPILE_RECEIPT_ID" {print $2}' <<<"$probe_output")
+projection_id=$(awk -F= '$1=="SCOPED_PROJECTION_ID" {print $2}' <<<"$probe_output")
+if [[ ! "$scope_receipt" =~ ^[0-9a-f]{64}$ ||
       ! "$compile_receipt" =~ ^[0-9a-f]{64}$ ||
       ! "$projection_id" =~ ^[0-9a-f]{64}$ ]]; then
-    echo "native target oracle did not produce valid fingerprints" >&2
+    echo "native scoped target oracle did not produce valid fingerprints" >&2
     exit 66
 fi
 
@@ -133,22 +133,9 @@ def constraint(seed: int, family: int, source: int, target: int, precision: floa
         "flags": 0,
     }
 
-def program(seed: int) -> dict:
-    return {
-        "program_id": d(seed),
-        "boundary_id": d(176),
-        "evidence_epoch": d(177),
-        "result_contract_fingerprint": d(seed + 2),
-        "eligible_relation_families": [11, 12],
-        "eligible_source_mask": 7,
-        "flags": 7,
-        "numeric_tolerance": 1e-12,
-        "version": 1,
-    }
-
 fields = [field(40, 0), field(41, 1), field(42, 2), field(43, 3)]
 request = {
-    "schema": "laplace.target-attention-export-request/v1",
+    "schema": "laplace.target-attention-export-request/v2",
     "execution_context": {
         "epochs": [d(value) for value in range(1, 11)],
         "authority_fingerprint": d(160),
@@ -164,36 +151,51 @@ request = {
     "evidence_epoch": d(177),
     "recipe_fingerprint": d(80),
     "target_contract_fingerprint": d(81),
+    "operator_numeric_tolerance": 1e-12,
+    "operator_program_flags": 7,
     "hidden_width": 2,
     "relative_tolerance": 1e-10,
     "require_exact": True,
-    "jobs": [
+    "fields": fields,
+    "constraints": [
+        constraint(50, 11, 0, 1, 2.0),
+        constraint(60, 12, 2, 3, 3.0),
+    ],
+    "slots": [
         {
             "target_role": "qk",
             "layer_index": 2,
             "head_index": 5,
             "expert_index": 0,
-            "role_fingerprint": d(70),
-            "operator_program": program(20),
-            "fields": fields,
-            "constraints": [constraint(50, 11, 0, 1, 2.0)],
+            "eligible_relation_families": [11],
+            "eligible_source_mask": 1,
             "head_rank": 1,
+            "flags": 0,
         },
         {
             "target_role": "vo",
             "layer_index": 2,
             "head_index": 5,
             "expert_index": 0,
-            "role_fingerprint": d(71),
-            "operator_program": program(30),
-            "fields": fields,
-            "constraints": [constraint(60, 12, 2, 3, 3.0)],
+            "eligible_relation_families": [12],
+            "eligible_source_mask": 1,
             "head_rank": 1,
+            "flags": 0,
         },
     ],
 }
 path.write_text(json.dumps(request, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
 PY
+
+rendered_sql=$("$python" "$cli" "$request_file" --output "$test_root/render-only.safetensors" --render-sql)
+if [[ "$rendered_sql" != *"laplace.target_attention_export_scoped"* ]]; then
+    echo "model export v2 did not render the scoped PostgreSQL operation" >&2
+    exit 67
+fi
+if [[ "$rendered_sql" == *"target_operator_job"* || "$rendered_sql" == *"operator_program"* ]]; then
+    echo "model export v2 reconstructed low-level target jobs/programs in the client" >&2
+    exit 68
+fi
 
 "$python" "$cli" "$request_file" \
     --psql "$pg_bindir/psql" --host "$socket_directory" --port "$port" \
@@ -203,7 +205,7 @@ PY
     --database postgres --output "$artifact_two" --receipt "$receipt_two" >/dev/null
 
 cmp -- "$artifact_one" "$artifact_two"
-"$python" - "$artifact_one" "$receipt_one" "$receipt_two" "$compile_receipt" "$projection_id" <<'PY'
+"$python" - "$artifact_one" "$receipt_one" "$receipt_two" "$scope_receipt" "$compile_receipt" "$projection_id" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -211,13 +213,19 @@ from pathlib import Path
 artifact = Path(sys.argv[1]).read_bytes()
 first = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 second = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
-expected_compile = sys.argv[4]
-expected_projection = sys.argv[5]
+expected_scope = sys.argv[4]
+expected_compile = sys.argv[5]
+expected_projection = sys.argv[6]
 assert len(artifact) > 8
+assert first["schema"] == "laplace.target-attention-export-client-receipt/v2"
+assert first["request_schema"] == "laplace.target-attention-export-request/v2"
 assert first["artifact_id"] == second["artifact_id"]
 assert first["artifact_sha256"] == second["artifact_sha256"]
+assert first["scope_receipt_id"] == expected_scope
 assert first["compile_receipt_id"] == expected_compile
 assert first["projection_id"] == expected_projection
+assert first["selected_constraint_count"] == 2
+assert first["source_mask_union"] == 1
 assert first["tensor_count"] == 5
 assert first["head_count"] == 1
 assert first["field_count"] == 4

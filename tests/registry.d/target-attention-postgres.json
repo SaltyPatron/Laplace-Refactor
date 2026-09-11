@@ -25,10 +25,10 @@
         "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"
       ],
       "covered_dimensions": [
-        "PostgreSQL performs operator compilation projection and SafeTensors materialization in one user-callable server operation",
-        "the returned artifact contains the derived shared embedding plus actual Q K V and O tensors",
-        "artifact metadata retains compile projection operator factorization head and closed-epoch provenance",
-        "identical closed state produces byte-identical artifacts and insufficient hidden width fails before publication"
+        "the legacy explicit-job PostgreSQL export remains deterministic and compatible",
+        "the scoped PostgreSQL export accepts one shared typed field/constraint estate plus QK/VO selectors and delegates job/program identity generation to native target-scope planning",
+        "native and PostgreSQL scoped planning produce identical scope compile projection and embedding receipts without client-authored operator identities",
+        "the scoped result retains the scope receipt selected-constraint count source mask compile projection and SafeTensors artifact provenance"
       ]
     },
     {
@@ -40,10 +40,10 @@
         "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"
       ],
       "covered_dimensions": [
-        "the installed laplace-model-export client accepts one explicit JSON recipe and submits one set-wise PostgreSQL export request",
-        "the client writes an actual SafeTensors file and separate provenance receipt rather than returning internal tensor arrays",
-        "a second invocation over identical closed state produces byte-identical artifact bytes and the same native compile/projection identities",
-        "the client independently validates SafeTensors metadata tensor inventory and byte accounting before publishing files"
+        "the installed laplace-model-export v2 client accepts one shared typed estate plus declarative target slots instead of repeated target_operator_job records",
+        "the client renders one scoped PostgreSQL operation and does not reconstruct operator_program or target-job semantic identities",
+        "the client writes an actual SafeTensors file and a scope/compile/projection provenance receipt and validates the returned artifact before publication",
+        "a second invocation over identical closed state produces byte-identical artifact bytes and the same native scope compile and projection identities"
       ]
     }
   ]

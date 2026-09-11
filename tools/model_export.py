@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Compile selected Laplace substrate operators into a SafeTensors model artifact.
 
-The command is deliberately a thin product client.  It validates one explicit target
-recipe, submits the complete set-wise request to PostgreSQL once, receives the exact
-server-generated artifact plus receipts, validates the returned SafeTensors envelope,
-and atomically publishes the artifact and receipt to caller-selected paths.
+The normal product request supplies one shared typed field/constraint estate and a
+small declarative target-slot plan.  PostgreSQL passes that set to the native
+scope planner once; the client never invents operator/program identities or repeats
+semantic state per target job.  The original explicit-job request remains accepted
+as a compatibility surface.
 """
 
 from __future__ import annotations
@@ -23,8 +24,10 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
-REQUEST_SCHEMA = "laplace.target-attention-export-request/v1"
-RECEIPT_SCHEMA = "laplace.target-attention-export-client-receipt/v1"
+REQUEST_SCHEMA_V1 = "laplace.target-attention-export-request/v1"
+REQUEST_SCHEMA_V2 = "laplace.target-attention-export-request/v2"
+RECEIPT_SCHEMA_V1 = "laplace.target-attention-export-client-receipt/v1"
+RECEIPT_SCHEMA_V2 = "laplace.target-attention-export-client-receipt/v2"
 ARTIFACT_SCHEMA = "laplace.target-attention-safetensors/v1"
 HEX_128 = re.compile(r"^[0-9a-f]{32}$")
 HEX_256 = re.compile(r"^[0-9a-f]{64}$")
@@ -211,6 +214,29 @@ def constraint_sql(value: Any, field_name: str) -> str:
     return "ROW(" + ",".join(parts) + ")::laplace.cognition_operator_constraint"
 
 
+def fields_sql(values: list[Any], field_name: str) -> str:
+    return "ARRAY[" + ",".join(
+        field_sql(item, f"{field_name}[{index}]") for index, item in enumerate(values)
+    ) + "]::laplace.cognition_operator_field[]"
+
+
+def constraints_sql(values: list[Any], field_name: str) -> str:
+    return "ARRAY[" + ",".join(
+        constraint_sql(item, f"{field_name}[{index}]") for index, item in enumerate(values)
+    ) + "]::laplace.cognition_operator_constraint[]"
+
+
+def role_value(value: Any, field_name: str) -> int:
+    if isinstance(value, str):
+        if value not in ROLE:
+            raise ModelExportError(f"{field_name} must be qk or vo")
+        return ROLE[value]
+    role = require_int(value, field_name, minimum=1)
+    if role not in ROLE.values():
+        raise ModelExportError(f"{field_name} must be 1/qk or 2/vo")
+    return role
+
+
 def program_sql(value: Any, field_name: str, context_fingerprint_sql: str) -> str:
     program = require_object(value, field_name)
     program_id = require_hex(program.get("program_id"), f"{field_name}.program_id", HEX_256)
@@ -253,48 +279,68 @@ def program_sql(value: Any, field_name: str, context_fingerprint_sql: str) -> st
 def job_sql(value: Any, index: int, context_fingerprint_sql: str) -> tuple[str, tuple[int, int, int, int]]:
     name = f"jobs[{index}]"
     job = require_object(value, name)
-    role_value = job.get("target_role")
-    if isinstance(role_value, str):
-        if role_value not in ROLE:
-            raise ModelExportError(f"{name}.target_role must be qk or vo")
-        role = ROLE[role_value]
-    else:
-        role = require_int(role_value, f"{name}.target_role", minimum=1)
-        if role not in ROLE.values():
-            raise ModelExportError(f"{name}.target_role must be 1/qk or 2/vo")
+    role = role_value(job.get("target_role"), f"{name}.target_role")
     layer = require_int(job.get("layer_index", 0), f"{name}.layer_index")
     head = require_int(job.get("head_index", 0), f"{name}.head_index")
     expert = require_int(job.get("expert_index", 0), f"{name}.expert_index")
     if any(value > 2147483647 for value in (role, layer, head, expert)):
         raise ModelExportError(f"{name} coordinate exceeds PostgreSQL integer range")
     role_fp = require_hex(job.get("role_fingerprint"), f"{name}.role_fingerprint", HEX_256)
-    fields = require_list(job.get("fields"), f"{name}.fields")
-    constraints = require_list(job.get("constraints"), f"{name}.constraints")
+    job_fields = require_list(job.get("fields"), f"{name}.fields")
+    job_constraints = require_list(job.get("constraints"), f"{name}.constraints")
     rank = require_int(job.get("head_rank"), f"{name}.head_rank", minimum=1)
     program = program_sql(job.get("operator_program"), f"{name}.operator_program", context_fingerprint_sql)
-    fields_sql = "ARRAY[" + ",".join(
-        field_sql(item, f"{name}.fields[{field_index}]")
-        for field_index, item in enumerate(fields)
-    ) + "]::laplace.cognition_operator_field[]"
-    constraints_sql = "ARRAY[" + ",".join(
-        constraint_sql(item, f"{name}.constraints[{constraint_index}]")
-        for constraint_index, item in enumerate(constraints)
-    ) + "]::laplace.cognition_operator_constraint[]"
     sql = (
         "ROW(" + ",".join(
             (
                 f"{role}::integer", f"{layer}::integer", f"{head}::integer",
-                f"{expert}::integer", digest_sql(role_fp), program, fields_sql,
-                constraints_sql, f"{rank}::numeric",
+                f"{expert}::integer", digest_sql(role_fp), program,
+                fields_sql(job_fields, f"{name}.fields"),
+                constraints_sql(job_constraints, f"{name}.constraints"),
+                f"{rank}::numeric",
             )
         ) + ")::laplace.target_operator_job"
     )
     return sql, (layer, head, expert, role)
 
 
-def render_sql(request: dict[str, Any]) -> str:
-    if request.get("schema") != REQUEST_SCHEMA:
-        raise ModelExportError(f"request.schema must be {REQUEST_SCHEMA}")
+def slot_sql(value: Any, index: int) -> tuple[str, tuple[int, int, int, int], int]:
+    name = f"slots[{index}]"
+    slot = require_object(value, name)
+    role = role_value(slot.get("target_role"), f"{name}.target_role")
+    layer = require_int(slot.get("layer_index", 0), f"{name}.layer_index")
+    head = require_int(slot.get("head_index", 0), f"{name}.head_index")
+    expert = require_int(slot.get("expert_index", 0), f"{name}.expert_index")
+    families = require_list(slot.get("eligible_relation_families"), f"{name}.eligible_relation_families")
+    family_values = [
+        require_int(item, f"{name}.eligible_relation_families[{family_index}]", minimum=1)
+        for family_index, item in enumerate(families)
+    ]
+    if len(set(family_values)) != len(family_values):
+        raise ModelExportError(f"{name}.eligible_relation_families must not contain duplicates")
+    source_mask = require_int(slot.get("eligible_source_mask"), f"{name}.eligible_source_mask", minimum=1)
+    rank = require_int(slot.get("head_rank"), f"{name}.head_rank", minimum=1)
+    flags = require_int(slot.get("flags", 0), f"{name}.flags", minimum=0)
+    if any(item > 2147483647 for item in (role, layer, head, expert, source_mask, flags)):
+        raise ModelExportError(f"{name} integer exceeds PostgreSQL field width")
+    if source_mask > 7:
+        raise ModelExportError(f"{name}.eligible_source_mask contains an unknown source class")
+    if any(item > 2147483647 for item in family_values):
+        raise ModelExportError(f"{name} relation family exceeds PostgreSQL integer range")
+    family_expr = "ARRAY[" + ",".join(str(item) for item in family_values) + "]::integer[]"
+    sql = (
+        "ROW(" + ",".join(
+            (
+                f"{role}::integer", f"{layer}::integer", f"{head}::integer",
+                f"{expert}::integer", family_expr, f"{source_mask}::integer",
+                f"{rank}::numeric", f"{flags}::integer",
+            )
+        ) + ")::laplace.target_scope_slot"
+    )
+    return sql, (layer, head, expert, role), rank
+
+
+def common_request(request: dict[str, Any]) -> tuple[str, str, str, str, str, int, float, bool]:
     context = require_object(request.get("execution_context"), "execution_context")
     context_expr = context_sql(context)
     evidence_boundary = require_hex(request.get("evidence_boundary"), "evidence_boundary", HEX_256)
@@ -308,6 +354,20 @@ def render_sql(request: dict[str, Any]) -> str:
         request.get("relative_tolerance"), "relative_tolerance", positive=True
     )
     exact = require_bool(request.get("require_exact", True), "require_exact")
+    return context_expr, evidence_boundary, evidence_epoch, recipe, target, hidden_width, tolerance, exact
+
+
+def validate_head_pairs(coordinate_roles: dict[tuple[int, int, int], dict[int, int]]) -> None:
+    for coordinate, roles in coordinate_roles.items():
+        if set(roles) != {1, 2} or roles[1] != roles[2]:
+            raise ModelExportError(
+                "each target head requires exactly one QK and one VO slot with equal rank: "
+                f"layer={coordinate[0]} head={coordinate[1]} expert={coordinate[2]}"
+            )
+
+
+def render_legacy_sql(request: dict[str, Any]) -> str:
+    context_expr, evidence_boundary, evidence_epoch, recipe, target, hidden_width, tolerance, exact = common_request(request)
     jobs = require_list(request.get("jobs"), "jobs")
     if len(jobs) % 2 != 0:
         raise ModelExportError("jobs must contain complete QK/VO pairs")
@@ -326,12 +386,7 @@ def render_sql(request: dict[str, Any]) -> str:
                 f"duplicate target role at layer={layer} head={head} expert={expert}"
             )
         roles[role] = rank
-    for coordinate, roles in coordinate_roles.items():
-        if set(roles) != {1, 2} or roles[1] != roles[2]:
-            raise ModelExportError(
-                "each target head requires exactly one QK and one VO job with equal rank: "
-                f"layer={coordinate[0]} head={coordinate[1]} expert={coordinate[2]}"
-            )
+    validate_head_pairs(coordinate_roles)
 
     jobs_expr = "ARRAY[" + ",".join(rendered_jobs) + "]::laplace.target_operator_job[]"
     call = (
@@ -378,6 +433,101 @@ FROM exported;
 """
 
 
+def render_scoped_sql(request: dict[str, Any]) -> str:
+    context_expr, evidence_boundary, evidence_epoch, recipe, target, hidden_width, tolerance, exact = common_request(request)
+    estate_fields = require_list(request.get("fields"), "fields")
+    estate_constraints = require_list(request.get("constraints"), "constraints")
+    slots = require_list(request.get("slots"), "slots")
+    if len(slots) % 2 != 0:
+        raise ModelExportError("slots must contain complete QK/VO pairs")
+    numeric_tolerance = require_float(
+        request.get("operator_numeric_tolerance", 1e-12),
+        "operator_numeric_tolerance", positive=True,
+    )
+    operator_flags = require_int(
+        request.get("operator_program_flags", 7), "operator_program_flags", minimum=0
+    )
+    if operator_flags > 2147483647:
+        raise ModelExportError("operator_program_flags exceeds PostgreSQL integer range")
+
+    rendered_slots: list[str] = []
+    coordinate_roles: dict[tuple[int, int, int], dict[int, int]] = {}
+    for index, item in enumerate(slots):
+        rendered, coordinate, rank = slot_sql(item, index)
+        rendered_slots.append(rendered)
+        layer, head, expert, role = coordinate
+        roles = coordinate_roles.setdefault((layer, head, expert), {})
+        if role in roles:
+            raise ModelExportError(
+                f"duplicate target role at layer={layer} head={head} expert={expert}"
+            )
+        roles[role] = rank
+    validate_head_pairs(coordinate_roles)
+
+    slot_expr = "ARRAY[" + ",".join(rendered_slots) + "]::laplace.target_scope_slot[]"
+    call = (
+        "laplace.target_attention_export_scoped(bound.context," + ",".join(
+            (
+                digest_sql(evidence_boundary), digest_sql(evidence_epoch),
+                digest_sql(recipe), digest_sql(target),
+                fields_sql(estate_fields, "fields"),
+                constraints_sql(estate_constraints, "constraints"),
+                slot_expr, number_sql(numeric_tolerance), f"{operator_flags}::integer",
+                f"{hidden_width}::numeric", number_sql(tolerance),
+                "true" if exact else "false",
+            )
+        ) + ")"
+    )
+    return f"""WITH bound AS MATERIALIZED (
+  SELECT {context_expr} AS context
+), exported AS MATERIALIZED (
+  SELECT e.*
+  FROM bound
+  CROSS JOIN LATERAL {call} AS e
+)
+SELECT json_build_object(
+  'artifact_base64', encode(artifact, 'base64'),
+  'artifact_id', encode(artifact_id, 'hex'),
+  'scope_receipt_id', encode(scope_receipt_id, 'hex'),
+  'scope_request_fingerprint', encode(scope_request_fingerprint, 'hex'),
+  'scope_slot_set_fingerprint', encode(scope_slot_set_fingerprint, 'hex'),
+  'compile_receipt_id', encode(compile_receipt_id, 'hex'),
+  'compile_request_fingerprint', encode(compile_request_fingerprint, 'hex'),
+  'projection_id', encode(projection_id, 'hex'),
+  'embedding_fingerprint', encode(embedding_fingerprint, 'hex'),
+  'head_set_fingerprint', encode(head_set_fingerprint, 'hex'),
+  'byte_count', byte_count,
+  'header_byte_count', header_byte_count,
+  'data_byte_count', data_byte_count,
+  'tensor_count', tensor_count,
+  'head_count', head_count,
+  'field_count', field_count,
+  'hidden_width', hidden_width,
+  'semantic_basis_rank', semantic_basis_rank,
+  'null_basis_rank', null_basis_rank,
+  'max_relative_residual', max_relative_residual,
+  'selected_constraint_count', selected_constraint_count,
+  'source_mask_union', source_mask_union,
+  'scope_status', scope_status,
+  'compile_status', compile_status,
+  'projection_status', projection_status,
+  'codec_status', codec_status
+)::text
+FROM exported;
+"""
+
+
+def render_sql(request: dict[str, Any]) -> str:
+    schema = request.get("schema")
+    if schema == REQUEST_SCHEMA_V2:
+        return render_scoped_sql(request)
+    if schema == REQUEST_SCHEMA_V1:
+        return render_legacy_sql(request)
+    raise ModelExportError(
+        f"request.schema must be {REQUEST_SCHEMA_V2} (or compatibility {REQUEST_SCHEMA_V1})"
+    )
+
+
 def parse_server_output(stdout: str) -> dict[str, Any]:
     lines = [line for line in stdout.splitlines() if line.strip()]
     if len(lines) != 1:
@@ -388,7 +538,10 @@ def parse_server_output(stdout: str) -> dict[str, Any]:
         raise ModelExportError(f"server returned invalid export JSON: {error}") from error
     if not isinstance(value, dict):
         raise ModelExportError("server export result is not an object")
-    for name in ("compile_status", "projection_status", "codec_status"):
+    status_names = ["compile_status", "projection_status", "codec_status"]
+    if "scope_status" in value:
+        status_names.insert(0, "scope_status")
+    for name in status_names:
         if value.get(name) != 0:
             raise ModelExportError(f"server export failed: {name}={value.get(name)!r}")
     return value
@@ -514,8 +667,10 @@ def execute(
     validate_artifact(artifact, server)
 
     artifact_id = require_hex(server.get("artifact_id"), "server.artifact_id", HEX_256)
-    receipt = {
-        "schema": RECEIPT_SCHEMA,
+    request_schema = request.get("schema")
+    receipt: dict[str, Any] = {
+        "schema": RECEIPT_SCHEMA_V2 if request_schema == REQUEST_SCHEMA_V2 else RECEIPT_SCHEMA_V1,
+        "request_schema": request_schema,
         "request_sha256": hashlib.sha256(canonical_bytes(request)).hexdigest(),
         "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
         "artifact_id": artifact_id,
@@ -535,6 +690,29 @@ def execute(
         "max_relative_residual": server["max_relative_residual"],
         "codec": "safetensors-f64",
     }
+    if request_schema == REQUEST_SCHEMA_V2:
+        receipt.update(
+            {
+                "scope_receipt_id": require_hex(
+                    server.get("scope_receipt_id"), "server.scope_receipt_id", HEX_256
+                ),
+                "scope_request_fingerprint": require_hex(
+                    server.get("scope_request_fingerprint"),
+                    "server.scope_request_fingerprint", HEX_256,
+                ),
+                "scope_slot_set_fingerprint": require_hex(
+                    server.get("scope_slot_set_fingerprint"),
+                    "server.scope_slot_set_fingerprint", HEX_256,
+                ),
+                "selected_constraint_count": require_int(
+                    server.get("selected_constraint_count"),
+                    "server.selected_constraint_count", minimum=1,
+                ),
+                "source_mask_union": require_int(
+                    server.get("source_mask_union"), "server.source_mask_union", minimum=1
+                ),
+            }
+        )
     receipt_bytes = canonical_bytes(receipt)
     write_atomic(output_path, artifact, force=force)
     try:
@@ -549,7 +727,10 @@ def execute(
 def parser() -> argparse.ArgumentParser:
     value = argparse.ArgumentParser(
         prog="laplace-model-export",
-        description="Compile a declared Laplace target recipe into an actual SafeTensors artifact.",
+        description=(
+            "Compile one typed Laplace operator estate and declared target slots "
+            "into an actual SafeTensors artifact."
+        ),
     )
     value.add_argument("request", type=Path, help="target export request JSON")
     value.add_argument("--output", "-o", type=Path, required=True, help="SafeTensors output path")

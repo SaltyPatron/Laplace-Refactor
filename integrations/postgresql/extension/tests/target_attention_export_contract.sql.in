@@ -1,5 +1,35 @@
 \ir @LAPLACE_TARGET_ATTENTION_CONTRACT_SQL@
 
+CREATE FUNCTION pg_temp.scope_fields()
+RETURNS laplace.cognition_operator_field[]
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $fields$
+    SELECT ARRAY[
+        pg_temp.field(40, 0), pg_temp.field(41, 1),
+        pg_temp.field(42, 2), pg_temp.field(43, 3)
+    ]::laplace.cognition_operator_field[]
+$fields$;
+
+CREATE FUNCTION pg_temp.scope_constraints()
+RETURNS laplace.cognition_operator_constraint[]
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $constraints$
+    SELECT ARRAY[
+        pg_temp.constraint_row(50, 11, 0, 1, 2.0),
+        pg_temp.constraint_row(60, 12, 2, 3, 3.0)
+    ]::laplace.cognition_operator_constraint[]
+$constraints$;
+
+CREATE FUNCTION pg_temp.scope_slots()
+RETURNS laplace.target_scope_slot[]
+LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+AS $slots$
+    SELECT ARRAY[
+        ROW(1, 2, 5, 0, ARRAY[11]::integer[], 1, 1::numeric, 0)::laplace.target_scope_slot,
+        ROW(2, 2, 5, 0, ARRAY[12]::integer[], 1, 1::numeric, 0)::laplace.target_scope_slot
+    ]::laplace.target_scope_slot[]
+$slots$;
+
 CREATE TEMP TABLE first_export AS
 SELECT (laplace.target_attention_export(
     pg_temp.execution_context(),
@@ -123,3 +153,104 @@ BEGIN
     END;
 END
 $export_insufficient_width$;
+
+CREATE TEMP TABLE first_scoped_export AS
+SELECT (laplace.target_attention_export_scoped(
+    pg_temp.execution_context(),
+    pg_temp.digest(176),
+    pg_temp.digest(177),
+    pg_temp.digest(80),
+    pg_temp.digest(81),
+    pg_temp.scope_fields(),
+    pg_temp.scope_constraints(),
+    pg_temp.scope_slots(),
+    1e-12::double precision,
+    7,
+    2::numeric,
+    1e-10::double precision,
+    true
+)).*;
+
+DO $verify_scoped_export$
+DECLARE
+    result laplace.target_attention_scoped_export_result;
+    header text;
+BEGIN
+    SELECT ROW(t.*)::laplace.target_attention_scoped_export_result
+      INTO result
+      FROM first_scoped_export t;
+
+    IF result.scope_status <> 0 OR result.compile_status <> 0 OR
+       result.projection_status <> 0 OR result.codec_status <> 0 THEN
+        RAISE EXCEPTION 'scoped target export status mismatch scope=% compile=% projection=% codec=%',
+            result.scope_status, result.compile_status,
+            result.projection_status, result.codec_status;
+    END IF;
+    IF result.selected_constraint_count <> 2 OR result.source_mask_union <> 1 THEN
+        RAISE EXCEPTION 'scoped target export selected wrong typed estate count=% source_mask=%',
+            result.selected_constraint_count, result.source_mask_union;
+    END IF;
+    IF result.tensor_count <> 5 OR result.head_count <> 1 OR
+       result.field_count <> 4 OR result.hidden_width <> 2 OR
+       result.semantic_basis_rank <> 2 OR result.null_basis_rank <> 0 THEN
+        RAISE EXCEPTION 'scoped target export tensor/shape metadata mismatch';
+    END IF;
+    IF encode(result.scope_receipt_id, 'hex') <> :'scoped_scope_receipt_id' OR
+       encode(result.scope_request_fingerprint, 'hex') <> :'scoped_scope_request_fingerprint' OR
+       encode(result.scope_slot_set_fingerprint, 'hex') <> :'scoped_slot_set_fingerprint' OR
+       encode(result.compile_receipt_id, 'hex') <> :'scoped_compile_receipt_id' OR
+       encode(result.projection_id, 'hex') <> :'scoped_projection_id' OR
+       encode(result.embedding_fingerprint, 'hex') <> :'scoped_embedding_fingerprint' THEN
+        RAISE EXCEPTION 'PostgreSQL scoped export diverged from native target-scope oracle';
+    END IF;
+    IF result.byte_count <> octet_length(result.artifact)::numeric OR
+       result.max_relative_residual > 1e-10 THEN
+        RAISE EXCEPTION 'scoped target export artifact accounting/residual mismatch';
+    END IF;
+
+    header := convert_from(
+        substring(result.artifact FROM 9 FOR result.header_byte_count::integer),
+        'UTF8');
+    IF position('"laplace.embedding"' in header) = 0 OR
+       position('"laplace.q.layer_2.head_5.expert_0"' in header) = 0 OR
+       position('"laplace.k.layer_2.head_5.expert_0"' in header) = 0 OR
+       position('"laplace.v.layer_2.head_5.expert_0"' in header) = 0 OR
+       position('"laplace.o.layer_2.head_5.expert_0"' in header) = 0 THEN
+        RAISE EXCEPTION 'scoped target export SafeTensors header omits actual QKVO tensors';
+    END IF;
+END
+$verify_scoped_export$;
+
+CREATE TEMP TABLE second_scoped_export AS
+SELECT (laplace.target_attention_export_scoped(
+    pg_temp.execution_context(),
+    pg_temp.digest(176),
+    pg_temp.digest(177),
+    pg_temp.digest(80),
+    pg_temp.digest(81),
+    pg_temp.scope_fields(),
+    pg_temp.scope_constraints(),
+    pg_temp.scope_slots(),
+    1e-12::double precision,
+    7,
+    2::numeric,
+    1e-10::double precision,
+    true
+)).*;
+
+DO $deterministic_scoped_export$
+DECLARE
+    first_row record;
+    second_row record;
+BEGIN
+    SELECT * INTO first_row FROM first_scoped_export;
+    SELECT * INTO second_row FROM second_scoped_export;
+    IF first_row.artifact_id <> second_row.artifact_id OR
+       first_row.artifact <> second_row.artifact OR
+       first_row.scope_receipt_id <> second_row.scope_receipt_id OR
+       first_row.compile_receipt_id <> second_row.compile_receipt_id OR
+       first_row.projection_id <> second_row.projection_id THEN
+        RAISE EXCEPTION 'scoped target SafeTensors export is not byte deterministic';
+    END IF;
+END
+$deterministic_scoped_export$;
