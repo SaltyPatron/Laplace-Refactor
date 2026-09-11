@@ -12,6 +12,7 @@
     "release_root": "/opt/laplace/releases",
     "active_link": "/opt/laplace/current",
     "required_files": [
+      "bin/laplace-web",
       "bin/laplace-model-export",
       "bin/laplace_resource_observe",
       "bin/laplace_unicode_activation_identify",
@@ -28,6 +29,7 @@
       "lib/liblaplace_engine.so.2.0.0"
     ],
     "required_loaded_objects": [
+      "bin/laplace-web",
       "pgsql-18/bin/postgres",
       "pgsql-18/lib/laplace_pg.so",
       "pgsql-18/lib/pg_stat_statements.so",
