@@ -72,6 +72,11 @@
       "covered_dimensions": ["the retained observation result exposes the exact typed field and constraint estate already executed by live cognition", "reconstructing the operator from the borrowed estate reproduces the live operator receipt exactly", "changing an operator-bearing constraint changes the operator receipt instead of being hidden by a target adapter"]
     },
     {
+      "ctest_name": "CognitionObservationOperatorView.TargetCompilationUsesSameLiveMaterializedOperator",
+      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
+      "covered_dimensions": ["target compilation consumes the retained live observation operator estate instead of caller-reconstructed fields and constraints", "an observation-only physicality plane drives a target position slot without proposition extraction", "target matrix and RHS are exactly equal to the materialized live cognition operator"]
+    },
+    {
       "ctest_name": "CognitionObservationOperatorView.RejectsOutOfRangeAnswer",
       "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
       "covered_dimensions": ["operator-estate readback fails closed on invalid result/index state", "transport callers cannot fabricate a borrowed operator view"]
