@@ -54,6 +54,20 @@
         ".github/workflows/postgresql-product.yml",
         ".github/workflows/package-product.yml"
       ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "fix/persistent-product-activation",
+      "tip": "7d63a401c24a04b5135ec13b79666a09261629a0",
+      "disposition": "ABSORBED_AND_EXTENDED_BY_CURRENT_PRODUCT_SERVICE_STATE",
+      "rationale": "This one-commit branch introduced boot-enabled product service state, cross-controller receipt compatibility, and cold-boot identity proof. Current main retains the product-service-enablement/v1 and cold-boot readback implementation in tools/delivery/product_service_state.py, retains the corresponding product_service_state regression suite, and the current product-path hosted requirements lane executes the durable product service and cold-boot contract proof. Later activation work has extended package installation and immutable release handling without removing this service-state boundary. Replaying the older patch would therefore duplicate an implemented lifecycle contract on an obsolete base.",
+      "evidence": [
+        "7d63a401c24a04b5135ec13b79666a09261629a0",
+        "tools/delivery/product_service_state.py",
+        "tests/product_service_state_tests.py",
+        "contracts/product-activation-gateway.json",
+        ".github/workflows/product-path.yml"
+      ]
     }
   ]
 }
