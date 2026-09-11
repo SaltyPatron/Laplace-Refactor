@@ -83,9 +83,54 @@ jobs:
     needs: classify
     uses: ./.github/workflows/ci.yml
 
-  # The three physical proof implementations are independent consumers of the
-  # exact PR head. They each check out and qualify their own surface; serializing
-  # them added wall-clock delay without adding an evidence dependency.
+  publication-recovery:
+    needs:
+      - classify
+      - hosted-proof
+    if: >-
+      needs.hosted-proof.result == 'success' &&
+      (needs.classify.outputs.requires_postgresql_product == 'true' ||
+       needs.classify.outputs.requires_package_product == 'true')
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - postgres-18
+      - avx2
+    concurrency:
+      group: laplace-physical-product-proof
+      cancel-in-progress: false
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Recover only the exact authority-selected PostgreSQL publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          git diff --quiet
+          git diff --cached --quiet
+          result="$RUNNER_TEMP/laplace-postgresql-publication-recovery.json"
+          python3 tools/delivery/recover_postgresql_publication.py > "$result"
+          publication=$(jq -er '.receipt' "$result")
+          expected_sha=$(jq -er '.receipt_sha256' "$result")
+          selected=$(jq -er '.postgresql_publication.receipt' state/product-publication-selection.json)
+          selected_sha=$(jq -er '.postgresql_publication.receipt_sha256' state/product-publication-selection.json)
+          test "$publication" = "$selected"
+          test "$expected_sha" = "$selected_sha"
+          test -f "$publication"
+          test ! -L "$publication"
+          test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
+          python3 tools/delivery/postgresql_package_publication.py verify \
+            --receipt "$publication" >/dev/null
+
+  # The physical proof implementations are independent consumers of the exact
+  # PR head after hosted proof and exact publication recovery. The reusable
+  # workflows still serialize their own physical-host ownership.
   custom-stack-proof:
     needs:
       - classify
@@ -99,18 +144,22 @@ jobs:
     needs:
       - classify
       - hosted-proof
+      - publication-recovery
     if: >-
       needs.classify.outputs.requires_postgresql_product == 'true' &&
-      needs.hosted-proof.result == 'success'
+      needs.hosted-proof.result == 'success' &&
+      needs.publication-recovery.result == 'success'
     uses: ./.github/workflows/postgresql-product.yml
 
   package-product-proof:
     needs:
       - classify
       - hosted-proof
+      - publication-recovery
     if: >-
       needs.classify.outputs.requires_package_product == 'true' &&
-      needs.hosted-proof.result == 'success'
+      needs.hosted-proof.result == 'success' &&
+      needs.publication-recovery.result == 'success'
     uses: ./.github/workflows/package-product.yml
 
   product-path:
@@ -118,6 +167,7 @@ jobs:
     needs:
       - classify
       - hosted-proof
+      - publication-recovery
       - custom-stack-proof
       - postgresql-product-proof
       - package-product-proof
@@ -129,6 +179,7 @@ jobs:
         env:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           HOSTED_RESULT: ${{ needs.hosted-proof.result }}
+          PUBLICATION_RECOVERY_RESULT: ${{ needs.publication-recovery.result }}
           CUSTOM_RESULT: ${{ needs.custom-stack-proof.result }}
           POSTGRESQL_RESULT: ${{ needs.postgresql-product-proof.result }}
           PACKAGE_RESULT: ${{ needs.package-product-proof.result }}
@@ -142,6 +193,11 @@ jobs:
           set -euo pipefail
           test "$CLASSIFY_RESULT" = success
           test "$HOSTED_RESULT" = success
+          if [[ "$REQUIRES_POSTGRESQL" == true || "$REQUIRES_PACKAGE" == true ]]; then
+            test "$PUBLICATION_RECOVERY_RESULT" = success
+          else
+            test "$PUBLICATION_RECOVERY_RESULT" = skipped
+          fi
           if [[ "$REQUIRES_CUSTOM" == true ]]; then
             test "$CUSTOM_RESULT" = success
           else
@@ -165,6 +221,7 @@ jobs:
             echo '## Product-path gate'
             echo "Required evidence: $REQUIRED_EVIDENCE"
             echo "Hosted proof: $HOSTED_RESULT"
+            echo "Publication recovery: $PUBLICATION_RECOVERY_RESULT"
             echo "Custom-stack proof: $CUSTOM_RESULT"
             echo "PostgreSQL-product proof: $POSTGRESQL_RESULT"
             echo "Package-product proof: $PACKAGE_RESULT"
