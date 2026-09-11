@@ -4,19 +4,6 @@
   "entries": [
     {
       "repository": "Laplace-Refactor",
-      "branch": "fix/dev-bat-service-persistence",
-      "tip": "a9b931d51aef486660c6727121edb3e61d5c42df",
-      "disposition": "SUPERSEDED_BY_CLEAN_REPLAY_233_AND_MERGED_234",
-      "rationale": "PR #232 explicitly says this 74-commit divergent head is superseded by #233, which transplants only the five-file a9b931d repair onto then-current main as one clean commit. PR #233 explicitly says the runner-owned PostgreSQL CLI dispatch, resource-observer binding, managed-output boundary, and early CMake output-boundary behavior were reconciled into merged PR #234.",
-      "evidence": [
-        "SaltyPatron/Laplace-Refactor#232",
-        "SaltyPatron/Laplace-Refactor#233",
-        "SaltyPatron/Laplace-Refactor#234",
-        "merge 1363350f7ee4c1842be942d9e44f4bdce5759402"
-      ]
-    },
-    {
-      "repository": "Laplace-Refactor",
       "branch": "preservation/20260907-all-local/fix/dev-bat-service-persistence",
       "tip": "a9b931d51aef486660c6727121edb3e61d5c42df",
       "disposition": "SUPERSEDED_BY_CLEAN_REPLAY_233_AND_MERGED_234",
@@ -25,18 +12,6 @@
         "SaltyPatron/Laplace-Refactor#232",
         "SaltyPatron/Laplace-Refactor#233",
         "SaltyPatron/Laplace-Refactor#234"
-      ]
-    },
-    {
-      "repository": "Laplace-Refactor",
-      "branch": "fix/runner-cli-dispatch-clean-20260905",
-      "tip": "7d6043d0ac55c14bda31e06ff3961bc9803fd75e",
-      "disposition": "SUPERSEDED_BY_MERGED_PR_234",
-      "rationale": "PR #233 explicitly states that it is superseded by merged PR #234 and that its runner-owned PostgreSQL CLI dispatch, resource-observer binding, managed-output boundary, and early CMake output-boundary changes were reconciled onto current main and certified in the combined product-path run.",
-      "evidence": [
-        "SaltyPatron/Laplace-Refactor#233",
-        "SaltyPatron/Laplace-Refactor#234",
-        "merge 1363350f7ee4c1842be942d9e44f4bdce5759402"
       ]
     }
   ]
