@@ -82,6 +82,7 @@ jobs:
             --dispositions .github/branch-estate-semantic-dispositions.runner-lifecycle.json \
             --dispositions .github/branch-estate-semantic-dispositions.cognition-contract.json \
             --dispositions .github/branch-estate-semantic-dispositions.absorbed-contracts.json \
+            --dispositions .github/branch-estate-semantic-dispositions.governance-preservation.json \
             --output "$RUNNER_TEMP/branch-estate-live.json"
           cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
 
