@@ -166,8 +166,9 @@ jobs:
               (.evidence_node_id | length) == 64 and
               (.evidence_root_id | length) == 64 and
               (.testimony_id | length) == 64 and
-              .evidence_node_id == .evidence_root_id and
-              .evidence_source_type == 1)
+              .evidence_node_id != .evidence_root_id and
+              .evidence_source_type == 1) and
+            (map(.evidence_root_id) | unique | length) == 1
           ' "$latin"
           jq -s -e '
             length == 2 and
@@ -176,9 +177,12 @@ jobs:
             all(.[];
               (.proposition_entity_id | length) == 32 and
               (.occurrence_id | length) == 64 and
+              (.evidence_node_id | length) == 64 and
               (.evidence_root_id | length) == 64 and
               (.testimony_id | length) == 64 and
-              .evidence_source_type == 1)
+              .evidence_node_id != .evidence_root_id and
+              .evidence_source_type == 1) and
+            (map(.evidence_root_id) | unique | length) == 1
           ' "$han"
           cat "$latin"
           cat "$han"
