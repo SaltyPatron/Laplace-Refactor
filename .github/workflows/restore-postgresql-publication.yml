@@ -1,0 +1,60 @@
+name: restore-postgresql-publication
+
+on:
+  push:
+    branches:
+      - recovery/restore-postgresql-publication-20260911
+
+permissions:
+  contents: read
+
+concurrency:
+  group: laplace-physical-product-proof
+  cancel-in-progress: false
+
+jobs:
+  restore-exact-publication:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - postgres-18
+      - avx2
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Republish only the exact retained accepted PostgreSQL package
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_receipt=/build/laplace/build/postgresql/94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7/package-receipt.json
+          expected_source_sha=f80ac4a4879fdee15d4eac36ad16a7db525c56c715c922933b4b57f9880dcdfd
+          publication=/opt/laplace/receipts/postgresql/4b72b3782f3a766b35b5cd8d061c72dc4ca223d0d3e823a4aa4a4b96d043993a.json
+          expected_publication_sha=8260fdc87e8911a4ccef6c9f284426910fc71835db5a1cb67576045e56016549
+
+          test "$(id -un)" = laplace-runner
+          test -f "$source_receipt"
+          test ! -L "$source_receipt"
+          test "$(sha256sum "$source_receipt" | awk '{print $1}')" = "$expected_source_sha"
+
+          python3 tools/delivery/postgresql_package_publication.py publish \
+            --postgresql-receipt "$source_receipt" \
+            > "$RUNNER_TEMP/restored-postgresql-publication.json"
+
+          test -f "$publication"
+          test ! -L "$publication"
+          test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_publication_sha"
+          python3 tools/delivery/postgresql_package_publication.py verify \
+            --receipt "$publication" \
+            > "$RUNNER_TEMP/verified-postgresql-publication.json"
+          jq -e \
+            --arg id 4b72b3782f3a766b35b5cd8d061c72dc4ca223d0d3e823a4aa4a4b96d043993a '
+            .schema == "laplace.postgresql-package-publication-receipt/v1" and
+            .publication_id == $id and
+            .publication_complete == true and
+            .source_product_activation_occurred == false
+          ' "$RUNNER_TEMP/verified-postgresql-publication.json" >/dev/null
+
+          cat "$RUNNER_TEMP/verified-postgresql-publication.json"
