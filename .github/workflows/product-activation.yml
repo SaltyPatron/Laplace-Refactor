@@ -356,21 +356,26 @@ jobs:
           package_id='${{ needs.compose-product.outputs.package_id }}'
           service=/opt/laplace/runtime/refactor/bin/laplace-cognition-service
           client=/opt/laplace/runtime/refactor/bin/laplace-cognition
+          service_socket=/opt/laplace/runtime/laplace-cognition.sock
           pid_file=/opt/laplace/runtime/laplace-cognition.pid
           log_file=/var/log/laplace/laplace-cognition.log
           test -x "$service"
           test -x "$client"
-          python3 - "$service" "$pid_file" "$log_file" "$package_id" <<'PY'
+          test -d /opt/laplace/runtime
+          test ! -L /opt/laplace/runtime
+          chmod 0711 /opt/laplace/runtime
+          python3 - "$service" "$service_socket" "$pid_file" "$log_file" "$package_id" <<'PY'
           import json
           import os
           from pathlib import Path
           import signal
+          import socket
           import subprocess
           import sys
           import time
-          import urllib.request
 
-          service, pid_name, log_name, package_id = sys.argv[1:]
+          service, socket_name, pid_name, log_name, package_id = sys.argv[1:]
+          service_socket = Path(socket_name)
           pid_file = Path(pid_name)
           log_file = Path(log_name)
           uid = os.geteuid()
@@ -403,7 +408,7 @@ jobs:
           environment.pop("RUNNER_TRACKING_ID", None)
           with log_file.open("ab", buffering=0) as log:
               process = subprocess.Popen(
-                  [service, "--listen", "127.0.0.1", "--port", "8080"],
+                  [service, "--socket", str(service_socket)],
                   stdin=subprocess.DEVNULL,
                   stdout=log,
                   stderr=subprocess.STDOUT,
@@ -416,14 +421,38 @@ jobs:
           temporary.chmod(0o640)
           os.replace(temporary, pid_file)
 
+          def health():
+              connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+              connection.settimeout(1)
+              try:
+                  connection.connect(str(service_socket))
+                  connection.sendall(
+                      b"GET /health HTTP/1.1\r\nHost: laplace.local\r\nConnection: close\r\n\r\n"
+                  )
+                  chunks = []
+                  while True:
+                      block = connection.recv(65536)
+                      if not block:
+                          break
+                      chunks.append(block)
+              finally:
+                  connection.close()
+              raw_response = b"".join(chunks)
+              marker = raw_response.find(b"\r\n\r\n")
+              if marker < 0:
+                  raise RuntimeError("malformed health response")
+              status_line = raw_response[:marker].split(b"\r\n", 1)[0]
+              if b" 200 " not in status_line:
+                  raise RuntimeError(status_line.decode("ascii", "replace"))
+              return json.loads(raw_response[marker + 4:])
+
           last_error = None
           payload = None
           for _ in range(100):
               if process.poll() is not None:
                   raise SystemExit(f"laplace-cognition-service exited during startup: {process.returncode}")
               try:
-                  with urllib.request.urlopen("http://127.0.0.1:8080/health", timeout=1) as response:
-                      payload = json.load(response)
+                  payload = health()
                   if (
                       payload.get("status") == "ready"
                       and payload.get("package_id") == package_id
@@ -438,9 +467,11 @@ jobs:
               time.sleep(0.1)
           else:
               raise SystemExit(f"laplace cognition service did not become ready: {last_error}")
-          print(json.dumps({"pid": process.pid, "health": payload}, sort_keys=True))
+          print(json.dumps({"pid": process.pid, "socket": str(service_socket), "health": payload}, sort_keys=True))
           PY
 
+          test -S "$service_socket"
+          test "$(stat -c '%a' "$service_socket")" = 666
           observed="$($client --relations constituent 'AA')"
           test "$observed" = A
           structured="$($client --relations constituent --json 'AA')"
@@ -450,6 +481,7 @@ jobs:
           {
             echo '## Installed usable cognition surface'
             echo '- command: `/opt/laplace/current/bin/laplace-cognition`'
+            echo '- transport: local Unix socket `/opt/laplace/runtime/laplace-cognition.sock`; no TCP listener'
             echo '- no database role, sudo, environment variable, receipt path, or SQL is required by the caller'
             echo '- `laplace-cognition --relations constituent AA` returned `A` through prompt admission, indexed cognition, realization, and materialization'
           } >> "$GITHUB_STEP_SUMMARY"
