@@ -149,6 +149,16 @@ TEST(CognitionSolver, ConvergesMatrixFreeWithoutRewritingEvidencePrecision) {
     EXPECT_FALSE(Same(
         receipt.evidence_precision_fingerprint,
         operator_value.receipt.constraint_set_fingerprint));
+
+    std::array<double, 3> raw_operator_output{};
+    laplace_cognition_operator_application_receipt application{};
+    ASSERT_EQ(laplace_cognition_operator_apply(
+                  operator_value.value, initial.data(), initial.size(),
+                  raw_operator_output.data(), raw_operator_output.size(), &application),
+              LAPLACE_COGNITION_OPERATOR_OK);
+    EXPECT_FALSE(Same(
+        receipt.evidence_precision_fingerprint,
+        application.output_fingerprint));
     EXPECT_TRUE(std::isfinite(receipt.final_energy));
 }
 
