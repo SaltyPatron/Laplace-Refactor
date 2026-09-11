@@ -54,6 +54,58 @@ jobs:
           python3 tools/delivery/postgresql_package_publication.py verify \
             --receipt "$publication" >/dev/null
           printf 'LAPLACE_POSTGRESQL_PUBLICATION=%s\n' "$publication" >> "$GITHUB_ENV"
+      - name: Reclaim obsolete persistent product build generations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/product_build_workspace_retention_tests.py
+
+          plan="$RUNNER_TEMP/laplace-product-current-plan.json"
+          python3 tools/product/build-package.py \
+            --repository . \
+            plan \
+            --postgresql-publication "$LAPLACE_POSTGRESQL_PUBLICATION" > "$plan"
+          current_plan=$(jq -er '.plan_id' "$plan")
+          test "$current_plan" = "$(jq -er '.plan_id' "$plan")"
+          test "${#current_plan}" -eq 64
+
+          build_root=$(jq -er '.build.root' contracts/product-package.json)
+          stage_root=$(jq -er '.build.stage_root' contracts/product-package.json)
+          retention="$RUNNER_TEMP/laplace-product-build-retention.json"
+          if [[ ! -e "$build_root" && ! -L "$build_root" && ! -e "$stage_root" && ! -L "$stage_root" ]]; then
+            {
+              echo '## Product build retention'
+              echo '- fresh host: no persistent build/stage generations exist yet'
+              echo "- selected plan: \`$current_plan\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            test -d "$build_root"
+            test ! -L "$build_root"
+            test -d "$stage_root"
+            test ! -L "$stage_root"
+            python3 tools/product/build_workspace_retention.py \
+              --contract contracts/product-package.json \
+              --receipt-root /opt/laplace/receipts/product-build-retention \
+              --preserve-plan "$current_plan" \
+              --minimum-age-seconds 300 \
+              --output "$retention"
+            jq -e \
+              --arg plan "$current_plan" '
+                .schema == "laplace.product-build-workspace-retention/v1" and
+                (.preserved_plan_ids | index($plan)) != null and
+                (.allocated_bytes_reclaimed | type) == "number"
+              ' "$retention" >/dev/null
+            reclaimed=$(jq -r '.allocated_bytes_reclaimed' "$retention")
+            removed=$(jq -r '.removed | length' "$retention")
+            preserved=$(jq -r '.preserved | length' "$retention")
+            {
+              echo '## Product build retention'
+              echo "- selected plan: \`$current_plan\`"
+              echo "- obsolete generations reclaimed: $removed"
+              echo "- generations preserved: $preserved"
+              echo "- allocated bytes reclaimed: $reclaimed"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Prove package-product verifier mutation controls
         run: python3 tests/package_product_proof_tests.py
       - name: Compose install replay and durably retain exact package receipts
