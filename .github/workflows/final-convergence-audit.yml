@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: final-convergence-audit-${{ github.event.pull_request.number || github.ref }}
@@ -16,7 +17,7 @@ jobs:
   branch-estate:
     name: branch-estate-live
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout Laplace-Refactor with all history
         uses: actions/checkout@v4
@@ -47,7 +48,19 @@ jobs:
           python3 tools/branch_estate_live_audit.py \
             "Laplace-Refactor=$GITHUB_WORKSPACE" \
             "Laplace=$RUNNER_TEMP/Laplace" \
-            --output "$RUNNER_TEMP/branch-estate-live.json"
+            --output "$RUNNER_TEMP/branch-estate-live.raw.json"
+
+      - name: Collapse exact heads of merged PRs
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/branch_estate_merged_pr_reconcile.py \
+            --ledger "$RUNNER_TEMP/branch-estate-live.raw.json" \
+            --output "$RUNNER_TEMP/branch-estate-live.json" \
+            --repository "Laplace-Refactor=SaltyPatron/Laplace-Refactor" \
+            --repository "Laplace=SaltyPatron/Laplace"
           cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
 
       - name: Upload live reconciliation ledger
