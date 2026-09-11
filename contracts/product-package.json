@@ -96,6 +96,7 @@
       "bin/laplace_unicode_activation_identify",
       "bin/laplace_unicode_artifact_verify",
       "bin/laplace-live-substrate",
+      "bin/laplace-model-export",
       "pgsql-18/bin/initdb",
       "pgsql-18/bin/pg_config",
       "pgsql-18/bin/pg_ctl",
