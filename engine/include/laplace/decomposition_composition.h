@@ -32,10 +32,6 @@ typedef struct laplace_decomposition_composition_plan_view {
     const laplace_composition_operand* operands;
     const laplace_composition_request* requests;
     const laplace_composition_operand* span_references;
-    /* Parallel to span_references. 1 means the syntax observation covers exact
-     * canonical bytes and the reference is active. 0 means a syntax-only
-     * observation such as an explicit zero-width MISSING node; its reference is
-     * canonical zero/inactive storage and must never be interpreted as content. */
     const uint8_t* span_has_content;
     uint64_t atom_count;
     uint64_t operand_count;
@@ -47,6 +43,12 @@ typedef struct laplace_decomposition_composition_plan_view {
     laplace_composition_operand root_reference;
 } laplace_decomposition_composition_plan_view;
 
+typedef struct laplace_decomposition_composition_identity {
+    laplace_id128 entity_id;
+    laplace_digest256 identity_witness;
+    uint64_t logical_count;
+} laplace_decomposition_composition_identity;
+
 typedef enum laplace_decomposition_composition_status {
     LAPLACE_DECOMPOSITION_COMPOSITION_OK = 0,
     LAPLACE_DECOMPOSITION_COMPOSITION_INVALID_ARGUMENT = 1,
@@ -56,32 +58,6 @@ typedef enum laplace_decomposition_composition_status {
     LAPLACE_DECOMPOSITION_COMPOSITION_OVERFLOW = 5
 } laplace_decomposition_composition_status;
 
-/*
- * Lowers exact textual content exposed by decomposition into canonical
- * composition work without allowing parser/provider metadata to alter content
- * identity. Equal canonical content must resolve to the same entity regardless
- * of byte offset, provider, source, syntax role, tier, or occurrence.
- *
- * Decomposition structure remains a separate witnessed trace. Provider identity,
- * visible and grammar kinds, field, sibling ordinal, syntax/error state, byte
- * ranges, flags, depth, media type, parentage, source and occurrence context
- * belong to that witness/evidence path; they are not constituents of the content
- * entity and must not be wrapped around content merely to mint another Merkle
- * identity.
- *
- * span_references and span_has_content are parallel to the decomposition span
- * array. Content-bearing spans name only the exact canonical content covered by
- * that span. Equal span bytes therefore reuse one canonical reference even when
- * syntax witness state differs. Explicit missing syntax nodes carry
- * span_has_content=0 and no invented content identity.
- *
- * root_reference is the canonical root carrier and is identical to the active
- * span_references[0]. A single Unicode position is a KNOWN_ENTITY reference into
- * atom_positions and therefore requires no composition request. Composite
- * content is a PRIOR_RESULT reference into requests/results. root_result_index
- * remains the composite-result alias and is UINT64_MAX when the canonical root
- * is already a known Tier-0 entity.
- */
 LAPLACE_API laplace_decomposition_composition_status
 laplace_decomposition_composition_plan_create(
     const laplace_decomposition_composition_input* input,
@@ -91,6 +67,36 @@ LAPLACE_API laplace_decomposition_composition_status
 laplace_decomposition_composition_plan_view_get(
     const laplace_decomposition_composition_plan* plan,
     laplace_decomposition_composition_plan_view* view);
+
+LAPLACE_API laplace_decomposition_composition_status
+laplace_decomposition_composition_identity_evaluate(
+    const laplace_decomposition_composition_plan* plan,
+    laplace_decomposition_composition_identity* results,
+    size_t result_capacity,
+    size_t* result_count);
+
+LAPLACE_API laplace_decomposition_composition_status
+laplace_decomposition_composition_identity_evaluate_view(
+    const laplace_decomposition_composition_plan_view* view,
+    laplace_decomposition_composition_identity* results,
+    size_t result_capacity,
+    size_t* result_count);
+
+LAPLACE_API laplace_decomposition_composition_status
+laplace_decomposition_composition_identity_resolve(
+    const laplace_decomposition_composition_plan* plan,
+    const laplace_decomposition_composition_identity* results,
+    size_t result_count,
+    const laplace_composition_operand* reference,
+    laplace_decomposition_composition_identity* identity);
+
+LAPLACE_API laplace_decomposition_composition_status
+laplace_decomposition_composition_identity_resolve_view(
+    const laplace_decomposition_composition_plan_view* view,
+    const laplace_decomposition_composition_identity* results,
+    size_t result_count,
+    const laplace_composition_operand* reference,
+    laplace_decomposition_composition_identity* identity);
 
 LAPLACE_API void laplace_decomposition_composition_plan_destroy(
     laplace_decomposition_composition_plan** plan);

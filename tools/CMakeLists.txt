@@ -68,6 +68,19 @@ set_target_properties(laplace_decompose PROPERTIES
 install(TARGETS laplace_decompose
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
+add_executable(laplace_ucdxml_query
+    ucdxml_query.cpp)
+target_link_libraries(laplace_ucdxml_query PRIVATE
+    Laplace::Decomposition
+    BLAKE3::blake3)
+target_compile_options(laplace_ucdxml_query PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+set_target_properties(laplace_ucdxml_query PROPERTIES
+    INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
+    INSTALL_RPATH_USE_LINK_PATH FALSE)
+install(TARGETS laplace_ucdxml_query
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
 add_executable(laplace_receipt_store
     receipt_store.cpp)
 target_link_libraries(laplace_receipt_store PRIVATE

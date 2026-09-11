@@ -405,15 +405,14 @@ laplace_tabular_source_status UpdateProfileCounts(
     return LAPLACE_TABULAR_SOURCE_OK;
 }
 
-laplace_tabular_source_status BuildRecursive(
+laplace_tabular_source_status BuildRecursiveWithProviders(
     const laplace_tabular_source_input* input,
     const laplace_decomposition_provider_v1* common_providers,
     const std::uint64_t common_provider_count,
     laplace_tabular_source_plan** plan) {
-    if (input == nullptr || common_providers == nullptr ||
-        common_provider_count == 0u ||
-        common_provider_count >= static_cast<std::uint64_t>(SIZE_MAX) ||
-        plan == nullptr || *plan != nullptr) {
+    if (input == nullptr || plan == nullptr || *plan != nullptr ||
+        (common_provider_count != 0u && common_providers == nullptr) ||
+        common_provider_count >= static_cast<std::uint64_t>(SIZE_MAX)) {
         return LAPLACE_TABULAR_SOURCE_INVALID_ARGUMENT;
     }
 
@@ -501,6 +500,10 @@ laplace_tabular_source_status BuildRecursive(
             }
             providers.push_back(fixed_width_provider.provider);
         }
+        if (providers.empty()) {
+            status = LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            goto recursive_failure;
+        }
 
         static constexpr char FallbackDelimitedMediaType[] =
             "text/tab-separated-values";
@@ -542,7 +545,8 @@ laplace_tabular_source_status BuildRecursive(
         laplace_decomposition_input decomposition_input{};
         decomposition_input.content = content;
         decomposition_input.providers = providers.data();
-        decomposition_input.provider_count = provider_count;
+        decomposition_input.provider_count =
+            static_cast<std::uint64_t>(providers.size());
         decomposition_input.maximum_spans = maximum_spans;
         decomposition_input.maximum_depth = 8u;
 
@@ -761,6 +765,42 @@ recursive_failure:
     return status;
 }
 
+laplace_tabular_source_status BuildRecursiveFromUnicode(
+    const laplace_tabular_source_input* input,
+    const laplace_unicode_source_bundle* unicode_bundle,
+    laplace_tabular_source_plan** plan) {
+    if (input == nullptr || unicode_bundle == nullptr || plan == nullptr ||
+        *plan != nullptr) {
+        return LAPLACE_TABULAR_SOURCE_INVALID_ARGUMENT;
+    }
+
+    laplace_unicode_source_receipt unicode_receipt{};
+    laplace_uax29_tables* uax_tables = nullptr;
+    if (laplace_unicode_source_bundle_receipt(
+            unicode_bundle, &unicode_receipt) != LAPLACE_UNICODE_OK ||
+        laplace_uax29_tables_create(unicode_bundle, &uax_tables) !=
+            LAPLACE_UAX29_OK ||
+        uax_tables == nullptr) {
+        laplace_uax29_tables_destroy(&uax_tables);
+        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+    }
+
+    const laplace_digest256 uax_fingerprint =
+        UaxProviderFingerprint(unicode_receipt);
+    laplace_decomposition_uax29_provider uax_provider{};
+    if (laplace_decomposition_uax29_provider_init(
+            &uax_provider, uax_tables, &uax_fingerprint) !=
+        LAPLACE_DECOMPOSITION_OK) {
+        laplace_uax29_tables_destroy(&uax_tables);
+        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+    }
+
+    const laplace_tabular_source_status status = BuildRecursiveWithProviders(
+        input, &uax_provider.provider, 1u, plan);
+    laplace_uax29_tables_destroy(&uax_tables);
+    return status;
+}
+
 }  // namespace recursive_admission
 
 extern "C" laplace_tabular_source_status laplace_tabular_source_plan_create(
@@ -801,6 +841,16 @@ laplace_source_decomposition_plan_create(
     } catch (const std::bad_alloc&) {
         return LAPLACE_TABULAR_SOURCE_MEMORY_FAILURE;
     }
+}
+
+extern "C" laplace_tabular_source_status
+laplace_tabular_source_plan_create_recursive_with_providers(
+    const laplace_tabular_source_input* input,
+    const laplace_decomposition_provider_v1* common_providers,
+    const std::uint64_t common_provider_count,
+    laplace_tabular_source_plan** plan) {
+    return laplace_source_decomposition_plan_create(
+        input, common_providers, common_provider_count, plan);
 }
 
 /* Compatibility entrypoint for callers that still own UAX authority as a

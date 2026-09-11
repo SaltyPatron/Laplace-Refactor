@@ -264,14 +264,14 @@ laplace_pg_source_profile_finalize_with_witnesses(
 
     /*
      * The source-profile occurrence denominator describes the canonical
-     * logical composition represented by this admission.  Explicit source
+     * logical composition represented by this admission. Explicit source
      * occurrence attestations are intentionally a separate execution fact:
      * recursive canonical subtrees are not allowed to manufacture source
      * sightings merely because they were lowered into the Merkle DAG.
      *
      * The generic tabular finalizer predates that separation and still closes
      * the profile on summary.occurrence_count (the explicitly emitted
-     * attestation count).  Product source admission must use the contract-owned
+     * attestation count). Product source admission uses the contract-owned
      * logical denominator consumed by world_admission_close_batch while leaving
      * summary.occurrence_count untouched in the composition execution receipt.
      */

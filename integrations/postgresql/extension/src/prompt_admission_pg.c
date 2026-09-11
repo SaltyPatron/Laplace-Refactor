@@ -7,149 +7,36 @@
 #include "access/htup_details.h"
 #include "blake3.h"
 #include "composition_pg.h"
+#include "content_admission_pg.h"
 #include "fmgr.h"
 #include "laplace/cognition_prompt_admission.h"
 #include "laplace/framework.h"
 #include "laplace_pg_internal.h"
 #include "persistence_pg.h"
 #include "prompt_admission_pg.h"
-#include "unicode_atoms_pg.h"
 #include "utils/builtins.h"
 #include "utils/memutils.h"
 
 PG_FUNCTION_INFO_V1(laplace_pg_cognition_prompt_admit);
 
-static void prompt_hash_u32(blake3_hasher* hasher, uint32_t value) {
-    uint8_t bytes[4];
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8u);
-    bytes[2] = (uint8_t)(value >> 16u);
-    bytes[3] = (uint8_t)(value >> 24u);
-    blake3_hasher_update(hasher, bytes, sizeof(bytes));
-}
-
-static void prompt_hash_u64(blake3_hasher* hasher, uint64_t value) {
-    uint8_t bytes[8];
-    size_t index;
-    for (index = 0u; index < sizeof(bytes); ++index) {
-        bytes[index] = (uint8_t)(value >> (index * 8u));
-    }
-    blake3_hasher_update(hasher, bytes, sizeof(bytes));
-}
-
-static void prompt_hash_double(blake3_hasher* hasher, double value) {
-    uint64_t bits = 0u;
-    memcpy(&bits, &value, sizeof(bits));
-    prompt_hash_u64(hasher, bits);
-}
-
-static int prompt_resolve_atoms(
-    void* opaque,
-    const uint32_t* atom_positions,
-    size_t atom_count,
-    laplace_composition_known_entity* known_entities,
-    laplace_digest256* provider_receipt_id) {
-    static const char receipt_domain[] =
-        "laplace-postgresql-prompt-atom-resolution-v1";
-    laplace_pg_prompt_atom_provider_state* state =
-        (laplace_pg_prompt_atom_provider_state*)opaque;
-    laplace_pg_active_unicode_root active;
-    blake3_hasher hasher;
-    size_t index;
-
-    if (state == NULL || atom_positions == NULL || atom_count == 0u ||
-        known_entities == NULL || provider_receipt_id == NULL) {
-        return 1;
-    }
-
-    memset(&active, 0, sizeof(active));
-    laplace_pg_resolve_active_unicode_atoms(
-        &state->context,
-        atom_positions,
-        atom_count,
-        known_entities,
-        &active);
-
-    blake3_hasher_init(&hasher);
-    blake3_hasher_update(
-        &hasher, receipt_domain, sizeof(receipt_domain) - 1u);
-    blake3_hasher_update(
-        &hasher,
-        state->provider_fingerprint.bytes,
-        sizeof(state->provider_fingerprint.bytes));
-    blake3_hasher_update(
-        &hasher, active.root_receipt.bytes, sizeof(active.root_receipt.bytes));
-    blake3_hasher_update(
-        &hasher,
-        active.activation_epoch_id.bytes,
-        sizeof(active.activation_epoch_id.bytes));
-    blake3_hasher_update(
-        &hasher,
-        active.activation_epoch_fingerprint.bytes,
-        sizeof(active.activation_epoch_fingerprint.bytes));
-    prompt_hash_u64(&hasher, (uint64_t)atom_count);
-    for (index = 0u; index < atom_count; ++index) {
-        const laplace_composition_known_entity* known = &known_entities[index];
-        prompt_hash_u32(&hasher, atom_positions[index]);
-        blake3_hasher_update(
-            &hasher, known->entity_id.bytes, sizeof(known->entity_id.bytes));
-        blake3_hasher_update(
-            &hasher,
-            known->identity_witness.bytes,
-            sizeof(known->identity_witness.bytes));
-        blake3_hasher_update(
-            &hasher,
-            known->physicality_id.bytes,
-            sizeof(known->physicality_id.bytes));
-        prompt_hash_double(&hasher, known->centroid.component[0]);
-        prompt_hash_double(&hasher, known->centroid.component[1]);
-        prompt_hash_double(&hasher, known->centroid.component[2]);
-        prompt_hash_double(&hasher, known->centroid.component[3]);
-        prompt_hash_u32(&hasher, known->atom);
-        prompt_hash_u32(&hasher, known->has_atom);
-        prompt_hash_u32(&hasher, known->tier_floor);
-    }
-    blake3_hasher_finalize(
-        &hasher,
-        provider_receipt_id->bytes,
-        sizeof(provider_receipt_id->bytes));
-    return 0;
-}
-
 void laplace_pg_prompt_atom_provider_create(
     const laplace_framework_context* context,
     laplace_pg_prompt_atom_provider_state* state,
     laplace_cognition_prompt_atom_provider_v1* provider) {
-    static const char domain[] =
-        "laplace-postgresql-active-unicode-prompt-atom-provider-v1";
-    blake3_hasher hasher;
+    laplace_content_atom_provider_v1 content_provider;
 
-    if (context == NULL || state == NULL || provider == NULL ||
-        laplace_framework_context_validate(context) != LAPLACE_FRAMEWORK_OK ||
-        (context->epoch_mask &
-         (UINT64_C(1) << LAPLACE_FRAMEWORK_EPOCH_PERFCACHE)) == 0u) {
+    if (provider == NULL) {
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("Laplace prompt atom provider requires a valid pinned Unicode epoch")));
+                 errmsg("Laplace prompt atom provider output is null")));
     }
 
-    memset(state, 0, sizeof(*state));
+    memset(&content_provider, 0, sizeof(content_provider));
+    laplace_pg_content_atom_provider_create(context, state, &content_provider);
     memset(provider, 0, sizeof(*provider));
-    state->context = *context;
-    blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, domain, sizeof(domain) - 1u);
-    blake3_hasher_update(
-        &hasher,
-        context->epochs[LAPLACE_FRAMEWORK_EPOCH_PERFCACHE].bytes,
-        sizeof(context->epochs[LAPLACE_FRAMEWORK_EPOCH_PERFCACHE].bytes));
-    blake3_hasher_finalize(
-        &hasher,
-        state->provider_fingerprint.bytes,
-        sizeof(state->provider_fingerprint.bytes));
-
-    provider->state = state;
-    provider->provider_fingerprint = state->provider_fingerprint;
-    provider->resolve = prompt_resolve_atoms;
+    provider->state = content_provider.state;
+    provider->provider_fingerprint = content_provider.provider_fingerprint;
+    provider->resolve = content_provider.resolve;
     provider->abi_major = LAPLACE_COGNITION_PROMPT_ATOM_PROVIDER_ABI_MAJOR;
     provider->abi_minor = LAPLACE_COGNITION_PROMPT_ATOM_PROVIDER_ABI_MINOR;
 }

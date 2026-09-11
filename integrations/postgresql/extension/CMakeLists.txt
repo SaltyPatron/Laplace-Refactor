@@ -128,6 +128,7 @@ set(laplace_postgresql_module_sources
     src/cognition_firmware_pg.c
     src/cognition_product_pg.c
     src/composition_pg.c
+    src/content_admission_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
     src/standing_calculation_pg.c

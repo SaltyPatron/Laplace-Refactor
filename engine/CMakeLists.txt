@@ -21,6 +21,7 @@ add_subdirectory(
 
 add_library(laplace_engine SHARED
     src/identity.c
+    src/text_identity.cpp
     src/geometry.c
     src/execution.cpp
     src/framework.c
@@ -32,6 +33,7 @@ add_library(laplace_engine SHARED
     src/persistence.c
     src/evidence_lineage.c
     src/evidence_testimony.c
+    src/source_evidence.cpp
     src/standing_calculation.c
     src/stock_recipe.c
     src/reference_topology.c
@@ -42,6 +44,7 @@ add_library(laplace_engine SHARED
     src/world_admission.c
     src/composition.cpp
     src/composition_execution.cpp
+    src/content_admission.cpp
     src/trajectory.c
     src/unicode_root.c
     src/unicode_root_builder.cpp
@@ -54,9 +57,15 @@ add_library(laplace_engine SHARED
     src/text_decomposition.cpp
     src/decomposition.cpp
     src/decomposition_composition.cpp
+    src/decomposition_composition_identity.cpp
     src/decomposition_uax29.cpp
     src/decomposition_delimited.cpp
     src/decomposition_fixed_width.cpp
+    src/decomposition_xml.cpp
+    src/decomposition_xml_ast.cpp
+    src/ucdxml_projection.cpp
+    src/ucdxml_evidence.cpp
+    src/ucdxml_estate.cpp
     src/decomposition_tree_sitter.cpp
     src/tree_sitter_grammar.cpp
     src/universal_ast.cpp
@@ -67,24 +76,10 @@ add_library(laplace_engine SHARED
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)
-# The opaque tabular plan is intentionally defined in one translation unit and
-# retains a private ParsedArtifact implementation type. GCC's subobject-linkage
-# diagnostic is therefore not an ODR boundary, but it is promoted by -Werror.
-# Keep the diagnostic visible while preventing this private implementation
-# detail from blocking the clean-room GCC build.
 set_source_files_properties(src/tabular_source.cpp PROPERTIES
     COMPILE_OPTIONS "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=subobject-linkage>")
-# composition.cpp now wraps the byte-preserved semantic implementation in the
-# same translation unit so runtime frontier receipts can be attached without a
-# second semantic engine. The opaque working-set contains private helper types,
-# making GCC emit the same non-ODR subobject-linkage diagnostic as tabular_source.
-# Scope the non-error treatment to this one implementation unit; all other
-# warnings and all global -Werror policy remain unchanged.
 set_source_files_properties(src/composition.cpp PROPERTIES
     COMPILE_OPTIONS "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=subobject-linkage>")
-# The generated ISA registry declares operation handlers in isa.c. Force-include
-# the AST packet handler before that registry is instantiated so the new 1.14
-# opcode enters the same binary-search dispatcher without a second switch.
 set_source_files_properties(src/isa.c PROPERTIES
     COMPILE_OPTIONS
         "$<$<COMPILE_LANG_AND_ID:C,GNU,Clang,IntelLLVM>:-include;${CMAKE_CURRENT_SOURCE_DIR}/src/isa_universal_ast_handler.h>")
@@ -112,6 +107,7 @@ add_library(Laplace::MachineException ALIAS laplace_engine)
 add_library(Laplace::Persistence ALIAS laplace_engine)
 add_library(Laplace::EvidenceLineage ALIAS laplace_engine)
 add_library(Laplace::EvidenceTestimony ALIAS laplace_engine)
+add_library(Laplace::SourceEvidence ALIAS laplace_engine)
 add_library(Laplace::StandingCalculation ALIAS laplace_engine)
 add_library(Laplace::StockRecipe ALIAS laplace_engine)
 add_library(Laplace::ReferenceTopology ALIAS laplace_engine)
@@ -121,6 +117,7 @@ add_library(Laplace::SourceBundle ALIAS laplace_engine)
 add_library(Laplace::TabularSource ALIAS laplace_engine)
 add_library(Laplace::WorldAdmission ALIAS laplace_engine)
 add_library(Laplace::Composition ALIAS laplace_engine)
+add_library(Laplace::ContentAdmission ALIAS laplace_engine)
 add_library(Laplace::Highway ALIAS laplace_engine)
 add_library(Laplace::UnicodeRoot ALIAS laplace_engine)
 add_library(Laplace::Uax29 ALIAS laplace_engine)
