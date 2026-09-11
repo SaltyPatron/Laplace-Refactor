@@ -32,14 +32,13 @@ jobs:
           python3 tests/product_path_status_tests.py
           python3 tests/source_discovery_catalog_tests.py
           git diff --check
-      - name: Commit exact repair set
+      - name: Commit exact non-workflow repair set
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'laplace-convergence'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
-            .github/workflows/ci.yml \
             engine/src/cognition_observation_candidate_provider.inc \
             engine/src/cognition_operator_part00.inc \
             tests/cognition_operator_tests.cpp \
@@ -49,7 +48,7 @@ jobs:
             tests/cognition_solver_tests.cpp
           git diff --cached --check
           if git diff --cached --quiet; then
-            echo 'Registered repairs already represented.'
+            echo 'Registered non-workflow repairs already represented.'
             exit 0
           fi
           git commit -m 'convergence: reconcile calculation evidence and current acceptance laws'
