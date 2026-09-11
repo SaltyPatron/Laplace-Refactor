@@ -122,7 +122,7 @@ Datum laplace_pg_cognition_realization_materialize_utf8(PG_FUNCTION_ARGS) {
     laplace_pg_materialization_provider_state* owner = NULL;
     laplace_cognition_materialization_status native_status =
         LAPLACE_COGNITION_MATERIALIZATION_INVALID_ARGUMENT;
-    ErrorData* provider_error = NULL;
+    ErrorData* provider_error;
     uint8_t* output;
     size_t output_bytes = 0u;
     Size allocation_bytes;
@@ -171,7 +171,6 @@ Datum laplace_pg_cognition_realization_materialize_utf8(PG_FUNCTION_ARGS) {
             (size_t)request.maximum_output_bytes,
             &output_bytes,
             &receipt);
-        provider_error = laplace_pg_materialization_provider_take_error(owner);
         if (SPI_finish() != SPI_OK_FINISH) {
             ereport(ERROR,
                     (errcode(ERRCODE_CONNECTION_FAILURE),
@@ -184,15 +183,12 @@ Datum laplace_pg_cognition_realization_materialize_utf8(PG_FUNCTION_ARGS) {
         if (spi_connected) {
             (void)SPI_finish();
         }
-        if (provider_error != NULL) {
-            FreeErrorData(provider_error);
-            provider_error = NULL;
-        }
         laplace_pg_materialization_provider_destroy(&owner);
         PG_RE_THROW();
     }
     PG_END_TRY();
 
+    provider_error = laplace_pg_materialization_provider_take_error(owner);
     laplace_pg_materialization_provider_destroy(&owner);
     if (provider_error != NULL) {
         ReThrowError(provider_error);
