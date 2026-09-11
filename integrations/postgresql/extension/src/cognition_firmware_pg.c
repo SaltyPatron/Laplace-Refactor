@@ -25,10 +25,29 @@ static void firmware_hash_u64(blake3_hasher* hasher, uint64_t value) {
     blake3_hasher_update(hasher, bytes, sizeof(bytes));
 }
 
+static bool firmware_add_u64(uint64_t* total, uint64_t value) {
+    if (total == NULL || value > UINT64_MAX - *total) {
+        return false;
+    }
+    *total += value;
+    return true;
+}
+
+static bool firmware_add_usage(
+    laplace_cognition_observation_candidate_usage* total,
+    const laplace_cognition_observation_candidate_usage* addend) {
+    return total != NULL && addend != NULL &&
+        firmware_add_u64(&total->rows_examined, addend->rows_examined) &&
+        firmware_add_u64(&total->index_plan_count, addend->index_plan_count) &&
+        firmware_add_u64(&total->crossing_count, addend->crossing_count) &&
+        firmware_add_u64(&total->io_operations, addend->io_operations) &&
+        firmware_add_u64(&total->database_operations, addend->database_operations);
+}
+
 static void firmware_router_identify(
     laplace_pg_firmware_provider_router* router) {
     static const char domain[] =
-        "laplace-postgresql-firmware-provider-router-v1";
+        "laplace-postgresql-firmware-provider-router-v2";
     const laplace_cognition_observation_candidate_provider_v1* children[2];
     blake3_hasher hasher;
     uint8_t present;
@@ -59,6 +78,39 @@ static void firmware_router_identify(
         sizeof(router->provider_fingerprint.bytes));
 }
 
+static int firmware_router_enumerate_one(
+    const laplace_cognition_observation_candidate_provider_v1* provider,
+    const laplace_observation_query_binding* binding,
+    const laplace_id128* source_entity_ids,
+    const laplace_query_search_state* frontier_states,
+    const uint64_t* accumulated_costs,
+    size_t frontier_state_count,
+    laplace_cognition_observation_candidate* candidates,
+    size_t candidate_capacity,
+    size_t* candidate_count,
+    laplace_cognition_observation_candidate_usage* usage) {
+    if (provider == NULL || candidate_count == NULL || usage == NULL) {
+        return 1;
+    }
+    *candidate_count = 0u;
+    memset(usage, 0, sizeof(*usage));
+    if (candidate_capacity == 0u) {
+        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+        return 0;
+    }
+    return provider->enumerate_candidates(
+        provider->state,
+        binding,
+        source_entity_ids,
+        frontier_states,
+        accumulated_costs,
+        frontier_state_count,
+        candidates,
+        candidate_capacity,
+        candidate_count,
+        usage);
+}
+
 static int firmware_router_enumerate(
     void* opaque,
     const laplace_observation_query_binding* binding,
@@ -72,7 +124,6 @@ static int firmware_router_enumerate(
     laplace_cognition_observation_candidate_usage* usage) {
     laplace_pg_firmware_provider_router* router =
         (laplace_pg_firmware_provider_router*)opaque;
-    const laplace_cognition_observation_candidate_provider_v1* selected = NULL;
     const uint32_t semantic_mask = LAPLACE_OBSERVATION_QUERY_SEMANTIC;
     const uint32_t structural_mask =
         LAPLACE_OBSERVATION_QUERY_RELATION_MASK & ~semantic_mask;
@@ -80,6 +131,11 @@ static int firmware_router_enumerate(
         binding != NULL && (binding->relation_mask & semantic_mask) != 0u;
     const bool wants_structural =
         binding != NULL && (binding->relation_mask & structural_mask) != 0u;
+    uint32_t limiting_disposition = 0u;
+    bool differing_dispositions = false;
+    size_t child_count = 0u;
+    laplace_cognition_observation_candidate_usage child_usage;
+    int status;
 
     if (candidate_count != NULL) {
         *candidate_count = 0u;
@@ -88,37 +144,91 @@ static int firmware_router_enumerate(
         memset(usage, 0, sizeof(*usage));
     }
     if (router == NULL || binding == NULL || candidate_count == NULL ||
-        usage == NULL ||
-        (binding->relation_mask & ~LAPLACE_OBSERVATION_QUERY_RELATION_MASK) != 0u ||
-        (wants_semantic && wants_structural)) {
+        usage == NULL || candidates == NULL || candidate_capacity == 0u ||
+        source_entity_ids == NULL || frontier_states == NULL ||
+        accumulated_costs == NULL || frontier_state_count == 0u ||
+        (binding->relation_mask & ~LAPLACE_OBSERVATION_QUERY_RELATION_MASK) != 0u) {
         return 1;
     }
     if (!wants_semantic && !wants_structural) {
         return 0;
     }
 
-    selected = wants_semantic ? router->semantic : router->physical;
-    if (selected == NULL) {
-        usage->limiting_disposition =
-            LAPLACE_QUERY_SEARCH_DISPOSITION_UNSUPPORTED;
-        return 0;
+    /* Relation families and evidence/source planes are orthogonal. A single
+     * native cognition step may legitimately ask for structural and semantic
+     * candidates together. Preserve both provider classes in one bounded batch
+     * instead of rejecting the mixed request at the PostgreSQL host boundary.
+     * Semantic is enumerated first because it is already index-bounded by the
+     * transition capacity; the physical provider receives all remaining slots.
+     * Any exhausted later plane fails/limits rather than silently disappearing. */
+    if (wants_semantic) {
+        if (router->semantic == NULL) {
+            limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNSUPPORTED;
+        } else {
+            status = firmware_router_enumerate_one(
+                router->semantic, binding, source_entity_ids, frontier_states,
+                accumulated_costs, frontier_state_count, candidates,
+                candidate_capacity, &child_count, &child_usage);
+            if (status != 0 || child_count > candidate_capacity ||
+                !firmware_add_usage(usage, &child_usage)) {
+                return 2;
+            }
+            *candidate_count = child_count;
+            if (child_usage.limiting_disposition != 0u) {
+                limiting_disposition = child_usage.limiting_disposition;
+            }
+        }
     }
-    return selected->enumerate_candidates(
-        selected->state,
-        binding,
-        source_entity_ids,
-        frontier_states,
-        accumulated_costs,
-        frontier_state_count,
-        candidates,
-        candidate_capacity,
-        candidate_count,
-        usage);
+
+    if (wants_structural) {
+        const size_t remaining = candidate_capacity - *candidate_count;
+        if (router->physical == NULL) {
+            if (limiting_disposition != 0u &&
+                limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_UNSUPPORTED) {
+                differing_dispositions = true;
+            }
+            limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNSUPPORTED;
+        } else if (remaining == 0u) {
+            differing_dispositions = limiting_disposition != 0u &&
+                limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+            limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+        } else {
+            memset(&child_usage, 0, sizeof(child_usage));
+            child_count = 0u;
+            status = firmware_router_enumerate_one(
+                router->physical, binding, source_entity_ids, frontier_states,
+                accumulated_costs, frontier_state_count,
+                candidates + *candidate_count, remaining,
+                &child_count, &child_usage);
+            if (status != 0 || child_count > remaining ||
+                !firmware_add_usage(usage, &child_usage)) {
+                return 3;
+            }
+            *candidate_count += child_count;
+            if (child_usage.limiting_disposition != 0u) {
+                if (limiting_disposition != 0u &&
+                    limiting_disposition != child_usage.limiting_disposition) {
+                    differing_dispositions = true;
+                }
+                limiting_disposition = child_usage.limiting_disposition;
+            }
+        }
+    }
+
+    if (*candidate_count != 0u) {
+        usage->limiting_disposition = 0u;
+    } else if (differing_dispositions) {
+        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+    } else {
+        usage->limiting_disposition = limiting_disposition;
+    }
+    return 0;
 }
 
 static void firmware_router_create(
     const laplace_cognition_observation_candidate_provider_v1* physical,
     const laplace_cognition_observation_candidate_provider_v1* semantic,
+    uint64_t transition_capacity,
     laplace_pg_firmware_provider_router* router,
     laplace_cognition_observation_candidate_provider_v1* provider) {
     uint64_t maximum = 0u;
@@ -130,9 +240,15 @@ static void firmware_router_create(
     if (physical != NULL) {
         maximum = physical->maximum_candidate_records_per_expansion;
     }
-    if (semantic != NULL &&
-        semantic->maximum_candidate_records_per_expansion > maximum) {
-        maximum = semantic->maximum_candidate_records_per_expansion;
+    if (semantic != NULL) {
+        if (maximum > UINT64_MAX - semantic->maximum_candidate_records_per_expansion) {
+            maximum = UINT64_MAX;
+        } else {
+            maximum += semantic->maximum_candidate_records_per_expansion;
+        }
+    }
+    if (maximum > transition_capacity) {
+        maximum = transition_capacity;
     }
     router->maximum_candidate_records_per_expansion = maximum;
     firmware_router_identify(router);
@@ -230,15 +346,15 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
                sizeof(program_id.bytes)) != 0)
         return firmware_host_error(error, LAPLACE_COGNITION_FIRMWARE_PROGRAM_MISMATCH, UINT32_MAX, 0u);
 
-    /* A step has one finite provider-family route. Physicality and semantic
-     * relations may both appear in one firmware program, but a single step may
-     * not flatten both classes into one unpartitioned candidate budget. */
+    /* Relation families are request filters, not provider/source-layer classes.
+     * One firmware step may request structural and semantic families together;
+     * the host keeps their candidates typed and the native provider set/search
+     * owns the combined bounded frontier. */
     for (step = 0u; step < program->step_count; ++step) {
         const uint32_t relation_mask = program->steps[step].relation_mask;
         const bool step_semantic = (relation_mask & semantic_mask) != 0u;
         const uint32_t step_structural = relation_mask & structural_mask;
-        if ((relation_mask & ~LAPLACE_OBSERVATION_QUERY_RELATION_MASK) != 0u ||
-            (step_semantic && step_structural != 0u)) {
+        if ((relation_mask & ~LAPLACE_OBSERVATION_QUERY_RELATION_MASK) != 0u) {
             return firmware_host_error(
                 error,
                 LAPLACE_COGNITION_FIRMWARE_PROVIDER_CONTRACT,
@@ -301,11 +417,10 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
         firmware_router_create(
             need_physical ? &physical_provider : NULL,
             need_semantic ? &semantic_provider : NULL,
+            (uint64_t)scope.search_budget.transition_batch_capacity,
             &router,
             &provider);
-        if (provider.maximum_candidate_records_per_expansion == 0u ||
-            provider.maximum_candidate_records_per_expansion >
-                scope.search_budget.transition_batch_capacity) {
+        if (provider.maximum_candidate_records_per_expansion == 0u) {
             laplace_pg_cognition_provider_destroy(&physical_owner);
             laplace_pg_semantic_provider_destroy(&semantic_owner);
             return firmware_host_error(
