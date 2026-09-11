@@ -1,22 +1,5 @@
 {
   "schema": "laplace.branch-estate-semantic-dispositions/v1",
   "rule": "Every entry is pinned to an exact live branch tip and must be backed by current-code or repository-history evidence.",
-  "entries": [
-    {
-      "repository": "Laplace-Refactor",
-      "branch": "cleanup/cognition-execution-contract",
-      "tip": "54f17a8a01e4bfaacf726159b655cd78ce2da6af",
-      "disposition": "ABSORBED_BY_STRONGER_CURRENT_COGNITION_CONTRACT",
-      "rationale": "PR #134's canonical cognition execution contract and architecture document are byte-identical on the convergence head. Current authority-stack and engineering standards retain the same native/filter-first/set-wise cognition law and hot-path prohibitions while adding later invention-lineage and observation/attestation boundaries. The current cognition_execution_trace validator and mutation suite continue enforcing recursive/dynamic SQL rejection, scalar/RBAR and accelerator-miss boundaries, exact edit law, A-star g+h, authority load order, and set-wise frontier acceptance. Replaying the older branch would therefore regress later authority projections without adding unique product law.",
-      "evidence": [
-        "SaltyPatron/Laplace-Refactor#134",
-        "contracts/cognition-execution.json blob 2a700d9a37193e876e3ea8b8ae0deda7f9ea3744 on branch and convergence",
-        "docs/architecture/COGNITION_EXECUTION.md blob 051b5290b5a8191294f4b4a093e175066e5a3e9b on branch and convergence",
-        "contracts/authority-stack.json",
-        "docs/architecture/ENGINEERING_STANDARDS.md",
-        "tools/tests/cognition_execution_trace.py",
-        "tests/cognition_execution_trace_tests.py"
-      ]
-    }
-  ]
+  "entries": []
 }
