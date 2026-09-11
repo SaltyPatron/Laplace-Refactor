@@ -17,11 +17,11 @@
 #include "laplace/decomposition_uax29.h"
 #include "laplace/framework.h"
 #include "laplace/uax29.h"
-#include "laplace/unicode_root.h"
 #include "laplace_pg_internal.h"
 #include "materialization_pg.h"
 #include "persistence_pg.h"
 #include "prompt_admission_pg.h"
+#include "uax29_active_pg.h"
 
 PG_FUNCTION_INFO_V1(laplace_pg_cognition_product_execute);
 
@@ -30,7 +30,6 @@ typedef struct laplace_pg_cognition_product_owners {
     laplace_cognition_prompt_admission* admission;
     laplace_cognition_firmware_result* result;
     laplace_pg_materialization_provider_state* materialization;
-    laplace_unicode_source_bundle* unicode_bundle;
     laplace_uax29_tables* uax29_tables;
     MemoryContextCallback cleanup;
 } laplace_pg_cognition_product_owners;
@@ -46,7 +45,6 @@ static void product_release(void* opaque) {
     laplace_cognition_firmware_image_destroy(&owners->image);
     laplace_pg_materialization_provider_destroy(&owners->materialization);
     laplace_uax29_tables_destroy(&owners->uax29_tables);
-    laplace_unicode_source_bundle_close(&owners->unicode_bundle);
 }
 
 static void product_hash_u32(blake3_hasher* hasher, uint32_t value) {
@@ -95,17 +93,16 @@ static void product_digest(
 }
 
 static laplace_digest256 product_uax29_fingerprint(
-    const laplace_unicode_source_receipt* receipt) {
-    static const char domain[] = "laplace-uax29-r47-provider-v1";
+    const laplace_pg_active_uax_authority* authority) {
+    static const char domain[] = "laplace.decomposition.provider.uax29/v1";
     laplace_digest256 output;
     blake3_hasher hasher;
     memset(&output, 0, sizeof(output));
     blake3_hasher_init(&hasher);
     product_hash_u64(&hasher, (uint64_t)(sizeof(domain) - 1u));
     blake3_hasher_update(&hasher, domain, sizeof(domain) - 1u);
-    product_hash_digest(&hasher, &receipt->receipt_id);
-    product_hash_digest(&hasher, &receipt->source_fingerprint);
-    product_hash_digest(&hasher, &receipt->verified_file_set_fingerprint);
+    product_hash_digest(&hasher, &authority->source_fingerprint);
+    product_hash_digest(&hasher, &authority->recipe_fingerprint);
     blake3_hasher_finalize(&hasher, output.bytes, sizeof(output.bytes));
     return output;
 }
@@ -408,7 +405,7 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
     laplace_decomposition_provider_v1 prompt_provider;
     laplace_decomposition_provider_v1 prompt_providers[2];
     laplace_decomposition_uax29_provider uax29_provider;
-    laplace_unicode_source_receipt unicode_receipt;
+    laplace_pg_active_uax_authority uax_authority;
     laplace_digest256 uax29_fingerprint;
     laplace_framework_producer_v1 prompt_producer;
     laplace_pg_persistence_producer_result prompt_persistence;
@@ -421,8 +418,6 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
     laplace_cognition_firmware_error firmware_error;
     laplace_cognition_firmware_status status;
     laplace_cognition_prompt_admission_status prompt_status;
-    laplace_unicode_status unicode_status;
-    laplace_uax29_status uax29_status;
     ErrorData* database_error = NULL;
     ErrorData* materialization_error = NULL;
     laplace_pg_cognition_product_owners* owners;
@@ -450,7 +445,7 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
     memset(&prompt_input, 0, sizeof(prompt_input));
     memset(&prompt_view, 0, sizeof(prompt_view));
     memset(&uax29_provider, 0, sizeof(uax29_provider));
-    memset(&unicode_receipt, 0, sizeof(unicode_receipt));
+    memset(&uax_authority, 0, sizeof(uax_authority));
     memset(&uax29_fingerprint, 0, sizeof(uax29_fingerprint));
     memset(prompt_providers, 0, sizeof(prompt_providers));
     memset(&prompt_producer, 0, sizeof(prompt_producer));
@@ -518,28 +513,23 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
                  errmsg("Laplace product prompt context cannot be fingerprinted")));
     }
 
-    unicode_status = laplace_unicode_source_bundle_open(
-        LAPLACE_UNICODE_SOURCE_ROOT,
-        &owners->unicode_bundle,
-        &unicode_receipt);
-    if (unicode_status != LAPLACE_UNICODE_OK || owners->unicode_bundle == NULL) {
+    /* Prompt segmentation is derived from the same activated canonical Unicode
+     * generation already bound to product execution. The live cognition route
+     * never reopens the source-estate filesystem as a second authority. */
+    laplace_pg_uax29_tables_from_active_unicode(
+        &owners->uax29_tables, &uax_authority);
+    if ((context.epoch_mask &
+         (UINT64_C(1) << LAPLACE_FRAMEWORK_EPOCH_PERFCACHE)) == 0u ||
+        memcmp(
+            context.epochs[LAPLACE_FRAMEWORK_EPOCH_PERFCACHE].bytes,
+            uax_authority.activation_epoch_fingerprint.bytes,
+            sizeof(uax_authority.activation_epoch_fingerprint.bytes)) != 0) {
         product_release(owners);
         ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace product prompt Unicode source cannot be opened"),
-                 errdetail("status=%u", (unsigned int)unicode_status)));
+                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                 errmsg("Laplace product prompt Unicode authority does not match the execution context")));
     }
-    uax29_status = laplace_uax29_tables_create(
-        owners->unicode_bundle, &owners->uax29_tables);
-    if (uax29_status != LAPLACE_UAX29_OK || owners->uax29_tables == NULL) {
-        product_release(owners);
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("Laplace product prompt UAX29 tables cannot be constructed"),
-                 errdetail("status=%u", (unsigned int)uax29_status)));
-    }
-    laplace_unicode_source_bundle_close(&owners->unicode_bundle);
-    uax29_fingerprint = product_uax29_fingerprint(&unicode_receipt);
+    uax29_fingerprint = product_uax29_fingerprint(&uax_authority);
     if (laplace_decomposition_uax29_provider_init(
             &uax29_provider,
             owners->uax29_tables,
