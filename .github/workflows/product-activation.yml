@@ -141,7 +141,7 @@ jobs:
           test -d "$physical_release"
 
           receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
-          resource_directory="$receipt_root/plan/$package_id"
+          resource_directory="$receipt_root/cluster-activation/$package_id"
           resource_observation="$resource_directory/resource-observation.json"
           install -d -m 0750 "$resource_directory"
           python3 tools/postgresql/resourcectl.py observe-resources \
@@ -329,7 +329,7 @@ jobs:
           set -euo pipefail
           package_id='${{ needs.compose-product.outputs.package_id }}'
           receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
-          proof="$receipt_root/product-cognition/$package_id/installed-proof.json"
+          proof="$receipt_root/cluster-activation/$package_id/installed-cognition-proof.json"
           python3 tools/delivery/product_cognition_live_proof.py --output "$proof"
           jq -e \
             --arg package_id "$package_id" '
