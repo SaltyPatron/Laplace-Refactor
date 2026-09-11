@@ -108,60 +108,94 @@ int EnumerateCompositeCandidates(
     std::uint32_t common_limiting_disposition = 0U;
     bool saw_limiting_disposition = false;
     bool limiting_dispositions_differ = false;
+    bool aggregate_capacity_exceeded = false;
 
-    for (const auto& provider : provider_set.providers) {
-        if (*candidate_count >= candidate_capacity) return 2;
-        const std::size_t first_child_candidate = *candidate_count;
-        const std::size_t remaining = candidate_capacity - first_child_candidate;
-        std::size_t child_count = 0U;
-        laplace_cognition_observation_candidate_usage child_usage{};
-        const int child_status = provider.enumerate_candidates(
-            provider.state, binding, source_entity_ids, frontier_states,
-            accumulated_costs, frontier_state_count,
-            candidates + first_child_candidate, remaining, &child_count, &child_usage);
-        if (child_status != 0) return 3;
-        if (child_count > remaining || child_usage.flags != 0U ||
-            !LimitingDispositionValid(child_usage.limiting_disposition) ||
-            (child_usage.limiting_disposition != 0U && child_count != 0U)) {
-            return 4;
-        }
-        for (std::size_t offset = 0U; offset < child_count; ++offset) {
-            if (!CandidateSourceLayerValid(
-                    candidates[first_child_candidate + offset].source_layer)) {
+    try {
+        /*
+         * Every child sees the same bounded transition capacity. Writing a child
+         * directly into the shared tail made provider order observable: an early
+         * provider could consume the whole buffer and prevent later typed planes
+         * from being queried at all. Stage one child at a time, then publish only
+         * if the complete cross-provider candidate set fits the caller's bound.
+         * The scratch vector is exactly one transition batch and cannot grow with
+         * provider count or world size.
+         */
+        std::vector<laplace_cognition_observation_candidate> staged(
+            candidate_capacity);
+
+        for (const auto& provider : provider_set.providers) {
+            std::size_t child_count = 0U;
+            laplace_cognition_observation_candidate_usage child_usage{};
+            const int child_status = provider.enumerate_candidates(
+                provider.state, binding, source_entity_ids, frontier_states,
+                accumulated_costs, frontier_state_count,
+                staged.data(), staged.size(), &child_count, &child_usage);
+            if (child_status != 0) return 2;
+            if (child_count > staged.size() || child_usage.flags != 0U ||
+                !LimitingDispositionValid(child_usage.limiting_disposition) ||
+                (child_usage.limiting_disposition != 0U && child_count != 0U)) {
+                return 3;
+            }
+            for (std::size_t offset = 0U; offset < child_count; ++offset) {
+                if (!CandidateSourceLayerValid(staged[offset].source_layer)) {
+                    return 4;
+                }
+            }
+
+            if (provider.maximum_candidate_records_per_expansion >
+                std::numeric_limits<std::uint64_t>::max() /
+                    static_cast<std::uint64_t>(frontier_state_count)) {
                 return 5;
             }
-        }
+            const std::uint64_t child_maximum =
+                provider.maximum_candidate_records_per_expansion *
+                static_cast<std::uint64_t>(frontier_state_count);
+            if (child_usage.rows_examined > child_maximum ||
+                static_cast<std::uint64_t>(child_count) > child_maximum) {
+                return 6;
+            }
+            if (!AddUsage(usage, child_usage)) return 7;
 
-        if (provider.maximum_candidate_records_per_expansion >
-            std::numeric_limits<std::uint64_t>::max() /
-                static_cast<std::uint64_t>(frontier_state_count)) {
-            return 6;
-        }
-        const std::uint64_t child_maximum =
-            provider.maximum_candidate_records_per_expansion *
-            static_cast<std::uint64_t>(frontier_state_count);
-        if (child_usage.rows_examined > child_maximum ||
-            static_cast<std::uint64_t>(child_count) > child_maximum) {
-            return 7;
-        }
-        if (!AddUsage(usage, child_usage)) return 8;
-        *candidate_count += child_count;
+            if (child_count > candidate_capacity - *candidate_count) {
+                aggregate_capacity_exceeded = true;
+            } else if (!aggregate_capacity_exceeded) {
+                std::copy_n(
+                    staged.data(), child_count,
+                    candidates + *candidate_count);
+                *candidate_count += child_count;
+            }
 
-        if (child_usage.limiting_disposition != 0U) {
-            if (!saw_limiting_disposition) {
-                common_limiting_disposition = child_usage.limiting_disposition;
-                saw_limiting_disposition = true;
-            } else if (common_limiting_disposition !=
-                       child_usage.limiting_disposition) {
-                limiting_dispositions_differ = true;
+            if (child_usage.limiting_disposition != 0U) {
+                if (!saw_limiting_disposition) {
+                    common_limiting_disposition = child_usage.limiting_disposition;
+                    saw_limiting_disposition = true;
+                } else if (common_limiting_disposition !=
+                           child_usage.limiting_disposition) {
+                    limiting_dispositions_differ = true;
+                }
             }
         }
+    } catch (const std::bad_alloc&) {
+        return 8;
+    }
+
+    /*
+     * More typed candidates existed than the declared transition batch can hold.
+     * Never publish the prefix as though it were a complete cross-plane set: the
+     * omitted provider could change path ordering, completion, or the selected
+     * act. UNKNOWN is the existing typed bounded-search disposition for this case.
+     */
+    if (aggregate_capacity_exceeded) {
+        *candidate_count = 0U;
+        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+        return 0;
     }
 
     /*
      * A provider that produced candidates must not make another provider's
-     * abstention look like a terminal denial. If every provider abstained with
-     * one common reason, preserve it; heterogeneous abstentions remain UNKNOWN.
+     * epistemic abstention look like a terminal denial. If every provider
+     * abstained with one common reason, preserve it; heterogeneous abstentions
+     * remain UNKNOWN. Capacity truncation is handled separately above.
      */
     if (*candidate_count != 0U) {
         usage->limiting_disposition = 0U;
