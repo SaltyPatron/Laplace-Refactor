@@ -12,7 +12,6 @@
     "release_root": "/opt/laplace/releases",
     "active_link": "/opt/laplace/current",
     "required_files": [
-      "bin/laplace-model-export",
       "bin/laplace_resource_observe",
       "bin/laplace_unicode_activation_identify",
       "pgsql-18/bin/initdb",
