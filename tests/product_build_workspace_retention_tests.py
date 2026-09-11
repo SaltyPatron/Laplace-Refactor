@@ -27,7 +27,7 @@ class ProductBuildWorkspaceRetentionTests(unittest.TestCase):
         self.product = self.root / "build/laplace/runner/product"
         self.build_root = self.product / "build"
         self.stage_root = self.product / "stage"
-        self.receipt_root = self.root / "opt/laplace/receipts/product-build-retention"
+        self.receipt_root = self.product / "retention"
         self.build_root.mkdir(parents=True)
         self.stage_root.mkdir(parents=True)
         self.receipt_root.mkdir(parents=True)
@@ -89,6 +89,7 @@ class ProductBuildWorkspaceRetentionTests(unittest.TestCase):
         metadata = json.loads((retained / "retention.json").read_text(encoding="utf-8"))
         self.assertTrue(metadata["payload_rebuildable"])
         self.assertTrue(metadata["payload_reclaimed"])
+        self.assertEqual(receipt["retention_root"], str(self.receipt_root))
         self.assertGreater(receipt["allocated_bytes_reclaimed"], 0)
         self.assertEqual(receipt["removed"][0]["reason"], "completed-plan-payload-rebuildable")
 
@@ -173,6 +174,17 @@ class ProductBuildWorkspaceRetentionTests(unittest.TestCase):
             )
         self.assertTrue(build.is_dir())
         self.assertTrue(stage.is_dir())
+
+    def test_execution_retention_cannot_escape_product_build_estate(self) -> None:
+        outside = self.root / "opt/laplace/receipts/not-build-state"
+        with self.assertRaisesRegex(RETENTION.RetentionError, "inside the product build estate"):
+            RETENTION.reconcile(
+                self.contract,
+                receipt_root=outside,
+                preserve=set(),
+                minimum_age_seconds=0,
+                now=1000,
+            )
 
 
 if __name__ == "__main__":
