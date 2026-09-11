@@ -31,6 +31,21 @@
         "engine/src/cognition_observation_request_provider.inc",
         "tests/cognition_observation_request_tests.cpp"
       ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "delivery/persisted-cognition-current-main-20260906",
+      "tip": "5c7762301eac32aab3e39d9b53a9f74c430f7b47",
+      "disposition": "ABSORBED_AND_EVOLVED_BY_CURRENT_PERSISTED_COGNITION_ROUTE",
+      "rationale": "This one-commit branch rebased the durable-state cognition route onto an earlier main by adding the PostgreSQL persisted cognition function and native implementation. Current main retains the same public cognition_observation_execute_persisted route and laplace_pg_cognition_observation_execute_persisted symbol, includes the implementation in the extension, exercises it in PostgreSQL contract tests, and has since evolved the return contract and activation readback around that route. Replaying the older patch would regress the newer persisted-result and activation boundaries rather than recover missing cognition behavior.",
+      "evidence": [
+        "5c7762301eac32aab3e39d9b53a9f74c430f7b47",
+        "integrations/postgresql/extension/observation_cognition_persisted.sql.in",
+        "integrations/postgresql/extension/src/observation_cognition_persisted_pg.c",
+        "integrations/postgresql/extension/tests/observation_cognition_contract.sql.in",
+        "tools/delivery/product_activation_runner.py",
+        "tools/delivery/product_activation_reconcile.py"
+      ]
     }
   ]
 }
