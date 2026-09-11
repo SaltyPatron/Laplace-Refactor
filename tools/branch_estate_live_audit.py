@@ -2,9 +2,9 @@
 """Audit live remote branches against authoritative main.
 
 This is a reconciliation inventory, not a deletion tool. It never mutates refs.
-It proves mechanically absorbed refs, then groups everything else by the exact
-non-merge patch set that is still absent from current main. Whole-tree divergence
-is retained as context but is not treated as proof of missing product behavior.
+It proves mechanically absorbed refs and commits using ancestry, tree identity,
+stable patch equivalence, and exact post-commit path state. Everything else is
+grouped by the non-merge patch set still requiring behavior-level reconciliation.
 """
 
 from __future__ import annotations
@@ -95,10 +95,58 @@ def commit_subject(repo: pathlib.Path, commit: str) -> str:
 def commit_changed_files(repo: pathlib.Path, commit: str) -> list[str]:
     parents = commit_parents(repo, commit)
     if parents:
-        raw = git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", parents[0], commit)
+        raw = git(
+            repo,
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            parents[0],
+            commit,
+        )
     else:
-        raw = git(repo, "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", commit)
+        raw = git(
+            repo,
+            "diff-tree",
+            "--root",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            commit,
+        )
     return [line.strip() for line in raw.splitlines() if line.strip()]
+
+
+def path_state(repo: pathlib.Path, ref: str, path: str) -> str:
+    """Return exact Git tree entry state (mode/type/object/name), or MISSING."""
+    proc = run(repo, "ls-tree", ref, "--", path)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"git ls-tree {ref} -- {path} failed in {repo}: {proc.stderr.strip()}"
+        )
+    value = proc.stdout.rstrip("\n")
+    return value if value else "MISSING"
+
+
+def final_path_state_absorbed(
+    repo: pathlib.Path,
+    main: str,
+    commit: str,
+    files: tuple[str, ...],
+    cache: dict[tuple[str, str], str],
+) -> bool:
+    if not files:
+        return True
+    for path in files:
+        commit_key = (commit, path)
+        main_key = (main, path)
+        if commit_key not in cache:
+            cache[commit_key] = path_state(repo, commit, path)
+        if main_key not in cache:
+            cache[main_key] = path_state(repo, main, path)
+        if cache[commit_key] != cache[main_key]:
+            return False
+    return True
 
 
 def patch_id(repo: pathlib.Path, commit: str) -> str | None:
@@ -172,6 +220,7 @@ class BranchRecord:
     behind: int
     unique_commits: int
     unique_nonmerge_commits: int
+    final_state_absorbed_commits: int
     missing_patch_count: int
     missing_patch_keys: list[str]
     missing_patches: list[dict]
@@ -189,10 +238,12 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
     patch_cache: dict[str, str | None] = {}
     subject_cache: dict[str, str] = {}
     changed_cache: dict[str, tuple[str, ...]] = {}
+    state_cache: dict[tuple[str, str], str] = {}
     baseline_patch_ids = main_patch_ids(repo, main, patch_cache)
     records: list[BranchRecord] = []
     patch_to_branches: dict[str, set[str]] = collections.defaultdict(set)
     patch_details: dict[str, MissingPatch] = {}
+    final_state_absorbed_commits: set[str] = set()
 
     for index, ref in enumerate(refs, 1):
         name = ref.removeprefix("origin/")
@@ -202,6 +253,7 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
         uniques = unique_commits(repo, main, ref)
         nonmerges = [commit for commit in uniques if not is_merge(repo, commit)]
         missing_records: list[MissingPatch] = []
+        branch_final_state_absorbed = 0
 
         for commit in nonmerges:
             if commit not in changed_cache:
@@ -215,10 +267,16 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
             pid = patch_cache[commit]
             if pid is not None and pid in baseline_patch_ids:
                 continue
+            if final_path_state_absorbed(
+                repo, main, commit, commit_files, state_cache
+            ):
+                final_state_absorbed_commits.add(commit)
+                branch_final_state_absorbed += 1
+                continue
             if commit not in subject_cache:
                 subject_cache[commit] = commit_subject(repo, commit)
-            # A patch-id failure with real changed files remains fail-closed and is
-            # keyed by commit SHA rather than silently treated as absorbed.
+            # A patch-id failure with changed final state remains fail-closed and
+            # is keyed by commit SHA rather than silently treated as absorbed.
             key = f"patch:{pid}" if pid else f"commit:{commit}"
             record = MissingPatch(
                 key=key,
@@ -231,7 +289,6 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
             patch_to_branches[key].add(name)
             patch_details.setdefault(key, record)
 
-        # Preserve order for readability but group branches by the de-duplicated set.
         unique_missing = {record.key: record for record in missing_records}
         ordered_missing = [unique_missing[key] for key in sorted(unique_missing)]
 
@@ -249,7 +306,7 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
             if not files:
                 classification = "SAME_CONTENT_AS_MAIN"
             elif nonmerges and not ordered_missing:
-                classification = "PATCH_EQUIVALENT_BUT_TREE_DIVERGED"
+                classification = "MECHANICALLY_ABSORBED_BUT_TREE_DIVERGED"
             elif not uniques:
                 classification = "NO_UNIQUE_COMMITS_BUT_TREE_DIVERGED"
             else:
@@ -265,6 +322,7 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
                 behind=behind,
                 unique_commits=len(uniques),
                 unique_nonmerge_commits=len(nonmerges),
+                final_state_absorbed_commits=branch_final_state_absorbed,
                 missing_patch_count=len(ordered_missing),
                 missing_patch_keys=[record.key for record in ordered_missing],
                 missing_patches=[asdict(record) for record in ordered_missing],
@@ -321,7 +379,6 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
         if record.classification
         in {
             "UNIQUE_BEHAVIOR_CANDIDATE",
-            "PATCH_EQUIVALENT_BUT_TREE_DIVERGED",
             "NO_UNIQUE_COMMITS_BUT_TREE_DIVERGED",
         }
     ]
@@ -333,6 +390,7 @@ def audit_repo(repo: pathlib.Path, label: str) -> dict:
         "branch_count_including_main": len(refs) + 1,
         "classification_counts": dict(sorted(counts.items())),
         "candidate_branch_count": len(candidate_records),
+        "final_state_absorbed_commit_count": len(final_state_absorbed_commits),
         "unique_missing_patch_count": len(missing_patches),
         "missing_patch_signature_group_count": len(missing_patch_groups),
         "duplicate_tip_groups": duplicate_tip_groups,
@@ -350,6 +408,10 @@ def print_summary(report: dict) -> None:
         print(f"  main: {repo['main']}")
         print(f"  branches including main: {repo['branch_count_including_main']}")
         print(f"  candidate branches: {repo['candidate_branch_count']}")
+        print(
+            "  exact final-state absorbed commits: "
+            f"{repo['final_state_absorbed_commit_count']}"
+        )
         print(f"  unique missing patches: {repo['unique_missing_patch_count']}")
         print(
             "  missing-patch signature groups: "
@@ -384,11 +446,12 @@ def main() -> int:
         repositories.append(audit_repo(pathlib.Path(raw_path).resolve(), label))
 
     report = {
-        "schema": "laplace.branch-estate-live-audit/v2",
+        "schema": "laplace.branch-estate-live-audit/v3",
         "reconciliation_rule": (
-            "Only exact main ancestry/content or proven patch equivalence is mechanically "
-            "absorbed. Missing patch groups require behavior-level reconciliation before "
-            "retirement; tree divergence alone is not counted as missing behavior."
+            "Exact ancestry/content, stable patch equivalence, and exact post-commit "
+            "path-state equivalence are mechanically absorbed. Everything else "
+            "requires behavior-level reconciliation before retirement; historical "
+            "tree divergence alone is never counted as proof of missing behavior."
         ),
         "repositories": repositories,
     }
