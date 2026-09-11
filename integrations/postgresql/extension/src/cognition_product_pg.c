@@ -14,7 +14,10 @@
 #include "laplace/cognition_firmware.h"
 #include "laplace/cognition_prompt_admission.h"
 #include "laplace/cognition_realization.h"
+#include "laplace/decomposition_uax29.h"
 #include "laplace/framework.h"
+#include "laplace/uax29.h"
+#include "laplace/unicode_root.h"
 #include "laplace_pg_internal.h"
 #include "materialization_pg.h"
 #include "persistence_pg.h"
@@ -27,6 +30,8 @@ typedef struct laplace_pg_cognition_product_owners {
     laplace_cognition_prompt_admission* admission;
     laplace_cognition_firmware_result* result;
     laplace_pg_materialization_provider_state* materialization;
+    laplace_unicode_source_bundle* unicode_bundle;
+    laplace_uax29_tables* uax29_tables;
     MemoryContextCallback cleanup;
 } laplace_pg_cognition_product_owners;
 
@@ -40,10 +45,21 @@ static void product_release(void* opaque) {
     laplace_cognition_prompt_admission_destroy(&owners->admission);
     laplace_cognition_firmware_image_destroy(&owners->image);
     laplace_pg_materialization_provider_destroy(&owners->materialization);
+    laplace_uax29_tables_destroy(&owners->uax29_tables);
+    laplace_unicode_source_bundle_close(&owners->unicode_bundle);
 }
 
 static void product_hash_u32(blake3_hasher* hasher, uint32_t value) {
     uint8_t bytes[4];
+    size_t index;
+    for (index = 0u; index < sizeof(bytes); ++index) {
+        bytes[index] = (uint8_t)(value >> (index * 8u));
+    }
+    blake3_hasher_update(hasher, bytes, sizeof(bytes));
+}
+
+static void product_hash_u64(blake3_hasher* hasher, uint64_t value) {
+    uint8_t bytes[8];
     size_t index;
     for (index = 0u; index < sizeof(bytes); ++index) {
         bytes[index] = (uint8_t)(value >> (index * 8u));
@@ -76,6 +92,22 @@ static void product_digest(
     if (id != NULL) product_hash_id(&hasher, id);
     product_hash_u32(&hasher, flags);
     blake3_hasher_finalize(&hasher, output->bytes, sizeof(output->bytes));
+}
+
+static laplace_digest256 product_uax29_fingerprint(
+    const laplace_unicode_source_receipt* receipt) {
+    static const char domain[] = "laplace-uax29-r47-provider-v1";
+    laplace_digest256 output;
+    blake3_hasher hasher;
+    memset(&output, 0, sizeof(output));
+    blake3_hasher_init(&hasher);
+    product_hash_u64(&hasher, (uint64_t)(sizeof(domain) - 1u));
+    blake3_hasher_update(&hasher, domain, sizeof(domain) - 1u);
+    product_hash_digest(&hasher, &receipt->receipt_id);
+    product_hash_digest(&hasher, &receipt->source_fingerprint);
+    product_hash_digest(&hasher, &receipt->verified_file_set_fingerprint);
+    blake3_hasher_finalize(&hasher, output.bytes, sizeof(output.bytes));
+    return output;
 }
 
 /* Production exact-reuse realization. A completed semantic act already names an
@@ -171,8 +203,10 @@ static void product_realization_provider(
     provider->abi_minor = LAPLACE_COGNITION_REALIZATION_PROVIDER_ABI_MINOR;
 }
 
-/* The product prompt root is exact bytes only. Structural UAX/grammar witnesses
- * may be admitted separately; they never change this canonical trunk identity. */
+/* The canonical prompt trunk remains the exact whole byte sequence. The product
+ * root provider only redispatches that exact range as text so the shared UAX29
+ * provider can add grapheme/word/sentence structural witnesses underneath it.
+ * No semantic assertion is created by this edge operation. */
 static laplace_decomposition_status product_prompt_applicable(
     void* state,
     const laplace_decomposition_content* content,
@@ -194,15 +228,24 @@ static laplace_decomposition_status product_prompt_apply(
     laplace_decomposition_emit_fn emit,
     void* emit_state) {
     (void)state;
-    (void)content;
-    (void)span;
-    (void)emit;
-    (void)emit_state;
-    return LAPLACE_DECOMPOSITION_OK;
+    if (content == NULL || span == NULL || emit == NULL ||
+        span->byte_start >= span->byte_end ||
+        span->byte_end > content->byte_count) {
+        return LAPLACE_DECOMPOSITION_INVALID_ARGUMENT;
+    }
+    return emit(
+               emit_state,
+               span->byte_start,
+               span->byte_end,
+               UINT64_C(0x50524F4D50540001),
+               LAPLACE_DECOMPOSITION_SPAN_TEXT |
+                   LAPLACE_DECOMPOSITION_SPAN_REDISPATCH) == 0
+        ? LAPLACE_DECOMPOSITION_OK
+        : LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;
 }
 
 static laplace_decomposition_provider_v1 product_prompt_provider(void) {
-    static const char domain[] = "laplace-postgresql-product-prompt-root-v1";
+    static const char domain[] = "laplace-postgresql-product-prompt-root-v2";
     laplace_decomposition_provider_v1 provider;
     blake3_hasher hasher;
     memset(&provider, 0, sizeof(provider));
@@ -355,7 +398,7 @@ static void product_read_prompt_scope(
     if (turn_flags < 0) {
         ereport(ERROR,
                 (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("Laplace turn_flags cannot be negative")));
+                 errmsg("Laplace turn_flags cannot be negative", field)));
     }
     input->occurrence.turn_flags = (uint32_t)turn_flags;
     input->source_ordinal_base = product_read_u64(tuple, 13, "source_ordinal_base");
@@ -373,6 +416,10 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
     laplace_cognition_prompt_atom_provider_v1 atoms;
     laplace_composition_presence_provider_v1 presence;
     laplace_decomposition_provider_v1 prompt_provider;
+    laplace_decomposition_provider_v1 prompt_providers[2];
+    laplace_decomposition_uax29_provider uax29_provider;
+    laplace_unicode_source_receipt unicode_receipt;
+    laplace_digest256 uax29_fingerprint;
     laplace_framework_producer_v1 prompt_producer;
     laplace_pg_persistence_producer_result prompt_persistence;
     laplace_cognition_realization_provider_v1 realization;
@@ -384,6 +431,8 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
     laplace_cognition_firmware_error firmware_error;
     laplace_cognition_firmware_status status;
     laplace_cognition_prompt_admission_status prompt_status;
+    laplace_unicode_status unicode_status;
+    laplace_uax29_status uax29_status;
     ErrorData* database_error = NULL;
     ErrorData* materialization_error = NULL;
     laplace_pg_cognition_product_owners* owners;
@@ -398,6 +447,8 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
     size_t image_view_bytes = 0u;
     size_t output_bytes = 0u;
     size_t checkpoint_bytes = 0u;
+    uint64_t prompt_bytes;
+    uint64_t prompt_span_capacity;
     laplace_digest256 program_id;
     int64 workspace;
     int publication_required = 0;
@@ -408,6 +459,10 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
     memset(&program, 0, sizeof(program));
     memset(&prompt_input, 0, sizeof(prompt_input));
     memset(&prompt_view, 0, sizeof(prompt_view));
+    memset(&uax29_provider, 0, sizeof(uax29_provider));
+    memset(&unicode_receipt, 0, sizeof(unicode_receipt));
+    memset(&uax29_fingerprint, 0, sizeof(uax29_fingerprint));
+    memset(prompt_providers, 0, sizeof(prompt_providers));
     memset(&prompt_producer, 0, sizeof(prompt_producer));
     memset(&prompt_persistence, 0, sizeof(prompt_persistence));
     memset(&materialization_report, 0, sizeof(materialization_report));
@@ -472,16 +527,58 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("Laplace product prompt context cannot be fingerprinted")));
     }
+
+    unicode_status = laplace_unicode_source_bundle_open(
+        LAPLACE_UNICODE_SOURCE_ROOT,
+        &owners->unicode_bundle,
+        &unicode_receipt);
+    if (unicode_status != LAPLACE_UNICODE_OK || owners->unicode_bundle == NULL) {
+        product_release(owners);
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace product prompt Unicode source cannot be opened"),
+                 errdetail("status=%u", (unsigned int)unicode_status)));
+    }
+    uax29_status = laplace_uax29_tables_create(
+        owners->unicode_bundle, &owners->uax29_tables);
+    if (uax29_status != LAPLACE_UAX29_OK || owners->uax29_tables == NULL) {
+        product_release(owners);
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace product prompt UAX29 tables cannot be constructed"),
+                 errdetail("status=%u", (unsigned int)uax29_status)));
+    }
+    laplace_unicode_source_bundle_close(&owners->unicode_bundle);
+    uax29_fingerprint = product_uax29_fingerprint(&unicode_receipt);
+    if (laplace_decomposition_uax29_provider_init(
+            &uax29_provider,
+            owners->uax29_tables,
+            &uax29_fingerprint) != LAPLACE_DECOMPOSITION_OK) {
+        product_release(owners);
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace product prompt UAX29 provider cannot be initialized")));
+    }
+
     prompt_provider = product_prompt_provider();
+    prompt_providers[0] = prompt_provider;
+    prompt_providers[1] = uax29_provider.provider;
+    prompt_bytes = (uint64_t)VARSIZE_ANY_EXHDR(prompt);
+    if (prompt_bytes > (UINT64_MAX - UINT64_C(2)) / UINT64_C(3)) {
+        product_release(owners);
+        ereport(ERROR,
+                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                 errmsg("Laplace product prompt exceeds the structural span bound")));
+    }
+    prompt_span_capacity = prompt_bytes * UINT64_C(3) + UINT64_C(2);
     prompt_input.decomposition.content.bytes = (const uint8_t*)VARDATA_ANY(prompt);
-    prompt_input.decomposition.content.byte_count =
-        (uint64_t)VARSIZE_ANY_EXHDR(prompt);
+    prompt_input.decomposition.content.byte_count = prompt_bytes;
     prompt_input.decomposition.content.media_type = media_type;
     prompt_input.decomposition.content.media_type_byte_count = sizeof(media_type) - 1u;
-    prompt_input.decomposition.providers = &prompt_provider;
-    prompt_input.decomposition.provider_count = 1u;
-    prompt_input.decomposition.maximum_spans = 1u;
-    prompt_input.decomposition.maximum_depth = 1u;
+    prompt_input.decomposition.providers = prompt_providers;
+    prompt_input.decomposition.provider_count = 2u;
+    prompt_input.decomposition.maximum_spans = prompt_span_capacity;
+    prompt_input.decomposition.maximum_depth = 2u;
     prompt_input.framework_context = &context;
     prompt_input.version = LAPLACE_COGNITION_PROMPT_ADMISSION_VERSION;
 
@@ -500,6 +597,7 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
                  errmsg("Laplace product prompt admission failed"),
                  errdetail("status=%u", (unsigned int)prompt_status)));
     }
+    laplace_uax29_tables_destroy(&owners->uax29_tables);
 
     prompt_status = laplace_cognition_prompt_admission_producer(
         owners->admission, &prompt_producer);
