@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  restore-exact-publication:
+  discover-retained-build-inputs:
     runs-on:
       - self-hosted
       - Linux
@@ -22,39 +22,130 @@ jobs:
       - oneapi
       - postgres-18
       - avx2
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Republish only the exact retained accepted PostgreSQL package
+      - name: Discover exact retained PostgreSQL rebuild inputs
         shell: bash
         run: |
           set -euo pipefail
-          source_receipt=/build/laplace/build/postgresql/94df3101524e73af6effe9af8d7d6402a1238be0892acdbe5207b10ba6e788f7/package-receipt.json
-          expected_source_sha=f80ac4a4879fdee15d4eac36ad16a7db525c56c715c922933b4b57f9880dcdfd
-          publication=/opt/laplace/receipts/postgresql/4b72b3782f3a766b35b5cd8d061c72dc4ca223d0d3e823a4aa4a4b96d043993a.json
-          expected_publication_sha=8260fdc87e8911a4ccef6c9f284426910fc71835db5a1cb67576045e56016549
-
           test "$(id -un)" = laplace-runner
-          test -f "$source_receipt"
-          test ! -L "$source_receipt"
-          test "$(sha256sum "$source_receipt" | awk '{print $1}')" = "$expected_source_sha"
+          output="$RUNNER_TEMP/postgresql-rebuild-inputs.json"
+          python3 - "$output" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
 
-          python3 tools/delivery/postgresql_package_publication.py publish \
-            --postgresql-receipt "$source_receipt" \
-            > "$RUNNER_TEMP/restored-postgresql-publication.json"
+          output = Path(sys.argv[1])
+          schemas = {
+              "laplace.toolchain-package-receipt/v1",
+              "laplace.postgresql-runtime-package/v2",
+              "laplace.postgresql-host-build-provider/v1",
+              "laplace.postgresql-package-receipt/v2",
+              "laplace.release-import-receipt/v1",
+          }
+          scan_roots = [
+              Path("/build/laplace"),
+              Path("/opt/laplace/build"),
+              Path("/opt/laplace/receipts"),
+              Path("/opt/laplace/external"),
+          ]
 
-          test -f "$publication"
-          test ! -L "$publication"
-          test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_publication_sha"
-          python3 tools/delivery/postgresql_package_publication.py verify \
-            --receipt "$publication" \
-            > "$RUNNER_TEMP/verified-postgresql-publication.json"
-          jq -e \
-            --arg id 4b72b3782f3a766b35b5cd8d061c72dc4ca223d0d3e823a4aa4a4b96d043993a '
-            .schema == "laplace.postgresql-package-publication-receipt/v1" and
-            .publication_id == $id and
-            .publication_complete == true and
-            .source_product_activation_occurred == false
-          ' "$RUNNER_TEMP/verified-postgresql-publication.json" >/dev/null
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
 
-          cat "$RUNNER_TEMP/verified-postgresql-publication.json"
+          receipts = []
+          seen = set()
+          for root in scan_roots:
+              if not root.is_dir() or root.is_symlink():
+                  continue
+              for current, directories, files in os.walk(root, followlinks=False):
+                  directories[:] = [
+                      name for name in directories
+                      if not (Path(current) / name).is_symlink()
+                  ]
+                  for name in files:
+                      if not name.endswith(".json") or "receipt" not in name.lower():
+                          continue
+                      path = Path(current) / name
+                      try:
+                          if path.is_symlink() or path.stat().st_size > 16 * 1024 * 1024:
+                              continue
+                          document = json.loads(path.read_text(encoding="utf-8"))
+                      except (OSError, UnicodeError, json.JSONDecodeError):
+                          continue
+                      schema = document.get("schema") if isinstance(document, dict) else None
+                      if schema not in schemas:
+                          continue
+                      resolved = str(path.resolve())
+                      if resolved in seen:
+                          continue
+                      seen.add(resolved)
+                      receipts.append({
+                          "path": str(path),
+                          "schema": schema,
+                          "sha256": sha256(path),
+                          "build_input_id": document.get("build_input_id"),
+                          "install_prefix": document.get("install_prefix"),
+                          "prefix": document.get("prefix"),
+                          "activation_eligible": document.get("activation_eligible"),
+                      })
+
+          filenames = ["postgresql-18.6.tar.bz2"]
+          exact_files = []
+          source_candidates = []
+          source_roots = [Path("/build/laplace"), Path("/opt/laplace/external")]
+          for root in source_roots:
+              if not root.is_dir() or root.is_symlink():
+                  continue
+              for current, directories, files in os.walk(root, followlinks=False):
+                  directories[:] = [
+                      name for name in directories
+                      if not (Path(current) / name).is_symlink()
+                  ]
+                  current_path = Path(current)
+                  for filename in filenames:
+                      if filename in files:
+                          path = current_path / filename
+                          exact_files.append({
+                              "path": str(path),
+                              "sha256": sha256(path),
+                              "bytes": path.stat().st_size,
+                          })
+                  if current_path.name == "postgresql" and "configure" in files:
+                      configure = current_path / "configure"
+                      source_candidates.append({
+                          "path": str(current_path),
+                          "configure_sha256": sha256(configure),
+                      })
+
+          host_provider = Path("/build/laplace/build/postgresql-host-provider/0b3378486ff5e39942b19b6292644e69573ad2b802307e095968aa148ca29e18/host-provider-receipt.json")
+          result = {
+              "schema": "laplace.postgresql-rebuild-input-discovery/v1",
+              "receipts": sorted(receipts, key=lambda item: (item["schema"], item["path"])),
+              "postgresql_archives": sorted(exact_files, key=lambda item: item["path"]),
+              "postgresql_sources": sorted(source_candidates, key=lambda item: item["path"]),
+              "expected_host_provider": {
+                  "path": str(host_provider),
+                  "exists": host_provider.is_file() and not host_provider.is_symlink(),
+                  "sha256": sha256(host_provider) if host_provider.is_file() and not host_provider.is_symlink() else None,
+              },
+          }
+          output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+
+          test -s "$output"
+          jq -e '.schema == "laplace.postgresql-rebuild-input-discovery/v1"' "$output" >/dev/null
+      - name: Retain rebuild input discovery
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: postgresql-rebuild-inputs
+          path: ${{ runner.temp }}/postgresql-rebuild-inputs.json
+          if-no-files-found: error
