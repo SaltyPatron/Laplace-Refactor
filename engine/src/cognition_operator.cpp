@@ -4,6 +4,7 @@
 #include "cognition_operator_part03.inc"
 #include "cognition_operator_part04.inc"
 #include "target_compile.inc"
+#include "target_scope_plan.inc"
 #include "target_factorization.inc"
 #include "target_attention_projection.inc"
 #include "target_package.inc"
