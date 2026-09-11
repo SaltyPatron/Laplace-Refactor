@@ -58,9 +58,19 @@ jobs:
           set -euo pipefail
           python3 tools/branch_estate_merged_pr_reconcile.py \
             --ledger "$RUNNER_TEMP/branch-estate-live.raw.json" \
-            --output "$RUNNER_TEMP/branch-estate-live.json" \
+            --output "$RUNNER_TEMP/branch-estate-live.merged.json" \
             --repository "Laplace-Refactor=SaltyPatron/Laplace-Refactor" \
             --repository "Laplace=SaltyPatron/Laplace"
+
+      - name: Collapse ancestor candidates into maximal unresolved lineages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/branch_estate_candidate_subsume.py \
+            --ledger "$RUNNER_TEMP/branch-estate-live.merged.json" \
+            --output "$RUNNER_TEMP/branch-estate-live.json" \
+            --repository "Laplace-Refactor=$GITHUB_WORKSPACE" \
+            --repository "Laplace=$RUNNER_TEMP/Laplace"
           cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
 
       - name: Upload live reconciliation ledger
