@@ -1,0 +1,70 @@
+name: live-product-proof
+
+on:
+  push:
+    branches:
+      - proof/live-product-readback-20260911
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installed-unicode-s3-readback:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read real Unicode identities and S3 coordinates from the installed product
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/laplace-live-product-proof.json"
+
+          # This command connects to the persistent PostgreSQL product as laplace_app.
+          # It does not seed, mock, synthesize, or mutate the substrate.
+          python3 tools/live_substrate.py 'Aé中Ω' > "$proof"
+
+          jq -e '
+            .schema == "laplace.live-substrate-unicode/v1" and
+            .database == "laplace_refactor" and
+            .role == "laplace_app" and
+            (.package_id | test("^[0-9a-f]{64}$")) and
+            (.activation_epoch_id | test("^[0-9a-f]{32}$")) and
+            (.activation_epoch_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.rows | length) == 4 and
+            ([.rows[].codepoint] == [65,233,20013,937]) and
+            ([.rows[].character] == ["A","é","中","Ω"]) and
+            (all(.rows[]; .found == true)) and
+            (all(.rows[]; (.entity_id | test("^[0-9a-f]{32}$")))) and
+            (all(.rows[]; (.physicality_id | test("^[0-9a-f]{32}$")))) and
+            (all(.rows[]; (.identity_preimage_fingerprint | test("^[0-9a-f]{64}$")))) and
+            (all(.rows[]; (.s3 | type) == "array" and (.s3 | length) == 4)) and
+            ([.rows[].entity_id] | unique | length) == 4 and
+            ([.rows[].physicality_id] | unique | length) == 4 and
+            ([.rows[].s3] | unique | length) == 4 and
+            ([.rows[].geometry_epoch] | unique | length) == 1
+          ' "$proof" >/dev/null
+
+          cat "$proof"
+          {
+            echo '## Installed Laplace live substrate proof'
+            echo
+            echo 'This is read directly from the persistent installed PostgreSQL product as `laplace_app`.'
+            echo
+            echo '```json'
+            jq . "$proof"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain live proof artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: laplace-live-product-proof
+          path: ${{ runner.temp }}/laplace-live-product-proof.json
+          if-no-files-found: error
