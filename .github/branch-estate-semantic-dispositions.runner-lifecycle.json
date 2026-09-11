@@ -38,6 +38,22 @@
         "SaltyPatron/Laplace-Refactor#234",
         "merge 1363350f7ee4c1842be942d9e44f4bdce5759402"
       ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "archive/pr-124-pre-main-deploy-20260831",
+      "tip": "4a3641d914fb2c81ce7ef4a2b0d9259eb54e739e",
+      "disposition": "ABSORBED_AND_HARDENED_ON_CURRENT_MAIN",
+      "rationale": "This archived one-commit branch introduced bounded disposable proof-workspace cleanup for the custom-stack, PostgreSQL-product, and package-product lanes. Current main retains all three cleanup surfaces and the deliberate-defect test suite, and strengthens the mechanism with exact disposable PostgreSQL namespace discovery, foreign/inaccessible residue handling, deleted-inode handling, and orphan PostgreSQL worker cleanup. Persistent product generations and durable receipt roots remain outside cleanup authority. Replaying the archived patch would therefore replace a stronger current lifecycle boundary with an older subset rather than recover missing behavior.",
+      "evidence": [
+        "4a3641d914fb2c81ce7ef4a2b0d9259eb54e739e",
+        "tools/delivery/proof_workspace_cleanup.py",
+        "tools/delivery/runner_orphan_cleanup.py",
+        "tests/proof_workspace_cleanup_tests.py",
+        ".github/workflows/custom-stack.yml",
+        ".github/workflows/postgresql-product.yml",
+        ".github/workflows/package-product.yml"
+      ]
     }
   ]
 }
