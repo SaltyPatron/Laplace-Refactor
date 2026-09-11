@@ -26,18 +26,19 @@ enum {
         LAPLACE_COGNITION_OBSERVATION_REQUEST_ALLOW_TYPED_UNRESOLVED |
         LAPLACE_COGNITION_OBSERVATION_REQUEST_BOUNDARY_COMPLETE,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_VERSION = 1,
-    /* Candidate projection owns at most two candidate-sized arrays per slot. */
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_WORKSPACE_MULTIPLIER = 2,
-    /* Candidate payload grew an explicit canonical relation identity/direction. */
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR = 2,
-    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR = 0,
-    /* Presence is explicit because an all-zero canonical identity is legal. */
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR = 1,
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT = UINT32_C(1),
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_EVIDENCE_UNCERTAINTY_PRESENT = UINT32_C(2),
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_KNOWN_FLAGS =
-        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT,
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT |
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_EVIDENCE_UNCERTAINTY_PRESENT,
     LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT = UINT32_C(1),
+    LAPLACE_COGNITION_OBSERVATION_ANSWER_OPERATOR_EXECUTED = UINT32_C(2),
     LAPLACE_COGNITION_OBSERVATION_ANSWER_KNOWN_FLAGS =
-        LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT
+        LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT |
+        LAPLACE_COGNITION_OBSERVATION_ANSWER_OPERATOR_EXECUTED
 };
 
 typedef struct laplace_cognition_observation_forward_limits {
@@ -85,23 +86,9 @@ typedef struct laplace_cognition_observation_compiled_request {
 typedef struct laplace_cognition_observation_request_provider
     laplace_cognition_observation_request_provider;
 
-/*
- * A persistence/query backend returns only typed observation candidates. It does
- * not construct search states, transitions, cognition operations, resolutions,
- * guidance, completion decisions, or forward receipts. `source_state_index`
- * identifies which source in the supplied frontier produced the candidate.
- * `observation_fingerprint` identifies the durable structural/semantic record
- * that justifies the crossing. `evidence_root_fingerprint` is independently
- * optional: zero means the crossing is calculated from structure alone, while a
- * nonzero value identifies an independent testimonial/evidence root. The source
- * layer remains explicit so storage adapters do not flatten those two meanings.
- *
- * `relation_family` is the finite request/filter family. `relation_id` is the
- * exact canonical typed relation identity and is governed only by the explicit
- * RELATION_ID_PRESENT flag; zero relation-id bytes never mean absence. Semantic
- * relations require an exact relation identity and carry their declared
- * direction directly instead of being translated through a prompt/text lookup.
- */
+/* A backend returns typed observed crossings only. Evidence uncertainty is an
+ * exact rational from the witnessed testimony record; it is never inferred from
+ * source type or search rank. Structural crossings leave it absent/zero. */
 typedef struct laplace_cognition_observation_candidate {
     laplace_id128 target_entity_id;
     laplace_id128 relation_id;
@@ -112,6 +99,8 @@ typedef struct laplace_cognition_observation_candidate {
     uint64_t target_logical_ordinal;
     uint64_t multiplicity;
     uint64_t gap;
+    uint64_t evidence_uncertainty_numerator;
+    uint64_t evidence_uncertainty_denominator;
     uint32_t relation_family;
     uint32_t source_layer;
     uint32_t direction;
@@ -152,17 +141,6 @@ typedef struct laplace_cognition_observation_candidate_provider_v1 {
     uint32_t reserved;
 } laplace_cognition_observation_candidate_provider_v1;
 
-/* Read-only structural candidate projection over an already validated native
- * physicality index. Persistence providers may supply only the exact records
- * selected by indexed frontier predicates; all five structural relation laws
- * remain owned by the same native generator as the in-memory search route.
- * No search state, completion decision or testimony is manufactured here.
- * Output is atomic: insufficient candidate/work capacity returns OVERFLOW with
- * zero published candidates. Empty source arrays are valid no-op batches.
- * Transient candidate storage is bounded by WORKSPACE_MULTIPLIER times
- * candidate_capacity times sizeof(laplace_cognition_observation_candidate),
- * separately from the immutable index and caller-owned output storage.
- */
 LAPLACE_API laplace_observation_query_status
 laplace_observation_query_index_candidates_batch(
     const laplace_observation_query_index* index,
@@ -174,14 +152,6 @@ laplace_observation_query_index_candidates_batch(
     size_t* candidate_count,
     laplace_cognition_observation_candidate_usage* usage);
 
-/*
- * Native provider composition keeps physical candidate providers separate while
- * presenting one bounded candidate surface to the canonical cognition engine.
- * The set owns copies of provider descriptors, not their opaque states: every
- * child provider state must remain alive until the set is destroyed. Child
- * providers still enumerate candidates only; this composition layer does not
- * acquire search, guidance, completion, realization, or receipt authority.
- */
 typedef struct laplace_cognition_observation_candidate_provider_set
     laplace_cognition_observation_candidate_provider_set;
 
@@ -205,22 +175,23 @@ LAPLACE_API void
 laplace_cognition_observation_candidate_provider_set_destroy(
     laplace_cognition_observation_candidate_provider_set** provider_set);
 
-/*
- * Terminal answer record retained from the canonical query-search result before
- * that internal result is destroyed. `entity_id` is the actual selected target
- * entity and is therefore directly consumable by a realization transport. Path
- * identity/cost and the final crossing remain attached so realization does not
- * erase how the answer was obtained. Exact relation identity remains separate
- * from relation family and uses ANSWER_RELATION_ID_PRESENT for typed presence.
- */
+/* Terminal answer retains both search provenance and the generated mathematical
+ * cognition receipts. A successful semantic answer with OPERATOR_EXECUTED set
+ * has passed the query-relative typed operator and constrained field solve; the
+ * solver output fingerprint binds the solved field state used for qualification. */
 typedef struct laplace_cognition_observation_answer {
     laplace_id128 entity_id;
     laplace_id128 relation_id;
     laplace_digest256 path_id;
     laplace_digest256 terminal_state_id;
+    laplace_digest256 operator_receipt_id;
+    laplace_digest256 solver_receipt_id;
+    laplace_digest256 solver_output_fingerprint;
     uint64_t total_cost;
     uint64_t transition_count;
     uint64_t independent_evidence_root_count;
+    double solver_final_residual_l2;
+    double solver_final_energy;
     uint32_t relation_family;
     uint32_t source_layer;
     uint32_t direction;
@@ -247,26 +218,11 @@ typedef enum laplace_cognition_observation_request_status {
     LAPLACE_COGNITION_OBSERVATION_REQUEST_RESULT_RANGE = 11
 } laplace_cognition_observation_request_status;
 
-/*
- * Identifies the complete typed request. Absence of a goal is represented by the
- * explicit GOAL_PRESENT flag; goal bytes never decide presence. Resource limits
- * are part of request identity because a bounded program is not the same program
- * as an unbounded or differently bounded one.
- */
 LAPLACE_API laplace_cognition_observation_request_status
 laplace_cognition_observation_request_identify(
     const laplace_cognition_observation_request* request,
     laplace_digest256* request_fingerprint);
 
-/*
- * Compiles one exact typed observation request into the existing canonical
- * guidance, forward-pass and typed-search contracts. This is request lowering,
- * not a private query engine: execution still goes through the shared cognition
- * forward provider and query-search provider surfaces.
- *
- * The caller owns `compiled->guidance_state` after success and releases it with
- * laplace_cognition_observation_compiled_request_destroy().
- */
 LAPLACE_API laplace_cognition_observation_request_status
 laplace_cognition_observation_request_compile(
     const laplace_cognition_observation_request* request,
@@ -276,18 +232,6 @@ LAPLACE_API void
 laplace_cognition_observation_compiled_request_destroy(
     laplace_cognition_observation_compiled_request* compiled);
 
-/*
- * Binds the exact compiled search program and initial search state to a cognition
- * provider over one immutable observation index. Unlike the compatibility
- * observation provider, this provider does not synthesize a private one-hop
- * search policy: forward execution consumes the request's own finite search
- * budget, goal semantics and boundary declaration.
- *
- * The immutable index must outlive the returned provider handle. The compiled
- * request need only remain valid for this creation call: the provider copies the
- * binding and execution policy/state it consumes later. Release the provider with
- * laplace_cognition_observation_request_provider_destroy().
- */
 LAPLACE_API laplace_cognition_observation_request_status
 laplace_cognition_observation_request_cognition_provider(
     laplace_observation_query_index* index,
@@ -299,15 +243,6 @@ LAPLACE_API void
 laplace_cognition_observation_request_provider_destroy(
     laplace_cognition_observation_request_provider** provider_state);
 
-/*
- * Executes one complete typed request over an external observation estate while
- * retaining semantic ownership in the native engine. The backend enumerates only
- * typed observation candidates. Native code derives search transitions, executes
- * the compiled bounded search, constructs/selects cognition operations, applies
- * resolutions, decides completion, and receipts the full forward pass. The
- * terminal entity/path records are retained in `observation_result` for the
- * realization layer; callers do not need to rerun or reverse a result hash.
- */
 LAPLACE_API laplace_cognition_observation_request_status
 laplace_cognition_observation_request_execute_with_candidate_provider(
     const laplace_cognition_observation_request* request,
@@ -330,12 +265,6 @@ LAPLACE_API void
 laplace_cognition_observation_result_destroy(
     laplace_cognition_observation_result** result);
 
-/*
- * Executes one complete typed request through the canonical compile, provider,
- * and bounded forward-pass surfaces. This is the public native boundary for a
- * caller that has an admitted immutable observation index; it does not expose
- * hand-built guidance or private search state to transports.
- */
 LAPLACE_API laplace_cognition_observation_request_status
 laplace_cognition_observation_request_execute(
     laplace_observation_query_index* index,

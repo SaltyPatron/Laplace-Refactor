@@ -1,3 +1,8 @@
+#include "laplace/cognition_runtime.h"
+
+#include <cmath>
+#include <set>
+
 struct laplace_cognition_observation_result {
     std::vector<laplace_cognition_observation_answer> answers;
 };
@@ -39,9 +44,27 @@ using laplace_observation_query_detail::LawDomain;
 using laplace_observation_query_detail::TransitionDomain;
 using laplace_observation_query_detail::EnumerationReceiptDomain;
 
+constexpr char GeneratedOperatorProgramDomain[] =
+    "laplace-observation-generated-operator-program-v1";
+constexpr char GeneratedOperatorFieldDomain[] =
+    "laplace-observation-generated-operator-field-v1";
+constexpr char GeneratedOperatorPlaneDomain[] =
+    "laplace-observation-generated-operator-plane-v1";
+constexpr char GeneratedOperatorUnitsDomain[] =
+    "laplace-observation-generated-operator-units-v1";
+constexpr char GeneratedOperatorConstraintDomain[] =
+    "laplace-observation-generated-operator-constraint-v1";
+constexpr char GeneratedSolverProgramDomain[] =
+    "laplace-observation-generated-solver-program-v1";
+constexpr char GeneratedAnchorBoundaryDomain[] =
+    "laplace-observation-anchor-prior-boundary-v1";
+constexpr char GeneratedTerminalBoundaryDomain[] =
+    "laplace-observation-terminal-goal-boundary-v1";
+
 struct ProviderState final {
     const laplace_cognition_observation_candidate_provider_v1* external{};
     laplace_digest256 request_fingerprint{};
+    laplace_digest256 result_contract_fingerprint{};
     laplace_observation_query_binding binding{};
     laplace_query_search_state initial_search_state{};
     laplace_query_search_program search_program{};
@@ -52,11 +75,6 @@ struct ProviderState final {
 bool ProviderValid(
     const laplace_cognition_observation_request&,
     const laplace_cognition_observation_candidate_provider_v1& provider) {
-    /* The provider maximum is a global accounting bound, not a demand that every
-     * finite request allocate its worst-case output. Enumeration is explicitly
-     * capacity-bounded and must report a typed limiting disposition when the
-     * actual query cannot fit the supplied batch. The execution path below still
-     * validates emitted/examined work against the provider's declared maximum. */
     return provider.enumerate_candidates != nullptr &&
         !DigestZero(provider.provider_fingerprint) &&
         provider.maximum_candidate_records_per_expansion != 0U &&
@@ -110,6 +128,9 @@ bool CandidateValid(
     const bool relation_id_present =
         (candidate.flags &
          LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT) != 0U;
+    const bool uncertainty_present =
+        (candidate.flags &
+         LAPLACE_COGNITION_OBSERVATION_CANDIDATE_EVIDENCE_UNCERTAINTY_PRESENT) != 0U;
     if (candidate.source_state_index >= static_cast<std::uint64_t>(source_count) ||
         DigestZero(candidate.observation_fingerprint) ||
         candidate.multiplicity == 0U || candidate.relation_family == 0U ||
@@ -122,7 +143,14 @@ bool CandidateValid(
         (candidate.flags &
          ~LAPLACE_COGNITION_OBSERVATION_CANDIDATE_KNOWN_FLAGS) != 0U ||
         candidate.reserved != 0U ||
-        (!relation_id_present && !IdZero(candidate.relation_id))) {
+        (!relation_id_present && !IdZero(candidate.relation_id)) ||
+        (uncertainty_present &&
+         (candidate.evidence_uncertainty_denominator == 0U ||
+          candidate.evidence_uncertainty_numerator >=
+              candidate.evidence_uncertainty_denominator)) ||
+        (!uncertainty_present &&
+         (candidate.evidence_uncertainty_numerator != 0U ||
+          candidate.evidence_uncertainty_denominator != 0U))) {
         return false;
     }
 
@@ -171,6 +199,8 @@ bool BuildTransition(
     HashId(&context_hasher, candidate.relation_id);
     HashU64(&context_hasher, candidate.source_logical_ordinal);
     HashU64(&context_hasher, candidate.target_logical_ordinal);
+    HashU64(&context_hasher, candidate.evidence_uncertainty_numerator);
+    HashU64(&context_hasher, candidate.evidence_uncertainty_denominator);
     HashU32(&context_hasher, candidate.relation_family);
     HashU32(&context_hasher, candidate.source_layer);
     HashU32(&context_hasher, candidate.direction);
@@ -184,6 +214,8 @@ bool BuildTransition(
     HashId(&dominance_hasher, candidate.relation_id);
     HashU64(&dominance_hasher, candidate.source_logical_ordinal);
     HashU64(&dominance_hasher, candidate.target_logical_ordinal);
+    HashU64(&dominance_hasher, candidate.evidence_uncertainty_numerator);
+    HashU64(&dominance_hasher, candidate.evidence_uncertainty_denominator);
     HashU32(&dominance_hasher, candidate.relation_family);
     HashU32(&dominance_hasher, candidate.source_layer);
     HashU32(&dominance_hasher, candidate.direction);
@@ -219,6 +251,8 @@ bool BuildTransition(
     }
     transition->cost_components[0] = 1U;
     transition->cost_components[1] = candidate.gap;
+    transition->cost_components[2] = candidate.evidence_uncertainty_numerator;
+    transition->cost_components[3] = candidate.evidence_uncertainty_denominator;
 
     blake3_hasher law_hasher{};
     StartDomain(&law_hasher, LawDomain);
@@ -242,6 +276,8 @@ bool BuildTransition(
     HashU64(&calculation_hasher, candidate.target_logical_ordinal);
     HashU64(&calculation_hasher, candidate.multiplicity);
     HashU64(&calculation_hasher, candidate.gap);
+    HashU64(&calculation_hasher, candidate.evidence_uncertainty_numerator);
+    HashU64(&calculation_hasher, candidate.evidence_uncertainty_denominator);
     HashU32(&calculation_hasher, candidate.relation_family);
     HashU32(&calculation_hasher, candidate.source_layer);
     HashU32(&calculation_hasher, candidate.direction);
@@ -256,6 +292,10 @@ bool BuildTransition(
     HashDigest(&transition_hasher, transition->evidence_root_fingerprint);
     HashDigest(&transition_hasher, transition->calculation_receipt);
     HashId(&transition_hasher, transition->relation_id);
+    for (std::size_t component = 0U;
+         component < LAPLACE_QUERY_SEARCH_COST_COMPONENT_COUNT; ++component) {
+        HashU64(&transition_hasher, transition->cost_components[component]);
+    }
     HashU32(&transition_hasher, transition->relation_family);
     HashU32(&transition_hasher, transition->source_layer);
     HashU32(&transition_hasher, transition->direction);
@@ -322,6 +362,7 @@ int ExpandCandidateBatch(
             (usage.limiting_disposition != 0U &&
              usage.limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_UNSUPPORTED &&
              usage.limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_DENIED &&
+             usage.limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED &&
              usage.limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_CONTRADICTED &&
              usage.limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN) ||
             (usage.limiting_disposition != 0U && candidate_count != 0U)) {
@@ -519,6 +560,249 @@ int EnumerateOperations(
     return 0;
 }
 
+laplace_digest256 GeneratedDigest(
+    const char* const domain,
+    const std::size_t domain_bytes,
+    const ProviderState& state,
+    const laplace_digest256& path_id,
+    const std::uint64_t ordinal,
+    const laplace_id128* const entity_id,
+    const laplace_query_search_transition* const transition) {
+    laplace_digest256 output{};
+    blake3_hasher hasher{};
+    StartDomain(&hasher, domain, domain_bytes);
+    HashDigest(&hasher, state.request_fingerprint);
+    HashDigest(&hasher, path_id);
+    HashU64(&hasher, ordinal);
+    if (entity_id != nullptr) HashId(&hasher, *entity_id);
+    if (transition != nullptr) {
+        HashDigest(&hasher, transition->transition_id);
+        HashDigest(&hasher, transition->law_fingerprint);
+        HashDigest(&hasher, transition->evidence_root_fingerprint);
+        HashDigest(&hasher, transition->calculation_receipt);
+        HashId(&hasher, transition->relation_id);
+        HashU32(&hasher, transition->relation_family);
+        HashU32(&hasher, transition->source_layer);
+        HashU32(&hasher, transition->direction);
+    }
+    Finish(&hasher, &output);
+    return output;
+}
+
+template <std::size_t Count>
+laplace_digest256 GeneratedDigest(
+    const char (&domain)[Count],
+    const ProviderState& state,
+    const laplace_digest256& path_id,
+    const std::uint64_t ordinal,
+    const laplace_id128* const entity_id = nullptr,
+    const laplace_query_search_transition* const transition = nullptr) {
+    return GeneratedDigest(
+        domain, Count - 1U, state, path_id, ordinal, entity_id, transition);
+}
+
+std::uint32_t OperatorDirection(const std::uint32_t direction) {
+    switch (direction) {
+        case LAPLACE_OBSERVATION_QUERY_DIRECTION_FORWARD:
+            return LAPLACE_COGNITION_OPERATOR_DIRECTION_SOURCE_TO_TARGET;
+        case LAPLACE_OBSERVATION_QUERY_DIRECTION_REVERSE:
+            return LAPLACE_COGNITION_OPERATOR_DIRECTION_TARGET_TO_SOURCE;
+        case LAPLACE_OBSERVATION_QUERY_DIRECTION_SYMMETRIC:
+            return LAPLACE_COGNITION_OPERATOR_DIRECTION_SYMMETRIC;
+        default:
+            return 0U;
+    }
+}
+
+std::uint32_t OperatorSourceClass(
+    const laplace_query_search_transition& transition) {
+    if (transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_PHYSICALITY ||
+        transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_GEOMETRY) {
+        return DigestZero(transition.evidence_root_fingerprint)
+            ? LAPLACE_COGNITION_OPERATOR_SOURCE_PHYSICALITY : 0U;
+    }
+    if (transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_TESTIMONY ||
+        transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_STANDING) {
+        return !DigestZero(transition.evidence_root_fingerprint)
+            ? LAPLACE_COGNITION_OPERATOR_SOURCE_TESTIMONY : 0U;
+    }
+    if (transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_CALCULATION) {
+        return LAPLACE_COGNITION_OPERATOR_SOURCE_DERIVED;
+    }
+    return 0U;
+}
+
+double ConstraintPrecision(const laplace_query_search_transition& transition) {
+    const std::uint64_t numerator = transition.cost_components[2];
+    const std::uint64_t denominator = transition.cost_components[3];
+    if (denominator == 0U) return numerator == 0U ? 1.0 : 0.0;
+    if (numerator >= denominator) return 0.0;
+    return static_cast<double>(denominator - numerator) /
+        static_cast<double>(denominator);
+}
+
+bool ExecutePathMathematics(
+    const ProviderState& state,
+    const laplace_query_search_path_summary& path,
+    const std::vector<laplace_query_search_transition>& steps,
+    laplace_cognition_observation_answer* const answer) {
+    if (answer == nullptr || steps.empty() ||
+        steps.size() + 1U >
+            static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max())) {
+        return false;
+    }
+
+    std::vector<laplace_id128> entities(steps.size() + 1U);
+    if (!ResolveEntity(state, state.initial_search_state.anchor_id, &entities[0])) {
+        return false;
+    }
+    laplace_digest256 expected_source_state = state.initial_search_state.state_id;
+    for (std::size_t index = 0U; index < steps.size(); ++index) {
+        if (!SameDigest(steps[index].source_state_id, expected_source_state) ||
+            !ResolveEntity(state, steps[index].target.anchor_id, &entities[index + 1U])) {
+            return false;
+        }
+        expected_source_state = steps[index].target.state_id;
+    }
+    if (!SameDigest(expected_source_state, path.terminal_state_id)) return false;
+
+    std::vector<laplace_cognition_operator_field> fields(entities.size());
+    for (std::size_t index = 0U; index < entities.size(); ++index) {
+        fields[index] = laplace_cognition_operator_field{};
+        fields[index].field_id = GeneratedDigest(
+            GeneratedOperatorFieldDomain, state, path.path_id,
+            static_cast<std::uint64_t>(index), &entities[index]);
+        fields[index].entity_id = entities[index];
+        fields[index].recipe_fingerprint = state.request_fingerprint;
+        fields[index].ordinal = static_cast<std::uint64_t>(index);
+        fields[index].value_dimension = 1U;
+    }
+
+    std::vector<laplace_cognition_operator_constraint> constraints(steps.size());
+    std::set<std::uint32_t> family_set;
+    for (std::size_t index = 0U; index < steps.size(); ++index) {
+        const auto& step = steps[index];
+        const std::uint32_t source_class = OperatorSourceClass(step);
+        const std::uint32_t direction = OperatorDirection(step.direction);
+        const double precision = ConstraintPrecision(step);
+        if (source_class == 0U || direction == 0U ||
+            !std::isfinite(precision) || precision <= 0.0) {
+            return false;
+        }
+        auto& constraint = constraints[index];
+        constraint = laplace_cognition_operator_constraint{};
+        constraint.constraint_id = GeneratedDigest(
+            GeneratedOperatorConstraintDomain, state, path.path_id,
+            static_cast<std::uint64_t>(index), nullptr, &step);
+        constraint.plane_id = GeneratedDigest(
+            GeneratedOperatorPlaneDomain, state, path.path_id,
+            (static_cast<std::uint64_t>(step.relation_family) << 32U) |
+                static_cast<std::uint64_t>(step.source_layer));
+        constraint.law_fingerprint = step.law_fingerprint;
+        constraint.units_fingerprint = GeneratedDigest(
+            GeneratedOperatorUnitsDomain, state, path.path_id,
+            static_cast<std::uint64_t>(step.relation_family));
+        constraint.evidence_root_id = step.evidence_root_fingerprint;
+        constraint.calculation_receipt_id = step.calculation_receipt;
+        constraint.source_field_index = static_cast<std::uint64_t>(index);
+        constraint.target_field_index = static_cast<std::uint64_t>(index + 1U);
+        constraint.transport_scale = 1.0;
+        constraint.transport_offset = 0.0;
+        constraint.target_value = 0.0;
+        constraint.precision = precision;
+        constraint.relation_family = step.relation_family;
+        constraint.source_class = source_class;
+        constraint.direction = direction;
+        constraint.transport_kind = LAPLACE_COGNITION_OPERATOR_TRANSPORT_IDENTITY;
+        family_set.insert(step.relation_family);
+    }
+    std::vector<std::uint32_t> families(family_set.begin(), family_set.end());
+    if (families.empty()) return false;
+
+    laplace_cognition_operator_program operator_program{};
+    operator_program.program_id = GeneratedDigest(
+        GeneratedOperatorProgramDomain, state, path.path_id, 0U);
+    operator_program.boundary_id = state.search_program.boundary_id;
+    operator_program.context_fingerprint = state.initial_search_state.context_fingerprint;
+    operator_program.evidence_epoch = state.search_program.evidence_epoch;
+    operator_program.result_contract_fingerprint = state.result_contract_fingerprint;
+    operator_program.eligible_relation_families = families.data();
+    operator_program.eligible_relation_family_count = families.size();
+    operator_program.eligible_source_mask = 7U;
+    operator_program.flags =
+        LAPLACE_COGNITION_OPERATOR_PROGRAM_REQUIRE_POSITIVE_SEMIDEFINITE_PRECISION |
+        LAPLACE_COGNITION_OPERATOR_PROGRAM_REQUIRE_RELATION_PLANE_SEPARATION;
+    operator_program.numeric_tolerance = 1e-12;
+    operator_program.version = LAPLACE_COGNITION_OPERATOR_VERSION;
+
+    std::array<laplace_cognition_solver_boundary, 2> boundaries{};
+    boundaries[0].receipt_id = GeneratedDigest(
+        GeneratedAnchorBoundaryDomain, state, path.path_id, 0U, &entities.front());
+    boundaries[0].field_index = 0U;
+    boundaries[0].target_value = 0.0;
+    boundaries[0].precision = 1.0;
+    boundaries[0].kind = LAPLACE_COGNITION_SOLVER_BOUNDARY_PRIOR;
+    boundaries[1].receipt_id = GeneratedDigest(
+        GeneratedTerminalBoundaryDomain, state, path.path_id,
+        static_cast<std::uint64_t>(steps.size()), &entities.back());
+    boundaries[1].field_index = static_cast<std::uint64_t>(steps.size());
+    boundaries[1].target_value = 1.0;
+    boundaries[1].precision = 1.0;
+    boundaries[1].kind = LAPLACE_COGNITION_SOLVER_BOUNDARY_GOAL;
+
+    laplace_cognition_solver_program solver_program{};
+    solver_program.program_id = GeneratedDigest(
+        GeneratedSolverProgramDomain, state, path.path_id, 0U);
+    solver_program.result_contract_fingerprint = state.result_contract_fingerprint;
+    if (fields.size() >
+        (std::numeric_limits<std::uint64_t>::max() - UINT64_C(32)) / UINT64_C(8)) {
+        return false;
+    }
+    solver_program.max_iterations =
+        static_cast<std::uint64_t>(fields.size()) * UINT64_C(8) + UINT64_C(32);
+    solver_program.absolute_residual_tolerance = 1e-10;
+    solver_program.relative_residual_tolerance = 1e-10;
+    solver_program.regularization = 0.0;
+    solver_program.method = LAPLACE_COGNITION_SOLVER_METHOD_CONJUGATE_GRADIENT;
+    solver_program.version = LAPLACE_COGNITION_SOLVER_VERSION;
+
+    std::vector<double> initial(fields.size(), 0.0);
+    std::vector<double> solution(fields.size(), 0.0);
+    laplace_cognition_runtime_request runtime_request{};
+    runtime_request.operator_program = operator_program;
+    runtime_request.fields = fields.data();
+    runtime_request.constraints = constraints.data();
+    runtime_request.boundaries = boundaries.data();
+    runtime_request.initial_state = initial.data();
+    runtime_request.field_count = fields.size();
+    runtime_request.constraint_count = constraints.size();
+    runtime_request.boundary_count = boundaries.size();
+    runtime_request.initial_state_count = initial.size();
+    runtime_request.solver_program = solver_program;
+
+    laplace_cognition_runtime_result runtime_result{};
+    runtime_result.solution = solution.data();
+    runtime_result.solution_capacity = solution.size();
+    if (laplace_cognition_runtime_execute(&runtime_request, &runtime_result) !=
+            LAPLACE_COGNITION_RUNTIME_OK ||
+        runtime_result.solution_count != solution.size() ||
+        runtime_result.operator_receipt.status != LAPLACE_COGNITION_OPERATOR_OK ||
+        runtime_result.solver_receipt.status != LAPLACE_COGNITION_SOLVER_OK ||
+        !std::isfinite(runtime_result.solver_receipt.final_residual_l2) ||
+        !std::isfinite(runtime_result.solver_receipt.final_energy) ||
+        !(solution.back() > solution.front())) {
+        return false;
+    }
+
+    answer->operator_receipt_id = runtime_result.operator_receipt.receipt_id;
+    answer->solver_receipt_id = runtime_result.solver_receipt.receipt_id;
+    answer->solver_output_fingerprint = runtime_result.solver_receipt.output_fingerprint;
+    answer->solver_final_residual_l2 = runtime_result.solver_receipt.final_residual_l2;
+    answer->solver_final_energy = runtime_result.solver_receipt.final_energy;
+    answer->flags |= LAPLACE_COGNITION_OBSERVATION_ANSWER_OPERATOR_EXECUTED;
+    return true;
+}
+
 bool CaptureAnswers(
     ProviderState* const state,
     const laplace_query_search_result* const search_result) {
@@ -529,6 +813,7 @@ bool CaptureAnswers(
         laplace_query_search_path_summary path{};
         if (laplace_query_search_result_path(
                 search_result, index, &path) != LAPLACE_QUERY_SEARCH_OK ||
+            path.transition_count == 0U ||
             path.transition_count >
                 static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
             return false;
@@ -543,28 +828,26 @@ bool CaptureAnswers(
             path.independent_evidence_root_count;
         answer.rank = path.rank;
 
-        laplace_digest256 terminal_coordinate = state->initial_search_state.anchor_id;
-        if (path.transition_count != 0U) {
-            std::vector<laplace_query_search_transition> steps(
-                static_cast<std::size_t>(path.transition_count));
-            std::size_t step_count = 0U;
-            if (laplace_query_search_result_path_steps(
-                    search_result, index, steps.data(), steps.size(), &step_count) !=
-                    LAPLACE_QUERY_SEARCH_OK ||
-                step_count != steps.size()) {
-                return false;
-            }
-            const auto& last = steps.back();
-            terminal_coordinate = last.target.anchor_id;
-            answer.relation_id = last.relation_id;
-            answer.relation_family = last.relation_family;
-            answer.source_layer = last.source_layer;
-            answer.direction = last.direction;
-            if ((last.flags & LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT) != 0U) {
-                answer.flags |= LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT;
-            }
+        std::vector<laplace_query_search_transition> steps(
+            static_cast<std::size_t>(path.transition_count));
+        std::size_t step_count = 0U;
+        if (laplace_query_search_result_path_steps(
+                search_result, index, steps.data(), steps.size(), &step_count) !=
+                LAPLACE_QUERY_SEARCH_OK ||
+            step_count != steps.size()) {
+            return false;
         }
-        if (!ResolveEntity(*state, terminal_coordinate, &answer.entity_id)) {
+        const auto& last = steps.back();
+        const laplace_digest256 terminal_coordinate = last.target.anchor_id;
+        answer.relation_id = last.relation_id;
+        answer.relation_family = last.relation_family;
+        answer.source_layer = last.source_layer;
+        answer.direction = last.direction;
+        if ((last.flags & LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT) != 0U) {
+            answer.flags |= LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT;
+        }
+        if (!ResolveEntity(*state, terminal_coordinate, &answer.entity_id) ||
+            !ExecutePathMathematics(*state, path, steps, &answer)) {
             return false;
         }
         state->answers.push_back(answer);
@@ -746,6 +1029,7 @@ laplace_cognition_observation_request_execute_with_candidate_provider(
         laplace_cognition_observation_candidate_provider_detail::ProviderState state{};
         state.external = provider;
         state.request_fingerprint = compiled.request_fingerprint;
+        state.result_contract_fingerprint = request->result_contract_fingerprint;
         state.binding = compiled.binding;
         state.initial_search_state = compiled.initial_search_state;
         state.search_program = compiled.search_program;

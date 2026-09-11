@@ -614,10 +614,11 @@ TEST(ObservationCandidateBatch, CapacityFailureDoesNotPublishAPrefix) {
     std::size_t count = 99;
     laplace_cognition_observation_candidate_usage usage{};
     ASSERT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
-        &fixture.root, 1U, &output, 1U, &count, &usage), LAPLACE_OBSERVATION_QUERY_OVERFLOW);
+        &fixture.root, 1U, &output, 1U, &count, &usage), LAPLACE_OBSERVATION_QUERY_OK);
     EXPECT_EQ(count, 0U);
     EXPECT_EQ(std::memcmp(&output, &sentinel, sizeof(output)), 0);
     EXPECT_EQ(usage.crossing_count, 0U);
+    EXPECT_EQ(usage.limiting_disposition, LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED);
     std::array<laplace_cognition_observation_candidate, 16> complete{};
     ASSERT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
         &fixture.root, 1U, complete.data(), complete.size(), &count, &usage),
@@ -625,8 +626,9 @@ TEST(ObservationCandidateBatch, CapacityFailureDoesNotPublishAPrefix) {
     EXPECT_GT(count, 1U);
     EXPECT_EQ(usage.crossing_count, count);
     EXPECT_EQ(laplace_observation_query_index_candidates_batch(index.value, &binding,
-        &fixture.root, 1U, nullptr, 0U, &count, &usage), LAPLACE_OBSERVATION_QUERY_OVERFLOW);
+        &fixture.root, 1U, nullptr, 0U, &count, &usage), LAPLACE_OBSERVATION_QUERY_OK);
     EXPECT_EQ(count, 0U);
+    EXPECT_EQ(usage.limiting_disposition, LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED);
 }
 
 TEST(ObservationCandidateBatch, InvalidBindingAndImpossibleInputCountsAreRejected) {

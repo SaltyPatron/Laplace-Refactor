@@ -680,7 +680,7 @@ TEST(CognitionPromptStructuralProvider, CapacityFailurePublishesNoPrefixOrFalseA
         fixture.provider.state, &binding, &fixture.view.trunk_entity_id, &state, &cost,
         1U, buffer.data(), buffer.size(), &count, &usage), 0);
     EXPECT_EQ(count, 0U);
-    EXPECT_EQ(usage.limiting_disposition, LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN);
+    EXPECT_EQ(usage.limiting_disposition, LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED);
     EXPECT_EQ(CandidateFields(buffer[0]), before);
     EXPECT_GT(usage.rows_examined, UINT64_C(0));
     EXPECT_GT(usage.index_plan_count, UINT64_C(0));
@@ -688,7 +688,7 @@ TEST(CognitionPromptStructuralProvider, CapacityFailurePublishesNoPrefixOrFalseA
     const auto empty = Query(fixture.provider, binding, {fixture.view.trunk_entity_id}, 0U, 0U);
     EXPECT_EQ(empty.status, 0);
     EXPECT_TRUE(empty.values.empty());
-    EXPECT_EQ(empty.usage.limiting_disposition, LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN);
+    EXPECT_EQ(empty.usage.limiting_disposition, LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED);
 }
 
 TEST(CognitionPromptStructuralProvider, BindingIdentityAndEmptyBatchesAreValidated) {

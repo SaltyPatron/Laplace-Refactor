@@ -1,0 +1,48 @@
+{
+  "schema": "laplace.branch-estate-semantic-dispositions/v1",
+  "rule": "Every entry is pinned to an exact live branch tip and is terminal only when stronger current authority or explicit repository history proves the branch no longer owns unique valid work.",
+  "entries": [
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "fix/agent-finish-line-contract",
+      "tip": "cdfbe96d3b604d4558c9ebabba65a484f758e783",
+      "disposition": "ABSORBED_BY_STRONGER_FINISH_LINE_AND_PROGRESS_AUTHORITY",
+      "rationale": "PR #135 introduced an execution-to-finish projection so implementation obligations could not be replaced by status/control-plane activity. Current authority replaces that single document with the machine-readable contracts/finish-line-program.json plus docs/product/FINISH_LINE_PROGRAM.md and docs/product/AGENT_PROGRESS_ASSURANCE.md. Together they retain the PR's whole-product vertical execution discipline, terminal installed-product chain, four-state/explicit work-selection semantics, anti-substitution law, progress receipts, no-orphan branch rule, and continue-until-advance/blocker/user-stop execution loop, while adding milestone exit predicates, research-program invariants, rework escalation and executable mutations.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#135",
+        "docs/product/EXECUTION_TO_FINISH.md@cdfbe96d3b604d4558c9ebabba65a484f758e783",
+        "contracts/finish-line-program.json",
+        "docs/product/FINISH_LINE_PROGRAM.md",
+        "docs/product/AGENT_PROGRESS_ASSURANCE.md",
+        "contracts/authority-stack.json"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "repair/184-invention-preservation",
+      "tip": "0f94aa63b38007ad40fc1d9d809667e0e993ff91",
+      "disposition": "ABSORBED_BY_STRONGER_CURRENT_RESEARCH_PROGRAM_AUTHORITY",
+      "rationale": "PR #188 repaired the absence of the mathematical-research-program and inventor-synthesis preservation records. Both now exist on convergence as stronger current authority. The current research-program document expands the coupled-machine framing, prompt-root cognition, structural-versus-semantic state distinctions, exact sparse/spectral operator generation, target-neutral operator-before-tensor law, source/participant standing separation, self-reentry/dependence, and anti-hyperfocus acceptance. The current inventor-direct synthesis is explicitly a direct requirement/evidence record and binds the canonical owner issues. Replaying the older documentation branch would replace later direct corrections with an earlier reconciliation snapshot.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#188",
+        "docs/product/LAPLACE_MATHEMATICAL_RESEARCH_PROGRAM.md@0f94aa63b38007ad40fc1d9d809667e0e993ff91",
+        "docs/product/LAPLACE_MATHEMATICAL_RESEARCH_PROGRAM.md on convergence",
+        "docs/audits/INVENTOR_DIRECT_SYNTHESIS_2026-09-02.md@0f94aa63b38007ad40fc1d9d809667e0e993ff91",
+        "docs/audits/INVENTOR_DIRECT_SYNTHESIS_2026-09-02.md on convergence",
+        "contracts/authority-stack.json"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "repair/canonical-decomposition-identity",
+      "tip": "d66a2e088801b565dedb1f351981d837e90dba11",
+      "disposition": "REJECTED_STALE_SUPERSEDED_AFTER_MERGED_94",
+      "rationale": "PR #95 explicitly records that the draft was based on pre-#94 main, was conflicting, was closed stale/superseded after #94 integrated, must not be treated as current product authority, and must not be merged mechanically. Merged PR #94 is the current-main decomposition/source-admission integration owner and explicitly repaired canonical content identity so parser/provider/source/occurrence metadata cannot remint content. The #95 branch is therefore a rejected stale vehicle, not an unmerged implementation to replay.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#95",
+        "SaltyPatron/Laplace-Refactor#94",
+        "merge fe80778b8c93b71102db0a5691160a96976dd072"
+      ]
+    }
+  ]
+}

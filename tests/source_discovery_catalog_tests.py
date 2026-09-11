@@ -89,8 +89,10 @@ class SourceDiscoveryCatalogTests(unittest.TestCase):
         self.assertIn("png", candidates)
         self.assertIn("signature:png", candidates["png"]["evidence"])
         self.assertTrue(row["encoding_observation"]["strict_utf8"] is False)
-        self.assertFalse(row["extension_exact_conflict"],
-                         "an unknown .txt extension is not an asserted conflicting format")
+        self.assertFalse(
+            row["extension_exact_conflict"],
+            "an unknown .txt extension is not an asserted conflicting format",
+        )
 
         (root / "lie.json").write_bytes(bytes.fromhex("89504e470d0a1a0a") + b"binary")
         catalog = self.build(root)
@@ -98,8 +100,11 @@ class SourceDiscoveryCatalogTests(unittest.TestCase):
         self.assertTrue(row["extension_exact_conflict"])
         ids = {candidate["id"] for candidate in row["format_candidates"]}
         self.assertTrue({"json", "png"} <= ids)
-        json_probe = next(probe for probe in row["structure_probes"]
-                          if probe["kind"] == "json-document")
+        json_probe = next(
+            probe
+            for probe in row["structure_probes"]
+            if probe["kind"] == "json-document"
+        )
         self.assertEqual(json_probe["disposition"], "invalid")
 
     def test_invalid_utf8_is_not_promoted_to_text(self) -> None:
@@ -115,8 +120,11 @@ class SourceDiscoveryCatalogTests(unittest.TestCase):
         self.make_fixture(root)
         catalog = self.build(root)
         row = next(entry for entry in catalog["entries"] if entry["path"] == "bundle.zip")
-        probe = next(probe for probe in row["structure_probes"]
-                     if probe["kind"] == "zip-central-directory")
+        probe = next(
+            probe
+            for probe in row["structure_probes"]
+            if probe["kind"] == "zip-central-directory"
+        )
         self.assertEqual(probe["disposition"], "observed")
         safety = {member["name"]: member["path_safety"] for member in probe["members"]}
         self.assertEqual(safety["safe/member.txt"], "relative")
@@ -152,21 +160,19 @@ class SourceDiscoveryCatalogTests(unittest.TestCase):
         with self.assertRaisesRegex(catalog_tool.CatalogError, "host-local"):
             catalog_tool.validate_catalog(catalog, self.contract)
 
-    def test_dispatch_workflow_is_read_only_and_not_a_pr_gate(self) -> None:
-        workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "source-catalog.yml").read_text(
+    def test_catalog_acceptance_is_retained_without_duplicate_workflow(self) -> None:
+        retired = REPOSITORY_ROOT / ".github" / "workflows" / "source-catalog.yml"
+        self.assertFalse(
+            retired.exists(),
+            "source catalog must not regain a standalone workflow/PR gate",
+        )
+        hosted = (REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("workflow_dispatch:", workflow)
-        self.assertNotIn("pull_request:", workflow)
-        self.assertNotIn("\n  push:", workflow)
-        self.assertIn("LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data", workflow)
-        self.assertIn('test "$(id -un)" = laplace-runner', workflow)
-        self.assertNotIn("psql ", workflow)
-        self.assertNotIn("dropdb", workflow)
-        self.assertNotIn("createdb", workflow)
-        self.assertIn("laplace-source-estate-catalog.json", workflow)
-        self.assertIn("laplace-source-estate-summary.json", workflow)
-        self.assertNotIn("${{ env.LAPLACE_SOURCE_ESTATE_ROOT }}", workflow)
+        self.assertIn("Verify source-estate discovery catalog", hosted)
+        self.assertIn("python3 tests/source_discovery_catalog_tests.py", hosted)
+        self.assertTrue(TOOL_PATH.is_file())
+        self.assertTrue(CONTRACT_PATH.is_file())
 
     def test_deliberate_extension_authority_mutation_is_detected_by_behavior(self) -> None:
         root = self.temporary / "source"

@@ -63,6 +63,7 @@ bool LimitingDispositionValid(const std::uint32_t disposition) noexcept {
     return disposition == 0U ||
         disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_UNSUPPORTED ||
         disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_DENIED ||
+        disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED ||
         disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_CONTRADICTED ||
         disposition == LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
 }
@@ -155,6 +156,17 @@ int EnumerateCompositeCandidates(
                 return 6;
             }
             if (!AddUsage(usage, child_usage)) return 7;
+
+            /* One child reported that its exact finite contribution did not fit.
+             * Do not let candidates from another provider disguise that missing
+             * typed plane as a complete composite frontier. */
+            if (child_usage.limiting_disposition ==
+                LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED) {
+                *candidate_count = 0U;
+                usage->limiting_disposition =
+                    LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;
+                return 0;
+            }
 
             if (child_count > candidate_capacity - *candidate_count) {
                 aggregate_capacity_exceeded = true;

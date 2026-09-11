@@ -184,7 +184,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
         self.assert_main_push_deployment_boundary(workflow, activation, contract)
 
-    def test_physical_product_proofs_are_serialized(self) -> None:
+    def test_physical_product_proofs_share_host_ownership_but_route_in_parallel(self) -> None:
         workflows = {
             "custom-stack": CUSTOM_STACK_PATH.read_text(encoding="utf-8"),
             "postgresql-product": POSTGRESQL_PRODUCT_PATH.read_text(encoding="utf-8"),
@@ -196,13 +196,23 @@ class ProductPathGitStatusTests(unittest.TestCase):
         custom = orchestration.index("  custom-stack-proof:")
         postgres = orchestration.index("  postgresql-product-proof:")
         package = orchestration.index("  package-product-proof:")
-        self.assertLess(custom, postgres)
-        self.assertLess(postgres, package)
-        postgres_block = orchestration[postgres:package]
-        package_block = orchestration[package:orchestration.index("  product-path:", package)]
-        self.assertIn("      - custom-stack-proof", postgres_block)
-        self.assertIn("      - custom-stack-proof", package_block)
-        self.assertIn("      - postgresql-product-proof", package_block)
+        product_path_job = orchestration.index("  product-path:", package)
+        blocks = {
+            "custom": orchestration[custom:postgres],
+            "postgres": orchestration[postgres:package],
+            "package": orchestration[package:product_path_job],
+        }
+        for name, block in blocks.items():
+            self.assertIn("      - classify", block, f"{name} lost classification dependency")
+            self.assertIn("      - hosted-proof", block, f"{name} lost hosted proof dependency")
+            self.assertIn(
+                "needs.hosted-proof.result == 'success'",
+                block,
+                f"{name} can run before hosted proof succeeds",
+            )
+        self.assertNotIn("      - custom-stack-proof", blocks["postgres"])
+        self.assertNotIn("      - custom-stack-proof", blocks["package"])
+        self.assertNotIn("      - postgresql-product-proof", blocks["package"])
 
     def test_legacy_required_contexts_are_subordinate_to_product_path(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -292,7 +302,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
         start = workflow.index("      - name: Require persistent product activation")
-        end = workflow.index("\n  # Migration aliases", start)
+        end = workflow.index("\n  legacy-requirements:", start)
         mutant = workflow[:start] + workflow[end:]
         self.assertNotEqual(workflow, mutant)
         with self.assertRaises(AssertionError):

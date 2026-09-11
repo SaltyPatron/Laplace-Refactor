@@ -15,9 +15,11 @@ typedef struct laplace_cognition_runtime_request {
     laplace_cognition_operator_program operator_program;
     const laplace_cognition_operator_field* fields;
     const laplace_cognition_operator_constraint* constraints;
+    const laplace_cognition_solver_boundary* boundaries;
     const double* initial_state;
     uint64_t field_count;
     uint64_t constraint_count;
+    uint64_t boundary_count;
     uint64_t initial_state_count;
     laplace_cognition_solver_program solver_program;
 } laplace_cognition_runtime_request;

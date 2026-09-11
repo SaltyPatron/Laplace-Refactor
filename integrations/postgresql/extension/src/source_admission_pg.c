@@ -1,7 +1,8 @@
 /*
- * Product source admission must not stop at the tabular envelope. Route the
- * existing admission call through the recursive engine path using the same
- * verified Unicode source estate that builds the active Unicode product.
+ * Product source admission crosses one source-agnostic recursive decomposition
+ * boundary. The PostgreSQL host selects the currently activated grammar/codec
+ * authorities and passes them as ordinary decomposition providers; the generic
+ * engine does not select a Unicode/corpus/source-family path.
  *
  * The backend-local metrics below are execution evidence, not semantic state.
  * They retain the two most recent source-admission executions in one backend so
@@ -18,15 +19,14 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include "blake3.h"
+#include "laplace/decomposition_uax29.h"
+#include "laplace/source_decomposition.h"
 #include "laplace/source_profile.h"
-#include "laplace/tabular_source_recursive.h"
-#include "laplace/unicode_root.h"
+#include "laplace/uax29.h"
 #include "composition_pg.h"
 #include "source_structural_witness_pg.h"
-
-#ifndef LAPLACE_UNICODE_SOURCE_ROOT
-#error "LAPLACE_UNICODE_SOURCE_ROOT is required for recursive source admission"
-#endif
+#include "uax29_active_pg.h"
 
 PG_FUNCTION_INFO_V1(laplace_source_admission_last_execution_metrics);
 
@@ -48,6 +48,8 @@ static const laplace_pg_composition_execution*
     laplace_pg_active_source_execution = NULL;
 static const laplace_composition_working_set_input*
     laplace_pg_active_source_composition_input = NULL;
+static laplace_pg_active_uax_authority laplace_pg_source_uax_authority;
+static uint8_t laplace_pg_source_uax_authority_valid = 0u;
 static laplace_pg_source_execution_metrics laplace_pg_source_metrics_previous;
 static laplace_pg_source_execution_metrics laplace_pg_source_metrics_active;
 static uint64_t laplace_pg_source_metrics_sequence = 0u;
@@ -133,38 +135,111 @@ Datum laplace_source_admission_last_execution_metrics(PG_FUNCTION_ARGS) {
     PG_RETURN_TEXT_P(cstring_to_text(output.data));
 }
 
+static void laplace_pg_source_hash_u64(blake3_hasher* hasher, uint64_t value) {
+    uint8_t bytes[8];
+    size_t index;
+    for (index = 0u; index < sizeof(bytes); ++index) {
+        bytes[index] = (uint8_t)(value >> (index * 8u));
+    }
+    blake3_hasher_update(hasher, bytes, sizeof(bytes));
+}
+
+static void laplace_pg_source_hash_bytes(
+    blake3_hasher* hasher, const void* bytes, size_t count) {
+    laplace_pg_source_hash_u64(hasher, (uint64_t)count);
+    if (count != 0u) {
+        blake3_hasher_update(hasher, bytes, count);
+    }
+}
+
+static laplace_digest256 laplace_pg_source_uax_provider_fingerprint(
+    const laplace_pg_active_uax_authority* authority) {
+    static const char domain[] = "laplace.decomposition.provider.uax29/v1";
+    laplace_digest256 result;
+    blake3_hasher hasher;
+    memset(&result, 0, sizeof(result));
+    blake3_hasher_init(&hasher);
+    laplace_pg_source_hash_bytes(&hasher, domain, sizeof(domain) - 1u);
+    laplace_pg_source_hash_bytes(
+        &hasher, authority->source_fingerprint.bytes,
+        sizeof(authority->source_fingerprint.bytes));
+    laplace_pg_source_hash_bytes(
+        &hasher, authority->recipe_fingerprint.bytes,
+        sizeof(authority->recipe_fingerprint.bytes));
+    blake3_hasher_finalize(&hasher, result.bytes, sizeof(result.bytes));
+    return result;
+}
+
 static laplace_tabular_source_status
-laplace_pg_tabular_source_plan_create_recursive(
+laplace_pg_source_decomposition_plan_create(
     const laplace_tabular_source_input* input,
     laplace_tabular_source_plan** plan) {
-    laplace_unicode_source_bundle* unicode_bundle = NULL;
-    laplace_unicode_source_receipt unicode_receipt;
+    laplace_uax29_tables* uax_tables = NULL;
+    laplace_decomposition_uax29_provider uax_provider;
+    laplace_pg_active_uax_authority uax_authority;
+    laplace_digest256 uax_fingerprint;
     laplace_tabular_source_status status;
+
     laplace_pg_active_source_plan = NULL;
     laplace_pg_active_source_execution = NULL;
     laplace_pg_active_source_composition_input = NULL;
+    laplace_pg_source_uax_authority_valid = 0u;
+    memset(&laplace_pg_source_uax_authority, 0,
+           sizeof(laplace_pg_source_uax_authority));
     laplace_pg_source_metrics_begin();
-    memset(&unicode_receipt, 0, sizeof(unicode_receipt));
-    if (laplace_unicode_source_bundle_open(
-            LAPLACE_UNICODE_SOURCE_ROOT,
-            &unicode_bundle,
-            &unicode_receipt) != LAPLACE_UNICODE_OK ||
-        unicode_bundle == NULL) {
-        laplace_unicode_source_bundle_close(&unicode_bundle);
+    memset(&uax_provider, 0, sizeof(uax_provider));
+    memset(&uax_authority, 0, sizeof(uax_authority));
+
+    /* Product UAX authority is derived from the active canonical Unicode atom
+     * stream. No Unicode source directory is consulted on this execution path.
+     * The provider fingerprint remains bound to the canonical root's retained
+     * source+recipe identity, so replacing the physical provider does not change
+     * the logical UAX authority. */
+    laplace_pg_uax29_tables_from_active_unicode(&uax_tables, &uax_authority);
+    if (uax_tables == NULL) {
         return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
     }
-    status = laplace_tabular_source_plan_create_recursive(
-        input, unicode_bundle, plan);
-    laplace_unicode_source_bundle_close(&unicode_bundle);
+
+    uax_fingerprint =
+        laplace_pg_source_uax_provider_fingerprint(&uax_authority);
+    if (laplace_decomposition_uax29_provider_init(
+            &uax_provider, uax_tables, &uax_fingerprint) !=
+        LAPLACE_DECOMPOSITION_OK) {
+        laplace_uax29_tables_destroy(&uax_tables);
+        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+    }
+
+    status = laplace_source_decomposition_plan_create(
+        input, &uax_provider.provider, 1u, plan);
+    laplace_uax29_tables_destroy(&uax_tables);
     if (status == LAPLACE_TABULAR_SOURCE_OK && plan != NULL && *plan != NULL) {
         laplace_pg_active_source_plan = *plan;
+        laplace_pg_source_uax_authority = uax_authority;
+        laplace_pg_source_uax_authority_valid = 1u;
     }
     return status;
+}
+
+static void laplace_pg_source_require_uax_epoch(
+    const laplace_composition_working_set_input* input) {
+    if (laplace_pg_source_uax_authority_valid == 0u || input == NULL ||
+        input->context == NULL ||
+        (input->context->epoch_mask &
+         (UINT64_C(1) << LAPLACE_FRAMEWORK_EPOCH_PERFCACHE)) == 0u ||
+        memcmp(
+            input->context->epochs[LAPLACE_FRAMEWORK_EPOCH_PERFCACHE].bytes,
+            laplace_pg_source_uax_authority.activation_epoch_fingerprint.bytes,
+            sizeof(laplace_pg_source_uax_authority.activation_epoch_fingerprint.bytes)) != 0) {
+        ereport(ERROR,
+                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                 errmsg("Laplace source execution changed Unicode authority between decomposition and composition")));
+    }
 }
 
 static void laplace_pg_source_composition_execute(
     const laplace_composition_working_set_input* input,
     laplace_pg_composition_execution* execution) {
+    laplace_pg_source_require_uax_epoch(input);
     LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(input, execution);
     laplace_pg_source_metrics_capture_composition(execution);
     laplace_pg_active_source_execution = execution;
@@ -189,14 +264,14 @@ laplace_pg_source_profile_finalize_with_witnesses(
 
     /*
      * The source-profile occurrence denominator describes the canonical
-     * logical composition represented by this admission.  Explicit source
+     * logical composition represented by this admission. Explicit source
      * occurrence attestations are intentionally a separate execution fact:
      * recursive canonical subtrees are not allowed to manufacture source
      * sightings merely because they were lowered into the Merkle DAG.
      *
      * The generic tabular finalizer predates that separation and still closes
      * the profile on summary.occurrence_count (the explicitly emitted
-     * attestation count).  Product source admission must use the contract-owned
+     * attestation count). Product source admission uses the contract-owned
      * logical denominator consumed by world_admission_close_batch while leaving
      * summary.occurrence_count untouched in the composition execution receipt.
      */
@@ -235,7 +310,7 @@ laplace_pg_source_profile_finalize_with_witnesses(
 #define laplace_tabular_source_profile_finalize(plan, summary, profile) \
     laplace_pg_source_profile_finalize_with_witnesses((plan), (summary), (profile))
 #define laplace_tabular_source_plan_create(input, plan) \
-    laplace_pg_tabular_source_plan_create_recursive((input), (plan))
+    laplace_pg_source_decomposition_plan_create((input), (plan))
 #define SPI_execute_with_args(...) \
     (++laplace_pg_source_metrics_active.source_stage_spi_execute_with_args_count, \
      SPI_execute_with_args(__VA_ARGS__))

@@ -1,18 +1,13 @@
 #ifndef LAPLACE_POSTGRES_PROMPT_ADMISSION_PG_H
 #define LAPLACE_POSTGRES_PROMPT_ADMISSION_PG_H
 
+#include "content_admission_pg.h"
 #include "laplace/cognition_prompt_admission.h"
-#include "laplace/framework.h"
 
-/* Real installed providers for raw prompt admission. The atom descriptor is
- * caller-owned; its state copies the framework context so codepoints resolve
- * through the active mapped Tier-0 generation instead of a test alphabet or a
- * second identity implementation. Composition presence is the same set-oriented
- * PostgreSQL provider used by canonical composition deposit. */
-typedef struct laplace_pg_prompt_atom_provider_state {
-    laplace_framework_context context;
-    laplace_digest256 provider_fingerprint;
-} laplace_pg_prompt_atom_provider_state;
+/* Compatibility adapter only. Prompt admission no longer owns Tier-0 atom
+ * resolution; it consumes the generic PostgreSQL content-admission provider. */
+typedef laplace_pg_content_atom_provider_state
+    laplace_pg_prompt_atom_provider_state;
 
 void laplace_pg_prompt_atom_provider_create(
     const laplace_framework_context* context,

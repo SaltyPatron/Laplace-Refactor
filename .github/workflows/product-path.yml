@@ -45,7 +45,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.base_sha || github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          PROOF_PROFILE: ${{ github.event_name == 'workflow_dispatch' && 'physical' || 'merge' }}
+          PROOF_PROFILE: physical
         run: |
           set -euo pipefail
           test -n "$BASE_SHA"
@@ -83,6 +83,9 @@ jobs:
     needs: classify
     uses: ./.github/workflows/ci.yml
 
+  # The three physical proof implementations are independent consumers of the
+  # exact PR head. They each check out and qualify their own surface; serializing
+  # them added wall-clock delay without adding an evidence dependency.
   custom-stack-proof:
     needs:
       - classify
@@ -96,26 +99,18 @@ jobs:
     needs:
       - classify
       - hosted-proof
-      - custom-stack-proof
     if: >-
-      always() &&
       needs.classify.outputs.requires_postgresql_product == 'true' &&
-      needs.hosted-proof.result == 'success' &&
-      (needs.custom-stack-proof.result == 'success' || needs.custom-stack-proof.result == 'skipped')
+      needs.hosted-proof.result == 'success'
     uses: ./.github/workflows/postgresql-product.yml
 
   package-product-proof:
     needs:
       - classify
       - hosted-proof
-      - custom-stack-proof
-      - postgresql-product-proof
     if: >-
-      always() &&
       needs.classify.outputs.requires_package_product == 'true' &&
-      needs.hosted-proof.result == 'success' &&
-      (needs.custom-stack-proof.result == 'success' || needs.custom-stack-proof.result == 'skipped') &&
-      (needs.postgresql-product-proof.result == 'success' || needs.postgresql-product-proof.result == 'skipped')
+      needs.hosted-proof.result == 'success'
     uses: ./.github/workflows/package-product.yml
 
   product-path:
@@ -175,14 +170,6 @@ jobs:
             echo "Package-product proof: $PACKAGE_RESULT"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # An accepted push to main is the DEV/BAT deployment boundary. PR proof never invokes
-  # product activation. The exact accepted SHA is passed to the existing authenticated
-  # workflow-dispatch authority, which refuses a ref race before composing any package.
-  # This job does not finish at dispatch: it waits for that exact activation run and
-  # requires its success, so a green accepted-main run means the persistent PostgreSQL,
-  # Unicode, Highway, restart, enablement, and live-readback contract actually completed.
-  # `always()` is required because selected proof jobs may legitimately be skipped; without
-  # it GitHub propagates a transitive skip through `product-path` and suppresses deployment.
   dev-bat-deployment:
     needs: product-path
     if: >-
@@ -255,12 +242,9 @@ jobs:
             echo 'Accepted-main CI is green only after the persistent activation workflow has completed its restart/enablement/live-readback contract.'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Migration aliases for the three currently protected legacy contexts. They do not
-  # independently prove anything: each can green only after the authoritative
-  # product-path gate has accepted every evidence surface selected for this change.
-  # `always()` prevents legitimate skipped proof surfaces from transitively suppressing
-  # these aliases after product-path itself has accepted the selected proof set.
-  # Once main protection requires `product-path`, these aliases can be removed.
+  # Temporary compatibility contexts required by the current branch-protection
+  # rule. They do not run independent proof work and can disappear when the
+  # protection rule is changed to require only `product-path`.
   legacy-requirements:
     name: requirements
     needs: product-path
