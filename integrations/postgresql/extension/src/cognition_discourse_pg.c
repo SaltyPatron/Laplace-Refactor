@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "access/xact.h"
 #include "catalog/pg_type.h"
 #include "executor/spi.h"
 #include "fmgr.h"
@@ -264,6 +265,7 @@ Datum laplace_pg_cognition_discourse_deposit(PG_FUNCTION_ARGS) {
                 (errcode(ERRCODE_DATA_EXCEPTION),
                  errmsg("Laplace discourse persistence insert failed")));
     }
+    CommandCounterIncrement();
 
     verify_exact_stored_frame(&state, &receipt, frame);
     state_id_result = (bytea*)SPI_palloc(VARHDRSZ + sizeof(state.state_id.bytes));
