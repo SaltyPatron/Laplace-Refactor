@@ -138,6 +138,7 @@ Datum laplace_pg_test_firmware_indexed(PG_FUNCTION_ARGS) {
     bytea* previous_id=PG_GETARG_BYTEA_PP(5);
     int64 workspace=PG_GETARG_INT64(6);
     int32 transition_capacity=PG_GETARG_INT32(7);
+    bool mixed_relations=PG_GETARG_BOOL(8);
     const uint8_t* image_bytes;size_t image_size;
     laplace_digest256 image_id;
     const uint8_t* output=NULL;size_t output_size=0;
@@ -155,6 +156,21 @@ Datum laplace_pg_test_firmware_indexed(PG_FUNCTION_ARGS) {
     if(status!=LAPLACE_COGNITION_FIRMWARE_OK)ereport(ERROR,(errmsg("invalid firmware image %d",(int)status)));
     if(laplace_cognition_firmware_image_view(owners->image,&program,&image_bytes,&image_size,&image_id)!=
         LAPLACE_COGNITION_FIRMWARE_OK)ereport(ERROR,(errmsg("unreadable firmware image")));
+    if(mixed_relations) {
+        laplace_cognition_firmware_step* mixed_steps;
+        uint32_t step;
+        mixed_steps=palloc(sizeof(*mixed_steps)*(size_t)program.step_count);
+        memcpy(mixed_steps,program.steps,sizeof(*mixed_steps)*(size_t)program.step_count);
+        for(step=0u;step<program.step_count;++step) {
+            if(mixed_steps[step].kind!=LAPLACE_COGNITION_FIRMWARE_EMIT)
+                mixed_steps[step].relation_mask|=LAPLACE_OBSERVATION_QUERY_SEMANTIC;
+        }
+        program.steps=mixed_steps;
+        status=laplace_cognition_firmware_identify(&program,&request.selected_program);
+        if(status!=LAPLACE_COGNITION_FIRMWARE_OK)
+            ereport(ERROR,(errmsg("mixed firmware program invalid %d",(int)status)));
+        context.epochs[LAPLACE_FRAMEWORK_EPOCH_FIRMWARE]=request.selected_program;
+    }
     memset(&grammar,0,sizeof(grammar));grammar.applicable=fixture_applicable;grammar.apply=fixture_apply;
     grammar.provider_fingerprint=fixture_digest(0x31);grammar.abi_major=LAPLACE_DECOMPOSITION_PROVIDER_ABI_MAJOR;
     memset(&atoms,0,sizeof(atoms));atoms.resolve=fixture_atoms;atoms.provider_fingerprint=fixture_digest(0x32);
@@ -207,9 +223,11 @@ Datum laplace_pg_test_firmware_indexed(PG_FUNCTION_ARGS) {
             ereport(ERROR,(errmsg("firmware result unreadable")));
     }
     initStringInfo(&result);
-    appendStringInfo(&result,"{\"status\":%u,\"native_status\":%u,\"step\":%u,\"completed_steps\":%u,\"database_operations\":%llu,\"rows_fetched\":%llu,\"batch_count\":%llu,\"output_hex\":\"",
+    appendStringInfo(&result,"{\"status\":%u,\"native_status\":%u,\"step\":%u,\"completed_steps\":%u,\"database_operations\":%llu,\"rows_fetched\":%llu,\"batch_count\":%llu,\"semantic_provider_calls\":%llu,\"semantic_rows_examined\":%llu,\"output_hex\":\"",
         (unsigned)status,error.native_status,error.step_index,receipt.completed_steps,
-        (unsigned long long)reads.database_operations,(unsigned long long)reads.rows_fetched,(unsigned long long)reads.batch_count);
+        (unsigned long long)reads.database_operations,(unsigned long long)reads.rows_fetched,
+        (unsigned long long)reads.batch_count,(unsigned long long)reads.semantic_provider_calls,
+        (unsigned long long)reads.semantic_rows_examined);
     hex(&result,output,output_size);appendStringInfoString(&result,"\",\"checkpoint_hex\":\"");
     hex(&result,checkpoint,checkpoint_size);appendStringInfoString(&result,"\",\"checkpoint_id\":\"");
     hex(&result,receipt.next_checkpoint_fingerprint.bytes,32);appendStringInfoString(&result,"\",\"receipt_id\":\"");
