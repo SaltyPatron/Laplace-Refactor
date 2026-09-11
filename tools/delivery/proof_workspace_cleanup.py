@@ -29,9 +29,29 @@ from typing import Sequence
 
 SAFE_NAME = re.compile(
     r"^(?:laplace-postgres-test\.[A-Za-z0-9]+|"
-    r"laplace-[a-z0-9][a-z0-9._-]*|lp-pg\.[A-Za-z0-9]+)$"
+    r"laplace-[a-z0-9][a-z0-9._-]*|"
+    r"lp-(?:pg|sc-pg|ta-pg|oc-pg|discourse-pg|mx-pg)\.[A-Za-z0-9]+)$"
 )
-SAFE_DISCOVERY_PREFIXES = frozenset(("laplace-postgres-test.", "lp-pg."))
+
+# These are the exact mktemp namespaces used by the PostgreSQL/native proof scripts.
+# Keep this allowlist synchronized with those producers. A broad `laplace-` or `lp-`
+# sweep would let an unrelated workspace be reclassified as disposable merely by name.
+SAFE_DISCOVERY_PREFIXES = frozenset(
+    (
+        "laplace-postgres-test.",
+        "laplace-postgres-semantic-cognition.",
+        "laplace-postgres-target-attention.",
+        "laplace-postgres-observation-cognition.",
+        "laplace-postgres-discourse.",
+        "laplace-model-export-cli.",
+        "lp-pg.",
+        "lp-sc-pg.",
+        "lp-ta-pg.",
+        "lp-oc-pg.",
+        "lp-discourse-pg.",
+        "lp-mx-pg.",
+    )
+)
 
 
 class CleanupError(RuntimeError):
@@ -60,7 +80,7 @@ def _target(root: Path, name: str) -> Path:
 
 
 def discover_names(root: Path, prefixes: Sequence[str]) -> list[str]:
-    """Discover only the two exact disposable PostgreSQL workspace namespaces."""
+    """Discover only exact declared disposable PostgreSQL proof namespaces."""
 
     physical_root = _physical_root(root)
     for prefix in prefixes:
