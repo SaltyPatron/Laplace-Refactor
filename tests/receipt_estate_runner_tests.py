@@ -25,7 +25,8 @@ class RunnerReceiptEstateTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="laplace-runner-receipts-")
         self.root = Path(self.temporary.name)
-        self.instance = self.root / "receipts/postgresql/refactor"
+        self.receipts = self.root / "receipts"
+        self.instance = self.receipts / "postgresql/refactor"
         self.instance.mkdir(parents=True)
         self.contract = {"instance": {"receipt_directory": str(self.instance)}}
         self.account = pwd.getpwuid(os.geteuid())
@@ -37,8 +38,22 @@ class RunnerReceiptEstateTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(value) + "\n", encoding="utf-8")
 
-    def test_runner_converges_instance_local_package_evidence(self) -> None:
+    def test_runner_converges_accessible_legacy_and_instance_package_evidence(self) -> None:
         package_id = "a" * 64
+        self.write(
+            self.receipts / "packages" / f"{package_id}.json",
+            {
+                "schema": RUNNER.estate.INSTALLATION_SCHEMA,
+                "phase": "installed",
+                "package_id": package_id,
+                "installation_receipt_sha256": "1" * 64,
+            },
+        )
+        self.write(
+            self.receipts / "plans" / package_id / "host-selection.json",
+            {"schema": "host-selection"},
+        )
+        (self.receipts / "deployments").mkdir()
         self.write(
             self.instance / "release-capacity" / package_id / "capacity.json",
             {"schema": "laplace.product-release-capacity/v1", "successor_package_id": package_id},
@@ -58,12 +73,26 @@ class RunnerReceiptEstateTests(unittest.TestCase):
         with mock.patch.object(RUNNER, "RUNNER_USER", self.account.pw_name):
             result = RUNNER.converge(self.contract)
         generation = self.instance / "cluster-activation" / package_id
+        self.assertTrue((generation / "package-installation.json").is_file())
+        self.assertTrue((generation / "host-selection.json").is_file())
         self.assertTrue((generation / "release-capacity.json").is_file())
         self.assertTrue((generation / "unicode-product-activation.json").is_file())
         self.assertTrue((generation / "highway-product-activation.json").is_file())
         self.assertTrue((generation / "installed-cognition-proof.json").is_file())
-        self.assertEqual(result["migration_count"], 4)
+        self.assertFalse((self.receipts / "packages").exists())
+        self.assertFalse((self.receipts / "plans").exists())
+        self.assertFalse((self.receipts / "deployments").exists())
+        self.assertEqual(result["migration_count"], 6)
         self.assertEqual(result["preserved_unknown_or_conflicting"], [])
+
+    def test_nonempty_deployments_is_preserved(self) -> None:
+        deployments = self.receipts / "deployments"
+        deployments.mkdir()
+        (deployments / "unknown").write_text("preserve\n", encoding="utf-8")
+        with mock.patch.object(RUNNER, "RUNNER_USER", self.account.pw_name):
+            result = RUNNER.converge(self.contract)
+        self.assertTrue(deployments.is_dir())
+        self.assertIn(str(deployments), result["preserved_unknown_or_conflicting"])
 
     def test_wrong_execution_identity_is_rejected(self) -> None:
         fake = type("Fake", (), {"pw_uid": os.geteuid() + 1, "pw_gid": os.getegid()})()
