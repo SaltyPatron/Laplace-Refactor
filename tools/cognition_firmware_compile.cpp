@@ -104,7 +104,8 @@ std::string JsonEscape(std::string_view value) {
     static constexpr char digits[] = "0123456789abcdef";
     std::string result;
     result.reserve(value.size());
-    for (const unsigned char byte : value) {
+    for (const char character : value) {
+        const auto byte = static_cast<unsigned char>(character);
         switch (byte) {
             case '"': result += "\\\""; break;
             case '\\': result += "\\\\"; break;
