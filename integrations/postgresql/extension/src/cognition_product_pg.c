@@ -398,7 +398,7 @@ static void product_read_prompt_scope(
     if (turn_flags < 0) {
         ereport(ERROR,
                 (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("Laplace turn_flags cannot be negative", field)));
+                 errmsg("Laplace turn_flags cannot be negative")));
     }
     input->occurrence.turn_flags = (uint32_t)turn_flags;
     input->source_ordinal_base = product_read_u64(tuple, 13, "source_ordinal_base");
