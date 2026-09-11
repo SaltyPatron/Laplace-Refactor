@@ -54,6 +54,7 @@ bool WeightedCost(
 bool ProviderDispositionValid(const std::uint32_t value) {
     return value == 0U || value == LAPLACE_QUERY_SEARCH_DISPOSITION_UNSUPPORTED ||
         value == LAPLACE_QUERY_SEARCH_DISPOSITION_DENIED ||
+        value == LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED ||
         value == LAPLACE_QUERY_SEARCH_DISPOSITION_CONTRADICTED ||
         value == LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
 }

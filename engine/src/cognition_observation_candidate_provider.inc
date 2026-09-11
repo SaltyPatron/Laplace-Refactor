@@ -322,6 +322,7 @@ int ExpandCandidateBatch(
             (usage.limiting_disposition != 0U &&
              usage.limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_UNSUPPORTED &&
              usage.limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_DENIED &&
+             usage.limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED &&
              usage.limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_CONTRADICTED &&
              usage.limiting_disposition != LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN) ||
             (usage.limiting_disposition != 0U && candidate_count != 0U)) {

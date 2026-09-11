@@ -81,10 +81,11 @@ laplace_observation_query_index_candidates_batch(
                 return LAPLACE_OBSERVATION_QUERY_TRAJECTORY_INVALID;
             }
             if (limited || generated.size() > candidate_capacity - staged_count) {
-                // Output is atomic, physical work is not erased on exhaustion.
+                // Output is atomic. Finite batch capacity is a declared resource
+                // boundary, not arithmetic overflow and not an unknown result.
                 *usage = measured;
-                usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
-                return LAPLACE_OBSERVATION_QUERY_OVERFLOW;
+                usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;
+                return LAPLACE_OBSERVATION_QUERY_OK;
             }
             for (const auto& item : generated) {
                 laplace_cognition_observation_candidate projected{};

@@ -114,7 +114,10 @@
             provider_receipt.frontier_state_count != states.size() ||
             provider_receipt.emitted_transition_count != transition_count ||
             Zero(provider_receipt.receipt_id) || provider_receipt.flags != 0U ||
-            !ProviderDispositionValid(provider_receipt.limiting_disposition)) {
+            !ProviderDispositionValid(provider_receipt.limiting_disposition) ||
+            (provider_receipt.limiting_disposition ==
+                 LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED &&
+             transition_count != 0U)) {
             return LAPLACE_QUERY_SEARCH_PROVIDER_CONTRACT;
         }
         if (provider_receipt.io_operations >
@@ -132,6 +135,11 @@
         provider_disposition_ = MergeProviderDisposition(
             provider_disposition_, provider_receipt.limiting_disposition);
         HashDigest(&execution_hasher_, provider_receipt.receipt_id);
+        if (provider_receipt.limiting_disposition ==
+            LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED) {
+            resource_exhausted_ = true;
+            return LAPLACE_QUERY_SEARCH_OK;
+        }
         transitions.resize(transition_count);
         std::sort(
             transitions.begin(), transitions.end(),
