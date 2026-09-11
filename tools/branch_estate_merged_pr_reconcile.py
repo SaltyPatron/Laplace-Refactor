@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Collapse exact merged-PR heads from a live branch-estate audit.
+"""Reconcile live branch tips against exact GitHub pull-request delivery records.
 
 Patch equivalence cannot prove delivery for every squash-merged PR. GitHub's PR
 record can: when a live branch tip exactly equals the head SHA of a PR whose
 merged_at field is non-null, that branch was an input to an accepted merge.
 
-This tool is deliberately narrower than semantic reconciliation:
-- only exact head SHA matches are mechanically absorbed;
-- closed-but-unmerged PRs are never absorbed;
-- branches without a matching merged PR remain unchanged;
-- the remaining patch/group counts are recomputed from unresolved branch records.
+A second, deliberately narrow proof handles closed-unmerged PRs whose own body
+explicitly records one replacement using one of these exact forms:
+  "Superseded by #N", "Absorbed into #N", or "Replaced by #N".
+That target is followed only through equally explicit same-repository chains and
+the chain is accepted only if it terminates at a merged PR. Vague prose, branch
+names, dates, and inferred similarity never establish supersession.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import collections
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import time
 from typing import Any
@@ -28,6 +30,10 @@ import urllib.request
 
 
 API_ROOT = "https://api.github.com"
+EXPLICIT_SUPERSESSION = re.compile(
+    r"\b(?:superseded by|absorbed into|replaced by)\s+#(\d+)\b",
+    re.IGNORECASE,
+)
 
 
 def fetch_json(url: str, token: str | None) -> Any:
@@ -57,8 +63,29 @@ def fetch_json(url: str, token: str | None) -> Any:
     raise AssertionError("unreachable")
 
 
-def merged_pr_heads(full_name: str, token: str | None) -> dict[str, list[dict[str, Any]]]:
+def pr_record(pr: dict[str, Any]) -> dict[str, Any] | None:
+    head = pr.get("head") or {}
+    sha = head.get("sha")
+    if not isinstance(sha, str) or len(sha) != 40:
+        return None
+    return {
+        "number": int(pr["number"]),
+        "title": str(pr.get("title") or ""),
+        "body": str(pr.get("body") or ""),
+        "closed_at": pr.get("closed_at"),
+        "merged_at": pr.get("merged_at"),
+        "merge_commit_sha": pr.get("merge_commit_sha"),
+        "head_ref": head.get("ref"),
+        "head_sha": sha,
+    }
+
+
+def closed_pr_inventory(
+    full_name: str,
+    token: str | None,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[int, dict[str, Any]]]:
     by_head: dict[str, list[dict[str, Any]]] = collections.defaultdict(list)
+    by_number: dict[int, dict[str, Any]] = {}
     page = 1
     while True:
         query = urllib.parse.urlencode(
@@ -74,31 +101,77 @@ def merged_pr_heads(full_name: str, token: str | None) -> dict[str, list[dict[st
         if not isinstance(payload, list):
             raise RuntimeError(f"unexpected PR listing payload for {full_name}")
         for pr in payload:
-            merged_at = pr.get("merged_at")
-            head = pr.get("head") or {}
-            sha = head.get("sha")
-            if not merged_at or not isinstance(sha, str) or len(sha) != 40:
+            record = pr_record(pr)
+            if record is None:
                 continue
-            by_head[sha].append(
-                {
-                    "number": int(pr["number"]),
-                    "title": str(pr.get("title") or ""),
-                    "merged_at": str(merged_at),
-                    "merge_commit_sha": pr.get("merge_commit_sha"),
-                    "head_ref": head.get("ref"),
-                }
-            )
+            by_head[record["head_sha"]].append(record)
+            by_number[record["number"]] = record
+        merged_heads = sum(
+            1 for records in by_head.values() if any(r.get("merged_at") for r in records)
+        )
         print(
             f"{full_name}: scanned closed PR page {page}, rows={len(payload)}, "
-            f"merged-heads={len(by_head)}",
+            f"merged-heads={merged_heads}, exact-heads={len(by_head)}",
             file=sys.stderr,
         )
         if len(payload) < 100:
             break
         page += 1
     for records in by_head.values():
-        records.sort(key=lambda item: (item["number"], item["merged_at"]))
-    return dict(by_head)
+        records.sort(key=lambda item: item["number"])
+    return dict(by_head), by_number
+
+
+def compact_pr(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "number": record["number"],
+        "title": record["title"],
+        "closed_at": record.get("closed_at"),
+        "merged_at": record.get("merged_at"),
+        "merge_commit_sha": record.get("merge_commit_sha"),
+        "head_ref": record.get("head_ref"),
+        "head_sha": record.get("head_sha"),
+    }
+
+
+def explicit_target(record: dict[str, Any]) -> int | None:
+    matches = {int(value) for value in EXPLICIT_SUPERSESSION.findall(record.get("body") or "")}
+    if len(matches) != 1:
+        return None
+    return next(iter(matches))
+
+
+def supersession_chain(
+    source: dict[str, Any],
+    by_number: dict[int, dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    if source.get("merged_at"):
+        return None
+    target_number = explicit_target(source)
+    if target_number is None:
+        return None
+
+    chain = [compact_pr(source)]
+    seen = {source["number"]}
+    for _ in range(12):
+        target = by_number.get(target_number)
+        if target is None or target["number"] in seen:
+            return None
+        seen.add(target["number"])
+        chain.append(compact_pr(target))
+        if target.get("merged_at"):
+            return chain
+        target_number = explicit_target(target)
+        if target_number is None:
+            return None
+    return None
+
+
+def clear_missing(branch: dict[str, Any]) -> None:
+    branch["missing_patch_count"] = 0
+    branch["missing_patch_keys"] = []
+    branch["missing_patches"] = []
+    branch["changed_files"] = []
 
 
 def recompute(repo: dict[str, Any]) -> None:
@@ -151,6 +224,9 @@ def recompute(repo: dict[str, Any]) -> None:
     repo["merged_pr_head_count"] = sum(
         1 for branch in branches if branch["classification"] == "MERGED_PR_HEAD"
     )
+    repo["explicit_pr_supersession_count"] = sum(
+        1 for branch in branches if branch["classification"] == "EXPLICIT_PR_SUPERSESSION"
+    )
 
 
 def reconcile(
@@ -165,38 +241,55 @@ def reconcile(
     }:
         raise RuntimeError(f"unsupported input audit schema: {expected_schema!r}")
 
-    proof_by_label: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    inventory_by_label: dict[
+        str, tuple[dict[str, list[dict[str, Any]]], dict[int, dict[str, Any]]]
+    ] = {}
     for label, full_name in repository_map.items():
-        proof_by_label[label] = merged_pr_heads(full_name, token)
+        inventory_by_label[label] = closed_pr_inventory(full_name, token)
 
     for repo in report["repositories"]:
         label = repo["repository"]
-        if label not in proof_by_label:
+        if label not in inventory_by_label:
             raise RuntimeError(f"missing repository mapping for {label}")
-        heads = proof_by_label[label]
+        by_head, by_number = inventory_by_label[label]
         for branch in repo["branches"]:
-            proofs = heads.get(branch["tip"])
-            if not proofs:
+            exact_prs = by_head.get(branch["tip"], [])
+            if not exact_prs:
                 continue
-            if branch["classification"] == "MERGED_PR_HEAD":
-                branch["merged_prs"] = proofs
+
+            branch["exact_closed_prs"] = [compact_pr(record) for record in exact_prs]
+            merged = [record for record in exact_prs if record.get("merged_at")]
+            if merged:
+                branch["pre_merged_pr_classification"] = branch["classification"]
+                branch["pre_merged_pr_missing_patch_count"] = branch.get("missing_patch_count", 0)
+                branch["classification"] = "MERGED_PR_HEAD"
+                branch["merged_prs"] = [compact_pr(record) for record in merged]
+                clear_missing(branch)
                 continue
-            branch["pre_merged_pr_classification"] = branch["classification"]
-            branch["pre_merged_pr_missing_patch_count"] = branch.get("missing_patch_count", 0)
-            branch["classification"] = "MERGED_PR_HEAD"
-            branch["merged_prs"] = proofs
-            branch["missing_patch_count"] = 0
-            branch["missing_patch_keys"] = []
-            branch["missing_patches"] = []
-            branch["changed_files"] = []
+
+            chains = [
+                chain
+                for record in exact_prs
+                if (chain := supersession_chain(record, by_number)) is not None
+            ]
+            if len(chains) == 1:
+                branch["pre_pr_supersession_classification"] = branch["classification"]
+                branch["pre_pr_supersession_missing_patch_count"] = branch.get(
+                    "missing_patch_count", 0
+                )
+                branch["classification"] = "EXPLICIT_PR_SUPERSESSION"
+                branch["supersession_chain"] = chains[0]
+                clear_missing(branch)
         recompute(repo)
 
     report["schema"] = "laplace.branch-estate-live-audit/v4"
-    report["merged_pr_head_rule"] = (
-        "A live branch tip is mechanically delivered only when its exact 40-hex tip SHA "
-        "equals the head SHA recorded by GitHub for a PR with non-null merged_at. Closed "
-        "unmerged PRs remain unresolved. This proof supplements ancestry/content/patch "
-        "equivalence and does not infer delivery from branch names."
+    report["pull_request_delivery_rule"] = (
+        "A live branch tip is mechanically delivered when its exact 40-hex tip SHA equals "
+        "the head SHA recorded by GitHub for a merged PR. A closed-unmerged exact head is "
+        "also dispositioned only when its own PR body contains exactly one explicit "
+        "'Superseded by #N', 'Absorbed into #N', or 'Replaced by #N' reference and that "
+        "same-repository chain terminates at a merged PR. All other closed-unmerged PRs "
+        "remain unresolved. No branch-name or similarity inference is used."
     )
     return report
 
@@ -208,6 +301,7 @@ def print_summary(report: dict[str, Any]) -> None:
         print(f"  branches including main: {repo['branch_count_including_main']}")
         print(f"  candidate branches: {repo['candidate_branch_count']}")
         print(f"  exact merged PR heads: {repo.get('merged_pr_head_count', 0)}")
+        print(f"  explicit PR supersessions: {repo.get('explicit_pr_supersession_count', 0)}")
         print(f"  unique missing patches: {repo['unique_missing_patch_count']}")
         print(
             "  missing-patch signature groups: "
