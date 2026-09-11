@@ -48,8 +48,6 @@ jobs:
             .activation_gateway_installed == false
           ' "$bootstrap" >/dev/null
 
-          # The release root is a runner-owned cache boundary. Recreate only that exact
-          # missing physical directory; never follow or replace a symlink or other node.
           release_root=/opt/laplace/releases
           if [[ ! -e "$release_root" && ! -L "$release_root" ]]; then
             install -d -m 0755 "$release_root"
@@ -105,7 +103,6 @@ jobs:
           python3 tools/delivery/postgresql_package_publication.py verify \
             --receipt "$postgresql_publication" >/dev/null
           printf 'postgresql_publication=%s\n' "$postgresql_publication" >> "$GITHUB_OUTPUT"
-
       - name: Compose or verify the exact content-addressed product package
         id: compose
         shell: bash
@@ -191,7 +188,6 @@ jobs:
           test -w "$release_root"
           test -w /opt/laplace/runtime
           test -w /opt/laplace/pgdata/refactor
-
       - name: Reconcile empty uncommitted PostgreSQL candidate leaves
         shell: bash
         run: |
@@ -211,14 +207,11 @@ jobs:
             cat "$recovery"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Activate PostgreSQL, Unicode, and Highway as laplace-runner
         shell: bash
         run: |
           set -euo pipefail
           result="$RUNNER_TEMP/laplace-product-activation-result.json"
-          # tools/delivery/product_activation_runner.py remains the canonical orchestrator;
-          # the reconciler selects only the fresh-vs-active PostgreSQL lifecycle provider.
           python3 tools/delivery/product_activation_reconcile.py \
             --product-receipt '${{ needs.compose-product.outputs.product_receipt }}' \
             --resource-observation '${{ needs.compose-product.outputs.resource_observation }}' \
@@ -246,7 +239,6 @@ jobs:
             cat "$result"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Verify the persistent DEV/BAT product directly
         shell: bash
         run: |
@@ -272,7 +264,6 @@ jobs:
           test "$(jq -er '.service_integration_required' "$cluster_result")" = false
           test "$(jq -er '.package_id' "$unicode_result")" = "$package_id"
           test "$(jq -er '.package_id' "$highway_result")" = "$package_id"
-
           test -L /opt/laplace/current
           test "$(readlink /opt/laplace/current)" = "releases/$package_id"
           test -L /opt/laplace/runtime/refactor
@@ -282,26 +273,17 @@ jobs:
           pg_ctl="$package_root/pgsql-18/bin/pg_ctl"
           pg_isready="$package_root/pgsql-18/bin/pg_isready"
           psql="$package_root/pgsql-18/bin/psql"
+          web="$package_root/bin/laplace-web"
           test -x "$pg_ctl"
           test -x "$pg_isready"
           test -x "$psql"
+          test -x "$web"
           "$pg_ctl" -D "$data_directory" status
-          "$pg_isready" \
-            --host "$socket_directory" \
-            --port 55433 \
-            --dbname laplace_refactor
-
+          "$pg_isready" --host "$socket_directory" --port 55433 --dbname laplace_refactor
           live_query=$(
-            "$psql" \
-              --host "$socket_directory" \
-              --port 55433 \
-              --username laplace_app \
-              --dbname laplace_refactor \
-              --no-psqlrc \
-              --set ON_ERROR_STOP=1 \
-              --tuples-only \
-              --no-align \
-              --field-separator '|' \
+            "$psql" --host "$socket_directory" --port 55433 --username laplace_app \
+              --dbname laplace_refactor --no-psqlrc --set ON_ERROR_STOP=1 \
+              --tuples-only --no-align --field-separator '|' \
               --command "SELECT version(),current_database(),current_user,(SELECT extversion FROM pg_extension WHERE extname='laplace')"
           )
           IFS='|' read -r live_version live_database live_role live_extension <<<"$live_query"
@@ -309,20 +291,105 @@ jobs:
           test "$live_database" = laplace_refactor
           test "$live_role" = laplace_app
           [[ "$live_extension" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          {
-            echo '## DEV/BAT persistent post-deploy proof'
-            echo "- repository commit: \`$GITHUB_SHA\`"
-            echo "- package: \`$package_id\`"
-            echo '- recurring execution owner: `laplace-runner`'
-            echo '- lifecycle provider: packaged `pg_ctl`'
-            echo '- recurring root/sudo/systemd dependency: `none`'
-            echo "- live query: \`$live_version | $live_database | $live_role | laplace $live_extension\`"
-            echo '- PostgreSQL process restart: proven'
-            echo '- Unicode activation receipt: readable'
-            echo '- Highway activation receipt: readable'
-            echo '- systemd unit: optional boot integration only'
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Start the installed Laplace browser surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          web=/opt/laplace/runtime/refactor/bin/laplace-web
+          socket_directory=$(jq -er '.instance.socket_directory' contracts/postgresql-cluster.json)
+          pid_file=/opt/laplace/runtime/laplace-web.pid
+          log_file=/var/log/laplace/laplace-web.log
+          test -x "$web"
+          python3 - "$web" "$socket_directory" "$pid_file" "$log_file" <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import signal
+          import subprocess
+          import sys
+          import time
+          import urllib.request
 
+          web, socket_directory, pid_name, log_name = sys.argv[1:]
+          pid_file = Path(pid_name)
+          log_file = Path(log_name)
+          uid = os.geteuid()
+
+          if pid_file.exists():
+              if pid_file.is_symlink() or not pid_file.is_file():
+                  raise SystemExit(f"unsafe web pid file: {pid_file}")
+              raw = pid_file.read_text(encoding="ascii").strip()
+              if raw:
+                  old_pid = int(raw)
+                  proc = Path(f"/proc/{old_pid}")
+                  if proc.exists():
+                      status = (proc / "status").read_text(encoding="utf-8")
+                      uid_line = next(line for line in status.splitlines() if line.startswith("Uid:"))
+                      process_uid = int(uid_line.split()[1])
+                      command = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
+                      if process_uid != uid or "laplace-web" not in command:
+                          raise SystemExit(f"pid file points to a non-Laplace process: {old_pid}")
+                      os.kill(old_pid, signal.SIGTERM)
+                      for _ in range(50):
+                          if not proc.exists():
+                              break
+                          time.sleep(0.1)
+                      if proc.exists():
+                          raise SystemExit(f"previous laplace-web did not stop: {old_pid}")
+              pid_file.unlink(missing_ok=True)
+
+          log_file.parent.mkdir(parents=True, exist_ok=True)
+          environment = dict(os.environ)
+          environment.pop("RUNNER_TRACKING_ID", None)
+          with log_file.open("ab", buffering=0) as log:
+              process = subprocess.Popen(
+                  [
+                      web,
+                      "--listen", "0.0.0.0",
+                      "--port", "8080",
+                      "--socket", socket_directory,
+                      "--database", "laplace_refactor",
+                      "--role", "laplace_admin",
+                  ],
+                  stdin=subprocess.DEVNULL,
+                  stdout=log,
+                  stderr=subprocess.STDOUT,
+                  env=environment,
+                  start_new_session=True,
+                  close_fds=True,
+              )
+          temporary = pid_file.with_name(f".{pid_file.name}.{os.getpid()}.tmp")
+          temporary.write_text(f"{process.pid}\n", encoding="ascii")
+          temporary.chmod(0o640)
+          os.replace(temporary, pid_file)
+
+          last_error = None
+          for _ in range(50):
+              if process.poll() is not None:
+                  raise SystemExit(f"laplace-web exited during startup: {process.returncode}")
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:8080/api/health", timeout=1) as response:
+                      payload = json.load(response)
+                  if (
+                      payload.get("status") == "ready"
+                      and payload.get("database") == "laplace_refactor"
+                      and payload.get("role") == "laplace_admin"
+                  ):
+                      break
+                  last_error = f"unexpected health payload: {payload}"
+              except Exception as error:
+                  last_error = str(error)
+              time.sleep(0.2)
+          else:
+              raise SystemExit(f"laplace-web did not become ready: {last_error}")
+          print(json.dumps({"pid": process.pid, "url": "http://127.0.0.1:8080", "health": payload}, sort_keys=True))
+          PY
+          host=$(hostname -f 2>/dev/null || hostname)
+          {
+            echo '## Installed Laplace browser'
+            echo "- URL: \`http://$host:8080/\`"
+            echo '- surface: persisted collection browser with paging, filtering, sorting, selection, graph and 4D physicality projection'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Execute installed product cognition proof
         shell: bash
         run: |
@@ -343,13 +410,6 @@ jobs:
             (.execution.execution_receipt_id | test("^\\\\x[0-9a-f]{64}$")) and
             (.proof_sha256 | test("^[0-9a-f]{64}$"))
           ' "$proof" >/dev/null
-          {
-            echo '## Installed product cognition output'
-            echo '```json'
-            jq '{schema,package_id,program:.program.program_id,prompt_utf8,observed_output_utf8,execution:{status:.execution.status,completed_steps:.execution.completed_steps,emitted_parts:.execution.emitted_parts,provider_call_count:.execution.provider_call_count,materialization_resolved_nodes:.execution.materialization_resolved_nodes,materialization_database_operations:.execution.materialization_database_operations,execution_receipt_id:.execution.execution_receipt_id},proof_sha256}' "$proof"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Converge runner-owned package receipt estate
         shell: bash
         run: |
@@ -383,9 +443,3 @@ jobs:
           done
           test ! -e "$receipt_root/unicode-product-activation.json"
           test ! -e "$receipt_root/highway-product-activation.json"
-          {
-            echo '## Package-addressed receipt estate'
-            echo "- canonical generation: \`$generation\`"
-            echo "- migrated legacy runner receipts: $(jq -r '.migration_count' "$result")"
-            echo "- preserved unknown/conflicting entries: $(jq -r '.preserved_unknown_or_conflicting | length' "$result")"
-          } >> "$GITHUB_STEP_SUMMARY"
