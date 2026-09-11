@@ -1,14 +1,8 @@
 {
   "schema": "laplace.final-convergence-merge-plan/v1",
   "target": "delivery/final-convergence-20260911",
-  "resolution_revision": 2,
+  "resolution_revision": 3,
   "heads": [
-    {
-      "owner_pr": 302,
-      "branch": "implementation/53-generic-source-decomposition",
-      "sha": "b1b3d3537394b616d65b18e697346039f17d0021",
-      "purpose": "generic source acquisition, provider composition, atom-stream UAX authority, and active-source PostgreSQL admission"
-    },
     {
       "owner_pr": 301,
       "branch": "fix/native-cognition-execution",
