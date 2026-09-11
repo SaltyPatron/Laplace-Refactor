@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Reclaim obsolete product build/stage generations without losing receipt evidence.
+"""Reclaim obsolete product build/stage generations without losing build metadata.
 
 `/build/laplace/runner/product/{build,stage}` is rebuildable execution state, not the
-canonical evidence store. This controller preserves the currently selected plan,
-serializes against the same per-plan locks used by build-package.py, copies verified
-completed-plan metadata into the durable product receipt root, and removes only exact
-plan-addressed physical directories. Interrupted old plan workspaces are also
-reclaimable after the age gate because they never became a completed package.
+canonical product evidence store. This controller preserves the currently selected
+plan, serializes against the same per-plan locks used by build-package.py, copies
+verified completed-plan metadata into a bounded product execution-retention root, and
+removes only exact plan-addressed physical directories. Interrupted old plan
+workspaces are also reclaimable after the age gate because they never became a
+completed package.
 
 Unknown names, symlinked plan roots, cross-device trees, busy locks, and malformed
 completed-plan evidence are preserved fail-closed. Deletion never follows symlinks.
@@ -180,16 +181,16 @@ def _completed_metadata(
 
 
 def _publish_metadata(
-    receipt_root: Path,
+    retention_root: Path,
     plan_id: str,
     receipt_bytes: bytes,
     manifest_bytes: bytes,
     summary: dict[str, Any],
 ) -> Path:
-    destination = receipt_root / plan_id
+    destination = retention_root / plan_id
     destination.mkdir(mode=0o750, exist_ok=True)
     if destination.is_symlink() or not destination.is_dir():
-        raise RetentionError(f"retention receipt destination is unsafe: {destination}")
+        raise RetentionError(f"execution-retention destination is unsafe: {destination}")
     documents = {
         "package-receipt.json": receipt_bytes,
         "package-manifest.json": manifest_bytes,
@@ -199,14 +200,14 @@ def _publish_metadata(
         target = destination / name
         if target.exists():
             if target.is_symlink() or not target.is_file() or target.read_bytes() != payload:
-                raise RetentionError(f"retention metadata collision: {target}")
+                raise RetentionError(f"execution-retention metadata collision: {target}")
             continue
         with target.open("xb") as stream:
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
     _fsync_directory(destination)
-    _fsync_directory(receipt_root)
+    _fsync_directory(retention_root)
     return destination
 
 
@@ -246,10 +247,12 @@ def reconcile(
     if lock_root.is_symlink() or not lock_root.is_dir():
         raise RetentionError("product plan lock root is unsafe")
     if not receipt_root.is_absolute():
-        raise RetentionError("retention receipt root must be absolute")
+        raise RetentionError("execution-retention root must be absolute")
     receipt_root.mkdir(parents=True, mode=0o750, exist_ok=True)
     if receipt_root.is_symlink() or not receipt_root.is_dir():
-        raise RetentionError("retention receipt root is unsafe")
+        raise RetentionError("execution-retention root is unsafe")
+    if receipt_root.parent != product_root:
+        raise RetentionError("execution-retention root must remain inside the product build estate")
     for value in preserve:
         if PLAN_ID.fullmatch(value) is None:
             raise RetentionError(f"preserved plan identity is invalid: {value}")
@@ -325,7 +328,7 @@ def reconcile(
         "schema": SCHEMA,
         "build_root": str(build_root),
         "stage_root": str(stage_root),
-        "receipt_root": str(receipt_root),
+        "retention_root": str(receipt_root),
         "preserved_plan_ids": sorted(preserve),
         "minimum_age_seconds": minimum_age_seconds,
         "removed": removed,
@@ -342,7 +345,10 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--contract", default="contracts/product-package.json")
     parser.add_argument(
-        "--receipt-root", default="/opt/laplace/receipts/product-build-retention"
+        "--retention-root",
+        "--receipt-root",
+        dest="receipt_root",
+        default="/build/laplace/runner/product/retention",
     )
     parser.add_argument("--preserve-plan", action="append", default=[])
     parser.add_argument("--minimum-age-seconds", type=int, default=300)
