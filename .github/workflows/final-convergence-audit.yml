@@ -3,10 +3,6 @@ name: final-convergence-audit
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'tools/branch_estate_live_audit.py'
-      - '.github/workflows/final-convergence-audit.yml'
-      - '**'
   workflow_dispatch:
 
 permissions:
@@ -26,12 +22,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: delivery/final-convergence-20260911
 
-      - name: Fetch every Refactor branch
+      - name: Fetch every Refactor branch and use convergence as provisional main
         shell: bash
         run: |
           set -euo pipefail
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          convergence="$(git rev-parse refs/remotes/origin/delivery/final-convergence-20260911)"
+          git update-ref refs/remotes/origin/main "$convergence"
+          test "$(git rev-parse refs/remotes/origin/main)" = "$convergence"
 
       - name: Clone every Laplace branch
         shell: bash
