@@ -50,7 +50,7 @@ jobs:
             "Laplace=$RUNNER_TEMP/Laplace" \
             --output "$RUNNER_TEMP/branch-estate-live.raw.json"
 
-      - name: Collapse exact heads of merged PRs
+      - name: Collapse exact heads of merged PRs and explicit merged supersession chains
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -68,9 +68,18 @@ jobs:
           set -euo pipefail
           python3 tools/branch_estate_candidate_subsume.py \
             --ledger "$RUNNER_TEMP/branch-estate-live.merged.json" \
-            --output "$RUNNER_TEMP/branch-estate-live.json" \
+            --output "$RUNNER_TEMP/branch-estate-live.maximal.json" \
             --repository "Laplace-Refactor=$GITHUB_WORKSPACE" \
             --repository "Laplace=$RUNNER_TEMP/Laplace"
+
+      - name: Apply reviewed exact-tip semantic dispositions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/branch_estate_apply_dispositions.py \
+            --ledger "$RUNNER_TEMP/branch-estate-live.maximal.json" \
+            --dispositions .github/branch-estate-semantic-dispositions.json \
+            --output "$RUNNER_TEMP/branch-estate-live.json"
           cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
 
       - name: Upload live reconciliation ledger
