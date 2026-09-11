@@ -127,6 +127,7 @@ set(laplace_postgresql_module_sources
     src/cognition_isa_pg.c
     src/cognition_firmware_pg.c
     src/cognition_product_pg.c
+    src/cognition_conversation_product_pg.c
     src/composition_pg.c
     src/content_admission_pg.c
     src/evidence_lineage_pg.c
@@ -276,8 +277,7 @@ if(BUILD_TESTING)
         laplace_pg_composition_presence_per_row_mutant
         LAPLACE_TEST_COMPOSITION_PRESENCE_PER_ROW)
     target_compile_definitions(
-        laplace_pg_composition_presence_per_row_mutant PRIVATE
-        LAPLACE_PG_COMPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_per_row_mutant
+        laplace_pg_comPOSITION_ENTRYPOINT=laplace_pg_composition_deposit_presence_per_row_mutant
         LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL=laplace_pg_composition_execute_presence_per_row_mutant
         LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL=laplace_pg_composition_destroy_presence_per_row_mutant)
     laplace_add_postgresql_mutant(
