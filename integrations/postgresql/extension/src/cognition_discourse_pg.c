@@ -109,8 +109,10 @@ static void validate_predecessor(
 
         values[0] = PointerGetDatum(previous);
         /* Deposit is VOLATILE and can be called repeatedly inside one outer SQL
-         * command. Use a read-write SPI snapshot so a successor observes a
-         * predecessor deposited by an earlier call in that same command. */
+         * command. PostgreSQL SPI visibility requires read_write=false only for
+         * snapshot-stable reads; this read must use read_write mode (false for
+         * SPI's read_only argument) so a successor observes a predecessor
+         * deposited by an earlier call in that same command. */
         spi_status = SPI_execute_with_args(
             sql, 1, types, values, NULL, false, 1);
         if (spi_status != SPI_OK_SELECT || SPI_processed != 1u) {
@@ -170,8 +172,9 @@ static void verify_exact_stored_frame(
 
     values[0] = PointerGetDatum(state_id);
     /* The insert immediately before this read executed through read-write SPI.
-     * A read-only SPI snapshot would remain pinned to the surrounding command
-     * and can hide the row that this function just deposited. */
+     * A read-only SPI snapshot stays pinned to the surrounding command and can
+     * hide the row that this function just deposited, so exact readback also
+     * advances through read-write SPI visibility. */
     spi_status = SPI_execute_with_args(sql, 1, types, values, NULL, false, 1);
     if (spi_status != SPI_OK_SELECT || SPI_processed != 1u) {
         ereport(ERROR,
