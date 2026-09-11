@@ -1,0 +1,56 @@
+name: final-convergence-ci-repair
+
+on:
+  push:
+    branches:
+      - delivery/final-convergence-20260911
+    paths:
+      - .github/convergence-ci-repair-trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: final-convergence-ci-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: delivery/final-convergence-20260911
+      - name: Apply exact registered semantic repairs
+        run: python3 tools/final_convergence_ci_repair.py
+      - name: Prove fast orchestration contracts
+        run: |
+          set -euo pipefail
+          python3 tests/product_path_tests.py
+          python3 tests/product_path_status_tests.py
+          python3 tests/source_discovery_catalog_tests.py
+          git diff --check
+      - name: Commit exact repair set
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'laplace-convergence'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            .github/workflows/ci.yml \
+            engine/src/cognition_observation_candidate_provider.inc \
+            engine/src/cognition_operator_part00.inc \
+            tests/cognition_operator_tests.cpp \
+            tests/observation_query_tests.cpp \
+            tests/cognition_prompt_structural_provider_tests.cpp \
+            tests/cognition_observation_external_provider_tests.cpp \
+            tests/cognition_solver_tests.cpp
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'Registered repairs already represented.'
+            exit 0
+          fi
+          git commit -m 'convergence: reconcile calculation evidence and current acceptance laws'
+          git push origin HEAD:delivery/final-convergence-20260911
