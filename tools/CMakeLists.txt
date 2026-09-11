@@ -115,6 +115,27 @@ set_target_properties(laplace_unicode_artifact_verify PROPERTIES
 install(TARGETS laplace_unicode_artifact_verify
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
+if(LAPLACE_POSTGRES_ENABLED)
+    find_library(LAPLACE_POSTGRES_LIBPQ_LIBRARY
+        NAMES pq
+        PATHS "${LAPLACE_POSTGRES_LIBDIR}"
+        NO_DEFAULT_PATH
+        REQUIRED)
+    add_executable(laplace_web laplace_web.cpp)
+    set_target_properties(laplace_web PROPERTIES
+        OUTPUT_NAME "laplace-web"
+        INSTALL_RPATH "$ORIGIN/../pgsql-${LAPLACE_POSTGRES_MAJOR}/lib"
+        INSTALL_RPATH_USE_LINK_PATH FALSE)
+    target_include_directories(laplace_web SYSTEM PRIVATE
+        "${LAPLACE_POSTGRES_INCLUDE_CLIENT}")
+    target_link_libraries(laplace_web PRIVATE
+        "${LAPLACE_POSTGRES_LIBPQ_LIBRARY}")
+    target_compile_options(laplace_web PRIVATE
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+    install(TARGETS laplace_web
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+endif()
+
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/live_substrate.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-live-substrate)
