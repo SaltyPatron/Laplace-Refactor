@@ -44,6 +44,99 @@
       ]
     },
     {
+      "repository": "Laplace-Refactor",
+      "branch": "archive/pr-114-pre-cleanup-20260831",
+      "tip": "f61040cbbb4913fd9e1f1aedc737229cd5415d08",
+      "disposition": "SUPERSEDED_BY_MERGED_PR_113",
+      "rationale": "This archive alias is the exact old PR #114 tip. Merged PR #113 explicitly states that it combines #114's discovery catalog with exact repository-profile resolution and that #114 is superseded by that combined boundary. The archive exists to preserve provenance, not as a second implementation owner.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#114",
+        "SaltyPatron/Laplace-Refactor#113",
+        "archive/pr-114-pre-cleanup-20260831@f61040cbbb4913fd9e1f1aedc737229cd5415d08"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "feat/source-estate-discovery-catalog",
+      "tip": "f61040cbbb4913fd9e1f1aedc737229cd5415d08",
+      "disposition": "SUPERSEDED_BY_MERGED_PR_113",
+      "rationale": "This is the exact old PR #114 head. Merged PR #113 explicitly says it combines #114's discovery catalog with exact repository-profile resolution and supersedes #114, so replaying this partial discovery-only head would regress the combined boundary.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#114",
+        "SaltyPatron/Laplace-Refactor#113"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "archive/pr-119-pre-cleanup-20260831",
+      "tip": "512ceb61ab4ce8291f6f0d5b5d18bd8c06853d5e",
+      "disposition": "SUPERSEDED_BY_MERGED_PR_107",
+      "rationale": "This archive alias is the exact old PR #119 tip. Merged PR #107 explicitly says it incorporates the physical-QA orchestration repair formerly carried by #119 and that #119 is superseded. The archive preserves provenance only.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#119",
+        "SaltyPatron/Laplace-Refactor#107",
+        "archive/pr-119-pre-cleanup-20260831@512ceb61ab4ce8291f6f0d5b5d18bd8c06853d5e"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "fix/custom-stack-selective-failfast",
+      "tip": "512ceb61ab4ce8291f6f0d5b5d18bd8c06853d5e",
+      "disposition": "SUPERSEDED_BY_MERGED_PR_107",
+      "rationale": "This is the exact old PR #119 head. Merged PR #107 explicitly incorporates and supersedes #119's selected custom-stack physical-QA orchestration, so this partial head is not a separate current implementation.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#119",
+        "SaltyPatron/Laplace-Refactor#107"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "delivery/continue-whole-product-20260904",
+      "tip": "627f1502be5055d6487244236b34fba5a8dccc58",
+      "disposition": "SUPERSEDED_RECONCILIATION_VEHICLE",
+      "rationale": "PR #204 was closed immediately as a superseded reconciliation attempt and explicitly states that no product work should remain unique there. It points to #205; #205 in turn says the durable implementation owner is repair/cognition-request-execute, whose PR #229 explicitly records supersession by merged PR #234. The product behavior therefore terminates in merged #234, not this transient vehicle.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#204",
+        "SaltyPatron/Laplace-Refactor#205",
+        "SaltyPatron/Laplace-Refactor#229",
+        "SaltyPatron/Laplace-Refactor#234"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "delivery/continue-whole-product-20260904-r2",
+      "tip": "e1615e15fc9c5dc0114856aab87fdf3b48bde656",
+      "disposition": "DOCUMENTATION_ONLY_SUPERSEDED_BY_MERGED_234",
+      "rationale": "PR #205 explicitly says it is a documentation-only continuation vehicle, does not count as product delivery, and must not compete with the durable implementation on repair/cognition-request-execute. That implementation's PR #229 was reconciled into merged PR #234, which owns the executable boundary.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#205",
+        "SaltyPatron/Laplace-Refactor#229",
+        "SaltyPatron/Laplace-Refactor#234"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "delivery/continue-whole-product-20260904-r3",
+      "tip": "0020854832b2e46b9eb6c19578382d2cc07c4c19",
+      "disposition": "REJECTED_ACCIDENTAL_BRANCH",
+      "rationale": "PR #206 is titled DO NOT USE and its body says the branch was accidental, is not an implementation vehicle, and has no product claim. Replaying it would contradict its recorded disposition.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#206"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "repair/cognition-request-execute",
+      "tip": "d740b6bb5e66af0627b1352c0f0650bbcec3b8e3",
+      "disposition": "SUPERSEDED_BY_MERGED_PR_234",
+      "rationale": "PR #229 explicitly says it is superseded by merged PR #234 and that the required cognition execution boundary and test-registry proof were reconciled onto current main there. PR #234 confirms #229 becomes a superseded integration vehicle after its required behavior is proven present.",
+      "evidence": [
+        "SaltyPatron/Laplace-Refactor#229",
+        "SaltyPatron/Laplace-Refactor#234",
+        "merge 1363350f7ee4c1842be942d9e44f4bdce5759402"
+      ]
+    },
+    {
       "repository": "Laplace",
       "branch": "fix/runtime-installed-native-closure-20260910",
       "tip": "bd1a3ac4aa90bc0af64c7f5582f5ed4d0bf63f73",
