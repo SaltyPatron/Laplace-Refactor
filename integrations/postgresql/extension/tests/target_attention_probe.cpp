@@ -1,6 +1,7 @@
 #include "laplace/framework.h"
 #include "laplace/target_attention_projection.h"
 #include "laplace/target_compile.h"
+#include "laplace/target_scope_plan.h"
 
 #include <array>
 #include <cstddef>
@@ -109,6 +110,27 @@ struct Program {
     }
 };
 
+bool CompileProjection(
+    laplace_target_compile_result* compiled,
+    laplace_target_attention_projection_result** projection,
+    laplace_target_attention_projection_receipt* receipt) {
+    laplace_target_attention_head_spec head{};
+    head.qk_slot_index = 0U;
+    head.vo_slot_index = 1U;
+    head.head_rank = 1U;
+    laplace_target_attention_projection_request request{};
+    request.heads = &head;
+    request.head_count = 1U;
+    request.hidden_width = 2U;
+    request.relative_tolerance = 1e-10;
+    request.flags = LAPLACE_TARGET_ATTENTION_PROJECTION_REQUIRE_EXACT;
+    request.version = LAPLACE_TARGET_ATTENTION_PROJECTION_VERSION;
+    return laplace_target_attention_project(
+        compiled, &request, projection, receipt) ==
+            LAPLACE_TARGET_ATTENTION_PROJECTION_OK &&
+        *projection != nullptr;
+}
+
 }  // namespace
 
 int main() {
@@ -121,12 +143,16 @@ int main() {
 
     const auto boundary = Digest(0xb0U);
     const auto epoch = Digest(0xb1U);
+    const auto recipe = Digest(80U);
+    const auto target_contract = Digest(81U);
     Program qk_program(20U, boundary, epoch, context_fingerprint);
     Program vo_program(30U, boundary, epoch, context_fingerprint);
     const std::vector fields{
         Field(40U, 0U), Field(41U, 1U), Field(42U, 2U), Field(43U, 3U)};
-    const std::vector qk_constraints{Constraint(50U, 11U, 0U, 1U, 2.0)};
-    const std::vector vo_constraints{Constraint(60U, 12U, 2U, 3U, 3.0)};
+    const auto qk_constraint = Constraint(50U, 11U, 0U, 1U, 2.0);
+    const auto vo_constraint = Constraint(60U, 12U, 2U, 3U, 3.0);
+    const std::vector qk_constraints{qk_constraint};
+    const std::vector vo_constraints{vo_constraint};
 
     std::array<laplace_target_compile_job, 2> jobs{};
     jobs[0].target_role = LAPLACE_TARGET_ROLE_COMPATIBILITY_QK;
@@ -152,8 +178,8 @@ int main() {
     laplace_target_compile_request compile_request{};
     compile_request.evidence_boundary = boundary;
     compile_request.evidence_epoch = epoch;
-    compile_request.recipe_fingerprint = Digest(80U);
-    compile_request.target_contract_fingerprint = Digest(81U);
+    compile_request.recipe_fingerprint = recipe;
+    compile_request.target_contract_fingerprint = target_contract;
     compile_request.jobs = jobs.data();
     compile_request.job_count = jobs.size();
     compile_request.flags = LAPLACE_TARGET_COMPILE_REQUIRE_DISTINCT_QK_VO;
@@ -167,23 +193,9 @@ int main() {
         return 3;
     }
 
-    laplace_target_attention_head_spec head{};
-    head.qk_slot_index = 0U;
-    head.vo_slot_index = 1U;
-    head.head_rank = 1U;
-    laplace_target_attention_projection_request projection_request{};
-    projection_request.heads = &head;
-    projection_request.head_count = 1U;
-    projection_request.hidden_width = 2U;
-    projection_request.relative_tolerance = 1e-10;
-    projection_request.flags = LAPLACE_TARGET_ATTENTION_PROJECTION_REQUIRE_EXACT;
-    projection_request.version = LAPLACE_TARGET_ATTENTION_PROJECTION_VERSION;
-
     laplace_target_attention_projection_result* projection = nullptr;
     laplace_target_attention_projection_receipt projection_receipt{};
-    if (laplace_target_attention_project(
-            compiled, &projection_request, &projection, &projection_receipt) !=
-            LAPLACE_TARGET_ATTENTION_PROJECTION_OK || projection == nullptr) {
+    if (!CompileProjection(compiled, &projection, &projection_receipt)) {
         laplace_target_compile_result_destroy(&compiled);
         return 4;
     }
@@ -204,5 +216,73 @@ int main() {
 
     laplace_target_attention_projection_result_destroy(&projection);
     laplace_target_compile_result_destroy(&compiled);
+
+    const std::vector scope_constraints{qk_constraint, vo_constraint};
+    const std::array<std::uint32_t, 1> qk_families{{11U}};
+    const std::array<std::uint32_t, 1> vo_families{{12U}};
+    std::array<laplace_target_scope_slot_spec, 2> scope_slots{};
+    scope_slots[0].target_role = LAPLACE_TARGET_ROLE_COMPATIBILITY_QK;
+    scope_slots[0].layer_index = 2U;
+    scope_slots[0].head_index = 5U;
+    scope_slots[0].eligible_relation_families = qk_families.data();
+    scope_slots[0].eligible_relation_family_count = qk_families.size();
+    scope_slots[0].eligible_source_mask = 1U;
+    scope_slots[0].head_rank = 1U;
+    scope_slots[1].target_role = LAPLACE_TARGET_ROLE_CONTRIBUTION_VO;
+    scope_slots[1].layer_index = 2U;
+    scope_slots[1].head_index = 5U;
+    scope_slots[1].eligible_relation_families = vo_families.data();
+    scope_slots[1].eligible_relation_family_count = vo_families.size();
+    scope_slots[1].eligible_source_mask = 1U;
+    scope_slots[1].head_rank = 1U;
+
+    laplace_target_scope_plan_request scope_request{};
+    scope_request.evidence_boundary = boundary;
+    scope_request.evidence_epoch = epoch;
+    scope_request.recipe_fingerprint = recipe;
+    scope_request.target_contract_fingerprint = target_contract;
+    scope_request.context_fingerprint = context_fingerprint;
+    scope_request.fields = fields.data();
+    scope_request.field_count = fields.size();
+    scope_request.constraints = scope_constraints.data();
+    scope_request.constraint_count = scope_constraints.size();
+    scope_request.slots = scope_slots.data();
+    scope_request.slot_count = scope_slots.size();
+    scope_request.numeric_tolerance = 1e-12;
+    scope_request.operator_program_flags =
+        LAPLACE_COGNITION_OPERATOR_PROGRAM_REQUIRE_POSITIVE_SEMIDEFINITE_PRECISION |
+        LAPLACE_COGNITION_OPERATOR_PROGRAM_REQUIRE_RELATION_PLANE_SEPARATION |
+        LAPLACE_COGNITION_OPERATOR_PROGRAM_REQUIRE_MATRIX_FREE_MATERIALIZED_PARITY;
+    scope_request.target_compile_flags = LAPLACE_TARGET_COMPILE_REQUIRE_DISTINCT_QK_VO;
+    scope_request.version = LAPLACE_TARGET_SCOPE_PLAN_VERSION;
+
+    laplace_target_compile_result* scoped_compiled = nullptr;
+    laplace_target_compile_receipt scoped_compile_receipt{};
+    laplace_target_scope_plan_receipt scope_receipt{};
+    if (laplace_target_scope_plan_compile(
+            &scope_request, &scoped_compiled, &scoped_compile_receipt,
+            &scope_receipt) != LAPLACE_TARGET_SCOPE_PLAN_OK ||
+        scoped_compiled == nullptr) {
+        return 6;
+    }
+    laplace_target_attention_projection_result* scoped_projection = nullptr;
+    laplace_target_attention_projection_receipt scoped_projection_receipt{};
+    if (!CompileProjection(
+            scoped_compiled, &scoped_projection, &scoped_projection_receipt)) {
+        laplace_target_compile_result_destroy(&scoped_compiled);
+        return 7;
+    }
+
+    PrintDigest("SCOPED_SCOPE_RECEIPT_ID", scope_receipt.receipt_id);
+    PrintDigest("SCOPED_SCOPE_REQUEST_FINGERPRINT", scope_receipt.request_fingerprint);
+    PrintDigest("SCOPED_SLOT_SET_FINGERPRINT", scope_receipt.slot_set_fingerprint);
+    PrintDigest("SCOPED_COMPILE_RECEIPT_ID", scoped_compile_receipt.receipt_id);
+    PrintDigest("SCOPED_PROJECTION_ID", scoped_projection_receipt.projection_id);
+    PrintDigest(
+        "SCOPED_EMBEDDING_FINGERPRINT",
+        scoped_projection_receipt.embedding_fingerprint);
+
+    laplace_target_attention_projection_result_destroy(&scoped_projection);
+    laplace_target_compile_result_destroy(&scoped_compiled);
     return 0;
 }
