@@ -1,0 +1,64 @@
+name: final-convergence-integrate
+
+on:
+  push:
+    branches:
+      - delivery/final-convergence-20260911
+    paths:
+      - .github/convergence-merge-plan.json
+
+permissions:
+  contents: write
+
+concurrency:
+  group: final-convergence-integrate
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: delivery/final-convergence-20260911
+      - name: Fetch registered heads
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+      - name: Merge exact registered heads without conflict guessing
+        shell: bash
+        env:
+          TARGET_BRANCH: delivery/final-convergence-20260911
+        run: |
+          set -euo pipefail
+          git config user.name 'laplace-convergence'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+          python3 - <<'PY' > "$RUNNER_TEMP/convergence-heads.tsv"
+          import json
+          from pathlib import Path
+          plan = json.loads(Path('.github/convergence-merge-plan.json').read_text())
+          assert plan['schema'] == 'laplace.final-convergence-merge-plan/v1'
+          for item in plan['heads']:
+              print(f"{item['sha']}\t{item['branch']}\t{item['owner_pr']}")
+          PY
+          while IFS=$'\t' read -r sha branch owner_pr; do
+            test -n "$sha"
+            test "$(git rev-parse "origin/$branch")" = "$sha"
+            if git merge-base --is-ancestor "$sha" HEAD; then
+              echo "$branch@$sha already represented; skip"
+              continue
+            fi
+            echo "Merging $branch@$sha (PR #$owner_pr)"
+            if ! git merge --no-ff --no-edit "$sha"; then
+              echo '::error title=Final convergence merge conflict::Conflicts while merging registered head'
+              git diff --name-only --diff-filter=U | sed 's/^/CONFLICT: /' >&2
+              git status --short >&2
+              git merge --abort || true
+              exit 2
+            fi
+            git push origin "HEAD:$TARGET_BRANCH"
+          done < "$RUNNER_TEMP/convergence-heads.tsv"
