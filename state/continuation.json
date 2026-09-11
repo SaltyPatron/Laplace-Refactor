@@ -1,4 +1,23 @@
 {
+  "firmware_provider_integration_20260907": {
+    "classification": "observed-development-state-not-product-law",
+    "base_commit": "4b9e021b2e4bd8f65b29e5862919a6251945c751",
+    "owning_pull_request": 263,
+    "owning_branch": "feat/firmware-request-execution",
+    "product_behavior_advanced": "Stored firmware can consume the same concrete indexed PostgreSQL physicality provider as standalone persisted cognition, with per-program database accounting and reserved provider workspace.",
+    "native_owner": "laplace_cognition_firmware_execute_with_provider_workspace delegates all search, act and realization to existing native owners; PostgreSQL supplies candidates, never goals.",
+    "verification": "Source edcc46a1255eadd3c5ec8a31dfa6f666bee061be passed actual PostgreSQL/native run 34187301079 on hart-server: 95 native tests, indexed-provider parity, the same stored firmware and prompt producing A or B from changed persisted compositions, exact replay, checkpoint restoration, and missing-data/corruption/joint-capacity rejection. Artifact 10040962245 retains generated SQL and complete logs. Ordinary full native/sanitizer/requirements checks on the finalized source remain required; this was disposable PostgreSQL acceptance, not production deployment. This supersedes the pending concrete-candidate-provider status below, not the remaining admission, semantic evidence, realization, publication and public-request obligations.",
+    "remaining": "This is an internal structural provider adapter, not a deployed whole-prompt semantic system. Concrete raw admission, semantic/evidence and realization providers, framework publication, ordinary user-facing request execution and configured-source acceptance remain on this same dependency chain. No component result closes that whole route."
+  },
+  "firmware_execution_20260907": {
+    "classification": "observed-development-state-not-product-law",
+    "base_commit": "f02d78730aa6312885784a3a986ebb243810756f",
+    "owning_branch": "feat/firmware-request-execution",
+    "implemented": "Native stored firmware image validation, observation/result-bound execution, act realization feedback, predecessor restoration, and shared framework input/result staging and activation. No caller-supplied goal or topic field.",
+    "local_verification": "22 native tests passed in the existing observation-query executable before publication; tests use synthetic providers.",
+    "remaining_acceptance": "Independent CI builds, full regression suites and deliberately broken implementations; concrete installed persistence adapters, ordinary user-facing route and witnessed source-backed behavior. No general chat, coding, image/video generation, or Godel synthesis completion is claimed.",
+    "publication": "Source is being published on the existing feature branch for full CI; main and installed state remain unchanged."
+  },
   "indexed_cognition_repair_20260907": {
     "classification": "observed-development-state-not-product-law",
     "owning_pull_request": 253,

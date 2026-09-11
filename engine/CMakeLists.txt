@@ -49,6 +49,7 @@ add_library(laplace_engine SHARED
     src/unicode_properties.cpp
     src/unicode_ducet.cpp
     src/uax29.cpp
+    src/uax29_atom_tables.cpp
     src/text_decomposition.cpp
     src/decomposition.cpp
     src/decomposition_composition.cpp
@@ -60,6 +61,7 @@ add_library(laplace_engine SHARED
     src/universal_ast.cpp
     src/universal_ast_packet.cpp
     src/cognition_forward_pass.cpp
+    src/cognition_firmware.cpp
     src/observation_query.cpp
     src/perfcache.c
     src/perfcache_modules.c

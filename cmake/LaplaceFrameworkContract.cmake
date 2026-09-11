@@ -266,6 +266,7 @@ function(laplace_configure_framework_contract contract_path output_path)
     set(LAPLACE_FRAMEWORK_MINOR "${minor}" PARENT_SCOPE)
     set(LAPLACE_FRAMEWORK_CONTEXT_BOOTSTRAP "${context_bootstrap}" PARENT_SCOPE)
     set(LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY "${context_read_only}" PARENT_SCOPE)
+    set(LAPLACE_FRAMEWORK_EPOCH_FIRMWARE "${epoch_firmware}" PARENT_SCOPE)
     get_filename_component(output_directory "${output_path}" DIRECTORY)
     file(MAKE_DIRECTORY "${output_directory}")
     configure_file(

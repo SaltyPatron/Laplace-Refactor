@@ -163,6 +163,7 @@ laplace_cognition_prompt_atom_provider_v1 AtomProvider(AtomFixture* const fixtur
 }
 
 struct PresenceFixture final {
+    bool exact_present{};
     std::size_t calls{};
 };
 
@@ -181,13 +182,13 @@ laplace_composition_status ResolvePresence(
     }
     auto& fixture = *static_cast<PresenceFixture*>(opaque);
     ++fixture.calls;
-    std::fill_n(
-        entity_dispositions, entity_count,
-        static_cast<std::uint8_t>(LAPLACE_COMPOSITION_NOVEL));
+    const auto disposition = static_cast<std::uint8_t>(
+        fixture.exact_present
+            ? LAPLACE_COMPOSITION_EXACT_PRESENT
+            : LAPLACE_COMPOSITION_NOVEL);
+    std::fill_n(entity_dispositions, entity_count, disposition);
     if (physicality_count != 0U) {
-        std::fill_n(
-            physicality_dispositions, physicality_count,
-            static_cast<std::uint8_t>(LAPLACE_COMPOSITION_NOVEL));
+        std::fill_n(physicality_dispositions, physicality_count, disposition);
     }
     result->provider_fingerprint = Digest(0x81U);
     result->provider_receipt_id = Digest(0x82U);
@@ -356,6 +357,40 @@ TEST(CognitionPromptAdmission, ReusesWholeTrunkAcrossIndependentOccurrences) {
     EXPECT_GT(persisted.trajectory_segment_count, 0U);
     EXPECT_EQ(persisted.attestation_count, 0U);
     EXPECT_EQ(persisted.consensus_count, 0U);
+}
+
+TEST(CognitionPromptAdmission, AlreadyPresentTrunkRequiresNoPublicationStream) {
+    const std::string prompt = "AA";
+    auto context = laplace_test_context(3U);
+    context.resource_grant.memory_bytes = UINT64_C(64) * 1024U * 1024U;
+    StructureFixture structure{};
+    AtomFixture atoms{};
+    PresenceFixture presence{};
+    presence.exact_present = true;
+    auto structure_provider = StructureProvider(&structure);
+    auto atom_provider = AtomProvider(&atoms);
+    auto presence_provider = PresenceProvider(&presence);
+    const auto input = Input(prompt, &context, &structure_provider, 4U, false);
+    AdmissionOwner owner{};
+    const auto view = Admit(input, atom_provider, presence_provider, owner);
+
+    EXPECT_TRUE(SameId(view.trunk_entity_id, ExpectedAsciiRoot(prompt)));
+    EXPECT_EQ(view.composition_summary.novel_entity_count, 0U);
+    EXPECT_EQ(view.composition_summary.novel_physicality_count, 0U);
+    EXPECT_EQ(view.composition_summary.novel_trajectory_vertex_count, 0U);
+    EXPECT_EQ(view.composition_summary.batch_count, 0U);
+    EXPECT_EQ(view.composition_summary.stream_record_count, 0U);
+    EXPECT_EQ(view.composition_summary.stream_byte_count, 0U);
+
+    laplace_framework_producer_v1 producer{};
+    EXPECT_EQ(
+        laplace_cognition_prompt_admission_producer(owner.value, &producer),
+        LAPLACE_COGNITION_PROMPT_ADMISSION_NO_PUBLICATION_REQUIRED);
+    EXPECT_EQ(producer.state, nullptr);
+    EXPECT_EQ(producer.prepare, nullptr);
+    EXPECT_EQ(producer.next, nullptr);
+    EXPECT_EQ(producer.finish, nullptr);
+    EXPECT_EQ(producer.abort, nullptr);
 }
 
 TEST(CognitionPromptAdmission, PunctuationChangesTrunkAndNoConstituentIsPrivileged) {

@@ -515,7 +515,7 @@ static laplace_composition_status resolve_presence(
     return LAPLACE_COMPOSITION_OK;
 }
 
-static void laplace_pg_composition_presence_provider(
+void laplace_pg_composition_presence_provider(
     laplace_composition_presence_provider_v1* provider) {
     if (provider == NULL) {
         ereport(ERROR,

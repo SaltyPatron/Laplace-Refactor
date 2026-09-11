@@ -19,6 +19,17 @@ laplace_configure_postgresql_bindings(
     "${extension_sql}"
     "${extension_control}")
 
+# The generated readback SQL is also the verified recurring reconciliation program.
+# Keep the fresh base extension's readback body unchanged; only the standalone copy
+# receives the 1.0.1 -> 1.0.2 prefix used by an already-persistent product cluster.
+set(public_readback_reconcile_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace-public-readback.sql")
+file(READ "${public_readback_reconcile_sql}" public_readback_reconcile_bindings)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/product_cognition_upgrade_prefix.sql"
+    product_cognition_upgrade_prefix)
+file(WRITE "${public_readback_reconcile_sql}"
+    "${product_cognition_upgrade_prefix}\n${public_readback_reconcile_bindings}")
+
 file(READ "${CMAKE_SOURCE_DIR}/contracts/isa.json"
     laplace_source_structural_witness_contract)
 string(JSON LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA GET
@@ -114,6 +125,8 @@ ${LAPLACE_COGNITION_DISCOURSE_SQL}\
 set(laplace_postgresql_module_sources
     src/cognition_discourse_pg.c
     src/cognition_isa_pg.c
+    src/cognition_firmware_pg.c
+    src/cognition_product_pg.c
     src/composition_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
@@ -121,8 +134,10 @@ set(laplace_postgresql_module_sources
     src/highway_registry_pg.c
     src/laplace_pg.c
     src/machine_exception_pg.c
+    src/materialization_pg.c
     src/observation_cognition_pg.c
     src/observation_cognition_persisted_pg.c
+    src/prompt_admission_pg.c
     src/semantic_cognition_pg.c
     src/persistence_pg.c
     src/persistence_rows_pg.c
@@ -169,7 +184,11 @@ set_target_properties(laplace_pg PROPERTIES
 if(BUILD_TESTING)
     target_compile_definitions(laplace_pg PRIVATE
         LAPLACE_POSTGRES_TESTING=1)
+    target_sources(laplace_pg PRIVATE tests/cognition_firmware_provider_pg.c)
 
+    if(NOT DEFINED LAPLACE_FRAMEWORK_EPOCH_FIRMWARE)
+        message(FATAL_ERROR "Firmware SQL context binding lacks its generated epoch slot")
+    endif()
     set(observation_cognition_contract_sql
         "${CMAKE_CURRENT_BINARY_DIR}/observation_cognition_contract.sql")
     configure_file(
@@ -330,22 +349,34 @@ if(BUILD_TESTING)
         LAPLACE_TEST_PG_MACHINE_EXCEPTION_CAPABILITY_DRIFT)
 endif()
 
-# Retain the original install script for historical package validation. Version
-# 1.0.1 adds this operation through the identical delta on fresh and existing nodes.
+# Retain the original install script and the 1.0.1 cognition upgrade for historical
+# package validation. The product cognition route is a new 1.0.2 delta so an
+# already-active 1.0.1 cluster receives the same objects as a fresh installation.
 set(persisted_cognition_upgrade_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.0--1.0.1.sql")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/observation_cognition_persisted.sql.in"
     "${persisted_cognition_upgrade_sql}" @ONLY)
-set(current_extension_sql
+set(extension_101_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.1.sql")
 file(READ "${extension_sql}" previous_schema)
 file(READ "${persisted_cognition_upgrade_sql}" persisted_cognition_delta)
-file(WRITE "${current_extension_sql}" "${previous_schema}\n${persisted_cognition_delta}")
+file(WRITE "${extension_101_sql}" "${previous_schema}\n${persisted_cognition_delta}")
+
+set(product_cognition_upgrade_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.1--1.0.2.sql")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cognition_product_route.sql.in"
+    "${product_cognition_upgrade_sql}" @ONLY)
+set(current_extension_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.2.sql")
+file(READ "${product_cognition_upgrade_sql}" product_cognition_delta)
+file(WRITE "${current_extension_sql}"
+    "${previous_schema}\n${persisted_cognition_delta}\n${product_cognition_delta}")
 
 install(TARGETS laplace_pg
     LIBRARY DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/lib")
 install(FILES "${extension_control}" "${extension_sql}"
-    "${current_extension_sql}" "${persisted_cognition_upgrade_sql}"
+    "${extension_101_sql}" "${current_extension_sql}"
+    "${persisted_cognition_upgrade_sql}" "${product_cognition_upgrade_sql}"
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace-public-readback.sql"
     DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/share/extension")
 

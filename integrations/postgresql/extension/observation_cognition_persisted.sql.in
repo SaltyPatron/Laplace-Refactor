@@ -33,3 +33,58 @@ LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_execute_persisted(
     @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
     @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_observation_request) FROM PUBLIC;
+
+-- Production raw-prompt admission. The caller supplies occurrence/provenance scope,
+-- never a topic, token, target entity, or answer. Exact UTF-8 bytes are lowered to
+-- the canonical whole-prompt trunk, Unicode atoms resolve through the active Tier-0
+-- generation, composition presence uses the normal set-oriented PostgreSQL owner,
+-- and any novel canonical composition is persisted before this call returns.
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_scope AS (
+    source_fingerprint bytea,
+    content_recipe_fingerprint bytea,
+    calculation_recipe_fingerprint bytea,
+    geometry_epoch bytea,
+    occurrence_context_fingerprint bytea,
+    principal_fingerprint bytea,
+    session_fingerprint bytea,
+    discourse_id bytea,
+    world_id bytea,
+    time_fingerprint bytea,
+    turn_ordinal numeric(20,0),
+    turn_flags integer,
+    source_ordinal_base numeric(20,0),
+    preferred_batch_bytes numeric(20,0)
+);
+
+CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_admission_result AS (
+    trunk_entity_id bytea,
+    trunk_identity_witness bytea,
+    trunk_physicality_id bytea,
+    occurrence_id bytea,
+    admission_receipt_id bytea,
+    exact_bytes_fingerprint bytea,
+    decomposition_trace_fingerprint bytea,
+    atom_provider_fingerprint bytea,
+    atom_provider_receipt_id bytea,
+    presence_receipt_id bytea,
+    persistence_receipt_id bytea,
+    persisted_entity_count numeric(20,0),
+    persisted_physicality_count numeric(20,0),
+    persisted_trajectory_segment_count numeric(20,0),
+    persisted_logical_occurrence_count numeric(20,0),
+    publication_required boolean,
+    status integer,
+    version integer
+);
+
+CREATE FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_admit(
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
+    text,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_scope)
+RETURNS @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_admission_result
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_prompt_admit'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_admit(
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
+    text,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_scope) FROM PUBLIC;

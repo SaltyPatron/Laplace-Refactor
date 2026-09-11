@@ -18,6 +18,19 @@ set_target_properties(laplace_resource_observe PROPERTIES
 install(TARGETS laplace_resource_observe
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
+add_executable(laplace_cognition_firmware_compile
+    cognition_firmware_compile.cpp)
+target_link_libraries(laplace_cognition_firmware_compile PRIVATE
+    Laplace::Engine
+    BLAKE3::blake3)
+target_compile_options(laplace_cognition_firmware_compile PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+set_target_properties(laplace_cognition_firmware_compile PROPERTIES
+    INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
+    INSTALL_RPATH_USE_LINK_PATH FALSE)
+install(TARGETS laplace_cognition_firmware_compile
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
 add_executable(laplace_unicode_activation_identify
     unicode_activation_identify.cpp)
 target_link_libraries(laplace_unicode_activation_identify PRIVATE
@@ -63,6 +76,10 @@ target_compile_options(laplace_receipt_store PRIVATE
     $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 install(TARGETS laplace_receipt_store
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/model_export.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-model-export)
 
 if(BUILD_TESTING)
     add_test(

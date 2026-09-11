@@ -54,6 +54,31 @@
       "covered_dimensions": ["canonical target-job ordering", "input enumeration order cannot change target compilation receipt"]
     },
     {
+      "ctest_name": "TargetFactorization.DerivesPairWeightsFromCompiledOperatorWithoutTraining",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
+      "covered_dimensions": ["known compiled pair operator is deterministically factorized into consumer weights", "no gradient or checkpoint fitting step exists between operator materialization and target factors", "factor reconstruction matches the compiled operator and is byte deterministic"]
+    },
+    {
+      "ctest_name": "TargetFactorization.RefusesToHideTargetRankLoss",
+      "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["target rank is not semantic authority", "insufficient requested rank returns an explicit residual and failure instead of cycling or filler", "compression loss is receipted"]
+    },
+    {
+      "ctest_name": "TargetAttentionProjection.DerivesEmbeddingAndQkvoWeightsFromKnownOperators",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
+      "covered_dimensions": ["compiled QK and VO operators generate one shared residual embedding basis", "Q K V and O projection weights are solved from the known operators without training", "induced QK and VO matrices reproduce the source operators within the declared bound"]
+    },
+    {
+      "ctest_name": "TargetAttentionProjection.RejectsHiddenWidthThatCannotPreserveBothOperators",
+      "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["target hidden width cannot erase an independently required operator", "insufficient consumer capacity fails instead of cycling semantic modes or random filling", "QK and VO remain independently checked"]
+    },
+    {
+      "ctest_name": "TargetAttentionProjection.IsDeterministicForTheSameClosedOperatorState",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
+      "covered_dimensions": ["closed operator state yields deterministic embedding coordinates and projection receipt", "basis gauge and null fill use a fixed canonical law"]
+    },
+    {
       "ctest_name": "TargetPackage.RoundTripsExactOperatorStateAndProvenance",
       "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"],
       "covered_dimensions": ["target-neutral package preserves compile and per-slot provenance", "exact matrix values survive bit-preserving serialization", "package decoding revalidates slot and matrix identities before publication"]
@@ -87,6 +112,21 @@
       "ctest_name": "TargetSafeTensors.CorruptTargetPackageCannotReachCodec",
       "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR"],
       "covered_dimensions": ["codec consumes only an independently validated target-neutral package", "corrupt target state cannot be serialized into a plausible consumer artifact"]
+    },
+    {
+      "ctest_name": "TargetAttentionSafeTensors.EmitsEmbeddingAndActualQkvoWeights",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"],
+      "covered_dimensions": ["actual projected shared embedding and Q K V O weights are emitted as one consumer artifact", "head coordinate rank operator and factorization provenance remain in artifact metadata", "codec consumes deterministic projection output without training or random filler"]
+    },
+    {
+      "ctest_name": "TargetAttentionSafeTensors.CanonicalValidationRejectsArtifactDrift",
+      "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["projected-weight artifact is byte deterministic", "any payload or metadata drift fails exact validation"]
+    },
+    {
+      "ctest_name": "TargetAttentionSafeTensors.RejectsMismatchedProjectionReceipt",
+      "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["codec cannot serialize a projection under mismatched target width or receipt state", "consumer artifact metadata cannot claim a different projection contract"]
     },
     {
       "ctest_name": "cognition-operator.mutation-relation-plane-flatten-detected",

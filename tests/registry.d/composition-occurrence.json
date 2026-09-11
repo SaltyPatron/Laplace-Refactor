@@ -90,6 +90,36 @@
       "defect_controls": [
         "production composition restored to rejecting empty exact-present effects"
       ]
+    },
+    {
+      "ctest_name": "CompositionWorkingSet.AdjacentOperandPartitionsPackIntoTheSameExactTrajectory",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE"
+      ],
+      "covered_dimensions": [
+        "equivalent adjacent-operand partitions coalesce to identical mantissa carriers and preserve exact content identity"
+      ]
+    },
+    {
+      "ctest_name": "CompositionWorkingSet.AdjacentRunsSplitAtCarrierLimitRatherThanOperandBoundaries",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE"
+      ],
+      "covered_dimensions": [
+        "runs crossing the 16-bit carrier limit split at 65535 with exact logical ordinal continuity independent of caller chunking"
+      ]
+    },
+    {
+      "ctest_name": "CompositionWorkingSet.RunCoalescingPreservesMetadataAndDifferentIdentityBoundaries",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-CROSS-ROUTE"
+      ],
+      "covered_dimensions": [
+        "changed relationship metadata or constituent identity prevents coalescing and preserves all observed metadata bits"
+      ]
     }
   ]
 }

@@ -7,6 +7,11 @@
       "covered_dimensions": ["identical exact prompt content reuses one canonical whole-trunk identity across distinct source principal session time context and turn scope", "occurrence identity remains independently scoped and is the cognition turn occurrence while the turn root is the whole prompt trunk", "canonical publication contains entity physicality and trajectory records with zero semantic attestation or consensus records"]
     },
     {
+      "ctest_name": "CognitionPromptAdmission.AlreadyPresentTrunkRequiresNoPublicationStream",
+      "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"],
+      "covered_dimensions": ["exact-present canonical prompt state remains a valid prompt observation without manufacturing an empty persistence producer", "a zero-record composition stream is represented as no publication required rather than an invalid framework producer", "repeated prompt admission preserves canonical trunk identity while publication remains conditional on novel canonical state"]
+    },
+    {
       "ctest_name": "CognitionPromptAdmission.PunctuationChangesTrunkAndNoConstituentIsPrivileged",
       "evidence_targets": ["LP-TEST-IDENTITY-PREIMAGE-GRAMMAR", "LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-SEARCH-COGNITION-LOWERING"],
       "covered_dimensions": ["one punctuation change changes the ordered whole-content identity", "a reusable exact constituent is not promoted to the cognition root", "the emitted cognition turn observation entity equals the exact whole prompt trunk"]

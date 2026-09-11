@@ -1,4 +1,5 @@
 #include "laplace/cognition_prompt_admission.h"
+#include <mutex>
 
 #include "laplace/identity.h"
 
@@ -187,12 +188,19 @@ laplace_digest256 AdmissionReceipt(
 
 }  // namespace
 
+namespace laplace_cognition_prompt_structural_detail {
+struct RetainedIndex;
+void DestroyIndex(RetainedIndex* index);
+}
+
 struct laplace_cognition_prompt_admission {
     laplace_decomposition_result* decomposition{};
     laplace_decomposition_composition_plan* composition_plan{};
     laplace_composition_working_set* working_set{};
     std::vector<laplace_composition_known_entity> known_entities;
     laplace_cognition_prompt_admission_view view{};
+    std::mutex structural_index_mutex;
+    laplace_cognition_prompt_structural_detail::RetainedIndex* structural_index{};
 };
 
 extern "C" laplace_cognition_prompt_admission_status
@@ -414,6 +422,17 @@ laplace_cognition_prompt_admission_producer(
     if (admission->working_set == nullptr) {
         return LAPLACE_COGNITION_PROMPT_ADMISSION_NO_PUBLICATION_REQUIRED;
     }
+    std::uint32_t effect_disposition = LAPLACE_FRAMEWORK_EFFECT_NONE;
+    if (laplace_composition_working_set_effect_disposition_get(
+            admission->working_set, &effect_disposition) != LAPLACE_COMPOSITION_OK) {
+        return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_FAILURE;
+    }
+    if (effect_disposition == LAPLACE_FRAMEWORK_EFFECT_NONE) {
+        return LAPLACE_COGNITION_PROMPT_ADMISSION_NO_PUBLICATION_REQUIRED;
+    }
+    if (effect_disposition != LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT) {
+        return LAPLACE_COGNITION_PROMPT_ADMISSION_COMPOSITION_FAILURE;
+    }
     if (laplace_composition_working_set_producer(
             admission->working_set, producer) != LAPLACE_COMPOSITION_OK) {
         *producer = laplace_framework_producer_v1{};
@@ -425,6 +444,7 @@ laplace_cognition_prompt_admission_producer(
 extern "C" void laplace_cognition_prompt_admission_destroy(
     laplace_cognition_prompt_admission** const admission) {
     if (admission == nullptr || *admission == nullptr) return;
+    laplace_cognition_prompt_structural_detail::DestroyIndex((*admission)->structural_index);
     laplace_composition_working_set_destroy(&(*admission)->working_set);
     laplace_decomposition_composition_plan_destroy(&(*admission)->composition_plan);
     laplace_decomposition_result_destroy(&(*admission)->decomposition);

@@ -11,6 +11,7 @@
 #include "fmgr.h"
 #include "utils/array.h"
 #include "utils/lsyscache.h"
+#include "utils/memutils.h"
 
 #include "blake3.h"
 #include "laplace/cognition_forward_pass.h"
@@ -18,20 +19,26 @@
 #include "laplace/framework.h"
 #include "laplace/observation_query.h"
 #include "laplace_pg_internal.h"
+#include "semantic_cognition_pg.h"
 
 PG_FUNCTION_INFO_V1(laplace_pg_cognition_semantic_execute);
 
 #define LAPLACE_PG_SEMANTIC_PROVIDER_DOMAIN \
     "laplace-postgresql-reference-mapping-candidate-provider-v1"
 
-typedef struct laplace_pg_semantic_provider_state {
+struct laplace_pg_semantic_provider_state {
     laplace_digest256 boundary_id;
     laplace_digest256 evidence_epoch;
     laplace_digest256 provider_fingerprint;
+    uint64_t maximum_candidate_records_per_expansion;
     uint64_t rows_examined;
     uint64_t database_operations;
     uint64_t provider_calls;
-} laplace_pg_semantic_provider_state;
+    MemoryContext caller_context;
+    MemoryContext scratch_context;
+    ErrorData* error;
+    MemoryContextCallback cleanup;
+};
 
 static void semantic_read_digest_attribute(
     HeapTupleHeader tuple,
@@ -237,8 +244,8 @@ static bool semantic_add_u64(uint64_t* total, uint64_t value) {
     return true;
 }
 
-static int semantic_enumerate_candidates(
-    void* provider_state,
+static int semantic_enumerate_impl(
+    laplace_pg_semantic_provider_state* state,
     const laplace_observation_query_binding* binding,
     const laplace_id128* source_entity_ids,
     const laplace_query_search_state* frontier_states,
@@ -276,8 +283,6 @@ static int semantic_enumerate_candidates(
         " SELECT source_state_index,target_entity_id,proposition_id,relation_id,direction"
         " FROM dedup"
         " ORDER BY source_state_index,proposition_id,target_entity_id";
-    laplace_pg_semantic_provider_state* state =
-        (laplace_pg_semantic_provider_state*)provider_state;
     Datum* source_values;
     ArrayType* source_array;
     bytea* boundary;
@@ -285,6 +290,9 @@ static int semantic_enumerate_candidates(
     Datum argument_values[2];
     size_t source_index;
     uint64_t processed;
+    uint64_t provider_limit;
+    size_t effective_capacity;
+    long row_limit;
     int result;
 
     if (state == NULL || binding == NULL || source_entity_ids == NULL ||
@@ -299,9 +307,24 @@ static int semantic_enumerate_candidates(
     if ((binding->relation_mask & LAPLACE_OBSERVATION_QUERY_SEMANTIC) == 0u) {
         return 0;
     }
-    if (frontier_state_count > (size_t)INT_MAX) {
+    if (frontier_state_count > (size_t)INT_MAX ||
+        state->maximum_candidate_records_per_expansion >
+            UINT64_MAX / (uint64_t)frontier_state_count) {
         return 2;
     }
+    provider_limit = state->maximum_candidate_records_per_expansion *
+        (uint64_t)frontier_state_count;
+    effective_capacity = candidate_capacity;
+    if (provider_limit < (uint64_t)effective_capacity) {
+        effective_capacity = (size_t)provider_limit;
+    }
+    if (effective_capacity == 0u) {
+        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+        return 0;
+    }
+    row_limit = effective_capacity >= (size_t)LONG_MAX
+        ? LONG_MAX
+        : (long)effective_capacity + 1L;
 
     source_values = (Datum*)palloc(sizeof(*source_values) * frontier_state_count);
     for (source_index = 0u; source_index < frontier_state_count; ++source_index) {
@@ -325,8 +348,7 @@ static int semantic_enumerate_candidates(
     argument_values[1] = PointerGetDatum(boundary);
 
     result = SPI_execute_with_args(
-        query, 2, argument_types, argument_values, NULL, true,
-        (long)candidate_capacity + 1L);
+        query, 2, argument_types, argument_values, NULL, true, row_limit);
     if (result != SPI_OK_SELECT || SPI_tuptable == NULL) {
         return 4;
     }
@@ -340,8 +362,9 @@ static int semantic_enumerate_candidates(
     usage->rows_examined = processed;
     usage->index_plan_count = 1u;
     usage->database_operations = 1u;
-    if (SPI_processed > candidate_capacity) {
+    if (SPI_processed > effective_capacity) {
         usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+        SPI_freetuptable(SPI_tuptable);
         return 0;
     }
 
@@ -397,14 +420,180 @@ static int semantic_enumerate_candidates(
 
     *candidate_count = (size_t)SPI_processed;
     usage->crossing_count = processed;
+    SPI_freetuptable(SPI_tuptable);
     return 0;
+}
+
+static int semantic_enumerate_candidates(
+    void* provider_state,
+    const laplace_observation_query_binding* binding,
+    const laplace_id128* source_entity_ids,
+    const laplace_query_search_state* frontier_states,
+    const uint64_t* accumulated_costs,
+    size_t frontier_state_count,
+    laplace_cognition_observation_candidate* candidates,
+    size_t candidate_capacity,
+    size_t* candidate_count,
+    laplace_cognition_observation_candidate_usage* usage) {
+    laplace_pg_semantic_provider_state* state =
+        (laplace_pg_semantic_provider_state*)provider_state;
+    volatile int status = 0;
+    MemoryContext previous;
+
+    if (candidate_count != NULL) {
+        *candidate_count = 0u;
+    }
+    if (usage != NULL) {
+        memset(usage, 0, sizeof(*usage));
+    }
+    if (state == NULL || state->error != NULL || state->scratch_context == NULL) {
+        return 1;
+    }
+
+    previous = MemoryContextSwitchTo(state->scratch_context);
+    PG_TRY();
+    {
+        status = semantic_enumerate_impl(
+            state, binding, source_entity_ids, frontier_states, accumulated_costs,
+            frontier_state_count, candidates, candidate_capacity,
+            candidate_count, usage);
+    }
+    PG_CATCH();
+    {
+        MemoryContextSwitchTo(state->caller_context);
+        state->error = CopyErrorData();
+        FlushErrorState();
+        if (candidate_count != NULL) {
+            *candidate_count = 0u;
+        }
+        if (usage != NULL) {
+            memset(usage, 0, sizeof(*usage));
+        }
+        status = 1;
+    }
+    PG_END_TRY();
+    MemoryContextSwitchTo(previous);
+    MemoryContextReset(state->scratch_context);
+    return (int)status;
+}
+
+static void semantic_provider_release(void* opaque) {
+    laplace_pg_semantic_provider_state* state =
+        (laplace_pg_semantic_provider_state*)opaque;
+    if (state == NULL) {
+        return;
+    }
+    state->scratch_context = NULL;
+    if (state->error != NULL) {
+        FreeErrorData(state->error);
+        state->error = NULL;
+    }
+}
+
+void laplace_pg_semantic_provider_create(
+    const laplace_cognition_observation_request* request,
+    uint64_t maximum_candidate_records_per_expansion,
+    laplace_pg_semantic_provider_state** owner,
+    laplace_cognition_observation_candidate_provider_v1* provider) {
+    laplace_digest256 request_fingerprint;
+    laplace_pg_semantic_provider_state* state;
+
+    if (owner != NULL) {
+        *owner = NULL;
+    }
+    if (provider != NULL) {
+        memset(provider, 0, sizeof(*provider));
+    }
+    if (request == NULL || owner == NULL || provider == NULL ||
+        maximum_candidate_records_per_expansion == 0u ||
+        maximum_candidate_records_per_expansion >
+            request->search_budget.transition_batch_capacity ||
+        (request->relation_mask & LAPLACE_OBSERVATION_QUERY_SEMANTIC) == 0u ||
+        laplace_cognition_observation_request_identify(
+            request, &request_fingerprint) !=
+            LAPLACE_COGNITION_OBSERVATION_REQUEST_OK) {
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("Laplace semantic candidate provider request is invalid")));
+    }
+
+    state = (laplace_pg_semantic_provider_state*)palloc0(sizeof(*state));
+    state->boundary_id = request->evidence_boundary;
+    state->evidence_epoch = request->evidence_epoch;
+    state->maximum_candidate_records_per_expansion =
+        maximum_candidate_records_per_expansion;
+    state->caller_context = CurrentMemoryContext;
+    state->scratch_context = AllocSetContextCreate(
+        CurrentMemoryContext,
+        "Laplace semantic cognition batch",
+        ALLOCSET_DEFAULT_SIZES);
+    state->cleanup.func = semantic_provider_release;
+    state->cleanup.arg = state;
+    MemoryContextRegisterResetCallback(CurrentMemoryContext, &state->cleanup);
+    semantic_provider_identify(
+        &state->boundary_id,
+        &state->evidence_epoch,
+        &state->provider_fingerprint);
+
+    provider->state = state;
+    provider->provider_fingerprint = state->provider_fingerprint;
+    provider->maximum_candidate_records_per_expansion =
+        maximum_candidate_records_per_expansion;
+    provider->enumerate_candidates = semantic_enumerate_candidates;
+    provider->abi_major =
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR;
+    provider->abi_minor =
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR;
+    *owner = state;
+}
+
+void laplace_pg_semantic_provider_summary(
+    const laplace_pg_semantic_provider_state* owner,
+    laplace_pg_semantic_provider_report* report) {
+    if (report == NULL) {
+        return;
+    }
+    memset(report, 0, sizeof(*report));
+    if (owner == NULL) {
+        return;
+    }
+    report->provider_fingerprint = owner->provider_fingerprint;
+    report->rows_examined = owner->rows_examined;
+    report->database_operations = owner->database_operations;
+    report->provider_calls = owner->provider_calls;
+}
+
+ErrorData* laplace_pg_semantic_provider_take_error(
+    laplace_pg_semantic_provider_state* owner) {
+    ErrorData* error;
+    if (owner == NULL) {
+        return NULL;
+    }
+    error = owner->error;
+    owner->error = NULL;
+    return error;
+}
+
+void laplace_pg_semantic_provider_destroy(
+    laplace_pg_semantic_provider_state** owner) {
+    if (owner == NULL || *owner == NULL) {
+        return;
+    }
+    if ((*owner)->scratch_context != NULL) {
+        MemoryContextDelete((*owner)->scratch_context);
+        (*owner)->scratch_context = NULL;
+    }
+    semantic_provider_release(*owner);
+    *owner = NULL;
 }
 
 Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
     laplace_framework_context context;
     laplace_cognition_observation_request request;
     laplace_cognition_observation_candidate_provider_v1 provider;
-    laplace_pg_semantic_provider_state provider_state;
+    laplace_pg_semantic_provider_state* provider_state = NULL;
+    laplace_pg_semantic_provider_report provider_report;
+    ErrorData* provider_error = NULL;
     laplace_cognition_observation_result* observation_result = NULL;
     laplace_cognition_forward_result* forward_result = NULL;
     laplace_cognition_forward_receipt forward_receipt;
@@ -442,26 +631,14 @@ Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
                  errdetail("request_status=%d", (int)request_status)));
     }
 
-    memset(&provider_state, 0, sizeof(provider_state));
-    provider_state.boundary_id = request.evidence_boundary;
-    provider_state.evidence_epoch = request.evidence_epoch;
-    semantic_provider_identify(
-        &provider_state.boundary_id,
-        &provider_state.evidence_epoch,
-        &provider_state.provider_fingerprint);
-
-    memset(&provider, 0, sizeof(provider));
-    provider.state = &provider_state;
-    provider.provider_fingerprint = provider_state.provider_fingerprint;
-    provider.maximum_candidate_records_per_expansion =
-        (uint64_t)request.search_budget.transition_batch_capacity;
-    provider.enumerate_candidates = semantic_enumerate_candidates;
-    provider.abi_major =
-        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR;
-    provider.abi_minor =
-        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR;
+    laplace_pg_semantic_provider_create(
+        &request,
+        (uint64_t)request.search_budget.transition_batch_capacity,
+        &provider_state,
+        &provider);
 
     if (SPI_connect() != SPI_OK_CONNECT) {
+        laplace_pg_semantic_provider_destroy(&provider_state);
         ereport(ERROR,
                 (errcode(ERRCODE_CONNECTION_FAILURE),
                  errmsg("Laplace live semantic cognition could not connect to the durable mapping estate")));
@@ -474,9 +651,19 @@ Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
     if (SPI_finish() != SPI_OK_FINISH) {
         laplace_cognition_observation_result_destroy(&observation_result);
         laplace_cognition_forward_result_destroy(&forward_result);
+        laplace_pg_semantic_provider_destroy(&provider_state);
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
                  errmsg("Laplace live semantic cognition could not close its durable mapping read")));
+    }
+
+    laplace_pg_semantic_provider_summary(provider_state, &provider_report);
+    provider_error = laplace_pg_semantic_provider_take_error(provider_state);
+    laplace_pg_semantic_provider_destroy(&provider_state);
+    if (provider_error != NULL) {
+        laplace_cognition_observation_result_destroy(&observation_result);
+        laplace_cognition_forward_result_destroy(&forward_result);
+        ReThrowError(provider_error);
     }
 
     if (request_status != LAPLACE_COGNITION_OBSERVATION_REQUEST_OK ||
@@ -506,8 +693,8 @@ Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
     result_values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         request_fingerprint.bytes, sizeof(request_fingerprint.bytes)));
     result_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        provider_state.provider_fingerprint.bytes,
-        sizeof(provider_state.provider_fingerprint.bytes)));
+        provider_report.provider_fingerprint.bytes,
+        sizeof(provider_report.provider_fingerprint.bytes)));
     result_values[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         primary_answer.entity_id.bytes, sizeof(primary_answer.entity_id.bytes)));
     result_values[3] = PointerGetDatum(laplace_pg_bytes_to_bytea(
@@ -528,9 +715,9 @@ Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
     result_values[12] = Int32GetDatum((int32)primary_answer.source_layer);
     result_values[13] = Int32GetDatum((int32)primary_answer.direction);
     result_values[14] = Int32GetDatum((int32)primary_answer.rank);
-    result_values[15] = laplace_pg_numeric_from_uint64(provider_state.rows_examined);
+    result_values[15] = laplace_pg_numeric_from_uint64(provider_report.rows_examined);
     result_values[16] = laplace_pg_numeric_from_uint64(
-        provider_state.database_operations);
+        provider_report.database_operations);
     result_values[17] = laplace_pg_numeric_from_uint64(
         forward_receipt.database_operations);
     result_values[18] = Int32GetDatum((int32)forward_receipt.final_completion);
