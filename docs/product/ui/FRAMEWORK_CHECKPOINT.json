@@ -1,0 +1,253 @@
+{
+  "schema": "laplace.framework-documentation-checkpoint/v1",
+  "date": "2026-09-08",
+  "repository": "SaltyPatron/Laplace-Refactor",
+  "branch": "docs/68-ui-admin-acceptance-review",
+  "pr": 272,
+  "pre_checkpoint_head": "a4aeb952a4f30bcbc7faaefa300842bccd9b6c7d",
+  "pre_checkpoint_tree": "055252b6ff18e1d1a25a726b2e9096edafeed2d0",
+  "pr_base": "f02d78730aa6312885784a3a986ebb243810756f",
+  "checkpoint_commit_locator": "The Git commit containing this document; its exact SHA is recorded in the PR closing preservation comment.",
+  "current_scope": {
+    "task": "finish_documentation_issues_and_preserve_framework_work",
+    "framework_setup_previously_requested": true,
+    "legacy_global_implementation_hold": "superseded_for_requested_framework_setup",
+    "application_code_changed_here": false,
+    "live_effects_authorized_here": false,
+    "unresolved_policy_defaults_approved": false,
+    "runtime_acceptance": "not_run"
+  },
+  "prior_packet": [
+    {
+      "path": "docs/product/OPERATOR_RECOVERY_AND_OBSERVABILITY_REVIEW.md",
+      "baseline_blob_sha": "b4ffa9d3f419f98c2bbad2525cedaabf3bce9bb9"
+    },
+    {
+      "path": "docs/product/OPERATOR_RECOVERY_REVIEW_CASES.json",
+      "baseline_blob_sha": "e981e217e5e352457db3a6d7aa025b881c914e6c"
+    },
+    {
+      "path": "docs/product/ui/ACCEPTANCE.md",
+      "baseline_blob_sha": "eabe2840ad1d799d682095d31c6c8aeee230063d"
+    },
+    {
+      "path": "docs/product/ui/AUTH_AND_TRANSPORTS.md",
+      "baseline_blob_sha": "b67d0cdd0f8d1588569b4a5d24235eb4f4b82e27"
+    },
+    {
+      "path": "docs/product/ui/DATA_BROWSER_AND_SOURCE_LINKS.md",
+      "baseline_blob_sha": "e341a9aadb9c3993f71485849bba536e210ab603"
+    },
+    {
+      "path": "docs/product/ui/GENERIC_COMPONENT_AND_NODE_BLUEPRINT.md",
+      "baseline_blob_sha": "8c50fa61feba3fc1a6d90abaf5cef489612762c7"
+    },
+    {
+      "path": "docs/product/ui/INFRASTRUCTURE_DECISIONS.json",
+      "baseline_blob_sha": "5a034c5951910431e8160af308fa9113c717b406"
+    },
+    {
+      "path": "docs/product/ui/INFRASTRUCTURE_FOUNDATION.md",
+      "baseline_blob_sha": "702bf886a8b23c6751627e6041f7faf52ef7c387"
+    },
+    {
+      "path": "docs/product/ui/INTERFACE_ISSUE_MAP.md",
+      "baseline_blob_sha": "33a79289d6aec2c8d3c658c3c69f507bd3aa4219"
+    },
+    {
+      "path": "docs/product/ui/ISSUE_TRACEABILITY.md",
+      "baseline_blob_sha": "93d558fefc92c0c4ce22979c3ce26d974899f785"
+    },
+    {
+      "path": "docs/product/ui/NATIVE_WORKSPACE_BUILD_MAP.md",
+      "baseline_blob_sha": "10efcdea39f3a6c1110aeafa55e900a1e775c973"
+    },
+    {
+      "path": "docs/product/ui/README.md",
+      "baseline_blob_sha": "667140fc3a20c75ba16c89a6cdfdce6caf69471e"
+    },
+    {
+      "path": "docs/product/ui/SCHEMA_DRIVEN_INTERFACE_REFERENCES.md",
+      "baseline_blob_sha": "efe6504ddb8f88bfeff4e5eb0f33b8e2fc3318cc"
+    },
+    {
+      "path": "docs/product/ui/SCREEN_CONTRACTS.md",
+      "baseline_blob_sha": "60f9c0310d0a9f91c86ca3bfb4893c31da75ca2d"
+    },
+    {
+      "path": "docs/product/ui/WORKSPACE_BEHAVIOR_AND_RESPONSE.md",
+      "baseline_blob_sha": "a56cf170ebea5563e5d949f18b14195d77a7a40e"
+    }
+  ],
+  "archival_copies": [
+    {
+      "path": "docs/product/ui/INFRASTRUCTURE_RESEARCH_BASELINE.md",
+      "from_path": "docs/product/ui/INFRASTRUCTURE_FOUNDATION.md",
+      "blob_sha": "702bf886a8b23c6751627e6041f7faf52ef7c387",
+      "role": "historical_exact_copy_not_active_plan"
+    },
+    {
+      "path": "docs/product/ui/INFRASTRUCTURE_DECISIONS_BASELINE.json",
+      "from_path": "docs/product/ui/INFRASTRUCTURE_DECISIONS.json",
+      "blob_sha": "5a034c5951910431e8160af308fa9113c717b406",
+      "role": "historical_exact_copy_not_runtime_configuration"
+    }
+  ],
+  "expected_changed_existing_paths": [
+    "docs/product/ui/README.md",
+    "docs/product/ui/INFRASTRUCTURE_FOUNDATION.md",
+    "docs/product/ui/INFRASTRUCTURE_DECISIONS.json"
+  ],
+  "expected_added_paths": [
+    "docs/product/ui/FRAMEWORK_CONTINUATION.md",
+    "docs/product/ui/FRAMEWORK_CHECKPOINT.json",
+    "docs/product/ui/INFRASTRUCTURE_RESEARCH_BASELINE.md",
+    "docs/product/ui/INFRASTRUCTURE_DECISIONS_BASELINE.json"
+  ],
+  "prohibited_changes_for_this_checkpoint": [
+    "engine/",
+    "managed/",
+    "integrations/",
+    "contracts/",
+    "dependencies/",
+    ".github/workflows/",
+    "state/continuation.json"
+  ],
+  "granular_issues_verified_in_github_search": [
+    274,
+    275,
+    276,
+    277,
+    278,
+    279,
+    280,
+    281,
+    282,
+    283,
+    284,
+    285,
+    286,
+    287,
+    288,
+    289,
+    290,
+    291,
+    292,
+    293,
+    294,
+    295,
+    296
+  ],
+  "earlier_expanded_issue_owners": [
+    64,
+    65,
+    66,
+    67,
+    68,
+    145,
+    172,
+    174,
+    176,
+    264,
+    265,
+    266,
+    268,
+    270,
+    271
+  ],
+  "additional_existing_owner": 141,
+  "latest_corrections": [
+    {
+      "owners": [
+        64,
+        288,
+        289,
+        293
+      ],
+      "requirement": "Direct configured Microsoft/Google sign-in; no B2C/customer directory or mandatory Keycloak. App registration is deployment configuration; API/MCP resource-token authority remains separate."
+    },
+    {
+      "owners": [
+        64,
+        141,
+        62,
+        63,
+        145,
+        287
+      ],
+      "requirement": "Provider assertions and effects use native source/AST/reference/occurrence/governance/effect programs, not opaque provider blobs or a private account/billing engine."
+    },
+    {
+      "owners": [
+        68,
+        268,
+        274,
+        275,
+        276,
+        277,
+        290
+      ],
+      "requirement": "Schema/result metadata and typed operations drive the shared UI across all application and knowledge data."
+    },
+    {
+      "owners": [
+        65,
+        66,
+        67,
+        278,
+        279,
+        280
+      ],
+      "requirement": "Useful user-local native work and owned/retained substrate, targeted missing fetch and changing collection/head state; no unrelated provider work or permanent answer cache."
+    }
+  ],
+  "decision_ids": [
+    "IF-01",
+    "IF-02",
+    "IF-03",
+    "IF-04",
+    "IF-05",
+    "IF-06",
+    "IF-07",
+    "IF-08",
+    "IF-09",
+    "IF-10",
+    "IF-11",
+    "IF-12",
+    "IF-13",
+    "IF-14",
+    "IF-15",
+    "IF-16",
+    "IF-17",
+    "IF-18",
+    "IF-19",
+    "IF-20"
+  ],
+  "specification_packets": [
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05",
+    "F06",
+    "F07",
+    "F08"
+  ],
+  "preservation_rule": "Fast-forward owning branch; preserve complete ancestor history and exact archival blobs; no force push, deletion, merge or runtime deployment in this finalization.",
+  "issue_record_boundary": "This is an ownership/requirement checkpoint, not a byte-for-byte export of all GitHub issue bodies or comments. Issue records remain in GitHub and are linked from the committed maps.",
+  "validation_boundary": {
+    "authored_json_and_inventory": "checked_locally_before_publication",
+    "remote_commit_and_ancestry": "verify_after_publication_and_record_in_PR",
+    "native_build": "not_run",
+    "application_tests": "not_run",
+    "live_provider_signin": "not_run",
+    "hart_server_worktree": "not_inspected",
+    "container_clone": "not_available_DNS_failure"
+  },
+  "authored_blob_ids": {
+    "docs/product/ui/README.md": "60ad943b146e5ae18cdffc68d9b57a1ee1fdbb5f",
+    "docs/product/ui/INFRASTRUCTURE_FOUNDATION.md": "6135650e4df99c6a8476cece7a6afd2681f60f76",
+    "docs/product/ui/INFRASTRUCTURE_DECISIONS.json": "46d03fe30ac0ee3e69072ee1107615080c394292",
+    "docs/product/ui/FRAMEWORK_CONTINUATION.md": "a5b7ee689a2b72dc97a80410d0ecbc9178c9973b"
+  }
+}
