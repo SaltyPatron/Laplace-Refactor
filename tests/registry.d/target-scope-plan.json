@@ -1,0 +1,25 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "TargetScopePlan.GeneratesDistinctQkVoJobsFromOneTypedEstate",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"],
+      "covered_dimensions": ["one typed field and constraint estate is selected by declarative target slots", "native code generates operator programs and consumer role identities", "QK and VO retain independently selected relation planes without caller-authored target jobs"]
+    },
+    {
+      "ctest_name": "TargetScopePlan.CanonicalizesRelationFamilySetBeforeProgramIdentity",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
+      "covered_dimensions": ["relation-family selectors are sets rather than caller enumeration order", "generated operator program and target compile receipts are canonical"]
+    },
+    {
+      "ctest_name": "TargetScopePlan.RejectsSelectorWithNoMatchingTypedConstraint",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-MISSING-RELATION-WITHHELD-EVIDENCE"],
+      "covered_dimensions": ["empty target slot selection is explicit", "scope compilation cannot manufacture a target operator from an absent relation plane"]
+    },
+    {
+      "ctest_name": "TargetScopePlan.TargetRankChangesScopeReceiptWithoutRewritingOperator",
+      "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
+      "covered_dimensions": ["consumer target rank is receipted separately from native operator semantics", "changing target capacity does not rewrite the compiled substrate operator"]
+    }
+  ]
+}
