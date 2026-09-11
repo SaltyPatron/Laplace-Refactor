@@ -293,6 +293,7 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     laplace_cognition_observation_request scope;
     laplace_cognition_observation_request semantic_scope;
     laplace_cognition_observation_candidate_provider_v1 provider;
+    laplace_cognition_observation_candidate_provider_v1 structural_provider;
     laplace_cognition_observation_candidate_provider_v1 physical_provider;
     laplace_cognition_observation_candidate_provider_v1 semantic_provider;
     laplace_pg_firmware_provider_router router;
@@ -303,6 +304,7 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     ErrorData* semantic_error = NULL;
     laplace_digest256 program_id;
     laplace_cognition_firmware_status status;
+    uint64_t durable_transition_capacity = 0u;
     uint32_t physical_relation_mask = 0u;
     uint32_t step;
     bool need_physical = false;
@@ -319,6 +321,7 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     if (database_error != NULL) *database_error = NULL;
     if (error != NULL) memset(error, 0, sizeof(*error));
     memset(&semantic_reads, 0, sizeof(semantic_reads));
+    memset(&structural_provider, 0, sizeof(structural_provider));
     memset(&physical_provider, 0, sizeof(physical_provider));
     memset(&semantic_provider, 0, sizeof(semantic_provider));
 
@@ -373,12 +376,26 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     if (laplace_cognition_prompt_admission_view_get(admission, &input) !=
         LAPLACE_COGNITION_PROMPT_ADMISSION_OK)
         return firmware_host_error(error, LAPLACE_COGNITION_FIRMWARE_ADMISSION_FAILURE, UINT32_MAX, 0u);
+    if (laplace_cognition_prompt_admission_structural_provider(
+            admission, &structural_provider) !=
+        LAPLACE_COGNITION_PROMPT_ADMISSION_OK)
+        return firmware_host_error(error, LAPLACE_COGNITION_FIRMWARE_ADMISSION_FAILURE, UINT32_MAX, 0u);
 
-    /* The native firmware owner composes the admitted prompt-structure provider
-     * with this durable PostgreSQL provider at execution time. Do not subtract a
-     * global worst-case prompt bound from the database request before any query
-     * runs. The supplied transition batch is the finite capacity for the actual
-     * combined query; an over-capacity query remains a typed runtime limit. */
+    /* The admitted prompt structure and durable providers share one transition
+     * batch. Reserve the prompt provider's admission-specific finite bound first;
+     * only the unclaimed slots may be exposed to PostgreSQL providers. This keeps
+     * the whole request fail-closed before database access when the declared batch
+     * cannot represent both planes. */
+    if (need_physical || need_semantic) {
+        const uint64_t transition_capacity =
+            (uint64_t)request->search_budget.transition_batch_capacity;
+        const uint64_t structural_capacity =
+            structural_provider.maximum_candidate_records_per_expansion;
+        if (structural_capacity >= transition_capacity)
+            return firmware_host_error(error, LAPLACE_COGNITION_FIRMWARE_LIMIT, UINT32_MAX, 0u);
+        durable_transition_capacity = transition_capacity - structural_capacity;
+    }
+
     memset(&scope, 0, sizeof(scope));
     scope.anchor_entity_id = input.trunk_entity_id;
     scope.world_id = input.turn.world_id;
@@ -389,6 +406,9 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     scope.authority_id = context->authority_fingerprint;
     scope.result_contract_fingerprint = request->result_contract_fingerprint;
     scope.search_budget = request->search_budget;
+    if (need_physical || need_semantic)
+        scope.search_budget.transition_batch_capacity =
+            (uint32_t)durable_transition_capacity;
     scope.forward_limits = request->forward_limits;
     scope.maximum_results = 1u;
     scope.flags = request->boundary_flags |
