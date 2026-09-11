@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
-      - name: Merge exact registered heads
+      - name: Merge exact registered heads and apply registered maintenance
         shell: bash
         env:
           TARGET_BRANCH: delivery/final-convergence-20260911
@@ -48,7 +48,7 @@ jobs:
           PY
 
           while IFS=$'\t' read -r sha branch owner_pr; do
-            test -n "$sha"
+            [[ -n "$sha" ]] || continue
             test "$(git rev-parse "origin/$branch")" = "$sha"
             if git merge-base --is-ancestor "$sha" HEAD; then
               echo "$branch@$sha already represented; skip"
@@ -69,3 +69,13 @@ jobs:
             fi
             git push origin "HEAD:$TARGET_BRANCH"
           done < "$RUNNER_TEMP/convergence-heads.tsv"
+
+          python3 tools/final_convergence_maintenance.py
+          python3 tests/product_path_status_tests.py
+          ./tools/tests/verify-requirements.sh
+
+          if ! git diff --quiet -- engine/src/tabular_source.cpp contracts/operation-model.json; then
+            git add engine/src/tabular_source.cpp contracts/operation-model.json
+            git commit -m 'convergence: repair source wrapper and discovery evidence'
+            git push origin "HEAD:$TARGET_BRANCH"
+          fi
