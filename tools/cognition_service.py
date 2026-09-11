@@ -3,22 +3,25 @@
 from __future__ import annotations
 
 import argparse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 import json
+import os
 from pathlib import Path
 import re
+import socketserver
+import stat
 import subprocess
 import sys
 from threading import BoundedSemaphore
 from typing import Any
 
-HEX128 = re.compile(r"^[0-9a-f]{32}$")
 HEX256 = re.compile(r"^[0-9a-f]{64}$")
 HEXBYTES = re.compile(r"^[0-9a-f]*$")
 RELATIONS = {"container", "constituent", "predecessor", "successor", "cooccur", "semantic"}
 ACTIVE = Path("/opt/laplace/current")
 RECEIPT_ROOT = Path("/opt/laplace/receipts/postgresql/refactor")
-SOCKET_DIRECTORY = Path("/opt/laplace/runtime/postgresql/refactor")
+POSTGRES_SOCKET_DIRECTORY = Path("/opt/laplace/runtime/postgresql/refactor")
+DEFAULT_SERVICE_SOCKET = Path("/opt/laplace/runtime/laplace-cognition.sock")
 DATABASE_PORT = 55433
 DATABASE = "laplace_refactor"
 DATABASE_ROLE = "laplace_admin"
@@ -72,7 +75,7 @@ def run_psql(release: Path, sql: str, timeout: int = 300) -> dict[str, Any]:
         raise CognitionError(f"packaged psql is unavailable: {psql}")
     command = [
         str(psql),
-        "--host", str(SOCKET_DIRECTORY),
+        "--host", str(POSTGRES_SOCKET_DIRECTORY),
         "--port", str(DATABASE_PORT),
         "--username", DATABASE_ROLE,
         "--dbname", DATABASE,
@@ -164,7 +167,7 @@ WHERE u.singleton AND h.singleton;
     )
 
 
-def load_identities(package_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+def load_identities(package_id: str) -> dict[str, Any]:
     activation = load_json(
         RECEIPT_ROOT / "cluster-activation" / package_id / "unicode-product-activation.json"
     )
@@ -183,7 +186,7 @@ def load_identities(package_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
         value = identities.get(name)
         if not isinstance(value, str) or HEX256.fullmatch(value) is None:
             raise CognitionError(f"active cognition identity is invalid: {name}")
-    return activation, identities
+    return identities
 
 
 def context_sql(
@@ -193,16 +196,10 @@ def context_sql(
     numeric_epoch: str,
 ) -> str:
     epochs = [
-        identities["source_epoch"],
-        identities["identity_epoch"],
-        identities["geometry_epoch"],
-        identities["evidence_epoch"],
-        program_id,
-        identities["dependency_epoch"],
-        identities["database_epoch"],
-        perfcache_epoch,
-        numeric_epoch,
-        identities["package_epoch"],
+        identities["source_epoch"], identities["identity_epoch"],
+        identities["geometry_epoch"], identities["evidence_epoch"],
+        program_id, identities["dependency_epoch"], identities["database_epoch"],
+        perfcache_epoch, numeric_epoch, identities["package_epoch"],
     ]
     if any(HEX256.fullmatch(str(value)) is None for value in epochs):
         raise CognitionError("execution epoch is invalid")
@@ -216,16 +213,11 @@ def context_sql(
 
 def prompt_scope_sql(identities: dict[str, Any]) -> str:
     values = [
-        identities["source_epoch"],
-        identities["identity_epoch"],
-        identities["geometry_epoch"],
-        identities["geometry_epoch"],
-        identities["request_fingerprint"],
-        identities["package_epoch"],
-        identities["database_epoch"],
-        identities["dependency_epoch"],
-        identities["source_epoch"],
-        identities["numeric_epoch"],
+        identities["source_epoch"], identities["identity_epoch"],
+        identities["geometry_epoch"], identities["geometry_epoch"],
+        identities["request_fingerprint"], identities["package_epoch"],
+        identities["database_epoch"], identities["dependency_epoch"],
+        identities["source_epoch"], identities["numeric_epoch"],
     ]
     return (
         "ROW(" + ",".join(bytea_literal(value) for value in values)
@@ -251,8 +243,7 @@ def product_request_sql(identities: dict[str, Any], program_id: str, relation_co
         "::laplace.cognition_firmware_materialization_limits"
     )
     return (
-        "ROW("
-        + bytea_literal(program_id) + ","
+        "ROW(" + bytea_literal(program_id) + ","
         + bytea_literal(identities["evidence_epoch"]) + ","
         + bytea_literal(identities["request_fingerprint"]) + ","
         + bytea_literal("00" * 32) + ",false,"
@@ -262,7 +253,7 @@ def product_request_sql(identities: dict[str, Any], program_id: str, relation_co
 
 
 def execute_cognition(prompt: str, relations: list[str]) -> dict[str, Any]:
-    if not isinstance(prompt, str) or not prompt:
+    if not prompt:
         raise CognitionError("prompt must be non-empty UTF-8 text")
     encoded_prompt = prompt.encode("utf-8")
     if len(encoded_prompt) > MAXIMUM_REQUEST_BYTES:
@@ -270,7 +261,7 @@ def execute_cognition(prompt: str, relations: list[str]) -> dict[str, Any]:
 
     package_id, release = selected_product()
     firmware = compile_firmware(release, relations)
-    _, identities = load_identities(package_id)
+    identities = load_identities(package_id)
     runtime = active_runtime_state(release)
     perfcache_epoch = runtime.get("perfcache_epoch")
     numeric_epoch = runtime.get("numeric_epoch")
@@ -297,23 +288,31 @@ FROM laplace.cognition_firmware_execute_product(
 ) AS result;
 """
     result = run_psql(release, sql)
-    output_hex = parse_bytea(result.get("output"), "output")
-    output_bytes = bytes.fromhex(output_hex)
-    try:
-        output_utf8: str | None = output_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        output_utf8 = None
-    response = {
+    status = result.get("status")
+    output_hex = ""
+    output_utf8: str | None = None
+    if result.get("output") is not None:
+        output_hex = parse_bytea(result.get("output"), "output")
+        output_bytes = bytes.fromhex(output_hex)
+        try:
+            output_utf8 = output_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            output_utf8 = None
+    return {
         "schema": "laplace.cognition-response/v1",
         "package_id": package_id,
         "relations": relations,
         "program_id": firmware["program_id"],
-        "status": result.get("status"),
+        "status": status,
         "output_utf8": output_utf8,
         "output_hex": output_hex,
         "execution": result,
     }
-    return response
+
+
+class ThreadingUnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+    daemon_threads = True
+    allow_reuse_address = False
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -337,9 +336,7 @@ class Handler(BaseHTTPRequestHandler):
             package_id, release = selected_product()
             state = active_runtime_state(release)
             self._json(200, {
-                "status": "ready",
-                "package_id": package_id,
-                "database": DATABASE,
+                "status": "ready", "package_id": package_id, "database": DATABASE,
                 "unicode_present": state.get("unicode_present"),
                 "highway_present": state.get("highway_present"),
             })
@@ -372,8 +369,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": "prompt must be non-empty text"})
             return
         if (
-            not isinstance(relations, list)
-            or not relations
+            not isinstance(relations, list) or not relations
             or any(not isinstance(item, str) or item not in RELATIONS for item in relations)
         ):
             self._json(400, {"error": "relations contain an unsupported relation family"})
@@ -383,8 +379,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             result = execute_cognition(prompt, relations)
-            status = result.get("status")
-            self._json(200 if status == 0 else 422, result)
+            self._json(200 if result.get("status") == 0 else 422, result)
         except CognitionError as error:
             self._json(500, {"error": str(error)})
         except Exception as error:
@@ -393,24 +388,46 @@ class Handler(BaseHTTPRequestHandler):
             self.semaphore.release()
 
     def log_message(self, fmt: str, *args: Any) -> None:
-        print(f"laplace-cognition-service: {self.address_string()} {fmt % args}", file=sys.stderr)
+        print(f"laplace-cognition-service: {fmt % args}", file=sys.stderr)
+
+
+def prepare_socket(path: Path) -> None:
+    if not path.is_absolute() or path.parent != Path("/opt/laplace/runtime"):
+        raise CognitionError("service socket must be an exact child of /opt/laplace/runtime")
+    if not path.parent.is_dir() or path.parent.is_symlink():
+        raise CognitionError("Laplace runtime directory is absent or unsafe")
+    if path.exists() or path.is_symlink():
+        mode = path.lstat().st_mode
+        if not stat.S_ISSOCK(mode):
+            raise CognitionError(f"refusing to replace non-socket runtime object: {path}")
+        path.unlink()
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--listen", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--socket", type=Path, default=DEFAULT_SERVICE_SOCKET)
     args = parser.parse_args()
-    server = ThreadingHTTPServer((args.listen, args.port), Handler)
-    print(f"laplace-cognition-service listening on {args.listen}:{args.port}", file=sys.stderr)
+    prepare_socket(args.socket)
+    server = ThreadingUnixServer(str(args.socket), Handler)
+    os.chmod(args.socket, 0o666)
+    print(f"laplace-cognition-service listening on {args.socket}", file=sys.stderr)
     try:
         server.serve_forever(poll_interval=0.2)
     except KeyboardInterrupt:
         pass
     finally:
         server.server_close()
+        try:
+            if args.socket.exists() and stat.S_ISSOCK(args.socket.lstat().st_mode):
+                args.socket.unlink()
+        except OSError:
+            pass
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except CognitionError as error:
+        print(f"laplace-cognition-service: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
