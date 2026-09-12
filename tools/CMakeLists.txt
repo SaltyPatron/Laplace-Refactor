@@ -116,6 +116,10 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/inspect.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-inspect)
 
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/admit_source.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-admit-source)
+
 if(BUILD_TESTING)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(
