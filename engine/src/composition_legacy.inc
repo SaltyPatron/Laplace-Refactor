@@ -389,45 +389,37 @@ laplace_composition_status CalculateRequestLevels(
     try {
         const std::size_t request_count =
             static_cast<std::size_t>(input.request_count);
-        std::vector<std::uint32_t> depths(request_count, 0U);
-        std::uint32_t maximum_depth = 0U;
-        for (std::size_t request_index = 0U;
-             request_index < request_count; ++request_index) {
-            const auto& request = input.requests[request_index];
-            std::uint32_t depth = 0U;
-            const std::uint64_t end =
-                request.first_operand + request.operand_count;
-            for (std::uint64_t operand_index = request.first_operand;
-                 operand_index < end; ++operand_index) {
-                const auto& operand = input.operands[operand_index];
-                if (operand.reference_kind ==
-                    LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
-                    const std::uint32_t dependency_depth =
-                        depths[static_cast<std::size_t>(
-                            operand.reference_index)];
-                    if (dependency_depth == UINT32_MAX) {
-                        return LAPLACE_COMPOSITION_TIER_OVERFLOW;
-                    }
-                    depth = std::max(depth, dependency_depth + 1U);
-                }
+        FrontierPlan local_frontier_plan{};
+        const FrontierPlan* frontier_plan = nullptr;
+        if (active_frontier_capture != nullptr) {
+            frontier_plan = &active_frontier_capture->expected;
+        } else {
+            const auto frontier_status =
+                BuildFrontierPlan(input, local_frontier_plan);
+            if (frontier_status != LAPLACE_COMPOSITION_OK) {
+                return frontier_status;
             }
-            depths[request_index] = depth;
-            maximum_depth = std::max(maximum_depth, depth);
+            frontier_plan = &local_frontier_plan;
         }
-
-        std::vector<std::vector<std::uint64_t>> levels(
-            static_cast<std::size_t>(maximum_depth) + 1U);
-        for (std::size_t request_index = 0U;
-             request_index < request_count; ++request_index) {
-            levels[depths[request_index]].push_back(
-                static_cast<std::uint64_t>(request_index));
+        if (frontier_plan->request_indices.size() != request_count ||
+            frontier_plan->frontier_offsets.empty()) {
+            return LAPLACE_COMPOSITION_REFERENCE_INVALID;
         }
 
         std::vector<ResolvedValue> calculated(request_count);
-        for (const auto& request_indexes : levels) {
-            if (request_indexes.empty()) {
-                continue;
+        for (std::size_t frontier = 0U;
+             frontier < static_cast<std::size_t>(frontier_plan->frontier_count());
+             ++frontier) {
+            const std::uint64_t first = frontier_plan->frontier_offsets[frontier];
+            const std::uint64_t end = frontier_plan->frontier_offsets[frontier + 1U];
+            if (end <= first || end > frontier_plan->request_indices.size()) {
+                return LAPLACE_COMPOSITION_REFERENCE_INVALID;
             }
+            std::vector<std::uint64_t> request_indexes(
+                frontier_plan->request_indices.begin() +
+                    static_cast<std::ptrdiff_t>(first),
+                frontier_plan->request_indices.begin() +
+                    static_cast<std::ptrdiff_t>(end));
             std::vector<RequestCalculation> outputs(request_indexes.size());
             RequestLevelTask task{};
             task.input = &input;
@@ -479,50 +471,155 @@ laplace_composition_status CalculateRequestLevels(
     }
 }
 
+laplace_composition_status EstimateFrontierConcurrentMemory(
+    const laplace_composition_working_set_input& input,
+    std::uint64_t& estimated) {
+    estimated = 0U;
+    FrontierPlan local_frontier_plan{};
+    const FrontierPlan* frontier_plan = nullptr;
+    if (active_frontier_capture != nullptr) {
+        frontier_plan = &active_frontier_capture->expected;
+    } else {
+        const auto frontier_status =
+            BuildFrontierPlan(input, local_frontier_plan);
+        if (frontier_status != LAPLACE_COMPOSITION_OK) {
+            return frontier_status;
+        }
+        frontier_plan = &local_frontier_plan;
+    }
+    if (frontier_plan->request_indices.size() != input.request_count ||
+        frontier_plan->frontier_offsets.empty()) {
+        return LAPLACE_COMPOSITION_REFERENCE_INVALID;
+    }
+
+    std::uint64_t retained_plan_bytes{};
+    if (!AddMemory(
+            input.request_count,
+            sizeof(std::uint64_t) * 2U,
+            retained_plan_bytes) ||
+        !AddMemory(
+            frontier_plan->frontier_offsets.size(),
+            sizeof(std::uint64_t),
+            retained_plan_bytes) ||
+        !AddMemory(
+            frontier_plan->frontier_count(),
+            sizeof(laplace_execution_work_receipt),
+            retained_plan_bytes)) {
+        return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
+    }
+    estimated = retained_plan_bytes;
+
+    for (std::size_t frontier = 0U;
+         frontier < static_cast<std::size_t>(frontier_plan->frontier_count());
+         ++frontier) {
+        const std::uint64_t first =
+            frontier_plan->frontier_offsets[frontier];
+        const std::uint64_t end =
+            frontier_plan->frontier_offsets[frontier + 1U];
+        if (end <= first || end > frontier_plan->request_indices.size()) {
+            return LAPLACE_COMPOSITION_REFERENCE_INVALID;
+        }
+        const std::uint64_t width = end - first;
+        std::uint64_t frontier_bytes = retained_plan_bytes;
+        if (!AddMemory(
+                width,
+                sizeof(RequestCalculation) + sizeof(std::uint64_t),
+                frontier_bytes)) {
+            return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
+        }
+
+        std::vector<std::uint64_t> active_scratch;
+        active_scratch.reserve(static_cast<std::size_t>(width));
+        for (std::uint64_t position = first; position < end; ++position) {
+            const std::uint64_t request_index =
+                frontier_plan->request_indices[
+                    static_cast<std::size_t>(position)];
+            if (request_index >= input.request_count) {
+                return LAPLACE_COMPOSITION_REFERENCE_INVALID;
+            }
+            const auto& request =
+                input.requests[static_cast<std::size_t>(request_index)];
+            std::uint64_t request_carriers{};
+            const std::uint64_t operand_end =
+                request.first_operand + request.operand_count;
+            for (std::uint64_t operand_index = request.first_operand;
+                 operand_index < operand_end; ++operand_index) {
+                const std::uint64_t multiplicity =
+                    input.operands[static_cast<std::size_t>(operand_index)]
+                        .multiplicity;
+                const std::uint64_t carriers =
+                    multiplicity /
+                        LAPLACE_COMPOSITION_MAXIMUM_RUN_PER_CARRIER +
+                    ((multiplicity %
+                      LAPLACE_COMPOSITION_MAXIMUM_RUN_PER_CARRIER) != 0U
+                         ? 1U
+                         : 0U);
+                if (AddOverflow(
+                        request_carriers, carriers, request_carriers)) {
+                    return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
+                }
+            }
+            if (!AddMemory(
+                    request_carriers,
+                    sizeof(laplace_trajectory_carrier),
+                    frontier_bytes)) {
+                return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
+            }
+            std::uint64_t request_scratch{};
+            if (!AddMemory(
+                    request.operand_count,
+                    sizeof(laplace_id_run) +
+                        sizeof(std::pair<
+                            ResolvedValue,
+                            laplace_composition_operand>),
+                    request_scratch)) {
+                return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
+            }
+            active_scratch.push_back(request_scratch);
+        }
+
+        std::sort(
+            active_scratch.begin(), active_scratch.end(),
+            std::greater<std::uint64_t>());
+        const std::size_t worker_count = std::min<std::size_t>(
+            active_scratch.size(),
+            std::max<std::size_t>(
+                1U, input.context->resource_grant.cpu_slots));
+        for (std::size_t worker = 0U; worker < worker_count; ++worker) {
+            if (AddOverflow(
+                    frontier_bytes,
+                    active_scratch[worker],
+                    frontier_bytes)) {
+                return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
+            }
+        }
+        estimated = std::max(estimated, frontier_bytes);
+    }
+    return LAPLACE_COMPOSITION_OK;
+}
+
 laplace_composition_status EstimatePlanningMemory(
     const laplace_composition_working_set_input& input,
     std::uint64_t& estimated) {
     estimated = 0U;
     std::uint64_t maximum_entities{};
-    std::uint64_t maximum_request_operands{};
-    std::uint64_t maximum_request_carriers{};
     if (AddOverflow(
-            input.known_entity_count, input.request_count, maximum_entities)) {
+            input.known_entity_count, input.request_count,
+            maximum_entities)) {
         return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
     }
-    for (std::uint64_t request_index = 0U;
-         request_index < input.request_count; ++request_index) {
-        const auto& request = input.requests[request_index];
-        maximum_request_operands =
-            std::max(maximum_request_operands, request.operand_count);
-        std::uint64_t request_carriers{};
-        const std::uint64_t end = request.first_operand + request.operand_count;
-        for (std::uint64_t operand_index = request.first_operand;
-             operand_index < end; ++operand_index) {
-            const std::uint64_t multiplicity = input.operands[operand_index].multiplicity;
-            const std::uint64_t carriers =
-                multiplicity / LAPLACE_COMPOSITION_MAXIMUM_RUN_PER_CARRIER +
-                ((multiplicity % LAPLACE_COMPOSITION_MAXIMUM_RUN_PER_CARRIER) != 0U
-                     ? 1U
-                     : 0U);
-            if (AddOverflow(request_carriers, carriers, request_carriers)) {
-                return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
-            }
-        }
-        maximum_request_carriers =
-            std::max(maximum_request_carriers, request_carriers);
+    std::uint64_t frontier_bytes{};
+    const auto frontier_status =
+        EstimateFrontierConcurrentMemory(input, frontier_bytes);
+    if (frontier_status != LAPLACE_COMPOSITION_OK) {
+        return frontier_status;
     }
     const std::uint64_t map_pair_bytes =
         static_cast<std::uint64_t>(sizeof(IdKey) + sizeof(DigestKey));
     if (!AddMemory(input.request_count, sizeof(ResolvedValue), estimated) ||
         !AddMemory(maximum_entities, map_pair_bytes * 4U, estimated) ||
         !AddMemory(input.request_count, sizeof(DigestKey) * 8U, estimated) ||
-        !AddMemory(maximum_request_operands,
-                   sizeof(laplace_id_run) +
-                       sizeof(std::pair<ResolvedValue, laplace_composition_operand>),
-                   estimated) ||
-        !AddMemory(maximum_request_carriers,
-                   sizeof(laplace_trajectory_carrier), estimated)) {
+        AddOverflow(estimated, frontier_bytes, estimated)) {
         return LAPLACE_COMPOSITION_COUNT_OVERFLOW;
     }
     return LAPLACE_COMPOSITION_OK;
@@ -611,15 +708,16 @@ laplace_composition_status EstimateWorkingMemory(
     std::uint64_t physicality_count = resources.unique_physicality_count;
     std::uint64_t carrier_count = resources.unique_trajectory_carrier_count;
     std::uint64_t occurrence_count = resources.unique_occurrence_count;
+    std::uint64_t frontier_bytes{};
+    const auto frontier_status =
+        EstimateFrontierConcurrentMemory(input, frontier_bytes);
+    if (frontier_status != LAPLACE_COMPOSITION_OK) {
+        return frontier_status;
+    }
     if (!AddMemory(input.request_count,
                    sizeof(laplace_composition_result), estimated) ||
         !AddMemory(input.request_count, sizeof(ResolvedValue), estimated) ||
-        !AddMemory(resources.maximum_request_operand_count,
-                   sizeof(laplace_id_run) +
-                       sizeof(std::pair<ResolvedValue, laplace_composition_operand>),
-                   estimated) ||
-        !AddMemory(resources.maximum_request_carrier_count,
-                   sizeof(laplace_trajectory_carrier), estimated) ||
+        AddOverflow(estimated, frontier_bytes, estimated) ||
         !AddMemory(entity_count,
                    sizeof(laplace_composition_entity_candidate) * 4U, estimated) ||
         !AddMemory(physicality_count,

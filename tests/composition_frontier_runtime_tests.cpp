@@ -210,6 +210,19 @@ TEST(
 
 TEST(
     CompositionFrontierRuntime,
+    WideFrontierAccountsForConcurrentScratchResidency) {
+    const auto wide = Scenario(false, 4U);
+    const auto deep = Scenario(true, 4U);
+
+    ASSERT_EQ(wide.preflight.maximum_frontier_width, RequestCount);
+    ASSERT_EQ(deep.preflight.maximum_frontier_width, 1U);
+    EXPECT_GT(
+        wide.summary.estimated_peak_working_bytes,
+        deep.summary.estimated_peak_working_bytes);
+}
+
+TEST(
+    CompositionFrontierRuntime,
     RuntimeReceiptCardinalityCannotDivergeFromSharedPlanner) {
     const auto wide = Scenario(false, 4U);
     const auto deep = Scenario(true, 4U);
