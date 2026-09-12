@@ -250,13 +250,10 @@ if(BUILD_TESTING)
     function(laplace_add_postgresql_mutant target definition)
         add_library(${target} MODULE ${laplace_postgresql_module_sources})
         laplace_configure_postgresql_module(${target})
-        # PostgreSQL loads the production module before mutation modules.  Bind each
-        # mutation DSO's internal references to its own deliberately-mutated symbols
-        # so ELF interposition cannot silently route a mutant back through baseline
-        # helpers and invalidate the mutation proof.
-        if(UNIX AND NOT APPLE)
-            target_link_options(${target} PRIVATE "-Wl,-Bsymbolic")
-        endif()
+        # Keep the normal PostgreSQL symbol-preemption model for shared extension
+        # infrastructure such as _PG_init/GUC ownership. Mutated semantic owners that
+        # cross source-file boundaries receive explicit unique symbols below; global
+        # -Bsymbolic incorrectly makes every mutant re-register laplace.perfcache_root.
         target_compile_definitions(${target} PRIVATE
             LAPLACE_POSTGRES_TESTING=1
             ${definition}=1)
