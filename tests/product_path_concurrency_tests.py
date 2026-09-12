@@ -14,18 +14,18 @@ PHYSICAL_WORKFLOWS = (
 
 
 class ProductPathConcurrencyTests(unittest.TestCase):
-    def test_same_ref_runs_are_queued_before_physical_proof(self) -> None:
+    def test_same_ref_runs_keep_only_the_newest_pending_head(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         marker = (
             "concurrency:\n"
             "  group: product-path-${{ github.ref }}\n"
-            "  queue: max\n"
+            "  queue: single\n"
             "  cancel-in-progress: false\n"
         )
         self.assertIn(
             marker,
             workflow,
-            "same-ref product-path runs must queue instead of replacing pending proof",
+            "same-ref product-path runs must preserve the active run while replacing obsolete pending heads",
         )
 
     def test_physical_host_ownership_queues_every_pending_proof(self) -> None:
