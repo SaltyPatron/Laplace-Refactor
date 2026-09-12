@@ -31,6 +31,20 @@ set_target_properties(laplace_cognition_firmware_compile PROPERTIES
 install(TARGETS laplace_cognition_firmware_compile
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
+add_executable(laplace_source_profile_compile
+    source_profile_compile.cpp)
+target_include_directories(laplace_source_profile_compile PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_source_profile_compile PRIVATE
+    Laplace::TabularSource)
+target_compile_options(laplace_source_profile_compile PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+set_target_properties(laplace_source_profile_compile PROPERTIES
+    INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
+    INSTALL_RPATH_USE_LINK_PATH FALSE)
+install(TARGETS laplace_source_profile_compile
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
 add_executable(laplace_unicode_activation_identify
     unicode_activation_identify.cpp)
 target_link_libraries(laplace_unicode_activation_identify PRIVATE
