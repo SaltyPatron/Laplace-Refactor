@@ -156,12 +156,10 @@ SELECT (laplace.target_attention_compile(
 
 DO $verify$
 DECLARE
-    result laplace.target_attention_compile_result;
+    result record;
     expected record;
 BEGIN
-    SELECT ROW(t.*)::laplace.target_attention_compile_result
-      INTO result
-      FROM first_projection t;
+    SELECT * INTO result FROM first_projection;
     SELECT * INTO expected FROM target_attention_oracle;
 
     IF result.compile_status <> 0 OR result.projection_status <> 0 THEN
