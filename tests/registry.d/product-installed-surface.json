@@ -1,0 +1,88 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "product.source-admission-estate-boundary",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-SOURCE-TOPOLOGY",
+        "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION",
+        "LP-TEST-ADMISSION-READ-REACHABILITY"
+      ],
+      "covered_dimensions": [
+        "source and Unicode roots are canonicalized inside the configured source estate before admission",
+        "outside-estate relative and symlink escape requests fail before source execution",
+        "installed source admission reaches the persisted source-profile readback boundary only through the guarded product command"
+      ],
+      "defect_controls": [
+        "caller-selected path outside configured estate",
+        "relative path authority",
+        "source symlink escape",
+        "Unicode-root symlink escape"
+      ]
+    },
+    {
+      "ctest_name": "product.source-ingestion-lifecycle",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-SOURCE-TOPOLOGY",
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-PERSISTENT-STATE-ADDRESSING",
+        "LP-TEST-ACTIVATION-STATE-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "authority-selected catalog rows remain explicit when exact providers profiles or physical artifacts are unavailable",
+        "preflight binds one selected source to an exact artifact graph and deterministic reviewed plan identity",
+        "durable source job state is persisted before worker launch and survives browser ownership",
+        "same reviewed plan plus idempotency key resolves to one effective job while stale plans fail closed",
+        "successful work retains source admission result persisted source-profile readback and result identity"
+      ],
+      "defect_controls": [
+        "modified selected artifact",
+        "selected source without installed exact profile",
+        "excluded source disposition",
+        "stale reviewed plan",
+        "ambiguous duplicate submission"
+      ]
+    },
+    {
+      "ctest_name": "product.openai-chat-history",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-DISCOURSE-STATE",
+        "LP-TEST-CONVERSATION-SEMANTIC-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "OpenAI-compatible transport accepts ordered system developer user and assistant message history instead of one isolated user message",
+        "conversation history is deterministically lowered into one bounded native cognition prompt without silently ignoring prior turns",
+        "stream=true is an admitted compatibility profile while malformed stream and unsupported parameters fail explicitly"
+      ],
+      "defect_controls": [
+        "single-user-message-only compatibility regression",
+        "conversation without a user turn",
+        "unsupported role",
+        "non-boolean stream mode",
+        "silently accepted unsupported top-level parameter"
+      ]
+    },
+    {
+      "ctest_name": "product.gateway-contract",
+      "evidence_targets": [
+        "LP-TEST-COMPONENT-SUCCESS-NONPRODUCT",
+        "LP-TEST-INSTALL-CONVERGENCE",
+        "LP-TEST-CONVERSATION-SEMANTIC-COMPLETION",
+        "LP-TEST-ADMISSION-READ-REACHABILITY"
+      ],
+      "covered_dimensions": [
+        "installed package must contain the browser gateway compatibility source-job and selected-boundary owners required by the product surface",
+        "activated acceptance requires browser HTTP multi-message nonstream and streaming chat MCP canonical query and durable source admission rather than component-only success",
+        "browser source interaction cannot regress to a caller-supplied server-filesystem mutation path",
+        "durable ingestion identity and successful persisted readback are required by the activated product proof"
+      ],
+      "defect_controls": [
+        "native engine success falsely substituted for installed user-facing product success",
+        "gateway compatibility wrapper omitted from package",
+        "source worker omitted from package",
+        "path-based synchronous source mutation restored",
+        "activated proof drops idempotent job or streaming-chat assertions"
+      ]
+    }
+  ]
+}
