@@ -16,6 +16,7 @@
       "bin/laplace_resource_observe",
       "bin/laplace_cognition_firmware_compile",
       "bin/laplace-cognition",
+      "bin/laplace-inspect",
       "bin/laplace_unicode_activation_identify",
       "pgsql-18/bin/initdb",
       "pgsql-18/bin/pg_config",
