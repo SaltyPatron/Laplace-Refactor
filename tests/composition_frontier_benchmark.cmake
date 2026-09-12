@@ -1,4 +1,4 @@
-add_executable(laplace_composition_frontier_benchmark EXCLUDE_FROM_ALL
+add_executable(laplace_composition_frontier_benchmark
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_frontier_benchmark.cpp")
 target_include_directories(laplace_composition_frontier_benchmark PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/tests")
