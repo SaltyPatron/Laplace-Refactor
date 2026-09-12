@@ -1,0 +1,109 @@
+name: Unicode source acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      tool:
+        description: Existing built or installed laplace_ucdxml_query executable
+        required: true
+        default: /opt/laplace/runtime/refactor/bin/laplace_ucdxml_query
+      source_root:
+        description: Permanent vault directory for the pinned official source
+        required: true
+        default: /vault/Data/UCDXML/unicode-17
+
+permissions:
+  contents: read
+
+jobs:
+  source-acceptance:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select existing executable and permanent source storage
+        shell: bash
+        env:
+          SELECTED_TOOL: ${{ inputs.tool }}
+          SELECTED_SOURCE: ${{ inputs.source_root }}
+        run: |
+          set -euo pipefail
+          umask 0002
+          mountpoint -q /build
+          mountpoint -q /vault
+          tool=$(realpath -e "$SELECTED_TOOL")
+          case "$tool" in /opt/laplace/*/laplace_ucdxml_query|/build/laplace/*/laplace_ucdxml_query) ;; *) exit 1 ;; esac
+          test -x "$tool"
+          source_root=$(realpath -m "$SELECTED_SOURCE")
+          case "$source_root" in /vault/*) ;; *) exit 1 ;; esac
+          work="/build/laplace/work/unicode-source-acceptance/$GITHUB_RUN_ID"
+          mkdir -p "$work" "$source_root"
+          printf 'LAPLACE_UCDXML_TOOL=%s\nLAPLACE_UCDXML_SOURCE_ROOT=%s\nLAPLACE_ACCEPTANCE_WORK=%s\nTMPDIR=%s\nTMP=%s\nTEMP=%s\n' "$tool" "$source_root" "$work" "$work" "$work" "$work" >> "$GITHUB_ENV"
+          sha256sum "$tool"
+      - name: Admit official Unicode 17 grouped UCDXML
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_root="$LAPLACE_UCDXML_SOURCE_ROOT"
+          extracted="$source_root/ucd.all.grouped.xml"
+          receipt="$LAPLACE_ACCEPTANCE_WORK/admission-receipt.json"
+          python3 tools/sources/admit_artifact.py \
+            --recipe contracts/sources/unicode-17-ucdxml.json \
+            --source-root "$source_root" \
+            --output "$extracted" \
+            --receipt "$receipt" \
+            --acquire
+          expected_selected_sha="$(jq -r '.selected_member.sha256' contracts/sources/unicode-17-ucdxml.json)"
+          jq -e --arg expected_selected_sha "$expected_selected_sha" '
+            .schema == "laplace.source-artifact-admission-receipt/v1" and
+            .source_class == "foundational_seed" and
+            .evidence_source_type == "standard" and
+            .selected_member.name == "ucd.all.grouped.xml" and
+            .selected_member.sha256 == $expected_selected_sha
+          ' "$receipt"
+          printf 'LAPLACE_UCDXML_SOURCE=%s\n' "$extracted" >> "$GITHUB_ENV"
+          printf 'LAPLACE_UCDXML_ADMISSION_RECEIPT=%s\n' "$receipt" >> "$GITHUB_ENV"
+      - name: Execute native Laplace UCDXML to AST and evidence path
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool="$LAPLACE_UCDXML_TOOL"
+          latin="$LAPLACE_ACCEPTANCE_WORK/laplace-ucdxml-u0041.jsonl"
+          han="$LAPLACE_ACCEPTANCE_WORK/laplace-ucdxml-u4e00.jsonl"
+          "$tool" "$LAPLACE_UCDXML_SOURCE" U+0041 na sc gc \
+            > "$latin" 2> "$LAPLACE_ACCEPTANCE_WORK/laplace-ucdxml-u0041.receipt"
+          "$tool" "$LAPLACE_UCDXML_SOURCE" U+4E00 sc kTotalStrokes \
+            > "$han" 2> "$LAPLACE_ACCEPTANCE_WORK/laplace-ucdxml-u4e00.receipt"
+          jq -s -e '
+            length == 3 and
+            any(.[]; .property == "na" and .value == "LATIN CAPITAL LETTER A") and
+            any(.[]; .property == "sc" and .value == "Latn") and
+            any(.[]; .property == "gc" and .value == "Lu") and
+            all(.[];
+              (.proposition_entity_id | length) == 32 and
+              (.occurrence_id | length) == 64 and
+              (.evidence_node_id | length) == 64 and
+              (.evidence_root_id | length) == 64 and
+              (.testimony_id | length) == 64 and
+              .evidence_node_id != .evidence_root_id and
+              .evidence_source_type == 1) and
+            (map(.evidence_root_id) | unique | length) == 1
+          ' "$latin"
+          jq -s -e '
+            length == 2 and
+            any(.[]; .property == "sc" and .value == "Hani") and
+            any(.[]; .property == "kTotalStrokes" and .value == "1") and
+            all(.[];
+              (.proposition_entity_id | length) == 32 and
+              (.occurrence_id | length) == 64 and
+              (.evidence_node_id | length) == 64 and
+              (.evidence_root_id | length) == 64 and
+              (.testimony_id | length) == 64 and
+              .evidence_node_id != .evidence_root_id and
+              .evidence_source_type == 1) and
+            (map(.evidence_root_id) | unique | length) == 1
+          ' "$han"
+          cat "$latin"
+          cat "$han"
+          cat "$LAPLACE_ACCEPTANCE_WORK/laplace-ucdxml-u0041.receipt"
+          cat "$LAPLACE_ACCEPTANCE_WORK/laplace-ucdxml-u4e00.receipt"

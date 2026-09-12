@@ -23,6 +23,15 @@ class HostedCiCacheContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
 
+    def test_full_corpus_acceptance_is_separate_from_build_ci(self) -> None:
+        self.assertNotIn("Admit official Unicode", self.workflow)
+        self.assertNotIn("LAPLACE_UCDXML_SOURCE", self.workflow)
+        acceptance = (WORKFLOW.parent / "unicode-source-acceptance.yml").read_text()
+        self.assertIn("workflow_dispatch:", acceptance)
+        self.assertNotIn("workflow_call:", acceptance)
+        self.assertNotIn("cmake --build", acceptance)
+        self.assertIn('tool="$LAPLACE_UCDXML_TOOL"', acceptance)
+
     def test_cache_action_is_exactly_pinned_and_preset_isolated(self) -> None:
         self.assertIn(CACHE_ACTION, self.workflow)
         self.assertNotIn("actions/cache@v", self.workflow)
