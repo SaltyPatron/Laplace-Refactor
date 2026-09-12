@@ -421,12 +421,12 @@ SELECT pg_catalog.json_build_object('version', extversion, 'owner', current_user
         cluster_contract["instance"]["admin_role"],
         60,
     )
-    if current.get("version") != "1.0.2":
+    if current.get("version") != "1.0.3":
         return fresh_reconcile_indexed_cognition(plan, cluster_contract, package)
 
     relative = (
         f"pgsql-{plan['postgresql_major']}/share/extension/"
-        "laplace--1.0.0--1.0.1.sql"
+        "laplace--1.0.2--1.0.3.sql"
     )
     path = Path(plan["package_root"]) / relative
     entries = [item for item in package["files"] if item.get("path") == relative]
@@ -451,7 +451,7 @@ BEGIN
     SELECT e.extversion, pg_catalog.pg_get_userbyid(e.extowner) INTO STRICT version, owner
       FROM pg_catalog.pg_extension e WHERE e.extname='laplace';
     IF owner <> current_user THEN RAISE EXCEPTION 'extension reconciliation requires its actual owner'; END IF;
-    IF version <> '1.0.2' THEN
+    IF version <> '1.0.3' THEN
         RAISE EXCEPTION 'product cognition successor changed during reconciliation: %', version;
     END IF;
     FOR target IN SELECT * FROM (VALUES
@@ -502,7 +502,7 @@ COMMIT;
     )
     expected = {
         "schema": "laplace.indexed-cognition-upgrade/v1",
-        "version": "1.0.2",
+        "version": "1.0.3",
         "owner": cluster_contract["instance"]["admin_role"],
         "native_bindings": 2,
         "ready_indexes": 2,

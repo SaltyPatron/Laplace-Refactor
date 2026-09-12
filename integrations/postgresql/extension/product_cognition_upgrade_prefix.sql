@@ -18,7 +18,11 @@ BEGIN
     END IF;
     IF version = '1.0.1' THEN
         ALTER EXTENSION laplace UPDATE TO '1.0.2';
-    ELSIF version <> '1.0.2' THEN
+        version := '1.0.2';
+    END IF;
+    IF version = '1.0.2' THEN
+        ALTER EXTENSION laplace UPDATE TO '1.0.3';
+    ELSIF version <> '1.0.3' THEN
         RAISE EXCEPTION 'unsupported product cognition predecessor version: %', version;
     END IF;
 
