@@ -56,6 +56,22 @@ laplace_composition_frontier_execution_plan_build(
     laplace_composition_frontier_execution_plan* plan);
 
 /*
+ * Execute a composition working set through an explicitly selected common runtime
+ * provider.  The provider controls only physical execution of ready dependency
+ * frontiers; it is not an input to canonical identity, geometry, occurrence,
+ * persistence ordering, or the semantic working-set receipt.
+ *
+ * The provider is borrowed only for the duration of this synchronous call.  Invalid
+ * provider state fails closed through the common execution boundary rather than
+ * silently falling back to another provider.
+ */
+LAPLACE_API laplace_composition_status
+laplace_composition_working_set_create_with_provider(
+    const laplace_composition_working_set_input* input,
+    const laplace_execution_runtime_provider_v1* provider,
+    laplace_composition_working_set** working_set);
+
+/*
  * Return the actual common-execution receipts produced while calculating each
  * dependency frontier of a completed working set.  Receipt order is canonical
  * frontier order.  Every request belongs to exactly one receipt, and the sum of
