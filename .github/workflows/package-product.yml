@@ -154,6 +154,7 @@ jobs:
           inspect="$physical_release/bin/laplace-inspect"
           pg_ctl="$physical_release/pgsql-18/bin/pg_ctl"
           pg_isready="$physical_release/pgsql-18/bin/pg_isready"
+          postgres="$physical_release/pgsql-18/bin/postgres"
           data_directory=$(jq -er '.instance.data_directory' contracts/postgresql-cluster.json)
           socket_directory=$(jq -er '.instance.socket_directory' contracts/postgresql-cluster.json)
           port=$(jq -er '.instance.port' contracts/postgresql-cluster.json)
@@ -163,6 +164,7 @@ jobs:
           test -x "$inspect"
           test -x "$pg_ctl"
           test -x "$pg_isready"
+          test -x "$postgres"
           test -d "$data_directory"
           test -f "$config_file"
 
@@ -175,7 +177,7 @@ jobs:
             OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 MKL_DYNAMIC=FALSE \
               "$pg_ctl" \
                 -D "$data_directory" \
-                -o "-c config_file=$config_file" \
+                -o "-c config_file=$config_file -c io_method=worker" \
                 -w \
                 -t 180 \
                 start
@@ -200,6 +202,14 @@ jobs:
             echo 'branch-built PostgreSQL package did not make the persistent substrate ready' >&2
             exit 1
           fi
+
+          # PostgreSQL 18 io_uring produced ECANCELED relation reads on this runner.
+          # Product runtime therefore uses worker AIO; prove this exact server was
+          # launched with the branch-selected override before querying durable data.
+          test "$("$postgres" -D "$data_directory" -c "config_file=$config_file" -c io_method=worker -C io_method)" = worker
+          postmaster_pid=$(head -n 1 "$data_directory/postmaster.pid")
+          test -r "/proc/$postmaster_pid/cmdline"
+          tr '\0' '\n' < "/proc/$postmaster_pid/cmdline" | grep -Fx 'io_method=worker' >/dev/null
 
           summary="$RUNNER_TEMP/laplace-live-summary.json"
           entities="$RUNNER_TEMP/laplace-live-entities.json"
