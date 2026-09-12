@@ -971,7 +971,8 @@ class PostgreSQLClusterContract(unittest.TestCase):
         for directory in plan["state_directories"]:
             target = clusterctl.prefixed(self.activation_root, directory)
             self.assertTrue(target.is_dir())
-            self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o700)
+            expected = 0o700 if directory in (plan["instance"]["data_directory"], plan["instance"]["wal_directory"]) else 0o2770
+            self.assertEqual(stat.S_IMODE(target.stat().st_mode), expected)
         committed = clusterctl.commit_plan(
             plan,
             self.contract,

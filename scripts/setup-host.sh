@@ -122,6 +122,7 @@ for path in \
     /opt/laplace \
     /opt/laplace/releases \
     /opt/laplace/runtime \
+    /opt/laplace/runtime/postgresql \
     /opt/laplace/pgdata \
     /opt/laplace/pgdata/refactor \
     /opt/laplace/receipts \
@@ -139,11 +140,23 @@ for path in \
     "$INSTALL_BIN" -d -g "$RUNNER_GROUP" -m 2770 "$path"
 done
 
+# An existing socket leaf needs operator group traversal; fresh activation owns creation.
+if [[ -d /opt/laplace/runtime/postgresql/refactor && ! -L /opt/laplace/runtime/postgresql/refactor ]]; then
+    chgrp "$RUNNER_GROUP" /opt/laplace/runtime/postgresql/refactor
+    chmod 2770 /opt/laplace/runtime/postgresql/refactor
+fi
+
 # Product prefix is service-owned but traversable. CI can atomically manage
 # /opt/laplace/current, /opt/laplace/runtime/refactor and content-addressed releases
 # without recurring sudo.
 "$CHMOD_BIN" 2775 /opt/laplace
 "$CHMOD_BIN" 2775 /opt/laplace/releases
+
+for workspace in /build/laplace/build /build/laplace/work /build/laplace/worktrees /build/laplace/recovery; do
+    find "$workspace" -xdev ! -type l -exec chgrp "$RUNNER_GROUP" {} +
+    find "$workspace" -xdev -type d -exec chmod g+rws {} +
+    find "$workspace" -xdev -type f -exec chmod g+rwX {} +
+done
 
 export TMPDIR=/build/laplace/work/refactor-scratch TMP=/build/laplace/work/refactor-scratch TEMP=/build/laplace/work/refactor-scratch
 
@@ -156,6 +169,9 @@ if "$SYSTEMCTL_BIN" cat "$RUNNER_UNIT" >/dev/null 2>&1; then
     }
     "$INSTALL_BIN" -d -m 0755 "/etc/systemd/system/$RUNNER_UNIT.d"
     cat > "/etc/systemd/system/$RUNNER_UNIT.d/50-laplace-storage.conf" <<EOF
+[Unit]
+RequiresMountsFor=/build /var/lib/agents
+
 [Service]
 Group=$RUNNER_GROUP
 UMask=0002

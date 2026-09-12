@@ -62,8 +62,9 @@ class PostgreSQLBuildTests(unittest.TestCase):
         self.assertEqual(sandbox[0], contract["host_build_provider"]["sandbox"]["executable"])
         self.assertIn("--unshare-all", sandbox)
         self.assertNotIn("--share-net", sandbox)
-        self.assertIn("--tmpfs", sandbox)
-        self.assertIn("/tmp", sandbox)
+        self.assertNotIn("--tmpfs", sandbox)
+        self.assertNotIn("/tmp", sandbox)
+        self.assertIn("TMPDIR", sandbox)
         self.assertIn("--proc", sandbox)
         self.assertIn("--dev", sandbox)
         for path in (
@@ -696,7 +697,7 @@ class PostgreSQLBuildTests(unittest.TestCase):
             }
             environment = BUILD.build_environment(self.contract(), plan, home)
             self.assertEqual(environment["HOME"], str(home.resolve()))
-            self.assertEqual(home.stat().st_mode & 0o7777, 0o700)
+            self.assertEqual(home.stat().st_mode & 0o7777, 0o2770)
             self.assertEqual(environment["MAKE"], "/toolchain/bin/make")
             self.assertEqual(environment["OPENSSL"], str(openssl))
             self.assertEqual(environment["PYTHON"], "/usr/bin/python3.10")
@@ -799,25 +800,27 @@ class PostgreSQLBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.BuildError, "outside the repository"):
             BUILD.ensure_external(REPO_ROOT / "build", REPO_ROOT, "build root")
 
-    def test_private_build_directory_clears_inherited_setgid(self) -> None:
+    def test_shared_build_directory_preserves_inherited_setgid(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             parent = Path(temporary) / "shared"
             parent.mkdir()
             parent.chmod(0o2775)
             build = parent / "build"
-            BUILD.create_private_build_directory(build)
-            self.assertEqual(build.stat().st_mode & 0o7777, 0o700)
+            BUILD.create_shared_build_directory(build)
+            self.assertEqual(build.stat().st_mode & 0o7777, 0o2770)
             child = build / "child"
             child.mkdir()
-            self.assertEqual(child.stat().st_mode & 0o2000, 0)
+            self.assertEqual(child.stat().st_mode & 0o2000, 0o2000)
 
     def test_resume_requires_the_exact_persisted_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             build = root / "build"
-            build.mkdir(mode=0o700)
+            build.mkdir(mode=0o2770)
+            build.chmod(0o2770)
             stage = root / "stage"
-            stage.mkdir(mode=0o700)
+            stage.mkdir(mode=0o2770)
+            stage.chmod(0o2770)
             product = stage / "root/opt/laplace/current"
             product.mkdir(parents=True)
             plan = {
