@@ -10,11 +10,53 @@
   },
   "directories": [
     {
+      "path": "/build/laplace",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "2770",
+      "purpose": "persistent group-shared operator and runner workspace"
+    },
+    {
+      "path": "/build/laplace/build",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "2770",
+      "purpose": "persistent group-shared operator and runner workspace"
+    },
+    {
+      "path": "/build/laplace/recovery",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "2770",
+      "purpose": "persistent group-shared operator and runner workspace"
+    },
+    {
       "path": "/build/laplace/runner",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "2750",
+      "mode": "2770",
       "purpose": "persistent runner build package receipt and request state"
+    },
+    {
+      "path": "/build/laplace/work",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "2770",
+      "purpose": "persistent group-shared operator and runner workspace"
+    },
+    {
+      "path": "/build/laplace/work/refactor-scratch",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "2770",
+      "purpose": "persistent group-shared operator and runner workspace"
+    },
+    {
+      "path": "/build/laplace/worktrees",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
+      "mode": "2770",
+      "purpose": "persistent group-shared operator and runner workspace"
     },
     {
       "path": "/etc/laplace",
@@ -33,8 +75,8 @@
     {
       "path": "/etc/laplace/instances",
       "owner": "root",
-      "group": "root",
-      "mode": "0755",
+      "group": "laplace-runner",
+      "mode": "2770",
       "purpose": "parent for cluster-activation-owned PostgreSQL instance configuration"
     },
     {
@@ -48,49 +90,49 @@
       "path": "/opt/laplace/pgdata",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "0750",
+      "mode": "2770",
       "purpose": "persistent PostgreSQL state parent owned by the product service identity"
     },
     {
       "path": "/opt/laplace/pgdata/refactor",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "0750",
+      "mode": "2770",
       "purpose": "parent for cluster-activation-owned refactor data and perfcache directories"
     },
     {
       "path": "/opt/laplace/receipts",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "0750",
+      "mode": "2770",
       "purpose": "persistent product receipt root"
     },
     {
       "path": "/opt/laplace/receipts/postgresql",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "0750",
+      "mode": "2770",
       "purpose": "persistent PostgreSQL receipt parent"
     },
     {
       "path": "/opt/laplace/receipts/postgresql/refactor",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "2750",
+      "mode": "2770",
       "purpose": "setgid persistent refactor activation evidence Unicode Highway service and cold-boot receipts so privileged compatibility paths remain readable by laplace-runner"
     },
     {
       "path": "/opt/laplace/releases",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "0755",
+      "mode": "2775",
       "purpose": "runner-owned immutable content-addressed product releases with bounded lifecycle retention"
     },
     {
       "path": "/opt/laplace/sources",
       "owner": "root",
-      "group": "root",
-      "mode": "0755",
+      "group": "laplace-runner",
+      "mode": "2770",
       "purpose": "immutable verified standards and configured source package inputs"
     },
     {
@@ -104,21 +146,21 @@
       "path": "/var/lib/pgwal",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "0700",
+      "mode": "2770",
       "purpose": "parent for cluster-activation-owned PostgreSQL WAL directories"
     },
     {
       "path": "/var/log/laplace",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "0750",
+      "mode": "2770",
       "purpose": "persistent Laplace service log root"
     },
     {
       "path": "/var/log/laplace/postgresql",
       "owner": "laplace-runner",
       "group": "laplace-runner",
-      "mode": "0750",
+      "mode": "2770",
       "purpose": "parent for cluster-activation-owned PostgreSQL instance logs"
     }
   ],

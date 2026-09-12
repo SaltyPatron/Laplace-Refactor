@@ -241,3 +241,17 @@
 - The user controls when work stops or changes direction.
 - Report failed checks and incomplete acceptance precisely, then keep making safe
   in-scope progress.
+
+## Shared host storage
+
+- Operators and both CI runners share the `laplace-runner` group. Preserve the
+  creating user's ownership of mutable workspace files; repair group access,
+  setgid directory inheritance and `umask 0002` instead of seizing or deleting them.
+- Worktrees and build outputs use `/build/laplace/worktrees` and
+  `/build/laplace/build`; tool scratch uses `/build/laplace/work` with `TMPDIR`,
+  `TMP` and `TEMP` set there. Do not operate in `/tmp`, `/var/tmp` or memory-backed
+  storage, or fall back there when a dedicated volume is unavailable.
+- Shared storage parents require group write. PostgreSQL data-directory leaves
+  retain their required service owner and database modes; do not apply build-tree
+  permission repairs recursively to database, WAL or tablespace contents.
+- Setup, repair and recurring runner startup must agree on these permissions.

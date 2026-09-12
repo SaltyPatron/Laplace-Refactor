@@ -226,6 +226,7 @@ def ensure_directory(
     enforce_owner: bool,
 ) -> dict[str, Any]:
     target = prefixed(root, logical)
+    existed = target.exists()
     current = root if root != Path("/") else Path("/")
     for part in logical.parts[1:]:
         current = current / part
@@ -234,6 +235,10 @@ def ensure_directory(
         else:
             current.mkdir(mode=0o755)
     metadata = target.stat()
+    # Setgid group-writable parents are shared by operators and CI. Preserve an
+    # existing creator; the group, not one privileged writer uid, owns access.
+    if existed and mode & stat.S_ISGID and mode & stat.S_IWGRP:
+        uid = metadata.st_uid
     changed = stat.S_IMODE(metadata.st_mode) != mode
     target.chmod(mode)
     if enforce_owner:

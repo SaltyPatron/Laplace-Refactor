@@ -10,6 +10,7 @@
 # then exits. Recurring product delivery belongs to CI as laplace-runner.
 
 set -euo pipefail
+umask 0002
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY="$(cd -- "$SCRIPT_DIR/.." && pwd)"
@@ -22,6 +23,8 @@ SERVICE_SOURCE="$REPOSITORY/packaging/systemd/$SERVICE"
 SERVICE_TARGET="/etc/systemd/system/$SERVICE"
 SUDOERS_TARGET="/etc/sudoers.d/laplace-refactor-postgresql-service"
 BOOTSTRAP_RECEIPT="/opt/laplace/receipts/bootstrap/host.json"
+MODE="${1:-setup}"
+[[ "$MODE" == setup || "$MODE" == storage ]] || { echo "usage: $0 [setup|storage]" >&2; exit 2; }
 
 resolve_command() {
     local name="$1"
@@ -49,6 +52,7 @@ SUDO_BIN="$(resolve_command sudo)"
 SYSTEMCTL_BIN="$(resolve_command systemctl)"
 GROUPADD_BIN="$(resolve_command groupadd)"
 USERADD_BIN="$(resolve_command useradd)"
+USERMOD_BIN="$(resolve_command usermod)"
 VISUDO_BIN="$(resolve_command visudo)"
 CHMOD_BIN="$(resolve_command chmod)"
 CHOWN_BIN="$(resolve_command chown)"
@@ -93,12 +97,28 @@ if pw.pw_gid != gr.gr_gid:
     )
 PY
 
-# Persistent service-owned PARENT roots. Instance leaves such as PGDATA, WAL,
+# The invoking operator and CI use the same group. Existing user ownership is
+# preserved; setgid and group write are the shared storage boundary.
+operator="${LAPLACE_OPERATOR:-${SUDO_USER:-}}"
+if [[ -n "$operator" && "$operator" != root ]]; then
+    "$ID_BIN" "$operator" >/dev/null
+    "$USERMOD_BIN" -aG "$RUNNER_GROUP" "$operator"
+fi
+for volume in /build /opt/laplace/pgdata /var/lib/pgwal /pgtemp; do
+    mountpoint -q "$volume" || { echo "missing storage mount: $volume" >&2; exit 1; }
+done
+
+# Persistent group-shared PARENT roots. Instance leaves such as PGDATA, WAL,
 # perfcache, instance config/log/receipt directories are deliberately not created;
 # recurring CI/product lifecycle owns those exact leaves.
 for path in \
     /build/laplace \
     /build/laplace/runner \
+    /build/laplace/build \
+    /build/laplace/work \
+    /build/laplace/work/refactor-scratch \
+    /build/laplace/worktrees \
+    /build/laplace/recovery \
     /opt/laplace \
     /opt/laplace/releases \
     /opt/laplace/runtime \
@@ -112,14 +132,44 @@ for path in \
     /var/lib/pgwal \
     /var/log/laplace \
     /var/log/laplace/postgresql; do
-    "$INSTALL_BIN" -d -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0750 "$path"
+    if [[ -L "$path" || -e "$path/PG_VERSION" ]]; then
+        echo "expected a physical shared parent: $path" >&2
+        exit 1
+    fi
+    "$INSTALL_BIN" -d -g "$RUNNER_GROUP" -m 2770 "$path"
 done
 
 # Product prefix is service-owned but traversable. CI can atomically manage
 # /opt/laplace/current, /opt/laplace/runtime/refactor and content-addressed releases
 # without recurring sudo.
-"$CHMOD_BIN" 0755 /opt/laplace
-"$CHMOD_BIN" 0755 /opt/laplace/releases
+"$CHMOD_BIN" 2775 /opt/laplace
+"$CHMOD_BIN" 2775 /opt/laplace/releases
+
+export TMPDIR=/build/laplace/work/refactor-scratch TMP=/build/laplace/work/refactor-scratch TEMP=/build/laplace/work/refactor-scratch
+
+# The Refactor runner must create group-writable artifacts on every job, even
+# when an individual build tool does not set its own process umask.
+RUNNER_UNIT=actions.runner.SaltyPatron-Laplace-Refactor.hart-server-refactor.service
+if "$SYSTEMCTL_BIN" cat "$RUNNER_UNIT" >/dev/null 2>&1; then
+    [[ $("$SYSTEMCTL_BIN" show "$RUNNER_UNIT" -p User --value) == "$RUNNER_USER" ]] || {
+        echo "runner service identity differs: $RUNNER_UNIT" >&2; exit 1;
+    }
+    "$INSTALL_BIN" -d -m 0755 "/etc/systemd/system/$RUNNER_UNIT.d"
+    cat > "/etc/systemd/system/$RUNNER_UNIT.d/50-laplace-storage.conf" <<EOF
+[Service]
+Group=$RUNNER_GROUP
+UMask=0002
+Environment=TMPDIR=$TMPDIR
+Environment=TMP=$TMP
+Environment=TEMP=$TEMP
+EOF
+    "$SYSTEMCTL_BIN" daemon-reload
+    "$SYSTEMCTL_BIN" try-restart "$RUNNER_UNIT"
+fi
+if [[ "$MODE" == storage ]]; then
+    echo "Shared parent permissions and Refactor runner storage environment repaired."
+    exit 0
+fi
 
 # The host owns the /etc namespace; laplace-runner owns the product's instance
 # configuration content through this bounded group-writable parent.
