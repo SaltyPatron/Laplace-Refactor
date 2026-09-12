@@ -1,0 +1,64 @@
+name: recover-product-estate
+
+on:
+  push:
+    branches:
+      - delivery/laplace-live-product-20260911
+    paths:
+      - '.github/workflows/recover-product-estate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recover-product-estate
+  cancel-in-progress: false
+
+jobs:
+  locate:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Locate the exact active package and its receipts/staged bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          package=87adafee64db3d9c8af834289ed7bbed6872c2975b220dbce077f355802e7077
+          echo "ACTIVE_LINK=$(readlink /opt/laplace/current 2>/dev/null || true)"
+          echo "RUNTIME_LINK=$(readlink /opt/laplace/runtime/refactor 2>/dev/null || true)"
+
+          echo '=== exact package-id paths under build estate ==='
+          find /build/laplace -xdev -maxdepth 10 \
+            \( -name "$package" -o -path "*/$package/*" \) \
+            -printf '%y %s %p -> %l\n' 2>/dev/null | head -n 500 || true
+
+          echo '=== product stage estate ==='
+          find /build/laplace/runner/product/stage -xdev -maxdepth 5 \
+            -printf '%y %s %T@ %p -> %l\n' 2>/dev/null \
+            | sort -k4 | head -n 500 || true
+
+          echo '=== product work estate ==='
+          find /build/laplace/runner/product -xdev -maxdepth 4 \
+            \( -name '*.json' -o -name 'laplace-model-export' -o -name 'laplace-cognition' \
+               -o -name 'laplace_pg.so' -o -name 'manifest.json' \) \
+            -printf '%y %s %T@ %p -> %l\n' 2>/dev/null \
+            | sort -nr -k3 | head -n 500 || true
+
+          echo '=== JSON documents naming active package ==='
+          while IFS= read -r file; do
+            if grep -Fq "$package" "$file" 2>/dev/null; then
+              printf '%s\n' "$file"
+              jq -c \
+                'if type=="object" then {schema,package_id,physical_root,root,manifest,product_receipt,stage_directory,phase} else . end' \
+                "$file" 2>/dev/null | head -n 5 || true
+            fi
+          done < <(find /build/laplace/runner /build/laplace/work /build/laplace/stage \
+                    -xdev -maxdepth 10 -type f -name '*.json' -size -16M 2>/dev/null | sort -u)
+
+          echo '=== candidate package roots with installed product tools ==='
+          for tool in laplace-model-export laplace-cognition laplace_source_profile_compile; do
+            find /build/laplace -xdev -maxdepth 12 -type f -name "$tool" -perm -111 \
+              -printf "$tool %s %T@ %p\n" 2>/dev/null | sort -nr -k3 | head -n 30 || true
+          done
