@@ -221,6 +221,26 @@ laplace_execution_runtime_provider_v1 ReverseProvider() {
     return provider;
 }
 
+void ExpectSameSemanticWorkingSet(
+    const ScenarioResult& expected,
+    const ScenarioResult& actual) {
+    ASSERT_EQ(expected.results.size(), RequestCount);
+    ASSERT_EQ(actual.results.size(), RequestCount);
+    EXPECT_TRUE(SameDigest(
+        expected.summary.receipt_id,
+        actual.summary.receipt_id));
+    EXPECT_TRUE(SameDigest(
+        expected.summary.stream_fingerprint,
+        actual.summary.stream_fingerprint));
+    EXPECT_EQ(
+        std::memcmp(
+            expected.results.data(),
+            actual.results.data(),
+            expected.results.size() * sizeof(laplace_composition_result)),
+        0);
+    EXPECT_EQ(actual.summary.semantic_calculation_count, RequestCount);
+}
+
 }  // namespace
 
 TEST(
@@ -300,26 +320,12 @@ TEST(
     const auto automatic = Scenario(false, 4U);
     const auto explicit_serial = Scenario(false, 4U, &serial_provider);
 
-    ASSERT_EQ(automatic.results.size(), RequestCount);
-    ASSERT_EQ(explicit_serial.results.size(), RequestCount);
+    ExpectSameSemanticWorkingSet(automatic, explicit_serial);
     ASSERT_EQ(explicit_serial.receipts.size(), 1U);
-    EXPECT_TRUE(SameDigest(
-        automatic.summary.receipt_id,
-        explicit_serial.summary.receipt_id));
-    EXPECT_TRUE(SameDigest(
-        automatic.summary.stream_fingerprint,
-        explicit_serial.summary.stream_fingerprint));
-    EXPECT_EQ(
-        std::memcmp(
-            automatic.results.data(),
-            explicit_serial.results.data(),
-            automatic.results.size() * sizeof(laplace_composition_result)),
-        0);
     EXPECT_TRUE(SameDigest(
         explicit_serial.receipts[0].provider_fingerprint,
         serial_provider.provider_fingerprint));
     EXPECT_EQ(explicit_serial.receipts[0].completed_items, RequestCount);
-    EXPECT_EQ(explicit_serial.summary.semantic_calculation_count, RequestCount);
 }
 
 TEST(
@@ -331,28 +337,30 @@ TEST(
 
     ASSERT_EQ(automatic.preflight.frontier_count, 1U);
     ASSERT_GT(automatic.preflight.total_planned_chunks, 1U);
-    ASSERT_EQ(automatic.results.size(), RequestCount);
-    ASSERT_EQ(reversed.results.size(), RequestCount);
+    ExpectSameSemanticWorkingSet(automatic, reversed);
     ASSERT_EQ(reversed.receipts.size(), 1U);
-
-    EXPECT_TRUE(SameDigest(
-        automatic.summary.receipt_id,
-        reversed.summary.receipt_id));
-    EXPECT_TRUE(SameDigest(
-        automatic.summary.stream_fingerprint,
-        reversed.summary.stream_fingerprint));
-    EXPECT_EQ(
-        std::memcmp(
-            automatic.results.data(),
-            reversed.results.data(),
-            automatic.results.size() * sizeof(laplace_composition_result)),
-        0);
     EXPECT_TRUE(SameDigest(
         reversed.receipts[0].provider_fingerprint,
         reverse_provider.provider_fingerprint));
-    EXPECT_EQ(reversed.receipts[0].completed_chunks, reversed.receipts[0].plan.chunk_count);
+    EXPECT_EQ(
+        reversed.receipts[0].completed_chunks,
+        reversed.receipts[0].plan.chunk_count);
     EXPECT_EQ(reversed.receipts[0].completed_items, RequestCount);
-    EXPECT_EQ(reversed.summary.semantic_calculation_count, RequestCount);
+}
+
+TEST(
+    CompositionFrontierRuntime,
+    WorkerGrantAndChunkPlanCannotAlterCanonicalSemanticIdentity) {
+    const auto scalar = Scenario(false, 1U);
+    ASSERT_EQ(scalar.preflight.maximum_outer_workers, 1U);
+    ASSERT_EQ(scalar.preflight.total_planned_chunks, 1U);
+
+    for (const std::uint32_t slots : {2U, 3U, 4U}) {
+        const auto parallel = Scenario(false, slots);
+        EXPECT_EQ(parallel.preflight.maximum_outer_workers, slots);
+        EXPECT_GT(parallel.preflight.total_planned_chunks, 1U);
+        ExpectSameSemanticWorkingSet(scalar, parallel);
+    }
 }
 
 TEST(
