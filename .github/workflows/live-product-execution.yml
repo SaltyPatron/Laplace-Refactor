@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: live-product-execution
@@ -25,9 +25,25 @@ jobs:
       - Linux
       - X64
       - laplace-refactor
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - name: Bind existing generic XML provider into common source admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/live_product/enable_generic_xml_source_provider.py
+          git diff --check
+          if ! git diff --quiet -- integrations/postgresql/extension/src/source_admission_pg.c; then
+            git config user.name 'laplace-delivery'
+            git config user.email 'laplace-delivery@users.noreply.github.com'
+            git add integrations/postgresql/extension/src/source_admission_pg.c
+            git commit -m 'Bind generic XML provider into source admission'
+            git push origin HEAD:delivery/laplace-live-product-20260911
+          fi
 
       - name: Verify exact OEWN 2025+ artifact and inspect WN-LMF structure
         shell: bash
@@ -41,6 +57,8 @@ jobs:
           expected=31f4af16c54b532fd5484d4cc33aee588a31bb5b70683ae8197842fde5b586bc
           actual=$(sha256sum "$artifact" | awk '{print $1}')
           test "$actual" = "$expected"
+          echo '=== OEWN directory ==='
+          find "$root" -maxdepth 2 -type f -printf '%s %p\n' | sort
 
           python3 - "$artifact" "$RUNNER_TEMP/oewn-structure.json" <<'PY'
           import gzip
@@ -97,14 +115,6 @@ jobs:
           ' "$RUNNER_TEMP/oewn-structure.json" >/dev/null
           echo "OEWN_SHA256=$actual"
           jq '{root_tag,namespace,element_counts,attribute_counts}' "$RUNNER_TEMP/oewn-structure.json"
-
-          {
-            echo '## Live OEWN 2025+ source'
-            echo "SHA-256: $actual"
-            echo '```json'
-            cat "$RUNNER_TEMP/oewn-structure.json"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Inspect persistent Laplace release runtime and receipt estate without rebuilding
         shell: bash
@@ -166,4 +176,31 @@ jobs:
             done
           else
             echo 'selected_release=absent'
+          fi
+
+      - name: Compile only a genuinely small incremental PostgreSQL delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          built=0
+          for build in \
+            /build/laplace/runner/product/build \
+            /build/laplace/runner/custom-stack/build \
+            /build/laplace/runner/build; do
+            [[ -f "$build/CMakeCache.txt" && -f "$build/build.ninja" ]] || continue
+            home=$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' "$build/CMakeCache.txt" | tail -n1)
+            [[ "$home" == "$GITHUB_WORKSPACE" ]] || continue
+            dry="$RUNNER_TEMP/laplace-pg-dry-run.txt"
+            ninja -C "$build" -n laplace_pg > "$dry"
+            commands=$(grep -c '^\[[0-9][0-9]*/[0-9][0-9]*\]' "$dry" || true)
+            echo "candidate_build=$build dry_run_commands=$commands"
+            cat "$dry"
+            if (( commands > 0 && commands <= 12 )); then
+              cmake --build "$build" --target laplace_pg --parallel 2
+              built=1
+              break
+            fi
+          done
+          if [[ "$built" == 0 ]]; then
+            echo 'No compatible <=12-command incremental laplace_pg build was executed; broad rebuild deliberately refused.'
           fi
