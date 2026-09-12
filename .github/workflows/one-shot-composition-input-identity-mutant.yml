@@ -1,0 +1,56 @@
+name: one-shot-composition-input-identity-mutant
+
+on:
+  push:
+    branches:
+      - product/installed-cognition-surface
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: product/installed-cognition-surface
+          fetch-depth: 0
+      - name: Move physical identity mutant to semantic input fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          wrapper = Path('engine/src/composition.cpp')
+          text = wrapper.read_text(encoding='utf-8')
+          macro = 'LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT'
+          marker = '#if defined(' + macro + ')\n'
+          if marker in text:
+              start = text.index(marker)
+              end = text.index('#endif\n', start) + len('#endif\n')
+              text = text[:start] + text[end:]
+              wrapper.write_text(text, encoding='utf-8')
+
+          legacy = Path('engine/src/composition_legacy.inc')
+          text = legacy.read_text(encoding='utf-8')
+          if macro not in text:
+              marker = '    HashString(hasher, InputDomain);\n'
+              replacement = marker + '#if defined(' + macro + ')\n    HashU32(hasher, input.context->resource_grant.cpu_slots);\n#endif\n'
+              if text.count(marker) != 1:
+                  raise SystemExit(f'input fingerprint marker count={text.count(marker)}')
+              text = text.replace(marker, replacement, 1)
+              legacy.write_text(text, encoding='utf-8')
+          PY
+
+          grep -F 'LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT' engine/src/composition_legacy.inc
+          if grep -F 'LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT' engine/src/composition.cpp; then
+            echo 'wrapper mutant hook still present' >&2
+            exit 1
+          fi
+          git config user.name laplace-ci
+          git config user.email laplace-ci@users.noreply.github.com
+          git add engine/src/composition.cpp engine/src/composition_legacy.inc
+          git commit -m 'Persist physical identity mutant through publication'
+          git push origin HEAD:product/installed-cognition-surface
