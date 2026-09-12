@@ -12,11 +12,11 @@
     "release_root": "/opt/laplace/releases",
     "active_link": "/opt/laplace/current",
     "required_files": [
-      "bin/laplace-model-export",
+      "bin/laplace-cognition",
+      "bin/laplace-cognition-service",
       "bin/laplace_resource_observe",
       "bin/laplace_cognition_firmware_compile",
       "bin/laplace_source_profile_compile",
-      "bin/laplace-cognition",
       "bin/laplace-inspect",
       "bin/laplace-admit-source",
       "bin/laplace_unicode_activation_identify",
