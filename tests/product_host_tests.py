@@ -7,6 +7,7 @@ import copy
 import importlib.util
 from pathlib import Path
 import stat
+from unittest import mock
 import sys
 import tempfile
 import unittest
@@ -83,7 +84,7 @@ class ProductHostTests(unittest.TestCase):
         receipt = declared[instance["receipt_directory"]]
         self.assertEqual(receipt["owner"], "laplace-runner")
         self.assertEqual(receipt["group"], "laplace-runner")
-        self.assertIn(receipt["mode"], {"0750", "2750"})
+        self.assertEqual(receipt["mode"], "2770")
 
     def test_fixture_convergence_is_persistent_exact_and_repairable(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-product-host-") as temporary:
@@ -142,7 +143,7 @@ class ProductHostTests(unittest.TestCase):
             repaired = host.converge_host(
                 REPOSITORY, self.contract_path, key, root, False
             )
-            self.assertEqual(stat.S_IMODE(build.stat().st_mode), 0o2750)
+            self.assertEqual(stat.S_IMODE(build.stat().st_mode), 0o2770)
             self.assertEqual(evidence.read_text(encoding="utf-8"), "retained\n")
             observed = next(
                 item
@@ -150,6 +151,23 @@ class ProductHostTests(unittest.TestCase):
                 if item["path"] == "/build/laplace/runner"
             )
             self.assertTrue(observed["changed"])
+
+    def test_shared_parent_repair_preserves_creator_and_group_write(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-host-group-") as temporary:
+            root = Path(temporary)
+            target = root / "shared"
+            target.mkdir(mode=0o700)
+            creator = target.stat().st_uid
+            with mock.patch.object(host.os, "chown") as chown:
+                host.ensure_directory(root, Path("/shared"), 0o2770,
+                                      creator + 1, target.stat().st_gid, True)
+            chown.assert_called_once_with(target, creator, target.stat().st_gid)
+            self.assertEqual(target.stat().st_uid, creator)
+            self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o2770)
+            child = target / "child"
+            child.mkdir()
+            self.assertEqual(child.stat().st_gid, target.stat().st_gid)
+            self.assertTrue(child.stat().st_mode & stat.S_ISGID)
 
     def test_symlinked_host_boundary_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(
