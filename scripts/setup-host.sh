@@ -6,8 +6,8 @@
 #
 # This script does NOT build or select a Laplace package, initialize/migrate/seed a
 # database, start PostgreSQL, activate Unicode/Highway, or execute product semantics.
-# It establishes the fixed host envelope and then exits. Recurring product delivery
-# belongs to CI as laplace-runner.
+# It establishes the fixed host envelope, converges obsolete host-layout residue, and
+# then exits. Recurring product delivery belongs to CI as laplace-runner.
 
 set -euo pipefail
 
@@ -161,6 +161,32 @@ for name in (
     else:
         print(f"preserved existing nonempty candidate state: {path}")
 PY
+
+# Historical delivery generations split one package's evidence across root-level
+# packages/plans/deployments and several instance-local namespaces. Converge only
+# mechanically identified bytes into the current package-addressed cluster-activation
+# tree. Unknown or conflicting evidence remains in place and is reported; the empty
+# obsolete root-owned deployments directory is removed only here under root authority.
+RECEIPT_CONVERGENCE="$(
+    "$PYTHON_BIN" tools/delivery/receipt_estate.py \
+        --root / \
+        --cluster-contract contracts/postgresql-cluster.json \
+        --service-user "$RUNNER_USER" \
+        --service-group "$RUNNER_GROUP" \
+        --authorize-system-root
+)"
+printf '%s\n' "$RECEIPT_CONVERGENCE" | "$PYTHON_BIN" -c '
+import json, sys
+value=json.load(sys.stdin)
+assert value["schema"] == "laplace.receipt-estate-convergence/v1"
+assert isinstance(value["migration_count"], int)
+assert isinstance(value["preserved_unknown_or_conflicting"], list)
+print(
+    "receipt estate converged: "
+    f"migrated={value['"'"'migration_count'"'"']} "
+    f"preserved={len(value['"'"'preserved_unknown_or_conflicting'"'"'])}"
+)
+'
 
 # Install one static OS service envelope. It runs as laplace-runner and points only at
 # the runner-owned /opt/laplace/runtime/refactor link. No package generation, database

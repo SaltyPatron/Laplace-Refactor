@@ -49,6 +49,42 @@ class ProductPathGitStatusTests(unittest.TestCase):
                 f"{name} may cancel an in-flight physical proof",
             )
 
+    def assert_physical_orchestration_serialization(self, orchestration: str) -> None:
+        custom = orchestration.index("  custom-stack-proof:")
+        postgres = orchestration.index("  postgresql-product-proof:")
+        package = orchestration.index("  package-product-proof:")
+        product_path_job = orchestration.index("  product-path:", package)
+        blocks = {
+            "custom": orchestration[custom:postgres],
+            "postgres": orchestration[postgres:package],
+            "package": orchestration[package:product_path_job],
+        }
+        for name, block in blocks.items():
+            self.assertIn("      - classify", block, f"{name} lost classification dependency")
+            self.assertIn("      - hosted-proof", block, f"{name} lost hosted proof dependency")
+            self.assertIn(
+                "needs.hosted-proof.result == 'success'",
+                block,
+                f"{name} can run before hosted proof succeeds",
+            )
+        self.assertIn(
+            "      - custom-stack-proof",
+            blocks["postgres"],
+            "postgresql proof can become the replaceable pending member of the shared concurrency group",
+        )
+        self.assertIn(
+            "      - custom-stack-proof",
+            blocks["package"],
+            "package proof does not wait for custom-stack host ownership",
+        )
+        self.assertIn(
+            "      - postgresql-product-proof",
+            blocks["package"],
+            "package proof can become the third concurrent member and cancel a pending proof",
+        )
+        self.assertIn("      always() &&", blocks["postgres"])
+        self.assertIn("      always() &&", blocks["package"])
+
     def assert_legacy_branch_protection_bridge(self, workflow: str) -> None:
         aliases = {
             "legacy-requirements": "requirements",
@@ -184,35 +220,16 @@ class ProductPathGitStatusTests(unittest.TestCase):
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
         self.assert_main_push_deployment_boundary(workflow, activation, contract)
 
-    def test_physical_product_proofs_share_host_ownership_but_route_in_parallel(self) -> None:
+    def test_physical_product_proofs_share_host_ownership_and_serialize_execution(self) -> None:
         workflows = {
             "custom-stack": CUSTOM_STACK_PATH.read_text(encoding="utf-8"),
             "postgresql-product": POSTGRESQL_PRODUCT_PATH.read_text(encoding="utf-8"),
             "package-product": PACKAGE_PRODUCT_PATH.read_text(encoding="utf-8"),
         }
         self.assert_physical_resource_serialization(workflows)
-
-        orchestration = WORKFLOW_PATH.read_text(encoding="utf-8")
-        custom = orchestration.index("  custom-stack-proof:")
-        postgres = orchestration.index("  postgresql-product-proof:")
-        package = orchestration.index("  package-product-proof:")
-        product_path_job = orchestration.index("  product-path:", package)
-        blocks = {
-            "custom": orchestration[custom:postgres],
-            "postgres": orchestration[postgres:package],
-            "package": orchestration[package:product_path_job],
-        }
-        for name, block in blocks.items():
-            self.assertIn("      - classify", block, f"{name} lost classification dependency")
-            self.assertIn("      - hosted-proof", block, f"{name} lost hosted proof dependency")
-            self.assertIn(
-                "needs.hosted-proof.result == 'success'",
-                block,
-                f"{name} can run before hosted proof succeeds",
-            )
-        self.assertNotIn("      - custom-stack-proof", blocks["postgres"])
-        self.assertNotIn("      - custom-stack-proof", blocks["package"])
-        self.assertNotIn("      - postgresql-product-proof", blocks["package"])
+        self.assert_physical_orchestration_serialization(
+            WORKFLOW_PATH.read_text(encoding="utf-8")
+        )
 
     def test_legacy_required_contexts_are_subordinate_to_product_path(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -224,7 +241,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertNotEqual(workflow, mutant)
         self.assertNotIn("--diff-filter=ACMRTD", mutant)
 
-    def test_deliberate_parallel_physical_proof_defect_is_detected(self) -> None:
+    def test_deliberate_shared_host_ownership_defect_is_detected(self) -> None:
         workflows = {
             "custom-stack": CUSTOM_STACK_PATH.read_text(encoding="utf-8"),
             "postgresql-product": POSTGRESQL_PRODUCT_PATH.read_text(encoding="utf-8"),
@@ -238,6 +255,17 @@ class ProductPathGitStatusTests(unittest.TestCase):
         )
         with self.assertRaises(AssertionError):
             self.assert_physical_resource_serialization(mutant)
+
+    def test_deliberate_parallel_physical_orchestration_defect_is_detected(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        mutant = workflow.replace(
+            "      - custom-stack-proof\n    if: >-\n      always() &&\n      needs.classify.outputs.requires_postgresql_product",
+            "    if: >-\n      always() &&\n      needs.classify.outputs.requires_postgresql_product",
+            1,
+        )
+        self.assertNotEqual(workflow, mutant)
+        with self.assertRaises(AssertionError):
+            self.assert_physical_orchestration_serialization(mutant)
 
     def test_deliberate_duplicate_pr_trigger_defect_is_detected(self) -> None:
         clean_room = CLEAN_ROOM_PATH.read_text(encoding="utf-8")

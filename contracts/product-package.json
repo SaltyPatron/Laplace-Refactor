@@ -91,6 +91,9 @@
       "lib/liblaplace_engine.so.2.0.0"
     ],
     "required_files": [
+      "bin/laplace-cognition",
+      "bin/laplace-cognition-service",
+      "bin/laplace-model-export",
       "bin/laplace_resource_observe",
       "bin/laplace_cognition_firmware_compile",
       "bin/laplace_unicode_activation_identify",

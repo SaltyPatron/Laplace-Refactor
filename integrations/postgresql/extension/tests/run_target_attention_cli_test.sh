@@ -118,7 +118,7 @@ def constraint(seed: int, family: int, source: int, target: int, precision: floa
         "plane_id": d(seed + 20),
         "law_fingerprint": d(seed + 40),
         "units_fingerprint": d(seed + 60),
-        "evidence_root_id": d(seed + 70),
+        "evidence_root_id": d(0),
         "calculation_receipt_id": d(seed + 80),
         "source_field_index": source,
         "target_field_index": target,
