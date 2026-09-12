@@ -203,7 +203,7 @@ def context_sql(identities: dict[str, Any]) -> str:
         + ",".join(bytea(require_hex(v, "execution epoch")) for v in epochs)
         + "]::bytea[],"
         + bytea(require_hex(identities["authority_fingerprint"], "authority"))
-        + ",4294967296::bigint,6,2,1023::bigint,1::smallint,6::smallint,1)"
+        + ",8589934592::bigint,6,2,1023::bigint,1::smallint,6::smallint,1)"
         "::laplace.execution_context"
     )
 
