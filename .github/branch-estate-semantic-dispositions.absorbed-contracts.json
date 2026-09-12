@@ -1,5 +1,55 @@
 {
   "schema": "laplace.branch-estate-semantic-dispositions/v1",
-  "rule": "Every entry is pinned to an exact live branch tip and is terminal only when current convergence preserves or strengthens the branch's valid behavior.",
-  "entries": []
+  "rule": "Every entry is pinned to an exact reviewed branch tip and is terminal only when current convergence preserves or strengthens the branch's valid behavior.",
+  "entries": [
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "phase2/unicode-source-slice",
+      "tip": "bc8fbcaabc1cc005c24b17322c239ac2c949a3ce",
+      "disposition": "ABSORBED_AND_EXTENDED_BY_CURRENT_ONEAPI_PROVIDER_SELECTION",
+      "rationale": "This one-commit branch introduced exact installed Intel oneAPI provider selection, file verification, imported CMake targets, and custom-stack activation of LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER. Current main retains the installed-provider lock verifier and LaplaceOneApiProvider.cmake selection boundary, still enables it in the self-hosted custom-stack lane, and additionally consumes the verified provider in product package construction and provider-dependent tests. The older branch explicitly stopped before product-runtime activation, while current code carries the same verified selection forward into later package/runtime proof. Replaying the old patch would regress that stronger current provider lifecycle.",
+      "evidence": [
+        "bc8fbcaabc1cc005c24b17322c239ac2c949a3ce",
+        "CMakeLists.txt",
+        "cmake/LaplaceOneApiProvider.cmake",
+        "tools/dependencies/verify-installed-lock.py",
+        "dependencies/installed-lock.json",
+        ".github/workflows/custom-stack.yml",
+        "tools/product/build-package.py"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "preserve/archive-20260829/heads/feat/framework-producer",
+      "tip": "9ef984060369c43d7f7905b298d029bcf5c0baa4",
+      "disposition": "ABSORBED_AND_EXTENDED_BY_CURRENT_FRAMEWORK_PRODUCER",
+      "rationale": "This preserved one-commit branch introduced the receipted framework producer ABI, producer control/replay checkpoints, and laplace_framework_run_producer. Current main retains the public producer API and implementation, exercises it in framework, spool, composition and Unicode-root tests, and has extended it with artifact-producing execution and live cognition-firmware/persistence consumers. Replaying the archived patch would replace a broader current producer/replay boundary with its earlier subset.",
+      "evidence": [
+        "9ef984060369c43d7f7905b298d029bcf5c0baa4",
+        "engine/include/laplace/framework.h",
+        "engine/src/framework.c",
+        "tests/framework_tests.cpp",
+        "tests/framework_producer_probe.cpp",
+        "integrations/postgresql/extension/src/persistence_pg.c",
+        "engine/src/cognition_firmware.cpp"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "archive/pr-122-pre-main-deploy-20260831",
+      "tip": "6981806d7363e72be3ae5b8b1c7ee58cf20ad80b",
+      "disposition": "ABSORBED_AND_EXTENDED_BY_CURRENT_MACHINE_EXCEPTION_REGISTRY",
+      "rationale": "This archived two-patch branch rebased the generated machine-exception registry and wired its native tests into CTest. Current main retains the generated machine-exception contract/registry, links it as Laplace::MachineException, includes tests/machine_exception.cmake from the active test graph, executes the machine_exception_tests.cpp behavior suite, registers its evidence fragment, and additionally exposes the registry through PostgreSQL. Both historical patches are therefore represented by stronger current implementation and test registration.",
+      "evidence": [
+        "e33c12f7adacd6ab96652b34c382191202e54ba3",
+        "6981806d7363e72be3ae5b8b1c7ee58cf20ad80b",
+        "engine/CMakeLists.txt",
+        "tests/composition_occurrence.cmake",
+        "tests/machine_exception.cmake",
+        "tests/machine_exception_tests.cpp",
+        "tests/registry.d/machine-exceptions.json",
+        "integrations/postgresql/extension/src/machine_exception_pg.c"
+      ]
+    }
+  ]
 }

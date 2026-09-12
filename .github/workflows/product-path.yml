@@ -17,8 +17,8 @@ permissions:
 
 concurrency:
   group: product-path-${{ github.ref }}
-  queue: max
-  cancel-in-progress: false
+  queue: single
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   classify:
@@ -45,15 +45,24 @@ jobs:
         id: classify
         shell: bash
         env:
-          BASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.base_sha || github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          REQUESTED_BASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.base_sha || github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           PROOF_PROFILE: physical
         run: |
           set -euo pipefail
-          test -n "$BASE_SHA"
           test -n "$HEAD_SHA"
-          git cat-file -e "$BASE_SHA^{commit}"
           git cat-file -e "$HEAD_SHA^{commit}"
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            test -n "$BASE_REF"
+            base_remote="refs/remotes/origin/$BASE_REF"
+            git show-ref --verify --quiet "$base_remote"
+            BASE_SHA=$(git merge-base "$base_remote" "$HEAD_SHA")
+          else
+            BASE_SHA="$REQUESTED_BASE_SHA"
+          fi
+          test -n "$BASE_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
           changed="$RUNNER_TEMP/laplace-product-path-changed.status"
           result="$RUNNER_TEMP/laplace-product-path.json"
           git diff --name-status -z -M --diff-filter=ACMRTD "$BASE_SHA" "$HEAD_SHA" > "$changed"
@@ -252,70 +261,9 @@ jobs:
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.product-path.result == 'success'
-    permissions:
-      actions: write
-      contents: read
-    runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    steps:
-      - name: Dispatch exact accepted main generation for DEV/BAT activation
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EXPECTED_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          dispatched_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          gh api \
-            --method POST \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/product-activation.yml/dispatches" \
-            -f ref=main \
-            -f "inputs[expected_sha]=$EXPECTED_SHA"
-          printf 'LAPLACE_ACTIVATION_DISPATCHED_AT=%s\n' "$dispatched_at" >> "$GITHUB_ENV"
-          {
-            echo '## DEV/BAT deployment dispatch'
-            echo "Exact accepted main commit: \`$EXPECTED_SHA\`"
-            echo 'The product-activation authority must bind GITHUB_SHA to this value before package composition.'
-            echo 'This accepted-main run remains incomplete until that activation finishes successfully.'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Require persistent product activation to finish successfully
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EXPECTED_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          test -n "$LAPLACE_ACTIVATION_DISPATCHED_AT"
-          run_id=""
-          for _attempt in $(seq 1 120); do
-            run_id=$(
-              gh api --method GET \
-                "repos/$GITHUB_REPOSITORY/actions/workflows/product-activation.yml/runs" \
-                -f "head_sha=$EXPECTED_SHA" \
-                -f event=workflow_dispatch \
-                -f per_page=20 |
-              jq -r \
-                --arg sha "$EXPECTED_SHA" \
-                --arg since "$LAPLACE_ACTIVATION_DISPATCHED_AT" \
-                '[.workflow_runs[] | select(.head_sha == $sha and .created_at >= $since)] | sort_by(.created_at) | last | .id // empty'
-            )
-            if [[ -n "$run_id" ]]; then
-              break
-            fi
-            sleep 5
-          done
-          test -n "$run_id"
-          gh run watch "$run_id" \
-            --repo "$GITHUB_REPOSITORY" \
-            --exit-status \
-            --interval 10
-          conclusion=$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)
-          test "$conclusion" = success
-          {
-            echo '## Persistent DEV/BAT activation'
-            echo "Activation workflow run: \`$run_id\`"
-            echo "Exact accepted main commit: \`$EXPECTED_SHA\`"
-            echo 'Conclusion: success'
-            echo 'Accepted-main CI is green only after the persistent activation workflow has completed its restart/enablement/live-readback contract.'
-          } >> "$GITHUB_STEP_SUMMARY"
+    uses: ./.github/workflows/product-activation.yml
+    with:
+      expected_sha: ${{ github.sha }}
 
   dev-bat-live-substrate:
     needs: dev-bat-deployment

@@ -31,6 +31,20 @@ set_target_properties(laplace_cognition_firmware_compile PROPERTIES
 install(TARGETS laplace_cognition_firmware_compile
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
+add_executable(laplace_source_profile_compile
+    source_profile_compile.cpp)
+target_include_directories(laplace_source_profile_compile PRIVATE
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_source_profile_compile PRIVATE
+    Laplace::TabularSource)
+target_compile_options(laplace_source_profile_compile PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+set_target_properties(laplace_source_profile_compile PROPERTIES
+    INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
+    INSTALL_RPATH_USE_LINK_PATH FALSE)
+install(TARGETS laplace_source_profile_compile
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
 add_executable(laplace_unicode_activation_identify
     unicode_activation_identify.cpp)
 target_link_libraries(laplace_unicode_activation_identify PRIVATE
@@ -98,9 +112,47 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition_client.py"
     RENAME laplace-cognition)
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition_service.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-cognition-core-service)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition_surface_service.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-cognition-service)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/openai_api_service.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-openai-api-core)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/openai_api_compat.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-openai-api)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/source_product.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-source-product)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/source_product.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-source-job-worker)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/laplace_inspect.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-inspect)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/admit_source.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-admit-source-core)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/admit_source_guard.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-admit-source)
+install(FILES "${CMAKE_SOURCE_DIR}/contracts/selected-source-boundary-20260903.json"
+    DESTINATION "share/laplace/source-contracts"
+    RENAME "selected-source-boundary.json")
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/contracts/sources/"
+    DESTINATION "share/laplace/source-contracts/profiles"
+    FILES_MATCHING
+        PATTERN "*.json")
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/product/web/"
+    DESTINATION "share/laplace/web"
+    FILES_MATCHING
+        PATTERN "*.html"
+        PATTERN "*.js"
+        PATTERN "*.css")
 
 if(BUILD_TESTING)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(
         NAME delivery.receipt-store-contract
         COMMAND "${CMAKE_COMMAND}"
@@ -109,6 +161,31 @@ if(BUILD_TESTING)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/../tests/receipt_store_test.cmake")
     set_tests_properties(delivery.receipt-store-contract PROPERTIES
         LABELS "delivery;receipt;blake3;package;mutation")
+    add_test(
+        NAME product.source-admission-estate-boundary
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/source_admission_guard_tests.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/admit_source_guard.py")
+    set_tests_properties(product.source-admission-estate-boundary PROPERTIES
+        LABELS "product;source-admission;authority;security;mutation")
+    add_test(
+        NAME product.source-ingestion-lifecycle
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/source_product_tests.py")
+    set_tests_properties(product.source-ingestion-lifecycle PROPERTIES
+        LABELS "product;source-admission;catalog;preflight;job;idempotency;mutation")
+    add_test(
+        NAME product.openai-chat-history
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/openai_chat_compat_tests.py")
+    set_tests_properties(product.openai-chat-history PROPERTIES
+        LABELS "product;openai;chat;conversation;compatibility")
+    add_test(
+        NAME product.gateway-contract
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/product_gateway_contract_tests.py")
+    set_tests_properties(product.gateway-contract PROPERTIES
+        LABELS "product;gateway;chat;source-admission;package;mutation")
 endif()
 
 add_executable(laplace_unicode_artifact_verify unicode_artifact_verify.cpp)

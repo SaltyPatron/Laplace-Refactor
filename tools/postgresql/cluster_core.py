@@ -1015,7 +1015,7 @@ def generate_settings(
         "fsync": "on",
         "full_page_writes": "on",
         "huge_pages": "try",
-        "io_method": "io_uring",
+        "io_method": "worker",
         "io_workers": str(min(io_slots, cpu_slots)),
         "jit": "off",
         "maintenance_work_mem": memory_setting(maintenance),

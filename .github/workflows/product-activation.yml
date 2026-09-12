@@ -1,6 +1,12 @@
 name: product-activation
 
 on:
+  workflow_call:
+    inputs:
+      expected_sha:
+        description: Exact accepted main commit to deploy
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       expected_sha:
@@ -68,7 +74,10 @@ jobs:
           require_equal "$(id -un)" laplace-runner runner-user
           require_equal "$GITHUB_REPOSITORY" SaltyPatron/Laplace-Refactor repository
           require_equal "$GITHUB_REF" refs/heads/main git-ref
-          require_equal "$GITHUB_EVENT_NAME" workflow_dispatch event
+          case "$GITHUB_EVENT_NAME" in
+            push|workflow_dispatch) ;;
+            *) fail "event expected=push-or-workflow_dispatch actual=$GITHUB_EVENT_NAME" ;;
+          esac
           require_equal "$GITHUB_SHA" '${{ inputs.expected_sha }}' repository-sha
 
           bootstrap=/opt/laplace/receipts/bootstrap/host.json
@@ -214,7 +223,6 @@ jobs:
           echo 'Laplace runner-owned host prerequisites verified.'
 
   compose-product:
-    if: github.event_name == 'workflow_dispatch'
     needs: runner-authority
     runs-on:
       - self-hosted
@@ -239,7 +247,10 @@ jobs:
           test "$(id -un)" = laplace-runner
           test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
           test "$GITHUB_REF" = refs/heads/main
-          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          case "$GITHUB_EVENT_NAME" in
+            push|workflow_dispatch) ;;
+            *) echo "unsupported product activation event: $GITHUB_EVENT_NAME" >&2; exit 1 ;;
+          esac
           test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
           git diff --quiet
           git diff --cached --quiet
@@ -302,7 +313,6 @@ jobs:
           printf 'package_id=%s\n' "$package_id" >> "$GITHUB_OUTPUT"
 
   activate-product:
-    if: github.event_name == 'workflow_dispatch'
     needs: compose-product
     environment: product
     runs-on:
@@ -320,7 +330,10 @@ jobs:
           test "$(id -un)" = laplace-runner
           test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
           test "$GITHUB_REF" = refs/heads/main
-          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          case "$GITHUB_EVENT_NAME" in
+            push|workflow_dispatch) ;;
+            *) echo "unsupported product activation event: $GITHUB_EVENT_NAME" >&2; exit 1 ;;
+          esac
           test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
           git diff --quiet
           git diff --cached --quiet

@@ -144,6 +144,177 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           printf 'LAPLACE_PRODUCT_PROOF_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
+
+      - name: Query persistent Laplace substrate with branch-built command
+        shell: bash
+        run: |
+          set -euo pipefail
+          product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
+          physical_release=$(jq -er '.physical_root' "$product_receipt")
+          inspect="$physical_release/bin/laplace-inspect"
+          pg_ctl="$physical_release/pgsql-18/bin/pg_ctl"
+          pg_isready="$physical_release/pgsql-18/bin/pg_isready"
+          postgres="$physical_release/pgsql-18/bin/postgres"
+          data_directory=$(jq -er '.instance.data_directory' contracts/postgresql-cluster.json)
+          socket_directory=$(jq -er '.instance.socket_directory' contracts/postgresql-cluster.json)
+          port=$(jq -er '.instance.port' contracts/postgresql-cluster.json)
+          database=$(jq -er '.instance.database' contracts/postgresql-cluster.json)
+          admin_role=$(jq -er '.instance.admin_role' contracts/postgresql-cluster.json)
+          config_file=/etc/laplace/instances/refactor/postgresql.conf
+          test -x "$inspect"
+          test -x "$pg_ctl"
+          test -x "$pg_isready"
+          test -x "$postgres"
+          test -d "$data_directory"
+          test -f "$config_file"
+
+          started_database=0
+          if ! "$pg_isready" \
+            --host "$socket_directory" \
+            --port "$port" \
+            --dbname "$database" \
+            --username "$admin_role" >/dev/null 2>&1; then
+            OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 MKL_DYNAMIC=FALSE \
+              "$pg_ctl" \
+                -D "$data_directory" \
+                -o "-c config_file=$config_file -c io_method=worker" \
+                -w \
+                -t 180 \
+                start
+            started_database=1
+          fi
+          printf 'LAPLACE_PACKAGE_PRODUCT_STARTED_DATABASE=%s\n' "$started_database" >> "$GITHUB_ENV"
+
+          ready=0
+          for _attempt in $(seq 1 30); do
+            if "$pg_isready" \
+              --host "$socket_directory" \
+              --port "$port" \
+              --dbname "$database" \
+              --username "$admin_role" >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != 1 ]]; then
+            "$pg_ctl" -D "$data_directory" status || true
+            echo 'branch-built PostgreSQL package did not make the persistent substrate ready' >&2
+            exit 1
+          fi
+
+          # PostgreSQL 18 io_uring produced ECANCELED relation reads on this runner.
+          # Product runtime therefore uses worker AIO; prove this exact server was
+          # launched with the branch-selected override before querying durable data.
+          test "$("$postgres" -D "$data_directory" -c "config_file=$config_file" -c io_method=worker -C io_method)" = worker
+          postmaster_pid=$(head -n 1 "$data_directory/postmaster.pid")
+          test -r "/proc/$postmaster_pid/cmdline"
+          tr '\0' '\n' < "/proc/$postmaster_pid/cmdline" | grep -Fx 'io_method=worker' >/dev/null
+
+          summary="$RUNNER_TEMP/laplace-live-summary.json"
+          entities="$RUNNER_TEMP/laplace-live-entities.json"
+          physicalities="$RUNNER_TEMP/laplace-live-physicalities.json"
+          attestations="$RUNNER_TEMP/laplace-live-attestations.json"
+          profiles="$RUNNER_TEMP/laplace-live-source-profiles.json"
+
+          "$inspect" --pretty summary > "$summary"
+          "$inspect" --pretty entities --limit 5 > "$entities"
+          "$inspect" --pretty physicalities --limit 5 > "$physicalities"
+          "$inspect" --pretty attestations --limit 5 > "$attestations"
+          "$inspect" --pretty source-profiles --limit 5 > "$profiles"
+
+          jq -e '
+            .schema == "laplace.inspect.summary/v1" and
+            .database == "laplace_refactor" and
+            .role == "laplace_admin" and
+            (.counts.entities | tonumber) > 0 and
+            (.counts.physicalities | tonumber) > 0 and
+            (.counts.attestations | tonumber) > 0 and
+            .unicode.active_present == true and
+            .highway.active_present == true
+          ' "$summary" >/dev/null
+          jq -e '.schema == "laplace.inspect.entities/v1" and (.rows | length) > 0' "$entities" >/dev/null
+          jq -e '.schema == "laplace.inspect.physicalities/v1" and (.rows | length) > 0' "$physicalities" >/dev/null
+          jq -e '.schema == "laplace.inspect.attestations/v1" and (.rows | length) > 0' "$attestations" >/dev/null
+          jq -e '.schema == "laplace.inspect.source-profiles/v1"' "$profiles" >/dev/null
+
+          {
+            echo '## Live persisted Laplace substrate'
+            echo 'Branch-built PostgreSQL and `laplace-inspect` queried the persistent PostgreSQL product data without publishing an activation pointer.'
+            echo '### Summary'
+            echo '```json'
+            cat "$summary"
+            echo '```'
+            echo '### Entity rows'
+            echo '```json'
+            cat "$entities"
+            echo '```'
+            echo '### Physicality rows'
+            echo '```json'
+            cat "$physicalities"
+            echo '```'
+            echo '### Attestation rows'
+            echo '```json'
+            cat "$attestations"
+            echo '```'
+            echo '### Source-profile rows before admission'
+            echo '```json'
+            cat "$profiles"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Admit real ISO 639 source through branch-built product command
+        shell: bash
+        run: |
+          set -euo pipefail
+          product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
+          physical_release=$(jq -er '.physical_root' "$product_receipt")
+          admit="$physical_release/bin/laplace-admit-source"
+          inspect="$physical_release/bin/laplace-inspect"
+          test -x "$admit"
+          test -x "$physical_release/bin/laplace_source_profile_compile"
+          test -x "$inspect"
+          test -d "$LAPLACE_SOURCE_ESTATE_ROOT/ISO639"
+          test -d "$LAPLACE_SOURCE_ESTATE_ROOT/UCD/Public/UCD/latest"
+
+          admission="$RUNNER_TEMP/laplace-iso639-admission.json"
+          profiles="$RUNNER_TEMP/laplace-source-profiles-after-admission.json"
+          "$admit" \
+            iso-639-3-20260415 \
+            "$LAPLACE_SOURCE_ESTATE_ROOT/ISO639" \
+            --unicode-root "$LAPLACE_SOURCE_ESTATE_ROOT/UCD/Public/UCD/latest" \
+            --tool-root "$physical_release" \
+            --pretty > "$admission"
+          "$inspect" --pretty source-profiles --limit 10 > "$profiles"
+
+          jq -e '
+            .schema == "laplace.admit-source/v1" and
+            .profile == "iso-639-3-20260415" and
+            (.native_source_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.native_reconstruction_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.admission.profile_id | test("^\\\\x[0-9a-f]{64}$")) and
+            (.admission.source_profile_receipt_id | test("^\\\\x[0-9a-f]{64}$")) and
+            .persisted_profile != null and
+            (.entity_count | tonumber) > 0 and
+            (.physicality_count | tonumber) > 0 and
+            (.attestation_count | tonumber) > 0
+          ' "$admission" >/dev/null
+          jq -e '
+            .schema == "laplace.inspect.source-profiles/v1" and
+            (.rows | length) > 0
+          ' "$profiles" >/dev/null
+
+          {
+            echo '## Real ISO 639 admission into persistent Laplace substrate'
+            echo '```json'
+            cat "$admission"
+            echo '```'
+            echo '### Persisted source-profile readback'
+            echo '```json'
+            cat "$profiles"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Compose and verify the standalone customer installer
         shell: bash
         run: |
@@ -210,6 +381,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${LAPLACE_PACKAGE_PRODUCT_STARTED_DATABASE:-0}" == 1 && -n "${LAPLACE_PRODUCT_PROOF_RESULT:-}" ]]; then
+            product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
+            physical_release=$(jq -er '.physical_root' "$product_receipt")
+            pg_ctl="$physical_release/pgsql-18/bin/pg_ctl"
+            data_directory=$(jq -er '.instance.data_directory' contracts/postgresql-cluster.json)
+            if "$pg_ctl" -D "$data_directory" status >/dev/null 2>&1; then
+              "$pg_ctl" -D "$data_directory" -w -t 120 stop -m fast
+            fi
+          fi
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --name laplace-package-product-proof

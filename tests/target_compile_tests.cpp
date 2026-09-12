@@ -223,6 +223,8 @@ TEST(TargetCompile, RejectsQkVoFlatteningEvenWhenConsumerSlotsDiffer) {
         laplace_target_compile_execute(&request, &result.value, &receipt),
         LAPLACE_TARGET_COMPILE_FLATTENED_OPERATOR);
     EXPECT_EQ(result.value, nullptr);
+    EXPECT_EQ(receipt.status, LAPLACE_TARGET_COMPILE_FLATTENED_OPERATOR);
+    EXPECT_EQ(receipt.version, LAPLACE_TARGET_COMPILE_VERSION);
 }
 
 TEST(TargetCompile, CanonicalJobOrderingMakesReceiptInputOrderIndependent) {

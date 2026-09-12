@@ -1,0 +1,15 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionOperator.DerivedCalculationUsesReceiptWithoutManufacturingEvidenceRoot",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-EVIDENCE-METRIC-NONAMPLIFICATION"],
+      "covered_dimensions": ["derived calculation remains provenance-bound through its calculation receipt", "derived calculation does not manufacture an independent evidence root", "derived and testimony source classes remain distinct"]
+    },
+    {
+      "ctest_name": "CognitionOperator.TestimonyStillRequiresIndependentEvidenceRoot",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-EVIDENCE-METRIC-NONAMPLIFICATION"],
+      "covered_dimensions": ["testimony requires an independent evidence root", "rootless testimony is rejected before operator publication", "derived-calculation provenance does not relax testimony evidence requirements"]
+    }
+  ]
+}

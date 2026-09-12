@@ -26,7 +26,15 @@ constexpr std::uint64_t ExpectedRequests = 65812U;
 constexpr std::uint64_t ExpectedOperands = ExpectedRequests * 2U;
 constexpr std::uint64_t ExpectedEntities = ExpectedRequests + 2U;
 constexpr std::uint64_t ExpectedPhysicalities = ExpectedRequests;
-constexpr std::uint64_t ExpectedVertices = ExpectedOperands;
+// The fixture is four square frontiers (2, 4, 16, 256). Each diagonal pair
+// has two adjacent equal identities with identical metadata, so the canonical
+// composition law coalesces those operand boundaries into one trajectory
+// carrier. Keep the physical measurement expectation derived from that law
+// instead of assuming one carrier per input operand.
+constexpr std::uint64_t ExpectedCoalescedAdjacentOperandPairs =
+    2U + 4U + 16U + 256U;
+constexpr std::uint64_t ExpectedVertices =
+    ExpectedOperands - ExpectedCoalescedAdjacentOperandPairs;
 constexpr std::uint64_t ExpectedOccurrences = ExpectedRequests;
 constexpr std::uint64_t ExpectedStreamRecords =
     ExpectedEntities + ExpectedPhysicalities + ExpectedVertices +

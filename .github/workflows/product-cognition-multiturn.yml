@@ -13,6 +13,7 @@ permissions:
 
 concurrency:
   group: product-cognition-multiturn
+  queue: max
   cancel-in-progress: false
 
 jobs:
@@ -64,8 +65,8 @@ jobs:
             .turn_1.execution.status == 0 and
             .corrupted_predecessor.expected_status_nonzero == true and
             .corrupted_predecessor.execution.status != 0 and
-            (.turn_0.execution.next_checkpoint_fingerprint | test("^\\\\x[0-9a-f]{64}$")) and
-            (.turn_1.execution.next_checkpoint_fingerprint | test("^\\\\x[0-9a-f]{64}$")) and
+            (.turn_0.execution.next_checkpoint_fingerprint | test("^\\x[0-9a-f]{64}$")) and
+            (.turn_1.execution.next_checkpoint_fingerprint | test("^\\x[0-9a-f]{64}$")) and
             .turn_0.execution.next_checkpoint_fingerprint != .turn_1.execution.next_checkpoint_fingerprint and
             (.proof_sha256 | test("^[0-9a-f]{64}$"))
           ' "$proof" >/dev/null
@@ -73,5 +74,124 @@ jobs:
             echo '## Installed multi-turn cognition proof'
             echo '```json'
             jq '{schema,package_id,turn_0:{prompt_utf8:.turn_0.prompt_utf8,status:.turn_0.execution.status,checkpoint:.turn_0.execution.next_checkpoint_fingerprint,receipt:.turn_0.execution.execution_receipt_id},corrupted_predecessor:{status:.corrupted_predecessor.execution.status},turn_1:{prompt_utf8:.turn_1.prompt_utf8,status:.turn_1.execution.status,checkpoint:.turn_1.execution.next_checkpoint_fingerprint,receipt:.turn_1.execution.execution_receipt_id},proof_sha256}' "$proof"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Execute installed interactive conversation surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          command=/opt/laplace/current/bin/laplace-cognition
+          test -x "$command"
+          state_root="$RUNNER_TEMP/laplace-interactive-cognition-state"
+          input="$RUNNER_TEMP/laplace-interactive-cognition-input.txt"
+          output="$RUNNER_TEMP/laplace-interactive-cognition-output.jsonl"
+          rm -rf "$state_root"
+          mkdir -m 0700 "$state_root"
+          printf '%s\n' 'AA' 'AAA' '/quit' > "$input"
+          "$command" \
+            --interactive \
+            --session installed-acceptance \
+            --state-root "$state_root" \
+            --json < "$input" > "$output"
+          test "$(wc -l < "$output" | tr -d ' ')" = 2
+          jq -s -e --arg package_id "$PACKAGE_ID" '
+            length == 2 and
+            .[0].status == 0 and
+            .[1].status == 0 and
+            .[0].package_id == $package_id and
+            .[1].package_id == $package_id and
+            .[0].turn_ordinal == 0 and
+            .[0].continued == false and
+            .[1].turn_ordinal == 1 and
+            .[1].continued == true and
+            (.[0].next_checkpoint_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.[1].next_checkpoint_fingerprint | test("^[0-9a-f]{64}$")) and
+            .[0].next_checkpoint_fingerprint != .[1].next_checkpoint_fingerprint
+          ' "$output" >/dev/null
+          state="$state_root/installed-acceptance.json"
+          test -r "$state"
+          test ! -L "$state"
+          second_checkpoint=$(jq -sr '.[1].next_checkpoint_fingerprint' "$output")
+          jq -e --arg package_id "$PACKAGE_ID" --arg checkpoint "$second_checkpoint" '
+            .schema == "laplace.cognition-client-session/v1" and
+            .package_id == $package_id and
+            .next_turn_ordinal == 2 and
+            .checkpoint_fingerprint == $checkpoint
+          ' "$state" >/dev/null
+          {
+            echo '## Installed interactive cognition surface'
+            echo '- executable: `/opt/laplace/current/bin/laplace-cognition --interactive`'
+            echo '- turns executed through installed cognition service: `2`'
+            echo '- persisted next turn ordinal: `2`'
+            echo '- exact successor checkpoint retained: `true`'
+            echo '```json'
+            jq -s '{turns: map({status,turn_ordinal,continued,package_id,program_id,next_checkpoint_fingerprint,execution_receipt_id})}' "$output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Execute installed browser gateway proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="$RECEIPT_ROOT/cluster-activation/$PACKAGE_ID/installed-product-gateway-proof.json"
+          python3 tools/delivery/product_gateway_live_proof.py \
+            --package-id "$PACKAGE_ID" \
+            --output "$proof"
+          jq -e --arg package_id "$PACKAGE_ID" '
+            .schema == "laplace.installed-product-gateway-proof/v2" and
+            .package_id == $package_id and
+            .browser.index == "explore-chat-operator" and
+            .browser.app == "ok" and
+            .explore.summary_schema == "laplace.inspect.summary/v1" and
+            (.explore.counts.entities | type == "number") and
+            (.explore.counts.consensus | type == "number") and
+            (.explore.counts.evidence_nodes | type == "number") and
+            (.explore.counts.standing_states | type == "number") and
+            .explore.facets["/api/v1/entities"] == "laplace.inspect.entities/v1" and
+            .explore.facets["/api/v1/consensus"] == "laplace.inspect.consensus/v1" and
+            .explore.facets["/api/v1/standings"] == "laplace.inspect.standings/v1" and
+            .explore.facets["/api/v1/evidence"] == "laplace.inspect.evidence/v1" and
+            .health.schema == "laplace.product.health/v1" and
+            .health.status == "ready" and
+            .cognition.turn_0.status == 0 and
+            .cognition.turn_0.ordinal == 0 and
+            .cognition.turn_1.status == 0 and
+            .cognition.turn_1.ordinal == 1 and
+            .cognition.turn_1.continued == true and
+            .cognition.turn_0.checkpoint != .cognition.turn_1.checkpoint and
+            .openai_chat.message_count == 4 and
+            .openai_chat.roles == ["system","user","assistant","user"] and
+            .openai_chat.object == "chat.completion" and
+            .openai_chat.model == "laplace-native" and
+            (.openai_chat.assistant_content | type == "string" and length > 0) and
+            .openai_chat.streaming.done == true and
+            .openai_chat.streaming.finished == true and
+            .openai_chat.streaming.chunk_count >= 2 and
+            (.openai_chat.streaming.assistant_content | type == "string" and length > 0) and
+            .source_ingestion.source_id == "iso-639-3-20260415" and
+            (.source_ingestion.catalog_boundary_sha256 | test("^[0-9a-f]{64}$")) and
+            (.source_ingestion.plan_id | test("^[0-9a-f]{64}$")) and
+            (.source_ingestion.job_id | test("^[0-9a-f]{64}$")) and
+            .source_ingestion.idempotent_retry_same_job == true and
+            .source_ingestion.state == "succeeded" and
+            (.source_ingestion.result_sha256 | test("^[0-9a-f]{64}$")) and
+            .source_ingestion.admission_schema == "laplace.admit-source/v1" and
+            .source_ingestion.readback_schema == "laplace.inspect.source-profiles/v1" and
+            (.source_ingestion.entity_count | tonumber) > 0 and
+            (.source_ingestion.physicality_count | tonumber) > 0 and
+            (.source_ingestion.attestation_count | tonumber) > 0 and
+            (.mcp.tools | index("laplace.query")) != null and
+            (.mcp.tools | index("laplace.cognition")) != null and
+            (.mcp.tools | index("laplace.source_catalog")) != null and
+            (.mcp.tools | index("laplace.source_preflight")) != null and
+            (.mcp.tools | index("laplace.source_admit")) != null and
+            (.mcp.tools | index("laplace.source_job")) != null and
+            (.mcp.tools | index("laplace.sql")) != null and
+            .mcp.query_schema == "laplace.inspect.summary/v1"
+          ' "$proof" >/dev/null
+          {
+            echo '## Installed browser / gateway proof'
+            echo 'This proof uses the same local HTTP surface as the browser and external clients.'
+            echo '```json'
+            jq '{schema,package_id,browser,explore,health:{schema:.health.schema,status:.health.status},cognition,openai_chat,source_ingestion,mcp}' "$proof"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

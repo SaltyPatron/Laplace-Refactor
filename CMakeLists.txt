@@ -315,6 +315,7 @@ if(BUILD_TESTING)
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_solver.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/decomposition_orchestration.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_occurrence.cmake")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_frontier_benchmark.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/tests/finish_line_program.cmake")
 endif()
 

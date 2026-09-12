@@ -14,18 +14,23 @@ PHYSICAL_WORKFLOWS = (
 
 
 class ProductPathConcurrencyTests(unittest.TestCase):
-    def test_same_ref_runs_are_queued_before_physical_proof(self) -> None:
+    def test_pull_request_runs_cancel_obsolete_active_head_without_cancelling_main(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         marker = (
             "concurrency:\n"
             "  group: product-path-${{ github.ref }}\n"
-            "  queue: max\n"
-            "  cancel-in-progress: false\n"
+            "  queue: single\n"
+            "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n"
         )
         self.assertIn(
             marker,
             workflow,
-            "same-ref product-path runs must queue instead of replacing pending proof",
+            "new PR heads must replace superseded same-PR work while accepted-main runs remain non-cancelling",
+        )
+        self.assertNotIn(
+            "  cancel-in-progress: true\n",
+            workflow[workflow.index("concurrency:"):workflow.index("\njobs:")],
+            "top-level product-path concurrency must never unconditionally cancel accepted-main proof",
         )
 
     def test_physical_host_ownership_queues_every_pending_proof(self) -> None:

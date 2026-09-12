@@ -213,5 +213,36 @@ set_tests_properties(
     composition.mutation-flattened-frontier-dependencies-detected PROPERTIES
     LABELS "implementation;composition;execution;working-set;determinism;mutation")
 
+add_library(laplace_composition_physical_plan_identity_mutant STATIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/src/composition.cpp")
+target_include_directories(laplace_composition_physical_plan_identity_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_composition_physical_plan_identity_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_composition_physical_plan_identity_mutant PRIVATE
+    LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT=1)
+target_compile_options(laplace_composition_physical_plan_identity_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+add_executable(laplace_composition_physical_plan_identity_mutation_probe
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_frontier_runtime_tests.cpp")
+target_include_directories(laplace_composition_physical_plan_identity_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+target_link_libraries(laplace_composition_physical_plan_identity_mutation_probe PRIVATE
+    laplace_composition_physical_plan_identity_mutant
+    Laplace::Engine
+    GTest::gtest_main)
+target_compile_options(laplace_composition_physical_plan_identity_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME composition.mutation-physical-plan-semantic-identity-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_composition_physical_plan_identity_mutation_probe>"
+        "-DFILTER=CompositionFrontierRuntime.WorkerGrantAndChunkPlanCannotAlterCanonicalSemanticIdentity"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/expect_gtest_failure.cmake")
+set_tests_properties(
+    composition.mutation-physical-plan-semantic-identity-detected PROPERTIES
+    LABELS "implementation;composition;execution;identity;receipt;determinism;mutation")
 include("${CMAKE_CURRENT_SOURCE_DIR}/tests/source_structural_witness.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/tests/machine_exception.cmake")

@@ -19,16 +19,47 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout Laplace-Refactor with all history
+      - name: Checkout proposed tree with all history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Fetch every Refactor branch and use convergence as provisional main
+      - name: Restore only convergence audit tooling intentionally absent from proposed tree
         shell: bash
         run: |
           set -euo pipefail
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          tooling_base="$(git rev-parse refs/remotes/origin/main)"
+          required=(
+            tools/branch_estate_live_audit.py
+            tools/branch_estate_merged_pr_reconcile.py
+            tools/branch_estate_candidate_subsume.py
+            tools/branch_estate_apply_dispositions.py
+            tools/branch_estate_apply_dispositions_tests.py
+            .github/branch-estate-semantic-dispositions.json
+            .github/branch-estate-semantic-dispositions.runner-lifecycle.json
+            .github/branch-estate-semantic-dispositions.cognition-contract.json
+            .github/branch-estate-semantic-dispositions.absorbed-contracts.json
+            .github/branch-estate-semantic-dispositions.governance-preservation.json
+          )
+          for path in "${required[@]}"; do
+            if [[ -f "$path" ]]; then
+              continue
+            fi
+            mkdir -p "$(dirname "$path")"
+            git show "$tooling_base:$path" > "$path"
+          done
+
+      - name: Prove semantic disposition lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/branch_estate_apply_dispositions_tests.py
+
+      - name: Use convergence as provisional Refactor main
+        shell: bash
+        run: |
+          set -euo pipefail
           convergence="$(git rev-parse refs/remotes/origin/delivery/final-convergence-20260911)"
           git update-ref refs/remotes/origin/main "$convergence"
           test "$(git rev-parse refs/remotes/origin/main)" = "$convergence"
@@ -105,6 +136,40 @@ jobs:
               --output "$RUNNER_TEMP/branch-estate-live.json"
           fi
           cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
+
+      - name: Report unresolved candidates and block incomplete convergence
+        shell: bash
+        env:
+          REQUIRE_ZERO: ${{ github.event.pull_request.head.ref == 'delivery/final-convergence-20260911' && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          ledger = json.loads(Path("branch-estate-live.json").read_text(encoding="utf-8"))
+          unresolved = []
+          for repository in ledger["repositories"]:
+              label = repository["repository"]
+              for branch in repository["branches"]:
+                  if branch.get("classification") != "UNIQUE_BEHAVIOR_CANDIDATE":
+                      continue
+                  unresolved.append((label, branch))
+
+          print(f"UNRESOLVED_UNIQUE_BEHAVIOR_CANDIDATES={len(unresolved)}")
+          for label, branch in unresolved:
+              print(
+                  f"{label}:{branch['branch']} "
+                  f"tip={branch['tip']} "
+                  f"missing_patches={branch.get('missing_patch_count', 0)}"
+              )
+
+          if os.environ.get("REQUIRE_ZERO") == "1" and unresolved:
+              raise SystemExit(
+                  f"final convergence is blocked by {len(unresolved)} unresolved unique-behavior branches"
+              )
+          PY
 
       - name: Upload live reconciliation ledger
         uses: actions/upload-artifact@v4

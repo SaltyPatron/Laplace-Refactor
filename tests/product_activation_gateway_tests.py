@@ -406,9 +406,15 @@ class ProductActivationGatewayTests(unittest.TestCase):
         workflow = (REPOSITORY / ".github/workflows/product-activation.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("if: github.event_name == 'workflow_dispatch'", workflow)
+        self.assertIn("  workflow_call:\n", workflow)
+        self.assertIn("  workflow_dispatch:\n", workflow)
+        self.assertNotIn("  pull_request:\n", workflow)
+        self.assertNotIn("  push:\n", workflow)
+        self.assertIn('case "$GITHUB_EVENT_NAME" in', workflow)
+        self.assertIn("push|workflow_dispatch) ;;", workflow)
         self.assertIn("environment: product", workflow)
         self.assertIn("test \"$GITHUB_REF\" = refs/heads/main", workflow)
+        self.assertGreaterEqual(workflow.count("${{ inputs.expected_sha }}"), 3)
         self.assertIn("tools/product/build-package.py compose", workflow)
         self.assertNotIn("tools/product/build-package.py plan", workflow)
         self.assertNotIn("tools/product/build-package.py build", workflow)

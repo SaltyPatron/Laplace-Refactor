@@ -3,7 +3,11 @@
   "tests": [
     {
       "ctest_name": "composition.dependency-frontier-plan",
-      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
+        "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"
+      ],
       "covered_dimensions": [
         "composition request dependencies are compiled into deterministic ready frontiers rather than source or file worker atoms",
         "wide independent requests expose parallel width while deep chains expose their real critical path",
@@ -25,7 +29,11 @@
     },
     {
       "ctest_name": "composition.frontier-execution-preflight",
-      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
+        "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"
+      ],
       "covered_dimensions": [
         "public native preflight exposes a content-addressed physical scheduling receipt without executing semantic composition",
         "wide independent frontier uses only the conserved CPU grant",
@@ -40,23 +48,36 @@
     },
     {
       "ctest_name": "composition.frontier-runtime-receipts",
-      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
+        "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"
+      ],
       "covered_dimensions": [
         "runtime composition frontiers are checked against the same shared dependency planner used by preflight",
         "one actual common-execution work receipt is retained per canonical dependency frontier",
         "sum of completed postflight items equals the semantic calculation count without a second semantic execution",
         "actual runtime chunk counts and worker widths agree with the preflight scheduling shape for wide and deep DAGs",
-        "frontier execution receipts remain attached to the opaque working-set lifetime and are removed on destruction"
+        "frontier execution receipts remain attached to the opaque working-set lifetime and are removed on destruction",
+        "postflight reports measured frontier wall time process core time finite worker-capacity time derived idle-wait capacity and bounded parallel-efficiency ppm without entering semantic identity",
+        "postflight retains request count frontier count critical-path depth total ready width actual item and chunk counts and admitted worker range",
+        "wide independent work reports greater available ready width and physical worker width while a deep chain reports width one and one usable worker instead of fabricating speedup"
       ],
       "defect_controls": [
         "runtime independently changes frontier membership while preflight reports the canonical DAG",
         "postflight work is reconstructed by replaying semantic composition",
-        "one aggregate worker count hides the actual per-frontier physical execution receipts"
+        "one aggregate worker count hides the actual per-frontier physical execution receipts",
+        "timing or worker telemetry contaminates canonical composition identity",
+        "deep narrow dependency chains are reported as wide parallel work solely because the machine grant is large"
       ]
     },
     {
       "ctest_name": "composition.mutation-runtime-frontier-divergence-detected",
-      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
+        "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"
+      ],
       "covered_dimensions": [
         "deliberate runtime dependency flattening cannot execute under a canonical deep frontier plan",
         "shared-planner/runtime divergence fails before the mutated path can publish a successful working set"
@@ -67,9 +88,32 @@
     },
     {
       "ctest_name": "composition.mutation-flattened-frontier-dependencies-detected",
-      "evidence_targets": ["LP-TEST-BULK-DETERMINISM", "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION", "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"],
-      "covered_dimensions": ["deliberate-defect sensitivity to a physical planner that erases prior-result dependency depth"],
-      "defect_controls": ["all composition requests flattened into one ready frontier despite parent-child dependencies"]
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
+        "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"
+      ],
+      "covered_dimensions": [
+        "deliberate-defect sensitivity to a physical planner that erases prior-result dependency depth"
+      ],
+      "defect_controls": [
+        "all composition requests flattened into one ready frontier despite parent-child dependencies"
+      ]
+    },
+    {
+      "ctest_name": "composition.mutation-physical-plan-semantic-identity-detected",
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION",
+        "LP-TEST-TOPOLOGY-CROSS-ROUTE-PARITY"
+      ],
+      "covered_dimensions": [
+        "changing physical worker grant and chunk plan cannot alter canonical composition publication identity",
+        "the deliberate mutant injects the physical worker grant into semantic input identity and must be detected after presence publication"
+      ],
+      "defect_controls": [
+        "physical worker or batch scheduling metadata enters canonical semantic composition identity"
+      ]
     }
   ]
 }

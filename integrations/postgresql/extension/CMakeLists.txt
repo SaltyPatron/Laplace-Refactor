@@ -21,14 +21,17 @@ laplace_configure_postgresql_bindings(
 
 # The generated readback SQL is also the verified recurring reconciliation program.
 # Keep the fresh base extension's readback body unchanged; only the standalone copy
-# receives the 1.0.1 -> 1.0.2 prefix used by an already-persistent product cluster.
+# receives the product-cognition prefix plus idempotent materialization-route repair
+# used by an already-persistent product cluster.
 set(public_readback_reconcile_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace-public-readback.sql")
 file(READ "${public_readback_reconcile_sql}" public_readback_reconcile_bindings)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/product_cognition_upgrade_prefix.sql"
     product_cognition_upgrade_prefix)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/cognition_materialization_route.sql"
+    cognition_materialization_route)
 file(WRITE "${public_readback_reconcile_sql}"
-    "${product_cognition_upgrade_prefix}\n${public_readback_reconcile_bindings}")
+    "${product_cognition_upgrade_prefix}\n${cognition_materialization_route}\n${public_readback_reconcile_bindings}")
 
 file(READ "${CMAKE_SOURCE_DIR}/contracts/isa.json"
     laplace_source_structural_witness_contract)
@@ -128,6 +131,7 @@ set(laplace_postgresql_module_sources
     src/cognition_firmware_pg.c
     src/cognition_product_pg.c
     src/cognition_conversation_product_pg.c
+    src/cognition_materialization_route_pg.c
     src/composition_pg.c
     src/content_admission_pg.c
     src/evidence_lineage_pg.c
@@ -356,8 +360,9 @@ if(BUILD_TESTING)
 endif()
 
 # Retain the original install script and the 1.0.1 cognition upgrade for historical
-# package validation. The product cognition route is a new 1.0.2 delta so an
-# already-active 1.0.1 cluster receives the same objects as a fresh installation.
+# package validation. The product cognition route is a 1.0.2 delta. The recovered
+# standalone materialization route is appended to that same delta and is also
+# replayed idempotently by laplace-public-readback.sql for historical 1.0.2 clusters.
 set(persisted_cognition_upgrade_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.0--1.0.1.sql")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/observation_cognition_persisted.sql.in"
@@ -372,6 +377,8 @@ set(product_cognition_upgrade_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.1--1.0.2.sql")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cognition_product_route.sql.in"
     "${product_cognition_upgrade_sql}" @ONLY)
+file(APPEND "${product_cognition_upgrade_sql}"
+    "\n${cognition_materialization_route}\n")
 set(current_extension_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.2.sql")
 file(READ "${product_cognition_upgrade_sql}" product_cognition_delta)
