@@ -46,7 +46,9 @@ def load_json(path: Path) -> dict[str, Any]:
 def require_hex(value: Any, field: str, width: int = 64) -> str:
     pattern = HEX128 if width == 32 else HEX256
     if not isinstance(value, str) or pattern.fullmatch(value) is None:
-        raise AdmissionError(f"{field} must be exactly {width} lowercase hexadecimal characters")
+        raise AdmissionError(
+            f"{field} must be exactly {width} lowercase hexadecimal characters"
+        )
     return value
 
 
@@ -67,6 +69,24 @@ def selected_package(active: Path) -> tuple[str, Path]:
         raise AdmissionError(f"active product is unavailable: {active}: {error}") from error
     package_id = require_hex(release.name, "active package id")
     return package_id, release
+
+
+def selected_tool_release(explicit: Path | None, active_release: Path) -> Path:
+    if explicit is not None:
+        try:
+            release = explicit.resolve(strict=True)
+        except OSError as error:
+            raise AdmissionError(f"tool release is unavailable: {explicit}: {error}") from error
+        if not release.is_dir():
+            raise AdmissionError("tool release is not a directory")
+        return release
+    try:
+        invoked = Path(sys.argv[0]).resolve(strict=True)
+    except OSError:
+        return active_release
+    if invoked.parent.name == "bin" and invoked.parent.parent.is_dir():
+        return invoked.parent.parent
+    return active_release
 
 
 def load_activation_state(receipt_root: Path, package_id: str) -> dict[str, Any]:
@@ -130,7 +150,10 @@ def compile_profile(
         if not key or key in values:
             raise AdmissionError("native source-profile compiler emitted duplicate/empty key")
         values[key] = value
-    if values.get("SCHEMA") != "laplace.source-profile-compile/v1" or values.get("PROFILE") != profile:
+    if (
+        values.get("SCHEMA") != "laplace.source-profile-compile/v1"
+        or values.get("PROFILE") != profile
+    ):
         raise AdmissionError("native source-profile compiler output has the wrong identity")
     return values
 
@@ -144,7 +167,12 @@ def number(values: dict[str, str], name: str) -> int:
 
 def hex_value(values: dict[str, str], name: str, width: int | None = None) -> str:
     value = values.get(name)
-    if not isinstance(value, str) or not value or HEX.fullmatch(value) is None or len(value) % 2:
+    if (
+        not isinstance(value, str)
+        or not value
+        or HEX.fullmatch(value) is None
+        or len(value) % 2
+    ):
         raise AdmissionError(f"native source-profile field {name} is not hexadecimal")
     if width is not None and len(value) != width:
         raise AdmissionError(f"native source-profile field {name} has the wrong width")
@@ -159,8 +187,10 @@ def context_sql(identities: dict[str, Any]) -> str:
         identities["perfcache_epoch"], identities["numeric_epoch"], identities["package_epoch"],
     ]
     return (
-        "ROW(ARRAY[" + ",".join(bytea(require_hex(v, "execution epoch")) for v in epochs)
-        + "]::bytea[]," + bytea(require_hex(identities["authority_fingerprint"], "authority"))
+        "ROW(ARRAY["
+        + ",".join(bytea(require_hex(v, "execution epoch")) for v in epochs)
+        + "]::bytea[],"
+        + bytea(require_hex(identities["authority_fingerprint"], "authority"))
         + ",4294967296::bigint,6,2,1023::bigint,1::smallint,6::smallint,1)"
         "::laplace.execution_context"
     )
@@ -203,9 +233,10 @@ def artifact_sql(values: dict[str, str], index: int, source_root: Path) -> str:
     media = hex_value(values, prefix + "MEDIA_TYPE")
     local_path = hex_value(values, prefix + "LOCAL_PATH")
     columns = number(values, prefix + "COLUMNS")
-    column_sql = []
-    for column in range(columns):
-        column_sql.append(bytea(hex_value(values, prefix + f"COLUMN_{column}")))
+    column_sql = [
+        bytea(hex_value(values, prefix + f"COLUMN_{column}"))
+        for column in range(columns)
+    ]
     source_root_hex = str(source_root.resolve(strict=True)).encode("utf-8").hex()
     content = (
         "pg_read_binary_file(pg_catalog.convert_from(" + bytea(source_root_hex)
@@ -298,8 +329,8 @@ COMMIT;
 """
 
 
-def psql_command(release: Path, args: argparse.Namespace) -> list[str]:
-    psql = release / "pgsql-18/bin/psql"
+def psql_command(tool_release: Path, args: argparse.Namespace) -> list[str]:
+    psql = tool_release / "pgsql-18/bin/psql"
     if not psql.is_file():
         raise AdmissionError(f"packaged PostgreSQL client is unavailable: {psql}")
     return [
@@ -312,8 +343,13 @@ def psql_command(release: Path, args: argparse.Namespace) -> list[str]:
 def run_sql(command: list[str], sql: str) -> dict[str, Any]:
     try:
         result = subprocess.run(
-            command, input=sql, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            check=False, timeout=1000,
+            command,
+            input=sql,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=1000,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise AdmissionError(f"source admission could not execute: {error}") from error
@@ -334,7 +370,7 @@ def run_sql(command: list[str], sql: str) -> dict[str, Any]:
         raise AdmissionError("source admission did not persist its source profile")
     profile_id = admission.get("profile_id")
     receipt_id = admission.get("source_profile_receipt_id")
-    if not isinstance(profile_id, str) or not profile_id.startswith("\\x") or len(profile_id) != 34:
+    if not isinstance(profile_id, str) or not profile_id.startswith("\\x") or len(profile_id) != 66:
         raise AdmissionError("source admission returned an invalid profile id")
     if not isinstance(receipt_id, str) or not receipt_id.startswith("\\x") or len(receipt_id) != 66:
         raise AdmissionError("source admission returned an invalid source-profile receipt")
@@ -347,6 +383,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("source_root", type=Path)
     value.add_argument("--unicode-root", type=Path, default=DEFAULT_UNICODE_ROOT)
     value.add_argument("--active", type=Path, default=DEFAULT_ACTIVE)
+    value.add_argument("--tool-root", type=Path)
     value.add_argument("--receipt-root", type=Path, default=DEFAULT_RECEIPT_ROOT)
     value.add_argument("--socket", type=Path, default=DEFAULT_SOCKET)
     value.add_argument("--port", type=int, default=DEFAULT_PORT)
@@ -360,10 +397,11 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
-        package_id, release = selected_package(args.active)
-        identities = load_activation_state(args.receipt_root, package_id)
+        active_package_id, active_release = selected_package(args.active)
+        tool_release = selected_tool_release(args.tool_root, active_release)
+        identities = load_activation_state(args.receipt_root, active_package_id)
         compiled = compile_profile(
-            release / "bin/laplace_source_profile_compile",
+            tool_release / "bin/laplace_source_profile_compile",
             args.profile,
             args.source_root,
             args.unicode_root,
@@ -372,12 +410,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.render_sql:
             sys.stdout.write(sql)
             return 0
-        result = run_sql(psql_command(release, args), sql)
-        result["package_id"] = package_id
+        result = run_sql(psql_command(tool_release, args), sql)
+        result["active_package_id"] = active_package_id
+        result["tool_release"] = str(tool_release)
         result["profile"] = args.profile
         result["native_source_fingerprint"] = hex_value(compiled, "SOURCE_FINGERPRINT", 64)
         result["native_reconstruction_fingerprint"] = hex_value(
-            compiled, "RECONSTRUCTION_FINGERPRINT", 64)
+            compiled, "RECONSTRUCTION_FINGERPRINT", 64
+        )
         if args.pretty:
             sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
         else:
