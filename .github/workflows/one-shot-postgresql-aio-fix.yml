@@ -1,0 +1,70 @@
+name: one-shot-postgresql-aio-fix
+
+on:
+  push:
+    branches:
+      - product/installed-cognition-surface
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Repair PostgreSQL runtime AIO method'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: product/installed-cognition-surface
+          fetch-depth: 0
+      - name: Replace unstable product io_uring runtime with worker AIO
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          cluster = Path('tools/postgresql/cluster_core.py')
+          text = cluster.read_text(encoding='utf-8')
+          old = '        "io_method": "io_uring",\n'
+          new = '        "io_method": "worker",\n'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one product io_method selection, found {text.count(old)}')
+          cluster.write_text(text.replace(old, new), encoding='utf-8')
+
+          workflow = Path('.github/workflows/package-product.yml')
+          text = workflow.read_text(encoding='utf-8')
+          old = '          pg_isready="$physical_release/pgsql-18/bin/pg_isready"\n'
+          new = old + '          postgres="$physical_release/pgsql-18/bin/postgres"\n'
+          if text.count(old) != 1:
+              raise SystemExit('package proof pg_isready declaration drifted')
+          text = text.replace(old, new)
+
+          old = '          test -x "$pg_isready"\n'
+          new = old + '          test -x "$postgres"\n'
+          if text.count(old) != 1:
+              raise SystemExit('package proof pg_isready executable gate drifted')
+          text = text.replace(old, new)
+
+          old = '                -o "-c config_file=$config_file" \\\n'
+          new = '                -o "-c config_file=$config_file -c io_method=worker" \\\n'
+          if text.count(old) != 1:
+              raise SystemExit('package proof PostgreSQL start command drifted')
+          text = text.replace(old, new)
+
+          marker = '''          if [[ "$ready" != 1 ]]; then\n            "$pg_ctl" -D "$data_directory" status || true\n            echo 'branch-built PostgreSQL package did not make the persistent substrate ready' >&2\n            exit 1\n          fi\n\n'''
+          assertion = marker + '''          # PostgreSQL 18 io_uring has produced ECANCELED relation reads on this\n          # runner. The product runtime uses the upstream default worker AIO path;\n          # prove the branch-built server was actually started with that override.\n          test "$("$postgres" -D "$data_directory" -c "config_file=$config_file" -c io_method=worker -C io_method)" = worker\n          postmaster_pid=$(head -n 1 "$data_directory/postmaster.pid")\n          test -r "/proc/$postmaster_pid/cmdline"\n          tr '\\0' '\\n' < "/proc/$postmaster_pid/cmdline" | grep -Fx 'io_method=worker' >/dev/null\n\n'''
+          if text.count(marker) != 1:
+              raise SystemExit('package proof readiness boundary drifted')
+          workflow.write_text(text.replace(marker, assertion), encoding='utf-8')
+          PY
+
+          grep -F '"io_method": "worker"' tools/postgresql/cluster_core.py
+          grep -F -- '-c io_method=worker' .github/workflows/package-product.yml
+          python3 -m py_compile tools/postgresql/cluster_core.py
+
+          git config user.name 'laplace-ci'
+          git config user.email 'laplace-ci@users.noreply.github.com'
+          git add tools/postgresql/cluster_core.py .github/workflows/package-product.yml
+          git commit -m 'Repair PostgreSQL runtime AIO method'
+          git push origin HEAD:product/installed-cognition-surface
