@@ -53,7 +53,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          proof="$RECEIPT_ROOT/product-cognition/$PACKAGE_ID/installed-multiturn-proof.json"
+          proof="$RECEIPT_ROOT/cluster-activation/$PACKAGE_ID/installed-multiturn-cognition-proof.json"
           python3 tools/delivery/product_cognition_multiturn_live_proof.py --output "$proof"
           jq -e --arg package_id "$PACKAGE_ID" '
             .schema == "laplace.installed-product-cognition-multiturn-proof/v1" and
