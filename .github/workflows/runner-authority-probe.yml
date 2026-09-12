@@ -1,0 +1,48 @@
+name: runner-authority-probe
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    if: github.head_ref == 'repair/runner-authority-path-probe-20260911'
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Probe runner view of host prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "runner_user=$(id -un) uid=$(id -u) gid=$(id -g)"
+          python3 tools/delivery/host_prerequisite_probe.py \
+            /opt/laplace/receipts/bootstrap/host.json | tee "$RUNNER_TEMP/bootstrap-probe.json"
+          for path in \
+            /opt \
+            /opt/laplace \
+            /opt/laplace/receipts \
+            /opt/laplace/receipts/bootstrap \
+            /opt/laplace/receipts/bootstrap/host.json \
+            /build/laplace/runner \
+            /opt/laplace/runtime \
+            /opt/laplace/pgdata/refactor \
+            /var/lib/pgwal \
+            /pgtemp \
+            /var/log/laplace/postgresql \
+            /etc/laplace/instances; do
+            echo "=== $path ==="
+            python3 tools/delivery/host_prerequisite_probe.py "$path"
+          done
+          {
+            echo '## Runner authority host-path probe'
+            echo '```json'
+            cat "$RUNNER_TEMP/bootstrap-probe.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
