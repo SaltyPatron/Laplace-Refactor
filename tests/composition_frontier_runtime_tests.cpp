@@ -167,6 +167,60 @@ std::uint64_t CompletedChunks(
     return result;
 }
 
+laplace_execution_status ReversePrepare(
+    void*,
+    const laplace_execution_grant*,
+    const laplace_execution_work_plan*) {
+    return LAPLACE_EXECUTION_OK;
+}
+
+laplace_execution_status ReverseRun(
+    void*,
+    const laplace_execution_work_plan*,
+    const laplace_execution_chunk* chunks,
+    const std::size_t chunk_count,
+    void* task_state,
+    const laplace_execution_work_task_fn task,
+    laplace_execution_chunk_result* results) {
+    if (chunks == nullptr || task == nullptr || results == nullptr) {
+        return LAPLACE_EXECUTION_INVALID_ARGUMENT;
+    }
+    for (std::size_t remaining = chunk_count; remaining != 0U; --remaining) {
+        const std::size_t index = remaining - 1U;
+        const auto status = task(
+            task_state,
+            &chunks[index],
+            &results[index].result_fingerprint);
+        if (status != LAPLACE_EXECUTION_OK) {
+            results[index].state = LAPLACE_EXECUTION_CHUNK_FAILED;
+            results[index].task_status = static_cast<std::uint32_t>(status);
+            return status;
+        }
+        results[index].state = LAPLACE_EXECUTION_CHUNK_COMPLETE;
+        results[index].task_status = LAPLACE_EXECUTION_OK;
+    }
+    return LAPLACE_EXECUTION_OK;
+}
+
+laplace_execution_status ReverseFinish(void*) {
+    return LAPLACE_EXECUTION_OK;
+}
+
+void ReverseAbort(void*) {}
+
+laplace_execution_runtime_provider_v1 ReverseProvider() {
+    laplace_execution_runtime_provider_v1 provider{};
+    Fill(provider.provider_fingerprint, 0xD1U);
+    provider.prepare = ReversePrepare;
+    provider.run = ReverseRun;
+    provider.finish = ReverseFinish;
+    provider.abort = ReverseAbort;
+    provider.abi_major = LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MAJOR;
+    provider.abi_minor = LAPLACE_EXECUTION_RUNTIME_PROVIDER_ABI_MINOR;
+    provider.flags = LAPLACE_EXECUTION_KNOWN_PROVIDER_FLAGS;
+    return provider;
+}
+
 }  // namespace
 
 TEST(
@@ -266,6 +320,39 @@ TEST(
         serial_provider.provider_fingerprint));
     EXPECT_EQ(explicit_serial.receipts[0].completed_items, RequestCount);
     EXPECT_EQ(explicit_serial.summary.semantic_calculation_count, RequestCount);
+}
+
+TEST(
+    CompositionFrontierRuntime,
+    ReversedPhysicalChunkCompletionPreservesCanonicalSemanticOutput) {
+    const auto reverse_provider = ReverseProvider();
+    const auto automatic = Scenario(false, 4U);
+    const auto reversed = Scenario(false, 4U, &reverse_provider);
+
+    ASSERT_EQ(automatic.preflight.frontier_count, 1U);
+    ASSERT_GT(automatic.preflight.total_planned_chunks, 1U);
+    ASSERT_EQ(automatic.results.size(), RequestCount);
+    ASSERT_EQ(reversed.results.size(), RequestCount);
+    ASSERT_EQ(reversed.receipts.size(), 1U);
+
+    EXPECT_TRUE(SameDigest(
+        automatic.summary.receipt_id,
+        reversed.summary.receipt_id));
+    EXPECT_TRUE(SameDigest(
+        automatic.summary.stream_fingerprint,
+        reversed.summary.stream_fingerprint));
+    EXPECT_EQ(
+        std::memcmp(
+            automatic.results.data(),
+            reversed.results.data(),
+            automatic.results.size() * sizeof(laplace_composition_result)),
+        0);
+    EXPECT_TRUE(SameDigest(
+        reversed.receipts[0].provider_fingerprint,
+        reverse_provider.provider_fingerprint));
+    EXPECT_EQ(reversed.receipts[0].completed_chunks, reversed.receipts[0].plan.chunk_count);
+    EXPECT_EQ(reversed.receipts[0].completed_items, RequestCount);
+    EXPECT_EQ(reversed.summary.semantic_calculation_count, RequestCount);
 }
 
 TEST(
