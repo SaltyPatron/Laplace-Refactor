@@ -180,6 +180,12 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/../tests/openai_chat_compat_tests.py")
     set_tests_properties(product.openai-chat-history PROPERTIES
         LABELS "product;openai;chat;conversation;compatibility")
+    add_test(
+        NAME product.gateway-contract
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/product_gateway_contract_tests.py")
+    set_tests_properties(product.gateway-contract PROPERTIES
+        LABELS "product;gateway;chat;source-admission;package;mutation")
 endif()
 
 add_executable(laplace_unicode_artifact_verify unicode_artifact_verify.cpp)
