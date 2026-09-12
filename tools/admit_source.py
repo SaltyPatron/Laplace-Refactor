@@ -191,17 +191,27 @@ def hex_value(values: dict[str, str], name: str, width: int | None = None) -> st
     return value
 
 
-def context_sql(identities: dict[str, Any]) -> str:
-    epochs = [
-        identities["source_epoch"], identities["identity_epoch"], identities["geometry_epoch"],
-        identities["evidence_epoch"], identities["firmware_epoch"],
-        identities["dependency_epoch"], identities["database_epoch"],
-        identities["perfcache_epoch"], identities["numeric_epoch"], identities["package_epoch"],
+def context_sql(
+    identities: dict[str, Any],
+    geometry_epoch: str,
+    perfcache_epoch: str,
+    numeric_epoch: str,
+) -> str:
+    epoch_values = [
+        ("source_epoch", identities["source_epoch"]),
+        ("identity_epoch", identities["identity_epoch"]),
+        ("geometry_epoch", geometry_epoch),
+        ("evidence_epoch", identities["evidence_epoch"]),
+        ("firmware_epoch", identities["firmware_epoch"]),
+        ("dependency_epoch", identities["dependency_epoch"]),
+        ("database_epoch", identities["database_epoch"]),
+        ("perfcache_epoch", perfcache_epoch),
+        ("numeric_epoch", numeric_epoch),
+        ("package_epoch", identities["package_epoch"]),
     ]
+    epochs = [bytea(require_hex(value, name)) for name, value in epoch_values]
     return (
-        "ROW(ARRAY["
-        + ",".join(bytea(require_hex(v, "execution epoch")) for v in epochs)
-        + "]::bytea[],"
+        "ROW(ARRAY[" + ",".join(epochs) + "]::bytea[],"
         + bytea(require_hex(identities["authority_fingerprint"], "authority"))
         + ",8589934592::bigint,6,2,1023::bigint,1::smallint,6::smallint,1)"
         "::laplace.execution_context"
@@ -304,7 +314,13 @@ def mapping_rules_sql(values: dict[str, str]) -> str:
     return "ARRAY[" + ",".join(rows) + "]::laplace.tabular_mapping_rule[]"
 
 
-def render_sql(values: dict[str, str], identities: dict[str, Any], source_root: Path) -> str:
+def render_sql(
+    values: dict[str, str],
+    identities: dict[str, Any],
+    source_root: Path,
+    perfcache_epoch: str,
+    numeric_epoch: str,
+) -> str:
     artifacts = number(values, "ARTIFACT_COUNT")
     if artifacts < 1 or artifacts > 1024:
         raise AdmissionError("native source profile returned an invalid artifact count")
@@ -318,7 +334,7 @@ def render_sql(values: dict[str, str], identities: dict[str, Any], source_root: 
 SET LOCAL statement_timeout = '15min';
 WITH admitted AS MATERIALIZED (
   SELECT (laplace.source_admit_tabular(
-    {context_sql(identities)},
+    {context_sql(identities, geometry_epoch, perfcache_epoch, numeric_epoch)},
     {profile_sql(values)},
     {bytea(geometry_epoch)},
     {bytea(occurrence)},
@@ -436,6 +452,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         tool_release = selected_tool_release(args.tool_root, active_release)
         identities = load_activation_state(args.receipt_root, active_package_id)
         command = psql_command(tool_release, args)
+
         geometry_epoch = require_hex(
             run_scalar(
                 command,
@@ -446,6 +463,33 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
             "live Unicode geometry epoch",
         )
+        perfcache_epoch = require_hex(
+            run_scalar(
+                command,
+                "SELECT pg_catalog.encode(epoch_fingerprint,'hex') "
+                "FROM laplace.perfcache_active_control "
+                "WHERE singleton AND active_present;\n",
+                "live Unicode perfcache epoch read",
+            ),
+            "live Unicode perfcache epoch",
+        )
+        numeric_epoch = require_hex(
+            run_scalar(
+                command,
+                "SELECT pg_catalog.encode(activation_epoch_fingerprint,'hex') "
+                "FROM laplace.highway_registry_active_control "
+                "WHERE singleton AND active_present;\n",
+                "live Highway epoch read",
+            ),
+            "live Highway epoch",
+        )
+        if geometry_epoch != identities["geometry_epoch"]:
+            raise AdmissionError("live Unicode geometry epoch differs from active product receipt")
+        if perfcache_epoch != identities["perfcache_epoch"]:
+            raise AdmissionError("live Unicode perfcache epoch differs from active product receipt")
+        if numeric_epoch != identities["numeric_epoch"]:
+            raise AdmissionError("live Highway epoch differs from active product receipt")
+
         compiled = compile_profile(
             tool_release / "bin/laplace_source_profile_compile",
             args.profile,
@@ -453,7 +497,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.unicode_root,
             geometry_epoch,
         )
-        sql = render_sql(compiled, identities, args.source_root)
+        sql = render_sql(
+            compiled,
+            identities,
+            args.source_root,
+            perfcache_epoch,
+            numeric_epoch,
+        )
         if args.render_sql:
             sys.stdout.write(sql)
             return 0
@@ -462,6 +512,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         result["tool_release"] = str(tool_release)
         result["profile"] = args.profile
         result["geometry_epoch"] = geometry_epoch
+        result["perfcache_epoch"] = perfcache_epoch
+        result["numeric_epoch"] = numeric_epoch
         result["native_source_fingerprint"] = hex_value(compiled, "SOURCE_FINGERPRINT", 64)
         result["native_reconstruction_fingerprint"] = hex_value(
             compiled, "RECONSTRUCTION_FINGERPRINT", 64
