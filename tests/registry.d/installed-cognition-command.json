@@ -1,0 +1,20 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "product.installed-cognition-command",
+      "profiles": ["source", "product"],
+      "evidence_targets": [
+        "LP-TEST-ISA-COVERAGE",
+        "LP-TEST-PERSONALITY-FIRMWARE-SAME-WORLD",
+        "LP-TEST-APPLICATION-UNIVERSAL-PRIMITIVES"
+      ],
+      "covered_dimensions": [
+        "the immutable product package and PostgreSQL cluster contract require an installed laplace-cognition command and its native firmware compiler",
+        "the command binds exact UTF-8 prompt bytes into the installed cognition_firmware_execute_product operation without exposing a generic SQL or ISA shell",
+        "the command uses bounded native search forward materialization and output limits and carries program output checkpoint and execution receipts",
+        "firmware identity drift checkpoint predecessor drift and activation-identity drift fail closed instead of being silently accepted"
+      ]
+    }
+  ]
+}
