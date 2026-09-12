@@ -12,6 +12,7 @@ from urllib import error, request
 
 BASE = "http://127.0.0.1:55434"
 HEX256 = re.compile(r"^[0-9a-f]{64}$")
+HEX128 = re.compile(r"^[0-9a-f]{32}$")
 MAXIMUM_RESPONSE_BYTES = 24 * 1024 * 1024
 
 
@@ -55,18 +56,13 @@ def json_http(method: str, path: str, payload: Any | None = None, timeout: float
 
 
 def stream_chat(messages: list[dict[str, str]]) -> dict[str, Any]:
-    status, content_type, data = http(
-        "POST",
-        "/v1/chat/completions",
-        {"model": "laplace-native", "messages": messages, "stream": True},
-    )
+    status, content_type, data = http("POST", "/v1/chat/completions", {"model": "laplace-native", "messages": messages, "stream": True})
     if status != 200 or "text/event-stream" not in content_type:
         raise RuntimeError(f"streaming Chat Completions returned status/content-type {status} {content_type!r}")
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise RuntimeError("streaming Chat Completions returned non-UTF-8 SSE") from exc
-
     chunks: list[dict[str, Any]] = []
     done = False
     for line in text.splitlines():
@@ -83,10 +79,8 @@ def stream_chat(messages: list[dict[str, str]]) -> dict[str, Any]:
         if not isinstance(value, dict) or value.get("object") != "chat.completion.chunk":
             raise RuntimeError(f"streaming Chat Completions returned invalid chunk: {value!r}")
         chunks.append(value)
-
     if not done or len(chunks) < 2:
         raise RuntimeError("streaming Chat Completions did not terminate with chunk sequence plus [DONE]")
-
     pieces: list[str] = []
     finished = False
     for chunk in chunks:
@@ -114,12 +108,55 @@ def stream_chat(messages: list[dict[str, str]]) -> dict[str, Any]:
 def require_native_success(value: dict[str, Any], label: str) -> None:
     if value.get("status") != 0:
         raise RuntimeError(f"{label} returned native status {value.get('status')}: {value}")
-    output = value.get("output_utf8")
-    if not isinstance(output, str):
+    if not isinstance(value.get("output_utf8"), str):
         raise RuntimeError(f"{label} returned no UTF-8 cognition output")
     checkpoint = value.get("next_checkpoint_fingerprint")
     if not isinstance(checkpoint, str) or HEX256.fullmatch(checkpoint) is None:
         raise RuntimeError(f"{label} returned invalid checkpoint fingerprint")
+
+
+def prove_explore() -> dict[str, Any]:
+    summary = json_http("GET", "/api/v1/summary", timeout=30.0)
+    if summary.get("schema") != "laplace.inspect.summary/v2":
+        raise RuntimeError(f"Explore summary is not the v2 world summary: {summary.get('schema')}")
+    counts = summary.get("counts")
+    if not isinstance(counts, dict):
+        raise RuntimeError("Explore summary returned no counts")
+    for field in ("entities", "physicalities", "attestations", "consensus", "evidence_nodes", "standing_states", "standing_arenas", "source_profiles"):
+        if not isinstance(counts.get(field), int):
+            raise RuntimeError(f"Explore summary lacks integer count {field}")
+
+    facets: dict[str, str] = {}
+    for path, schema in (
+        ("/api/v1/entities?limit=25", "laplace.inspect.entities/v1"),
+        ("/api/v1/consensus?limit=25", "laplace.inspect.consensus/v1"),
+        ("/api/v1/standings?limit=25", "laplace.inspect.standings/v1"),
+        ("/api/v1/evidence?limit=25", "laplace.inspect.evidence/v1"),
+        ("/api/v1/sources?limit=25", "laplace.inspect.source-profiles/v1"),
+        ("/api/v1/physicalities?limit=25", "laplace.inspect.physicalities/v1"),
+        ("/api/v1/attestations?limit=25", "laplace.inspect.attestations/v1"),
+    ):
+        value = json_http("GET", path, timeout=60.0)
+        if value.get("schema") != schema or not isinstance(value.get("rows"), list):
+            raise RuntimeError(f"Explore facet {path} returned invalid schema/rows: {value}")
+        facets[path.split("?", 1)[0]] = schema
+
+    entities = json_http("GET", "/api/v1/entities?limit=1", timeout=30.0)
+    entity_proof: dict[str, Any] = {"present": False}
+    entity_rows = entities.get("rows")
+    if isinstance(entity_rows, list) and entity_rows:
+        entity_id = entity_rows[0].get("entity_id") if isinstance(entity_rows[0], dict) else None
+        if not isinstance(entity_id, str) or HEX128.fullmatch(entity_id) is None:
+            raise RuntimeError("Explore entity list returned invalid entity id")
+        detail = json_http("GET", f"/api/v1/entities/{entity_id}", timeout=30.0)
+        if detail.get("schema") != "laplace.inspect.entity/v2":
+            raise RuntimeError(f"Explore entity detail is not v2: {detail.get('schema')}")
+        for facet in ("physicalities", "attestations", "consensus", "evidence"):
+            if not isinstance(detail.get(facet), list):
+                raise RuntimeError(f"Explore entity detail lacks facet {facet}")
+        entity_proof = {"present": True, "entity_id": entity_id, "schema": detail.get("schema")}
+
+    return {"summary_schema": summary.get("schema"), "counts": counts, "facets": facets, "entity": entity_proof}
 
 
 def prove_source_ingestion(package_id: str) -> dict[str, Any]:
@@ -128,14 +165,11 @@ def prove_source_ingestion(package_id: str) -> dict[str, Any]:
     if catalog.get("schema") != "laplace.product.source-catalog/v1":
         raise RuntimeError(f"source catalog schema is invalid: {catalog.get('schema')}")
     rows = catalog.get("rows")
-    selected = None
-    if isinstance(rows, list):
-        selected = next((row for row in rows if isinstance(row, dict) and row.get("source_id") == source_id), None)
+    selected = next((row for row in rows if isinstance(row, dict) and row.get("source_id") == source_id), None) if isinstance(rows, list) else None
     if not isinstance(selected, dict):
         raise RuntimeError(f"configured source catalog does not contain {source_id}")
     if selected.get("profile_available") is not True or selected.get("preflight_available") is not True:
         raise RuntimeError(f"configured source is not preflight-ready: {selected}")
-
     plan = json_http("POST", "/api/v1/sources/preflight", {"source_id": source_id}, timeout=120.0)
     if plan.get("schema") != "laplace.product.source-ingestion-plan/v1" or plan.get("source_id") != source_id:
         raise RuntimeError(f"source preflight contract is invalid: {plan}")
@@ -145,12 +179,7 @@ def prove_source_ingestion(package_id: str) -> dict[str, Any]:
     resolution = plan.get("physical_resolution")
     if not isinstance(resolution, dict) or resolution.get("exact") is not True:
         raise RuntimeError("source preflight did not bind an exact physical artifact graph")
-
-    submission = {
-        "source_id": source_id,
-        "plan_id": plan_id,
-        "idempotency_key": f"installed-proof-{package_id[:24]}",
-    }
+    submission = {"source_id": source_id, "plan_id": plan_id, "idempotency_key": f"installed-proof-{package_id[:24]}"}
     first = json_http_expected("POST", "/api/v1/sources/admit", 202, submission, timeout=120.0)
     second = json_http_expected("POST", "/api/v1/sources/admit", 202, submission, timeout=120.0)
     job_id = first.get("job_id")
@@ -158,50 +187,39 @@ def prove_source_ingestion(package_id: str) -> dict[str, Any]:
         raise RuntimeError(f"source admission returned invalid job id: {job_id!r}")
     if second.get("job_id") != job_id:
         raise RuntimeError("idempotent source admission retry created a second effective job")
-
     deadline = time.monotonic() + 900.0
     job = first
     while time.monotonic() < deadline:
         job = json_http("GET", f"/api/v1/source-jobs/{job_id}", timeout=30.0)
-        state = job.get("state")
-        if state in {"succeeded", "failed", "cancelled"}:
+        if job.get("state") in {"succeeded", "failed", "cancelled"}:
             break
         time.sleep(2.0)
     if job.get("state") != "succeeded":
         raise RuntimeError(f"durable source ingestion did not succeed: {job}")
-    result = job.get("result")
-    readback = job.get("readback")
-    result_sha = job.get("result_sha256")
+    result, readback, result_sha = job.get("result"), job.get("readback"), job.get("result_sha256")
     if not isinstance(result, dict) or result.get("schema") != "laplace.admit-source/v1" or result.get("profile") != source_id:
         raise RuntimeError("durable source job did not retain the admission result")
     if not isinstance(readback, dict) or readback.get("schema") != "laplace.inspect.source-profiles/v1":
         raise RuntimeError("durable source job did not retain source-profile readback")
     if not isinstance(result_sha, str) or HEX256.fullmatch(result_sha) is None:
         raise RuntimeError("durable source job did not retain a result identity")
-    return {
-        "catalog_boundary_sha256": catalog.get("boundary_sha256"),
-        "source_id": source_id,
-        "plan_id": plan_id,
-        "job_id": job_id,
-        "idempotent_retry_same_job": True,
-        "state": job.get("state"),
-        "result_sha256": result_sha,
-        "admission_schema": result.get("schema"),
-        "readback_schema": readback.get("schema"),
-        "entity_count": result.get("entity_count"),
-        "physicality_count": result.get("physicality_count"),
-        "attestation_count": result.get("attestation_count"),
-    }
+    return {"catalog_boundary_sha256": catalog.get("boundary_sha256"), "source_id": source_id, "plan_id": plan_id, "job_id": job_id, "idempotent_retry_same_job": True, "state": job.get("state"), "result_sha256": result_sha, "admission_schema": result.get("schema"), "readback_schema": readback.get("schema"), "entity_count": result.get("entity_count"), "physicality_count": result.get("physicality_count"), "attestation_count": result.get("attestation_count")}
 
 
 def prove(output: Path, package_id: str) -> None:
     status, content_type, index = http("GET", "/", timeout=10.0)
     if status != 200 or "text/html" not in content_type or b"Laplace" not in index:
         raise RuntimeError("installed browser root did not return the Laplace application")
+    for marker in (b'data-workspace="explore"', b'data-workspace="chat"', b'data-workspace="operator"', b'data-facet="consensus"', b'data-facet="standings"', b'data-facet="evidence"'):
+        if marker not in index:
+            raise RuntimeError(f"installed browser index lacks product marker {marker!r}")
+    if b'data-workspace="graph"' in index or b'data-workspace="sources"' in index or b'data-workspace="sql"' in index:
+        raise RuntimeError("installed browser still exposes implementation workspaces as primary navigation")
+
     status, content_type, app = http("GET", "/app.js", timeout=10.0)
     if status != 200 or "javascript" not in content_type:
         raise RuntimeError("installed browser JavaScript is unavailable")
-    for marker in (b"/api/v1/cognition", b"/api/v1/source-catalog", b"/api/v1/sources/preflight", b"/api/v1/sources/admit", b"/api/v1/source-jobs/", b"/api/v1/sql"):
+    for marker in (b"/api/v1/cognition", b"/api/v1/consensus", b"/api/v1/evidence", b"/api/v1/standings", b"/api/v1/source-catalog", b"/api/v1/sources/preflight", b"/api/v1/sources/admit", b"/api/v1/source-jobs/", b"/api/v1/sql"):
         if marker not in app:
             raise RuntimeError(f"installed browser application lacks required route marker {marker!r}")
 
@@ -210,17 +228,19 @@ def prove(output: Path, package_id: str) -> None:
         raise RuntimeError(f"gateway health is not ready: {health}")
 
     descriptors = json_http("GET", "/api/v1/descriptors", timeout=10.0)
-    expected_workspaces = {"graph", "sources", "cognition", "sql", "events", "admin"}
     if descriptors.get("schema") != "laplace.product.descriptors/v1":
         raise RuntimeError("gateway descriptors schema is invalid")
-    if set(descriptors.get("workspaces") or []) != expected_workspaces:
-        raise RuntimeError(f"gateway workspaces differ from product contract: {descriptors.get('workspaces')}")
     transports = descriptors.get("transports")
     if not isinstance(transports, dict) or transports.get("mcp") != "/mcp" or transports.get("openai") != "/v1":
         raise RuntimeError("gateway descriptors do not expose MCP and OpenAI transports")
+    explore_descriptor = descriptors.get("explore")
+    if not isinstance(explore_descriptor, dict) or explore_descriptor.get("schema") != "laplace.product.explore/v1":
+        raise RuntimeError("gateway descriptors do not expose the Explore information-world contract")
     source_descriptor = descriptors.get("source_ingestion")
     if not isinstance(source_descriptor, dict) or source_descriptor.get("caller_supplied_server_path") is not False or source_descriptor.get("idempotent_durable_jobs") is not True:
         raise RuntimeError("gateway descriptors do not expose the selected durable source-ingestion boundary")
+
+    explore = prove_explore()
 
     session = f"proof-{package_id[:24]}"
     first = json_http("POST", "/api/v1/cognition", {"prompt": "AA", "session": session})
@@ -251,12 +271,7 @@ def prove(output: Path, package_id: str) -> None:
         raise RuntimeError("OpenAI-compatible chat returned no assistant text")
     streamed = stream_chat(chat_messages)
 
-    initialized = json_http(
-        "POST",
-        "/mcp",
-        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}},
-        timeout=10.0,
-    )
+    initialized = json_http("POST", "/mcp", {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}}, timeout=10.0)
     if initialized.get("jsonrpc") != "2.0" or not isinstance(initialized.get("result"), dict):
         raise RuntimeError("MCP initialize response is invalid")
     tools = json_http("POST", "/mcp", {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}, timeout=10.0)
@@ -265,24 +280,19 @@ def prove(output: Path, package_id: str) -> None:
     required_tools = {"laplace.query", "laplace.cognition", "laplace.source_catalog", "laplace.source_preflight", "laplace.source_admit", "laplace.source_job", "laplace.sql"}
     if not required_tools.issubset(names):
         raise RuntimeError(f"MCP tool surface is incomplete: {sorted(names)}")
-    query = json_http(
-        "POST",
-        "/mcp",
-        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "laplace.query", "arguments": {"collection": "summary"}}},
-        timeout=60.0,
-    )
+    query = json_http("POST", "/mcp", {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "laplace.query", "arguments": {"collection": "summary"}}}, timeout=60.0)
     result = query.get("result")
     structured = result.get("structuredContent") if isinstance(result, dict) else None
-    if not isinstance(structured, dict) or structured.get("schema") != "laplace.inspect.summary/v1":
-        raise RuntimeError("MCP laplace.query did not return live canonical substrate state")
+    if not isinstance(structured, dict) or structured.get("schema") != "laplace.inspect.summary/v2":
+        raise RuntimeError("MCP laplace.query did not return live v2 canonical substrate state")
 
     source_ingestion = prove_source_ingestion(package_id)
-
     proof = {
-        "schema": "laplace.installed-product-gateway-proof/v1",
+        "schema": "laplace.installed-product-gateway-proof/v2",
         "package_id": package_id,
         "timestamp": int(time.time()),
-        "browser": {"index": "ok", "app": "ok"},
+        "browser": {"index": "explore-chat-operator", "app": "ok"},
+        "explore": explore,
         "health": health,
         "descriptors": descriptors,
         "cognition": {
@@ -290,14 +300,7 @@ def prove(output: Path, package_id: str) -> None:
             "turn_0": {"status": first.get("status"), "ordinal": first.get("turn_ordinal"), "checkpoint": first.get("next_checkpoint_fingerprint"), "output_utf8": first.get("output_utf8")},
             "turn_1": {"status": second.get("status"), "ordinal": second.get("turn_ordinal"), "continued": second.get("continued"), "checkpoint": second.get("next_checkpoint_fingerprint"), "output_utf8": second.get("output_utf8")},
         },
-        "openai_chat": {
-            "message_count": len(chat_messages),
-            "roles": [entry["role"] for entry in chat_messages],
-            "object": chat.get("object"),
-            "model": chat.get("model"),
-            "assistant_content": message.get("content") if isinstance(message, dict) else None,
-            "streaming": streamed,
-        },
+        "openai_chat": {"message_count": len(chat_messages), "roles": [entry["role"] for entry in chat_messages], "object": chat.get("object"), "model": chat.get("model"), "assistant_content": message.get("content") if isinstance(message, dict) else None, "streaming": streamed},
         "source_ingestion": source_ingestion,
         "mcp": {"tools": sorted(names), "query_schema": structured.get("schema")},
     }
