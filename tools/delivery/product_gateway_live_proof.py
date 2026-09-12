@@ -50,6 +50,68 @@ def json_http(method: str, path: str, payload: Any | None = None, timeout: float
     return value
 
 
+def stream_chat(messages: list[dict[str, str]]) -> dict[str, Any]:
+    status, content_type, data = http(
+        "POST",
+        "/v1/chat/completions",
+        {"model": "laplace-native", "messages": messages, "stream": True},
+    )
+    if status != 200 or "text/event-stream" not in content_type:
+        raise RuntimeError(f"streaming Chat Completions returned status/content-type {status} {content_type!r}")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("streaming Chat Completions returned non-UTF-8 SSE") from exc
+
+    chunks: list[dict[str, Any]] = []
+    done = False
+    for line in text.splitlines():
+        if not line.startswith("data: "):
+            continue
+        payload = line[6:]
+        if payload == "[DONE]":
+            done = True
+            continue
+        try:
+            value = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"streaming Chat Completions returned invalid SSE JSON: {payload!r}") from exc
+        if not isinstance(value, dict) or value.get("object") != "chat.completion.chunk":
+            raise RuntimeError(f"streaming Chat Completions returned invalid chunk: {value!r}")
+        chunks.append(value)
+
+    if not done or len(chunks) < 2:
+        raise RuntimeError("streaming Chat Completions did not terminate with chunk sequence plus [DONE]")
+
+    pieces: list[str] = []
+    finished = False
+    for chunk in chunks:
+        choices = chunk.get("choices")
+        if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
+            raise RuntimeError("streaming Chat Completions returned invalid choices")
+        choice = choices[0]
+        delta = choice.get("delta")
+        if not isinstance(delta, dict):
+            raise RuntimeError("streaming Chat Completions returned invalid delta")
+        content = delta.get("content")
+        if content is not None:
+            if not isinstance(content, str):
+                raise RuntimeError("streaming Chat Completions returned non-text delta content")
+            pieces.append(content)
+        finished = finished or choice.get("finish_reason") == "stop"
+    assistant_content = "".join(pieces)
+    if not assistant_content:
+        raise RuntimeError("streaming Chat Completions returned no assistant content")
+    if not finished:
+        raise RuntimeError("streaming Chat Completions never emitted finish_reason=stop")
+    return {
+        "chunk_count": len(chunks),
+        "done": done,
+        "finished": finished,
+        "assistant_content": assistant_content,
+    }
+
+
 def require_native_success(value: dict[str, Any], label: str) -> None:
     if value.get("status") != 0:
         raise RuntimeError(f"{label} returned native status {value.get('status')}: {value}")
@@ -111,8 +173,9 @@ def prove(output: Path, package_id: str) -> None:
     if not isinstance(choices, list) or len(choices) != 1:
         raise RuntimeError("OpenAI-compatible chat returned an invalid choice set")
     message = choices[0].get("message") if isinstance(choices[0], dict) else None
-    if not isinstance(message, dict) or message.get("role") != "assistant" or not isinstance(message.get("content"), str):
+    if not isinstance(message, dict) or message.get("role") != "assistant" or not isinstance(message.get("content"), str) or not message.get("content"):
         raise RuntimeError("OpenAI-compatible chat returned no assistant text")
+    streamed = stream_chat(chat_messages)
 
     initialized = json_http(
         "POST",
@@ -168,6 +231,7 @@ def prove(output: Path, package_id: str) -> None:
             "object": chat.get("object"),
             "model": chat.get("model"),
             "assistant_content": message.get("content") if isinstance(message, dict) else None,
+            "streaming": streamed,
         },
         "mcp": {"tools": sorted(names), "query_schema": structured.get("schema")},
     }
