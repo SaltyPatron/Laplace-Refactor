@@ -749,6 +749,9 @@ laplace_digest256 InputFingerprint(
     blake3_hasher hasher{};
     blake3_hasher_init(&hasher);
     HashString(hasher, InputDomain);
+#if defined(LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT)
+    HashU32(hasher, input.context->resource_grant.cpu_slots);
+#endif
     blake3_hasher_update(
         &hasher, context_fingerprint.bytes, sizeof(context_fingerprint.bytes));
     blake3_hasher_update(
