@@ -84,7 +84,7 @@ def bounded_limit(value: int) -> int:
 
 def summary_sql() -> str:
     return """SELECT pg_catalog.json_build_object(
-  'schema','laplace.inspect.summary/v2',
+  'schema','laplace.inspect.summary/v1',
   'database',current_database(),
   'role',current_user,
   'server_version',current_setting('server_version'),
