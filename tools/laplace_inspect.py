@@ -67,7 +67,9 @@ def run_json(command: list[str], sql: str) -> Any:
         raise InspectError(f"database query failed: {detail[-4000:]}")
     rows = [line for line in result.stdout.splitlines() if line.strip()]
     if len(rows) != 1:
-        raise InspectError(f"database query returned {len(rows)} rows; expected one JSON document")
+        raise InspectError(
+            f"database query returned {len(rows)} rows; expected one JSON document"
+        )
     try:
         return json.loads(rows[0])
     except json.JSONDecodeError as error:
@@ -82,7 +84,7 @@ def bounded_limit(value: int) -> int:
 
 def summary_sql() -> str:
     return """SELECT pg_catalog.json_build_object(
-  'schema','laplace.inspect.summary/v1',
+  'schema','laplace.inspect.summary/v2',
   'database',current_database(),
   'role',current_user,
   'server_version',current_setting('server_version'),
@@ -91,6 +93,10 @@ def summary_sql() -> str:
     'entities',(SELECT count(*) FROM laplace.entity),
     'physicalities',(SELECT count(*) FROM laplace.physicality),
     'attestations',(SELECT count(*) FROM laplace.attestation),
+    'consensus',(SELECT count(*) FROM laplace.consensus),
+    'evidence_nodes',(SELECT count(*) FROM laplace.evidence_node),
+    'standing_states',(SELECT count(*) FROM laplace.standing_state_history),
+    'standing_arenas',(SELECT count(DISTINCT arena_scope_id) FROM laplace.standing_state_history),
     'source_profiles',(SELECT count(*) FROM laplace.source_profile),
     'execution_receipts',(SELECT count(*) FROM laplace.execution_receipt)
   ),
@@ -160,6 +166,85 @@ FROM (SELECT attestation_id,entity_id,physicality_id,source_fingerprint,context_
 """
 
 
+def consensus_sql(limit: int) -> str:
+    return f"""SELECT pg_catalog.json_build_object(
+  'schema','laplace.inspect.consensus/v1',
+  'rows',COALESCE(pg_catalog.json_agg(pg_catalog.json_build_object(
+      'consensus_id',pg_catalog.encode(consensus_id,'hex'),
+      'proposition_entity_id',pg_catalog.encode(proposition_entity_id,'hex'),
+      'epoch_id',pg_catalog.encode(epoch_id,'hex'),
+      'evidence_boundary',pg_catalog.encode(evidence_boundary,'hex'),
+      'recipe_fingerprint',pg_catalog.encode(recipe_fingerprint,'hex'),
+      'observation_count',observation_count,
+      'independent_root_count',independent_root_count,
+      'disposition',disposition,
+      'standing',standing) ORDER BY standing DESC,consensus_id),'[]'::json)
+)::text
+FROM (
+  SELECT consensus_id,proposition_entity_id,epoch_id,evidence_boundary,recipe_fingerprint,
+         observation_count,independent_root_count,disposition,standing
+  FROM laplace.consensus
+  ORDER BY standing DESC,consensus_id
+  LIMIT {limit}
+) AS selected;
+"""
+
+
+def evidence_sql(limit: int) -> str:
+    return f"""SELECT pg_catalog.json_build_object(
+  'schema','laplace.inspect.evidence/v1',
+  'rows',COALESCE(pg_catalog.json_agg(pg_catalog.json_build_object(
+      'node_id',pg_catalog.encode(node_id,'hex'),
+      'proposition_id',pg_catalog.encode(proposition_id,'hex'),
+      'occurrence_id',pg_catalog.encode(occurrence_id,'hex'),
+      'source_id',pg_catalog.encode(source_id,'hex'),
+      'context_id',pg_catalog.encode(context_id,'hex'),
+      'source_ordinal',source_ordinal,
+      'epistemic_kind',epistemic_kind,
+      'flags',flags) ORDER BY source_ordinal,node_id),'[]'::json)
+)::text
+FROM (
+  SELECT node_id,proposition_id,occurrence_id,source_id,context_id,
+         source_ordinal,epistemic_kind,flags
+  FROM laplace.evidence_node
+  ORDER BY source_ordinal,node_id
+  LIMIT {limit}
+) AS selected;
+"""
+
+
+def standings_sql(limit: int) -> str:
+    return f"""SELECT pg_catalog.json_build_object(
+  'schema','laplace.inspect.standings/v1',
+  'rows',COALESCE(pg_catalog.json_agg(pg_catalog.json_build_object(
+      'state_id',pg_catalog.encode(state_id,'hex'),
+      'coordinate_id',pg_catalog.encode(coordinate_id,'hex'),
+      'arena_scope_id',pg_catalog.encode(arena_scope_id,'hex'),
+      'prior_state_id',pg_catalog.encode(prior_state_id,'hex'),
+      'epoch_id',pg_catalog.encode(epoch_id,'hex'),
+      'rating_recipe_id',pg_catalog.encode(rating_recipe_id,'hex'),
+      'rating',rating,
+      'rating_deviation',rating_deviation,
+      'volatility',volatility,
+      'eligible_match_count',eligible_match_count,
+      'period_ordinal',period_ordinal,
+      'rating_recipe_version',rating_recipe_version) ORDER BY rating DESC,coordinate_id),'[]'::json)
+)::text
+FROM (
+  SELECT s.state_id,s.coordinate_id,s.arena_scope_id,s.prior_state_id,s.epoch_id,
+         s.rating_recipe_id,s.rating,s.rating_deviation,s.volatility,
+         s.eligible_match_count,s.period_ordinal,s.rating_recipe_version
+  FROM laplace.standing_state_history AS s
+  WHERE NOT EXISTS (
+    SELECT 1 FROM laplace.standing_state_history AS successor
+    WHERE successor.prior_state_id=s.state_id
+  )
+  ORDER BY s.rating DESC,s.coordinate_id
+  LIMIT {limit}
+) AS selected;
+"""
+
+
 def source_profiles_sql(limit: int) -> str:
     return f"""SELECT pg_catalog.json_build_object(
   'schema','laplace.inspect.source-profiles/v1',
@@ -193,7 +278,7 @@ def entity_sql(entity_hex: str) -> str:
     entity_hex = entity_hex.lower()
     return f"""WITH target AS (SELECT decode('{entity_hex}','hex') AS entity_id)
 SELECT pg_catalog.json_build_object(
-  'schema','laplace.inspect.entity/v1',
+  'schema','laplace.inspect.entity/v2',
   'entity',(SELECT pg_catalog.json_build_object(
       'entity_id',pg_catalog.encode(e.entity_id,'hex'),
       'identity_witness',pg_catalog.encode(e.identity_witness,'hex'))
@@ -214,7 +299,24 @@ SELECT pg_catalog.json_build_object(
       'source_ordinal',a.source_ordinal,
       'attestation_kind',a.attestation_kind,
       'flags',a.flags) ORDER BY a.attestation_id),'[]'::json)
-    FROM laplace.attestation AS a,target AS t WHERE a.entity_id=t.entity_id)
+    FROM laplace.attestation AS a,target AS t WHERE a.entity_id=t.entity_id),
+  'consensus',(SELECT COALESCE(pg_catalog.json_agg(pg_catalog.json_build_object(
+      'consensus_id',pg_catalog.encode(c.consensus_id,'hex'),
+      'epoch_id',pg_catalog.encode(c.epoch_id,'hex'),
+      'evidence_boundary',pg_catalog.encode(c.evidence_boundary,'hex'),
+      'observation_count',c.observation_count,
+      'independent_root_count',c.independent_root_count,
+      'disposition',c.disposition,
+      'standing',c.standing) ORDER BY c.standing DESC,c.consensus_id),'[]'::json)
+    FROM laplace.consensus AS c,target AS t WHERE c.proposition_entity_id=t.entity_id),
+  'evidence',(SELECT COALESCE(pg_catalog.json_agg(pg_catalog.json_build_object(
+      'node_id',pg_catalog.encode(n.node_id,'hex'),
+      'occurrence_id',pg_catalog.encode(n.occurrence_id,'hex'),
+      'source_id',pg_catalog.encode(n.source_id,'hex'),
+      'context_id',pg_catalog.encode(n.context_id,'hex'),
+      'source_ordinal',n.source_ordinal,
+      'epistemic_kind',n.epistemic_kind) ORDER BY n.source_ordinal,n.node_id),'[]'::json)
+    FROM laplace.evidence_node AS n,target AS t WHERE n.proposition_id=t.entity_id)
 )::text;
 """
 
@@ -228,6 +330,12 @@ def build_sql(args: argparse.Namespace) -> str:
         return physicalities_sql(bounded_limit(args.limit))
     if args.command == "attestations":
         return attestations_sql(bounded_limit(args.limit))
+    if args.command == "consensus":
+        return consensus_sql(bounded_limit(args.limit))
+    if args.command == "evidence":
+        return evidence_sql(bounded_limit(args.limit))
+    if args.command == "standings":
+        return standings_sql(bounded_limit(args.limit))
     if args.command == "source-profiles":
         return source_profiles_sql(bounded_limit(args.limit))
     if args.command == "entity":
@@ -245,7 +353,15 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--pretty", action="store_true")
     sub = value.add_subparsers(dest="command", required=True)
     sub.add_parser("summary")
-    for name in ("entities", "physicalities", "attestations", "source-profiles"):
+    for name in (
+        "entities",
+        "physicalities",
+        "attestations",
+        "consensus",
+        "evidence",
+        "standings",
+        "source-profiles",
+    ):
         command = sub.add_parser(name)
         command.add_argument("--limit", type=int, default=25)
     entity = sub.add_parser("entity")
