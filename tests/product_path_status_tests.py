@@ -149,8 +149,12 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertIn("        required: true\n", activation)
         self.assertNotIn("  pull_request:\n", activation)
         self.assertNotIn("  push:\n", activation)
+        literal_sha_gate = "test \"$GITHUB_SHA\" = '${{ inputs.expected_sha }}'"
+        diagnostic_sha_gate = (
+            "require_equal \"$GITHUB_SHA\" '${{ inputs.expected_sha }}' repository-sha"
+        )
         self.assertGreaterEqual(
-            activation.count("test \"$GITHUB_SHA\" = '${{ inputs.expected_sha }}'"),
+            activation.count(literal_sha_gate) + activation.count(diagnostic_sha_gate),
             3,
         )
         self.assertIn("Verify the persistent DEV/BAT product directly", activation)
