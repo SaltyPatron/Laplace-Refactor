@@ -188,7 +188,7 @@ def _publish_metadata(
     summary: dict[str, Any],
 ) -> Path:
     destination = retention_root / plan_id
-    destination.mkdir(mode=0o750, exist_ok=True)
+    destination.mkdir(mode=0o2770, exist_ok=True)
     if destination.is_symlink() or not destination.is_dir():
         raise RetentionError(f"execution-retention destination is unsafe: {destination}")
     documents = {
@@ -243,12 +243,12 @@ def reconcile(
     if product_root != stage_root.parent:
         raise RetentionError("product build/stage roots do not share one product root")
     lock_root = product_root / "locks"
-    lock_root.mkdir(mode=0o700, exist_ok=True)
+    lock_root.mkdir(mode=0o2770, exist_ok=True)
     if lock_root.is_symlink() or not lock_root.is_dir():
         raise RetentionError("product plan lock root is unsafe")
     if not receipt_root.is_absolute():
         raise RetentionError("execution-retention root must be absolute")
-    receipt_root.mkdir(parents=True, mode=0o750, exist_ok=True)
+    receipt_root.mkdir(parents=True, mode=0o2770, exist_ok=True)
     if receipt_root.is_symlink() or not receipt_root.is_dir():
         raise RetentionError("execution-retention root is unsafe")
     if receipt_root.parent != product_root:
@@ -288,7 +288,7 @@ def reconcile(
             descriptor = os.open(
                 lock,
                 os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
-                0o600,
+                0o660,
             )
             with os.fdopen(descriptor, "a+b") as stream:
                 try:

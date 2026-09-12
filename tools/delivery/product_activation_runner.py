@@ -358,7 +358,8 @@ def runner_work_directories(
         if path.exists() or path.is_symlink():
             raise RunnerActivationError(f"Unicode activation path already exists: {path}")
     for path in paths:
-        path.mkdir(mode=0o700)
+        path.mkdir(mode=0o2770)
+        path.chmod(0o2770)
         if path.stat().st_uid != os.geteuid() or path.stat().st_gid != os.getegid():
             raise RunnerActivationError(
                 f"Unicode activation path is not owned by {RUNNER_USER}: {path}"

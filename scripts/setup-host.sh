@@ -152,7 +152,9 @@ fi
 "$CHMOD_BIN" 2775 /opt/laplace
 "$CHMOD_BIN" 2775 /opt/laplace/releases
 
-for workspace in /build/laplace/build /build/laplace/work /build/laplace/worktrees /build/laplace/recovery; do
+for workspace in /build/laplace/build /build/laplace/work /build/laplace/worktrees /build/laplace/recovery \
+    /build/laplace/runner/product/build /build/laplace/runner/product/stage /build/laplace/runner/product/locks; do
+    [[ -d "$workspace" && ! -L "$workspace" ]] || continue
     find "$workspace" -xdev ! -type l -exec chgrp "$RUNNER_GROUP" {} +
     find "$workspace" -xdev -type d -exec chmod g+rws {} +
     find "$workspace" -xdev -type f -exec chmod g+rwX {} +

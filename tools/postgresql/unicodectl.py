@@ -992,7 +992,8 @@ def create_work_directories(
         if path.exists() or path.is_symlink():
             raise UnicodeActivationError(f"Unicode activation path already exists: {path}")
     for path in paths:
-        path.mkdir(mode=0o700)
+        path.mkdir(mode=0o2770)
+        path.chmod(0o2770)
         if root == Path("/"):
             user = pwd.getpwnam(cluster_contract["instance"]["os_user"])
             os.chown(path, user.pw_uid, user.pw_gid)
