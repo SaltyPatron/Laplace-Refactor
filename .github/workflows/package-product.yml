@@ -146,7 +146,59 @@ jobs:
             echo '```json'
             cat "$attestations"
             echo '```'
-            echo '### Source-profile rows'
+            echo '### Source-profile rows before admission'
+            echo '```json'
+            cat "$profiles"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Admit real ISO 639 source through branch-built product command
+        shell: bash
+        run: |
+          set -euo pipefail
+          product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
+          physical_release=$(jq -er '.physical_root' "$product_receipt")
+          admit="$physical_release/bin/laplace-admit-source"
+          inspect="$physical_release/bin/laplace-inspect"
+          test -x "$admit"
+          test -x "$physical_release/bin/laplace_source_profile_compile"
+          test -x "$inspect"
+          test -d "$LAPLACE_SOURCE_ESTATE_ROOT/ISO639"
+          test -d "$LAPLACE_SOURCE_ESTATE_ROOT/UCD/Public/UCD/latest"
+
+          admission="$RUNNER_TEMP/laplace-iso639-admission.json"
+          profiles="$RUNNER_TEMP/laplace-source-profiles-after-admission.json"
+          "$admit" \
+            iso-639-3-20260415 \
+            "$LAPLACE_SOURCE_ESTATE_ROOT/ISO639" \
+            --unicode-root "$LAPLACE_SOURCE_ESTATE_ROOT/UCD/Public/UCD/latest" \
+            --tool-root "$physical_release" \
+            --pretty > "$admission"
+          "$inspect" --pretty source-profiles --limit 10 > "$profiles"
+
+          jq -e '
+            .schema == "laplace.admit-source/v1" and
+            .profile == "iso-639-3-20260415" and
+            (.native_source_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.native_reconstruction_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.admission.profile_id | test("^\\\\x[0-9a-f]{64}$")) and
+            (.admission.source_profile_receipt_id | test("^\\\\x[0-9a-f]{64}$")) and
+            .persisted_profile != null and
+            (.entity_count | tonumber) > 0 and
+            (.physicality_count | tonumber) > 0 and
+            (.attestation_count | tonumber) > 0
+          ' "$admission" >/dev/null
+          jq -e '
+            .schema == "laplace.inspect.source-profiles/v1" and
+            (.rows | length) > 0
+          ' "$profiles" >/dev/null
+
+          {
+            echo '## Real ISO 639 admission into persistent Laplace substrate'
+            echo '```json'
+            cat "$admission"
+            echo '```'
+            echo '### Persisted source-profile readback'
             echo '```json'
             cat "$profiles"
             echo '```'
