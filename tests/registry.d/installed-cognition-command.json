@@ -3,7 +3,7 @@
   "tests": [
     {
       "ctest_name": "product.installed-cognition-command",
-      "profiles": ["source", "product"],
+      "profiles": ["core", "custom-stack"],
       "evidence_targets": [
         "LP-TEST-ISA-COVERAGE",
         "LP-TEST-PERSONALITY-FIRMWARE-SAME-WORLD",
