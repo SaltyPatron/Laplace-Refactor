@@ -71,7 +71,7 @@ laplace_cognition_operator_constraint Constraint(
     constraint.plane_id = Digest(static_cast<std::uint8_t>(seed + 20U));
     constraint.law_fingerprint = Digest(static_cast<std::uint8_t>(seed + 40U));
     constraint.units_fingerprint = Digest(static_cast<std::uint8_t>(seed + 60U));
-    constraint.evidence_root_id = Digest(static_cast<std::uint8_t>(seed + 70U));
+    constraint.evidence_root_id = Digest(0U);
     constraint.calculation_receipt_id = Digest(static_cast<std::uint8_t>(seed + 80U));
     constraint.source_field_index = source;
     constraint.target_field_index = target;

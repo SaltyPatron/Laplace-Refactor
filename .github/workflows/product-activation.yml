@@ -48,8 +48,16 @@ jobs:
             .activation_gateway_installed == false
           ' "$bootstrap" >/dev/null
 
+          release_root=/opt/laplace/releases
+          if [[ ! -e "$release_root" && ! -L "$release_root" ]]; then
+            install -d -m 0755 "$release_root"
+          fi
+          test -d "$release_root"
+          test ! -L "$release_root"
+          test "$(stat -c '%U:%G' "$release_root")" = laplace-runner:laplace-runner
+
           test -w /build/laplace/runner
-          test -w /opt/laplace/releases
+          test -w "$release_root"
           test -w /opt/laplace/runtime
           test -w /opt/laplace/pgdata/refactor
           test -w /var/lib/pgwal
@@ -131,7 +139,7 @@ jobs:
           test -d "$physical_release"
 
           receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
-          resource_directory="$receipt_root/plan/$package_id"
+          resource_directory="$receipt_root/cluster-activation/$package_id"
           resource_observation="$resource_directory/resource-observation.json"
           install -d -m 0750 "$resource_directory"
           python3 tools/postgresql/resourcectl.py observe-resources \
@@ -144,12 +152,6 @@ jobs:
           printf 'product_receipt=%s\n' "$product_receipt" >> "$GITHUB_OUTPUT"
           printf 'resource_observation=%s\n' "$resource_observation" >> "$GITHUB_OUTPUT"
           printf 'package_id=%s\n' "$package_id" >> "$GITHUB_OUTPUT"
-          {
-            echo '## Product package selected for persistent DEV/BAT activation'
-            echo '```json'
-            jq '{schema, package_id, manifest, manifest_sha256, physical_root, activation_eligible, build_input_closure_complete}' "$product_receipt"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
 
   activate-product:
     if: github.event_name == 'workflow_dispatch'
@@ -174,7 +176,11 @@ jobs:
           test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
           git diff --quiet
           git diff --cached --quiet
-          test -w /opt/laplace/releases
+          release_root=/opt/laplace/releases
+          test -d "$release_root"
+          test ! -L "$release_root"
+          test "$(stat -c '%U:%G' "$release_root")" = laplace-runner:laplace-runner
+          test -w "$release_root"
           test -w /opt/laplace/runtime
           test -w /opt/laplace/pgdata/refactor
 
@@ -191,12 +197,6 @@ jobs:
             .blocked_count == 0 and
             (.receipt_sha256 | test("^[0-9a-f]{64}$"))
           ' "$recovery" >/dev/null
-          {
-            echo '## Pre-activation candidate recovery'
-            echo '```json'
-            cat "$recovery"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Activate PostgreSQL, Unicode, and Highway as laplace-runner
         shell: bash
@@ -204,7 +204,7 @@ jobs:
           set -euo pipefail
           result="$RUNNER_TEMP/laplace-product-activation-result.json"
           # tools/delivery/product_activation_runner.py remains the canonical orchestrator;
-          # the reconciler selects only the fresh-vs-active PostgreSQL lifecycle provider.
+          # product_activation_reconcile.py selects the physical provider and delegates to it.
           python3 tools/delivery/product_activation_reconcile.py \
             --product-receipt '${{ needs.compose-product.outputs.product_receipt }}' \
             --resource-observation '${{ needs.compose-product.outputs.resource_observation }}' \
@@ -226,12 +226,6 @@ jobs:
             (.result_sha256 | test("^[0-9a-f]{64}$"))
           ' "$result" >/dev/null
           printf 'LAPLACE_PRODUCT_ACTIVATION_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
-          {
-            echo '## Runner-owned product activation result'
-            echo '```json'
-            cat "$result"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify the persistent DEV/BAT product directly
         shell: bash
@@ -268,9 +262,13 @@ jobs:
           pg_ctl="$package_root/pgsql-18/bin/pg_ctl"
           pg_isready="$package_root/pgsql-18/bin/pg_isready"
           psql="$package_root/pgsql-18/bin/psql"
+          cognition="$package_root/bin/laplace-cognition"
+          cognition_service="$package_root/bin/laplace-cognition-service"
           test -x "$pg_ctl"
           test -x "$pg_isready"
           test -x "$psql"
+          test -x "$cognition"
+          test -x "$cognition_service"
           "$pg_ctl" -D "$data_directory" status
           "$pg_isready" \
             --host "$socket_directory" \
@@ -295,19 +293,6 @@ jobs:
           test "$live_database" = laplace_refactor
           test "$live_role" = laplace_app
           [[ "$live_extension" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          {
-            echo '## DEV/BAT persistent post-deploy proof'
-            echo "- repository commit: \`$GITHUB_SHA\`"
-            echo "- package: \`$package_id\`"
-            echo '- recurring execution owner: `laplace-runner`'
-            echo '- lifecycle provider: packaged `pg_ctl`'
-            echo '- recurring root/sudo/systemd dependency: `none`'
-            echo "- live query: \`$live_version | $live_database | $live_role | laplace $live_extension\`"
-            echo '- PostgreSQL process restart: proven'
-            echo '- Unicode activation receipt: readable'
-            echo '- Highway activation receipt: readable'
-            echo '- systemd unit: optional boot integration only'
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Execute installed product cognition proof
         shell: bash
@@ -315,7 +300,7 @@ jobs:
           set -euo pipefail
           package_id='${{ needs.compose-product.outputs.package_id }}'
           receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
-          proof="$receipt_root/product-cognition/$package_id/installed-proof.json"
+          proof="$receipt_root/cluster-activation/$package_id/installed-cognition-proof.json"
           python3 tools/delivery/product_cognition_live_proof.py --output "$proof"
           jq -e \
             --arg package_id "$package_id" '
@@ -329,9 +314,208 @@ jobs:
             (.execution.execution_receipt_id | test("^\\\\x[0-9a-f]{64}$")) and
             (.proof_sha256 | test("^[0-9a-f]{64}$"))
           ' "$proof" >/dev/null
+
+      - name: Converge runner-owned package receipt estate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/receipt_estate_runner_tests.py
+          result="$RUNNER_TEMP/laplace-runner-receipt-estate.json"
+          python3 tools/delivery/receipt_estate_runner.py \
+            --cluster-contract contracts/postgresql-cluster.json \
+            --output "$result"
+          package_id='${{ needs.compose-product.outputs.package_id }}'
+          receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
+          generation="$receipt_root/cluster-activation/$package_id"
+          jq -e '
+            .schema == "laplace.runner-receipt-estate-convergence/v1" and
+            (.migration_count | type) == "number" and
+            (.preserved_unknown_or_conflicting | type) == "array" and
+            (.receipt_sha256 | test("^[0-9a-f]{64}$"))
+          ' "$result" >/dev/null
+          for required in \
+            resource-observation.json \
+            package-installation.json \
+            activation-result.json \
+            indexed-cognition-upgrade.json \
+            public-readback-bindings.json \
+            release-capacity.json \
+            unicode-product-activation.json \
+            highway-product-activation.json \
+            installed-cognition-proof.json; do
+            test -f "$generation/$required"
+            test ! -L "$generation/$required"
+          done
+          test ! -e "$receipt_root/unicode-product-activation.json"
+          test ! -e "$receipt_root/highway-product-activation.json"
+
+      - name: Start and execute the installed Laplace cognition surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_id='${{ needs.compose-product.outputs.package_id }}'
+          service=/opt/laplace/runtime/refactor/bin/laplace-cognition-service
+          client=/opt/laplace/runtime/refactor/bin/laplace-cognition
+          service_socket=/opt/laplace/runtime/laplace-cognition.sock
+          pid_file=/opt/laplace/runtime/laplace-cognition.pid
+          log_file=/var/log/laplace/laplace-cognition.log
+          test -x "$service"
+          test -x "$client"
+          test -d /opt/laplace/runtime
+          test ! -L /opt/laplace/runtime
+          chmod 0711 /opt/laplace/runtime
+          python3 - "$service" "$service_socket" "$pid_file" "$log_file" "$package_id" <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import signal
+          import socket
+          import subprocess
+          import sys
+          import time
+
+          service, socket_name, pid_name, log_name, package_id = sys.argv[1:]
+          service_socket = Path(socket_name)
+          pid_file = Path(pid_name)
+          log_file = Path(log_name)
+          uid = os.geteuid()
+
+          if pid_file.exists():
+              if pid_file.is_symlink() or not pid_file.is_file():
+                  raise SystemExit(f"unsafe cognition pid file: {pid_file}")
+              raw = pid_file.read_text(encoding="ascii").strip()
+              if raw:
+                  old_pid = int(raw)
+                  proc = Path(f"/proc/{old_pid}")
+                  if proc.exists():
+                      status = (proc / "status").read_text(encoding="utf-8")
+                      uid_line = next(line for line in status.splitlines() if line.startswith("Uid:"))
+                      process_uid = int(uid_line.split()[1])
+                      command = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
+                      if process_uid != uid or "laplace-cognition-service" not in command:
+                          raise SystemExit(f"pid file points to a non-Laplace process: {old_pid}")
+                      os.kill(old_pid, signal.SIGTERM)
+                      for _ in range(100):
+                          if not proc.exists():
+                              break
+                          time.sleep(0.05)
+                      if proc.exists():
+                          raise SystemExit(f"previous cognition service did not stop: {old_pid}")
+              pid_file.unlink(missing_ok=True)
+
+          log_file.parent.mkdir(parents=True, exist_ok=True)
+          environment = dict(os.environ)
+          environment.pop("RUNNER_TRACKING_ID", None)
+          with log_file.open("ab", buffering=0) as log:
+              process = subprocess.Popen(
+                  [service, "--socket", str(service_socket)],
+                  stdin=subprocess.DEVNULL,
+                  stdout=log,
+                  stderr=subprocess.STDOUT,
+                  env=environment,
+                  start_new_session=True,
+                  close_fds=True,
+              )
+          temporary = pid_file.with_name(f".{pid_file.name}.{os.getpid()}.tmp")
+          temporary.write_text(f"{process.pid}\n", encoding="ascii")
+          temporary.chmod(0o640)
+          os.replace(temporary, pid_file)
+
+          def health():
+              connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+              connection.settimeout(1)
+              try:
+                  connection.connect(str(service_socket))
+                  connection.sendall(
+                      b"GET /health HTTP/1.1\r\nHost: laplace.local\r\nConnection: close\r\n\r\n"
+                  )
+                  chunks = []
+                  while True:
+                      block = connection.recv(65536)
+                      if not block:
+                          break
+                      chunks.append(block)
+              finally:
+                  connection.close()
+              raw_response = b"".join(chunks)
+              marker = raw_response.find(b"\r\n\r\n")
+              if marker < 0:
+                  raise RuntimeError("malformed health response")
+              status_line = raw_response[:marker].split(b"\r\n", 1)[0]
+              if b" 200 " not in status_line:
+                  raise RuntimeError(status_line.decode("ascii", "replace"))
+              return json.loads(raw_response[marker + 4:])
+
+          last_error = None
+          payload = None
+          for _ in range(100):
+              if process.poll() is not None:
+                  raise SystemExit(f"laplace-cognition-service exited during startup: {process.returncode}")
+              try:
+                  payload = health()
+                  if (
+                      payload.get("status") == "ready"
+                      and payload.get("package_id") == package_id
+                      and payload.get("database") == "laplace_refactor"
+                      and payload.get("unicode_present") is True
+                      and payload.get("highway_present") is True
+                  ):
+                      break
+                  last_error = f"unexpected health payload: {payload}"
+              except Exception as error:
+                  last_error = str(error)
+              time.sleep(0.1)
+          else:
+              raise SystemExit(f"laplace cognition service did not become ready: {last_error}")
+          print(json.dumps({"pid": process.pid, "socket": str(service_socket), "health": payload}, sort_keys=True))
+          PY
+
+          test -S "$service_socket"
+          test "$(stat -c '%a' "$service_socket")" = 666
+
+          observed="$($client --relations constituent 'AA')"
+          test "$observed" = A
+          structured="$($client --relations constituent --json 'AA')"
+          test "$(jq -r '.status' <<<"$structured")" = 0
+          test "$(jq -r '.output_utf8' <<<"$structured")" = A
+          test "$(jq -r '.relations | join(",")' <<<"$structured")" = constituent
+          test "$(jq -r '.execution_route' <<<"$structured")" = explicit-firmware
+
+          state_root="$RUNNER_TEMP/laplace-cognition-state"
+          rm -rf "$state_root"
+          first="$($client --session activation-native --state-root "$state_root" --reset-session --json 'AA')"
+          jq -e '
+            .status == 0 and
+            .mode == "auto" and
+            .execution_route == "native-conversation" and
+            .turn_ordinal == 0 and
+            .continued == false and
+            (.checkpoint_hex | type == "string" and length > 0) and
+            (.next_checkpoint_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.execution.execution_receipt_id | test("^\\\\x[0-9a-f]{64}$"))
+          ' <<<"$first" >/dev/null
+          first_checkpoint=$(jq -er '.next_checkpoint_fingerprint' <<<"$first")
+
+          second="$($client --session activation-native --state-root "$state_root" --json 'AA')"
+          jq -e '
+            .status == 0 and
+            .mode == "auto" and
+            .execution_route == "native-conversation" and
+            .turn_ordinal == 1 and
+            .continued == true and
+            (.checkpoint_hex | type == "string" and length > 0) and
+            (.next_checkpoint_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.execution.execution_receipt_id | test("^\\\\x[0-9a-f]{64}$"))
+          ' <<<"$second" >/dev/null
+          second_checkpoint=$(jq -er '.next_checkpoint_fingerprint' <<<"$second")
+          test "$second_checkpoint" != "$first_checkpoint"
+
           {
-            echo '## Installed product cognition output'
-            echo '```json'
-            jq '{schema,package_id,program:.program.program_id,prompt_utf8,observed_output_utf8,execution:{status:.execution.status,completed_steps:.execution.completed_steps,emitted_parts:.execution.emitted_parts,provider_call_count:.execution.provider_call_count,materialization_resolved_nodes:.execution.materialization_resolved_nodes,materialization_database_operations:.execution.materialization_database_operations,execution_receipt_id:.execution.execution_receipt_id},proof_sha256}' "$proof"
-            echo '```'
+            echo '## Installed usable cognition surface'
+            echo '- command: `/opt/laplace/current/bin/laplace-cognition`'
+            echo '- transport: local Unix socket `/opt/laplace/runtime/laplace-cognition.sock`; no TCP listener'
+            echo '- no database role, sudo, environment variable, receipt path, or SQL is required by the caller'
+            echo '- explicit compatibility: `laplace-cognition --relations constituent AA` returned `A` through installed firmware execution'
+            echo '- default caller: two sequential `laplace-cognition AA` turns executed the native prompt-conversation route'
+            echo '- continuation: turn 1 consumed the durably deposited discourse frame from turn 0 and emitted a distinct successor frame'
           } >> "$GITHUB_STEP_SUMMARY"

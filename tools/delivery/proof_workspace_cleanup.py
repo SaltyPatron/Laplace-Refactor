@@ -28,10 +28,41 @@ from typing import Sequence
 
 
 SAFE_NAME = re.compile(
-    r"^(?:laplace-postgres-test\.[A-Za-z0-9]+|"
-    r"laplace-[a-z0-9][a-z0-9._-]*|lp-pg\.[A-Za-z0-9]+)$"
+    r"^(?:(?:laplace-postgres-(?:test|semantic-cognition|target-attention|"
+    r"observation-cognition|discourse)|laplace-model-export-cli)\.[A-Za-z0-9]+|"
+    r"laplace-[a-z0-9][a-z0-9._-]*|"
+    r"lp-(?:pg|sc-pg|ta-pg|oc-pg|discourse-pg|mx-pg)\.[A-Za-z0-9]+)$"
 )
-SAFE_DISCOVERY_PREFIXES = frozenset(("laplace-postgres-test.", "lp-pg."))
+
+# Exact mktemp namespaces used by the PostgreSQL/native proof scripts. The two
+# historical workflow prefixes remain stable family selectors, but expand only to
+# these enumerated siblings. This closes interrupted-workspace leaks without turning
+# cleanup into a broad `laplace-*` or `lp-*` filesystem sweep.
+RUNNER_WORKSPACE_PREFIXES = frozenset(
+    (
+        "laplace-postgres-test.",
+        "laplace-postgres-semantic-cognition.",
+        "laplace-postgres-target-attention.",
+        "laplace-postgres-observation-cognition.",
+        "laplace-postgres-discourse.",
+        "laplace-model-export-cli.",
+    )
+)
+SOCKET_WORKSPACE_PREFIXES = frozenset(
+    (
+        "lp-pg.",
+        "lp-sc-pg.",
+        "lp-ta-pg.",
+        "lp-oc-pg.",
+        "lp-discourse-pg.",
+        "lp-mx-pg.",
+    )
+)
+SAFE_DISCOVERY_PREFIXES = RUNNER_WORKSPACE_PREFIXES | SOCKET_WORKSPACE_PREFIXES
+DISCOVERY_FAMILIES = {
+    "laplace-postgres-test.": RUNNER_WORKSPACE_PREFIXES,
+    "lp-pg.": SOCKET_WORKSPACE_PREFIXES,
+}
 
 
 class CleanupError(RuntimeError):
@@ -60,12 +91,14 @@ def _target(root: Path, name: str) -> Path:
 
 
 def discover_names(root: Path, prefixes: Sequence[str]) -> list[str]:
-    """Discover only the two exact disposable PostgreSQL workspace namespaces."""
+    """Discover only exact declared disposable PostgreSQL proof namespaces."""
 
     physical_root = _physical_root(root)
+    expanded: set[str] = set()
     for prefix in prefixes:
         if prefix not in SAFE_DISCOVERY_PREFIXES:
             raise CleanupError(f"unsafe disposable workspace discovery prefix: {prefix!r}")
+        expanded.update(DISCOVERY_FAMILIES.get(prefix, (prefix,)))
     try:
         names = [entry.name for entry in os.scandir(physical_root)]
     except OSError as error:
@@ -74,7 +107,7 @@ def discover_names(root: Path, prefixes: Sequence[str]) -> list[str]:
         name
         for name in names
         if SAFE_NAME.fullmatch(name) is not None
-        and any(name.startswith(prefix) for prefix in prefixes)
+        and any(name.startswith(prefix) for prefix in expanded)
     )
 
 

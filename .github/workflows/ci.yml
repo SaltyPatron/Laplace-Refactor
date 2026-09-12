@@ -31,8 +31,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 tests/product_activation_gateway_tests.py
           python3 tests/product_activation_runtime_adapter_tests.py
           python3 tests/product_activation_runner_tests.py
+      - name: Prove receipt and build estate lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/setup-host.sh
+          python3 tests/receipt_estate_tests.py
+          python3 tests/receipt_estate_runner_tests.py
+          python3 tests/product_build_workspace_retention_tests.py
       - name: Prove durable product service and cold-boot contracts
         run: python3 tests/product_service_state_tests.py
       - name: Prove hosted compiler-cache contract

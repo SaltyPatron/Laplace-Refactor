@@ -83,34 +83,98 @@ jobs:
     needs: classify
     uses: ./.github/workflows/ci.yml
 
-  # The three physical proof implementations are independent consumers of the
-  # exact PR head. They each check out and qualify their own surface; serializing
-  # them added wall-clock delay without adding an evidence dependency.
-  custom-stack-proof:
+  publication-recovery:
     needs:
       - classify
       - hosted-proof
     if: >-
+      needs.hosted-proof.result == 'success' &&
+      (needs.classify.outputs.requires_postgresql_product == 'true' ||
+       needs.classify.outputs.requires_package_product == 'true')
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - postgres-18
+      - avx2
+    concurrency:
+      group: laplace-physical-product-proof
+      cancel-in-progress: false
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Recover only the exact authority-selected PostgreSQL publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          git diff --quiet
+          git diff --cached --quiet
+          result="$RUNNER_TEMP/laplace-postgresql-publication-recovery.json"
+          python3 tools/delivery/recover_postgresql_publication.py > "$result"
+          publication=$(jq -er '.receipt' "$result")
+          expected_sha=$(jq -er '.receipt_sha256' "$result")
+          selected=$(jq -er '.postgresql_publication.receipt' state/product-publication-selection.json)
+          selected_sha=$(jq -er '.postgresql_publication.receipt_sha256' state/product-publication-selection.json)
+          test "$publication" = "$selected"
+          test "$expected_sha" = "$selected_sha"
+          test -f "$publication"
+          test ! -L "$publication"
+          test "$(sha256sum "$publication" | awk '{print $1}')" = "$expected_sha"
+          python3 tools/delivery/postgresql_package_publication.py verify \
+            --receipt "$publication" >/dev/null
+
+  # Every selected physical proof shares mutable self-hosted product resources.
+  # Serialize recovery -> custom-stack -> PostgreSQL-product -> package-product so
+  # reusable-workflow concurrency cannot replace an older pending proof.
+  custom-stack-proof:
+    needs:
+      - classify
+      - hosted-proof
+      - publication-recovery
+    if: >-
+      always() &&
       needs.classify.outputs.requires_custom_stack == 'true' &&
-      needs.hosted-proof.result == 'success'
+      needs.hosted-proof.result == 'success' &&
+      (needs.publication-recovery.result == 'success' ||
+       needs.publication-recovery.result == 'skipped')
     uses: ./.github/workflows/custom-stack.yml
 
   postgresql-product-proof:
     needs:
       - classify
       - hosted-proof
+      - publication-recovery
+      - custom-stack-proof
     if: >-
+      always() &&
       needs.classify.outputs.requires_postgresql_product == 'true' &&
-      needs.hosted-proof.result == 'success'
+      needs.hosted-proof.result == 'success' &&
+      needs.publication-recovery.result == 'success' &&
+      (needs.classify.outputs.requires_custom_stack != 'true' ||
+       needs.custom-stack-proof.result == 'success')
     uses: ./.github/workflows/postgresql-product.yml
 
   package-product-proof:
     needs:
       - classify
       - hosted-proof
+      - publication-recovery
+      - custom-stack-proof
+      - postgresql-product-proof
     if: >-
+      always() &&
       needs.classify.outputs.requires_package_product == 'true' &&
-      needs.hosted-proof.result == 'success'
+      needs.hosted-proof.result == 'success' &&
+      needs.publication-recovery.result == 'success' &&
+      (needs.classify.outputs.requires_custom_stack != 'true' ||
+       needs.custom-stack-proof.result == 'success') &&
+      (needs.classify.outputs.requires_postgresql_product != 'true' ||
+       needs.postgresql-product-proof.result == 'success')
     uses: ./.github/workflows/package-product.yml
 
   product-path:
@@ -118,6 +182,7 @@ jobs:
     needs:
       - classify
       - hosted-proof
+      - publication-recovery
       - custom-stack-proof
       - postgresql-product-proof
       - package-product-proof
@@ -129,6 +194,7 @@ jobs:
         env:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           HOSTED_RESULT: ${{ needs.hosted-proof.result }}
+          PUBLICATION_RECOVERY_RESULT: ${{ needs.publication-recovery.result }}
           CUSTOM_RESULT: ${{ needs.custom-stack-proof.result }}
           POSTGRESQL_RESULT: ${{ needs.postgresql-product-proof.result }}
           PACKAGE_RESULT: ${{ needs.package-product-proof.result }}
@@ -142,6 +208,11 @@ jobs:
           set -euo pipefail
           test "$CLASSIFY_RESULT" = success
           test "$HOSTED_RESULT" = success
+          if [[ "$REQUIRES_POSTGRESQL" == true || "$REQUIRES_PACKAGE" == true ]]; then
+            test "$PUBLICATION_RECOVERY_RESULT" = success
+          else
+            test "$PUBLICATION_RECOVERY_RESULT" = skipped
+          fi
           if [[ "$REQUIRES_CUSTOM" == true ]]; then
             test "$CUSTOM_RESULT" = success
           else
@@ -165,6 +236,7 @@ jobs:
             echo '## Product-path gate'
             echo "Required evidence: $REQUIRED_EVIDENCE"
             echo "Hosted proof: $HOSTED_RESULT"
+            echo "Publication recovery: $PUBLICATION_RECOVERY_RESULT"
             echo "Custom-stack proof: $CUSTOM_RESULT"
             echo "PostgreSQL-product proof: $POSTGRESQL_RESULT"
             echo "Package-product proof: $PACKAGE_RESULT"
@@ -240,6 +312,62 @@ jobs:
             echo "Exact accepted main commit: \`$EXPECTED_SHA\`"
             echo 'Conclusion: success'
             echo 'Accepted-main CI is green only after the persistent activation workflow has completed its restart/enablement/live-readback contract.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  dev-bat-live-substrate:
+    needs: dev-bat-deployment
+    if: always() && needs.dev-bat-deployment.result == 'success'
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - postgres-18
+      - avx2
+    concurrency:
+      group: laplace-physical-product-proof
+      cancel-in-progress: false
+    timeout-minutes: 10
+    steps:
+      - name: Prove installed Unicode identities and S3 coordinates through laplace_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test -L /opt/laplace/current
+          command=/opt/laplace/current/bin/laplace-live-substrate
+          test -x "$command"
+          result="$RUNNER_TEMP/laplace-live-substrate.json"
+          "$command" 'Aé中Ω' | tee "$result"
+          package_id=$(basename "$(readlink -f /opt/laplace/current)")
+          jq -e \
+            --arg package_id "$package_id" '
+            .schema == "laplace.live-substrate-unicode/v1" and
+            .package_id == $package_id and
+            .database == "laplace_refactor" and
+            .role == "laplace_app" and
+            (.activation_epoch_id | test("^[0-9a-f]{32}$")) and
+            (.activation_epoch_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.rows | length) == 4 and
+            ([.rows[].codepoint] == [65,233,20013,937]) and
+            ([.rows[].character] == ["A","é","中","Ω"]) and
+            ([.rows[].found] | all(. == true)) and
+            ([.rows[].entity_id] | all(test("^[0-9a-f]{64}$"))) and
+            ([.rows[].physicality_id] | all(test("^[0-9a-f]{64}$"))) and
+            ([.rows[].hilbert_key] | all(test("^[0-9a-f]+$"))) and
+            ([.rows[].s3] | all(length == 4 and all(. != null)))
+          ' "$result" >/dev/null
+          {
+            echo '## Installed live substrate proof'
+            echo '- caller role: `laplace_app`'
+            echo '- database: `laplace_refactor`'
+            echo '- request: `Aé中Ω`'
+            echo '- persisted rows: `4`'
+            echo '- result:'
+            echo '```json'
+            cat "$result"
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Temporary compatibility contexts required by the current branch-protection

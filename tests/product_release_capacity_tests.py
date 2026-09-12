@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Positive and deliberate-defect tests for product release capacity recovery."""
+"""Positive and deliberate-defect tests for product release lifecycle recovery."""
 
 from __future__ import annotations
 
@@ -43,6 +43,8 @@ class ProductReleaseCapacityTests(unittest.TestCase):
         self.proc_root.mkdir()
         self.active = self.root / "opt/laplace/current"
         self.active.parent.mkdir(parents=True, exist_ok=True)
+        self.runtime = self.root / "opt/laplace/runtime/refactor"
+        self.runtime.parent.mkdir(parents=True, exist_ok=True)
         self.successor = "f" * 64
         self.contract = {
             "schema": "laplace.postgresql-cluster-contract/v1",
@@ -107,6 +109,15 @@ class ProductReleaseCapacityTests(unittest.TestCase):
         path.write_text(json.dumps(receipt), encoding="utf-8")
         return evidence
 
+    def make_activated_release(self, digit: str, timestamp: int) -> tuple[str, Path, Path]:
+        package_id = digit * 64
+        release = self.make_release(package_id, f"release-{digit}".encode())
+        evidence = self.write_installation_receipt(package_id, release)
+        complete = evidence / "activation-complete.json"
+        complete.write_text("{}\n", encoding="utf-8")
+        os.utime(complete, (timestamp, timestamp))
+        return package_id, release, evidence
+
     def test_verified_never_activated_release_is_reclaimed_for_successor(self) -> None:
         old_id = "1" * 64
         old = self.make_release(old_id)
@@ -127,6 +138,10 @@ class ProductReleaseCapacityTests(unittest.TestCase):
         self.assertFalse(old.exists())
         self.assertTrue(receipt["capacity_satisfied"])
         self.assertEqual(receipt["removed_releases"][0]["package_id"], old_id)
+        self.assertEqual(
+            receipt["removed_releases"][0]["reason"],
+            "verified-installed-never-activated-release",
+        )
         self.assertEqual(
             receipt["receipt_sha256"],
             CAPACITY.document_identity(receipt, "receipt_sha256"),
@@ -149,22 +164,103 @@ class ProductReleaseCapacityTests(unittest.TestCase):
                 )
         self.assertTrue(active_release.is_dir())
 
-    def test_activated_release_is_never_reclaimed(self) -> None:
-        old_id = "3" * 64
-        old = self.make_release(old_id)
-        evidence = self.write_installation_receipt(old_id, old)
-        (evidence / "activation-complete.json").write_text("{}\n", encoding="utf-8")
-        with mock.patch.object(CAPACITY, "_disk_free", return_value=0):
-            with self.assertRaisesRegex(
-                CAPACITY.CapacityError, "capacity remains insufficient"
-            ):
-                CAPACITY.reconcile_capacity(
-                    self.contract,
-                    self.product_receipt,
-                    self.manifest,
-                    proc_root=self.proc_root,
-                )
-        self.assertTrue(old.is_dir())
+    def test_default_retention_keeps_two_newest_activated_rollback_generations(self) -> None:
+        oldest_id, oldest, _ = self.make_activated_release("1", 100)
+        second_id, second, _ = self.make_activated_release("2", 200)
+        third_id, third, _ = self.make_activated_release("3", 300)
+        newest_id, newest, _ = self.make_activated_release("4", 400)
+
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=10**12), mock.patch.object(
+            CAPACITY, "_disk_free_inodes", return_value=10**6
+        ):
+            receipt = CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+            )
+
+        self.assertFalse(oldest.exists())
+        self.assertFalse(second.exists())
+        self.assertTrue(third.is_dir())
+        self.assertTrue(newest.is_dir())
+        self.assertEqual(receipt["rollback_release_count"], 2)
+        self.assertEqual(
+            {item["package_id"] for item in receipt["removed_releases"]},
+            {oldest_id, second_id},
+        )
+        self.assertTrue(
+            all(
+                item["reason"] == "verified-activated-release-outside-rollback-window"
+                for item in receipt["removed_releases"]
+            )
+        )
+        retained = {
+            item["package_id"]
+            for item in receipt["preserved_releases"]
+            if item["reason"] == "rollback-window-retained"
+        }
+        self.assertEqual(retained, {third_id, newest_id})
+
+    def test_zero_rollback_window_reclaims_activated_payload_but_keeps_receipts(self) -> None:
+        old_id, old, evidence = self.make_activated_release("3", 100)
+        result = evidence / "activation-result.json"
+        result.write_text("{}\n", encoding="utf-8")
+
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=10**12), mock.patch.object(
+            CAPACITY, "_disk_free_inodes", return_value=10**6
+        ):
+            receipt = CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+                rollback_releases=0,
+            )
+
+        self.assertFalse(old.exists())
+        self.assertTrue((evidence / "package-installation.json").is_file())
+        self.assertTrue((evidence / "activation-complete.json").is_file())
+        self.assertTrue(result.is_file())
+        removed = receipt["removed_releases"][0]
+        self.assertEqual(removed["package_id"], old_id)
+        self.assertEqual(
+            removed["reason"], "verified-activated-release-outside-rollback-window"
+        )
+        self.assertEqual(
+            removed["activation_evidence"],
+            ["activation-complete.json", "activation-result.json"],
+        )
+
+    def test_selected_old_activation_is_preserved_outside_rollback_window(self) -> None:
+        active_id, active, _ = self.make_activated_release("1", 100)
+        self.active.symlink_to(Path("releases") / active_id, target_is_directory=True)
+        _second_id, second, _ = self.make_activated_release("2", 200)
+        _third_id, third, _ = self.make_activated_release("3", 300)
+        _newest_id, newest, _ = self.make_activated_release("4", 400)
+
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=10**12), mock.patch.object(
+            CAPACITY, "_disk_free_inodes", return_value=10**6
+        ):
+            receipt = CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+                rollback_releases=1,
+            )
+
+        self.assertTrue(active.is_dir())
+        self.assertFalse(second.exists())
+        self.assertFalse(third.exists())
+        self.assertTrue(newest.is_dir())
+        self.assertTrue(
+            any(
+                item["package_id"] == active_id
+                and item["reason"] == "selected-product-pointer"
+                for item in receipt["preserved_releases"]
+            )
+        )
 
     def test_unknown_release_without_installation_receipt_is_preserved(self) -> None:
         unknown = self.make_release("4" * 64)
@@ -232,6 +328,23 @@ class ProductReleaseCapacityTests(unittest.TestCase):
                 )
         self.assertTrue(old.is_dir())
 
+    def test_live_runner_reference_preserves_activated_release(self) -> None:
+        old_id, old, _ = self.make_activated_release("a", 100)
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=0), mock.patch.object(
+            CAPACITY, "_runner_process_references", return_value=["321:exe"]
+        ):
+            with self.assertRaisesRegex(
+                CAPACITY.CapacityError, "capacity remains insufficient"
+            ):
+                CAPACITY.reconcile_capacity(
+                    self.contract,
+                    self.product_receipt,
+                    self.manifest,
+                    proc_root=self.proc_root,
+                    rollback_releases=0,
+                )
+        self.assertTrue(old.is_dir())
+
     def test_old_unpublished_install_staging_can_be_removed(self) -> None:
         old_id = "7" * 64
         staging = self.release_root / f".{old_id}.install.interrupted"
@@ -285,6 +398,60 @@ class ProductReleaseCapacityTests(unittest.TestCase):
                 proc_root=self.proc_root,
             )
 
+    def test_dangling_current_and_runtime_pair_is_removed_for_fresh_activation(self) -> None:
+        deleted_id = "b" * 64
+        self.active.symlink_to(Path("releases") / deleted_id, target_is_directory=True)
+        self.runtime.symlink_to(
+            Path("../releases") / deleted_id, target_is_directory=True
+        )
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=10**12), mock.patch.object(
+            CAPACITY, "_disk_free_inodes", return_value=10**6
+        ):
+            receipt = CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+            )
+        self.assertFalse(self.active.exists() or self.active.is_symlink())
+        self.assertFalse(self.runtime.exists() or self.runtime.is_symlink())
+        self.assertEqual(
+            receipt["recovered_dangling_pointers"],
+            [
+                {
+                    "package_id": deleted_id,
+                    "reason": "canonical-selected-generation-was-deleted",
+                    "removed_links": [str(self.active), str(self.runtime)],
+                }
+            ],
+        )
+
+    def test_single_dangling_pointer_fails_closed(self) -> None:
+        deleted_id = "c" * 64
+        self.active.symlink_to(Path("releases") / deleted_id, target_is_directory=True)
+        with self.assertRaisesRegex(CAPACITY.CapacityError, "only one product pointer is dangling"):
+            CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+            )
+        self.assertTrue(self.active.is_symlink())
+
+    def test_missing_release_root_is_recreated_under_physical_parent(self) -> None:
+        self.release_root.rmdir()
+        with mock.patch.object(CAPACITY, "_disk_free", return_value=10**12), mock.patch.object(
+            CAPACITY, "_disk_free_inodes", return_value=10**6
+        ):
+            receipt = CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+            )
+        self.assertTrue(self.release_root.is_dir())
+        self.assertTrue(receipt["release_root_created"])
+
     def test_successor_release_symlink_is_rejected(self) -> None:
         outside = self.root / "successor-outside"
         outside.mkdir()
@@ -299,6 +466,16 @@ class ProductReleaseCapacityTests(unittest.TestCase):
             )
         self.assertTrue(successor.is_symlink())
         self.assertTrue(outside.is_dir())
+
+    def test_negative_rollback_window_is_rejected(self) -> None:
+        with self.assertRaisesRegex(CAPACITY.CapacityError, "rollback release count cannot be negative"):
+            CAPACITY.reconcile_capacity(
+                self.contract,
+                self.product_receipt,
+                self.manifest,
+                proc_root=self.proc_root,
+                rollback_releases=-1,
+            )
 
     def test_source_package_bytes_are_measured_from_exact_physical_files(self) -> None:
         self.assertEqual(
