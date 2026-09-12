@@ -124,6 +124,9 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/laplace_inspect.py"
     RENAME laplace-inspect)
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/admit_source.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-admit-source-core)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/admit_source_guard.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-admit-source)
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/product/web/"
     DESTINATION "share/laplace/web"
@@ -133,6 +136,7 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/product/web/"
         PATTERN "*.css")
 
 if(BUILD_TESTING)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(
         NAME delivery.receipt-store-contract
         COMMAND "${CMAKE_COMMAND}"
@@ -141,6 +145,13 @@ if(BUILD_TESTING)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/../tests/receipt_store_test.cmake")
     set_tests_properties(delivery.receipt-store-contract PROPERTIES
         LABELS "delivery;receipt;blake3;package;mutation")
+    add_test(
+        NAME product.source-admission-estate-boundary
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/source_admission_guard_tests.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/admit_source_guard.py")
+    set_tests_properties(product.source-admission-estate-boundary PROPERTIES
+        LABELS "product;source-admission;authority;security;mutation")
 endif()
 
 add_executable(laplace_unicode_artifact_verify unicode_artifact_verify.cpp)

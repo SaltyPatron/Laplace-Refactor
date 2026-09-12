@@ -101,6 +101,7 @@
       "bin/laplace_source_profile_compile",
       "bin/laplace-inspect",
       "bin/laplace-admit-source",
+      "bin/laplace-admit-source-core",
       "bin/laplace_unicode_activation_identify",
       "bin/laplace_unicode_artifact_verify",
       "bin/laplace-live-substrate",

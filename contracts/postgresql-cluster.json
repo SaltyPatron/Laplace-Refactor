@@ -21,6 +21,7 @@
       "bin/laplace_source_profile_compile",
       "bin/laplace-inspect",
       "bin/laplace-admit-source",
+      "bin/laplace-admit-source-core",
       "bin/laplace_unicode_activation_identify",
       "pgsql-18/bin/initdb",
       "pgsql-18/bin/pg_config",
