@@ -81,7 +81,7 @@ AS $constraint$
         pg_temp.digest(seed + 20),
         pg_temp.digest(seed + 40),
         pg_temp.digest(seed + 60),
-        pg_temp.digest(seed + 70),
+        pg_temp.digest(0),
         pg_temp.digest(seed + 80),
         source_index,
         target_index,
