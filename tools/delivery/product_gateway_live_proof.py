@@ -98,10 +98,16 @@ def prove(output: Path, package_id: str) -> None:
     if first.get("next_checkpoint_fingerprint") == second.get("next_checkpoint_fingerprint"):
         raise RuntimeError("gateway cognition did not advance the durable checkpoint")
 
+    chat_messages = [
+        {"role": "system", "content": "You are the installed Laplace product."},
+        {"role": "user", "content": "Write a Python function named answer that returns 41."},
+        {"role": "assistant", "content": "def answer() -> int:\n    return 41"},
+        {"role": "user", "content": "Continue the conversation and change it to return 42."},
+    ]
     chat = json_http(
         "POST",
         "/v1/chat/completions",
-        {"model": "laplace-native", "messages": [{"role": "user", "content": "AA"}]},
+        {"model": "laplace-native", "messages": chat_messages},
     )
     if chat.get("object") != "chat.completion" or chat.get("model") != "laplace-native":
         raise RuntimeError(f"OpenAI-compatible chat response is invalid: {chat}")
@@ -161,6 +167,8 @@ def prove(output: Path, package_id: str) -> None:
             },
         },
         "openai_chat": {
+            "message_count": len(chat_messages),
+            "roles": [entry["role"] for entry in chat_messages],
             "object": chat.get("object"),
             "model": chat.get("model"),
             "assistant_content": message.get("content") if isinstance(message, dict) else None,
