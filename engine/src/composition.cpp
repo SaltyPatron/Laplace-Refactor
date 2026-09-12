@@ -246,6 +246,7 @@ bool BuildPostflight(
  */
 #define laplace_composition_working_set_create composition_working_set_create_impl
 #define laplace_composition_working_set_destroy composition_working_set_destroy_impl
+#define laplace_composition_working_set_resolve_presence composition_working_set_resolve_presence_impl
 #define laplace_execution_run_work composition_capture_run_work
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
@@ -256,6 +257,7 @@ bool BuildPostflight(
 #pragma GCC diagnostic pop
 #endif
 #undef laplace_execution_run_work
+#undef laplace_composition_working_set_resolve_presence
 #undef laplace_composition_working_set_destroy
 #undef laplace_composition_working_set_create
 
@@ -297,6 +299,70 @@ public:
 private:
     const laplace_execution_runtime_provider_v1* prior_{};
 };
+
+laplace_digest256 CompositionSemanticContextFingerprint(
+    const laplace_framework_context& context) {
+    blake3_hasher hasher{};
+    blake3_hasher_init(&hasher);
+    HashString(hasher, "laplace-composition-semantic-context-v1");
+    HashU32(hasher, context.major);
+    HashU32(hasher, context.minor);
+    HashU32(hasher, context.flags);
+    HashU64(hasher, context.epoch_mask);
+    for (std::uint32_t index = 0U;
+         index < LAPLACE_FRAMEWORK_EPOCH_COUNT; ++index) {
+        if ((context.epoch_mask & (UINT64_C(1) << index)) == 0U) {
+            continue;
+        }
+        HashU32(hasher, index);
+        blake3_hasher_update(
+            &hasher, context.epochs[index].bytes,
+            sizeof(context.epochs[index].bytes));
+    }
+    blake3_hasher_update(
+        &hasher, context.authority_fingerprint.bytes,
+        sizeof(context.authority_fingerprint.bytes));
+    return Finish(hasher);
+}
+
+void BindSemanticInputFingerprint(
+    const laplace_composition_working_set_input& input,
+    laplace_composition_working_set& working_set) {
+    const auto semantic_context =
+        CompositionSemanticContextFingerprint(*input.context);
+    working_set.summary.input_fingerprint =
+        InputFingerprint(input, semantic_context);
+}
+
+void RefreshSemanticPublicationFingerprints(
+    laplace_composition_working_set& state) {
+    blake3_hasher hasher{};
+    blake3_hasher_init(&hasher);
+    HashString(
+        hasher, "laplace-composition-working-set-semantic-receipt-v2");
+    blake3_hasher_update(
+        &hasher, state.summary.input_fingerprint.bytes,
+        sizeof(state.summary.input_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, state.summary.stream_fingerprint.bytes,
+        sizeof(state.summary.stream_fingerprint.bytes));
+    blake3_hasher_update(
+        &hasher, state.summary.presence_receipt_id.bytes,
+        sizeof(state.summary.presence_receipt_id.bytes));
+    HashU64(hasher, state.summary.novel_entity_count);
+    HashU64(hasher, state.summary.novel_physicality_count);
+    HashU64(hasher, state.summary.novel_trajectory_vertex_count);
+    HashU64(hasher, state.summary.occurrence_count);
+    HashU32(hasher, state.effect_disposition);
+    state.summary.receipt_id = Finish(hasher);
+
+    blake3_hasher_init(&hasher);
+    HashString(hasher, ProducerDomain);
+    blake3_hasher_update(
+        &hasher, state.summary.receipt_id.bytes,
+        sizeof(state.summary.receipt_id.bytes));
+    state.producer_fingerprint = Finish(hasher);
+}
 
 extern "C" laplace_execution_status composition_capture_run_work(
     const laplace_execution_grant* const grant,
@@ -386,15 +452,26 @@ laplace_composition_working_set_create_with_provider(
 extern "C" laplace_composition_status laplace_composition_working_set_create(
     const laplace_composition_working_set_input* const input,
     laplace_composition_working_set** const working_set) {
-    if (input == nullptr || working_set == nullptr ||
-        active_frontier_capture != nullptr) {
+    if (input == nullptr || working_set == nullptr) {
         return composition_working_set_create_impl(input, working_set);
+    }
+    if (active_frontier_capture != nullptr) {
+        const auto status = composition_working_set_create_impl(input, working_set);
+        if (status == LAPLACE_COMPOSITION_OK &&
+            working_set != nullptr && *working_set != nullptr) {
+            BindSemanticInputFingerprint(*input, **working_set);
+        }
+        return status;
     }
 
     ActiveFrontierCapture capture{};
     const auto frontier_status = BuildFrontierPlan(*input, capture.expected);
     if (frontier_status != LAPLACE_COMPOSITION_OK) {
-        return composition_working_set_create_impl(input, working_set);
+        const auto status = composition_working_set_create_impl(input, working_set);
+        if (status == LAPLACE_COMPOSITION_OK && *working_set != nullptr) {
+            BindSemanticInputFingerprint(*input, **working_set);
+        }
+        return status;
     }
     try {
         capture.receipts.reserve(
@@ -422,6 +499,8 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
         return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
     }
 
+    BindSemanticInputFingerprint(*input, **working_set);
+
     laplace_composition_frontier_execution_postflight postflight{};
     if (!BuildPostflight(capture, *input, postflight)) {
         composition_working_set_destroy_impl(working_set);
@@ -439,6 +518,19 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
         return LAPLACE_COMPOSITION_MEMORY_FAILURE;
     }
     return LAPLACE_COMPOSITION_OK;
+}
+
+extern "C" laplace_composition_status
+laplace_composition_working_set_resolve_presence(
+    laplace_composition_working_set* const working_set,
+    const laplace_composition_presence_provider_v1* const provider,
+    laplace_composition_presence_receipt* const receipt) {
+    const auto status = composition_working_set_resolve_presence_impl(
+        working_set, provider, receipt);
+    if (status == LAPLACE_COMPOSITION_OK && working_set != nullptr) {
+        RefreshSemanticPublicationFingerprints(*working_set);
+    }
+    return status;
 }
 
 extern "C" const laplace_execution_work_receipt*
