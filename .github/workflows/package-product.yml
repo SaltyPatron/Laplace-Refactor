@@ -152,26 +152,52 @@ jobs:
           product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
           physical_release=$(jq -er '.physical_root' "$product_receipt")
           inspect="$physical_release/bin/laplace-inspect"
+          pg_ctl="$physical_release/pgsql-18/bin/pg_ctl"
           pg_isready="$physical_release/pgsql-18/bin/pg_isready"
+          data_directory=$(jq -er '.instance.data_directory' contracts/postgresql-cluster.json)
+          socket_directory=$(jq -er '.instance.socket_directory' contracts/postgresql-cluster.json)
+          port=$(jq -er '.instance.port' contracts/postgresql-cluster.json)
+          database=$(jq -er '.instance.database' contracts/postgresql-cluster.json)
+          admin_role=$(jq -er '.instance.admin_role' contracts/postgresql-cluster.json)
+          config_file=/etc/laplace/instances/refactor/postgresql.conf
           test -x "$inspect"
+          test -x "$pg_ctl"
           test -x "$pg_isready"
+          test -d "$data_directory"
+          test -f "$config_file"
 
-          /usr/bin/sudo -n /usr/bin/systemctl start laplace-refactor-postgresql.service
+          started_database=0
+          if ! "$pg_isready" \
+            --host "$socket_directory" \
+            --port "$port" \
+            --dbname "$database" \
+            --username "$admin_role" >/dev/null 2>&1; then
+            OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 MKL_DYNAMIC=FALSE \
+              "$pg_ctl" \
+                -D "$data_directory" \
+                -o "-c config_file=$config_file" \
+                -w \
+                -t 180 \
+                start
+            started_database=1
+          fi
+          printf 'LAPLACE_PACKAGE_PRODUCT_STARTED_DATABASE=%s\n' "$started_database" >> "$GITHUB_ENV"
+
           ready=0
           for _attempt in $(seq 1 30); do
             if "$pg_isready" \
-              --host /opt/laplace/runtime/postgresql/refactor \
-              --port 55433 \
-              --dbname laplace_refactor \
-              --username laplace_admin >/dev/null 2>&1; then
+              --host "$socket_directory" \
+              --port "$port" \
+              --dbname "$database" \
+              --username "$admin_role" >/dev/null 2>&1; then
               ready=1
               break
             fi
             sleep 1
           done
           if [[ "$ready" != 1 ]]; then
-            /usr/bin/systemctl --no-pager --full status laplace-refactor-postgresql.service || true
-            echo 'persistent Laplace PostgreSQL service did not become ready' >&2
+            "$pg_ctl" -D "$data_directory" status || true
+            echo 'branch-built PostgreSQL package did not make the persistent substrate ready' >&2
             exit 1
           fi
 
@@ -204,7 +230,7 @@ jobs:
 
           {
             echo '## Live persisted Laplace substrate'
-            echo 'Branch-built `laplace-inspect` queried the persistent PostgreSQL product socket.'
+            echo 'Branch-built PostgreSQL and `laplace-inspect` queried the persistent PostgreSQL product data without publishing an activation pointer.'
             echo '### Summary'
             echo '```json'
             cat "$summary"
@@ -345,6 +371,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${LAPLACE_PACKAGE_PRODUCT_STARTED_DATABASE:-0}" == 1 && -n "${LAPLACE_PRODUCT_PROOF_RESULT:-}" ]]; then
+            product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
+            physical_release=$(jq -er '.physical_root' "$product_receipt")
+            pg_ctl="$physical_release/pgsql-18/bin/pg_ctl"
+            data_directory=$(jq -er '.instance.data_directory' contracts/postgresql-cluster.json)
+            if "$pg_ctl" -D "$data_directory" status >/dev/null 2>&1; then
+              "$pg_ctl" -D "$data_directory" -w -t 120 stop -m fast
+            fi
+          fi
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --name laplace-package-product-proof
