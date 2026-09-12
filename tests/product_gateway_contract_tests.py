@@ -7,7 +7,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER = ROOT / "tools/openai_api_compat.py"
+INSPECT = ROOT / "tools/laplace_inspect.py"
 SOURCE = ROOT / "tools/source_product.py"
+INDEX = ROOT / "product/web/index.html"
 WEB = ROOT / "product/web/app.js"
 LIVE = ROOT / "tools/delivery/product_gateway_live_proof.py"
 WORKFLOW = ROOT / ".github/workflows/product-cognition-multiturn.yml"
@@ -26,6 +28,33 @@ class ProductGatewayContractTests(unittest.TestCase):
         self.assertIn('"stream": True', live)
         self.assertIn('.openai_chat.roles == ["system","user","assistant","user"]', workflow)
         self.assertIn('.openai_chat.streaming.done == true', workflow)
+
+    def test_product_navigation_is_world_first_not_admin_first(self) -> None:
+        index = INDEX.read_text(encoding="utf-8")
+        self.assertIn('data-workspace="explore"', index)
+        self.assertIn('data-workspace="chat"', index)
+        self.assertIn('data-workspace="operator"', index)
+        self.assertNotIn('class="nav-item" data-workspace="graph"', index)
+        self.assertNotIn('class="nav-item" data-workspace="sources"', index)
+        self.assertNotIn('class="nav-item" data-workspace="sql"', index)
+        for label in ("Entities", "Consensus", "Rankings", "Evidence", "Sources", "Physicality", "Occurrences"):
+            self.assertIn(f">{label}</button>", index)
+
+    def test_explore_uses_real_persisted_facets_and_entity_context(self) -> None:
+        wrapper = WRAPPER.read_text(encoding="utf-8")
+        inspect = INSPECT.read_text(encoding="utf-8")
+        web = WEB.read_text(encoding="utf-8")
+        for route in ("/api/v1/consensus", "/api/v1/evidence", "/api/v1/standings"):
+            self.assertIn(route, wrapper)
+            self.assertIn(route, web)
+        self.assertIn('"schema": "laplace.product.explore/v1"', wrapper)
+        self.assertIn("def consensus_sql", inspect)
+        self.assertIn("def evidence_sql", inspect)
+        self.assertIn("def standings_sql", inspect)
+        self.assertIn("'consensus',(SELECT", inspect)
+        self.assertIn("'evidence',(SELECT", inspect)
+        self.assertIn('/api/v1/entities/${encodeURIComponent(entityId)}', web)
+        self.assertIn('No identity was invented.', web)
 
     def test_source_ui_cannot_submit_caller_server_paths(self) -> None:
         wrapper = WRAPPER.read_text(encoding="utf-8")
