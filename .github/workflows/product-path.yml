@@ -17,7 +17,7 @@ permissions:
 
 concurrency:
   group: product-path-${{ github.ref }}
-  queue: max
+  queue: single
   cancel-in-progress: false
 
 jobs:
