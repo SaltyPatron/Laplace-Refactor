@@ -1,0 +1,77 @@
+name: product-cognition-multiturn
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - product-activation
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-cognition-multiturn
+  cancel-in-progress: false
+
+jobs:
+  activated-product-multiturn-proof:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      - name: Require exact activated main generation
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -L /opt/laplace/current
+          package_id=$(basename "$(readlink -f /opt/laplace/current)")
+          test "$package_id" != current
+          receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
+          activation="$receipt_root/cluster-activation/$package_id/activation-complete.json"
+          test -r "$activation"
+          test ! -L "$activation"
+          jq -e --arg package_id "$package_id" '.package_id == $package_id' "$activation" >/dev/null
+          printf 'PACKAGE_ID=%s\n' "$package_id" >> "$GITHUB_ENV"
+          printf 'RECEIPT_ROOT=%s\n' "$receipt_root" >> "$GITHUB_ENV"
+      - name: Execute installed two-turn cognition proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="$RECEIPT_ROOT/cluster-activation/$PACKAGE_ID/installed-multiturn-cognition-proof.json"
+          python3 tools/delivery/product_cognition_multiturn_live_proof.py --output "$proof"
+          jq -e --arg package_id "$PACKAGE_ID" '
+            .schema == "laplace.installed-product-cognition-multiturn-proof/v1" and
+            .package_id == $package_id and
+            .turn_0.prompt_utf8 == "AA" and
+            .turn_0.execution.status == 0 and
+            .turn_1.prompt_utf8 == "AAA" and
+            .turn_1.execution.status == 0 and
+            .corrupted_predecessor.expected_status_nonzero == true and
+            .corrupted_predecessor.execution.status != 0 and
+            (.turn_0.execution.next_checkpoint_fingerprint | test("^\\\\x[0-9a-f]{64}$")) and
+            (.turn_1.execution.next_checkpoint_fingerprint | test("^\\\\x[0-9a-f]{64}$")) and
+            .turn_0.execution.next_checkpoint_fingerprint != .turn_1.execution.next_checkpoint_fingerprint and
+            (.proof_sha256 | test("^[0-9a-f]{64}$"))
+          ' "$proof" >/dev/null
+          {
+            echo '## Installed multi-turn cognition proof'
+            echo '```json'
+            jq '{schema,package_id,turn_0:{prompt_utf8:.turn_0.prompt_utf8,status:.turn_0.execution.status,checkpoint:.turn_0.execution.next_checkpoint_fingerprint,receipt:.turn_0.execution.execution_receipt_id},corrupted_predecessor:{status:.corrupted_predecessor.execution.status},turn_1:{prompt_utf8:.turn_1.prompt_utf8,status:.turn_1.execution.status,checkpoint:.turn_1.execution.next_checkpoint_fingerprint,receipt:.turn_1.execution.execution_receipt_id},proof_sha256}' "$proof"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

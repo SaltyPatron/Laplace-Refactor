@@ -125,6 +125,12 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/laplace_inspect.py"
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/admit_source.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-admit-source)
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/product/web/"
+    DESTINATION "share/laplace/web"
+    FILES_MATCHING
+        PATTERN "*.html"
+        PATTERN "*.js"
+        PATTERN "*.css")
 
 if(BUILD_TESTING)
     add_test(

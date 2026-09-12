@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Laplace</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to workspace</a>
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">L</div>
+      <div><h1>Laplace</h1><p>Persistent cognition and canonical substrate</p></div>
+    </div>
+    <div class="header-state">
+      <span id="connection-dot" class="status-dot" aria-hidden="true"></span>
+      <span id="connection-label">Connecting</span>
+      <button id="auth-button" class="quiet-button" type="button">API token</button>
+    </div>
+  </header>
+  <div class="app-shell">
+    <nav class="workspace-nav" aria-label="Product workspaces">
+      <button class="nav-item active" data-workspace="graph" type="button">Graph</button>
+      <button class="nav-item" data-workspace="sources" type="button">Sources</button>
+      <button class="nav-item" data-workspace="cognition" type="button">Cognition</button>
+      <button class="nav-item" data-workspace="sql" type="button">SQL</button>
+      <button class="nav-item" data-workspace="events" type="button">Events</button>
+      <button class="nav-item" data-workspace="admin" type="button">Admin</button>
+    </nav>
+    <main id="workspace" class="workspace" tabindex="-1">
+      <section class="workspace-panel active" data-panel="graph">
+        <div class="workspace-heading">
+          <div><p class="eyebrow">Canonical substrate</p><h2>Graph</h2><p>Inspect persisted entities, physicalities, attestations, and their provenance.</p></div>
+          <button id="graph-refresh" class="primary-button" type="button">Run query</button>
+        </div>
+        <div class="query-grid">
+          <label>Collection<select id="graph-collection"><option value="entities">Entities</option><option value="physicalities">Physicalities</option><option value="attestations">Attestations</option><option value="source-profiles">Source profiles</option><option value="summary">Summary</option><option value="entity">Entity detail</option></select></label>
+          <label>Limit<input id="graph-limit" type="number" min="1" max="1000" value="25"></label>
+          <label id="graph-id-label" hidden>Entity ID<input id="graph-id" type="text" maxlength="32" spellcheck="false" autocomplete="off"></label>
+        </div>
+        <div id="graph-status" class="inline-status" aria-live="polite"></div>
+        <div id="graph-result"></div>
+      </section>
+      <section class="workspace-panel" data-panel="sources">
+        <div class="workspace-heading">
+          <div><p class="eyebrow">Source estate</p><h2>Sources</h2><p>Read admitted source profiles and submit a locked server-side source estate for native admission.</p></div>
+          <button id="sources-refresh" class="quiet-button" type="button">Refresh</button>
+        </div>
+        <div id="sources-result"></div>
+        <article class="card">
+          <h3>Admit source profile</h3>
+          <form id="source-admit-form" class="form-stack">
+            <label>Profile<select id="source-profile"><option value="iso-639-3-20260415">ISO 639-3 2026-04-15</option><option value="cili-pwn-mappings-20240611">CILI/PWN mappings 2024-06-11</option><option value="cili-pwn-mappings-20260903">CILI/PWN mappings 2026-09-03</option></select></label>
+            <label>Source root on this node<input id="source-root" type="text" placeholder="/vault/Data/ISO639" spellcheck="false"></label>
+            <label>Unicode root override <span class="muted">(optional)</span><input id="unicode-root" type="text" placeholder="/vault/Data/UCD/Public/UCD/latest" spellcheck="false"></label>
+            <div class="action-row"><button class="primary-button" type="submit">Compile and admit</button><span id="source-admit-status" class="inline-status" aria-live="polite"></span></div>
+          </form>
+          <pre id="source-admit-result" class="json-view" hidden></pre>
+        </article>
+      </section>
+      <section class="workspace-panel" data-panel="cognition">
+        <div class="workspace-heading">
+          <div><p class="eyebrow">Native execution</p><h2>Cognition</h2><p>Run consecutive turns through the installed persistent cognition service. Session state is durable on the node.</p></div>
+          <button id="new-session" class="quiet-button" type="button">New session</button>
+        </div>
+        <div class="session-line">Session <code id="session-name"></code></div>
+        <div id="conversation" class="conversation" aria-live="polite"></div>
+        <form id="cognition-form" class="composer"><label class="sr-only" for="cognition-prompt">Prompt</label><textarea id="cognition-prompt" rows="4" placeholder="Enter a prompt…" required></textarea><div class="action-row"><button class="primary-button" type="submit">Execute</button><span id="cognition-status" class="inline-status"></span></div></form>
+      </section>
+      <section class="workspace-panel" data-panel="sql">
+        <div class="workspace-heading">
+          <div><p class="eyebrow">Persistent substrate</p><h2>Read-only SQL</h2><p>Execute one bounded SELECT, WITH, or VALUES statement against the active Laplace database.</p></div>
+          <button id="sql-run" class="primary-button" type="button">Run</button>
+        </div>
+        <textarea id="sql-editor" class="sql-editor" rows="9" spellcheck="false">SELECT
+  encode(entity_id, 'hex') AS entity_id,
+  encode(identity_witness, 'hex') AS identity_witness
+FROM laplace.entity
+ORDER BY entity_id
+LIMIT 25</textarea>
+        <div id="sql-status" class="inline-status" aria-live="polite"></div><div id="sql-result"></div>
+      </section>
+      <section class="workspace-panel" data-panel="events">
+        <div class="workspace-heading">
+          <div><p class="eyebrow">Live product state</p><h2>Events</h2><p>Live cognition and substrate snapshots delivered over the product event stream.</p></div>
+          <div class="action-row"><button id="events-toggle" class="quiet-button" type="button">Pause</button><button id="events-clear" class="quiet-button" type="button">Clear</button></div>
+        </div>
+        <div id="event-connection" class="inline-status"></div><div id="event-feed" class="event-feed"></div>
+      </section>
+      <section class="workspace-panel" data-panel="admin">
+        <div class="workspace-heading">
+          <div><p class="eyebrow">Node state</p><h2>Admin</h2><p>Inspect transport capabilities, model identity, active epochs, persistence counts, and service health.</p></div>
+          <button id="admin-refresh" class="quiet-button" type="button">Refresh</button>
+        </div>
+        <div class="admin-grid"><article class="card"><h3>Health</h3><div id="admin-health"></div></article><article class="card"><h3>Substrate</h3><div id="admin-summary"></div></article><article class="card"><h3>Capabilities</h3><div id="admin-descriptors"></div></article></div>
+      </section>
+    </main>
+  </div>
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
