@@ -90,6 +90,68 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           printf 'LAPLACE_PRODUCT_PROOF_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
+
+      - name: Query persistent Laplace substrate with branch-built command
+        shell: bash
+        run: |
+          set -euo pipefail
+          product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
+          physical_release=$(jq -er '.physical_root' "$product_receipt")
+          inspect="$physical_release/bin/laplace-inspect"
+          test -x "$inspect"
+
+          summary="$RUNNER_TEMP/laplace-live-summary.json"
+          entities="$RUNNER_TEMP/laplace-live-entities.json"
+          physicalities="$RUNNER_TEMP/laplace-live-physicalities.json"
+          attestations="$RUNNER_TEMP/laplace-live-attestations.json"
+          profiles="$RUNNER_TEMP/laplace-live-source-profiles.json"
+
+          "$inspect" --pretty summary > "$summary"
+          "$inspect" --pretty entities --limit 5 > "$entities"
+          "$inspect" --pretty physicalities --limit 5 > "$physicalities"
+          "$inspect" --pretty attestations --limit 5 > "$attestations"
+          "$inspect" --pretty source-profiles --limit 5 > "$profiles"
+
+          jq -e '
+            .schema == "laplace.inspect.summary/v1" and
+            .database == "laplace_refactor" and
+            .role == "laplace_admin" and
+            (.counts.entities | tonumber) > 0 and
+            (.counts.physicalities | tonumber) > 0 and
+            (.counts.attestations | tonumber) > 0 and
+            .unicode.active_present == true and
+            .highway.active_present == true
+          ' "$summary" >/dev/null
+          jq -e '.schema == "laplace.inspect.entities/v1" and (.rows | length) > 0' "$entities" >/dev/null
+          jq -e '.schema == "laplace.inspect.physicalities/v1" and (.rows | length) > 0' "$physicalities" >/dev/null
+          jq -e '.schema == "laplace.inspect.attestations/v1" and (.rows | length) > 0' "$attestations" >/dev/null
+          jq -e '.schema == "laplace.inspect.source-profiles/v1"' "$profiles" >/dev/null
+
+          {
+            echo '## Live persisted Laplace substrate'
+            echo 'Branch-built `laplace-inspect` queried the persistent PostgreSQL product socket.'
+            echo '### Summary'
+            echo '```json'
+            cat "$summary"
+            echo '```'
+            echo '### Entity rows'
+            echo '```json'
+            cat "$entities"
+            echo '```'
+            echo '### Physicality rows'
+            echo '```json'
+            cat "$physicalities"
+            echo '```'
+            echo '### Attestation rows'
+            echo '```json'
+            cat "$attestations"
+            echo '```'
+            echo '### Source-profile rows'
+            echo '```json'
+            cat "$profiles"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Compose and verify the standalone customer installer
         shell: bash
         run: |
