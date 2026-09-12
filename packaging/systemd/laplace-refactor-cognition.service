@@ -1,0 +1,19 @@
+[Unit]
+Description=Laplace Refactor cognition service
+After=laplace-refactor-postgresql.service
+RequiresMountsFor=/build /opt/laplace/runtime /opt/laplace/pgdata /var/lib/pgwal /pgtemp
+
+[Service]
+Type=simple
+User=laplace-runner
+Group=laplace-runner
+UMask=0002
+Environment=TMPDIR=/build/laplace/work/refactor-scratch
+Environment=TMP=/build/laplace/work/refactor-scratch
+Environment=TEMP=/build/laplace/work/refactor-scratch
+ExecStart=/opt/laplace/runtime/refactor/bin/laplace-cognition-service --socket /opt/laplace/runtime/laplace-cognition.sock
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
