@@ -95,6 +95,8 @@ jobs:
             (.element_counts.Synset // 0) > 0 and
             (.element_counts.Sense // 0) > 0
           ' "$RUNNER_TEMP/oewn-structure.json" >/dev/null
+          echo "OEWN_SHA256=$actual"
+          jq '{root_tag,namespace,element_counts,attribute_counts}' "$RUNNER_TEMP/oewn-structure.json"
 
           {
             echo '## Live OEWN 2025+ source'
@@ -104,44 +106,64 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Inspect active installed Laplace product without rebuilding
+      - name: Inspect persistent Laplace release runtime and receipt estate without rebuilding
         shell: bash
         run: |
           set -euo pipefail
-          test -L /opt/laplace/current
-          active=$(readlink -f /opt/laplace/current)
-          test -d "$active"
-          printf 'active_release=%s\n' "$active"
+          echo '=== /opt/laplace ==='
+          if [[ -d /opt/laplace ]]; then
+            find /opt/laplace -maxdepth 2 -mindepth 1 -printf '%y %u:%g %m %p -> %l\n' 2>&1 | sort | head -n 500
+          else
+            echo '/opt/laplace is absent'
+          fi
 
-          for tool in \
-            laplace-cognition \
-            laplace-cognition-service \
-            laplace-inspect \
-            laplace-admit-source \
-            laplace-model-export \
-            laplace-live-substrate; do
-            if [[ -x "$active/bin/$tool" ]]; then
-              printf '%s=present\n' "$tool"
-            else
-              printf '%s=absent\n' "$tool"
-            fi
-          done | tee "$RUNNER_TEMP/installed-tools.txt"
+          echo '=== release directories ==='
+          if [[ -d /opt/laplace/releases ]]; then
+            find /opt/laplace/releases -maxdepth 1 -mindepth 1 -type d -printf '%T@ %f\n' \
+              | sort -nr | head -n 20
+          fi
 
-          {
-            echo '## Active installed Laplace product'
-            echo "Release: \`$active\`"
-            echo '```text'
-            cat "$RUNNER_TEMP/installed-tools.txt"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo '=== deployment receipts ==='
+          if [[ -d /opt/laplace/receipts/deployments ]]; then
+            find /opt/laplace/receipts/deployments -maxdepth 2 -type f -printf '%T@ %p\n' 2>&1 \
+              | sort -nr | head -n 50
+          fi
 
-          if [[ -x "$active/bin/laplace-inspect" ]]; then
-            "$active/bin/laplace-inspect" --pretty summary \
-              | tee "$RUNNER_TEMP/live-summary.json"
-            {
-              echo '### Persistent substrate summary'
-              echo '```json'
-              cat "$RUNNER_TEMP/live-summary.json"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
+          echo '=== package receipts ==='
+          if [[ -d /opt/laplace/receipts/packages ]]; then
+            find /opt/laplace/receipts/packages -maxdepth 2 -type f -printf '%T@ %p\n' 2>&1 \
+              | sort -nr | head -n 50
+          fi
+
+          echo '=== PostgreSQL activation receipts ==='
+          if [[ -d /opt/laplace/receipts/postgresql/refactor/cluster-activation ]]; then
+            find /opt/laplace/receipts/postgresql/refactor/cluster-activation -maxdepth 2 -type f \
+              -printf '%T@ %p\n' 2>&1 | sort -nr | head -n 100
+          fi
+
+          active=''
+          if [[ -L /opt/laplace/current ]]; then
+            active=$(readlink -f /opt/laplace/current || true)
+          fi
+          if [[ -z "$active" || ! -d "$active" ]]; then
+            active=$(find /opt/laplace/releases -maxdepth 1 -mindepth 1 -type d -printf '%T@ %p\n' 2>/dev/null \
+              | sort -nr | head -n 1 | cut -d' ' -f2- || true)
+          fi
+          if [[ -n "$active" && -d "$active" ]]; then
+            echo "selected_release=$active"
+            for tool in \
+              laplace-cognition \
+              laplace-cognition-service \
+              laplace-inspect \
+              laplace-admit-source \
+              laplace-model-export \
+              laplace-live-substrate; do
+              if [[ -x "$active/bin/$tool" ]]; then
+                printf '%s=present\n' "$tool"
+              else
+                printf '%s=absent\n' "$tool"
+              fi
+            done
+          else
+            echo 'selected_release=absent'
           fi
