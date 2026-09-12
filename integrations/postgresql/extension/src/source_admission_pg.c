@@ -185,6 +185,35 @@ static laplace_digest256 laplace_pg_source_xml_provider_fingerprint(void) {
     return result;
 }
 
+static int laplace_pg_source_digest_zero(const laplace_digest256* value) {
+    size_t index;
+    if (value == NULL) return 1;
+    for (index = 0u; index < sizeof(value->bytes); ++index) {
+        if (value->bytes[index] != 0u) return 0;
+    }
+    return 1;
+}
+
+static laplace_tabular_source_status laplace_pg_source_runtime_artifact_graph(
+    laplace_tabular_source_input* input) {
+    laplace_digest256 graph;
+    laplace_tabular_source_status status;
+    if (input == NULL) return LAPLACE_TABULAR_SOURCE_INVALID_ARGUMENT;
+    if (!laplace_pg_source_digest_zero(
+            &input->profile_declaration.artifact_graph_fingerprint)) {
+        return LAPLACE_TABULAR_SOURCE_OK;
+    }
+    memset(&graph, 0, sizeof(graph));
+    status = laplace_tabular_source_graph_identify(
+        input->artifacts, (size_t)input->artifact_count,
+        input->reference_rules, (size_t)input->reference_rule_count,
+        input->mapping_rules, (size_t)input->mapping_rule_count,
+        &graph);
+    if (status != LAPLACE_TABULAR_SOURCE_OK) return status;
+    input->profile_declaration.artifact_graph_fingerprint = graph;
+    return LAPLACE_TABULAR_SOURCE_OK;
+}
+
 static laplace_tabular_source_status
 laplace_pg_source_decomposition_plan_create(
     const laplace_tabular_source_input* input,
@@ -196,6 +225,7 @@ laplace_pg_source_decomposition_plan_create(
     laplace_pg_active_uax_authority uax_authority;
     laplace_digest256 uax_fingerprint;
     laplace_digest256 xml_fingerprint;
+    laplace_tabular_source_input runtime_input;
     laplace_tabular_source_status status;
 
     laplace_pg_active_source_plan = NULL;
@@ -209,6 +239,11 @@ laplace_pg_source_decomposition_plan_create(
     memset(&xml_provider, 0, sizeof(xml_provider));
     memset(providers, 0, sizeof(providers));
     memset(&uax_authority, 0, sizeof(uax_authority));
+    runtime_input = *input;
+    status = laplace_pg_source_runtime_artifact_graph(&runtime_input);
+    if (status != LAPLACE_TABULAR_SOURCE_OK) {
+        return status;
+    }
 
     /* Product UAX authority is derived from the active canonical Unicode atom
      * stream. No Unicode source directory is consulted on this execution path.
@@ -242,7 +277,7 @@ laplace_pg_source_decomposition_plan_create(
     providers[0] = uax_provider.provider;
     providers[1] = xml_provider.provider;
     status = laplace_source_decomposition_plan_create(
-        input, providers, 2u, plan);
+        &runtime_input, providers, 2u, plan);
     laplace_uax29_tables_destroy(&uax_tables);
     if (status == LAPLACE_TABULAR_SOURCE_OK && plan != NULL && *plan != NULL) {
         laplace_pg_active_source_plan = *plan;
