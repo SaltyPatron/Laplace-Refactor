@@ -38,7 +38,6 @@
     "required_capabilities": {
       "app_effect_boundary": 1,
       "exact_loaded_object_identity": 1,
-      "installed_cognition_command": 1,
       "topology_bound_processor_allocation": 1
     }
   },
