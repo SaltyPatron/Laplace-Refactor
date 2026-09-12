@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
-"""Prove product-release capacity and reclaim only never-activated residue.
+"""Prove product-release capacity and enforce bounded immutable-release retention.
 
 Persistent activation copies an immutable content-addressed product package into
 ``/opt/laplace/releases`` before PostgreSQL generation transition begins. The native
 resource observer measures PGDATA/WAL/temp capacity, but release-package storage has a
-separate lifecycle and must be measured separately.
+separate lifecycle and must be bounded independently.
 
-The capacity proof follows the physical install implementation. ``install_package``
-creates one temporary tree on the release filesystem, copies each manifest file once,
-verifies that tree, and atomically renames it into the final content-addressed path. A
-fixed unrelated free-space reserve is therefore not part of the copy law. This module
-measures the target filesystem allocation unit, rounds every copied regular file to
-that unit, accounts conservatively for directories/symlinks, and checks available
-inodes. If the exact successor already exists, no copy capacity is required.
+The release store is an execution cache, not the durable evidence store. Durable
+package/activation receipts live beneath the receipt root and remain available after
+an old package payload is reclaimed. A completed activation therefore does not lease
+package bytes forever.
 
-This provider can remove a release only when all of these are true:
+Release retention is deliberately bounded. The current/runtime-selected generations
+are always protected. Among other successfully activated generations, only the newest
+rollback window is retained. Older activated generations are verified against their
+package-addressed installation receipts, checked for live runner process references,
+and reclaimed even when the filesystem still has enough space for the next copy.
+Never-activated verified residue remains capacity-driven cleanup.
 
-* the direct child name is one canonical 64-hex package id;
-* it is not the requested successor and is not selected by the current/runtime links;
-* a package-addressed, content-valid installation receipt proves that exact release;
-* neither a completed cluster activation receipt nor the runner's activation-result
-  receipt exists for that package;
-* no live process owned by the runner references that release;
-* the release is one physical directory and recursive removal never crosses devices or
-  follows symlinks.
+The recovery path also handles the exact host state created when the release cache was
+removed manually: a missing physical release root can be recreated beneath its physical
+parent, and a pair of canonical ``current``/``runtime/refactor`` links that both dangle
+to the same deleted package can be removed so a fresh activation can establish a new
+selected generation. A single dangling pointer or disagreeing pair fails closed.
 
-Unknown, activated, current, runtime-selected, or otherwise ambiguous releases are
-preserved. Old interrupted ``.<package>.install.*`` staging directories may also be
-removed after the minimum-age gate because they were never published release paths.
+Unknown, selected, live-referenced, symlinked, cross-device, or otherwise ambiguous
+releases are preserved. Old interrupted ``.<package>.install.*`` staging directories
+may also be removed after the minimum-age gate because they were never published
+release paths.
 """
 
 from __future__ import annotations
@@ -48,11 +48,11 @@ SCHEMA = "laplace.product-release-capacity/v1"
 INSTALLATION_SCHEMA = "laplace.product-package-installation-receipt/v1"
 PACKAGE_ID = re.compile(r"^[0-9a-f]{64}$")
 INSTALL_TEMP = re.compile(r"^\.([0-9a-f]{64})\.install\.[A-Za-z0-9._-]+$")
-# Retained only for compatibility with older tests/importers. It is deliberately not
-# used by the physical capacity law: package installation does not allocate a second
-# arbitrary 512 MiB object after the exact successor tree has been copied.
+# Retained for compatibility with older tests/importers. Capacity is calculated from
+# exact target allocation rather than an unrelated fixed reserve.
 MIN_HEADROOM_BYTES = 512 * 1024 * 1024
 DEFAULT_MINIMUM_TEMP_AGE_SECONDS = 300
+DEFAULT_ROLLBACK_RELEASES = 2
 
 
 class CapacityError(RuntimeError):
@@ -81,20 +81,27 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def _package_id_from_link(link: Path, release_root: Path) -> str | None:
+def _package_pointer(link: Path, release_root: Path) -> tuple[str, Path] | None:
     if not link.is_symlink():
+        if link.exists():
+            raise CapacityError(f"product pointer is not a symlink: {link}")
         return None
     raw = os.readlink(link)
     target = (link.parent / raw).resolve(strict=False)
     try:
-        relative = target.relative_to(release_root.resolve())
-    except ValueError:
-        raise CapacityError(f"product pointer escapes release root: {link} -> {raw}")
+        relative = target.relative_to(release_root.resolve(strict=False))
+    except ValueError as error:
+        raise CapacityError(f"product pointer escapes release root: {link} -> {raw}") from error
     if len(relative.parts) != 1 or PACKAGE_ID.fullmatch(relative.name) is None:
         raise CapacityError(
             f"product pointer is not one canonical release: {link} -> {raw}"
         )
-    return relative.name
+    return relative.name, release_root / relative.name
+
+
+def _package_id_from_link(link: Path, release_root: Path) -> str | None:
+    pointer = _package_pointer(link, release_root)
+    return None if pointer is None else pointer[0]
 
 
 def _disk_free(path: Path) -> int:
@@ -182,14 +189,7 @@ def _target_copy_footprint(
     manifest: dict[str, Any],
     release_root: Path,
 ) -> dict[str, int]:
-    """Bound the allocation made by ``cluster_core.install_package``.
-
-    Regular files are rounded to the target filesystem fragment size. One fragment is
-    conservatively reserved for every directory/symlink created in the temporary tree.
-    The inode bound includes each manifest entry plus every created directory. The
-    source package is validated again here so a footprint cannot be calculated over a
-    different tree than the copy will consume.
-    """
+    """Bound the allocation made by the immutable package installer."""
 
     physical_release, logical_release, files = _manifest_source(
         product_receipt, manifest
@@ -210,9 +210,6 @@ def _target_copy_footprint(
         size = physical_release.joinpath(*relative.parts).stat().st_size
         regular_allocation += ((size + unit - 1) // unit) * unit
 
-    # tempfile.mkdtemp contributes one directory. prefixed(temporary_root,
-    # manifest['root']) recreates the non-root components of the absolute logical
-    # package path before relative manifest directories are created below it.
     logical_components = sum(
         1 for part in PurePosixPath(logical_release).parts if part != "/"
     )
@@ -331,19 +328,91 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
+def _ensure_release_root(release_root: Path) -> bool:
+    if release_root.is_symlink():
+        raise CapacityError("release root must not be a symlink")
+    if release_root.exists():
+        if not release_root.is_dir():
+            raise CapacityError("release root must be one physical directory")
+        return False
+    parent = release_root.parent
+    if not parent.is_dir() or parent.is_symlink():
+        raise CapacityError("release-root parent must be one physical directory")
+    try:
+        release_root.mkdir(mode=0o755)
+    except OSError as error:
+        raise CapacityError(f"cannot recreate release root: {error}") from error
+    _fsync_directory(parent)
+    return True
+
+
+def _reconcile_dangling_product_pointers(
+    active_link: Path, runtime_link: Path, release_root: Path
+) -> list[dict[str, Any]]:
+    active = _package_pointer(active_link, release_root)
+    runtime = _package_pointer(runtime_link, release_root)
+    if active is None and runtime is None:
+        return []
+
+    present = [item for item in (active, runtime) if item is not None]
+    for package_id, target in present:
+        if target.is_symlink():
+            raise CapacityError(
+                f"selected package path is a symlink: {release_root / package_id}"
+            )
+        if target.exists() and not target.is_dir():
+            raise CapacityError(
+                f"selected package path is not a directory: {release_root / package_id}"
+            )
+
+    if any(target.exists() for _package_id, target in present):
+        return []
+    if active is None or runtime is None:
+        raise CapacityError("only one product pointer is dangling; refusing implicit selection")
+    if active[0] != runtime[0]:
+        raise CapacityError("dangling product pointers select different package identities")
+
+    recovered = active[0]
+    active_link.unlink()
+    runtime_link.unlink()
+    _fsync_directory(active_link.parent)
+    if runtime_link.parent != active_link.parent:
+        _fsync_directory(runtime_link.parent)
+    return [
+        {
+            "package_id": recovered,
+            "reason": "canonical-selected-generation-was-deleted",
+            "removed_links": [str(active_link), str(runtime_link)],
+        }
+    ]
+
+
+def _activation_files(evidence: Path) -> list[Path]:
+    return [
+        evidence / "activation-complete.json",
+        evidence / "activation-result.json",
+    ]
+
+
 def _safe_release_candidates(
     release_root: Path,
     receipt_root: Path,
     protected: set[str],
     successor_package_id: str,
     proc_root: Path,
+    rollback_releases: int,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    candidates: list[dict[str, Any]] = []
+    if rollback_releases < 0:
+        raise CapacityError("rollback release count cannot be negative")
+
+    never_activated: list[dict[str, Any]] = []
+    activated: list[dict[str, Any]] = []
     preserved: list[dict[str, Any]] = []
     try:
         children = sorted(release_root.iterdir(), key=lambda item: item.name)
     except OSError as error:
         raise CapacityError(f"cannot enumerate product releases: {error}") from error
+
     for child in children:
         package_id = child.name
         if PACKAGE_ID.fullmatch(package_id) is None:
@@ -362,6 +431,7 @@ def _safe_release_candidates(
                 {"package_id": package_id, "reason": "selected-product-pointer"}
             )
             continue
+
         evidence = receipt_root / "cluster-activation" / package_id
         installation_path = evidence / "package-installation.json"
         if not installation_path.is_file() or installation_path.is_symlink():
@@ -370,16 +440,6 @@ def _safe_release_candidates(
                     "package_id": package_id,
                     "reason": "no-verifiable-installation-receipt",
                 }
-            )
-            continue
-        if (
-            (evidence / "activation-complete.json").exists()
-            or (evidence / "activation-complete.json").is_symlink()
-            or (evidence / "activation-result.json").exists()
-            or (evidence / "activation-result.json").is_symlink()
-        ):
-            preserved.append(
-                {"package_id": package_id, "reason": "activation-evidence-exists"}
             )
             continue
         installation = load_json(installation_path)
@@ -394,6 +454,7 @@ def _safe_release_candidates(
                 }
             )
             continue
+
         references = _runner_process_references(child, proc_root)
         if references:
             preserved.append(
@@ -404,17 +465,58 @@ def _safe_release_candidates(
                 }
             )
             continue
-        candidates.append(
+
+        base = {
+            "package_id": package_id,
+            "path": str(child),
+            "installation_receipt_sha256": installation[
+                "installation_receipt_sha256"
+            ],
+            "installed_file_bytes": installation.get("total_file_bytes"),
+        }
+        activation_paths = [
+            path for path in _activation_files(evidence) if path.exists() or path.is_symlink()
+        ]
+        if any(path.is_symlink() or not path.is_file() for path in activation_paths):
+            preserved.append(
+                {
+                    "package_id": package_id,
+                    "reason": "unsafe-activation-evidence",
+                }
+            )
+            continue
+        if activation_paths:
+            activated.append(
+                {
+                    **base,
+                    "activation_evidence": [path.name for path in activation_paths],
+                    "activation_time_ns": max(path.stat().st_mtime_ns for path in activation_paths),
+                    "cleanup_class": "activated",
+                }
+            )
+        else:
+            never_activated.append(
+                {**base, "activation_evidence": [], "cleanup_class": "never-activated", "mandatory_reclaim": False}
+            )
+
+    activated.sort(
+        key=lambda item: (int(item["activation_time_ns"]), str(item["package_id"])),
+        reverse=True,
+    )
+    for item in activated[:rollback_releases]:
+        preserved.append(
             {
-                "package_id": package_id,
-                "path": str(child),
-                "installation_receipt_sha256": installation[
-                    "installation_receipt_sha256"
-                ],
-                "installed_file_bytes": installation.get("total_file_bytes"),
+                "package_id": item["package_id"],
+                "reason": "rollback-window-retained",
+                "activation_time_ns": item["activation_time_ns"],
             }
         )
-    return candidates, preserved
+
+    expired_rollback = [
+        {**item, "mandatory_reclaim": True}
+        for item in reversed(activated[rollback_releases:])
+    ]
+    return expired_rollback + never_activated, preserved
 
 
 def _remove_old_install_temporaries(
@@ -477,6 +579,7 @@ def reconcile_capacity(
     *,
     proc_root: Path = Path("/proc"),
     minimum_temp_age_seconds: int = DEFAULT_MINIMUM_TEMP_AGE_SECONDS,
+    rollback_releases: int = DEFAULT_ROLLBACK_RELEASES,
     now: float | None = None,
 ) -> dict[str, Any]:
     if contract.get("schema") != "laplace.postgresql-cluster-contract/v1":
@@ -497,7 +600,7 @@ def reconcile_capacity(
     release_root = Path(str(package.get("release_root", "")))
     active_link = Path(str(package.get("active_link", "")))
     receipt_root = Path(str(instance.get("receipt_directory", "")))
-    runtime_link = Path("/opt/laplace/runtime/refactor")
+    runtime_link = release_root.parent / "runtime/refactor"
     for value, label in (
         (release_root, "release root"),
         (active_link, "active link"),
@@ -506,9 +609,11 @@ def reconcile_capacity(
     ):
         if not value.is_absolute():
             raise CapacityError(f"{label} must be absolute")
-    if not release_root.is_dir() or release_root.is_symlink():
-        raise CapacityError("release root must be one physical directory")
 
+    release_root_created = _ensure_release_root(release_root)
+    recovered_dangling_pointers = _reconcile_dangling_product_pointers(
+        active_link, runtime_link, release_root
+    )
     protected = {
         package_id
         for package_id in (
@@ -517,6 +622,7 @@ def reconcile_capacity(
         )
         if package_id is not None
     }
+
     source_package_bytes = _source_package_bytes(product_receipt, manifest)
     successor_release = release_root / successor_package_id
     if successor_release.is_symlink():
@@ -549,26 +655,34 @@ def reconcile_capacity(
         protected,
         successor_package_id,
         proc_root,
+        rollback_releases,
     )
     removed_releases: list[dict[str, Any]] = []
     root_device = release_root.lstat().st_dev
     for candidate in candidates:
-        if _capacity_satisfied(
+        mandatory = bool(candidate.get("mandatory_reclaim"))
+        if not mandatory and _capacity_satisfied(
             release_root, required_allocation_bytes, required_inodes
         ):
             break
         path = Path(candidate["path"])
         allocated = _tree_allocated_bytes(path, root_device)
         entries = _remove_tree(path, root_device)
-        candidate = dict(candidate)
-        candidate.update(
+        removed = dict(candidate)
+        removed.pop("mandatory_reclaim", None)
+        cleanup_class = removed.pop("cleanup_class", "never-activated")
+        removed.update(
             {
                 "allocated_bytes_before": allocated,
                 "removed_entries": entries,
-                "reason": "verified-installed-never-activated-release",
+                "reason": (
+                    "verified-activated-release-outside-rollback-window"
+                    if cleanup_class == "activated"
+                    else "verified-installed-never-activated-release"
+                ),
             }
         )
-        removed_releases.append(candidate)
+        removed_releases.append(removed)
         _fsync_directory(release_root)
 
     free_after = _disk_free(release_root)
@@ -580,7 +694,10 @@ def reconcile_capacity(
         "schema": SCHEMA,
         "successor_package_id": successor_package_id,
         "release_root": str(release_root),
+        "release_root_created": release_root_created,
+        "recovered_dangling_pointers": recovered_dangling_pointers,
         "protected_package_ids": sorted(protected),
+        "rollback_release_count": rollback_releases,
         "source_package_bytes": source_package_bytes,
         "copy_required": copy_required,
         "required_copy_bytes": required_copy_bytes,
@@ -610,7 +727,7 @@ def reconcile_capacity(
     result["receipt_sha256"] = document_identity(result, "receipt_sha256")
     if not result["capacity_satisfied"]:
         raise CapacityError(
-            "product release capacity remains insufficient after safe residue cleanup: "
+            "product release capacity remains insufficient after safe release cleanup: "
             f"required_bytes={required_allocation_bytes} available_bytes={free_after} "
             f"required_inodes={required_inodes} available_inodes={inodes_after}"
         )
@@ -622,6 +739,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--contract", required=True)
     parser.add_argument("--product-receipt", required=True)
     parser.add_argument("--minimum-temp-age-seconds", type=int, default=300)
+    parser.add_argument(
+        "--rollback-releases", type=int, default=DEFAULT_ROLLBACK_RELEASES
+    )
     return parser.parse_args(argv)
 
 
@@ -635,6 +755,7 @@ def main(argv: Sequence[str]) -> int:
         product_receipt,
         manifest,
         minimum_temp_age_seconds=args.minimum_temp_age_seconds,
+        rollback_releases=args.rollback_releases,
     )
     print(json.dumps(result, sort_keys=True))
     return 0

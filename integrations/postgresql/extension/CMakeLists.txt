@@ -127,6 +127,7 @@ set(laplace_postgresql_module_sources
     src/cognition_isa_pg.c
     src/cognition_firmware_pg.c
     src/cognition_product_pg.c
+    src/cognition_conversation_product_pg.c
     src/composition_pg.c
     src/content_admission_pg.c
     src/evidence_lineage_pg.c
@@ -249,6 +250,10 @@ if(BUILD_TESTING)
     function(laplace_add_postgresql_mutant target definition)
         add_library(${target} MODULE ${laplace_postgresql_module_sources})
         laplace_configure_postgresql_module(${target})
+        # Keep the normal PostgreSQL symbol-preemption model for shared extension
+        # infrastructure such as _PG_init/GUC ownership. Mutated semantic owners that
+        # cross source-file boundaries receive explicit unique symbols below; global
+        # -Bsymbolic incorrectly makes every mutant re-register laplace.perfcache_root.
         target_compile_definitions(${target} PRIVATE
             LAPLACE_POSTGRES_TESTING=1
             ${definition}=1)

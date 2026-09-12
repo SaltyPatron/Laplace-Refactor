@@ -108,8 +108,12 @@ static void validate_predecessor(
         int64 previous_ordinal;
 
         values[0] = PointerGetDatum(previous);
+        /* Deposit is VOLATILE and can be called repeatedly inside one outer SQL
+         * command. PostgreSQL keeps read-only SPI calls on the surrounding
+         * snapshot; read_only=false advances visibility so a successor observes
+         * a predecessor deposited by an earlier call in that same command. */
         spi_status = SPI_execute_with_args(
-            sql, 1, types, values, NULL, true, 1);
+            sql, 1, types, values, NULL, false, 1);
         if (spi_status != SPI_OK_SELECT || SPI_processed != 1u) {
             ereport(ERROR,
                     (errcode(ERRCODE_FOREIGN_KEY_VIOLATION),
@@ -166,7 +170,11 @@ static void verify_exact_stored_frame(
     laplace_cognition_discourse_frame_receipt stored_receipt;
 
     values[0] = PointerGetDatum(state_id);
-    spi_status = SPI_execute_with_args(sql, 1, types, values, NULL, true, 1);
+    /* The insert immediately before this read executed through read-write SPI.
+     * A read-only SPI snapshot stays pinned to the surrounding command and can
+     * hide the row that this function just deposited, so exact readback also
+     * uses read_only=false to advance visibility. */
+    spi_status = SPI_execute_with_args(sql, 1, types, values, NULL, false, 1);
     if (spi_status != SPI_OK_SELECT || SPI_processed != 1u) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),

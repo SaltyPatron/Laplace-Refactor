@@ -93,6 +93,12 @@ install(TARGETS laplace_receipt_store
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/model_export.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-model-export)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition_client.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-cognition)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition_service.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-cognition-service)
 
 if(BUILD_TESTING)
     add_test(

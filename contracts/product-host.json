@@ -81,10 +81,10 @@
     },
     {
       "path": "/opt/laplace/releases",
-      "owner": "root",
-      "group": "root",
+      "owner": "laplace-runner",
+      "group": "laplace-runner",
       "mode": "0755",
-      "purpose": "immutable content-addressed product releases"
+      "purpose": "runner-owned immutable content-addressed product releases with bounded lifecycle retention"
     },
     {
       "path": "/opt/laplace/sources",

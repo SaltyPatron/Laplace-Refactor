@@ -37,7 +37,7 @@ SELECT (laplace.target_attention_export(
     pg_temp.digest(177),
     pg_temp.digest(80),
     pg_temp.digest(81),
-    pg_temp.jobs(),
+    pg_temp.jobs((SELECT context_fingerprint FROM target_attention_oracle)),
     2::numeric,
     1e-10::double precision,
     true
@@ -45,16 +45,12 @@ SELECT (laplace.target_attention_export(
 
 DO $verify_export$
 DECLARE
-    result laplace.target_attention_export_result;
-    projected laplace.target_attention_compile_result;
+    result record;
+    projected record;
     header text;
 BEGIN
-    SELECT ROW(t.*)::laplace.target_attention_export_result
-      INTO result
-      FROM first_export t;
-    SELECT ROW(t.*)::laplace.target_attention_compile_result
-      INTO projected
-      FROM first_projection t;
+    SELECT * INTO result FROM first_export;
+    SELECT * INTO projected FROM first_projection;
 
     IF result.compile_status <> 0 OR result.projection_status <> 0 OR
        result.codec_status <> 0 THEN
@@ -106,7 +102,7 @@ SELECT (laplace.target_attention_export(
     pg_temp.digest(177),
     pg_temp.digest(80),
     pg_temp.digest(81),
-    pg_temp.jobs(),
+    pg_temp.jobs((SELECT context_fingerprint FROM target_attention_oracle)),
     2::numeric,
     1e-10::double precision,
     true
@@ -131,7 +127,10 @@ $deterministic_export$;
 DO $export_insufficient_width$
 DECLARE
     message_text text;
+    context_fingerprint_value bytea;
 BEGIN
+    SELECT context_fingerprint INTO context_fingerprint_value
+      FROM target_attention_oracle;
     BEGIN
         PERFORM laplace.target_attention_export(
             pg_temp.execution_context(),
@@ -139,7 +138,7 @@ BEGIN
             pg_temp.digest(177),
             pg_temp.digest(80),
             pg_temp.digest(81),
-            pg_temp.jobs(),
+            pg_temp.jobs(context_fingerprint_value),
             1::numeric,
             1e-12::double precision,
             true
@@ -173,12 +172,12 @@ SELECT (laplace.target_attention_export_scoped(
 
 DO $verify_scoped_export$
 DECLARE
-    result laplace.target_attention_scoped_export_result;
+    result record;
+    expected record;
     header text;
 BEGIN
-    SELECT ROW(t.*)::laplace.target_attention_scoped_export_result
-      INTO result
-      FROM first_scoped_export t;
+    SELECT * INTO result FROM first_scoped_export;
+    SELECT * INTO expected FROM target_attention_oracle;
 
     IF result.scope_status <> 0 OR result.compile_status <> 0 OR
        result.projection_status <> 0 OR result.codec_status <> 0 THEN
@@ -195,12 +194,12 @@ BEGIN
        result.semantic_basis_rank <> 2 OR result.null_basis_rank <> 0 THEN
         RAISE EXCEPTION 'scoped target export tensor/shape metadata mismatch';
     END IF;
-    IF encode(result.scope_receipt_id, 'hex') <> :'scoped_scope_receipt_id' OR
-       encode(result.scope_request_fingerprint, 'hex') <> :'scoped_scope_request_fingerprint' OR
-       encode(result.scope_slot_set_fingerprint, 'hex') <> :'scoped_slot_set_fingerprint' OR
-       encode(result.compile_receipt_id, 'hex') <> :'scoped_compile_receipt_id' OR
-       encode(result.projection_id, 'hex') <> :'scoped_projection_id' OR
-       encode(result.embedding_fingerprint, 'hex') <> :'scoped_embedding_fingerprint' THEN
+    IF result.scope_receipt_id <> expected.scoped_scope_receipt_id OR
+       result.scope_request_fingerprint <> expected.scoped_scope_request_fingerprint OR
+       result.scope_slot_set_fingerprint <> expected.scoped_slot_set_fingerprint OR
+       result.compile_receipt_id <> expected.scoped_compile_receipt_id OR
+       result.projection_id <> expected.scoped_projection_id OR
+       result.embedding_fingerprint <> expected.scoped_embedding_fingerprint THEN
         RAISE EXCEPTION 'PostgreSQL scoped export diverged from native target-scope oracle';
     END IF;
     IF result.byte_count <> octet_length(result.artifact)::numeric OR
