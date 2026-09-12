@@ -22,6 +22,7 @@ struct ActiveFrontierCapture final {
 };
 
 thread_local ActiveFrontierCapture* active_frontier_capture = nullptr;
+thread_local const laplace_execution_runtime_provider_v1* active_execution_provider = nullptr;
 std::mutex frontier_receipt_mutex;
 std::unordered_map<
     const laplace_composition_working_set*,
@@ -39,13 +40,15 @@ extern "C" laplace_execution_status composition_capture_run_work(
 
 /*
  * Preserve the existing semantic composition implementation byte-for-byte while
- * placing lifecycle ownership around its two externally relevant seams:
+ * placing lifecycle ownership around its externally relevant execution seams:
  *
  * 1. working-set create/destroy become wrappers that bind postflight receipts to
  *    the opaque working-set lifetime;
  * 2. common execution dispatch is intercepted only for CalculateRequestChunk so
  *    every runtime frontier is checked against the shared dependency planner and
- *    its real execution receipt is retained.
+ *    its real execution receipt is retained;
+ * 3. an explicitly bound runtime provider is substituted only at that same common
+ *    execution seam, leaving ordinary oneAPI/serial provider selection unchanged.
  *
  * The implementation unit remains ordinary C++ source included into this one
  * translation unit; it is not a second semantic engine.
@@ -85,6 +88,25 @@ private:
     ActiveFrontierCapture* prior_{};
 };
 
+class ProviderScope final {
+public:
+    explicit ProviderScope(
+        const laplace_execution_runtime_provider_v1* const provider) noexcept
+        : prior_(active_execution_provider) {
+        active_execution_provider = provider;
+    }
+
+    ~ProviderScope() {
+        active_execution_provider = prior_;
+    }
+
+    ProviderScope(const ProviderScope&) = delete;
+    ProviderScope& operator=(const ProviderScope&) = delete;
+
+private:
+    const laplace_execution_runtime_provider_v1* prior_{};
+};
+
 bool ReceiptSetComplete(
     const ActiveFrontierCapture& capture,
     const laplace_composition_working_set_input& input) noexcept {
@@ -96,8 +118,7 @@ bool ReceiptSetComplete(
     std::uint64_t completed_items = 0U;
     for (const auto& receipt : capture.receipts) {
         if (receipt.status != LAPLACE_EXECUTION_OK ||
-            receipt.completed_items >
-                UINT64_MAX - completed_items) {
+            receipt.completed_items > UINT64_MAX - completed_items) {
             return false;
         }
         completed_items += receipt.completed_items;
@@ -146,8 +167,10 @@ extern "C" laplace_execution_status composition_capture_run_work(
         }
     }
 
+    const auto* const execution_provider =
+        active_execution_provider == nullptr ? provider : active_execution_provider;
     const auto status = laplace_execution_run_work(
-        grant, request, provider, task_state, task, receipt);
+        grant, request, execution_provider, task_state, task, receipt);
     if (status != LAPLACE_EXECUTION_OK) {
         return status;
     }
@@ -161,6 +184,22 @@ extern "C" laplace_execution_status composition_capture_run_work(
 }
 
 }  // namespace
+
+extern "C" laplace_composition_status
+laplace_composition_working_set_create_with_provider(
+    const laplace_composition_working_set_input* const input,
+    const laplace_execution_runtime_provider_v1* const provider,
+    laplace_composition_working_set** const working_set) {
+    if (working_set != nullptr) {
+        *working_set = nullptr;
+    }
+    if (input == nullptr || provider == nullptr || working_set == nullptr) {
+        return LAPLACE_COMPOSITION_INVALID_ARGUMENT;
+    }
+
+    ProviderScope provider_scope(provider);
+    return laplace_composition_working_set_create(input, working_set);
+}
 
 extern "C" laplace_composition_status laplace_composition_working_set_create(
     const laplace_composition_working_set_input* const input,
