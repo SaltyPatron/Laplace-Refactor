@@ -122,6 +122,12 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/openai_api_service.py"
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/openai_api_compat.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-openai-api)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/source_product.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-source-product)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/source_product.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-source-job-worker)
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/laplace_inspect.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-inspect)
@@ -131,6 +137,13 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/admit_source.py"
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/admit_source_guard.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-admit-source)
+install(FILES "${CMAKE_SOURCE_DIR}/contracts/selected-source-boundary-20260903.json"
+    DESTINATION "share/laplace/source-contracts"
+    RENAME "selected-source-boundary.json")
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/contracts/sources/"
+    DESTINATION "share/laplace/source-contracts/profiles"
+    FILES_MATCHING
+        PATTERN "*.json")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/product/web/"
     DESTINATION "share/laplace/web"
     FILES_MATCHING
@@ -155,6 +168,12 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/admit_source_guard.py")
     set_tests_properties(product.source-admission-estate-boundary PROPERTIES
         LABELS "product;source-admission;authority;security;mutation")
+    add_test(
+        NAME product.source-ingestion-lifecycle
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/source_product_tests.py")
+    set_tests_properties(product.source-ingestion-lifecycle PROPERTIES
+        LABELS "product;source-admission;catalog;preflight;job;idempotency;mutation")
     add_test(
         NAME product.openai-chat-history
         COMMAND "${Python3_EXECUTABLE}"
