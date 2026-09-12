@@ -9,28 +9,34 @@ WORKFLOW_PATH = REPOSITORY / ".github/workflows/product-path.yml"
 
 
 class ProductPathConcurrencyTests(unittest.TestCase):
-    def test_same_ref_runs_are_not_cancelled_before_physical_proof(self) -> None:
+    def test_same_ref_runs_are_queued_before_physical_proof(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         marker = (
             "concurrency:\n"
             "  group: product-path-${{ github.ref }}\n"
+            "  queue: max\n"
             "  cancel-in-progress: false\n"
         )
         self.assertIn(
             marker,
             workflow,
-            "a newer run on the same ref may cancel an older queued physical proof",
+            "same-ref product-path runs must queue instead of replacing pending proof",
         )
 
-    def test_physical_host_ownership_never_cancels_pending_proof(self) -> None:
+    def test_physical_host_ownership_queues_every_pending_proof(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-        publication = workflow[workflow.index("  publication-recovery:"):workflow.index("  custom-stack-proof:")]
-        live_substrate = workflow[workflow.index("  dev-bat-live-substrate:"):workflow.index("  legacy-requirements:")]
+        publication = workflow[
+            workflow.index("  publication-recovery:") : workflow.index("  custom-stack-proof:")
+        ]
+        live_substrate = workflow[
+            workflow.index("  dev-bat-live-substrate:") : workflow.index("  legacy-requirements:")
+        ]
         for name, block in {
             "publication-recovery": publication,
             "dev-bat-live-substrate": live_substrate,
         }.items():
             self.assertIn("group: laplace-physical-product-proof", block, name)
+            self.assertIn("queue: max", block, name)
             self.assertIn("cancel-in-progress: false", block, name)
 
 
