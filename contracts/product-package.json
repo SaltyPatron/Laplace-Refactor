@@ -21,6 +21,7 @@
     "required_capabilities": {
       "app_effect_boundary": 1,
       "exact_loaded_object_identity": 1,
+      "installed_cognition_command": 1,
       "topology_bound_processor_allocation": 1
     }
   },
@@ -93,6 +94,7 @@
     "required_files": [
       "bin/laplace_resource_observe",
       "bin/laplace_cognition_firmware_compile",
+      "bin/laplace-cognition",
       "bin/laplace_unicode_activation_identify",
       "bin/laplace_unicode_artifact_verify",
       "bin/laplace-live-substrate",
