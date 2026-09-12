@@ -4,28 +4,17 @@ Laplace-Refactor has one administrator bootstrap boundary and one recurring prod
 
 ## One-time human bootstrap
 
-Run once, and rerun only to reconcile host prerequisites:
+Run the default command to complete host preparation, package composition or reuse, PostgreSQL activation, configured Unicode/Highway activation, and installed cognition service readback:
 
 ```sh
 sudo bash scripts/setup-host.sh
 ```
 
-`setup-host.sh` establishes operating-system infrastructure only. It does **not** execute product delivery.
+Existing database state is reconciled and preserved. Product operations run as `laplace-runner`; root prepares shared storage and installs the OS services. Operators and runners share the `laplace-runner` group, setgid directories and `umask 0002`. Builds and scratch use `/build`; database, WAL and spill retain their dedicated volumes.
 
-It establishes:
+The default command returns successfully only after the installed product and cognition service answer their readback checks. Evidence is retained under `/build/laplace/work/refactor-scratch/setup-product.*`. The host-envelope receipt at `/opt/laplace/receipts/bootstrap/host.json` describes only the prerequisite phase; it is not a product completion receipt.
 
-- the `laplace-runner` system identity;
-- persistent product/runtime parent roots owned by `laplace-runner` under `/build`, `/opt/laplace`, `/pgtemp`, `/var/lib/pgwal`, and `/var/log/laplace`;
-- the administrator-owned `/etc/laplace` namespace and setgid `root:laplace-runner` `/etc/laplace/instances` parent;
-- a static `laplace-refactor-postgresql.service` unit for optional host-boot integration, installed and enabled but not started;
-- a narrowly scoped service-control sudo policy retained for optional systemd administration;
-- a durable prerequisite receipt at `/opt/laplace/receipts/bootstrap/host.json`.
-
-The bootstrap does **not** build PostgreSQL or Laplace, compose/install/select a product package, run `initdb`, migrate or seed PostgreSQL, start PostgreSQL, activate Unicode, activate the Highway, install an activation HMAC key, or install/invoke a whole-product root activation gateway.
-
-The bootstrap receipt explicitly records `product_activated=false`, `postgresql_initialized=false`, `activation_gateway_installed=false`, and `service_envelope.started_by_bootstrap=false`.
-
-The DEV/BAT host has physically completed this bootstrap generation. There is no remaining manual prerequisite for normal accepted-main delivery.
+For an intentionally limited repair, `setup-host.sh prerequisites` prepares the host envelope and `setup-host.sh storage` repairs shared storage. Neither is required for a normal full setup.
 
 ## Recurring ownership
 
@@ -47,7 +36,7 @@ accepted main
   -> query/read back the installed product
 ```
 
-Recurring product delivery requires **no sudo, no root gateway, and no systemd lifecycle operation**. Package, database, Unicode, Highway, receipt, socket, and semantic execution state remain owned by `laplace-runner`.
+Package and database delivery run without a root gateway. CI uses the narrowly granted systemctl restart for the installed cognition service. Package, database, Unicode, Highway, receipt, socket, and semantic execution state remain owned by `laplace-runner`.
 
 ## PostgreSQL lifecycle provider
 
@@ -152,8 +141,8 @@ Acceptance also requires exact installed package identity, a real restart with a
 ## Human/CI boundary
 
 ```text
-sudo bash scripts/setup-host.sh   # one-time host envelope; already completed on DEV/BAT
+sudo bash scripts/setup-host.sh   # complete configured setup and installed readback
 accepted main                     # thereafter CI/CD owns product delivery
 ```
 
-If recurring CI requires root, sudo, a root/HMAC activation gateway, systemd to make PostgreSQL queryable, or a human OS account for database administration, the product boundary has regressed.
+Semantic execution and database administration remain under the service identity. Root execution is limited to host provisioning and the declared OS service controls.

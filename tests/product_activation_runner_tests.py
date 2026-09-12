@@ -33,6 +33,7 @@ class ProductActivationRunnerTests(unittest.TestCase):
         self.assertIn('execution_owner == "laplace-runner"', source)
         self.assertIn("root_product_executor == false", source)
         self.assertIn("pg_ctl", source)
+        self.assertIn("sudo -n /usr/bin/systemctl restart laplace-refactor-cognition.service", source)
         self.assertIn("lifecycle_provider", source)
         for forbidden in (
             "laplace-product-activate",
@@ -41,7 +42,6 @@ class ProductActivationRunnerTests(unittest.TestCase):
             "product_activation.py create-request",
             "gateway-upgrade-request",
             "root gateway",
-            "sudo -n",
             "systemctl is-active",
             "systemctl is-enabled",
         ):

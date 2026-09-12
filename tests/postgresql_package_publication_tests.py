@@ -34,7 +34,7 @@ class PostgreSQLPackagePublicationTests(unittest.TestCase):
         )
         self.contract["publication_root"] = str(self.root / "published")
         self.contract["receipt_root"] = str(self.root / "receipts")
-        self.contract["consumer_group"] = grp.getgrgid(os.getgid()).gr_name
+        self.contract["consumer_group"] = grp.getgrgid(self.root.stat().st_gid).gr_name
         self.source_receipt = self.make_source()
 
     def tearDown(self) -> None:
@@ -146,6 +146,37 @@ class PostgreSQLPackagePublicationTests(unittest.TestCase):
         (Path(source["prefix"]) / "absolute").symlink_to("/tmp/outside")
         with self.assertRaisesRegex(PUBLICATION.PublicationError, "absolute symlink"):
             PUBLICATION.publication_plan(self.contract, self.source_receipt)
+
+
+class PublicationModeRecoveryTests(unittest.TestCase):
+    def test_metadata_recovery_preserves_bytes_and_rejects_corruption(self):
+        import shutil
+        spec = importlib.util.spec_from_file_location(
+            "publication_recovery", REPOSITORY / "tools/delivery/recover_postgresql_publication.py")
+        recovery = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(recovery)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan = {"source": {}, "receipt": {}}
+            for name, key in (("postgresql", "postgresql_prefix"),
+                              ("toolchain", "toolchain_physical_prefix")):
+                source = root / name / "source"
+                source.mkdir(parents=True)
+                (source / "program").write_bytes(b"verified executable")
+                (source / "program").chmod(0o755)
+                target = root / name / "published"
+                shutil.copytree(source, target)
+                (target / "program").chmod(0o775)
+                plan["source"][key] = str(source)
+                plan["receipt"][name] = {"prefix": str(target)}
+            self.assertEqual(recovery.restore_publication_modes(plan), 2)
+            self.assertEqual(recovery.restore_publication_modes(plan), 0)
+            pg = root / "postgresql/published/program"
+            pg.chmod(0o775)
+            (root / "toolchain/published/program").write_bytes(b"corrupted executable")
+            with self.assertRaisesRegex(recovery.RecoveryError, "published bytes differ"):
+                recovery.restore_publication_modes(plan)
+            self.assertEqual(pg.stat().st_mode & 0o777, 0o775)
 
 
 if __name__ == "__main__":

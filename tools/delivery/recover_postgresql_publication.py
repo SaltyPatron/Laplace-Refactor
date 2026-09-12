@@ -397,6 +397,40 @@ def materialize_selected_root(
         raise
 
 
+def restore_publication_modes(plan: Mapping[str, Any]) -> int:
+    """Restore only metadata from an exact verified source, never replace bytes."""
+    repairs: list[tuple[Path, int]] = []
+    source = plan["source"]
+    for name, source_key in (("postgresql", "postgresql_prefix"),
+                             ("toolchain", "toolchain_physical_prefix")):
+        original = Path(source[source_key])
+        published = Path(plan["receipt"][name]["prefix"])
+        PUBLICATION.require_physical_directory(published, "published tree")
+        originals = {p.relative_to(original): p for p in original.rglob("*")}
+        targets = {p.relative_to(published): p for p in published.rglob("*")}
+        if originals.keys() != targets.keys():
+            raise RecoveryError("published tree entries differ; cannot repair modes")
+        for relative, path in originals.items():
+            target = targets[relative]
+            before, current = path.lstat(), target.lstat()
+            if stat.S_IFMT(before.st_mode) != stat.S_IFMT(current.st_mode):
+                raise RecoveryError(f"published object type differs: {target}")
+            if path.is_symlink():
+                if os.readlink(path) != os.readlink(target):
+                    raise RecoveryError(f"published symlink differs: {target}")
+                continue
+            if path.is_file() and (before.st_size != current.st_size or
+                    PUBLICATION.sha256_file(path) != PUBLICATION.sha256_file(target)):
+                raise RecoveryError(f"published bytes differ: {target}")
+            mode = stat.S_IMODE(before.st_mode)
+            if mode != stat.S_IMODE(current.st_mode):
+                repairs.append((target, mode))
+    # Validate every object in both trees before changing any metadata.
+    for target, mode in repairs:
+        os.chmod(target, mode, follow_symlinks=False)
+    return len(repairs)
+
+
 def recover_selected(
     current_contract_path: Path,
     selection_path: Path,
@@ -434,14 +468,15 @@ def recover_selected(
     plan: dict[str, Any]
     if publication_root.exists() or publication_root.is_symlink():
         if selected_receipt.exists():
-            raise RecoveryError(
-                "selected receipt exists but publication verification failed; refusing mutation"
+            plan = exact_private_source_plan(
+                current_contract, authority_contract, publisher_sha256,
+                PUBLICATION.load_json(continuation_path), selected_receipt, selected_sha256,
             )
-        plan = plan_from_published_root(
-            authority_contract,
-            publisher_sha256,
-            selected_receipt,
-        )
+            restore_publication_modes(plan)
+        else:
+            plan = plan_from_published_root(
+                authority_contract, publisher_sha256, selected_receipt,
+            )
     else:
         continuation = PUBLICATION.load_json(continuation_path)
         plan = exact_private_source_plan(

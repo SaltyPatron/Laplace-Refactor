@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
-# One-time Linux host prerequisite bootstrap for Laplace-Refactor.
-#
-# Human/operator boundary:
-#   sudo bash scripts/setup-host.sh
-#
-# This script does NOT build or select a Laplace package, initialize/migrate/seed a
-# database, start PostgreSQL, activate Unicode/Highway, or execute product semantics.
-# It establishes the fixed host envelope, converges obsolete host-layout residue, and
-# then exits. Recurring product delivery belongs to CI as laplace-runner.
+# Default: prepare the host, install/activate the configured product, and verify it.
+# sudo bash scripts/setup-host.sh
+# Explicit limited modes: prerequisites, storage.
 
 set -euo pipefail
 umask 0002
@@ -24,7 +18,7 @@ SERVICE_TARGET="/etc/systemd/system/$SERVICE"
 SUDOERS_TARGET="/etc/sudoers.d/laplace-refactor-postgresql-service"
 BOOTSTRAP_RECEIPT="/opt/laplace/receipts/bootstrap/host.json"
 MODE="${1:-setup}"
-[[ "$MODE" == setup || "$MODE" == storage ]] || { echo "usage: $0 [setup|storage]" >&2; exit 2; }
+[[ "$MODE" == setup || "$MODE" == prerequisites || "$MODE" == storage ]] || { echo "usage: $0 [setup|prerequisites|storage]" >&2; exit 2; }
 
 resolve_command() {
     local name="$1"
@@ -271,6 +265,7 @@ cat > "$SUDOERS_TARGET" <<EOF
 $RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN start $SERVICE
 $RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN stop $SERVICE
 $RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN restart $SERVICE
+$RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN restart laplace-refactor-cognition.service
 EOF
 "$CHMOD_BIN" 0440 "$SUDOERS_TARGET"
 "$CHOWN_BIN" root:root "$SUDOERS_TARGET"
@@ -320,14 +315,23 @@ EOF
 "$INSTALL_BIN" -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0640 \
     "$TMP_RECEIPT" "$BOOTSTRAP_RECEIPT"
 
-cat <<EOF
-Laplace host prerequisites are ready.
+if [[ "$MODE" == prerequisites ]]; then
+    echo "Host prerequisites completed. Receipt: $BOOTSTRAP_RECEIPT"
+    exit 0
+fi
 
-setup-host stopped here by design. It installed/enabled the static OS service envelope
-but did not select a package, initialize/start PostgreSQL, seed data, or activate
-Unicode/Highway. Recurring product delivery belongs to CI as $RUNNER_USER.
-
-Bootstrap receipt: $BOOTSTRAP_RECEIPT
-Service envelope:  $SERVICE_TARGET (enabled, not started)
-Sudo capability:   $SYSTEMCTL_BIN start|stop|restart $SERVICE only
-EOF
+"$SUDO_BIN" -u "$RUNNER_USER" -H -- bash "$SCRIPT_DIR/setup-product.sh"
+COGNITION_SERVICE=laplace-refactor-cognition.service
+"$INSTALL_BIN" -o root -g root -m 0644 "$REPOSITORY/packaging/systemd/$COGNITION_SERVICE" "/etc/systemd/system/$COGNITION_SERVICE"
+"$SYSTEMCTL_BIN" daemon-reload
+"$SYSTEMCTL_BIN" enable "$COGNITION_SERVICE"
+"$SYSTEMCTL_BIN" restart "$COGNITION_SERVICE"
+"$SYSTEMCTL_BIN" is-active --quiet "$COGNITION_SERVICE"
+for attempt in {1..30}; do
+    if "$SUDO_BIN" -u "$RUNNER_USER" -H -- /opt/laplace/runtime/refactor/bin/laplace-cognition --relations constituent AA > "$TMPDIR/setup-cognition-readback" 2>/dev/null; then
+        [[ $(cat "$TMPDIR/setup-cognition-readback") == A ]] && break
+    fi
+    [[ "$attempt" != 30 ]] || { echo 'Installed cognition readback failed' >&2; exit 1; }
+    sleep 1
+done
+echo "Laplace setup completed: PostgreSQL, Unicode, Highway and the cognition service are running and verified."

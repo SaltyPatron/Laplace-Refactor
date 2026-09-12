@@ -38,11 +38,7 @@ The administrator runs:
 sudo bash scripts/setup-host.sh
 ```
 
-That command establishes the operating-system envelope and exits. It creates or verifies `laplace-runner`, persistent parent roots, and optional host-boot integration. It does **not** build/select a package, run `initdb`, start PostgreSQL, migrate or seed the database, activate Unicode/Highway, or execute product semantics.
-
-The DEV/BAT host has completed this bootstrap generation. There is no remaining manual prerequisite for normal accepted-main product delivery.
-
-The static systemd unit and narrow service-control sudo policy remain available for boot/host integration. They are not PostgreSQL lifecycle authority and are not consumed by accepted-main activation.
+That command prepares the operating-system envelope and completes the configured product lifecycle as `laplace-runner`: package composition or reuse, persistent PostgreSQL initialization or reconciliation, Unicode/Highway activation, and installed cognition service readback. Existing database state is preserved. Explicit `prerequisites` and `storage` modes are available for limited repairs; the default requires neither argument.
 
 See [`HOST_BOOTSTRAP.md`](HOST_BOOTSTRAP.md) for the exact host/CI handoff.
 

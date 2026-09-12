@@ -159,7 +159,8 @@ jobs:
             expected_policy=$(printf '%s\n' \
               "laplace-runner ALL=(root) NOPASSWD: $systemctl_bin start $service_name" \
               "laplace-runner ALL=(root) NOPASSWD: $systemctl_bin stop $service_name" \
-              "laplace-runner ALL=(root) NOPASSWD: $systemctl_bin restart $service_name")
+              "laplace-runner ALL=(root) NOPASSWD: $systemctl_bin restart $service_name" \
+              "laplace-runner ALL=(root) NOPASSWD: $systemctl_bin restart laplace-refactor-cognition.service")
             expected_policy_bytes=$(printf '%s\n' "$expected_policy" | wc -c | tr -d ' ')
             require_equal "$(stat -c '%s' "$sudo_policy")" "$expected_policy_bytes" sudo-policy-size
             for action in start stop restart; do
@@ -518,118 +519,16 @@ jobs:
           service=/opt/laplace/runtime/refactor/bin/laplace-cognition-service
           client=/opt/laplace/runtime/refactor/bin/laplace-cognition
           service_socket=/opt/laplace/runtime/laplace-cognition.sock
-          pid_file=/opt/laplace/runtime/laplace-cognition.pid
-          log_file=/var/log/laplace/laplace-cognition.log
           test -x "$service"
           test -x "$client"
           test -d /opt/laplace/runtime
           test ! -L /opt/laplace/runtime
-          chmod 0711 /opt/laplace/runtime
-          python3 - "$service" "$service_socket" "$pid_file" "$log_file" "$package_id" <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          import signal
-          import socket
-          import subprocess
-          import sys
-          import time
-
-          service, socket_name, pid_name, log_name, package_id = sys.argv[1:]
-          service_socket = Path(socket_name)
-          pid_file = Path(pid_name)
-          log_file = Path(log_name)
-          uid = os.geteuid()
-
-          if pid_file.exists():
-              if pid_file.is_symlink() or not pid_file.is_file():
-                  raise SystemExit(f"unsafe cognition pid file: {pid_file}")
-              raw = pid_file.read_text(encoding="ascii").strip()
-              if raw:
-                  old_pid = int(raw)
-                  proc = Path(f"/proc/{old_pid}")
-                  if proc.exists():
-                      status = (proc / "status").read_text(encoding="utf-8")
-                      uid_line = next(line for line in status.splitlines() if line.startswith("Uid:"))
-                      process_uid = int(uid_line.split()[1])
-                      command = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
-                      if process_uid != uid or "laplace-cognition-service" not in command:
-                          raise SystemExit(f"pid file points to a non-Laplace process: {old_pid}")
-                      os.kill(old_pid, signal.SIGTERM)
-                      for _ in range(100):
-                          if not proc.exists():
-                              break
-                          time.sleep(0.05)
-                      if proc.exists():
-                          raise SystemExit(f"previous cognition service did not stop: {old_pid}")
-              pid_file.unlink(missing_ok=True)
-
-          log_file.parent.mkdir(parents=True, exist_ok=True)
-          environment = dict(os.environ)
-          environment.pop("RUNNER_TRACKING_ID", None)
-          with log_file.open("ab", buffering=0) as log:
-              process = subprocess.Popen(
-                  [service, "--socket", str(service_socket)],
-                  stdin=subprocess.DEVNULL,
-                  stdout=log,
-                  stderr=subprocess.STDOUT,
-                  env=environment,
-                  start_new_session=True,
-                  close_fds=True,
-              )
-          temporary = pid_file.with_name(f".{pid_file.name}.{os.getpid()}.tmp")
-          temporary.write_text(f"{process.pid}\n", encoding="ascii")
-          temporary.chmod(0o640)
-          os.replace(temporary, pid_file)
-
-          def health():
-              connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-              connection.settimeout(1)
-              try:
-                  connection.connect(str(service_socket))
-                  connection.sendall(
-                      b"GET /health HTTP/1.1\r\nHost: laplace.local\r\nConnection: close\r\n\r\n"
-                  )
-                  chunks = []
-                  while True:
-                      block = connection.recv(65536)
-                      if not block:
-                          break
-                      chunks.append(block)
-              finally:
-                  connection.close()
-              raw_response = b"".join(chunks)
-              marker = raw_response.find(b"\r\n\r\n")
-              if marker < 0:
-                  raise RuntimeError("malformed health response")
-              status_line = raw_response[:marker].split(b"\r\n", 1)[0]
-              if b" 200 " not in status_line:
-                  raise RuntimeError(status_line.decode("ascii", "replace"))
-              return json.loads(raw_response[marker + 4:])
-
-          last_error = None
-          payload = None
-          for _ in range(100):
-              if process.poll() is not None:
-                  raise SystemExit(f"laplace-cognition-service exited during startup: {process.returncode}")
-              try:
-                  payload = health()
-                  if (
-                      payload.get("status") == "ready"
-                      and payload.get("package_id") == package_id
-                      and payload.get("database") == "laplace_refactor"
-                      and payload.get("unicode_present") is True
-                      and payload.get("highway_present") is True
-                  ):
-                      break
-                  last_error = f"unexpected health payload: {payload}"
-              except Exception as error:
-                  last_error = str(error)
-              time.sleep(0.1)
-          else:
-              raise SystemExit(f"laplace cognition service did not become ready: {last_error}")
-          print(json.dumps({"pid": process.pid, "socket": str(service_socket), "health": payload}, sort_keys=True))
-          PY
+          sudo -n /usr/bin/systemctl restart laplace-refactor-cognition.service
+          for attempt in {1..30}; do
+            if observed="$($client --relations constituent AA 2>/dev/null)" && [[ "$observed" == A ]]; then break; fi
+            [[ "$attempt" != 30 ]] || { echo 'Installed cognition service did not become ready' >&2; exit 1; }
+            sleep 1
+          done
 
           test -S "$service_socket"
           test "$(stat -c '%a' "$service_socket")" = 666

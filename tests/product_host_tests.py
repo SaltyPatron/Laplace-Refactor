@@ -265,16 +265,20 @@ class ProductHostTests(unittest.TestCase):
         self.assertIn("state/product-publication-selection.json", source)
         self.assertNotIn("/opt/laplace/receipts/postgresql/", source)
 
-    def test_setup_host_installs_only_static_envelope_then_hands_control_to_cicd(self) -> None:
+    def test_setup_host_defaults_to_product_activation_with_explicit_prerequisites_mode(self) -> None:
         entrypoint = REPOSITORY / "scripts/setup-host.sh"
         unit = REPOSITORY / "packaging/systemd/laplace-refactor-postgresql.service"
         self.assertTrue(entrypoint.is_file())
         self.assertTrue(unit.is_file())
         source = entrypoint.read_text(encoding="utf-8")
+        self.assertIn('MODE="${1:-setup}"', source)
+        self.assertIn('"$MODE" == prerequisites', source)
+        self.assertIn('"$SCRIPT_DIR/setup-product.sh"', source)
+        self.assertIn('"$SYSTEMCTL_BIN" restart "$COGNITION_SERVICE"', source)
+        self.assertNotIn('stopped here by design', source)
         service = unit.read_text(encoding="utf-8")
 
-        # One-time host envelope: identity, parent roots, static unit, enablement, and
-        # exact service-control sudo. It must stop before any product semantics.
+        # The default completes product setup; prerequisites-only is explicit.
         self.assertIn("laplace-runner", source)
         self.assertIn("resolve_command", source)
         self.assertIn('SERVICE_SOURCE="$REPOSITORY/packaging/systemd/$SERVICE"', source)
