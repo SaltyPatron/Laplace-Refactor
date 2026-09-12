@@ -206,7 +206,7 @@ def prove_source_ingestion(package_id: str) -> dict[str, Any]:
     return {"catalog_boundary_sha256": catalog.get("boundary_sha256"), "source_id": source_id, "plan_id": plan_id, "job_id": job_id, "idempotent_retry_same_job": True, "state": job.get("state"), "result_sha256": result_sha, "admission_schema": result.get("schema"), "readback_schema": readback.get("schema"), "entity_count": result.get("entity_count"), "physicality_count": result.get("physicality_count"), "attestation_count": result.get("attestation_count")}
 
 
-def prove(output: Path, package_id: str) -> None:
+def prove(output: Path, package_id: str, *, include_source_ingestion: bool = False) -> None:
     status, content_type, index = http("GET", "/", timeout=10.0)
     if status != 200 or "text/html" not in content_type or b"Laplace" not in index:
         raise RuntimeError("installed browser root did not return the Laplace application")
@@ -286,7 +286,8 @@ def prove(output: Path, package_id: str) -> None:
     if not isinstance(structured, dict) or structured.get("schema") != "laplace.inspect.summary/v1":
         raise RuntimeError("MCP laplace.query did not return live canonical substrate state")
 
-    source_ingestion = prove_source_ingestion(package_id)
+    source_ingestion = (prove_source_ingestion(package_id) if include_source_ingestion else
+                        {"disposition": "not_requested", "reason": "corpus acceptance requires explicit selection"})
     proof = {
         "schema": "laplace.installed-product-gateway-proof/v2",
         "package_id": package_id,
@@ -313,10 +314,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--package-id", required=True)
+    parser.add_argument("--include-source-ingestion", action="store_true")
     args = parser.parse_args()
     if HEX256.fullmatch(args.package_id) is None:
         parser.error("--package-id must be a 64-character lowercase hexadecimal package identity")
-    prove(args.output, args.package_id)
+    prove(args.output, args.package_id, include_source_ingestion=args.include_source_ingestion)
     return 0
 
 

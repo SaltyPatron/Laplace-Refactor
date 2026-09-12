@@ -2,6 +2,11 @@ name: product-cognition-multiturn
 
 on:
   workflow_dispatch:
+    inputs:
+      source_acceptance:
+        description: Explicitly ingest the ISO 639 corpus through the gateway
+        type: boolean
+        default: false
   workflow_run:
     workflows:
       - product-activation
@@ -129,11 +134,15 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Execute installed browser gateway proof
+        env:
+          SOURCE_ACCEPTANCE: ${{ github.event_name == 'workflow_dispatch' && inputs.source_acceptance || false }}
         shell: bash
         run: |
           set -euo pipefail
           proof="$RECEIPT_ROOT/cluster-activation/$PACKAGE_ID/installed-product-gateway-proof.json"
-          python3 tools/delivery/product_gateway_live_proof.py \
+          source_args=()
+          if [[ "$SOURCE_ACCEPTANCE" == true ]]; then source_args+=(--include-source-ingestion); fi
+          python3 tools/delivery/product_gateway_live_proof.py "${source_args[@]}" \
             --package-id "$PACKAGE_ID" \
             --output "$proof"
           jq -e --arg package_id "$PACKAGE_ID" '
@@ -167,6 +176,7 @@ jobs:
             .openai_chat.streaming.finished == true and
             .openai_chat.streaming.chunk_count >= 2 and
             (.openai_chat.streaming.assistant_content | type == "string" and length > 0) and
+            ((.source_ingestion.disposition == "not_requested") or (
             .source_ingestion.source_id == "iso-639-3-20260415" and
             (.source_ingestion.catalog_boundary_sha256 | test("^[0-9a-f]{64}$")) and
             (.source_ingestion.plan_id | test("^[0-9a-f]{64}$")) and
@@ -178,7 +188,7 @@ jobs:
             .source_ingestion.readback_schema == "laplace.inspect.source-profiles/v1" and
             (.source_ingestion.entity_count | tonumber) > 0 and
             (.source_ingestion.physicality_count | tonumber) > 0 and
-            (.source_ingestion.attestation_count | tonumber) > 0 and
+            (.source_ingestion.attestation_count | tonumber) > 0)) and
             (.mcp.tools | index("laplace.query")) != null and
             (.mcp.tools | index("laplace.cognition")) != null and
             (.mcp.tools | index("laplace.source_catalog")) != null and

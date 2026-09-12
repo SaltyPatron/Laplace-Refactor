@@ -178,6 +178,13 @@ Environment=TMPDIR=$TMPDIR
 Environment=TMP=$TMP
 Environment=TEMP=$TEMP
 EOF
+    runner_directory="$RUNNER_HOME/actions-runner-refactor"
+    if [[ -d "$runner_directory" ]]; then
+        path_seed=$(mktemp "$TMPDIR/runner-path.XXXXXXXX")
+        printf '%s\n' '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' > "$path_seed"
+        "$INSTALL_BIN" -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0664 "$path_seed" "$runner_directory/.path"
+        rm -- "$path_seed"
+    fi
     "$SYSTEMCTL_BIN" daemon-reload
     "$SYSTEMCTL_BIN" try-restart "$RUNNER_UNIT"
 fi
