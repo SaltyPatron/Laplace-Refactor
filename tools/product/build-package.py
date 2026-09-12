@@ -17,6 +17,10 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from repository_inputs import repository_build_fingerprint
+
+
 CONTRACT_SCHEMA = "laplace.product-package-contract/v1"
 MANIFEST_SCHEMA = "laplace.package-manifest/v1"
 RECEIPT_SCHEMA = "laplace.product-package-receipt/v1"
@@ -942,7 +946,9 @@ def create_plan(
             file_value, "host_build_provider.additional_receipted_files"
         )
         build_input_files[f"host:{path}"] = exact_file_receipt(path)
-    source = repository_identity(repository, require_clean)
+    provenance = repository_identity(repository, require_clean)
+    source = {"clean": provenance["clean"],
+              "build_fingerprint": repository_build_fingerprint(repository)}
     driver = Path(__file__).resolve()
     recipe = {
         "contract_sha256": canonical_sha256(contract),
@@ -1455,6 +1461,8 @@ def execute_plan(
         {key: value for key, value in plan.items() if key != "plan_sha256"}
     ):
         raise ProductPackageError("product package plan digest differs")
+    if repository_build_fingerprint(repository) != plan["recipe"]["repository"]["build_fingerprint"]:
+        raise ProductPackageError("repository build inputs changed after planning")
     build_directory = Path(plan["build_directory"])
     stage_directory = Path(plan["stage_directory"])
     if build_directory.exists() or stage_directory.exists():
@@ -1582,8 +1590,9 @@ def execute_plan(
         },
         "laplace": {
             "version": contract["version"],
-            "repository_commit": plan["recipe"]["repository"]["commit"],
-            "repository_tree": plan["recipe"]["repository"]["tree"],
+            "repository_commit": git_output(repository, "rev-parse", "HEAD"),
+            "repository_tree": git_output(repository, "rev-parse", "HEAD^{tree}"),
+            "repository_build_fingerprint": plan["recipe"]["repository"]["build_fingerprint"],
         },
         "capabilities": contract["laplace"]["required_capabilities"],
         "loader_environment": {},
