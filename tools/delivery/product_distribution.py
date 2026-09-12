@@ -347,6 +347,25 @@ exec /usr/bin/python3 \"$LAPLACE_INSTALLER_ROOT/control/tools/delivery/product_h
 """
 
 
+
+def discard_build_directory(directory: Path) -> None:
+    """Remove an owned disposable copy, including sealed payload directories."""
+    if not directory.exists():
+        return
+    if directory.is_symlink() or directory.stat().st_uid != os.geteuid():
+        raise DistributionError("disposable installer directory is not owned by this builder")
+    # Payload metadata is exact and may include read-only directories. Restore
+    # owner access only in this disposable copy. Never follow payload symlinks.
+    for current, children, _files in os.walk(directory, topdown=True, followlinks=False):
+        path = Path(current)
+        path.chmod(stat.S_IMODE(path.stat().st_mode) | 0o700)
+        for name in children:
+            child = path / name
+            if not child.is_symlink():
+                child.chmod(stat.S_IMODE(child.stat().st_mode) | 0o700)
+    shutil.rmtree(directory)
+
+
 def build_bundle(
     repository: Path,
     receipt_path: Path,
@@ -443,12 +462,12 @@ def build_bundle(
             verified = verify_bundle(destination / "installer-manifest.json")
             if verified["bundle_id"] != core["bundle_id"]:
                 raise DistributionError("existing installer bundle differs")
-            shutil.rmtree(temporary)
+            discard_build_directory(temporary)
             return verified
         os.replace(temporary, destination)
         return verify_bundle(destination / "installer-manifest.json")
     except BaseException:
-        shutil.rmtree(temporary, ignore_errors=True)
+        discard_build_directory(temporary)
         raise
 
 
