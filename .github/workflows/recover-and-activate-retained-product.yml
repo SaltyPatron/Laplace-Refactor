@@ -1,0 +1,167 @@
+name: recover-and-activate-retained-product
+
+on:
+  push:
+    branches:
+      - delivery/laplace-live-product-20260911
+    paths:
+      - '.github/workflows/recover-and-activate-retained-product.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: laplace-product-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor, oneapi, postgres-18, avx2]
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select newest retained staged package that satisfies the installed product contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/retained-selection.json" <<'PY'
+          import importlib.util
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          out = Path(sys.argv[1])
+          repo = Path.cwd()
+          mod = repo / 'tools/postgresql/clusterctl.py'
+          spec = importlib.util.spec_from_file_location('laplace_recovery_clusterctl', mod)
+          clusterctl = importlib.util.module_from_spec(spec)
+          sys.modules[spec.name] = clusterctl
+          spec.loader.exec_module(clusterctl)
+
+          contract = clusterctl.load_json(repo / 'contracts/postgresql-cluster.json')
+          required_tools = {
+              'bin/laplace-cognition',
+              'bin/laplace-cognition-service',
+              'bin/laplace-model-export',
+              'bin/laplace_source_profile_compile',
+              'bin/laplace-inspect',
+              'bin/laplace-admit-source',
+          }
+          stage_root = Path('/build/laplace/runner/product/stage')
+          build_root = Path('/build/laplace/runner/product/build')
+          candidates = []
+          for generation in stage_root.iterdir() if stage_root.is_dir() else ():
+              if not generation.is_dir() or generation.is_symlink():
+                  continue
+              receipt_path = build_root / generation.name / 'package-receipt.json'
+              if not receipt_path.is_file() or receipt_path.is_symlink():
+                  continue
+              try:
+                  receipt = clusterctl.load_json(receipt_path)
+                  manifest_path = Path(receipt['manifest'])
+                  if not manifest_path.is_file() or manifest_path.is_symlink():
+                      continue
+                  manifest = clusterctl.load_json(manifest_path)
+                  if receipt.get('package_id') != manifest.get('package_id'):
+                      continue
+                  source_root = generation / 'root'
+                  status = clusterctl.verify_package(manifest, contract, source_root)
+                  if not status.verified:
+                      continue
+                  release = clusterctl.prefixed(source_root, manifest['root'])
+                  missing = sorted(p for p in required_tools if not (release / p).is_file())
+                  if missing:
+                      continue
+                  candidates.append({
+                      'mtime_ns': generation.stat().st_mtime_ns,
+                      'generation': generation.name,
+                      'package_id': manifest['package_id'],
+                      'product_receipt': str(receipt_path),
+                      'manifest': str(manifest_path),
+                      'source_root': str(source_root),
+                      'release': str(release),
+                  })
+              except Exception:
+                  continue
+          if not candidates:
+              raise SystemExit('no retained staged package satisfies the installed product contract and required tools')
+          selected = max(candidates, key=lambda item: item['mtime_ns'])
+          out.write_text(json.dumps(selected, sort_keys=True, indent=2) + '\n', encoding='utf-8')
+          print(json.dumps(selected, sort_keys=True))
+          PY
+          jq -e '.package_id | test("^[0-9a-f]{64}$")' "$RUNNER_TEMP/retained-selection.json" >/dev/null
+
+      - name: Produce exact resource observation for retained package
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest=$(jq -er '.manifest' "$RUNNER_TEMP/retained-selection.json")
+          source_root=$(jq -er '.source_root' "$RUNNER_TEMP/retained-selection.json")
+          observation="$RUNNER_TEMP/retained-resource-observation.json"
+          python3 tools/postgresql/resourcectl.py observe-resources \
+            --contract contracts/postgresql-cluster.json \
+            --package-manifest "$manifest" \
+            --package-physical-root "$source_root" \
+            --output "$observation"
+          jq -e '.observation_sha256 | test("^[0-9a-f]{64}$")' "$observation" >/dev/null
+
+      - name: Recover proven dangling pointers and activate through canonical product reconciler
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Apply only the recovery behavior locally if the hosted repair commit has
+          # not reached this checkout yet. This changes the orchestrator, not product bytes.
+          python3 tools/live_product/enable_dangling_product_pointer_recovery.py
+          product_receipt=$(jq -er '.product_receipt' "$RUNNER_TEMP/retained-selection.json")
+          result="$RUNNER_TEMP/recovered-product-activation.json"
+          python3 tools/delivery/product_activation_reconcile.py \
+            --product-receipt "$product_receipt" \
+            --resource-observation "$RUNNER_TEMP/retained-resource-observation.json" \
+            --repository-commit "$GITHUB_SHA" \
+            --output "$result"
+          jq -e '
+            .schema == "laplace.product-activation-result/v1" and
+            .phase == "product-unicode-and-highway-activated" and
+            (.package_id | test("^[0-9a-f]{64}$")) and
+            (.result_sha256 | test("^[0-9a-f]{64}$"))
+          ' "$result" >/dev/null
+          cat "$result"
+
+      - name: Prove recovered installed product from its immutable active release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -L /opt/laplace/current
+          active=$(readlink -f /opt/laplace/current)
+          test -d "$active"
+          package_id=$(basename "$active")
+          selected=$(jq -er '.package_id' "$RUNNER_TEMP/retained-selection.json")
+          test "$package_id" = "$selected"
+          test -L /opt/laplace/runtime/refactor
+          test "$(readlink -f /opt/laplace/runtime/refactor)" = "$active"
+
+          for tool in laplace-cognition laplace-cognition-service laplace-model-export \
+                      laplace_source_profile_compile laplace-inspect laplace-admit-source; do
+            test -x "$active/bin/$tool"
+          done
+
+          summary="$RUNNER_TEMP/recovered-live-summary.json"
+          "$active/bin/laplace-inspect" --pretty summary > "$summary"
+          jq -e '
+            .schema == "laplace.inspect.summary/v1" and
+            .database == "laplace_refactor" and
+            (.counts.entities | tonumber) > 0 and
+            (.counts.physicalities | tonumber) > 0 and
+            (.counts.attestations | tonumber) > 0 and
+            .unicode.active_present == true and
+            .highway.active_present == true
+          ' "$summary" >/dev/null
+
+          "$active/bin/laplace-model-export" --help >/dev/null
+          "$active/bin/laplace-cognition" --help >/dev/null
+          "$active/bin/laplace-admit-source" --help >/dev/null
+          echo "RECOVERED_ACTIVE_RELEASE=$active"
+          cat "$summary"
