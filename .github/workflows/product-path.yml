@@ -83,22 +83,34 @@ jobs:
     needs: classify
     uses: ./.github/workflows/ci.yml
 
-  # Physical proofs are independent consumers of the same exact PR head.
-  # They begin after classification rather than waiting for the hosted suite;
-  # the final product-path gate still requires every selected proof surface.
+  # The three physical proof implementations are independent consumers of the
+  # exact PR head. They each check out and qualify their own surface; serializing
+  # them added wall-clock delay without adding an evidence dependency.
   custom-stack-proof:
-    needs: classify
-    if: needs.classify.outputs.requires_custom_stack == 'true'
+    needs:
+      - classify
+      - hosted-proof
+    if: >-
+      needs.classify.outputs.requires_custom_stack == 'true' &&
+      needs.hosted-proof.result == 'success'
     uses: ./.github/workflows/custom-stack.yml
 
   postgresql-product-proof:
-    needs: classify
-    if: needs.classify.outputs.requires_postgresql_product == 'true'
+    needs:
+      - classify
+      - hosted-proof
+    if: >-
+      needs.classify.outputs.requires_postgresql_product == 'true' &&
+      needs.hosted-proof.result == 'success'
     uses: ./.github/workflows/postgresql-product.yml
 
   package-product-proof:
-    needs: classify
-    if: needs.classify.outputs.requires_package_product == 'true'
+    needs:
+      - classify
+      - hosted-proof
+    if: >-
+      needs.classify.outputs.requires_package_product == 'true' &&
+      needs.hosted-proof.result == 'success'
     uses: ./.github/workflows/package-product.yml
 
   product-path:
