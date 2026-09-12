@@ -6,11 +6,15 @@ Status: active. This is a dated evidence ledger, not a claim that every listed a
 
 | Date (UTC unless source-local) | Date basis | Artifact | Classification | What this proves | What it does **not** prove |
 |---|---|---|---|---|---|
-| **2015-12-26 19:31:54Z** | GitHub repository `created_at` | `AHartTN/Census-Data-Parser` | IMPLEMENTATION EVIDENCE | The Census parser repository existed by this date. It predates CIEDigital and GISParser. | It does not prove every file currently in the repository was authored on this date. |
+| **2015-12-26 19:31:54Z** | GitHub repository `created_at` | `AHartTN/Census-Data-Parser` | IMPLEMENTATION EVIDENCE | The Census parser repository existed by this date. It predates CIEDigital, Hartstone, Shape2Sql and GISParser. | It does not prove every file currently in the repository was authored on this date. |
 | **2016-01-31 15:35** | source-file `Authored:` header | `CensusDataParser/Helpers/SSISHelper.cs` | IMPLEMENTATION EVIDENCE | By the file's own authorship record, generic/generated SSIS pipeline work was being written in Jan 2016. | The current file may include later edits; this timestamp alone does not date every line. |
 | **2016-01-31 23:18** | source-file `Authored:` header | `EntityTypeConfigurationExtensions.cs` | IMPLEMENTATION EVIDENCE | Generic `EntityTypeConfiguration<T>` metadata/schema inspection (`GetColumnInfo<T>`, schema/table lookup) predates CIEDigital. | This alone does not prove later Laplace generated-contract architecture directly descended from this file. |
+| **2016-02-28 11:35:28Z** | GitHub repository `created_at` | `AHartTN/Shape2Sql` | IMPLEMENTATION EVIDENCE | A spatial-data workflow for processing multiple shapefiles into SQL Server existed before Hartstone/CIEDigital. Repository description explicitly says it creates a batch file for processing multiple shape files into SQL Server. | It does not yet establish the later geometry/physicality ontology; this is spatial/data-ingestion ancestry only until deeper source analysis. |
+| **2016-03-02 08:24:22Z** | GitHub repository `created_at` | `AHartTN/Hartstone` | IMPLEMENTATION EVIDENCE | Board/game implementation predates CIEDigital. `Game.cs` has explicit persistent game state such as `CurrentTurn`, players, hands/decks, health/mana, winner, setup, turn/action processing and legal-move filtering; `IPlayer` abstracts player state. | It does not prove modern OODA/ISA directly descends from Hartstone; that remains a lineage question. |
 | **2016-06-19 21:03:30Z** | GitHub repository `created_at` | `AHartTN/CIEDigital` | IMPLEMENTATION EVIDENCE | CIEDigital's generic controllers/search/paging and sports-domain model existed in a repository by this date. Repository description explicitly says it was a CIE Digital technical assessment written while doing the Hartstone technical assessment for Blizzard. | CIEDigital is **not** the beginning of the generic/schema-driven engineering lineage and is not the final Laplace UX template. |
+| **2016-06-19 22:22:17Z** | GitHub repository `created_at` | `AHartTN/Shp2Sql` | IMPLEMENTATION EVIDENCE | A C# interpretation of manually parsing raw `.shp` files and inserting them into a database existed by this date. | This does not make raw shapefile parser structure modern Laplace physicality law. |
 | **2016-12-03 01:27:38Z** | GitHub repository `created_at` | `AHartTN/GISParser` | IMPLEMENTATION EVIDENCE | GISParser existed by this date. Its design targets directory-scale zipped GIS ingestion and bulk database deposition rather than record-at-a-time tooling. | Repo creation does not date every later helper implementation. |
+| **2016-12-04 00:03:24Z** | GitHub repository `created_at` | `AHartTN/GISSchemaGenerator` | IMPLEMENTATION EVIDENCE | Schema-generation work immediately follows GISParser in repository chronology; current source walks archive/source structure, builds table/column definitions, resolves data types and generates classes. | Later 2020 pushes mean current file contents must not all be projected backward to Dec 2016 without commit/source dates. |
 | **2025-07-26 22:37:17Z** | Google Drive `created_at` | `D&D AI Ecosystem Research` | HISTORICAL INVENTOR EVIDENCE | A substantial D&D/agent/world/operation research stream existed before the Aug 2025 Hartonomous blueprint. | It does not make its then-current LLM/agent/tooling architecture current Laplace law. |
 | **2025-07-27 00:17:31Z** | Google Drive `created_at` | first located `Architecting and Implementing a Self-Building, Fully Autonomous, and Human-Like Dungeons & Dragons AI Ecosystem` copy | HISTORICAL INVENTOR EVIDENCE | Self-building/autonomous D&D ecosystem research existed by this timestamp. | Duplicate/copy chronology and exact revision ancestry remain to be resolved. |
 | **2025-07-27 04:31:39Z** | Google Drive `created_at` | another self-building D&D ecosystem compendium copy | HISTORICAL INVENTOR EVIDENCE | Confirms multiple iterations/copies in the same research period. | Does not by itself establish which copy is canonical or earliest conceptual origin. |
@@ -37,16 +41,37 @@ Status: active. This is a dated evidence ledger, not a claim that every listed a
 
 ## Chronology conclusions already justified
 
-### The generic/schema-driven engineering lineage predates CIEDigital
+### Generic/schema-driven engineering predates CIEDigital
 
 This is no longer an inference based on coding style alone:
 
 - Census-Data-Parser repository: Dec 2015.
 - generic EF configuration/schema inspection files: explicitly authored Jan 31 2016.
-- CIEDigital repository: Jun 2016.
-- GISParser repository: Dec 2016.
+- Shape2Sql: Feb 2016.
+- Hartstone: Mar 2016.
+- CIEDigital: Jun 2016.
+- Shp2Sql: Jun 2016.
+- GISParser/GISSchemaGenerator: Dec 2016.
 
-Therefore any reconstruction that presents CIEDigital as the beginning of generic/reusable/schema-driven engineering is chronologically wrong.
+Therefore any reconstruction that presents CIEDigital as the beginning of generic/reusable/schema-driven engineering or as the first relevant sports/game/data project is chronologically wrong.
+
+### Board/game state is directly evidenced before CIEDigital
+
+Hartstone's March 2016 `Game` class explicitly carries turn state, players, hands/decks, health/mana, winner, setup/draw/turn/action transitions and legal-action filtering. That is stronger early evidence for stateful game execution than the prior vague “board-game ancestry” wording. It remains implementation evidence; direct causal mapping to modern ISA/OODA is still unresolved.
+
+### Spatial/database lineage is multi-stage, not “GISParser happened”
+
+The located 2016 sequence now includes at least:
+
+```text
+Census generic/schema ETL (Dec 2015 / Jan 2016 source)
+ -> Shape2Sql (Feb 2016)
+ -> Shp2Sql (Jun 2016)
+ -> GISParser (Dec 2016)
+ -> GISSchemaGenerator (Dec 2016; later code revisions exist)
+```
+
+This shows repeated spatial/data ingestion, schema discovery/generation and database-deposition work. It does not yet prove which later GeometryZM/physicality ideas explicitly descend from which project.
 
 ### D&D/autonomous-world research predates the Aug 2025 Hartonomous master blueprint
 
@@ -62,9 +87,9 @@ This does **not** by itself prove each modern Laplace mechanism directly descend
 
 These remain open and must be filled rather than guessed:
 
-1. earliest relevant AHartTN repositories before Census-Data-Parser and their dates/content;
-2. exact Hartstone/board-game implementation dates and relevant operations/state abstractions;
-3. exact dates for GISSchemaGenerator, Shp2Sql/Shape2Sql, SQL_Scripts and other spatial/data lineage repositories;
+1. earlier relevant AHartTN repositories and code/commit dates before or alongside Census-Data-Parser;
+2. commit-level Hartstone chronology and technical-assessment content beyond current default-branch snapshot;
+3. exact commit chronology inside Shape2Sql/Shp2Sql/GISParser/GISSchemaGenerator/SQL_Scripts and other spatial/data projects;
 4. full Jul–Aug 2025 D&D document ordering, duplicate/revision relationships and which mechanisms first appear where;
 5. Sep–Dec 2025 Hartonomous conceptual transitions, especially poly-modal/substrate/geometry/self-improvement changes;
 6. commit-level chronology inside `Laplace_Hartonomous-Old-`, `Hartonomous-002`, `Hartonomous-001`, original `Laplace`, `Laplace-Conventional`, `Composer`, and Refactor;
