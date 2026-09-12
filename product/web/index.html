@@ -45,19 +45,36 @@
       </section>
       <section class="workspace-panel" data-panel="sources">
         <div class="workspace-heading">
-          <div><p class="eyebrow">Source estate</p><h2>Sources</h2><p>Read admitted source profiles and submit a locked server-side source estate for native admission.</p></div>
+          <div><p class="eyebrow">Configured source boundary</p><h2>Sources &amp; ingestion</h2><p>Browse authority-selected source obligations, review an exact physical preflight, and submit durable idempotent ingestion jobs.</p></div>
           <button id="sources-refresh" class="quiet-button" type="button">Refresh</button>
         </div>
-        <div id="sources-result"></div>
+        <div id="sources-status" class="inline-status" aria-live="polite"></div>
         <article class="card">
-          <h3>Admit source profile</h3>
-          <form id="source-admit-form" class="form-stack">
-            <label>Profile<select id="source-profile"><option value="iso-639-3-20260415">ISO 639-3 2026-04-15</option><option value="cili-pwn-mappings-20240611">CILI/PWN mappings 2024-06-11</option><option value="cili-pwn-mappings-20260903">CILI/PWN mappings 2026-09-03</option></select></label>
-            <label>Source root on this node<input id="source-root" type="text" placeholder="/vault/Data/ISO639" spellcheck="false"></label>
-            <label>Unicode root override <span class="muted">(optional)</span><input id="unicode-root" type="text" placeholder="/vault/Data/UCD/Public/UCD/latest" spellcheck="false"></label>
-            <div class="action-row"><button class="primary-button" type="submit">Compile and admit</button><span id="source-admit-status" class="inline-status" aria-live="polite"></span></div>
-          </form>
-          <pre id="source-admit-result" class="json-view" hidden></pre>
+          <h3>Configured source catalog</h3>
+          <p class="muted">Entries remain explicit when profiles, providers, or exact physical artifacts are unavailable. Local paths are not source authority.</p>
+          <div id="source-catalog"></div>
+        </article>
+        <article class="card">
+          <h3>Review selected ingestion</h3>
+          <div class="form-stack">
+            <label>Selected source<select id="source-selection"><option value="">Load the configured catalog first</option></select></label>
+            <div class="action-row">
+              <button id="source-preflight" class="quiet-button" type="button">Preflight selected</button>
+              <button id="source-submit" class="primary-button" type="button" disabled>Run reviewed plan</button>
+              <span id="source-admit-status" class="inline-status" aria-live="polite"></span>
+            </div>
+          </div>
+          <pre id="source-plan-result" class="json-view" hidden></pre>
+        </article>
+        <article class="card">
+          <h3>Durable ingestion job</h3>
+          <p class="muted">The job is persisted before worker launch. Refreshing this browser does not own or duplicate the work.</p>
+          <div id="source-job-status" class="inline-status" aria-live="polite">No active job.</div>
+          <pre id="source-job-result" class="json-view" hidden></pre>
+        </article>
+        <article class="card">
+          <h3>Admitted source readback</h3>
+          <div id="sources-result"></div>
         </article>
       </section>
       <section class="workspace-panel" data-panel="cognition">
