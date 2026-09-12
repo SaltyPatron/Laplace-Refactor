@@ -137,10 +137,19 @@ jobs:
             --package-id "$PACKAGE_ID" \
             --output "$proof"
           jq -e --arg package_id "$PACKAGE_ID" '
-            .schema == "laplace.installed-product-gateway-proof/v1" and
+            .schema == "laplace.installed-product-gateway-proof/v2" and
             .package_id == $package_id and
-            .browser.index == "ok" and
+            .browser.index == "explore-chat-operator" and
             .browser.app == "ok" and
+            .explore.summary_schema == "laplace.inspect.summary/v2" and
+            (.explore.counts.entities | type == "number") and
+            (.explore.counts.consensus | type == "number") and
+            (.explore.counts.evidence_nodes | type == "number") and
+            (.explore.counts.standing_states | type == "number") and
+            .explore.facets["/api/v1/entities"] == "laplace.inspect.entities/v1" and
+            .explore.facets["/api/v1/consensus"] == "laplace.inspect.consensus/v1" and
+            .explore.facets["/api/v1/standings"] == "laplace.inspect.standings/v1" and
+            .explore.facets["/api/v1/evidence"] == "laplace.inspect.evidence/v1" and
             .health.schema == "laplace.product.health/v1" and
             .health.status == "ready" and
             .cognition.turn_0.status == 0 and
@@ -177,12 +186,12 @@ jobs:
             (.mcp.tools | index("laplace.source_admit")) != null and
             (.mcp.tools | index("laplace.source_job")) != null and
             (.mcp.tools | index("laplace.sql")) != null and
-            .mcp.query_schema == "laplace.inspect.summary/v1"
+            .mcp.query_schema == "laplace.inspect.summary/v2"
           ' "$proof" >/dev/null
           {
             echo '## Installed browser / gateway proof'
             echo 'This proof uses the same local HTTP surface as the browser and external clients.'
             echo '```json'
-            jq '{schema,package_id,browser,health:{schema:.health.schema,status:.health.status},workspaces:.descriptors.workspaces,cognition,openai_chat,source_ingestion,mcp}' "$proof"
+            jq '{schema,package_id,browser,explore,health:{schema:.health.schema,status:.health.status},cognition,openai_chat,source_ingestion,mcp}' "$proof"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
