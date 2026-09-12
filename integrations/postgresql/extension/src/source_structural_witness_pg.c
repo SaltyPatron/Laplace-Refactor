@@ -132,12 +132,12 @@ static ArrayType* numeric_array(Datum* values, size_t count) {
 static uint64 structural_witness_encoded_bytes(
     const laplace_tabular_decomposition_witness* witness) {
     /* Canonical batch accounting is independent of PostgreSQL Datum layout:
-     * three fixed identities, six u64 coordinates, one length-prefixed media
-     * value, and two u32 values. */
+     * three fixed identities, nine u64 coordinates, one length-prefixed media
+     * value, and three u32 values. */
     static const uint64 fixed_bytes =
         UINT64_C(32) + UINT64_C(32) + UINT64_C(16) +
-        UINT64_C(6) * UINT64_C(8) + UINT64_C(8) +
-        UINT64_C(2) * UINT64_C(4);
+        UINT64_C(9) * UINT64_C(8) + UINT64_C(8) +
+        UINT64_C(3) * UINT64_C(4);
     if (witness->media_type_byte_count > UINT64_MAX - fixed_bytes) {
         ereport(ERROR,
                 (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
@@ -189,23 +189,27 @@ void laplace_pg_persist_source_structural_witnesses(
     static const char witnesses_insert_sql[] =
         "WITH input AS (SELECT $1::bytea AS source_profile_id,u.* FROM unnest("
         "$2::bytea[],$3::bytea[],$4::bytea[],$5::numeric[],$6::numeric[],"
-        "$7::numeric[],$8::numeric[],$9::numeric[],$10::numeric[],$11::bytea[],"
-        "$12::numeric[],$13::numeric[]) AS u(trace_fingerprint,provider_fingerprint,"
-        "canonical_entity_id,artifact_index,span_index,parent_span_index,byte_start,"
-        "byte_end,kind,media_type,depth,flags)) "
+        "$7::numeric[],$8::numeric[],$9::numeric[],$10::numeric[],$11::numeric[],"
+        "$12::numeric[],$13::numeric[],$14::bytea[],$15::numeric[],$16::numeric[],"
+        "$17::numeric[]) AS u(trace_fingerprint,provider_fingerprint,canonical_entity_id,"
+        "artifact_index,span_index,parent_span_index,byte_start,byte_end,kind,grammar_kind,"
+        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags)) "
         "INSERT INTO " LAPLACE_PG_SCHEMA ".source_structural_witness("
         "source_profile_id,artifact_index,span_index,parent_span_index,trace_fingerprint,"
-        "provider_fingerprint,canonical_entity_id,byte_start,byte_end,kind,media_type,"
-        "depth,flags) SELECT source_profile_id,artifact_index,span_index,parent_span_index,"
-        "trace_fingerprint,provider_fingerprint,canonical_entity_id,byte_start,byte_end,"
-        "kind,media_type,depth,flags FROM input ON CONFLICT DO NOTHING";
+        "provider_fingerprint,canonical_entity_id,byte_start,byte_end,kind,grammar_kind,"
+        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags) SELECT "
+        "source_profile_id,artifact_index,span_index,parent_span_index,trace_fingerprint,"
+        "provider_fingerprint,canonical_entity_id,byte_start,byte_end,kind,grammar_kind,"
+        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags FROM input "
+        "ON CONFLICT DO NOTHING";
     static const char witnesses_verify_sql[] =
         "WITH input AS (SELECT $1::bytea AS source_profile_id,u.* FROM unnest("
         "$2::bytea[],$3::bytea[],$4::bytea[],$5::numeric[],$6::numeric[],"
-        "$7::numeric[],$8::numeric[],$9::numeric[],$10::numeric[],$11::bytea[],"
-        "$12::numeric[],$13::numeric[]) AS u(trace_fingerprint,provider_fingerprint,"
-        "canonical_entity_id,artifact_index,span_index,parent_span_index,byte_start,"
-        "byte_end,kind,media_type,depth,flags)), "
+        "$7::numeric[],$8::numeric[],$9::numeric[],$10::numeric[],$11::numeric[],"
+        "$12::numeric[],$13::numeric[],$14::bytea[],$15::numeric[],$16::numeric[],"
+        "$17::numeric[]) AS u(trace_fingerprint,provider_fingerprint,canonical_entity_id,"
+        "artifact_index,span_index,parent_span_index,byte_start,byte_end,kind,grammar_kind,"
+        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags)), "
         "mismatched AS (SELECT 1 FROM input i "
         "LEFT JOIN " LAPLACE_PG_SCHEMA ".source_structural_witness s ON "
         "s.source_profile_id=i.source_profile_id AND s.artifact_index=i.artifact_index "
@@ -213,8 +217,10 @@ void laplace_pg_persist_source_structural_witnesses(
         "s.parent_span_index<>i.parent_span_index OR s.trace_fingerprint<>i.trace_fingerprint "
         "OR s.provider_fingerprint<>i.provider_fingerprint OR "
         "s.canonical_entity_id<>i.canonical_entity_id OR s.byte_start<>i.byte_start OR "
-        "s.byte_end<>i.byte_end OR s.kind<>i.kind OR s.media_type<>i.media_type OR "
-        "s.depth<>i.depth OR s.flags<>i.flags) "
+        "s.byte_end<>i.byte_end OR s.kind<>i.kind OR s.grammar_kind<>i.grammar_kind OR "
+        "s.field_kind<>i.field_kind OR s.sibling_ordinal<>i.sibling_ordinal OR "
+        "s.media_type<>i.media_type OR s.depth<>i.depth OR s.flags<>i.flags OR "
+        "s.syntax_flags<>i.syntax_flags) "
         "SELECT count(*) FROM mismatched";
     static const char witnesses_count_sql[] =
         "SELECT count(*) FROM " LAPLACE_PG_SCHEMA
@@ -239,12 +245,13 @@ void laplace_pg_persist_source_structural_witnesses(
     blake3_hasher hasher;
     size_t index;
     size_t batch_start;
-    Oid witness_types[13] = {
+    Oid witness_types[17] = {
         BYTEAOID, BYTEAARRAYOID, BYTEAARRAYOID, BYTEAARRAYOID,
         NUMERICARRAYOID, NUMERICARRAYOID, NUMERICARRAYOID, NUMERICARRAYOID,
-        NUMERICARRAYOID, NUMERICARRAYOID, BYTEAARRAYOID, NUMERICARRAYOID,
+        NUMERICARRAYOID, NUMERICARRAYOID, NUMERICARRAYOID, NUMERICARRAYOID,
+        NUMERICARRAYOID, BYTEAARRAYOID, NUMERICARRAYOID, NUMERICARRAYOID,
         NUMERICARRAYOID};
-    Datum witness_parameters[13];
+    Datum witness_parameters[17];
     Oid receipt_types[6] = {
         BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, NUMERICOID, INT4OID};
     Datum receipt_parameters[6];
@@ -325,9 +332,13 @@ void laplace_pg_persist_source_structural_witnesses(
         hash_u64(&hasher, witness->byte_start);
         hash_u64(&hasher, witness->byte_end);
         hash_u64(&hasher, witness->kind);
+        hash_u64(&hasher, witness->grammar_kind);
+        hash_u64(&hasher, witness->field_kind);
+        hash_u64(&hasher, witness->sibling_ordinal);
         hash_bytes(&hasher, media, (size_t)witness->media_type_byte_count);
         hash_u32(&hasher, witness->depth);
         hash_u32(&hasher, witness->flags);
+        hash_u32(&hasher, witness->syntax_flags);
     }
     finish_digest(&hasher, &witness_fingerprint);
 
@@ -381,9 +392,13 @@ void laplace_pg_persist_source_structural_witnesses(
         Datum* start_values = (Datum*)palloc(sizeof(*start_values) * batch_count);
         Datum* end_values = (Datum*)palloc(sizeof(*end_values) * batch_count);
         Datum* kind_values = (Datum*)palloc(sizeof(*kind_values) * batch_count);
+        Datum* grammar_kind_values = (Datum*)palloc(sizeof(*grammar_kind_values) * batch_count);
+        Datum* field_kind_values = (Datum*)palloc(sizeof(*field_kind_values) * batch_count);
+        Datum* sibling_ordinal_values = (Datum*)palloc(sizeof(*sibling_ordinal_values) * batch_count);
         Datum* media_values = (Datum*)palloc(sizeof(*media_values) * batch_count);
         Datum* depth_values = (Datum*)palloc(sizeof(*depth_values) * batch_count);
         Datum* flag_values = (Datum*)palloc(sizeof(*flag_values) * batch_count);
+        Datum* syntax_flag_values = (Datum*)palloc(sizeof(*syntax_flag_values) * batch_count);
         size_t batch_index;
 
         for (batch_index = 0u; batch_index < batch_count; ++batch_index) {
@@ -423,12 +438,20 @@ void laplace_pg_persist_source_structural_witnesses(
                 laplace_pg_numeric_from_uint64(witness->byte_end);
             kind_values[batch_index] =
                 laplace_pg_numeric_from_uint64(witness->kind);
+            grammar_kind_values[batch_index] =
+                laplace_pg_numeric_from_uint64(witness->grammar_kind);
+            field_kind_values[batch_index] =
+                laplace_pg_numeric_from_uint64(witness->field_kind);
+            sibling_ordinal_values[batch_index] =
+                laplace_pg_numeric_from_uint64(witness->sibling_ordinal);
             media_values[batch_index] = PointerGetDatum(laplace_pg_bytes_to_bytea(
                 media, (size_t)witness->media_type_byte_count));
             depth_values[batch_index] =
                 laplace_pg_numeric_from_uint64(witness->depth);
             flag_values[batch_index] =
                 laplace_pg_numeric_from_uint64(witness->flags);
+            syntax_flag_values[batch_index] =
+                laplace_pg_numeric_from_uint64(witness->syntax_flags);
         }
         witness_parameters[1] = PointerGetDatum(bytea_array(trace_values, batch_count));
         witness_parameters[2] = PointerGetDatum(bytea_array(provider_values, batch_count));
@@ -439,13 +462,17 @@ void laplace_pg_persist_source_structural_witnesses(
         witness_parameters[7] = PointerGetDatum(numeric_array(start_values, batch_count));
         witness_parameters[8] = PointerGetDatum(numeric_array(end_values, batch_count));
         witness_parameters[9] = PointerGetDatum(numeric_array(kind_values, batch_count));
-        witness_parameters[10] = PointerGetDatum(bytea_array(media_values, batch_count));
-        witness_parameters[11] = PointerGetDatum(numeric_array(depth_values, batch_count));
-        witness_parameters[12] = PointerGetDatum(numeric_array(flag_values, batch_count));
+        witness_parameters[10] = PointerGetDatum(numeric_array(grammar_kind_values, batch_count));
+        witness_parameters[11] = PointerGetDatum(numeric_array(field_kind_values, batch_count));
+        witness_parameters[12] = PointerGetDatum(numeric_array(sibling_ordinal_values, batch_count));
+        witness_parameters[13] = PointerGetDatum(bytea_array(media_values, batch_count));
+        witness_parameters[14] = PointerGetDatum(numeric_array(depth_values, batch_count));
+        witness_parameters[15] = PointerGetDatum(numeric_array(flag_values, batch_count));
+        witness_parameters[16] = PointerGetDatum(numeric_array(syntax_flag_values, batch_count));
         MemoryContextSwitchTo(prior_context);
 
         result = SPI_execute_with_args(
-            witnesses_insert_sql, 13, witness_types, witness_parameters,
+            witnesses_insert_sql, 17, witness_types, witness_parameters,
             NULL, false, 0);
         if (result != SPI_OK_INSERT ||
             UINT64_MAX - inserted_count < (uint64_t)SPI_processed) {
@@ -457,7 +484,7 @@ void laplace_pg_persist_source_structural_witnesses(
         inserted_count += (uint64_t)SPI_processed;
         CommandCounterIncrement();
         result = SPI_execute_with_args(
-            witnesses_verify_sql, 13, witness_types, witness_parameters,
+            witnesses_verify_sql, 17, witness_types, witness_parameters,
             NULL, false, 1);
         if (result != SPI_OK_SELECT || spi_int64_column(1) != 0) {
             ereport(ERROR,

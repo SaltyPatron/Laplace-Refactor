@@ -654,10 +654,14 @@ laplace_tabular_source_status BuildRecursiveWithProviders(
                 witness.byte_end = span.byte_end;
                 witness.parent_span_index = span.parent_span_index;
                 witness.kind = span.kind;
+                witness.grammar_kind = span.grammar_kind;
+                witness.field_kind = span.field_kind;
+                witness.sibling_ordinal = span.sibling_ordinal;
                 witness.media_type_byte_count =
                     static_cast<std::uint64_t>(media_type_bytes);
                 witness.depth = span.depth;
                 witness.flags = span.flags;
+                witness.syntax_flags = span.syntax_flags;
                 witness_inputs.push_back(witness);
             }
 

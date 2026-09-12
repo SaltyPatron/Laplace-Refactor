@@ -28,9 +28,16 @@ CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witnes
         CHECK (byte_end BETWEEN 1 AND 18446744073709551615),
     kind numeric(20, 0) NOT NULL
         CHECK (kind BETWEEN 0 AND 18446744073709551615),
+    grammar_kind numeric(20, 0) NOT NULL
+        CHECK (grammar_kind BETWEEN 0 AND 18446744073709551615),
+    field_kind numeric(20, 0) NOT NULL
+        CHECK (field_kind BETWEEN 0 AND 18446744073709551615),
+    sibling_ordinal numeric(20, 0) NOT NULL
+        CHECK (sibling_ordinal BETWEEN 0 AND 18446744073709551615),
     media_type bytea NOT NULL,
     depth numeric(20, 0) NOT NULL CHECK (depth BETWEEN 0 AND 4294967295),
     flags numeric(20, 0) NOT NULL CHECK (flags BETWEEN 0 AND 4294967295),
+    syntax_flags numeric(20, 0) NOT NULL CHECK (syntax_flags BETWEEN 0 AND 4294967295),
     CHECK (byte_start < byte_end),
     CHECK (
         parent_span_index = 18446744073709551615 OR
