@@ -130,6 +130,7 @@ set(laplace_postgresql_module_sources
     src/cognition_isa_pg.c
     src/cognition_firmware_pg.c
     src/cognition_product_pg.c
+    src/cognition_conversation_product_pg.c
     src/cognition_materialization_route_pg.c
     src/composition_pg.c
     src/content_admission_pg.c
@@ -253,6 +254,13 @@ if(BUILD_TESTING)
     function(laplace_add_postgresql_mutant target definition)
         add_library(${target} MODULE ${laplace_postgresql_module_sources})
         laplace_configure_postgresql_module(${target})
+        # PostgreSQL loads the production module before mutation modules. Bind each
+        # mutation DSO's internal references to its own deliberately-mutated symbols
+        # so ELF interposition cannot silently route a mutant back through baseline
+        # helpers and invalidate the mutation proof.
+        if(UNIX AND NOT APPLE)
+            target_link_options(${target} PRIVATE "-Wl,-Bsymbolic")
+        endif()
         target_compile_definitions(${target} PRIVATE
             LAPLACE_POSTGRES_TESTING=1
             ${definition}=1)
