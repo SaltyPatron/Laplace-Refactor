@@ -655,7 +655,8 @@ def apply_plan(
             atomic_write(target, content, entry["mode"])
             installed.append({"path": entry["path"], "sha256": entry["sha256"]})
         for logical, target in state_targets:
-            target.mkdir(parents=True, exist_ok=False, mode=0o700)
+            target.mkdir(parents=True, exist_ok=False, mode=_core.state_directory_mode(plan["instance"], logical))
+            target.chmod(_core.state_directory_mode(plan["instance"], logical))
             created.append(logical)
         if root == Path("/"):
             runtime.parent.mkdir(parents=True, exist_ok=True, mode=0o750)

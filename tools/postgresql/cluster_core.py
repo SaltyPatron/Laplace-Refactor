@@ -1458,6 +1458,11 @@ def require_fixture_or_root(root: Path, authorize_system_root: bool) -> None:
         raise ClusterError("activation root must be absolute")
 
 
+def state_directory_mode(instance: dict[str, Any], directory: str) -> int:
+    """PostgreSQL data and WAL remain private; operational state is group shared."""
+    return 0o700 if directory in (instance["data_directory"], instance["wal_directory"]) else 0o2770
+
+
 def apply_plan(
     plan: dict[str, Any],
     contract: dict[str, Any],
@@ -1492,13 +1497,14 @@ def apply_plan(
             atomic_write(target, content, entry["mode"])
             installed.append({"path": entry["path"], "sha256": entry["sha256"]})
         for _directory, target in state_targets:
-            target.mkdir(parents=True, exist_ok=False, mode=0o700)
+            target.mkdir(parents=True, exist_ok=False, mode=state_directory_mode(plan["instance"], _directory))
+            target.chmod(state_directory_mode(plan["instance"], _directory))
             created_directories.append(target)
         if root == Path("/"):
             service_user = pwd.getpwnam(plan["instance"]["os_user"])
             service_group = grp.getgrnam(plan["instance"]["os_group"])
             for _directory, target in state_targets:
-                target.chmod(0o700)
+                target.chmod(state_directory_mode(plan["instance"], _directory))
                 os.chown(target, service_user.pw_uid, service_group.gr_gid)
             for entry, target in targets:
                 if entry["path"].startswith("/etc/laplace/"):

@@ -226,15 +226,15 @@
     ],
     "make_targets": ["world-bin", "check-world", "install-world-bin"],
     "parallel_jobs": 6,
-    "build_directory_mode": "0700",
+    "build_directory_mode": "2770",
     "python": "/usr/bin/python3.10",
     "shell": "/usr/bin/dash"
   },
   "execution": {
     "install_prefix": "/opt/laplace/current",
     "release_root": "/opt/laplace/releases",
-    "build_root": "/opt/laplace/build/postgresql",
-    "stage_root": "/opt/laplace/stage/postgresql"
+    "build_root": "/build/laplace/build/postgresql",
+    "stage_root": "/build/laplace/build/postgresql-stage"
   },
   "environment": {
     "rejected_nonempty": [
