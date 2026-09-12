@@ -75,3 +75,55 @@ jobs:
             jq '{schema,package_id,turn_0:{prompt_utf8:.turn_0.prompt_utf8,status:.turn_0.execution.status,checkpoint:.turn_0.execution.next_checkpoint_fingerprint,receipt:.turn_0.execution.execution_receipt_id},corrupted_predecessor:{status:.corrupted_predecessor.execution.status},turn_1:{prompt_utf8:.turn_1.prompt_utf8,status:.turn_1.execution.status,checkpoint:.turn_1.execution.next_checkpoint_fingerprint,receipt:.turn_1.execution.execution_receipt_id},proof_sha256}' "$proof"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Execute installed interactive conversation surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          command=/opt/laplace/current/bin/laplace-cognition
+          test -x "$command"
+          state_root="$RUNNER_TEMP/laplace-interactive-cognition-state"
+          input="$RUNNER_TEMP/laplace-interactive-cognition-input.txt"
+          output="$RUNNER_TEMP/laplace-interactive-cognition-output.jsonl"
+          rm -rf "$state_root"
+          mkdir -m 0700 "$state_root"
+          printf '%s\n' 'AA' 'AAA' '/quit' > "$input"
+          "$command" \
+            --interactive \
+            --session installed-acceptance \
+            --state-root "$state_root" \
+            --json < "$input" > "$output"
+          test "$(wc -l < "$output" | tr -d ' ')" = 2
+          jq -s -e --arg package_id "$PACKAGE_ID" '
+            length == 2 and
+            .[0].status == 0 and
+            .[1].status == 0 and
+            .[0].package_id == $package_id and
+            .[1].package_id == $package_id and
+            .[0].turn_ordinal == 0 and
+            .[0].continued == false and
+            .[1].turn_ordinal == 1 and
+            .[1].continued == true and
+            (.[0].next_checkpoint_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.[1].next_checkpoint_fingerprint | test("^[0-9a-f]{64}$")) and
+            .[0].next_checkpoint_fingerprint != .[1].next_checkpoint_fingerprint
+          ' "$output" >/dev/null
+          state="$state_root/installed-acceptance.json"
+          test -r "$state"
+          test ! -L "$state"
+          second_checkpoint=$(jq -sr '.[1].next_checkpoint_fingerprint' "$output")
+          jq -e --arg package_id "$PACKAGE_ID" --arg checkpoint "$second_checkpoint" '
+            .schema == "laplace.cognition-client-session/v1" and
+            .package_id == $package_id and
+            .next_turn_ordinal == 2 and
+            .checkpoint_fingerprint == $checkpoint
+          ' "$state" >/dev/null
+          {
+            echo '## Installed interactive cognition surface'
+            echo '- executable: `/opt/laplace/current/bin/laplace-cognition --interactive`'
+            echo '- turns executed through installed cognition service: `2`'
+            echo '- persisted next turn ordinal: `2`'
+            echo '- exact successor checkpoint retained: `true`'
+            echo '```json'
+            jq -s '{turns: map({status,turn_ordinal,continued,package_id,program_id,next_checkpoint_fingerprint,execution_receipt_id})}' "$output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
