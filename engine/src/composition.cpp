@@ -240,6 +240,23 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
         return LAPLACE_COMPOSITION_PERSISTENCE_INVALID;
     }
 
+#if defined(LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT)
+    {
+        blake3_hasher hasher{};
+        blake3_hasher_init(&hasher);
+        blake3_hasher_update(
+            &hasher, (*working_set)->summary.receipt_id.bytes,
+            sizeof((*working_set)->summary.receipt_id.bytes));
+        for (const auto& execution_receipt : capture.receipts) {
+            blake3_hasher_update(
+                &hasher, execution_receipt.plan_fingerprint.bytes,
+                sizeof(execution_receipt.plan_fingerprint.bytes));
+        }
+        blake3_hasher_finalize(
+            &hasher, (*working_set)->summary.receipt_id.bytes,
+            sizeof((*working_set)->summary.receipt_id.bytes));
+    }
+#endif
     try {
         std::lock_guard<std::mutex> lock(frontier_receipt_mutex);
         frontier_receipts.emplace(*working_set, std::move(capture.receipts));
