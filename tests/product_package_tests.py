@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -448,6 +449,41 @@ class ProductPackageTests(unittest.TestCase):
         path.write_text('{"schema":"first","schema":"second"}\n', encoding="utf-8")
         with self.assertRaisesRegex(PACKAGE.ProductPackageError, "duplicate JSON key"):
             PACKAGE.load_json(path)
+
+
+class RepositoryBuildFingerprintTests(unittest.TestCase):
+    def test_workflow_commits_reuse_inputs_but_source_edits_invalidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*arguments):
+                subprocess.run(["git", "-C", directory, *arguments], check=True,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            git("init", "-q")
+            source = root / "engine.cpp"
+            source.write_text("int x = 1;\n")
+            workflow = root / ".github/workflows/ci.yml"
+            workflow.parent.mkdir(parents=True)
+            workflow.write_text("name: first\n")
+            git("add", ".")
+            git("-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "first")
+            first = PACKAGE.repository_build_fingerprint(root)
+            workflow.write_text("name: second\n")
+            git("add", ".")
+            git("-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "workflow")
+            self.assertEqual(first, PACKAGE.repository_build_fingerprint(root))
+            source.write_text("int x = 2;\n")
+            self.assertNotEqual(first, PACKAGE.repository_build_fingerprint(root))
+            source.write_text("int x = 1;\n")
+            source.chmod(0o755)
+            self.assertNotEqual(first, PACKAGE.repository_build_fingerprint(root))
+            source.chmod(0o644)
+            self.assertEqual(first, PACKAGE.repository_build_fingerprint(root))
+            source.unlink()
+            self.assertNotEqual(first, PACKAGE.repository_build_fingerprint(root))
+            source.write_text("int x = 1;\n")
+            (root / "new-header.h").write_text("#define X 1\n")
+            self.assertNotEqual(first, PACKAGE.repository_build_fingerprint(root))
+
 
 
 if __name__ == "__main__":

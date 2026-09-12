@@ -13,6 +13,9 @@ import subprocess
 import sys
 from typing import Any, Mapping, Sequence
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from repository_inputs import repository_build_fingerprint
+
 
 PROOF_SCHEMA = "laplace.package-product-proof/v1"
 SELECTION_SCHEMA = "laplace.product-package-selection/v1"
@@ -97,11 +100,19 @@ def prefixed(root: Path, logical: str) -> Path:
 
 
 def validate_manifest_source(
-    manifest: Mapping[str, Any], expected_commit: str, expected_tree: str
+    manifest: Mapping[str, Any], expected_commit: str, expected_tree: str,
+    expected_build_fingerprint: str | None = None,
 ) -> None:
     expected_commit = require_git_object(expected_commit, "checked-out repository commit")
     expected_tree = require_git_object(expected_tree, "checked-out repository tree")
     laplace = manifest.get("laplace")
+    if expected_build_fingerprint is not None and isinstance(laplace, Mapping) and "repository_build_fingerprint" in laplace:
+        require_hex(expected_build_fingerprint, "checked-out build fingerprint")
+        require_git_object(laplace.get("repository_commit"), "original build commit")
+        require_git_object(laplace.get("repository_tree"), "original build tree")
+        if laplace["repository_build_fingerprint"] != expected_build_fingerprint:
+            raise PackageProductProofError("product package build inputs differ from checked-out source identity")
+        return
     if (
         not isinstance(laplace, Mapping)
         or laplace.get("repository_commit") != expected_commit
@@ -301,7 +312,7 @@ def prove(
     require_physical_file(manifest_path, "product package manifest")
     manifest = load_json(manifest_path)
     validate_package_receipt(selection, receipt_with_path, manifest)
-    validate_manifest_source(manifest, source_commit, source_tree)
+    validate_manifest_source(manifest, source_commit, source_tree, repository_build_fingerprint(repository))
 
     stage_directory = Path(str(selection.get("stage_directory", "")))
     source_root = stage_directory / "root"
