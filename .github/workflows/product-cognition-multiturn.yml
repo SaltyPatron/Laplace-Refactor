@@ -158,9 +158,24 @@ jobs:
             .openai_chat.streaming.finished == true and
             .openai_chat.streaming.chunk_count >= 2 and
             (.openai_chat.streaming.assistant_content | type == "string" and length > 0) and
+            .source_ingestion.source_id == "iso-639-3-20260415" and
+            (.source_ingestion.catalog_boundary_sha256 | test("^[0-9a-f]{64}$")) and
+            (.source_ingestion.plan_id | test("^[0-9a-f]{64}$")) and
+            (.source_ingestion.job_id | test("^[0-9a-f]{64}$")) and
+            .source_ingestion.idempotent_retry_same_job == true and
+            .source_ingestion.state == "succeeded" and
+            (.source_ingestion.result_sha256 | test("^[0-9a-f]{64}$")) and
+            .source_ingestion.admission_schema == "laplace.admit-source/v1" and
+            .source_ingestion.readback_schema == "laplace.inspect.source-profiles/v1" and
+            (.source_ingestion.entity_count | tonumber) > 0 and
+            (.source_ingestion.physicality_count | tonumber) > 0 and
+            (.source_ingestion.attestation_count | tonumber) > 0 and
             (.mcp.tools | index("laplace.query")) != null and
             (.mcp.tools | index("laplace.cognition")) != null and
+            (.mcp.tools | index("laplace.source_catalog")) != null and
+            (.mcp.tools | index("laplace.source_preflight")) != null and
             (.mcp.tools | index("laplace.source_admit")) != null and
+            (.mcp.tools | index("laplace.source_job")) != null and
             (.mcp.tools | index("laplace.sql")) != null and
             .mcp.query_schema == "laplace.inspect.summary/v1"
           ' "$proof" >/dev/null
@@ -168,6 +183,6 @@ jobs:
             echo '## Installed browser / gateway proof'
             echo 'This proof uses the same local HTTP surface as the browser and external clients.'
             echo '```json'
-            jq '{schema,package_id,browser,health:{schema:.health.schema,status:.health.status},workspaces:.descriptors.workspaces,cognition,openai_chat,mcp}' "$proof"
+            jq '{schema,package_id,browser,health:{schema:.health.schema,status:.health.status},workspaces:.descriptors.workspaces,cognition,openai_chat,source_ingestion,mcp}' "$proof"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
