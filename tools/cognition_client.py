@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute a prompt against the active persistent Laplace cognition service."""
+"""Execute prompts against the active persistent Laplace cognition service."""
 from __future__ import annotations
 
 import argparse
@@ -355,11 +355,78 @@ def emit_result(result: dict[str, Any], as_json: bool) -> int:
         sys.stdout.write(output)
         if not output.endswith("\n"):
             sys.stdout.write("\n")
+        sys.stdout.flush()
         return 0
     output_hex = result.get("output_hex")
     if not isinstance(output_hex, str) or HEXBYTES.fullmatch(output_hex) is None:
         raise RuntimeError("cognition returned neither UTF-8 nor binary output")
     sys.stdout.buffer.write(bytes.fromhex(output_hex))
+    sys.stdout.buffer.flush()
+    return 0
+
+
+def execute_session_turn(
+    store: SessionStore,
+    prompt: str,
+    mode: str,
+    relations: list[str] | None,
+    socket_path: Path,
+    as_json: bool,
+) -> int:
+    if not prompt:
+        raise ValueError("conversation turn must be non-empty UTF-8 text")
+    state = store.load()
+    if state is None:
+        session_request = initial_session_request()
+    else:
+        assert_session_mode(state, mode, relations)
+        session_request = continued_session_request(state)
+    request_value: dict[str, Any] = {"prompt": prompt, "session": session_request}
+    if relations is not None:
+        request_value["relations"] = relations
+    result = request_cognition(socket_path, request_value)
+    if result.get("status") == 0:
+        store.save(state_from_success(session_request, mode, relations, result))
+    return emit_result(result, as_json)
+
+
+def interactive_turns() -> Any:
+    terminal = sys.stdin.isatty()
+    while True:
+        try:
+            if terminal:
+                line = input("laplace> ")
+            else:
+                line = sys.stdin.readline()
+                if line == "":
+                    return
+                line = line.rstrip("\r\n")
+        except EOFError:
+            return
+        command = line.strip()
+        if not command:
+            continue
+        yield command
+
+
+def run_interactive(
+    store: SessionStore,
+    mode: str,
+    relations: list[str] | None,
+    socket_path: Path,
+    as_json: bool,
+) -> int:
+    for prompt in interactive_turns():
+        if prompt in {"/quit", "/exit"}:
+            return 0
+        if prompt == "/reset":
+            store.reset()
+            if sys.stdin.isatty():
+                print("laplace: conversation reset", file=sys.stderr)
+            continue
+        status = execute_session_turn(store, prompt, mode, relations, socket_path, as_json)
+        if status != 0:
+            return status
     return 0
 
 
@@ -379,19 +446,29 @@ def main() -> int:
     )
     parser.add_argument("--stateless", action="store_true", help="do not load or save conversation state")
     parser.add_argument("--reset-session", action="store_true", help="discard the named session before this turn")
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="run a persistent multi-turn conversation; /reset clears state and /quit exits",
+    )
     parser.add_argument("--state-root", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--json", action="store_true", help="print the complete execution result")
     args = parser.parse_args()
     try:
-        prompt = read_prompt(args.prompt)
         relations = parse_relations(args.relations) if args.relations is not None else None
         mode = "explicit" if relations is not None else "auto"
         if args.stateless and args.reset_session:
             raise ValueError("--reset-session cannot be combined with --stateless")
         if args.stateless and args.session is not None:
             raise ValueError("--session cannot be combined with --stateless")
+        if args.interactive and args.prompt is not None:
+            raise ValueError("--interactive does not accept a positional prompt")
+        if args.interactive and args.stateless:
+            raise ValueError("--interactive requires persistent conversation state")
+
         effective_stateless = args.stateless or (relations is not None and args.session is None)
         if effective_stateless:
+            prompt = read_prompt(args.prompt)
             request_value: dict[str, Any] = {"prompt": prompt}
             if relations is not None:
                 request_value["relations"] = relations
@@ -403,19 +480,10 @@ def main() -> int:
         with SessionStore(state_root, session_name) as store:
             if args.reset_session:
                 store.reset()
-            state = store.load()
-            if state is None:
-                session_request = initial_session_request()
-            else:
-                assert_session_mode(state, mode, relations)
-                session_request = continued_session_request(state)
-            request_value = {"prompt": prompt, "session": session_request}
-            if relations is not None:
-                request_value["relations"] = relations
-            result = request_cognition(args.socket, request_value)
-            if result.get("status") == 0:
-                store.save(state_from_success(session_request, mode, relations, result))
-            return emit_result(result, args.json)
+            if args.interactive:
+                return run_interactive(store, mode, relations, args.socket, args.json)
+            prompt = read_prompt(args.prompt)
+            return execute_session_turn(store, prompt, mode, relations, args.socket, args.json)
     except (RuntimeError, ValueError) as error:
         print(f"laplace-cognition: {error}", file=sys.stderr)
         return 1
