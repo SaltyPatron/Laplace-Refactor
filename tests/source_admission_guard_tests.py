@@ -8,6 +8,11 @@ import tempfile
 import unittest
 import sys
 
+if len(sys.argv) != 2:
+    raise RuntimeError("expected path to admit_source_guard.py")
+GUARD_PATH = Path(sys.argv[1])
+sys.argv[:] = sys.argv[:1]
+
 
 def load_guard(path: Path):
     spec = importlib.util.spec_from_file_location("laplace_admission_guard", path)
@@ -21,10 +26,7 @@ def load_guard(path: Path):
 class SourceAdmissionEstateBoundaryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        if len(sys.argv) != 2:
-            raise RuntimeError("expected path to admit_source_guard.py")
-        cls.guard = load_guard(Path(sys.argv[1]))
-        sys.argv[:] = sys.argv[:1]
+        cls.guard = load_guard(GUARD_PATH)
 
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
