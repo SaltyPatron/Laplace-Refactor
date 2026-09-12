@@ -22,6 +22,7 @@ struct ActiveFrontierCapture final {
 };
 
 thread_local ActiveFrontierCapture* active_frontier_capture = nullptr;
+thread_local const laplace_execution_runtime_provider_v1* active_execution_provider = nullptr;
 std::mutex frontier_receipt_mutex;
 std::unordered_map<
     const laplace_composition_working_set*,
@@ -35,17 +36,23 @@ extern "C" laplace_execution_status composition_capture_run_work(
     laplace_execution_work_task_fn task,
     laplace_execution_work_receipt* receipt);
 
+extern "C" laplace_execution_status composition_select_oneapi_provider(
+    laplace_execution_oneapi_provider_state* state,
+    laplace_execution_runtime_provider_v1* provider);
+
 }  // namespace
 
 /*
  * Preserve the existing semantic composition implementation byte-for-byte while
- * placing lifecycle ownership around its two externally relevant seams:
+ * placing lifecycle ownership around its externally relevant execution seams:
  *
  * 1. working-set create/destroy become wrappers that bind postflight receipts to
  *    the opaque working-set lifetime;
  * 2. common execution dispatch is intercepted only for CalculateRequestChunk so
  *    every runtime frontier is checked against the shared dependency planner and
- *    its real execution receipt is retained.
+ *    its real execution receipt is retained;
+ * 3. oneAPI provider selection is intercepted only when a caller explicitly binds
+ *    a common runtime provider through the public provider-bound create surface.
  *
  * The implementation unit remains ordinary C++ source included into this one
  * translation unit; it is not a second semantic engine.
@@ -53,6 +60,7 @@ extern "C" laplace_execution_status composition_capture_run_work(
 #define laplace_composition_working_set_create composition_working_set_create_impl
 #define laplace_composition_working_set_destroy composition_working_set_destroy_impl
 #define laplace_execution_run_work composition_capture_run_work
+#define laplace_execution_oneapi_provider composition_select_oneapi_provider
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic warning "-Wsubobject-linkage"
@@ -61,6 +69,7 @@ extern "C" laplace_execution_status composition_capture_run_work(
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
+#undef laplace_execution_oneapi_provider
 #undef laplace_execution_run_work
 #undef laplace_composition_working_set_destroy
 #undef laplace_composition_working_set_create
@@ -85,6 +94,25 @@ private:
     ActiveFrontierCapture* prior_{};
 };
 
+class ProviderScope final {
+public:
+    explicit ProviderScope(
+        const laplace_execution_runtime_provider_v1* const provider) noexcept
+        : prior_(active_execution_provider) {
+        active_execution_provider = provider;
+    }
+
+    ~ProviderScope() {
+        active_execution_provider = prior_;
+    }
+
+    ProviderScope(const ProviderScope&) = delete;
+    ProviderScope& operator=(const ProviderScope&) = delete;
+
+private:
+    const laplace_execution_runtime_provider_v1* prior_{};
+};
+
 bool ReceiptSetComplete(
     const ActiveFrontierCapture& capture,
     const laplace_composition_working_set_input& input) noexcept {
@@ -96,13 +124,25 @@ bool ReceiptSetComplete(
     std::uint64_t completed_items = 0U;
     for (const auto& receipt : capture.receipts) {
         if (receipt.status != LAPLACE_EXECUTION_OK ||
-            receipt.completed_items >
-                UINT64_MAX - completed_items) {
+            receipt.completed_items > UINT64_MAX - completed_items) {
             return false;
         }
         completed_items += receipt.completed_items;
     }
     return completed_items == input.request_count;
+}
+
+extern "C" laplace_execution_status composition_select_oneapi_provider(
+    laplace_execution_oneapi_provider_state* const state,
+    laplace_execution_runtime_provider_v1* const provider) {
+    if (active_execution_provider == nullptr) {
+        return laplace_execution_oneapi_provider(state, provider);
+    }
+    if (provider == nullptr) {
+        return LAPLACE_EXECUTION_INVALID_ARGUMENT;
+    }
+    *provider = *active_execution_provider;
+    return LAPLACE_EXECUTION_OK;
 }
 
 extern "C" laplace_execution_status composition_capture_run_work(
@@ -161,6 +201,22 @@ extern "C" laplace_execution_status composition_capture_run_work(
 }
 
 }  // namespace
+
+extern "C" laplace_composition_status
+laplace_composition_working_set_create_with_provider(
+    const laplace_composition_working_set_input* const input,
+    const laplace_execution_runtime_provider_v1* const provider,
+    laplace_composition_working_set** const working_set) {
+    if (working_set != nullptr) {
+        *working_set = nullptr;
+    }
+    if (input == nullptr || provider == nullptr || working_set == nullptr) {
+        return LAPLACE_COMPOSITION_INVALID_ARGUMENT;
+    }
+
+    ProviderScope provider_scope(provider);
+    return laplace_composition_working_set_create(input, working_set);
+}
 
 extern "C" laplace_composition_status laplace_composition_working_set_create(
     const laplace_composition_working_set_input* const input,
