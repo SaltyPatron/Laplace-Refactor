@@ -29,16 +29,56 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(id -un)" = laplace-runner
-          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
-          test "$GITHUB_REF" = refs/heads/main
-          test "$GITHUB_EVENT_NAME" = workflow_dispatch
-          test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
+
+          fail() {
+            printf 'Laplace host prerequisite failed: %s\n' "$*" >&2
+            return 1
+          }
+
+          require_equal() {
+            local actual="$1"
+            local expected="$2"
+            local field="$3"
+            [[ "$actual" == "$expected" ]] ||
+              fail "$field expected=$expected actual=$actual"
+          }
+
+          require_writable_directory() {
+            local path="$1"
+            if [[ ! -e "$path" && ! -L "$path" ]]; then
+              fail "$path is missing"
+              return
+            fi
+            if [[ -L "$path" ]]; then
+              fail "$path is a symlink"
+              return
+            fi
+            if [[ ! -d "$path" ]]; then
+              fail "$path is not a directory"
+              return
+            fi
+            if [[ ! -w "$path" ]]; then
+              local ownership mode
+              ownership=$(stat -c '%U:%G' "$path" 2>/dev/null || printf '<unavailable>')
+              mode=$(stat -c '%a' "$path" 2>/dev/null || printf '<unavailable>')
+              fail "$path is not writable by $(id -un) (owner=$ownership mode=$mode)"
+            fi
+          }
+
+          require_equal "$(id -un)" laplace-runner runner-user
+          require_equal "$GITHUB_REPOSITORY" SaltyPatron/Laplace-Refactor repository
+          require_equal "$GITHUB_REF" refs/heads/main git-ref
+          require_equal "$GITHUB_EVENT_NAME" workflow_dispatch event
+          require_equal "$GITHUB_SHA" '${{ inputs.expected_sha }}' repository-sha
 
           bootstrap=/opt/laplace/receipts/bootstrap/host.json
-          test -r "$bootstrap"
-          test ! -L "$bootstrap"
-          jq -e '
+          if [[ ! -r "$bootstrap" ]]; then
+            ownership=$(stat -c '%U:%G' "$bootstrap" 2>/dev/null || printf '<missing>')
+            mode=$(stat -c '%a' "$bootstrap" 2>/dev/null || printf '<missing>')
+            fail "$bootstrap is not readable by $(id -un) (owner=$ownership mode=$mode)"
+          fi
+          [[ ! -L "$bootstrap" ]] || fail "$bootstrap is a symlink"
+          if ! jq -e '
             .schema == "laplace.host-bootstrap/v1" and
             .phase == "host-prerequisites-ready" and
             .service_identity.user == "laplace-runner" and
@@ -46,24 +86,33 @@ jobs:
             .product_activated == false and
             .postgresql_initialized == false and
             .activation_gateway_installed == false
-          ' "$bootstrap" >/dev/null
+          ' "$bootstrap" >/dev/null; then
+            jq '{schema,phase,service_identity,product_activated,postgresql_initialized,activation_gateway_installed}' \
+              "$bootstrap" >&2 || true
+            fail "$bootstrap does not describe the required prerequisites-only host envelope"
+          fi
 
           release_root=/opt/laplace/releases
           if [[ ! -e "$release_root" && ! -L "$release_root" ]]; then
             install -d -m 0755 "$release_root"
           fi
-          test -d "$release_root"
-          test ! -L "$release_root"
-          test "$(stat -c '%U:%G' "$release_root")" = laplace-runner:laplace-runner
+          [[ -d "$release_root" ]] || fail "$release_root is not a directory"
+          [[ ! -L "$release_root" ]] || fail "$release_root is a symlink"
+          require_equal "$(stat -c '%U:%G' "$release_root")" laplace-runner:laplace-runner release-root-owner
 
-          test -w /build/laplace/runner
-          test -w "$release_root"
-          test -w /opt/laplace/runtime
-          test -w /opt/laplace/pgdata/refactor
-          test -w /var/lib/pgwal
-          test -w /pgtemp
-          test -w /var/log/laplace/postgresql
-          test -w /etc/laplace/instances
+          for path in \
+            /build/laplace/runner \
+            "$release_root" \
+            /opt/laplace/runtime \
+            /opt/laplace/pgdata/refactor \
+            /var/lib/pgwal \
+            /pgtemp \
+            /var/log/laplace/postgresql \
+            /etc/laplace/instances; do
+            require_writable_directory "$path"
+          done
+
+          echo 'Laplace runner-owned host prerequisites verified.'
 
   compose-product:
     if: github.event_name == 'workflow_dispatch'
