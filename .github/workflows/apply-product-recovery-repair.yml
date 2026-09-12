@@ -1,0 +1,44 @@
+name: apply-product-recovery-repair
+
+on:
+  push:
+    branches:
+      - delivery/laplace-live-product-20260911
+    paths:
+      - 'tools/live_product/enable_dangling_product_pointer_recovery.py'
+      - '.github/workflows/apply-product-recovery-repair.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-product-recovery-repair
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Apply recovery repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/live_product/enable_dangling_product_pointer_recovery.py
+          git diff --check
+          python3 tests/product_cluster_upgrade_tests.py
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'recovery repair already present'
+            exit 0
+          fi
+          git config user.name 'laplace-delivery'
+          git config user.email 'laplace-delivery@users.noreply.github.com'
+          git add tools/delivery/product_activation_reconcile.py tests/product_cluster_upgrade_tests.py
+          git commit -m 'Recover proven dangling product pointers before activation'
+          git push origin HEAD:delivery/laplace-live-product-20260911
