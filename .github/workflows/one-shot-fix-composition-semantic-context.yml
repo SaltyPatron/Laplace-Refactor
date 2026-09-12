@@ -1,0 +1,136 @@
+name: one-shot-fix-composition-semantic-context
+
+on:
+  push:
+    branches:
+      - repair/composition-semantic-context-invariance-20260912
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: repair/composition-semantic-context-invariance-20260912
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('engine/src/composition_legacy.inc')
+          text = source.read_text(encoding='utf-8')
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 anchor, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              'constexpr std::string_view InputDomain{"laplace-composition-working-set-input-v1"};\n',
+              'constexpr std::string_view InputDomain{"laplace-composition-working-set-input-v1"};\n'
+              'constexpr std::string_view SemanticContextDomain{\n'
+              '    "laplace-composition-semantic-context-v1"};\n',
+              'semantic context domain')
+
+          finish = '''laplace_digest256 Finish(blake3_hasher& hasher) {
+              laplace_digest256 result{};
+              blake3_hasher_finalize(&hasher, result.bytes, sizeof(result.bytes));
+              return result;
+          }
+          '''
+          helper = finish + '''
+          laplace_digest256 SemanticContextFingerprint(
+              const laplace_framework_context& context) {
+              blake3_hasher hasher{};
+              blake3_hasher_init(&hasher);
+              HashString(hasher, SemanticContextDomain);
+              HashU32(hasher, context.major);
+              HashU32(hasher, context.minor);
+              HashU32(hasher, context.flags);
+              HashU64(hasher, context.epoch_mask);
+              for (std::uint32_t index = 0U;
+                   index < LAPLACE_FRAMEWORK_EPOCH_COUNT; ++index) {
+                  if ((context.epoch_mask & (UINT64_C(1) << index)) == 0U) {
+                      continue;
+                  }
+                  HashU32(hasher, index);
+                  blake3_hasher_update(
+                      &hasher, context.epochs[index].bytes,
+                      sizeof(context.epochs[index].bytes));
+              }
+              blake3_hasher_update(
+                  &hasher, context.authority_fingerprint.bytes,
+                  sizeof(context.authority_fingerprint.bytes));
+              return Finish(hasher);
+          }
+          '''
+          replace_once(finish, helper, 'semantic context helper')
+
+          replace_once(
+              '    laplace_digest256 producer_fingerprint{};\n',
+              '    laplace_digest256 producer_fingerprint{};\n'
+              '    laplace_digest256 semantic_context_fingerprint{};\n',
+              'working-set semantic context storage')
+
+          replace_once(
+              '        state->summary.context_fingerprint = context_fingerprint;\n'
+              '        state->summary.source_fingerprint = *input->source_fingerprint;\n',
+              '        state->summary.context_fingerprint = context_fingerprint;\n'
+              '        state->semantic_context_fingerprint =\n'
+              '            SemanticContextFingerprint(*input->context);\n'
+              '        state->summary.source_fingerprint = *input->source_fingerprint;\n',
+              'working-set semantic context initialization')
+
+          replace_once(
+              '        state->summary.input_fingerprint = InputFingerprint(*input, context_fingerprint);\n',
+              '        state->summary.input_fingerprint =\n'
+              '            InputFingerprint(*input, state->semantic_context_fingerprint);\n',
+              'input fingerprint semantic context')
+
+          replace_once(
+              '    blake3_hasher_update(\n'
+              '        &hasher, state.summary.context_fingerprint.bytes,\n'
+              '        sizeof(state.summary.context_fingerprint.bytes));\n',
+              '    blake3_hasher_update(\n'
+              '        &hasher, state.semantic_context_fingerprint.bytes,\n'
+              '        sizeof(state.semantic_context_fingerprint.bytes));\n',
+              'publication semantic context')
+
+          source.write_text(text, encoding='utf-8')
+
+          tests = Path('tests/composition_frontier_runtime_tests.cpp')
+          test_text = tests.read_text(encoding='utf-8')
+          old = '''        EXPECT_EQ(parallel.preflight.maximum_outer_workers, slots);
+                  EXPECT_GT(parallel.preflight.total_planned_chunks, 1U);
+                  ExpectSameSemanticWorkingSet(scalar, parallel);
+          '''
+          new = '''        EXPECT_EQ(parallel.preflight.maximum_outer_workers, slots);
+                  EXPECT_GT(parallel.preflight.total_planned_chunks, 1U);
+                  EXPECT_FALSE(SameDigest(
+                      scalar.summary.context_fingerprint,
+                      parallel.summary.context_fingerprint));
+                  EXPECT_TRUE(SameDigest(
+                      scalar.summary.input_fingerprint,
+                      parallel.summary.input_fingerprint));
+                  ExpectSameSemanticWorkingSet(scalar, parallel);
+          '''
+          count = test_text.count(old)
+          if count != 1:
+              raise SystemExit(f'worker-grant test anchor: expected 1, found {count}')
+          tests.write_text(test_text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          git diff --check
+          git diff -- engine/src/composition_legacy.inc tests/composition_frontier_runtime_tests.cpp
+          git config user.name laplace-ci
+          git config user.email laplace-ci@users.noreply.github.com
+          git add engine/src/composition_legacy.inc tests/composition_frontier_runtime_tests.cpp
+          git commit -m 'Separate composition semantic and physical context identity'
+          git push origin HEAD:repair/composition-semantic-context-invariance-20260912
