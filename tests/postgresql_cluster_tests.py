@@ -852,7 +852,7 @@ class PostgreSQLClusterContract(unittest.TestCase):
                 service_receipt,
             )
 
-    def test_complete_activation_restarts_before_committing_active_package(self) -> None:
+    def _complete_activation(self, existing_identifier=None) -> None:
         plan = self.plan()
         staged = clusterctl.apply_plan(
             plan, self.contract, self.activation_root, False
@@ -896,6 +896,7 @@ class PostgreSQLClusterContract(unittest.TestCase):
             recorder=lambda stem, _document: recorded.append(stem),
             executor=executor,
             readiness=readiness,
+            existing_system_identifier=existing_identifier,
         )
         self.assertEqual(result["phase"], "activated")
         self.assertTrue(result["restart_proven"])
@@ -906,10 +907,10 @@ class PostgreSQLClusterContract(unittest.TestCase):
         self.assertEqual(
             executed,
             [
-                "initialize-cluster",
+                *(["initialize-cluster"] if existing_identifier is None else []),
                 "start-candidate-postmaster",
                 "candidate-readiness",
-                "bootstrap-product-database",
+                *(["bootstrap-product-database"] if existing_identifier is None else []),
                 "stop-candidate-for-restart-proof",
                 "start-candidate-after-restart",
                 "restart-readiness",
@@ -917,6 +918,17 @@ class PostgreSQLClusterContract(unittest.TestCase):
         )
         active = clusterctl.prefixed(self.activation_root, plan["active_link"])
         self.assertEqual(os.readlink(active), f"releases/{plan['package_id']}")
+
+    def test_complete_activation_restarts_before_committing_active_package(self):
+        self._complete_activation()
+
+    def test_preserved_cluster_skips_initialization_and_bootstrap(self):
+        identifier = self.loaded_observation(self.plan())["system_identifier"]
+        self._complete_activation(str(identifier))
+
+    def test_preserved_cluster_rejects_a_changed_system_identifier(self):
+        with self.assertRaisesRegex(clusterctl.ClusterError, "system identity changed"):
+            self._complete_activation("1")
 
     def test_restart_without_a_new_postmaster_is_rejected_before_commit(self) -> None:
         plan = self.plan()
@@ -971,7 +983,8 @@ class PostgreSQLClusterContract(unittest.TestCase):
         for directory in plan["state_directories"]:
             target = clusterctl.prefixed(self.activation_root, directory)
             self.assertTrue(target.is_dir())
-            self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o700)
+            expected = 0o700 if directory in (plan["instance"]["data_directory"], plan["instance"]["wal_directory"]) else 0o2770
+            self.assertEqual(stat.S_IMODE(target.stat().st_mode), expected)
         committed = clusterctl.commit_plan(
             plan,
             self.contract,

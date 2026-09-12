@@ -450,8 +450,8 @@ def validate_contract(document: dict[str, Any]) -> None:
         raise BuildError("build.shell differs from the selected bootstrap provider")
     if not isinstance(build.get("parallel_jobs"), int) or build["parallel_jobs"] < 1:
         raise BuildError("build.parallel_jobs must be positive")
-    if build.get("build_directory_mode") != "0700":
-        raise BuildError("build.build_directory_mode must be 0700")
+    if build.get("build_directory_mode") != "2770":
+        raise BuildError("build.build_directory_mode must be 2770")
     require_string(build.get("python"), "build.python")
     for field in ("install_prefix", "release_root", "build_root", "stage_root"):
         path = Path(require_string(execution.get(field), f"execution.{field}"))
@@ -976,11 +976,14 @@ def build_environment(
         f"-Wl,-rpath,'{make_encoded_runpath}'",
     ]
     home_directory.mkdir(exist_ok=True)
-    os.chmod(home_directory, 0o700)
-    if stat.S_IMODE(home_directory.stat().st_mode) != 0o700:
-        raise BuildError(f"build HOME must be private: {home_directory}")
+    os.chmod(home_directory, 0o2770)
+    if stat.S_IMODE(home_directory.stat().st_mode) != 0o2770:
+        raise BuildError(f"build HOME must preserve shared group access: {home_directory}")
     return {
         "HOME": str(home_directory.resolve()),
+        "TMPDIR": str(build_root),
+        "TMP": str(build_root),
+        "TEMP": str(build_root),
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
         "PATH": ":".join(
@@ -1355,20 +1358,22 @@ def sandboxed_build_command(
         ):
             raise BuildError("source-test overlay escaped its declared source or build root")
         arguments.extend(("--bind", str(overlay_path), str(source_path)))
-    arguments.extend(("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"))
+    arguments.extend(("--proc", "/proc", "--dev", "/dev"))
+    for variable in ("TMPDIR", "TMP", "TEMP"):
+        arguments.extend(("--setenv", variable, plan["build_directory"]))
     arguments.extend(("--chdir", plan["build_directory"], "--"))
     arguments.extend(command)
     return arguments
 
 
-def create_private_build_directory(path: Path) -> None:
-    """Create an owner-only build boundary even below a shared setgid parent."""
+def create_shared_build_directory(path: Path) -> None:
+    """Preserve shared group access across build creation and resume."""
     path.mkdir(parents=True)
-    os.chmod(path, 0o700)
+    os.chmod(path, 0o2770)
     observed_mode = stat.S_IMODE(path.stat().st_mode)
-    if observed_mode != 0o700:
+    if observed_mode != 0o2770:
         raise BuildError(
-            f"build directory mode must be 0700 without inherited setgid: {path} is {observed_mode:04o}"
+            f"build directory mode must be 2770 with shared setgid: {path} is {observed_mode:04o}"
         )
 
 
@@ -1502,16 +1507,16 @@ def prepare_build_directory(
             raise BuildError("resume build plan differs from the requested exact plan")
         for name, path in (("build", build_directory), ("stage", stage_directory)):
             observed_mode = stat.S_IMODE(path.stat().st_mode)
-            if observed_mode != 0o700:
+            if observed_mode != 0o2770:
                 raise BuildError(
-                    f"resume {name} directory mode must be 0700: observed {observed_mode:04o}"
+                    f"resume {name} directory mode must be 2770: observed {observed_mode:04o}"
                 )
         verify_runtime_bytes_in_composed_tree(plan, runtime_receipt, allow_additions=True)
     else:
         if build_directory.exists() or stage_directory.exists():
             raise BuildError("build and stage destinations must not already exist")
-        create_private_build_directory(build_directory)
-        create_private_build_directory(stage_directory)
+        create_shared_build_directory(build_directory)
+        create_shared_build_directory(stage_directory)
         plan_path.write_text(
             json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )

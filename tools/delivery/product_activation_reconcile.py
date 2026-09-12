@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 from pathlib import Path, PurePosixPath
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 from typing import Any
@@ -523,6 +525,84 @@ COMMIT;
     return receipt
 
 
+def recover_preserved_cluster(contract_path, package_path, resource_path, evidence_directory):
+    """Activate the verified package over an existing stopped cluster without initdb."""
+    ctl = runner.clusterctl
+    contract, package = ctl.load_json(contract_path), ctl.load_json(package_path)
+    ctl.validate_contract(contract)
+    instance = contract["instance"]
+    data = Path(instance["data_directory"])
+    if data.is_symlink() or data.stat().st_uid != os.geteuid():
+        raise runner.RunnerActivationError("preserved PGDATA must belong to the service account")
+    if (data / "PG_VERSION").read_text().strip() != str(contract["package"]["postgresql_major"]):
+        raise runner.RunnerActivationError("preserved PostgreSQL major differs from selected package")
+    wal = data / "pg_wal"
+    if not wal.is_symlink() or wal.resolve() != Path(instance["wal_directory"]).resolve():
+        raise runner.RunnerActivationError("preserved WAL placement differs from configured volume")
+    collision = ctl.inspect_collisions(contract, Path("/"))
+    upgrade._validate_active_collisions(collision, contract)
+    if any(row["kind"] != "path" for row in collision["collisions"]):
+        raise runner.RunnerActivationError("unselected cluster still has a live process or endpoint")
+    release = Path(contract["package"]["release_root"]) / package["package_id"]
+    control = subprocess.run([str(release / "pgsql-18/bin/pg_controldata"), str(data)],
+                             check=True, capture_output=True, text=True,
+                             env={**os.environ, "LC_ALL": "C"})
+    values = dict(line.split(":", 1) for line in control.stdout.splitlines() if ":" in line)
+    system_identifier = values["Database system identifier"].strip()
+    if not system_identifier.isdigit():
+        raise runner.RunnerActivationError("preserved cluster system identifier is invalid")
+    evidence_directory.mkdir(parents=True, exist_ok=True)
+    ctl.write_json(evidence_directory / "preserved-cluster-before.json", {
+        "system_identifier": system_identifier, "control_data": control.stdout,
+        "data_inode": data.stat().st_ino, "wal_inode": wal.resolve().stat().st_ino,
+        "collision_observation": collision})
+    projection = upgrade._project_upgrade_collision(collision, "preserved-unselected-cluster")
+    projection_path = evidence_directory / "preserved-cluster-plan-collision.json"
+    ctl.write_json(projection_path, projection)
+    plan = ctl.build_plan(contract_path, package_path, resource_path, projection_path, Path("/"))
+    previous_config = Path(instance["config_directory"]) / "postgresql.conf"
+    huge_pages = re.search(r"^huge_pages\s*=\s*'?([a-z]+)'?\s*$", previous_config.read_text(), re.M)
+    if huge_pages:
+        plan = ctl.plan_with_physical_settings(plan, contract, {"huge_pages": huge_pages.group(1)})
+    plan_path = evidence_directory / ("cluster-plan-" + plan["plan_sha256"] + ".json")
+    ctl.write_json(plan_path, plan)
+    backups = {}
+    for entry in plan["files"]:
+        path = Path(entry["path"])
+        if path.is_symlink() or (path.exists() and not path.is_file()):
+            raise runner.RunnerActivationError(f"invalid existing configuration: {path}")
+        if path.exists():
+            payload = path.read_bytes()
+            backups[str(path)] = {"content": payload, "mode": stat.S_IMODE(path.stat().st_mode),
+                                  "sha256": ctl.sha256_bytes(payload)}
+    ctl.write_json(evidence_directory / "preserved-configuration-before.json", {
+        path: {**value, "content": value["content"].hex()} for path, value in backups.items()})
+    for logical in plan["state_directories"]:
+        path = Path(logical)
+        if path.is_symlink():
+            raise runner.RunnerActivationError(f"unexpected state directory symlink: {path}")
+        path.mkdir(parents=True, exist_ok=True, mode=ctl._core.state_directory_mode(instance, logical))
+    staged = upgrade._staged_receipt(plan, "")
+    staged["cluster_plan_path"] = str(plan_path)
+    try:
+        upgrade._install_generated_files(plan)
+        upgrade._replace_runtime(package["package_id"])
+        result = ctl.execute_cluster_activation(plan, contract, staged, Path("/"), False, [],
+            existing_system_identifier=system_identifier,
+            recorder=lambda name, value: ctl.write_json(evidence_directory / (name + ".json"), value))
+        ctl.write_json(evidence_directory / "activation-complete.json", result)
+        return result
+    except BaseException:
+        # Preserve the database and evidence on every failure. Stop only this candidate.
+        try:
+            if Path(ctl.RUNTIME_LINK).is_symlink():
+                ctl.execute_activation_command("stop-preserved-candidate-after-failure",
+                                               ctl._pg_ctl_command(plan, "stop"), 300)
+        finally:
+            upgrade._restore_generated_files(backups)
+        raise
+
+
 def reconcile_cluster_activation(
     contract_path: Path,
     package_path: Path,
@@ -545,6 +625,8 @@ def reconcile_cluster_activation(
             evidence_directory,
             authorize_system_root,
         )
+    if (Path(contract["instance"]["data_directory"]) / "PG_VERSION").is_file():
+        return recover_preserved_cluster(contract_path, package_path, resource_path, evidence_directory)
     return fresh_activate_product(
         contract_path,
         package_path,

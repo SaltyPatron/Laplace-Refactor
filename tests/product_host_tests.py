@@ -7,6 +7,7 @@ import copy
 import importlib.util
 from pathlib import Path
 import stat
+from unittest import mock
 import sys
 import tempfile
 import unittest
@@ -83,7 +84,7 @@ class ProductHostTests(unittest.TestCase):
         receipt = declared[instance["receipt_directory"]]
         self.assertEqual(receipt["owner"], "laplace-runner")
         self.assertEqual(receipt["group"], "laplace-runner")
-        self.assertIn(receipt["mode"], {"0750", "2750"})
+        self.assertEqual(receipt["mode"], "2770")
 
     def test_fixture_convergence_is_persistent_exact_and_repairable(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-product-host-") as temporary:
@@ -142,7 +143,7 @@ class ProductHostTests(unittest.TestCase):
             repaired = host.converge_host(
                 REPOSITORY, self.contract_path, key, root, False
             )
-            self.assertEqual(stat.S_IMODE(build.stat().st_mode), 0o2750)
+            self.assertEqual(stat.S_IMODE(build.stat().st_mode), 0o2770)
             self.assertEqual(evidence.read_text(encoding="utf-8"), "retained\n")
             observed = next(
                 item
@@ -150,6 +151,23 @@ class ProductHostTests(unittest.TestCase):
                 if item["path"] == "/build/laplace/runner"
             )
             self.assertTrue(observed["changed"])
+
+    def test_shared_parent_repair_preserves_creator_and_group_write(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-host-group-") as temporary:
+            root = Path(temporary)
+            target = root / "shared"
+            target.mkdir(mode=0o700)
+            creator = target.stat().st_uid
+            with mock.patch.object(host.os, "chown") as chown:
+                host.ensure_directory(root, Path("/shared"), 0o2770,
+                                      creator + 1, target.stat().st_gid, True)
+            chown.assert_called_once_with(target, creator, target.stat().st_gid)
+            self.assertEqual(target.stat().st_uid, creator)
+            self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o2770)
+            child = target / "child"
+            child.mkdir()
+            self.assertEqual(child.stat().st_gid, target.stat().st_gid)
+            self.assertTrue(child.stat().st_mode & stat.S_ISGID)
 
     def test_symlinked_host_boundary_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(
@@ -247,16 +265,20 @@ class ProductHostTests(unittest.TestCase):
         self.assertIn("state/product-publication-selection.json", source)
         self.assertNotIn("/opt/laplace/receipts/postgresql/", source)
 
-    def test_setup_host_installs_only_static_envelope_then_hands_control_to_cicd(self) -> None:
+    def test_setup_host_defaults_to_product_activation_with_explicit_prerequisites_mode(self) -> None:
         entrypoint = REPOSITORY / "scripts/setup-host.sh"
         unit = REPOSITORY / "packaging/systemd/laplace-refactor-postgresql.service"
         self.assertTrue(entrypoint.is_file())
         self.assertTrue(unit.is_file())
         source = entrypoint.read_text(encoding="utf-8")
+        self.assertIn('MODE="${1:-setup}"', source)
+        self.assertIn('"$MODE" == prerequisites', source)
+        self.assertIn('"$SCRIPT_DIR/setup-product.sh"', source)
+        self.assertIn('"$SYSTEMCTL_BIN" restart "$COGNITION_SERVICE"', source)
+        self.assertNotIn('stopped here by design', source)
         service = unit.read_text(encoding="utf-8")
 
-        # One-time host envelope: identity, parent roots, static unit, enablement, and
-        # exact service-control sudo. It must stop before any product semantics.
+        # The default completes product setup; prerequisites-only is explicit.
         self.assertIn("laplace-runner", source)
         self.assertIn("resolve_command", source)
         self.assertIn('SERVICE_SOURCE="$REPOSITORY/packaging/systemd/$SERVICE"', source)

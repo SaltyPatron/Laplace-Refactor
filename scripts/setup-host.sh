@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
-# One-time Linux host prerequisite bootstrap for Laplace-Refactor.
-#
-# Human/operator boundary:
-#   sudo bash scripts/setup-host.sh
-#
-# This script does NOT build or select a Laplace package, initialize/migrate/seed a
-# database, start PostgreSQL, activate Unicode/Highway, or execute product semantics.
-# It establishes the fixed host envelope, converges obsolete host-layout residue, and
-# then exits. Recurring product delivery belongs to CI as laplace-runner.
+# Default: prepare the host, install/activate the configured product, and verify it.
+# sudo bash scripts/setup-host.sh
+# Explicit limited modes: prerequisites, storage.
 
 set -euo pipefail
+umask 0002
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY="$(cd -- "$SCRIPT_DIR/.." && pwd)"
@@ -22,6 +17,8 @@ SERVICE_SOURCE="$REPOSITORY/packaging/systemd/$SERVICE"
 SERVICE_TARGET="/etc/systemd/system/$SERVICE"
 SUDOERS_TARGET="/etc/sudoers.d/laplace-refactor-postgresql-service"
 BOOTSTRAP_RECEIPT="/opt/laplace/receipts/bootstrap/host.json"
+MODE="${1:-setup}"
+[[ "$MODE" == setup || "$MODE" == prerequisites || "$MODE" == storage ]] || { echo "usage: $0 [setup|prerequisites|storage]" >&2; exit 2; }
 
 resolve_command() {
     local name="$1"
@@ -49,6 +46,7 @@ SUDO_BIN="$(resolve_command sudo)"
 SYSTEMCTL_BIN="$(resolve_command systemctl)"
 GROUPADD_BIN="$(resolve_command groupadd)"
 USERADD_BIN="$(resolve_command useradd)"
+USERMOD_BIN="$(resolve_command usermod)"
 VISUDO_BIN="$(resolve_command visudo)"
 CHMOD_BIN="$(resolve_command chmod)"
 CHOWN_BIN="$(resolve_command chown)"
@@ -93,15 +91,32 @@ if pw.pw_gid != gr.gr_gid:
     )
 PY
 
-# Persistent service-owned PARENT roots. Instance leaves such as PGDATA, WAL,
+# The invoking operator and CI use the same group. Existing user ownership is
+# preserved; setgid and group write are the shared storage boundary.
+operator="${LAPLACE_OPERATOR:-${SUDO_USER:-}}"
+if [[ -n "$operator" && "$operator" != root ]]; then
+    "$ID_BIN" "$operator" >/dev/null
+    "$USERMOD_BIN" -aG "$RUNNER_GROUP" "$operator"
+fi
+for volume in /build /opt/laplace/pgdata /var/lib/pgwal /pgtemp; do
+    mountpoint -q "$volume" || { echo "missing storage mount: $volume" >&2; exit 1; }
+done
+
+# Persistent group-shared PARENT roots. Instance leaves such as PGDATA, WAL,
 # perfcache, instance config/log/receipt directories are deliberately not created;
 # recurring CI/product lifecycle owns those exact leaves.
 for path in \
     /build/laplace \
     /build/laplace/runner \
+    /build/laplace/build \
+    /build/laplace/work \
+    /build/laplace/work/refactor-scratch \
+    /build/laplace/worktrees \
+    /build/laplace/recovery \
     /opt/laplace \
     /opt/laplace/releases \
     /opt/laplace/runtime \
+    /opt/laplace/runtime/postgresql \
     /opt/laplace/pgdata \
     /opt/laplace/pgdata/refactor \
     /opt/laplace/receipts \
@@ -112,14 +127,71 @@ for path in \
     /var/lib/pgwal \
     /var/log/laplace \
     /var/log/laplace/postgresql; do
-    "$INSTALL_BIN" -d -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0750 "$path"
+    if [[ -L "$path" || -e "$path/PG_VERSION" ]]; then
+        echo "expected a physical shared parent: $path" >&2
+        exit 1
+    fi
+    "$INSTALL_BIN" -d -g "$RUNNER_GROUP" -m 2770 "$path"
 done
+
+# An existing socket leaf needs operator group traversal; fresh activation owns creation.
+if [[ -d /opt/laplace/runtime/postgresql/refactor && ! -L /opt/laplace/runtime/postgresql/refactor ]]; then
+    chgrp "$RUNNER_GROUP" /opt/laplace/runtime/postgresql/refactor
+    chmod 2770 /opt/laplace/runtime/postgresql/refactor
+fi
 
 # Product prefix is service-owned but traversable. CI can atomically manage
 # /opt/laplace/current, /opt/laplace/runtime/refactor and content-addressed releases
 # without recurring sudo.
-"$CHMOD_BIN" 0755 /opt/laplace
-"$CHMOD_BIN" 0755 /opt/laplace/releases
+"$CHMOD_BIN" 2775 /opt/laplace
+"$CHMOD_BIN" 2775 /opt/laplace/releases
+
+# Published trees and recovery evidence retain their exact recorded metadata.
+PUBLISHED_INPUTS=$(readlink -m /opt/laplace/package-inputs/postgresql)
+PUBLISHED_RELEASES=$(readlink -m /opt/laplace/releases)
+for workspace in /build/laplace/build /build/laplace/work /build/laplace/worktrees \
+    /build/laplace/runner/product/build /build/laplace/runner/product/locks; do
+    [[ -d "$workspace" && ! -L "$workspace" ]] || continue
+    find "$workspace" -xdev \( -path "$PUBLISHED_INPUTS" -o -path "$PUBLISHED_RELEASES" \) -prune -o ! -type l -exec chgrp "$RUNNER_GROUP" {} +
+    find "$workspace" -xdev \( -path "$PUBLISHED_INPUTS" -o -path "$PUBLISHED_RELEASES" \) -prune -o -type d -exec chmod g+rws {} +
+    find "$workspace" -xdev \( -path "$PUBLISHED_INPUTS" -o -path "$PUBLISHED_RELEASES" \) -prune -o -type f -exec chmod g+rwX {} +
+done
+
+export TMPDIR=/build/laplace/work/refactor-scratch TMP=/build/laplace/work/refactor-scratch TEMP=/build/laplace/work/refactor-scratch
+
+# The Refactor runner must create group-writable artifacts on every job, even
+# when an individual build tool does not set its own process umask.
+RUNNER_UNIT=actions.runner.SaltyPatron-Laplace-Refactor.hart-server-refactor.service
+if "$SYSTEMCTL_BIN" cat "$RUNNER_UNIT" >/dev/null 2>&1; then
+    [[ $("$SYSTEMCTL_BIN" show "$RUNNER_UNIT" -p User --value) == "$RUNNER_USER" ]] || {
+        echo "runner service identity differs: $RUNNER_UNIT" >&2; exit 1;
+    }
+    "$INSTALL_BIN" -d -m 0755 "/etc/systemd/system/$RUNNER_UNIT.d"
+    cat > "/etc/systemd/system/$RUNNER_UNIT.d/50-laplace-storage.conf" <<EOF
+[Unit]
+RequiresMountsFor=/build /var/lib/agents
+
+[Service]
+Group=$RUNNER_GROUP
+UMask=0002
+Environment=TMPDIR=$TMPDIR
+Environment=TMP=$TMP
+Environment=TEMP=$TEMP
+EOF
+    runner_directory="$RUNNER_HOME/actions-runner-refactor"
+    if [[ -d "$runner_directory" ]]; then
+        path_seed=$(mktemp "$TMPDIR/runner-path.XXXXXXXX")
+        printf '%s\n' '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' > "$path_seed"
+        "$INSTALL_BIN" -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0664 "$path_seed" "$runner_directory/.path"
+        rm -- "$path_seed"
+    fi
+    "$SYSTEMCTL_BIN" daemon-reload
+    "$SYSTEMCTL_BIN" try-restart "$RUNNER_UNIT"
+fi
+if [[ "$MODE" == storage ]]; then
+    echo "Shared parent permissions and Refactor runner storage environment repaired."
+    exit 0
+fi
 
 # The host owns the /etc namespace; laplace-runner owns the product's instance
 # configuration content through this bounded group-writable parent.
@@ -203,6 +275,7 @@ cat > "$SUDOERS_TARGET" <<EOF
 $RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN start $SERVICE
 $RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN stop $SERVICE
 $RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN restart $SERVICE
+$RUNNER_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN restart laplace-refactor-cognition.service
 EOF
 "$CHMOD_BIN" 0440 "$SUDOERS_TARGET"
 "$CHOWN_BIN" root:root "$SUDOERS_TARGET"
@@ -252,14 +325,23 @@ EOF
 "$INSTALL_BIN" -o "$RUNNER_USER" -g "$RUNNER_GROUP" -m 0640 \
     "$TMP_RECEIPT" "$BOOTSTRAP_RECEIPT"
 
-cat <<EOF
-Laplace host prerequisites are ready.
+if [[ "$MODE" == prerequisites ]]; then
+    echo "Host prerequisites completed. Receipt: $BOOTSTRAP_RECEIPT"
+    exit 0
+fi
 
-setup-host stopped here by design. It installed/enabled the static OS service envelope
-but did not select a package, initialize/start PostgreSQL, seed data, or activate
-Unicode/Highway. Recurring product delivery belongs to CI as $RUNNER_USER.
-
-Bootstrap receipt: $BOOTSTRAP_RECEIPT
-Service envelope:  $SERVICE_TARGET (enabled, not started)
-Sudo capability:   $SYSTEMCTL_BIN start|stop|restart $SERVICE only
-EOF
+"$SUDO_BIN" -u "$RUNNER_USER" -H -- bash "$SCRIPT_DIR/setup-product.sh"
+COGNITION_SERVICE=laplace-refactor-cognition.service
+"$INSTALL_BIN" -o root -g root -m 0644 "$REPOSITORY/packaging/systemd/$COGNITION_SERVICE" "/etc/systemd/system/$COGNITION_SERVICE"
+"$SYSTEMCTL_BIN" daemon-reload
+"$SYSTEMCTL_BIN" enable "$COGNITION_SERVICE"
+"$SYSTEMCTL_BIN" restart "$COGNITION_SERVICE"
+"$SYSTEMCTL_BIN" is-active --quiet "$COGNITION_SERVICE"
+for attempt in {1..30}; do
+    if "$SUDO_BIN" -u "$RUNNER_USER" -H -- /opt/laplace/runtime/refactor/bin/laplace-cognition --relations constituent AA > "$TMPDIR/setup-cognition-readback" 2>/dev/null; then
+        [[ $(cat "$TMPDIR/setup-cognition-readback") == A ]] && break
+    fi
+    [[ "$attempt" != 30 ]] || { echo 'Installed cognition readback failed' >&2; exit 1; }
+    sleep 1
+done
+echo "Laplace setup completed: PostgreSQL, Unicode, Highway and the cognition service are running and verified."

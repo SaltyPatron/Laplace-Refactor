@@ -115,6 +115,15 @@ class PackageProductProofTests(unittest.TestCase):
         }
         proof.validate_manifest_source(manifest, commit, tree)
 
+    def test_content_equivalent_package_retains_original_commit(self) -> None:
+        manifest = {"laplace": {"repository_commit": "a" * 40,
+                                "repository_tree": "b" * 40,
+                                "repository_build_fingerprint": "c" * 64}}
+        proof.validate_manifest_source(manifest, "d" * 40, "e" * 40, "c" * 64)
+        self.assertEqual(manifest["laplace"]["repository_commit"], "a" * 40)
+        with self.assertRaisesRegex(proof.PackageProductProofError, "build inputs differ"):
+            proof.validate_manifest_source(manifest, "a" * 40, "b" * 40, "f" * 64)
+
     def test_manifest_source_rejects_stale_or_wrong_identity(self) -> None:
         commit = "a" * 40
         tree = "b" * 40
