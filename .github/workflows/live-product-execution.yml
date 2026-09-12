@@ -1,0 +1,147 @@
+name: live-product-execution
+
+on:
+  push:
+    branches:
+      - delivery/laplace-live-product-20260911
+    paths:
+      - '.github/workflows/live-product-execution.yml'
+      - 'contracts/sources/**'
+      - 'tools/live_product/**'
+      - 'tools/source_recipe/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-product-execution
+  cancel-in-progress: false
+
+jobs:
+  inspect-live-estate:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify exact OEWN 2025+ artifact and inspect WN-LMF structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=/vault/Data/.refresh-20260903/OpenEnglishWordNet-2025-plus
+          artifact="$root/english-wordnet-2025-plus.xml.gz"
+          test -d "$root"
+          test -f "$artifact"
+          test ! -L "$artifact"
+          expected=31f4af16c54b532fd5484d4cc33aee588a31bb5b70683ae8197842fde5b586bc
+          actual=$(sha256sum "$artifact" | awk '{print $1}')
+          test "$actual" = "$expected"
+
+          python3 - "$artifact" "$RUNNER_TEMP/oewn-structure.json" <<'PY'
+          import gzip
+          import json
+          import sys
+          import xml.etree.ElementTree as ET
+          from collections import Counter, defaultdict
+
+          artifact, output = sys.argv[1:]
+          tags = Counter()
+          attrs = defaultdict(Counter)
+          examples = defaultdict(list)
+          root_tag = None
+          namespace = None
+          with gzip.open(artifact, 'rb') as stream:
+              for event, element in ET.iterparse(stream, events=('start', 'end')):
+                  if event == 'start':
+                      if root_tag is None:
+                          root_tag = element.tag
+                          if element.tag.startswith('{'):
+                              namespace = element.tag[1:].split('}', 1)[0]
+                      local = element.tag.rsplit('}', 1)[-1]
+                      tags[local] += 1
+                      for key in element.attrib:
+                          attrs[local][key.rsplit('}', 1)[-1]] += 1
+                      if len(examples[local]) < 3:
+                          sample = {k.rsplit('}', 1)[-1]: v for k, v in element.attrib.items()}
+                          if sample:
+                              examples[local].append(sample)
+                  else:
+                      element.clear()
+          document = {
+              'schema': 'laplace.live-source-structure/v1',
+              'source': 'oewn-2025-plus',
+              'artifact': artifact,
+              'root_tag': root_tag,
+              'namespace': namespace,
+              'element_counts': dict(sorted(tags.items())),
+              'attribute_counts': {k: dict(sorted(v.items())) for k, v in sorted(attrs.items())},
+              'attribute_examples': dict(sorted(examples.items())),
+          }
+          with open(output, 'w', encoding='utf-8') as handle:
+              json.dump(document, handle, sort_keys=True, indent=2)
+              handle.write('\n')
+          PY
+
+          jq -e '
+            .schema == "laplace.live-source-structure/v1" and
+            .source == "oewn-2025-plus" and
+            (.element_counts.Lexicon // 0) > 0 and
+            (.element_counts.LexicalEntry // 0) > 0 and
+            (.element_counts.Synset // 0) > 0 and
+            (.element_counts.Sense // 0) > 0
+          ' "$RUNNER_TEMP/oewn-structure.json" >/dev/null
+
+          {
+            echo '## Live OEWN 2025+ source'
+            echo "SHA-256: $actual"
+            echo '```json'
+            cat "$RUNNER_TEMP/oewn-structure.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Inspect active installed Laplace product without rebuilding
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -L /opt/laplace/current
+          active=$(readlink -f /opt/laplace/current)
+          test -d "$active"
+          printf 'active_release=%s\n' "$active"
+
+          for tool in \
+            laplace-cognition \
+            laplace-cognition-service \
+            laplace-inspect \
+            laplace-admit-source \
+            laplace-model-export \
+            laplace-live-substrate; do
+            if [[ -x "$active/bin/$tool" ]]; then
+              printf '%s=present\n' "$tool"
+            else
+              printf '%s=absent\n' "$tool"
+            fi
+          done | tee "$RUNNER_TEMP/installed-tools.txt"
+
+          {
+            echo '## Active installed Laplace product'
+            echo "Release: \`$active\`"
+            echo '```text'
+            cat "$RUNNER_TEMP/installed-tools.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -x "$active/bin/laplace-inspect" ]]; then
+            "$active/bin/laplace-inspect" --pretty summary \
+              | tee "$RUNNER_TEMP/live-summary.json"
+            {
+              echo '### Persistent substrate summary'
+              echo '```json'
+              cat "$RUNNER_TEMP/live-summary.json"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
