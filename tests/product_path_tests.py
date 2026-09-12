@@ -91,6 +91,15 @@ class ProductPathTests(unittest.TestCase):
         self.assertNotIn("package-product", result["unimplemented_evidence"])
         self.assertFalse(result["blocked"])
 
+    def test_source_admission_runtime_requires_package_product(self) -> None:
+        for path in ("tools/admit_source.py", "tools/admit_source_guard.py"):
+            with self.subTest(path=path):
+                result = self.classify(path)
+                self.assertIn("package", result["classes"])
+                self.assertTrue(result["requires_package_product"])
+                self.assertIn("package-product", result["required_evidence"])
+                self.assertFalse(result["blocked"])
+
     def test_package_proof_control_plane_requires_its_own_physical_proof(self) -> None:
         for path in (
             ".github/workflows/package-product.yml",
