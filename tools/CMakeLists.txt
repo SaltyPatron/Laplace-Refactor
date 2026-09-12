@@ -94,7 +94,12 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/model_export.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-model-export)
 
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-cognition)
+
 if(BUILD_TESTING)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(
         NAME delivery.receipt-store-contract
         COMMAND "${CMAKE_COMMAND}"
@@ -103,6 +108,12 @@ if(BUILD_TESTING)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/../tests/receipt_store_test.cmake")
     set_tests_properties(delivery.receipt-store-contract PROPERTIES
         LABELS "delivery;receipt;blake3;package;mutation")
+    add_test(
+        NAME product.installed-cognition-command
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/installed_cognition_cli_tests.py")
+    set_tests_properties(product.installed-cognition-command PROPERTIES
+        LABELS "product;cognition;installed;postgresql;receipt;mutation")
 endif()
 
 add_executable(laplace_unicode_artifact_verify unicode_artifact_verify.cpp)
