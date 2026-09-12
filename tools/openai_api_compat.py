@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
+import json
 from pathlib import Path
 import sys
 from typing import Any
+from urllib.parse import urlparse
 
 MODEL_ID = "laplace-native"
 MAXIMUM_PROMPT_BYTES = 1024 * 1024
@@ -32,8 +34,9 @@ def normalize_chat_payload(payload: Any) -> str:
         raise ChatProfileError(400, "unsupported Chat Completions field(s): " + ", ".join(unsupported), param=unsupported[0], code="unsupported_parameter")
     if payload.get("model") != MODEL_ID:
         raise ChatProfileError(404, f"model must be {MODEL_ID!r}", param="model", code="model_not_found")
-    if payload.get("stream", False) is not False:
-        raise ChatProfileError(400, "streaming Chat Completions are not implemented by this compatibility profile", param="stream", code="unsupported_parameter")
+    stream = payload.get("stream", False)
+    if not isinstance(stream, bool):
+        raise ChatProfileError(400, "stream must be a boolean", param="stream")
     n = payload.get("n", 1)
     if isinstance(n, bool) or not isinstance(n, int) or n != 1:
         raise ChatProfileError(400, "this compatibility profile requires n=1", param="n")
@@ -92,16 +95,81 @@ def load_core() -> Any:
     return module
 
 
+def as_core_error(core: Any, error: ChatProfileError) -> Exception:
+    return core.ApiError(error.status, error.message, param=error.param, code=error.code)
+
+
 def main() -> int:
     core = load_core()
 
-    def require_chat_profile(payload: Any) -> str:
-        try:
-            return normalize_chat_payload(payload)
-        except ChatProfileError as error:
-            raise core.ApiError(error.status, error.message, param=error.param, code=error.code) from error
+    class CompatibilityHandler(core.Handler):
+        def _send_stream(self, completion: dict[str, Any], receipt: str | None) -> None:
+            choices = completion.get("choices")
+            message = choices[0].get("message") if isinstance(choices, list) and choices and isinstance(choices[0], dict) else None
+            content = message.get("content") if isinstance(message, dict) else None
+            if not isinstance(content, str):
+                raise core.ApiError(502, "Laplace cognition returned no assistant text", "api_error")
+            base = {
+                "id": completion.get("id"),
+                "object": "chat.completion.chunk",
+                "created": completion.get("created"),
+                "model": completion.get("model"),
+                "system_fingerprint": completion.get("system_fingerprint"),
+            }
+            chunks = [
+                {
+                    **base,
+                    "choices": [{"index": 0, "delta": {"role": "assistant", "content": content}, "finish_reason": None}],
+                },
+                {
+                    **base,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                },
+            ]
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Connection", "close")
+            if receipt is not None:
+                self.send_header("X-Laplace-Receipt-ID", receipt)
+            self.end_headers()
+            for chunk in chunks:
+                frame = "data: " + json.dumps(chunk, ensure_ascii=False, separators=(",", ":")) + "\n\n"
+                self.wfile.write(frame.encode("utf-8"))
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            self.close_connection = True
 
-    core.require_exact_chat_profile = require_chat_profile
+        def _chat_completions(self) -> None:
+            self._authorize()
+            payload = self._read_json()
+            try:
+                prompt = normalize_chat_payload(payload)
+            except ChatProfileError as error:
+                raise as_core_error(core, error) from error
+            completion, receipt = core.completion_from_cognition(
+                core.cognition_request(self.cognition_socket, {"prompt": prompt})
+            )
+            if payload.get("stream", False):
+                self._send_stream(completion, receipt)
+            else:
+                self._send_json(
+                    200,
+                    completion,
+                    headers={"X-Laplace-Receipt-ID": receipt} if receipt is not None else None,
+                )
+
+        def do_POST(self) -> None:
+            if urlparse(self.path).path != "/v1/chat/completions":
+                super().do_POST()
+                return
+            try:
+                self._chat_completions()
+            except core.ApiError as error:
+                self._send_error(error)
+
+    core.Handler = CompatibilityHandler
     return int(core.main())
 
 
