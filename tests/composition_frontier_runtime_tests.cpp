@@ -480,6 +480,12 @@ TEST(
         const auto parallel = Scenario(false, slots);
         EXPECT_EQ(parallel.preflight.maximum_outer_workers, slots);
         EXPECT_GT(parallel.preflight.total_planned_chunks, 1U);
+        EXPECT_FALSE(SameDigest(
+            scalar.summary.context_fingerprint,
+            parallel.summary.context_fingerprint));
+        EXPECT_TRUE(SameDigest(
+            scalar.summary.input_fingerprint,
+            parallel.summary.input_fingerprint));
         ExpectSameSemanticWorkingSet(scalar, parallel);
         ExpectPostflightMatchesPreflight(parallel);
     }

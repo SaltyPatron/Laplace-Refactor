@@ -20,6 +20,8 @@
 namespace {
 
 constexpr std::string_view InputDomain{"laplace-composition-working-set-input-v1"};
+constexpr std::string_view SemanticContextDomain{
+    "laplace-composition-semantic-context-v1"};
 constexpr std::string_view ReceiptDomain{"laplace-composition-working-set-receipt-v1"};
 constexpr std::string_view ProducerDomain{"laplace-composition-working-set-producer-v1"};
 constexpr std::string_view CursorDomain{"laplace-composition-working-set-cursor-v1"};
@@ -118,6 +120,31 @@ laplace_digest256 Finish(blake3_hasher& hasher) {
     laplace_digest256 result{};
     blake3_hasher_finalize(&hasher, result.bytes, sizeof(result.bytes));
     return result;
+}
+
+laplace_digest256 SemanticContextFingerprint(
+    const laplace_framework_context& context) {
+    blake3_hasher hasher{};
+    blake3_hasher_init(&hasher);
+    HashString(hasher, SemanticContextDomain);
+    HashU32(hasher, context.major);
+    HashU32(hasher, context.minor);
+    HashU32(hasher, context.flags);
+    HashU64(hasher, context.epoch_mask);
+    for (std::uint32_t index = 0U;
+         index < LAPLACE_FRAMEWORK_EPOCH_COUNT; ++index) {
+        if ((context.epoch_mask & (UINT64_C(1) << index)) == 0U) {
+            continue;
+        }
+        HashU32(hasher, index);
+        blake3_hasher_update(
+            &hasher, context.epochs[index].bytes,
+            sizeof(context.epochs[index].bytes));
+    }
+    blake3_hasher_update(
+        &hasher, context.authority_fingerprint.bytes,
+        sizeof(context.authority_fingerprint.bytes));
+    return Finish(hasher);
 }
 
 void HashPhysicality(
@@ -271,6 +298,7 @@ struct laplace_composition_working_set {
     std::vector<BatchSlice> slices;
     std::vector<laplace_framework_canonical_batch> batches;
     laplace_digest256 producer_fingerprint{};
+    laplace_digest256 semantic_context_fingerprint{};
     std::uint64_t preferred_batch_bytes{};
     std::uint32_t effect_disposition{LAPLACE_FRAMEWORK_EFFECT_NONE};
 };
@@ -1309,8 +1337,8 @@ void RefreshPublicationFingerprints(laplace_composition_working_set& state) {
     blake3_hasher_init(&hasher);
     HashString(hasher, ReceiptDomain);
     blake3_hasher_update(
-        &hasher, state.summary.context_fingerprint.bytes,
-        sizeof(state.summary.context_fingerprint.bytes));
+        &hasher, state.semantic_context_fingerprint.bytes,
+        sizeof(state.semantic_context_fingerprint.bytes));
     blake3_hasher_update(
         &hasher, state.summary.input_fingerprint.bytes,
         sizeof(state.summary.input_fingerprint.bytes));
@@ -1429,10 +1457,13 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
     }
     try {
         state->summary.context_fingerprint = context_fingerprint;
+        state->semantic_context_fingerprint =
+            SemanticContextFingerprint(*input->context);
         state->summary.source_fingerprint = *input->source_fingerprint;
         state->summary.calculation_recipe_fingerprint =
             *input->calculation_recipe_fingerprint;
-        state->summary.input_fingerprint = InputFingerprint(*input, context_fingerprint);
+        state->summary.input_fingerprint =
+            InputFingerprint(*input, state->semantic_context_fingerprint);
         state->summary.known_entity_count = input->known_entity_count;
         state->summary.request_count = input->request_count;
         state->summary.operand_count = input->operand_count;
