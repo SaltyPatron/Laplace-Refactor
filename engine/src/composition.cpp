@@ -36,10 +36,6 @@ extern "C" laplace_execution_status composition_capture_run_work(
     laplace_execution_work_task_fn task,
     laplace_execution_work_receipt* receipt);
 
-extern "C" laplace_execution_status composition_select_oneapi_provider(
-    laplace_execution_oneapi_provider_state* state,
-    laplace_execution_runtime_provider_v1* provider);
-
 }  // namespace
 
 /*
@@ -51,8 +47,8 @@ extern "C" laplace_execution_status composition_select_oneapi_provider(
  * 2. common execution dispatch is intercepted only for CalculateRequestChunk so
  *    every runtime frontier is checked against the shared dependency planner and
  *    its real execution receipt is retained;
- * 3. oneAPI provider selection is intercepted only when a caller explicitly binds
- *    a common runtime provider through the public provider-bound create surface.
+ * 3. an explicitly bound runtime provider is substituted only at that same common
+ *    execution seam, leaving ordinary oneAPI/serial provider selection unchanged.
  *
  * The implementation unit remains ordinary C++ source included into this one
  * translation unit; it is not a second semantic engine.
@@ -60,7 +56,6 @@ extern "C" laplace_execution_status composition_select_oneapi_provider(
 #define laplace_composition_working_set_create composition_working_set_create_impl
 #define laplace_composition_working_set_destroy composition_working_set_destroy_impl
 #define laplace_execution_run_work composition_capture_run_work
-#define laplace_execution_oneapi_provider composition_select_oneapi_provider
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic warning "-Wsubobject-linkage"
@@ -69,7 +64,6 @@ extern "C" laplace_execution_status composition_select_oneapi_provider(
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
-#undef laplace_execution_oneapi_provider
 #undef laplace_execution_run_work
 #undef laplace_composition_working_set_destroy
 #undef laplace_composition_working_set_create
@@ -132,19 +126,6 @@ bool ReceiptSetComplete(
     return completed_items == input.request_count;
 }
 
-extern "C" laplace_execution_status composition_select_oneapi_provider(
-    laplace_execution_oneapi_provider_state* const state,
-    laplace_execution_runtime_provider_v1* const provider) {
-    if (active_execution_provider == nullptr) {
-        return laplace_execution_oneapi_provider(state, provider);
-    }
-    if (provider == nullptr) {
-        return LAPLACE_EXECUTION_INVALID_ARGUMENT;
-    }
-    *provider = *active_execution_provider;
-    return LAPLACE_EXECUTION_OK;
-}
-
 extern "C" laplace_execution_status composition_capture_run_work(
     const laplace_execution_grant* const grant,
     const laplace_execution_work_request* const request,
@@ -186,8 +167,10 @@ extern "C" laplace_execution_status composition_capture_run_work(
         }
     }
 
+    const auto* const execution_provider =
+        active_execution_provider == nullptr ? provider : active_execution_provider;
     const auto status = laplace_execution_run_work(
-        grant, request, provider, task_state, task, receipt);
+        grant, request, execution_provider, task_state, task, receipt);
     if (status != LAPLACE_EXECUTION_OK) {
         return status;
     }
