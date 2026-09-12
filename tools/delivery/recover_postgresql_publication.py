@@ -290,11 +290,11 @@ def exact_private_source_plan(
             not source_path.is_absolute()
             or ".." in source_path.parts
             or PUBLICATION.HEX_256.fullmatch(source_sha256) is None
-            or not source_path.is_file()
-            or source_path.is_symlink()
         ):
             continue
         try:
+            if not source_path.is_file() or source_path.is_symlink():
+                continue
             if PUBLICATION.sha256_file(source_path) != source_sha256:
                 continue
             plan = plan_from_private_source(
@@ -304,7 +304,7 @@ def exact_private_source_plan(
                 source_path,
             )
             payload = PUBLICATION.receipt_bytes(plan["receipt"])
-        except (PUBLICATION.PublicationError, RecoveryError):
+        except (PUBLICATION.PublicationError, RecoveryError, OSError):
             continue
         if (
             Path(plan["receipt"]["receipt_path"]) == selected_receipt

@@ -4,6 +4,8 @@ set -euo pipefail
 umask 0002
 [[ $(id -un) == laplace-runner ]] || { echo 'Product setup requires laplace-runner execution' >&2; exit 1; }
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+# This invocation deliberately uses the operator-owned, group-shared checkout.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$PWD"
 export TMPDIR=/build/laplace/work/refactor-scratch TMP=/build/laplace/work/refactor-scratch TEMP=/build/laplace/work/refactor-scratch
 mountpoint -q /build
 mkdir -p "$TMPDIR"

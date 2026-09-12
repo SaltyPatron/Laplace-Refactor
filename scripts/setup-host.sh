@@ -146,12 +146,15 @@ fi
 "$CHMOD_BIN" 2775 /opt/laplace
 "$CHMOD_BIN" 2775 /opt/laplace/releases
 
-for workspace in /build/laplace/build /build/laplace/work /build/laplace/worktrees /build/laplace/recovery \
-    /build/laplace/runner/product/build /build/laplace/runner/product/stage /build/laplace/runner/product/locks; do
+# Published trees and recovery evidence retain their exact recorded metadata.
+PUBLISHED_INPUTS=$(readlink -m /opt/laplace/package-inputs/postgresql)
+PUBLISHED_RELEASES=$(readlink -m /opt/laplace/releases)
+for workspace in /build/laplace/build /build/laplace/work /build/laplace/worktrees \
+    /build/laplace/runner/product/build /build/laplace/runner/product/locks; do
     [[ -d "$workspace" && ! -L "$workspace" ]] || continue
-    find "$workspace" -xdev ! -type l -exec chgrp "$RUNNER_GROUP" {} +
-    find "$workspace" -xdev -type d -exec chmod g+rws {} +
-    find "$workspace" -xdev -type f -exec chmod g+rwX {} +
+    find "$workspace" -xdev \( -path "$PUBLISHED_INPUTS" -o -path "$PUBLISHED_RELEASES" \) -prune -o ! -type l -exec chgrp "$RUNNER_GROUP" {} +
+    find "$workspace" -xdev \( -path "$PUBLISHED_INPUTS" -o -path "$PUBLISHED_RELEASES" \) -prune -o -type d -exec chmod g+rws {} +
+    find "$workspace" -xdev \( -path "$PUBLISHED_INPUTS" -o -path "$PUBLISHED_RELEASES" \) -prune -o -type f -exec chmod g+rwX {} +
 done
 
 export TMPDIR=/build/laplace/work/refactor-scratch TMP=/build/laplace/work/refactor-scratch TEMP=/build/laplace/work/refactor-scratch
